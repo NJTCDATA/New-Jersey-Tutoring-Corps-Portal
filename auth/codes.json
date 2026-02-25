@@ -1,0 +1,22 @@
+{
+  "_comment": "SHA-256 hashes of valid access codes. d = department/type. Replace hashes with your real codes before deploy. Never store plaintext codes here.",
+  "_depts": {
+    "hr": "Human Resources",
+    "finance": "Finance",
+    "programming": "Programming",
+    "data": "Data & Evaluation",
+    "training": "Training & Development",
+    "leadership": "Leadership",
+    "onsite": "Onsite Staff"
+  },
+  "codes": [
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-HR-XXXX", "d": "hr" },
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-FIN-XXXX", "d": "finance" },
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-PRG-XXXX", "d": "programming" },
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-DAT-XXXX", "d": "data" },
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-TRN-XXXX", "d": "training" },
+    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-LDR-XXXX", "d": "leadership" },
+    { "h": "REPLACE_WITH_SHA256_OF_OS-NJTC-SITE-XXXX", "d": "onsite" },
+    { "h": "REPLACE_WITH_SHA256_OF_OS-NJTC-TUTR-XXXX", "d": "onsite" }
+  ]
+}
