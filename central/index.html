@@ -2806,23 +2806,48 @@
     }
 
     if (!DRIVE_MANIFEST_ID.startsWith('REPLACE')) {
-      try {
-        const url = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}&ts=${forceRefresh?Date.now():''}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-        if (res.ok) {
-          const raw = await res.text();
-          const parsed = JSON.parse(raw);
-          docs = parsed.map(d => ({
-            ...d,
-            dept: d.dept || 'shared',
-            sectionsModified: d.sectionsModified || [],
-            annualGoals: d.annualGoals || [],
-            _isDriveUpload: true,
-            _driveManifest: true,
-          }));
-          fromDrive = true;
+      // Try multiple fetch strategies to work around CORS restrictions on Drive direct URLs.
+      // Strategy 1: GitHub raw (preferred — no CORS, fastest, use if manifest.json is in the repo)
+      // Strategy 2: Google Drive export with no-cors (limited but sometimes works)
+      // Strategy 3: CORS proxy fallback
+      const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/njtcdata/New-Jersey-Tutoring-Corps-Portal/main/central/manifest.json';
+      const DRIVE_DIRECT_URL = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}`;
+      const CORS_PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(DRIVE_DIRECT_URL)}`;
+
+      const tryFetch = async (url) => {
+        const res = await fetch(url + (forceRefresh ? (url.includes('?') ? '&' : '?') + 't=' + Date.now() : ''), {
+          signal: AbortSignal.timeout(8000)
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const raw = await res.text();
+        return JSON.parse(raw);
+      };
+
+      const strategies = [
+        { label: 'GitHub', url: GITHUB_MANIFEST_URL },
+        { label: 'CORS Proxy', url: CORS_PROXY_URL },
+      ];
+
+      for (const strategy of strategies) {
+        try {
+          const parsed = await tryFetch(strategy.url);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            docs = parsed.map(d => ({
+              ...d,
+              dept: d.dept || 'shared',
+              sectionsModified: d.sectionsModified || [],
+              annualGoals: d.annualGoals || [],
+              _isDriveUpload: true,
+              _driveManifest: true,
+            }));
+            fromDrive = true;
+            console.log(`[Manifest] Loaded via ${strategy.label}: ${parsed.length} documents`);
+            break;
+          }
+        } catch(e) {
+          console.warn(`[Manifest] ${strategy.label} failed:`, e.message);
         }
-      } catch(e) { /* use inline */ }
+      }
     }
 
     // Merge in any locally-uploaded PDF additions
