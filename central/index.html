@@ -1426,10 +1426,8 @@
 
   // ── Perf concern dept gate ───────────────────────────────
   function setupPerfSection(dept) {
-    const canSeeBoard = ['hr', 'leadership'].includes(dept);
-    document.getElementById('perfHRBoard').style.display    = canSeeBoard ? 'block' : 'none';
-    document.getElementById('perfAccessDenied').style.display = canSeeBoard ? 'none' : 'none'; // form always visible
-    document.getElementById('perfFormSection').style.display = 'block';
+    // Panel simplified — form is now combined in panel-concern-program
+    // No legacy HR board elements remain; nothing to toggle
   }
 
   // ── Session timer ────────────────────────────────────────
