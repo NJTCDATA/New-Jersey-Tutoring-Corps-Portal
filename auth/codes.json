@@ -1,5 +1,5 @@
 {
-  "_comment": "SHA-256 hashes of valid access codes. d = department/type. Replace hashes with your real codes before deploy. Never store plaintext codes here.",
+  "_comment": "SHA-256 hashes only. Plaintext codes entered via GitHub Actions and never stored here.",
   "_depts": {
     "hr": "Human Resources",
     "finance": "Finance",
@@ -10,13 +10,33 @@
     "onsite": "Onsite Staff"
   },
   "codes": [
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-HR-XXXX", "d": "hr" },
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-FIN-XXXX", "d": "finance" },
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-PRG-XXXX", "d": "programming" },
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-DAT-XXXX", "d": "data" },
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-TRN-XXXX", "d": "training" },
-    { "h": "REPLACE_WITH_SHA256_OF_CT-NJTC-LDR-XXXX", "d": "leadership" },
-    { "h": "REPLACE_WITH_SHA256_OF_OS-NJTC-SITE-XXXX", "d": "onsite" },
-    { "h": "REPLACE_WITH_SHA256_OF_OS-NJTC-TUTR-XXXX", "d": "onsite" }
+    {
+      "h": "cdf61be350d29bacba43ebb143beb03a1d042a845a1d298e3a3e9fc53e67edc4",
+      "d": "hr"
+    },
+    {
+      "h": "0685e80b56d676307fb5f38a64015b4820acc9966494ae55d50ba4dd9645ae8c",
+      "d": "finance"
+    },
+    {
+      "h": "c5fe9a36798fbb4ae867a888ec1b8313fafe98ada2d96a54192e43a585d84704",
+      "d": "programming"
+    },
+    {
+      "h": "aa1a206006d3602c82fd1b7bc82d8d42ebf35f94830dfd2fb8d88a68c7131bcc",
+      "d": "data"
+    },
+    {
+      "h": "b8e8452a51f03fce1ecce2443416605d4dbc92ff1587f2cba118eba7739ae9fa",
+      "d": "training"
+    },
+    {
+      "h": "ce4eab5ad2f665264ca7c8a4a8b3724f8af85d5980f9ca53428cef2257e630ad",
+      "d": "leadership"
+    },
+    {
+      "h": "2e356afb457fa125e71b67f601fbdb3d8bad4f4d9e548d99ac0788f665c8a21c",
+      "d": "onsite"
+    }
   ]
 }
