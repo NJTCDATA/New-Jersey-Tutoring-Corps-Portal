@@ -1,0 +1,101 @@
+name: Rotate Access Code Hashes (Manual)
+
+# Run this workflow manually from GitHub Actions tab when codes need to be updated.
+# Provide the new plaintext codes as inputs (they are NOT stored anywhere — only hashes are committed).
+
+on:
+  workflow_dispatch:
+    inputs:
+      CT_HR:
+        description: 'CT HR code (e.g. CT-NJTC-HR-XXXX)'
+        required: true
+      CT_FIN:
+        description: 'CT Finance code'
+        required: true
+      CT_PRG:
+        description: 'CT Programming code'
+        required: true
+      CT_DAT:
+        description: 'CT Data & Evaluation code'
+        required: true
+      CT_TRN:
+        description: 'CT Training & Development code'
+        required: true
+      CT_LDR:
+        description: 'CT Leadership code'
+        required: true
+      OS_CODE_1:
+        description: 'Onsite code 1'
+        required: true
+      OS_CODE_2:
+        description: 'Onsite code 2 (second onsite code or same as 1)'
+        required: false
+
+jobs:
+  update-hashes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate hash list and write auth/codes.json
+        run: |
+          node <<'EOF'
+          const crypto = require('crypto');
+          const fs     = require('fs');
+
+          function sha256(s) {
+            return crypto.createHash('sha256').update(s).digest('hex');
+          }
+
+          const inputs = {
+            CT_HR:    process.env.CT_HR,
+            CT_FIN:   process.env.CT_FIN,
+            CT_PRG:   process.env.CT_PRG,
+            CT_DAT:   process.env.CT_DAT,
+            CT_TRN:   process.env.CT_TRN,
+            CT_LDR:   process.env.CT_LDR,
+            OS_CODE_1: process.env.OS_CODE_1,
+            OS_CODE_2: process.env.OS_CODE_2,
+          };
+
+          const entries = [
+            { key: 'CT_HR',    dept: 'hr' },
+            { key: 'CT_FIN',   dept: 'finance' },
+            { key: 'CT_PRG',   dept: 'programming' },
+            { key: 'CT_DAT',   dept: 'data' },
+            { key: 'CT_TRN',   dept: 'training' },
+            { key: 'CT_LDR',   dept: 'leadership' },
+            { key: 'OS_CODE_1', dept: 'onsite' },
+          ];
+          if (inputs.OS_CODE_2) entries.push({ key: 'OS_CODE_2', dept: 'onsite' });
+
+          const codes = entries
+            .filter(e => inputs[e.key])
+            .map(e => ({ h: sha256(inputs[e.key]), d: e.dept }));
+
+          const out = {
+            _comment: 'SHA-256 hashes of valid access codes. Plaintext codes were input via GitHub Actions secrets and are not stored.',
+            codes
+          };
+          fs.writeFileSync('auth/codes.json', JSON.stringify(out, null, 2));
+          console.log(`✅ Wrote ${codes.length} code hashes to auth/codes.json`);
+          EOF
+        env:
+          CT_HR:    ${{ github.event.inputs.CT_HR }}
+          CT_FIN:   ${{ github.event.inputs.CT_FIN }}
+          CT_PRG:   ${{ github.event.inputs.CT_PRG }}
+          CT_DAT:   ${{ github.event.inputs.CT_DAT }}
+          CT_TRN:   ${{ github.event.inputs.CT_TRN }}
+          CT_LDR:   ${{ github.event.inputs.CT_LDR }}
+          OS_CODE_1: ${{ github.event.inputs.OS_CODE_1 }}
+          OS_CODE_2: ${{ github.event.inputs.OS_CODE_2 }}
+
+      - name: Commit updated hash list
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add auth/codes.json
+          git diff --staged --quiet || git commit -m "security: rotate access code hashes [skip ci]"
+          git push
