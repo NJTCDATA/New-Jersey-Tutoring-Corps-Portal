@@ -89,7 +89,7 @@ const NJTCAuth = (() => {
   // ── Logout ─────────────────────────────────────────────────────────────────
   function logout() {
     clearSession();
-    window.location.href = '/index.html';
+    window.location.href = '/New-Jersey-Tutoring-Corps-Portal/index.html';
   }
 
   // Public API
