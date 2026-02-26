@@ -2047,7 +2047,7 @@
     { goal: "Maintain and continue to build on strong culture", target: "Increase diversity of tutors to mirror student diversity", midStatus: "Met", endStatus: "" },
     { goal: "Maintain and continue to build on strong culture", target: "Host 2 in person events for central team (Winter and Summer)", midStatus: "Partially Met", endStatus: "" },
     { goal: "Grow the NJTC brand", target: "10 local media hits per year", midStatus: "Met", endStatus: "" },
-    { goal: "Grow the NJTC brand", target: "Attend 5 local education and/or non-profit conferences and webinars - speaking engagements at 2", midStatus: "Met", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Attend 5 local education and/or non-profit conferences and webinars - these could include having a booth at a local conference; speaking engagements at 2", midStatus: "Met", endStatus: "" },
     { goal: "Grow the NJTC brand", target: "Participate in 3 national conferences or webinars with presentations at 2", midStatus: "Met", endStatus: "" },
     { goal: "Grow the NJTC brand", target: "Increase followers by 20% on social media platforms (in the aggregate)", midStatus: "Coming Down the Pipeline", endStatus: "" },
     { goal: "Grow the NJTC brand", target: "Meet with at least 7 education organizations across New Jersey", midStatus: "In Progress", endStatus: "" },
@@ -2577,6 +2577,10 @@
       const mid = (cols[3] || '').trim();
       const end = (cols[4] || '').trim();
       if (!goal || !target || goal.startsWith('MID') || goal.startsWith('Color')) continue;
+      // Validate statuses — warn in console if an unrecognized value enters from the sheet
+      const VALID_STATUSES = ['Met', 'In Progress', 'Partially Met', 'Coming Down the Pipeline', 'Has Not Met', ''];
+      if (mid && !VALID_STATUSES.includes(mid)) console.warn(`[KPI AUDIT] Unrecognized mid status "${mid}" for: ${target}`);
+      if (end && !VALID_STATUSES.includes(end)) console.warn(`[KPI AUDIT] Unrecognized end status "${end}" for: ${target}`);
       rows.push({ goal, target, midStatus: mid, endStatus: end });
     }
     return rows;
@@ -3066,9 +3070,10 @@
   init();
 
   // Auto-refresh KPI data from Google Sheet every 5 minutes
+  // forceRefresh=true appends cache-bust timestamp — guarantees fresh data, never stale CDN cache
   setInterval(() => {
     if (document.getElementById('panel-kpi') && document.getElementById('panel-kpi').classList.contains('active')) {
-      fetchAndRebuildKPI(false);
+      fetchAndRebuildKPI(true);
     }
   }, 5 * 60 * 1000);
 
