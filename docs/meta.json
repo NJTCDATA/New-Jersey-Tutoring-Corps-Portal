@@ -1,0 +1,51 @@
+{
+  "_instructions": "Add one key per document filename. The GitHub Action reads this file to build docs/index.json. Never delete index.json manually — it is auto-generated.",
+  "employee-handbook.pdf": {
+    "title": "NJTC Employee Handbook",
+    "dept": "hr",
+    "tag": "HR",
+    "effectiveDate": "Aug 2025",
+    "desc": "Full NJTC employee handbook covering policies, procedures, and expectations for all staff.",
+    "addedAt": "2025-08-01"
+  },
+  "data-governance.pdf": {
+    "title": "Data Governance Framework",
+    "dept": "data",
+    "tag": "Data & Evaluation",
+    "effectiveDate": "Dec 2025",
+    "desc": "Internal reporting standards, data ownership policies, and governance workflows.",
+    "addedAt": "2025-12-01"
+  },
+  "perf-eval-system.pdf": {
+    "title": "Performance Evaluation System",
+    "dept": "hr",
+    "tag": "HR",
+    "effectiveDate": "Nov 2025",
+    "desc": "Revised performance evaluation rubrics, rating scales, and the evaluation process.",
+    "addedAt": "2025-11-01"
+  },
+  "escalation-protocol.pdf": {
+    "title": "Program Concern Escalation Protocol",
+    "dept": "programming",
+    "tag": "Programming",
+    "effectiveDate": "Sep 2025",
+    "desc": "Step-by-step guide for identifying, logging, and escalating site-level program concerns.",
+    "addedAt": "2025-09-01"
+  },
+  "budget-controls.pdf": {
+    "title": "Budget & Financial Controls",
+    "dept": "finance",
+    "tag": "Finance",
+    "effectiveDate": "Aug 2025",
+    "desc": "Budget procedures, reimbursement policy, and financial accountability guidelines.",
+    "addedAt": "2025-08-01"
+  },
+  "pd-calendar.pdf": {
+    "title": "Training & PD Calendar SY 25-26",
+    "dept": "training",
+    "tag": "Training",
+    "effectiveDate": "Sep 2025",
+    "desc": "Required professional development schedule and compliance tracking for all staff.",
+    "addedAt": "2025-09-01"
+  }
+}
