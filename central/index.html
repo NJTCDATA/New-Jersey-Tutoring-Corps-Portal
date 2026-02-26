@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NJTC Portal | Access</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NJTC Central Team Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -14,261 +14,1051 @@
       --blue2:   #004d99;
       --blue3:   #0066cc;
       --gold:    #f5a623;
+      --green:   #28a745;
+      --orange:  #fd7e14;
+      --red:     #dc3545;
+      --purple:  #6f42c1;
+      --teal:    #20c997;
       --text:    #1a1a2e;
       --muted:   #6c757d;
       --surface: #ffffff;
       --bg:      #f0f4f8;
-      --danger:  #dc3545;
+      --border:  #d1d9e0;
       --radius:  12px;
     }
 
     body {
       font-family: 'Epilogue', -apple-system, sans-serif;
       background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
+    }
+
+    /* ── Top Nav ───────────────────────────────────────── */
+    .ct-nav {
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      color: #fff;
+      padding: 0 1.5rem;
+      height: 60px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      position: relative;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,51,102,.3);
     }
-
-    /* Background animation */
-    .bg-circles {
-      position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none;
+    .nav-brand { display: flex; align-items: center; gap: .75rem; }
+    .nav-logo  {
+      width: 36px; height: 36px; border-radius: 8px;
+      background: rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: .875rem;
     }
-    .bg-circle {
-      position: absolute; border-radius: 50%; opacity: 0.08;
-      background: var(--blue2);
-      animation: pulse 8s ease-in-out infinite;
-    }
-    .bg-circle:nth-child(1) { width: 600px; height: 600px; top: -200px; left: -200px; animation-delay: 0s; }
-    .bg-circle:nth-child(2) { width: 400px; height: 400px; bottom: -150px; right: -100px; animation-delay: 2s; }
-    .bg-circle:nth-child(3) { width: 300px; height: 300px; top: 50%; left: 60%; animation-delay: 4s; }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: .06; }
-      50%       { transform: scale(1.15); opacity: .12; }
-    }
-
-    /* Card */
-    .gate-card {
-      position: relative; z-index: 1;
-      background: var(--surface);
+    .nav-brand h1 { font-size: 1rem; font-weight: 700; }
+    .nav-dept-badge {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.3);
       border-radius: 20px;
-      padding: 2.5rem 2rem;
-      width: 100%; max-width: 420px;
-      box-shadow: 0 20px 60px rgba(0,51,102,.15), 0 4px 16px rgba(0,0,0,.08);
-      animation: slideUp .4s ease;
+      padding: .25rem .875rem;
+      font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em;
     }
-    @keyframes slideUp {
-      from { opacity:0; transform: translateY(30px); }
-      to   { opacity:1; transform: translateY(0); }
+    .nav-actions { display: flex; align-items: center; gap: .75rem; }
+    .session-timer {
+      font-size: .75rem; opacity: .7;
+    }
+    .btn-logout {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      color: #fff; border-radius: 8px;
+      padding: .4rem .875rem; font-size: .8125rem;
+      font-family: inherit; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .btn-logout:hover { background: rgba(255,255,255,.25); }
+
+    /* ── Sidebar + Layout ──────────────────────────────── */
+    .ct-layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: calc(100vh - 60px);
+    }
+    .ct-sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.25rem 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+    .sidebar-section-label {
+      font-size: .6875rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em;
+      color: var(--muted); padding: .75rem 1.25rem .375rem;
+    }
+    .sidebar-link {
+      display: flex; align-items: center; gap: .625rem;
+      padding: .625rem 1.25rem;
+      font-size: .875rem; font-weight: 500; color: var(--text);
+      cursor: pointer; transition: all .15s;
+      border: none; background: none; width: 100%; text-align: left;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-link:hover { background: rgba(0,51,102,.05); color: var(--blue2); }
+    .sidebar-link.active {
+      background: rgba(0,51,102,.08);
+      color: var(--blue);
+      font-weight: 700;
+      border-left-color: var(--blue2);
+    }
+    .sidebar-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .sidebar-divider { height: 1px; background: var(--border); margin: .75rem 1.25rem; }
+
+    /* ── Main Content ──────────────────────────────────── */
+    .ct-main {
+      padding: 1.75rem;
+      max-width: 1100px;
     }
 
-    /* Logo */
-    .gate-logo {
-      text-align: center; margin-bottom: 1.75rem;
-    }
-    .logo-mark {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 72px; height: 72px; border-radius: 18px;
-      background: linear-gradient(135deg, var(--blue), var(--blue2));
-      color: #fff; font-size: 1.5rem; font-weight: 900;
-      letter-spacing: -1px;
-      box-shadow: 0 8px 24px rgba(0,51,102,.3);
-      margin-bottom: .75rem;
-    }
-    .gate-logo h1 { font-size: 1.25rem; font-weight: 800; color: var(--blue); }
-    .gate-logo p  { font-size: .8125rem; color: var(--muted); margin-top: .25rem; }
+    /* Panels */
+    .panel { display: none; }
+    .panel.active { display: block; }
 
-    /* Divider */
-    .divider {
-      height: 1px; background: #e4e9ed;
-      margin: 1.5rem 0;
+    /* Page header */
+    .page-header {
+      margin-bottom: 1.5rem;
+    }
+    .page-header h2 {
+      font-size: 1.5rem; font-weight: 800; color: var(--blue);
+      margin-bottom: .25rem;
+    }
+    .page-header p { font-size: .9375rem; color: var(--muted); }
+
+    /* Cards grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
     }
 
-    /* Input */
-    .field-label {
-      display: block; font-size: .875rem; font-weight: 600;
-      color: var(--text); margin-bottom: .5rem;
+    .info-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      transition: box-shadow .2s;
     }
-    .field-hint {
-      font-size: .75rem; color: var(--muted);
-      margin-bottom: .75rem; margin-top: -.25rem;
+    .info-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+    .info-card-icon {
+      font-size: 1.75rem; margin-bottom: .75rem;
     }
-    .code-input {
-      width: 100%; padding: .875rem 1rem;
-      font-size: 1rem; font-family: inherit;
-      border: 2px solid #d1d9e0; border-radius: var(--radius);
-      outline: none; transition: border-color .2s, box-shadow .2s;
-      letter-spacing: .05em;
+    .info-card h3 { font-size: 1rem; font-weight: 700; color: var(--blue); margin-bottom: .375rem; }
+    .info-card p  { font-size: .875rem; color: var(--muted); line-height: 1.5; }
+    .info-card a, .info-card-link {
+      display: inline-flex; align-items: center; gap: .375rem;
+      margin-top: .75rem;
+      font-size: .8125rem; font-weight: 600; color: var(--blue2);
+      text-decoration: none; cursor: pointer;
+      border: none; background: none; font-family: inherit; padding: 0;
     }
-    .code-input:focus {
+    .info-card a:hover, .info-card-link:hover { color: var(--blue3); }
+
+    /* ── KPI Table ─────────────────────────────────────── */
+    .kpi-table-wrap {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .kpi-table {
+      width: 100%; border-collapse: collapse; font-size: .875rem;
+    }
+    .kpi-table th {
+      background: var(--blue);
+      color: #fff;
+      padding: .75rem 1rem;
+      text-align: left;
+      font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
+      white-space: nowrap;
+    }
+    .kpi-table td {
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .kpi-table tr:last-child td { border-bottom: none; }
+    .kpi-table tr:nth-child(even) td { background: rgba(0,51,102,.02); }
+
+    .goal-group {
+      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: var(--muted); display: block;
+    }
+    .kpi-status {
+      display: inline-flex; align-items: center; gap: .375rem;
+      font-size: .75rem; font-weight: 700; padding: .25rem .75rem;
+      border-radius: 20px; white-space: nowrap;
+    }
+    .status-met       { background: rgba(40,167,69,.12);  color: #155724; }
+    .status-progress  { background: rgba(0,77,153,.1);    color: var(--blue); }
+    .status-partial   { background: rgba(253,126,20,.12); color: #7d3c0a; }
+    .status-pipeline  { background: rgba(111,66,193,.1);  color: var(--purple); }
+    .status-notmet    { background: rgba(220,53,69,.1);   color: #721c24; }
+
+    /* Filter row */
+    .kpi-filters {
+      display: flex; gap: .75rem; flex-wrap: wrap;
+      margin-bottom: 1rem; align-items: center;
+    }
+    .kpi-filters select, .kpi-filters input {
+      padding: .5rem .875rem; font-size: .875rem; font-family: inherit;
+      border: 1px solid var(--border); border-radius: 8px;
+      outline: none; background: var(--surface);
+    }
+    .kpi-filters select:focus, .kpi-filters input:focus {
       border-color: var(--blue2);
       box-shadow: 0 0 0 3px rgba(0,77,153,.1);
     }
-    .code-input.error { border-color: var(--danger); }
 
-    /* Error */
-    .error-msg {
-      background: rgba(220,53,69,.08);
-      border: 1px solid rgba(220,53,69,.25);
-      border-radius: 8px;
-      color: var(--danger);
-      font-size: .875rem;
-      padding: .75rem 1rem;
-      margin-top: .75rem;
-      display: none;
+    /* ── Policies Library ──────────────────────────────── */
+    .policy-filters {
+      display: flex; gap: .75rem; flex-wrap: wrap;
+      margin-bottom: 1rem;
     }
-    .error-msg.show { display: block; }
+    .policy-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .policy-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      transition: box-shadow .2s;
+    }
+    .policy-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+    .policy-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .75rem; }
+    .policy-tag {
+      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; padding: .25rem .5rem;
+      border-radius: 6px; background: rgba(0,51,102,.08); color: var(--blue);
+      white-space: nowrap;
+    }
+    .policy-card h3 { font-size: .9375rem; font-weight: 700; color: var(--text); flex: 1; }
+    .policy-meta { font-size: .75rem; color: var(--muted); margin-bottom: .75rem; }
+    .policy-desc { font-size: .8125rem; color: #4a5568; line-height: 1.55; margin-bottom: .875rem; }
+    .btn-view-policy {
+      font-size: .8125rem; font-weight: 600; color: var(--blue2);
+      background: none; border: 1px solid var(--blue2);
+      padding: .375rem .875rem; border-radius: 8px;
+      cursor: pointer; font-family: inherit; transition: all .2s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-view-policy:hover { background: var(--blue2); color: #fff; }
 
-    /* Button */
-    .btn-enter {
-      margin-top: 1.25rem;
-      width: 100%; padding: .9375rem;
+    /* ── Upload Center ─────────────────────────────────── */
+    .upload-box {
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+      transition: border-color .2s;
+    }
+    .upload-box:hover { border-color: var(--blue2); }
+    .upload-box .upload-icon { font-size: 2.5rem; margin-bottom: .75rem; }
+    .upload-box h3 { font-size: 1.125rem; font-weight: 700; color: var(--blue); margin-bottom: .5rem; }
+    .upload-box p  { color: var(--muted); font-size: .875rem; margin-bottom: 1.25rem; }
+    .btn-primary {
       background: linear-gradient(135deg, var(--blue), var(--blue2));
-      color: #fff; border: none; border-radius: var(--radius);
-      font-size: 1rem; font-weight: 700; font-family: inherit;
-      cursor: pointer; transition: all .2s;
-      display: flex; align-items: center; justify-content: center; gap: .5rem;
+      color: #fff; border: none; border-radius: 10px;
+      padding: .75rem 1.5rem; font-size: .9375rem; font-weight: 700;
+      font-family: inherit; cursor: pointer; transition: all .2s;
+      display: inline-flex; align-items: center; gap: .5rem;
     }
-    .btn-enter:hover:not(:disabled) {
+    .btn-primary:hover {
       background: linear-gradient(135deg, var(--blue2), var(--blue3));
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0,51,102,.3);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0,51,102,.3);
     }
-    .btn-enter:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-
-    /* Spinner */
-    .spinner {
-      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: none;
+    .instructions-box {
+      background: rgba(0,51,102,.04);
+      border: 1px solid rgba(0,51,102,.15);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .loading .spinner { display: block; }
-    .loading .btn-text { display: none; }
+    .instructions-box h4 { font-size: .9375rem; font-weight: 700; color: var(--blue); margin-bottom: .75rem; }
+    .instructions-box ol { padding-left: 1.25rem; }
+    .instructions-box li { font-size: .875rem; color: var(--text); line-height: 1.7; }
 
-    /* Footer note */
-    .gate-footer {
-      margin-top: 1.5rem; text-align: center;
-      font-size: .75rem; color: var(--muted); line-height: 1.6;
+    /* ── Concern Forms ─────────────────────────────────── */
+    .concern-split {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
+      margin-bottom: 1.5rem;
     }
+    .concern-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+    .concern-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+    .concern-card p  { font-size: .875rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.5; }
+    .concern-card .btn-primary { font-size: .875rem; padding: .625rem 1.25rem; }
 
-    @media (max-width: 480px) {
-      .gate-card { margin: 1rem; padding: 2rem 1.5rem; }
+    /* ── Concern Board ─────────────────────────────────── */
+    .board-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1rem; flex-wrap: wrap; gap: .75rem;
+    }
+    .board-note {
+      background: rgba(245,166,35,.08);
+      border: 1px solid rgba(245,166,35,.3);
+      border-radius: 8px; padding: .75rem 1rem;
+      font-size: .8125rem; color: #6b4c00;
+      margin-bottom: 1.25rem;
+    }
+    .concern-table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+    .concern-table {
+      width: 100%; border-collapse: collapse; font-size: .875rem;
+    }
+    .concern-table th {
+      background: rgba(0,51,102,.06); padding: .75rem 1rem;
+      text-align: left; font-size: .75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .04em; color: var(--blue);
+      border-bottom: 2px solid var(--border);
+    }
+    .concern-table td {
+      padding: .75rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top;
+    }
+    .concern-table tr:last-child td { border-bottom: none; }
+
+    /* ── Stats row ─────────────────────────────────────── */
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem; margin-bottom: 1.5rem;
+    }
+    .stat-tile {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.1rem 1.25rem;
+    }
+    .stat-tile .tile-label { font-size: .75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .stat-tile .tile-value { font-size: 1.75rem; font-weight: 800; color: var(--blue); margin-top: .25rem; }
+    .stat-tile .tile-sub   { font-size: .75rem; color: var(--muted); margin-top: .125rem; }
+
+    /* ── Dept-gated view ───────────────────────────────── */
+    .restricted-banner {
+      background: rgba(220,53,69,.06);
+      border: 1px solid rgba(220,53,69,.2);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .restricted-banner .r-icon { font-size: 2.5rem; margin-bottom: .75rem; }
+    .restricted-banner h3 { font-weight: 700; color: var(--red); margin-bottom: .5rem; }
+    .restricted-banner p  { font-size: .875rem; color: var(--muted); }
+
+    /* ── Leadership View ───────────────────────────────── */
+    .leadership-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem;
+    }
+    .leadership-card {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue2) 100%);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+    .leadership-card h3 { font-size: 1.0625rem; font-weight: 700; margin-bottom: .5rem; }
+    .leadership-card p  { font-size: .875rem; opacity: .8; line-height: 1.55; }
+
+    /* ── Alert boxes ───────────────────────────────────── */
+    .alert { border-radius: 8px; padding: .875rem 1rem; font-size: .875rem; margin-bottom: 1rem; }
+    .alert-info  { background: rgba(0,77,153,.06); border: 1px solid rgba(0,77,153,.2); color: var(--blue); }
+    .alert-warn  { background: rgba(253,126,20,.08); border: 1px solid rgba(253,126,20,.25); color: #7d3c0a; }
+
+    /* ── Dept color accents ─────────────────────────────── */
+    [data-dept="hr"]           .dept-accent { background: #e53e3e; }
+    [data-dept="finance"]      .dept-accent { background: #38a169; }
+    [data-dept="programming"]  .dept-accent { background: #3182ce; }
+    [data-dept="data"]         .dept-accent { background: var(--purple); }
+    [data-dept="training"]     .dept-accent { background: var(--teal); }
+    [data-dept="leadership"]   .dept-accent { background: var(--gold); }
+
+    /* ── Responsive ─────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .ct-layout { grid-template-columns: 1fr; }
+      .ct-sidebar {
+        position: static; height: auto;
+        display: flex; flex-wrap: wrap;
+        padding: .5rem; gap: .25rem;
+        border-right: none; border-bottom: 1px solid var(--border);
+      }
+      .sidebar-section-label { display: none; }
+      .sidebar-divider { display: none; }
+      .sidebar-link { width: auto; padding: .5rem .75rem; font-size: .8125rem; }
+      .ct-main { padding: 1rem; }
+      .concern-split { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 
-  <div class="bg-circles">
-    <div class="bg-circle"></div>
-    <div class="bg-circle"></div>
-    <div class="bg-circle"></div>
+  <!-- ── Top Nav ──────────────────────────────────────────── -->
+  <nav class="ct-nav">
+    <div class="nav-brand">
+      <div class="nav-logo">NJTC</div>
+      <h1>Central Team Portal</h1>
+    </div>
+    <div class="nav-actions">
+      <span class="nav-dept-badge" id="deptBadge">Loading…</span>
+      <span class="session-timer" id="sessionTimer"></span>
+      <button class="btn-logout" onclick="NJTCAuth.logout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <!-- ── Layout ────────────────────────────────────────────── -->
+  <div class="ct-layout" id="ctLayout" style="display:none">
+
+    <!-- Sidebar -->
+    <aside class="ct-sidebar">
+      <span class="sidebar-section-label">Navigation</span>
+      <button class="sidebar-link active" data-panel="home" onclick="showPanel('home', this)">
+        <span class="sidebar-icon">🏠</span> Department Home
+      </button>
+      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi', this)">
+        <span class="sidebar-icon">📊</span> KPI Targets
+      </button>
+      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies', this)">
+        <span class="sidebar-icon">📁</span> Policies Library
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <span class="sidebar-section-label">Reporting</span>
+
+      <button class="sidebar-link" data-panel="concern-program" onclick="showPanel('concern-program', this)">
+        <span class="sidebar-icon">⚠️</span> Program Concerns
+      </button>
+      <button class="sidebar-link" data-panel="concern-perf" onclick="showPanel('concern-perf', this)">
+        <span class="sidebar-icon">👤</span> Performance Concerns
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <span class="sidebar-section-label">Documents</span>
+
+      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload', this)">
+        <span class="sidebar-icon">📤</span> Upload Center
+      </button>
+    </aside>
+
+    <!-- Main content -->
+    <main class="ct-main">
+
+      <!-- ══ HOME PANEL ══════════════════════════════════════ -->
+      <div class="panel active" id="panel-home">
+        <div class="page-header">
+          <h2 id="homeTitle">Department Home</h2>
+          <p id="homeSubtitle">Quick access to your department's key tools and resources.</p>
+        </div>
+
+        <!-- KPI Summary stats -->
+        <div class="stats-row" id="kpiSummaryRow">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Quick links — populated per dept -->
+        <div class="cards-grid" id="quickLinksGrid">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Alert: annual goal banner -->
+        <div class="alert alert-info" id="goalAlertBanner">
+          <strong>🎯 Annual Goal Alignment:</strong> All work in the portal connects to NJTC's organizational targets.
+          Visit <strong>KPI Targets</strong> to see current progress across all goals.
+        </div>
+      </div>
+
+      <!-- ══ KPI PANEL ════════════════════════════════════════ -->
+      <div class="panel" id="panel-kpi">
+        <div class="page-header">
+          <h2>KPI Targets — SY 25-26</h2>
+          <p>Read-only view of organizational goal targets. Status reflects mid-cycle reporting.</p>
+        </div>
+        <div class="kpi-filters">
+          <select id="kpiGoalFilter" onchange="filterKPI()">
+            <option value="">All Goals</option>
+          </select>
+          <select id="kpiStatusFilter" onchange="filterKPI()">
+            <option value="">All Statuses</option>
+            <option value="Met">Met</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Partially Met">Partially Met</option>
+            <option value="Coming Down the Pipeline">Pipeline</option>
+            <option value="Has Not Met">Has Not Met</option>
+          </select>
+          <input type="text" id="kpiSearch" placeholder="Search targets…" oninput="filterKPI()" style="min-width:200px">
+        </div>
+        <div class="kpi-table-wrap">
+          <table class="kpi-table" id="kpiTable">
+            <thead>
+              <tr>
+                <th style="width:30%">Annual Goal</th>
+                <th>Target</th>
+                <th style="width:140px">Mid-Cycle Status</th>
+              </tr>
+            </thead>
+            <tbody id="kpiTbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ POLICIES PANEL ═══════════════════════════════════ -->
+      <div class="panel" id="panel-policies">
+        <div class="page-header">
+          <h2>Policies & Procedures Library</h2>
+          <p>Official NJTC documents. Effective dates and department tags shown.</p>
+        </div>
+        <div class="policy-filters">
+          <select id="policyDeptFilter" onchange="filterPolicies()">
+            <option value="">All Departments</option>
+            <option value="hr">Human Resources</option>
+            <option value="finance">Finance</option>
+            <option value="programming">Programming</option>
+            <option value="data">Data & Evaluation</option>
+            <option value="training">Training & Development</option>
+            <option value="all">Organization-Wide</option>
+          </select>
+          <input type="text" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()" style="min-width:200px; padding: .5rem .875rem; font-size:.875rem; border:1px solid var(--border); border-radius:8px;">
+        </div>
+        <div class="policy-grid" id="policyGrid">
+          <!-- Populated by JS from /docs/index.json -->
+        </div>
+        <div id="policyEmpty" style="display:none" class="alert alert-info">No documents match your filter.</div>
+      </div>
+
+      <!-- ══ PROGRAM CONCERNS PANEL ════════════════════════ -->
+      <div class="panel" id="panel-concern-program">
+        <div class="page-header">
+          <h2>Program Concern Reporting</h2>
+          <p>Submit or review onsite program concerns. All submissions create a tracked GitHub Issue.</p>
+        </div>
+
+        <div class="concern-split">
+          <div class="concern-card">
+            <h3>📝 Submit a Program Concern</h3>
+            <p>Report a concern observed at a site — attendance patterns, safety issues, instructional gaps, or escalations. You will be redirected to a pre-filled GitHub Issue form.</p>
+            <a class="btn-primary" id="programConcernBtn" href="#" target="_blank" rel="noopener">
+              Open Concern Form ↗
+            </a>
+          </div>
+          <div class="concern-card">
+            <h3>📋 Escalation Guide</h3>
+            <p>Review the protocol for when and how to escalate site concerns. Daily concerns should be logged here. Monthly rollup reports are generated from issue labels.</p>
+            <button class="btn-primary" onclick="showPanel('policies', document.querySelector('[data-panel=policies]'))">
+              View Escalation Policy
+            </button>
+          </div>
+        </div>
+
+        <div class="board-header">
+          <h3 style="font-size:1.0625rem; font-weight:700; color:var(--blue)">Open Concerns Dashboard</h3>
+          <a class="btn-primary" id="programIssuesBoardLink" href="#" target="_blank" rel="noopener" style="font-size:.8125rem; padding:.5rem 1rem">
+            View Full GitHub Board ↗
+          </a>
+        </div>
+        <div class="board-note">
+          ⓘ Concerns are tracked as GitHub Issues. The table below reflects the <strong>index of open issues</strong> — click "View Full GitHub Board" to triage, comment, or close items.
+        </div>
+        <div class="concern-table-wrap">
+          <table class="concern-table">
+            <thead>
+              <tr>
+                <th>#</th><th>Site / Region</th><th>Concern Type</th><th>Submitted</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="5" style="text-align:center; color:var(--muted); padding:2rem; font-style:italic;">
+                  Live issue data loads from GitHub Issues.<br>
+                  Click "View Full GitHub Board" above to see and manage all concerns.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ══ PERFORMANCE CONCERNS PANEL ════════════════════ -->
+      <div class="panel" id="panel-concern-perf">
+        <div class="page-header">
+          <h2>Performance Concern Reporting</h2>
+          <p>Document employee performance conversations. HR-restricted triage available to HR and Leadership only.</p>
+        </div>
+
+        <div id="perfHRBoard" style="display:none">
+          <!-- HR + Leadership only -->
+          <div class="board-header">
+            <h3 style="font-size:1.0625rem; font-weight:700; color:var(--blue)">HR Triage Board</h3>
+            <a class="btn-primary" id="perfIssuesBoardLink" href="#" target="_blank" rel="noopener" style="font-size:.8125rem; padding:.5rem 1rem">
+              View GitHub HR Board ↗
+            </a>
+          </div>
+          <div class="board-note">
+            🔒 HR-restricted view. Performance concern issues are labeled <code>perf-concern</code> and <code>hr-triage</code> in GitHub Issues.
+          </div>
+          <div class="stats-row">
+            <div class="stat-tile"><div class="tile-label">Open</div><div class="tile-value" id="perfOpen">—</div><div class="tile-sub">Performance concerns</div></div>
+            <div class="stat-tile"><div class="tile-label">On Watch</div><div class="tile-value" id="perfWatch">—</div><div class="tile-sub">Employees on watch</div></div>
+            <div class="stat-tile"><div class="tile-label">PGP Active</div><div class="tile-value" id="perfPGP">—</div><div class="tile-sub">Growth plans active</div></div>
+          </div>
+        </div>
+
+        <div id="perfFormSection">
+          <div class="concern-split">
+            <div class="concern-card">
+              <h3>📝 Submit Performance Concern</h3>
+              <p>Complete this form each time you have a documented performance conversation with an employee. This creates a tracked record in HR's GitHub Issues board.</p>
+              <a class="btn-primary" id="perfConcernBtn" href="#" target="_blank" rel="noopener">
+                Open Performance Form ↗
+              </a>
+            </div>
+            <div class="concern-card">
+              <h3>📌 What Gets Documented?</h3>
+              <p>Attendance concerns, lesson plan deficiencies, overall delivery issues, timecard incidents, and any verbal warning or coaching conversation requiring a record.</p>
+              <div class="alert alert-warn" style="margin-top:.75rem; margin-bottom:0">
+                Reach out to HR immediately for any situation that may require termination review.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="perfAccessDenied" style="display:none" class="restricted-banner">
+          <div class="r-icon">🔒</div>
+          <h3>HR & Leadership Access Only</h3>
+          <p>The triage board is restricted to HR and Leadership users. You can still submit performance concerns using the form above.</p>
+        </div>
+      </div>
+
+      <!-- ══ UPLOAD CENTER PANEL ═══════════════════════════ -->
+      <div class="panel" id="panel-upload">
+        <div class="page-header">
+          <h2>Document Upload Center</h2>
+          <p>Upload PDFs, CSVs, or policy documents to the NJTC docs library via GitHub.</p>
+        </div>
+
+        <div class="upload-box">
+          <div class="upload-icon">📤</div>
+          <h3>Upload via GitHub (Recommended)</h3>
+          <p>Click below to open a pre-filled GitHub Issue requesting a document upload.<br>
+          A GitHub Action will create a PR and update the docs index automatically.</p>
+          <a class="btn-primary" id="uploadIssueBtn" href="#" target="_blank" rel="noopener">
+            Request Document Upload ↗
+          </a>
+        </div>
+
+        <div class="instructions-box">
+          <h4>How to Upload a Document</h4>
+          <ol>
+            <li>Click "Request Document Upload" above.</li>
+            <li>Fill in: document title, department, effective date, and description.</li>
+            <li>Attach the file to the GitHub Issue.</li>
+            <li>Submit the issue. A GitHub Action will create a Pull Request within minutes.</li>
+            <li>An admin approves the PR → document appears in the Policies Library automatically.</li>
+          </ol>
+        </div>
+      </div>
+
+    </main>
   </div>
 
-  <div class="gate-card">
-    <div class="gate-logo">
-      <div class="logo-mark">NJTC</div>
-      <h1>New Jersey Tutoring Corps</h1>
-      <p>Staff Portal — Secure Access</p>
-    </div>
-
-    <div class="divider"></div>
-
-    <label class="field-label" for="accessCode">Access Code</label>
-    <p class="field-hint">Enter your assigned portal code to continue.</p>
-
-    <input
-      type="password"
-      id="accessCode"
-      class="code-input"
-      placeholder="e.g., CT-NJTC-XXXX-0000"
-      autocomplete="off"
-      autocorrect="off"
-      spellcheck="false"
-    />
-
-    <div class="error-msg" id="errorMsg">
-      Invalid access code. Please check your code and try again.
-    </div>
-
-    <button class="btn-enter" id="enterBtn">
-      <span class="btn-text">Enter Portal</span>
-      <div class="spinner"></div>
-    </button>
-
-    <div class="gate-footer">
-      Access codes are assigned by program administration.<br>
-      Questions? Contact your Program Manager.
+  <!-- Access denied fallback (shown before session verified) -->
+  <div id="loadingScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
+    <div style="text-align:center">
+      <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
+      <p style="color:var(--muted);font-size:.9375rem">Verifying access…</p>
     </div>
   </div>
 
   <script src="/auth/auth.js"></script>
+  <script src="/auth/central-guard.js"></script>
   <script>
-    (async () => {
-      // If already have a valid session, route immediately
-      const existing = await NJTCAuth.currentSession();
-      if (existing) {
-        route(existing.dept);
-        return;
-      }
 
-      const input   = document.getElementById('accessCode');
-      const btn     = document.getElementById('enterBtn');
-      const errMsg  = document.getElementById('errorMsg');
-
-      function setLoading(on) {
-        btn.disabled = on;
-        btn.classList.toggle('loading', on);
-      }
-
-      function showError(msg) {
-        errMsg.textContent = msg || 'Invalid access code.';
-        errMsg.classList.add('show');
-        input.classList.add('error');
-      }
-
-      function clearError() {
-        errMsg.classList.remove('show');
-        input.classList.remove('error');
-      }
-
-      async function attempt() {
-        const code = input.value.trim();
-        if (!code) { showError('Please enter your access code.'); return; }
-        clearError();
-        setLoading(true);
-        try {
-          const dept = await NJTCAuth.login(code);
-          if (!dept) {
-            showError('Invalid access code. Please check and try again.');
-            input.select();
-          } else {
-            route(dept);
-          }
-        } catch (e) {
-          showError(e.message || 'Connection error. Please refresh and retry.');
-        } finally {
-          setLoading(false);
-        }
-      }
-
-      btn.addEventListener('click', attempt);
-      input.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
-      input.addEventListener('input', clearError);
-    })();
-
-    function route(dept) {
-      if (dept === 'onsite') {
-        window.location.href = '/onsite/index.html';
-      } else {
-        // All CT departments go to central; central/index.html reads dept from session
-        window.location.href = '/central/index.html';
-      }
+  // ── Dept config ─────────────────────────────────────────
+  const DEPT_CONFIG = {
+    hr: {
+      label: 'Human Resources',
+      emoji: '👔',
+      subtitle: 'Protecting the organization and our people.',
+      quickLinks: [
+        { icon: '📋', title: 'Performance Concern Form', desc: 'Document a performance conversation.', action: () => showPanel('concern-perf', document.querySelector('[data-panel="concern-perf"]')) },
+        { icon: '📁', title: 'HR Policies', desc: 'Access all HR policies and procedures.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📊', title: 'KPI: Culture Goals', desc: 'Staff retention and diversity targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '⚠️', title: 'Program Concerns', desc: 'Review escalations requiring HR action.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+      ]
+    },
+    finance: {
+      label: 'Finance',
+      emoji: '💰',
+      subtitle: 'Maintaining fiscal health and accountability.',
+      quickLinks: [
+        { icon: '📊', title: 'KPI: Funding Goals', desc: 'Philanthropic and fee-for-service targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '📁', title: 'Finance Policies', desc: 'Budget procedures and financial guidelines.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📤', title: 'Upload Reports', desc: 'Upload financial reports to the docs library.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+      ]
+    },
+    programming: {
+      label: 'Programming',
+      emoji: '🎯',
+      subtitle: 'Delivering high-quality instructional programs.',
+      quickLinks: [
+        { icon: '⚠️', title: 'Program Concerns', desc: 'Log and review site-level concerns.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+        { icon: '📊', title: 'KPI: Scholar Impact', desc: 'Scholar growth and site targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '📁', title: 'Programming Policies', desc: 'Site operations and program procedures.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📤', title: 'Upload Site Docs', desc: 'Submit program-related documents.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+      ]
+    },
+    data: {
+      label: 'Data & Evaluation',
+      emoji: '📈',
+      subtitle: 'Driving decisions through rigorous data.',
+      quickLinks: [
+        { icon: '📊', title: 'Full KPI Dashboard', desc: 'Review all organizational targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '📤', title: 'Upload Data Reports', desc: 'Submit evaluation CSVs or reports.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+        { icon: '📁', title: 'Data Governance Docs', desc: 'Data policies and reporting frameworks.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+      ]
+    },
+    training: {
+      label: 'Training & Development',
+      emoji: '🎓',
+      subtitle: 'Building staff capacity and growth.',
+      quickLinks: [
+        { icon: '📁', title: 'Training Materials', desc: 'Policies and procedures for PD.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📊', title: 'KPI: Pipeline Goals', desc: 'Educator pipeline and apprenticeship targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '📤', title: 'Upload PD Docs', desc: 'Submit training materials.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+        { icon: '⚠️', title: 'Program Concerns', desc: 'Training-related site concerns.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+      ]
+    },
+    leadership: {
+      label: 'Leadership',
+      emoji: '⭐',
+      subtitle: 'Organizational oversight and strategic direction.',
+      quickLinks: [
+        { icon: '📊', title: 'KPI Targets', desc: 'Full organizational goal overview.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
+        { icon: '⚠️', title: 'Program Concerns', desc: 'All open program concern issues.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+        { icon: '👤', title: 'Performance Board', desc: 'HR triage board — full access.', action: () => showPanel('concern-perf', document.querySelector('[data-panel="concern-perf"]')) },
+        { icon: '📁', title: 'All Policies', desc: 'Organization-wide policy library.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+      ]
     }
+  };
+
+  // ── KPI Data (from CSV) ─────────────────────────────────
+  const KPI_DATA = [
+    { goal: 'Increase Impact on Scholars', target: 'Serve 2,000 scholars annually by 2026', status: 'Partially Met' },
+    { goal: 'Increase Impact on Scholars', target: 'Serve 35 sites annually by 2026', status: 'Met' },
+    { goal: 'Increase Impact on Scholars', target: 'Placement Level Change: 80% of scholars advancing a level in math or ELA', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: 'Math: 20% increase of scholars reaching grade-level proficiency', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: 'ELA: 20% increase of scholars reaching grade-level proficiency', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: 'Gap Closing: 35% decrease in scholars 2+ grade levels below', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: '80% of scholars self-report increased confidence in ELA', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: '80% of scholars self-report increased confidence in Math', status: 'In Progress' },
+    { goal: 'Increase Impact on Scholars', target: '92% of onsite staff observe scholar growth', status: 'In Progress' },
+    { goal: 'Educator Pipeline', target: '40 tutor apprentices for SY 25-26', status: 'In Progress' },
+    { goal: 'Educator Pipeline', target: 'Secure 1 DOL grant to expand apprenticeship program', status: 'Met' },
+    { goal: 'Educator Pipeline', target: '4 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026', status: 'Coming Down the Pipeline' },
+    { goal: 'Fee-for-Service Growth', target: '35 SY sites — all fee-for-service', status: 'Met' },
+    { goal: 'Fee-for-Service Growth', target: 'Secure 3 new low-cost pilot customers using new grant funds', status: 'In Progress' },
+    { goal: 'Fee-for-Service Growth', target: '75% of sites cover full fee-for-service', status: 'Met' },
+    { goal: 'Fee-for-Service Growth', target: 'Add 1 additional out-of-state customer', status: 'Met' },
+    { goal: 'Fee-for-Service Growth', target: 'Apply to at least 10 local/regional RFPs annually', status: 'Partially Met' },
+    { goal: 'Funding', target: 'Identify and apply to 2 new multi-year or $500K+ funding opportunities', status: 'Met' },
+    { goal: 'Funding', target: 'Secure $850,000 in philanthropic funds', status: 'Met' },
+    { goal: 'Funding', target: 'Secure new philanthropic partners totaling $200K', status: 'Has Not Met' },
+    { goal: 'Funding', target: 'Secure support from FY27 State budget', status: 'Coming Down the Pipeline' },
+    { goal: 'Financial Health', target: 'Maintain $500K in money market by end of 2025', status: 'Met' },
+    { goal: 'Board Development', target: 'At least 1 board member introduction per member (15 total) to partners/donors', status: 'In Progress' },
+    { goal: 'Board Development', target: 'Maintain 100% board giving; increase total by 10%', status: 'Met' },
+    { goal: 'Systems & Infrastructure', target: 'Revised performance evaluation system in place by November 2025', status: 'Met' },
+    { goal: 'Systems & Infrastructure', target: 'KPI Dashboard 100% operational by October 2025', status: 'Met' },
+    { goal: 'Systems & Infrastructure', target: '2025-2026 Program Evaluation completed by August 2026', status: 'Coming Down the Pipeline' },
+    { goal: 'Systems & Infrastructure', target: 'NJTC Annual Report sent to stakeholders by December 2025', status: 'Partially Met' },
+    { goal: 'Systems & Infrastructure', target: 'Data Governance documented for all internal reporting by December 2025', status: 'Met' },
+    { goal: 'Systems & Infrastructure', target: 'Annual Budgeting process completed by August 1, 2026', status: 'Coming Down the Pipeline' },
+    { goal: 'Systems & Infrastructure', target: 'Leadership completes Mid-Year and End-of-Year retreat', status: 'Coming Down the Pipeline' },
+    { goal: 'Partner Experience', target: '90% customer satisfaction at end of SY 25-26', status: 'In Progress' },
+    { goal: 'Partner Experience', target: 'Receive 3 referrals from partners', status: 'Met' },
+    { goal: 'Partner Experience', target: '50% retention rate for school partners', status: 'Coming Down the Pipeline' },
+    { goal: 'Culture', target: '80% annual core staff retention', status: 'Met' },
+    { goal: 'Culture', target: '60% annual on-site staff retention', status: 'Has Not Met' },
+    { goal: 'Culture', target: 'Increase diversity of tutors to mirror student diversity', status: 'Met' },
+    { goal: 'Culture', target: 'Host 2 in-person events for central team (Winter and Summer)', status: 'Partially Met' },
+    { goal: 'Brand Growth', target: '10 local media hits per year', status: 'Met' },
+    { goal: 'Brand Growth', target: 'Attend 5 local education/non-profit conferences; speak at 2', status: 'Met' },
+    { goal: 'Brand Growth', target: 'Participate in 3 national conferences with presentations at 2', status: 'Met' },
+    { goal: 'Brand Growth', target: 'Increase social media followers by 20% in aggregate', status: 'Coming Down the Pipeline' },
+    { goal: 'Brand Growth', target: 'Meet with at least 7 education organizations across NJ', status: 'In Progress' },
+    { goal: 'Brand Growth', target: 'Attend 5 South Jersey Chamber events', status: 'Partially Met' },
+  ];
+
+  // Placeholder docs — replace with /docs/index.json fetch
+  const DOCS_DATA = [
+    { title: 'Employee Handbook', dept: 'hr', tag: 'HR', effectiveDate: 'Aug 2025', desc: 'Full NJTC employee handbook covering policies, procedures, and expectations.', file: '/docs/employee-handbook.pdf' },
+    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', desc: 'Internal reporting standards, data ownership, and governance workflows.', file: '/docs/data-governance.pdf' },
+    { title: 'Performance Evaluation System', dept: 'hr', tag: 'HR', effectiveDate: 'Nov 2025', desc: 'Revised performance evaluation rubrics and process documentation.', file: '/docs/perf-eval-system.pdf' },
+    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', desc: 'Step-by-step guide for escalating site-level program concerns.', file: '/docs/escalation-protocol.pdf' },
+    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', desc: 'Budget procedures, reimbursement policy, and financial accountability guidelines.', file: '/docs/budget-controls.pdf' },
+    { title: 'Training & PD Calendar', dept: 'training', tag: 'Training', effectiveDate: 'Sep 2025', desc: 'Required professional development schedule and compliance tracking.', file: '/docs/pd-calendar.pdf' },
+  ];
+
+  // ── GitHub config placeholders ──────────────────────────
+  const GITHUB = {
+    repo: 'YOUR_ORG/YOUR_REPO', // e.g. njtcdata/njtc-portal
+    get issuesUrl() { return `https://github.com/${this.repo}/issues`; },
+    get programConcernNew() {
+      return `https://github.com/${this.repo}/issues/new?template=program-concern.yml&labels=program-concern`;
+    },
+    get perfConcernNew() {
+      return `https://github.com/${this.repo}/issues/new?template=performance-concern.yml&labels=perf-concern,hr-triage`;
+    },
+    get uploadIssueNew() {
+      return `https://github.com/${this.repo}/issues/new?template=doc-upload-request.yml&labels=doc-upload`;
+    },
+    get programBoard() {
+      return `https://github.com/${this.repo}/issues?q=is%3Aissue+is%3Aopen+label%3Aprogram-concern`;
+    },
+    get perfBoard() {
+      return `https://github.com/${this.repo}/issues?q=is%3Aissue+is%3Aopen+label%3Aperf-concern`;
+    }
+  };
+
+  // ── Helpers ──────────────────────────────────────────────
+  function statusClass(s) {
+    switch(s) {
+      case 'Met':                      return 'status-met';
+      case 'In Progress':              return 'status-progress';
+      case 'Partially Met':            return 'status-partial';
+      case 'Coming Down the Pipeline': return 'status-pipeline';
+      case 'Has Not Met':              return 'status-notmet';
+      default:                         return 'status-progress';
+    }
+  }
+  function statusEmoji(s) {
+    switch(s) {
+      case 'Met':                      return '✅';
+      case 'In Progress':              return '🔵';
+      case 'Partially Met':            return '🟠';
+      case 'Coming Down the Pipeline': return '🟣';
+      case 'Has Not Met':              return '🔴';
+      default:                         return '⚪';
+    }
+  }
+
+  // ── Panel switching ──────────────────────────────────────
+  function showPanel(id, linkEl) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    const panel = document.getElementById('panel-' + id);
+    if (panel) panel.classList.add('active');
+    if (linkEl) linkEl.classList.add('active');
+    else {
+      const btn = document.querySelector(`[data-panel="${id}"]`);
+      if (btn) btn.classList.add('active');
+    }
+  }
+
+  // ── Build KPI table ──────────────────────────────────────
+  function buildKPI() {
+    const goals = [...new Set(KPI_DATA.map(k => k.goal))];
+    const sel = document.getElementById('kpiGoalFilter');
+    goals.forEach(g => {
+      const o = document.createElement('option');
+      o.value = g; o.textContent = g;
+      sel.appendChild(o);
+    });
+    renderKPI(KPI_DATA);
+  }
+
+  function renderKPI(data) {
+    const tbody = document.getElementById('kpiTbody');
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td><span class="goal-group">${row.goal}</span></td>
+        <td>${row.target}</td>
+        <td><span class="kpi-status ${statusClass(row.status)}">${statusEmoji(row.status)} ${row.status}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  function filterKPI() {
+    const goalF  = document.getElementById('kpiGoalFilter').value;
+    const statF  = document.getElementById('kpiStatusFilter').value;
+    const search = document.getElementById('kpiSearch').value.toLowerCase();
+    const filtered = KPI_DATA.filter(r =>
+      (!goalF  || r.goal === goalF) &&
+      (!statF  || r.status === statF) &&
+      (!search || r.target.toLowerCase().includes(search) || r.goal.toLowerCase().includes(search))
+    );
+    renderKPI(filtered);
+  }
+
+  // ── KPI summary stats ─────────────────────────────────────
+  function buildKPISummary() {
+    const counts = { Met: 0, 'In Progress': 0, 'Partially Met': 0, 'Coming Down the Pipeline': 0, 'Has Not Met': 0 };
+    KPI_DATA.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
+    const row = document.getElementById('kpiSummaryRow');
+    row.innerHTML = [
+      { label: 'Goals Met', value: counts['Met'],          sub: 'On track',  cls: 'status-met' },
+      { label: 'In Progress', value: counts['In Progress'], sub: 'Active',    cls: 'status-progress' },
+      { label: 'Partial', value: counts['Partially Met'],   sub: 'Needs attention', cls: 'status-partial' },
+      { label: 'Has Not Met', value: counts['Has Not Met'], sub: 'Review needed', cls: 'status-notmet' },
+    ].map(t => `
+      <div class="stat-tile">
+        <div class="tile-label">${t.label}</div>
+        <div class="tile-value" style="font-size:1.5rem">${t.value}</div>
+        <div class="tile-sub">${t.sub}</div>
+      </div>
+    `).join('');
+  }
+
+  // ── Build policies ────────────────────────────────────────
+  async function buildPolicies() {
+    // Try to fetch live docs/index.json; fall back to DOCS_DATA
+    let docs = DOCS_DATA;
+    try {
+      const res = await fetch('/docs/index.json?v=' + Date.now());
+      if (res.ok) docs = await res.json();
+    } catch { /* use static fallback */ }
+    renderPolicies(docs);
+  }
+
+  function renderPolicies(docs) {
+    window._allDocs = docs;
+    filterPolicies();
+  }
+
+  function filterPolicies() {
+    const docs = window._allDocs || DOCS_DATA;
+    const deptF  = document.getElementById('policyDeptFilter').value;
+    const search = document.getElementById('policySearch').value.toLowerCase();
+    const filtered = docs.filter(d =>
+      (!deptF  || d.dept === deptF) &&
+      (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search))
+    );
+    const grid = document.getElementById('policyGrid');
+    const empty = document.getElementById('policyEmpty');
+    if (!filtered.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(d => `
+      <div class="policy-card">
+        <div class="policy-card-top">
+          <h3>${d.title}</h3>
+          <span class="policy-tag">${d.tag || d.dept}</span>
+        </div>
+        <div class="policy-meta">Effective: ${d.effectiveDate || 'N/A'} &nbsp;·&nbsp; Dept: ${d.dept}</div>
+        <p class="policy-desc">${d.desc || ''}</p>
+        <a class="btn-view-policy" href="${d.file}" target="_blank" rel="noopener">
+          View Document ↗
+        </a>
+      </div>
+    `).join('');
+  }
+
+  // ── Build dept home quick links ──────────────────────────
+  function buildHomeQuickLinks(dept) {
+    const config = DEPT_CONFIG[dept] || DEPT_CONFIG['programming'];
+    document.getElementById('homeTitle').textContent = config.emoji + ' ' + config.label + ' Home';
+    document.getElementById('homeSubtitle').textContent = config.subtitle;
+
+    const grid = document.getElementById('quickLinksGrid');
+    grid.innerHTML = config.quickLinks.map(link => `
+      <div class="info-card">
+        <div class="info-card-icon">${link.icon}</div>
+        <h3>${link.title}</h3>
+        <p>${link.desc}</p>
+        <button class="info-card-link" onclick="(${link.action.toString()})()">
+          Go → 
+        </button>
+      </div>
+    `).join('');
+  }
+
+  // ── Perf concern dept gate ───────────────────────────────
+  function setupPerfSection(dept) {
+    const canSeeBoard = ['hr', 'leadership'].includes(dept);
+    document.getElementById('perfHRBoard').style.display    = canSeeBoard ? 'block' : 'none';
+    document.getElementById('perfAccessDenied').style.display = canSeeBoard ? 'none' : 'none'; // form always visible
+    document.getElementById('perfFormSection').style.display = 'block';
+  }
+
+  // ── Session timer ────────────────────────────────────────
+  function startSessionTimer(exp) {
+    function update() {
+      const left = exp - Date.now();
+      if (left <= 0) { NJTCAuth.logout(); return; }
+      const h = Math.floor(left / 3600000);
+      const m = Math.floor((left % 3600000) / 60000);
+      document.getElementById('sessionTimer').textContent = `Session: ${h}h ${m}m`;
+    }
+    update();
+    setInterval(update, 60000);
+  }
+
+  // ── Init ─────────────────────────────────────────────────
+  async function init() {
+    // Wait for central-guard.js to set window.NJTC_SESSION
+    await new Promise(resolve => {
+      if (window.NJTC_SESSION) { resolve(); return; }
+      const t = setInterval(() => {
+        if (window.NJTC_SESSION) { clearInterval(t); resolve(); }
+      }, 50);
+      setTimeout(() => { clearInterval(t); resolve(); }, 3000);
+    });
+
+    const session = window.NJTC_SESSION;
+    if (!session) return; // guard already redirected
+
+    const dept = session.dept;
+    const config = DEPT_CONFIG[dept] || {};
+
+    // Update badge
+    document.getElementById('deptBadge').textContent = config.label || dept.toUpperCase();
+
+    // Session timer
+    startSessionTimer(session.exp);
+
+    // Build content
+    buildHomeQuickLinks(dept);
+    buildKPISummary();
+    buildKPI();
+    buildPolicies();
+    setupPerfSection(dept);
+
+    // Wire GitHub links
+    document.getElementById('programConcernBtn').href   = GITHUB.programConcernNew;
+    document.getElementById('perfConcernBtn').href      = GITHUB.perfConcernNew;
+    document.getElementById('uploadIssueBtn').href      = GITHUB.uploadIssueNew;
+    document.getElementById('programIssuesBoardLink').href = GITHUB.programBoard;
+    if (document.getElementById('perfIssuesBoardLink'))
+      document.getElementById('perfIssuesBoardLink').href = GITHUB.perfBoard;
+
+    // Show UI
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('ctLayout').style.display = 'grid';
+  }
+
+  init();
   </script>
 </body>
 </html>
