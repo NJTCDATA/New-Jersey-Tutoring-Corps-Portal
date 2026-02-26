@@ -2608,23 +2608,53 @@
       }
     } catch(e) { /* fall through to static */ }
 
+    // ── STALE WARNING BANNER helper ──────────────────────────────────
+    function showStaleWarning(msg) {
+      let banner = document.getElementById('kpiStaleBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'kpiStaleBanner';
+        banner.style.cssText = 'background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;';
+        const container = document.getElementById('kpiSummary');
+        if (container && container.parentNode) container.parentNode.insertBefore(banner, container);
+      }
+      banner.innerHTML = `⚠️ <strong>Data Warning:</strong> ${msg}`;
+      banner.style.display = 'flex';
+    }
+    function clearStaleWarning() {
+      const banner = document.getElementById('kpiStaleBanner');
+      if (banner) banner.style.display = 'none';
+    }
+
     if (parsed && parsed.length > 0) {
+      // Live data successfully fetched — update everything
       KPI_DATA = parsed;
       _kpiFromSheet = true;
       _kpiLastFetched = new Date();
       if (dot) { dot.className = 'sync-dot'; }
       if (txt) txt.innerHTML = `<strong>Live from Google Sheet</strong> · ${parsed.length} targets · Last synced ${_kpiLastFetched.toLocaleTimeString()}`;
+      clearStaleWarning();
     } else {
-      KPI_DATA = KPI_DATA_STATIC;
+      // Fetch failed — PRESERVE last good live data if we have it.
+      // Only fall back to static if KPI_DATA has never been populated from the sheet.
       _kpiFromSheet = false;
       if (dot) { dot.className = 'sync-dot error'; }
-      if (txt) txt.innerHTML = '<strong>Using built-in data</strong> · Could not reach Google Sheet · Check that the sheet is published (File → Share → Publish to web)';
+      if (_kpiLastFetched) {
+        // We have previously-fetched live data — keep it, warn the user
+        if (txt) txt.innerHTML = `<strong>⚠️ Sheet unreachable</strong> · Showing last synced data from ${_kpiLastFetched.toLocaleTimeString()} · Recent changes may not be reflected`;
+        showStaleWarning(`Could not reach Google Sheet. Counts below reflect last successful sync at ${_kpiLastFetched.toLocaleTimeString()}. Recent status changes may not be visible yet.`);
+      } else {
+        // First load ever failed — use static as absolute last resort
+        KPI_DATA = KPI_DATA_STATIC;
+        if (txt) txt.innerHTML = '<strong>Using built-in data</strong> · Could not reach Google Sheet on first load · Refresh to retry';
+        showStaleWarning('Live data unavailable. Displaying built-in baseline data — this may not reflect recent status changes. Click ↺ Refresh to retry.');
+      }
     }
     if (btn) btn.disabled = false;
 
     buildKPISummary();
     buildKPI();
-    // Also refresh home stats if visible
+    // Always rebuild home stats after every data refresh — data is now guaranteed accurate
     const session = window.NJTC_SESSION;
     if (session) buildHome(session.dept);
   }
@@ -3048,11 +3078,12 @@
     startSessionTimer(session.exp);
 
     // Build content
-    buildHome(dept);
+    // buildHome is called from INSIDE fetchAndRebuildKPI after KPI_DATA is populated from the live sheet.
+    // Calling it here first would render stale static counts then visibly jump — race condition eliminated.
     buildSidebarDept(dept);
     buildPolicies(false);
-    // Fetch live KPI data from Google Sheet, falls back to static
-    fetchAndRebuildKPI(false);
+    // Fetch live KPI data first — then buildHome fires with accurate data
+    fetchAndRebuildKPI(true);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
     initDeptNav(dept);
     setTimeout(() => initPolicyAdmin(), 500);
