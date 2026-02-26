@@ -587,8 +587,10 @@
       box-shadow: 0 0 0 2px rgba(13,110,58,.2);
       animation: pulse 2s infinite;
     }
-    .sync-dot.loading { background: var(--gold); }
+    .sync-dot.loading { background: var(--gold); animation: none; }
     .sync-dot.error { background: var(--notmet); animation: none; }
+    .kpi-table th { transition: opacity .2s; }
+    .kpi-table td:nth-child(3), .kpi-table td:nth-child(4) { white-space: nowrap; }
     @keyframes pulse { 0%,100%{ box-shadow:0 0 0 2px rgba(13,110,58,.2); } 50%{ box-shadow:0 0 0 5px rgba(13,110,58,.08); } }
     .sync-text { color: var(--text-2); }
     .sync-text strong { color: var(--text); }
@@ -1076,8 +1078,16 @@
         <div class="ph-text">
           <div class="ph-eyebrow">SY 2025–2026</div>
           <h2 class="ph-title">Annual Goal Targets</h2>
-          <p class="ph-subtitle">Organizational KPIs across all departments. Updated in real-time as goals are achieved.</p>
+          <p class="ph-subtitle">Organizational KPIs across all departments. Pulled live from the NJTC KPI Dashboard — updates automatically when the spreadsheet changes.</p>
         </div>
+        <div class="ph-actions">
+          <button class="btn btn-secondary" id="kpiRefreshBtn" onclick="fetchAndRebuildKPI(true)" title="Re-sync from Google Sheet">↺ Refresh</button>
+        </div>
+      </div>
+      <!-- Live sync bar -->
+      <div class="drive-sync-bar" id="kpiSyncBar">
+        <div class="sync-dot loading" id="kpiSyncDot"></div>
+        <div class="sync-text" id="kpiSyncText">Fetching live data from Google Sheet…</div>
       </div>
       <!-- Summary tiles -->
       <div class="kpi-summary-strip" id="kpiSummary"><!-- filled by JS --></div>
@@ -1085,6 +1095,10 @@
       <div class="kpi-filters">
         <select class="filter-select" id="kpiGoalFilter" onchange="filterKPI()">
           <option value="">All Goal Areas</option>
+        </select>
+        <select class="filter-select" id="kpiCycleFilter" onchange="filterKPI()">
+          <option value="mid">Mid Cycle Status</option>
+          <option value="end">End of Cycle Status</option>
         </select>
         <select class="filter-select" id="kpiStatusFilter" onchange="filterKPI()">
           <option value="">All Statuses</option>
@@ -1100,9 +1114,10 @@
         <table class="kpi-table">
           <thead>
             <tr>
-              <th style="width:160px">Goal Area</th>
-              <th>Target</th>
-              <th style="width:180px">Status</th>
+              <th style="width:200px">Goal Area</th>
+              <th>2025–2026 Organizational Target</th>
+              <th style="width:190px" id="midCycleHeader">Mid Cycle Status</th>
+              <th style="width:190px" id="endCycleHeader">End of Cycle Status</th>
             </tr>
           </thead>
           <tbody id="kpiBody"><!-- filled by JS --></tbody>
@@ -1160,68 +1175,57 @@
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">Document Management</div>
-          <h2 class="ph-title">Drive Document Center</h2>
-          <p class="ph-subtitle">All NJTC policies live in Google Drive. Upload a document and it appears in the library automatically.</p>
+          <h2 class="ph-title">Document Resource Center</h2>
+          <p class="ph-subtitle">All NJTC policy documents are hosted in Google Drive. Upload a file and it becomes available to your team instantly — no technical steps required.</p>
         </div>
       </div>
 
       <div class="drive-hero">
         <div class="dh-icon-wrap">☁️</div>
         <div>
-          <div class="dh-label">Google Drive Integration</div>
-          <div class="dh-title">Shared Document Repository</div>
-          <div class="dh-sub">Upload files to the NJTC Drive folder. The portal detects new and modified documents automatically.</div>
+          <div class="dh-label">Google Drive · Shared Repository</div>
+          <div class="dh-title">NJTC Shared Document Folder</div>
+          <div class="dh-sub">All team documents, policies, and guides are stored here. Upload a file and it becomes visible in the Policies Library automatically.</div>
         </div>
         <a href="https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG" target="_blank" rel="noopener" class="btn btn-gold" style="margin-left:auto;flex-shrink:0;text-decoration:none">
-          Open Drive ↗
+          Open Drive Folder ↗
         </a>
       </div>
 
       <div class="auto-detect-card" style="margin-bottom:1.5rem">
         <div class="adc-icon">🔄</div>
         <div>
-          <div class="adc-title">Automatic Detection & Change Tracking</div>
-          <div class="adc-desc">When a new PDF is added to the NJTC Drive folder or an existing document is modified, the portal reads the <code>manifest.json</code> file and updates the Policies Library instantly — including the modification date, sections changed, and department. No deployments needed.</div>
+          <div class="adc-title">Automatic Updates — No Technical Steps</div>
+          <div class="adc-desc">When you upload a new document or update an existing one in the Drive folder, the Policies Library refreshes automatically on the next page load — including the modification date and any sections changed. Simply upload to Drive and you're done.</div>
         </div>
       </div>
 
       <div class="drive-steps-grid">
         <div class="drive-step">
           <div class="ds-num">01</div>
-          <div class="ds-title">Upload to Drive</div>
-          <div class="ds-desc">Add your PDF or document to the NJTC shared Google Drive folder.</div>
+          <div class="ds-title">Open the Drive Folder</div>
+          <div class="ds-desc">Click "Open Drive Folder" above to access the shared NJTC document repository.</div>
         </div>
         <div class="drive-step">
           <div class="ds-num">02</div>
-          <div class="ds-title">Set Permissions</div>
-          <div class="ds-desc">Right-click → Share → "Anyone with the link" set to Viewer.</div>
+          <div class="ds-title">Upload Your Document</div>
+          <div class="ds-desc">Drag your PDF or file into the folder. Google Drive handles the rest.</div>
         </div>
         <div class="drive-step">
           <div class="ds-num">03</div>
-          <div class="ds-title">Update manifest.json</div>
-          <div class="ds-desc">Add an entry with title, dept, date, description, sections, and the file ID.</div>
+          <div class="ds-title">Set Sharing</div>
+          <div class="ds-desc">Right-click → Share → set to "Anyone with the link" as Viewer so the portal can display it.</div>
         </div>
         <div class="drive-step">
           <div class="ds-num">04</div>
-          <div class="ds-title">Auto-Publishes</div>
-          <div class="ds-desc">The portal fetches the manifest on each page load. New and updated docs appear immediately.</div>
+          <div class="ds-title">Appears Instantly</div>
+          <div class="ds-desc">The document will appear in the Policies Library the next time any team member loads the portal.</div>
         </div>
       </div>
 
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;box-shadow:var(--shadow-sm)">
-        <h4 style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.75rem">manifest.json Format</h4>
-        <pre style="background:var(--navy);color:#a8d8a8;border-radius:8px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;overflow-x:auto;line-height:1.6">[
-  {
-    "title": "Employee Handbook",
-    "dept": "hr",
-    "tag": "Human Resources",
-    "effectiveDate": "Aug 2025",
-    "modifiedDate": "Jan 2026",
-    "sectionsModified": ["Section 4 – Leave Policy", "Section 7 – Remote Work"],
-    "desc": "Full NJTC employee handbook.",
-    "fileId": "YOUR_DRIVE_FILE_ID_HERE"
-  }
-]</pre>
+      <div class="alert alert-info" style="margin-top:1rem">
+        <span>💡</span>
+        <div><strong>Need to update an existing document?</strong> Replace the file in Drive with the new version. The portal will automatically show the updated modification date in the Policies Library card.</div>
       </div>
     </div>
 
@@ -1688,79 +1692,97 @@
   // ══════════════════════════════════════════════════════════
   //  KPI DATA
   // ══════════════════════════════════════════════════════════
-  const KPI_DATA = [
-    { goal: 'Increase Impact on Scholars', target: 'Serve 2,000 scholars annually by 2026', status: 'Partially Met' },
-    { goal: 'Increase Impact on Scholars', target: 'Serve 35 sites annually by 2026', status: 'Met' },
-    { goal: 'Increase Impact on Scholars', target: 'Placement Level Change: 80% of scholars advancing a level in math or ELA', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: 'Math: 20% increase of scholars reaching grade-level proficiency', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: 'ELA: 20% increase of scholars reaching grade-level proficiency', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: 'Gap Closing: 35% decrease in scholars 2+ grade levels below', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: '80% of scholars self-report increased confidence in ELA', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: '80% of scholars self-report increased confidence in Math', status: 'In Progress' },
-    { goal: 'Increase Impact on Scholars', target: '92% of onsite staff observe scholar growth', status: 'In Progress' },
-    { goal: 'Educator Pipeline', target: '40 tutor apprentices for SY 25-26', status: 'In Progress' },
-    { goal: 'Educator Pipeline', target: 'Secure 1 DOL grant to expand apprenticeship program', status: 'Met' },
-    { goal: 'Educator Pipeline', target: '4 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026', status: 'Coming Down the Pipeline' },
-    { goal: 'Fee-for-Service Growth', target: '35 SY sites — all fee-for-service', status: 'Met' },
-    { goal: 'Fee-for-Service Growth', target: 'Secure 3 new low-cost pilot customers using new grant funds', status: 'In Progress' },
-    { goal: 'Fee-for-Service Growth', target: '75% of sites cover full fee-for-service', status: 'Met' },
-    { goal: 'Fee-for-Service Growth', target: 'Add 1 additional out-of-state customer', status: 'Met' },
-    { goal: 'Fee-for-Service Growth', target: 'Apply to at least 10 local/regional RFPs annually', status: 'Partially Met' },
-    { goal: 'Funding', target: 'Identify and apply to 2 new multi-year or $500K+ funding opportunities', status: 'Met' },
-    { goal: 'Funding', target: 'Secure $850,000 in philanthropic funds', status: 'Met' },
-    { goal: 'Funding', target: 'Secure new philanthropic partners totaling $200K', status: 'Has Not Met' },
-    { goal: 'Funding', target: 'Secure support from FY27 State budget', status: 'Coming Down the Pipeline' },
-    { goal: 'Financial Health', target: 'Maintain $500K in money market by end of 2025', status: 'Met' },
-    { goal: 'Board Development', target: 'At least 1 board member introduction per member (15 total) to partners/donors', status: 'In Progress' },
-    { goal: 'Board Development', target: 'Maintain 100% board giving; increase total by 10%', status: 'Met' },
-    { goal: 'Systems & Infrastructure', target: 'Revised performance evaluation system in place by November 2025', status: 'Met' },
-    { goal: 'Systems & Infrastructure', target: 'KPI Dashboard 100% operational by October 2025', status: 'Met' },
-    { goal: 'Systems & Infrastructure', target: '2025-2026 Program Evaluation completed by August 2026', status: 'Coming Down the Pipeline' },
-    { goal: 'Systems & Infrastructure', target: 'NJTC Annual Report sent to stakeholders by December 2025', status: 'Partially Met' },
-    { goal: 'Systems & Infrastructure', target: 'Data Governance documented for all internal reporting by December 2025', status: 'Met' },
-    { goal: 'Systems & Infrastructure', target: 'Annual Budgeting process completed by August 1, 2026', status: 'Coming Down the Pipeline' },
-    { goal: 'Systems & Infrastructure', target: 'Leadership completes Mid-Year and End-of-Year retreat', status: 'Coming Down the Pipeline' },
-    { goal: 'Partner Experience', target: '90% customer satisfaction at end of SY 25-26', status: 'In Progress' },
-    { goal: 'Partner Experience', target: 'Receive 3 referrals from partners', status: 'Met' },
-    { goal: 'Partner Experience', target: '50% retention rate for school partners', status: 'Coming Down the Pipeline' },
-    { goal: 'Culture', target: '80% annual core staff retention', status: 'Met' },
-    { goal: 'Culture', target: '60% annual on-site staff retention', status: 'Has Not Met' },
-    { goal: 'Culture', target: 'Increase diversity of tutors to mirror student diversity', status: 'Met' },
-    { goal: 'Culture', target: 'Host 2 in-person events for central team (Winter and Summer)', status: 'Partially Met' },
-    { goal: 'Brand Growth', target: '10 local media hits per year', status: 'Met' },
-    { goal: 'Brand Growth', target: 'Attend 5 local education/non-profit conferences; speak at 2', status: 'Met' },
-    { goal: 'Brand Growth', target: 'Participate in 3 national conferences with presentations at 2', status: 'Met' },
-    { goal: 'Brand Growth', target: 'Increase social media followers by 20% in aggregate', status: 'Coming Down the Pipeline' },
-    { goal: 'Brand Growth', target: 'Meet with at least 7 education organizations across NJ', status: 'In Progress' },
-    { goal: 'Brand Growth', target: 'Attend 5 South Jersey Chamber events', status: 'Partially Met' },
+  // ── Live Google Sheet CSV URL (auto-refreshes from published sheet) ──
+  const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd/pub?output=csv';
+
+  // Fallback static data (exact from official KPI spreadsheet, SY 2025-26)
+  const KPI_DATA_STATIC = [
+    { goal: "Increase Impact on Scholars", target: "By 2026, serve 2000 scholars annually", midStatus: "Partially Met", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "By 2026 serve 35 sites annually", midStatus: "Met", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Placement Level Change: 80% of all scholars advancing a level in math or ela", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Progress Towards Proficiency: Math 20% increase of scholars that reach grade-level proficiency; ELA 20% increase of scholars that reach grade-level below", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Gap Closing: 35% decrease in scholar 2+ grade levels below", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "80% scholars self-report that they increased confidence post session in ELA", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "80% scholars self-report that they increased confidence post-session in Math", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "92% of onsite staff observe scholar growth", midStatus: "In Progress", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "40 tutor apprentices for SY 25-26", midStatus: "In Progress", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "Secure 1 DOL grant to expand apprenticeship program", midStatus: "Met", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "4 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "35 SY sites - all of which are fee-for-service sites (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "Secure 3 new low-cost pilot customers using new grant funds", midStatus: "In Progress", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "75% of sites cover full fee-for-service (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "Add 1 additional out-of-state customer", midStatus: "Met", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "Apply to a least 10 local/regional RFPs annually", midStatus: "Partially Met", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Identify and apply to 2 new multi-year or $500K+ funding opportunities", midStatus: "Met", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure $850,000 in philanthropic funds", midStatus: "Met", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure new philanthropic partners totaling $200k", midStatus: "Has Not Met", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure support from FY 27 State budget", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Maintain cash position", target: "Maintain $500K in Moneymarket portion of investment accounts by the end of 2025", midStatus: "Met", endStatus: "" },
+    { goal: "Further Diversify board and leverage its support", target: "Increase the number of introductions by board members to school district partners & potential donors (At least 1 intro per board member; total of 15)", midStatus: "In Progress", endStatus: "" },
+    { goal: "Further Diversify board and leverage its support", target: "Maintain 100% board giving; Increase total board giving by 10%", midStatus: "Met", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Revised performance evaluation system in place by November 2025", midStatus: "Met", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "KPI Dashboard is 100% operational by October 2025", midStatus: "Met", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "2025-2026 Program Evaluation completed by August of 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "NJTC Annual Report sent to Stakeholders by December 2025", midStatus: "Partially Met", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Data Governance is documented for all internal reporting by December of 2025", midStatus: "Met", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Annual Budgeting process completed by August 1, 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Leadership completes a Mid-Year and End of year retreat", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "90% customer satisfaction reported at the end of the school year 25/26", midStatus: "In Progress", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "Receive 3 referrals from partners", midStatus: "Met", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "50% retention rate for school partners", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "80% annual core staff retention", midStatus: "Met", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "60% annual on-site staff retention", midStatus: "Has Not Met", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "Increase diversity of tutors to mirror student diversity", midStatus: "Met", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "Host 2 in person events for central team (Winter and Summer)", midStatus: "Partially Met", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "10 local media hits per year", midStatus: "Met", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Attend 5 local education and/or non-profit conferences and webinars - speaking engagements at 2", midStatus: "Met", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Participate in 3 national conferences or webinars with presentations at 2", midStatus: "Met", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Increase followers by 20% on social media platforms (in the aggregate)", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Meet with at least 7 education organizations across New Jersey", midStatus: "In Progress", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Attend 5 South Jersey Chamber events", midStatus: "Partially Met", endStatus: "" },
   ];
+
+  // Live data holder — populated from Sheet or falls back to static
+  let KPI_DATA = KPI_DATA_STATIC.map(k => ({ ...k, status: k.midStatus || 'In Progress' }));
+  let _kpiLastFetched = null;
+  let _kpiFromSheet = false;
 
   // ══════════════════════════════════════════════════════════
   //  POLICIES DATA (inline — Drive manifest overrides this)
   // ══════════════════════════════════════════════════════════
   const DRIVE_MANIFEST_ID = 'REPLACE_WITH_YOUR_MANIFEST_JSON_FILE_ID';
 
-  // Inline policies — shown immediately, replaced if Drive manifest loads
+  // ── Operations Manual Drive File ID ─────────────────────────────
+  // Paste the Google Drive File ID of your Operations Manual below.
+  // Get it from the share URL: drive.google.com/file/d/FILE_ID_HERE/view
+  // Once set, every policy card will link directly to the correct section.
+  const OPS_MANUAL_FILE_ID = 'PASTE_YOUR_OPERATIONS_MANUAL_FILE_ID_HERE';
+  const OPS_MANUAL_URL = OPS_MANUAL_FILE_ID.startsWith('PASTE')
+    ? 'https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG'
+    : `https://drive.google.com/file/d/${OPS_MANUAL_FILE_ID}/view`;
+
+  // Inline policies — all sourced from the NJTC Operations Manual
+  // Add fileId to each entry once you have individual document IDs in Drive
   const POLICIES_INLINE = [
-    // HR
-    { title: 'Employee Handbook', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Aug 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Section 4 – Leave Policy', 'Section 7 – Remote Work'], desc: 'Full NJTC employee handbook covering policies, procedures, expectations, and code of conduct for all staff.', fileId: null, annualGoals: ['Culture'] },
-    { title: 'Performance Evaluation System', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Nov 2025', modifiedDate: null, sectionsModified: [], desc: 'Revised performance evaluation rubrics, observation forms, and process documentation for all staff roles.', fileId: null, annualGoals: ['Culture', 'Educator Pipeline'] },
-    { title: 'HR Concern & Documentation Protocol', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Step-by-step guidance for documenting performance concerns, progressive discipline, and PGP administration.', fileId: null, annualGoals: ['Culture'] },
-    // Finance
-    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Budget procedures, reimbursement policy, financial accountability guidelines, and approval workflows.', fileId: null, annualGoals: ['Financial Health', 'Funding'] },
-    { title: 'Grant Reporting Requirements', dept: 'finance', tag: 'Finance', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'Compliance requirements and timelines for all active grants including DOL, philanthropic, and fee-for-service.', fileId: null, annualGoals: ['Funding', 'Fee-for-Service Growth'] },
-    // Programming
-    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', modifiedDate: 'Dec 2025', sectionsModified: ['Section 2 – Escalation Triggers'], desc: 'Step-by-step guide for when and how to escalate site-level program concerns through the correct channels.', fileId: null, annualGoals: ['Partner Experience', 'Increase Impact on Scholars'] },
-    { title: 'Site Operations Handbook', dept: 'programming', tag: 'Programming', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Onsite operational standards, session delivery protocols, and tutor supervisory guidelines for all sites.', fileId: null, annualGoals: ['Increase Impact on Scholars'] },
-    // Data
-    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', modifiedDate: null, sectionsModified: [], desc: 'Internal reporting standards, data ownership definitions, access controls, and governance workflows for all data assets.', fileId: null, annualGoals: ['Systems & Infrastructure'] },
-    { title: 'Assessment & Progress Monitoring Guide', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Protocols for benchmark assessment administration, score entry, and progress monitoring dashboard usage.', fileId: null, annualGoals: ['Increase Impact on Scholars', 'Systems & Infrastructure'] },
-    // Training
-    { title: 'Training & PD Calendar SY25-26', dept: 'training', tag: 'Training & Development', effectiveDate: 'Sep 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Q3 Schedule Updates'], desc: 'Required professional development schedule, compliance tracking, and optional enrichment opportunities for all staff.', fileId: null, annualGoals: ['Educator Pipeline'] },
-    { title: 'Apprenticeship Program Guide', dept: 'training', tag: 'Training & Development', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'DOL-registered apprenticeship program structure, participant requirements, and TAN integration pathway.', fileId: null, annualGoals: ['Educator Pipeline'] },
-    // Shared
-    { title: 'NJTC Organizational Chart SY25-26', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Current organizational structure, reporting lines, and department contacts for the 2025-2026 school year.', fileId: null, annualGoals: ['Systems & Infrastructure'] },
-    { title: 'Communications & Brand Standards', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'NJTC brand voice guidelines, external communications standards, social media policy, and media relations protocol.', fileId: null, annualGoals: ['Brand Growth'] },
+    // ── HR ────────────────────────────────────────────────────────────────────
+    { title: 'Employee Handbook', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Aug 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Section 4 – Leave Policy', 'Section 7 – Remote Work'], desc: 'Full NJTC employee handbook covering policies, procedures, expectations, and code of conduct for all staff.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture'] },
+    { title: 'Performance Evaluation System', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Nov 2025', modifiedDate: null, sectionsModified: [], desc: 'Revised performance evaluation rubrics, observation forms, and process documentation for all staff roles.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture', 'Support Growth of New Jersey's Educator Pipeline'] },
+    { title: 'HR Concern & Documentation Protocol', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Step-by-step guidance for documenting performance concerns, progressive discipline, and PGP administration.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture'] },
+    // ── Finance ───────────────────────────────────────────────────────────────
+    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Budget procedures, reimbursement policy, financial accountability guidelines, and approval workflows.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain cash position', 'Continue to pursue large and multi-year sources of funding'] },
+    { title: 'Grant Reporting Requirements', dept: 'finance', tag: 'Finance', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'Compliance requirements and timelines for all active grants including DOL, philanthropic, and fee-for-service.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Continue to pursue large and multi-year sources of funding', 'Increase the number of fee-for-service partnerships'] },
+    // ── Programming ───────────────────────────────────────────────────────────
+    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', modifiedDate: 'Dec 2025', sectionsModified: ['Section 2 – Escalation Triggers'], desc: 'Step-by-step guide for when and how to escalate site-level program concerns through the correct channels.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain consistent partner experience', 'Increase Impact on Scholars'] },
+    { title: 'Site Operations Handbook', dept: 'programming', tag: 'Programming', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Onsite operational standards, session delivery protocols, and tutor supervisory guidelines for all sites.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Increase Impact on Scholars'] },
+    // ── Data & Evaluation ─────────────────────────────────────────────────────
+    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', modifiedDate: null, sectionsModified: [], desc: 'Internal reporting standards, data ownership definitions, access controls, and governance workflows for all data assets.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Upgrade systems to support growth'] },
+    { title: 'Assessment & Progress Monitoring Guide', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Protocols for benchmark assessment administration, score entry, and progress monitoring dashboard usage.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Increase Impact on Scholars', 'Upgrade systems to support growth'] },
+    // ── Training & Development ────────────────────────────────────────────────
+    { title: 'Training & PD Calendar SY25-26', dept: 'training', tag: 'Training & Development', effectiveDate: 'Sep 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Q3 Schedule Updates'], desc: 'Required professional development schedule, compliance tracking, and optional enrichment opportunities for all staff.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Support Growth of New Jersey's Educator Pipeline'] },
+    { title: 'Apprenticeship Program Guide', dept: 'training', tag: 'Training & Development', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'DOL-registered apprenticeship program structure, participant requirements, and TAN integration pathway.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Support Growth of New Jersey's Educator Pipeline'] },
+    // ── Organization-Wide ────────────────────────────────────────────────────
+    { title: 'NJTC Organizational Chart SY25-26', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Current organizational structure, reporting lines, and department contacts for the 2025-2026 school year.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Upgrade systems to support growth'] },
+    { title: 'Communications & Brand Standards', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'NJTC brand voice guidelines, external communications standards, social media policy, and media relations protocol.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Grow the NJTC brand'] },
   ];
 
   // ══════════════════════════════════════════════════════════
@@ -1829,12 +1851,13 @@
     document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
     document.getElementById('homeSubtitle').textContent = cfg.tagline;
 
-    // Stats strip
-    const met = KPI_DATA.filter(k=>k.status==='Met').length;
-    const prog = KPI_DATA.filter(k=>k.status==='In Progress').length;
-    const partial = KPI_DATA.filter(k=>k.status==='Partially Met').length;
-    const notmet = KPI_DATA.filter(k=>k.status==='Has Not Met').length;
-    const pipe = KPI_DATA.filter(k=>k.status==='Coming Down the Pipeline').length;
+    // Stats strip — use midStatus as primary (falls back to status for legacy data)
+    const getS = k => k.midStatus || k.status || '';
+    const met = KPI_DATA.filter(k=>getS(k)==='Met').length;
+    const prog = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
+    const partial = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
+    const notmet = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
+    const pipe = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
     document.getElementById('homeStatsStrip').innerHTML = `
       <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
         <div class="st-icon">✅</div>
@@ -1858,7 +1881,7 @@
         <div class="st-icon">🟣</div>
         <div class="st-value">${pipe}</div>
         <div class="st-label">Pipeline</div>
-        <div class="st-sub">Coming soon</div>
+        <div class="st-sub">In development</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
         <div class="st-icon">🔴</div>
@@ -1868,8 +1891,9 @@
       </div>
     `;
 
-    // metBadge
-    document.getElementById('metBadge').textContent = met;
+    // metBadge in sidebar
+    const metBadgeEl = document.getElementById('metBadge');
+    if (metBadgeEl) metBadgeEl.textContent = met;
 
     // Quick links
     document.getElementById('homeQuickLinks').innerHTML = cfg.quickLinks.map(ql => `
@@ -1935,31 +1959,113 @@
   // ══════════════════════════════════════════════════════════
   //  KPI TABLE
   // ══════════════════════════════════════════════════════════
+  // ── Parse CSV text into KPI row objects ──────────────────────────
+  function parseSheetCSV(csvText) {
+    const rows = [];
+    // Split into lines, handle 
+
+    const lines = csvText.replace(/\r/g, '').split('\n');
+    // Find header row — contains "Goal" in col A
+    let headerIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      if (cols[0] && cols[0].trim() === 'Goal') { headerIdx = i; break; }
+    }
+    if (headerIdx === -1) return null; // couldn't parse
+    // Data rows start immediately after header
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      const goal = (cols[0] || '').trim();
+      const target = (cols[1] || '').trim();
+      const mid = (cols[3] || '').trim();
+      const end = (cols[4] || '').trim();
+      if (!goal || !target || goal.startsWith('MID') || goal.startsWith('Color')) continue;
+      rows.push({ goal, target, midStatus: mid, endStatus: end });
+    }
+    return rows;
+  }
+
+  // ── Minimal CSV line parser (handles quoted fields) ───────────────
+  function parseCSVLine(line) {
+    const result = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    result.push(cur);
+    return result;
+  }
+
+  // ── Fetch live data from published Google Sheet ───────────────────
+  async function fetchAndRebuildKPI(forceRefresh) {
+    const dot = document.getElementById('kpiSyncDot');
+    const txt = document.getElementById('kpiSyncText');
+    const btn = document.getElementById('kpiRefreshBtn');
+    if (dot) { dot.className = 'sync-dot loading'; }
+    if (txt) txt.textContent = 'Fetching live data from Google Sheet…';
+    if (btn) btn.disabled = true;
+
+    let parsed = null;
+    try {
+      const url = SHEET_CSV_URL + (forceRefresh ? '&t=' + Date.now() : '');
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const csv = await res.text();
+        parsed = parseSheetCSV(csv);
+      }
+    } catch(e) { /* fall through to static */ }
+
+    if (parsed && parsed.length > 0) {
+      KPI_DATA = parsed;
+      _kpiFromSheet = true;
+      _kpiLastFetched = new Date();
+      if (dot) { dot.className = 'sync-dot'; }
+      if (txt) txt.innerHTML = `<strong>Live from Google Sheet</strong> · ${parsed.length} targets · Last synced ${_kpiLastFetched.toLocaleTimeString()}`;
+    } else {
+      KPI_DATA = KPI_DATA_STATIC;
+      _kpiFromSheet = false;
+      if (dot) { dot.className = 'sync-dot error'; }
+      if (txt) txt.innerHTML = '<strong>Using built-in data</strong> · Could not reach Google Sheet · Check that the sheet is published (File → Share → Publish to web)';
+    }
+    if (btn) btn.disabled = false;
+
+    buildKPISummary();
+    buildKPI();
+    // Also refresh home stats if visible
+    const session = window.NJTC_SESSION;
+    if (session) buildHome(session.dept);
+  }
+
   function buildKPISummary() {
+    // Use midStatus for summary counts (primary cycle view)
+    const cycle = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
+    const getStatus = k => cycle === 'end' ? (k.endStatus || k.midStatus || '') : (k.midStatus || k.status || '');
     const counts = { Met:0, 'In Progress':0, 'Partially Met':0, 'Coming Down the Pipeline':0, 'Has Not Met':0 };
-    KPI_DATA.forEach(k => { if(counts[k.status]!==undefined) counts[k.status]++; });
+    KPI_DATA.forEach(k => { const s = getStatus(k); if(counts[s] !== undefined) counts[s]++; });
     const configs = [
-      { status:'Met', emoji:'✅', color:'var(--met)', bg:'var(--met-bg)' },
-      { status:'In Progress', emoji:'🔵', color:'var(--progress)', bg:'var(--prog-bg)' },
-      { status:'Partially Met', emoji:'🟠', color:'var(--partial)', bg:'var(--part-bg)' },
-      { status:'Coming Down the Pipeline', emoji:'🟣', color:'var(--pipeline)', bg:'var(--pipe-bg)' },
-      { status:'Has Not Met', emoji:'🔴', color:'var(--notmet)', bg:'var(--notm-bg)' },
+      { status:'Met', emoji:'✅', color:'var(--met)' },
+      { status:'In Progress', emoji:'🔵', color:'var(--progress)' },
+      { status:'Partially Met', emoji:'🟠', color:'var(--partial)' },
+      { status:'Coming Down the Pipeline', emoji:'🟣', color:'var(--pipeline)' },
+      { status:'Has Not Met', emoji:'🔴', color:'var(--notmet)' },
     ];
-    document.getElementById('kpiSummary').innerHTML = configs.map(c => `
+    const el = document.getElementById('kpiSummary');
+    if (el) el.innerHTML = configs.map(c => `
       <div class="kss-tile" onclick="setKpiFilter('${c.status}')" style="border-top:3px solid ${c.color}">
         <div class="kss-num" style="color:${c.color}">${counts[c.status]}</div>
         <div class="kss-label">${c.status}</div>
       </div>
     `).join('');
 
-    // Populate goal filter
-    const goals = [...new Set(KPI_DATA.map(k=>k.goal))];
+    // Populate goal filter (only once)
     const sel = document.getElementById('kpiGoalFilter');
-    goals.forEach(g => {
-      const o = document.createElement('option');
-      o.value = g; o.textContent = g;
-      sel.appendChild(o);
-    });
+    if (sel && sel.options.length === 1) {
+      const goals = [...new Set(KPI_DATA.map(k=>k.goal))];
+      goals.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
+    }
   }
 
   function setKpiFilter(status) {
@@ -1973,26 +2079,47 @@
     const goalF   = document.getElementById('kpiGoalFilter').value;
     const statusF = document.getElementById('kpiStatusFilter').value;
     const searchF = document.getElementById('kpiSearch').value.toLowerCase();
-    const filtered = KPI_DATA.filter(k =>
-      (!goalF   || k.goal   === goalF)   &&
-      (!statusF || k.status === statusF) &&
-      (!searchF || k.target.toLowerCase().includes(searchF) || k.goal.toLowerCase().includes(searchF))
-    );
+    const cycle   = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
+
+    // Update header labels to reflect selected cycle
+    const midH = document.getElementById('midCycleHeader');
+    const endH = document.getElementById('endCycleHeader');
+    if (midH) midH.style.opacity = cycle === 'mid' ? '1' : '.45';
+    if (endH) endH.style.opacity = cycle === 'end' ? '1' : '.45';
+
+    const getStatus = k => cycle === 'end'
+      ? (k.endStatus || k.midStatus || '')
+      : (k.midStatus || k.status || '');
+
+    const filtered = KPI_DATA.filter(k => {
+      const s = getStatus(k);
+      return (!goalF   || k.goal === goalF)
+          && (!statusF || s === statusF)
+          && (!searchF || k.target.toLowerCase().includes(searchF) || k.goal.toLowerCase().includes(searchF));
+    });
+
     // Group by goal
     const groups = {};
+    const goalOrder = [...new Set(KPI_DATA.map(k => k.goal))]; // preserve spreadsheet order
     filtered.forEach(k => { if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
+
     let html = '';
-    Object.entries(groups).forEach(([goal, items]) => {
-      html += `<tr class="goal-group-header"><td colspan="3">${goal}</td></tr>`;
-      items.forEach(k => {
+    goalOrder.forEach(goal => {
+      if (!groups[goal]) return;
+      html += `<tr class="goal-group-header"><td colspan="4">${goal}</td></tr>`;
+      groups[goal].forEach(k => {
+        const mid = k.midStatus || '';
+        const end = k.endStatus || '';
         html += `<tr>
           <td></td>
-          <td style="font-size:.875rem;color:var(--text)">${k.target}</td>
-          <td><span class="kpi-status ${statusClass(k.status)}">${statusEmoji(k.status)} ${k.status}</span></td>
+          <td style="font-size:.875rem;color:var(--text);line-height:1.5">${k.target}</td>
+          <td>${mid ? `<span class="kpi-status ${statusClass(mid)}" style="cursor:pointer" onclick="setKpiFilter('${mid}')" title="Click to filter by this status">${statusEmoji(mid)} ${mid}</span>` : '<span style="color:var(--muted);font-size:.8125rem">—</span>'}</td>
+          <td>${end ? `<span class="kpi-status ${statusClass(end)}" style="cursor:pointer" onclick="setKpiFilter('${end}')" title="Click to filter by this status">${statusEmoji(end)} ${end}</span>` : '<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>'}</td>
         </tr>`;
       });
     });
-    document.getElementById('kpiBody').innerHTML = html || '<tr><td colspan="3" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets</td></tr>';
+    const tbody = document.getElementById('kpiBody');
+    if (tbody) tbody.innerHTML = html || '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
   }
 
   // ══════════════════════════════════════════════════════════
@@ -2087,12 +2214,13 @@
 
   function policyCardHTML(d) {
     const color = DEPT_COLORS[d.dept] || '#888';
-    const url = d.fileId && !d.fileId.startsWith('REPLACE') && !d.fileId.startsWith('TODO')
+    // Support both driveUrl (new) and fileId (legacy manifest) approaches
+    const url = d.driveUrl || (d.fileId && !d.fileId.startsWith('REPLACE') && !d.fileId.startsWith('TODO') && !d.fileId.startsWith('PASTE')
       ? `https://drive.google.com/file/d/${d.fileId}/view`
-      : null;
+      : null);
     const modified = d.modifiedDate && d.sectionsModified && d.sectionsModified.length > 0;
     const modTooltip = modified
-      ? `<div class="has-tooltip">
+      ? `<div class="has-tooltip" style="display:inline-block">
           <span class="policy-changes-badge">📝 Updated ${d.modifiedDate}
             <div class="tooltip-box">
               <strong>Sections Modified:</strong><br>${d.sectionsModified.map(s=>`• ${s}`).join('<br>')}
@@ -2103,7 +2231,7 @@
     const goalTags = (d.annualGoals||[]).map(g =>
       `<span class="has-tooltip" style="display:inline-block">
         <span style="font-size:.6rem;font-weight:600;background:rgba(0,80,200,.07);color:var(--blue-mid);padding:.15rem .45rem;border-radius:4px;cursor:default">📊 ${g}</span>
-        <div class="tooltip-box" style="width:200px">Aligns with annual goal: <strong>${g}</strong></div>
+        <div class="tooltip-box" style="width:220px">Aligns with organizational goal: <strong>${g}</strong></div>
       </span>`
     ).join('');
 
@@ -2122,8 +2250,8 @@
         ${goalTags ? `<div style="display:flex;flex-wrap:wrap;gap:.375rem;margin-top:.625rem">${goalTags}</div>` : ''}
         <div class="policy-footer">
           <span class="policy-date">Effective ${d.effectiveDate||'—'}</span>
-          ${url ? `<a class="policy-link" href="${url}" target="_blank" rel="noopener">View ↗</a>`
-                : `<span class="policy-link-disabled">Coming soon</span>`}
+          ${url ? `<a class="policy-link" href="${url}" target="_blank" rel="noopener">Open Document ↗</a>`
+                : `<a class="policy-link" href="https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG" target="_blank" rel="noopener">View in Drive ↗</a>`}
         </div>
       </div>`;
   }
@@ -2313,9 +2441,9 @@
     // Build content
     buildHome(dept);
     buildSidebarDept(dept);
-    buildKPISummary();
-    buildKPI();
     buildPolicies(false);
+    // Fetch live KPI data from Google Sheet, falls back to static
+    fetchAndRebuildKPI(false);
 
     // Auto-fill today's date
     const today = new Date().toISOString().split('T')[0];
@@ -2328,6 +2456,20 @@
   }
 
   init();
+
+  // Auto-refresh KPI data from Google Sheet every 5 minutes
+  setInterval(() => {
+    if (document.getElementById('panel-kpi') && document.getElementById('panel-kpi').classList.contains('active')) {
+      fetchAndRebuildKPI(false);
+    }
+  }, 5 * 60 * 1000);
+
+  // Cycle filter toggle also rebuilds summary counts
+  const cycleFilter = document.getElementById('kpiCycleFilter');
+  if (cycleFilter) cycleFilter.addEventListener('change', () => {
+    buildKPISummary();
+    filterKPI();
+  });
 </script>
 </body>
 </html>
