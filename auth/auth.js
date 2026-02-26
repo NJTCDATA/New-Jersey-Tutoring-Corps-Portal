@@ -8,7 +8,7 @@
 const NJTCAuth = (() => {
   const SESSION_KEY   = 'NJTC_SESSION';
   const SESSION_TTL   = 8 * 60 * 60 * 1000; // 8 hours in ms
-  const CODES_URL     = '/auth/codes.json';  // relative to repo root
+  const CODES_URL     = './codes.json';  // relative to repo root
 
   // ── Hashing ────────────────────────────────────────────────────────────────
   async function sha256(str) {
