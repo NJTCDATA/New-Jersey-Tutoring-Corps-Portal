@@ -1556,8 +1556,8 @@
   </div>
 </div>
 
-<script src="../auth/auth.js?v=3"></script>
-<script src="../auth/central-guard.js?v=3"></script>
+<script src="../auth/auth.js?v=4"></script>
+<script src="../auth/central-guard.js?v=4"></script>
 <script>
   // ══════════════════════════════════════════════════════════
   //  DEPARTMENT CONFIGURATION
@@ -1764,25 +1764,25 @@
   // Inline policies — all sourced from the NJTC Operations Manual
   // Add fileId to each entry once you have individual document IDs in Drive
   const POLICIES_INLINE = [
-    // ── HR ────────────────────────────────────────────────────────────────────
-    { title: 'Employee Handbook', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Aug 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Section 4 – Leave Policy', 'Section 7 – Remote Work'], desc: 'Full NJTC employee handbook covering policies, procedures, expectations, and code of conduct for all staff.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture'] },
-    { title: 'Performance Evaluation System', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Nov 2025', modifiedDate: null, sectionsModified: [], desc: 'Revised performance evaluation rubrics, observation forms, and process documentation for all staff roles.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture', 'Support Growth of New Jersey's Educator Pipeline'] },
-    { title: 'HR Concern & Documentation Protocol', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Step-by-step guidance for documenting performance concerns, progressive discipline, and PGP administration.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain and continue to build on strong culture'] },
-    // ── Finance ───────────────────────────────────────────────────────────────
-    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Budget procedures, reimbursement policy, financial accountability guidelines, and approval workflows.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain cash position', 'Continue to pursue large and multi-year sources of funding'] },
-    { title: 'Grant Reporting Requirements', dept: 'finance', tag: 'Finance', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'Compliance requirements and timelines for all active grants including DOL, philanthropic, and fee-for-service.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Continue to pursue large and multi-year sources of funding', 'Increase the number of fee-for-service partnerships'] },
-    // ── Programming ───────────────────────────────────────────────────────────
-    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', modifiedDate: 'Dec 2025', sectionsModified: ['Section 2 – Escalation Triggers'], desc: 'Step-by-step guide for when and how to escalate site-level program concerns through the correct channels.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Maintain consistent partner experience', 'Increase Impact on Scholars'] },
-    { title: 'Site Operations Handbook', dept: 'programming', tag: 'Programming', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Onsite operational standards, session delivery protocols, and tutor supervisory guidelines for all sites.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Increase Impact on Scholars'] },
-    // ── Data & Evaluation ─────────────────────────────────────────────────────
-    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', modifiedDate: null, sectionsModified: [], desc: 'Internal reporting standards, data ownership definitions, access controls, and governance workflows for all data assets.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Upgrade systems to support growth'] },
-    { title: 'Assessment & Progress Monitoring Guide', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Protocols for benchmark assessment administration, score entry, and progress monitoring dashboard usage.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Increase Impact on Scholars', 'Upgrade systems to support growth'] },
-    // ── Training & Development ────────────────────────────────────────────────
-    { title: 'Training & PD Calendar SY25-26', dept: 'training', tag: 'Training & Development', effectiveDate: 'Sep 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Q3 Schedule Updates'], desc: 'Required professional development schedule, compliance tracking, and optional enrichment opportunities for all staff.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Support Growth of New Jersey's Educator Pipeline'] },
-    { title: 'Apprenticeship Program Guide', dept: 'training', tag: 'Training & Development', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'DOL-registered apprenticeship program structure, participant requirements, and TAN integration pathway.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Support Growth of New Jersey's Educator Pipeline'] },
-    // ── Organization-Wide ────────────────────────────────────────────────────
-    { title: 'NJTC Organizational Chart SY25-26', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Current organizational structure, reporting lines, and department contacts for the 2025-2026 school year.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Upgrade systems to support growth'] },
-    { title: 'Communications & Brand Standards', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'NJTC brand voice guidelines, external communications standards, social media policy, and media relations protocol.', driveUrl: OPS_MANUAL_URL, annualGoals: ['Grow the NJTC brand'] },
+    // HR
+    { title: "Employee Handbook", dept: "hr", tag: "Human Resources", effectiveDate: "Aug 2025", modifiedDate: "Jan 2026", sectionsModified: ["Section 4 - Leave Policy", "Section 7 - Remote Work"], desc: "Full NJTC employee handbook covering policies, procedures, expectations, and code of conduct for all staff.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Maintain and continue to build on strong culture"] },
+    { title: "Performance Evaluation System", dept: "hr", tag: "Human Resources", effectiveDate: "Nov 2025", modifiedDate: null, sectionsModified: [], desc: "Revised performance evaluation rubrics, observation forms, and process documentation for all staff roles.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Maintain and continue to build on strong culture", "Support Growth of New Jersey's Educator Pipeline"] },
+    { title: "HR Concern & Documentation Protocol", dept: "hr", tag: "Human Resources", effectiveDate: "Sep 2025", modifiedDate: null, sectionsModified: [], desc: "Step-by-step guidance for documenting performance concerns, progressive discipline, and PGP administration.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Maintain and continue to build on strong culture"] },
+    // Finance
+    { title: "Budget & Financial Controls", dept: "finance", tag: "Finance", effectiveDate: "Aug 2025", modifiedDate: null, sectionsModified: [], desc: "Budget procedures, reimbursement policy, financial accountability guidelines, and approval workflows.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Maintain cash position", "Continue to pursue large and multi-year sources of funding"] },
+    { title: "Grant Reporting Requirements", dept: "finance", tag: "Finance", effectiveDate: "Oct 2025", modifiedDate: null, sectionsModified: [], desc: "Compliance requirements and timelines for all active grants including DOL, philanthropic, and fee-for-service.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Continue to pursue large and multi-year sources of funding", "Increase the number of fee-for-service partnerships"] },
+    // Programming
+    { title: "Program Concern Escalation Protocol", dept: "programming", tag: "Programming", effectiveDate: "Sep 2025", modifiedDate: "Dec 2025", sectionsModified: ["Section 2 - Escalation Triggers"], desc: "Step-by-step guide for when and how to escalate site-level program concerns through the correct channels.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Maintain consistent partner experience", "Increase Impact on Scholars"] },
+    { title: "Site Operations Handbook", dept: "programming", tag: "Programming", effectiveDate: "Aug 2025", modifiedDate: null, sectionsModified: [], desc: "Onsite operational standards, session delivery protocols, and tutor supervisory guidelines for all sites.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Increase Impact on Scholars"] },
+    // Data & Evaluation
+    { title: "Data Governance Framework", dept: "data", tag: "Data & Evaluation", effectiveDate: "Dec 2025", modifiedDate: null, sectionsModified: [], desc: "Internal reporting standards, data ownership definitions, access controls, and governance workflows for all data assets.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Upgrade systems to support growth"] },
+    { title: "Assessment & Progress Monitoring Guide", dept: "data", tag: "Data & Evaluation", effectiveDate: "Sep 2025", modifiedDate: null, sectionsModified: [], desc: "Protocols for benchmark assessment administration, score entry, and progress monitoring dashboard usage.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Increase Impact on Scholars", "Upgrade systems to support growth"] },
+    // Training & Development
+    { title: "Training & PD Calendar SY25-26", dept: "training", tag: "Training & Development", effectiveDate: "Sep 2025", modifiedDate: "Jan 2026", sectionsModified: ["Q3 Schedule Updates"], desc: "Required professional development schedule, compliance tracking, and optional enrichment opportunities for all staff.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Support Growth of New Jersey's Educator Pipeline"] },
+    { title: "Apprenticeship Program Guide", dept: "training", tag: "Training & Development", effectiveDate: "Oct 2025", modifiedDate: null, sectionsModified: [], desc: "DOL-registered apprenticeship program structure, participant requirements, and TAN integration pathway.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Support Growth of New Jersey's Educator Pipeline"] },
+    // Organization-Wide
+    { title: "NJTC Organizational Chart SY25-26", dept: "shared", tag: "Organization-Wide", effectiveDate: "Aug 2025", modifiedDate: null, sectionsModified: [], desc: "Current organizational structure, reporting lines, and department contacts for the 2025-2026 school year.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Upgrade systems to support growth"] },
+    { title: "Communications & Brand Standards", dept: "shared", tag: "Organization-Wide", effectiveDate: "Aug 2025", modifiedDate: null, sectionsModified: [], desc: "NJTC brand voice guidelines, external communications standards, social media policy, and media relations protocol.", driveUrl: OPS_MANUAL_URL, annualGoals: ["Grow the NJTC brand"] },
   ];
 
   // ══════════════════════════════════════════════════════════
@@ -1971,7 +1971,7 @@
       const cols = parseCSVLine(lines[i]);
       if (cols[0] && cols[0].trim() === 'Goal') { headerIdx = i; break; }
     }
-    if (headerIdx === -1) return null; // couldn't parse
+    if (headerIdx === -1) return null; // could not parse
     // Data rows start immediately after header
     for (let i = headerIdx + 1; i < lines.length; i++) {
       const cols = parseCSVLine(lines[i]);
