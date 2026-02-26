@@ -1,0 +1,100 @@
+name: Docs Index Generator + Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'docs/meta.json'
+  workflow_dispatch:
+
+jobs:
+  generate-docs-index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docs and generate index.json
+        run: |
+          node <<'EOF'
+          const fs   = require('fs');
+          const path = require('path');
+
+          const DOCS_DIR  = 'docs';
+          const META_FILE = 'docs/meta.json';
+          const OUT_FILE  = 'docs/index.json';
+
+          // Allowed extensions
+          const ALLOWED_EXT = ['.pdf', '.csv', '.xlsx', '.docx'];
+
+          // Load metadata sidecar if it exists
+          let meta = {};
+          if (fs.existsSync(META_FILE)) {
+            try { meta = JSON.parse(fs.readFileSync(META_FILE, 'utf8')); }
+            catch(e) { console.error('meta.json parse error:', e.message); process.exit(1); }
+          }
+
+          // Scan /docs
+          const files = fs.readdirSync(DOCS_DIR).filter(f => {
+            const ext = path.extname(f).toLowerCase();
+            return ALLOWED_EXT.includes(ext) && f !== 'index.json' && f !== 'meta.json';
+          });
+
+          const index = files.map(filename => {
+            const m = meta[filename] || {};
+            // Validate required metadata
+            if (!m.title)         console.warn(`⚠️  Missing title for: ${filename}`);
+            if (!m.dept)          console.warn(`⚠️  Missing dept for: ${filename}`);
+            if (!m.effectiveDate) console.warn(`⚠️  Missing effectiveDate for: ${filename}`);
+            return {
+              filename,
+              title:         m.title         || filename,
+              dept:          m.dept          || 'all',
+              tag:           m.tag           || m.dept || 'General',
+              effectiveDate: m.effectiveDate || 'N/A',
+              desc:          m.desc          || '',
+              file:          '/docs/' + filename,
+              addedAt:       m.addedAt       || new Date().toISOString().slice(0,10)
+            };
+          });
+
+          fs.writeFileSync(OUT_FILE, JSON.stringify(index, null, 2));
+          console.log(`✅ Generated docs/index.json with ${index.length} document(s).`);
+          EOF
+
+      - name: Commit updated index.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/index.json
+          git diff --staged --quiet || git commit -m "chore: auto-update docs/index.json [skip ci]"
+          git push
+
+  deploy-pages:
+    needs: generate-docs-index
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # pick up the index.json commit
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
