@@ -539,6 +539,28 @@
       border-top: 1px solid var(--border-2);
     }
     .policy-date { font-size: .75rem; color: var(--muted); }
+    /* ── Drive Addition tag ─────────────────────────────────────────── */
+    .drive-addition-tag {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .625rem; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase;
+      background: #e8f4fd; color: #0969da;
+      border: 1px solid #b6d9f7;
+      padding: .175rem .5rem; border-radius: 20px;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .drive-addition-tag svg { flex-shrink: 0; }
+    .policy-card.drive-addition {
+      border-left: 3px solid #0969da;
+      background: linear-gradient(to right, #f0f7ff 0%, #fff 60%);
+    }
+    .policy-card.drive-addition:hover {
+      border-left-color: #0550ae;
+    }
+    .drive-upload-meta {
+      font-size: .75rem; color: #0969da; margin-top: .375rem;
+      display: flex; align-items: center; gap: .35rem;
+    }
     .policy-changes-badge {
       font-size: .6875rem; font-weight: 600;
       background: rgba(240,165,0,.12); color: #7a4c00;
@@ -1292,7 +1314,7 @@
         <div class="ph-text">
           <div class="ph-eyebrow">Knowledge Base</div>
           <h2 class="ph-title">Policies & Procedures Library</h2>
-          <p class="ph-subtitle">Official NJTC documents organized by department. Auto-synced from Google Drive.</p>
+          <p class="ph-subtitle">Official NJTC documents organized by department. Documents uploaded to Google Drive appear with a <strong style="color:#0969da">☁️ Google Drive Addition</strong> tag — separate from the Policies &amp; Procedures Manual.</p>
         </div>
         <div class="ph-actions">
           <button class="btn btn-secondary" onclick="showPanel('upload',document.querySelector('[data-panel=upload]'))">
@@ -1333,9 +1355,10 @@
           <option value="hr">Human Resources</option>
           <option value="finance">Finance</option>
           <option value="programming">Programming</option>
-          <option value="data">Data & Evaluation</option>
-          <option value="training">Training & Development</option>
+          <option value="data">Data &amp; Evaluation</option>
+          <option value="training">Training &amp; Development</option>
           <option value="shared">Organization-Wide</option>
+          <option value="__drive__">☁️ Google Drive Additions</option>
         </select>
         <input type="text" class="filter-input" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()" style="flex:1;min-width:180px;">
         <select class="filter-select" id="policySort" onchange="filterPolicies()">
@@ -1472,7 +1495,7 @@
         <div class="adc-icon">🔄</div>
         <div>
           <div class="adc-title">Automatic Updates — No Technical Steps</div>
-          <div class="adc-desc">When you upload a new document or update an existing one in the Drive folder, the Policies Library refreshes automatically on the next page load — including the modification date and any sections changed. Simply upload to Drive and you're done.</div>
+          <div class="adc-desc">When you upload a new document to the Drive folder, it automatically appears in the Policies &amp; Procedures Library under a <strong style="color:#0969da">☁️ Google Drive Addition</strong> tag — visually distinct from the official Policies &amp; Procedures Manual. This makes it clear which documents are supplemental Drive uploads vs. formally documented policies. Simply upload to Drive and you're done.</div>
         </div>
       </div>
 
@@ -1990,15 +2013,15 @@
 
   const DEPT_COLORS = {
     hr: '#e63946', finance: '#2a9d8f', programming: '#457b9d',
-    data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500'
+    data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500', __drive__: '#0969da'
   };
   const DEPT_ICONS = {
     hr: '👔', finance: '💰', programming: '🎯',
-    data: '📈', training: '🎓', leadership: '⭐'
+    data: '📈', training: '🎓', leadership: '⭐', __drive__: '☁️'
   };
   const DEPT_LABELS = {
     hr: 'HR', finance: 'Finance', programming: 'Programming',
-    data: 'Data & Eval', training: 'Training', leadership: 'Leadership'
+    data: 'Data & Eval', training: 'Training', leadership: 'Leadership', __drive__: 'Google Drive Additions'
   };
 
   // ══════════════════════════════════════════════════════════
@@ -2771,6 +2794,9 @@
             dept: d.dept || 'shared',
             sectionsModified: d.sectionsModified || [],
             annualGoals: d.annualGoals || [],
+            // Mark all Drive Manifest documents as Drive Additions
+            _isDriveUpload: true,
+            _driveManifest: true,
           }));
           fromDrive = true;
         }
@@ -2800,10 +2826,12 @@
 
     // Tag each policy with its stable pid before filtering
     const allWithPid = _allPolicies.map((d, i) => ({ ...d, _pid: i }));
-    let docs = allWithPid.filter(d =>
-      (!deptF  || d.dept === deptF) &&
-      (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search) || (d.tag||'').toLowerCase().includes(search))
-    );
+    let docs = allWithPid.filter(d => {
+      // Special filter: "Google Drive Additions" shows only _isDriveUpload docs
+      if (deptF === '__drive__') return !!d._isDriveUpload;
+      return (!deptF  || d.dept === deptF) &&
+        (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search) || (d.tag||'').toLowerCase().includes(search));
+    });
 
     if (sort === 'alpha')    docs = [...docs].sort((a,b) => a.title.localeCompare(b.title));
     if (sort === 'modified') docs = [...docs].sort((a,b) => (b.modifiedDate||'') > (a.modifiedDate||'') ? 1 : -1);
@@ -2817,22 +2845,42 @@
     let html = '';
     if (sort === 'dept' && !deptF) {
       // Group by dept
-      const DEPT_ORDER = ['shared','hr','finance','programming','data','training'];
+      const DEPT_ORDER = ['shared','hr','finance','programming','data','training','__drive__'];
       const groups = {};
-      docs.forEach(d => { const dk = d.dept||'shared'; if(!groups[dk]) groups[dk]=[]; groups[dk].push(d); });
+      docs.forEach(d => { const dk = d._isDriveUpload ? '__drive__' : (d.dept||'shared'); if(!groups[dk]) groups[dk]=[]; groups[dk].push(d); });
       DEPT_ORDER.forEach(dk => {
         if (!groups[dk]) return;
         const color = DEPT_COLORS[dk] || '#888';
         const icon = DEPT_ICONS[dk] || '📄';
         const label = DEPT_LABELS[dk] || dk;
-        html += `<div class="dept-section-header">
-          <div class="dsh-icon" style="background:${color}18">${icon}</div>
-          <div class="dsh-title">${label}</div>
-          <div class="dsh-count">${groups[dk].length} document${groups[dk].length>1?'s':''}</div>
-        </div>
-        <div class="policy-grid" style="margin-bottom:1.5rem">
-          ${groups[dk].map(d => policyCardHTML(d, d._pid)).join('')}
-        </div>`;
+        const isDriveGroup = dk === '__drive__';
+        const headerStyle = isDriveGroup
+          ? `background:linear-gradient(90deg,#e8f4fd,#f0f7ff);border:1.5px solid #b6d9f7;border-radius:10px;padding:.75rem 1rem;display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem`
+          : ``;
+        const titleStyle = isDriveGroup ? `color:#0969da;font-weight:700` : ``;
+        const driveNote = isDriveGroup
+          ? `<span style="font-size:.7rem;font-weight:400;color:#0969da;margin-left:.5rem;opacity:.8">— Separate from the Policies &amp; Procedures Manual</span>`
+          : ``;
+        html += isDriveGroup
+          ? `<div style="${headerStyle}">
+              <div class="dsh-icon" style="background:#0969da18;font-size:1.25rem">☁️</div>
+              <div style="flex:1">
+                <div class="dsh-title" style="${titleStyle}">Google Drive Additions ${driveNote}</div>
+                <div style="font-size:.75rem;color:#0969da;margin-top:.125rem">${groups[dk].length} document${groups[dk].length>1?'s':''} uploaded directly to Google Drive</div>
+              </div>
+              <span style="font-size:.625rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;background:#0969da;color:#fff;padding:.2rem .6rem;border-radius:20px">Drive Addition</span>
+            </div>
+            <div class="policy-grid" style="margin-bottom:2rem">
+              ${groups[dk].map(d => policyCardHTML(d, d._pid)).join('')}
+            </div>`
+          : `<div class="dept-section-header">
+              <div class="dsh-icon" style="background:${color}18">${icon}</div>
+              <div class="dsh-title">${label}</div>
+              <div class="dsh-count">${groups[dk].length} document${groups[dk].length>1?'s':''}</div>
+            </div>
+            <div class="policy-grid" style="margin-bottom:1.5rem">
+              ${groups[dk].map(d => policyCardHTML(d, d._pid)).join('')}
+            </div>`;
       });
     } else {
       html = `<div class="policy-grid">${docs.map(d => policyCardHTML(d, d._pid)).join('')}</div>`;
@@ -2862,24 +2910,47 @@
       </span>`
     ).join('');
     const safeId = pid !== undefined ? pid : 0;
-    const openDocLink = url ? `<a class="policy-link" href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>` : '';
+
+    // ── Drive Addition rendering ──────────────────────────────────────
+    const isDrive = !!d._isDriveUpload;
+    const driveTag = isDrive
+      ? `<span class="drive-addition-tag" title="This document was uploaded directly to Google Drive — it is separate from the Policies &amp; Procedures Manual">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M12 4v12M8 8l4-4 4 4"/></svg>
+          Google Drive Addition
+        </span>`
+      : '';
+    const driveUploadMeta = isDrive && d._uploadedBy
+      ? `<div class="drive-upload-meta">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Uploaded by ${d._uploadedBy}${d._uploadedAt ? ' · ' + new Date(d._uploadedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : ''}
+          ${d._filename ? ` · <em>${d._filename}</em>` : ''}
+        </div>`
+      : '';
+    const cardClass = isDrive ? 'policy-card drive-addition' : 'policy-card';
+    const openDocLink = url ? `<a class="policy-link" href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${isDrive ? '☁️ Open in Drive ↗' : 'Open Doc ↗'}</a>` : '';
+    const readBtn = isDrive
+      ? `<button class="policy-open-btn" style="border-color:#0969da;color:#0969da" onclick="event.stopPropagation();openPolicyByIdx(${safeId})">☁️ View Document</button>`
+      : `<button class="policy-open-btn" onclick="event.stopPropagation();openPolicyByIdx(${safeId})">📖 Read Policy</button>`;
+
     return `
-      <div class="policy-card" data-pid="${safeId}" onclick="openPolicyByIdx(${safeId})" title="Click to read policy">
+      <div class="${cardClass}" data-pid="${safeId}" onclick="openPolicyByIdx(${safeId})" title="${isDrive ? 'Google Drive Addition — click to open' : 'Click to read policy'}">
         <div class="policy-card-top">
           <div class="policy-tag-group">
             <div class="policy-dept-dot" style="background:${color}"></div>
             <span class="policy-tag" style="background:${color}18;color:${color}">${d.tag || d.dept}</span>
+            ${driveTag}
             ${modTooltip}
           </div>
           <span class="policy-modified">📅 ${d.effectiveDate||'—'}</span>
         </div>
         <div class="policy-title">${d.title}</div>
         <div class="policy-desc">${d.desc||''}</div>
+        ${driveUploadMeta}
         ${goalTags ? `<div style="display:flex;flex-wrap:wrap;gap:.375rem;margin-top:.625rem">${goalTags}</div>` : ''}
         <div class="policy-footer" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
-          <span class="policy-date">Effective ${d.effectiveDate||'—'}</span>
+          <span class="policy-date">${isDrive ? 'Added ' : 'Effective '}${d.effectiveDate||'—'}</span>
           <div style="display:flex;gap:.5rem;align-items:center">
-            <button class="policy-open-btn" onclick="event.stopPropagation();openPolicyByIdx(${safeId})">📖 Read Policy</button>
+            ${readBtn}
             ${openDocLink}
           </div>
         </div>
@@ -3515,7 +3586,8 @@
       tag: 'PDF Upload', effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
       modifiedDate: null, sectionsModified: [], annualGoals: [],
       desc: `Uploaded PDF document · ${p.filename} · By: ${p.uploadedBy}`,
-      driveUrl: p.dataUrl, _isPdf: true,
+      driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
+      _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
     }));
     _allPolicies = [...POLICIES_INLINE, ...pdfDocs];
     renderPolicies();
@@ -3531,7 +3603,8 @@
         effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
         modifiedDate: null, sectionsModified: [], annualGoals: [],
         desc: `Uploaded PDF · ${p.filename} · By: ${p.uploadedBy}`,
-        driveUrl: p.dataUrl, _isPdf: true,
+        driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
+        _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
       }))];
       const dot = document.getElementById('syncDot');
       const txt = document.getElementById('syncText');
