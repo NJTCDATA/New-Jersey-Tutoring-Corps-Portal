@@ -8,12 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --blue:    #003366;
       --blue2:   #004d99;
       --blue3:   #0066cc;
-      --gold:    #f5a623;
       --text:    #1a1a2e;
       --muted:   #6c757d;
       --surface: #ffffff;
@@ -21,7 +19,6 @@
       --danger:  #dc3545;
       --radius:  12px;
     }
-
     body {
       font-family: 'Epilogue', -apple-system, sans-serif;
       background: var(--bg);
@@ -32,11 +29,7 @@
       overflow: hidden;
       position: relative;
     }
-
-    /* Background animation */
-    .bg-circles {
-      position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none;
-    }
+    .bg-circles { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
     .bg-circle {
       position: absolute; border-radius: 50%; opacity: 0.08;
       background: var(--blue2);
@@ -49,8 +42,6 @@
       0%, 100% { transform: scale(1); opacity: .06; }
       50%       { transform: scale(1.15); opacity: .12; }
     }
-
-    /* Card */
     .gate-card {
       position: relative; z-index: 1;
       background: var(--surface);
@@ -64,11 +55,7 @@
       from { opacity:0; transform: translateY(30px); }
       to   { opacity:1; transform: translateY(0); }
     }
-
-    /* Logo */
-    .gate-logo {
-      text-align: center; margin-bottom: 1.75rem;
-    }
+    .gate-logo { text-align: center; margin-bottom: 1.75rem; }
     .logo-mark {
       display: inline-flex; align-items: center; justify-content: center;
       width: 72px; height: 72px; border-radius: 18px;
@@ -80,22 +67,9 @@
     }
     .gate-logo h1 { font-size: 1.25rem; font-weight: 800; color: var(--blue); }
     .gate-logo p  { font-size: .8125rem; color: var(--muted); margin-top: .25rem; }
-
-    /* Divider */
-    .divider {
-      height: 1px; background: #e4e9ed;
-      margin: 1.5rem 0;
-    }
-
-    /* Input */
-    .field-label {
-      display: block; font-size: .875rem; font-weight: 600;
-      color: var(--text); margin-bottom: .5rem;
-    }
-    .field-hint {
-      font-size: .75rem; color: var(--muted);
-      margin-bottom: .75rem; margin-top: -.25rem;
-    }
+    .divider { height: 1px; background: #e4e9ed; margin: 1.5rem 0; }
+    .field-label { display: block; font-size: .875rem; font-weight: 600; color: var(--text); margin-bottom: .5rem; }
+    .field-hint  { font-size: .75rem; color: var(--muted); margin-bottom: .75rem; margin-top: -.25rem; }
     .code-input {
       width: 100%; padding: .875rem 1rem;
       font-size: 1rem; font-family: inherit;
@@ -103,29 +77,18 @@
       outline: none; transition: border-color .2s, box-shadow .2s;
       letter-spacing: .05em;
     }
-    .code-input:focus {
-      border-color: var(--blue2);
-      box-shadow: 0 0 0 3px rgba(0,77,153,.1);
-    }
+    .code-input:focus { border-color: var(--blue2); box-shadow: 0 0 0 3px rgba(0,77,153,.1); }
     .code-input.error { border-color: var(--danger); }
-
-    /* Error */
     .error-msg {
       background: rgba(220,53,69,.08);
       border: 1px solid rgba(220,53,69,.25);
-      border-radius: 8px;
-      color: var(--danger);
-      font-size: .875rem;
-      padding: .75rem 1rem;
-      margin-top: .75rem;
-      display: none;
+      border-radius: 8px; color: var(--danger);
+      font-size: .875rem; padding: .75rem 1rem;
+      margin-top: .75rem; display: none;
     }
     .error-msg.show { display: block; }
-
-    /* Button */
     .btn-enter {
-      margin-top: 1.25rem;
-      width: 100%; padding: .9375rem;
+      margin-top: 1.25rem; width: 100%; padding: .9375rem;
       background: linear-gradient(135deg, var(--blue), var(--blue2));
       color: #fff; border: none; border-radius: var(--radius);
       font-size: 1rem; font-weight: 700; font-family: inherit;
@@ -138,27 +101,16 @@
       box-shadow: 0 6px 20px rgba(0,51,102,.3);
     }
     .btn-enter:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-
-    /* Spinner */
     .spinner {
       width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
       border-top-color: #fff; border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: none;
+      animation: spin .6s linear infinite; display: none;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .loading .spinner { display: block; }
     .loading .btn-text { display: none; }
-
-    /* Footer note */
-    .gate-footer {
-      margin-top: 1.5rem; text-align: center;
-      font-size: .75rem; color: var(--muted); line-height: 1.6;
-    }
-
-    @media (max-width: 480px) {
-      .gate-card { margin: 1rem; padding: 2rem 1.5rem; }
-    }
+    .gate-footer { margin-top: 1.5rem; text-align: center; font-size: .75rem; color: var(--muted); line-height: 1.6; }
+    @media (max-width: 480px) { .gate-card { margin: 1rem; padding: 2rem 1.5rem; } }
   </style>
 </head>
 <body>
@@ -185,7 +137,7 @@
       type="password"
       id="accessCode"
       class="code-input"
-      placeholder="e.g., CT-NJTC-XXXX-0000"
+      placeholder="e.g., NJTC-DEPT-2526"
       autocomplete="off"
       autocorrect="off"
       spellcheck="false"
@@ -206,19 +158,29 @@
     </div>
   </div>
 
-  <script src="./auth/auth.js?v=2"></script>
+  <script src="./auth/auth.js?v=3"></script>
   <script>
+    const BASE = '/New-Jersey-Tutoring-Corps-Portal';
+
+    function route(dept, token) {
+      const dest = dept === 'onsite'
+        ? BASE + '/onsite/index.html'
+        : BASE + '/central/index.html';
+      // Pass token in URL hash — Safari ITP fallback
+      window.location.href = token ? dest + '#t=' + encodeURIComponent(token) : dest;
+    }
+
     (async () => {
-      // If already have a valid session, route immediately
+      // Check for existing valid session
       const existing = await NJTCAuth.currentSession();
       if (existing) {
-        route(existing.dept);
+        route(existing.dept, NJTCAuth.getStoredToken());
         return;
       }
 
-      const input   = document.getElementById('accessCode');
-      const btn     = document.getElementById('enterBtn');
-      const errMsg  = document.getElementById('errorMsg');
+      const input  = document.getElementById('accessCode');
+      const btn    = document.getElementById('enterBtn');
+      const errMsg = document.getElementById('errorMsg');
 
       function setLoading(on) {
         btn.disabled = on;
@@ -242,12 +204,12 @@
         clearError();
         setLoading(true);
         try {
-          const dept = await NJTCAuth.login(code);
-          if (!dept) {
+          const result = await NJTCAuth.login(code);
+          if (!result) {
             showError('Invalid access code. Please check and try again.');
             input.select();
           } else {
-            route(dept);
+            route(result.dept, result.token);
           }
         } catch (e) {
           showError(e.message || 'Connection error. Please refresh and retry.');
@@ -260,15 +222,6 @@
       input.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
       input.addEventListener('input', clearError);
     })();
-
-    function route(dept) {
-  const base = '/New-Jersey-Tutoring-Corps-Portal';
-  if (dept === 'onsite') {
-    window.location.href = base + '/onsite/index.html';
-  } else {
-    window.location.href = base + '/central/index.html';
-  }
-}
   </script>
 </body>
 </html>
