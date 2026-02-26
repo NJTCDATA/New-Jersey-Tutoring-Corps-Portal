@@ -6,9 +6,10 @@
  */
 
 const NJTCAuth = (() => {
-  const SESSION_KEY   = 'NJTC_SESSION';
-  const SESSION_TTL   = 8 * 60 * 60 * 1000; // 8 hours in ms
-  const CODES_URL = './auth/codes.json';
+  const SESSION_KEY = 'NJTC_SESSION';
+  const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours in ms
+  const BASE        = '/New-Jersey-Tutoring-Corps-Portal';
+  const CODES_URL   = BASE + '/auth/codes.json';
 
   // ── Hashing ────────────────────────────────────────────────────────────────
   async function sha256(str) {
@@ -23,7 +24,7 @@ const NJTCAuth = (() => {
 
   // ── Token helpers ──────────────────────────────────────────────────────────
   // Token = base64(JSON { dept, exp, sig })
-  // sig = first 16 chars of sha256(dept + exp + NJTC_STATIC_SALT)
+  // sig = first 24 chars of sha256(dept + exp + STATIC_SALT)
   // Salt is NOT a secret (it's static), but prevents trivial localStorage edits.
   const STATIC_SALT = 'NJTC-2526-PORTAL-INTEGRITY';
 
@@ -86,10 +87,10 @@ const NJTCAuth = (() => {
     return await verifyToken(token);
   }
 
-  // ── Logout ─────────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
   function logout() {
     clearSession();
-    window.location.href = '/New-Jersey-Tutoring-Corps-Portal/index.html';
+    window.location.href = BASE + '/index.html';
   }
 
   // Public API
