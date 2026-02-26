@@ -5090,6 +5090,39 @@
 
   let _kpiAnalyticsTab = 'overview';
 
+  // ════════════════════════════════════════════════════════════════
+  //  SCORING ENGINE — Weighted Point System
+  //  Met = 1.0 | Partially Met = 0.5 | In Progress = 0.25
+  //  Coming Down the Pipeline = 0.10 | Has Not Met = 0
+  //
+  //  Weighted Score % = (sum of points earned / max possible points) × 100
+  //
+  //  Risk Thresholds (applied to weighted score %):
+  //  ≥ 85%  → Healthy
+  //  65–84% → Watch
+  //  40–64% → At Risk
+  //  < 40%  → Critical
+  // ════════════════════════════════════════════════════════════════
+
+  const KPI_POINT_MAP = {
+    'Met':                        1.00,
+    'Partially Met':              0.50,
+    'In Progress':                0.25,
+    'Coming Down the Pipeline':   0.10,
+    'Has Not Met':                0.00,
+  };
+
+  function kpiPoints(status) {
+    return KPI_POINT_MAP[status] ?? 0;
+  }
+
+  function kpiRiskBucket(weightedPct) {
+    if (weightedPct >= 85) return { label: 'Healthy',  color: 'var(--met)',      bg: 'var(--met-bg)',   icon: '🟢' };
+    if (weightedPct >= 65) return { label: 'Watch',    color: '#d97706',         bg: '#fef3c7',         icon: '🟡' };
+    if (weightedPct >= 40) return { label: 'At Risk',  color: 'var(--partial)',  bg: 'var(--part-bg)',  icon: '🟠' };
+    return                        { label: 'Critical', color: 'var(--notmet)',   bg: 'var(--notm-bg)',  icon: '🔴' };
+  }
+
   function buildKPIAnalytics() {
     const el = document.getElementById('kpiAnalyticsContent');
     if (!el) return;
@@ -5106,6 +5139,54 @@
     if (content) content.innerHTML = renderKPIAnalyticsTab(tab);
   }
 
+  // Build weighted goal-group analytics from KPI_DATA
+  function computeKPIAnalytics(data) {
+    const getS = k => k.midStatus || k.status || '';
+
+    // Per-status counts (raw)
+    const counts = { Met: 0, 'In Progress': 0, 'Partially Met': 0, 'Coming Down the Pipeline': 0, 'Has Not Met': 0 };
+    let totalPts = 0, maxPts = 0;
+
+    data.forEach(k => {
+      const s = getS(k);
+      if (counts[s] !== undefined) counts[s]++;
+      totalPts += kpiPoints(s);
+      maxPts   += 1;
+    });
+
+    const weightedPct = maxPts > 0 ? (totalPts / maxPts) * 100 : 0;
+    const overall     = kpiRiskBucket(weightedPct);
+
+    // Per-goal group
+    const goalGroups = {};
+    data.forEach(k => {
+      const g = k.goal || 'Uncategorized';
+      if (!goalGroups[g]) goalGroups[g] = {
+        met: 0, prog: 0, partial: 0, pipe: 0, notmet: 0,
+        total: 0, earnedPts: 0, maxPts: 0, items: []
+      };
+      const s = getS(k);
+      const pts = kpiPoints(s);
+      goalGroups[g].total++;
+      goalGroups[g].earnedPts += pts;
+      goalGroups[g].maxPts   += 1;
+      goalGroups[g].items.push(k);
+      if (s === 'Met')                        goalGroups[g].met++;
+      else if (s === 'In Progress')           goalGroups[g].prog++;
+      else if (s === 'Partially Met')         goalGroups[g].partial++;
+      else if (s === 'Coming Down the Pipeline') goalGroups[g].pipe++;
+      else if (s === 'Has Not Met')           goalGroups[g].notmet++;
+    });
+
+    // Add weighted score % and risk bucket to each goal group
+    Object.values(goalGroups).forEach(g => {
+      g.weightedPct = g.maxPts > 0 ? (g.earnedPts / g.maxPts) * 100 : 0;
+      g.risk = kpiRiskBucket(g.weightedPct);
+    });
+
+    return { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total: data.length };
+  }
+
   function renderKPIAnalytics() {
     const data = KPI_DATA;
     if (!data || !data.length) {
@@ -5115,63 +5196,41 @@
       </div>`;
     }
 
-    // Core counts
-    const getS = k => k.midStatus || k.status || '';
-    const getE = k => k.endStatus || '';
-    const total    = data.length;
-    const met      = data.filter(k => getS(k) === 'Met').length;
-    const prog     = data.filter(k => getS(k) === 'In Progress').length;
-    const partial  = data.filter(k => getS(k) === 'Partially Met').length;
-    const pipe     = data.filter(k => getS(k) === 'Coming Down the Pipeline').length;
-    const notmet   = data.filter(k => getS(k) === 'Has Not Met').length;
-    const onTrack  = met + prog;
-    const atRisk   = partial + notmet;
-    const pctMet   = Math.round(met / total * 100);
-    const pctTrack = Math.round(onTrack / total * 100);
+    const { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total } = computeKPIAnalytics(data);
 
-    // Goal group breakdown
-    const goalGroups = {};
-    data.forEach(k => {
-      if (!goalGroups[k.goal]) goalGroups[k.goal] = { met:0, prog:0, partial:0, pipe:0, notmet:0, total:0 };
-      const s = getS(k);
-      goalGroups[k.goal].total++;
-      if (s === 'Met') goalGroups[k.goal].met++;
-      else if (s === 'In Progress') goalGroups[k.goal].prog++;
-      else if (s === 'Partially Met') goalGroups[k.goal].partial++;
-      else if (s === 'Coming Down the Pipeline') goalGroups[k.goal].pipe++;
-      else if (s === 'Has Not Met') goalGroups[k.goal].notmet++;
-    });
-
-    // Insights
-    const topGoalByMet = Object.entries(goalGroups).sort((a,b) => b[1].met - a[1].met)[0];
-    const atRiskGoal   = Object.entries(goalGroups).sort((a,b) => (b[1].partial+b[1].notmet) - (a[1].partial+a[1].notmet))[0];
-    const pipelineGoal = Object.entries(goalGroups).sort((a,b) => b[1].pipe - a[1].pipe)[0];
+    // Hero stat — weighted score drives the headline
+    const healthyCount = Object.values(goalGroups).filter(g => g.risk.label === 'Healthy').length;
+    const critCount    = Object.values(goalGroups).filter(g => g.risk.label === 'Critical').length;
 
     let html = '';
 
     // ── Hero Banner ─────────────────────────────────────────────────
     html += `<div class="kpia-hero">
       <div class="kpia-hero-text">
-        <div class="kpia-hero-eyebrow">📊 SY 2025–2026 · Mid Cycle</div>
+        <div class="kpia-hero-eyebrow">📊 Weighted Performance Score — SY 2025–2026</div>
         <div class="kpia-hero-title">Organizational Goal Health</div>
-        <div class="kpia-hero-sub">Real-time analytics across ${total} targets, ${Object.keys(goalGroups).length} goal areas. Data reflects the live Google Sheet — last synced automatically.</div>
+        <div class="kpia-hero-sub">
+          ${total} targets tracked across ${Object.keys(goalGroups).length} goal areas.
+          Scoring: Met=1pt · Partial=0.5pt · In Progress=0.25pt · Pipeline=0.10pt · Not Met=0pt.
+          Risk thresholds: ≥85% Healthy · 65–84% Watch · 40–64% At Risk · &lt;40% Critical.
+        </div>
       </div>
       <div class="kpia-hero-stats">
         <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:#f0a500">${pctMet}%</div>
-          <div class="kpia-hstat-label">Met Rate</div>
+          <div class="kpia-hstat-val" style="color:${overall.color}">${weightedPct.toFixed(1)}%</div>
+          <div class="kpia-hstat-label">Weighted Score</div>
         </div>
         <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:#0d6e3a">${onTrack}</div>
-          <div class="kpia-hstat-label">On Track</div>
+          <div class="kpia-hstat-val" style="color:#f0a500">${overall.icon} ${overall.label}</div>
+          <div class="kpia-hstat-label">Org Health</div>
         </div>
         <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:#e63946">${atRisk}</div>
-          <div class="kpia-hstat-label">At Risk</div>
+          <div class="kpia-hstat-val" style="color:#0d6e3a">${healthyCount}</div>
+          <div class="kpia-hstat-label">Healthy Goals</div>
         </div>
         <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:rgba(255,255,255,.6)">${total}</div>
-          <div class="kpia-hstat-label">Total KPIs</div>
+          <div class="kpia-hstat-val" style="color:var(--notmet)">${critCount}</div>
+          <div class="kpia-hstat-label">Critical Goals</div>
         </div>
       </div>
     </div>`;
@@ -5194,9 +5253,7 @@
         <div class="kpia-cta-title">Have a question about a specific metric?</div>
         <div class="kpia-cta-sub">Submit a KPI inquiry to provide context, ask leadership for clarification, or flag information that should be considered when interpreting a target's status.</div>
       </div>
-      <button class="kpia-cta-btn" onclick="openKPIInquiry()">
-        ✏️ Submit KPI Inquiry
-      </button>
+      <button class="kpia-cta-btn" onclick="openKPIInquiry()">✏️ Submit KPI Inquiry</button>
     </div>`;
 
     return html;
@@ -5205,53 +5262,45 @@
   function renderKPIAnalyticsTab(tab) {
     const data = KPI_DATA;
     if (!data || !data.length) return '';
+
+    const { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total } = computeKPIAnalytics(data);
     const getS = k => k.midStatus || k.status || '';
-
-    const met     = data.filter(k => getS(k) === 'Met').length;
-    const prog    = data.filter(k => getS(k) === 'In Progress').length;
-    const partial = data.filter(k => getS(k) === 'Partially Met').length;
-    const pipe    = data.filter(k => getS(k) === 'Coming Down the Pipeline').length;
-    const notmet  = data.filter(k => getS(k) === 'Has Not Met').length;
-    const total   = data.length;
-
-    const goalGroups = {};
-    data.forEach(k => {
-      if (!goalGroups[k.goal]) goalGroups[k.goal] = { met:0, prog:0, partial:0, pipe:0, notmet:0, total:0, items:[] };
-      const s = getS(k);
-      goalGroups[k.goal].total++;
-      goalGroups[k.goal].items.push(k);
-      if (s === 'Met') goalGroups[k.goal].met++;
-      else if (s === 'In Progress') goalGroups[k.goal].prog++;
-      else if (s === 'Partially Met') goalGroups[k.goal].partial++;
-      else if (s === 'Coming Down the Pipeline') goalGroups[k.goal].pipe++;
-      else if (s === 'Has Not Met') goalGroups[k.goal].notmet++;
-    });
 
     const COLORS = {
       'Met': 'var(--met)', 'In Progress': 'var(--progress)',
-      'Partially Met': 'var(--partial)', 'Coming Down the Pipeline': 'var(--pipeline)', 'Has Not Met': 'var(--notmet)'
+      'Partially Met': 'var(--partial)', 'Coming Down the Pipeline': 'var(--pipeline)',
+      'Has Not Met': 'var(--notmet)'
     };
 
+    // ────────────────────────────────────────────────────────────────
+    // TAB: OVERVIEW
+    // ────────────────────────────────────────────────────────────────
     if (tab === 'overview') {
-      // ── Donut + Legend ─────────────────────────────────
+      const met     = counts['Met'];
+      const prog    = counts['In Progress'];
+      const partial = counts['Partially Met'];
+      const pipe    = counts['Coming Down the Pipeline'];
+      const notmet  = counts['Has Not Met'];
+
+      // Donut — weighted points distribution (not raw counts)
+      // Each status slice = sum of points that category contributes
       const donutSlices = [
-        { label:'Met', val:met, color:'var(--met)' },
-        { label:'In Progress', val:prog, color:'var(--progress)' },
-        { label:'Partially Met', val:partial, color:'var(--partial)' },
-        { label:'Pipeline', val:pipe, color:'var(--pipeline)' },
-        { label:'Has Not Met', val:notmet, color:'var(--notmet)' },
+        { label: 'Met (1.0 pt)',        val: met * 1.00,    rawCount: met,     color: 'var(--met)',      status: 'Met' },
+        { label: 'In Progress (0.25)',  val: prog * 0.25,   rawCount: prog,    color: 'var(--progress)', status: 'In Progress' },
+        { label: 'Partially Met (0.5)', val: partial * 0.50,rawCount: partial, color: 'var(--partial)',  status: 'Partially Met' },
+        { label: 'Pipeline (0.10)',     val: pipe * 0.10,   rawCount: pipe,    color: 'var(--pipeline)', status: 'Coming Down the Pipeline' },
+        { label: 'Has Not Met (0)',     val: notmet * 0.00, rawCount: notmet,  color: 'var(--notmet)',   status: 'Has Not Met' },
       ];
-      const degTotal = total || 1;
+      const totalPtsForDonut = donutSlices.reduce((s, x) => s + x.val, 0) || 1;
       let cumulDeg = 0;
-      const gradientStops = donutSlices.map(s => {
-        const pct = s.val / degTotal * 100;
+      // For donut: use raw counts for visual segments so every target is visible
+      const rawTotal = total || 1;
+      const rawGradStops = donutSlices.map(s => {
+        const pct = (s.rawCount / rawTotal) * 100;
         const start = cumulDeg;
         cumulDeg += pct;
         return `${s.color} ${start.toFixed(1)}% ${cumulDeg.toFixed(1)}%`;
       }).join(', ');
-
-      const pctMet   = Math.round(met / total * 100);
-      const pctTrack = Math.round((met + prog) / total * 100);
 
       let html = `<div class="kpia-chart-grid" style="margin-bottom:1.5rem">`;
 
@@ -5259,110 +5308,106 @@
       html += `<div class="kpia-card">
         <div class="kpia-card-header">
           <div class="kpia-card-title">📊 Status Distribution</div>
-          <div class="kpia-card-meta">Mid Cycle · ${total} targets</div>
+          <div class="kpia-card-meta">${total} targets · Weighted Score: ${weightedPct.toFixed(1)}%</div>
         </div>
         <div class="kpia-donut-wrap">
-          <div class="kpia-donut" style="background:conic-gradient(${gradientStops})">
+          <div class="kpia-donut" style="background:conic-gradient(${rawGradStops})">
             <div class="kpia-donut-center">
-              <div class="kpia-donut-num">${pctMet}%</div>
-              <div class="kpia-donut-denom">Met Rate</div>
+              <div class="kpia-donut-num" style="color:${overall.color}">${weightedPct.toFixed(0)}%</div>
+              <div class="kpia-donut-denom">${overall.label}</div>
             </div>
           </div>
           <div class="kpia-legend">
             ${donutSlices.map(s => `
               <div class="kpia-legend-item">
                 <div class="kpia-legend-dot" style="background:${s.color}"></div>
-                <span class="kpia-legend-label">${s.label}</span>
-                <span class="kpia-legend-val">${s.val}</span>
-                <span class="kpia-legend-pct">${Math.round(s.val/total*100)}%</span>
+                <span class="kpia-legend-label">${s.status}</span>
+                <span class="kpia-legend-val">${s.rawCount}</span>
+                <span class="kpia-legend-pct">${Math.round(s.rawCount/rawTotal*100)}%</span>
               </div>`).join('')}
           </div>
         </div>
       </div>`;
 
-      // On-track vs at-risk meter
+      // Weighted Score Meter card
       html += `<div class="kpia-card">
         <div class="kpia-card-header">
-          <div class="kpia-card-title">🎯 Completion Progress</div>
-          <div class="kpia-card-meta">Goal: 100% by year end</div>
+          <div class="kpia-card-title">⚖️ Weighted Performance Meters</div>
+          <div class="kpia-card-meta">Points earned ÷ max possible × 100</div>
         </div>
-        <div class="kpia-meter-wrap">
-          <div class="kpia-meter-header">
-            <span class="kpia-meter-label">Goals Met</span>
-            <span class="kpia-meter-pct">${pctMet}%</span>
+
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.375rem">
+            <span style="font-size:.8125rem;font-weight:700;color:var(--navy)">Overall Weighted Score</span>
+            <span style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:${overall.color}">${weightedPct.toFixed(1)}%</span>
           </div>
-          <div class="kpia-meter-track">
-            <div class="kpia-meter-fill" style="width:${pctMet}%;background:linear-gradient(90deg,var(--met),#2ecc71)"></div>
+          <div class="kpia-meter-track" style="height:12px">
+            <div class="kpia-meter-fill" style="width:${Math.min(weightedPct,100).toFixed(1)}%;background:${overall.color}"></div>
           </div>
-        </div>
-        <div class="kpia-meter-wrap">
-          <div class="kpia-meter-header">
-            <span class="kpia-meter-label">On Track (Met + In Progress)</span>
-            <span class="kpia-meter-pct">${pctTrack}%</span>
+          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:.375rem">
+            <span>0% Critical</span><span style="color:var(--notmet)">40%</span><span style="color:var(--partial)">65%</span><span style="color:#d97706">85%</span><span>100% Healthy</span>
           </div>
-          <div class="kpia-meter-track">
-            <div class="kpia-meter-fill" style="width:${pctTrack}%;background:linear-gradient(90deg,var(--blue),var(--blue-lite))"></div>
-          </div>
-        </div>
-        <div class="kpia-meter-wrap">
-          <div class="kpia-meter-header">
-            <span class="kpia-meter-label">Needs Attention (Partial + Not Met)</span>
-            <span class="kpia-meter-pct" style="color:var(--partial)">${Math.round((partial+notmet)/total*100)}%</span>
-          </div>
-          <div class="kpia-meter-track">
-            <div class="kpia-meter-fill" style="width:${Math.round((partial+notmet)/total*100)}%;background:linear-gradient(90deg,var(--partial),#e63946)"></div>
+          <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
+            <span style="background:${overall.bg};color:${overall.color};font-size:.75rem;font-weight:700;padding:.25rem .75rem;border-radius:20px">${overall.icon} ${overall.label}</span>
+            <span style="font-size:.75rem;color:var(--muted)">${totalPts.toFixed(2)} pts earned of ${maxPts} possible</span>
           </div>
         </div>
-        <div class="kpia-meter-wrap" style="margin-bottom:0">
-          <div class="kpia-meter-header">
-            <span class="kpia-meter-label">Pipeline (Not Yet Started)</span>
-            <span class="kpia-meter-pct" style="color:var(--pipeline)">${Math.round(pipe/total*100)}%</span>
-          </div>
-          <div class="kpia-meter-track">
-            <div class="kpia-meter-fill" style="width:${Math.round(pipe/total*100)}%;background:linear-gradient(90deg,var(--pipeline),#9333ea)"></div>
-          </div>
-        </div>
+
+        ${donutSlices.filter(s => s.rawCount > 0).map(s => {
+          const ptsContrib = s.val;
+          const ptsContribPct = (ptsContrib / maxPts * 100);
+          return `<div class="kpia-meter-wrap">
+            <div class="kpia-meter-header">
+              <span class="kpia-meter-label">${s.status} <span style="color:var(--muted);font-weight:400">(×${KPI_POINT_MAP[s.status]} pt each)</span></span>
+              <span class="kpia-meter-pct" style="color:${s.color}">${s.rawCount} targets → +${ptsContrib.toFixed(2)} pts</span>
+            </div>
+            <div class="kpia-meter-track">
+              <div class="kpia-meter-fill" style="width:${ptsContribPct.toFixed(1)}%;background:${s.color}"></div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>`;
 
       html += `</div>`;
 
       // Insight strip
-      const topMet = Object.entries(goalGroups).sort((a,b) => b[1].met - a[1].met)[0] || ['—', {met:0,total:1}];
-      const topAtRisk = Object.entries(goalGroups).sort((a,b) => (b[1].partial+b[1].notmet) - (a[1].partial+a[1].notmet))[0] || ['—', {partial:0,notmet:0}];
-      const topPipe = Object.entries(goalGroups).sort((a,b) => b[1].pipe - a[1].pipe)[0] || ['—', {pipe:0}];
+      const sortedByScore = Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct);
+      const topGoal   = sortedByScore[0] || ['—', { weightedPct: 0 }];
+      const lowestGoal= sortedByScore[sortedByScore.length - 1] || ['—', { weightedPct: 0 }];
+      const topAtRisk = Object.entries(goalGroups).sort((a,b) => (b[1].partial+b[1].notmet) - (a[1].partial+a[1].notmet))[0] || ['—', { partial:0, notmet:0 }];
 
       html += `<div class="kpia-insight-strip">
         <div class="kpia-insight">
           <div class="kpia-insight-icon">🏆</div>
           <div>
             <div class="kpia-insight-label">Strongest Goal Area</div>
-            <div class="kpia-insight-val">${topMet[0]} · ${topMet[1].met} of ${topMet[1].total} Met</div>
+            <div class="kpia-insight-val">${topGoal[0]} · ${topGoal[1].weightedPct.toFixed(1)}% weighted score</div>
           </div>
         </div>
         <div class="kpia-insight">
           <div class="kpia-insight-icon">⚠️</div>
           <div>
-            <div class="kpia-insight-label">Highest At-Risk Area</div>
-            <div class="kpia-insight-val">${topAtRisk[0]} · ${topAtRisk[1].partial + topAtRisk[1].notmet} targets need attention</div>
+            <div class="kpia-insight-label">Lowest Scoring Area</div>
+            <div class="kpia-insight-val">${lowestGoal[0]} · ${lowestGoal[1].weightedPct.toFixed(1)}% — ${lowestGoal[1].risk.label}</div>
           </div>
         </div>
         <div class="kpia-insight">
-          <div class="kpia-insight-icon">🟣</div>
+          <div class="kpia-insight-icon">🔍</div>
           <div>
-            <div class="kpia-insight-label">Most Pipeline Targets</div>
-            <div class="kpia-insight-val">${topPipe[0]} · ${topPipe[1].pipe} not yet started</div>
+            <div class="kpia-insight-label">Most Attention Needed</div>
+            <div class="kpia-insight-val">${topAtRisk[0]} · ${topAtRisk[1].partial + topAtRisk[1].notmet} targets Partial/Not Met</div>
           </div>
         </div>
       </div>`;
 
-      // Goal health matrix
+      // Goal Health Matrix — shows WEIGHTED score per goal
       html += `<div class="kpia-card">
         <div class="kpia-card-header">
-          <div class="kpia-card-title">🗺️ Goal Health Matrix — All Areas</div>
-          <div class="kpia-card-meta">Stacked by status · Click a goal area to filter KPI table</div>
+          <div class="kpia-card-title">🗺️ Weighted Goal Health Matrix</div>
+          <div class="kpia-card-meta">Risk bucket derived from weighted point score per goal area</div>
         </div>
         <div class="kpia-matrix">
-          ${Object.entries(goalGroups).map(([goal, g]) => {
+          ${Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct).map(([goal, g]) => {
             const segs = [
               { s: g.met,     c: 'var(--met)',      t: `Met: ${g.met}` },
               { s: g.prog,    c: 'var(--progress)', t: `In Progress: ${g.prog}` },
@@ -5370,13 +5415,15 @@
               { s: g.pipe,    c: 'var(--pipeline)', t: `Pipeline: ${g.pipe}` },
               { s: g.notmet,  c: 'var(--notmet)',   t: `Not Met: ${g.notmet}` },
             ].filter(x => x.s > 0);
-            const health = g.met >= g.total * .6 ? '✅' : (g.partial + g.notmet) > g.total * .3 ? '🔴' : '🟡';
-            return `<div class="kpia-matrix-row" title="${goal}">
-              <div class="kpia-matrix-label" title="${goal}">${health} ${goal}</div>
+            return `<div class="kpia-matrix-row">
+              <div class="kpia-matrix-label" title="${goal}">${g.risk.icon} ${goal}</div>
               <div class="kpia-matrix-bar-wrap">
-                ${segs.map(seg => `<div class="kpia-matrix-seg" style="flex:${seg.s};background:${seg.c}" data-tip="${seg.t}"></div>`).join('')}
+                ${segs.map(seg => `<div class="kpia-matrix-seg" style="flex:${seg.s};background:${seg.c}" title="${seg.t}"></div>`).join('')}
               </div>
-              <div class="kpia-matrix-count">${g.total}</div>
+              <div class="kpia-matrix-count" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                <span style="font-weight:700;font-size:.8125rem;color:${g.risk.color}">${g.weightedPct.toFixed(0)}%</span>
+                <span style="font-size:.7rem;color:var(--muted)">${g.total} targets</span>
+              </div>
             </div>`;
           }).join('')}
         </div>
@@ -5384,115 +5431,178 @@
           ${[['Met','var(--met)'],['In Progress','var(--progress)'],['Partially Met','var(--partial)'],['Pipeline','var(--pipeline)'],['Not Met','var(--notmet)']].map(([l,c]) =>
             `<span style="display:flex;align-items:center;gap:.35rem"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></span>${l}</span>`
           ).join('')}
+          <span style="margin-left:.5rem;opacity:.5">|</span>
+          <span>Scores: 🟢 ≥85% Healthy · 🟡 65–84% Watch · 🟠 40–64% At Risk · 🔴 &lt;40% Critical</span>
         </div>
       </div>`;
 
       return html;
 
+    // ────────────────────────────────────────────────────────────────
+    // TAB: BREAKDOWN
+    // ────────────────────────────────────────────────────────────────
     } else if (tab === 'breakdown') {
-      // ── Per-goal area horizontal bars ────────────────────────────
       let html = `<div class="kpia-card">
         <div class="kpia-card-header">
-          <div class="kpia-card-title">📊 Status Breakdown by Goal Area</div>
-          <div class="kpia-card-meta">Count of targets per status within each goal</div>
+          <div class="kpia-card-title">📊 Weighted Score by Goal Area</div>
+          <div class="kpia-card-meta">Points earned ÷ max possible · Risk bucket applied per area</div>
         </div>
         <div class="kpia-bar-list">`;
 
-      Object.entries(goalGroups).forEach(([goal, g]) => {
-        const pctMet = g.total ? Math.round(g.met / g.total * 100) : 0;
-        const pctProg = g.total ? Math.round(g.prog / g.total * 100) : 0;
+      Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct).forEach(([goal, g]) => {
         const statusCounts = [
           { lbl:'Met', val:g.met, c:'var(--met)' },
-          { lbl:'In Prog', val:g.prog, c:'var(--progress)' },
-          { lbl:'Partial', val:g.partial, c:'var(--partial)' },
+          { lbl:'In Progress', val:g.prog, c:'var(--progress)' },
+          { lbl:'Partially Met', val:g.partial, c:'var(--partial)' },
           { lbl:'Pipeline', val:g.pipe, c:'var(--pipeline)' },
           { lbl:'Not Met', val:g.notmet, c:'var(--notmet)' },
         ].filter(x => x.val > 0);
 
         html += `<div class="kpia-bar-row">
           <div class="kpia-bar-meta">
-            <div class="kpia-bar-label" style="font-weight:700;color:var(--navy)">${goal}</div>
-            <div class="kpia-bar-nums">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+              <span style="font-weight:700;color:var(--navy);font-size:.875rem">${g.risk.icon} ${goal}</span>
+              <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.15rem .5rem;border-radius:20px">${g.risk.label}</span>
+            </div>
+            <div class="kpia-bar-nums" style="margin-top:.25rem">
               ${statusCounts.map(s => `<span style="color:${s.c};font-weight:700">${s.val} ${s.lbl}</span>`).join('<span style="opacity:.3">·</span>')}
-              <span style="margin-left:.25rem;font-weight:700;color:var(--navy)">${g.total} total</span>
             </div>
           </div>
-          <!-- Stacked horizontal bar -->
-          <div style="display:flex;gap:2px;height:10px;border-radius:5px;overflow:hidden;margin-top:.25rem">
-            ${statusCounts.map(s => `<div style="flex:${s.val};background:${s.c};min-width:${s.val?'4px':'0'};border-radius:2px" title="${s.lbl}: ${s.val}"></div>`).join('')}
+          <!-- Weighted score bar -->
+          <div style="margin-top:.5rem">
+            <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.25rem">
+              <span>Weighted Score</span>
+              <span style="color:${g.risk.color};font-weight:700">${g.weightedPct.toFixed(1)}% &nbsp;(${g.earnedPts.toFixed(2)} / ${g.maxPts} pts)</span>
+            </div>
+            <div class="kpia-meter-track">
+              <div style="height:100%;width:${Math.min(g.weightedPct,100).toFixed(1)}%;background:${g.risk.color};border-radius:4px;transition:width .4s"></div>
+            </div>
           </div>
-          <div style="display:flex;gap:1rem;margin-top:.375rem">
-            <div style="font-size:.75rem;color:var(--muted)">${pctMet}% Met &nbsp;·&nbsp; ${Math.round((g.met+g.prog)/g.total*100)}% on track &nbsp;·&nbsp; ${Math.round((g.partial+g.notmet)/g.total*100)}% at risk</div>
+          <!-- Stacked count bar -->
+          <div style="display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;margin-top:.5rem">
+            ${statusCounts.map(s => `<div style="flex:${s.val};background:${s.c};min-width:4px;border-radius:2px" title="${s.lbl}: ${s.val}"></div>`).join('')}
           </div>
         </div>`;
       });
 
       html += `</div></div>`;
 
-      // Per-status count bars
+      // Point contribution table
       html += `<div class="kpia-card" style="margin-top:1.25rem">
         <div class="kpia-card-header">
-          <div class="kpia-card-title">📏 Volume by Status — All Targets</div>
-          <div class="kpia-card-meta">Absolute counts across ${total} KPIs</div>
+          <div class="kpia-card-title">⚖️ Point Contribution by Status — All Targets</div>
+          <div class="kpia-card-meta">How each status bucket contributes to the weighted score</div>
         </div>
-        <div class="kpia-bar-list">
-          ${[
-            { lbl:'Met', val:met, c:'var(--met)', icon:'✅' },
-            { lbl:'In Progress', val:prog, c:'var(--progress)', icon:'🔵' },
-            { lbl:'Partially Met', val:partial, c:'var(--partial)', icon:'🟠' },
-            { lbl:'Coming Down the Pipeline', val:pipe, c:'var(--pipeline)', icon:'🟣' },
-            { lbl:'Has Not Met', val:notmet, c:'var(--notmet)', icon:'🔴' },
-          ].map(s => `<div class="kpia-bar-row">
-            <div class="kpia-bar-meta">
-              <div class="kpia-bar-label">${s.icon} ${s.lbl}</div>
-              <div class="kpia-bar-nums" style="color:${s.c};font-weight:700">${s.val} <span style="font-weight:400;color:var(--muted)">(${Math.round(s.val/total*100)}%)</span></div>
-            </div>
-            <div class="kpia-bar-track">
-              <div class="kpia-bar-fill" style="width:${Math.round(s.val/total*100)}%;background:${s.c}"></div>
-            </div>
-          </div>`).join('')}
-        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border)">
+              <th style="text-align:left;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Status</th>
+              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Point Value</th>
+              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Count</th>
+              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Points Earned</th>
+              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">% of Total Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[
+              { s: 'Met',                        pts: 1.00, c: 'var(--met)',      n: counts['Met'] },
+              { s: 'Partially Met',              pts: 0.50, c: 'var(--partial)',  n: counts['Partially Met'] },
+              { s: 'In Progress',                pts: 0.25, c: 'var(--progress)', n: counts['In Progress'] },
+              { s: 'Coming Down the Pipeline',   pts: 0.10, c: 'var(--pipeline)', n: counts['Coming Down the Pipeline'] },
+              { s: 'Has Not Met',                pts: 0.00, c: 'var(--notmet)',   n: counts['Has Not Met'] },
+            ].map(row => {
+              const earned = row.pts * row.n;
+              const pctOfScore = maxPts > 0 ? (earned / maxPts * 100) : 0;
+              return `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:.625rem .75rem">
+                  <span style="display:inline-flex;align-items:center;gap:.4rem">
+                    <span style="width:10px;height:10px;border-radius:50%;background:${row.c};display:inline-block;flex-shrink:0"></span>
+                    <span style="color:var(--navy);font-weight:600">${row.s}</span>
+                  </span>
+                </td>
+                <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${row.c}">${row.pts.toFixed(2)}</td>
+                <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:var(--navy)">${row.n}</td>
+                <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${row.c}">${earned.toFixed(2)}</td>
+                <td style="text-align:center;padding:.625rem .75rem">
+                  <div style="display:flex;align-items:center;gap:.5rem">
+                    <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;width:${pctOfScore.toFixed(1)}%;background:${row.c};border-radius:3px"></div>
+                    </div>
+                    <span style="font-weight:700;color:${row.c};min-width:2.5rem;text-align:right">${pctOfScore.toFixed(1)}%</span>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--border);background:var(--surface-2)">
+              <td style="padding:.625rem .75rem;font-weight:700;color:var(--navy)" colspan="2">TOTAL</td>
+              <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:var(--navy)">${total}</td>
+              <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${overall.color}">${totalPts.toFixed(2)}</td>
+              <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:${overall.color}">${weightedPct.toFixed(1)}% Weighted Score</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>`;
 
       return html;
 
+    // ────────────────────────────────────────────────────────────────
+    // TAB: AT-RISK
+    // ────────────────────────────────────────────────────────────────
     } else if (tab === 'atRisk') {
-      // ── At-risk and not-met targets ──────────────────────────────
       const atRiskItems = data.filter(k => ['Partially Met','Has Not Met'].includes(getS(k)));
       if (!atRiskItems.length) {
         return `<div style="padding:3rem;text-align:center;color:var(--muted)">
           <div style="font-size:2rem;margin-bottom:.75rem">🎉</div>
           <div style="font-size:1rem;font-weight:700;color:var(--navy)">No At-Risk Targets</div>
-          <div style="margin-top:.5rem">All current KPIs are either Met, In Progress, or in the Pipeline.</div>
+          <div style="margin-top:.5rem">All current KPIs are Met, In Progress, or in the Pipeline.</div>
         </div>`;
       }
 
-      // Group by goal
       const byGoal = {};
       atRiskItems.forEach(k => { if (!byGoal[k.goal]) byGoal[k.goal] = []; byGoal[k.goal].push(k); });
 
-      let html = `<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:var(--notm-bg);border:1px solid rgba(185,28,28,.15);border-radius:10px;font-size:.875rem;color:var(--notmet)">
-        <strong>⚠️ ${atRiskItems.length} target${atRiskItems.length>1?'s':''} need attention</strong> — 
-        ${atRiskItems.filter(k=>getS(k)==='Has Not Met').length} have not met, ${atRiskItems.filter(k=>getS(k)==='Partially Met').length} are partially met.
-        Use the inquiry form to provide context or flag issues for leadership review.
+      const notMetCount  = atRiskItems.filter(k => getS(k) === 'Has Not Met').length;
+      const partialCount = atRiskItems.filter(k => getS(k) === 'Partially Met').length;
+
+      // Score impact — how many points are being lost to these statuses
+      const lostPts = notMetCount * 1 + partialCount * 0.5; // 0 earned vs 1 max for NM; 0.5 earned vs 1 max for PM
+
+      let html = `<div style="margin-bottom:1.25rem;padding:1rem 1.25rem;background:var(--notm-bg);border:1px solid rgba(185,28,28,.15);border-radius:10px">
+        <div style="font-size:.875rem;font-weight:700;color:var(--notmet);margin-bottom:.375rem">⚠️ ${atRiskItems.length} target${atRiskItems.length>1?'s':''} need attention</div>
+        <div style="font-size:.8125rem;color:var(--text-2)">
+          ${notMetCount > 0 ? `<strong>${notMetCount} Has Not Met</strong> (0 pts each) · ` : ''}
+          ${partialCount > 0 ? `<strong>${partialCount} Partially Met</strong> (0.5 pts each)` : ''}
+          &nbsp;·&nbsp; <strong>${lostPts.toFixed(2)} potential points</strong> remain on the table — resolving these directly improves your weighted score.
+        </div>
       </div>`;
 
-      Object.entries(byGoal).forEach(([goal, items]) => {
+      Object.entries(byGoal).sort((a,b) => b[1].length - a[1].length).forEach(([goal, items]) => {
+        const goalData = goalGroups[goal];
         html += `<div class="kpia-card" style="margin-bottom:1.25rem">
           <div class="kpia-card-header">
-            <div class="kpia-card-title" style="color:var(--notmet)">⚠️ ${goal}</div>
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+              <div class="kpia-card-title" style="color:var(--notmet)">⚠️ ${goal}</div>
+              ${goalData ? `<span style="background:${goalData.risk.bg};color:${goalData.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${goalData.risk.icon} ${goalData.risk.label} · ${goalData.weightedPct.toFixed(1)}%</span>` : ''}
+            </div>
             <div class="kpia-card-meta">${items.length} at-risk target${items.length>1?'s':''}</div>
           </div>
           <div class="kpia-focus-list">`;
-        items.forEach((k, i) => {
+        items.sort((a,b) => kpiPoints(getS(a)) - kpiPoints(getS(b))).forEach((k, i) => {
           const s = getS(k);
+          const pts = kpiPoints(s);
           const badgeClass = s === 'Has Not Met' ? 'kpia-badge-notmet' : 'kpia-badge-part';
+          const ptLost = 1 - pts; // points lost vs Met
           html += `<div class="kpia-focus-item">
             <div class="kpia-focus-rank">${i+1}</div>
             <div class="kpia-focus-body">
               <div class="kpia-focus-goal">${k.goal}</div>
               <div class="kpia-focus-target">${k.target}</div>
-              <div class="kpia-focus-meta">End of Cycle: ${k.endStatus || 'Pending'}</div>
+              <div class="kpia-focus-meta" style="display:flex;gap:.75rem;flex-wrap:wrap">
+                <span>Owner: ${k.owner || 'Unassigned'}</span>
+                <span style="color:var(--notmet);font-weight:600">−${ptLost.toFixed(2)} pts vs Met</span>
+              </div>
             </div>
             <span class="kpia-trend-badge ${badgeClass}">${s}</span>
             <button class="kpia-focus-action" onclick="openKPIInquiryWithMetric(${JSON.stringify(k.target).replace(/"/g,'&quot;')})">Inquire →</button>
@@ -5503,8 +5613,10 @@
 
       return html;
 
+    // ────────────────────────────────────────────────────────────────
+    // TAB: PIPELINE
+    // ────────────────────────────────────────────────────────────────
     } else if (tab === 'pipeline') {
-      // ── Pipeline targets ─────────────────────────────────────────
       const pipeItems = data.filter(k => getS(k) === 'Coming Down the Pipeline');
       if (!pipeItems.length) {
         return `<div style="padding:3rem;text-align:center;color:var(--muted)">
@@ -5516,9 +5628,17 @@
       const byGoal = {};
       pipeItems.forEach(k => { if (!byGoal[k.goal]) byGoal[k.goal] = []; byGoal[k.goal].push(k); });
 
-      let html = `<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:var(--pipe-bg);border:1px solid rgba(107,33,168,.15);border-radius:10px;font-size:.875rem;color:var(--pipeline)">
-        <strong>🟣 ${pipeItems.length} target${pipeItems.length>1?'s are':' is'} Coming Down the Pipeline</strong> — 
-        These have not started yet. Assign owners and timelines to keep end-of-year goals reachable.
+      // Each pipeline item earns 0.10 pts — if they completed (Met) they'd earn 1.0
+      // So there's 0.90 pts of potential uplift per pipeline item
+      const potentialUplift = pipeItems.length * 0.90;
+
+      let html = `<div style="margin-bottom:1.25rem;padding:1rem 1.25rem;background:var(--pipe-bg);border:1px solid rgba(107,33,168,.15);border-radius:10px">
+        <div style="font-size:.875rem;font-weight:700;color:var(--pipeline);margin-bottom:.375rem">🟣 ${pipeItems.length} target${pipeItems.length>1?'s are':' is'} Coming Down the Pipeline</div>
+        <div style="font-size:.8125rem;color:var(--text-2)">
+          Each earns <strong>0.10 pts</strong> (intent to complete recognized).
+          If all pipeline targets reach <em>Met</em>, your weighted score gains up to <strong>+${(potentialUplift / maxPts * 100).toFixed(1)} percentage points</strong>.
+          Assign owners and timelines to protect year-end goal health.
+        </div>
       </div>`;
 
       html += `<div class="kpia-chart-grid" style="margin-bottom:1.25rem">
@@ -5527,11 +5647,11 @@
             <div class="kpia-card-title">🟣 Pipeline by Goal Area</div>
           </div>
           <div class="kpia-bar-list">
-            ${Object.entries(byGoal).map(([goal, items]) => `
+            ${Object.entries(byGoal).sort((a,b) => b[1].length - a[1].length).map(([goal, items]) => `
               <div class="kpia-bar-row">
                 <div class="kpia-bar-meta">
                   <div class="kpia-bar-label">${goal}</div>
-                  <div class="kpia-bar-nums" style="color:var(--pipeline);font-weight:700">${items.length}</div>
+                  <div class="kpia-bar-nums" style="color:var(--pipeline);font-weight:700">${items.length} targets · +${(items.length * 0.90 / maxPts * 100).toFixed(1)}% potential uplift</div>
                 </div>
                 <div class="kpia-bar-track">
                   <div class="kpia-bar-fill" style="width:${Math.round(items.length/pipeItems.length*100)}%;background:var(--pipeline)"></div>
@@ -5541,8 +5661,8 @@
         </div>
         <div class="kpia-card">
           <div class="kpia-card-header">
-            <div class="kpia-card-title">📋 Pipeline Priority</div>
-            <div class="kpia-card-meta">Goal areas with most pending targets</div>
+            <div class="kpia-card-title">📋 Pipeline Priority Ranking</div>
+            <div class="kpia-card-meta">By volume of pending targets</div>
           </div>
           <div style="display:flex;flex-direction:column;gap:.5rem">
             ${Object.entries(byGoal).sort((a,b)=>b[1].length-a[1].length).map(([goal,items],i) =>
@@ -5568,7 +5688,7 @@
               <div class="kpia-trend-icon" style="background:var(--pipe-bg)">🟣</div>
               <div class="kpia-trend-body">
                 <div class="kpia-trend-name">${k.target}</div>
-                <div class="kpia-trend-sub">End of Cycle: ${k.endStatus || 'Pending'}</div>
+                <div class="kpia-trend-sub">Owner: ${k.owner || 'Unassigned'} · Earns 0.10 pts · +0.90 pts if Met</div>
               </div>
               <span class="kpia-trend-badge kpia-badge-pipe">Pipeline</span>
               <button class="kpia-focus-action" onclick="openKPIInquiryWithMetric(${JSON.stringify(k.target).replace(/"/g,'&quot;')})">Inquire →</button>
@@ -5579,72 +5699,88 @@
 
       return html;
 
+    // ────────────────────────────────────────────────────────────────
+    // TAB: SCORECARD
+    // ────────────────────────────────────────────────────────────────
     } else if (tab === 'scorecard') {
-      // ── Dept scorecard ────────────────────────────────────────────
-      const onTrack = (met + prog);
-      const atRisk  = (partial + notmet);
-      const pctMet = Math.round(met/total*100);
+      const met     = counts['Met'];
+      const prog    = counts['In Progress'];
+      const partial = counts['Partially Met'];
+      const pipe    = counts['Coming Down the Pipeline'];
+      const notmet  = counts['Has Not Met'];
 
       let html = `<div class="kpia-scoreboard">
-        <div class="kpia-score-card" style="--score-color:var(--met)" onclick="setKPIAnalyticsTab('overview')">
+        <div class="kpia-score-card" style="--score-color:${overall.color}">
+          <div class="kpia-score-val" style="color:${overall.color}">${weightedPct.toFixed(1)}%</div>
+          <div class="kpia-score-label">Weighted Score</div>
+          <span class="kpia-score-chip" style="background:${overall.bg};color:${overall.color}">${overall.icon} ${overall.label}</span>
+        </div>
+        <div class="kpia-score-card" style="--score-color:var(--met)" onclick="setKPIAnalyticsTab('breakdown')">
           <div class="kpia-score-val">${met}</div>
           <div class="kpia-score-label">Goals Met</div>
-          <span class="kpia-score-chip kpia-badge-met">${pctMet}% of all targets</span>
-        </div>
-        <div class="kpia-score-card" style="--score-color:var(--progress)" onclick="setKPIAnalyticsTab('breakdown')">
-          <div class="kpia-score-val">${prog}</div>
-          <div class="kpia-score-label">In Progress</div>
-          <span class="kpia-score-chip kpia-badge-prog">Active tracking</span>
+          <span class="kpia-score-chip kpia-badge-met">${(met/total*100).toFixed(0)}% · +${(met*1.00).toFixed(0)} pts</span>
         </div>
         <div class="kpia-score-card" style="--score-color:var(--partial)" onclick="setKPIAnalyticsTab('atRisk')">
           <div class="kpia-score-val">${partial}</div>
           <div class="kpia-score-label">Partially Met</div>
-          <span class="kpia-score-chip kpia-badge-part">Needs attention</span>
+          <span class="kpia-score-chip kpia-badge-part">0.5 pts each</span>
         </div>
         <div class="kpia-score-card" style="--score-color:var(--pipeline)" onclick="setKPIAnalyticsTab('pipeline')">
           <div class="kpia-score-val">${pipe}</div>
           <div class="kpia-score-label">Pipeline</div>
-          <span class="kpia-score-chip kpia-badge-pipe">Not yet started</span>
+          <span class="kpia-score-chip kpia-badge-pipe">0.10 pts each</span>
         </div>
         <div class="kpia-score-card" style="--score-color:var(--notmet)" onclick="setKPIAnalyticsTab('atRisk')">
           <div class="kpia-score-val">${notmet}</div>
           <div class="kpia-score-label">Not Met</div>
-          <span class="kpia-score-chip kpia-badge-notmet">Requires focus</span>
+          <span class="kpia-score-chip kpia-badge-notmet">0 pts — fix first</span>
         </div>
       </div>`;
 
-      // Per-goal scorecards
-      html += `<div style="font-size:.875rem;font-weight:700;color:var(--navy);margin-bottom:.875rem;text-transform:uppercase;letter-spacing:.07em;font-size:.75rem">Goal Area Scorecards</div>`;
+      // Per-goal scorecards — sorted best to worst by weighted score
+      html += `<div style="font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:.875rem;text-transform:uppercase;letter-spacing:.07em">Goal Area Scorecards — Ranked by Weighted Score</div>`;
       html += `<div style="display:flex;flex-direction:column;gap:1rem">`;
-      Object.entries(goalGroups).forEach(([goal, g]) => {
-        const goalPct = Math.round(g.met/g.total*100);
-        const health = goalPct >= 60 ? { label:'On Track', color:'var(--met)', bg:'var(--met-bg)' }
-                     : (g.notmet > 0 || g.partial > g.met) ? { label:'At Risk', color:'var(--notmet)', bg:'var(--notm-bg)' }
-                     : { label:'Developing', color:'var(--partial)', bg:'var(--part-bg)' };
-        html += `<div class="kpia-card" style="border-left:4px solid ${health.color}">
+      Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct).forEach(([goal, g], rank) => {
+        html += `<div class="kpia-card" style="border-left:4px solid ${g.risk.color}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-            <div>
-              <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.25rem">${goal}</div>
-              <div style="display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap">
-                <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy)">${g.met}/${g.total}</span>
-                <span style="font-size:.875rem;color:var(--text-2)">targets met</span>
-                <span style="background:${health.bg};color:${health.color};font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px">${health.label}</span>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+                <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">#${rank+1}</span>
+                <span style="font-size:.875rem;font-weight:700;color:var(--navy)">${goal}</span>
+                <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${g.risk.icon} ${g.risk.label}</span>
+              </div>
+              <div style="font-size:.8125rem;color:var(--text-2)">
+                ${g.earnedPts.toFixed(2)} pts earned of ${g.maxPts} possible &nbsp;·&nbsp;
+                ${g.met} Met · ${g.prog > 0 ? g.prog+' In Prog · ' : ''}${g.partial > 0 ? g.partial+' Partial · ' : ''}${g.pipe > 0 ? g.pipe+' Pipeline · ' : ''}${g.notmet > 0 ? g.notmet+' Not Met' : ''}
               </div>
             </div>
             <div style="text-align:right;flex-shrink:0">
-              <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:${health.color};line-height:1">${goalPct}%</div>
-              <div style="font-size:.7rem;color:var(--muted)">completion rate</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:${g.risk.color};line-height:1">${g.weightedPct.toFixed(1)}%</div>
+              <div style="font-size:.7rem;color:var(--muted)">weighted score</div>
             </div>
           </div>
-          <div style="margin-top:.875rem;display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden">
-            ${g.met     ? `<div style="flex:${g.met};background:var(--met)" title="Met: ${g.met}"></div>`    : ''}
+          <!-- Weighted score bar -->
+          <div style="margin-top:.875rem">
+            <div class="kpia-meter-track" style="height:8px">
+              <div style="height:100%;width:${Math.min(g.weightedPct,100).toFixed(1)}%;background:${g.risk.color};border-radius:4px;transition:width .4s"></div>
+            </div>
+            <!-- Risk threshold markers -->
+            <div style="position:relative;height:6px;margin-top:2px">
+              <div style="position:absolute;left:40%;top:0;width:1px;height:6px;background:var(--border)"></div>
+              <div style="position:absolute;left:65%;top:0;width:1px;height:6px;background:var(--border)"></div>
+              <div style="position:absolute;left:85%;top:0;width:1px;height:6px;background:var(--border)"></div>
+              <span style="position:absolute;left:39%;top:0;font-size:.6rem;color:var(--muted);transform:translateX(-50%)">40%</span>
+              <span style="position:absolute;left:64%;top:0;font-size:.6rem;color:var(--muted);transform:translateX(-50%)">65%</span>
+              <span style="position:absolute;left:84%;top:0;font-size:.6rem;color:var(--muted);transform:translateX(-50%)">85%</span>
+            </div>
+          </div>
+          <!-- Stacked target count bar -->
+          <div style="display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;margin-top:.5rem">
+            ${g.met     ? `<div style="flex:${g.met};background:var(--met)"     title="Met: ${g.met}"></div>` : ''}
             ${g.prog    ? `<div style="flex:${g.prog};background:var(--progress)" title="In Progress: ${g.prog}"></div>` : ''}
             ${g.partial ? `<div style="flex:${g.partial};background:var(--partial)" title="Partially Met: ${g.partial}"></div>` : ''}
             ${g.pipe    ? `<div style="flex:${g.pipe};background:var(--pipeline)" title="Pipeline: ${g.pipe}"></div>` : ''}
-            ${g.notmet  ? `<div style="flex:${g.notmet};background:var(--notmet)" title="Not Met: ${g.notmet}"></div>` : ''}
-          </div>
-          <div style="display:flex;gap:1rem;margin-top:.5rem;font-size:.75rem;flex-wrap:wrap">
-            ${[['Met',g.met,'var(--met)'],['In Prog',g.prog,'var(--progress)'],['Partial',g.partial,'var(--partial)'],['Pipeline',g.pipe,'var(--pipeline)'],['Not Met',g.notmet,'var(--notmet)']].filter(x=>x[1]>0).map(([lbl,v,c])=>`<span style="color:${c};font-weight:700">${v} ${lbl}</span>`).join('<span style="opacity:.3">·</span>')}
+            ${g.notmet  ? `<div style="flex:${g.notmet};background:var(--notmet)"  title="Not Met: ${g.notmet}"></div>` : ''}
           </div>
         </div>`;
       });
