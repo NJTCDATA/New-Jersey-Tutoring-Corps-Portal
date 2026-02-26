@@ -408,6 +408,112 @@
       .concern-split { grid-template-columns: 1fr; }
     }
   </style>
+
+  /* ── Multi-step Concern Form ─────────────────────────── */
+  .form-steps {
+    display: flex; align-items: center; gap: .5rem;
+    margin-bottom: 2rem; flex-wrap: wrap;
+  }
+  .form-step {
+    font-size: .75rem; font-weight: 700; padding: .375rem .875rem;
+    border-radius: 20px; background: var(--border); color: var(--muted);
+    transition: all .2s; cursor: default;
+  }
+  .form-step.active  { background: var(--blue); color: #fff; }
+  .form-step.completed { background: rgba(40,167,69,.15); color: #155724; }
+  .form-step-divider { color: var(--muted); font-size: .75rem; }
+  .form-section-block { display: none; }
+  .form-section-block.active { display: block; }
+  .section-title {
+    font-size: 1.0625rem; font-weight: 700; color: var(--blue);
+    margin-bottom: 1.25rem; padding-bottom: .625rem;
+    border-bottom: 2px solid var(--border);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
+  .form-group { margin-bottom: 1.125rem; }
+  .form-lbl { display: block; font-size: .875rem; font-weight: 600; color: var(--text); margin-bottom: .375rem; }
+  .form-lbl.required::after { content: ' *'; color: var(--red); }
+  .form-hint { font-size: .75rem; color: var(--muted); margin-bottom: .5rem; margin-top: -.25rem; }
+  .form-ctrl {
+    width: 100%; padding: .75rem .875rem;
+    font-size: .9375rem; font-family: inherit;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    outline: none; background: var(--surface);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .form-ctrl:focus { border-color: var(--blue2); box-shadow: 0 0 0 3px rgba(0,77,153,.08); }
+  textarea.form-ctrl { resize: vertical; min-height: 100px; }
+  .radio-group { display: flex; flex-wrap: wrap; gap: .625rem; }
+  .radio-group.vertical { flex-direction: column; gap: .5rem; }
+  .radio-opt {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .875rem; cursor: pointer; padding: .375rem .75rem;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    background: var(--surface); transition: all .15s;
+  }
+  .radio-opt:hover { border-color: var(--blue2); background: rgba(0,77,153,.04); }
+  .radio-opt input[type="radio"] { accent-color: var(--blue2); }
+  .step-actions {
+    display: flex; justify-content: flex-end; gap: .75rem;
+    margin-top: 1.75rem; padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .btn-back {
+    background: var(--surface); border: 1.5px solid var(--border);
+    color: var(--text); border-radius: 10px;
+    padding: .75rem 1.5rem; font-size: .9375rem; font-weight: 600;
+    font-family: inherit; cursor: pointer; transition: all .2s;
+  }
+  .btn-back:hover { border-color: var(--blue2); color: var(--blue2); }
+  .btn-next {
+    background: linear-gradient(135deg, var(--blue2), var(--blue3));
+    color: #fff; border: none; border-radius: 10px;
+    padding: .75rem 1.75rem; font-size: .9375rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .2s;
+  }
+  .btn-next:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,77,153,.3); }
+  .btn-submit {
+    background: linear-gradient(135deg, #155724, #28a745);
+    color: #fff; border: none; border-radius: 10px;
+    padding: .75rem 2rem; font-size: .9375rem; font-weight: 700;
+    font-family: inherit; cursor: pointer; transition: all .2s;
+    display: inline-flex; align-items: center; gap: .5rem;
+  }
+  .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(40,167,69,.3); }
+  .btn-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+  .btn-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin .6s linear infinite;
+  }
+  .submit-confirm-box {
+    display: flex; align-items: flex-start; gap: .75rem;
+    background: rgba(40,167,69,.06); border: 1px solid rgba(40,167,69,.2);
+    border-radius: 10px; padding: 1rem 1.25rem;
+    font-size: .875rem; color: #155724; line-height: 1.5;
+  }
+  .submit-error {
+    background: rgba(220,53,69,.08); border: 1px solid rgba(220,53,69,.2);
+    border-radius: 8px; padding: .75rem 1rem;
+    font-size: .875rem; color: var(--red); margin-bottom: 1rem;
+  }
+  .success-card {
+    text-align: center; padding: 3rem 2rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .success-card .success-icon { font-size: 3rem; margin-bottom: 1rem; }
+  .success-card h3 { font-size: 1.375rem; font-weight: 800; color: var(--blue); margin-bottom: .75rem; }
+  .success-card p { color: var(--muted); font-size: .9375rem; line-height: 1.6; }
+  /* Drive doc library */
+  .drive-admin-note {
+    background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
+    border-radius: 8px; padding: .875rem 1rem; font-size: .8125rem;
+    color: #6b4c00; margin-bottom: 1.25rem;
+  }
+</style>
 </head>
 <body>
 
@@ -522,10 +628,15 @@
       </div>
 
       <!-- ══ POLICIES PANEL ═══════════════════════════════════ -->
+
+      <!-- ══ POLICIES PANEL — Drive-powered ══════════════════ -->
       <div class="panel" id="panel-policies">
         <div class="page-header">
           <h2>Policies & Procedures Library</h2>
-          <p>Official NJTC documents. Effective dates and department tags shown.</p>
+          <p>Official NJTC documents. Click any document to open it in Google Drive.</p>
+        </div>
+        <div class="drive-admin-note" id="driveAdminNote" style="display:none">
+          ⚙️ <strong>Admin:</strong> To add documents, update <code>manifest.json</code> in your Google Drive folder and paste each file's Drive ID. Documents appear here automatically.
         </div>
         <div class="policy-filters">
           <select id="policyDeptFilter" onchange="filterPolicies()">
@@ -537,142 +648,292 @@
             <option value="training">Training & Development</option>
             <option value="all">Organization-Wide</option>
           </select>
-          <input type="text" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()" style="min-width:200px; padding: .5rem .875rem; font-size:.875rem; border:1px solid var(--border); border-radius:8px;">
+          <input type="text" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()"
+            style="min-width:200px; padding:.5rem .875rem; font-size:.875rem; border:1px solid var(--border); border-radius:8px;">
         </div>
-        <div class="policy-grid" id="policyGrid">
-          <!-- Populated by JS from /docs/index.json -->
-        </div>
+        <div class="policy-grid" id="policyGrid"></div>
         <div id="policyEmpty" style="display:none" class="alert alert-info">No documents match your filter.</div>
       </div>
 
-      <!-- ══ PROGRAM CONCERNS PANEL ════════════════════════ -->
+      <!-- ══ CONCERN FORM PANEL ════════════════════════════════ -->
       <div class="panel" id="panel-concern-program">
         <div class="page-header">
-          <h2>Program Concern Reporting</h2>
-          <p>Submit or review onsite program concerns. All submissions create a tracked GitHub Issue.</p>
+          <h2>Performance & Program Concern Form</h2>
+          <p>Document a performance conversation or program concern. Submitted directly to HR — no GitHub required.</p>
         </div>
 
-        <div class="concern-split">
-          <div class="concern-card">
-            <h3>📝 Submit a Program Concern</h3>
-            <p>Report a concern observed at a site — attendance patterns, safety issues, instructional gaps, or escalations. You will be redirected to a pre-filled GitHub Issue form.</p>
-            <a class="btn-primary" id="programConcernBtn" href="#" target="_blank" rel="noopener">
-              Open Concern Form ↗
-            </a>
-          </div>
-          <div class="concern-card">
-            <h3>📋 Escalation Guide</h3>
-            <p>Review the protocol for when and how to escalate site concerns. Daily concerns should be logged here. Monthly rollup reports are generated from issue labels.</p>
-            <button class="btn-primary" onclick="showPanel('policies', document.querySelector('[data-panel=policies]'))">
-              View Escalation Policy
-            </button>
+        <!-- Success screen -->
+        <div id="formSuccess" style="display:none">
+          <div class="success-card">
+            <div class="success-icon">✅</div>
+            <h3>Submission Received</h3>
+            <p>Your concern has been logged and HR has been notified.<br>A confirmation copy has been sent to your email address.</p>
+            <button class="btn-primary" onclick="resetConcernForm()" style="margin-top:1.25rem">Submit Another</button>
           </div>
         </div>
 
-        <div class="board-header">
-          <h3 style="font-size:1.0625rem; font-weight:700; color:var(--blue)">Open Concerns Dashboard</h3>
-          <a class="btn-primary" id="programIssuesBoardLink" href="#" target="_blank" rel="noopener" style="font-size:.8125rem; padding:.5rem 1rem">
-            View Full GitHub Board ↗
-          </a>
-        </div>
-        <div class="board-note">
-          ⓘ Concerns are tracked as GitHub Issues. The table below reflects the <strong>index of open issues</strong> — click "View Full GitHub Board" to triage, comment, or close items.
-        </div>
-        <div class="concern-table-wrap">
-          <table class="concern-table">
-            <thead>
-              <tr>
-                <th>#</th><th>Site / Region</th><th>Concern Type</th><th>Submitted</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colspan="5" style="text-align:center; color:var(--muted); padding:2rem; font-style:italic;">
-                  Live issue data loads from GitHub Issues.<br>
-                  Click "View Full GitHub Board" above to see and manage all concerns.
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- Form container -->
+        <div id="formContainer">
+          <form id="concernForm" novalidate>
+
+            <!-- Step indicators -->
+            <div class="form-steps">
+              <div class="form-step active" data-step="1">1 · Submitter</div>
+              <div class="form-step-divider">›</div>
+              <div class="form-step" data-step="2">2 · Employee</div>
+              <div class="form-step-divider">›</div>
+              <div class="form-step" data-step="3">3 · Concern</div>
+              <div class="form-step-divider">›</div>
+              <div class="form-step" data-step="4">4 · Next Steps</div>
+            </div>
+
+            <!-- STEP 1: Submitter -->
+            <div class="form-section-block active" id="cstep1">
+              <h3 class="section-title">Your Information</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-lbl required">Your Email</label>
+                  <input type="email" id="f_email" class="form-ctrl" placeholder="yourname@njtc.org" />
+                </div>
+                <div class="form-group">
+                  <label class="form-lbl required">Your Name & Title</label>
+                  <input type="text" id="f_submitter" class="form-ctrl" placeholder="e.g. Jane Smith, Program Manager" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">Completing on behalf of someone else?</label>
+                <div class="radio-group">
+                  <label class="radio-opt"><input type="radio" name="onBehalf" value="No" checked onchange="toggleOnBehalf(this.value)" /> No</label>
+                  <label class="radio-opt"><input type="radio" name="onBehalf" value="Yes" onchange="toggleOnBehalf(this.value)" /> Yes</label>
+                </div>
+              </div>
+              <div class="form-group" id="onBehalfField" style="display:none">
+                <label class="form-lbl">Name & role of the person you're completing this for</label>
+                <input type="text" id="f_onBehalfOf" class="form-ctrl" placeholder="e.g. John Doe, Site Coordinator" />
+              </div>
+              <div class="step-actions">
+                <button type="button" class="btn-next" onclick="goFormStep(2)">Next ›</button>
+              </div>
+            </div>
+
+            <!-- STEP 2: Employee -->
+            <div class="form-section-block" id="cstep2">
+              <h3 class="section-title">Employee Information</h3>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-lbl required">Employee Name</label>
+                  <input type="text" id="f_empName" class="form-ctrl" placeholder="Full name" />
+                </div>
+                <div class="form-group">
+                  <label class="form-lbl required">Employee Role</label>
+                  <select id="f_empRole" class="form-ctrl">
+                    <option value="">Select role…</option>
+                    <option>Tutor</option><option>SC</option><option>IC</option>
+                    <option>Dual Role</option><option>Other</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">Employee Site / Location</label>
+                <select id="f_empSite" class="form-ctrl">
+                  <option value="">Select site…</option>
+                  <option>Clinton Township School District - Round Valley School</option>
+                  <option>First Philadelphia Prep Charter School (American Paradigm)</option>
+                  <option>Global Leadership Academy - GLA- West</option>
+                  <option>Gloucester Township School District- Blackwood Elementary School</option>
+                  <option>Gloucester Township School District- Erial Elementary School</option>
+                  <option>Gloucester Township School District- JW Lilley Elementary School</option>
+                  <option>Gloucester Township School District- Loring Flemming Elementary School</option>
+                  <option>Hamilton Township School District- Albert E. Grice Middle School</option>
+                  <option>Hamilton Township School District- Crockett Middle School</option>
+                  <option>Hamilton Township School District- Kuser Elementary School</option>
+                  <option>iLearn Charter School- Bergen ES</option>
+                  <option>iLearn Charter School- Bergen MS</option>
+                  <option>iLearn Charter School- Clifton ES</option>
+                  <option>iLearn Charter School- Clifton HS</option>
+                  <option>iLearn Charter School- Clifton MS</option>
+                  <option>iLearn Charter School- Hudson ES</option>
+                  <option>iLearn Charter School- Hudson MS</option>
+                  <option>iLearn Charter School- Passaic ES</option>
+                  <option>iLearn Charter School- Passaic MS</option>
+                  <option>iLearn Charter School- Paterson ES</option>
+                  <option>iLearn Charter School- Paterson MS</option>
+                  <option>Lawrence Township- Eldridge Park School</option>
+                  <option>Lawrence Township- Slackwood Elementary</option>
+                  <option>Monmouth County BGC- Bradley Elementary School</option>
+                  <option>Monmouth County BGC- College Achieve (CAPS Neptune)</option>
+                  <option>Paterson Charter School Science & Tech.- PCSST 4-7 Campus</option>
+                  <option>Pemberton- Denbo-Crichton Location</option>
+                  <option>Riverton School District- Riverton Public School</option>
+                  <option>Waterford Township School District- Atco Elementary School</option>
+                  <option>Waterford Township School District- Waterford Elementary School</option>
+                  <option>Penns Grove - Carneys Point Regional School District- Penns Grove Middle School</option>
+                  <option>Salem City School District- Salem - John Fenwick Academy (K-2)</option>
+                  <option>Salem City School District- Salem Middle School (3-5)</option>
+                  <option>Hamilton Township School District- Mercerville Elementary School</option>
+                  <option>Hamilton Township School District- Sayen Elementary School</option>
+                  <option>Hamilton Township School District-Alexander Elementary School</option>
+                  <option>Haddon Township School District-Van Sciver Elementary School</option>
+                  <option>Haddon Township School District-Strawbridge Elementary School</option>
+                  <option>Haddon Township School District-Edison Elementary School</option>
+                  <option>Haddon Township School District-Clyde Jennings Elementary School</option>
+                  <option>Haddon Township School District- Stoy Elementary School</option>
+                  <option>Central Jersey College Prep</option>
+                  <option>Penns Grove - P.W. Carleton Elementary</option>
+                  <option>Penns Grove - Field Street Elementary</option>
+                  <option>Hoboken Dual Language Charter School (HOLA) - ES</option>
+                  <option>Hoboken Dual Language Charter School (HOLA) - MS</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-lbl required">Today's Date</label>
+                  <input type="date" id="f_todayDate" class="form-ctrl" />
+                </div>
+                <div class="form-group">
+                  <label class="form-lbl required">Date Conversation Occurred</label>
+                  <input type="date" id="f_convDate" class="form-ctrl" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">First documented occurrence for this employee?</label>
+                <div class="radio-group">
+                  <label class="radio-opt"><input type="radio" name="firstOccurrence" value="Yes" /> Yes</label>
+                  <label class="radio-opt"><input type="radio" name="firstOccurrence" value="No" /> No</label>
+                </div>
+              </div>
+              <div class="step-actions">
+                <button type="button" class="btn-back" onclick="goFormStep(1)">‹ Back</button>
+                <button type="button" class="btn-next" onclick="goFormStep(3)">Next ›</button>
+              </div>
+            </div>
+
+            <!-- STEP 3: Concern Details -->
+            <div class="form-section-block" id="cstep3">
+              <h3 class="section-title">Concern Details</h3>
+              <div class="form-group">
+                <label class="form-lbl required">Type of support being documented</label>
+                <div class="radio-group vertical">
+                  <label class="radio-opt"><input type="radio" name="supportType" value="Observation by PM Team" /> Observation by PM Team</label>
+                  <label class="radio-opt"><input type="radio" name="supportType" value="Additional Coaching Support" /> Additional Coaching Support</label>
+                  <label class="radio-opt"><input type="radio" name="supportType" value="Reminder/Verbal Warning" /> Reminder / Verbal Warning</label>
+                  <label class="radio-opt"><input type="radio" name="supportType" value="Other" /> Other</label>
+                </div>
+              </div>
+              <div class="form-group" id="supportOtherField" style="display:none">
+                <label class="form-lbl">Describe support type (if Other)</label>
+                <input type="text" id="f_supportOther" class="form-ctrl" placeholder="Describe…" />
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">How was this conversation delivered?</label>
+                <div class="radio-group">
+                  <label class="radio-opt"><input type="radio" name="delivery" value="In Person" /> In Person</label>
+                  <label class="radio-opt"><input type="radio" name="delivery" value="Email" /> Email</label>
+                  <label class="radio-opt"><input type="radio" name="delivery" value="Phone" /> Phone</label>
+                  <label class="radio-opt"><input type="radio" name="delivery" value="Text Message" /> Text</label>
+                  <label class="radio-opt"><input type="radio" name="delivery" value="ZOOM meeting" /> Zoom</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">Type of concern</label>
+                <div class="radio-group vertical">
+                  <label class="radio-opt"><input type="radio" name="concernType" value="Attendance" /> Attendance</label>
+                  <label class="radio-opt"><input type="radio" name="concernType" value="Lesson Plans" /> Lesson Plans</label>
+                  <label class="radio-opt"><input type="radio" name="concernType" value="Overall Lesson Delivery" /> Overall Lesson Delivery</label>
+                  <label class="radio-opt"><input type="radio" name="concernType" value="Timecard incident" /> Timecard Incident</label>
+                  <label class="radio-opt"><input type="radio" name="concernType" value="Other" /> Other</label>
+                </div>
+              </div>
+              <div class="form-group" id="concernOtherField" style="display:none">
+                <label class="form-lbl">Explain concern context (if Other)</label>
+                <input type="text" id="f_concernOther" class="form-ctrl" placeholder="Describe…" />
+              </div>
+              <div class="form-group">
+                <label class="form-lbl required">Relevant historical details</label>
+                <p class="form-hint">Include dates, previous feedback, details from this conversation, and any support offered.</p>
+                <textarea id="f_history" class="form-ctrl" rows="5" placeholder="Provide full context here…"></textarea>
+              </div>
+              <div class="step-actions">
+                <button type="button" class="btn-back" onclick="goFormStep(2)">‹ Back</button>
+                <button type="button" class="btn-next" onclick="goFormStep(4)">Next ›</button>
+              </div>
+            </div>
+
+            <!-- STEP 4: Next Steps -->
+            <div class="form-section-block" id="cstep4">
+              <h3 class="section-title">Next Steps</h3>
+              <div class="form-group">
+                <label class="form-lbl required">Next steps requested from HR</label>
+                <div class="radio-group vertical">
+                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="On Watch" /> On Watch</label>
+                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="First Write Up - Employee Progress Report" /> First Write Up — Employee Progress Report</label>
+                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="Second Progress Report Report Needed" /> Second Progress Report Needed</label>
+                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="PGP" /> PGP (Performance Growth Plan)</label>
+                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="Recommended Termination" /> Recommended Termination</label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-lbl">Additional context or next steps for HR</label>
+                <textarea id="f_nextStepsDesc" class="form-ctrl" rows="4" placeholder="Any additional details for HR…"></textarea>
+              </div>
+              <div class="form-group">
+                <div class="submit-confirm-box">
+                  <span>✅</span>
+                  <span>I confirm this information is accurate and understand it will be submitted directly to HR.</span>
+                </div>
+              </div>
+              <div id="submitError" class="submit-error" style="display:none"></div>
+              <div class="step-actions">
+                <button type="button" class="btn-back" onclick="goFormStep(3)">‹ Back</button>
+                <button type="button" class="btn-submit" id="submitBtn" onclick="submitConcernForm()">
+                  <span id="submitBtnText">Submit to HR</span>
+                  <div class="btn-spinner" id="submitSpinner" style="display:none"></div>
+                </button>
+              </div>
+            </div>
+
+          </form>
         </div>
       </div>
 
-      <!-- ══ PERFORMANCE CONCERNS PANEL ════════════════════ -->
+      <!-- ══ PERF CONCERNS (redirect to main form) ═══════════ -->
       <div class="panel" id="panel-concern-perf">
         <div class="page-header">
           <h2>Performance Concern Reporting</h2>
-          <p>Document employee performance conversations. HR-restricted triage available to HR and Leadership only.</p>
+          <p>Use the concern form to document performance conversations. HR and Leadership have full access to all submissions.</p>
         </div>
-
-        <div id="perfHRBoard" style="display:none">
-          <!-- HR + Leadership only -->
-          <div class="board-header">
-            <h3 style="font-size:1.0625rem; font-weight:700; color:var(--blue)">HR Triage Board</h3>
-            <a class="btn-primary" id="perfIssuesBoardLink" href="#" target="_blank" rel="noopener" style="font-size:.8125rem; padding:.5rem 1rem">
-              View GitHub HR Board ↗
-            </a>
-          </div>
-          <div class="board-note">
-            🔒 HR-restricted view. Performance concern issues are labeled <code>perf-concern</code> and <code>hr-triage</code> in GitHub Issues.
-          </div>
-          <div class="stats-row">
-            <div class="stat-tile"><div class="tile-label">Open</div><div class="tile-value" id="perfOpen">—</div><div class="tile-sub">Performance concerns</div></div>
-            <div class="stat-tile"><div class="tile-label">On Watch</div><div class="tile-value" id="perfWatch">—</div><div class="tile-sub">Employees on watch</div></div>
-            <div class="stat-tile"><div class="tile-label">PGP Active</div><div class="tile-value" id="perfPGP">—</div><div class="tile-sub">Growth plans active</div></div>
-          </div>
-        </div>
-
-        <div id="perfFormSection">
-          <div class="concern-split">
-            <div class="concern-card">
-              <h3>📝 Submit Performance Concern</h3>
-              <p>Complete this form each time you have a documented performance conversation with an employee. This creates a tracked record in HR's GitHub Issues board.</p>
-              <a class="btn-primary" id="perfConcernBtn" href="#" target="_blank" rel="noopener">
-                Open Performance Form ↗
-              </a>
-            </div>
-            <div class="concern-card">
-              <h3>📌 What Gets Documented?</h3>
-              <p>Attendance concerns, lesson plan deficiencies, overall delivery issues, timecard incidents, and any verbal warning or coaching conversation requiring a record.</p>
-              <div class="alert alert-warn" style="margin-top:.75rem; margin-bottom:0">
-                Reach out to HR immediately for any situation that may require termination review.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="perfAccessDenied" style="display:none" class="restricted-banner">
-          <div class="r-icon">🔒</div>
-          <h3>HR & Leadership Access Only</h3>
-          <p>The triage board is restricted to HR and Leadership users. You can still submit performance concerns using the form above.</p>
+        <div class="info-card" style="max-width:480px">
+          <div class="info-card-icon">📝</div>
+          <h3>Submit a Performance Concern</h3>
+          <p>The performance concern form is combined with program concerns for a streamlined experience.</p>
+          <button class="btn-primary" style="margin-top:.75rem" onclick="showPanel('concern-program', document.querySelector('[data-panel=concern-program]'))">
+            Open Concern Form →
+          </button>
         </div>
       </div>
 
-      <!-- ══ UPLOAD CENTER PANEL ═══════════════════════════ -->
+      <!-- ══ UPLOAD CENTER (Drive-based) ══════════════════════ -->
       <div class="panel" id="panel-upload">
         <div class="page-header">
           <h2>Document Upload Center</h2>
-          <p>Upload PDFs, CSVs, or policy documents to the NJTC docs library via GitHub.</p>
+          <p>Submit documents to the NJTC policy library via Google Drive.</p>
         </div>
-
         <div class="upload-box">
-          <div class="upload-icon">📤</div>
-          <h3>Upload via GitHub (Recommended)</h3>
-          <p>Click below to open a pre-filled GitHub Issue requesting a document upload.<br>
-          A GitHub Action will create a PR and update the docs index automatically.</p>
-          <a class="btn-primary" id="uploadIssueBtn" href="#" target="_blank" rel="noopener">
-            Request Document Upload ↗
+          <div class="upload-icon">📁</div>
+          <h3>Upload to Google Drive</h3>
+          <p>All NJTC policy documents are managed in Google Drive. Admins upload files directly to the shared folder, and they appear in the Policies Library automatically.</p>
+          <a class="btn-primary" href="https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG" target="_blank" rel="noopener">
+            Open NJTC Drive Folder ↗
           </a>
         </div>
-
         <div class="instructions-box">
-          <h4>How to Upload a Document</h4>
+          <h4>How to Add a Document to the Library</h4>
           <ol>
-            <li>Click "Request Document Upload" above.</li>
-            <li>Fill in: document title, department, effective date, and description.</li>
-            <li>Attach the file to the GitHub Issue.</li>
-            <li>Submit the issue. A GitHub Action will create a Pull Request within minutes.</li>
-            <li>An admin approves the PR → document appears in the Policies Library automatically.</li>
+            <li>Upload your PDF or document to the NJTC Google Drive folder above.</li>
+            <li>Right-click the file → Share → change to "Anyone with the link (Viewer)".</li>
+            <li>Copy the File ID from the share URL (the long string between /d/ and /view).</li>
+            <li>Open <code>manifest.json</code> in the Drive folder and add a new entry with the title, department, date, description, and file ID.</li>
+            <li>The document will appear in the Policies Library within minutes.</li>
           </ol>
         </div>
       </div>
@@ -680,7 +941,7 @@
     </main>
   </div>
 
-  <!-- Access denied fallback (shown before session verified) -->
+  <!-- Loading screen -->
   <div id="loadingScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
     <div style="text-align:center">
       <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
@@ -688,8 +949,8 @@
     </div>
   </div>
 
-<script src="../auth/auth.js?v=2"></script>
-<script src="../auth/central-guard.js?v=2"></script>
+<script src="../auth/auth.js?v=3"></script>
+<script src="../auth/central-guard.js?v=3"></script>
   <script>
 
   // ── Dept config ─────────────────────────────────────────
@@ -808,36 +1069,180 @@
     { goal: 'Brand Growth', target: 'Attend 5 South Jersey Chamber events', status: 'Partially Met' },
   ];
 
-  // Placeholder docs — replace with /docs/index.json fetch
+
+  // ── Google Drive Document Library ──────────────────────
+  // SETUP: Create manifest.json in your Drive folder and paste its file ID below.
+  // Get file ID: share the file → copy the ID from the URL between /d/ and /view
+  const DRIVE_MANIFEST_ID = 'REPLACE_WITH_YOUR_MANIFEST_JSON_FILE_ID';
+
   const DOCS_DATA = [
-    { title: 'Employee Handbook', dept: 'hr', tag: 'HR', effectiveDate: 'Aug 2025', desc: 'Full NJTC employee handbook covering policies, procedures, and expectations.', file: '/docs/employee-handbook.pdf' },
-    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', desc: 'Internal reporting standards, data ownership, and governance workflows.', file: '/docs/data-governance.pdf' },
-    { title: 'Performance Evaluation System', dept: 'hr', tag: 'HR', effectiveDate: 'Nov 2025', desc: 'Revised performance evaluation rubrics and process documentation.', file: '/docs/perf-eval-system.pdf' },
-    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', desc: 'Step-by-step guide for escalating site-level program concerns.', file: '/docs/escalation-protocol.pdf' },
-    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', desc: 'Budget procedures, reimbursement policy, and financial accountability guidelines.', file: '/docs/budget-controls.pdf' },
-    { title: 'Training & PD Calendar', dept: 'training', tag: 'Training', effectiveDate: 'Sep 2025', desc: 'Required professional development schedule and compliance tracking.', file: '/docs/pd-calendar.pdf' },
+    { title: 'Employee Handbook', dept: 'hr', tag: 'HR', effectiveDate: 'Aug 2025', desc: 'Full NJTC employee handbook covering policies, procedures, and expectations.', file: null },
+    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', desc: 'Internal reporting standards, data ownership, and governance workflows.', file: null },
+    { title: 'Performance Evaluation System', dept: 'hr', tag: 'HR', effectiveDate: 'Nov 2025', desc: 'Revised performance evaluation rubrics and process documentation.', file: null },
+    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', desc: 'Step-by-step guide for escalating site-level program concerns.', file: null },
+    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', desc: 'Budget procedures, reimbursement policy, and financial accountability guidelines.', file: null },
+    { title: 'Training & PD Calendar', dept: 'training', tag: 'Training', effectiveDate: 'Sep 2025', desc: 'Required professional development schedule and compliance tracking.', file: null },
   ];
 
-  // ── GitHub config placeholders ──────────────────────────
-  const GITHUB = {
-    repo: 'NJTCDATA/New-Jersey-Tutoring-Corps-Portal', // e.g. njtcdata/njtc-portal
-    get issuesUrl() { return `https://github.com/${this.repo}/issues`; },
-    get programConcernNew() {
-      return `https://github.com/${this.repo}/issues/new?template=program-concern.yml&labels=program-concern`;
-    },
-    get perfConcernNew() {
-      return `https://github.com/${this.repo}/issues/new?template=performance-concern.yml&labels=perf-concern,hr-triage`;
-    },
-    get uploadIssueNew() {
-      return `https://github.com/${this.repo}/issues/new?template=doc-upload-request.yml&labels=doc-upload`;
-    },
-    get programBoard() {
-      return `https://github.com/${this.repo}/issues?q=is%3Aissue+is%3Aopen+label%3Aprogram-concern`;
-    },
-    get perfBoard() {
-      return `https://github.com/${this.repo}/issues?q=is%3Aissue+is%3Aopen+label%3Aperf-concern`;
-    }
+  // ── Google Form submission ─────────────────────────────
+  const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSfBqQmfn4ZHyJ1-tv-ehKDyr-zD4RkBr5AfZ2QeJMpJFbFxHg/formResponse';
+  const ENTRY = {
+    email:           'entry.1457676306',   // Q1  Email
+    submitterName:   'entry.580089576',    // Q2  NJTC Employee Name/Title
+    onBehalf:        'entry.1590438580',   // Q3  On behalf of someone? (Yes/No)
+    onBehalfOf:      'entry.1245652844',   // Q4  On behalf of whom
+    empName:         'entry.629932880',    // Q5  Employee Name
+    empRole:         'entry.2044182643',   // Q6  Employee Role (SC/Tutor/IC/etc)
+    empRoleOther:    'entry.1645253994',   // Q6b Role "Other" text
+    todayYear:       'entry.701375141_year',   // Q7 Today's Date
+    todayMonth:      'entry.701375141_month',
+    todayDay:        'entry.701375141_day',
+    convYear:        'entry.651108769_year',   // Q8 Date Conversation Occurred
+    convMonth:       'entry.651108769_month',
+    convDay:         'entry.651108769_day',
+    firstOccurrence: 'entry.1911489470',   // Q9  First documented occurrence? (Yes/No)
+    supportType:     'entry.1990325444',   // Q10 Type of support documented
+    supportOther:    'entry.59727443',     // Q11 If Other support, describe
+    delivery:        'entry.232659604',    // Q12 How conversation delivered
+    empSite:         'entry.2070944320',   // Q13 Employee Site/Location
+    concernType:     'entry.2109849030',   // Q14 Type of concern
+    // Q15, Q16, Q18 are long text fields — get their IDs by submitting the live form
+    // with all 3 text areas filled in, then check Network tab > formResponse > Payload
+    concernOther:    'entry.TODO_Q15',     // Q15 If Other concern, explain
+    history:         'entry.TODO_Q16',     // Q16 Historical details (long text)
+    hrNextSteps:     'entry.1704854495',   // Q17 HR Next Steps requested
+    nextStepsDesc:   'entry.TODO_Q18',     // Q18 Additional next steps description
   };
+
+  let _concernStep = 1;
+
+  function goFormStep(n) {
+    if (n > _concernStep && !_validateConcernStep(_concernStep)) return;
+    document.getElementById('cstep' + _concernStep).classList.remove('active');
+    document.getElementById('cstep' + n).classList.add('active');
+    document.querySelectorAll('.form-step').forEach(s => {
+      const sn = parseInt(s.dataset.step);
+      s.classList.toggle('active', sn === n);
+      s.classList.toggle('completed', sn < n);
+    });
+    _concernStep = n;
+    const panel = document.getElementById('panel-concern-program');
+    if (panel) window.scrollTo({ top: panel.offsetTop - 80, behavior: 'smooth' });
+  }
+
+  function _validateConcernStep(n) {
+    const errs = [];
+    if (n === 1) {
+      if (!document.getElementById('f_email').value.trim()) errs.push('Email is required.');
+      if (!document.getElementById('f_submitter').value.trim()) errs.push('Your name/title is required.');
+    }
+    if (n === 2) {
+      if (!document.getElementById('f_empName').value.trim()) errs.push('Employee name is required.');
+      if (!document.getElementById('f_empRole').value) errs.push('Employee role is required.');
+      if (!document.getElementById('f_empSite').value) errs.push('Employee site is required.');
+      if (!document.getElementById('f_todayDate').value) errs.push("Today's date is required.");
+      if (!document.getElementById('f_convDate').value) errs.push('Conversation date is required.');
+      if (!document.querySelector('input[name="firstOccurrence"]:checked')) errs.push('Please indicate if this is the first documented occurrence.');
+    }
+    if (n === 3) {
+      if (!document.querySelector('input[name="supportType"]:checked')) errs.push('Support type is required.');
+      if (!document.querySelector('input[name="delivery"]:checked')) errs.push('Delivery method is required.');
+      if (!document.querySelector('input[name="concernType"]:checked')) errs.push('Concern type is required.');
+      if (!document.getElementById('f_history').value.trim()) errs.push('Historical details are required.');
+    }
+    if (errs.length) { alert(errs.join('\n')); return false; }
+    return true;
+  }
+
+  function toggleOnBehalf(val) {
+    document.getElementById('onBehalfField').style.display = val === 'Yes' ? 'block' : 'none';
+  }
+
+  function _parseDate(s) {
+    const [y, m, d] = (s || '').split('-');
+    return { year: y||'', month: m ? String(parseInt(m)) : '', day: d ? String(parseInt(d)) : '' };
+  }
+
+  async function submitConcernForm() {
+    if (!_validateConcernStep(4)) return;
+    if (!document.querySelector('input[name="hrNextSteps"]:checked')) {
+      document.getElementById('submitError').textContent = 'Please select HR next steps.';
+      document.getElementById('submitError').style.display = 'block';
+      return;
+    }
+    document.getElementById('submitError').style.display = 'none';
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    document.getElementById('submitBtnText').textContent = 'Submitting…';
+    document.getElementById('submitSpinner').style.display = 'inline-block';
+
+    const td = _parseDate(document.getElementById('f_todayDate').value);
+    const cd = _parseDate(document.getElementById('f_convDate').value);
+    const params = new URLSearchParams();
+    params.append(ENTRY.email,           document.getElementById('f_email').value.trim());
+    params.append(ENTRY.submitterName,   document.getElementById('f_submitter').value.trim());
+    params.append(ENTRY.onBehalf,        document.querySelector('input[name="onBehalf"]:checked')?.value || 'No');
+    params.append(ENTRY.onBehalfOf,      document.getElementById('f_onBehalfOf').value.trim());
+    params.append(ENTRY.empName,         document.getElementById('f_empName').value.trim());
+    params.append(ENTRY.empRole,         document.getElementById('f_empRole').value);
+    params.append(ENTRY.empRoleOther,    document.getElementById('f_empRole').value === 'Other' ? document.getElementById('f_empRole').value : '');
+    params.append(ENTRY.todayYear,       td.year);
+    params.append(ENTRY.todayMonth,      td.month);
+    params.append(ENTRY.todayDay,        td.day);
+    params.append(ENTRY.convYear,        cd.year);
+    params.append(ENTRY.convMonth,       cd.month);
+    params.append(ENTRY.convDay,         cd.day);    params.append(ENTRY.firstOccurrence, document.querySelector('input[name="firstOccurrence"]:checked')?.value || '');
+    params.append(ENTRY.supportType,     document.querySelector('input[name="supportType"]:checked')?.value || '');
+    params.append(ENTRY.supportOther,    document.getElementById('f_supportOther').value.trim());
+    params.append(ENTRY.delivery,        document.querySelector('input[name="delivery"]:checked')?.value || '');
+    params.append(ENTRY.empSite,         document.getElementById('f_empSite').value);
+    params.append(ENTRY.concernType,     document.querySelector('input[name="concernType"]:checked')?.value || '');
+    params.append(ENTRY.concernOther,    document.getElementById('f_concernOther').value.trim());
+    params.append(ENTRY.history,         document.getElementById('f_history').value.trim());
+    params.append(ENTRY.hrNextSteps,     document.querySelector('input[name="hrNextSteps"]:checked')?.value || '');
+    params.append(ENTRY.nextStepsDesc,   document.getElementById('f_nextStepsDesc').value.trim());
+
+    try {
+      await fetch(FORM_ACTION, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
+      document.getElementById('formContainer').style.display = 'none';
+      document.getElementById('formSuccess').style.display = 'block';
+    } catch(e) {
+      document.getElementById('submitError').textContent = 'Submission failed. Please try again or contact your Program Manager.';
+      document.getElementById('submitError').style.display = 'block';
+      btn.disabled = false;
+      document.getElementById('submitBtnText').textContent = 'Submit to HR';
+      document.getElementById('submitSpinner').style.display = 'none';
+    }
+  }
+
+  function resetConcernForm() {
+    document.getElementById('concernForm').reset();
+    document.getElementById('onBehalfField').style.display = 'none';
+    document.getElementById('supportOtherField').style.display = 'none';
+    document.getElementById('concernOtherField').style.display = 'none';
+    document.getElementById('formContainer').style.display = 'block';
+    document.getElementById('formSuccess').style.display = 'none';
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtnText').textContent = 'Submit to HR';
+    document.getElementById('submitSpinner').style.display = 'none';
+    document.querySelectorAll('.form-step').forEach(s => { s.classList.remove('active','completed'); });
+    _concernStep = 1;
+    goFormStep(1);
+  }
+
+  // Wire radio "other" toggles
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[name="supportType"]').forEach(r =>
+      r.addEventListener('change', () => {
+        document.getElementById('supportOtherField').style.display = r.value === 'Other' ? 'block' : 'none';
+      })
+    );
+    document.querySelectorAll('input[name="concernType"]').forEach(r =>
+      r.addEventListener('change', () => {
+        document.getElementById('concernOtherField').style.display = r.value === 'Other' ? 'block' : 'none';
+      })
+    );
+  });
 
   // ── Helpers ──────────────────────────────────────────────
   function statusClass(s) {
@@ -930,18 +1335,59 @@
 
   // ── Build policies ────────────────────────────────────────
   async function buildPolicies() {
-    // Try to fetch live docs/index.json; fall back to DOCS_DATA
+
+  // ── buildPolicies: Google Drive manifest or static fallback ──
+  async function buildPolicies() {
     let docs = DOCS_DATA;
-    try {
-      const res = await fetch('/docs/index.json?v=' + Date.now());
-      if (res.ok) docs = await res.json();
-    } catch { /* use static fallback */ }
+
+    // Try fetching from Drive manifest
+    if (!DRIVE_MANIFEST_ID.startsWith('REPLACE')) {
+      try {
+        const url = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) {
+          const raw = await res.text();
+          const parsed = JSON.parse(raw);
+          // Convert fileId → full Drive URL
+          docs = parsed.map(d => ({
+            ...d,
+            file: d.fileId && !d.fileId.startsWith('REPLACE')
+              ? `https://drive.google.com/file/d/${d.fileId}/view`
+              : null
+          }));
+          // Show admin note for leadership/hr
+          const session = window.NJTC_SESSION;
+          if (session && ['hr','leadership','data'].includes(session.dept)) {
+            document.getElementById('driveAdminNote').style.display = 'block';
+          }
+        }
+      } catch(e) { /* use static fallback */ }
+    }
+
+    window._allDocs = docs;
     renderPolicies(docs);
   }
 
   function renderPolicies(docs) {
-    window._allDocs = docs;
-    filterPolicies();
+    const grid = document.getElementById('policyGrid');
+    if (!docs || docs.length === 0) {
+      document.getElementById('policyEmpty').style.display = 'block';
+      return;
+    }
+    grid.innerHTML = docs.map(d => `
+      <div class="policy-card" data-dept="${d.dept}" data-title="${d.title.toLowerCase()}">
+        <div class="policy-card-header">
+          <div class="policy-tag">${d.tag || d.dept}</div>
+          <div class="policy-date">${d.effectiveDate}</div>
+        </div>
+        <h4 class="policy-title">${d.title}</h4>
+        <p class="policy-desc">${d.desc}</p>
+        ${d.file
+          ? `<a class="policy-link" href="${d.file}" target="_blank" rel="noopener">View Document ↗</a>`
+          : `<span class="policy-link-disabled">Document coming soon</span>`
+        }
+      </div>
+    `).join('');
   }
 
   function filterPolicies() {
@@ -952,28 +1398,15 @@
       (!deptF  || d.dept === deptF) &&
       (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search))
     );
-    const grid = document.getElementById('policyGrid');
-    const empty = document.getElementById('policyEmpty');
     if (!filtered.length) {
-      grid.innerHTML = '';
-      empty.style.display = 'block';
+      document.getElementById('policyGrid').innerHTML = '';
+      document.getElementById('policyEmpty').style.display = 'block';
       return;
     }
-    empty.style.display = 'none';
-    grid.innerHTML = filtered.map(d => `
-      <div class="policy-card">
-        <div class="policy-card-top">
-          <h3>${d.title}</h3>
-          <span class="policy-tag">${d.tag || d.dept}</span>
-        </div>
-        <div class="policy-meta">Effective: ${d.effectiveDate || 'N/A'} &nbsp;·&nbsp; Dept: ${d.dept}</div>
-        <p class="policy-desc">${d.desc || ''}</p>
-        <a class="btn-view-policy" href="${d.file}" target="_blank" rel="noopener">
-          View Document ↗
-        </a>
-      </div>
-    `).join('');
+    document.getElementById('policyEmpty').style.display = 'none';
+    renderPolicies(filtered);
   }
+
 
   // ── Build dept home quick links ──────────────────────────
   function buildHomeQuickLinks(dept) {
@@ -1045,15 +1478,36 @@
     buildPolicies();
     setupPerfSection(dept);
 
-    // Wire GitHub links
-    document.getElementById('programConcernBtn').href   = GITHUB.programConcernNew;
-    document.getElementById('perfConcernBtn').href      = GITHUB.perfConcernNew;
-    document.getElementById('uploadIssueBtn').href      = GITHUB.uploadIssueNew;
-    document.getElementById('programIssuesBoardLink').href = GITHUB.programBoard;
-    if (document.getElementById('perfIssuesBoardLink'))
-      document.getElementById('perfIssuesBoardLink').href = GITHUB.perfBoard;
+  // ── Init ─────────────────────────────────────────────────
+  async function init() {
+    await new Promise(resolve => {
+      if (window.NJTC_SESSION) { resolve(); return; }
+      const t = setInterval(() => {
+        if (window.NJTC_SESSION) { clearInterval(t); resolve(); }
+      }, 50);
+      setTimeout(() => { clearInterval(t); resolve(); }, 3000);
+    });
 
-    // Show UI
+    const session = window.NJTC_SESSION;
+    if (!session) return;
+
+    const dept = session.dept;
+    const config = DEPT_CONFIG[dept] || {};
+
+    document.getElementById('deptBadge').textContent = config.label || dept.toUpperCase();
+    startSessionTimer(session.exp);
+
+    buildHomeQuickLinks(dept);
+    buildKPISummary();
+    buildKPI();
+    buildPolicies();
+    setupPerfSection(dept);
+
+    // Auto-fill today's date in the concern form
+    const today = new Date().toISOString().split('T')[0];
+    const todayField = document.getElementById('f_todayDate');
+    if (todayField) todayField.value = today;
+
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('ctLayout').style.display = 'grid';
   }
