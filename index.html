@@ -262,13 +262,12 @@
     })();
 
     function route(dept) {
-      if (dept === 'onsite') {
-        window.location.href = '/onsite/index.html';
-      } else {
-        // All CT departments go to central; central/index.html reads dept from session
-        window.location.href = '/central/index.html';
-      }
-    }
+  if (dept === 'onsite') {
+    window.location.href = './onsite/index.html';
+  } else {
+    window.location.href = './central/index.html';
+  }
+}
   </script>
 </body>
 </html>
