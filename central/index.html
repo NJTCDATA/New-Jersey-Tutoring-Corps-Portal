@@ -1333,9 +1333,6 @@
     `).join('');
   }
 
-  // ── Build policies ────────────────────────────────────────
-  async function buildPolicies() {
-
   // ── buildPolicies: Google Drive manifest or static fallback ──
   async function buildPolicies() {
     let docs = DOCS_DATA;
@@ -1472,31 +1469,6 @@
     startSessionTimer(session.exp);
 
     // Build content
-    buildHomeQuickLinks(dept);
-    buildKPISummary();
-    buildKPI();
-    buildPolicies();
-    setupPerfSection(dept);
-
-  // ── Init ─────────────────────────────────────────────────
-  async function init() {
-    await new Promise(resolve => {
-      if (window.NJTC_SESSION) { resolve(); return; }
-      const t = setInterval(() => {
-        if (window.NJTC_SESSION) { clearInterval(t); resolve(); }
-      }, 50);
-      setTimeout(() => { clearInterval(t); resolve(); }, 3000);
-    });
-
-    const session = window.NJTC_SESSION;
-    if (!session) return;
-
-    const dept = session.dept;
-    const config = DEPT_CONFIG[dept] || {};
-
-    document.getElementById('deptBadge').textContent = config.label || dept.toUpperCase();
-    startSessionTimer(session.exp);
-
     buildHomeQuickLinks(dept);
     buildKPISummary();
     buildKPI();
