@@ -2085,7 +2085,7 @@
   // ══════════════════════════════════════════════════════════
   //  POLICIES DATA (inline — Drive manifest overrides this)
   // ══════════════════════════════════════════════════════════
-  const DRIVE_MANIFEST_ID = 'REPLACE_WITH_YOUR_MANIFEST_JSON_FILE_ID';
+  const DRIVE_MANIFEST_ID = '1e6fXGG0BNCdVO2SJxi4I8JgbDiXNrAcL';
 
   // ── Operations Manual Drive File ID ─────────────────────────────
   // Paste the Google Drive File ID of your Operations Manual below.
@@ -2438,6 +2438,12 @@
     document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
     // Pre-warm the Operations Manual cache when policies panel is opened
     if (id === "policies" && typeof fetchOpsManual === "function") fetchOpsManual(false);
+    if (id === "policies") {
+      // Reset dept filter to "All Departments" on every policies panel open
+      // so the view never defaults to a filtered state like "Google Drive Additions"
+      const deptF = document.getElementById('policyDeptFilter');
+      if (deptF && deptF.value === '__drive__') deptF.value = '';
+    }
     if (id === "talent") {
       buildTalentDashboard(false);
       if (!_talentLoaded) setTimeout(() => initTalentFilters(), 800);
@@ -2776,6 +2782,23 @@
     syncDot.className = 'sync-dot loading';
     syncText.innerHTML = 'Fetching latest documents from Google Drive…';
 
+    // ── If live doc sync is disabled, use inline + any PDF uploads only ──
+    if (typeof _liveDocEnabled !== 'undefined' && !_liveDocEnabled) {
+      const pdfDocs = (typeof _pdfPolicies !== 'undefined' ? _pdfPolicies : []).map(p => ({
+        title: p.name, dept: p.dept || 'shared', tag: 'PDF Upload',
+        effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
+        modifiedDate: null, sectionsModified: [], annualGoals: [],
+        desc: `Uploaded PDF · ${p.filename} · By: ${p.uploadedBy}`,
+        driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
+        _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
+      }));
+      _allPolicies = [...POLICIES_INLINE, ...pdfDocs];
+      syncDot.className = 'sync-dot error';
+      syncText.innerHTML = '<strong>Live sync OFF</strong> · Showing built-in documents + uploaded PDFs · <em>Toggle Live Doc to re-enable</em>';
+      renderPolicies();
+      return;
+    }
+
     let docs = POLICIES_INLINE;
     let fromDrive = false;
     if (forceRefresh && typeof logChange !== 'undefined') {
@@ -2794,7 +2817,6 @@
             dept: d.dept || 'shared',
             sectionsModified: d.sectionsModified || [],
             annualGoals: d.annualGoals || [],
-            // Mark all Drive Manifest documents as Drive Additions
             _isDriveUpload: true,
             _driveManifest: true,
           }));
@@ -2803,7 +2825,17 @@
       } catch(e) { /* use inline */ }
     }
 
-    _allPolicies = docs;
+    // Merge in any locally-uploaded PDF additions
+    const pdfAdditions = (typeof _pdfPolicies !== 'undefined' ? _pdfPolicies : []).map(p => ({
+      title: p.name, dept: p.dept || 'shared', tag: 'PDF Upload',
+      effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
+      modifiedDate: null, sectionsModified: [], annualGoals: [],
+      desc: `Uploaded PDF · ${p.filename} · By: ${p.uploadedBy}`,
+      driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
+      _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
+    }));
+    _allPolicies = [...docs, ...pdfAdditions];
+
     if (fromDrive) {
       syncDot.className = 'sync-dot';
       syncText.innerHTML = `<strong>Live from Google Drive</strong> · ${docs.length} documents · Last refreshed ${new Date().toLocaleTimeString()}`;
@@ -3581,40 +3613,12 @@
   }
 
   function mergePdfPolicies() {
-    const pdfDocs = _pdfPolicies.map(p => ({
-      title: p.name, dept: p.dept || 'shared',
-      tag: 'PDF Upload', effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
-      modifiedDate: null, sectionsModified: [], annualGoals: [],
-      desc: `Uploaded PDF document · ${p.filename} · By: ${p.uploadedBy}`,
-      driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
-      _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
-    }));
-    _allPolicies = [...POLICIES_INLINE, ...pdfDocs];
-    renderPolicies();
+    // Re-run buildPolicies so PDF additions are merged through the unified pipeline
+    // (handles live-doc toggle, Drive manifest docs, and PDF uploads all in one place)
+    buildPolicies(false);
   }
 
-  // Override buildPolicies to respect live doc toggle
-  const _origBuildPolicies = buildPolicies;
-  async function buildPolicies(forceRefresh) {
-    if (!_liveDocEnabled) {
-      // Skip live fetch, use inline + PDF
-      _allPolicies = [...POLICIES_INLINE, ..._pdfPolicies.map(p => ({
-        title: p.name, dept: p.dept || 'shared', tag: 'PDF Upload',
-        effectiveDate: new Date(p.uploadedAt).toLocaleDateString('en-US',{month:'short',year:'numeric'}),
-        modifiedDate: null, sectionsModified: [], annualGoals: [],
-        desc: `Uploaded PDF · ${p.filename} · By: ${p.uploadedBy}`,
-        driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
-        _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
-      }))];
-      const dot = document.getElementById('syncDot');
-      const txt = document.getElementById('syncText');
-      if (dot) dot.className = 'sync-dot error';
-      if (txt) txt.innerHTML = '<strong>Live sync OFF</strong> · Showing built-in documents + uploaded PDFs · <em>Toggle Live Doc to re-enable</em>';
-      renderPolicies();
-      return;
-    }
-    return _origBuildPolicies(forceRefresh);
-  }
+  // buildPolicies override removed — live-doc toggle logic merged into main buildPolicies function above
 
 // ══════════════════════════════════════════════════════════════════
   //  DEPARTMENT-AWARE ANALYTICS ENGINE v3
