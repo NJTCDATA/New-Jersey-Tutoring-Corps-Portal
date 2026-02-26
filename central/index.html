@@ -2086,6 +2086,10 @@
   //  POLICIES DATA (inline — Drive manifest overrides this)
   // ══════════════════════════════════════════════════════════
   const DRIVE_MANIFEST_ID = '1e6fXGG0BNCdVO2SJxi4I8JgbDiXNrAcL';
+  // ── Paste your deployed Apps Script Web App URL below after setup ──
+  // Once set, Drive documents appear automatically when uploaded — no GitHub updates needed.
+  // Format: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec'
+  const DRIVE_APPS_SCRIPT_URL = '';  // ← PASTE YOUR URL HERE
 
   // ── Operations Manual Drive File ID ─────────────────────────────
   // Paste the Google Drive File ID of your Operations Manual below.
@@ -2439,10 +2443,12 @@
     // Pre-warm the Operations Manual cache when policies panel is opened
     if (id === "policies" && typeof fetchOpsManual === "function") fetchOpsManual(false);
     if (id === "policies") {
-      // Reset dept filter to "All Departments" on every policies panel open
-      // so the view never defaults to a filtered state like "Google Drive Additions"
+      // Always reset all filters when opening the policies panel
+      // so no stale dept/search/sort state persists from previous visits
       const deptF = document.getElementById('policyDeptFilter');
-      if (deptF && deptF.value === '__drive__') deptF.value = '';
+      const searchF = document.getElementById('policySearch');
+      if (deptF) deptF.value = '';
+      if (searchF) searchF.value = '';
     }
     if (id === "talent") {
       buildTalentDashboard(false);
@@ -2810,6 +2816,9 @@
       // Strategy 1: GitHub raw (preferred — no CORS, fastest, use if manifest.json is in the repo)
       // Strategy 2: Google Drive export with no-cors (limited but sometimes works)
       // Strategy 3: CORS proxy fallback
+      // APPS_SCRIPT_URL: paste your deployed Web App URL here after setup
+      // This is the primary source — reads your Drive folder live, zero CORS issues
+      const APPS_SCRIPT_URL = typeof DRIVE_APPS_SCRIPT_URL !== 'undefined' ? DRIVE_APPS_SCRIPT_URL : '';
       const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/njtcdata/New-Jersey-Tutoring-Corps-Portal/main/central/manifest.json';
       const DRIVE_DIRECT_URL = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}`;
       const CORS_PROXY_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(DRIVE_DIRECT_URL)}`;
@@ -2824,6 +2833,7 @@
       };
 
       const strategies = [
+        ...(APPS_SCRIPT_URL ? [{ label: 'Apps Script', url: APPS_SCRIPT_URL }] : []),
         { label: 'GitHub', url: GITHUB_MANIFEST_URL },
         { label: 'CORS Proxy', url: CORS_PROXY_URL },
       ];
@@ -2859,16 +2869,20 @@
       driveUrl: p.dataUrl, _isPdf: true, _isDriveUpload: true,
       _uploadedBy: p.uploadedBy, _uploadedAt: p.uploadedAt, _filename: p.filename,
     }));
-    _allPolicies = [...docs, ...pdfAdditions];
+    // ALWAYS keep POLICIES_INLINE as the base.
+    // Drive manifest entries are ADDITIONS on top — they never replace built-in policies.
+    const driveAdditions = fromDrive ? docs : [];
+    _allPolicies = [...POLICIES_INLINE, ...driveAdditions, ...pdfAdditions];
 
+    const totalCount = POLICIES_INLINE.length + driveAdditions.length + pdfAdditions.length;
     if (fromDrive) {
       syncDot.className = 'sync-dot';
-      syncText.innerHTML = `<strong>Live from Google Drive</strong> · ${docs.length} documents · Last refreshed ${new Date().toLocaleTimeString()}`;
+      syncText.innerHTML = `<strong>Live from Google Drive</strong> · ${POLICIES_INLINE.length} core policies + ${driveAdditions.length} Drive additions${pdfAdditions.length ? ' + ' + pdfAdditions.length + ' uploads' : ''} · Last refreshed ${new Date().toLocaleTimeString()}`;
     } else {
       syncDot.className = 'sync-dot error';
       syncText.innerHTML = DRIVE_MANIFEST_ID.startsWith('REPLACE')
-        ? '<strong>Using built-in documents</strong> · Add your Drive manifest ID to enable auto-sync'
-        : '<strong>Drive unreachable</strong> · Showing built-in documents · <em>Check manifest.json permissions</em>';
+        ? `<strong>${POLICIES_INLINE.length} built-in policies</strong> · Connect Google Drive to add supplemental documents automatically`
+        : `<strong>${POLICIES_INLINE.length} built-in policies</strong> · Drive unreachable — supplemental documents unavailable · <em>Click ↺ Refresh to retry</em>`;
     }
     renderPolicies();
   }
@@ -3017,6 +3031,21 @@
   function openPolicyByIdx(pid) {
     const d = POLICIES_REGISTRY[pid];
     if (!d) { console.warn('openPolicyByIdx: no policy at index', pid); return; }
+
+    // Drive Additions (uploaded files) open directly in Drive — no section reader modal
+    if (d._isDriveUpload) {
+      const url = d.driveUrl || OPS_MANUAL_URL;
+      // PDF uploads have a dataUrl — open in a new tab via blob
+      if (d._isPdf && url.startsWith('data:')) {
+        const win = window.open('', '_blank');
+        win.document.write('<iframe src="' + url + '" style="width:100%;height:100vh;border:none"></iframe>');
+        return;
+      }
+      window.open(url, '_blank', 'noopener');
+      return;
+    }
+
+    // Built-in policies → open the rich section reader modal
     const url = d.driveUrl || (d.fileId && !d.fileId.startsWith('REPLACE')
       ? 'https://drive.google.com/file/d/' + d.fileId + '/view'
       : OPS_MANUAL_URL);
