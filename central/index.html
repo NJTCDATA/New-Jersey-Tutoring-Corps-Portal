@@ -5091,569 +5091,488 @@
   let _kpiAnalyticsTab = 'overview';
 
   // ════════════════════════════════════════════════════════════════
-  //  SCORING ENGINE — Weighted Point System
-  //  Met = 1.0 | Partially Met = 0.5 | In Progress = 0.25
-  //  Coming Down the Pipeline = 0.10 | Has Not Met = 0
-  //
-  //  Weighted Score % = (sum of points earned / max possible points) × 100
-  //
-  //  Risk Thresholds (applied to weighted score %):
-  //  ≥ 85%  → Healthy
-  //  65–84% → Watch
-  //  40–64% → At Risk
-  //  < 40%  → Critical
+  //  SCORING ENGINE  (live — reads directly from KPI_DATA each call)
+  //  Met=1.0 | Partial=0.5 | In Progress=0.25 | Pipeline=0.10 | Not Met=0
+  //  Risk: ≥85% Healthy · 65–84% Watch · 40–64% At Risk · <40% Critical
   // ════════════════════════════════════════════════════════════════
 
-  const KPI_POINT_MAP = {
-    'Met':                        1.00,
-    'Partially Met':              0.50,
-    'In Progress':                0.25,
-    'Coming Down the Pipeline':   0.10,
-    'Has Not Met':                0.00,
-  };
+  const KPI_PT = { 'Met':1, 'Partially Met':.5, 'In Progress':.25, 'Coming Down the Pipeline':.1, 'Has Not Met':0 };
 
-  function kpiPoints(status) {
-    return KPI_POINT_MAP[status] ?? 0;
+  function kpiPts(s){ return KPI_PT[s] ?? 0; }
+
+  function riskBucket(pct){
+    if(pct >= 85) return { label:'Healthy',  short:'Healthy',  color:'#166534', bg:'#dcfce7', icon:'🟢', tip:'On track — keep going!' };
+    if(pct >= 65) return { label:'Watch',    short:'Watch',    color:'#92400e', bg:'#fef3c7', icon:'🟡', tip:'Making progress but monitor closely.' };
+    if(pct >= 40) return { label:'At Risk',  short:'At Risk',  color:'#9a3412', bg:'#ffedd5', icon:'🟠', tip:'Needs attention — action recommended.' };
+    return               { label:'Critical', short:'Critical', color:'#991b1b', bg:'#fee2e2', icon:'🔴', tip:'Urgent — significant gaps to close.' };
   }
 
-  function kpiRiskBucket(weightedPct) {
-    if (weightedPct >= 85) return { label: 'Healthy',  color: 'var(--met)',      bg: 'var(--met-bg)',   icon: '🟢' };
-    if (weightedPct >= 65) return { label: 'Watch',    color: '#d97706',         bg: '#fef3c7',         icon: '🟡' };
-    if (weightedPct >= 40) return { label: 'At Risk',  color: 'var(--partial)',  bg: 'var(--part-bg)',  icon: '🟠' };
-    return                        { label: 'Critical', color: 'var(--notmet)',   bg: 'var(--notm-bg)',  icon: '🔴' };
+  // Build full analytics object fresh from live KPI_DATA
+  function calcKPI(){
+    const data = KPI_DATA || [];
+    const getS = k => k.midStatus || k.status || 'Unknown';
+    let totalPts=0, maxPts=0;
+    const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
+    const goals = {};
+
+    data.forEach(k => {
+      const s = getS(k);
+      totalPts += kpiPts(s);
+      maxPts++;
+      if(counts[s] !== undefined) counts[s]++;
+      const g = k.goal || 'Other';
+      if(!goals[g]) goals[g] = {pts:0,max:0,counts:{Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0},items:[]};
+      goals[g].pts += kpiPts(s);
+      goals[g].max++;
+      if(goals[g].counts[s] !== undefined) goals[g].counts[s]++;
+      goals[g].items.push(k);
+    });
+
+    const score = maxPts ? (totalPts/maxPts*100) : 0;
+    const risk  = riskBucket(score);
+
+    Object.entries(goals).forEach(([,g]) => {
+      g.score = g.max ? (g.pts/g.max*100) : 0;
+      g.risk  = riskBucket(g.score);
+    });
+
+    return { data, counts, totalPts, maxPts, score, risk, goals, total: data.length };
   }
 
-  function buildKPIAnalytics() {
+  function buildKPIAnalytics(){
     const el = document.getElementById('kpiAnalyticsContent');
-    if (!el) return;
+    if(!el) return;
     populateKPIMetricDropdown();
     el.innerHTML = renderKPIAnalytics();
   }
 
-  function setKPIAnalyticsTab(tab) {
+  function setKPIAnalyticsTab(tab){
     _kpiAnalyticsTab = tab;
-    document.querySelectorAll('.kpia-tab').forEach(t => t.classList.remove('active'));
-    const btn = document.getElementById('kpiaTab-' + tab);
-    if (btn) btn.classList.add('active');
+    document.querySelectorAll('.kpia-tab').forEach(t=>t.classList.remove('active'));
+    const btn = document.getElementById('kpiaTab-'+tab);
+    if(btn) btn.classList.add('active');
     const content = document.getElementById('kpiaTabContent');
-    if (content) content.innerHTML = renderKPIAnalyticsTab(tab);
+    if(content) content.innerHTML = renderKPIAnalyticsTab(tab);
   }
 
-  // Build weighted goal-group analytics from KPI_DATA
-  function computeKPIAnalytics(data) {
-    const getS = k => k.midStatus || k.status || '';
-
-    // Per-status counts (raw)
-    const counts = { Met: 0, 'In Progress': 0, 'Partially Met': 0, 'Coming Down the Pipeline': 0, 'Has Not Met': 0 };
-    let totalPts = 0, maxPts = 0;
-
-    data.forEach(k => {
-      const s = getS(k);
-      if (counts[s] !== undefined) counts[s]++;
-      totalPts += kpiPoints(s);
-      maxPts   += 1;
-    });
-
-    const weightedPct = maxPts > 0 ? (totalPts / maxPts) * 100 : 0;
-    const overall     = kpiRiskBucket(weightedPct);
-
-    // Per-goal group
-    const goalGroups = {};
-    data.forEach(k => {
-      const g = k.goal || 'Uncategorized';
-      if (!goalGroups[g]) goalGroups[g] = {
-        met: 0, prog: 0, partial: 0, pipe: 0, notmet: 0,
-        total: 0, earnedPts: 0, maxPts: 0, items: []
-      };
-      const s = getS(k);
-      const pts = kpiPoints(s);
-      goalGroups[g].total++;
-      goalGroups[g].earnedPts += pts;
-      goalGroups[g].maxPts   += 1;
-      goalGroups[g].items.push(k);
-      if (s === 'Met')                        goalGroups[g].met++;
-      else if (s === 'In Progress')           goalGroups[g].prog++;
-      else if (s === 'Partially Met')         goalGroups[g].partial++;
-      else if (s === 'Coming Down the Pipeline') goalGroups[g].pipe++;
-      else if (s === 'Has Not Met')           goalGroups[g].notmet++;
-    });
-
-    // Add weighted score % and risk bucket to each goal group
-    Object.values(goalGroups).forEach(g => {
-      g.weightedPct = g.maxPts > 0 ? (g.earnedPts / g.maxPts) * 100 : 0;
-      g.risk = kpiRiskBucket(g.weightedPct);
-    });
-
-    return { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total: data.length };
+  // ── Friendly plain-English headline ─────────────────────────────
+  function friendlyHeadline(risk, score){
+    const s = score.toFixed(0);
+    if(risk.label==='Healthy')  return `We're performing well overall — ${s}% of our goals are on track.`;
+    if(risk.label==='Watch')    return `Solid progress at ${s}%, but a few goal areas need closer attention.`;
+    if(risk.label==='At Risk')  return `We're at ${s}% — several areas need action before year-end.`;
+    return `At ${s}%, we have significant gaps to close. Immediate focus is needed.`;
   }
 
-  function renderKPIAnalytics() {
-    const data = KPI_DATA;
-    if (!data || !data.length) {
+  // ── Plain-English goal summary ───────────────────────────────────
+  function friendlyGoalLine(g, name){
+    const s = g.score.toFixed(0);
+    const c = g.counts;
+    const parts = [];
+    if(c['Met'])    parts.push(`${c['Met']} completed`);
+    if(c['In Progress']) parts.push(`${c['In Progress']} in progress`);
+    if(c['Partially Met']) parts.push(`${c['Partially Met']} partially done`);
+    if(c['Coming Down the Pipeline']) parts.push(`${c['Coming Down the Pipeline']} not yet started`);
+    if(c['Has Not Met']) parts.push(`${c['Has Not Met']} not met`);
+    return parts.join(' · ');
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  MAIN RENDER
+  // ════════════════════════════════════════════════════════════════
+  function renderKPIAnalytics(){
+    const d = calcKPI();
+    if(!d.total){
       return `<div style="padding:3rem;text-align:center;color:var(--muted)">
-        <div style="font-size:2rem;margin-bottom:1rem">📊</div>
-        <div>KPI data is still loading. <button class="btn btn-secondary" onclick="fetchAndRebuildKPI(true).then(()=>buildKPIAnalytics())" style="margin-left:.5rem">Refresh →</button></div>
+        <div style="font-size:2.5rem;margin-bottom:1rem">📊</div>
+        <div style="font-weight:600;color:var(--navy);margin-bottom:.5rem">No KPI data loaded yet</div>
+        <button class="btn btn-secondary" onclick="fetchAndRebuildKPI(true).then(()=>buildKPIAnalytics())">↺ Refresh Data</button>
       </div>`;
     }
 
-    const { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total } = computeKPIAnalytics(data);
+    const { counts, score, risk, goals, total, totalPts, maxPts } = d;
 
-    // Hero stat — weighted score drives the headline
-    const healthyCount = Object.values(goalGroups).filter(g => g.risk.label === 'Healthy').length;
-    const critCount    = Object.values(goalGroups).filter(g => g.risk.label === 'Critical').length;
+    // Quick counts for hero
+    const criticalGoals = Object.entries(goals).filter(([,g])=>g.risk.label==='Critical');
+    const healthyGoals  = Object.entries(goals).filter(([,g])=>g.risk.label==='Healthy');
 
     let html = '';
 
-    // ── Hero Banner ─────────────────────────────────────────────────
-    html += `<div class="kpia-hero">
-      <div class="kpia-hero-text">
-        <div class="kpia-hero-eyebrow">📊 Weighted Performance Score — SY 2025–2026</div>
-        <div class="kpia-hero-title">Organizational Goal Health</div>
-        <div class="kpia-hero-sub">
-          ${total} targets tracked across ${Object.keys(goalGroups).length} goal areas.
-          Scoring: Met=1pt · Partial=0.5pt · In Progress=0.25pt · Pipeline=0.10pt · Not Met=0pt.
-          Risk thresholds: ≥85% Healthy · 65–84% Watch · 40–64% At Risk · &lt;40% Critical.
+    // ── Friendly Summary Banner ──────────────────────────────────
+    html += `
+    <div class="kpia-summary-banner" style="background:linear-gradient(135deg,${risk.bg},white);border:2px solid ${risk.color}22;border-radius:16px;padding:1.5rem 1.75rem;margin-bottom:1.5rem;display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
+      <div style="font-size:2.75rem;line-height:1">${risk.icon}</div>
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-bottom:.375rem;line-height:1.4">${friendlyHeadline(risk,score)}</div>
+        <div style="font-size:.875rem;color:var(--text-2);line-height:1.5">
+          Out of <strong>${total} targets</strong> this cycle:
+          ${counts['Met']>0?`<strong style="color:#166534">${counts['Met']} fully completed</strong>`:''}${counts['Met']>0&&counts['In Progress']>0?' · ':''}${counts['In Progress']>0?`<strong style="color:var(--progress)">${counts['In Progress']} in progress</strong>`:''}${(counts['Met']+counts['In Progress']>0)&&(counts['Partially Met']+counts['Has Not Met'])>0?' · ':''}${counts['Partially Met']>0?`<strong style="color:#92400e">${counts['Partially Met']} partially done</strong>`:''}${counts['Has Not Met']>0?` · <strong style="color:#991b1b">${counts['Has Not Met']} not yet met</strong>`:''}${counts['Coming Down the Pipeline']>0?` · <strong style="color:var(--pipeline)">${counts['Coming Down the Pipeline']} upcoming</strong>`:''}
         </div>
+        ${criticalGoals.length ? `<div style="margin-top:.625rem;font-size:.8125rem;background:#fee2e2;color:#991b1b;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">
+          🔴 ${criticalGoals.length} goal area${criticalGoals.length>1?'s require':'requires'} urgent attention: ${criticalGoals.map(([name])=>name).join(', ')}
+        </div>` : `<div style="margin-top:.625rem;font-size:.8125rem;background:#dcfce7;color:#166534;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">✅ No critical goal areas — great work!</div>`}
       </div>
-      <div class="kpia-hero-stats">
-        <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:${overall.color}">${weightedPct.toFixed(1)}%</div>
-          <div class="kpia-hstat-label">Weighted Score</div>
-        </div>
-        <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:#f0a500">${overall.icon} ${overall.label}</div>
-          <div class="kpia-hstat-label">Org Health</div>
-        </div>
-        <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:#0d6e3a">${healthyCount}</div>
-          <div class="kpia-hstat-label">Healthy Goals</div>
-        </div>
-        <div class="kpia-hstat">
-          <div class="kpia-hstat-val" style="color:var(--notmet)">${critCount}</div>
-          <div class="kpia-hstat-label">Critical Goals</div>
-        </div>
+      <div style="text-align:center;background:white;border-radius:12px;padding:1rem 1.25rem;border:1px solid ${risk.color}33;min-width:100px;flex-shrink:0">
+        <div style="font-size:2.25rem;font-weight:800;color:${risk.color};font-family:'DM Serif Display',serif;line-height:1">${score.toFixed(0)}%</div>
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${risk.color};margin-top:.25rem">${risk.label}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Weighted Score</div>
       </div>
     </div>`;
 
-    // ── Tab nav ─────────────────────────────────────────────────────
+    // ── What does this score mean? (beginner callout) ─────────────
+    html += `
+    <details class="kpia-explainer" style="margin-bottom:1.25rem;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <summary style="padding:.875rem 1.125rem;cursor:pointer;font-size:.8125rem;font-weight:600;color:var(--navy);list-style:none;display:flex;justify-content:space-between;align-items:center;background:var(--surface-2)">
+        <span>ℹ️ How is this score calculated?</span>
+        <span style="color:var(--muted);font-weight:400;font-size:.75rem">Click to expand</span>
+      </summary>
+      <div style="padding:1rem 1.25rem;font-size:.8125rem;color:var(--text-2);line-height:1.6;background:white">
+        <p style="margin:0 0 .625rem">Each target earns points based on its status. Points are added up and divided by the maximum possible to get a <strong>weighted score</strong> — a fair measure that accounts for targets still in progress.</p>
+        <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.625rem">
+          ${[['✅ Completed (Met)','1.0 pt','#166534','#dcfce7'],['🟠 Partially Done','0.5 pts','#9a3412','#ffedd5'],['🔵 In Progress','0.25 pts','var(--progress)','#eff6ff'],['🟣 Coming Up','0.10 pts','var(--pipeline)','var(--pipe-bg)'],['🔴 Not Met','0 pts','#991b1b','#fee2e2']].map(([l,p,c,bg])=>
+            `<span style="background:${bg};color:${c};padding:.3rem .6rem;border-radius:6px;font-weight:600;font-size:.75rem;white-space:nowrap">${l} = ${p}</span>`
+          ).join('')}
+        </div>
+        <p style="margin:0">Risk levels: <strong style="color:#166534">🟢 Healthy ≥85%</strong> · <strong style="color:#92400e">🟡 Watch 65–84%</strong> · <strong style="color:#9a3412">🟠 At Risk 40–64%</strong> · <strong style="color:#991b1b">🔴 Critical &lt;40%</strong></p>
+      </div>
+    </details>`;
+
+    // ── Tab nav ──────────────────────────────────────────────────
     html += `<div class="kpia-tabs">
-      <button class="kpia-tab active" id="kpiaTab-overview" onclick="setKPIAnalyticsTab('overview')">📋 Overview</button>
-      <button class="kpia-tab" id="kpiaTab-breakdown" onclick="setKPIAnalyticsTab('breakdown')">📊 Goal Breakdown</button>
-      <button class="kpia-tab" id="kpiaTab-atRisk" onclick="setKPIAnalyticsTab('atRisk')">🔴 At-Risk Targets</button>
-      <button class="kpia-tab" id="kpiaTab-pipeline" onclick="setKPIAnalyticsTab('pipeline')">🟣 Pipeline</button>
-      <button class="kpia-tab" id="kpiaTab-scorecard" onclick="setKPIAnalyticsTab('scorecard')">🏆 Scorecard</button>
+      <button class="kpia-tab active" id="kpiaTab-overview"   onclick="setKPIAnalyticsTab('overview')">🏠 At a Glance</button>
+      <button class="kpia-tab"        id="kpiaTab-breakdown"  onclick="setKPIAnalyticsTab('breakdown')">📊 By Goal Area</button>
+      <button class="kpia-tab"        id="kpiaTab-atRisk"     onclick="setKPIAnalyticsTab('atRisk')">⚠️ Needs Attention</button>
+      <button class="kpia-tab"        id="kpiaTab-pipeline"   onclick="setKPIAnalyticsTab('pipeline')">🟣 Coming Up</button>
+      <button class="kpia-tab"        id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab('scorecard')">🏆 Full Scorecard</button>
     </div>`;
 
     html += `<div id="kpiaTabContent">${renderKPIAnalyticsTab('overview')}</div>`;
 
-    // ── CTA Banner ────────────────────────────────────────────────
     html += `<div class="kpia-cta-banner">
       <div class="kpia-cta-icon">💬</div>
       <div class="kpia-cta-body">
-        <div class="kpia-cta-title">Have a question about a specific metric?</div>
-        <div class="kpia-cta-sub">Submit a KPI inquiry to provide context, ask leadership for clarification, or flag information that should be considered when interpreting a target's status.</div>
+        <div class="kpia-cta-title">Questions about a specific goal?</div>
+        <div class="kpia-cta-sub">Submit a KPI inquiry to provide context, ask for clarification, or flag something leadership should know.</div>
       </div>
-      <button class="kpia-cta-btn" onclick="openKPIInquiry()">✏️ Submit KPI Inquiry</button>
+      <button class="kpia-cta-btn" onclick="openKPIInquiry()">✏️ Ask a Question</button>
     </div>`;
 
     return html;
   }
 
-  function renderKPIAnalyticsTab(tab) {
-    const data = KPI_DATA;
-    if (!data || !data.length) return '';
-
-    const { counts, totalPts, maxPts, weightedPct, overall, goalGroups, total } = computeKPIAnalytics(data);
+  // ════════════════════════════════════════════════════════════════
+  //  TAB RENDERS
+  // ════════════════════════════════════════════════════════════════
+  function renderKPIAnalyticsTab(tab){
+    const d = calcKPI();
+    if(!d.total) return '';
+    const { counts, score, risk, goals, total, totalPts, maxPts } = d;
     const getS = k => k.midStatus || k.status || '';
 
-    const COLORS = {
-      'Met': 'var(--met)', 'In Progress': 'var(--progress)',
-      'Partially Met': 'var(--partial)', 'Coming Down the Pipeline': 'var(--pipeline)',
-      'Has Not Met': 'var(--notmet)'
-    };
+    // ── AT A GLANCE ──────────────────────────────────────────────
+    if(tab === 'overview'){
+      // Goal area health grid — the meat of the overview
+      const sortedGoals = Object.entries(goals).sort((a,b)=>b[1].score-a[1].score);
 
-    // ────────────────────────────────────────────────────────────────
-    // TAB: OVERVIEW
-    // ────────────────────────────────────────────────────────────────
-    if (tab === 'overview') {
-      const met     = counts['Met'];
-      const prog    = counts['In Progress'];
-      const partial = counts['Partially Met'];
-      const pipe    = counts['Coming Down the Pipeline'];
-      const notmet  = counts['Has Not Met'];
+      let html = '';
 
-      // Donut — weighted points distribution (not raw counts)
-      // Each status slice = sum of points that category contributes
-      const donutSlices = [
-        { label: 'Met (1.0 pt)',        val: met * 1.00,    rawCount: met,     color: 'var(--met)',      status: 'Met' },
-        { label: 'In Progress (0.25)',  val: prog * 0.25,   rawCount: prog,    color: 'var(--progress)', status: 'In Progress' },
-        { label: 'Partially Met (0.5)', val: partial * 0.50,rawCount: partial, color: 'var(--partial)',  status: 'Partially Met' },
-        { label: 'Pipeline (0.10)',     val: pipe * 0.10,   rawCount: pipe,    color: 'var(--pipeline)', status: 'Coming Down the Pipeline' },
-        { label: 'Has Not Met (0)',     val: notmet * 0.00, rawCount: notmet,  color: 'var(--notmet)',   status: 'Has Not Met' },
-      ];
-      const totalPtsForDonut = donutSlices.reduce((s, x) => s + x.val, 0) || 1;
-      let cumulDeg = 0;
-      // For donut: use raw counts for visual segments so every target is visible
-      const rawTotal = total || 1;
-      const rawGradStops = donutSlices.map(s => {
-        const pct = (s.rawCount / rawTotal) * 100;
-        const start = cumulDeg;
-        cumulDeg += pct;
-        return `${s.color} ${start.toFixed(1)}% ${cumulDeg.toFixed(1)}%`;
-      }).join(', ');
+      // 4 big stat tiles
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.875rem;margin-bottom:1.5rem">
+        ${[
+          { icon:'✅', val: counts['Met'], label:'Completed', color:'#166534', bg:'#dcfce7', desc:'Fully achieved' },
+          { icon:'🔵', val: counts['In Progress'], label:'In Progress', color:'var(--progress)', bg:'#eff6ff', desc:'Actively tracked' },
+          { icon:'🟠', val: counts['Partially Met']+counts['Has Not Met'], label:'Need Attention', color:'#9a3412', bg:'#ffedd5', desc:'Partial or not met' },
+          { icon:'🟣', val: counts['Coming Down the Pipeline'], label:'Coming Up', color:'var(--pipeline)', bg:'var(--pipe-bg)', desc:'Planned ahead' },
+        ].map(s=>`<div style="background:${s.bg};border-radius:12px;padding:1rem 1.125rem;border:1px solid ${s.color}22">
+          <div style="font-size:1.625rem;margin-bottom:.25rem">${s.icon}</div>
+          <div style="font-size:1.75rem;font-weight:800;color:${s.color};font-family:'DM Serif Display',serif;line-height:1">${s.val}</div>
+          <div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-top:.25rem">${s.label}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.125rem">${s.desc}</div>
+        </div>`).join('')}
+      </div>`;
 
-      let html = `<div class="kpia-chart-grid" style="margin-bottom:1.5rem">`;
-
-      // Donut card
-      html += `<div class="kpia-card">
-        <div class="kpia-card-header">
-          <div class="kpia-card-title">📊 Status Distribution</div>
-          <div class="kpia-card-meta">${total} targets · Weighted Score: ${weightedPct.toFixed(1)}%</div>
+      // Overall progress bar — visual + plain English
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem">
+        <div class="kpia-card-header" style="margin-bottom:.875rem">
+          <div class="kpia-card-title">📈 Overall Progress — How Are We Doing?</div>
+          <div class="kpia-card-meta">Live from Google Sheet · updates automatically when data changes</div>
         </div>
-        <div class="kpia-donut-wrap">
-          <div class="kpia-donut" style="background:conic-gradient(${rawGradStops})">
-            <div class="kpia-donut-center">
-              <div class="kpia-donut-num" style="color:${overall.color}">${weightedPct.toFixed(0)}%</div>
-              <div class="kpia-donut-denom">${overall.label}</div>
-            </div>
-          </div>
-          <div class="kpia-legend">
-            ${donutSlices.map(s => `
-              <div class="kpia-legend-item">
-                <div class="kpia-legend-dot" style="background:${s.color}"></div>
-                <span class="kpia-legend-label">${s.status}</span>
-                <span class="kpia-legend-val">${s.rawCount}</span>
-                <span class="kpia-legend-pct">${Math.round(s.rawCount/rawTotal*100)}%</span>
-              </div>`).join('')}
-          </div>
+        <div style="display:flex;gap:2px;height:22px;border-radius:11px;overflow:hidden;margin-bottom:.75rem">
+          ${counts['Met']               ?`<div style="flex:${counts['Met']};background:#22c55e" title="Completed: ${counts['Met']}"></div>`:''}
+          ${counts['In Progress']       ?`<div style="flex:${counts['In Progress']};background:var(--progress)" title="In Progress: ${counts['In Progress']}"></div>`:''}
+          ${counts['Partially Met']     ?`<div style="flex:${counts['Partially Met']};background:#f97316" title="Partially Done: ${counts['Partially Met']}"></div>`:''}
+          ${counts['Coming Down the Pipeline']?`<div style="flex:${counts['Coming Down the Pipeline']};background:var(--pipeline)" title="Coming Up: ${counts['Coming Down the Pipeline']}"></div>`:''}
+          ${counts['Has Not Met']       ?`<div style="flex:${counts['Has Not Met']};background:#ef4444" title="Not Met: ${counts['Has Not Met']}"></div>`:''}
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.75rem">
+          ${[['#22c55e','✅ Completed',counts['Met']],['var(--progress)','🔵 In Progress',counts['In Progress']],['#f97316','🟠 Partially Done',counts['Partially Met']],['var(--pipeline)','🟣 Coming Up',counts['Coming Down the Pipeline']],['#ef4444','🔴 Not Met',counts['Has Not Met']]].filter(x=>x[2]>0).map(([c,l,v])=>`
+            <span style="display:flex;align-items:center;gap:.3rem">
+              <span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>
+              <span style="color:var(--text-2)">${l}</span>
+              <strong style="color:var(--navy)">${v}</strong>
+              <span style="color:var(--muted)">(${Math.round(v/total*100)}%)</span>
+            </span>`).join('')}
         </div>
       </div>`;
 
-      // Weighted Score Meter card
+      // Goal area health — simplified cards
       html += `<div class="kpia-card">
-        <div class="kpia-card-header">
-          <div class="kpia-card-title">⚖️ Weighted Performance Meters</div>
-          <div class="kpia-card-meta">Points earned ÷ max possible × 100</div>
+        <div class="kpia-card-header" style="margin-bottom:1rem">
+          <div class="kpia-card-title">🗂️ Goal Areas — Health at a Glance</div>
+          <div class="kpia-card-meta">Sorted best to lowest · Click "By Goal Area" tab for full breakdown</div>
         </div>
-
-        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.375rem">
-            <span style="font-size:.8125rem;font-weight:700;color:var(--navy)">Overall Weighted Score</span>
-            <span style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:${overall.color}">${weightedPct.toFixed(1)}%</span>
-          </div>
-          <div class="kpia-meter-track" style="height:12px">
-            <div class="kpia-meter-fill" style="width:${Math.min(weightedPct,100).toFixed(1)}%;background:${overall.color}"></div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);margin-top:.375rem">
-            <span>0% Critical</span><span style="color:var(--notmet)">40%</span><span style="color:var(--partial)">65%</span><span style="color:#d97706">85%</span><span>100% Healthy</span>
-          </div>
-          <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap">
-            <span style="background:${overall.bg};color:${overall.color};font-size:.75rem;font-weight:700;padding:.25rem .75rem;border-radius:20px">${overall.icon} ${overall.label}</span>
-            <span style="font-size:.75rem;color:var(--muted)">${totalPts.toFixed(2)} pts earned of ${maxPts} possible</span>
-          </div>
-        </div>
-
-        ${donutSlices.filter(s => s.rawCount > 0).map(s => {
-          const ptsContrib = s.val;
-          const ptsContribPct = (ptsContrib / maxPts * 100);
-          return `<div class="kpia-meter-wrap">
-            <div class="kpia-meter-header">
-              <span class="kpia-meter-label">${s.status} <span style="color:var(--muted);font-weight:400">(×${KPI_POINT_MAP[s.status]} pt each)</span></span>
-              <span class="kpia-meter-pct" style="color:${s.color}">${s.rawCount} targets → +${ptsContrib.toFixed(2)} pts</span>
-            </div>
-            <div class="kpia-meter-track">
-              <div class="kpia-meter-fill" style="width:${ptsContribPct.toFixed(1)}%;background:${s.color}"></div>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>`;
-
-      html += `</div>`;
-
-      // Insight strip
-      const sortedByScore = Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct);
-      const topGoal   = sortedByScore[0] || ['—', { weightedPct: 0 }];
-      const lowestGoal= sortedByScore[sortedByScore.length - 1] || ['—', { weightedPct: 0 }];
-      const topAtRisk = Object.entries(goalGroups).sort((a,b) => (b[1].partial+b[1].notmet) - (a[1].partial+a[1].notmet))[0] || ['—', { partial:0, notmet:0 }];
-
-      html += `<div class="kpia-insight-strip">
-        <div class="kpia-insight">
-          <div class="kpia-insight-icon">🏆</div>
-          <div>
-            <div class="kpia-insight-label">Strongest Goal Area</div>
-            <div class="kpia-insight-val">${topGoal[0]} · ${topGoal[1].weightedPct.toFixed(1)}% weighted score</div>
-          </div>
-        </div>
-        <div class="kpia-insight">
-          <div class="kpia-insight-icon">⚠️</div>
-          <div>
-            <div class="kpia-insight-label">Lowest Scoring Area</div>
-            <div class="kpia-insight-val">${lowestGoal[0]} · ${lowestGoal[1].weightedPct.toFixed(1)}% — ${lowestGoal[1].risk.label}</div>
-          </div>
-        </div>
-        <div class="kpia-insight">
-          <div class="kpia-insight-icon">🔍</div>
-          <div>
-            <div class="kpia-insight-label">Most Attention Needed</div>
-            <div class="kpia-insight-val">${topAtRisk[0]} · ${topAtRisk[1].partial + topAtRisk[1].notmet} targets Partial/Not Met</div>
-          </div>
-        </div>
-      </div>`;
-
-      // Goal Health Matrix — shows WEIGHTED score per goal
-      html += `<div class="kpia-card">
-        <div class="kpia-card-header">
-          <div class="kpia-card-title">🗺️ Weighted Goal Health Matrix</div>
-          <div class="kpia-card-meta">Risk bucket derived from weighted point score per goal area</div>
-        </div>
-        <div class="kpia-matrix">
-          ${Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct).map(([goal, g]) => {
-            const segs = [
-              { s: g.met,     c: 'var(--met)',      t: `Met: ${g.met}` },
-              { s: g.prog,    c: 'var(--progress)', t: `In Progress: ${g.prog}` },
-              { s: g.partial, c: 'var(--partial)',  t: `Partially Met: ${g.partial}` },
-              { s: g.pipe,    c: 'var(--pipeline)', t: `Pipeline: ${g.pipe}` },
-              { s: g.notmet,  c: 'var(--notmet)',   t: `Not Met: ${g.notmet}` },
-            ].filter(x => x.s > 0);
-            return `<div class="kpia-matrix-row">
-              <div class="kpia-matrix-label" title="${goal}">${g.risk.icon} ${goal}</div>
-              <div class="kpia-matrix-bar-wrap">
-                ${segs.map(seg => `<div class="kpia-matrix-seg" style="flex:${seg.s};background:${seg.c}" title="${seg.t}"></div>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:.625rem">
+          ${sortedGoals.map(([name,g])=>{
+            const pct = g.score.toFixed(0);
+            return `<div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:10px;border:1px solid ${g.risk.color}22;background:${g.risk.bg}11">
+              <span style="font-size:1.125rem;flex-shrink:0" title="${g.risk.tip}">${g.risk.icon}</span>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem">
+                  <span style="font-size:.8125rem;font-weight:700;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px" title="${name}">${name}</span>
+                  <span style="font-size:.75rem;color:${g.risk.color};font-weight:700;flex-shrink:0">${pct}% · ${g.risk.label}</span>
+                </div>
+                <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                  <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:3px;transition:width .5s ease"></div>
+                </div>
+                <div style="font-size:.7rem;color:var(--muted);margin-top:.3rem">${friendlyGoalLine(g,name)}</div>
               </div>
-              <div class="kpia-matrix-count" style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-                <span style="font-weight:700;font-size:.8125rem;color:${g.risk.color}">${g.weightedPct.toFixed(0)}%</span>
-                <span style="font-size:.7rem;color:var(--muted)">${g.total} targets</span>
-              </div>
+              <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px;flex-shrink:0;white-space:nowrap">${g.risk.short}</span>
             </div>`;
           }).join('')}
         </div>
-        <div style="margin-top:1rem;display:flex;gap:1rem;flex-wrap:wrap;font-size:.75rem;color:var(--muted)">
-          ${[['Met','var(--met)'],['In Progress','var(--progress)'],['Partially Met','var(--partial)'],['Pipeline','var(--pipeline)'],['Not Met','var(--notmet)']].map(([l,c]) =>
-            `<span style="display:flex;align-items:center;gap:.35rem"><span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block"></span>${l}</span>`
-          ).join('')}
-          <span style="margin-left:.5rem;opacity:.5">|</span>
-          <span>Scores: 🟢 ≥85% Healthy · 🟡 65–84% Watch · 🟠 40–64% At Risk · 🔴 &lt;40% Critical</span>
-        </div>
       </div>`;
 
       return html;
 
-    // ────────────────────────────────────────────────────────────────
-    // TAB: BREAKDOWN
-    // ────────────────────────────────────────────────────────────────
-    } else if (tab === 'breakdown') {
-      let html = `<div class="kpia-card">
-        <div class="kpia-card-header">
-          <div class="kpia-card-title">📊 Weighted Score by Goal Area</div>
-          <div class="kpia-card-meta">Points earned ÷ max possible · Risk bucket applied per area</div>
-        </div>
-        <div class="kpia-bar-list">`;
+    // ── BY GOAL AREA ─────────────────────────────────────────────
+    } else if(tab === 'breakdown'){
+      const sorted = Object.entries(goals).sort((a,b)=>b[1].score-a[1].score);
+      let html = `<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:.8125rem;color:#0c4a6e;line-height:1.5">
+        💡 <strong>How to read this:</strong> Each goal area has multiple targets. The <strong>score</strong> reflects how close we are to completing all of them — higher is better. Green = on track, yellow = watch closely, orange = needs action, red = urgent.
+      </div>`;
 
-      Object.entries(goalGroups).sort((a,b) => b[1].weightedPct - a[1].weightedPct).forEach(([goal, g]) => {
-        const statusCounts = [
-          { lbl:'Met', val:g.met, c:'var(--met)' },
-          { lbl:'In Progress', val:g.prog, c:'var(--progress)' },
-          { lbl:'Partially Met', val:g.partial, c:'var(--partial)' },
-          { lbl:'Pipeline', val:g.pipe, c:'var(--pipeline)' },
-          { lbl:'Not Met', val:g.notmet, c:'var(--notmet)' },
-        ].filter(x => x.val > 0);
+      sorted.forEach(([name,g])=>{
+        const pct = g.score.toFixed(1);
+        const c = g.counts;
+        const statusBars = [
+          {s:'Met',n:c['Met'],color:'#22c55e',icon:'✅',label:'Completed'},
+          {s:'In Progress',n:c['In Progress'],color:'var(--progress)',icon:'🔵',label:'In Progress'},
+          {s:'Partially Met',n:c['Partially Met'],color:'#f97316',icon:'🟠',label:'Partially Done'},
+          {s:'Coming Down the Pipeline',n:c['Coming Down the Pipeline'],color:'var(--pipeline)',icon:'🟣',label:'Coming Up'},
+          {s:'Has Not Met',n:c['Has Not Met'],color:'#ef4444',icon:'🔴',label:'Not Met'},
+        ].filter(x=>x.n>0);
 
-        html += `<div class="kpia-bar-row">
-          <div class="kpia-bar-meta">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <span style="font-weight:700;color:var(--navy);font-size:.875rem">${g.risk.icon} ${goal}</span>
-              <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.15rem .5rem;border-radius:20px">${g.risk.label}</span>
+        html += `<div class="kpia-card" style="margin-bottom:1rem;border-left:4px solid ${g.risk.color}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:.875rem">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+                <span style="font-size:1rem">${g.risk.icon}</span>
+                <span style="font-size:.9375rem;font-weight:700;color:var(--navy)">${name}</span>
+                <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${g.risk.label}</span>
+              </div>
+              <div style="font-size:.8125rem;color:var(--text-2)">${g.risk.tip} · ${g.max} targets total</div>
             </div>
-            <div class="kpia-bar-nums" style="margin-top:.25rem">
-              ${statusCounts.map(s => `<span style="color:${s.c};font-weight:700">${s.val} ${s.lbl}</span>`).join('<span style="opacity:.3">·</span>')}
-            </div>
-          </div>
-          <!-- Weighted score bar -->
-          <div style="margin-top:.5rem">
-            <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.25rem">
-              <span>Weighted Score</span>
-              <span style="color:${g.risk.color};font-weight:700">${g.weightedPct.toFixed(1)}% &nbsp;(${g.earnedPts.toFixed(2)} / ${g.maxPts} pts)</span>
-            </div>
-            <div class="kpia-meter-track">
-              <div style="height:100%;width:${Math.min(g.weightedPct,100).toFixed(1)}%;background:${g.risk.color};border-radius:4px;transition:width .4s"></div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:${g.risk.color};line-height:1">${pct}%</div>
+              <div style="font-size:.7rem;color:var(--muted)">weighted score</div>
             </div>
           </div>
-          <!-- Stacked count bar -->
-          <div style="display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;margin-top:.5rem">
-            ${statusCounts.map(s => `<div style="flex:${s.val};background:${s.c};min-width:4px;border-radius:2px" title="${s.lbl}: ${s.val}"></div>`).join('')}
+
+          <!-- Progress bar -->
+          <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:.875rem">
+            <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:5px;transition:width .5s ease"></div>
           </div>
+
+          <!-- What makes up this score -->
+          <div style="font-size:.75rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem">Target Breakdown</div>
+          <div style="display:flex;flex-direction:column;gap:.375rem">
+            ${statusBars.map(sb=>`
+              <div style="display:flex;align-items:center;gap:.625rem">
+                <span style="font-size:.875rem;flex-shrink:0">${sb.icon}</span>
+                <span style="font-size:.8125rem;color:var(--text-2);flex:1">${sb.label}</span>
+                <span style="font-weight:700;color:${sb.color};font-size:.8125rem;min-width:1.5rem;text-align:right">${sb.n}</span>
+                <div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0">
+                  <div style="height:100%;width:${Math.round(sb.n/g.max*100)}%;background:${sb.color};border-radius:3px"></div>
+                </div>
+                <span style="font-size:.7rem;color:var(--muted);width:28px;text-align:right">${Math.round(sb.n/g.max*100)}%</span>
+              </div>`).join('')}
+          </div>
+
+          <!-- Individual targets (expandable) -->
+          <details style="margin-top:.875rem">
+            <summary style="font-size:.8125rem;color:var(--blue-mid);cursor:pointer;font-weight:600;list-style:none">▸ Show all ${g.max} individual targets</summary>
+            <div style="margin-top:.625rem;display:flex;flex-direction:column;gap:.375rem">
+              ${g.items.map(k=>{
+                const s = getS(k);
+                const pts = kpiPts(s);
+                const stColor = s==='Met'?'#166534':s==='In Progress'?'var(--progress)':s==='Partially Met'?'#9a3412':s==='Coming Down the Pipeline'?'var(--pipeline)':'#991b1b';
+                const stBg    = s==='Met'?'#dcfce7':s==='In Progress'?'#eff6ff':s==='Partially Met'?'#ffedd5':s==='Coming Down the Pipeline'?'var(--pipe-bg)':'#fee2e2';
+                return `<div style="display:flex;align-items:flex-start;gap:.625rem;padding:.5rem .625rem;border-radius:7px;border:1px solid var(--border);background:var(--surface-2)">
+                  <div style="flex:1;font-size:.8125rem;color:var(--navy);line-height:1.4">${k.target}</div>
+                  <span style="background:${stBg};color:${stColor};font-size:.6875rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap;flex-shrink:0">${s}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </details>
         </div>`;
       });
-
-      html += `</div></div>`;
-
-      // Point contribution table
-      html += `<div class="kpia-card" style="margin-top:1.25rem">
-        <div class="kpia-card-header">
-          <div class="kpia-card-title">⚖️ Point Contribution by Status — All Targets</div>
-          <div class="kpia-card-meta">How each status bucket contributes to the weighted score</div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
-          <thead>
-            <tr style="border-bottom:2px solid var(--border)">
-              <th style="text-align:left;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Status</th>
-              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Point Value</th>
-              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Count</th>
-              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">Points Earned</th>
-              <th style="text-align:center;padding:.5rem .75rem;color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase">% of Total Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${[
-              { s: 'Met',                        pts: 1.00, c: 'var(--met)',      n: counts['Met'] },
-              { s: 'Partially Met',              pts: 0.50, c: 'var(--partial)',  n: counts['Partially Met'] },
-              { s: 'In Progress',                pts: 0.25, c: 'var(--progress)', n: counts['In Progress'] },
-              { s: 'Coming Down the Pipeline',   pts: 0.10, c: 'var(--pipeline)', n: counts['Coming Down the Pipeline'] },
-              { s: 'Has Not Met',                pts: 0.00, c: 'var(--notmet)',   n: counts['Has Not Met'] },
-            ].map(row => {
-              const earned = row.pts * row.n;
-              const pctOfScore = maxPts > 0 ? (earned / maxPts * 100) : 0;
-              return `<tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:.625rem .75rem">
-                  <span style="display:inline-flex;align-items:center;gap:.4rem">
-                    <span style="width:10px;height:10px;border-radius:50%;background:${row.c};display:inline-block;flex-shrink:0"></span>
-                    <span style="color:var(--navy);font-weight:600">${row.s}</span>
-                  </span>
-                </td>
-                <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${row.c}">${row.pts.toFixed(2)}</td>
-                <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:var(--navy)">${row.n}</td>
-                <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${row.c}">${earned.toFixed(2)}</td>
-                <td style="text-align:center;padding:.625rem .75rem">
-                  <div style="display:flex;align-items:center;gap:.5rem">
-                    <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-                      <div style="height:100%;width:${pctOfScore.toFixed(1)}%;background:${row.c};border-radius:3px"></div>
-                    </div>
-                    <span style="font-weight:700;color:${row.c};min-width:2.5rem;text-align:right">${pctOfScore.toFixed(1)}%</span>
-                  </div>
-                </td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-          <tfoot>
-            <tr style="border-top:2px solid var(--border);background:var(--surface-2)">
-              <td style="padding:.625rem .75rem;font-weight:700;color:var(--navy)" colspan="2">TOTAL</td>
-              <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:var(--navy)">${total}</td>
-              <td style="text-align:center;padding:.625rem .75rem;font-family:'JetBrains Mono',monospace;font-weight:700;color:${overall.color}">${totalPts.toFixed(2)}</td>
-              <td style="text-align:center;padding:.625rem .75rem;font-weight:700;color:${overall.color}">${weightedPct.toFixed(1)}% Weighted Score</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>`;
-
       return html;
 
-    // ────────────────────────────────────────────────────────────────
-    // TAB: AT-RISK
-    // ────────────────────────────────────────────────────────────────
-    } else if (tab === 'atRisk') {
-      const atRiskItems = data.filter(k => ['Partially Met','Has Not Met'].includes(getS(k)));
-      if (!atRiskItems.length) {
-        return `<div style="padding:3rem;text-align:center;color:var(--muted)">
-          <div style="font-size:2rem;margin-bottom:.75rem">🎉</div>
-          <div style="font-size:1rem;font-weight:700;color:var(--navy)">No At-Risk Targets</div>
-          <div style="margin-top:.5rem">All current KPIs are Met, In Progress, or in the Pipeline.</div>
+    // ── NEEDS ATTENTION ──────────────────────────────────────────
+    } else if(tab === 'atRisk'){
+      const atRiskItems = d.data.filter(k=>['Partially Met','Has Not Met'].includes(getS(k)));
+
+      if(!atRiskItems.length){
+        return `<div style="padding:3rem;text-align:center">
+          <div style="font-size:2.5rem;margin-bottom:.75rem">🎉</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">No At-Risk Targets Right Now</div>
+          <div style="font-size:.875rem;color:var(--muted)">All current targets are Met, In Progress, or planned ahead — great work!</div>
         </div>`;
       }
 
-      const byGoal = {};
-      atRiskItems.forEach(k => { if (!byGoal[k.goal]) byGoal[k.goal] = []; byGoal[k.goal].push(k); });
+      const notMetN  = atRiskItems.filter(k=>getS(k)==='Has Not Met').length;
+      const partialN = atRiskItems.filter(k=>getS(k)==='Partially Met').length;
 
-      const notMetCount  = atRiskItems.filter(k => getS(k) === 'Has Not Met').length;
-      const partialCount = atRiskItems.filter(k => getS(k) === 'Partially Met').length;
-
-      // Score impact — how many points are being lost to these statuses
-      const lostPts = notMetCount * 1 + partialCount * 0.5; // 0 earned vs 1 max for NM; 0.5 earned vs 1 max for PM
-
-      let html = `<div style="margin-bottom:1.25rem;padding:1rem 1.25rem;background:var(--notm-bg);border:1px solid rgba(185,28,28,.15);border-radius:10px">
-        <div style="font-size:.875rem;font-weight:700;color:var(--notmet);margin-bottom:.375rem">⚠️ ${atRiskItems.length} target${atRiskItems.length>1?'s':''} need attention</div>
-        <div style="font-size:.8125rem;color:var(--text-2)">
-          ${notMetCount > 0 ? `<strong>${notMetCount} Has Not Met</strong> (0 pts each) · ` : ''}
-          ${partialCount > 0 ? `<strong>${partialCount} Partially Met</strong> (0.5 pts each)` : ''}
-          &nbsp;·&nbsp; <strong>${lostPts.toFixed(2)} potential points</strong> remain on the table — resolving these directly improves your weighted score.
+      let html = `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem">
+        <div style="font-weight:700;color:#9a3412;margin-bottom:.375rem;font-size:.9375rem">⚠️ ${atRiskItems.length} target${atRiskItems.length>1?'s need':'needs'} attention</div>
+        <div style="font-size:.8125rem;color:#7c2d12;line-height:1.5">
+          ${notMetN>0?`<strong>${notMetN} not yet met</strong> — these need immediate focus.`:''} 
+          ${partialN>0?`<strong>${partialN} partially completed</strong> — on the right track but not there yet.`:''}
+          Use the "Ask a Question" button below to flag context or request support from leadership.
         </div>
       </div>`;
 
-      Object.entries(byGoal).sort((a,b) => b[1].length - a[1].length).forEach(([goal, items]) => {
-        const goalData = goalGroups[goal];
-        html += `<div class="kpia-card" style="margin-bottom:1.25rem">
-          <div class="kpia-card-header">
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-              <div class="kpia-card-title" style="color:var(--notmet)">⚠️ ${goal}</div>
-              ${goalData ? `<span style="background:${goalData.risk.bg};color:${goalData.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${goalData.risk.icon} ${goalData.risk.label} · ${goalData.weightedPct.toFixed(1)}%</span>` : ''}
-            </div>
-            <div class="kpia-card-meta">${items.length} at-risk target${items.length>1?'s':''}</div>
-          </div>
-          <div class="kpia-focus-list">`;
-        items.sort((a,b) => kpiPoints(getS(a)) - kpiPoints(getS(b))).forEach((k, i) => {
-          const s = getS(k);
-          const pts = kpiPoints(s);
-          const badgeClass = s === 'Has Not Met' ? 'kpia-badge-notmet' : 'kpia-badge-part';
-          const ptLost = 1 - pts; // points lost vs Met
-          html += `<div class="kpia-focus-item">
-            <div class="kpia-focus-rank">${i+1}</div>
-            <div class="kpia-focus-body">
-              <div class="kpia-focus-goal">${k.goal}</div>
-              <div class="kpia-focus-target">${k.target}</div>
-              <div class="kpia-focus-meta" style="display:flex;gap:.75rem;flex-wrap:wrap">
-                <span>Owner: ${k.owner || 'Unassigned'}</span>
-                <span style="color:var(--notmet);font-weight:600">−${ptLost.toFixed(2)} pts vs Met</span>
-              </div>
-            </div>
-            <span class="kpia-trend-badge ${badgeClass}">${s}</span>
-            <button class="kpia-focus-action" onclick="openKPIInquiryWithMetric(${JSON.stringify(k.target).replace(/"/g,'&quot;')})">Inquire →</button>
-          </div>`;
-        });
-        html += `</div></div>`;
-      });
+      // Group by goal
+      const byGoal = {};
+      atRiskItems.forEach(k=>{if(!byGoal[k.goal])byGoal[k.goal]=[];byGoal[k.goal].push(k);});
 
+      Object.entries(byGoal).sort((a,b)=>b[1].length-a[1].length).forEach(([gname,items])=>{
+        const gd = goals[gname];
+        html += `<div class="kpia-card" style="margin-bottom:1rem;border-left:4px solid ${gd?gd.risk.color:'#f97316'}">
+          <div class="kpia-card-header" style="margin-bottom:.75rem">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+              <div class="kpia-card-title">${gname}</div>
+              ${gd?`<span style="background:${gd.risk.bg};color:${gd.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${gd.risk.icon} ${gd.risk.label} · ${gd.score.toFixed(0)}%</span>`:''}
+            </div>
+            <div class="kpia-card-meta">${items.length} target${items.length>1?'s':''} need attention</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            ${items.sort((a,b)=>kpiPts(getS(a))-kpiPts(getS(b))).map(k=>{
+              const s = getS(k);
+              const isNotMet = s==='Has Not Met';
+              const bColor = isNotMet?'#991b1b':'#9a3412';
+              const bBg    = isNotMet?'#fee2e2':'#ffedd5';
+              return `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid ${bColor}22;background:${bBg}44">
+                <div style="font-size:1.125rem;flex-shrink:0">${isNotMet?'🔴':'🟠'}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.25rem">${k.target}</div>
+                  <div style="font-size:.75rem;color:var(--muted)">Owner: ${k.owner||'Unassigned'}</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.375rem;flex-shrink:0">
+                  <span style="background:${bBg};color:${bColor};font-size:.6875rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${s}</span>
+                  <button style="font-size:.7rem;color:var(--blue-mid);background:none;border:1px solid var(--blue-mid);padding:.2rem .5rem;border-radius:4px;cursor:pointer;white-space:nowrap" onclick="openKPIInquiryWithMetric(${JSON.stringify(k.target).replace(/"/g,'&quot;')})">Ask about this →</button>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      });
       return html;
 
-    // ────────────────────────────────────────────────────────────────
-    // TAB: PIPELINE
-    // ────────────────────────────────────────────────────────────────
-    } else if (tab === 'pipeline') {
-      const pipeItems = data.filter(k => getS(k) === 'Coming Down the Pipeline');
-      if (!pipeItems.length) {
+    // ── COMING UP ────────────────────────────────────────────────
+    } else if(tab === 'pipeline'){
+      const pipeItems = d.data.filter(k=>getS(k)==='Coming Down the Pipeline');
+      if(!pipeItems.length){
         return `<div style="padding:3rem;text-align:center;color:var(--muted)">
           <div style="font-size:2rem;margin-bottom:.75rem">🟣</div>
-          <div>No pipeline targets at this time.</div>
+          <div>No upcoming pipeline targets at this time.</div>
         </div>`;
       }
 
       const byGoal = {};
-      pipeItems.forEach(k => { if (!byGoal[k.goal]) byGoal[k.goal] = []; byGoal[k.goal].push(k); });
+      pipeItems.forEach(k=>{if(!byGoal[k.goal])byGoal[k.goal]=[];byGoal[k.goal].push(k);});
 
-      // Each pipeline item earns 0.10 pts — if they completed (Met) they'd earn 1.0
-      // So there's 0.90 pts of potential uplift per pipeline item
-      const potentialUplift = pipeItems.length * 0.90;
-
-      let html = `<div style="margin-bottom:1.25rem;padding:1rem 1.25rem;background:var(--pipe-bg);border:1px solid rgba(107,33,168,.15);border-radius:10px">
-        <div style="font-size:.875rem;font-weight:700;color:var(--pipeline);margin-bottom:.375rem">🟣 ${pipeItems.length} target${pipeItems.length>1?'s are':' is'} Coming Down the Pipeline</div>
-        <div style="font-size:.8125rem;color:var(--text-2)">
-          Each earns <strong>0.10 pts</strong> (intent to complete recognized).
-          If all pipeline targets reach <em>Met</em>, your weighted score gains up to <strong>+${(potentialUplift / maxPts * 100).toFixed(1)} percentage points</strong>.
-          Assign owners and timelines to protect year-end goal health.
+      let html = `<div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem">
+        <div style="font-weight:700;color:var(--pipeline);margin-bottom:.375rem;font-size:.9375rem">🟣 ${pipeItems.length} targets are planned ahead</div>
+        <div style="font-size:.8125rem;color:#6b21a8;line-height:1.5">
+          These targets are <strong>intentionally planned</strong> for later in the cycle — they haven't started yet, but the intent is documented.
+          Each earns <strong>0.10 points</strong> now and will earn full credit when completed.
         </div>
       </div>`;
 
-      html += `<div class="kpia-chart-grid" style="margin-bottom:1.25rem">
-        <div class="kpia-card">
-          <div class="kpia-card-header">
-            <div class="kpia-card-title">🟣 Pipeline by Goal Area</div>
+      Object.entries(byGoal).forEach(([gname,items])=>{
+        html += `<div class="kpia-card" style="margin-bottom:1rem;border-left:4px solid var(--pipeline)">
+          <div class="kpia-card-header" style="margin-bottom:.75rem">
+            <div class="kpia-card-title">🟣 ${gname}</div>
+            <div class="kpia-card-meta">${items.length} upcoming target${items.length>1?'s':''}</div>
           </div>
-          <div class="kpia-bar-list">
-            ${Object.entries(byGoal).sort((a,b) => b[1].length - a[1].length).map(([goal, items]) => `
-              <div class="kpia-bar-row">
-                <div class="kpia-bar-meta">
-                  <div class="kpia-bar-label">${goal}</div>
-                  <div class="kpia-bar-nums" style="color:var(--pipeline);font-weight:700">${items.length} targets · +${(items.length * 0.90 / maxPts * 100).toFixed(1)}% potential uplift</div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            ${items.map(k=>`
+              <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #e9d5ff;background:#faf5ff">
+                <div style="font-size:1.125rem;flex-shrink:0">🟣</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.25rem">${k.target}</div>
+                  <div style="font-size:.75rem;color:var(--muted)">Owner: ${k.owner||'Unassigned'} · Intent confirmed · 0.10 pts now</div>
                 </div>
-                <div class="kpia-bar-track">
+                <button style="font-size:.7rem;color:var(--pipeline);background:none;border:1px solid var(--pipeline);padding:.2rem .5rem;border-radius:4px;cursor:pointer;white-space:nowrap;flex-shrink:0" onclick="openKPIInquiryWithMetric(${JSON.stringify(k.target).replace(/"/g,'&quot;')})">Ask about this →</button>
+              </div>`).join('')}
+          </div>
+        </div>`;
+      });
+      return html;
+
+    // ── FULL SCORECARD ───────────────────────────────────────────
+    } else if(tab === 'scorecard'){
+      const sorted = Object.entries(goals).sort((a,b)=>b[1].score-a[1].score);
+      let html = `<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:.8125rem;color:#0c4a6e;line-height:1.5">
+        📋 <strong>Full Scorecard</strong> — All goal areas ranked from highest to lowest performance. Use this to present to leadership or compare across quarters.
+      </div>`;
+
+      html += `<div style="display:flex;flex-direction:column;gap:1rem">`;
+      sorted.forEach(([name,g],rank)=>{
+        const pct = g.score.toFixed(1);
+        html += `<div class="kpia-card" style="border-left:4px solid ${g.risk.color}">
+          <div style="display:flex;align-items:center;gap:.875rem;flex-wrap:wrap;margin-bottom:.75rem">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--muted);width:28px;text-align:center;flex-shrink:0">#${rank+1}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.25rem">${name}</div>
+              <div style="font-size:.8125rem;color:var(--text-2)">${friendlyGoalLine(g,name)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:'DM Serif Display',serif;font-size:2rem;font-weight:700;color:${g.risk.color};line-height:1">${pct}%</div>
+              <span style="background:${g.risk.bg};color:${g.risk.color};font-size:.6875rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">${g.risk.icon} ${g.risk.label}</span>
+            </div>
+          </div>
+
+          <!-- Score bar with threshold markers -->
+          <div style="position:relative;margin-bottom:.5rem">
+            <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:5px;transition:width .5s ease"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:.25rem;padding:0 1px">
+              <span>0%</span><span>|40% Critical</span><span>|65% Watch</span><span>|85% Healthy</span><span>100%</span>
+            </div>
+          </div>
+
+          <!-- Target status bar -->
+          <div style="display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;margin-bottom:.625rem">
+            ${g.counts['Met']?`<div style="flex:${g.counts['Met']};background:#22c55e" title="Met: ${g.counts['Met']}"></div>`:''}
+            ${g.counts['In Progress']?`<div style="flex:${g.counts['In Progress']};background:var(--progress)" title="In Progress: ${g.counts['In Progress']}"></div>`:''}
+            ${g.counts['Partially Met']?`<div style="flex:${g.counts['Partially Met']};background:#f97316" title="Partially Met: ${g.counts['Partially Met']}"></div>`:''}
+            ${g.counts['Coming Down the Pipeline']?`<div style="flex:${g.counts['Coming Down the Pipeline']};background:var(--pipeline)" title="Pipeline: ${g.counts['Coming Down the Pipeline']}"></div>`:''}
+            ${g.counts['Has Not Met']?`<div style="flex:${g.counts['Has Not Met']};background:#ef4444" title="Not Met: ${g.counts['Has Not Met']}"></div>`:''}
+          </div>
+
+          <div style="font-size:.75rem;color:var(--muted)">
+            ${g.pts.toFixed(2)} pts earned of ${g.max} possible · ${g.max} targets
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+      return html;
+    }
+    return '';
+  }
                   <div class="kpia-bar-fill" style="width:${Math.round(items.length/pipeItems.length*100)}%;background:var(--pipeline)"></div>
                 </div>
               </div>`).join('')}
@@ -5876,17 +5795,24 @@
     btn.classList.add('loading');
     btn.disabled = true;
 
-    // Build form data
-    const fd = new FormData();
-    fd.append(KPI_INQUIRY_ENTRY.userName, name);
-    fd.append(KPI_INQUIRY_ENTRY.context, context);
-    fd.append(KPI_INQUIRY_ENTRY.metric, metric);
+    // Build form data — Google Forms requires application/x-www-form-urlencoded
+    const params = new URLSearchParams();
+    params.append(KPI_INQUIRY_ENTRY.userName, name);
+    params.append(KPI_INQUIRY_ENTRY.context, context);
+    params.append(KPI_INQUIRY_ENTRY.metric, metric);
 
     try {
-      await fetch(KPI_INQUIRY_FORM, { method: 'POST', body: fd, mode: 'no-cors' });
+      await fetch(KPI_INQUIRY_FORM, {
+        method: 'POST',
+        body: params.toString(),
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+      });
     } catch(e) { /* no-cors fetch always resolves */ }
 
-    // Show success
+    // Reset button then show success
+    btn.classList.remove('loading');
+    btn.disabled = false;
     document.getElementById('kpiInquiryForm').style.display = 'none';
     document.getElementById('kpiInquirySuccess').classList.add('show');
   }
