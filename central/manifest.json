@@ -1,0 +1,13 @@
+[
+  {
+    "title": "Document Title Here",
+    "dept": "hr",
+    "tag": "Human Resources",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": "https://drive.google.com/file/d/PASTE_YOUR_FILE_ID_HERE/view",
+    "annualGoals": ["Maintain and continue to build on strong culture"]
+  }
+]
