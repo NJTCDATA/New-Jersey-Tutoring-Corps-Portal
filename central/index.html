@@ -5,1023 +5,1689 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NJTC Central Team Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --blue:    #003366;
-      --blue2:   #004d99;
-      --blue3:   #0066cc;
-      --gold:    #f5a623;
-      --green:   #28a745;
-      --orange:  #fd7e14;
-      --red:     #dc3545;
-      --purple:  #6f42c1;
-      --teal:    #20c997;
-      --text:    #1a1a2e;
-      --muted:   #6c757d;
-      --surface: #ffffff;
-      --bg:      #f0f4f8;
-      --border:  #d1d9e0;
-      --radius:  12px;
+      /* Brand */
+      --navy:      #0a1628;
+      --blue:      #003087;
+      --blue-mid:  #0050c8;
+      --blue-lite: #1a7aff;
+      --gold:      #f0a500;
+      --gold-lite: #ffd166;
+      /* Dept colors */
+      --hr:        #e63946;
+      --finance:   #2a9d8f;
+      --prog:      #457b9d;
+      --data:      #7b2d8b;
+      --training:  #e76f51;
+      --lead:      #f0a500;
+      /* Neutrals */
+      --text:      #0d1b2a;
+      --text-2:    #3d5166;
+      --muted:     #7d8fa1;
+      --border:    #dde3ec;
+      --border-2:  #eef1f6;
+      --surface:   #ffffff;
+      --surface-2: #f6f8fc;
+      --surface-3: #eef1f7;
+      --bg:        #f0f4fa;
+      /* Status */
+      --met:       #0d6e3a;
+      --met-bg:    #e6f5ed;
+      --progress:  #0050c8;
+      --prog-bg:   #e6efff;
+      --partial:   #c05c00;
+      --part-bg:   #fff0e0;
+      --pipeline:  #6b21a8;
+      --pipe-bg:   #f3e8ff;
+      --notmet:    #b91c1c;
+      --notm-bg:   #fee2e2;
+      /* UI */
+      --radius:    14px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 3px rgba(10,22,40,.06), 0 1px 2px rgba(10,22,40,.04);
+      --shadow:    0 4px 16px rgba(10,22,40,.08), 0 1px 4px rgba(10,22,40,.04);
+      --shadow-lg: 0 20px 60px rgba(10,22,40,.14), 0 4px 16px rgba(10,22,40,.06);
+      --transition: all .22s cubic-bezier(.4,0,.2,1);
     }
 
     body {
-      font-family: 'Epilogue', -apple-system, sans-serif;
+      font-family: 'DM Sans', -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ── Top Nav ───────────────────────────────────────── */
+    /* ════════════════════════════════════════════════════
+       TOP NAV
+    ════════════════════════════════════════════════════ */
     .ct-nav {
-      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      background: var(--navy);
       color: #fff;
-      padding: 0 1.5rem;
-      height: 60px;
+      padding: 0 1.75rem;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      position: sticky; top: 0; z-index: 100;
-      box-shadow: 0 2px 12px rgba(0,51,102,.3);
+      position: sticky; top: 0; z-index: 200;
+      box-shadow: 0 2px 24px rgba(0,0,0,.25);
     }
-    .nav-brand { display: flex; align-items: center; gap: .75rem; }
-    .nav-logo  {
-      width: 36px; height: 36px; border-radius: 8px;
-      background: rgba(255,255,255,.2);
+    .nav-brand {
+      display: flex; align-items: center; gap: .875rem;
+    }
+    .nav-logo {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--blue-mid), var(--blue-lite));
+      border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: .875rem;
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.0625rem; font-weight: 400; color: #fff;
+      letter-spacing: -.5px; flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(0,80,200,.4);
     }
-    .nav-brand h1 { font-size: 1rem; font-weight: 700; }
-    .nav-dept-badge {
-      background: rgba(255,255,255,.18);
-      border: 1px solid rgba(255,255,255,.3);
+    .nav-title {
+      font-size: .9375rem; font-weight: 600; color: #fff;
+      letter-spacing: -.01em;
+    }
+    .nav-subtitle {
+      font-size: .6875rem; color: rgba(255,255,255,.45);
+      font-weight: 400; margin-top: 1px;
+    }
+    .nav-center {
+      display: flex; align-items: center; gap: 1.5rem;
+    }
+    .nav-date {
+      font-size: .75rem; color: rgba(255,255,255,.45);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .nav-right {
+      display: flex; align-items: center; gap: .875rem;
+    }
+    .dept-pill {
+      background: linear-gradient(135deg, var(--blue-mid), var(--blue-lite));
       border-radius: 20px;
-      padding: .25rem .875rem;
-      font-size: .75rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .05em;
+      padding: .3rem 1rem;
+      font-size: .6875rem; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(0,80,200,.35);
     }
-    .nav-actions { display: flex; align-items: center; gap: .75rem; }
-    .session-timer {
-      font-size: .75rem; opacity: .7;
+    .session-badge {
+      font-size: .6875rem; color: rgba(255,255,255,.4);
+      font-family: 'JetBrains Mono', monospace;
+      padding: .25rem .625rem;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 6px;
     }
-    .btn-logout {
-      background: rgba(255,255,255,.15);
-      border: 1px solid rgba(255,255,255,.3);
-      color: #fff; border-radius: 8px;
+    .btn-signout {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.18);
+      color: rgba(255,255,255,.85); border-radius: 8px;
       padding: .4rem .875rem; font-size: .8125rem;
-      font-family: inherit; font-weight: 600;
-      cursor: pointer; transition: all .2s;
+      font-family: inherit; font-weight: 500;
+      cursor: pointer; transition: var(--transition);
     }
-    .btn-logout:hover { background: rgba(255,255,255,.25); }
+    .btn-signout:hover {
+      background: rgba(255,255,255,.15);
+      color: #fff;
+    }
 
-    /* ── Sidebar + Layout ──────────────────────────────── */
+    /* ════════════════════════════════════════════════════
+       LAYOUT
+    ════════════════════════════════════════════════════ */
     .ct-layout {
       display: grid;
-      grid-template-columns: 220px 1fr;
-      min-height: calc(100vh - 60px);
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 64px);
+      align-items: start;
     }
+
+    /* ════════════════════════════════════════════════════
+       SIDEBAR
+    ════════════════════════════════════════════════════ */
     .ct-sidebar {
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      padding: 1.25rem 0;
+      background: var(--navy);
       position: sticky;
-      top: 60px;
-      height: calc(100vh - 60px);
+      top: 64px;
+      height: calc(100vh - 64px);
       overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 1.5rem 0 2rem;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,.12) transparent;
     }
-    .sidebar-section-label {
-      font-size: .6875rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .08em;
-      color: var(--muted); padding: .75rem 1.25rem .375rem;
+    .ct-sidebar::-webkit-scrollbar { width: 4px; }
+    .ct-sidebar::-webkit-scrollbar-track { background: transparent; }
+    .ct-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 4px; }
+
+    .sidebar-dept-card {
+      margin: 0 1rem 1.75rem;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 1rem 1.125rem;
+    }
+    .sdc-label { font-size: .625rem; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.35); margin-bottom: .375rem; }
+    .sdc-dept { font-size: 1rem; font-weight: 700; color: #fff; }
+    .sdc-tagline { font-size: .75rem; color: rgba(255,255,255,.45); margin-top: .25rem; line-height: 1.4; }
+    .sdc-bar { height: 2px; background: rgba(255,255,255,.1); border-radius: 1px; margin-top: .875rem; overflow: hidden; }
+    .sdc-bar-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg, var(--blue-lite), var(--gold)); animation: barSlide .8s ease forwards; }
+    @keyframes barSlide { from { width: 0 } to { width: var(--pct, 72%) } }
+
+    .sidebar-group { margin-bottom: .25rem; }
+    .sidebar-group-label {
+      font-size: .625rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: rgba(255,255,255,.28);
+      padding: .875rem 1.25rem .375rem;
     }
     .sidebar-link {
-      display: flex; align-items: center; gap: .625rem;
+      display: flex; align-items: center; gap: .75rem;
       padding: .625rem 1.25rem;
-      font-size: .875rem; font-weight: 500; color: var(--text);
-      cursor: pointer; transition: all .15s;
+      font-size: .875rem; font-weight: 500;
+      color: rgba(255,255,255,.55);
+      cursor: pointer; transition: var(--transition);
       border: none; background: none; width: 100%; text-align: left;
-      border-left: 3px solid transparent;
+      border-left: 2px solid transparent;
+      position: relative;
     }
-    .sidebar-link:hover { background: rgba(0,51,102,.05); color: var(--blue2); }
+    .sidebar-link:hover {
+      color: rgba(255,255,255,.9);
+      background: rgba(255,255,255,.05);
+    }
     .sidebar-link.active {
-      background: rgba(0,51,102,.08);
-      color: var(--blue);
-      font-weight: 700;
-      border-left-color: var(--blue2);
+      color: #fff;
+      background: rgba(255,255,255,.08);
+      border-left-color: var(--blue-lite);
     }
-    .sidebar-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
-    .sidebar-divider { height: 1px; background: var(--border); margin: .75rem 1.25rem; }
+    .sidebar-link.active .sl-icon { opacity: 1; }
+    .sl-icon { font-size: .9375rem; width: 18px; text-align: center; flex-shrink: 0; opacity: .6; }
+    .sl-badge {
+      margin-left: auto;
+      font-size: .625rem; font-weight: 700;
+      background: var(--blue-lite); color: #fff;
+      padding: .125rem .4rem; border-radius: 10px;
+      min-width: 18px; text-align: center;
+    }
+    .sl-badge.gold { background: var(--gold); color: var(--navy); }
+    .sidebar-divider {
+      height: 1px; background: rgba(255,255,255,.07);
+      margin: .875rem 1.25rem;
+    }
 
-    /* ── Main Content ──────────────────────────────────── */
+    /* Dept connections section */
+    .dept-connections {
+      margin: 0 1rem;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 10px;
+      padding: .875rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .dc-title {
+      font-size: .625rem; text-transform: uppercase; letter-spacing: .1em;
+      color: rgba(255,255,255,.3); margin-bottom: .75rem;
+      display: flex; align-items: center; gap: .375rem;
+    }
+    .dc-item {
+      display: flex; align-items: flex-start; gap: .5rem;
+      padding: .375rem 0;
+      border-bottom: 1px solid rgba(255,255,255,.05);
+      cursor: pointer; transition: var(--transition);
+    }
+    .dc-item:last-child { border-bottom: none; }
+    .dc-item:hover { opacity: .85; }
+    .dc-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 5px;
+    }
+    .dc-text { font-size: .75rem; color: rgba(255,255,255,.55); line-height: 1.4; }
+    .dc-text strong { color: rgba(255,255,255,.8); font-weight: 600; }
+
+    /* ════════════════════════════════════════════════════
+       MAIN CONTENT
+    ════════════════════════════════════════════════════ */
     .ct-main {
-      padding: 1.75rem;
-      max-width: 1100px;
+      padding: 2rem;
+      max-width: 1200px;
     }
 
-    /* Panels */
-    .panel { display: none; }
+    .panel { display: none; animation: fadeIn .25s ease; }
     .panel.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
     /* Page header */
     .page-header {
-      margin-bottom: 1.5rem;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
     }
-    .page-header h2 {
-      font-size: 1.5rem; font-weight: 800; color: var(--blue);
-      margin-bottom: .25rem;
+    .ph-text {}
+    .ph-eyebrow {
+      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--blue-mid);
+      margin-bottom: .375rem;
     }
-    .page-header p { font-size: .9375rem; color: var(--muted); }
+    .ph-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.75rem; color: var(--navy);
+      line-height: 1.2; letter-spacing: -.02em;
+    }
+    .ph-subtitle {
+      font-size: .9375rem; color: var(--text-2);
+      margin-top: .375rem; max-width: 600px;
+    }
+    .ph-actions {
+      display: flex; align-items: center; gap: .75rem; flex-shrink: 0;
+    }
 
-    /* Cards grid */
-    .cards-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .info-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 1.25rem;
-      border: 1px solid var(--border);
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
-      transition: box-shadow .2s;
-    }
-    .info-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); }
-    .info-card-icon {
-      font-size: 1.75rem; margin-bottom: .75rem;
-    }
-    .info-card h3 { font-size: 1rem; font-weight: 700; color: var(--blue); margin-bottom: .375rem; }
-    .info-card p  { font-size: .875rem; color: var(--muted); line-height: 1.5; }
-    .info-card a, .info-card-link {
-      display: inline-flex; align-items: center; gap: .375rem;
-      margin-top: .75rem;
-      font-size: .8125rem; font-weight: 600; color: var(--blue2);
-      text-decoration: none; cursor: pointer;
-      border: none; background: none; font-family: inherit; padding: 0;
-    }
-    .info-card a:hover, .info-card-link:hover { color: var(--blue3); }
-
-    /* ── KPI Table ─────────────────────────────────────── */
-    .kpi-table-wrap {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      overflow-x: auto;
-    }
-    .kpi-table {
-      width: 100%; border-collapse: collapse; font-size: .875rem;
-    }
-    .kpi-table th {
-      background: var(--blue);
-      color: #fff;
-      padding: .75rem 1rem;
-      text-align: left;
-      font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .625rem 1.25rem; border-radius: 10px;
+      font-size: .875rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: var(--transition); border: none;
       white-space: nowrap;
     }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), var(--blue-mid));
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0,48,135,.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, var(--blue-mid), var(--blue-lite));
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(0,80,200,.35);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--blue-mid);
+      color: var(--blue-mid);
+      background: var(--surface-2);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #d4890a, var(--gold));
+      color: var(--navy); font-weight: 700;
+      box-shadow: 0 4px 12px rgba(240,165,0,.35);
+    }
+    .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(240,165,0,.4); }
+
+    /* ════════════════════════════════════════════════════
+       STAT TILES
+    ════════════════════════════════════════════════════ */
+    .stats-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.375rem;
+      box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+      transition: var(--transition);
+    }
+    .stat-tile:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+    .stat-tile::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--accent-color, var(--blue-mid));
+    }
+    .st-icon { font-size: 1.25rem; margin-bottom: .625rem; }
+    .st-value {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem; color: var(--navy);
+      line-height: 1; letter-spacing: -.03em;
+    }
+    .st-label { font-size: .75rem; font-weight: 600; color: var(--muted); margin-top: .375rem; text-transform: uppercase; letter-spacing: .04em; }
+    .st-sub { font-size: .75rem; color: var(--text-2); margin-top: .25rem; }
+
+    /* ════════════════════════════════════════════════════
+       QUICK LINK CARDS (Home)
+    ════════════════════════════════════════════════════ */
+    .ql-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1.25rem;
+    }
+    .ql-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: var(--transition);
+      box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+    }
+    .ql-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+      border-color: var(--blue-mid);
+    }
+    .ql-card::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(0,80,200,.03), transparent);
+      opacity: 0; transition: var(--transition);
+    }
+    .ql-card:hover::after { opacity: 1; }
+    .ql-icon-wrap {
+      width: 44px; height: 44px;
+      background: var(--icon-bg, var(--prog-bg));
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; margin-bottom: 1rem;
+    }
+    .ql-title { font-size: 1rem; font-weight: 700; color: var(--navy); margin-bottom: .375rem; }
+    .ql-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.5; }
+    .ql-arrow {
+      display: inline-flex; align-items: center; gap: .25rem;
+      font-size: .8125rem; font-weight: 600; color: var(--blue-mid);
+      margin-top: .875rem;
+    }
+
+    /* ════════════════════════════════════════════════════
+       KPI TABLE
+    ════════════════════════════════════════════════════ */
+    .kpi-filters {
+      display: flex; gap: .75rem; flex-wrap: wrap;
+      margin-bottom: 1.25rem; align-items: center;
+    }
+    .filter-select, .filter-input {
+      padding: .5625rem .875rem;
+      font-size: .875rem; font-family: inherit;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      outline: none; background: var(--surface);
+      color: var(--text); transition: var(--transition);
+    }
+    .filter-select:focus, .filter-input:focus {
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 3px rgba(0,80,200,.1);
+    }
+    .kpi-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .75rem; margin-bottom: 1.5rem;
+    }
+    .kss-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .875rem 1rem;
+      text-align: center;
+      cursor: pointer; transition: var(--transition);
+    }
+    .kss-tile:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .kss-tile.active { border-color: var(--blue-mid); background: var(--prog-bg); }
+    .kss-num { font-family: 'DM Serif Display', serif; font-size: 1.75rem; line-height: 1; letter-spacing: -.03em; }
+    .kss-label { font-size: .6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: .25rem; color: var(--muted); }
+    .kpi-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .kpi-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .kpi-table thead tr { background: var(--navy); }
+    .kpi-table th {
+      padding: .875rem 1.125rem;
+      text-align: left;
+      font-size: .6875rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: rgba(255,255,255,.7);
+      white-space: nowrap;
+    }
+    .kpi-table th:first-child { color: rgba(255,255,255,.9); }
     .kpi-table td {
-      padding: .75rem 1rem;
-      border-bottom: 1px solid var(--border);
+      padding: .875rem 1.125rem;
+      border-bottom: 1px solid var(--border-2);
       vertical-align: middle;
     }
-    .kpi-table tr:last-child td { border-bottom: none; }
-    .kpi-table tr:nth-child(even) td { background: rgba(0,51,102,.02); }
-
-    .goal-group {
+    .kpi-table tbody tr:last-child td { border-bottom: none; }
+    .kpi-table tbody tr:hover td { background: var(--surface-2); }
+    .goal-group-cell {
       font-size: .6875rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .05em; color: var(--muted); display: block;
+      letter-spacing: .06em; color: var(--blue-mid);
+      display: flex; align-items: center; gap: .375rem;
     }
     .kpi-status {
       display: inline-flex; align-items: center; gap: .375rem;
-      font-size: .75rem; font-weight: 700; padding: .25rem .75rem;
-      border-radius: 20px; white-space: nowrap;
+      font-size: .6875rem; font-weight: 700; padding: .3rem .75rem;
+      border-radius: 20px; white-space: nowrap; letter-spacing: .02em;
     }
-    .status-met       { background: rgba(40,167,69,.12);  color: #155724; }
-    .status-progress  { background: rgba(0,77,153,.1);    color: var(--blue); }
-    .status-partial   { background: rgba(253,126,20,.12); color: #7d3c0a; }
-    .status-pipeline  { background: rgba(111,66,193,.1);  color: var(--purple); }
-    .status-notmet    { background: rgba(220,53,69,.1);   color: #721c24; }
-
-    /* Filter row */
-    .kpi-filters {
-      display: flex; gap: .75rem; flex-wrap: wrap;
-      margin-bottom: 1rem; align-items: center;
-    }
-    .kpi-filters select, .kpi-filters input {
-      padding: .5rem .875rem; font-size: .875rem; font-family: inherit;
-      border: 1px solid var(--border); border-radius: 8px;
-      outline: none; background: var(--surface);
-    }
-    .kpi-filters select:focus, .kpi-filters input:focus {
-      border-color: var(--blue2);
-      box-shadow: 0 0 0 3px rgba(0,77,153,.1);
+    .s-met       { background: var(--met-bg);  color: var(--met); }
+    .s-progress  { background: var(--prog-bg); color: var(--progress); }
+    .s-partial   { background: var(--part-bg); color: var(--partial); }
+    .s-pipeline  { background: var(--pipe-bg); color: var(--pipeline); }
+    .s-notmet    { background: var(--notm-bg); color: var(--notmet); }
+    .goal-group-header td {
+      background: var(--surface-3) !important;
+      font-size: .6875rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--blue); padding: .625rem 1.125rem;
+      border-bottom: 2px solid var(--border) !important;
     }
 
-    /* ── Policies Library ──────────────────────────────── */
-    .policy-filters {
+    /* ════════════════════════════════════════════════════
+       POLICIES LIBRARY
+    ════════════════════════════════════════════════════ */
+    .policy-toolbar {
       display: flex; gap: .75rem; flex-wrap: wrap;
-      margin-bottom: 1rem;
+      align-items: center; margin-bottom: 1.5rem;
     }
     .policy-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 1rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
     }
     .policy-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.25rem;
-      transition: box-shadow .2s;
+      padding: 1.375rem;
+      transition: var(--transition);
+      box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
     }
-    .policy-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); }
-    .policy-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: .75rem; }
+    .policy-card:hover {
+      box-shadow: var(--shadow);
+      transform: translateY(-2px);
+      border-color: rgba(0,80,200,.25);
+    }
+    .policy-card-top {
+      display: flex; justify-content: space-between;
+      align-items: flex-start; gap: .75rem; margin-bottom: .875rem;
+    }
+    .policy-dept-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 4px;
+    }
+    .policy-tag-group { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
     .policy-tag {
-      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .04em; padding: .25rem .5rem;
-      border-radius: 6px; background: rgba(0,51,102,.08); color: var(--blue);
-      white-space: nowrap;
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; padding: .2rem .5rem;
+      border-radius: 5px;
     }
-    .policy-card h3 { font-size: .9375rem; font-weight: 700; color: var(--text); flex: 1; }
-    .policy-meta { font-size: .75rem; color: var(--muted); margin-bottom: .75rem; }
-    .policy-desc { font-size: .8125rem; color: #4a5568; line-height: 1.55; margin-bottom: .875rem; }
-    .btn-view-policy {
-      font-size: .8125rem; font-weight: 600; color: var(--blue2);
-      background: none; border: 1px solid var(--blue2);
-      padding: .375rem .875rem; border-radius: 8px;
-      cursor: pointer; font-family: inherit; transition: all .2s;
-      text-decoration: none; display: inline-block;
+    .policy-modified {
+      font-size: .6875rem; color: var(--muted);
+      display: flex; align-items: center; gap: .3rem;
     }
-    .btn-view-policy:hover { background: var(--blue2); color: #fff; }
+    .policy-title { font-size: .9375rem; font-weight: 700; color: var(--navy); margin-bottom: .375rem; flex: 1; }
+    .policy-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.55; flex: 1; }
+    .policy-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 1rem; padding-top: .875rem;
+      border-top: 1px solid var(--border-2);
+    }
+    .policy-date { font-size: .75rem; color: var(--muted); }
+    .policy-changes-badge {
+      font-size: .6875rem; font-weight: 600;
+      background: rgba(240,165,0,.12); color: #7a4c00;
+      padding: .2rem .5rem; border-radius: 5px;
+      display: flex; align-items: center; gap: .25rem;
+    }
+    .policy-link {
+      font-size: .8125rem; font-weight: 600;
+      color: var(--blue-mid); text-decoration: none;
+      display: inline-flex; align-items: center; gap: .3rem;
+      transition: var(--transition);
+    }
+    .policy-link:hover { color: var(--blue-lite); }
+    .policy-link-disabled { font-size: .8125rem; color: var(--muted); font-style: italic; }
+    /* Tooltip */
+    .has-tooltip { position: relative; }
+    .tooltip-box {
+      position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background: var(--navy); color: #fff;
+      font-size: .75rem; line-height: 1.5;
+      padding: .625rem .875rem; border-radius: 8px;
+      width: 260px; max-width: 90vw;
+      box-shadow: var(--shadow-lg);
+      opacity: 0; pointer-events: none; transition: var(--transition);
+      z-index: 300;
+    }
+    .tooltip-box::after {
+      content: ''; position: absolute; top: 100%; left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--navy);
+    }
+    .has-tooltip:hover .tooltip-box { opacity: 1; pointer-events: auto; }
 
-    /* ── Upload Center ─────────────────────────────────── */
-    .upload-box {
-      background: var(--surface);
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 2.5rem;
-      text-align: center;
-      margin-bottom: 1.5rem;
-      transition: border-color .2s;
+    /* Drive sync indicator */
+    .drive-sync-bar {
+      display: flex; align-items: center; gap: .75rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: .75rem 1.125rem;
+      margin-bottom: 1.5rem; font-size: .8125rem;
     }
-    .upload-box:hover { border-color: var(--blue2); }
-    .upload-box .upload-icon { font-size: 2.5rem; margin-bottom: .75rem; }
-    .upload-box h3 { font-size: 1.125rem; font-weight: 700; color: var(--blue); margin-bottom: .5rem; }
-    .upload-box p  { color: var(--muted); font-size: .875rem; margin-bottom: 1.25rem; }
-    .btn-primary {
-      background: linear-gradient(135deg, var(--blue), var(--blue2));
-      color: #fff; border: none; border-radius: 10px;
-      padding: .75rem 1.5rem; font-size: .9375rem; font-weight: 700;
-      font-family: inherit; cursor: pointer; transition: all .2s;
-      display: inline-flex; align-items: center; gap: .5rem;
+    .sync-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--met); flex-shrink: 0;
+      box-shadow: 0 0 0 2px rgba(13,110,58,.2);
+      animation: pulse 2s infinite;
     }
-    .btn-primary:hover {
-      background: linear-gradient(135deg, var(--blue2), var(--blue3));
-      transform: translateY(-1px);
-      box-shadow: 0 4px 14px rgba(0,51,102,.3);
+    .sync-dot.loading { background: var(--gold); }
+    .sync-dot.error { background: var(--notmet); animation: none; }
+    @keyframes pulse { 0%,100%{ box-shadow:0 0 0 2px rgba(13,110,58,.2); } 50%{ box-shadow:0 0 0 5px rgba(13,110,58,.08); } }
+    .sync-text { color: var(--text-2); }
+    .sync-text strong { color: var(--text); }
+    .sync-btn {
+      margin-left: auto; font-size: .75rem; font-weight: 600;
+      color: var(--blue-mid); background: none; border: none;
+      cursor: pointer; font-family: inherit; padding: .25rem .5rem;
+      border-radius: 6px; transition: var(--transition);
     }
-    .instructions-box {
-      background: rgba(0,51,102,.04);
-      border: 1px solid rgba(0,51,102,.15);
-      border-radius: var(--radius);
-      padding: 1.25rem 1.5rem;
-    }
-    .instructions-box h4 { font-size: .9375rem; font-weight: 700; color: var(--blue); margin-bottom: .75rem; }
-    .instructions-box ol { padding-left: 1.25rem; }
-    .instructions-box li { font-size: .875rem; color: var(--text); line-height: 1.7; }
+    .sync-btn:hover { background: var(--prog-bg); }
 
-    /* ── Concern Forms ─────────────────────────────────── */
-    .concern-split {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;
-      margin-bottom: 1.5rem;
-    }
-    .concern-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-    }
-    .concern-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
-    .concern-card p  { font-size: .875rem; color: var(--muted); margin-bottom: 1rem; line-height: 1.5; }
-    .concern-card .btn-primary { font-size: .875rem; padding: .625rem 1.25rem; }
-
-    /* ── Concern Board ─────────────────────────────────── */
-    .board-header {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 1rem; flex-wrap: wrap; gap: .75rem;
-    }
-    .board-note {
-      background: rgba(245,166,35,.08);
-      border: 1px solid rgba(245,166,35,.3);
-      border-radius: 8px; padding: .75rem 1rem;
-      font-size: .8125rem; color: #6b4c00;
-      margin-bottom: 1.25rem;
-    }
-    .concern-table-wrap {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow-x: auto;
-    }
-    .concern-table {
-      width: 100%; border-collapse: collapse; font-size: .875rem;
-    }
-    .concern-table th {
-      background: rgba(0,51,102,.06); padding: .75rem 1rem;
-      text-align: left; font-size: .75rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .04em; color: var(--blue);
+    /* Dept section header in policies */
+    .dept-section-header {
+      display: flex; align-items: center; gap: .75rem;
+      margin-top: 2rem; margin-bottom: 1rem;
+      padding-bottom: .75rem;
       border-bottom: 2px solid var(--border);
     }
-    .concern-table td {
-      padding: .75rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top;
+    .dept-section-header:first-of-type { margin-top: 0; }
+    .dsh-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; flex-shrink: 0;
     }
-    .concern-table tr:last-child td { border-bottom: none; }
+    .dsh-title { font-size: 1rem; font-weight: 700; color: var(--navy); }
+    .dsh-count { font-size: .75rem; color: var(--muted); margin-left: auto; }
 
-    /* ── Stats row ─────────────────────────────────────── */
-    .stats-row {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 1rem; margin-bottom: 1.5rem;
-    }
-    .stat-tile {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 1.1rem 1.25rem;
-    }
-    .stat-tile .tile-label { font-size: .75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-    .stat-tile .tile-value { font-size: 1.75rem; font-weight: 800; color: var(--blue); margin-top: .25rem; }
-    .stat-tile .tile-sub   { font-size: .75rem; color: var(--muted); margin-top: .125rem; }
-
-    /* ── Dept-gated view ───────────────────────────────── */
-    .restricted-banner {
-      background: rgba(220,53,69,.06);
-      border: 1px solid rgba(220,53,69,.2);
+    /* Annual goal alignment callout */
+    .goal-alignment-card {
+      background: linear-gradient(135deg, var(--navy) 0%, #1a3a6b 100%);
       border-radius: var(--radius);
-      padding: 1.5rem;
-      text-align: center;
-    }
-    .restricted-banner .r-icon { font-size: 2.5rem; margin-bottom: .75rem; }
-    .restricted-banner h3 { font-weight: 700; color: var(--red); margin-bottom: .5rem; }
-    .restricted-banner p  { font-size: .875rem; color: var(--muted); }
-
-    /* ── Leadership View ───────────────────────────────── */
-    .leadership-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1rem;
-    }
-    .leadership-card {
-      background: linear-gradient(135deg, var(--blue) 0%, var(--blue2) 100%);
+      padding: 1.5rem 1.75rem;
       color: #fff;
-      border-radius: var(--radius);
-      padding: 1.5rem;
+      margin-bottom: 2rem;
+      position: relative; overflow: hidden;
     }
-    .leadership-card h3 { font-size: 1.0625rem; font-weight: 700; margin-bottom: .5rem; }
-    .leadership-card p  { font-size: .875rem; opacity: .8; line-height: 1.55; }
+    .goal-alignment-card::before {
+      content: '';
+      position: absolute; top: -30px; right: -30px;
+      width: 150px; height: 150px;
+      background: radial-gradient(circle, rgba(255,255,255,.06), transparent);
+      border-radius: 50%;
+    }
+    .gac-label { font-size: .625rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--gold); margin-bottom: .5rem; }
+    .gac-title { font-family: 'DM Serif Display', serif; font-size: 1.25rem; margin-bottom: .375rem; }
+    .gac-sub { font-size: .8125rem; color: rgba(255,255,255,.6); line-height: 1.5; }
+    .gac-goals { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+    .gac-goal-tag {
+      font-size: .75rem; font-weight: 500;
+      background: rgba(255,255,255,.1);
+      border: 1px solid rgba(255,255,255,.15);
+      color: rgba(255,255,255,.85);
+      padding: .3rem .75rem; border-radius: 20px;
+    }
 
-    /* ── Alert boxes ───────────────────────────────────── */
-    .alert { border-radius: 8px; padding: .875rem 1rem; font-size: .875rem; margin-bottom: 1rem; }
-    .alert-info  { background: rgba(0,77,153,.06); border: 1px solid rgba(0,77,153,.2); color: var(--blue); }
-    .alert-warn  { background: rgba(253,126,20,.08); border: 1px solid rgba(253,126,20,.25); color: #7d3c0a; }
+    /* ════════════════════════════════════════════════════
+       CONCERN FORM - PREMIUM
+    ════════════════════════════════════════════════════ */
+    .form-wrapper {
+      max-width: 780px;
+    }
+    /* Step progress */
+    .step-progress {
+      display: flex; align-items: center;
+      margin-bottom: 2.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      gap: .5rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .sp-step {
+      display: flex; align-items: center; gap: .625rem;
+      flex: 1; position: relative;
+    }
+    .sp-step:not(:last-child)::after {
+      content: '';
+      position: absolute; left: calc(28px + .625rem); right: 0; top: 50%;
+      height: 2px; background: var(--border-2);
+      z-index: 0;
+    }
+    .sp-step.completed::after { background: var(--blue-mid); }
+    .sp-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 700;
+      background: var(--surface-3); color: var(--muted);
+      border: 2px solid var(--border);
+      flex-shrink: 0; z-index: 1; position: relative;
+      transition: var(--transition);
+    }
+    .sp-step.active .sp-num {
+      background: var(--blue-mid); color: #fff; border-color: var(--blue-mid);
+      box-shadow: 0 0 0 4px rgba(0,80,200,.15);
+    }
+    .sp-step.completed .sp-num {
+      background: var(--met); color: #fff; border-color: var(--met);
+    }
+    .sp-label {
+      font-size: .75rem; font-weight: 600; color: var(--muted);
+      display: none;
+    }
+    @media (min-width: 600px) { .sp-label { display: block; } }
+    .sp-step.active .sp-label { color: var(--blue-mid); }
+    .sp-step.completed .sp-label { color: var(--met); }
 
-    /* ── Dept color accents ─────────────────────────────── */
-    [data-dept="hr"]           .dept-accent { background: #e53e3e; }
-    [data-dept="finance"]      .dept-accent { background: #38a169; }
-    [data-dept="programming"]  .dept-accent { background: #3182ce; }
-    [data-dept="data"]         .dept-accent { background: var(--purple); }
-    [data-dept="training"]     .dept-accent { background: var(--teal); }
-    [data-dept="leadership"]   .dept-accent { background: var(--gold); }
+    /* Form sections */
+    .form-section { display: none; }
+    .form-section.active { display: block; animation: fadeIn .2s ease; }
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 1.5rem;
+    }
+    .form-card-header {
+      padding: 1.125rem 1.5rem;
+      background: linear-gradient(135deg, var(--navy), #1a3a6b);
+      color: #fff;
+    }
+    .fch-title { font-size: .9375rem; font-weight: 700; }
+    .fch-sub { font-size: .8125rem; opacity: .65; margin-top: .2rem; }
+    .form-card-body { padding: 1.5rem; }
+    .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+    @media (max-width: 640px) { .form-row-2 { grid-template-columns: 1fr; } }
+    .form-group { margin-bottom: 1.25rem; }
+    .form-group:last-child { margin-bottom: 0; }
+    .form-lbl {
+      display: block; font-size: .8125rem; font-weight: 600;
+      color: var(--text); margin-bottom: .5rem;
+    }
+    .form-lbl.req::after { content: ' *'; color: var(--notmet); }
+    .form-hint { font-size: .75rem; color: var(--muted); margin-bottom: .5rem; }
+    .form-ctrl {
+      width: 100%; padding: .75rem 1rem;
+      font-size: .9375rem; font-family: inherit;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      outline: none; background: var(--surface);
+      color: var(--text); transition: var(--transition);
+    }
+    .form-ctrl:focus {
+      border-color: var(--blue-mid);
+      box-shadow: 0 0 0 3px rgba(0,80,200,.1);
+    }
+    textarea.form-ctrl { resize: vertical; min-height: 120px; }
+    /* Radio chips */
+    .radio-chips { display: flex; flex-wrap: wrap; gap: .625rem; }
+    .radio-chips.vertical { flex-direction: column; gap: .5rem; }
+    .radio-chip {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .5rem .875rem;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .875rem; cursor: pointer;
+      background: var(--surface); transition: var(--transition);
+    }
+    .radio-chip:has(input:checked) {
+      border-color: var(--blue-mid);
+      background: var(--prog-bg); color: var(--blue);
+    }
+    .radio-chip input[type="radio"] { accent-color: var(--blue-mid); }
+    /* Form actions */
+    .form-actions {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 1rem; padding: 1.25rem 1.5rem;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+    }
+    .btn-back-form {
+      background: none; border: 1.5px solid var(--border);
+      color: var(--text-2); border-radius: 10px;
+      padding: .625rem 1.25rem; font-size: .875rem; font-weight: 600;
+      font-family: inherit; cursor: pointer; transition: var(--transition);
+    }
+    .btn-back-form:hover { border-color: var(--blue-mid); color: var(--blue-mid); }
+    .btn-next-form {
+      background: linear-gradient(135deg, var(--blue), var(--blue-mid));
+      color: #fff; border: none; border-radius: 10px;
+      padding: .625rem 1.5rem; font-size: .875rem; font-weight: 700;
+      font-family: inherit; cursor: pointer; transition: var(--transition);
+      box-shadow: 0 4px 12px rgba(0,48,135,.3);
+    }
+    .btn-next-form:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,80,200,.35); }
+    .btn-submit-form {
+      background: linear-gradient(135deg, #0a6e3a, #16a34a);
+      color: #fff; border: none; border-radius: 10px;
+      padding: .625rem 1.75rem; font-size: .875rem; font-weight: 700;
+      font-family: inherit; cursor: pointer; transition: var(--transition);
+      display: inline-flex; align-items: center; gap: .5rem;
+      box-shadow: 0 4px 12px rgba(13,110,58,.3);
+    }
+    .btn-submit-form:hover { transform: translateY(-1px); }
+    .btn-submit-form:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .btn-spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .6s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Confirm box */
+    .confirm-box {
+      display: flex; align-items: flex-start; gap: .875rem;
+      background: rgba(13,110,58,.06); border: 1px solid rgba(13,110,58,.2);
+      border-radius: 10px; padding: 1rem 1.25rem;
+      font-size: .875rem; color: #0a4427; line-height: 1.55;
+    }
+    .confirm-icon { font-size: 1.25rem; flex-shrink: 0; }
+    /* Error */
+    .form-error {
+      background: rgba(185,28,28,.07); border: 1px solid rgba(185,28,28,.2);
+      border-radius: 8px; padding: .75rem 1rem;
+      font-size: .875rem; color: var(--notmet);
+      margin-bottom: 1rem; display: none;
+    }
+    /* Success */
+    .form-success-screen {
+      display: none; text-align: center;
+      padding: 4rem 2rem;
+    }
+    .fss-icon { font-size: 4rem; margin-bottom: 1rem; }
+    .fss-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.75rem; color: var(--navy);
+      margin-bottom: .75rem;
+    }
+    .fss-sub { font-size: .9375rem; color: var(--text-2); line-height: 1.6; max-width: 400px; margin: 0 auto 2rem; }
 
-    /* ── Responsive ─────────────────────────────────────── */
-    @media (max-width: 768px) {
+    /* ════════════════════════════════════════════════════
+       UPLOAD / DRIVE CENTER
+    ════════════════════════════════════════════════════ */
+    .drive-hero {
+      background: linear-gradient(135deg, var(--navy), #1a3a6b);
+      border-radius: var(--radius);
+      padding: 2rem 2.5rem;
+      color: #fff;
+      margin-bottom: 1.5rem;
+      display: flex; align-items: center; gap: 2rem;
+      position: relative; overflow: hidden;
+    }
+    .drive-hero::after {
+      content: '📁';
+      position: absolute; right: 2rem; top: 50%;
+      transform: translateY(-50%);
+      font-size: 5rem; opacity: .07;
+      pointer-events: none;
+    }
+    .dh-icon-wrap {
+      width: 56px; height: 56px;
+      background: rgba(255,255,255,.12);
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.75rem; flex-shrink: 0;
+    }
+    .dh-label { font-size: .625rem; text-transform: uppercase; letter-spacing: .1em; color: var(--gold); margin-bottom: .375rem; }
+    .dh-title { font-family: 'DM Serif Display', serif; font-size: 1.375rem; }
+    .dh-sub { font-size: .875rem; opacity: .65; margin-top: .375rem; }
+    .drive-steps-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem; margin-bottom: 2rem;
+    }
+    .drive-step {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.25rem;
+      box-shadow: var(--shadow-sm); transition: var(--transition);
+    }
+    .drive-step:hover { box-shadow: var(--shadow); }
+    .ds-num {
+      font-family: 'DM Serif Display', serif; font-size: 1.75rem;
+      color: var(--blue-mid); opacity: .3; line-height: 1; margin-bottom: .625rem;
+    }
+    .ds-title { font-size: .9375rem; font-weight: 700; color: var(--navy); margin-bottom: .375rem; }
+    .ds-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.5; }
+    .auto-detect-card {
+      background: linear-gradient(135deg, rgba(0,80,200,.06), rgba(0,80,200,.02));
+      border: 1px solid rgba(0,80,200,.15);
+      border-radius: var(--radius);
+      padding: 1.375rem 1.5rem;
+      display: flex; gap: 1rem; align-items: flex-start;
+    }
+    .adc-icon { font-size: 1.75rem; flex-shrink: 0; }
+    .adc-title { font-size: .9375rem; font-weight: 700; color: var(--navy); margin-bottom: .375rem; }
+    .adc-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.55; }
+
+    /* ════════════════════════════════════════════════════
+       DEPT CONNECTIONS MODAL / TOOLTIP
+    ════════════════════════════════════════════════════ */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(10,22,40,.5);
+      backdrop-filter: blur(4px); z-index: 500;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: var(--transition);
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+    .modal-box {
+      background: var(--surface); border-radius: 20px;
+      width: 90%; max-width: 680px;
+      max-height: 85vh; overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      transform: scale(.96); transition: var(--transition);
+    }
+    .modal-overlay.open .modal-box { transform: scale(1); }
+    .modal-header {
+      padding: 1.5rem 1.75rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+      position: sticky; top: 0; background: var(--surface); z-index: 1;
+    }
+    .modal-title { font-family: 'DM Serif Display', serif; font-size: 1.375rem; color: var(--navy); }
+    .modal-sub { font-size: .875rem; color: var(--text-2); margin-top: .25rem; }
+    .modal-close {
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1.5px solid var(--border); background: var(--surface);
+      cursor: pointer; font-size: 1rem; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: var(--transition); flex-shrink: 0;
+    }
+    .modal-close:hover { border-color: var(--notmet); color: var(--notmet); }
+    .modal-body { padding: 1.5rem 1.75rem 2rem; }
+    .connection-card {
+      display: flex; gap: 1rem;
+      padding: 1.125rem 1.25rem;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: .875rem;
+      transition: var(--transition);
+    }
+    .connection-card:hover { border-color: rgba(0,80,200,.25); background: var(--prog-bg); }
+    .cc-dot {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.125rem; flex-shrink: 0;
+    }
+    .cc-dept { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: .25rem; }
+    .cc-how { font-size: .9375rem; font-weight: 600; color: var(--navy); margin-bottom: .375rem; }
+    .cc-why { font-size: .8125rem; color: var(--text-2); line-height: 1.5; }
+    .cc-goals { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .625rem; }
+    .cc-goal-tag {
+      font-size: .6875rem; font-weight: 600;
+      background: rgba(0,80,200,.08); color: var(--blue-mid);
+      padding: .2rem .5rem; border-radius: 5px;
+    }
+
+    /* ════════════════════════════════════════════════════
+       ALERT BOXES
+    ════════════════════════════════════════════════════ */
+    .alert {
+      border-radius: 10px; padding: .875rem 1.125rem;
+      font-size: .875rem; margin-bottom: 1.25rem;
+      display: flex; align-items: flex-start; gap: .625rem;
+    }
+    .alert-info { background: var(--prog-bg); border: 1px solid rgba(0,80,200,.2); color: var(--blue); }
+    .alert-warn { background: var(--part-bg); border: 1px solid rgba(192,92,0,.2); color: var(--partial); }
+    .alert-success { background: var(--met-bg); border: 1px solid rgba(13,110,58,.2); color: var(--met); }
+
+    /* ════════════════════════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════════════════════════ */
+    @media (max-width: 900px) {
       .ct-layout { grid-template-columns: 1fr; }
-      .ct-sidebar {
-        position: static; height: auto;
-        display: flex; flex-wrap: wrap;
-        padding: .5rem; gap: .25rem;
-        border-right: none; border-bottom: 1px solid var(--border);
-      }
-      .sidebar-section-label { display: none; }
-      .sidebar-divider { display: none; }
-      .sidebar-link { width: auto; padding: .5rem .75rem; font-size: .8125rem; }
-      .ct-main { padding: 1rem; }
-      .concern-split { grid-template-columns: 1fr; }
+      .ct-sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: .75rem; gap: .25rem; }
+      .sidebar-group-label, .sidebar-divider, .sidebar-dept-card, .dept-connections { display: none; }
+      .sidebar-link { width: auto; padding: .5rem .75rem; }
+    }
+    @media (max-width: 600px) {
+      .ct-main { padding: 1.25rem; }
+      .kpi-summary-strip { grid-template-columns: repeat(3, 1fr); }
+      .form-row-2 { grid-template-columns: 1fr; }
+      .step-progress { padding: .875rem 1rem; gap: .25rem; }
     }
   </style>
-
-  /* ── Multi-step Concern Form ─────────────────────────── */
-  .form-steps {
-    display: flex; align-items: center; gap: .5rem;
-    margin-bottom: 2rem; flex-wrap: wrap;
-  }
-  .form-step {
-    font-size: .75rem; font-weight: 700; padding: .375rem .875rem;
-    border-radius: 20px; background: var(--border); color: var(--muted);
-    transition: all .2s; cursor: default;
-  }
-  .form-step.active  { background: var(--blue); color: #fff; }
-  .form-step.completed { background: rgba(40,167,69,.15); color: #155724; }
-  .form-step-divider { color: var(--muted); font-size: .75rem; }
-  .form-section-block { display: none; }
-  .form-section-block.active { display: block; }
-  .section-title {
-    font-size: 1.0625rem; font-weight: 700; color: var(--blue);
-    margin-bottom: 1.25rem; padding-bottom: .625rem;
-    border-bottom: 2px solid var(--border);
-  }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-  @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
-  .form-group { margin-bottom: 1.125rem; }
-  .form-lbl { display: block; font-size: .875rem; font-weight: 600; color: var(--text); margin-bottom: .375rem; }
-  .form-lbl.required::after { content: ' *'; color: var(--red); }
-  .form-hint { font-size: .75rem; color: var(--muted); margin-bottom: .5rem; margin-top: -.25rem; }
-  .form-ctrl {
-    width: 100%; padding: .75rem .875rem;
-    font-size: .9375rem; font-family: inherit;
-    border: 1.5px solid var(--border); border-radius: 10px;
-    outline: none; background: var(--surface);
-    transition: border-color .2s, box-shadow .2s;
-  }
-  .form-ctrl:focus { border-color: var(--blue2); box-shadow: 0 0 0 3px rgba(0,77,153,.08); }
-  textarea.form-ctrl { resize: vertical; min-height: 100px; }
-  .radio-group { display: flex; flex-wrap: wrap; gap: .625rem; }
-  .radio-group.vertical { flex-direction: column; gap: .5rem; }
-  .radio-opt {
-    display: flex; align-items: center; gap: .5rem;
-    font-size: .875rem; cursor: pointer; padding: .375rem .75rem;
-    border: 1.5px solid var(--border); border-radius: 8px;
-    background: var(--surface); transition: all .15s;
-  }
-  .radio-opt:hover { border-color: var(--blue2); background: rgba(0,77,153,.04); }
-  .radio-opt input[type="radio"] { accent-color: var(--blue2); }
-  .step-actions {
-    display: flex; justify-content: flex-end; gap: .75rem;
-    margin-top: 1.75rem; padding-top: 1.25rem;
-    border-top: 1px solid var(--border);
-  }
-  .btn-back {
-    background: var(--surface); border: 1.5px solid var(--border);
-    color: var(--text); border-radius: 10px;
-    padding: .75rem 1.5rem; font-size: .9375rem; font-weight: 600;
-    font-family: inherit; cursor: pointer; transition: all .2s;
-  }
-  .btn-back:hover { border-color: var(--blue2); color: var(--blue2); }
-  .btn-next {
-    background: linear-gradient(135deg, var(--blue2), var(--blue3));
-    color: #fff; border: none; border-radius: 10px;
-    padding: .75rem 1.75rem; font-size: .9375rem; font-weight: 700;
-    font-family: inherit; cursor: pointer; transition: all .2s;
-  }
-  .btn-next:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,77,153,.3); }
-  .btn-submit {
-    background: linear-gradient(135deg, #155724, #28a745);
-    color: #fff; border: none; border-radius: 10px;
-    padding: .75rem 2rem; font-size: .9375rem; font-weight: 700;
-    font-family: inherit; cursor: pointer; transition: all .2s;
-    display: inline-flex; align-items: center; gap: .5rem;
-  }
-  .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(40,167,69,.3); }
-  .btn-submit:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-  .btn-spinner {
-    width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin .6s linear infinite;
-  }
-  .submit-confirm-box {
-    display: flex; align-items: flex-start; gap: .75rem;
-    background: rgba(40,167,69,.06); border: 1px solid rgba(40,167,69,.2);
-    border-radius: 10px; padding: 1rem 1.25rem;
-    font-size: .875rem; color: #155724; line-height: 1.5;
-  }
-  .submit-error {
-    background: rgba(220,53,69,.08); border: 1px solid rgba(220,53,69,.2);
-    border-radius: 8px; padding: .75rem 1rem;
-    font-size: .875rem; color: var(--red); margin-bottom: 1rem;
-  }
-  .success-card {
-    text-align: center; padding: 3rem 2rem;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-  .success-card .success-icon { font-size: 3rem; margin-bottom: 1rem; }
-  .success-card h3 { font-size: 1.375rem; font-weight: 800; color: var(--blue); margin-bottom: .75rem; }
-  .success-card p { color: var(--muted); font-size: .9375rem; line-height: 1.6; }
-  /* Drive doc library */
-  .drive-admin-note {
-    background: rgba(245,166,35,.08); border: 1px solid rgba(245,166,35,.3);
-    border-radius: 8px; padding: .875rem 1rem; font-size: .8125rem;
-    color: #6b4c00; margin-bottom: 1.25rem;
-  }
-</style>
 </head>
 <body>
 
-  <!-- ── Top Nav ──────────────────────────────────────────── -->
-  <nav class="ct-nav">
-    <div class="nav-brand">
-      <div class="nav-logo">NJTC</div>
-      <h1>Central Team Portal</h1>
+<!-- Loading screen -->
+<div id="loadingScreen" style="position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:1rem;">
+  <div style="font-family:'DM Serif Display',serif;font-size:2rem;color:#fff;letter-spacing:-.02em;">NJTC</div>
+  <div style="font-size:.875rem;color:rgba(255,255,255,.4);">Verifying access…</div>
+  <div style="width:180px;height:2px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden;margin-top:.5rem;">
+    <div style="height:100%;background:linear-gradient(90deg,var(--blue-lite),var(--gold));border-radius:1px;animation:barSlide 1.5s ease forwards;"></div>
+  </div>
+</div>
+
+<!-- Top Nav -->
+<nav class="ct-nav">
+  <div class="nav-brand">
+    <div class="nav-logo">N</div>
+    <div>
+      <div class="nav-title">Central Team Portal</div>
+      <div class="nav-subtitle">New Jersey Tutoring Corps</div>
     </div>
-    <div class="nav-actions">
-      <span class="nav-dept-badge" id="deptBadge">Loading…</span>
-      <span class="session-timer" id="sessionTimer"></span>
-      <button class="btn-logout" onclick="NJTCAuth.logout()">Sign Out</button>
+  </div>
+  <div class="nav-center">
+    <span class="nav-date" id="navDate"></span>
+  </div>
+  <div class="nav-right">
+    <span class="dept-pill" id="deptBadge">LOADING</span>
+    <span class="session-badge" id="sessionTimer">—</span>
+    <button class="btn-signout" onclick="NJTCAuth.logout()">Sign Out</button>
+  </div>
+</nav>
+
+<!-- Layout -->
+<div class="ct-layout" id="ctLayout" style="display:none">
+
+  <!-- Sidebar -->
+  <aside class="ct-sidebar">
+
+    <!-- Dept card -->
+    <div class="sidebar-dept-card" id="sidebarDeptCard">
+      <div class="sdc-label">Your Department</div>
+      <div class="sdc-dept" id="sdcDept">—</div>
+      <div class="sdc-tagline" id="sdcTagline">—</div>
+      <div class="sdc-bar"><div class="sdc-bar-fill" id="sdcBar" style="--pct:0%"></div></div>
     </div>
-  </nav>
 
-  <!-- ── Layout ────────────────────────────────────────────── -->
-  <div class="ct-layout" id="ctLayout" style="display:none">
-
-    <!-- Sidebar -->
-    <aside class="ct-sidebar">
-      <span class="sidebar-section-label">Navigation</span>
-      <button class="sidebar-link active" data-panel="home" onclick="showPanel('home', this)">
-        <span class="sidebar-icon">🏠</span> Department Home
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">Navigation</div>
+      <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)">
+        <span class="sl-icon">🏠</span> Department Home
       </button>
-      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi', this)">
-        <span class="sidebar-icon">📊</span> KPI Targets
+      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)">
+        <span class="sl-icon">📊</span> KPI Targets
+        <span class="sl-badge gold" id="metBadge">—</span>
       </button>
-      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies', this)">
-        <span class="sidebar-icon">📁</span> Policies Library
+    </div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">Documents</div>
+      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)">
+        <span class="sl-icon">📚</span> Policies Library
       </button>
-
-      <div class="sidebar-divider"></div>
-      <span class="sidebar-section-label">Reporting</span>
-
-      <button class="sidebar-link" data-panel="concern-program" onclick="showPanel('concern-program', this)">
-        <span class="sidebar-icon">⚠️</span> Program Concerns
+      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload',this)">
+        <span class="sl-icon">☁️</span> Drive Center
       </button>
-      <button class="sidebar-link" data-panel="concern-perf" onclick="showPanel('concern-perf', this)">
-        <span class="sidebar-icon">👤</span> Performance Concerns
+    </div>
+
+    <div class="sidebar-group">
+      <div class="sidebar-group-label">Reporting</div>
+      <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
+        <span class="sl-icon">⚠️</span> Concern Form
       </button>
-
-      <div class="sidebar-divider"></div>
-      <span class="sidebar-section-label">Documents</span>
-
-      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload', this)">
-        <span class="sidebar-icon">📤</span> Upload Center
+      <button class="sidebar-link" data-panel="perf" onclick="showPanel('perf',this)">
+        <span class="sl-icon">👤</span> Performance Concerns
       </button>
-    </aside>
+    </div>
 
-    <!-- Main content -->
-    <main class="ct-main">
+    <div class="sidebar-divider"></div>
 
-      <!-- ══ HOME PANEL ══════════════════════════════════════ -->
-      <div class="panel active" id="panel-home">
-        <div class="page-header">
-          <h2 id="homeTitle">Department Home</h2>
-          <p id="homeSubtitle">Quick access to your department's key tools and resources.</p>
+    <!-- Dept connections -->
+    <div class="dept-connections" id="deptConnectionsCard">
+      <div class="dc-title">
+        <span>🔗</span> Department Connections
+      </div>
+      <div id="deptConnectionsList"><!-- filled by JS --></div>
+      <button onclick="openConnectionsModal()" style="margin-top:.625rem;font-size:.6875rem;color:rgba(255,255,255,.45);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;display:flex;align-items:center;gap:.25rem;">View all connections →</button>
+    </div>
+
+  </aside>
+
+  <!-- Main -->
+  <main class="ct-main">
+
+    <!-- ══ HOME PANEL ══════════════════════════════════════ -->
+    <div class="panel active" id="panel-home">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow" id="homeEyebrow">Department Overview</div>
+          <h2 class="ph-title" id="homeTitle">Welcome</h2>
+          <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
         </div>
+      </div>
+      <!-- KPI summary strip -->
+      <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
+      <!-- Quick links -->
+      <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
+    </div>
 
-        <!-- KPI Summary stats -->
-        <div class="stats-row" id="kpiSummaryRow">
-          <!-- Populated by JS -->
+    <!-- ══ KPI PANEL ════════════════════════════════════════ -->
+    <div class="panel" id="panel-kpi">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2025–2026</div>
+          <h2 class="ph-title">Annual Goal Targets</h2>
+          <p class="ph-subtitle">Organizational KPIs across all departments. Updated in real-time as goals are achieved.</p>
         </div>
+      </div>
+      <!-- Summary tiles -->
+      <div class="kpi-summary-strip" id="kpiSummary"><!-- filled by JS --></div>
+      <!-- Filters -->
+      <div class="kpi-filters">
+        <select class="filter-select" id="kpiGoalFilter" onchange="filterKPI()">
+          <option value="">All Goal Areas</option>
+        </select>
+        <select class="filter-select" id="kpiStatusFilter" onchange="filterKPI()">
+          <option value="">All Statuses</option>
+          <option value="Met">✅ Met</option>
+          <option value="In Progress">🔵 In Progress</option>
+          <option value="Partially Met">🟠 Partially Met</option>
+          <option value="Coming Down the Pipeline">🟣 Pipeline</option>
+          <option value="Has Not Met">🔴 Has Not Met</option>
+        </select>
+        <input type="text" class="filter-input" id="kpiSearch" placeholder="Search targets…" oninput="filterKPI()" style="flex:1;min-width:180px;">
+      </div>
+      <div class="kpi-wrap">
+        <table class="kpi-table">
+          <thead>
+            <tr>
+              <th style="width:160px">Goal Area</th>
+              <th>Target</th>
+              <th style="width:180px">Status</th>
+            </tr>
+          </thead>
+          <tbody id="kpiBody"><!-- filled by JS --></tbody>
+        </table>
+      </div>
+    </div>
 
-        <!-- Quick links — populated per dept -->
-        <div class="cards-grid" id="quickLinksGrid">
-          <!-- Populated by JS -->
+    <!-- ══ POLICIES PANEL ════════════════════════════════════ -->
+    <div class="panel" id="panel-policies">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">Knowledge Base</div>
+          <h2 class="ph-title">Policies & Procedures Library</h2>
+          <p class="ph-subtitle">Official NJTC documents organized by department. Auto-synced from Google Drive.</p>
         </div>
-
-        <!-- Alert: annual goal banner -->
-        <div class="alert alert-info" id="goalAlertBanner">
-          <strong>🎯 Annual Goal Alignment:</strong> All work in the portal connects to NJTC's organizational targets.
-          Visit <strong>KPI Targets</strong> to see current progress across all goals.
+        <div class="ph-actions">
+          <button class="btn btn-secondary" onclick="showPanel('upload',document.querySelector('[data-panel=upload]'))">
+            ☁️ Upload Doc
+          </button>
         </div>
       </div>
 
-      <!-- ══ KPI PANEL ════════════════════════════════════════ -->
-      <div class="panel" id="panel-kpi">
-        <div class="page-header">
-          <h2>KPI Targets — SY 25-26</h2>
-          <p>Read-only view of organizational goal targets. Status reflects mid-cycle reporting.</p>
-        </div>
-        <div class="kpi-filters">
-          <select id="kpiGoalFilter" onchange="filterKPI()">
-            <option value="">All Goals</option>
-          </select>
-          <select id="kpiStatusFilter" onchange="filterKPI()">
-            <option value="">All Statuses</option>
-            <option value="Met">Met</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Partially Met">Partially Met</option>
-            <option value="Coming Down the Pipeline">Pipeline</option>
-            <option value="Has Not Met">Has Not Met</option>
-          </select>
-          <input type="text" id="kpiSearch" placeholder="Search targets…" oninput="filterKPI()" style="min-width:200px">
-        </div>
-        <div class="kpi-table-wrap">
-          <table class="kpi-table" id="kpiTable">
-            <thead>
-              <tr>
-                <th style="width:30%">Annual Goal</th>
-                <th>Target</th>
-                <th style="width:140px">Mid-Cycle Status</th>
-              </tr>
-            </thead>
-            <tbody id="kpiTbody">
-              <!-- Populated by JS -->
-            </tbody>
-          </table>
+      <!-- Drive sync bar -->
+      <div class="drive-sync-bar">
+        <div class="sync-dot" id="syncDot"></div>
+        <div class="sync-text" id="syncText">Checking Google Drive for latest documents…</div>
+        <button class="sync-btn" onclick="buildPolicies(true)">↺ Refresh</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="policy-toolbar">
+        <select class="filter-select" id="policyDeptFilter" onchange="filterPolicies()">
+          <option value="">All Departments</option>
+          <option value="hr">Human Resources</option>
+          <option value="finance">Finance</option>
+          <option value="programming">Programming</option>
+          <option value="data">Data & Evaluation</option>
+          <option value="training">Training & Development</option>
+          <option value="shared">Organization-Wide</option>
+        </select>
+        <input type="text" class="filter-input" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()" style="flex:1;min-width:180px;">
+        <select class="filter-select" id="policySort" onchange="filterPolicies()">
+          <option value="dept">By Department</option>
+          <option value="date">By Date</option>
+          <option value="modified">Recently Modified</option>
+          <option value="alpha">Alphabetical</option>
+        </select>
+      </div>
+
+      <div id="policyContent"><!-- filled by JS --></div>
+    </div>
+
+    <!-- ══ UPLOAD / DRIVE PANEL ══════════════════════════════ -->
+    <div class="panel" id="panel-upload">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">Document Management</div>
+          <h2 class="ph-title">Drive Document Center</h2>
+          <p class="ph-subtitle">All NJTC policies live in Google Drive. Upload a document and it appears in the library automatically.</p>
         </div>
       </div>
 
-      <!-- ══ POLICIES PANEL ═══════════════════════════════════ -->
-
-      <!-- ══ POLICIES PANEL — Drive-powered ══════════════════ -->
-      <div class="panel" id="panel-policies">
-        <div class="page-header">
-          <h2>Policies & Procedures Library</h2>
-          <p>Official NJTC documents. Click any document to open it in Google Drive.</p>
+      <div class="drive-hero">
+        <div class="dh-icon-wrap">☁️</div>
+        <div>
+          <div class="dh-label">Google Drive Integration</div>
+          <div class="dh-title">Shared Document Repository</div>
+          <div class="dh-sub">Upload files to the NJTC Drive folder. The portal detects new and modified documents automatically.</div>
         </div>
-        <div class="drive-admin-note" id="driveAdminNote" style="display:none">
-          ⚙️ <strong>Admin:</strong> To add documents, update <code>manifest.json</code> in your Google Drive folder and paste each file's Drive ID. Documents appear here automatically.
-        </div>
-        <div class="policy-filters">
-          <select id="policyDeptFilter" onchange="filterPolicies()">
-            <option value="">All Departments</option>
-            <option value="hr">Human Resources</option>
-            <option value="finance">Finance</option>
-            <option value="programming">Programming</option>
-            <option value="data">Data & Evaluation</option>
-            <option value="training">Training & Development</option>
-            <option value="all">Organization-Wide</option>
-          </select>
-          <input type="text" id="policySearch" placeholder="Search policies…" oninput="filterPolicies()"
-            style="min-width:200px; padding:.5rem .875rem; font-size:.875rem; border:1px solid var(--border); border-radius:8px;">
-        </div>
-        <div class="policy-grid" id="policyGrid"></div>
-        <div id="policyEmpty" style="display:none" class="alert alert-info">No documents match your filter.</div>
+        <a href="https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG" target="_blank" rel="noopener" class="btn btn-gold" style="margin-left:auto;flex-shrink:0;text-decoration:none">
+          Open Drive ↗
+        </a>
       </div>
 
-      <!-- ══ CONCERN FORM PANEL ════════════════════════════════ -->
-      <div class="panel" id="panel-concern-program">
-        <div class="page-header">
-          <h2>Performance & Program Concern Form</h2>
-          <p>Document a performance conversation or program concern. Submitted directly to HR — no GitHub required.</p>
+      <div class="auto-detect-card" style="margin-bottom:1.5rem">
+        <div class="adc-icon">🔄</div>
+        <div>
+          <div class="adc-title">Automatic Detection & Change Tracking</div>
+          <div class="adc-desc">When a new PDF is added to the NJTC Drive folder or an existing document is modified, the portal reads the <code>manifest.json</code> file and updates the Policies Library instantly — including the modification date, sections changed, and department. No deployments needed.</div>
         </div>
+      </div>
 
+      <div class="drive-steps-grid">
+        <div class="drive-step">
+          <div class="ds-num">01</div>
+          <div class="ds-title">Upload to Drive</div>
+          <div class="ds-desc">Add your PDF or document to the NJTC shared Google Drive folder.</div>
+        </div>
+        <div class="drive-step">
+          <div class="ds-num">02</div>
+          <div class="ds-title">Set Permissions</div>
+          <div class="ds-desc">Right-click → Share → "Anyone with the link" set to Viewer.</div>
+        </div>
+        <div class="drive-step">
+          <div class="ds-num">03</div>
+          <div class="ds-title">Update manifest.json</div>
+          <div class="ds-desc">Add an entry with title, dept, date, description, sections, and the file ID.</div>
+        </div>
+        <div class="drive-step">
+          <div class="ds-num">04</div>
+          <div class="ds-title">Auto-Publishes</div>
+          <div class="ds-desc">The portal fetches the manifest on each page load. New and updated docs appear immediately.</div>
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;box-shadow:var(--shadow-sm)">
+        <h4 style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.75rem">manifest.json Format</h4>
+        <pre style="background:var(--navy);color:#a8d8a8;border-radius:8px;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:.75rem;overflow-x:auto;line-height:1.6">[
+  {
+    "title": "Employee Handbook",
+    "dept": "hr",
+    "tag": "Human Resources",
+    "effectiveDate": "Aug 2025",
+    "modifiedDate": "Jan 2026",
+    "sectionsModified": ["Section 4 – Leave Policy", "Section 7 – Remote Work"],
+    "desc": "Full NJTC employee handbook.",
+    "fileId": "YOUR_DRIVE_FILE_ID_HERE"
+  }
+]</pre>
+      </div>
+    </div>
+
+    <!-- ══ CONCERN FORM PANEL ════════════════════════════════ -->
+    <div class="panel" id="panel-concern">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">HR Reporting</div>
+          <h2 class="ph-title">Performance & Program Concern Form</h2>
+          <p class="ph-subtitle">Document a performance conversation or program concern. Submitted securely to HR — no external tools required.</p>
+        </div>
+      </div>
+
+      <div class="form-wrapper">
         <!-- Success screen -->
-        <div id="formSuccess" style="display:none">
-          <div class="success-card">
-            <div class="success-icon">✅</div>
-            <h3>Submission Received</h3>
-            <p>Your concern has been logged and HR has been notified.<br>A confirmation copy has been sent to your email address.</p>
-            <button class="btn-primary" onclick="resetConcernForm()" style="margin-top:1.25rem">Submit Another</button>
-          </div>
+        <div class="form-success-screen" id="formSuccess">
+          <div class="fss-icon">✅</div>
+          <div class="fss-title">Concern Submitted</div>
+          <p class="fss-sub">Your submission has been logged. HR has been notified and a confirmation has been sent to your email address.</p>
+          <button class="btn btn-primary" onclick="resetConcernForm()">Submit Another</button>
         </div>
 
-        <!-- Form container -->
+        <!-- Form -->
         <div id="formContainer">
+
+          <!-- Step progress -->
+          <div class="step-progress">
+            <div class="sp-step active" id="sp1">
+              <div class="sp-num">1</div>
+              <div class="sp-label">Submitter</div>
+            </div>
+            <div class="sp-step" id="sp2">
+              <div class="sp-num">2</div>
+              <div class="sp-label">Employee</div>
+            </div>
+            <div class="sp-step" id="sp3">
+              <div class="sp-num">3</div>
+              <div class="sp-label">Concern</div>
+            </div>
+            <div class="sp-step" id="sp4">
+              <div class="sp-num">4</div>
+              <div class="sp-label">Next Steps</div>
+            </div>
+          </div>
+
           <form id="concernForm" novalidate>
 
-            <!-- Step indicators -->
-            <div class="form-steps">
-              <div class="form-step active" data-step="1">1 · Submitter</div>
-              <div class="form-step-divider">›</div>
-              <div class="form-step" data-step="2">2 · Employee</div>
-              <div class="form-step-divider">›</div>
-              <div class="form-step" data-step="3">3 · Concern</div>
-              <div class="form-step-divider">›</div>
-              <div class="form-step" data-step="4">4 · Next Steps</div>
-            </div>
-
-            <!-- STEP 1: Submitter -->
-            <div class="form-section-block active" id="cstep1">
-              <h3 class="section-title">Your Information</h3>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-lbl required">Your Email</label>
-                  <input type="email" id="f_email" class="form-ctrl" placeholder="yourname@njtc.org" />
+            <!-- STEP 1 -->
+            <div class="form-section active" id="fs1">
+              <div class="form-card">
+                <div class="form-card-header">
+                  <div class="fch-title">Your Information</div>
+                  <div class="fch-sub">Who is completing this form?</div>
                 </div>
-                <div class="form-group">
-                  <label class="form-lbl required">Your Name & Title</label>
-                  <input type="text" id="f_submitter" class="form-ctrl" placeholder="e.g. Jane Smith, Program Manager" />
+                <div class="form-card-body">
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label class="form-lbl req">Your Email</label>
+                      <input type="email" id="f_email" class="form-ctrl" placeholder="yourname@njtc.org" autocomplete="email"/>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-lbl req">Your Name & Title</label>
+                      <input type="text" id="f_submitter" class="form-ctrl" placeholder="Jane Smith, Program Manager"/>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">Are you completing this on behalf of someone else?</label>
+                    <div class="radio-chips">
+                      <label class="radio-chip"><input type="radio" name="onBehalf" value="No" checked onchange="toggleOnBehalf(this.value)"> No, this is my own submission</label>
+                      <label class="radio-chip"><input type="radio" name="onBehalf" value="Yes" onchange="toggleOnBehalf(this.value)"> Yes, on behalf of someone</label>
+                    </div>
+                  </div>
+                  <div class="form-group" id="onBehalfField" style="display:none">
+                    <label class="form-lbl">Name & role of the person you're completing this for</label>
+                    <input type="text" id="f_onBehalfOf" class="form-ctrl" placeholder="John Doe, Site Coordinator"/>
+                  </div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">Completing on behalf of someone else?</label>
-                <div class="radio-group">
-                  <label class="radio-opt"><input type="radio" name="onBehalf" value="No" checked onchange="toggleOnBehalf(this.value)" /> No</label>
-                  <label class="radio-opt"><input type="radio" name="onBehalf" value="Yes" onchange="toggleOnBehalf(this.value)" /> Yes</label>
+                <div class="form-actions">
+                  <div style="font-size:.8125rem;color:var(--muted)">Step 1 of 4</div>
+                  <button type="button" class="btn-next-form" onclick="goStep(2)">Continue →</button>
                 </div>
-              </div>
-              <div class="form-group" id="onBehalfField" style="display:none">
-                <label class="form-lbl">Name & role of the person you're completing this for</label>
-                <input type="text" id="f_onBehalfOf" class="form-ctrl" placeholder="e.g. John Doe, Site Coordinator" />
-              </div>
-              <div class="step-actions">
-                <button type="button" class="btn-next" onclick="goFormStep(2)">Next ›</button>
               </div>
             </div>
 
-            <!-- STEP 2: Employee -->
-            <div class="form-section-block" id="cstep2">
-              <h3 class="section-title">Employee Information</h3>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-lbl required">Employee Name</label>
-                  <input type="text" id="f_empName" class="form-ctrl" placeholder="Full name" />
+            <!-- STEP 2 -->
+            <div class="form-section" id="fs2">
+              <div class="form-card">
+                <div class="form-card-header">
+                  <div class="fch-title">Employee Information</div>
+                  <div class="fch-sub">Who is this concern about?</div>
                 </div>
-                <div class="form-group">
-                  <label class="form-lbl required">Employee Role</label>
-                  <select id="f_empRole" class="form-ctrl">
-                    <option value="">Select role…</option>
-                    <option>Tutor</option><option>SC</option><option>IC</option>
-                    <option>Dual Role</option><option>Other</option>
-                  </select>
+                <div class="form-card-body">
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label class="form-lbl req">Employee Full Name</label>
+                      <input type="text" id="f_empName" class="form-ctrl" placeholder="Full name"/>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-lbl req">Employee Role</label>
+                      <select id="f_empRole" class="form-ctrl">
+                        <option value="">Select role…</option>
+                        <option>Tutor</option>
+                        <option>SC</option>
+                        <option>IC</option>
+                        <option>Dual Role</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">Employee Site / Location</label>
+                    <select id="f_empSite" class="form-ctrl">
+                      <option value="">Select site…</option>
+                      <option>Central Jersey College Prep</option>
+                      <option>Clinton Township School District - Round Valley School</option>
+                      <option>First Philadelphia Prep Charter School (American Paradigm)</option>
+                      <option>Global Leadership Academy - GLA- West</option>
+                      <option>Gloucester Township School District- Blackwood Elementary School</option>
+                      <option>Gloucester Township School District- Erial Elementary School</option>
+                      <option>Gloucester Township School District- JW Lilley Elementary School</option>
+                      <option>Gloucester Township School District- Loring Flemming Elementary School</option>
+                      <option>Haddon Township School District- Stoy Elementary School</option>
+                      <option>Haddon Township School District-Clyde Jennings Elementary School</option>
+                      <option>Haddon Township School District-Edison Elementary School</option>
+                      <option>Haddon Township School District-Strawbridge Elementary School</option>
+                      <option>Haddon Township School District-Van Sciver Elementary School</option>
+                      <option>Hamilton Township School District- Albert E. Grice Middle School</option>
+                      <option>Hamilton Township School District- Crockett Middle School</option>
+                      <option>Hamilton Township School District- Kuser Elementary School</option>
+                      <option>Hamilton Township School District- Mercerville Elementary School</option>
+                      <option>Hamilton Township School District- Sayen Elementary School</option>
+                      <option>Hamilton Township School District-Alexander Elementary School</option>
+                      <option>Hoboken Dual Language Charter School (HOLA) - ES</option>
+                      <option>Hoboken Dual Language Charter School (HOLA) - MS</option>
+                      <option>iLearn Charter School- Bergen ES</option>
+                      <option>iLearn Charter School- Bergen MS</option>
+                      <option>iLearn Charter School- Clifton ES</option>
+                      <option>iLearn Charter School- Clifton HS</option>
+                      <option>iLearn Charter School- Clifton MS</option>
+                      <option>iLearn Charter School- Hudson ES</option>
+                      <option>iLearn Charter School- Hudson MS</option>
+                      <option>iLearn Charter School- Passaic ES</option>
+                      <option>iLearn Charter School- Passaic MS</option>
+                      <option>iLearn Charter School- Paterson ES</option>
+                      <option>iLearn Charter School- Paterson MS</option>
+                      <option>Lawrence Township- Eldridge Park School</option>
+                      <option>Lawrence Township- Slackwood Elementary</option>
+                      <option>Monmouth County BGC- Bradley Elementary School</option>
+                      <option>Monmouth County BGC- College Achieve (CAPS Neptune)</option>
+                      <option>Paterson Charter School Science & Tech.- PCSST 4-7 Campus</option>
+                      <option>Pemberton- Denbo-Crichton Location</option>
+                      <option>Penns Grove - Carneys Point Regional School District- Penns Grove Middle School</option>
+                      <option>Penns Grove - Field Street Elementary</option>
+                      <option>Penns Grove - P.W. Carleton Elementary</option>
+                      <option>Riverton School District- Riverton Public School</option>
+                      <option>Salem City School District- Salem - John Fenwick Academy (K-2)</option>
+                      <option>Salem City School District- Salem Middle School (3-5)</option>
+                      <option>Waterford Township School District- Atco Elementary School</option>
+                      <option>Waterford Township School District- Waterford Elementary School</option>
+                    </select>
+                  </div>
+                  <div class="form-row-2">
+                    <div class="form-group">
+                      <label class="form-lbl req">Today's Date</label>
+                      <input type="date" id="f_todayDate" class="form-ctrl"/>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-lbl req">Date Conversation Occurred</label>
+                      <input type="date" id="f_convDate" class="form-ctrl"/>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">Is this the first documented occurrence for this employee?</label>
+                    <div class="radio-chips">
+                      <label class="radio-chip"><input type="radio" name="firstOccurrence" value="Yes"> Yes — first on record</label>
+                      <label class="radio-chip"><input type="radio" name="firstOccurrence" value="No"> No — prior documentation exists</label>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">Employee Site / Location</label>
-                <select id="f_empSite" class="form-ctrl">
-                  <option value="">Select site…</option>
-                  <option>Clinton Township School District - Round Valley School</option>
-                  <option>First Philadelphia Prep Charter School (American Paradigm)</option>
-                  <option>Global Leadership Academy - GLA- West</option>
-                  <option>Gloucester Township School District- Blackwood Elementary School</option>
-                  <option>Gloucester Township School District- Erial Elementary School</option>
-                  <option>Gloucester Township School District- JW Lilley Elementary School</option>
-                  <option>Gloucester Township School District- Loring Flemming Elementary School</option>
-                  <option>Hamilton Township School District- Albert E. Grice Middle School</option>
-                  <option>Hamilton Township School District- Crockett Middle School</option>
-                  <option>Hamilton Township School District- Kuser Elementary School</option>
-                  <option>iLearn Charter School- Bergen ES</option>
-                  <option>iLearn Charter School- Bergen MS</option>
-                  <option>iLearn Charter School- Clifton ES</option>
-                  <option>iLearn Charter School- Clifton HS</option>
-                  <option>iLearn Charter School- Clifton MS</option>
-                  <option>iLearn Charter School- Hudson ES</option>
-                  <option>iLearn Charter School- Hudson MS</option>
-                  <option>iLearn Charter School- Passaic ES</option>
-                  <option>iLearn Charter School- Passaic MS</option>
-                  <option>iLearn Charter School- Paterson ES</option>
-                  <option>iLearn Charter School- Paterson MS</option>
-                  <option>Lawrence Township- Eldridge Park School</option>
-                  <option>Lawrence Township- Slackwood Elementary</option>
-                  <option>Monmouth County BGC- Bradley Elementary School</option>
-                  <option>Monmouth County BGC- College Achieve (CAPS Neptune)</option>
-                  <option>Paterson Charter School Science & Tech.- PCSST 4-7 Campus</option>
-                  <option>Pemberton- Denbo-Crichton Location</option>
-                  <option>Riverton School District- Riverton Public School</option>
-                  <option>Waterford Township School District- Atco Elementary School</option>
-                  <option>Waterford Township School District- Waterford Elementary School</option>
-                  <option>Penns Grove - Carneys Point Regional School District- Penns Grove Middle School</option>
-                  <option>Salem City School District- Salem - John Fenwick Academy (K-2)</option>
-                  <option>Salem City School District- Salem Middle School (3-5)</option>
-                  <option>Hamilton Township School District- Mercerville Elementary School</option>
-                  <option>Hamilton Township School District- Sayen Elementary School</option>
-                  <option>Hamilton Township School District-Alexander Elementary School</option>
-                  <option>Haddon Township School District-Van Sciver Elementary School</option>
-                  <option>Haddon Township School District-Strawbridge Elementary School</option>
-                  <option>Haddon Township School District-Edison Elementary School</option>
-                  <option>Haddon Township School District-Clyde Jennings Elementary School</option>
-                  <option>Haddon Township School District- Stoy Elementary School</option>
-                  <option>Central Jersey College Prep</option>
-                  <option>Penns Grove - P.W. Carleton Elementary</option>
-                  <option>Penns Grove - Field Street Elementary</option>
-                  <option>Hoboken Dual Language Charter School (HOLA) - ES</option>
-                  <option>Hoboken Dual Language Charter School (HOLA) - MS</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-lbl required">Today's Date</label>
-                  <input type="date" id="f_todayDate" class="form-ctrl" />
+                <div class="form-actions">
+                  <button type="button" class="btn-back-form" onclick="goStep(1)">← Back</button>
+                  <button type="button" class="btn-next-form" onclick="goStep(3)">Continue →</button>
                 </div>
-                <div class="form-group">
-                  <label class="form-lbl required">Date Conversation Occurred</label>
-                  <input type="date" id="f_convDate" class="form-ctrl" />
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">First documented occurrence for this employee?</label>
-                <div class="radio-group">
-                  <label class="radio-opt"><input type="radio" name="firstOccurrence" value="Yes" /> Yes</label>
-                  <label class="radio-opt"><input type="radio" name="firstOccurrence" value="No" /> No</label>
-                </div>
-              </div>
-              <div class="step-actions">
-                <button type="button" class="btn-back" onclick="goFormStep(1)">‹ Back</button>
-                <button type="button" class="btn-next" onclick="goFormStep(3)">Next ›</button>
               </div>
             </div>
 
-            <!-- STEP 3: Concern Details -->
-            <div class="form-section-block" id="cstep3">
-              <h3 class="section-title">Concern Details</h3>
-              <div class="form-group">
-                <label class="form-lbl required">Type of support being documented</label>
-                <div class="radio-group vertical">
-                  <label class="radio-opt"><input type="radio" name="supportType" value="Observation by PM Team" /> Observation by PM Team</label>
-                  <label class="radio-opt"><input type="radio" name="supportType" value="Additional Coaching Support" /> Additional Coaching Support</label>
-                  <label class="radio-opt"><input type="radio" name="supportType" value="Reminder/Verbal Warning" /> Reminder / Verbal Warning</label>
-                  <label class="radio-opt"><input type="radio" name="supportType" value="Other" /> Other</label>
+            <!-- STEP 3 -->
+            <div class="form-section" id="fs3">
+              <div class="form-card">
+                <div class="form-card-header">
+                  <div class="fch-title">Concern Details</div>
+                  <div class="fch-sub">Describe the nature and context of this concern</div>
                 </div>
-              </div>
-              <div class="form-group" id="supportOtherField" style="display:none">
-                <label class="form-lbl">Describe support type (if Other)</label>
-                <input type="text" id="f_supportOther" class="form-ctrl" placeholder="Describe…" />
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">How was this conversation delivered?</label>
-                <div class="radio-group">
-                  <label class="radio-opt"><input type="radio" name="delivery" value="In Person" /> In Person</label>
-                  <label class="radio-opt"><input type="radio" name="delivery" value="Email" /> Email</label>
-                  <label class="radio-opt"><input type="radio" name="delivery" value="Phone" /> Phone</label>
-                  <label class="radio-opt"><input type="radio" name="delivery" value="Text Message" /> Text</label>
-                  <label class="radio-opt"><input type="radio" name="delivery" value="ZOOM meeting" /> Zoom</label>
+                <div class="form-card-body">
+                  <div class="form-group">
+                    <label class="form-lbl req">Type of support being documented</label>
+                    <div class="radio-chips vertical">
+                      <label class="radio-chip"><input type="radio" name="supportType" value="Observation by PM Team" onchange="toggleSupportOther(this.value)"> Observation by PM Team</label>
+                      <label class="radio-chip"><input type="radio" name="supportType" value="Additional Coaching Support" onchange="toggleSupportOther(this.value)"> Additional Coaching Support</label>
+                      <label class="radio-chip"><input type="radio" name="supportType" value="Reminder/Verbal Warning" onchange="toggleSupportOther(this.value)"> Reminder / Verbal Warning</label>
+                      <label class="radio-chip"><input type="radio" name="supportType" value="Other" onchange="toggleSupportOther(this.value)"> Other (specify below)</label>
+                    </div>
+                  </div>
+                  <div class="form-group" id="supportOtherWrap" style="display:none">
+                    <label class="form-lbl">Describe the type of support</label>
+                    <input type="text" id="f_supportOther" class="form-ctrl" placeholder="Describe…"/>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">How was this conversation delivered?</label>
+                    <div class="radio-chips">
+                      <label class="radio-chip"><input type="radio" name="delivery" value="In Person"> In Person</label>
+                      <label class="radio-chip"><input type="radio" name="delivery" value="Email"> Email</label>
+                      <label class="radio-chip"><input type="radio" name="delivery" value="Phone"> Phone</label>
+                      <label class="radio-chip"><input type="radio" name="delivery" value="Text Message"> Text</label>
+                      <label class="radio-chip"><input type="radio" name="delivery" value="ZOOM meeting"> Zoom</label>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">Type of concern</label>
+                    <div class="radio-chips vertical">
+                      <label class="radio-chip"><input type="radio" name="concernType" value="Attendance" onchange="toggleConcernOther(this.value)"> Attendance</label>
+                      <label class="radio-chip"><input type="radio" name="concernType" value="Lesson Plans" onchange="toggleConcernOther(this.value)"> Lesson Plans</label>
+                      <label class="radio-chip"><input type="radio" name="concernType" value="Overall Lesson Delivery" onchange="toggleConcernOther(this.value)"> Overall Lesson Delivery</label>
+                      <label class="radio-chip"><input type="radio" name="concernType" value="Timecard incident" onchange="toggleConcernOther(this.value)"> Timecard Incident</label>
+                      <label class="radio-chip"><input type="radio" name="concernType" value="Other" onchange="toggleConcernOther(this.value)"> Other (specify below)</label>
+                    </div>
+                  </div>
+                  <div class="form-group" id="concernOtherWrap" style="display:none">
+                    <label class="form-lbl">Describe the concern type</label>
+                    <input type="text" id="f_concernOther" class="form-ctrl" placeholder="Describe…"/>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl req">Relevant historical details</label>
+                    <p class="form-hint">Include dates, prior feedback, specifics from this conversation, and any support offered to the employee.</p>
+                    <textarea id="f_history" class="form-ctrl" rows="6" placeholder="Provide full context here…"></textarea>
+                  </div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">Type of concern</label>
-                <div class="radio-group vertical">
-                  <label class="radio-opt"><input type="radio" name="concernType" value="Attendance" /> Attendance</label>
-                  <label class="radio-opt"><input type="radio" name="concernType" value="Lesson Plans" /> Lesson Plans</label>
-                  <label class="radio-opt"><input type="radio" name="concernType" value="Overall Lesson Delivery" /> Overall Lesson Delivery</label>
-                  <label class="radio-opt"><input type="radio" name="concernType" value="Timecard incident" /> Timecard Incident</label>
-                  <label class="radio-opt"><input type="radio" name="concernType" value="Other" /> Other</label>
+                <div class="form-actions">
+                  <button type="button" class="btn-back-form" onclick="goStep(2)">← Back</button>
+                  <button type="button" class="btn-next-form" onclick="goStep(4)">Continue →</button>
                 </div>
-              </div>
-              <div class="form-group" id="concernOtherField" style="display:none">
-                <label class="form-lbl">Explain concern context (if Other)</label>
-                <input type="text" id="f_concernOther" class="form-ctrl" placeholder="Describe…" />
-              </div>
-              <div class="form-group">
-                <label class="form-lbl required">Relevant historical details</label>
-                <p class="form-hint">Include dates, previous feedback, details from this conversation, and any support offered.</p>
-                <textarea id="f_history" class="form-ctrl" rows="5" placeholder="Provide full context here…"></textarea>
-              </div>
-              <div class="step-actions">
-                <button type="button" class="btn-back" onclick="goFormStep(2)">‹ Back</button>
-                <button type="button" class="btn-next" onclick="goFormStep(4)">Next ›</button>
               </div>
             </div>
 
-            <!-- STEP 4: Next Steps -->
-            <div class="form-section-block" id="cstep4">
-              <h3 class="section-title">Next Steps</h3>
-              <div class="form-group">
-                <label class="form-lbl required">Next steps requested from HR</label>
-                <div class="radio-group vertical">
-                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="On Watch" /> On Watch</label>
-                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="First Write Up - Employee Progress Report" /> First Write Up — Employee Progress Report</label>
-                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="Second Progress Report Report Needed" /> Second Progress Report Needed</label>
-                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="PGP" /> PGP (Performance Growth Plan)</label>
-                  <label class="radio-opt"><input type="radio" name="hrNextSteps" value="Recommended Termination" /> Recommended Termination</label>
+            <!-- STEP 4 -->
+            <div class="form-section" id="fs4">
+              <div class="form-card">
+                <div class="form-card-header">
+                  <div class="fch-title">Next Steps</div>
+                  <div class="fch-sub">What action is being requested from HR?</div>
                 </div>
-              </div>
-              <div class="form-group">
-                <label class="form-lbl">Additional context or next steps for HR</label>
-                <textarea id="f_nextStepsDesc" class="form-ctrl" rows="4" placeholder="Any additional details for HR…"></textarea>
-              </div>
-              <div class="form-group">
-                <div class="submit-confirm-box">
-                  <span>✅</span>
-                  <span>I confirm this information is accurate and understand it will be submitted directly to HR.</span>
+                <div class="form-card-body">
+                  <div class="form-group">
+                    <label class="form-lbl req">Next steps requested from HR</label>
+                    <div class="radio-chips vertical">
+                      <label class="radio-chip"><input type="radio" name="hrNextSteps" value="On Watch"> On Watch</label>
+                      <label class="radio-chip"><input type="radio" name="hrNextSteps" value="First Write Up - Employee Progress Report"> First Write Up — Employee Progress Report</label>
+                      <label class="radio-chip"><input type="radio" name="hrNextSteps" value="Second Progress Report Report Needed"> Second Progress Report Needed</label>
+                      <label class="radio-chip"><input type="radio" name="hrNextSteps" value="PGP"> PGP — Performance Growth Plan</label>
+                      <label class="radio-chip"><input type="radio" name="hrNextSteps" value="Recommended Termination">
+                        <span>Recommended Termination</span>
+                        <span style="font-size:.7rem;color:var(--notmet);font-weight:600;margin-left:.25rem">⚠ Contact HR immediately</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-lbl">Additional context or instructions for HR</label>
+                    <textarea id="f_nextStepsDesc" class="form-ctrl" rows="4" placeholder="Any additional details, urgency, or instructions for HR…"></textarea>
+                  </div>
+                  <div class="confirm-box">
+                    <span class="confirm-icon">🔒</span>
+                    <div>
+                      <strong>Confidential Submission</strong><br>
+                      I confirm this information is accurate and complete. This record will be submitted directly to Human Resources and logged securely.
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div id="submitError" class="submit-error" style="display:none"></div>
-              <div class="step-actions">
-                <button type="button" class="btn-back" onclick="goFormStep(3)">‹ Back</button>
-                <button type="button" class="btn-submit" id="submitBtn" onclick="submitConcernForm()">
-                  <span id="submitBtnText">Submit to HR</span>
-                  <div class="btn-spinner" id="submitSpinner" style="display:none"></div>
-                </button>
+                <div class="form-actions">
+                  <div class="form-error" id="submitError"></div>
+                  <button type="button" class="btn-back-form" onclick="goStep(3)">← Back</button>
+                  <button type="button" class="btn-submit-form" id="submitBtn" onclick="submitConcernForm()">
+                    <span id="submitBtnTxt">Submit to HR</span>
+                    <div class="btn-spinner" id="submitSpinner"></div>
+                  </button>
+                </div>
               </div>
             </div>
 
           </form>
         </div>
       </div>
-
-      <!-- ══ PERF CONCERNS (redirect to main form) ═══════════ -->
-      <div class="panel" id="panel-concern-perf">
-        <div class="page-header">
-          <h2>Performance Concern Reporting</h2>
-          <p>Use the concern form to document performance conversations. HR and Leadership have full access to all submissions.</p>
-        </div>
-        <div class="info-card" style="max-width:480px">
-          <div class="info-card-icon">📝</div>
-          <h3>Submit a Performance Concern</h3>
-          <p>The performance concern form is combined with program concerns for a streamlined experience.</p>
-          <button class="btn-primary" style="margin-top:.75rem" onclick="showPanel('concern-program', document.querySelector('[data-panel=concern-program]'))">
-            Open Concern Form →
-          </button>
-        </div>
-      </div>
-
-      <!-- ══ UPLOAD CENTER (Drive-based) ══════════════════════ -->
-      <div class="panel" id="panel-upload">
-        <div class="page-header">
-          <h2>Document Upload Center</h2>
-          <p>Submit documents to the NJTC policy library via Google Drive.</p>
-        </div>
-        <div class="upload-box">
-          <div class="upload-icon">📁</div>
-          <h3>Upload to Google Drive</h3>
-          <p>All NJTC policy documents are managed in Google Drive. Admins upload files directly to the shared folder, and they appear in the Policies Library automatically.</p>
-          <a class="btn-primary" href="https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG" target="_blank" rel="noopener">
-            Open NJTC Drive Folder ↗
-          </a>
-        </div>
-        <div class="instructions-box">
-          <h4>How to Add a Document to the Library</h4>
-          <ol>
-            <li>Upload your PDF or document to the NJTC Google Drive folder above.</li>
-            <li>Right-click the file → Share → change to "Anyone with the link (Viewer)".</li>
-            <li>Copy the File ID from the share URL (the long string between /d/ and /view).</li>
-            <li>Open <code>manifest.json</code> in the Drive folder and add a new entry with the title, department, date, description, and file ID.</li>
-            <li>The document will appear in the Policies Library within minutes.</li>
-          </ol>
-        </div>
-      </div>
-
-    </main>
-  </div>
-
-  <!-- Loading screen -->
-  <div id="loadingScreen" style="position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;">
-    <div style="text-align:center">
-      <div style="font-size:2rem;margin-bottom:.75rem">🔐</div>
-      <p style="color:var(--muted);font-size:.9375rem">Verifying access…</p>
     </div>
+
+    <!-- ══ PERFORMANCE (redirect) ════════════════════════════ -->
+    <div class="panel" id="panel-perf">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">HR Reporting</div>
+          <h2 class="ph-title">Performance Concerns</h2>
+          <p class="ph-subtitle">Use the unified concern form to document employee performance conversations.</p>
+        </div>
+      </div>
+      <div style="max-width:480px">
+        <div class="alert alert-info">
+          <span>ℹ️</span>
+          <div>Performance and program concerns are submitted through the same secure form, which routes automatically to HR.</div>
+        </div>
+        <button class="btn btn-primary" onclick="showPanel('concern',document.querySelector('[data-panel=concern]'))">
+          📝 Open Concern Form →
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Dept Connections Modal -->
+<div class="modal-overlay" id="connectionsModal" onclick="if(event.target===this)closeConnectionsModal()">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Department Connections</div>
+        <div class="modal-sub" id="modalSub">How your department connects with others to achieve annual goals</div>
+      </div>
+      <button class="modal-close" onclick="closeConnectionsModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"><!-- filled by JS --></div>
   </div>
+</div>
 
 <script src="../auth/auth.js?v=3"></script>
 <script src="../auth/central-guard.js?v=3"></script>
-  <script>
-
-  // ── Dept config ─────────────────────────────────────────
+<script>
+  // ══════════════════════════════════════════════════════════
+  //  DEPARTMENT CONFIGURATION
+  // ══════════════════════════════════════════════════════════
   const DEPT_CONFIG = {
     hr: {
-      label: 'Human Resources',
-      emoji: '👔',
-      subtitle: 'Protecting the organization and our people.',
+      label: 'Human Resources', emoji: '👔', color: '#e63946',
+      tagline: 'Protecting our people and the organization.',
+      goalPct: '78%',
+      connections: ['programming','data','training','leadership'],
       quickLinks: [
-        { icon: '📋', title: 'Performance Concern Form', desc: 'Document a performance conversation.', action: () => showPanel('concern-perf', document.querySelector('[data-panel="concern-perf"]')) },
-        { icon: '📁', title: 'HR Policies', desc: 'Access all HR policies and procedures.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
-        { icon: '📊', title: 'KPI: Culture Goals', desc: 'Staff retention and diversity targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '⚠️', title: 'Program Concerns', desc: 'Review escalations requiring HR action.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Document a performance conversation', panel: 'concern' },
+        { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Culture & retention goals', panel: 'kpi' },
+        { icon: '📚', label: 'HR Policies', bg: '#f3e8ff', desc: 'Access all HR documentation', panel: 'policies' },
+        { icon: '👥', label: 'Performance', bg: '#fff0e0', desc: 'Review concern submissions', panel: 'perf' },
       ]
     },
     finance: {
-      label: 'Finance',
-      emoji: '💰',
-      subtitle: 'Maintaining fiscal health and accountability.',
+      label: 'Finance', emoji: '💰', color: '#2a9d8f',
+      tagline: 'Maintaining fiscal health and accountability.',
+      goalPct: '85%',
+      connections: ['leadership','data','programming'],
       quickLinks: [
-        { icon: '📊', title: 'KPI: Funding Goals', desc: 'Philanthropic and fee-for-service targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '📁', title: 'Finance Policies', desc: 'Budget procedures and financial guidelines.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
-        { icon: '📤', title: 'Upload Reports', desc: 'Upload financial reports to the docs library.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+        { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Funding & financial goals', panel: 'kpi' },
+        { icon: '📚', label: 'Finance Policies', bg: '#e6f5ed', desc: 'Budget & financial guidelines', panel: 'policies' },
+        { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit financial documents', panel: 'upload' },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Report any concerns', panel: 'concern' },
       ]
     },
     programming: {
-      label: 'Programming',
-      emoji: '🎯',
-      subtitle: 'Delivering high-quality instructional programs.',
+      label: 'Programming', emoji: '🎯', color: '#457b9d',
+      tagline: 'Delivering high-quality instructional programs.',
+      goalPct: '71%',
+      connections: ['hr','data','training','finance'],
       quickLinks: [
-        { icon: '⚠️', title: 'Program Concerns', desc: 'Log and review site-level concerns.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
-        { icon: '📊', title: 'KPI: Scholar Impact', desc: 'Scholar growth and site targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '📁', title: 'Programming Policies', desc: 'Site operations and program procedures.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
-        { icon: '📤', title: 'Upload Site Docs', desc: 'Submit program-related documents.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Log site-level concerns', panel: 'concern' },
+        { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Scholar impact goals', panel: 'kpi' },
+        { icon: '📚', label: 'Site Policies', bg: '#e0f0ff', desc: 'Program procedures', panel: 'policies' },
+        { icon: '☁️', label: 'Upload Docs', bg: '#f6f8fc', desc: 'Submit program materials', panel: 'upload' },
       ]
     },
     data: {
-      label: 'Data & Evaluation',
-      emoji: '📈',
-      subtitle: 'Driving decisions through rigorous data.',
+      label: 'Data & Evaluation', emoji: '📈', color: '#7b2d8b',
+      tagline: 'Driving decisions through rigorous measurement.',
+      goalPct: '90%',
+      connections: ['programming','hr','leadership','training'],
       quickLinks: [
-        { icon: '📊', title: 'Full KPI Dashboard', desc: 'Review all organizational targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '📤', title: 'Upload Data Reports', desc: 'Submit evaluation CSVs or reports.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
-        { icon: '📁', title: 'Data Governance Docs', desc: 'Data policies and reporting frameworks.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📊', label: 'Full KPI Dashboard', bg: '#f3e8ff', desc: 'All organizational targets', panel: 'kpi' },
+        { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit evaluation data', panel: 'upload' },
+        { icon: '📚', label: 'Data Governance', bg: '#f3e8ff', desc: 'Data policies & frameworks', panel: 'policies' },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Report any concerns', panel: 'concern' },
       ]
     },
     training: {
-      label: 'Training & Development',
-      emoji: '🎓',
-      subtitle: 'Building staff capacity and growth.',
+      label: 'Training & Development', emoji: '🎓', color: '#e76f51',
+      tagline: 'Building staff capacity and educator pipelines.',
+      goalPct: '68%',
+      connections: ['hr','programming','data'],
       quickLinks: [
-        { icon: '📁', title: 'Training Materials', desc: 'Policies and procedures for PD.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
-        { icon: '📊', title: 'KPI: Pipeline Goals', desc: 'Educator pipeline and apprenticeship targets.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '📤', title: 'Upload PD Docs', desc: 'Submit training materials.', action: () => showPanel('upload', document.querySelector('[data-panel=upload]')) },
-        { icon: '⚠️', title: 'Program Concerns', desc: 'Training-related site concerns.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
+        { icon: '📚', label: 'Training Materials', bg: '#fff0e0', desc: 'PD policies & procedures', panel: 'policies' },
+        { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Pipeline & apprenticeship goals', panel: 'kpi' },
+        { icon: '☁️', label: 'Upload PD Docs', bg: '#f6f8fc', desc: 'Submit training materials', panel: 'upload' },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Log training concerns', panel: 'concern' },
       ]
     },
     leadership: {
-      label: 'Leadership',
-      emoji: '⭐',
-      subtitle: 'Organizational oversight and strategic direction.',
+      label: 'Leadership', emoji: '⭐', color: '#f0a500',
+      tagline: 'Organizational oversight and strategic direction.',
+      goalPct: '82%',
+      connections: ['hr','finance','data','programming','training'],
       quickLinks: [
-        { icon: '📊', title: 'KPI Targets', desc: 'Full organizational goal overview.', action: () => showPanel('kpi', document.querySelector('[data-panel=kpi]')) },
-        { icon: '⚠️', title: 'Program Concerns', desc: 'All open program concern issues.', action: () => showPanel('concern-program', document.querySelector('[data-panel="concern-program"]')) },
-        { icon: '👤', title: 'Performance Board', desc: 'HR triage board — full access.', action: () => showPanel('concern-perf', document.querySelector('[data-panel="concern-perf"]')) },
-        { icon: '📁', title: 'All Policies', desc: 'Organization-wide policy library.', action: () => showPanel('policies', document.querySelector('[data-panel=policies]')) },
+        { icon: '📊', label: 'KPI Targets', bg: '#fff7e0', desc: 'Full organizational overview', panel: 'kpi' },
+        { icon: '📚', label: 'All Policies', bg: '#f6f8fc', desc: 'Organization-wide library', panel: 'policies' },
+        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'All concern submissions', panel: 'concern' },
+        { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
       ]
     }
   };
 
-  // ── KPI Data (from CSV) ─────────────────────────────────
+  // Dept connection details — HOW and WHY departments connect
+  const DEPT_CONNECTIONS = {
+    hr: [
+      { with: 'programming', how: 'Performance pipeline support', why: 'HR processes concern submissions from Program Managers and coordinates corrective actions, directly impacting tutor retention and site consistency.', goals: ['Culture','Educator Pipeline'] },
+      { with: 'data', how: 'Staff retention analytics', why: 'Data & Evaluation provides HR with retention trend analysis, helping identify patterns before they escalate to formal concerns.', goals: ['Culture','Systems & Infrastructure'] },
+      { with: 'training', how: 'PGP design & PD alignment', why: 'When an employee enters a Performance Growth Plan, HR coordinates with T&D to ensure targeted professional development is available.', goals: ['Culture','Educator Pipeline'] },
+      { with: 'leadership', how: 'Strategic workforce decisions', why: 'Leadership depends on HR for termination reviews, succession planning, and workforce composition data to make board-level decisions.', goals: ['Culture','Board Development'] },
+    ],
+    finance: [
+      { with: 'leadership', how: 'Budget authorization & reporting', why: 'Finance provides monthly budget-to-actual reports to Leadership, which informs strategic deployment decisions and board presentations.', goals: ['Financial Health','Funding'] },
+      { with: 'data', how: 'Cost-per-scholar analysis', why: 'D&E and Finance collaborate to calculate cost-per-scholar metrics used in philanthropic pitches and fee-for-service contract negotiations.', goals: ['Fee-for-Service Growth','Funding'] },
+      { with: 'programming', how: 'Site staffing cost modeling', why: 'Finance models staffing costs for new sites before contract signing, ensuring financial viability of each programming deployment.', goals: ['Fee-for-Service Growth','Financial Health'] },
+    ],
+    programming: [
+      { with: 'hr', how: 'Staff performance & site compliance', why: 'Program Managers are the primary source of performance concern submissions. Their documentation drives HR's corrective action process.', goals: ['Culture','Educator Pipeline'] },
+      { with: 'data', how: 'Scholar outcome measurement', why: 'D&E designs assessments and collects outcome data from sites, which Programming uses to adjust instructional models mid-year.', goals: ['Increase Impact on Scholars','Partner Experience'] },
+      { with: 'training', how: 'Tutor skill development', why: 'When PM observations identify skill gaps, T&D receives that feedback to design targeted professional development sessions.', goals: ['Educator Pipeline','Increase Impact on Scholars'] },
+      { with: 'finance', how: 'Contract & site viability', why: 'Finance and Programming co-review site contracts to ensure pricing aligns with staffing and operational requirements.', goals: ['Fee-for-Service Growth'] },
+    ],
+    data: [
+      { with: 'programming', how: 'Real-time outcome feedback loops', why: 'D&E provides mid-year placement data to Programming, enabling instructional pivots before the end-of-year assessment window closes.', goals: ['Increase Impact on Scholars','Systems & Infrastructure'] },
+      { with: 'hr', how: 'Workforce analytics & trend reporting', why: 'D&E tracks staff retention rates, turnover patterns, and engagement signals that HR uses for proactive workforce planning.', goals: ['Culture','Systems & Infrastructure'] },
+      { with: 'leadership', how: 'Board KPI dashboards', why: 'D&E builds and maintains the organizational KPI infrastructure that Leadership presents to the board and uses for strategic decisions.', goals: ['Systems & Infrastructure','Board Development'] },
+      { with: 'training', how: 'Instructional quality measurement', why: 'D&E observation data informs T&D about which instructional competencies require the most PD investment across the tutor workforce.', goals: ['Educator Pipeline','Increase Impact on Scholars'] },
+    ],
+    training: [
+      { with: 'hr', how: 'Performance recovery programs', why: 'T&D designs and facilitates PGP learning plans that HR assigns to employees in corrective action, creating a bridge from discipline to growth.', goals: ['Culture','Educator Pipeline'] },
+      { with: 'programming', how: 'Skill-gap response & PD design', why: 'PM observation reports feed directly into T&D's curriculum planning — site-specific skill gaps become targeted PD sessions within the quarter.', goals: ['Educator Pipeline','Increase Impact on Scholars'] },
+      { with: 'data', how: 'Training effectiveness measurement', why: 'D&E measures PD impact by correlating training completion with scholar outcome changes, giving T&D evidence to improve program design.', goals: ['Educator Pipeline','Systems & Infrastructure'] },
+    ],
+    leadership: [
+      { with: 'hr', how: 'Workforce & culture oversight', why: 'Leadership reviews aggregate HR metrics — retention, open concerns, PGP active count — to gauge organizational health at board meetings.', goals: ['Culture','Board Development'] },
+      { with: 'finance', how: 'Strategic financial stewardship', why: 'Monthly finance reviews with Leadership ensure reserve targets, budget variances, and funder commitments stay aligned with strategic goals.', goals: ['Financial Health','Funding','Fee-for-Service Growth'] },
+      { with: 'data', how: 'Impact evidence for stakeholders', why: 'D&E provides Leadership with the impact evidence used in funder pitches, board presentations, and public communications.', goals: ['Funding','Brand Growth','Board Development'] },
+      { with: 'programming', how: 'Site growth & partner strategy', why: 'Leadership sets site expansion targets; Programming validates operational feasibility and quality standards before new contracts are signed.', goals: ['Fee-for-Service Growth','Partner Experience'] },
+      { with: 'training', how: 'Pipeline investment strategy', why: 'Leadership directs investment in the educator apprenticeship program based on T&D's pipeline data and labor market positioning.', goals: ['Educator Pipeline'] },
+    ],
+  };
+
+  const DEPT_COLORS = {
+    hr: '#e63946', finance: '#2a9d8f', programming: '#457b9d',
+    data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500'
+  };
+  const DEPT_ICONS = {
+    hr: '👔', finance: '💰', programming: '🎯',
+    data: '📈', training: '🎓', leadership: '⭐'
+  };
+  const DEPT_LABELS = {
+    hr: 'HR', finance: 'Finance', programming: 'Programming',
+    data: 'Data & Eval', training: 'Training', leadership: 'Leadership'
+  };
+
+  // ══════════════════════════════════════════════════════════
+  //  KPI DATA
+  // ══════════════════════════════════════════════════════════
   const KPI_DATA = [
     { goal: 'Increase Impact on Scholars', target: 'Serve 2,000 scholars annually by 2026', status: 'Partially Met' },
     { goal: 'Increase Impact on Scholars', target: 'Serve 35 sites annually by 2026', status: 'Met' },
@@ -1069,82 +1735,435 @@
     { goal: 'Brand Growth', target: 'Attend 5 South Jersey Chamber events', status: 'Partially Met' },
   ];
 
-
-  // ── Google Drive Document Library ──────────────────────
-  // SETUP: Create manifest.json in your Drive folder and paste its file ID below.
-  // Get file ID: share the file → copy the ID from the URL between /d/ and /view
+  // ══════════════════════════════════════════════════════════
+  //  POLICIES DATA (inline — Drive manifest overrides this)
+  // ══════════════════════════════════════════════════════════
   const DRIVE_MANIFEST_ID = 'REPLACE_WITH_YOUR_MANIFEST_JSON_FILE_ID';
 
-  const DOCS_DATA = [
-    { title: 'Employee Handbook', dept: 'hr', tag: 'HR', effectiveDate: 'Aug 2025', desc: 'Full NJTC employee handbook covering policies, procedures, and expectations.', file: null },
-    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', desc: 'Internal reporting standards, data ownership, and governance workflows.', file: null },
-    { title: 'Performance Evaluation System', dept: 'hr', tag: 'HR', effectiveDate: 'Nov 2025', desc: 'Revised performance evaluation rubrics and process documentation.', file: null },
-    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', desc: 'Step-by-step guide for escalating site-level program concerns.', file: null },
-    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', desc: 'Budget procedures, reimbursement policy, and financial accountability guidelines.', file: null },
-    { title: 'Training & PD Calendar', dept: 'training', tag: 'Training', effectiveDate: 'Sep 2025', desc: 'Required professional development schedule and compliance tracking.', file: null },
+  // Inline policies — shown immediately, replaced if Drive manifest loads
+  const POLICIES_INLINE = [
+    // HR
+    { title: 'Employee Handbook', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Aug 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Section 4 – Leave Policy', 'Section 7 – Remote Work'], desc: 'Full NJTC employee handbook covering policies, procedures, expectations, and code of conduct for all staff.', fileId: null, annualGoals: ['Culture'] },
+    { title: 'Performance Evaluation System', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Nov 2025', modifiedDate: null, sectionsModified: [], desc: 'Revised performance evaluation rubrics, observation forms, and process documentation for all staff roles.', fileId: null, annualGoals: ['Culture', 'Educator Pipeline'] },
+    { title: 'HR Concern & Documentation Protocol', dept: 'hr', tag: 'Human Resources', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Step-by-step guidance for documenting performance concerns, progressive discipline, and PGP administration.', fileId: null, annualGoals: ['Culture'] },
+    // Finance
+    { title: 'Budget & Financial Controls', dept: 'finance', tag: 'Finance', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Budget procedures, reimbursement policy, financial accountability guidelines, and approval workflows.', fileId: null, annualGoals: ['Financial Health', 'Funding'] },
+    { title: 'Grant Reporting Requirements', dept: 'finance', tag: 'Finance', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'Compliance requirements and timelines for all active grants including DOL, philanthropic, and fee-for-service.', fileId: null, annualGoals: ['Funding', 'Fee-for-Service Growth'] },
+    // Programming
+    { title: 'Program Concern Escalation Protocol', dept: 'programming', tag: 'Programming', effectiveDate: 'Sep 2025', modifiedDate: 'Dec 2025', sectionsModified: ['Section 2 – Escalation Triggers'], desc: 'Step-by-step guide for when and how to escalate site-level program concerns through the correct channels.', fileId: null, annualGoals: ['Partner Experience', 'Increase Impact on Scholars'] },
+    { title: 'Site Operations Handbook', dept: 'programming', tag: 'Programming', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Onsite operational standards, session delivery protocols, and tutor supervisory guidelines for all sites.', fileId: null, annualGoals: ['Increase Impact on Scholars'] },
+    // Data
+    { title: 'Data Governance Framework', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Dec 2025', modifiedDate: null, sectionsModified: [], desc: 'Internal reporting standards, data ownership definitions, access controls, and governance workflows for all data assets.', fileId: null, annualGoals: ['Systems & Infrastructure'] },
+    { title: 'Assessment & Progress Monitoring Guide', dept: 'data', tag: 'Data & Evaluation', effectiveDate: 'Sep 2025', modifiedDate: null, sectionsModified: [], desc: 'Protocols for benchmark assessment administration, score entry, and progress monitoring dashboard usage.', fileId: null, annualGoals: ['Increase Impact on Scholars', 'Systems & Infrastructure'] },
+    // Training
+    { title: 'Training & PD Calendar SY25-26', dept: 'training', tag: 'Training & Development', effectiveDate: 'Sep 2025', modifiedDate: 'Jan 2026', sectionsModified: ['Q3 Schedule Updates'], desc: 'Required professional development schedule, compliance tracking, and optional enrichment opportunities for all staff.', fileId: null, annualGoals: ['Educator Pipeline'] },
+    { title: 'Apprenticeship Program Guide', dept: 'training', tag: 'Training & Development', effectiveDate: 'Oct 2025', modifiedDate: null, sectionsModified: [], desc: 'DOL-registered apprenticeship program structure, participant requirements, and TAN integration pathway.', fileId: null, annualGoals: ['Educator Pipeline'] },
+    // Shared
+    { title: 'NJTC Organizational Chart SY25-26', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'Current organizational structure, reporting lines, and department contacts for the 2025-2026 school year.', fileId: null, annualGoals: ['Systems & Infrastructure'] },
+    { title: 'Communications & Brand Standards', dept: 'shared', tag: 'Organization-Wide', effectiveDate: 'Aug 2025', modifiedDate: null, sectionsModified: [], desc: 'NJTC brand voice guidelines, external communications standards, social media policy, and media relations protocol.', fileId: null, annualGoals: ['Brand Growth'] },
   ];
 
-  // ── Google Form submission ─────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  //  GOOGLE FORM
+  // ══════════════════════════════════════════════════════════
   const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSfBqQmfn4ZHyJ1-tv-ehKDyr-zD4RkBr5AfZ2QeJMpJFbFxHg/formResponse';
+
   const ENTRY = {
-    email:           'entry.1457676306',   // Q1  Email
-    submitterName:   'entry.580089576',    // Q2  NJTC Employee Name/Title
-    onBehalf:        'entry.1590438580',   // Q3  On behalf of someone? (Yes/No)
-    onBehalfOf:      'entry.1245652844',   // Q4  On behalf of whom
-    empName:         'entry.629932880',    // Q5  Employee Name
-    empRole:         'entry.2044182643',   // Q6  Employee Role (SC/Tutor/IC/etc)
-    empRoleOther:    'entry.1645253994',   // Q6b Role "Other" text
-    todayYear:       'entry.701375141_year',   // Q7 Today's Date
+    email:           'entry.1457676306',
+    submitterName:   'entry.580089576',
+    onBehalf:        'entry.1590438580',
+    onBehalfOf:      'entry.1245652844',
+    empName:         'entry.629932880',
+    empRole:         'entry.2044182643',
+    empRoleOther:    'entry.1645253994',
+    todayYear:       'entry.701375141_year',
     todayMonth:      'entry.701375141_month',
     todayDay:        'entry.701375141_day',
-    convYear:        'entry.651108769_year',   // Q8 Date Conversation Occurred
+    convYear:        'entry.651108769_year',
     convMonth:       'entry.651108769_month',
     convDay:         'entry.651108769_day',
-    firstOccurrence: 'entry.1911489470',   // Q9  First documented occurrence? (Yes/No)
-    supportType:     'entry.1990325444',   // Q10 Type of support documented
-    supportOther:    'entry.59727443',     // Q11 If Other support, describe
-    delivery:        'entry.232659604',    // Q12 How conversation delivered
-    empSite:         'entry.2070944320',   // Q13 Employee Site/Location
-    concernType:     'entry.2109849030',   // Q14 Type of concern
-    // Q15, Q16, Q18 are long text fields — get their IDs by submitting the live form
-    // with all 3 text areas filled in, then check Network tab > formResponse > Payload
-    concernOther:    'entry.TODO_Q15',     // Q15 If Other concern, explain
-    history:         'entry.TODO_Q16',     // Q16 Historical details (long text)
-    hrNextSteps:     'entry.1704854495',   // Q17 HR Next Steps requested
-    nextStepsDesc:   'entry.TODO_Q18',     // Q18 Additional next steps description
+    firstOccurrence: 'entry.1911489470',
+    supportType:     'entry.1990325444',
+    supportOther:    'entry.59727443',
+    delivery:        'entry.232659604',
+    empSite:         'entry.2070944320',
+    concernType:     'entry.2109849030',
+    concernOther:    'entry.TODO_Q15',
+    history:         'entry.TODO_Q16',
+    hrNextSteps:     'entry.1704854495',
+    nextStepsDesc:   'entry.TODO_Q18',
   };
 
-  let _concernStep = 1;
-
-  function goFormStep(n) {
-    if (n > _concernStep && !_validateConcernStep(_concernStep)) return;
-    document.getElementById('cstep' + _concernStep).classList.remove('active');
-    document.getElementById('cstep' + n).classList.add('active');
-    document.querySelectorAll('.form-step').forEach(s => {
-      const sn = parseInt(s.dataset.step);
-      s.classList.toggle('active', sn === n);
-      s.classList.toggle('completed', sn < n);
-    });
-    _concernStep = n;
-    const panel = document.getElementById('panel-concern-program');
-    if (panel) window.scrollTo({ top: panel.offsetTop - 80, behavior: 'smooth' });
+  // ══════════════════════════════════════════════════════════
+  //  PANEL SWITCHING
+  // ══════════════════════════════════════════════════════════
+  function showPanel(id, btn) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    const panel = document.getElementById('panel-' + id);
+    if (panel) panel.classList.add('active');
+    // Find the sidebar button if not passed
+    const linkEl = btn || document.querySelector(`[data-panel="${id}"]`);
+    if (linkEl) linkEl.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function _validateConcernStep(n) {
-    const errs = [];
-    if (n === 1) {
-      if (!document.getElementById('f_email').value.trim()) errs.push('Email is required.');
-      if (!document.getElementById('f_submitter').value.trim()) errs.push('Your name/title is required.');
+  // ══════════════════════════════════════════════════════════
+  //  STATUS HELPERS
+  // ══════════════════════════════════════════════════════════
+  function statusClass(s) {
+    return { 'Met':'s-met','In Progress':'s-progress','Partially Met':'s-partial','Coming Down the Pipeline':'s-pipeline','Has Not Met':'s-notmet' }[s] || 's-progress';
+  }
+  function statusEmoji(s) {
+    return { 'Met':'✅','In Progress':'🔵','Partially Met':'🟠','Coming Down the Pipeline':'🟣','Has Not Met':'🔴' }[s] || '⚪';
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  HOME PAGE
+  // ══════════════════════════════════════════════════════════
+  function buildHome(dept) {
+    const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
+
+    // Update header
+    document.getElementById('homeEyebrow').textContent = cfg.label;
+    document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
+    document.getElementById('homeSubtitle').textContent = cfg.tagline;
+
+    // Stats strip
+    const met = KPI_DATA.filter(k=>k.status==='Met').length;
+    const prog = KPI_DATA.filter(k=>k.status==='In Progress').length;
+    const partial = KPI_DATA.filter(k=>k.status==='Partially Met').length;
+    const notmet = KPI_DATA.filter(k=>k.status==='Has Not Met').length;
+    const pipe = KPI_DATA.filter(k=>k.status==='Coming Down the Pipeline').length;
+    document.getElementById('homeStatsStrip').innerHTML = `
+      <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
+        <div class="st-icon">✅</div>
+        <div class="st-value">${met}</div>
+        <div class="st-label">Goals Met</div>
+        <div class="st-sub">SY 2025–26</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
+        <div class="st-icon">🔵</div>
+        <div class="st-value">${prog}</div>
+        <div class="st-label">In Progress</div>
+        <div class="st-sub">Active tracking</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:var(--partial)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'))">
+        <div class="st-icon">🟠</div>
+        <div class="st-value">${partial}</div>
+        <div class="st-label">Partially Met</div>
+        <div class="st-sub">Needs attention</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:var(--pipeline)">
+        <div class="st-icon">🟣</div>
+        <div class="st-value">${pipe}</div>
+        <div class="st-label">Pipeline</div>
+        <div class="st-sub">Coming soon</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
+        <div class="st-icon">🔴</div>
+        <div class="st-value">${notmet}</div>
+        <div class="st-label">Not Met</div>
+        <div class="st-sub">Requires focus</div>
+      </div>
+    `;
+
+    // metBadge
+    document.getElementById('metBadge').textContent = met;
+
+    // Quick links
+    document.getElementById('homeQuickLinks').innerHTML = cfg.quickLinks.map(ql => `
+      <div class="ql-card" onclick="showPanel('${ql.panel}',document.querySelector('[data-panel=${ql.panel}]'))">
+        <div class="ql-icon-wrap" style="background:${ql.bg}">${ql.icon}</div>
+        <div class="ql-title">${ql.label}</div>
+        <div class="ql-desc">${ql.desc}</div>
+        <div class="ql-arrow">Go → </div>
+      </div>
+    `).join('');
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  SIDEBAR DEPT CARD + CONNECTIONS
+  // ══════════════════════════════════════════════════════════
+  function buildSidebarDept(dept) {
+    const cfg = DEPT_CONFIG[dept] || {};
+    document.getElementById('sdcDept').textContent = `${cfg.emoji || ''} ${cfg.label || dept}`;
+    document.getElementById('sdcTagline').textContent = cfg.tagline || '';
+    document.getElementById('sdcBar').style.setProperty('--pct', cfg.goalPct || '0%');
+
+    // Connections in sidebar (show 3 max)
+    const connections = cfg.connections || [];
+    const connList = document.getElementById('deptConnectionsList');
+    const deptConns = DEPT_CONNECTIONS[dept] || [];
+    connList.innerHTML = deptConns.slice(0,3).map(c => `
+      <div class="dc-item" onclick="openConnectionsModal('${dept}')">
+        <div class="dc-dot" style="background:${DEPT_COLORS[c.with]}"></div>
+        <div class="dc-text"><strong>${DEPT_LABELS[c.with]}</strong> · ${c.how}</div>
+      </div>
+    `).join('') + (deptConns.length === 0 ? '<div class="dc-text" style="color:rgba(255,255,255,.3)">No connections configured</div>' : '');
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  CONNECTIONS MODAL
+  // ══════════════════════════════════════════════════════════
+  let _currentDept = null;
+  function openConnectionsModal(dept) {
+    dept = dept || _currentDept;
+    const cfg = DEPT_CONFIG[dept] || {};
+    const conns = DEPT_CONNECTIONS[dept] || [];
+    document.getElementById('modalTitle').textContent = `${cfg.emoji || ''} ${cfg.label} Connections`;
+    document.getElementById('modalSub').textContent = `How ${cfg.label} connects with other departments to achieve annual goals`;
+    document.getElementById('modalBody').innerHTML = conns.map(c => `
+      <div class="connection-card">
+        <div class="cc-dot" style="background:${DEPT_COLORS[c.with]}20">
+          <span style="font-size:1.25rem">${DEPT_ICONS[c.with]}</span>
+        </div>
+        <div style="flex:1">
+          <div class="cc-dept">${DEPT_LABELS[c.with]}</div>
+          <div class="cc-how">${c.how}</div>
+          <div class="cc-why">${c.why}</div>
+          <div class="cc-goals">${c.goals.map(g=>`<span class="cc-goal-tag">📊 ${g}</span>`).join('')}</div>
+        </div>
+      </div>
+    `).join('');
+    document.getElementById('connectionsModal').classList.add('open');
+  }
+  function closeConnectionsModal() {
+    document.getElementById('connectionsModal').classList.remove('open');
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  KPI TABLE
+  // ══════════════════════════════════════════════════════════
+  function buildKPISummary() {
+    const counts = { Met:0, 'In Progress':0, 'Partially Met':0, 'Coming Down the Pipeline':0, 'Has Not Met':0 };
+    KPI_DATA.forEach(k => { if(counts[k.status]!==undefined) counts[k.status]++; });
+    const configs = [
+      { status:'Met', emoji:'✅', color:'var(--met)', bg:'var(--met-bg)' },
+      { status:'In Progress', emoji:'🔵', color:'var(--progress)', bg:'var(--prog-bg)' },
+      { status:'Partially Met', emoji:'🟠', color:'var(--partial)', bg:'var(--part-bg)' },
+      { status:'Coming Down the Pipeline', emoji:'🟣', color:'var(--pipeline)', bg:'var(--pipe-bg)' },
+      { status:'Has Not Met', emoji:'🔴', color:'var(--notmet)', bg:'var(--notm-bg)' },
+    ];
+    document.getElementById('kpiSummary').innerHTML = configs.map(c => `
+      <div class="kss-tile" onclick="setKpiFilter('${c.status}')" style="border-top:3px solid ${c.color}">
+        <div class="kss-num" style="color:${c.color}">${counts[c.status]}</div>
+        <div class="kss-label">${c.status}</div>
+      </div>
+    `).join('');
+
+    // Populate goal filter
+    const goals = [...new Set(KPI_DATA.map(k=>k.goal))];
+    const sel = document.getElementById('kpiGoalFilter');
+    goals.forEach(g => {
+      const o = document.createElement('option');
+      o.value = g; o.textContent = g;
+      sel.appendChild(o);
+    });
+  }
+
+  function setKpiFilter(status) {
+    document.getElementById('kpiStatusFilter').value = status;
+    filterKPI();
+  }
+
+  function buildKPI() { filterKPI(); }
+
+  function filterKPI() {
+    const goalF   = document.getElementById('kpiGoalFilter').value;
+    const statusF = document.getElementById('kpiStatusFilter').value;
+    const searchF = document.getElementById('kpiSearch').value.toLowerCase();
+    const filtered = KPI_DATA.filter(k =>
+      (!goalF   || k.goal   === goalF)   &&
+      (!statusF || k.status === statusF) &&
+      (!searchF || k.target.toLowerCase().includes(searchF) || k.goal.toLowerCase().includes(searchF))
+    );
+    // Group by goal
+    const groups = {};
+    filtered.forEach(k => { if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
+    let html = '';
+    Object.entries(groups).forEach(([goal, items]) => {
+      html += `<tr class="goal-group-header"><td colspan="3">${goal}</td></tr>`;
+      items.forEach(k => {
+        html += `<tr>
+          <td></td>
+          <td style="font-size:.875rem;color:var(--text)">${k.target}</td>
+          <td><span class="kpi-status ${statusClass(k.status)}">${statusEmoji(k.status)} ${k.status}</span></td>
+        </tr>`;
+      });
+    });
+    document.getElementById('kpiBody').innerHTML = html || '<tr><td colspan="3" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets</td></tr>';
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  POLICIES LIBRARY
+  // ══════════════════════════════════════════════════════════
+  let _allPolicies = POLICIES_INLINE;
+
+  async function buildPolicies(forceRefresh) {
+    const syncDot = document.getElementById('syncDot');
+    const syncText = document.getElementById('syncText');
+    syncDot.className = 'sync-dot loading';
+    syncText.innerHTML = 'Fetching latest documents from Google Drive…';
+
+    let docs = POLICIES_INLINE;
+    let fromDrive = false;
+
+    if (!DRIVE_MANIFEST_ID.startsWith('REPLACE')) {
+      try {
+        const url = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}&ts=${forceRefresh?Date.now():''}`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) {
+          const raw = await res.text();
+          const parsed = JSON.parse(raw);
+          docs = parsed.map(d => ({
+            ...d,
+            dept: d.dept || 'shared',
+            sectionsModified: d.sectionsModified || [],
+            annualGoals: d.annualGoals || [],
+          }));
+          fromDrive = true;
+        }
+      } catch(e) { /* use inline */ }
     }
-    if (n === 2) {
+
+    _allPolicies = docs;
+    if (fromDrive) {
+      syncDot.className = 'sync-dot';
+      syncText.innerHTML = `<strong>Live from Google Drive</strong> · ${docs.length} documents · Last refreshed ${new Date().toLocaleTimeString()}`;
+    } else {
+      syncDot.className = 'sync-dot error';
+      syncText.innerHTML = DRIVE_MANIFEST_ID.startsWith('REPLACE')
+        ? '<strong>Using built-in documents</strong> · Add your Drive manifest ID to enable auto-sync'
+        : '<strong>Drive unreachable</strong> · Showing built-in documents · <em>Check manifest.json permissions</em>';
+    }
+    renderPolicies();
+  }
+
+  function renderPolicies() {
+    const deptF  = document.getElementById('policyDeptFilter').value;
+    const search = document.getElementById('policySearch').value.toLowerCase();
+    const sort   = document.getElementById('policySort').value;
+
+    let docs = _allPolicies.filter(d =>
+      (!deptF  || d.dept === deptF) &&
+      (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search) || (d.tag||'').toLowerCase().includes(search))
+    );
+
+    if (sort === 'alpha')    docs = [...docs].sort((a,b) => a.title.localeCompare(b.title));
+    if (sort === 'modified') docs = [...docs].sort((a,b) => (b.modifiedDate||'') > (a.modifiedDate||'') ? 1 : -1);
+    if (sort === 'date')     docs = [...docs].sort((a,b) => (b.effectiveDate||'') > (a.effectiveDate||'') ? 1 : -1);
+
+    if (!docs.length) {
+      document.getElementById('policyContent').innerHTML = '<div class="alert alert-info"><span>ℹ️</span><div>No documents match your filter.</div></div>';
+      return;
+    }
+
+    let html = '';
+    if (sort === 'dept' && !deptF) {
+      // Group by dept
+      const DEPT_ORDER = ['shared','hr','finance','programming','data','training'];
+      const groups = {};
+      docs.forEach(d => { const dk = d.dept||'shared'; if(!groups[dk]) groups[dk]=[]; groups[dk].push(d); });
+      DEPT_ORDER.forEach(dk => {
+        if (!groups[dk]) return;
+        const color = DEPT_COLORS[dk] || '#888';
+        const icon = DEPT_ICONS[dk] || '📄';
+        const label = DEPT_LABELS[dk] || dk;
+        html += `<div class="dept-section-header">
+          <div class="dsh-icon" style="background:${color}18">${icon}</div>
+          <div class="dsh-title">${label}</div>
+          <div class="dsh-count">${groups[dk].length} document${groups[dk].length>1?'s':''}</div>
+        </div>
+        <div class="policy-grid" style="margin-bottom:1.5rem">
+          ${groups[dk].map(d=>policyCardHTML(d)).join('')}
+        </div>`;
+      });
+    } else {
+      html = `<div class="policy-grid">${docs.map(d=>policyCardHTML(d)).join('')}</div>`;
+    }
+    document.getElementById('policyContent').innerHTML = html;
+  }
+
+  function policyCardHTML(d) {
+    const color = DEPT_COLORS[d.dept] || '#888';
+    const url = d.fileId && !d.fileId.startsWith('REPLACE') && !d.fileId.startsWith('TODO')
+      ? `https://drive.google.com/file/d/${d.fileId}/view`
+      : null;
+    const modified = d.modifiedDate && d.sectionsModified && d.sectionsModified.length > 0;
+    const modTooltip = modified
+      ? `<div class="has-tooltip">
+          <span class="policy-changes-badge">📝 Updated ${d.modifiedDate}
+            <div class="tooltip-box">
+              <strong>Sections Modified:</strong><br>${d.sectionsModified.map(s=>`• ${s}`).join('<br>')}
+            </div>
+          </span>
+        </div>`
+      : '';
+    const goalTags = (d.annualGoals||[]).map(g =>
+      `<span class="has-tooltip" style="display:inline-block">
+        <span style="font-size:.6rem;font-weight:600;background:rgba(0,80,200,.07);color:var(--blue-mid);padding:.15rem .45rem;border-radius:4px;cursor:default">📊 ${g}</span>
+        <div class="tooltip-box" style="width:200px">Aligns with annual goal: <strong>${g}</strong></div>
+      </span>`
+    ).join('');
+
+    return `
+      <div class="policy-card">
+        <div class="policy-card-top">
+          <div class="policy-tag-group">
+            <div class="policy-dept-dot" style="background:${color}"></div>
+            <span class="policy-tag" style="background:${color}18;color:${color}">${d.tag || d.dept}</span>
+            ${modTooltip}
+          </div>
+          <span class="policy-modified">📅 ${d.effectiveDate||'—'}</span>
+        </div>
+        <div class="policy-title">${d.title}</div>
+        <div class="policy-desc">${d.desc||''}</div>
+        ${goalTags ? `<div style="display:flex;flex-wrap:wrap;gap:.375rem;margin-top:.625rem">${goalTags}</div>` : ''}
+        <div class="policy-footer">
+          <span class="policy-date">Effective ${d.effectiveDate||'—'}</span>
+          ${url ? `<a class="policy-link" href="${url}" target="_blank" rel="noopener">View ↗</a>`
+                : `<span class="policy-link-disabled">Coming soon</span>`}
+        </div>
+      </div>`;
+  }
+
+  function filterPolicies() { renderPolicies(); }
+
+  // ══════════════════════════════════════════════════════════
+  //  CONCERN FORM
+  // ══════════════════════════════════════════════════════════
+  let _step = 1;
+
+  function goStep(n) {
+    if (n > _step && !validateStep(_step)) return;
+    document.getElementById(`fs${_step}`).classList.remove('active');
+    document.getElementById(`fs${n}`).classList.add('active');
+    ['sp1','sp2','sp3','sp4'].forEach((id,i) => {
+      const el = document.getElementById(id);
+      el.classList.remove('active','completed');
+      if (i+1 === n) el.classList.add('active');
+      else if (i+1 < n) el.classList.add('completed');
+    });
+    _step = n;
+    document.querySelector('.form-wrapper').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+
+  function validateStep(n) {
+    const errs = [];
+    if (n===1) {
+      if (!document.getElementById('f_email').value.trim()) errs.push('Email is required.');
+      if (!document.getElementById('f_submitter').value.trim()) errs.push('Your name and title are required.');
+    }
+    if (n===2) {
       if (!document.getElementById('f_empName').value.trim()) errs.push('Employee name is required.');
       if (!document.getElementById('f_empRole').value) errs.push('Employee role is required.');
       if (!document.getElementById('f_empSite').value) errs.push('Employee site is required.');
       if (!document.getElementById('f_todayDate').value) errs.push("Today's date is required.");
-      if (!document.getElementById('f_convDate').value) errs.push('Conversation date is required.');
+      if (!document.getElementById('f_convDate').value) errs.push('Date conversation occurred is required.');
       if (!document.querySelector('input[name="firstOccurrence"]:checked')) errs.push('Please indicate if this is the first documented occurrence.');
     }
-    if (n === 3) {
+    if (n===3) {
       if (!document.querySelector('input[name="supportType"]:checked')) errs.push('Support type is required.');
       if (!document.querySelector('input[name="delivery"]:checked')) errs.push('Delivery method is required.');
       if (!document.querySelector('input[name="concernType"]:checked')) errs.push('Concern type is required.');
@@ -1155,297 +2174,121 @@
   }
 
   function toggleOnBehalf(val) {
-    document.getElementById('onBehalfField').style.display = val === 'Yes' ? 'block' : 'none';
+    document.getElementById('onBehalfField').style.display = val==='Yes' ? 'block' : 'none';
+  }
+  function toggleSupportOther(val) {
+    document.getElementById('supportOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+  }
+  function toggleConcernOther(val) {
+    document.getElementById('concernOtherWrap').style.display = val==='Other' ? 'block' : 'none';
   }
 
   function _parseDate(s) {
-    const [y, m, d] = (s || '').split('-');
-    return { year: y||'', month: m ? String(parseInt(m)) : '', day: d ? String(parseInt(d)) : '' };
+    const [y,m,d] = (s||'').split('-');
+    return { year:y||'', month:m?String(parseInt(m)):'', day:d?String(parseInt(d)):'' };
   }
 
   async function submitConcernForm() {
-    if (!_validateConcernStep(4)) return;
+    if (!validateStep(4)) return;
     if (!document.querySelector('input[name="hrNextSteps"]:checked')) {
-      document.getElementById('submitError').textContent = 'Please select HR next steps.';
-      document.getElementById('submitError').style.display = 'block';
+      const errEl = document.getElementById('submitError');
+      errEl.textContent = 'Please select the next steps requested from HR.';
+      errEl.style.display = 'block';
       return;
     }
     document.getElementById('submitError').style.display = 'none';
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    document.getElementById('submitBtnText').textContent = 'Submitting…';
+    document.getElementById('submitBtnTxt').textContent = 'Submitting…';
     document.getElementById('submitSpinner').style.display = 'inline-block';
 
     const td = _parseDate(document.getElementById('f_todayDate').value);
     const cd = _parseDate(document.getElementById('f_convDate').value);
     const params = new URLSearchParams();
-    params.append(ENTRY.email,           document.getElementById('f_email').value.trim());
-    params.append(ENTRY.submitterName,   document.getElementById('f_submitter').value.trim());
-    params.append(ENTRY.onBehalf,        document.querySelector('input[name="onBehalf"]:checked')?.value || 'No');
-    params.append(ENTRY.onBehalfOf,      document.getElementById('f_onBehalfOf').value.trim());
-    params.append(ENTRY.empName,         document.getElementById('f_empName').value.trim());
+    const g = (id) => document.getElementById(id)?.value?.trim() || '';
+    const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
+
+    params.append(ENTRY.email,           g('f_email'));
+    params.append(ENTRY.submitterName,   g('f_submitter'));
+    params.append(ENTRY.onBehalf,        r('onBehalf') || 'No');
+    params.append(ENTRY.onBehalfOf,      g('f_onBehalfOf'));
+    params.append(ENTRY.empName,         g('f_empName'));
     params.append(ENTRY.empRole,         document.getElementById('f_empRole').value);
-    params.append(ENTRY.empRoleOther,    document.getElementById('f_empRole').value === 'Other' ? document.getElementById('f_empRole').value : '');
+    params.append(ENTRY.empRoleOther,    document.getElementById('f_empRole').value === 'Other' ? '' : '');
     params.append(ENTRY.todayYear,       td.year);
     params.append(ENTRY.todayMonth,      td.month);
     params.append(ENTRY.todayDay,        td.day);
     params.append(ENTRY.convYear,        cd.year);
     params.append(ENTRY.convMonth,       cd.month);
-    params.append(ENTRY.convDay,         cd.day);    params.append(ENTRY.firstOccurrence, document.querySelector('input[name="firstOccurrence"]:checked')?.value || '');
-    params.append(ENTRY.supportType,     document.querySelector('input[name="supportType"]:checked')?.value || '');
-    params.append(ENTRY.supportOther,    document.getElementById('f_supportOther').value.trim());
-    params.append(ENTRY.delivery,        document.querySelector('input[name="delivery"]:checked')?.value || '');
+    params.append(ENTRY.convDay,         cd.day);
+    params.append(ENTRY.firstOccurrence, r('firstOccurrence'));
+    params.append(ENTRY.supportType,     r('supportType'));
+    params.append(ENTRY.supportOther,    g('f_supportOther'));
+    params.append(ENTRY.delivery,        r('delivery'));
     params.append(ENTRY.empSite,         document.getElementById('f_empSite').value);
-    params.append(ENTRY.concernType,     document.querySelector('input[name="concernType"]:checked')?.value || '');
-    params.append(ENTRY.concernOther,    document.getElementById('f_concernOther').value.trim());
-    params.append(ENTRY.history,         document.getElementById('f_history').value.trim());
-    params.append(ENTRY.hrNextSteps,     document.querySelector('input[name="hrNextSteps"]:checked')?.value || '');
-    params.append(ENTRY.nextStepsDesc,   document.getElementById('f_nextStepsDesc').value.trim());
+    params.append(ENTRY.concernType,     r('concernType'));
+    params.append(ENTRY.concernOther,    g('f_concernOther'));
+    params.append(ENTRY.history,         g('f_history'));
+    params.append(ENTRY.hrNextSteps,     r('hrNextSteps'));
+    params.append(ENTRY.nextStepsDesc,   g('f_nextStepsDesc'));
 
     try {
-      await fetch(FORM_ACTION, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
+      await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
       document.getElementById('formContainer').style.display = 'none';
       document.getElementById('formSuccess').style.display = 'block';
     } catch(e) {
-      document.getElementById('submitError').textContent = 'Submission failed. Please try again or contact your Program Manager.';
-      document.getElementById('submitError').style.display = 'block';
+      const errEl = document.getElementById('submitError');
+      errEl.textContent = 'Submission failed. Please try again or contact your Program Manager.';
+      errEl.style.display = 'block';
       btn.disabled = false;
-      document.getElementById('submitBtnText').textContent = 'Submit to HR';
+      document.getElementById('submitBtnTxt').textContent = 'Submit to HR';
       document.getElementById('submitSpinner').style.display = 'none';
     }
   }
 
   function resetConcernForm() {
     document.getElementById('concernForm').reset();
-    document.getElementById('onBehalfField').style.display = 'none';
-    document.getElementById('supportOtherField').style.display = 'none';
-    document.getElementById('concernOtherField').style.display = 'none';
+    ['onBehalfField','supportOtherWrap','concernOtherWrap'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
     document.getElementById('formContainer').style.display = 'block';
     document.getElementById('formSuccess').style.display = 'none';
     document.getElementById('submitBtn').disabled = false;
-    document.getElementById('submitBtnText').textContent = 'Submit to HR';
+    document.getElementById('submitBtnTxt').textContent = 'Submit to HR';
     document.getElementById('submitSpinner').style.display = 'none';
-    document.querySelectorAll('.form-step').forEach(s => { s.classList.remove('active','completed'); });
-    _concernStep = 1;
-    goFormStep(1);
+    document.getElementById('submitError').style.display = 'none';
+    _step = 1;
+    goStep(1);
   }
 
-  // Wire radio "other" toggles
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('input[name="supportType"]').forEach(r =>
-      r.addEventListener('change', () => {
-        document.getElementById('supportOtherField').style.display = r.value === 'Other' ? 'block' : 'none';
-      })
-    );
-    document.querySelectorAll('input[name="concernType"]').forEach(r =>
-      r.addEventListener('change', () => {
-        document.getElementById('concernOtherField').style.display = r.value === 'Other' ? 'block' : 'none';
-      })
-    );
-  });
-
-  // ── Helpers ──────────────────────────────────────────────
-  function statusClass(s) {
-    switch(s) {
-      case 'Met':                      return 'status-met';
-      case 'In Progress':              return 'status-progress';
-      case 'Partially Met':            return 'status-partial';
-      case 'Coming Down the Pipeline': return 'status-pipeline';
-      case 'Has Not Met':              return 'status-notmet';
-      default:                         return 'status-progress';
-    }
-  }
-  function statusEmoji(s) {
-    switch(s) {
-      case 'Met':                      return '✅';
-      case 'In Progress':              return '🔵';
-      case 'Partially Met':            return '🟠';
-      case 'Coming Down the Pipeline': return '🟣';
-      case 'Has Not Met':              return '🔴';
-      default:                         return '⚪';
-    }
-  }
-
-  // ── Panel switching ──────────────────────────────────────
-  function showPanel(id, linkEl) {
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-    const panel = document.getElementById('panel-' + id);
-    if (panel) panel.classList.add('active');
-    if (linkEl) linkEl.classList.add('active');
-    else {
-      const btn = document.querySelector(`[data-panel="${id}"]`);
-      if (btn) btn.classList.add('active');
-    }
-  }
-
-  // ── Build KPI table ──────────────────────────────────────
-  function buildKPI() {
-    const goals = [...new Set(KPI_DATA.map(k => k.goal))];
-    const sel = document.getElementById('kpiGoalFilter');
-    goals.forEach(g => {
-      const o = document.createElement('option');
-      o.value = g; o.textContent = g;
-      sel.appendChild(o);
-    });
-    renderKPI(KPI_DATA);
-  }
-
-  function renderKPI(data) {
-    const tbody = document.getElementById('kpiTbody');
-    tbody.innerHTML = data.map(row => `
-      <tr>
-        <td><span class="goal-group">${row.goal}</span></td>
-        <td>${row.target}</td>
-        <td><span class="kpi-status ${statusClass(row.status)}">${statusEmoji(row.status)} ${row.status}</span></td>
-      </tr>
-    `).join('');
-  }
-
-  function filterKPI() {
-    const goalF  = document.getElementById('kpiGoalFilter').value;
-    const statF  = document.getElementById('kpiStatusFilter').value;
-    const search = document.getElementById('kpiSearch').value.toLowerCase();
-    const filtered = KPI_DATA.filter(r =>
-      (!goalF  || r.goal === goalF) &&
-      (!statF  || r.status === statF) &&
-      (!search || r.target.toLowerCase().includes(search) || r.goal.toLowerCase().includes(search))
-    );
-    renderKPI(filtered);
-  }
-
-  // ── KPI summary stats ─────────────────────────────────────
-  function buildKPISummary() {
-    const counts = { Met: 0, 'In Progress': 0, 'Partially Met': 0, 'Coming Down the Pipeline': 0, 'Has Not Met': 0 };
-    KPI_DATA.forEach(r => counts[r.status] = (counts[r.status] || 0) + 1);
-    const row = document.getElementById('kpiSummaryRow');
-    row.innerHTML = [
-      { label: 'Goals Met', value: counts['Met'],          sub: 'On track',  cls: 'status-met' },
-      { label: 'In Progress', value: counts['In Progress'], sub: 'Active',    cls: 'status-progress' },
-      { label: 'Partial', value: counts['Partially Met'],   sub: 'Needs attention', cls: 'status-partial' },
-      { label: 'Has Not Met', value: counts['Has Not Met'], sub: 'Review needed', cls: 'status-notmet' },
-    ].map(t => `
-      <div class="stat-tile">
-        <div class="tile-label">${t.label}</div>
-        <div class="tile-value" style="font-size:1.5rem">${t.value}</div>
-        <div class="tile-sub">${t.sub}</div>
-      </div>
-    `).join('');
-  }
-
-  // ── buildPolicies: Google Drive manifest or static fallback ──
-  async function buildPolicies() {
-    let docs = DOCS_DATA;
-
-    // Try fetching from Drive manifest
-    if (!DRIVE_MANIFEST_ID.startsWith('REPLACE')) {
-      try {
-        const url = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}`;
-        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-        if (res.ok) {
-          const raw = await res.text();
-          const parsed = JSON.parse(raw);
-          // Convert fileId → full Drive URL
-          docs = parsed.map(d => ({
-            ...d,
-            file: d.fileId && !d.fileId.startsWith('REPLACE')
-              ? `https://drive.google.com/file/d/${d.fileId}/view`
-              : null
-          }));
-          // Show admin note for leadership/hr
-          const session = window.NJTC_SESSION;
-          if (session && ['hr','leadership','data'].includes(session.dept)) {
-            document.getElementById('driveAdminNote').style.display = 'block';
-          }
-        }
-      } catch(e) { /* use static fallback */ }
-    }
-
-    window._allDocs = docs;
-    renderPolicies(docs);
-  }
-
-  function renderPolicies(docs) {
-    const grid = document.getElementById('policyGrid');
-    if (!docs || docs.length === 0) {
-      document.getElementById('policyEmpty').style.display = 'block';
-      return;
-    }
-    grid.innerHTML = docs.map(d => `
-      <div class="policy-card" data-dept="${d.dept}" data-title="${d.title.toLowerCase()}">
-        <div class="policy-card-header">
-          <div class="policy-tag">${d.tag || d.dept}</div>
-          <div class="policy-date">${d.effectiveDate}</div>
-        </div>
-        <h4 class="policy-title">${d.title}</h4>
-        <p class="policy-desc">${d.desc}</p>
-        ${d.file
-          ? `<a class="policy-link" href="${d.file}" target="_blank" rel="noopener">View Document ↗</a>`
-          : `<span class="policy-link-disabled">Document coming soon</span>`
-        }
-      </div>
-    `).join('');
-  }
-
-  function filterPolicies() {
-    const docs = window._allDocs || DOCS_DATA;
-    const deptF  = document.getElementById('policyDeptFilter').value;
-    const search = document.getElementById('policySearch').value.toLowerCase();
-    const filtered = docs.filter(d =>
-      (!deptF  || d.dept === deptF) &&
-      (!search || d.title.toLowerCase().includes(search) || (d.desc||'').toLowerCase().includes(search))
-    );
-    if (!filtered.length) {
-      document.getElementById('policyGrid').innerHTML = '';
-      document.getElementById('policyEmpty').style.display = 'block';
-      return;
-    }
-    document.getElementById('policyEmpty').style.display = 'none';
-    renderPolicies(filtered);
-  }
-
-
-  // ── Build dept home quick links ──────────────────────────
-  function buildHomeQuickLinks(dept) {
-    const config = DEPT_CONFIG[dept] || DEPT_CONFIG['programming'];
-    document.getElementById('homeTitle').textContent = config.emoji + ' ' + config.label + ' Home';
-    document.getElementById('homeSubtitle').textContent = config.subtitle;
-
-    const grid = document.getElementById('quickLinksGrid');
-    grid.innerHTML = config.quickLinks.map(link => `
-      <div class="info-card">
-        <div class="info-card-icon">${link.icon}</div>
-        <h3>${link.title}</h3>
-        <p>${link.desc}</p>
-        <button class="info-card-link" onclick="(${link.action.toString()})()">
-          Go → 
-        </button>
-      </div>
-    `).join('');
-  }
-
-  // ── Perf concern dept gate ───────────────────────────────
-  function setupPerfSection(dept) {
-    // Panel simplified — form is now combined in panel-concern-program
-    // No legacy HR board elements remain; nothing to toggle
-  }
-
-  // ── Session timer ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════
+  //  SESSION TIMER + NAV DATE
+  // ══════════════════════════════════════════════════════════
   function startSessionTimer(exp) {
     function update() {
       const left = exp - Date.now();
       if (left <= 0) { NJTCAuth.logout(); return; }
-      const h = Math.floor(left / 3600000);
-      const m = Math.floor((left % 3600000) / 60000);
+      const h = Math.floor(left/3600000);
+      const m = Math.floor((left%3600000)/60000);
       document.getElementById('sessionTimer').textContent = `Session: ${h}h ${m}m`;
     }
     update();
     setInterval(update, 60000);
   }
 
-  // ── Init ─────────────────────────────────────────────────
+  function updateNavDate() {
+    const d = new Date();
+    document.getElementById('navDate').textContent = d.toLocaleDateString('en-US',{ weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  }
+
+  function setupPerfSection() { /* no legacy elements */ }
+
+  // ══════════════════════════════════════════════════════════
+  //  INIT
+  // ══════════════════════════════════════════════════════════
   async function init() {
-    // Wait for central-guard.js to set window.NJTC_SESSION
+    updateNavDate();
+
     await new Promise(resolve => {
       if (window.NJTC_SESSION) { resolve(); return; }
       const t = setInterval(() => {
@@ -1455,34 +2298,36 @@
     });
 
     const session = window.NJTC_SESSION;
-    if (!session) return; // guard already redirected
+    if (!session) return;
 
     const dept = session.dept;
-    const config = DEPT_CONFIG[dept] || {};
+    _currentDept = dept;
+    const cfg = DEPT_CONFIG[dept] || {};
 
-    // Update badge
-    document.getElementById('deptBadge').textContent = config.label || dept.toUpperCase();
+    // Nav badge
+    document.getElementById('deptBadge').textContent = cfg.label || dept.toUpperCase();
 
     // Session timer
     startSessionTimer(session.exp);
 
     // Build content
-    buildHomeQuickLinks(dept);
+    buildHome(dept);
+    buildSidebarDept(dept);
     buildKPISummary();
     buildKPI();
-    buildPolicies();
-    setupPerfSection(dept);
+    buildPolicies(false);
 
-    // Auto-fill today's date in the concern form
+    // Auto-fill today's date
     const today = new Date().toISOString().split('T')[0];
     const todayField = document.getElementById('f_todayDate');
     if (todayField) todayField.value = today;
 
+    // Show UI
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('ctLayout').style.display = 'grid';
   }
 
   init();
-  </script>
+</script>
 </body>
 </html>
