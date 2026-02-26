@@ -1,17 +1,13 @@
 /**
  * NJTC Onsite Portal Route Guard
- * Add <script src="/auth/auth.js"></script> BEFORE this file in onsite/index.html.
- * Drop this script as <script src="/auth/onsite-guard.js"></script>
- * immediately after auth.js — before ack-gate.js and script.js.
+ * Placed in onsite/index.html AFTER ../auth/auth.js and BEFORE ack-gate.js
  *
- * Effect: if user has no valid session OR session is not 'onsite' dept,
- * bounce them to the root login gate.
+ * If no valid onsite session exists, redirects to the root gate.
  */
 (async () => {
   const session = await NJTCAuth.currentSession();
   if (!session || session.dept !== 'onsite') {
-    // No valid onsite session — back to gate
-    window.location.replace('/index.html');
+    window.location.replace('/New-Jersey-Tutoring-Corps-Portal/index.html');
   }
-  // Valid session: allow ack-gate.js and script.js to run normally (unchanged)
+  // Valid onsite session — allow ack-gate.js and script.js to run normally
 })();
