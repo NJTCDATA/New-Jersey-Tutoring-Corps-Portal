@@ -3988,6 +3988,8 @@
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
 
+  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
+
   function _parseConcernsCSV(text) {
     const lines = text.split('\n').filter(l => l.trim());
     let hRow = -1;
@@ -4003,62 +4005,43 @@
       try { dt = new Date(cols[0].replace(/\"/g,'')); if (isNaN(dt.getTime())) continue; } catch(e) { continue; }
       const cType = (cols[13]||'').trim(), cOther = (cols[14]||'').trim();
       fresh.push({
-        ts: cols[0], month: dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
+        ts: cols[0],
+        month: dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
         yr: dt.getFullYear(), mo: dt.getMonth()+1,
-        submitter:(cols[2]||'').trim(), emp:(cols[5]||'').trim(), role:(cols[6]||'').trim(),
-        support_type:(cols[9]||'').trim(), delivery:(cols[11]||'').trim(),
-        site: normDistrict(cols[12]), concern_type: cType,
-        concern_label: (cType==='Other (please explain below)'&&cOther)?cOther:cType,
-        hr_action:(cols[17]||'').trim(), first_time:(cols[19]||'').trim(),
+        submitter:    (cols[2] ||'').trim(),
+        emp:          (cols[5] ||'').trim(),
+        role:         (cols[6] ||'').trim(),
+        support_type: (cols[9] ||'').trim(),
+        delivery:     (cols[11]||'').trim(),
+        site:         normDistrict(cols[12]),
+        concern_type: cType,
+        concern_label:(cType==='Other (please explain below)'&&cOther) ? cOther : cType,
+        hr_action:    (cols[17]||'').trim(),
+        first_time:   (cols[19]||'').trim(),
       });
     }
     return fresh;
   }
 
   async function fetchLiveConcerns() {
-    const cacheBust = '&t=' + Date.now();
-    const CSV_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
-    const CORS_PROXY = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(CSV_BASE);
-
-    const tryFetch = async (url) => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 10000);
-      try {
-        const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
-        clearTimeout(t);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return await res.text();
-      } finally { clearTimeout(t); }
-    };
-
-    // Strategy 1: Direct Google Sheets published CSV
+    // Exact same pattern as fetchAndRebuildKPI — plain fetch, AbortSignal.timeout, no extra headers
+    // The KPI sheet uses this pattern successfully; talent should behave identically
     try {
-      const text = await tryFetch(CSV_BASE + cacheBust);
-      const fresh = _parseConcernsCSV(text);
-      if (fresh.length > 0) {
-        CONCERNS = fresh;
-        _talentLiveStatus = 'live';
-        console.log('[Talent] Live data: ' + fresh.length + ' records');
-        return;
+      const url = TALENT_CSV_URL + (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh ? '&t=' + Date.now() : '');
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.ok) {
+        const text = await res.text();
+        const fresh = _parseConcernsCSV(text);
+        if (fresh.length > 0) {
+          CONCERNS = fresh;
+          _talentLiveStatus = 'live';
+          console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
+          return;
+        }
       }
     } catch(e) {
-      console.warn('[Talent] Direct CSV failed:', e.message);
+      console.warn('[Talent] Fetch failed:', e.message);
     }
-
-    // Strategy 2: CORS proxy fallback
-    try {
-      const text = await tryFetch(CORS_PROXY);
-      const fresh = _parseConcernsCSV(text);
-      if (fresh.length > 0) {
-        CONCERNS = fresh;
-        _talentLiveStatus = 'live';
-        console.log('[Talent] Proxy data: ' + fresh.length + ' records');
-        return;
-      }
-    } catch(e) {
-      console.warn('[Talent] Proxy CSV failed:', e.message);
-    }
-
     _talentLiveStatus = 'fallback';
     console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
   }
@@ -5750,7 +5733,10 @@
     el.innerHTML = '<div class="policy-loading-state"><div class="policy-loading-spinner"></div><div>Loading analytics…</div></div>';
     _talentLiveStatus = 'pending';
     _updateTalentBadge('pending');
+    // Signal whether this is a forced refresh (adds cache-bust param, same as KPI refresh)
+    window._talentForceRefresh = !!forceRefresh;
     try { await fetchLiveConcerns(); } catch(e) { _talentLiveStatus = 'fallback'; }
+    window._talentForceRefresh = false;
     _talentLoaded = true;
     _filteredConcerns = CONCERNS;
     _updateTalentBadge(_talentLiveStatus);
