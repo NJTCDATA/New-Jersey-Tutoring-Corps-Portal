@@ -1957,8 +1957,8 @@
           <p class="ph-subtitle">Live snapshot of performance concerns, site leader reviews, and retention indicators — shared across HR and Programming.</p>
         </div>
         <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center">
-          <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
-          <button class="btn btn-secondary btn-sm" onclick="buildTalentDashboard()" title="Refresh from Google Sheets">↺ Refresh</button>
+          <span id="talent-live-badge" class="live-badge" style="font-size:.7rem">LIVE DATA</span>
+          <button class="btn btn-secondary btn-sm" onclick="buildTalentDashboard(true)" title="Force refresh from Google Sheets">↺ Refresh</button>
           <a class="btn btn-gold btn-sm" href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pubhtml" target="_blank" rel="noopener" style="text-decoration:none;font-size:.8125rem">View Sheet ↗</a>
         </div>
       </div>
@@ -3410,8 +3410,9 @@
         return JSON.parse(raw);
       };
 
+      // Apps Script removed from strategy chain — causes CORS errors on GitHub Pages.
+      // GitHub raw is the primary source; CORS proxy is fallback.
       const strategies = [
-        ...(APPS_SCRIPT_URL ? [{ label: 'Apps Script', url: APPS_SCRIPT_URL }] : []),
         { label: 'GitHub', url: GITHUB_MANIFEST_URL },
         { label: 'CORS Proxy', url: CORS_PROXY_URL },
       ];
@@ -3984,40 +3985,84 @@
     if (l.includes('belleville')) return 'Belleville Public Schools';
     return raw.trim();
   }
-  async function fetchLiveConcerns() {
-    const URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 8000);
-      const res = await fetch(URL, { signal: ctrl.signal });
-      clearTimeout(t);
-      if (!res.ok) return;
-      const text = await res.text();
-      const lines = text.split('\n').filter(l => l.trim());
-      let hRow = -1;
-      for (let i = 0; i < Math.min(5, lines.length); i++) {
-        if (lines[i].toLowerCase().includes('timestamp')) { hRow = i; break; }
-      }
-      if (hRow < 0) return;
-      const fresh = [];
-      for (let i = hRow + 1; i < lines.length; i++) {
-        const cols = parseCSVLine(lines[i]);
-        if (!cols[0]) continue;
-        let dt; try { dt = new Date(cols[0].replace(/"/g,'')); if (isNaN(dt.getTime())) continue; } catch(e) { continue; }
-        const cType = (cols[13]||'').trim(), cOther = (cols[14]||'').trim();
-        fresh.push({
-          ts: cols[0], month: dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
-          yr: dt.getFullYear(), mo: dt.getMonth()+1,
-          submitter:(cols[2]||'').trim(), emp:(cols[5]||'').trim(), role:(cols[6]||'').trim(),
-          support_type:(cols[9]||'').trim(), delivery:(cols[11]||'').trim(),
-          site: normDistrict(cols[12]), concern_type: cType,
-          concern_label: (cType==='Other (please explain below)'&&cOther)?cOther:cType,
-          hr_action:(cols[17]||'').trim(), first_time:(cols[19]||'').trim(),
-        });
-      }
-      if (fresh.length > 10) { CONCERNS = fresh; }
-    } catch(e) {}
+  // ── Talent live-data status ─────────────────────────────────────────────────
+  let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
+
+  function _parseConcernsCSV(text) {
+    const lines = text.split('\n').filter(l => l.trim());
+    let hRow = -1;
+    for (let i = 0; i < Math.min(5, lines.length); i++) {
+      if (lines[i].toLowerCase().includes('timestamp')) { hRow = i; break; }
+    }
+    if (hRow < 0) return [];
+    const fresh = [];
+    for (let i = hRow + 1; i < lines.length; i++) {
+      const cols = parseCSVLine(lines[i]);
+      if (!cols[0]) continue;
+      let dt;
+      try { dt = new Date(cols[0].replace(/\"/g,'')); if (isNaN(dt.getTime())) continue; } catch(e) { continue; }
+      const cType = (cols[13]||'').trim(), cOther = (cols[14]||'').trim();
+      fresh.push({
+        ts: cols[0], month: dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
+        yr: dt.getFullYear(), mo: dt.getMonth()+1,
+        submitter:(cols[2]||'').trim(), emp:(cols[5]||'').trim(), role:(cols[6]||'').trim(),
+        support_type:(cols[9]||'').trim(), delivery:(cols[11]||'').trim(),
+        site: normDistrict(cols[12]), concern_type: cType,
+        concern_label: (cType==='Other (please explain below)'&&cOther)?cOther:cType,
+        hr_action:(cols[17]||'').trim(), first_time:(cols[19]||'').trim(),
+      });
+    }
+    return fresh;
   }
+
+  async function fetchLiveConcerns() {
+    const cacheBust = '&t=' + Date.now();
+    const CSV_BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(CSV_BASE);
+
+    const tryFetch = async (url) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      try {
+        const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(t);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.text();
+      } finally { clearTimeout(t); }
+    };
+
+    // Strategy 1: Direct Google Sheets published CSV
+    try {
+      const text = await tryFetch(CSV_BASE + cacheBust);
+      const fresh = _parseConcernsCSV(text);
+      if (fresh.length > 0) {
+        CONCERNS = fresh;
+        _talentLiveStatus = 'live';
+        console.log('[Talent] Live data: ' + fresh.length + ' records');
+        return;
+      }
+    } catch(e) {
+      console.warn('[Talent] Direct CSV failed:', e.message);
+    }
+
+    // Strategy 2: CORS proxy fallback
+    try {
+      const text = await tryFetch(CORS_PROXY);
+      const fresh = _parseConcernsCSV(text);
+      if (fresh.length > 0) {
+        CONCERNS = fresh;
+        _talentLiveStatus = 'live';
+        console.log('[Talent] Proxy data: ' + fresh.length + ' records');
+        return;
+      }
+    } catch(e) {
+      console.warn('[Talent] Proxy CSV failed:', e.message);
+    }
+
+    _talentLiveStatus = 'fallback';
+    console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
+  }
+
   function countBy(arr, key) {
     const map = {};
     arr.forEach(r => { const v=r[key]||'Unknown'; map[v]=(map[v]||0)+1; });
@@ -5703,11 +5748,29 @@
     if (!el) return;
     if (_talentLoaded && !forceRefresh) { buildTalentContent(); return; }
     el.innerHTML = '<div class="policy-loading-state"><div class="policy-loading-spinner"></div><div>Loading analytics…</div></div>';
-    try { await fetchLiveConcerns(); } catch(e) {}
+    _talentLiveStatus = 'pending';
+    _updateTalentBadge('pending');
+    try { await fetchLiveConcerns(); } catch(e) { _talentLiveStatus = 'fallback'; }
     _talentLoaded = true;
     _filteredConcerns = CONCERNS;
+    _updateTalentBadge(_talentLiveStatus);
     initTalentFilters();
     initTalentTabsForDept(_currentDept || 'hr');
+  }
+
+  function _updateTalentBadge(status) {
+    const badge = document.getElementById('talent-live-badge');
+    if (!badge) return;
+    if (status === 'live') {
+      badge.style.cssText = 'font-size:.7rem;color:#0d6e3a;background:#d1fae5';
+      badge.textContent = 'LIVE DATA';
+    } else if (status === 'fallback') {
+      badge.style.cssText = 'font-size:.7rem;color:#92400e;background:#fef3c7';
+      badge.textContent = 'BUILT-IN DATA';
+    } else {
+      badge.style.cssText = 'font-size:.7rem;color:#1d4ed8;background:#dbeafe';
+      badge.textContent = 'LOADING…';
+    }
   }
 
 </script>
