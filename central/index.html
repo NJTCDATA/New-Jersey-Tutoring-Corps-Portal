@@ -4024,23 +4024,33 @@
   }
 
   async function fetchLiveConcerns() {
-    // Exact same pattern as fetchAndRebuildKPI — plain fetch, AbortSignal.timeout, no extra headers
-    // The KPI sheet uses this pattern successfully; talent should behave identically
     try {
       const url = TALENT_CSV_URL + (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh ? '&t=' + Date.now() : '');
+      console.log('[Talent] Fetching:', url);
       const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      console.log('[Talent] Response status:', res.status, res.ok, 'type:', res.type);
+      console.log('[Talent] Content-Type:', res.headers.get('content-type'));
+      const text = await res.text();
+      console.log('[Talent] Body length:', text.length, '| First 300 chars:', text.substring(0, 300));
       if (res.ok) {
-        const text = await res.text();
         const fresh = _parseConcernsCSV(text);
+        console.log('[Talent] Parsed rows:', fresh.length);
         if (fresh.length > 0) {
           CONCERNS = fresh;
           _talentLiveStatus = 'live';
           console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           return;
+        } else {
+          console.warn('[Talent] Parsed 0 rows — checking CSV structure...');
+          const lines = text.split('\n');
+          console.log('[Talent] Total lines:', lines.length, '| Line 0:', lines[0]);
+          console.log('[Talent] Line 1:', lines[1] || '(empty)');
         }
+      } else {
+        console.warn('[Talent] res.ok false, status:', res.status);
       }
     } catch(e) {
-      console.warn('[Talent] Fetch failed:', e.message);
+      console.warn('[Talent] Fetch exception:', e.name, e.message);
     }
     _talentLiveStatus = 'fallback';
     console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
