@@ -3988,7 +3988,14 @@
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
 
-  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
+  // Base publish ID for the talent/concerns spreadsheet
+  const TALENT_PUBLISH_ID = '2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy';
+  // gid targets the Form Responses tab specifically.
+  // To find yours: open the sheet, click the Form Responses tab, copy the gid= from the URL.
+  // Common gids to try if unknown: 0, 349377450, 1802291282
+  // The summary/graphs tab (currently tab 0) is NOT the responses sheet.
+  const TALENT_CSV_GIDS = ['0', '349377450', '1802291282', '1560731783', '1'];
+  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/' + TALENT_PUBLISH_ID + '/pub?output=csv';
 
   function _parseConcernsCSV(text) {
     const lines = text.split('\n').filter(l => l.trim());
@@ -4024,36 +4031,38 @@
   }
 
   async function fetchLiveConcerns() {
-    try {
-      const url = TALENT_CSV_URL + (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh ? '&t=' + Date.now() : '');
-      console.log('[Talent] Fetching:', url);
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      console.log('[Talent] Response status:', res.status, res.ok, 'type:', res.type);
-      console.log('[Talent] Content-Type:', res.headers.get('content-type'));
-      const text = await res.text();
-      console.log('[Talent] Body length:', text.length, '| First 300 chars:', text.substring(0, 300));
-      if (res.ok) {
+    const cacheBust = (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh) ? '&t=' + Date.now() : '';
+
+    // Try each gid until we find one whose first row contains 'timestamp'
+    // (that's the Form Responses sheet, not the summary/graphs tab)
+    for (const gid of TALENT_CSV_GIDS) {
+      const url = TALENT_CSV_URL + '&gid=' + gid + cacheBust;
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) continue;
+        const text = await res.text();
+        const firstLine = text.split('\n')[0].toLowerCase();
+        if (!firstLine.includes('timestamp')) {
+          // This tab is not the form responses — skip it
+          console.log('[Talent] gid=' + gid + ' is not responses tab (first line: ' + text.split('\n')[0].substring(0, 60) + ')');
+          continue;
+        }
         const fresh = _parseConcernsCSV(text);
-        console.log('[Talent] Parsed rows:', fresh.length);
         if (fresh.length > 0) {
           CONCERNS = fresh;
           _talentLiveStatus = 'live';
-          console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
+          console.log('[Talent] Live — gid=' + gid + ' — ' + fresh.length + ' records');
           return;
-        } else {
-          console.warn('[Talent] Parsed 0 rows — checking CSV structure...');
-          const lines = text.split('\n');
-          console.log('[Talent] Total lines:', lines.length, '| Line 0:', lines[0]);
-          console.log('[Talent] Line 1:', lines[1] || '(empty)');
         }
-      } else {
-        console.warn('[Talent] res.ok false, status:', res.status);
+      } catch(e) {
+        console.warn('[Talent] gid=' + gid + ' failed:', e.message);
       }
-    } catch(e) {
-      console.warn('[Talent] Fetch exception:', e.name, e.message);
     }
+
     _talentLiveStatus = 'fallback';
-    console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
+    console.warn('[Talent] Could not find Form Responses tab. ' +
+      'Open the sheet, click the Form Responses tab, copy the gid from the URL, ' +
+      'and add it to TALENT_CSV_GIDS. Using built-in seed data: ' + CONCERNS.length + ' records');
   }
 
   function countBy(arr, key) {
