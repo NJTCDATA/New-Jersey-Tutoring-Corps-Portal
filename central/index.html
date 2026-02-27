@@ -1959,7 +1959,7 @@
         <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center">
           <span id="talent-live-badge" class="live-badge" style="font-size:.7rem">LIVE DATA</span>
           <button class="btn btn-secondary btn-sm" onclick="buildTalentDashboard(true)" title="Force refresh from Google Sheets">↺ Refresh</button>
-          <a class="btn btn-gold btn-sm" href="https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pubhtml" target="_blank" rel="noopener" style="text-decoration:none;font-size:.8125rem">View Sheet ↗</a>
+          <a class="btn btn-gold btn-sm" href="https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/edit?gid=274671201#gid=274671201" target="_blank" rel="noopener" style="text-decoration:none;font-size:.8125rem">View Sheet ↗</a>
         </div>
       </div>
       <!-- Dept toggle -->
@@ -3988,14 +3988,11 @@
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
 
-  // Base publish ID for the talent/concerns spreadsheet
-  const TALENT_PUBLISH_ID = '2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy';
-  // gid targets the Form Responses tab specifically.
-  // To find yours: open the sheet, click the Form Responses tab, copy the gid= from the URL.
-  // Common gids to try if unknown: 0, 349377450, 1802291282
-  // The summary/graphs tab (currently tab 0) is NOT the responses sheet.
-  const TALENT_CSV_GIDS = ['0', '349377450', '1802291282', '1560731783', '1'];
-  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/' + TALENT_PUBLISH_ID + '/pub?output=csv';
+  // Direct export URL using actual spreadsheet ID + confirmed gid for Form Responses 1 tab
+  // Sheet ID: 1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k
+  // Form Responses gid: 274671201  (confirmed from sheet URL)
+  const TALENT_CSV_GIDS = ['274671201'];
+  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/export?format=csv';
 
   function _parseConcernsCSV(text) {
     const lines = text.split('\n').filter(l => l.trim());
@@ -4031,38 +4028,27 @@
   }
 
   async function fetchLiveConcerns() {
+    // Direct export URL: sheet ID + gid=274671201 (Form Responses 1 tab)
+    // Same fetch pattern as KPI — plain fetch, AbortSignal.timeout, no extra headers
     const cacheBust = (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh) ? '&t=' + Date.now() : '';
-
-    // Try each gid until we find one whose first row contains 'timestamp'
-    // (that's the Form Responses sheet, not the summary/graphs tab)
-    for (const gid of TALENT_CSV_GIDS) {
-      const url = TALENT_CSV_URL + '&gid=' + gid + cacheBust;
-      try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-        if (!res.ok) continue;
+    const url = TALENT_CSV_URL + '&gid=' + TALENT_CSV_GIDS[0] + cacheBust;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (res.ok) {
         const text = await res.text();
-        const firstLine = text.split('\n')[0].toLowerCase();
-        if (!firstLine.includes('timestamp')) {
-          // This tab is not the form responses — skip it
-          console.log('[Talent] gid=' + gid + ' is not responses tab (first line: ' + text.split('\n')[0].substring(0, 60) + ')');
-          continue;
-        }
         const fresh = _parseConcernsCSV(text);
         if (fresh.length > 0) {
           CONCERNS = fresh;
           _talentLiveStatus = 'live';
-          console.log('[Talent] Live — gid=' + gid + ' — ' + fresh.length + ' records');
+          console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           return;
         }
-      } catch(e) {
-        console.warn('[Talent] gid=' + gid + ' failed:', e.message);
       }
+    } catch(e) {
+      console.warn('[Talent] Fetch failed:', e.message);
     }
-
     _talentLiveStatus = 'fallback';
-    console.warn('[Talent] Could not find Form Responses tab. ' +
-      'Open the sheet, click the Form Responses tab, copy the gid from the URL, ' +
-      'and add it to TALENT_CSV_GIDS. Using built-in seed data: ' + CONCERNS.length + ' records');
+    console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
   }
 
   function countBy(arr, key) {
