@@ -3988,11 +3988,10 @@
   // ── Talent live-data status ─────────────────────────────────────────────────
   let _talentLiveStatus = 'pending'; // 'live' | 'fallback' | 'pending'
 
-  // Direct export URL using actual spreadsheet ID + confirmed gid for Form Responses 1 tab
-  // Sheet ID: 1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k
-  // Form Responses gid: 274671201  (confirmed from sheet URL)
+  // Published CSV URL — must use pub?output=csv (not /export which requires login)
+  // Base URL targets Form Responses tab via gid=274671201
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/export?format=csv';
+  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
 
   function _parseConcernsCSV(text) {
     const lines = text.split('\n').filter(l => l.trim());
