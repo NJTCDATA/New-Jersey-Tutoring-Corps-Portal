@@ -8118,6 +8118,7 @@
           ${students.length === 0 && instructors.length === 0 ? '<div style="text-align:center;padding:2rem;color:var(--muted)">No records found for selected filters</div>' : ''}
         </div>`;
     }
+    function renderSessionsTab(sc) {
       const sessions = sc.sessions.sort((a,b) => new Date(b.start) - new Date(a.start)).slice(0, 100);
       const rows = sessions.map(s => {
         const statusColor = s.status === 'Completed' ? 'var(--met)' : s.status === 'Missed' ? 'var(--notmet)' : 'var(--partial)';
