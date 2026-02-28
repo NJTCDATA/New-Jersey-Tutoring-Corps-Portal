@@ -1979,10 +1979,12 @@
 
       <!-- Executive Stats Strip -->
       <div class="stats-strip" id="poStatsStrip">
-        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Overall Attendance</div><div class="st-sub">Scholar rate</div></div>
+        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub" id="poStatAttSub">Scholar rate</div></div>
+        <div class="stat-tile" style="--accent-color:#0ea5e9"><div class="st-icon">🎓</div><div class="st-value" id="poStatInstAtt">—</div><div class="st-label">Tutor Attendance</div><div class="st-sub">Tutor rate</div></div>
         <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">vs total scheduled</div></div>
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
-        <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurvey">—</div><div class="st-label">Avg Survey Score</div><div class="st-sub">Scholar + Instructor</div></div>
+        <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
+        <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub">Engagement · Quality · Overall</div></div>
         <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">🚩</div><div class="st-value" id="poStatFlags">—</div><div class="st-label">HIT Flags</div><div class="st-sub">Compliance issues</div></div>
       </div>
 
@@ -6677,7 +6679,7 @@
   //    📊 DATA QUALITY:          Attendance Status = "Not recorded"
   //
   //  HIT COMPLIANCE FLAGS:
-  //    RATIO:      > 3 students per session → flag (check MOU)
+  //    RATIO:      > 4 students per session → flag (check MOU) — 1:4 max
   //    FREQUENCY:  Scholar attended < 2 sessions in a week → flag
   //    CONTINUITY: Scholar has 2+ different instructors → flag
   //    CONSECUTIVE:Col Y (idx 24) = "Attendance Concern" → flag
@@ -6705,37 +6707,59 @@
 
     // ── COLUMN INDEXES — ATTENDANCE DETAIL (read ONLY cols 0–31 / A–AF) ──
     const ATT = {
-      // ── Missed Reasons tab (Tab 4 of new sheet) ──────────────────────
-      // Raw data — no pre-calculated columns. 14 columns (idx 0-13).
-      USER: 0,          // A  User (display name)
-      ROLE: 1,          // B  Student | Instructor
-      SESSION: 2,       // C  Session title
-      SESS_STATUS: 3,   // D  Session Status
-      PLAN_START: 4,    // E  Planned Session Start (time)
-      SESS_DATE: 5,     // F  Session Date (datetime) ← week is derived from this
-      ATT_STATUS: 6,    // G  Attendance Status
-      MISS_REASON: 7,   // H  Attendance Missed Reason
-      GRADE: 8,         // I  Grade
-      SEX: 9,           // J  Sex
-      RACE: 10,         // K  Race
-      SCHOOL: 11,       // L  School
-      DISTRICT: 12,     // M  District
-      USER_ID: 13,      // N  Pearl User ID
-      // NOTE: No WEEK column — derived from SESS_DATE at parse time (see parseAttRow)
-      // NOTE: No CONSEC_STATUS column — computed from per-person row history
-      // NOTE: No VACANT_ID column — vacancy detected via missReason === 'Tutor Vacancy'
+      USER: 0,           // A  User name
+      ROLE: 1,           // B  Student | Instructor
+      SESSION: 2,        // C  Session title
+      SESS_STATUS: 3,    // D  Session Status
+      PLAN_START: 4,     // E  Planned Session Start
+      SESS_DATE: 5,      // F  Session Date  (MM/DD/YYYY)
+      ATT_STATUS: 6,     // G  Attendance Status
+      MISS_REASON: 7,    // H  Attendance Missed Reason
+      GRADE: 8,          // I  Grade
+      SEX: 9,            // J  Sex
+      RACE: 10,          // K  Race
+      SCHOOL: 11,        // L  School
+      DISTRICT: 12,      // M  District
+      USER_ID: 13,       // N  Pearl User ID
+      IND_ATT_RATE: 14,  // O  Individual Attendance Rate %
+      SCHOLAR_ATT_PCT: 15, // P Scholar Attendance %
+      AVG_ATT: 16,       // Q  Tutors+Scholars avg attendance %
+      STU_AVG_ATT: 17,   // R  Student Average Attendance %
+      INST_AVG: 18,      // S  Instructor Average Attendance %
+      STU_ATT_CNT: 19,   // T  Student Attended Session Count
+      STU_MISS_CNT: 20,  // U  Student Missed Session Count
+      INST_ATT_CNT: 21,  // V  Instructor Attended Session Count
+      INST_MISS_CNT: 22, // W  Instructor Missed Session Count
+      MISS_TAG: 23,      // X  Missed Session Tag
+      CONSEC_STATUS: 24, // Y  10 consecutive sessions missed status
+      ATT_PER_SCHOLAR: 25, // Z  Attended Sessions per Scholar
+      WEEK: 26,          // AA Weekly Grouping  (e.g. "Week 23")
+      // AB (27) = blank
+      VACANT_ID: 28,     // AC Pearl Vacant User ID
+      SCHOLAR_NAME: 29,  // AD Scholar (vacancy pairing)
+      VAC_START: 30,     // AE Tutor Vacancy Start Date
+      // AF (31) = blank — HARD STOP
+      // cols 32-39 = blank
+      // col 40 = Scholar - Pearl User ID
+      // col 41 = Scholar Name
+      // col 42 = School
+      // col 43 = Tutor Vacancy Start Date
+      // col 44 = First Attended Date
+      // col 45 = Last Attended Date
+      VACANCY_FLAG: 46,  // AG Vacancy Flag  ("Current Vacancy...")
+      // col 47 = Active Flag
     };
-    const ATT_MAX_COL = 13; // hard stop at col N (idx 13) — 14 columns total
+    const ATT_MAX_COL = 31; // read through col AF (idx 31), ignore rest
 
     // ── COLUMN INDEXES — SESSION DETAILS ─────────────────────────────────
     const SESS = {
-      TITLE: 0,       // A  Session title
+      TITLE: 0,       // A  Title
       INSTRUCTOR: 1,  // B  Instructor name
       STUDENTS: 2,    // C  Student names (comma-separated)
       LOCATION: 3,    // D  Location
       STATUS: 4,      // E  Status
       ATTENDANCE: 5,  // F  Attendance summary
-      START: 6,       // G  Scheduled Start (datetime) ← derive week from this
+      START: 6,       // G  Scheduled Start (datetime)
       SCHED_DUR: 7,   // H  Scheduled Duration
       ACTUAL_DUR: 8,  // I  Actual Duration
       SUBJECT: 9,     // J  Subject
@@ -6746,6 +6770,11 @@
       SESS_ID: 14,    // O  Pearl Session ID
       INST_ID: 15,    // P  Pearl Instructor ID
       STU_IDS: 16,    // Q  Pearl Student IDs (comma-separated)
+      SESS_PER_SCHOOL: 17, // R  Sessions Delivered Per School
+      TOTAL_SESS: 19, // T  Total Sessions Delivered
+      TOTAL_SUCCESS: 20, // U  Total Successful Sessions
+      TOTAL_MISS_STU: 21, // V  Total Missed Sessions by Scholar
+      TOTAL_MISS_INST: 22,// W  Total Missed Sessions by Instructor
     };
 
     // ── COLUMN INDEXES — STUDENT SURVEYS ─────────────────────────────────
@@ -6754,7 +6783,9 @@
       CONFIDENCE: 2, ENJOYMENT: 3, LEARNING: 4, OVERALL: 5,
       COMMENT: 6, DATE: 7, SCHOOL: 8, DISTRICT: 9, REGION: 10,
       SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
-      // No pre-calculated avg/clump/week columns in raw sheet — computed in JS
+      AVG_CONF: 14, AVG_ENJOY: 15, AVG_LEARN: 16, AVG_OVERALL: 17,
+      CLUMP_CONF: 18, CLUMP_ENJOY: 19, CLUMP_LEARN: 20, CLUMP_OVERALL: 21,
+      WEEK: 22,
     };
 
     // ── COLUMN INDEXES — INSTRUCTOR SURVEYS ──────────────────────────────
@@ -6764,7 +6795,10 @@
       COMMENT_ADMIN: 6, COMMENT_SELF: 7,
       DATE: 8, SCHOOL: 9, DISTRICT: 10,
       SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
-      // No pre-calculated avg/clump/week columns in raw sheet — computed in JS
+      COMMENT_BANK: 14,
+      AVG_ENGAGE: 15, AVG_ENJOY: 16, AVG_LEARN: 17, AVG_OVERALL: 18,
+      CLUMP_ENGAGE: 19, CLUMP_ENJOY: 20, CLUMP_LEARN: 21, CLUMP_OVERALL: 22,
+      WEEK: 23,
     };
 
     // ── WEEK DERIVATION ───────────────────────────────────────────────────
@@ -7057,12 +7091,8 @@
           fetchTab(GIDS.att,  bust), fetchTab(GIDS.inst, bust),
           fetchTab(GIDS.stu,  bust), fetchTab(GIDS.sess, bust),
         ]);
-        // Attendance Detail — HARD STOP at column N (index 13), raw sheet
+        // Attendance Detail — read through col AF (idx 31), ignore rest
         _attRows  = parseCSVLimit(attText,  ATT_MAX_COL).slice(1);  // skip header
-        // Inject derived week key into each attendance row (no pre-computed week column)
-        for (const r of _attRows) {
-          r._week = weekKeyFromDateStr(r[ATT.SESS_DATE] || '');
-        }
         _sessRows = parseCSV(sessText).slice(1);
         _stuRows  = parseCSV(stuText).slice(1);
         _instRows = parseCSV(instText).slice(1);
@@ -7105,7 +7135,7 @@
           actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
           grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
           ratio,
-          ratioFlag: ratio > 3,  // HIT: must be ≤ 3:1 (flag, MOU governs)
+          ratioFlag: ratioFlag: ratio > 4,  // HIT: must be ≤ 4:1 (flag, MOU governs)
         };
       }
 
@@ -7126,14 +7156,14 @@
       }
 
       // ── Person index from attendance rows ────────────────────────────
-      const personWeekSessions = {}; // userId → { weekKey → attended count }
+      const personWeekSessions = {}; // userId → { week → attended count }
 
       for (const r of _attRows) {
         if (!r[ATT.USER_ID]) continue;
         const uid = r[ATT.USER_ID];
         const school = r[ATT.SCHOOL] || '';
         const district = r[ATT.DISTRICT] || '';
-        const week = r._week || '';
+        const week = r[ATT.WEEK] || '';
         const cls = classifyRecord(r);
         const missReason = r[ATT.MISS_REASON] || '';
 
@@ -7143,9 +7173,9 @@
             school, district, grade: r[ATT.GRADE],
             sex: r[ATT.SEX], race: r[ATT.RACE],
             attended: 0, absent: 0, interruptions: 0, notRecorded: 0,
-            totalRows: 0,
-            // Consecutive absence — computed from row sequence (rows ordered by date)
-            maxConsecMissed: 0, _consecRun: 0,
+            totalRows: 0, indAttRate: r[ATT.IND_ATT_RATE] || '',
+            consecStatus: r[ATT.CONSEC_STATUS] || '',
+            vacantId: r[ATT.VACANT_ID] || '',
             rows: [],
             instructorIds: new Set(),  // for continuity HIT check
             flags: [],
@@ -7154,19 +7184,10 @@
         const p = _personMap[uid];
         p.totalRows++;
         p.rows.push(r);
-        if (cls === 'attended') {
-          p.attended++;
-          p._consecRun = 0;          // reset consecutive run on attendance
-        } else if (cls === 'absent') {
-          p.absent++;
-          p._consecRun++;
-          if (p._consecRun > p.maxConsecMissed) p.maxConsecMissed = p._consecRun;
-        } else if (cls === 'service_interruption') {
-          p.interruptions++;
-          // Service interruptions don't break or extend the consecutive absence run
-        } else if (cls === 'not_recorded') {
-          p.notRecorded++;
-        }
+        if (cls === 'attended')             p.attended++;
+        else if (cls === 'absent')          p.absent++;
+        else if (cls === 'service_interruption') p.interruptions++;
+        else if (cls === 'not_recorded')    p.notRecorded++;
 
         // Track weeks with attended sessions for HIT frequency check (students only)
         if (cls === 'attended' && r[ATT.ROLE] === 'Student') {
@@ -7210,9 +7231,9 @@
       // ── Build HIT compliance flags per person ─────────────────────────
       for (const [uid, p] of Object.entries(_personMap)) {
         if (p.role === 'Student') {
-          // Flag: consecutive attendance concern (computed — 10+ consecutive absences)
-          if (p.maxConsecMissed >= 10)
-            p.flags.push({ type:'consecutive', severity:'high', msg:`${p.maxConsecMissed} consecutive sessions missed — attendance concern` });
+          // Flag: consecutive attendance concern (from col Y - '10 consecutive sessions missed status')
+          if (p.consecStatus === 'Attendance Concern')
+            p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed — attendance concern' });
 
           // Flag: tutor continuity (multiple instructors)
           if (p.instructorIds.size > 1)
@@ -7223,10 +7244,9 @@
           if (total > 0 && (p.attended / total) < 0.70)
             p.flags.push({ type:'low_att', severity:'high', msg:`Attendance below 70% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
 
-          // Flag: vacancy — detected via Missed Reason = 'Tutor Vacancy' (no column in raw sheet)
+          // Flag: vacancy — from col AC (Pearl Vacant User ID) and col AG (Vacancy Flag)
           // NOT counted in attendance — staffing gap flag for HR + Programming + Leadership
-          const hasVacancy = p.rows.some(r => (r[ATT.MISS_REASON] || '') === 'Tutor Vacancy');
-          if (hasVacancy)
+          if (p.vacantId)
             p.flags.push({ type:'vacancy', severity:'high', msg:'Tutor vacancy active — staffing gap requires follow-up (HR, Programming)' });
 
           // Flag: scholar declined sessions — counts as absent AND flags Program Team
@@ -7288,7 +7308,7 @@
         // School-level HIT flags
         sc.ratioViolations = sc.sessions.filter(s => s.ratioFlag).length;
         if (sc.ratioViolations > 0)
-          sc.flags.push({ type:'ratio', severity:'medium', msg:`${sc.ratioViolations} sessions exceed 1:3 ratio — check MOU` });
+          sc.flags.push({ type:'ratio', severity:'medium', msg:`${sc.ratioViolations} sessions exceed 1:4 ratio — check MOU` });
         const criticalSI  = sc.siReasons.filter(r => getSISeverity(r) === 'critical').length;
         const vacancySI   = sc.siReasons.filter(r => r === 'Tutor Vacancy').length;
         const otherHighSI = sc.siReasons.filter(r => getSISeverity(r) === 'high' && r !== 'Tutor Vacancy').length;
@@ -7356,63 +7376,101 @@
     }
 
     function populateFilters() {
-      function pop(id, vals, displayMap) {
+      function pop(id, vals) {
         const el = document.getElementById(id); if (!el) return;
         const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
         el.innerHTML = first + [...vals].filter(Boolean).sort()
-          .map(v => `<option value="${v}">${displayMap ? (displayMap.get(v) || v) : v}</option>`).join('');
+          .map(v => `<option value="${v}">${v}</option>`).join('');
         if ([...el.options].some(o => o.value === cur)) el.value = cur;
       }
       pop('poFDistrict', new Set(_attRows.map(r => r[ATT.DISTRICT])));
       pop('poFSchool',   new Set(_attRows.map(r => r[ATT.SCHOOL])));
-      const weeks = new Set(_attRows.map(r => r._week || '').filter(Boolean));
-      // weekKeys are YYYY-Www format — sort alphabetically (correct chronological order)
-      const sortedWeeks = [...weeks].sort();
-      const weekDisplay = new Map(sortedWeeks.map(k => [k, weekDisplayFromKey(k)]));
-      pop('poFWeek', new Set(sortedWeeks), weekDisplay);
+      const weeks = new Set(_attRows.map(r => r[ATT.WEEK]).filter(Boolean));
+      pop('poFWeek', [...weeks].sort((a,b) => {
+        const na = parseInt(a.replace('Week ','')), nb = parseInt(b.replace('Week ',''));
+        return na - nb;
+      }).reduce((m,v) => {m.add(v);return m;}, new Set()));
     }
 
     // ── STATS ─────────────────────────────────────────────────────────────
     function updateStats() {
       const rows = filteredAttRows();
-      const stuRows = rows.filter(r => r[ATT.ROLE] === 'Student');
-      const att = stuRows.filter(r => classifyRecord(r) === 'attended').length;
-      const abs = stuRows.filter(r => classifyRecord(r) === 'absent').length;
-      const si  = stuRows.filter(r => classifyRecord(r) === 'service_interruption').length;
-      const total = att + abs;
-      const attPct = total > 0 ? (att / total * 100).toFixed(1) + '%' : '—';
 
-      // Sessions from session details filtered by school/district
+      // ── Scholar attendance ─────────────────────────────────────────
+      // Always calculated from ALL scholar rows matching school/district/week filters
+      // (not the role filter, so it shows even when Instructor is selected)
+      const allScholarRows = _attRows.filter(r => {
+        if (r[ATT.ROLE] !== 'Student') return false;
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
+        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        return true;
+      });
+      const stuAtt  = allScholarRows.filter(r => classifyRecord(r) === 'attended').length;
+      const stuAbs  = allScholarRows.filter(r => classifyRecord(r) === 'absent').length;
+      const stuTotal = stuAtt + stuAbs;
+      const stuAttPct = stuTotal > 0 ? (stuAtt / stuTotal * 100).toFixed(1) + '%' : '—';
+
+      // ── Tutor attendance ───────────────────────────────────────────
+      // Always calculated from ALL instructor rows matching school/district/week filters
+      const allInstRows = _attRows.filter(r => {
+        if (r[ATT.ROLE] !== 'Instructor') return false;
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
+        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        return true;
+      });
+      const instAtt  = allInstRows.filter(r => classifyRecord(r) === 'attended').length;
+      const instAbs  = allInstRows.filter(r => classifyRecord(r) === 'absent').length;
+      const instTotal = instAtt + instAbs;
+      const instAttPct = instTotal > 0 ? (instAtt / instTotal * 100).toFixed(1) + '%' : '—';
+
+      // ── Service interruptions (student rows only for display) ──────
+      const si = allScholarRows.filter(r => classifyRecord(r) === 'service_interruption').length;
+
+      // ── Sessions ───────────────────────────────────────────────────
       const filtSess = filteredSessions();
       const completed = filtSess.filter(s => s.status === 'Completed').length;
       const totalSess = filtSess.length;
 
-      // Survey avg
-      const allSurvScores = [];
-      for (const r of _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]))) {
+      // ── Scholar survey avg (from student survey rows, filtered by school) ──
+      // Uses raw score columns: CONFIDENCE, ENJOYMENT, LEARNING, OVERALL (cols 2-5)
+      const stuSurvRows = _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]));
+      const stuSurvScores = [];
+      for (const r of stuSurvRows) {
         [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(c => {
-          const v = parseFloat(r[c]); if (!isNaN(v)) allSurvScores.push(v);
+          const v = parseFloat(r[c]); if (!isNaN(v) && v > 0) stuSurvScores.push(v);
         });
       }
-      for (const r of _instRows.filter(r => matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT]))) {
-        [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL].forEach(c => {
-          const v = parseFloat(r[c]); if (!isNaN(v)) allSurvScores.push(v);
-        });
-      }
-      const survAvg = allSurvScores.length ? (allSurvScores.reduce((a,b)=>a+b,0)/allSurvScores.length).toFixed(2) : '—';
+      const stuSurvAvg = stuSurvScores.length
+        ? (stuSurvScores.reduce((a,b)=>a+b,0)/stuSurvScores.length).toFixed(2)
+        : '—';
 
-      // Flags
+      // ── Tutor survey avg (from instructor survey rows, filtered by school) ──
+      // Uses raw score columns: ENGAGEMENT, ENJOYMENT, LEARNING, OVERALL (cols 2-5)
+      const instSurvRows = _instRows.filter(r => matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT]));
+      const instSurvScores = [];
+      for (const r of instSurvRows) {
+        [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL].forEach(c => {
+          const v = parseFloat(r[c]); if (!isNaN(v) && v > 0) instSurvScores.push(v);
+        });
+      }
+      const instSurvAvg = instSurvScores.length
+        ? (instSurvScores.reduce((a,b)=>a+b,0)/instSurvScores.length).toFixed(2)
+        : '—';
+
+      // ── HIT flags (school-filtered) ────────────────────────────────
       let hitFlags = 0;
       for (const p of Object.values(_personMap)) {
         if (matchesSchoolFilter(p.school, p.district)) hitFlags += p.flags.length;
       }
 
-      setText('poStatAtt', attPct);
-      setText('poStatSessions', completed.toLocaleString());
-      setText('poStatSessionsSub', `of ${totalSess.toLocaleString()} scheduled`);
+      setText('poStatAtt',           stuAttPct);
+      setText('poStatInstAtt',       instAttPct);
+      setText('poStatSessions',      completed.toLocaleString());
+      setText('poStatSessionsSub',   `of ${totalSess.toLocaleString()} scheduled`);
       setText('poStatInterruptions', si.toLocaleString());
-      setText('poStatSurvey', survAvg === '—' ? '—' : '★ ' + survAvg);
-      setText('poStatFlags', hitFlags.toLocaleString());
+      setText('poStatSurveyScholar', stuSurvAvg === '—' ? '—' : '★ ' + stuSurvAvg);
+      setText('poStatSurveyTutor',   instSurvAvg === '—' ? '—' : '★ ' + instSurvAvg);
+      setText('poStatFlags',         hitFlags.toLocaleString());
     }
 
     function updateFlagsBadge() {
@@ -7445,14 +7503,14 @@
     function filteredAttRows() {
       return _attRows.filter(r => {
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && (r._week || '') !== _filtWeek) return false;
+        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
         if (_filtRole && r[ATT.ROLE] !== _filtRole) return false;
         if (_filtFlag === 'hit') {
           const p = _personMap[r[ATT.USER_ID]];
           return p && p.flags && p.flags.length > 0;
         }
         if (_filtFlag === 'si') return classifyRecord(r) === 'service_interruption';
-        if (_filtFlag === 'concern') { const p = _personMap[r[ATT.USER_ID]]; return p && p.maxConsecMissed >= 10; }
+        if (_filtFlag === 'concern') return r[ATT.CONSEC_STATUS] === 'Attendance Concern';
         return true;
       });
     }
@@ -7548,7 +7606,7 @@
             <span style="font-family:'DM Serif Display',serif;font-size:1rem;font-weight:700;color:var(--navy)">${sc.sessions.length}</span>
           </td>
           <td style="text-align:center">${siCount > 0 ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">⚠️ ${siCount}</span>` : '<span class="po-badge po-badge-green">✓ 0</span>'}</td>
-          <td style="text-align:center">${sc.ratioViolations > 0 ? `<span class="po-badge po-badge-red" title="Exceeds 1:3 — check MOU">⚑ ${sc.ratioViolations}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
+          <td style="text-align:center">${sc.ratioViolations > 0 ? `<span class="po-badge po-badge-red" title="Exceeds 1:4 — check MOU">⚑ ${sc.ratioViolations}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
           <td style="text-align:center"><span style="font-weight:700;color:var(--navy)">${survAvg}</span></td>
           <td style="text-align:center">${totalFlags > 0 ? `<span class="po-badge ${totalFlags>3?'po-badge-red':'po-badge-gold'}">🚩 ${totalFlags}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
           <td style="text-align:center">${hasCrit ? '<span class="po-severity-critical">Critical</span>' : hasHigh ? '<span class="po-severity-high">High</span>' : '<span class="po-badge po-badge-green">OK</span>'}</td>
@@ -7657,7 +7715,7 @@
           <td style="text-align:center">${p.absent}</td>
           <td style="text-align:center">${p.interruptions > 0 ? `<span class="po-badge po-badge-gold">${p.interruptions}</span>` : '0'}</td>
           <td>${flagCount > 0 ? `<span class="po-badge po-badge-red">🚩 ${flagCount} flag${flagCount>1?'s':''}</span>` : '<span class="po-badge po-badge-green">✓ OK</span>'}${adpFlag}</td>
-          ${p.maxConsecMissed >= 10 ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
+          ${p.consecStatus==='Attendance Concern' ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
         </tr>`;
       };
 
@@ -7701,7 +7759,7 @@
       const sessions = sc.sessions.sort((a,b) => new Date(b.start) - new Date(a.start)).slice(0, 100);
       const rows = sessions.map(s => {
         const statusColor = s.status === 'Completed' ? 'var(--met)' : s.status === 'Missed' ? 'var(--notmet)' : 'var(--partial)';
-        const ratioFlag = s.ratioFlag ? `<span class="po-badge po-badge-red" title="Exceeds 1:3 ratio — check MOU">⚑ ${s.ratio}:1</span>` : `<span class="po-badge po-badge-green">✓ ${s.ratio}:1</span>`;
+        const ratioFlag = s.ratioFlag ? `<span class="po-badge po-badge-red" title="Exceeds 1:4 ratio — check MOU">⚑ ${s.ratio}:1</span>` : `<span class="po-badge po-badge-green">✓ ${s.ratio}:1</span>`;
         return `<tr style="font-size:.8125rem">
           <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.start||'—'}</td>
           <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2);font-weight:600;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.title}">${s.title}</td>
@@ -7712,7 +7770,7 @@
           <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.schedDur||'—'}</td>
         </tr>`;
       }).join('');
-      return `<div style="padding:1.5rem"><div style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Most recent ${Math.min(100,sessions.length)} of ${sc.sessions.length} sessions · Ratio flag = exceeds 1:3 (check MOU per school contract)</div>
+      return `<div style="padding:1.5rem"><div style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Most recent ${Math.min(100,sessions.length)} of ${sc.sessions.length} sessions · Ratio flag = exceeds 1:4 (check MOU per school contract)</div>
         <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
           <thead><tr style="background:var(--surface-2)">${['Date','Session Title','Instructor','Status','Scholar Ratio','Subject','Duration'].map(h=>`<th style="padding:.4rem .875rem;text-align:left;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">${h}</th>`).join('')}</tr></thead>
           <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">No sessions found</td></tr>'}</tbody>
@@ -7744,7 +7802,7 @@
           : isVacancy
             ? '<div style="margin-top:.4rem;font-size:.75rem;color:#92400e;font-weight:600">👥 Staffing gap — <strong>not counted in attendance</strong>. Escalate to HR &amp; Programming for backfill. Visible to: HR · Programming · Leadership.</div>'
             : '';
-        const weeks = [...new Set(recs.map(r => r._week ? weekDisplayFromKey(r._week) : '').filter(Boolean))].sort().join(', ');
+        const weeks = [...new Set(recs.map(r => r[ATT.WEEK]))].filter(Boolean).sort((a,b)=>{ const na=parseInt(a.replace('Week ','')),nb=parseInt(b.replace('Week ','')); return na-nb; }).join(', ');
         return `<div class="po-flag-row" style="${rowBg}">
           <div class="po-flag-icon">${icon}</div>
           <div class="po-flag-text">
@@ -7882,14 +7940,14 @@
           <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);font-weight:600;color:var(--navy)">${s.title}</td>
           <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2)">${s.instructor}</td>
           <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);text-align:center"><span class="po-badge po-badge-red">⚑ ${s.ratio}:1</span></td>
-          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);font-size:.75rem;color:var(--muted)">Exceeds 1:3 HIT ratio — MOU governs actual limit</td>
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);font-size:.75rem;color:var(--muted)">Exceeds 1:4 HIT ratio — MOU governs actual limit</td>
         </tr>`).join('');
 
       return `
         <div>
           <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border);background:var(--surface-2)">
             <div style="font-size:.75rem;color:var(--muted);line-height:1.6">
-              <strong>HIT Compliance Standards:</strong> &nbsp;≤3 scholars per session (1:3 ratio) &nbsp;·&nbsp; ≥2 sessions per week &nbsp;·&nbsp; Same instructor for continuity/rapport &nbsp;·&nbsp; No 10+ consecutive misses<br>
+              <strong>HIT Compliance Standards:</strong> &nbsp;≤4 scholars per session (1:4 ratio) &nbsp;·&nbsp; ≥2 sessions per week &nbsp;·&nbsp; Same instructor for continuity/rapport &nbsp;·&nbsp; No 10+ consecutive misses<br>
               <em>Note: Ratio flag does not equal a violation — some schools have approved higher ratios per MOU. Flag = review required.</em>
             </div>
           </div>
@@ -7936,8 +7994,8 @@
               <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
               <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
               ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Low Attendance — Check ADP Records</span>' : ''}
-              ${p.maxConsecMissed >= 10 ? `<span class="po-badge po-badge-critical">${p.maxConsecMissed} Consecutive Misses</span>` : ''}
-              ${p.flags.some(f => f.type === 'vacancy') ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
+              ${p.consecStatus === 'Attendance Concern' ? '<span class="po-badge po-badge-critical">10+ Consecutive Misses</span>' : ''}
+              ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
             </div>
           </div>
           <div class="po-tabs-bar" id="poPersonTabsBar">
@@ -7975,7 +8033,7 @@
           <span style="color:var(--muted)">${r[ATT.SESS_DATE]||'—'}</span>
           <span style="color:var(--navy)">${r[ATT.SESSION]||'—'}</span>
           <span style="font-weight:700;color:${clsColor}">${clsLabel}${siFlag}</span>
-          <span style="color:var(--muted);font-size:.75rem">${r._week ? weekDisplayFromKey(r._week) : '—'}</span>
+          <span style="color:var(--muted);font-size:.75rem">${r[ATT.WEEK]||'—'}</span>
         </div>`;
       }).join('');
       return `<div>
@@ -8052,7 +8110,7 @@
         declined:    'Scholar Declined Sessions — Program Team Follow-Up',
         frequency:   'Weekly Session Frequency Below HIT Minimum',
         inst_att:    'Instructor Attendance — ADP Review Needed',
-        ratio:       'Session Ratio Exceeds 1:3 — Check MOU',
+        ratio:       'Session Ratio Exceeds 1:4 — Check MOU',
         critical_si: 'Critical Service Interruption — NJTC Internal',
         high_si:     'High Severity Service Interruptions',
       };
