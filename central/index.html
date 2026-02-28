@@ -6695,7 +6695,7 @@
   const po = (() => {
 
     // ── PUBLISHED SHEET CONFIG ────────────────────────────────────────────
-    const BASE_ID = '2PACX-1vTCGhDhhoF6NjXCwYfcoOHNpn-U2B985UPOlcjVpImUGU6wDDQ3D6BY_4N-khxGmDsmw8RMp92TzUJl';
+    const BASE_ID = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
     const csvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pub?output=csv&gid=${gid}`;
     // GIDs for tab order: Attendance Detail(0), Instructor Surveys(1), Student Surveys(2), Session Details(3)
     // Auto-detected at load time — stored once resolved
@@ -6705,65 +6705,48 @@
 
     // ── COLUMN INDEXES — ATTENDANCE DETAIL (read ONLY cols 0–31 / A–AF) ──
     const ATT = {
-      USER: 0,        // A  User name
-      ROLE: 1,        // B  Student | Instructor
-      SESSION: 2,     // C  Session title
-      SESS_STATUS: 3, // D  Session Status
-      PLAN_START: 4,  // E  Planned Session Start
-      SESS_DATE: 5,   // F  Session Date
-      ATT_STATUS: 6,  // G  Attendance Status
-      MISS_REASON: 7, // H  Attendance Missed Reason
-      GRADE: 8,       // I
-      SEX: 9,         // J
-      RACE: 10,       // K
-      SCHOOL: 11,     // L
-      DISTRICT: 12,   // M
-      USER_ID: 13,    // N  Pearl User ID
-      IND_ATT_RATE: 14, // O Individual Attendance Rate %
-      SCHOLAR_ATT_PCT: 15, // P Scholar Attendance %
-      AVG_ATT: 16,    // Q Tutors + Scholars avg %
-      STU_AVG_ATT: 17,// R Student Average Attendance %
-      INST_AVG: 18,   // S Instructor Average Attendance
-      STU_ATT_CNT: 19,// T Student Attended Session Count
-      STU_MISS_CNT: 20,// U Student Missed Session Count
-      INST_ATT_CNT: 21,// V Instructor Attended Session Count
-      INST_MISS_CNT: 22,// W Instructor Missed Session Count
-      MISS_TAG: 23,   // X Missed Session Tag
-      CONSEC_STATUS: 24, // Y 10 consecutive sessions missed status
-      ATT_PER_SCHOLAR: 25,// Z Attended Sessions per Scholar
-      WEEK: 26,       // AA Weekly Grouping
-      // AB(27) = blank
-      VACANT_ID: 28,  // AC Pearl Vacant User ID
-      SCHOLAR_NAME: 29,// AD Scholar (vacancy pairing)
-      VAC_START: 30,  // AE Tutor Vacancy Start Date
-      // AF(31) = blank — HARD STOP HERE
+      // ── Missed Reasons tab (Tab 4 of new sheet) ──────────────────────
+      // Raw data — no pre-calculated columns. 14 columns (idx 0-13).
+      USER: 0,          // A  User (display name)
+      ROLE: 1,          // B  Student | Instructor
+      SESSION: 2,       // C  Session title
+      SESS_STATUS: 3,   // D  Session Status
+      PLAN_START: 4,    // E  Planned Session Start (time)
+      SESS_DATE: 5,     // F  Session Date (datetime) ← week is derived from this
+      ATT_STATUS: 6,    // G  Attendance Status
+      MISS_REASON: 7,   // H  Attendance Missed Reason
+      GRADE: 8,         // I  Grade
+      SEX: 9,           // J  Sex
+      RACE: 10,         // K  Race
+      SCHOOL: 11,       // L  School
+      DISTRICT: 12,     // M  District
+      USER_ID: 13,      // N  Pearl User ID
+      // NOTE: No WEEK column — derived from SESS_DATE at parse time (see parseAttRow)
+      // NOTE: No CONSEC_STATUS column — computed from per-person row history
+      // NOTE: No VACANT_ID column — vacancy detected via missReason === 'Tutor Vacancy'
     };
-    const ATT_MAX_COL = 31; // read up to and including index 31 (AF), ignore rest
+    const ATT_MAX_COL = 13; // hard stop at col N (idx 13) — 14 columns total
 
     // ── COLUMN INDEXES — SESSION DETAILS ─────────────────────────────────
     const SESS = {
-      TITLE: 0,       // A
-      INSTRUCTOR: 1,  // B
-      STUDENTS: 2,    // C (comma-separated names)
-      LOCATION: 3,    // D
-      STATUS: 4,      // E
-      ATTENDANCE: 5,  // F
-      START: 6,       // G
-      SCHED_DUR: 7,   // H
-      ACTUAL_DUR: 8,  // I
-      SUBJECT: 9,     // J
-      GRADE: 10,      // K
-      SCHOOL: 11,     // L
-      DISTRICT: 12,   // M
-      REGION: 13,     // N
+    const SESS = {
+      TITLE: 0,       // A  Session title
+      INSTRUCTOR: 1,  // B  Instructor name
+      STUDENTS: 2,    // C  Student names (comma-separated)
+      LOCATION: 3,    // D  Location
+      STATUS: 4,      // E  Status
+      ATTENDANCE: 5,  // F  Attendance summary
+      START: 6,       // G  Scheduled Start (datetime) ← derive week from this
+      SCHED_DUR: 7,   // H  Scheduled Duration
+      ACTUAL_DUR: 8,  // I  Actual Duration
+      SUBJECT: 9,     // J  Subject
+      GRADE: 10,      // K  Grade
+      SCHOOL: 11,     // L  School
+      DISTRICT: 12,   // M  District
+      REGION: 13,     // N  Region
       SESS_ID: 14,    // O  Pearl Session ID
       INST_ID: 15,    // P  Pearl Instructor ID
       STU_IDS: 16,    // Q  Pearl Student IDs (comma-separated)
-      SESS_PER_SCHOOL: 17, // R
-      TOTAL_SESS: 19, // T
-      TOTAL_SUCCESS: 20, // U
-      TOTAL_MISS_STU: 21, // V
-      TOTAL_MISS_INST: 22,// W
     };
 
     // ── COLUMN INDEXES — STUDENT SURVEYS ─────────────────────────────────
@@ -6772,9 +6755,7 @@
       CONFIDENCE: 2, ENJOYMENT: 3, LEARNING: 4, OVERALL: 5,
       COMMENT: 6, DATE: 7, SCHOOL: 8, DISTRICT: 9, REGION: 10,
       SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
-      AVG_CONF: 14, AVG_ENJOY: 15, AVG_LEARN: 16, AVG_OVERALL: 17,
-      CLUMP_CONF: 18, CLUMP_ENJOY: 19, CLUMP_LEARN: 20, CLUMP_OVERALL: 21,
-      WEEK: 22,
+      // No pre-calculated avg/clump/week columns in raw sheet — computed in JS
     };
 
     // ── COLUMN INDEXES — INSTRUCTOR SURVEYS ──────────────────────────────
@@ -6784,13 +6765,58 @@
       COMMENT_ADMIN: 6, COMMENT_SELF: 7,
       DATE: 8, SCHOOL: 9, DISTRICT: 10,
       SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
-      COMMENT_BANK: 14,
-      AVG_ENGAGE: 15, AVG_ENJOY: 16, AVG_LEARN: 17, AVG_OVERALL: 18,
-      CLUMP_ENGAGE: 19, CLUMP_ENJOY: 20, CLUMP_LEARN: 21, CLUMP_OVERALL: 22,
-      WEEK: 23,
+      // No pre-calculated avg/clump/week columns in raw sheet — computed in JS
     };
 
-    // ── ATTENDANCE CLASSIFICATION ─────────────────────────────────────────
+    // ── WEEK DERIVATION ───────────────────────────────────────────────────
+    // The new raw sheet has no pre-computed Week column.
+    // We derive the week label from Session Date (col F / idx 5).
+    // CSV dates arrive as strings: "2/20/2026", "2026-02-20", or similar.
+    // We normalise to ISO "YYYY-Www" for sorting and group display as "Week of MM/DD".
+    function weekKeyFromDateStr(dateStr) {
+      if (!dateStr) return '';
+      // Try to parse the date string
+      let d = new Date(dateStr);
+      // Fallback: handle MM/DD/YYYY
+      if (isNaN(d.getTime())) {
+        const m = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (m) d = new Date(+m[3], +m[1]-1, +m[2]);
+      }
+      if (isNaN(d.getTime())) return dateStr; // unparseable — return raw
+      // Get Monday of the week
+      const day = d.getDay(); // 0=Sun
+      const diff = (day === 0) ? -6 : 1 - day; // adjust to Monday
+      const mon = new Date(d);
+      mon.setDate(d.getDate() + diff);
+      // ISO week label: YYYY-Www for sort, display as "Week of M/D"
+      const mm = String(mon.getMonth()+1).padStart(2,'0');
+      const dd = String(mon.getDate()).padStart(2,'0');
+      const yyyy = mon.getFullYear();
+      // Pad ISO week for correct sort
+      const isoWeek = getISOWeek(mon);
+      return `${yyyy}-W${String(isoWeek).padStart(2,'0')}`; // YYYY-W## → sorts correctly
+    }
+    function weekDisplayFromKey(key) {
+      // Convert "2026-W08" → "Week of 2/16" etc.
+      if (!key || !key.startsWith('20')) return key;
+      // Reconstruct Monday date from ISO week
+      try {
+        const [year, wStr] = key.split('-W');
+        const y = +year, w = +wStr;
+        // Jan 4 is always in week 1
+        const jan4 = new Date(y, 0, 4);
+        const jan4Day = jan4.getDay() || 7;
+        const weekStart = new Date(jan4);
+        weekStart.setDate(jan4.getDate() - (jan4Day - 1) + (w - 1) * 7);
+        return `Week of ${weekStart.getMonth()+1}/${weekStart.getDate()}`;
+      } catch { return key; }
+    }
+    function getISOWeek(d) {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+      const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+    }
     // Attended counts: actual Attended/Late status AND these miss reasons
     const COUNTS_AS_ATTENDED = new Set([
       'Tutor Left Early (no sub)',
@@ -6963,11 +6989,13 @@
       }
 
       // Step 2: if pubhtml didn't yield gids, fall back to a broad sweep of
-      // common Google Sheets gid patterns (covers most published workbooks)
+      // common Google Sheets gid patterns. Includes known gid from edit URL.
       if (!probedGids.length) {
-        probedGids = [0, 1, 2, 3, 100, 200, 300, 400,
+        probedGids = [0, 1, 2, 3,
+                      1748668439,          // known gid from edit URL provided
                       628127573, 274671201, 1372188422, 1640135663,
-                      1303503567, 1649760609, 1978724299, 1784717262];
+                      1303503567, 1649760609, 1978724299, 1784717262,
+                      100, 200, 300, 400, 500, 600, 700, 800];
       }
 
       // Step 3: fetch each candidate gid as CSV — in parallel, ignore 400s
@@ -6976,19 +7004,32 @@
           const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(12000)});
           if (!res.ok) return null;
           const text = await res.text();
-          const firstRow = text.split('\n')[0].toLowerCase();
+          const firstRow = text.split('\n')[0].toLowerCase().replace(/"/g, '');
           return { gid, text, firstRow };
         } catch { return null; }
       }));
 
       // Step 4: identify each tab by its unique header signature
+      // New sheet (raw data) tab headers:
+      //   Missed Reasons:     "user,role,session,session status,...,pearl user id"
+      //   Instructor Surveys: "filled by,filled for,how engaged were..."
+      //   Student Surveys:    "filled by,filled for,how confident are you..."
+      //   Session Details:    "title,instructor,students,...,pearl session id,pearl instructor id"
       for (const r of results) {
         if (!r) continue;
         const h = r.firstRow;
-        if      (h.startsWith('user,') && h.includes('role,'))           GIDS.att  = r.gid;
-        else if (h.startsWith('filled by,') && h.includes('engaged'))    GIDS.inst = r.gid;
-        else if (h.startsWith('filled by,') && h.includes('confident'))  GIDS.stu  = r.gid;
-        else if (h.startsWith('title,') && h.includes('instructor'))     GIDS.sess = r.gid;
+        // Attendance/Missed Reasons: starts with "user" and has "role" and "attendance"
+        if      (h.startsWith('user,') && h.includes('role,') && h.includes('attendance'))
+          GIDS.att  = r.gid;
+        // Instructor Surveys: "filled by" + engaged (instructor question)
+        else if (h.startsWith('filled by,') && h.includes('engaged'))
+          GIDS.inst = r.gid;
+        // Student Surveys: "filled by" + confident (student question)
+        else if (h.startsWith('filled by,') && h.includes('confident'))
+          GIDS.stu  = r.gid;
+        // Session Details: "title" + "instructor" + "pearl session id"
+        else if (h.startsWith('title,') && h.includes('instructor') && h.includes('pearl session id'))
+          GIDS.sess = r.gid;
       }
 
       // Log what was resolved (helps with future debugging)
@@ -7017,8 +7058,12 @@
           fetchTab(GIDS.att,  bust), fetchTab(GIDS.inst, bust),
           fetchTab(GIDS.stu,  bust), fetchTab(GIDS.sess, bust),
         ]);
-        // Attendance Detail — HARD STOP at column AF (index 31)
+        // Attendance Detail — HARD STOP at column N (index 13), raw sheet
         _attRows  = parseCSVLimit(attText,  ATT_MAX_COL).slice(1);  // skip header
+        // Inject derived week key into each attendance row (no pre-computed week column)
+        for (const r of _attRows) {
+          r._week = weekKeyFromDateStr(r[ATT.SESS_DATE] || '');
+        }
         _sessRows = parseCSV(sessText).slice(1);
         _stuRows  = parseCSV(stuText).slice(1);
         _instRows = parseCSV(instText).slice(1);
@@ -7082,14 +7127,14 @@
       }
 
       // ── Person index from attendance rows ────────────────────────────
-      const personWeekSessions = {}; // userId → { week → count }
+      const personWeekSessions = {}; // userId → { weekKey → attended count }
 
       for (const r of _attRows) {
         if (!r[ATT.USER_ID]) continue;
         const uid = r[ATT.USER_ID];
         const school = r[ATT.SCHOOL] || '';
         const district = r[ATT.DISTRICT] || '';
-        const week = r[ATT.WEEK] || '';
+        const week = r._week || '';
         const cls = classifyRecord(r);
         const missReason = r[ATT.MISS_REASON] || '';
 
@@ -7099,23 +7144,32 @@
             school, district, grade: r[ATT.GRADE],
             sex: r[ATT.SEX], race: r[ATT.RACE],
             attended: 0, absent: 0, interruptions: 0, notRecorded: 0,
-            totalRows: 0, indAttRate: r[ATT.IND_ATT_RATE] || '',
-            consecStatus: r[ATT.CONSEC_STATUS] || '',
-            vacantId: r[ATT.VACANT_ID] || '',
+            totalRows: 0,
+            // Consecutive absence — computed from row sequence (rows ordered by date)
+            maxConsecMissed: 0, _consecRun: 0,
             rows: [],
-            instructorIds: new Set(),  // for continuity check
+            instructorIds: new Set(),  // for continuity HIT check
             flags: [],
           };
         }
         const p = _personMap[uid];
         p.totalRows++;
         p.rows.push(r);
-        if (cls === 'attended')             p.attended++;
-        else if (cls === 'absent')          p.absent++;
-        else if (cls === 'service_interruption') p.interruptions++;
-        else if (cls === 'not_recorded')    p.notRecorded++;
+        if (cls === 'attended') {
+          p.attended++;
+          p._consecRun = 0;          // reset consecutive run on attendance
+        } else if (cls === 'absent') {
+          p.absent++;
+          p._consecRun++;
+          if (p._consecRun > p.maxConsecMissed) p.maxConsecMissed = p._consecRun;
+        } else if (cls === 'service_interruption') {
+          p.interruptions++;
+          // Service interruptions don't break or extend the consecutive absence run
+        } else if (cls === 'not_recorded') {
+          p.notRecorded++;
+        }
 
-        // Track weeks attended for frequency check
+        // Track weeks with attended sessions for HIT frequency check (students only)
         if (cls === 'attended' && r[ATT.ROLE] === 'Student') {
           if (!personWeekSessions[uid]) personWeekSessions[uid] = {};
           personWeekSessions[uid][week] = (personWeekSessions[uid][week] || 0) + 1;
@@ -7157,9 +7211,9 @@
       // ── Build HIT compliance flags per person ─────────────────────────
       for (const [uid, p] of Object.entries(_personMap)) {
         if (p.role === 'Student') {
-          // Flag: consecutive attendance concern
-          if (p.consecStatus === 'Attendance Concern')
-            p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed' });
+          // Flag: consecutive attendance concern (computed — 10+ consecutive absences)
+          if (p.maxConsecMissed >= 10)
+            p.flags.push({ type:'consecutive', severity:'high', msg:`${p.maxConsecMissed} consecutive sessions missed — attendance concern` });
 
           // Flag: tutor continuity (multiple instructors)
           if (p.instructorIds.size > 1)
@@ -7170,9 +7224,11 @@
           if (total > 0 && (p.attended / total) < 0.70)
             p.flags.push({ type:'low_att', severity:'high', msg:`Attendance below 70% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
 
-          // Flag: vacancy
-          if (p.vacantId)
-            p.flags.push({ type:'vacancy', severity:'high', msg:'Currently in a tutor vacancy' });
+          // Flag: vacancy — detected via Missed Reason = 'Tutor Vacancy' (no column in raw sheet)
+          // NOT counted in attendance — staffing gap flag for HR + Programming + Leadership
+          const hasVacancy = p.rows.some(r => (r[ATT.MISS_REASON] || '') === 'Tutor Vacancy');
+          if (hasVacancy)
+            p.flags.push({ type:'vacancy', severity:'high', msg:'Tutor vacancy active — staffing gap requires follow-up (HR, Programming)' });
 
           // Flag: scholar declined sessions — counts as absent AND flags Program Team
           // Count how many of this scholar's rows are a decline
@@ -7301,20 +7357,20 @@
     }
 
     function populateFilters() {
-      function pop(id, vals) {
+      function pop(id, vals, displayMap) {
         const el = document.getElementById(id); if (!el) return;
         const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
         el.innerHTML = first + [...vals].filter(Boolean).sort()
-          .map(v => `<option value="${v}">${v}</option>`).join('');
+          .map(v => `<option value="${v}">${displayMap ? (displayMap.get(v) || v) : v}</option>`).join('');
         if ([...el.options].some(o => o.value === cur)) el.value = cur;
       }
       pop('poFDistrict', new Set(_attRows.map(r => r[ATT.DISTRICT])));
       pop('poFSchool',   new Set(_attRows.map(r => r[ATT.SCHOOL])));
-      const weeks = new Set(_attRows.map(r => r[ATT.WEEK]));
-      pop('poFWeek', [...weeks].sort((a,b) => {
-        const na = parseInt(a.replace('Week ','')), nb = parseInt(b.replace('Week ',''));
-        return na - nb;
-      }).reduce((m,v)=>{m.add(v);return m;}, new Set()));
+      const weeks = new Set(_attRows.map(r => r._week || '').filter(Boolean));
+      // weekKeys are YYYY-Www format — sort alphabetically (correct chronological order)
+      const sortedWeeks = [...weeks].sort();
+      const weekDisplay = new Map(sortedWeeks.map(k => [k, weekDisplayFromKey(k)]));
+      pop('poFWeek', new Set(sortedWeeks), weekDisplay);
     }
 
     // ── STATS ─────────────────────────────────────────────────────────────
@@ -7390,14 +7446,14 @@
     function filteredAttRows() {
       return _attRows.filter(r => {
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        if (_filtWeek && (r._week || '') !== _filtWeek) return false;
         if (_filtRole && r[ATT.ROLE] !== _filtRole) return false;
         if (_filtFlag === 'hit') {
           const p = _personMap[r[ATT.USER_ID]];
           return p && p.flags && p.flags.length > 0;
         }
         if (_filtFlag === 'si') return classifyRecord(r) === 'service_interruption';
-        if (_filtFlag === 'concern') return r[ATT.CONSEC_STATUS] === 'Attendance Concern';
+        if (_filtFlag === 'concern') { const p = _personMap[r[ATT.USER_ID]]; return p && p.maxConsecMissed >= 10; }
         return true;
       });
     }
@@ -7602,7 +7658,7 @@
           <td style="text-align:center">${p.absent}</td>
           <td style="text-align:center">${p.interruptions > 0 ? `<span class="po-badge po-badge-gold">${p.interruptions}</span>` : '0'}</td>
           <td>${flagCount > 0 ? `<span class="po-badge po-badge-red">🚩 ${flagCount} flag${flagCount>1?'s':''}</span>` : '<span class="po-badge po-badge-green">✓ OK</span>'}${adpFlag}</td>
-          ${p.consecStatus==='Attendance Concern' ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
+          ${p.maxConsecMissed >= 10 ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
         </tr>`;
       };
 
@@ -7689,7 +7745,7 @@
           : isVacancy
             ? '<div style="margin-top:.4rem;font-size:.75rem;color:#92400e;font-weight:600">👥 Staffing gap — <strong>not counted in attendance</strong>. Escalate to HR &amp; Programming for backfill. Visible to: HR · Programming · Leadership.</div>'
             : '';
-        const weeks = [...new Set(recs.map(r => r[ATT.WEEK]))].sort().join(', ');
+        const weeks = [...new Set(recs.map(r => r._week ? weekDisplayFromKey(r._week) : '').filter(Boolean))].sort().join(', ');
         return `<div class="po-flag-row" style="${rowBg}">
           <div class="po-flag-icon">${icon}</div>
           <div class="po-flag-text">
@@ -7881,8 +7937,8 @@
               <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
               <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
               ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Low Attendance — Check ADP Records</span>' : ''}
-              ${p.consecStatus === 'Attendance Concern' ? '<span class="po-badge po-badge-critical">10+ Consecutive Misses</span>' : ''}
-              ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
+              ${p.maxConsecMissed >= 10 ? `<span class="po-badge po-badge-critical">${p.maxConsecMissed} Consecutive Misses</span>` : ''}
+              ${p.flags.some(f => f.type === 'vacancy') ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
             </div>
           </div>
           <div class="po-tabs-bar" id="poPersonTabsBar">
@@ -7920,7 +7976,7 @@
           <span style="color:var(--muted)">${r[ATT.SESS_DATE]||'—'}</span>
           <span style="color:var(--navy)">${r[ATT.SESSION]||'—'}</span>
           <span style="font-weight:700;color:${clsColor}">${clsLabel}${siFlag}</span>
-          <span style="color:var(--muted);font-size:.75rem">${r[ATT.WEEK]||'—'}</span>
+          <span style="color:var(--muted);font-size:.75rem">${r._week ? weekDisplayFromKey(r._week) : '—'}</span>
         </div>`;
       }).join('');
       return `<div>
