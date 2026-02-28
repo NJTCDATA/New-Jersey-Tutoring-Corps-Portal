@@ -7177,7 +7177,8 @@
             consecStatus: r[ATT.CONSEC_STATUS] || '',
             vacantId: r[ATT.VACANT_ID] || '',
             rows: [],
-            instructorIds: new Set(),  // for continuity HIT check
+            instructorIds: new Set(),  // non-sub instructor IDs (flat set for quick check)
+            subjectTutors: {},          // { subject: { primary:{id:name}, subs:{id:name} } }
             flags: [],
           };
         }
@@ -7220,11 +7221,16 @@
         const sc = _schoolMap[sess.school];
         sc.sessions.push(sess);
 
-        // Track instructor IDs per student for continuity check
+        // Track per-student: which instructors taught which subject
+        // Substitutes (name contains "SUB") tracked separately
+        const isSub = (sess.instructor || '').toUpperCase().includes('SUB');
+        const subj  = sess.subject || '';
         for (const stuId of sess.studentIds) {
-          if (_personMap[stuId]) {
-            _personMap[stuId].instructorIds.add(sess.instId);
-          }
+          const p = _personMap[stuId]; if (!p) continue;
+          if (!isSub) p.instructorIds.add(sess.instId);
+          if (!p.subjectTutors[subj]) p.subjectTutors[subj] = { primary: {}, subs: {} };
+          if (isSub) p.subjectTutors[subj].subs[sess.instId]  = sess.instructor;
+          else        p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
         }
       }
 
@@ -7235,9 +7241,29 @@
           if (p.consecStatus === 'Attendance Concern')
             p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed — attendance concern' });
 
-          // Flag: tutor continuity (multiple instructors)
-          if (p.instructorIds.size > 1)
-            p.flags.push({ type:'continuity', severity:'medium', msg:`${p.instructorIds.size} different instructors — rapport continuity concern` });
+          // Flag: tutor continuity — subject-aware logic
+          // Each subject should have exactly 1 primary tutor. Subs are expected, not flagged.
+          // 1 subject + 1 primary = Normal. 2 subjects + 1 each = Normal.
+          // Any subject with 2+ primary tutors = Continuity Issue.
+          {
+            const subjects = Object.keys(p.subjectTutors).filter(s => s);
+            if (subjects.length >= 3) {
+              p.flags.push({ type:'continuity', severity:'medium',
+                msg: subjects.length + ' subjects on record — verify scheduling is intentional' });
+            } else {
+              const issues = subjects.filter(subj =>
+                Object.keys(p.subjectTutors[subj] && p.subjectTutors[subj].primary || {}).length > 1
+              );
+              if (issues.length > 0) {
+                const detail = issues.map(subj => {
+                  const n = Object.keys(p.subjectTutors[subj].primary).length;
+                  return subj + ' (' + n + ' tutors)';
+                }).join(', ');
+                p.flags.push({ type:'continuity', severity:'medium',
+                  msg: 'Instructor continuity concern: ' + detail + ' — 1 primary tutor per subject expected' });
+              }
+            }
+          }
 
           // Flag: low attendance (< 70%)
           const total = p.attended + p.absent;
@@ -7701,26 +7727,56 @@
         const rate  = total > 0 ? Math.round(p.attended / total * 100) : 0;
         const color = rate >= 90 ? 'var(--met)' : rate >= 75 ? 'var(--gold)' : 'var(--notmet)';
         const flagCount = p.flags.length;
-        const hasCrit = p.flags.some(f => f.severity === 'high' || f.severity === 'critical');
         const name = canSeeNames() ? p.name : '—';
-        const adpFlag = isHR() || isFinance() ? (rate < 70 ? '<span class="po-badge po-badge-red" title="Low attendance — verify ADP records">⚑ Check ADP</span>' : '') : '';
-        return `<tr class="po-person-row" onclick="po.drillPerson('${esc(p.uid)}')">
-          <td style="font-weight:600;color:var(--navy)">${name}</td>
-          <td style="color:var(--muted)">${p.grade||'—'}</td>
-          <td style="text-align:center">
-            <span style="font-weight:700;color:${color}">${rate}%</span>
-            <div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:${rate}%;background:${color}"></div></div>
-          </td>
-          <td style="text-align:center">${p.attended}</td>
-          <td style="text-align:center">${p.absent}</td>
-          <td style="text-align:center">${p.interruptions > 0 ? `<span class="po-badge po-badge-gold">${p.interruptions}</span>` : '0'}</td>
-          <td>${flagCount > 0 ? `<span class="po-badge po-badge-red">🚩 ${flagCount} flag${flagCount>1?'s':''}</span>` : '<span class="po-badge po-badge-green">✓ OK</span>'}${adpFlag}</td>
-          ${p.consecStatus==='Attendance Concern' ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
-        </tr>`;
+        const adpFlag = isHR() || isFinance() ? (rate < 70 ? '<span class="po-badge po-badge-red" title="Low attendance">⚑ Check ADP</span>' : '') : '';
+
+        // Tutor assignment cell (scholars only)
+        // Shows subject: PrimaryTutor. Warns if 2+ primary tutors on one subject.
+        let tutorCell = '<td style="color:var(--muted);font-size:.75rem;padding:.5rem .875rem">—</td>';
+        if (p.role === 'Student' && p.subjectTutors) {
+          const subjects = Object.keys(p.subjectTutors).filter(s => s).sort();
+          if (subjects.length) {
+            const parts = subjects.map(subj => {
+              const st = p.subjectTutors[subj] || {};
+              const primary = Object.values(st.primary || {});
+              const numSubs = Object.keys(st.subs || {}).length;
+              const hasIssue = primary.length > 1;
+              const firstName = n => n.split(' ').slice(0,2).join(' ');
+              if (!primary.length) return '<span style="color:var(--muted)">' + subj + ': —</span>';
+              if (hasIssue) return '<span style="color:#92400e" title="' + primary.join(', ') + '">' + subj + ': ' + primary.map(firstName).join(', ') + ' <span class="po-badge po-badge-gold" style="font-size:.6rem;padding:.1rem .3rem">⚠ ' + primary.length + '</span></span>';
+              const sub = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.7rem">(+' + numSubs + ' sub)</span>' : '';
+              return '<span title="' + primary[0] + '">' + subj + ': ' + firstName(primary[0]) + sub + '</span>';
+            });
+            tutorCell = '<td style="font-size:.75rem;color:var(--navy);line-height:1.7;padding:.5rem .875rem">' + parts.join('<br>') + '</td>';
+          }
+        }
+
+        return '<tr class="po-person-row" onclick="po.drillPerson(\'' + esc(p.uid) + '\')">'
+          + '<td style="font-weight:600;color:var(--navy);padding:.5rem .875rem">' + name + '</td>'
+          + '<td style="color:var(--muted);padding:.5rem .875rem">' + (p.grade || '—') + '</td>'
+          + '<td style="text-align:center;padding:.5rem .875rem">'
+          +   '<span style="font-weight:600;color:' + color + '">' + rate + '%</span>'
+          +   '<div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:' + rate + '%;background:' + color + '"></div></div>'
+          + '</td>'
+          + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.attended + '</td>'
+          + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.absent + '</td>'
+          + '<td style="text-align:center;padding:.5rem .875rem">' + (p.interruptions > 0 ? '<span class="po-badge po-badge-gold">' + p.interruptions + '</span>' : '<span style="color:var(--muted)">0</span>') + '</td>'
+          + '<td style="padding:.5rem .875rem">' + (flagCount > 0 ? '<span class="po-badge po-badge-red">🚩 ' + flagCount + ' flag' + (flagCount > 1 ? 's' : '') + '</span>' : '<span class="po-badge po-badge-green">✓ OK</span>') + adpFlag + '</td>'
+          + tutorCell
+          + '</tr>';
       };
 
-      const thStyle = `padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)`;
-      const theads = `<tr style="background:var(--surface-2)"><th style="${thStyle}">${canSeeNames()?'Name':'Scholar'}</th><th style="${thStyle}">Grade</th><th style="${thStyle};text-align:center">Att. Rate</th><th style="${thStyle};text-align:center">Attended</th><th style="${thStyle};text-align:center">Absent</th><th style="${thStyle};text-align:center">Interruptions</th><th style="${thStyle}">Flags</th><th style="${thStyle}">Consec.</th></tr>`;
+      const thStyle = 'padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
+      const theads = '<tr style="background:var(--surface-2)">'
+        + '<th style="' + thStyle + '">' + (canSeeNames() ? 'Name' : 'Scholar') + '</th>'
+        + '<th style="' + thStyle + '">Grade</th>'
+        + '<th style="' + thStyle + ';text-align:center">Att. Rate</th>'
+        + '<th style="' + thStyle + ';text-align:center">Attended</th>'
+        + '<th style="' + thStyle + ';text-align:center">Absent</th>'
+        + '<th style="' + thStyle + ';text-align:center">Interrupts</th>'
+        + '<th style="' + thStyle + '">Flags</th>'
+        + '<th style="' + thStyle + '">Tutor(s)</th>'
+        + '</tr>';
 
       return `
         <div style="padding:1.25rem 1.5rem 0">
@@ -7998,6 +8054,39 @@
               ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
             </div>
           </div>
+          ${isStudent && p.subjectTutors && Object.keys(p.subjectTutors).filter(s=>s).length > 0 ? (() => {
+            const subjects = Object.keys(p.subjectTutors).filter(s => s).sort();
+            const rows = subjects.map(subj => {
+              const st = p.subjectTutors[subj] || {};
+              const primary = Object.values(st.primary || {});
+              const numSubs = Object.keys(st.subs || {}).length;
+              const hasIssue = primary.length > 1;
+              const badge = hasIssue
+                ? '<span class="po-badge po-badge-gold" style="font-size:.6875rem">⚠️ ' + primary.length + ' tutors</span>'
+                : '<span class="po-badge po-badge-green" style="font-size:.6875rem">✓ 1 tutor</span>';
+              const names = primary.length
+                ? primary.map(n => '<span style="color:var(--navy)">' + n + '</span>').join('<span style="color:var(--muted);margin:0 .3rem">/</span>')
+                : '<span style="color:var(--muted)">None on record</span>';
+              const subNote = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.75rem">(+ ' + numSubs + ' substitute session' + (numSubs>1?'s':'') + ')</span>' : '';
+              return '<div style="display:flex;align-items:center;gap:.625rem;padding:.375rem 0;border-bottom:1px solid var(--border-2)">'
+                + '<div style="min-width:100px;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">' + subj + '</div>'
+                + '<div style="flex:1;font-size:.8125rem">' + names + subNote + '</div>'
+                + badge
+                + '</div>';
+            }).join('');
+            const expectedTutors = subjects.length;
+            const totalPrimary = subjects.reduce((s, sub) => s + Object.keys((p.subjectTutors[sub]||{}).primary||{}).length, 0);
+            const overallBadge = totalPrimary <= expectedTutors
+              ? '<span class="po-badge po-badge-green">' + expectedTutors + ' subject' + (expectedTutors>1?'s':'') + ' · ' + totalPrimary + ' primary tutor' + (totalPrimary>1?'s':'') + '</span>'
+              : '<span class="po-badge po-badge-gold">' + expectedTutors + ' subject' + (expectedTutors>1?'s':'') + ' · ' + totalPrimary + ' primary tutor' + (totalPrimary>1?'s':'') + ' — continuity review</span>';
+            return '<div style="padding:.625rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface-2)">'
+              + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.375rem">'
+              + '<span style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Assigned Tutors by Subject</span>'
+              + overallBadge
+              + '</div>'
+              + rows
+              + '</div>';
+          })() : ''}
           <div class="po-tabs-bar" id="poPersonTabsBar">
             ${tabs.map(t=>`<button class="po-tab${_activeTab===t.id?' po-tab-active':''}" onclick="po.switchPersonTab('${t.id}')">${t.label}</button>`).join('')}
           </div>
