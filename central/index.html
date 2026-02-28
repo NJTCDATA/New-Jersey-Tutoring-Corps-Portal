@@ -1979,9 +1979,9 @@
 
       <!-- Executive Stats Strip -->
       <div class="stats-strip" id="poStatsStrip">
-        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub" id="poStatAttSub">Scholar rate</div></div>
+        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Scholar Attendance</div><div class="st-sub">Attended + Late</div></div>
         <div class="stat-tile" style="--accent-color:#0ea5e9"><div class="st-icon">🎓</div><div class="st-value" id="poStatInstAtt">—</div><div class="st-label">Tutor Attendance</div><div class="st-sub">Tutor rate</div></div>
-        <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">vs total scheduled</div></div>
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">Full + Partial attended</div></div>
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
         <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
         <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub">Engagement · Quality · Overall</div></div>
@@ -4890,119 +4890,249 @@
   //  LEADERSHIP ANALYTICS — Executive lens, all goals, org health
   // ════════════════════════════════════════════════════════════════
   function renderLeadershipAnalytics(data) {
-    if (!data.length) return `<div style="padding:3rem;text-align:center;color:var(--muted)">No records for selected period.</div>`;
-    const total     = data.length;
-    const escalated = data.filter(r => r.hr_action && (r.hr_action.includes('Write Up')||r.hr_action==='PGP'||r.hr_action.includes('Terminat'))).length;
-    const onWatch   = data.filter(r => r.hr_action === 'On Watch').length;
-    const repeated  = data.filter(r => r.first_time === 'No').length;
-    const iLearnPct = Math.round((data.filter(r=>r.site==='iLearn Charter Schools').length/total)*100);
-    const byDistrict = countBy(data,'site');
-    const monthMap  = {};
-    data.forEach(r => { monthMap[r.month]=(monthMap[r.month]||0)+1; });
-    const monthOrder = Object.keys(monthMap).sort((a,b)=>new Date('01 '+a)-new Date('01 '+b));
-    const recent2   = monthOrder.slice(-2);
-    const prior2    = monthOrder.slice(-4,-2);
-    const recentCnt = data.filter(r=>recent2.includes(r.month)).length;
-    const priorCnt  = data.filter(r=>prior2.includes(r.month)).length;
-    const trend     = priorCnt > 0 ? Math.round((recentCnt/priorCnt-1)*100) : 0;
+    // ── Leadership view: operational summary from Pearl data ──────────────
+    // Shows program health at district level. No individual names, no raw logs.
+    // Designed for leaders with varying analytical backgrounds.
 
-    let html = `<div style="margin-bottom:1rem">
-      <div style="font-size:.8125rem;color:var(--text);line-height:1.6;padding:.875rem 1.125rem;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1.5px solid #f59e0b;border-radius:10px">
-        <strong>Executive Summary · ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</strong><br>
-        ${total} performance concerns documented across ${byDistrict.length} districts.
-        ${iLearnPct >= 40 ? `<strong>⚠️ iLearn represents ${iLearnPct}% of all concerns — portfolio concentration risk for partner retention goal.</strong>` : ''}
-        ${trend > 30 ? ` Concern volume is up ${trend}% vs prior 2-month period — warrants cross-departmental review.` : trend < -20 ? ` Concern volume is down ${Math.abs(trend)}% vs prior 2-month period — positive trajectory.` : ''}
-        ${escalated > 3 ? ` ${escalated} formal HR actions are active — review with HR Director for succession/retention impact.` : ''}
-      </div>
-    </div>`;
+    // Pull live Pearl data if available
+    const pd = (typeof po !== 'undefined' && po.getLeadershipData) ? po.getLeadershipData() : null;
 
-    // Org health grid
-    html += `<div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
-      <div class="ta-card ta-kpi ${trend>30?'alert':trend<0?'ok':'warning'}">
-        <div class="ta-kpi-val">${trend>0?'+':''}${trend}%</div>
-        <div class="ta-kpi-sub">Concern Volume Trend<br><span style="font-size:.7rem">(vs prior 2 months)</span></div>
-      </div>
-      <div class="ta-card ta-kpi ${escalated>5?'alert':'warning'}">
-        <div class="ta-kpi-val">${escalated}</div>
-        <div class="ta-kpi-sub">Active Formal HR Actions</div>
-      </div>
-      <div class="ta-card ta-kpi ${iLearnPct>=50?'alert':iLearnPct>=35?'warning':'ok'}">
-        <div class="ta-kpi-val">${iLearnPct}%</div>
-        <div class="ta-kpi-sub">Concerns at Single Partner<br><span style="font-size:.7rem">(iLearn Charter Schools)</span></div>
-      </div>
-      <div class="ta-card ta-kpi ok">
-        <div class="ta-kpi-val">${REVIEWS.length}</div>
-        <div class="ta-kpi-sub">Site Leader Reviews<br><span style="font-size:.7rem">Completed This Cycle</span></div>
-      </div>
-    </div>`;
+    // ── SECTION 1: Program Health Snapshot ───────────────────────────────
+    function healthCard(icon, value, label, sublabel, status) {
+      const bg = status === 'green' ? '#f0fdf4' : status === 'amber' ? '#fffbeb' : '#fef2f2';
+      const vc = status === 'green' ? '#166534' : status === 'amber' ? '#92400e' : '#991b1b';
+      const bc = status === 'green' ? '#bbf7d0' : status === 'amber' ? '#fde68a' : '#fecaca';
+      return `<div style="background:${bg};border:1.5px solid ${bc};border-radius:12px;padding:1.25rem 1rem;text-align:center;flex:1">
+        <div style="font-size:1.75rem;margin-bottom:.25rem">${icon}</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:2rem;font-weight:700;color:${vc};line-height:1">${value}</div>
+        <div style="font-size:.8125rem;font-weight:700;color:#1e293b;margin:.3rem 0 .15rem">${label}</div>
+        <div style="font-size:.7rem;color:#64748b">${sublabel}</div>
+      </div>`;
+    }
 
-    // Annual goals alignment
-    html += `<div class="ta-card" style="margin-bottom:1rem">
-      <div class="ta-card-title">🎯 Annual Goal Alignment — Workforce &amp; Partner Health</div>
-      <div class="ta-grid ta-grid-3" style="margin-top:.75rem">
-        <div style="padding:.75rem;background:#f0fdf4;border-radius:8px">
-          <div style="font-weight:700;font-size:.875rem;color:#065f46;margin-bottom:.375rem">Culture — Staff Retention</div>
-          <div style="font-size:.8125rem;color:#064e3b;line-height:1.6">
-            Goal: 80% core / 60% onsite retention.<br>
-            <strong>${onWatch + escalated}</strong> employees at Watch/Formal stage = retention risk pool.<br>
-            ${onWatch+escalated <= 5 ? '✅ Risk pool within manageable range.' : '⚠️ Risk pool elevated — flag for board conversation.'}
+    // ── Compute from Pearl data ───────────────────────────────────────────
+    let snapHtml = '';
+    let districtHtml = '';
+    let absenceHtml = '';
+    let trendHtml = '';
+    let scholarTierHtml = '';
+
+    if (pd) {
+      // SNAPSHOT CARDS
+      const sRate = pd.scholarRate;
+      const tRate = pd.tutorRate;
+      const survey = pd.scholarSurvey;
+      const delivered = pd.sessionsDelivered;
+
+      const sStatus = sRate >= 80 ? 'green' : sRate >= 70 ? 'amber' : 'red';
+      const tStatus = tRate >= 80 ? 'green' : tRate >= 70 ? 'amber' : 'red';
+      const svStatus = survey >= 4.0 ? 'green' : survey >= 3.5 ? 'amber' : 'red';
+
+      snapHtml = `
+        <div style="display:flex;gap:.875rem;margin-bottom:1.5rem;flex-wrap:wrap">
+          ${healthCard('📊', delivered.toLocaleString(), 'Sessions Delivered', 'This school year', 'green')}
+          ${healthCard('🎓', sRate + '%', 'Scholar Attendance', 'Target: 80% · ' + (sStatus==='red'?'Below target':sStatus==='amber'?'Approaching target':'On track'), sStatus)}
+          ${healthCard('👩‍🏫', tRate + '%', 'Tutor Attendance', 'Target: 80% · ' + (tStatus==='red'?'Below target':tStatus==='amber'?'Approaching target':'On track'), tStatus)}
+          ${healthCard('⭐', survey.toFixed(1) + ' / 5', 'Scholar Satisfaction', 'How scholars rate their tutoring', svStatus)}
+        </div>`;
+
+      // SCHOLAR TIERS
+      const onTrack = pd.scholarOnTrack;
+      const atRisk  = pd.scholarAtRisk;
+      const needsAction = pd.scholarNeedsAction;
+      const total   = onTrack + atRisk + needsAction;
+      const onTrackPct = Math.round(onTrack/total*100);
+      const atRiskPct  = Math.round(atRisk/total*100);
+      const needsPct   = Math.round(needsAction/total*100);
+
+      scholarTierHtml = `
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.875rem">Scholar Engagement Overview — ${total.toLocaleString()} Scholars Enrolled</div>
+          <div style="display:flex;gap:1rem;align-items:stretch;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px;background:#f0fdf4;border-radius:10px;padding:1rem;text-align:center">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:#166534">${onTrack}</div>
+              <div style="font-size:.75rem;font-weight:700;color:#166534">On Track</div>
+              <div style="font-size:.7rem;color:#64748b">≥ 80% attendance</div>
+              <div style="margin-top:.5rem;height:5px;background:#bbf7d0;border-radius:3px"><div style="height:100%;width:${onTrackPct}%;background:#16a34a;border-radius:3px"></div></div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:.2rem">${onTrackPct}% of scholars</div>
+            </div>
+            <div style="flex:1;min-width:140px;background:#fffbeb;border-radius:10px;padding:1rem;text-align:center">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:#92400e">${atRisk}</div>
+              <div style="font-size:.75rem;font-weight:700;color:#92400e">At Risk</div>
+              <div style="font-size:.7rem;color:#64748b">70 – 79% attendance</div>
+              <div style="margin-top:.5rem;height:5px;background:#fde68a;border-radius:3px"><div style="height:100%;width:${atRiskPct}%;background:#d97706;border-radius:3px"></div></div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:.2rem">${atRiskPct}% of scholars</div>
+            </div>
+            <div style="flex:1;min-width:140px;background:#fef2f2;border-radius:10px;padding:1rem;text-align:center">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:#991b1b">${needsAction}</div>
+              <div style="font-size:.75rem;font-weight:700;color:#991b1b">Needs Attention</div>
+              <div style="font-size:.7rem;color:#64748b">Below 70% attendance</div>
+              <div style="margin-top:.5rem;height:5px;background:#fecaca;border-radius:3px"><div style="height:100%;width:${needsPct}%;background:#dc2626;border-radius:3px"></div></div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:.2rem">${needsPct}% of scholars</div>
+            </div>
           </div>
-        </div>
-        <div style="padding:.75rem;background:#eff6ff;border-radius:8px">
-          <div style="font-weight:700;font-size:.875rem;color:#1e40af;margin-bottom:.375rem">Partner Experience</div>
-          <div style="font-size:.8125rem;color:#1e3a8a;line-height:1.6">
-            Goal: 90% satisfaction, 50% retention.<br>
-            ${byDistrict.filter(([d,c])=>c>=6).length} district${byDistrict.filter(([d,c])=>c>=6).length!==1?'s':''} with 6+ concerns.<br>
-            ${byDistrict.filter(([d,c])=>c>=6).length === 0 ? '✅ No single-partner concern spikes.' : `⚠️ ${byDistrict.filter(([d,c])=>c>=6).map(([d])=>d).join(', ')} — review with PM team.`}
-          </div>
-        </div>
-        <div style="padding:.75rem;background:#fff7ed;border-radius:8px">
-          <div style="font-weight:700;font-size:.875rem;color:#92400e;margin-bottom:.375rem">Educator Pipeline</div>
-          <div style="font-size:.8125rem;color:#78350f;line-height:1.6">
-            Goal: 40 apprentices, DOL grant secured.<br>
-            Dual-role concerns: <strong>${data.filter(r=>r.role==='Dual Role').length}</strong> (site leader tier).<br>
-            ${data.filter(r=>r.role==='Dual Role').length <= 5 ? '✅ Site leader performance stable.' : '⚠️ Multiple dual-role concerns — review SC/IC quality.'}
-          </div>
-        </div>
-      </div>
-    </div>`;
+        </div>`;
 
-    // District portfolio map
-    html += `<div class="ta-grid ta-grid-2" style="margin-bottom:1rem">
-      <div class="ta-card">
-        <div class="ta-card-title">📍 District Portfolio Risk Map</div>
-        ${barRows(byDistrict.slice(0,8), byDistrict[0]?.[1]||1, '#1d3461')}
-      </div>
-      <div class="ta-card">
-        <div class="ta-card-title">📈 12-Month Concern Volume Trend</div>
-        ${monthOrder.slice(-12).map(m=>`<div class="ta-bar-row">
-          <div class="ta-bar-label">${m}</div>
-          <div class="ta-bar-track"><div class="ta-bar-fill" style="width:${Math.round((monthMap[m]||0)/Math.max(...Object.values(monthMap))*100)}%;background:${recent2.includes(m)?'#e63946':'#457b9d'}"></div></div>
-          <div class="ta-bar-count">${monthMap[m]||0}</div>
-        </div>`).join('')}
-        <div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">🔴 = Most recent 2 months</div>
-      </div>
-    </div>`;
+      // DISTRICT BREAKDOWN
+      const districts = pd.districts.sort((a,b) => a.scholarRate - b.scholarRate);
+      const distRows = districts.map(d => {
+        const srColor = d.scholarRate >= 80 ? '#166534' : d.scholarRate >= 70 ? '#92400e' : '#dc2626';
+        const srBg    = d.scholarRate >= 80 ? '#f0fdf4' : d.scholarRate >= 70 ? '#fffbeb' : '#fef2f2';
+        const trColor = d.tutorRate >= 80 ? '#166534' : d.tutorRate >= 70 ? '#92400e' : '#dc2626';
+        const flag    = d.scholarRate < 70 ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;font-size:.65rem;font-weight:700;padding:.15rem .5rem;margin-left:.4rem">Needs attention</span>' :
+                        d.scholarRate < 80 ? '<span style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:20px;font-size:.65rem;font-weight:700;padding:.15rem .5rem;margin-left:.4rem">Watch</span>' : '';
 
-    // Site leader quality summary for leadership
-    const partial = REVIEWS.filter(r=>r.d23.includes('Partially')||r.d1.includes('Partially')||r.d4.includes('Partially'));
-    html += `<div class="ta-card">
-      <div class="ta-card-title">⭐ Site Leader Quality — Executive Summary</div>
-      <div class="ta-grid ta-grid-3" style="margin-top:.75rem">
-        ${['d1','d23','d4'].map((domain, i) => {
-          const labels = ['Domain 1: Planning & Prep','Domain 2&3: Instruction','Domain 4: Professionalism'];
-          const meets = REVIEWS.filter(r=>r[domain].includes('Meets') && !r[domain].includes('Partial')).length;
-          const pct = REVIEWS.length ? Math.round(meets/REVIEWS.length*100) : 0;
-          return `<div style="text-align:center;padding:.875rem;background:${pct>=90?'#f0fdf4':pct>=70?'#fff7ed':'#fef2f2'};border-radius:8px">
-            <div style="font-size:1.75rem;font-weight:800;color:${pct>=90?'#065f46':pct>=70?'#92400e':'#991b1b'}">${pct}%</div>
-            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">${labels[i]}</div>
-            <div style="font-size:.7rem;color:var(--muted)">${meets} of ${REVIEWS.length} Meets</div>
+        // School sub-rows (collapsed by default, shown inline as mini bars)
+        const schoolBars = d.schools.sort((a,b) => a.rate - b.rate).map(s => {
+          const sc = s.rate >= 80 ? '#16a34a' : s.rate >= 70 ? '#d97706' : '#dc2626';
+          const barW = Math.min(100, s.rate);
+          return `<div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0">
+            <div style="font-size:.7rem;color:#475569;min-width:160px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</div>
+            <div style="flex:1;height:5px;background:#e2e8f0;border-radius:3px;min-width:60px"><div style="height:100%;width:${barW}%;background:${sc};border-radius:3px"></div></div>
+            <div style="font-size:.7rem;font-weight:700;color:${sc};min-width:34px;text-align:right">${s.rate}%</div>
           </div>`;
-        }).join('')}
-      </div>
-      ${partial.length ? `<div style="margin-top:.75rem;font-size:.8125rem;color:#92400e;padding:.625rem .875rem;background:#fff7ed;border-radius:6px">⚠️ ${partial.length} site leader(s) below standard: ${partial.map(r=>r.leader+' ('+r.site+')').join(', ')}</div>` : ''}
+        }).join('');
+
+        return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:.875rem 1rem;margin-bottom:.625rem">
+          <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px">
+              <div style="font-weight:700;font-size:.875rem;color:#1e293b">${d.name}${flag}</div>
+              <div style="font-size:.7rem;color:#64748b;margin-top:.1rem">${d.schools.length} school${d.schools.length>1?'s':''} · ${d.scholars.toLocaleString()} scholars</div>
+            </div>
+            <div style="text-align:center;min-width:70px">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;font-weight:700;color:${srColor};background:${srBg};padding:.3rem .75rem;border-radius:8px">${d.scholarRate}%</div>
+              <div style="font-size:.65rem;color:#64748b;margin-top:.15rem">Scholar Att.</div>
+            </div>
+            <div style="text-align:center;min-width:70px">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;font-weight:700;color:${trColor}">${d.tutorRate}%</div>
+              <div style="font-size:.65rem;color:#64748b;margin-top:.15rem">Tutor Att.</div>
+            </div>
+            <div style="text-align:center;min-width:60px">
+              <div style="font-size:.875rem;font-weight:700;color:#1e293b">${d.sessions.toLocaleString()}</div>
+              <div style="font-size:.65rem;color:#64748b;margin-top:.15rem">Sessions</div>
+            </div>
+          </div>
+          ${d.schools.length > 1 ? `<div style="margin-top:.625rem;padding-top:.5rem;border-top:1px solid #f1f5f9">${schoolBars}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      districtHtml = `
+        <div style="margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.75rem">District Breakdown — Sorted by Scholar Attendance (lowest first)</div>
+          ${distRows}
+        </div>`;
+
+      // ABSENCE DRIVERS — what's keeping scholars away?
+      const ctrl   = pd.absenceDrivers.controllable;
+      const unctrl = pd.absenceDrivers.uncontrollable;
+      const totAbs = ctrl.total + unctrl.total;
+      const ctrlPct   = totAbs > 0 ? Math.round(ctrl.total/totAbs*100) : 0;
+      const unctrlPct = 100 - ctrlPct;
+
+      absenceHtml = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:1.5rem">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem">
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#dc2626;margin-bottom:.75rem">🔧 Within Our Control — ${ctrlPct}% of absences</div>
+            ${ctrl.reasons.map(r => `<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem">
+              <div style="flex:1;font-size:.8125rem;color:#334155">${r.label}</div>
+              <div style="min-width:80px"><div style="height:6px;background:#fee2e2;border-radius:3px"><div style="height:100%;width:${Math.round(r.count/Math.max(ctrl.reasons[0].count,1)*100)}%;background:#dc2626;border-radius:3px"></div></div></div>
+              <div style="font-size:.75rem;font-weight:700;color:#dc2626;min-width:32px;text-align:right">${r.count.toLocaleString()}</div>
+            </div>`).join('')}
+            <div style="margin-top:.625rem;font-size:.75rem;color:#64748b;padding:.5rem;background:#fef2f2;border-radius:6px">Action: Program + HR teams to address tutor reliability</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem">
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#0369a1;margin-bottom:.75rem">🏫 Outside Our Control — ${unctrlPct}% of absences</div>
+            ${unctrl.reasons.map(r => `<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem">
+              <div style="flex:1;font-size:.8125rem;color:#334155">${r.label}</div>
+              <div style="min-width:80px"><div style="height:6px;background:#dbeafe;border-radius:3px"><div style="height:100%;width:${Math.round(r.count/Math.max(unctrl.reasons[0].count,1)*100)}%;background:#0369a1;border-radius:3px"></div></div></div>
+              <div style="font-size:.75rem;font-weight:700;color:#0369a1;min-width:32px;text-align:right">${r.count.toLocaleString()}</div>
+            </div>`).join('')}
+            <div style="margin-top:.625rem;font-size:.75rem;color:#64748b;padding:.5rem;background:#eff6ff;border-radius:6px">Context: School-driven disruptions — document for partner conversations</div>
+          </div>
+        </div>`;
+
+      // WEEKLY TREND (last 10 weeks)
+      const weeks = pd.weeklyTrend.slice(-10);
+      const maxSessions = Math.max(...weeks.map(w => w.total), 1);
+      const maxRate = 100;
+
+      trendHtml = `
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.875rem">Weekly Attendance Trend — Last 10 Weeks</div>
+          <div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:.375rem">
+            ${weeks.map(w => {
+              const barH = Math.round(w.rate / 100 * 80);
+              const c = w.rate >= 80 ? '#16a34a' : w.rate >= 70 ? '#d97706' : '#dc2626';
+              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+                <div style="font-size:.6rem;font-weight:700;color:${c}">${w.rate}%</div>
+                <div style="width:100%;background:${c};border-radius:3px 3px 0 0;height:${barH}px;min-height:3px" title="${w.week}: ${w.rate}%"></div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="display:flex;gap:6px">
+            ${weeks.map(w => `<div style="flex:1;text-align:center;font-size:.6rem;color:#94a3b8">${w.week.replace('Week ','W')}</div>`).join('')}
+          </div>
+          <div style="display:flex;gap:1.25rem;margin-top:.625rem;font-size:.7rem;color:#64748b">
+            <span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#16a34a;display:inline-block"></span> On track (≥80%)</span>
+            <span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#d97706;display:inline-block"></span> Watch (70–79%)</span>
+            <span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#dc2626;display:inline-block"></span> Needs attention (&lt;70%)</span>
+          </div>
+        </div>`;
+
+    } else {
+      // Pearl data not loaded yet
+      snapHtml = `<div style="padding:2rem;text-align:center;color:#64748b;background:#f8fafc;border-radius:12px;margin-bottom:1.5rem">
+        <div style="font-size:1.5rem;margin-bottom:.5rem">📊</div>
+        <div style="font-weight:600;margin-bottom:.25rem">Operational data loading...</div>
+        <div style="font-size:.8125rem">Open the Pearl Operations module first to load attendance data, then return here.</div>
+      </div>`;
+    }
+
+    // ── Talent health summary (from concern data) ─────────────────────────
+    const escalated = data.filter(r => r.hr_action && (r.hr_action.includes('Write Up') || r.hr_action === 'PGP' || r.hr_action.includes('Terminat'))).length;
+    const onWatch   = data.filter(r => r.hr_action === 'On Watch').length;
+    const byMonth   = {};
+    data.forEach(r => { byMonth[r.month] = (byMonth[r.month]||0) + 1; });
+    const months    = Object.keys(byMonth).sort((a,b) => new Date('01 '+a) - new Date('01 '+b));
+    const lastMonth = months[months.length-1];
+    const prevMonth = months[months.length-2];
+    const trend     = prevMonth && byMonth[prevMonth] > 0
+      ? Math.round((byMonth[lastMonth||0] - byMonth[prevMonth]) / byMonth[prevMonth] * 100)
+      : 0;
+    const trendLabel = trend > 20 ? '\u2197\ufe0f Concern volume up ' + trend + '% vs last month'
+                     : trend < -20 ? '\u2198\ufe0f Concern volume down ' + Math.abs(trend) + '% vs last month'
+                     : '\u2192 Concern volume stable';
+    const trendColor = trend > 20 ? '#991b1b' : trend < -20 ? '#166534' : '#475569';
+
+    const talentHtml = `
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.875rem">Staff Health — Performance Concerns Overview</div>
+        <div style="display:flex;gap:.875rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:120px;background:#fffbeb;border-radius:10px;padding:.875rem;text-align:center">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:#92400e">${onWatch}</div>
+            <div style="font-size:.75rem;font-weight:700;color:#92400e">On Watch</div>
+            <div style="font-size:.7rem;color:#64748b">Early-stage concerns</div>
+          </div>
+          <div style="flex:1;min-width:120px;background:${escalated>3?'#fef2f2':'#f8fafc'};border-radius:10px;padding:.875rem;text-align:center">
+            <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;font-weight:700;color:${escalated>3?'#991b1b':'#334155'}">${escalated}</div>
+            <div style="font-size:.75rem;font-weight:700;color:${escalated>3?'#991b1b':'#334155'}">Formal HR Actions</div>
+            <div style="font-size:.7rem;color:#64748b">Write-ups, PGP, termination</div>
+          </div>
+          <div style="flex:1;min-width:160px;background:#f8fafc;border-radius:10px;padding:.875rem;display:flex;align-items:center;justify-content:center">
+            <div style="font-size:.8125rem;font-weight:600;color:${trendColor}">${trendLabel}</div>
+          </div>
+        </div>
+        <div style="margin-top:.75rem;font-size:.75rem;color:#64748b">For detailed HR actions and individual records, see the HR or Programming team views.</div>
+      </div>`;
+
+    return `<div style="padding:.25rem 0">
+      ${snapHtml}
+      ${scholarTierHtml}
+      ${trendHtml}
+      ${districtHtml}
+      ${absenceHtml}
+      ${talentHtml}
     </div>`;
-    return html;
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -7121,20 +7251,37 @@
       _schoolMap = {}; _personMap = {}; _sessMap = {};
 
       // ── Session index ────────────────────────────────────────────────
+      // Parse duration strings ("40 minutes", "1 hour", "1 hour 30 minutes") → integer minutes
+      function parseDurationMins(s) {
+        if (!s) return 0;
+        s = s.toLowerCase();
+        let m = 0;
+        const h = s.match(/(\d+)\s*hour/);   if (h) m += parseInt(h[1]) * 60;
+        const mn = s.match(/(\d+)\s*min/);   if (mn) m += parseInt(mn[1]);
+        return m;
+      }
+
       for (const r of _sessRows) {
         if (!r[SESS.SESS_ID]) continue;
         const sid = r[SESS.SESS_ID];
         const stuIds = (r[SESS.STU_IDS] || '').split(',').map(s => s.trim()).filter(Boolean);
         const ratio = stuIds.length;
+        const sessAtt = r[SESS.ATTENDANCE] || '';
+        // Delivered = Completed status (covers both "Attended" and "Partially Attended" att values)
+        const isDelivered = r[SESS.STATUS] === 'Completed';
+        const isPartial   = isDelivered && sessAtt === 'Partially Attended';
+        const isFullAtt   = isDelivered && sessAtt === 'Attended';
+        const durMins     = parseDurationMins(r[SESS.ACTUAL_DUR] || r[SESS.SCHED_DUR]);
         _sessMap[sid] = {
           id: sid, title: r[SESS.TITLE], instructor: r[SESS.INSTRUCTOR],
           instId: r[SESS.INST_ID], studentIds: stuIds,
           students: r[SESS.STUDENTS], location: r[SESS.LOCATION],
-          status: r[SESS.STATUS], attendance: r[SESS.ATTENDANCE],
+          status: r[SESS.STATUS], attendance: sessAtt,
+          isDelivered, isPartial, isFullAtt,
           start: r[SESS.START], schedDur: r[SESS.SCHED_DUR],
           actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
           grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
-          ratio,
+          durMins, ratio,
           ratioFlag: ratio > 4,  // HIT: must be ≤ 4:1 (flag, MOU governs)
         };
       }
@@ -7179,6 +7326,7 @@
             rows: [],
             instructorIds: new Set(),  // non-sub instructor IDs (flat set for quick check)
             subjectTutors: {},          // { subject: { primary:{id:name}, subs:{id:name} } }
+            subjectMinutes: {},         // { subject: totalMinutesDelivered }
             flags: [],
           };
         }
@@ -7221,7 +7369,7 @@
         const sc = _schoolMap[sess.school];
         sc.sessions.push(sess);
 
-        // Track per-student: which instructors taught which subject
+        // Track per-student: which instructors taught which subject + minutes received
         // Substitutes (name contains "SUB") tracked separately
         const isSub = (sess.instructor || '').toUpperCase().includes('SUB');
         const subj  = sess.subject || '';
@@ -7231,6 +7379,11 @@
           if (!p.subjectTutors[subj]) p.subjectTutors[subj] = { primary: {}, subs: {} };
           if (isSub) p.subjectTutors[subj].subs[sess.instId]  = sess.instructor;
           else        p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
+          // Accumulate delivered minutes per subject (Completed sessions only)
+          if (sess.isDelivered && sess.durMins > 0) {
+            if (!p.subjectMinutes) p.subjectMinutes = {};
+            p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + sess.durMins;
+          }
         }
       }
 
@@ -7453,9 +7606,11 @@
       const si = allScholarRows.filter(r => classifyRecord(r) === 'service_interruption').length;
 
       // ── Sessions ───────────────────────────────────────────────────
-      const filtSess = filteredSessions();
-      const completed = filtSess.filter(s => s.status === 'Completed').length;
-      const totalSess = filtSess.length;
+      const filtSess   = filteredSessions();
+      const fullAtt    = filtSess.filter(s => s.isFullAtt).length;
+      const partial    = filtSess.filter(s => s.isPartial).length;
+      const delivered  = fullAtt + partial;   // Completed = Attended + Partially Attended
+      const totalSess  = filtSess.filter(s => s.status && s.status !== '' && s.status !== 'Scheduled').length;
 
       // ── Scholar survey avg (from student survey rows, filtered by school) ──
       // Uses raw score columns: CONFIDENCE, ENJOYMENT, LEARNING, OVERALL (cols 2-5)
@@ -7491,8 +7646,8 @@
 
       setText('poStatAtt',           stuAttPct);
       setText('poStatInstAtt',       instAttPct);
-      setText('poStatSessions',      completed.toLocaleString());
-      setText('poStatSessionsSub',   `of ${totalSess.toLocaleString()} scheduled`);
+      setText('poStatSessions',      delivered.toLocaleString());
+      setText('poStatSessionsSub',   `${fullAtt.toLocaleString()} full · ${partial.toLocaleString()} partial · of ${totalSess.toLocaleString()}`);
       setText('poStatInterruptions', si.toLocaleString());
       setText('poStatSurveyScholar', stuSurvAvg === '—' ? '—' : '★ ' + stuSurvAvg);
       setText('poStatSurveyTutor',   instSurvAvg === '—' ? '—' : '★ ' + instSurvAvg);
@@ -7711,49 +7866,59 @@
     }
 
     function renderAttendanceTab(sc) {
+      // Respect the global role filter
+      const roleFilter = _filtRole; // '' | 'Student' | 'Instructor'
+
       const persons = Object.values(_personMap)
-        .filter(p => p.school === sc.school)
+        .filter(p => p.school === sc.school && (!roleFilter || p.role === roleFilter))
         .sort((a, b) => {
           const aRate = a.attended / Math.max(1, a.attended + a.absent);
           const bRate = b.attended / Math.max(1, b.attended + b.absent);
           return aRate - bRate;
         });
 
-      const students  = persons.filter(p => p.role === 'Student');
-      const instructors = persons.filter(p => p.role === 'Instructor');
+      const students    = roleFilter === 'Instructor' ? [] : persons.filter(p => p.role === 'Student');
+      const instructors = roleFilter === 'Student'    ? [] : persons.filter(p => p.role === 'Instructor');
 
-      const renderPersonRow = (p) => {
+      const thStyle = 'padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
+
+      // ── Scholar row ─────────────────────────────────────────────────
+      const renderScholarRow = (p) => {
         const total = p.attended + p.absent;
         const rate  = total > 0 ? Math.round(p.attended / total * 100) : 0;
         const color = rate >= 90 ? 'var(--met)' : rate >= 75 ? 'var(--gold)' : 'var(--notmet)';
         const flagCount = p.flags.length;
-        const name = canSeeNames() ? p.name : '—';
-        const adpFlag = isHR() || isFinance() ? (rate < 70 ? '<span class="po-badge po-badge-red" title="Low attendance">⚑ Check ADP</span>' : '') : '';
+        const name = canSeeNames() ? p.name : 'Scholar';
+        const adpFlag = isHR() || isFinance() ? (rate < 70 ? '<span class="po-badge po-badge-red" title="Low attendance">\u2691 Check ADP</span>' : '') : '';
 
-        // Tutor assignment cell (scholars only)
-        // Shows subject: PrimaryTutor. Warns if 2+ primary tutors on one subject.
-        let tutorCell = '<td style="color:var(--muted);font-size:.75rem;padding:.5rem .875rem">—</td>';
-        if (p.role === 'Student' && p.subjectTutors) {
+        // Tutor assignment + minutes per subject
+        let tutorCell = '<td style="color:var(--muted);font-size:.75rem;padding:.5rem .875rem">\u2014</td>';
+        if (p.subjectTutors) {
           const subjects = Object.keys(p.subjectTutors).filter(s => s).sort();
           if (subjects.length) {
             const parts = subjects.map(subj => {
               const st = p.subjectTutors[subj] || {};
               const primary = Object.values(st.primary || {});
               const numSubs = Object.keys(st.subs || {}).length;
+              const mins = (p.subjectMinutes && p.subjectMinutes[subj]) || 0;
+              const minsStr = mins > 0 ? (' <span style="color:var(--muted);font-size:.7rem">(' + (mins >= 60 ? Math.floor(mins/60) + 'h ' + (mins%60 > 0 ? mins%60 + 'm' : '') : mins + 'm') + ')</span>') : '';
               const hasIssue = primary.length > 1;
               const firstName = n => n.split(' ').slice(0,2).join(' ');
-              if (!primary.length) return '<span style="color:var(--muted)">' + subj + ': —</span>';
-              if (hasIssue) return '<span style="color:#92400e" title="' + primary.join(', ') + '">' + subj + ': ' + primary.map(firstName).join(', ') + ' <span class="po-badge po-badge-gold" style="font-size:.6rem;padding:.1rem .3rem">⚠ ' + primary.length + '</span></span>';
-              const sub = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.7rem">(+' + numSubs + ' sub)</span>' : '';
-              return '<span title="' + primary[0] + '">' + subj + ': ' + firstName(primary[0]) + sub + '</span>';
+              if (!primary.length) return '<span style="color:var(--muted)">' + subj + ': \u2014</span>';
+              if (hasIssue) return '<span style="color:#92400e" title="' + primary.join(', ') + '">' + subj + ': ' + primary.map(firstName).join(', ') + ' <span class="po-badge po-badge-gold" style="font-size:.6rem;padding:.1rem .3rem">\u26a0 ' + primary.length + '</span></span>' + minsStr;
+              const subNote = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.7rem">(+' + numSubs + ' sub)</span>' : '';
+              return '<span title="' + primary[0] + '">' + subj + ': ' + firstName(primary[0]) + subNote + '</span>' + minsStr;
             });
             tutorCell = '<td style="font-size:.75rem;color:var(--navy);line-height:1.7;padding:.5rem .875rem">' + parts.join('<br>') + '</td>';
           }
         }
 
+        const consecBadge = p.consecStatus === 'Attendance Concern'
+          ? '<span class="po-badge po-badge-critical">Concern</span>'
+          : '<span class="po-badge po-badge-green">Good</span>';
         return '<tr class="po-person-row" onclick="po.drillPerson(\'' + esc(p.uid) + '\')">'
           + '<td style="font-weight:600;color:var(--navy);padding:.5rem .875rem">' + name + '</td>'
-          + '<td style="color:var(--muted);padding:.5rem .875rem">' + (p.grade || '—') + '</td>'
+          + '<td style="color:var(--muted);padding:.5rem .875rem">' + (p.grade || '\u2014') + '</td>'
           + '<td style="text-align:center;padding:.5rem .875rem">'
           +   '<span style="font-weight:600;color:' + color + '">' + rate + '%</span>'
           +   '<div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:' + rate + '%;background:' + color + '"></div></div>'
@@ -7761,57 +7926,121 @@
           + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.attended + '</td>'
           + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.absent + '</td>'
           + '<td style="text-align:center;padding:.5rem .875rem">' + (p.interruptions > 0 ? '<span class="po-badge po-badge-gold">' + p.interruptions + '</span>' : '<span style="color:var(--muted)">0</span>') + '</td>'
-          + '<td style="padding:.5rem .875rem">' + (flagCount > 0 ? '<span class="po-badge po-badge-red">🚩 ' + flagCount + ' flag' + (flagCount > 1 ? 's' : '') + '</span>' : '<span class="po-badge po-badge-green">✓ OK</span>') + adpFlag + '</td>'
+          + '<td style="padding:.5rem .875rem">' + consecBadge + '</td>'
+          + '<td style="padding:.5rem .875rem">' + (flagCount > 0 ? '<span class="po-badge po-badge-red">\ud83d\udea9 ' + flagCount + ' flag' + (flagCount>1?'s':'') + '</span>' : '<span class="po-badge po-badge-green">\u2713 OK</span>') + adpFlag + '</td>'
           + tutorCell
           + '</tr>';
       };
 
-      const thStyle = 'padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
-      const theads = '<tr style="background:var(--surface-2)">'
-        + '<th style="' + thStyle + '">' + (canSeeNames() ? 'Name' : 'Scholar') + '</th>'
+      // ── Instructor row ───────────────────────────────────────────────
+      const renderInstructorRow = (p) => {
+        const total = p.attended + p.absent;
+        const rate  = total > 0 ? Math.round(p.attended / total * 100) : 0;
+        const color = rate >= 80 ? 'var(--met)' : rate >= 65 ? 'var(--gold)' : 'var(--notmet)';
+        const flagCount = p.flags.length;
+        const name = canSeeNames() ? p.name : 'Instructor';
+        const adpFlag = isHR() || isFinance() ? (rate < 80 ? '<span class="po-badge po-badge-red" title="Below 80% — verify ADP">\u2691 Check ADP</span>' : '') : '';
+
+        // Subjects this instructor teaches at this school (from sessions)
+        const subjSet = new Set();
+        Object.values(_sessMap).forEach(sess => {
+          if (sess.school === sc.school && sess.instId === p.uid) subjSet.add(sess.subject || '');
+        });
+        const subjList = Array.from(subjSet).filter(s => s).join(', ') || '\u2014';
+
+        // Scholars assigned to this instructor
+        const scholarIds = new Set();
+        Object.values(_sessMap).forEach(sess => {
+          if (sess.school === sc.school && sess.instId === p.uid && sess.isDelivered) {
+            sess.studentIds.forEach(id => scholarIds.add(id));
+          }
+        });
+        const scholarCount = scholarIds.size;
+
+        return '<tr class="po-person-row" onclick="po.drillPerson(\'' + esc(p.uid) + '\')">'
+          + '<td style="font-weight:600;color:var(--navy);padding:.5rem .875rem">' + name + '</td>'
+          + '<td style="color:var(--muted);padding:.5rem .875rem;font-size:.75rem">' + subjList + '</td>'
+          + '<td style="text-align:center;padding:.5rem .875rem">'
+          +   '<span style="font-weight:600;color:' + color + '">' + rate + '%</span>'
+          +   '<div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:' + rate + '%;background:' + color + '"></div></div>'
+          + '</td>'
+          + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.attended + '</td>'
+          + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.absent + '</td>'
+          + '<td style="text-align:center;color:var(--muted);padding:.5rem .875rem">' + scholarCount + '</td>'
+          + '<td style="padding:.5rem .875rem">' + (flagCount > 0 ? '<span class="po-badge po-badge-red">\ud83d\udea9 ' + flagCount + '</span>' : '<span class="po-badge po-badge-green">\u2713 OK</span>') + adpFlag + '</td>'
+          + '</tr>';
+      };
+
+      // ── School-level mini stats ───────────────────────────────────────
+      const stuTheads = '<tr style="background:var(--surface-2)">'
+        + '<th style="' + thStyle + '">Scholar</th>'
         + '<th style="' + thStyle + '">Grade</th>'
         + '<th style="' + thStyle + ';text-align:center">Att. Rate</th>'
         + '<th style="' + thStyle + ';text-align:center">Attended</th>'
         + '<th style="' + thStyle + ';text-align:center">Absent</th>'
         + '<th style="' + thStyle + ';text-align:center">Interrupts</th>'
+        + '<th style="' + thStyle + '">Consec.</th>'
         + '<th style="' + thStyle + '">Flags</th>'
-        + '<th style="' + thStyle + '">Tutor(s)</th>'
+        + '<th style="' + thStyle + '">Tutor(s) · Minutes</th>'
         + '</tr>';
+
+      const instTheads = '<tr style="background:var(--surface-2)">'
+        + '<th style="' + thStyle + '">Tutor</th>'
+        + '<th style="' + thStyle + '">Subject(s)</th>'
+        + '<th style="' + thStyle + ';text-align:center">Att. Rate</th>'
+        + '<th style="' + thStyle + ';text-align:center">Attended</th>'
+        + '<th style="' + thStyle + ';text-align:center">Absent</th>'
+        + '<th style="' + thStyle + ';text-align:center">Scholars</th>'
+        + '<th style="' + thStyle + '">Flags</th>'
+        + '</tr>';
+
+      const miniStats = roleFilter !== 'Instructor' ? `
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem">
+          ${[
+            ['Scholar Attendance', sc.attRate+'%', sc.attRate>=90?'var(--met)':sc.attRate>=75?'var(--gold)':'var(--notmet)'],
+            ['Attended Sessions',  sc.stuAttended.toLocaleString(), 'var(--met)'],
+            ['Student Absences',   sc.stuAbsent.toLocaleString(), 'var(--notmet)'],
+            ['Service Interruptions', sc.stuInterruptions.toLocaleString(), 'var(--partial)'],
+          ].map(([lbl,val,col]) => `<div style="background:var(--surface-2);padding:.875rem;border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">${lbl}</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${col};margin-top:.2rem">${val}</div>
+          </div>`).join('')}
+        </div>` : `
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
+          ${[
+            ['Tutors on Site', instructors.length, 'var(--blue-mid)'],
+            ['Avg Tutor Att.', instructors.length ? Math.round(instructors.reduce((s,p) => s + p.attended/Math.max(1,p.attended+p.absent)*100, 0)/instructors.length) + '%' : '—', 'var(--met)'],
+            ['Total Scholar Caseload', (() => { const ids = new Set(); instructors.forEach(p => { Object.values(_sessMap).forEach(sess => { if(sess.school===sc.school&&sess.instId===p.uid&&sess.isDelivered) sess.studentIds.forEach(id=>ids.add(id)); }); }); return ids.size; })(), 'var(--navy)'],
+          ].map(([lbl,val,col]) => `<div style="background:var(--surface-2);padding:.875rem;border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">${lbl}</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${col};margin-top:.2rem">${val}</div>
+          </div>`).join('')}
+        </div>`;
 
       return `
         <div style="padding:1.25rem 1.5rem 0">
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem">
-            ${[
-              ['Scholar Attendance', `${sc.attRate}%`, sc.attRate>=90?'var(--met)':sc.attRate>=75?'var(--gold)':'var(--notmet)'],
-              ['Attended Sessions', sc.stuAttended.toLocaleString(), 'var(--met)'],
-              ['Student Absences', sc.stuAbsent.toLocaleString(), 'var(--notmet)'],
-              ['Service Interruptions', sc.stuInterruptions.toLocaleString(), 'var(--partial)'],
-            ].map(([lbl,val,col])=>`<div style="background:var(--surface-2);padding:.875rem;border-radius:var(--radius);border:1px solid var(--border)">
-              <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">${lbl}</div>
-              <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${col};margin-top:.2rem">${val}</div>
-            </div>`).join('')}
-          </div>
+          ${miniStats}
         </div>
         <div style="padding:0 1.5rem 1.5rem">
+          ${students.length > 0 ? `
           <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Scholars (${students.length})</div>
           <div style="overflow-x:auto;margin-bottom:1.5rem">
             <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
-              <thead>${theads}</thead>
-              <tbody>${students.map(renderPersonRow).join('') || '<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--muted)">No scholars found</td></tr>'}</tbody>
-            </table>
-          </div>
-          ${instructors.length > 0 ? `
-          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Instructors (${instructors.length})</div>
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
-              <thead>${theads.replace('Scholar','Instructor')}</thead>
-              <tbody>${instructors.map(renderPersonRow).join('')}</tbody>
+              <thead>${stuTheads}</thead>
+              <tbody>${students.map(renderScholarRow).join('') || '<tr><td colspan="9" style="text-align:center;padding:1.5rem;color:var(--muted)">No scholars found</td></tr>'}</tbody>
             </table>
           </div>` : ''}
+          ${instructors.length > 0 ? `
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Tutors (${instructors.length})</div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+              <thead>${instTheads}</thead>
+              <tbody>${instructors.map(renderInstructorRow).join('')}</tbody>
+            </table>
+          </div>` : ''}
+          ${students.length === 0 && instructors.length === 0 ? '<div style="text-align:center;padding:2rem;color:var(--muted)">No records found for selected filters</div>' : ''}
         </div>`;
     }
-
-    function renderSessionsTab(sc) {
       const sessions = sc.sessions.sort((a,b) => new Date(b.start) - new Date(a.start)).slice(0, 100);
       const rows = sessions.map(s => {
         const statusColor = s.status === 'Completed' ? 'var(--met)' : s.status === 'Missed' ? 'var(--notmet)' : 'var(--partial)';
@@ -8067,10 +8296,14 @@
               const names = primary.length
                 ? primary.map(n => '<span style="color:var(--navy)">' + n + '</span>').join('<span style="color:var(--muted);margin:0 .3rem">/</span>')
                 : '<span style="color:var(--muted)">None on record</span>';
-              const subNote = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.75rem">(+ ' + numSubs + ' substitute session' + (numSubs>1?'s':'') + ')</span>' : '';
+              const subNote = numSubs > 0 ? ' <span style="color:var(--muted);font-size:.75rem">(+ ' + numSubs + ' sub)</span>' : '';
+              const mins = (p.subjectMinutes && p.subjectMinutes[subj]) || 0;
+              const minsStr = mins > 0
+                ? '<span style="margin-left:.5rem;font-size:.75rem;color:var(--muted);background:var(--surface-2);padding:.1rem .4rem;border-radius:4px;border:1px solid var(--border)">' + (mins >= 60 ? Math.floor(mins/60) + 'h ' + (mins%60>0?mins%60+'m':'') : mins + 'm') + ' received</span>'
+                : '';
               return '<div style="display:flex;align-items:center;gap:.625rem;padding:.375rem 0;border-bottom:1px solid var(--border-2)">'
                 + '<div style="min-width:100px;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">' + subj + '</div>'
-                + '<div style="flex:1;font-size:.8125rem">' + names + subNote + '</div>'
+                + '<div style="flex:1;font-size:.8125rem">' + names + subNote + minsStr + '</div>'
                 + badge
                 + '</div>';
             }).join('');
@@ -8288,11 +8521,153 @@
     function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
     function esc(s) { return (s||'').replace(/'/g, "\\'"); }
 
+    // ── Leadership summary data (for cross-module leadership view) ────────
+    function getLeadershipData() {
+      if (!_attRows.length) return null;
+
+      // ── Scholar & tutor attendance ──
+      const ABSENT_REASONS_SET = new Set(['Absent','Scholar Left Early','Scholar declined attending tutoring session','Scholar Archived - Removed from Sessions']);
+      const stuRows  = _attRows.filter(r => r[ATT.ROLE] === 'Student');
+      const instRows = _attRows.filter(r => r[ATT.ROLE] === 'Instructor');
+
+      const stuAtt  = stuRows.filter(r => r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late').length;
+      const stuMiss = stuRows.filter(r => r[ATT.ATT_STATUS] === 'Missed').length;
+      const instAtt  = instRows.filter(r => r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late').length;
+      const instMiss = instRows.filter(r => r[ATT.ATT_STATUS] === 'Missed').length;
+
+      const scholarRate = (stuAtt + stuMiss) > 0 ? Math.round(stuAtt / (stuAtt + stuMiss) * 100) : 0;
+      const tutorRate   = (instAtt + instMiss) > 0 ? Math.round(instAtt / (instAtt + instMiss) * 100) : 0;
+
+      // ── Sessions delivered ──
+      const sessionsDelivered = Object.values(_sessMap).filter(s => s.isDelivered).length;
+
+      // ── Scholar survey avg ──
+      let surveyTotal = 0, surveyCount = 0;
+      const surveyCols = [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL];
+      for (const r of _stuRows) {
+        for (const col of surveyCols) {
+          const v = parseFloat(r[col]);
+          if (!isNaN(v) && v > 0) { surveyTotal += v; surveyCount++; }
+        }
+      }
+      const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : 0;
+
+      // ── Scholar performance tiers ──
+      const scholarAtt = {};
+      for (const r of stuRows) {
+        const id = r[ATT.USER_ID]; if (!id) continue;
+        if (!scholarAtt[id]) scholarAtt[id] = { att: 0, miss: 0 };
+        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') scholarAtt[id].att++;
+        else if (r[ATT.ATT_STATUS] === 'Missed') scholarAtt[id].miss++;
+      }
+      let onTrack = 0, atRisk = 0, needsAction = 0;
+      for (const { att, miss } of Object.values(scholarAtt)) {
+        const total = att + miss; if (!total) continue;
+        const rate = att / total * 100;
+        if (rate >= 80) onTrack++;
+        else if (rate >= 70) atRisk++;
+        else needsAction++;
+      }
+
+      // ── Districts ──
+      const distMap = {};
+      for (const r of stuRows) {
+        const dist = r[ATT.DISTRICT]; const school = r[ATT.SCHOOL]; if (!dist) continue;
+        if (!distMap[dist]) distMap[dist] = { name: dist, schools: {}, stuAtt: 0, stuMiss: 0, instAtt: 0, instMiss: 0, scholars: new Set(), sessions: 0 };
+        distMap[dist].scholars.add(r[ATT.USER_ID]);
+        if (!distMap[dist].schools[school]) distMap[dist].schools[school] = { name: school, att: 0, miss: 0 };
+        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') {
+          distMap[dist].stuAtt++; distMap[dist].schools[school].att++;
+        } else if (r[ATT.ATT_STATUS] === 'Missed') {
+          distMap[dist].stuMiss++; distMap[dist].schools[school].miss++;
+        }
+      }
+      for (const r of instRows) {
+        const dist = r[ATT.DISTRICT]; if (!dist || !distMap[dist]) continue;
+        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') distMap[dist].instAtt++;
+        else if (r[ATT.ATT_STATUS] === 'Missed') distMap[dist].instMiss++;
+      }
+      for (const sess of Object.values(_sessMap)) {
+        if (sess.isDelivered && sess.district && distMap[sess.district]) distMap[sess.district].sessions++;
+      }
+      const districts = Object.values(distMap).map(d => {
+        const sTotal = d.stuAtt + d.stuMiss;
+        const tTotal = d.instAtt + d.instMiss;
+        return {
+          name: d.name,
+          scholars: d.scholars.size,
+          scholarRate: sTotal > 0 ? Math.round(d.stuAtt / sTotal * 100) : 0,
+          tutorRate:   tTotal > 0 ? Math.round(d.instAtt / tTotal * 100) : 0,
+          sessions: d.sessions,
+          schools: Object.values(d.schools).map(s => {
+            const t = s.att + s.miss;
+            return { name: s.name, rate: t > 0 ? Math.round(s.att / t * 100) : 0 };
+          }),
+        };
+      });
+
+      // ── Absence drivers ──
+      const CONTROLLABLE = {
+        'Tutor Absent':                         'Tutor absent',
+        'Tutor Vacancy':                        'Tutor vacancy (unfilled)',
+        'Tutor Left Early (no sub)':            'Tutor left early',
+        'Absent; Not Covered (Tutor not available)': 'No coverage available',
+        'NJTC Internal Issue/Error':            'Internal scheduling issue',
+      };
+      const UNCONTROLLABLE = {
+        'Classroom Teacher Requested to Keep Scholar in Class': 'Teacher kept scholar in class',
+        'School-administered Testing':          'School testing day',
+        'School Event':                         'School event',
+        'Holiday - scheduled':                  'Holiday',
+        'Unscheduled School Closure/Delay/Dismissal': 'School closure / delay',
+        'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group request',
+      };
+      const ctrlCounts = {}, unctrlCounts = {};
+      for (const r of stuRows) {
+        if (r[ATT.ATT_STATUS] !== 'Missed') continue;
+        const reason = r[ATT.MISS_REASON];
+        if (CONTROLLABLE[reason])   ctrlCounts[reason]   = (ctrlCounts[reason]   || 0) + 1;
+        if (UNCONTROLLABLE[reason]) unctrlCounts[reason] = (unctrlCounts[reason] || 0) + 1;
+      }
+      const toReasons = (map, labels) => Object.entries(map)
+        .sort((a,b) => b[1]-a[1]).slice(0, 4)
+        .map(([k,v]) => ({ label: labels[k] || k, count: v }));
+      const ctrlTotal   = Object.values(ctrlCounts).reduce((s,v)=>s+v,0);
+      const unctrlTotal = Object.values(unctrlCounts).reduce((s,v)=>s+v,0);
+
+      // ── Weekly trend ──
+      const weekMap = {};
+      for (const r of stuRows) {
+        const w = r[ATT.WEEK]; if (!w) continue;
+        if (!weekMap[w]) weekMap[w] = { att: 0, miss: 0 };
+        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') weekMap[w].att++;
+        else if (r[ATT.ATT_STATUS] === 'Missed') weekMap[w].miss++;
+      }
+      const weeklyTrend = Object.entries(weekMap)
+        .sort((a,b) => { const na = parseInt(a[0].replace(/\D/g,'')); const nb = parseInt(b[0].replace(/\D/g,'')); return na-nb; })
+        .map(([week, v]) => {
+          const t = v.att + v.miss;
+          return { week, rate: t > 0 ? Math.round(v.att/t*100) : 0, total: t };
+        });
+
+      return {
+        scholarRate, tutorRate, sessionsDelivered, scholarSurvey,
+        scholarOnTrack: onTrack, scholarAtRisk: atRisk, scholarNeedsAction: needsAction,
+        districts,
+        absenceDrivers: {
+          controllable:   { total: ctrlTotal,   reasons: toReasons(ctrlCounts,   CONTROLLABLE)   },
+          uncontrollable: { total: unctrlTotal,  reasons: toReasons(unctrlCounts, UNCONTROLLABLE) },
+        },
+        weeklyTrend,
+      };
+    }
+
     return {
       init, refresh, applyFilters, clearFilters,
       drillSchool, drillPerson, goBack,
       switchTab, switchPersonTab,
       openFlagsModal, onPanelOpen,
+      getLeadershipData,
     };
   })();
 
