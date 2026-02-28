@@ -6931,11 +6931,47 @@
     let _filtFlag     = '';
 
     // ── GID RESOLUTION ────────────────────────────────────────────────────
-    // Fetch gid=0,1,2,3 in parallel and identify each by header content
+    // ── GID RESOLUTION ────────────────────────────────────────────────────
+    // Google assigns arbitrary large gid integers to each tab — they are NOT
+    // sequential (0,1,2,3). The pubhtml page for the workbook is publicly
+    // accessible and contains all real gid values in its HTML.
+    //
+    // Strategy:
+    //   1. Fetch the pubhtml page (no auth required — same as the CSV URLs)
+    //   2. Extract all gid= numbers from the HTML using a regex
+    //   3. Fetch each discovered gid as CSV in parallel
+    //   4. Identify each tab by its header row content
+    //   5. Cache result so we never re-probe within a session
     async function resolveGids() {
       if (_gidsResolved) return true;
-      const attempts = [0, 1, 2, 3];
-      const results = await Promise.all(attempts.map(async gid => {
+
+      // Step 1: fetch the pubhtml index to discover real gid values
+      let probedGids = [];
+      try {
+        const pubhtmlUrl = `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pubhtml`;
+        const res = await fetch(pubhtmlUrl, { signal: AbortSignal.timeout(12000) });
+        if (res.ok) {
+          const html = await res.text();
+          // Extract all numeric gid values from href/data attributes in the HTML
+          const matches = [...html.matchAll(/[?&]gid=(\d+)/g)];
+          const found = [...new Set(matches.map(m => parseInt(m[1], 10)))].filter(n => !isNaN(n));
+          if (found.length) probedGids = found;
+          console.log('[Pearl Ops] Discovered gids from pubhtml:', found);
+        }
+      } catch(e) {
+        console.warn('[Pearl Ops] pubhtml probe failed, will try fallback gids:', e.message);
+      }
+
+      // Step 2: if pubhtml didn't yield gids, fall back to a broad sweep of
+      // common Google Sheets gid patterns (covers most published workbooks)
+      if (!probedGids.length) {
+        probedGids = [0, 1, 2, 3, 100, 200, 300, 400,
+                      628127573, 274671201, 1372188422, 1640135663,
+                      1303503567, 1649760609, 1978724299, 1784717262];
+      }
+
+      // Step 3: fetch each candidate gid as CSV — in parallel, ignore 400s
+      const results = await Promise.all(probedGids.map(async gid => {
         try {
           const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(12000)});
           if (!res.ok) return null;
@@ -6945,21 +6981,26 @@
         } catch { return null; }
       }));
 
+      // Step 4: identify each tab by its unique header signature
       for (const r of results) {
         if (!r) continue;
         const h = r.firstRow;
-        if (h.startsWith('user,') && h.includes('role,'))                    GIDS.att  = r.gid;
-        else if (h.startsWith('filled by,') && h.includes('engaged'))        GIDS.inst = r.gid;
-        else if (h.startsWith('filled by,') && h.includes('confident'))      GIDS.stu  = r.gid;
-        else if (h.startsWith('title,') && h.includes('instructor'))         GIDS.sess = r.gid;
+        if      (h.startsWith('user,') && h.includes('role,'))           GIDS.att  = r.gid;
+        else if (h.startsWith('filled by,') && h.includes('engaged'))    GIDS.inst = r.gid;
+        else if (h.startsWith('filled by,') && h.includes('confident'))  GIDS.stu  = r.gid;
+        else if (h.startsWith('title,') && h.includes('instructor'))     GIDS.sess = r.gid;
       }
-      // Fallback: assign by position if detection failed
-      if (GIDS.att  === null) GIDS.att  = 0;
-      if (GIDS.inst === null) GIDS.inst = 1;
-      if (GIDS.stu  === null) GIDS.stu  = 2;
-      if (GIDS.sess === null) GIDS.sess = 3;
+
+      // Log what was resolved (helps with future debugging)
+      console.log('[Pearl Ops] GIDs resolved →', JSON.stringify(GIDS));
+
+      // If any tab still unresolved, log a clear error rather than silently failing
+      for (const [tab, gid] of Object.entries(GIDS)) {
+        if (gid === null) console.error(`[Pearl Ops] Could not resolve gid for tab: ${tab}`);
+      }
+
       _gidsResolved = true;
-      return true;
+      return Object.values(GIDS).some(v => v !== null); // at least one resolved
     }
 
     // ── FETCH ALL TABS ────────────────────────────────────────────────────
@@ -6995,8 +7036,9 @@
     }
 
     async function fetchTab(gid, bust) {
+      if (gid === null) return '';   // tab gid was not resolved — return empty, skip silently
       const res = await fetch(csvUrl(gid) + bust, {signal: AbortSignal.timeout(15000)});
-      if (!res.ok) throw new Error('HTTP ' + res.status + ' for gid=' + gid);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' for tab gid=' + gid);
       return res.text();
     }
 
