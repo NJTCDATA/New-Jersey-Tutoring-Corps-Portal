@@ -1681,6 +1681,78 @@
     .sy-popup-lbl{color:#7d8fa1}
     .sy-popup-val{font-weight:600;color:#0d1b2a}
     @media(max-width:1100px){#syMainLayout{grid-template-columns:1fr !important}#syMap{height:360px !important}}
+
+    /* ═══════════════════════════════════════════
+       PEARL OPERATIONS MODULE
+    ═══════════════════════════════════════════ */
+    .po-badge{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .5rem;border-radius:20px;font-size:.6875rem;font-weight:700;line-height:1.2}
+    .po-badge-green{background:var(--met-bg);color:#065f46}
+    .po-badge-gold{background:#fef3c7;color:#92400e}
+    .po-badge-red{background:var(--notm-bg);color:#991b1b}
+    .po-badge-critical{background:#7f1d1d;color:#fef2f2}
+    .po-badge-blue{background:var(--prog-bg);color:#1a3a8f}
+    .po-badge-gray{background:var(--surface-2);color:var(--muted)}
+    .po-flag-row{display:flex;align-items:center;gap:.5rem;padding:.5rem .875rem;border-bottom:1px solid var(--border-2);font-size:.8125rem}
+    .po-flag-icon{font-size:1rem;flex-shrink:0}
+    .po-flag-text{flex:1}
+    .po-flag-label{font-weight:700;color:var(--navy)}
+    .po-flag-sub{font-size:.75rem;color:var(--muted);margin-top:.1rem}
+    .po-flag-count{font-size:.8125rem;font-weight:700;color:var(--navy);flex-shrink:0}
+    .po-school-row{cursor:pointer;transition:background .15s}
+    .po-school-row:hover{background:var(--surface-2)}
+    .po-school-row td{padding:.625rem 1rem;border-bottom:1px solid var(--border-2);vertical-align:middle}
+    .po-school-row.po-hl{background:var(--prog-bg)}
+    .po-tab{padding:.5rem 1rem;font-size:.8125rem;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s}
+    .po-tab.po-tab-active{color:var(--blue-mid);border-bottom-color:var(--blue-mid)}
+    .po-tab:hover{color:var(--navy)}
+    .po-tabs-bar{display:flex;border-bottom:1px solid var(--border);margin-bottom:1.25rem;overflow-x:auto;flex-shrink:0}
+    .po-detail-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden}
+    .po-section-hd{padding:.75rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface-2);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;align-items:center;justify-content:space-between}
+    .po-person-row{cursor:pointer;transition:background .12s}
+    .po-person-row:hover{background:var(--surface-2)}
+    .po-person-row td{padding:.5rem .875rem;border-bottom:1px solid var(--border-2);vertical-align:middle;font-size:.8125rem}
+    .po-sparkbar{height:6px;border-radius:3px;background:var(--border-2);overflow:hidden;width:80px;display:inline-block;vertical-align:middle}
+    .po-sparkbar-fill{height:100%;border-radius:3px;transition:width .4s}
+    .po-modal-overlay{position:fixed;inset:0;z-index:9100;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1.5rem}
+    .po-modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow-lg);width:100%;max-width:780px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+    .po-modal-hd{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-shrink:0}
+    .po-modal-close{background:none;border:none;font-size:1.25rem;cursor:pointer;color:var(--muted);line-height:1}
+    .po-modal-close:hover{color:var(--navy)}
+    .po-modal-body{overflow-y:auto;flex:1;padding:0}
+    .po-modal-name{font-family:'DM Serif Display',serif;font-size:1.25rem;color:var(--navy)}
+    .po-modal-meta{font-size:.75rem;color:var(--muted);margin-top:.2rem}
+    .po-hist-row{display:grid;grid-template-columns:100px 1fr 90px 80px;gap:.5rem;align-items:center;padding:.5rem 1.5rem;border-bottom:1px solid var(--border-2);font-size:.8125rem}
+    .po-hist-row:nth-child(even){background:var(--surface-2)}
+    .po-comment-card{margin:.5rem 1.5rem;padding:.875rem 1rem;background:var(--surface-2);border-radius:8px;border-left:3px solid var(--border)}
+    .po-comment-card.cc-concern{border-left-color:#ef4444}
+    .po-comment-card.cc-positive{border-left-color:var(--met)}
+    .po-comment-card.cc-neutral{border-left-color:var(--partial)}
+    .po-comment-bucket{display:inline-block;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:.15rem .5rem;border-radius:20px;margin-bottom:.3rem}
+    .po-bucket-concern{background:#fee2e2;color:#991b1b}
+    .po-bucket-positive{background:#d1fae5;color:#065f46}
+    .po-bucket-engagement{background:#ede9fe;color:#5b21b6}
+    .po-bucket-logistics{background:#fef3c7;color:#92400e}
+    .po-bucket-curriculum{background:#dbeafe;color:#1e40af}
+    .po-bucket-relationship{background:#fce7f3;color:#9d174d}
+    .po-bucket-other{background:var(--surface-2);color:var(--muted)}
+    .po-metric-row{display:flex;align-items:center;justify-content:space-between;padding:.4rem 1.5rem;border-bottom:1px solid var(--border-2);font-size:.8125rem}
+    .po-metric-label{color:var(--muted);font-weight:500}
+    .po-metric-val{font-weight:700;color:var(--navy)}
+    .po-stars{display:inline-flex;gap:1px}
+    .po-star-fill{color:#f59e0b}
+    .po-star-empty{color:var(--border-2)}
+    .po-breadcrumb{display:flex;align-items:center;gap:.5rem;font-size:.8125rem;color:var(--muted);margin-bottom:1rem;flex-wrap:wrap}
+    .po-breadcrumb a{color:var(--blue-mid);cursor:pointer;text-decoration:none}
+    .po-breadcrumb a:hover{text-decoration:underline}
+    .po-breadcrumb-sep{color:var(--border)}
+    .po-severity-critical{background:#7f1d1d;color:#fef2f2;padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .po-severity-high{background:#fee2e2;color:#991b1b;padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .po-severity-medium{background:#fef3c7;color:#92400e;padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .po-severity-low{background:var(--surface-2);color:var(--muted);padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .po-survey-bar-wrap{display:flex;align-items:center;gap:.5rem}
+    .po-survey-bar{height:8px;border-radius:4px;background:var(--border-2);flex:1;overflow:hidden}
+    .po-survey-bar-fill{height:100%;border-radius:4px}
+    .po-filter-strip{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.875rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.25rem;box-shadow:var(--shadow-sm)}
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1758,6 +1830,10 @@
       <button class="sidebar-link" data-panel="sy-analytics" onclick="showPanel('sy-analytics',this)">
         <span class="sl-icon">🗺️</span> SY Site Analytics
         <span class="sl-badge" id="syChangesBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
+      </button>
+      <button class="sidebar-link" data-panel="pearl-ops" onclick="showPanel('pearl-ops',this)">
+        <span class="sl-icon">📊</span> Pearl Operations
+        <span class="sl-badge" id="pearlFlagsBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
         <span class="sl-icon">⚠️</span> Concern Form
@@ -1880,6 +1956,52 @@
     </div>
     <!-- ══ END SY ANALYTICS PANEL ══════════════════════════════════════ -->
 
+    <!-- ══ PEARL OPERATIONS PANEL ════════════════════════════════════════ -->
+    <div class="panel" id="panel-pearl-ops">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2025–2026 · Live Pearl Data</div>
+          <h2 class="ph-title">Pearl Operations Intelligence</h2>
+          <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, HIT compliance, and service interruption tracking across all sites. Auto-refreshes every 5 minutes.</p>
+        </div>
+        <div class="ph-actions">
+          <span class="sync-dot loading" id="poSyncDot"></span>
+          <span id="poSyncText" style="font-size:.8125rem;color:var(--muted)">Loading…</span>
+          <button class="btn btn-secondary" onclick="po.refresh(true)" id="poRefreshBtn">↺ Refresh</button>
+          <button class="btn btn-secondary" id="poCriticalBtn" onclick="po.openFlagsModal('critical')" style="display:none;background:#7f1d1d;color:#fef2f2;border-color:#7f1d1d">
+            🚨 <span id="poCriticalN">0</span> Critical
+          </button>
+        </div>
+      </div>
+
+      <!-- Breadcrumb nav for drill-down -->
+      <div id="poBreadcrumb" class="po-breadcrumb" style="display:none"></div>
+
+      <!-- Executive Stats Strip -->
+      <div class="stats-strip" id="poStatsStrip">
+        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">✅</div><div class="st-value" id="poStatAtt">—</div><div class="st-label">Overall Attendance</div><div class="st-sub">Scholar rate</div></div>
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">📅</div><div class="st-value" id="poStatSessions">—</div><div class="st-label">Sessions Delivered</div><div class="st-sub" id="poStatSessionsSub">vs total scheduled</div></div>
+        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
+        <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurvey">—</div><div class="st-label">Avg Survey Score</div><div class="st-sub">Scholar + Instructor</div></div>
+        <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">🚩</div><div class="st-value" id="poStatFlags">—</div><div class="st-label">HIT Flags</div><div class="st-sub">Compliance issues</div></div>
+      </div>
+
+      <!-- Filters -->
+      <div class="po-filter-strip" id="poFilterStrip">
+        <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Filter:</span>
+        <select class="filter-select" id="poFDistrict" onchange="po.applyFilters()"><option value="">All Districts</option></select>
+        <select class="filter-select" id="poFSchool"   onchange="po.applyFilters()"><option value="">All Schools</option></select>
+        <select class="filter-select" id="poFWeek"     onchange="po.applyFilters()"><option value="">All Weeks</option></select>
+        <select class="filter-select" id="poFRole"     onchange="po.applyFilters()"><option value="">All Roles</option><option>Student</option><option>Instructor</option></select>
+        <select class="filter-select" id="poFFlag"     onchange="po.applyFilters()"><option value="">All Records</option><option value="hit">HIT Flags Only</option><option value="si">Service Interruptions</option><option value="concern">Attendance Concern</option></select>
+        <button class="btn btn-secondary" onclick="po.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
+        <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
+      </div>
+
+      <!-- Main content area — swaps between school grid, school detail, person detail -->
+      <div id="poMainContent"></div>
+    </div>
+    <!-- ══ END PEARL OPERATIONS PANEL ══════════════════════════════════════ -->
     <!-- ══ KPI PANEL ════════════════════════════════════════ -->
     <div class="panel" id="panel-kpi">
       <div class="page-header">
@@ -6513,6 +6635,1440 @@
     sya.init();
   }
 
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PEARL OPERATIONS INTELLIGENCE MODULE  —  NJTC Central Team Portal
+  //  SY 2025–2026  |  Live from Pearl via published Google Sheet
+  //
+  //  DATA SOURCES (same 2PACX pub format as all other live sheets):
+  //    Attendance Detail  — read cols A–AF (idx 0–31) only, stop at AF
+  //    Instructor Surveys — full sheet
+  //    Student Surveys    — full sheet
+  //    Session Details    — full sheet
+  //
+  //  TAB ORDER (from screenshot, left→right):
+  //    1. Attendance Detail   → gid auto-detected by header "User"
+  //    2. Instructor Surveys  → gid auto-detected by header "Filled By" + col C "engaged"
+  //    3. Student Surveys     → gid auto-detected by header "Filled By" + col C "confident"
+  //    4. Session Details     → gid auto-detected by header "Title"
+  //
+  //  GID DETECTION: Tried sequentially 0,1,2,3 — identified by first header cell.
+  //    Each tab linked by:
+  //      • Pearl Session ID  (session ↔ both surveys)
+  //      • Pearl User ID     (attendance ↔ session instructor/student IDs, comma-parsed)
+  //
+  //  ATTENDANCE CLASSIFICATION:
+  //    ✅ ATTENDED:              Attendance Status = "Attended" OR "Late"
+  //                              Missed Reason = "Tutor Left Early (no sub)" — counts in att
+  //                              Missed Reason = "Scholar Left Early" — counts in att
+  //                              Missed Reason = "Classroom Teacher Requested..." — counts in att
+  //    ❌ ABSENT (student):      Missed Reason starts with "Absent" or = "Tutor Absent"
+  //                              "Scholar declined attending tutoring session" — counts as ABSENT (impacts attendance)
+  //                              AND triggers a Program Team flag for engagement/re-enrollment review.
+  //                              NOT a service interruption — it is a scholar attendance event.
+  //    🔴 CRITICAL INTERRUPTION: "NJTC Internal Issue/Error" → always critical severity
+  //    🟠 HIGH INTERRUPTION:     "Tutor Vacancy" (HIGH — flagged for HR + Programming + Leadership, excluded from attendance metrics)
+  //                              "Unscheduled School Closure/Delay/Dismissal", "Scholar Archived"
+  //    NOTE: "Tutor Vacancy" is intentionally NOT in ABSENT_REASONS. It does not count against
+  //          attendance rate. It is a staffing gap — surfaced as a high-severity service interruption
+  //          visible to HR, Programming, and Leadership for backfill action.
+  //    🟡 MEDIUM INTERRUPTION:   School events, testing, drills, holidays
+  //    📊 DATA QUALITY:          Attendance Status = "Not recorded"
+  //
+  //  HIT COMPLIANCE FLAGS:
+  //    RATIO:      > 3 students per session → flag (check MOU)
+  //    FREQUENCY:  Scholar attended < 2 sessions in a week → flag
+  //    CONTINUITY: Scholar has 2+ different instructors → flag
+  //    CONSECUTIVE:Col Y (idx 24) = "Attendance Concern" → flag
+  //    VACANCY:    Col AU (idx 46) = "Current Vacancy..." → flag
+  //
+  //  ROLE VISIBILITY:
+  //    leadership / data: everything, all analytics
+  //    hr:    attendance compliance, vacancy flags, ADP flag on low attendance, individual names
+  //    finance: low attendance flag (check ADP records)
+  //    programming: district/school filter, drill to user, service interruptions, HIT flags
+  //    training_development: survey details, comments, comment buckets, flags
+  //    Others: aggregate stats only, no individual names
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const po = (() => {
+
+    // ── PUBLISHED SHEET CONFIG ────────────────────────────────────────────
+    const BASE_ID = '2PACX-1vTCGhDhhoF6NjXCwYfcoOHNpn-U2B985UPOlcjVpImUGU6wDDQ3D6BY_4N-khxGmDsmw8RMp92TzUJl';
+    const csvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pub?output=csv&gid=${gid}`;
+    // GIDs for tab order: Attendance Detail(0), Instructor Surveys(1), Student Surveys(2), Session Details(3)
+    // Auto-detected at load time — stored once resolved
+    const GIDS = { att: null, inst: null, stu: null, sess: null };
+
+    const REFRESH_MS = 5 * 60 * 1000;
+
+    // ── COLUMN INDEXES — ATTENDANCE DETAIL (read ONLY cols 0–31 / A–AF) ──
+    const ATT = {
+      USER: 0,        // A  User name
+      ROLE: 1,        // B  Student | Instructor
+      SESSION: 2,     // C  Session title
+      SESS_STATUS: 3, // D  Session Status
+      PLAN_START: 4,  // E  Planned Session Start
+      SESS_DATE: 5,   // F  Session Date
+      ATT_STATUS: 6,  // G  Attendance Status
+      MISS_REASON: 7, // H  Attendance Missed Reason
+      GRADE: 8,       // I
+      SEX: 9,         // J
+      RACE: 10,       // K
+      SCHOOL: 11,     // L
+      DISTRICT: 12,   // M
+      USER_ID: 13,    // N  Pearl User ID
+      IND_ATT_RATE: 14, // O Individual Attendance Rate %
+      SCHOLAR_ATT_PCT: 15, // P Scholar Attendance %
+      AVG_ATT: 16,    // Q Tutors + Scholars avg %
+      STU_AVG_ATT: 17,// R Student Average Attendance %
+      INST_AVG: 18,   // S Instructor Average Attendance
+      STU_ATT_CNT: 19,// T Student Attended Session Count
+      STU_MISS_CNT: 20,// U Student Missed Session Count
+      INST_ATT_CNT: 21,// V Instructor Attended Session Count
+      INST_MISS_CNT: 22,// W Instructor Missed Session Count
+      MISS_TAG: 23,   // X Missed Session Tag
+      CONSEC_STATUS: 24, // Y 10 consecutive sessions missed status
+      ATT_PER_SCHOLAR: 25,// Z Attended Sessions per Scholar
+      WEEK: 26,       // AA Weekly Grouping
+      // AB(27) = blank
+      VACANT_ID: 28,  // AC Pearl Vacant User ID
+      SCHOLAR_NAME: 29,// AD Scholar (vacancy pairing)
+      VAC_START: 30,  // AE Tutor Vacancy Start Date
+      // AF(31) = blank — HARD STOP HERE
+    };
+    const ATT_MAX_COL = 31; // read up to and including index 31 (AF), ignore rest
+
+    // ── COLUMN INDEXES — SESSION DETAILS ─────────────────────────────────
+    const SESS = {
+      TITLE: 0,       // A
+      INSTRUCTOR: 1,  // B
+      STUDENTS: 2,    // C (comma-separated names)
+      LOCATION: 3,    // D
+      STATUS: 4,      // E
+      ATTENDANCE: 5,  // F
+      START: 6,       // G
+      SCHED_DUR: 7,   // H
+      ACTUAL_DUR: 8,  // I
+      SUBJECT: 9,     // J
+      GRADE: 10,      // K
+      SCHOOL: 11,     // L
+      DISTRICT: 12,   // M
+      REGION: 13,     // N
+      SESS_ID: 14,    // O  Pearl Session ID
+      INST_ID: 15,    // P  Pearl Instructor ID
+      STU_IDS: 16,    // Q  Pearl Student IDs (comma-separated)
+      SESS_PER_SCHOOL: 17, // R
+      TOTAL_SESS: 19, // T
+      TOTAL_SUCCESS: 20, // U
+      TOTAL_MISS_STU: 21, // V
+      TOTAL_MISS_INST: 22,// W
+    };
+
+    // ── COLUMN INDEXES — STUDENT SURVEYS ─────────────────────────────────
+    const STU_S = {
+      FILLED_BY: 0, FILLED_FOR: 1,
+      CONFIDENCE: 2, ENJOYMENT: 3, LEARNING: 4, OVERALL: 5,
+      COMMENT: 6, DATE: 7, SCHOOL: 8, DISTRICT: 9, REGION: 10,
+      SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
+      AVG_CONF: 14, AVG_ENJOY: 15, AVG_LEARN: 16, AVG_OVERALL: 17,
+      CLUMP_CONF: 18, CLUMP_ENJOY: 19, CLUMP_LEARN: 20, CLUMP_OVERALL: 21,
+      WEEK: 22,
+    };
+
+    // ── COLUMN INDEXES — INSTRUCTOR SURVEYS ──────────────────────────────
+    const INST_S = {
+      FILLED_BY: 0, FILLED_FOR: 1,
+      ENGAGEMENT: 2, ENJOYMENT: 3, LEARNING: 4, OVERALL: 5,
+      COMMENT_ADMIN: 6, COMMENT_SELF: 7,
+      DATE: 8, SCHOOL: 9, DISTRICT: 10,
+      SESS_ID: 11, FILLED_BY_ID: 12, FILLED_FOR_ID: 13,
+      COMMENT_BANK: 14,
+      AVG_ENGAGE: 15, AVG_ENJOY: 16, AVG_LEARN: 17, AVG_OVERALL: 18,
+      CLUMP_ENGAGE: 19, CLUMP_ENJOY: 20, CLUMP_LEARN: 21, CLUMP_OVERALL: 22,
+      WEEK: 23,
+    };
+
+    // ── ATTENDANCE CLASSIFICATION ─────────────────────────────────────────
+    // Attended counts: actual Attended/Late status AND these miss reasons
+    const COUNTS_AS_ATTENDED = new Set([
+      'Tutor Left Early (no sub)',
+      'Scholar Left Early',
+      'Classroom Teacher Requested to Keep Scholar in Class',
+      'HADDON TWP ONLY -- Teacher requested whole group support',
+    ]);
+    const ABSENT_REASONS = new Set([
+      'Absent','Absent; Covered by Dual Role','Absent; Covered by Sub Tutor',
+      'Absent; Covered by the Instructional Coach','Absent; Covered by the Site Leader',
+      'Absent; Not Covered (Tutor not available)','Tutor Absent',
+      // Counts against attendance AND triggers a Program Team flag (see buildIndexes)
+      'Scholar declined attending tutoring session',
+      // 'Tutor Vacancy' is intentionally NOT here — it must NOT affect attendance rates.
+      // It is classified as a high-severity service interruption below.
+    ]);
+    // Declined sessions: tracked separately so we can flag patterns for Programming
+    const DECLINED_REASON = 'Scholar declined attending tutoring session';
+    // Everything else that's a missed session = service interruption
+    const SI_SEVERITY = {
+      'NJTC Internal Issue/Error':                  'critical',
+      'Tutor Vacancy':                              'high',    // staffing gap — excluded from attendance; flag HR + Programming + Leadership
+      'Scholar Archived - Removed from Sessions':   'high',
+      'Unscheduled School Closure/Delay/Dismissal': 'high',
+      'NJTC Diagnostic Testing':                    'medium',
+      'School-administered Testing':                'medium',
+      'School Event':                               'medium',
+      'Scheduled/Unscheduled School Drill':         'medium',
+      'HADDON TWP ONLY -- Program Redevelopment':   'medium',
+      'Half Day':                                   'low',
+      'Holiday - scheduled':                        'low',
+      // 'Scholar declined attending tutoring session' intentionally removed —
+      // counts as an absence (impacts attendance) and flags Program Team instead.
+    };
+
+    function classifyRecord(r) {
+      const attStat   = r[ATT.ATT_STATUS]  || '';
+      const missReason = r[ATT.MISS_REASON] || '';
+      if (attStat === 'Attended' || attStat === 'Late')      return 'attended';
+      if (COUNTS_AS_ATTENDED.has(missReason))                 return 'attended';
+      if (attStat === 'Not recorded')                        return 'not_recorded';
+      if (ABSENT_REASONS.has(missReason))                    return 'absent';
+      if (missReason && SI_SEVERITY[missReason])             return 'service_interruption';
+      if (missReason)                                        return 'service_interruption'; // catch-all
+      return 'other';
+    }
+
+    function getSISeverity(reason) {
+      return SI_SEVERITY[reason] || 'medium';
+    }
+
+    // ── COMMENT CATEGORIZATION ────────────────────────────────────────────
+    const COMMENT_BUCKETS = {
+      concern:    { label: 'Concern', css: 'concern',    keywords: ['concern','problem','issue','struggle','difficult','hard','poor','bad','confused','distract','behavior','not understand','behind','worry','fail'] },
+      positive:   { label: 'Positive Feedback', css: 'positive',  keywords: ['great','excellent','amazing','wonderful','good','enjoyed','love','fantastic','perfect','best','happy','engaged','excited','helpful','fun'] },
+      engagement: { label: 'Engagement', css: 'engagement', keywords: ['engage','participat','attention','focus','interest','active','involv','motivat','enthusias','energy'] },
+      logistics:  { label: 'Logistics', css: 'logistics',  keywords: ['late','time','reschedul','cancel','interrup','delay','technolog','zoom','link','access','material','room','space','tool'] },
+      curriculum: { label: 'Curriculum', css: 'curriculum', keywords: ['lesson','curriculum','material','content','topic','math','reading','ela','english','skill','standard','objective','worksheet','practice'] },
+      relationship: { label: 'Relationship', css: 'relationship', keywords: ['rapport','relationship','bond','trust','comfort','familiar','personali','know','connect','feel safe','individual'] },
+    };
+
+    function categorizeComment(text) {
+      if (!text || !text.trim()) return null;
+      const lower = text.toLowerCase();
+      let best = null, bestScore = 0;
+      for (const [key, {keywords}] of Object.entries(COMMENT_BUCKETS)) {
+        const score = keywords.filter(kw => lower.includes(kw)).length;
+        if (score > bestScore) { bestScore = score; best = key; }
+      }
+      return best || 'other';
+    }
+
+    // ── ROLE HELPERS ──────────────────────────────────────────────────────
+    function role() {
+      const d = typeof _currentDept !== 'undefined' ? _currentDept
+              : (window.NJTC_SESSION ? window.NJTC_SESSION.dept : '');
+      return (d || 'leadership').toLowerCase();
+    }
+    const isData       = () => ['data','leadership'].includes(role());
+    const isHR         = () => ['hr','leadership','data'].includes(role());
+    const isFinance    = () => ['finance','leadership','data'].includes(role());
+    const isProg       = () => ['programming','leadership','data'].includes(role());
+    const isTD         = () => ['training_development','leadership','data'].includes(role());
+    const canSeeNames  = () => ['leadership','data','hr','programming','training_development'].includes(role());
+    const canSeeIndiv  = () => ['leadership','data','hr','programming'].includes(role());
+
+    // ── RFC-4180 CSV PARSER ───────────────────────────────────────────────
+    function parseCSV(text) {
+      const rows = []; let row = [], f = '', inQ = false;
+      const src = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+      for (let i=0; i<src.length; i++) {
+        const ch = src[i];
+        if (inQ) {
+          if (ch==='"') { if (src[i+1]==='"') {f+='"'; i++;} else inQ=false; }
+          else f+=ch;
+        } else {
+          if (ch==='"') inQ=true;
+          else if (ch===',') { row.push(f.trim()); f=''; }
+          else if (ch==='\n') { row.push(f.trim()); f=''; rows.push(row); row=[]; }
+          else f+=ch;
+        }
+      }
+      if (f.trim()||row.length) { row.push(f.trim()); rows.push(row); }
+      return rows;
+    }
+
+    function parseCSVLimit(text, maxCol) {
+      // Same parser but trims each row to maxCol+1 columns
+      const full = parseCSV(text);
+      return full.map(row => row.slice(0, maxCol+1));
+    }
+
+    // ── STATE ─────────────────────────────────────────────────────────────
+    let _attRows  = [];   // parsed attendance (cols A–AF only)
+    let _sessRows = [];   // parsed session details
+    let _stuRows  = [];   // parsed student surveys
+    let _instRows = [];   // parsed instructor surveys
+
+    // Derived indexes (built once after all tabs load)
+    let _schoolMap   = {};  // school → {att, sess, stu, inst, ...}
+    let _personMap   = {};  // userId → person object
+    let _sessMap     = {};  // sessionId → session object
+    let _gidsResolved = false;
+
+    let _lastFetch = null;
+    let _loading   = false;
+    let _inited    = false;
+
+    // View state
+    let _view       = 'schools'; // 'schools' | 'school' | 'person'
+    let _selSchool  = null;
+    let _selPerson  = null;
+    let _activeTab  = 'attendance';
+    let _filtDistrict = '';
+    let _filtSchool   = '';
+    let _filtWeek     = '';
+    let _filtRole     = '';
+    let _filtFlag     = '';
+
+    // ── GID RESOLUTION ────────────────────────────────────────────────────
+    // Fetch gid=0,1,2,3 in parallel and identify each by header content
+    async function resolveGids() {
+      if (_gidsResolved) return true;
+      const attempts = [0, 1, 2, 3];
+      const results = await Promise.all(attempts.map(async gid => {
+        try {
+          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(12000)});
+          if (!res.ok) return null;
+          const text = await res.text();
+          const firstRow = text.split('\n')[0].toLowerCase();
+          return { gid, text, firstRow };
+        } catch { return null; }
+      }));
+
+      for (const r of results) {
+        if (!r) continue;
+        const h = r.firstRow;
+        if (h.startsWith('user,') && h.includes('role,'))                    GIDS.att  = r.gid;
+        else if (h.startsWith('filled by,') && h.includes('engaged'))        GIDS.inst = r.gid;
+        else if (h.startsWith('filled by,') && h.includes('confident'))      GIDS.stu  = r.gid;
+        else if (h.startsWith('title,') && h.includes('instructor'))         GIDS.sess = r.gid;
+      }
+      // Fallback: assign by position if detection failed
+      if (GIDS.att  === null) GIDS.att  = 0;
+      if (GIDS.inst === null) GIDS.inst = 1;
+      if (GIDS.stu  === null) GIDS.stu  = 2;
+      if (GIDS.sess === null) GIDS.sess = 3;
+      _gidsResolved = true;
+      return true;
+    }
+
+    // ── FETCH ALL TABS ────────────────────────────────────────────────────
+    async function refresh(force = false) {
+      if (_loading) return;
+      _loading = true;
+      setSyncState('loading');
+      const btn = document.getElementById('poRefreshBtn');
+      if (btn) btn.disabled = true;
+      try {
+        await resolveGids();
+        const bust = force ? '&t=' + Date.now() : '';
+        const [attText, instText, stuText, sessText] = await Promise.all([
+          fetchTab(GIDS.att,  bust), fetchTab(GIDS.inst, bust),
+          fetchTab(GIDS.stu,  bust), fetchTab(GIDS.sess, bust),
+        ]);
+        // Attendance Detail — HARD STOP at column AF (index 31)
+        _attRows  = parseCSVLimit(attText,  ATT_MAX_COL).slice(1);  // skip header
+        _sessRows = parseCSV(sessText).slice(1);
+        _stuRows  = parseCSV(stuText).slice(1);
+        _instRows = parseCSV(instText).slice(1);
+        _lastFetch = new Date();
+        buildIndexes();
+        setSyncState('live');
+        populateFilters();
+        renderView();
+      } catch(e) {
+        console.warn('[Pearl Ops] Fetch failed:', e.message);
+        setSyncState('error');
+      }
+      if (btn) btn.disabled = false;
+      _loading = false;
+    }
+
+    async function fetchTab(gid, bust) {
+      const res = await fetch(csvUrl(gid) + bust, {signal: AbortSignal.timeout(15000)});
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' for gid=' + gid);
+      return res.text();
+    }
+
+    // ── BUILD INDEXES ─────────────────────────────────────────────────────
+    function buildIndexes() {
+      _schoolMap = {}; _personMap = {}; _sessMap = {};
+
+      // ── Session index ────────────────────────────────────────────────
+      for (const r of _sessRows) {
+        if (!r[SESS.SESS_ID]) continue;
+        const sid = r[SESS.SESS_ID];
+        const stuIds = (r[SESS.STU_IDS] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const ratio = stuIds.length;
+        _sessMap[sid] = {
+          id: sid, title: r[SESS.TITLE], instructor: r[SESS.INSTRUCTOR],
+          instId: r[SESS.INST_ID], studentIds: stuIds,
+          students: r[SESS.STUDENTS], location: r[SESS.LOCATION],
+          status: r[SESS.STATUS], attendance: r[SESS.ATTENDANCE],
+          start: r[SESS.START], schedDur: r[SESS.SCHED_DUR],
+          actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
+          grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
+          ratio,
+          ratioFlag: ratio > 3,  // HIT: must be ≤ 3:1 (flag, MOU governs)
+        };
+      }
+
+      // ── Student survey index by sessionId ────────────────────────────
+      const stuSurveyBySess = {};
+      for (const r of _stuRows) {
+        const sid = r[STU_S.SESS_ID];
+        if (!stuSurveyBySess[sid]) stuSurveyBySess[sid] = [];
+        stuSurveyBySess[sid].push(r);
+      }
+
+      // ── Instructor survey index by sessionId ─────────────────────────
+      const instSurveyBySess = {};
+      for (const r of _instRows) {
+        const sid = r[INST_S.SESS_ID];
+        if (!instSurveyBySess[sid]) instSurveyBySess[sid] = [];
+        instSurveyBySess[sid].push(r);
+      }
+
+      // ── Person index from attendance rows ────────────────────────────
+      const personWeekSessions = {}; // userId → { week → count }
+
+      for (const r of _attRows) {
+        if (!r[ATT.USER_ID]) continue;
+        const uid = r[ATT.USER_ID];
+        const school = r[ATT.SCHOOL] || '';
+        const district = r[ATT.DISTRICT] || '';
+        const week = r[ATT.WEEK] || '';
+        const cls = classifyRecord(r);
+        const missReason = r[ATT.MISS_REASON] || '';
+
+        if (!_personMap[uid]) {
+          _personMap[uid] = {
+            uid, name: r[ATT.USER] || uid, role: r[ATT.ROLE],
+            school, district, grade: r[ATT.GRADE],
+            sex: r[ATT.SEX], race: r[ATT.RACE],
+            attended: 0, absent: 0, interruptions: 0, notRecorded: 0,
+            totalRows: 0, indAttRate: r[ATT.IND_ATT_RATE] || '',
+            consecStatus: r[ATT.CONSEC_STATUS] || '',
+            vacantId: r[ATT.VACANT_ID] || '',
+            rows: [],
+            instructorIds: new Set(),  // for continuity check
+            flags: [],
+          };
+        }
+        const p = _personMap[uid];
+        p.totalRows++;
+        p.rows.push(r);
+        if (cls === 'attended')             p.attended++;
+        else if (cls === 'absent')          p.absent++;
+        else if (cls === 'service_interruption') p.interruptions++;
+        else if (cls === 'not_recorded')    p.notRecorded++;
+
+        // Track weeks attended for frequency check
+        if (cls === 'attended' && r[ATT.ROLE] === 'Student') {
+          if (!personWeekSessions[uid]) personWeekSessions[uid] = {};
+          personWeekSessions[uid][week] = (personWeekSessions[uid][week] || 0) + 1;
+        }
+
+        // School aggregation
+        if (!_schoolMap[school]) initSchool(school, district);
+        const sc = _schoolMap[school];
+        sc.rows.push(r);
+        if (r[ATT.ROLE] === 'Student') {
+          sc.totalStudentRows++;
+          if (cls === 'attended')             sc.stuAttended++;
+          else if (cls === 'absent')          sc.stuAbsent++;
+          else if (cls === 'service_interruption') { sc.stuInterruptions++; sc.siReasons.push(missReason); }
+          else if (cls === 'not_recorded')    sc.notRecorded++;
+        } else {
+          sc.totalInstRows++;
+          if (cls === 'attended')             sc.instAttended++;
+          else if (cls === 'absent')          sc.instAbsent++;
+          else if (cls === 'service_interruption') sc.instInterruptions++;
+        }
+      }
+
+      // ── Link sessions to schools and instructor IDs ───────────────────
+      for (const sess of Object.values(_sessMap)) {
+        if (!sess.school) continue;
+        if (!_schoolMap[sess.school]) initSchool(sess.school, sess.district);
+        const sc = _schoolMap[sess.school];
+        sc.sessions.push(sess);
+
+        // Track instructor IDs per student for continuity check
+        for (const stuId of sess.studentIds) {
+          if (_personMap[stuId]) {
+            _personMap[stuId].instructorIds.add(sess.instId);
+          }
+        }
+      }
+
+      // ── Build HIT compliance flags per person ─────────────────────────
+      for (const [uid, p] of Object.entries(_personMap)) {
+        if (p.role === 'Student') {
+          // Flag: consecutive attendance concern
+          if (p.consecStatus === 'Attendance Concern')
+            p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed' });
+
+          // Flag: tutor continuity (multiple instructors)
+          if (p.instructorIds.size > 1)
+            p.flags.push({ type:'continuity', severity:'medium', msg:`${p.instructorIds.size} different instructors — rapport continuity concern` });
+
+          // Flag: low attendance (< 70%)
+          const total = p.attended + p.absent;
+          if (total > 0 && (p.attended / total) < 0.70)
+            p.flags.push({ type:'low_att', severity:'high', msg:`Attendance below 70% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
+
+          // Flag: vacancy
+          if (p.vacantId)
+            p.flags.push({ type:'vacancy', severity:'high', msg:'Currently in a tutor vacancy' });
+
+          // Flag: scholar declined sessions — counts as absent AND flags Program Team
+          // Count how many of this scholar's rows are a decline
+          const declineCount = p.rows.filter(r => (r[ATT.MISS_REASON] || '') === DECLINED_REASON).length;
+          if (declineCount > 0)
+            p.flags.push({
+              type: 'declined', severity: declineCount >= 3 ? 'high' : 'medium',
+              audience: 'Programming',
+              msg: `Scholar declined ${declineCount} session${declineCount > 1 ? 's' : ''} — Program Team follow-up needed (engagement/re-enrollment review)`,
+            });
+
+          // Flag: weekly frequency
+          if (personWeekSessions[uid]) {
+            const belowMin = Object.values(personWeekSessions[uid]).filter(c => c < 2).length;
+            const totalWeeks = Object.keys(personWeekSessions[uid]).length;
+            if (belowMin > 0 && totalWeeks > 0)
+              p.flags.push({ type:'frequency', severity:'medium', msg:`${belowMin} of ${totalWeeks} attended weeks below 2 sessions (HIT minimum)` });
+          }
+        }
+
+        if (p.role === 'Instructor') {
+          const total = p.attended + p.absent;
+          if (total > 0 && (p.attended / total) < 0.80)
+            p.flags.push({ type:'inst_att', severity:'high', msg:`Instructor attendance below 80% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
+        }
+      }
+
+      // ── Link survey data to persons ───────────────────────────────────
+      // Student surveys: link by filledByID (student who responded)
+      const stuSurveyByUser = {};
+      for (const r of _stuRows) {
+        const uid = r[STU_S.FILLED_BY_ID];
+        if (!stuSurveyByUser[uid]) stuSurveyByUser[uid] = [];
+        stuSurveyByUser[uid].push(r);
+      }
+      const instSurveyByUser = {};
+      for (const r of _instRows) {
+        const uid = r[INST_S.FILLED_BY_ID];
+        if (!instSurveyByUser[uid]) instSurveyByUser[uid] = [];
+        instSurveyByUser[uid].push(r);
+      }
+      for (const [uid, p] of Object.entries(_personMap)) {
+        p.stuSurveys  = stuSurveyByUser[uid]  || [];
+        p.instSurveys = instSurveyByUser[uid] || [];
+      }
+
+      // ── Build school survey aggregates ────────────────────────────────
+      for (const [school, sc] of Object.entries(_schoolMap)) {
+        // Student surveys
+        const stuRows = _stuRows.filter(r => r[STU_S.SCHOOL] === school);
+        sc.stuSurveyAvg = avgSurvey(stuRows, [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL]);
+        sc.stuSurveyRows = stuRows;
+        // Instructor surveys
+        const instRows = _instRows.filter(r => r[INST_S.SCHOOL] === school);
+        sc.instSurveyAvg = avgSurvey(instRows, [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL]);
+        sc.instSurveyRows = instRows;
+
+        // School-level HIT flags
+        sc.ratioViolations = sc.sessions.filter(s => s.ratioFlag).length;
+        if (sc.ratioViolations > 0)
+          sc.flags.push({ type:'ratio', severity:'medium', msg:`${sc.ratioViolations} sessions exceed 1:3 ratio — check MOU` });
+        const criticalSI  = sc.siReasons.filter(r => getSISeverity(r) === 'critical').length;
+        const vacancySI   = sc.siReasons.filter(r => r === 'Tutor Vacancy').length;
+        const otherHighSI = sc.siReasons.filter(r => getSISeverity(r) === 'high' && r !== 'Tutor Vacancy').length;
+        if (criticalSI > 0)
+          sc.flags.push({ type:'critical_si', severity:'critical', msg:`${criticalSI} NJTC Internal Issues require immediate review` });
+        if (vacancySI > 0)
+          // Vacancy is NOT counted in attendance — it is a staffing gap flag for HR, Programming, and Leadership
+          sc.flags.push({ type:'vacancy_si', severity:'high', audience:'HR · Programming · Leadership', msg:`${vacancySI} sessions impacted by tutor vacancy — backfill action required` });
+        if (otherHighSI > 0)
+          sc.flags.push({ type:'high_si', severity:'high', msg:`${otherHighSI} high-severity interruptions (closures / archived scholars)` });
+
+        // Declined sessions: count across all student rows for this school
+        // Declines count as absences in attendance AND surface to Programming
+        const declinedCount = sc.rows.filter(r => r[ATT.ROLE] === 'Student' && (r[ATT.MISS_REASON] || '') === DECLINED_REASON).length;
+        if (declinedCount > 0)
+          sc.flags.push({ type:'declined', severity: declinedCount >= 5 ? 'high' : 'medium', audience:'Programming', msg:`${declinedCount} scholar-declined session${declinedCount > 1 ? 's' : ''} — Program Team engagement review needed` });
+
+        // Attendance rate for school
+        sc.attRate = sc.totalStudentRows > 0
+          ? Math.round(sc.stuAttended / (sc.stuAttended + sc.stuAbsent + sc.stuInterruptions) * 100) : 0;
+      }
+
+      // Update global flags badge
+      updateFlagsBadge();
+    }
+
+    function initSchool(school, district) {
+      _schoolMap[school] = {
+        school, district, rows: [],
+        totalStudentRows: 0, stuAttended: 0, stuAbsent: 0, stuInterruptions: 0, notRecorded: 0,
+        totalInstRows: 0, instAttended: 0, instAbsent: 0, instInterruptions: 0,
+        sessions: [], siReasons: [], flags: [],
+        stuSurveyAvg: 0, instSurveyAvg: 0, stuSurveyRows: [], instSurveyRows: [],
+        attRate: 0, ratioViolations: 0,
+      };
+    }
+
+    function avgSurvey(rows, cols) {
+      let sum = 0, cnt = 0;
+      for (const r of rows) {
+        for (const c of cols) {
+          const v = parseFloat(r[c]);
+          if (!isNaN(v)) { sum += v; cnt++; }
+        }
+      }
+      return cnt > 0 ? (sum / cnt) : 0;
+    }
+
+    // ── FILTERS ───────────────────────────────────────────────────────────
+    function applyFilters() {
+      _filtDistrict = (document.getElementById('poFDistrict')||{}).value || '';
+      _filtSchool   = (document.getElementById('poFSchool')||{}).value   || '';
+      _filtWeek     = (document.getElementById('poFWeek')||{}).value     || '';
+      _filtRole     = (document.getElementById('poFRole')||{}).value     || '';
+      _filtFlag     = (document.getElementById('poFFlag')||{}).value     || '';
+      if (_filtSchool && _view === 'schools') { drillSchool(_filtSchool); return; }
+      renderView();
+    }
+
+    function clearFilters() {
+      ['poFDistrict','poFSchool','poFWeek','poFRole','poFFlag']
+        .forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+      _filtDistrict = _filtSchool = _filtWeek = _filtRole = _filtFlag = '';
+      renderView();
+    }
+
+    function populateFilters() {
+      function pop(id, vals) {
+        const el = document.getElementById(id); if (!el) return;
+        const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
+        el.innerHTML = first + [...vals].filter(Boolean).sort()
+          .map(v => `<option value="${v}">${v}</option>`).join('');
+        if ([...el.options].some(o => o.value === cur)) el.value = cur;
+      }
+      pop('poFDistrict', new Set(_attRows.map(r => r[ATT.DISTRICT])));
+      pop('poFSchool',   new Set(_attRows.map(r => r[ATT.SCHOOL])));
+      const weeks = new Set(_attRows.map(r => r[ATT.WEEK]));
+      pop('poFWeek', [...weeks].sort((a,b) => {
+        const na = parseInt(a.replace('Week ','')), nb = parseInt(b.replace('Week ',''));
+        return na - nb;
+      }).reduce((m,v)=>{m.add(v);return m;}, new Set()));
+    }
+
+    // ── STATS ─────────────────────────────────────────────────────────────
+    function updateStats() {
+      const rows = filteredAttRows();
+      const stuRows = rows.filter(r => r[ATT.ROLE] === 'Student');
+      const att = stuRows.filter(r => classifyRecord(r) === 'attended').length;
+      const abs = stuRows.filter(r => classifyRecord(r) === 'absent').length;
+      const si  = stuRows.filter(r => classifyRecord(r) === 'service_interruption').length;
+      const total = att + abs;
+      const attPct = total > 0 ? (att / total * 100).toFixed(1) + '%' : '—';
+
+      // Sessions from session details filtered by school/district
+      const filtSess = filteredSessions();
+      const completed = filtSess.filter(s => s.status === 'Completed').length;
+      const totalSess = filtSess.length;
+
+      // Survey avg
+      const allSurvScores = [];
+      for (const r of _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]))) {
+        [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(c => {
+          const v = parseFloat(r[c]); if (!isNaN(v)) allSurvScores.push(v);
+        });
+      }
+      for (const r of _instRows.filter(r => matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT]))) {
+        [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL].forEach(c => {
+          const v = parseFloat(r[c]); if (!isNaN(v)) allSurvScores.push(v);
+        });
+      }
+      const survAvg = allSurvScores.length ? (allSurvScores.reduce((a,b)=>a+b,0)/allSurvScores.length).toFixed(2) : '—';
+
+      // Flags
+      let hitFlags = 0;
+      for (const p of Object.values(_personMap)) {
+        if (matchesSchoolFilter(p.school, p.district)) hitFlags += p.flags.length;
+      }
+
+      setText('poStatAtt', attPct);
+      setText('poStatSessions', completed.toLocaleString());
+      setText('poStatSessionsSub', `of ${totalSess.toLocaleString()} scheduled`);
+      setText('poStatInterruptions', si.toLocaleString());
+      setText('poStatSurvey', survAvg === '—' ? '—' : '★ ' + survAvg);
+      setText('poStatFlags', hitFlags.toLocaleString());
+    }
+
+    function updateFlagsBadge() {
+      const critCount = Object.values(_schoolMap)
+        .flatMap(sc => sc.flags).filter(f => f.severity === 'critical').length
+        + Object.values(_personMap).flatMap(p => p.flags || []).filter(f => f.severity === 'critical').length;
+
+      const totalFlags = Object.values(_schoolMap).flatMap(sc => sc.flags).length
+        + Object.values(_personMap).flatMap(p => p.flags || []).length;
+
+      const badge = document.getElementById('pearlFlagsBadge');
+      if (badge) {
+        badge.style.display = totalFlags > 0 ? '' : 'none';
+        badge.textContent = totalFlags;
+      }
+      const critBtn = document.getElementById('poCriticalBtn');
+      if (critBtn) {
+        critBtn.style.display = critCount > 0 ? '' : 'none';
+        setText('poCriticalN', critCount);
+      }
+    }
+
+    // ── FILTERED DATA HELPERS ─────────────────────────────────────────────
+    function matchesSchoolFilter(school, district) {
+      if (_filtDistrict && district !== _filtDistrict) return false;
+      if (_filtSchool   && school   !== _filtSchool)   return false;
+      return true;
+    }
+
+    function filteredAttRows() {
+      return _attRows.filter(r => {
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
+        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        if (_filtRole && r[ATT.ROLE] !== _filtRole) return false;
+        if (_filtFlag === 'hit') {
+          const p = _personMap[r[ATT.USER_ID]];
+          return p && p.flags && p.flags.length > 0;
+        }
+        if (_filtFlag === 'si') return classifyRecord(r) === 'service_interruption';
+        if (_filtFlag === 'concern') return r[ATT.CONSEC_STATUS] === 'Attendance Concern';
+        return true;
+      });
+    }
+
+    function filteredSessions() {
+      return Object.values(_sessMap).filter(s =>
+        matchesSchoolFilter(s.school, s.district)
+      );
+    }
+
+    function filteredSchools() {
+      return Object.values(_schoolMap).filter(sc =>
+        (!_filtDistrict || sc.district === _filtDistrict) &&
+        (!_filtSchool   || sc.school   === _filtSchool)
+      );
+    }
+
+    // ── VIEW ROUTER ───────────────────────────────────────────────────────
+    function renderView() {
+      updateStats();
+      if (_view === 'schools')         renderSchoolGrid();
+      else if (_view === 'school')     renderSchoolDetail();
+      else if (_view === 'person')     renderPersonDetail();
+    }
+
+    function drillSchool(school) {
+      _selSchool = school; _view = 'school'; _activeTab = 'attendance';
+      const schoolObj = _schoolMap[school];
+      if (schoolObj) {
+        const selSchool = document.getElementById('poFSchool');
+        if (selSchool) selSchool.value = school;
+      }
+      renderBreadcrumb();
+      renderView();
+    }
+
+    function drillPerson(uid) {
+      _selPerson = uid; _view = 'person'; _activeTab = 'attendance';
+      renderBreadcrumb();
+      renderView();
+    }
+
+    function goBack() {
+      if (_view === 'person') { _view = 'school'; _selPerson = null; }
+      else if (_view === 'school') { _view = 'schools'; _selSchool = null; const el = document.getElementById('poFSchool'); if(el) el.value=''; }
+      renderBreadcrumb();
+      renderView();
+    }
+
+    function renderBreadcrumb() {
+      const el = document.getElementById('poBreadcrumb');
+      if (!el) return;
+      const parts = [`<a onclick="po.goBack()">All Schools</a>`];
+      if (_selSchool) parts.push(`<span class="po-breadcrumb-sep">›</span> <a onclick="po.goBack()">${_selSchool}</a>`);
+      if (_selPerson && _view === 'person') {
+        const p = _personMap[_selPerson];
+        const nm = canSeeNames() ? (p ? p.name : _selPerson) : 'Individual';
+        parts.push(`<span class="po-breadcrumb-sep">›</span> <span style="color:var(--navy)">${nm}</span>`);
+      }
+      el.innerHTML = parts.join(' ');
+      el.style.display = _view === 'schools' ? 'none' : 'flex';
+    }
+
+    // ── SCHOOL GRID ───────────────────────────────────────────────────────
+    function renderSchoolGrid() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const schools = filteredSchools().sort((a, b) => b.attRate - a.attRate);
+
+      const criticalSI = si => getSISeverity(si) === 'critical';
+      const highSI     = si => getSISeverity(si) === 'high';
+
+      const rows = schools.map(sc => {
+        const attColor = sc.attRate >= 90 ? 'var(--met)' : sc.attRate >= 75 ? 'var(--gold)' : 'var(--notmet)';
+        const siCount  = sc.stuInterruptions;
+        const hasCrit  = sc.flags.some(f => f.severity === 'critical');
+        const hasHigh  = sc.flags.some(f => f.severity === 'high');
+        const survAvg  = sc.stuSurveyAvg > 0 ? sc.stuSurveyAvg.toFixed(1) : '—';
+        const flagCount = sc.flags.length;
+        const schoolPersons = Object.values(_personMap).filter(p => p.school === sc.school && p.role === 'Student');
+        const personFlags = schoolPersons.flatMap(p => p.flags || []).length;
+        const totalFlags = flagCount + personFlags;
+
+        return `<tr class="po-school-row${_selSchool===sc.school?' po-hl':''}" onclick="po.drillSchool('${esc(sc.school)}')">
+          <td>
+            <div style="font-weight:700;color:var(--navy);font-size:.875rem">${sc.school}</div>
+            <div style="font-size:.75rem;color:var(--muted)">${sc.district}</div>
+          </td>
+          <td style="text-align:center">
+            <span style="font-family:'DM Serif Display',serif;font-size:1.1rem;font-weight:700;color:${attColor}">${sc.attRate}%</span>
+            <div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:${sc.attRate}%;background:${attColor}"></div></div>
+          </td>
+          <td style="text-align:center">
+            <span style="font-family:'DM Serif Display',serif;font-size:1rem;font-weight:700;color:var(--navy)">${sc.sessions.length}</span>
+          </td>
+          <td style="text-align:center">${siCount > 0 ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">⚠️ ${siCount}</span>` : '<span class="po-badge po-badge-green">✓ 0</span>'}</td>
+          <td style="text-align:center">${sc.ratioViolations > 0 ? `<span class="po-badge po-badge-red" title="Exceeds 1:3 — check MOU">⚑ ${sc.ratioViolations}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
+          <td style="text-align:center"><span style="font-weight:700;color:var(--navy)">${survAvg}</span></td>
+          <td style="text-align:center">${totalFlags > 0 ? `<span class="po-badge ${totalFlags>3?'po-badge-red':'po-badge-gold'}">🚩 ${totalFlags}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
+          <td style="text-align:center">${hasCrit ? '<span class="po-severity-critical">Critical</span>' : hasHigh ? '<span class="po-severity-high">High</span>' : '<span class="po-badge po-badge-green">OK</span>'}</td>
+        </tr>`;
+      }).join('');
+
+      mc.innerHTML = `
+        <div class="po-detail-card">
+          <div class="po-section-hd">
+            School Performance Overview
+            <span style="font-weight:400;font-size:.75rem;color:var(--muted)">${schools.length} schools · Click any row to drill down</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr style="background:var(--surface-2)">
+                ${['School / District','Attendance Rate','Sessions','Service Interruptions','Ratio Flags','Survey Avg','HIT Flags','Status']
+                  .map(h=>`<th style="padding:.5rem .875rem;text-align:${h.includes('School')?'left':'center'};font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">${h}</th>`).join('')}
+              </thead>
+              <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">Loading school data…</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    // ── SCHOOL DETAIL VIEW ────────────────────────────────────────────────
+    function renderSchoolDetail() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const sc = _schoolMap[_selSchool]; if (!sc) { renderSchoolGrid(); return; }
+      const tabs = buildSchoolTabs();
+      mc.innerHTML = `
+        <div class="po-detail-card">
+          <div class="po-section-hd">
+            <div>
+              <span style="font-size:.875rem;font-weight:700;color:var(--navy)">${sc.school}</span>
+              <span style="font-size:.75rem;color:var(--muted);margin-left:.75rem">${sc.district}</span>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+              ${sc.flags.map(f => `<span class="po-severity-${f.severity}" title="${f.msg}">${f.msg.substring(0,40)}…</span>`).join('')}
+            </div>
+          </div>
+          <div class="po-tabs-bar" id="poSchoolTabsBar">
+            ${tabs.map(t=>`<button class="po-tab${_activeTab===t.id?' po-tab-active':''}" onclick="po.switchTab('${t.id}')">${t.label}</button>`).join('')}
+          </div>
+          <div id="poSchoolTabContent"></div>
+        </div>`;
+      renderSchoolTab(_activeTab);
+    }
+
+    function buildSchoolTabs() {
+      const tabs = [{ id:'attendance', label:'📋 Attendance' }];
+      if (isProg() || isHR() || isData()) tabs.push({ id:'sessions', label:'📅 Sessions' });
+      tabs.push({ id:'interruptions', label:'⚠️ Interruptions' });
+      if (isTD() || isData()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
+      if (isData()) tabs.push({ id:'hit', label:'🚩 HIT Compliance' });
+      return tabs;
+    }
+
+    function switchTab(tabId) {
+      _activeTab = tabId;
+      // Update active tab button
+      document.querySelectorAll('#poSchoolTabsBar .po-tab').forEach(btn => {
+        btn.classList.toggle('po-tab-active', btn.textContent.includes(tabId) || btn.getAttribute('onclick').includes(`'${tabId}'`));
+      });
+      renderSchoolTab(tabId);
+    }
+
+    function renderSchoolTab(tab) {
+      const el = document.getElementById('poSchoolTabContent'); if (!el) return;
+      const sc = _schoolMap[_selSchool]; if (!sc) return;
+
+      if (tab === 'attendance')     el.innerHTML = renderAttendanceTab(sc);
+      else if (tab === 'sessions')  el.innerHTML = renderSessionsTab(sc);
+      else if (tab === 'interruptions') el.innerHTML = renderInterruptionsTab(sc);
+      else if (tab === 'surveys')   el.innerHTML = renderSurveysTab(sc);
+      else if (tab === 'hit')       el.innerHTML = renderHITTab(sc);
+    }
+
+    function renderAttendanceTab(sc) {
+      const persons = Object.values(_personMap)
+        .filter(p => p.school === sc.school)
+        .sort((a, b) => {
+          const aRate = a.attended / Math.max(1, a.attended + a.absent);
+          const bRate = b.attended / Math.max(1, b.attended + b.absent);
+          return aRate - bRate;
+        });
+
+      const students  = persons.filter(p => p.role === 'Student');
+      const instructors = persons.filter(p => p.role === 'Instructor');
+
+      const renderPersonRow = (p) => {
+        const total = p.attended + p.absent;
+        const rate  = total > 0 ? Math.round(p.attended / total * 100) : 0;
+        const color = rate >= 90 ? 'var(--met)' : rate >= 75 ? 'var(--gold)' : 'var(--notmet)';
+        const flagCount = p.flags.length;
+        const hasCrit = p.flags.some(f => f.severity === 'high' || f.severity === 'critical');
+        const name = canSeeNames() ? p.name : '—';
+        const adpFlag = isHR() || isFinance() ? (rate < 70 ? '<span class="po-badge po-badge-red" title="Low attendance — verify ADP records">⚑ Check ADP</span>' : '') : '';
+        return `<tr class="po-person-row" onclick="po.drillPerson('${esc(p.uid)}')">
+          <td style="font-weight:600;color:var(--navy)">${name}</td>
+          <td style="color:var(--muted)">${p.grade||'—'}</td>
+          <td style="text-align:center">
+            <span style="font-weight:700;color:${color}">${rate}%</span>
+            <div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:${rate}%;background:${color}"></div></div>
+          </td>
+          <td style="text-align:center">${p.attended}</td>
+          <td style="text-align:center">${p.absent}</td>
+          <td style="text-align:center">${p.interruptions > 0 ? `<span class="po-badge po-badge-gold">${p.interruptions}</span>` : '0'}</td>
+          <td>${flagCount > 0 ? `<span class="po-badge po-badge-red">🚩 ${flagCount} flag${flagCount>1?'s':''}</span>` : '<span class="po-badge po-badge-green">✓ OK</span>'}${adpFlag}</td>
+          ${p.consecStatus==='Attendance Concern' ? '<td><span class="po-badge po-badge-critical">Concern</span></td>' : '<td><span class="po-badge po-badge-green">Good</span></td>'}
+        </tr>`;
+      };
+
+      const thStyle = `padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)`;
+      const theads = `<tr style="background:var(--surface-2)"><th style="${thStyle}">${canSeeNames()?'Name':'Scholar'}</th><th style="${thStyle}">Grade</th><th style="${thStyle};text-align:center">Att. Rate</th><th style="${thStyle};text-align:center">Attended</th><th style="${thStyle};text-align:center">Absent</th><th style="${thStyle};text-align:center">Interruptions</th><th style="${thStyle}">Flags</th><th style="${thStyle}">Consec.</th></tr>`;
+
+      return `
+        <div style="padding:1.25rem 1.5rem 0">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem">
+            ${[
+              ['Scholar Attendance', `${sc.attRate}%`, sc.attRate>=90?'var(--met)':sc.attRate>=75?'var(--gold)':'var(--notmet)'],
+              ['Attended Sessions', sc.stuAttended.toLocaleString(), 'var(--met)'],
+              ['Student Absences', sc.stuAbsent.toLocaleString(), 'var(--notmet)'],
+              ['Service Interruptions', sc.stuInterruptions.toLocaleString(), 'var(--partial)'],
+            ].map(([lbl,val,col])=>`<div style="background:var(--surface-2);padding:.875rem;border-radius:var(--radius);border:1px solid var(--border)">
+              <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">${lbl}</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${col};margin-top:.2rem">${val}</div>
+            </div>`).join('')}
+          </div>
+        </div>
+        <div style="padding:0 1.5rem 1.5rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Scholars (${students.length})</div>
+          <div style="overflow-x:auto;margin-bottom:1.5rem">
+            <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+              <thead>${theads}</thead>
+              <tbody>${students.map(renderPersonRow).join('') || '<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--muted)">No scholars found</td></tr>'}</tbody>
+            </table>
+          </div>
+          ${instructors.length > 0 ? `
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Instructors (${instructors.length})</div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+              <thead>${theads.replace('Scholar','Instructor')}</thead>
+              <tbody>${instructors.map(renderPersonRow).join('')}</tbody>
+            </table>
+          </div>` : ''}
+        </div>`;
+    }
+
+    function renderSessionsTab(sc) {
+      const sessions = sc.sessions.sort((a,b) => new Date(b.start) - new Date(a.start)).slice(0, 100);
+      const rows = sessions.map(s => {
+        const statusColor = s.status === 'Completed' ? 'var(--met)' : s.status === 'Missed' ? 'var(--notmet)' : 'var(--partial)';
+        const ratioFlag = s.ratioFlag ? `<span class="po-badge po-badge-red" title="Exceeds 1:3 ratio — check MOU">⚑ ${s.ratio}:1</span>` : `<span class="po-badge po-badge-green">✓ ${s.ratio}:1</span>`;
+        return `<tr style="font-size:.8125rem">
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.start||'—'}</td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2);font-weight:600;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.title}">${s.title}</td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.instructor||'—'}</td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)"><span style="font-weight:600;color:${statusColor}">${s.status}</span></td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2);text-align:center">${ratioFlag}</td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.subject||'—'}</td>
+          <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.schedDur||'—'}</td>
+        </tr>`;
+      }).join('');
+      return `<div style="padding:1.5rem"><div style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Most recent ${Math.min(100,sessions.length)} of ${sc.sessions.length} sessions · Ratio flag = exceeds 1:3 (check MOU per school contract)</div>
+        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:var(--surface-2)">${['Date','Session Title','Instructor','Status','Scholar Ratio','Subject','Duration'].map(h=>`<th style="padding:.4rem .875rem;text-align:left;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">${h}</th>`).join('')}</tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--muted)">No sessions found</td></tr>'}</tbody>
+        </table></div></div>`;
+    }
+
+    function renderInterruptionsTab(sc) {
+      const siRows = sc.rows.filter(r => classifyRecord(r) === 'service_interruption' && r[ATT.ROLE] === 'Student');
+      const grouped = {};
+      for (const r of siRows) {
+        const reason = r[ATT.MISS_REASON] || 'Unknown';
+        if (!grouped[reason]) grouped[reason] = [];
+        grouped[reason].push(r);
+      }
+      const sorted = Object.entries(grouped).sort((a,b) => {
+        const order = {critical:0, high:1, medium:2, low:3};
+        return (order[getSISeverity(a[0])]||2) - (order[getSISeverity(b[0])]||2);
+      });
+
+      const groupRows = sorted.map(([reason, recs]) => {
+        const sev        = getSISeverity(reason);
+        const isVacancy  = reason === 'Tutor Vacancy';
+        const isCritical = sev === 'critical';
+        const sevLabel   = `<span class="po-severity-${sev}">${sev.toUpperCase()}</span>`;
+        const rowBg      = isCritical ? 'background:#fef2f2' : isVacancy ? 'background:#fffbeb' : '';
+        const icon       = isCritical ? '🚨' : isVacancy ? '👤' : sev === 'high' ? '🔴' : sev === 'medium' ? '🟡' : '🟢';
+        const note       = isCritical
+          ? '<div style="margin-top:.4rem;font-size:.75rem;color:#991b1b;font-weight:600">⚠️ Requires immediate review, check-in, and cleanup</div>'
+          : isVacancy
+            ? '<div style="margin-top:.4rem;font-size:.75rem;color:#92400e;font-weight:600">👥 Staffing gap — <strong>not counted in attendance</strong>. Escalate to HR &amp; Programming for backfill. Visible to: HR · Programming · Leadership.</div>'
+            : '';
+        const weeks = [...new Set(recs.map(r => r[ATT.WEEK]))].sort().join(', ');
+        return `<div class="po-flag-row" style="${rowBg}">
+          <div class="po-flag-icon">${icon}</div>
+          <div class="po-flag-text">
+            <div class="po-flag-label">${reason}</div>
+            <div class="po-flag-sub">Affected weeks: ${weeks}</div>
+            ${note}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem">
+            ${sevLabel}
+            <span class="po-flag-count">${recs.length} records</span>
+          </div>
+        </div>`;
+      }).join('');
+
+      const notRecorded = sc.rows.filter(r => r[ATT.ATT_STATUS] === 'Not recorded').length;
+      return `<div>
+        <div style="padding:1rem 1.5rem .5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:.8125rem;color:var(--muted)">${siRows.length} service interruption records · Sorted by severity</span>
+          ${notRecorded > 0 ? `<span class="po-badge po-badge-gold">⚠️ ${notRecorded} not recorded — data quality flag</span>` : ''}
+        </div>
+        ${groupRows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No service interruptions found</div>'}
+      </div>`;
+    }
+
+    function renderSurveysTab(sc) {
+      const stuAvg = sc.stuSurveyAvg;
+      const instAvg = sc.instSurveyAvg;
+
+      // Comments with bucketing
+      const stuComments = sc.stuSurveyRows
+        .filter(r => r[STU_S.COMMENT] && r[STU_S.COMMENT].trim())
+        .slice(0, 40);
+      const instComments = sc.instSurveyRows
+        .filter(r => (r[INST_S.COMMENT_ADMIN] || r[INST_S.COMMENT_SELF]))
+        .slice(0, 40);
+
+      const renderCommentCard = (text, bucketKey) => {
+        const bucket = COMMENT_BUCKETS[bucketKey] || { label: 'Other', css: 'other' };
+        const clampCss = 'font-size:.8125rem;color:var(--text);line-height:1.5';
+        const cardCss  = bucketKey === 'concern' ? 'concern' : bucketKey === 'positive' ? 'positive' : 'neutral';
+        return `<div class="po-comment-card cc-${cardCss}">
+          <div class="po-comment-bucket po-bucket-${bucket.css}">${bucket.label}</div>
+          <div style="${clampCss}">"${text}"</div>
+        </div>`;
+      };
+
+      const stuRatingBars = [
+        ['Confidence', STU_S.CONFIDENCE],
+        ['Enjoyment', STU_S.ENJOYMENT],
+        ['Learning', STU_S.LEARNING],
+        ['Overall', STU_S.OVERALL],
+      ].map(([lbl, col]) => {
+        const scores = sc.stuSurveyRows.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+        const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
+        const pct = avg / 5 * 100;
+        const col2 = avg >= 4 ? 'var(--met)' : avg >= 3 ? 'var(--gold)' : 'var(--notmet)';
+        return `<div style="margin-bottom:.625rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.25rem"><span>${lbl}</span><span style="font-weight:700;color:var(--navy)">${avg.toFixed(2)}/5</span></div>
+          <div class="po-survey-bar"><div class="po-survey-bar-fill" style="width:${pct}%;background:${col2}"></div></div>
+        </div>`;
+      }).join('');
+
+      const instRatingBars = [
+        ['Scholar Engagement', INST_S.ENGAGEMENT],
+        ['Enjoyment', INST_S.ENJOYMENT],
+        ['Scholar Learning', INST_S.LEARNING],
+        ['Overall', INST_S.OVERALL],
+      ].map(([lbl, col]) => {
+        const scores = sc.instSurveyRows.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+        const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
+        const pct = avg / 5 * 100;
+        const col2 = avg >= 4 ? 'var(--met)' : avg >= 3 ? 'var(--gold)' : 'var(--notmet)';
+        return `<div style="margin-bottom:.625rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.25rem"><span>${lbl}</span><span style="font-weight:700;color:var(--navy)">${avg.toFixed(2)}/5</span></div>
+          <div class="po-survey-bar"><div class="po-survey-bar-fill" style="width:${pct}%;background:${col2}"></div></div>
+        </div>`;
+      }).join('');
+
+      const stuCommentHTML = stuComments.map(r => {
+        const text = r[STU_S.COMMENT];
+        const bucket = categorizeComment(text);
+        return renderCommentCard(text, bucket);
+      }).join('');
+
+      const instCommentHTML = instComments.map(r => {
+        const admin = r[INST_S.COMMENT_ADMIN], self = r[INST_S.COMMENT_SELF];
+        const text = [admin, self].filter(Boolean).join(' | ');
+        const bucket = categorizeComment(text);
+        return renderCommentCard(text, bucket);
+      }).join('');
+
+      return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;padding:1.25rem 1.5rem">
+          <div>
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.75rem">Scholar Survey Ratings <span style="font-weight:400">(${sc.stuSurveyRows.length} responses)</span></div>
+            ${stuRatingBars || '<p style="color:var(--muted);font-size:.8125rem">No scholar survey data</p>'}
+          </div>
+          <div>
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.75rem">Instructor Survey Ratings <span style="font-weight:400">(${sc.instSurveyRows.length} responses)</span></div>
+            ${instRatingBars || '<p style="color:var(--muted);font-size:.8125rem">No instructor survey data</p>'}
+          </div>
+        </div>
+        ${stuComments.length > 0 || instComments.length > 0 ? `
+        <div style="padding:0 1.5rem 1.5rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Scholar Comments — Auto-Categorized (${stuComments.length} shown)</div>
+          <div style="margin-bottom:1.25rem">${stuCommentHTML || '<p style="color:var(--muted);font-size:.8125rem">No comments</p>'}</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Instructor Comments — Auto-Categorized (${instComments.length} shown)</div>
+          ${instCommentHTML || '<p style="color:var(--muted);font-size:.8125rem">No instructor comments</p>'}
+        </div>` : ''}`;
+    }
+
+    function renderHITTab(sc) {
+      const students = Object.values(_personMap).filter(p => p.school === sc.school && p.role === 'Student');
+      const flaggedStudents = students.filter(p => p.flags.length > 0)
+        .sort((a,b) => b.flags.length - a.flags.length);
+
+      const ratioRows = sc.sessions.filter(s => s.ratioFlag)
+        .sort((a,b) => b.ratio - a.ratio)
+        .slice(0, 30);
+
+      const personFlagRows = flaggedStudents.map(p => {
+        const name = canSeeNames() ? p.name : '—';
+        return `<div style="padding:.75rem 1.5rem;border-bottom:1px solid var(--border-2)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+            <span style="font-weight:700;color:var(--navy);font-size:.875rem;cursor:pointer" onclick="po.drillPerson('${esc(p.uid)}')">${name}</span>
+            <span class="po-badge ${p.flags.length>2?'po-badge-critical':'po-badge-red'}">🚩 ${p.flags.length} flag${p.flags.length>1?'s':''}</span>
+          </div>
+          ${p.flags.map(f=>`<div style="font-size:.75rem;color:var(--muted);margin:.2rem 0;display:flex;align-items:center;gap:.4rem"><span class="po-severity-${f.severity}">${f.severity}</span> ${f.msg}</div>`).join('')}
+        </div>`;
+      }).join('');
+
+      const ratioRowsHTML = ratioRows.map(s => `
+        <tr style="font-size:.8125rem">
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2)">${s.start||'—'}</td>
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);font-weight:600;color:var(--navy)">${s.title}</td>
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2)">${s.instructor}</td>
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);text-align:center"><span class="po-badge po-badge-red">⚑ ${s.ratio}:1</span></td>
+          <td style="padding:.45rem .875rem;border-bottom:1px solid var(--border-2);font-size:.75rem;color:var(--muted)">Exceeds 1:3 HIT ratio — MOU governs actual limit</td>
+        </tr>`).join('');
+
+      return `
+        <div>
+          <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border);background:var(--surface-2)">
+            <div style="font-size:.75rem;color:var(--muted);line-height:1.6">
+              <strong>HIT Compliance Standards:</strong> &nbsp;≤3 scholars per session (1:3 ratio) &nbsp;·&nbsp; ≥2 sessions per week &nbsp;·&nbsp; Same instructor for continuity/rapport &nbsp;·&nbsp; No 10+ consecutive misses<br>
+              <em>Note: Ratio flag does not equal a violation — some schools have approved higher ratios per MOU. Flag = review required.</em>
+            </div>
+          </div>
+          ${flaggedStudents.length > 0 ? `
+          <div style="padding:1rem 1.5rem .5rem">
+            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Scholars With Active HIT Flags (${flaggedStudents.length})</div>
+          </div>
+          ${personFlagRows}` : '<div style="padding:2rem;text-align:center;color:var(--muted)">No HIT flags for scholars at this school</div>'}
+          ${ratioRows.length > 0 ? `
+          <div style="padding:1rem 1.5rem .5rem;border-top:1px solid var(--border)">
+            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Sessions With Ratio Flags (${ratioRows.length} of ${sc.ratioViolations})</div>
+          </div>
+          <div style="overflow-x:auto;padding:0 1.5rem 1.5rem">
+            <table style="width:100%;border-collapse:collapse">
+              <thead><tr style="background:var(--surface-2)">${['Date','Session','Instructor','Ratio','Note'].map(h=>`<th style="padding:.4rem .875rem;text-align:left;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+              <tbody>${ratioRowsHTML}</tbody>
+            </table>
+          </div>` : ''}
+        </div>`;
+    }
+
+    // ── PERSON DETAIL VIEW ────────────────────────────────────────────────
+    function renderPersonDetail() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const p = _personMap[_selPerson]; if (!p) { _view = 'school'; renderView(); return; }
+      const isStudent = p.role === 'Student';
+      const name = canSeeNames() ? p.name : (isStudent ? 'Scholar' : 'Instructor');
+      const total = p.attended + p.absent;
+      const rate  = total > 0 ? Math.round(p.attended / total * 100) : 0;
+      const attColor = rate >= 90 ? 'var(--met)' : rate >= 75 ? 'var(--gold)' : 'var(--notmet)';
+
+      const tabs = [{ id:'attendance', label:'📋 History' }];
+      if (isTD() || isData()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
+      if (isData() || isHR() || isProg()) tabs.push({ id:'flags', label:`🚩 Flags (${p.flags.length})` });
+
+      mc.innerHTML = `
+        <div class="po-detail-card">
+          <div class="po-section-hd">
+            <div>
+              <div style="font-family:'DM Serif Display',serif;font-size:1.1rem;color:var(--navy)">${name}</div>
+              <div style="font-size:.75rem;color:var(--muted)">${p.role} · ${p.school} · ${p.district}${p.grade ? ' · ' + p.grade : ''}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.375rem">
+              <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
+              <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
+              ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Low Attendance — Check ADP Records</span>' : ''}
+              ${p.consecStatus === 'Attendance Concern' ? '<span class="po-badge po-badge-critical">10+ Consecutive Misses</span>' : ''}
+              ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
+            </div>
+          </div>
+          <div class="po-tabs-bar" id="poPersonTabsBar">
+            ${tabs.map(t=>`<button class="po-tab${_activeTab===t.id?' po-tab-active':''}" onclick="po.switchPersonTab('${t.id}')">${t.label}</button>`).join('')}
+          </div>
+          <div id="poPersonTabContent"></div>
+        </div>`;
+      renderPersonTab(_activeTab, p);
+    }
+
+    function switchPersonTab(tabId) {
+      _activeTab = tabId;
+      document.querySelectorAll('#poPersonTabsBar .po-tab').forEach(btn => {
+        btn.classList.toggle('po-tab-active', btn.getAttribute('onclick').includes(`'${tabId}'`));
+      });
+      const p = _personMap[_selPerson]; if (!p) return;
+      renderPersonTab(tabId, p);
+    }
+
+    function renderPersonTab(tab, p) {
+      const el = document.getElementById('poPersonTabContent'); if (!el) return;
+      if (tab === 'attendance') el.innerHTML = renderPersonAttHistory(p);
+      else if (tab === 'surveys') el.innerHTML = renderPersonSurveys(p);
+      else if (tab === 'flags')   el.innerHTML = renderPersonFlags(p);
+    }
+
+    function renderPersonAttHistory(p) {
+      const rows = p.rows.sort((a,b) => new Date(b[ATT.SESS_DATE]) - new Date(a[ATT.SESS_DATE]));
+      const histRows = rows.map(r => {
+        const cls = classifyRecord(r);
+        const clsColor = cls==='attended'?'var(--met)':cls==='absent'?'var(--notmet)':cls==='service_interruption'?'var(--partial)':'var(--muted)';
+        const clsLabel = cls==='attended'?'Attended':cls==='absent'?'Absent':cls==='service_interruption'?'Interrupted':'—';
+        const siFlag = cls === 'service_interruption' ? `<span class="po-severity-${getSISeverity(r[ATT.MISS_REASON])} " style="margin-left:.4rem">${getSISeverity(r[ATT.MISS_REASON])}</span>` : '';
+        return `<div class="po-hist-row">
+          <span style="color:var(--muted)">${r[ATT.SESS_DATE]||'—'}</span>
+          <span style="color:var(--navy)">${r[ATT.SESSION]||'—'}</span>
+          <span style="font-weight:700;color:${clsColor}">${clsLabel}${siFlag}</span>
+          <span style="color:var(--muted);font-size:.75rem">${r[ATT.WEEK]||'—'}</span>
+        </div>`;
+      }).join('');
+      return `<div>
+        <div style="display:grid;grid-template-columns:100px 1fr 90px 80px;gap:.5rem;padding:.5rem 1.5rem;border-bottom:1px solid var(--border);font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)"><span>Date</span><span>Session</span><span>Status</span><span>Week</span></div>
+        ${histRows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No session history</div>'}
+      </div>`;
+    }
+
+    function renderPersonSurveys(p) {
+      const isInst = p.role === 'Instructor';
+      const surveys = isInst ? p.instSurveys : p.stuSurveys;
+      if (!surveys.length) return '<div style="text-align:center;padding:2rem;color:var(--muted)">No survey responses found</div>';
+
+      const ratingCols = isInst
+        ? [[INST_S.ENGAGEMENT,'Engagement'],[INST_S.ENJOYMENT,'Enjoyment'],[INST_S.LEARNING,'Scholar Learning'],[INST_S.OVERALL,'Overall']]
+        : [[STU_S.CONFIDENCE,'Confidence'],[STU_S.ENJOYMENT,'Enjoyment'],[STU_S.LEARNING,'Learning'],[STU_S.OVERALL,'Overall']];
+
+      const avgs = ratingCols.map(([col, lbl]) => {
+        const scores = surveys.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+        const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
+        const pct = avg/5*100;
+        const color = avg>=4?'var(--met)':avg>=3?'var(--gold)':'var(--notmet)';
+        return `<div style="margin-bottom:.625rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-bottom:.25rem"><span>${lbl}</span><span style="font-weight:700;color:var(--navy)">${avg.toFixed(2)}/5 (${scores.length} responses)</span></div>
+          <div class="po-survey-bar"><div class="po-survey-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        </div>`;
+      }).join('');
+
+      const commentCol1 = isInst ? INST_S.COMMENT_ADMIN : STU_S.COMMENT;
+      const commentCol2 = isInst ? INST_S.COMMENT_SELF  : null;
+      const comments = surveys.filter(r => r[commentCol1] || (commentCol2 && r[commentCol2])).slice(0, 20);
+      const commentHTML = comments.map(r => {
+        const text = [r[commentCol1], commentCol2 ? r[commentCol2] : null].filter(Boolean).join(' | ');
+        const bucket = categorizeComment(text);
+        const b = COMMENT_BUCKETS[bucket] || { label:'Other', css:'other' };
+        const week = isInst ? r[INST_S.WEEK] : r[STU_S.WEEK];
+        return `<div class="po-comment-card cc-${bucket==='concern'?'concern':bucket==='positive'?'positive':'neutral'}">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+            <span class="po-comment-bucket po-bucket-${b.css}">${b.label}</span>
+            <span style="font-size:.7rem;color:var(--muted)">${week||''}</span>
+          </div>
+          <div style="font-size:.8125rem;color:var(--text);line-height:1.5">"${text}"</div>
+        </div>`;
+      }).join('');
+
+      return `<div style="padding:1.25rem 1.5rem">
+        <div style="margin-bottom:1.25rem">${avgs}</div>
+        ${comments.length > 0 ? `
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Comments (${comments.length})</div>
+          ${commentHTML}` : ''}
+      </div>`;
+    }
+
+    function renderPersonFlags(p) {
+      if (!p.flags.length) return '<div style="text-align:center;padding:2rem;color:var(--muted)">✓ No HIT compliance flags for this individual</div>';
+      return `<div>${p.flags.map(f => `
+        <div class="po-flag-row" style="${f.severity==='critical'||f.severity==='high'?'background:#fff8f8':''}">
+          <div class="po-flag-icon">${f.severity==='critical'?'🚨':f.severity==='high'?'🔴':f.severity==='medium'?'🟡':'🔵'}</div>
+          <div class="po-flag-text">
+            <div class="po-flag-label">${flagTypeLabel(f.type)}</div>
+            <div class="po-flag-sub">${f.msg}</div>
+          </div>
+          <span class="po-severity-${f.severity}">${f.severity.toUpperCase()}</span>
+        </div>`).join('')}
+      </div>`;
+    }
+
+    function flagTypeLabel(type) {
+      const labels = {
+        consecutive: '10+ Consecutive Sessions Missed',
+        continuity:  'Tutor Continuity Concern',
+        low_att:     'Low Attendance — ADP Review Needed',
+        vacancy:     'Active Tutor Vacancy',
+        declined:    'Scholar Declined Sessions — Program Team Follow-Up',
+        frequency:   'Weekly Session Frequency Below HIT Minimum',
+        inst_att:    'Instructor Attendance — ADP Review Needed',
+        ratio:       'Session Ratio Exceeds 1:3 — Check MOU',
+        critical_si: 'Critical Service Interruption — NJTC Internal',
+        high_si:     'High Severity Service Interruptions',
+      };
+      return labels[type] || type;
+    }
+
+    // ── FLAGS MODAL ───────────────────────────────────────────────────────
+    function openFlagsModal(filter) {
+      let overlay = document.getElementById('poFlagsModal');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'poFlagsModal';
+        overlay.className = 'po-modal-overlay';
+        overlay.onclick = e => { if (e.target === overlay) overlay.style.display = 'none'; };
+        document.body.appendChild(overlay);
+      }
+      const allFlags = [];
+      for (const [school, sc] of Object.entries(_schoolMap)) {
+        for (const f of sc.flags) allFlags.push({...f, school, entity: school, isSchool: true});
+      }
+      const close = `<button class="po-modal-close" onclick="document.getElementById('poFlagsModal').style.display='none'">✕</button>`;
+      const sevOrder = {critical:0,high:1,medium:2,low:3};
+      const filtered = filter === 'critical' ? allFlags.filter(f => f.severity === 'critical') : allFlags;
+      filtered.sort((a,b) => (sevOrder[a.severity]||2) - (sevOrder[b.severity]||2));
+
+      const rows = filtered.map(f => `
+        <div class="po-flag-row" style="${f.severity==='critical'?'background:#fef2f2':f.severity==='high'?'background:#fff8f8':''}">
+          <div class="po-flag-icon">${f.severity==='critical'?'🚨':f.severity==='high'?'🔴':'🟡'}</div>
+          <div class="po-flag-text">
+            <div class="po-flag-label" style="cursor:pointer;color:var(--blue-mid)" onclick="po.drillSchool('${esc(f.school)}');document.getElementById('poFlagsModal').style.display='none'">${f.school}</div>
+            <div class="po-flag-sub">${f.msg}</div>
+          </div>
+          <span class="po-severity-${f.severity}">${f.severity.toUpperCase()}</span>
+        </div>`).join('');
+
+      overlay.innerHTML = `<div class="po-modal">
+        <div class="po-modal-hd">
+          <div>
+            <div class="po-modal-name">${filter==='critical'?'🚨 Critical Flags':'All HIT & Service Interruption Flags'}</div>
+            <div class="po-modal-meta">${filtered.length} flags · Click a school name to drill down</div>
+          </div>${close}
+        </div>
+        <div class="po-modal-body">${rows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No flags found</div>'}</div>
+        <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);text-align:right"><button class="btn btn-secondary" onclick="document.getElementById('poFlagsModal').style.display='none'">Close</button></div>
+      </div>`;
+      overlay.style.display = 'flex';
+    }
+
+    // ── SYNC STATE ────────────────────────────────────────────────────────
+    function setSyncState(state) {
+      const dot = document.getElementById('poSyncDot');
+      const txt = document.getElementById('poSyncText');
+      if (!dot) return;
+      if (state === 'loading') {
+        dot.className = 'sync-dot loading';
+        if (txt) txt.textContent = 'Loading Pearl data…';
+      } else if (state === 'live') {
+        dot.className = 'sync-dot';
+        const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
+        const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
+        if (txt) txt.innerHTML = `<strong>Live · Pearl</strong> · ${totalRec.toLocaleString()} records · Updated ${t}`;
+      } else {
+        dot.className = 'sync-dot error';
+        if (txt) txt.innerHTML = _lastFetch
+          ? `<strong>⚠️ Unreachable</strong> · Last: ${_lastFetch.toLocaleTimeString()}`
+          : '<strong>⚠️ Could not load Pearl data</strong> · Click ↺ Refresh';
+      }
+    }
+
+    // ── PANEL OPEN ────────────────────────────────────────────────────────
+    function onPanelOpen() {
+      if (!_inited) init();
+    }
+
+    // ── INIT ──────────────────────────────────────────────────────────────
+    function init() {
+      if (_inited) return; _inited = true;
+      refresh(true);
+      setInterval(() => {
+        const p = document.getElementById('panel-pearl-ops');
+        if (p && p.classList.contains('active')) refresh(false);
+      }, REFRESH_MS);
+    }
+
+    // ── UTILS ─────────────────────────────────────────────────────────────
+    function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+    function esc(s) { return (s||'').replace(/'/g, "\\'"); }
+
+    return {
+      init, refresh, applyFilters, clearFilters,
+      drillSchool, drillPerson, goBack,
+      switchTab, switchPersonTab,
+      openFlagsModal, onPanelOpen,
+    };
+  })();
+
+
+  // ── Patch showPanel: route SY + Pearl panel opens ─────────────────────
+  (function patchShowPanelModules() {
+    const _orig = showPanel;
+    window.showPanel = function(id, btn) {
+      _orig(id, btn);
+      if (id === 'sy-analytics') sya.onPanelOpen();
+      if (id === 'pearl-ops')    po.onPanelOpen();
+    };
+  })();
+
+  // Boot both modules after DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => { sya.init(); po.init(); });
+  } else {
+    sya.init(); po.init();
+  }
 
 </script>
 </body>
