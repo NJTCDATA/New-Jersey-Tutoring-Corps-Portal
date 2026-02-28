@@ -1640,7 +1640,92 @@
     }
     .kpia-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(240,165,0,.5); }
 
+
+    /* ════════════════════════════════════════════════════
+       SY ANALYTICS MODULE
+    ════════════════════════════════════════════════════ */
+    #syMap { z-index:1; }
+    .sy-district-item {
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--border-2);
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex; flex-direction: column; gap: .2rem;
+    }
+    .sy-district-item:hover { background: var(--surface-2); }
+    .sy-district-item.active { background: var(--prog-bg); border-left: 3px solid var(--blue-mid); }
+    .sy-dist-name { font-size: .8125rem; font-weight: 700; color: var(--navy); }
+    .sy-dist-meta { font-size: .6875rem; color: var(--muted); display: flex; gap: .75rem; flex-wrap: wrap; }
+    .sy-dist-pill { 
+      display: inline-block; background: var(--surface-3); border-radius: 20px;
+      padding: .1rem .5rem; font-size: .625rem; font-weight: 700; color: var(--text-2);
+    }
+
+    /* Detail card */
+    .sy-detail-school { font-family: 'DM Serif Display', serif; font-size: 1.125rem; color: var(--navy); line-height: 1.3; margin-bottom: .25rem; }
+    .sy-detail-district { font-size: .75rem; font-weight: 600; color: var(--blue-mid); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1rem; }
+    .sy-detail-row { display: flex; justify-content: space-between; align-items: baseline; padding: .375rem 0; border-bottom: 1px solid var(--border-2); gap: .5rem; }
+    .sy-detail-row:last-child { border-bottom: none; }
+    .sy-detail-label { font-size: .6875rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; flex-shrink: 0; }
+    .sy-detail-val { font-size: .8125rem; color: var(--text); text-align: right; font-weight: 500; max-width: 60%; word-break: break-word; }
+    .sy-detail-section { font-size: .625rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--blue-mid); padding: .5rem 0 .25rem; margin-top: .5rem; }
+    .sy-staff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .375rem .75rem; margin: .5rem 0; }
+    .sy-staff-cell { display: flex; flex-direction: column; }
+    .sy-staff-cell-label { font-size: .6rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .sy-staff-cell-val { font-size: .875rem; font-weight: 700; color: var(--navy); }
+
+    /* Table */
+    #syTable tbody tr { cursor: pointer; transition: background .15s; }
+    #syTable tbody tr:hover { background: var(--surface-2); }
+    #syTable tbody tr.sy-row-highlight { background: var(--prog-bg); }
+    #syTable td { padding: .5625rem .875rem; border-bottom: 1px solid var(--border-2); color: var(--text); vertical-align: middle; }
+    #syTable td.sy-val { text-align: center; font-family: 'DM Serif Display', serif; font-size: 1rem; color: var(--navy); }
+    #syTable td.sy-muted { color: var(--muted); font-size: .75rem; font-style: italic; }
+
+    /* Changes modal */
+    .sy-modal-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(10,22,40,.6); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; padding: 2rem;
+    }
+    .sy-modal {
+      background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+      width: 100%; max-width: 620px; max-height: 80vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sy-modal-header {
+      padding: 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sy-modal-title { font-family: 'DM Serif Display', serif; font-size: 1.25rem; color: var(--navy); }
+    .sy-modal-close { background: none; border: none; font-size: 1.25rem; cursor: pointer; color: var(--muted); transition: color .15s; }
+    .sy-modal-close:hover { color: var(--navy); }
+    .sy-modal-body { padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; }
+    .sy-change-item { padding: .625rem .875rem; border-radius: 8px; margin-bottom: .5rem; font-size: .8125rem; line-height: 1.5; }
+    .sy-change-added { background: var(--met-bg); border-left: 3px solid var(--met); color: #0d5e33; }
+    .sy-change-removed { background: var(--notm-bg); border-left: 3px solid var(--notmet); color: #b91c1c; }
+    .sy-change-modified { background: var(--prog-bg); border-left: 3px solid var(--progress); color: #1a3a8f; }
+    .sy-change-label { font-weight: 700; margin-bottom: .2rem; }
+    .sy-change-detail { font-size: .75rem; color: inherit; opacity: .8; }
+
+    /* Pin popup */
+    .sy-popup { font-family: 'DM Sans', sans-serif; min-width: 200px; }
+    .sy-popup-school { font-weight: 700; font-size: .9375rem; color: #0a1628; margin-bottom: .2rem; }
+    .sy-popup-district { font-size: .75rem; color: #0050c8; font-weight: 600; margin-bottom: .625rem; }
+    .sy-popup-row { display: flex; justify-content: space-between; font-size: .75rem; padding: .2rem 0; border-bottom: 1px solid #eef1f6; }
+    .sy-popup-row:last-child { border-bottom: none; }
+    .sy-popup-lbl { color: #7d8fa1; }
+    .sy-popup-val { font-weight: 600; color: #0d1b2a; }
+
+    @media (max-width: 1024px) {
+      #syMainLayout { grid-template-columns: 1fr !important; }
+      #syMap { height: 380px !important; }
+    }
+
   </style>
+  <!-- Leaflet for SY Analytics map -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -1712,6 +1797,10 @@
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Reporting</div>
+      <button class="sidebar-link" data-panel="sy-analytics" onclick="showPanel('sy-analytics',this)">
+        <span class="sl-icon">🗺️</span> SY Site Analytics
+        <span class="sl-badge" id="syChangesBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto;">!</span>
+      </button>
       <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
         <span class="sl-icon">⚠️</span> Concern Form
       </button>
@@ -1754,6 +1843,102 @@
       <!-- Quick links -->
       <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
     </div>
+
+
+    <!-- ══ SY ANALYTICS PANEL ══════════════════════════════════════ -->
+    <div class="panel" id="panel-sy-analytics">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2025–2026 · Live Data</div>
+          <h2 class="ph-title">Site Analytics Dashboard</h2>
+          <p class="ph-subtitle">All active NJTC tutoring sites — scholars, staff, programming details, and site map. Pulls live from the SY Database and auto-refreshes every 5 minutes.</p>
+        </div>
+        <div class="ph-actions">
+          <span class="sync-dot loading" id="sySyncDot"></span>
+          <span id="sySyncText" style="font-size:.8125rem;color:var(--muted)">Loading…</span>
+          <button class="btn btn-secondary" onclick="sya.refresh(true)" id="syRefreshBtn">↺ Refresh</button>
+          <button class="btn btn-secondary" id="syChangesBtn" onclick="sya.openChangesModal()" style="display:none;position:relative">
+            <span id="syChangesBtnBadge" style="background:var(--gold);color:var(--navy);border-radius:10px;padding:1px 7px;font-size:.7rem;font-weight:700;margin-right:.25rem">0</span>
+            Changes
+          </button>
+        </div>
+      </div>
+
+      <!-- SY Snapshot tiles -->
+      <div class="stats-strip" id="syStatsStrip">
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites</div><div class="st-sub">With district &amp; school data</div></div>
+        <div class="stat-tile" style="--accent-color:var(--prog)"><div class="st-icon">🏛️</div><div class="st-value" id="syStatDistricts">—</div><div class="st-label">Districts</div><div class="st-sub">Unique partners</div></div>
+        <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">🎓</div><div class="st-value" id="syStatActual">—</div><div class="st-label">Actual Scholars</div><div class="st-sub">Enrolled &amp; active</div></div>
+        <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">📋</div><div class="st-value" id="syStatEst">—</div><div class="st-label">Est. Scholars</div><div class="st-sub">Quoted capacity</div></div>
+        <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">👥</div><div class="st-value" id="syStatStaff">—</div><div class="st-label">Total Staff</div><div class="st-sub">Across all sites</div></div>
+      </div>
+
+      <!-- Filters bar -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:.25rem">Filter:</span>
+          <select class="filter-select" id="syFDistrict" onchange="sya.applyFilters()"><option value="">All Districts</option></select>
+          <select class="filter-select" id="syFContent" onchange="sya.applyFilters()"><option value="">All Content</option></select>
+          <select class="filter-select" id="syFType" onchange="sya.applyFilters()"><option value="">All Tutoring Types</option></select>
+          <select class="filter-select" id="syFAssess" onchange="sya.applyFilters()"><option value="">All Assessment Models</option></select>
+          <select class="filter-select" id="syFDays" onchange="sya.applyFilters()"><option value="">All Days</option></select>
+          <select class="filter-select" id="syFStatus" onchange="sya.applyFilters()"><option value="">All Statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
+          <button class="btn btn-secondary" onclick="sya.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
+          <span id="syFilterCount" style="font-size:.8125rem;color:var(--muted);margin-left:.5rem"></span>
+        </div>
+      </div>
+
+      <!-- Main 3-column layout -->
+      <div id="syMainLayout" style="display:grid;grid-template-columns:260px 1fr 320px;gap:1.25rem;margin-bottom:1.5rem;align-items:start">
+
+        <!-- Left: District list -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+          <div style="padding:.875rem 1rem;border-bottom:1px solid var(--border);background:var(--surface-2)">
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Districts</div>
+          </div>
+          <div id="syDistrictList" style="max-height:520px;overflow-y:auto;scrollbar-width:thin"><!-- filled by JS --></div>
+        </div>
+
+        <!-- Center: Map -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;position:relative">
+          <div id="syMap" style="height:520px;width:100%;border-radius:var(--radius)"></div>
+          <div id="syUnmappedBanner" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.85);color:#fff;font-size:.75rem;padding:.5rem 1rem;backdrop-filter:blur(4px)"></div>
+        </div>
+
+        <!-- Right: Detail card -->
+        <div id="syDetailCard" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:1.25rem;min-height:300px">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;color:var(--muted);text-align:center">
+            <div style="font-size:2rem;margin-bottom:.75rem">📍</div>
+            <div style="font-size:.875rem;font-weight:500">Click a map pin<br>to view site details</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schools table -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
+        <div style="padding:.875rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">All Sites <span id="syTableCount" style="color:var(--blue-mid);margin-left:.5rem"></span></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="syTable" style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead>
+              <tr style="background:var(--surface-2)">
+                <th style="padding:.625rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">District</th>
+                <th style="padding:.625rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">School</th>
+                <th style="padding:.625rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Actual Scholars</th>
+                <th style="padding:.625rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Est. Scholars</th>
+                <th style="padding:.625rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Total Staff</th>
+                <th style="padding:.625rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Content</th>
+                <th style="padding:.625rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Tutoring Type</th>
+                <th style="padding:.625rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Assessment Model</th>
+              </tr>
+            </thead>
+            <tbody id="syTableBody"><!-- filled by JS --></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- ══ END SY ANALYTICS PANEL ══════════════════════════════════════ -->
 
     <!-- ══ KPI PANEL ════════════════════════════════════════ -->
     <div class="panel" id="panel-kpi">
@@ -5762,6 +5947,871 @@
       badge.textContent = 'LOADING…';
     }
   }
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SY ANALYTICS MODULE
+  //  Integrated into NJTC Central Team Portal — SY 2025-2026
+  //
+  //  LIVE SOURCE: SY_CSV_URL (below) — published Google Sheet CSV
+  //  Headers are in ROW 3 (index 2), data starts ROW 4 (index 3)
+  //  Change SY_CSV_URL if the spreadsheet moves.
+  //
+  //  ROLE GATING:
+  //    Fee for service (col A / idx 0): finance, leadership only
+  //    Percent hired (col AH / idx 33): programming, leadership, hr only
+  //
+  //  CHANGE DETECTION: Diffs district+school keyed snapshots between refreshes.
+  //  Badge + modal surface what changed (added, removed, field-level changes).
+  //
+  //  GEOCODING: Nominatim (OSM) client-side. Results cached in localStorage
+  //  keyed by address. Rate limited 1 req/s. Re-geocodes only on address change.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const sya = (() => {
+
+    // ── CONFIG ────────────────────────────────────────────────────────────
+    // Live published CSV URL for SY Database (gid=628127573)
+    // To update: publish the Google Sheet as CSV → File > Share > Publish to web → CSV
+    const SY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJhAQMZ8nUJ6fV03eV0-uALiqnvQ3wEZ7n03n-ZuvPSNJz9QQbjL06uVM2hnajdcLSDL3m83HfSfVM/pub?output=csv&gid=628127573';
+
+    const SY_REFRESH_MS = 5 * 60 * 1000; // Match KPI 5-minute pattern
+    const GEOCODE_RATE_MS = 1100;          // Nominatim: max 1 req/sec + buffer
+    const GEOCODE_CACHE_KEY = 'njtc_sy_geocache_v2';
+
+    // Column indexes (0-based) — confirmed from CSV row 3 headers
+    const C = {
+      FEE:    0,   // A — ROLE GATED: finance, leadership
+      STATUS: 1,   // B
+      COUNTY: 2,   // C
+      PM:     3,   // D
+      DIST:   5,   // F — District (inclusion rule: must be non-blank)
+      SCHOOL: 6,   // G — School (inclusion rule: must be non-blank)
+      ADDR:   7,   // H — Address (geocoding only, never shown as text)
+      EST:    9,   // J — Estimated scholars
+      ACT:    10,  // K — Actual scholars
+      CONTENT:11,  // L
+      GRADES: 12,  // M
+      TYPE:   13,  // N — Tutoring type
+      START:  15,  // P
+      MID:    16,  // Q
+      END:    17,  // R
+      DAYS:   18,  // S
+      ASSESS: 19,  // T — Assessment model
+      // Staff columns X–AF (idx 23–31) — site staff breakdown
+      TUTOR_POS:   23, // X
+      TUTOR_FILL:  24, // Y
+      APPRENT:     25, // Z
+      SC_POS:      26, // AA
+      SC_FILL:     27, // AB
+      IC_POS:      28, // AC
+      IC_FILL:     29, // AD
+      DR_POS:      30, // AE
+      DR_FILL:     31, // AF
+      TOTAL_STAFF: 32, // AG
+      PCT_HIRED:   33, // AH — ROLE GATED: programming, leadership, hr
+      // Partner info AL–AQ (idx 37–42)
+      PARTNER_NAME:  37, // AL
+      PARTNER_EMAIL: 38, // AM
+      MOU:           39, // AN
+      DS_NAME:       40, // AO
+      DS_EMAIL:      41, // AP
+      BA_NAME:       42, // AQ
+    };
+
+    // Role gating rules
+    const ROLES_FEE     = ['finance', 'leadership'];
+    const ROLES_PCTHR   = ['programming', 'leadership', 'hr'];
+
+    // ── STATE ─────────────────────────────────────────────────────────────
+    let _allSites      = [];   // All parsed valid rows
+    let _filtered      = [];   // After filter applied
+    let _snapshot      = {};   // Previous snapshot for change detection (key → serialized)
+    let _changes       = [];   // Pending changes array
+    let _geocache      = {};   // address → {lat, lng} (persisted to localStorage)
+    let _markers       = {};   // key → Leaflet marker
+    let _map           = null; // Leaflet map instance
+    let _refreshTimer  = null;
+    let _geocodeQueue  = [];   // [{site, addr}]
+    let _geocoding     = false;
+    let _filterActive  = false;
+    let _selectedKey   = null; // Currently highlighted key
+    let _initialized   = false;
+    let _lastFetched   = null;
+
+    // ── GEOCACHE: load/save localStorage ─────────────────────────────────
+    // Geocode results are cached so we never re-geocode the same address.
+    // On address change the old cache entry is replaced automatically.
+    function loadGeoCache() {
+      try { _geocache = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); }
+      catch(e) { _geocache = {}; }
+    }
+    function saveGeoCache() {
+      try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(_geocache)); }
+      catch(e) {}
+    }
+
+    // ── ROLE CHECK ────────────────────────────────────────────────────────
+    function getDept() {
+      return (_currentDept || (window.NJTC_SESSION && window.NJTC_SESSION.dept) || '').toLowerCase();
+    }
+    function canSeeFee()    { return ROLES_FEE.includes(getDept()); }
+    function canSeePctHr()  { return ROLES_PCTHR.includes(getDept()); }
+
+    // ── CSV PARSING ───────────────────────────────────────────────────────
+    // Headers in row 3 (idx 2), data from row 4 (idx 3)
+    // Uses portal's existing parseCSVLine function
+    function parseSYCSV(text) {
+      const lines = text.split('\n').filter(l => l.trim());
+      // Find header row (row 3 = index 2, contains "Fee for service partner")
+      let hIdx = -1;
+      for (let i = 0; i < Math.min(8, lines.length); i++) {
+        if (lines[i].toLowerCase().includes('fee for service') || lines[i].toLowerCase().includes('school name')) {
+          hIdx = i; break;
+        }
+      }
+      if (hIdx < 0) return [];
+
+      const sites = [];
+      for (let i = hIdx + 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (!cols || cols.length < 7) continue;
+
+        const dist   = (cols[C.DIST]   || '').trim();
+        const school = (cols[C.SCHOOL] || '').trim();
+
+        // DATA INCLUSION RULE: skip rows without both district and school
+        if (!dist || !school) continue;
+
+        const key = dist + ' | ' + school;
+
+        // Parse staff total — use explicit total_staff if present, else sum filled positions
+        const ts = parseFloat(cols[C.TOTAL_STAFF]) || 0;
+        const staffFilled = (parseFloat(cols[C.TUTOR_FILL]) || 0) +
+                            (parseFloat(cols[C.SC_FILL])    || 0) +
+                            (parseFloat(cols[C.IC_FILL])    || 0) +
+                            (parseFloat(cols[C.DR_FILL])    || 0);
+
+        sites.push({
+          key,
+          district:      dist,
+          school,
+          address:       (cols[C.ADDR]         || '').trim().replace(/\r/g,'').replace(/\n/g,' '),
+          est:           parseFloat(cols[C.EST]) || 0,
+          act:           parseInt(cols[C.ACT])  || 0,
+          content:       (cols[C.CONTENT] || '').trim(),
+          grades:        (cols[C.GRADES]  || '').trim(),
+          tutorType:     (cols[C.TYPE]    || '').trim(),
+          startDate:     (cols[C.START]   || '').trim(),
+          midpoint:      (cols[C.MID]     || '').trim(),
+          endpoint:      (cols[C.END]     || '').trim(),
+          days:          (cols[C.DAYS]    || '').trim(),
+          assessModel:   (cols[C.ASSESS]  || '').trim(),
+          status:        (cols[C.STATUS]  || '').trim(),
+          county:        (cols[C.COUNTY]  || '').trim(),
+          pm:            (cols[C.PM]      || '').trim(),
+          // Staff breakdown
+          tutorPos:      parseFloat(cols[C.TUTOR_POS])  || 0,
+          tutorFill:     parseFloat(cols[C.TUTOR_FILL]) || 0,
+          apprentice:    parseFloat(cols[C.APPRENT])    || 0,
+          scPos:         parseFloat(cols[C.SC_POS])     || 0,
+          scFill:        parseFloat(cols[C.SC_FILL])    || 0,
+          icPos:         parseFloat(cols[C.IC_POS])     || 0,
+          icFill:        parseFloat(cols[C.IC_FILL])    || 0,
+          drPos:         parseFloat(cols[C.DR_POS])     || 0,
+          drFill:        parseFloat(cols[C.DR_FILL])    || 0,
+          totalStaff:    ts || staffFilled,
+          // Role-gated fields (values always stored; visibility controlled at render)
+          pctHired:      (cols[C.PCT_HIRED]     || '').trim(),
+          feePartner:    (cols[C.FEE]           || '').trim(),
+          // Partner info AL–AQ
+          partnerName:   (cols[C.PARTNER_NAME]  || '').trim(),
+          partnerEmail:  (cols[C.PARTNER_EMAIL] || '').trim(),
+          mou:           (cols[C.MOU]           || '').trim(),
+          dsName:        (cols[C.DS_NAME]       || '').trim(),
+          dsEmail:       (cols[C.DS_EMAIL]      || '').trim(),
+          baName:        (cols[C.BA_NAME]       || '').trim(),
+          // Geocode result (populated async)
+          lat: null, lng: null,
+          geocodeFailed: false,
+          geocodeReason: ''
+        });
+      }
+      return sites;
+    }
+
+    // ── CHANGE DETECTION ──────────────────────────────────────────────────
+    // Uses district+school as stable key. Diffs field-by-field between snapshots.
+    // Excludes rows that don't pass the inclusion rule (already filtered in parseSYCSV).
+    const TRACKED_FIELDS = [
+      ['act',        'Actual Scholars'],
+      ['est',        'Estimated Scholars'],
+      ['totalStaff', 'Total Staff'],
+      ['content',    'Content'],
+      ['tutorType',  'Tutoring Type'],
+      ['startDate',  'Start Date'],
+      ['midpoint',   'Midpoint'],
+      ['endpoint',   'End Date'],
+      ['assessModel','Assessment Model'],
+      ['days',       'Days of Week'],
+      ['status',     'Status'],
+      ['pctHired',   'Percent Hired'],
+    ];
+
+    function buildSnapshot(sites) {
+      const snap = {};
+      sites.forEach(s => { snap[s.key] = s; });
+      return snap;
+    }
+
+    function diffSnapshots(oldSnap, newSites) {
+      const changes = [];
+      const newSnap = buildSnapshot(newSites);
+      const oldKeys = new Set(Object.keys(oldSnap));
+      const newKeys = new Set(Object.keys(newSnap));
+
+      // Added
+      newKeys.forEach(k => {
+        if (!oldKeys.has(k)) {
+          changes.push({ type: 'added', key: k, school: newSnap[k].school, district: newSnap[k].district });
+        }
+      });
+
+      // Removed
+      oldKeys.forEach(k => {
+        if (!newKeys.has(k)) {
+          changes.push({ type: 'removed', key: k, school: oldSnap[k].school, district: oldSnap[k].district });
+        }
+      });
+
+      // Modified
+      newKeys.forEach(k => {
+        if (!oldKeys.has(k)) return;
+        const o = oldSnap[k], n = newSnap[k];
+        const fieldChanges = [];
+        TRACKED_FIELDS.forEach(([field, label]) => {
+          const ov = String(o[field] ?? ''), nv = String(n[field] ?? '');
+          if (ov !== nv) fieldChanges.push({ field: label, from: ov || '—', to: nv || '—' });
+        });
+        if (fieldChanges.length) changes.push({ type: 'modified', key: k, school: n.school, district: n.district, fields: fieldChanges });
+      });
+
+      return changes;
+    }
+
+    // ── FETCH + REFRESH ───────────────────────────────────────────────────
+    async function refresh(force = false) {
+      setSyncStatus('loading');
+      const btn = document.getElementById('syRefreshBtn');
+      if (btn) btn.disabled = true;
+
+      try {
+        const url = SY_CSV_URL + (force ? '&_t=' + Date.now() : '');
+        const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const csv = await res.text();
+        const sites = parseSYCSV(csv);
+
+        if (!sites.length) throw new Error('No valid rows');
+
+        // Change detection (only after first successful load)
+        if (_allSites.length) {
+          const oldSnap = buildSnapshot(_allSites);
+          _changes = diffSnapshots(oldSnap, sites);
+        } else {
+          _changes = [];
+        }
+
+        _allSites = sites;
+        _lastFetched = new Date();
+        _snapshot = buildSnapshot(sites);
+
+        setSyncStatus('live');
+        render();
+        queueGeocoding();
+
+      } catch(e) {
+        console.warn('[SY Analytics] Fetch failed:', e.message);
+        setSyncStatus('error');
+        if (!_allSites.length) {
+          document.getElementById('sySyncText').textContent = 'Could not load SY data — click Refresh to retry';
+        }
+      }
+      if (btn) btn.disabled = false;
+    }
+
+    function setSyncStatus(status) {
+      const dot  = document.getElementById('sySyncDot');
+      const txt  = document.getElementById('sySyncText');
+      const cbtn = document.getElementById('syChangesBtn');
+      const nbdg = document.getElementById('syChangesBadge');
+      if (!dot) return;
+
+      if (status === 'loading') {
+        dot.className = 'sync-dot loading';
+        if (txt) txt.textContent = 'Fetching live SY data…';
+      } else if (status === 'live') {
+        dot.className = 'sync-dot';
+        const t = _lastFetched ? _lastFetched.toLocaleTimeString() : '—';
+        if (txt) txt.innerHTML = `<strong>Live from Google Sheet</strong> · ${_allSites.length} sites · Updated ${t}`;
+
+        // Changes badge
+        if (_changes.length) {
+          if (cbtn) { cbtn.style.display = ''; document.getElementById('syChangesBtnBadge').textContent = _changes.length; }
+          if (nbdg) { nbdg.style.display = ''; nbdg.textContent = _changes.length; }
+        } else {
+          if (cbtn) cbtn.style.display = 'none';
+          if (nbdg) nbdg.style.display = 'none';
+        }
+      } else if (status === 'error') {
+        dot.className = 'sync-dot error';
+        if (txt) txt.innerHTML = `<strong>⚠️ Sheet unreachable</strong> · ${_lastFetched ? 'Showing last data from ' + _lastFetched.toLocaleTimeString() : 'No data available'}`;
+      }
+    }
+
+    // ── RENDER ────────────────────────────────────────────────────────────
+    function render() {
+      applyFilters(); // this populates _filtered and calls renderAll
+    }
+
+    function renderAll() {
+      updateStats();
+      renderDistrictList();
+      renderTable();
+      // Map markers updated after geocoding
+      updateMapMarkers();
+    }
+
+    function updateStats() {
+      const sites = _filtered;
+      const districts = new Set(sites.map(s => s.district));
+      const totalAct  = sites.reduce((a, s) => a + (s.act || 0), 0);
+      const totalEst  = sites.reduce((a, s) => a + (s.est || 0), 0);
+      const totalStf  = sites.reduce((a, s) => a + (s.totalStaff || 0), 0);
+
+      setText('syStatSites',     sites.length);
+      setText('syStatDistricts', districts.size);
+      setText('syStatActual',    totalAct.toLocaleString());
+      setText('syStatEst',       totalEst.toLocaleString());
+      setText('syStatStaff',     totalStf % 1 === 0 ? totalStf : totalStf.toFixed(1));
+    }
+
+    function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
+    function renderDistrictList() {
+      const container = document.getElementById('syDistrictList');
+      if (!container) return;
+
+      const districtMap = {};
+      _filtered.forEach(s => {
+        if (!districtMap[s.district]) districtMap[s.district] = { schools: 0, act: 0, est: 0, staff: 0 };
+        districtMap[s.district].schools++;
+        districtMap[s.district].act   += s.act   || 0;
+        districtMap[s.district].est   += s.est   || 0;
+        districtMap[s.district].staff += s.totalStaff || 0;
+      });
+
+      const sorted = Object.entries(districtMap).sort((a, b) => b[1].act - a[1].act);
+
+      const filterDist = document.getElementById('syFDistrict') ? document.getElementById('syFDistrict').value : '';
+
+      container.innerHTML = sorted.map(([dist, d]) => {
+        const active = filterDist === dist ? 'active' : '';
+        return `<div class="sy-district-item ${active}" onclick="sya.filterByDistrict('${dist.replace(/'/g,"\\'")}')">
+          <div class="sy-dist-name">${dist}</div>
+          <div class="sy-dist-meta">
+            <span>${d.schools} site${d.schools !== 1 ? 's' : ''}</span>
+            <span>· ${d.act} scholars</span>
+            <span>· ${d.staff % 1 === 0 ? d.staff : d.staff.toFixed(1)} staff</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('syTableBody');
+      const countEl = document.getElementById('syTableCount');
+      if (!tbody) return;
+
+      if (countEl) countEl.textContent = `(${_filtered.length} of ${_allSites.length})`;
+
+      tbody.innerHTML = _filtered.map(s => {
+        const highlight = s.key === _selectedKey ? 'sy-row-highlight' : '';
+        const act = s.act ? s.act : '<span class="sy-muted">—</span>';
+        const est = s.est ? s.est : '<span class="sy-muted">—</span>';
+        const stf = s.totalStaff ? (s.totalStaff % 1 === 0 ? s.totalStaff : s.totalStaff.toFixed(1)) : '<span class="sy-muted">—</span>';
+        return `<tr class="${highlight}" onclick="sya.selectSite('${s.key.replace(/'/g, "\\'")}')">
+          <td style="font-size:.75rem;color:var(--text-2);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${s.district}">${s.district}</td>
+          <td style="font-weight:600;color:var(--navy);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.school}">${s.school}</td>
+          <td class="sy-val">${act}</td>
+          <td class="sy-val">${est}</td>
+          <td class="sy-val">${stf}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.content || '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.tutorType || '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.assessModel || '<span style="color:var(--muted)">—</span>'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ── FILTERS ───────────────────────────────────────────────────────────
+    function applyFilters() {
+      const fDist    = getEl('syFDistrict')?.value  || '';
+      const fContent = getEl('syFContent')?.value   || '';
+      const fType    = getEl('syFType')?.value      || '';
+      const fAssess  = getEl('syFAssess')?.value    || '';
+      const fDays    = getEl('syFDays')?.value      || '';
+      const fStatus  = getEl('syFStatus')?.value    || '';
+
+      _filtered = _allSites.filter(s =>
+        (!fDist    || s.district   === fDist)    &&
+        (!fContent || s.content.toLowerCase().includes(fContent.toLowerCase())) &&
+        (!fType    || s.tutorType.toLowerCase().includes(fType.toLowerCase())) &&
+        (!fAssess  || s.assessModel.toLowerCase().includes(fAssess.toLowerCase())) &&
+        (!fDays    || s.days.toLowerCase().includes(fDays.toLowerCase())) &&
+        (!fStatus  || s.status     === fStatus)
+      );
+
+      _filterActive = !!(fDist || fContent || fType || fAssess || fDays || fStatus);
+      const cntEl = getEl('syFilterCount');
+      if (cntEl) cntEl.textContent = _filterActive ? `${_filtered.length} site${_filtered.length!==1?'s':''} matching` : '';
+
+      renderAll();
+    }
+
+    function clearFilters() {
+      ['syFDistrict','syFContent','syFType','syFAssess','syFDays','syFStatus'].forEach(id => {
+        const el = getEl(id); if (el) el.value = '';
+      });
+      applyFilters();
+    }
+
+    function filterByDistrict(dist) {
+      const sel = getEl('syFDistrict');
+      if (!sel) return;
+      if (sel.value === dist) { sel.value = ''; }
+      else { sel.value = dist; }
+      applyFilters();
+    }
+
+    function populateFilters() {
+      function populateSelect(id, vals) {
+        const el = getEl(id); if (!el) return;
+        const cur = el.value;
+        const first = el.options[0].outerHTML;
+        el.innerHTML = first + [...vals].filter(v=>v).sort().map(v => `<option value="${v}">${v}</option>`).join('');
+        if ([...el.options].some(o => o.value === cur)) el.value = cur;
+      }
+      populateSelect('syFDistrict',  new Set(_allSites.map(s => s.district)));
+      populateSelect('syFContent',   new Set(_allSites.map(s => s.content)));
+      populateSelect('syFType',      new Set(_allSites.map(s => s.tutorType)));
+      populateSelect('syFAssess',    new Set(_allSites.map(s => s.assessModel)));
+      populateSelect('syFDays',      new Set(_allSites.map(s => s.days)));
+    }
+
+    // ── MAP ───────────────────────────────────────────────────────────────
+    function initMap() {
+      if (_map) return;
+      if (!window.L) { console.warn('[SY] Leaflet not loaded'); return; }
+      const el = document.getElementById('syMap');
+      if (!el) return;
+
+      _map = L.map('syMap', { zoomControl: true }).setView([40.2, -74.7], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+        maxZoom: 19
+      }).addTo(_map);
+
+      // Fix Leaflet icon paths for CDN usage
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+      });
+    }
+
+    function updateMapMarkers() {
+      if (!_map) return;
+
+      // Build set of currently valid keys
+      const filteredKeys = new Set(_filtered.map(s => s.key));
+      const allKeys = new Set(_allSites.map(s => s.key));
+
+      // Remove markers for sites no longer in dataset
+      Object.keys(_markers).forEach(k => {
+        if (!allKeys.has(k)) { _map.removeLayer(_markers[k]); delete _markers[k]; }
+      });
+
+      // Show/hide markers based on filter
+      Object.keys(_markers).forEach(k => {
+        const m = _markers[k];
+        if (filteredKeys.has(k)) { if (!_map.hasLayer(m)) m.addTo(_map); }
+        else { if (_map.hasLayer(m)) _map.removeLayer(m); }
+      });
+
+      // Add markers for geocoded sites that don't have them yet
+      _allSites.forEach(s => {
+        if (s.lat !== null && !_markers[s.key]) {
+          addMarker(s);
+        }
+      });
+
+      updateUnmappedBanner();
+    }
+
+    function addMarker(site) {
+      if (!_map || site.lat === null || site.lng === null) return;
+
+      // Blue pin for active, grey for inactive
+      const isActive = site.status.toLowerCase().includes('active');
+      const color = isActive ? '#0050c8' : '#7d8fa1';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:22px;height:22px;background:${color};border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;cursor:pointer;"></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -14]
+      });
+
+      const marker = L.marker([site.lat, site.lng], { icon });
+      marker.bindPopup(buildPopupHTML(site), { maxWidth: 280, className: 'sy-leaflet-popup' });
+      marker.on('click', () => selectSiteByKey(site.key));
+      _markers[site.key] = marker;
+
+      if (new Set(_filtered.map(s => s.key)).has(site.key)) {
+        marker.addTo(_map);
+      }
+    }
+
+    function buildPopupHTML(site) {
+      const act = site.act || '—', est = site.est || '—';
+      let html = `<div class="sy-popup">
+        <div class="sy-popup-school">${site.school}</div>
+        <div class="sy-popup-district">${site.district}</div>
+        <div class="sy-popup-row"><span class="sy-popup-lbl">Scholars (Actual)</span><span class="sy-popup-val">${act}</span></div>
+        <div class="sy-popup-row"><span class="sy-popup-lbl">Scholars (Est.)</span><span class="sy-popup-val">${est}</span></div>
+        <div class="sy-popup-row"><span class="sy-popup-lbl">Content</span><span class="sy-popup-val">${site.content || '—'}</span></div>
+        <div class="sy-popup-row"><span class="sy-popup-lbl">Type</span><span class="sy-popup-val">${site.tutorType || '—'}</span></div>
+        <div class="sy-popup-row"><span class="sy-popup-lbl">Staff</span><span class="sy-popup-val">${site.totalStaff ? (site.totalStaff % 1 ? site.totalStaff.toFixed(1) : site.totalStaff) : '—'}</span></div>
+      </div>`;
+      return html;
+    }
+
+    function updateUnmappedBanner() {
+      const banner = document.getElementById('syUnmappedBanner');
+      if (!banner) return;
+      const unmapped = _filtered.filter(s => s.geocodeFailed);
+      if (unmapped.length) {
+        banner.style.display = '';
+        banner.textContent = `${unmapped.length} site${unmapped.length !== 1 ? 's' : ''} could not be mapped: ${unmapped.map(s => s.school).join(', ')}`;
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    // ── GEOCODING ─────────────────────────────────────────────────────────
+    // Client-side via Nominatim (OSM). Rate limited to 1 req/sec.
+    // Results cached in localStorage. Re-geocodes only if address changes.
+    function queueGeocoding() {
+      loadGeoCache();
+      populateFilters();
+
+      _geocodeQueue = [];
+      _allSites.forEach(s => {
+        if (!s.address) { s.geocodeFailed = true; s.geocodeReason = 'No address'; return; }
+
+        const cacheKey = s.address.toLowerCase().replace(/\s+/g, ' ').trim();
+
+        if (_geocache[cacheKey]) {
+          // Cache hit
+          s.lat = _geocache[cacheKey].lat;
+          s.lng = _geocache[cacheKey].lng;
+          if (_geocache[cacheKey].failed) {
+            s.geocodeFailed = true;
+            s.geocodeReason = _geocache[cacheKey].reason || 'Geocode failed';
+          }
+        } else {
+          // Not cached — queue it
+          _geocodeQueue.push({ site: s, cacheKey });
+        }
+      });
+
+      // Add markers for already-cached sites immediately
+      updateMapMarkers();
+
+      // Process queue
+      if (_geocodeQueue.length && !_geocoding) {
+        processGeocodeQueue();
+      }
+    }
+
+    async function processGeocodeQueue() {
+      _geocoding = true;
+      while (_geocodeQueue.length) {
+        const { site, cacheKey } = _geocodeQueue.shift();
+        await geocodeSite(site, cacheKey);
+        await sleep(GEOCODE_RATE_MS);
+      }
+      _geocoding = false;
+      saveGeoCache();
+      updateMapMarkers();
+    }
+
+    async function geocodeSite(site, cacheKey) {
+      const query = encodeURIComponent(site.address);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&addressdetails=0`,
+          { headers: { 'Accept-Language': 'en', 'User-Agent': 'NJTC-Portal/1.0' }, signal: AbortSignal.timeout(6000) }
+        );
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data && data.length) {
+          site.lat = parseFloat(data[0].lat);
+          site.lng = parseFloat(data[0].lon);
+          _geocache[cacheKey] = { lat: site.lat, lng: site.lng };
+          // Add marker immediately as each geocode completes
+          addMarker(site);
+          const filteredKeys = new Set(_filtered.map(s => s.key));
+          if (filteredKeys.has(site.key) && _markers[site.key] && !_map.hasLayer(_markers[site.key])) {
+            _markers[site.key].addTo(_map);
+          }
+          updateUnmappedBanner();
+        } else {
+          site.geocodeFailed = true;
+          site.geocodeReason = 'Address not found';
+          _geocache[cacheKey] = { failed: true, reason: 'Address not found' };
+          updateUnmappedBanner();
+        }
+      } catch(e) {
+        site.geocodeFailed = true;
+        site.geocodeReason = e.message || 'Network error';
+        _geocache[cacheKey] = { failed: true, reason: site.geocodeReason };
+        updateUnmappedBanner();
+      }
+    }
+
+    // ── SITE DETAIL CARD ─────────────────────────────────────────────────
+    function selectSite(key) {
+      selectSiteByKey(key);
+    }
+
+    function selectSiteByKey(key) {
+      _selectedKey = key;
+      const site = _allSites.find(s => s.key === key);
+      if (!site) return;
+
+      renderDetailCard(site);
+
+      // Pan map to pin if available
+      if (_map && site.lat !== null) {
+        _map.flyTo([site.lat, site.lng], 14, { duration: 1 });
+        if (_markers[key]) _markers[key].openPopup();
+      }
+
+      // Highlight table row
+      document.querySelectorAll('#syTableBody tr').forEach(tr => {
+        tr.classList.remove('sy-row-highlight');
+      });
+      const rows = document.querySelectorAll('#syTableBody tr');
+      const idx = _filtered.findIndex(s => s.key === key);
+      if (idx >= 0 && rows[idx]) {
+        rows[idx].classList.add('sy-row-highlight');
+        rows[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function renderDetailCard(site) {
+      const card = document.getElementById('syDetailCard');
+      if (!card) return;
+
+      const def = (v) => (v && String(v).trim()) ? v : null;
+      const row = (label, val) => val ? `<div class="sy-detail-row"><span class="sy-detail-label">${label}</span><span class="sy-detail-val">${val}</span></div>` : '';
+      const sec = (label) => `<div class="sy-detail-section">${label}</div>`;
+
+      const staffTotal = site.totalStaff ? (site.totalStaff % 1 ? site.totalStaff.toFixed(1) : site.totalStaff) : '—';
+
+      // Staff breakdown
+      let staffHtml = `<div class="sy-staff-grid">`;
+      if (def(site.tutorFill) !== null || def(site.tutorPos) !== null) {
+        staffHtml += `<div class="sy-staff-cell"><span class="sy-staff-cell-label">Tutors</span><span class="sy-staff-cell-val">${site.tutorFill || 0}/${site.tutorPos || 0}</span></div>`;
+      }
+      if (def(site.scFill) !== null || def(site.scPos) !== null) {
+        staffHtml += `<div class="sy-staff-cell"><span class="sy-staff-cell-label">Site Coord.</span><span class="sy-staff-cell-val">${site.scFill || 0}/${site.scPos || 0}</span></div>`;
+      }
+      if (def(site.icFill) !== null || def(site.icPos) !== null) {
+        staffHtml += `<div class="sy-staff-cell"><span class="sy-staff-cell-label">Instr. Coach</span><span class="sy-staff-cell-val">${site.icFill || 0}/${site.icPos || 0}</span></div>`;
+      }
+      if (def(site.drFill) !== null || def(site.drPos) !== null) {
+        staffHtml += `<div class="sy-staff-cell"><span class="sy-staff-cell-label">Dual Role</span><span class="sy-staff-cell-val">${site.drFill || 0}/${site.drPos || 0}</span></div>`;
+      }
+      if (site.apprentice) {
+        staffHtml += `<div class="sy-staff-cell"><span class="sy-staff-cell-label">Apprentice</span><span class="sy-staff-cell-val">${site.apprentice}</span></div>`;
+      }
+      staffHtml += `</div>`;
+
+      // Partner section
+      let partnerHtml = '';
+      const hasPartner = def(site.partnerName) || def(site.partnerEmail) || def(site.mou) || def(site.dsName) || def(site.baName);
+      if (hasPartner) {
+        partnerHtml = sec('Partner & Contacts') +
+          row('LEA/Partner', def(site.partnerName)) +
+          row('Partner Email', def(site.partnerEmail) ? `<a href="mailto:${site.partnerEmail}" style="color:var(--blue-mid)">${site.partnerEmail}</a>` : null) +
+          row('MOU/DSA Signed', def(site.mou)) +
+          row('Data Specialist', def(site.dsName)) +
+          row('DS Email', def(site.dsEmail) ? `<a href="mailto:${site.dsEmail}" style="color:var(--blue-mid)">${site.dsEmail}</a>` : null) +
+          row('BA/Finance', def(site.baName));
+      }
+
+      // Role-gated fields
+      const feeHtml  = canSeeFee()   ? row('Fee for Service Partner', def(site.feePartner) || 'N/A') : '';
+      const pctHtml  = canSeePctHr() ? row('% Hired', def(site.pctHired) || '—') : '';
+      const gatedHtml = (feeHtml || pctHtml) ? sec('Finance / Staffing') + feeHtml + pctHtml : '';
+
+      card.innerHTML = `
+        <div class="sy-detail-school">${site.school}</div>
+        <div class="sy-detail-district">${site.district}</div>
+        ${sec('Scholars')}
+        ${row('Actual (Pearl)', def(site.act) !== null ? site.act : null)}
+        ${row('Estimated', def(site.est) !== null ? site.est : null)}
+        ${sec('Programming')}
+        ${row('Content', def(site.content))}
+        ${row('Tutoring Type', def(site.tutorType))}
+        ${row('Days of Week', def(site.days))}
+        ${row('Assessment', def(site.assessModel))}
+        ${row('Start Date', def(site.startDate))}
+        ${row('Midpoint', def(site.midpoint))}
+        ${row('End Date', def(site.endpoint))}
+        ${row('Grades', def(site.grades))}
+        ${sec('Staff (Filled / Total)')}
+        ${staffHtml}
+        ${row('Total Staff', staffTotal)}
+        ${pctHtml ? sec('Staffing') + pctHtml : ''}
+        ${partnerHtml}
+        ${feeHtml ? sec('Finance') + feeHtml : ''}
+      `;
+    }
+
+    // ── CHANGES MODAL ─────────────────────────────────────────────────────
+    function openChangesModal() {
+      let modal = document.getElementById('syChangesModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'syChangesModal';
+        modal.className = 'sy-modal-overlay';
+        modal.onclick = (e) => { if (e.target === modal) closeChangesModal(); };
+        document.body.appendChild(modal);
+      }
+
+      if (!_changes.length) {
+        modal.innerHTML = `<div class="sy-modal"><div class="sy-modal-header"><span class="sy-modal-title">No changes detected</span><button class="sy-modal-close" onclick="sya.closeChangesModal()">✕</button></div><div class="sy-modal-body" style="text-align:center;padding:2rem;color:var(--muted)">Data matches last refresh. No changes found.</div></div>`;
+        modal.style.display = 'flex';
+        return;
+      }
+
+      const added    = _changes.filter(c => c.type === 'added');
+      const removed  = _changes.filter(c => c.type === 'removed');
+      const modified = _changes.filter(c => c.type === 'modified');
+
+      const changeHtml = [
+        ...added.map(c => `<div class="sy-change-item sy-change-added"><div class="sy-change-label">✅ Added: ${c.school}</div><div class="sy-change-detail">${c.district}</div></div>`),
+        ...removed.map(c => `<div class="sy-change-item sy-change-removed"><div class="sy-change-label">🗑️ Removed: ${c.school}</div><div class="sy-change-detail">${c.district}</div></div>`),
+        ...modified.map(c => `<div class="sy-change-item sy-change-modified">
+          <div class="sy-change-label">📝 Updated: ${c.school}</div>
+          <div class="sy-change-detail">${c.district}</div>
+          ${c.fields.map(f => `<div class="sy-change-detail" style="margin-top:.25rem">• ${f.field}: <strong>${f.from}</strong> → <strong>${f.to}</strong></div>`).join('')}
+        </div>`)
+      ].join('');
+
+      modal.innerHTML = `
+        <div class="sy-modal">
+          <div class="sy-modal-header">
+            <div>
+              <div class="sy-modal-title">What Changed</div>
+              <div style="font-size:.8125rem;color:var(--muted);margin-top:.25rem">${_changes.length} change${_changes.length!==1?'s':''} since last refresh · ${_lastFetched ? _lastFetched.toLocaleTimeString() : '—'}</div>
+            </div>
+            <button class="sy-modal-close" onclick="sya.closeChangesModal()">✕</button>
+          </div>
+          <div class="sy-modal-body">${changeHtml}</div>
+          <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="sya.closeChangesModal()">Close</button>
+          </div>
+        </div>`;
+
+      modal.style.display = 'flex';
+    }
+
+    function closeChangesModal() {
+      const modal = document.getElementById('syChangesModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    // ── INIT ──────────────────────────────────────────────────────────────
+    function init() {
+      if (_initialized) return;
+      _initialized = true;
+
+      loadGeoCache();
+
+      // Initial fetch — get data even before panel is opened
+      refresh(true);
+
+      // Auto-refresh every 5 minutes (matches KPI pattern)
+      _refreshTimer = setInterval(() => {
+        const panel = document.getElementById('panel-sy-analytics');
+        if (panel && panel.classList.contains('active')) {
+          refresh(true);
+        }
+      }, SY_REFRESH_MS);
+    }
+
+    // Called by showPanel when sy-analytics panel is activated
+    function onPanelOpen() {
+      if (!_map) {
+        setTimeout(() => {
+          initMap();
+          if (_allSites.length) updateMapMarkers();
+          if (_geocodeQueue.length === 0 && _allSites.length) queueGeocoding();
+          // Invalidate map size since it was hidden when initialized
+          if (_map) setTimeout(() => _map.invalidateSize(), 200);
+        }, 50);
+      } else {
+        setTimeout(() => _map.invalidateSize(), 100);
+      }
+    }
+
+    // ── HELPERS ───────────────────────────────────────────────────────────
+    function getEl(id) { return document.getElementById(id); }
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // Public API
+    return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite, openChangesModal, closeChangesModal, onPanelOpen };
+
+  })();
+
+  // ── Wire SY Analytics into the existing showPanel chain ─────────────────
+  // This patches the final showPanel (after all other overrides in the portal)
+  // to trigger map initialization when the SY panel first becomes visible.
+  (function patchShowPanelForSY() {
+    // Wait until all other showPanel overrides are done (they run synchronously
+    // at script parse time), then wrap the final version.
+    const _finalSP = showPanel;
+    window.showPanel = function(id, btn) {
+      _finalSP(id, btn);
+      if (id === 'sy-analytics') {
+        sya.onPanelOpen && sya.onPanelOpen();
+      }
+    };
+  })();
+
+  // Kick off SY Analytics initialization after DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => sya.init());
+  } else {
+    sya.init();
+  }
+
 
 </script>
 </body>
