@@ -1641,9 +1641,9 @@
     .kpia-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(240,165,0,.5); }
 
 
-    /* ═══════════════════════════════════════════════
-       SY ANALYTICS MODULE STYLES
-    ═══════════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════
+       SY ANALYTICS MODULE
+    ═══════════════════════════════════════════ */
     .sy-district-item{padding:.75rem 1rem;border-bottom:1px solid var(--border-2);cursor:pointer;transition:var(--transition)}
     .sy-district-item:hover{background:var(--surface-2)}
     .sy-district-item.syd-active{background:var(--prog-bg);border-left:3px solid var(--blue-mid)}
@@ -1667,8 +1667,6 @@
     .sy-modal-hd{padding:1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
     .sy-modal-title{font-family:'DM Serif Display',serif;font-size:1.25rem;color:var(--navy)}
     .sy-modal-close{background:none;border:none;font-size:1.25rem;cursor:pointer;color:var(--muted)}
-    .sy-modal-close:hover{color:var(--navy)}
-    .sy-modal-body{padding:1.25rem 1.5rem;overflow-y:auto;flex:1}
     .sy-chg{padding:.625rem .875rem;border-radius:8px;margin-bottom:.5rem;font-size:.8125rem;line-height:1.5}
     .sy-chg-added{background:var(--met-bg);border-left:3px solid var(--met);color:#0a4a27}
     .sy-chg-removed{background:var(--notm-bg);border-left:3px solid var(--notmet);color:#911818}
@@ -1759,7 +1757,7 @@
       <div class="sidebar-group-label">Reporting</div>
       <button class="sidebar-link" data-panel="sy-analytics" onclick="showPanel('sy-analytics',this)">
         <span class="sl-icon">🗺️</span> SY Site Analytics
-        <span class="sl-badge" id="syChangesBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto;"></span>
+        <span class="sl-badge" id="syChangesBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
         <span class="sl-icon">⚠️</span> Concern Form
@@ -1822,7 +1820,7 @@
           </button>
         </div>
       </div>
-      <div class="stats-strip" id="syStatsStrip">
+      <div class="stats-strip">
         <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites</div><div class="st-sub">District &amp; school data</div></div>
         <div class="stat-tile" style="--accent-color:var(--prog)"><div class="st-icon">🏛️</div><div class="st-value" id="syStatDistricts">—</div><div class="st-label">Districts</div><div class="st-sub">Unique partners</div></div>
         <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">🎓</div><div class="st-value" id="syStatActual">—</div><div class="st-label">Actual Scholars</div><div class="st-sub">Enrolled via Pearl</div></div>
@@ -1835,7 +1833,7 @@
           <select class="filter-select" id="syFDistrict" onchange="sya.applyFilters()"><option value="">All Districts</option></select>
           <select class="filter-select" id="syFContent"  onchange="sya.applyFilters()"><option value="">All Content</option></select>
           <select class="filter-select" id="syFType"     onchange="sya.applyFilters()"><option value="">All Tutoring Types</option></select>
-          <select class="filter-select" id="syFAssess"   onchange="sya.applyFilters()"><option value="">All Assessment Models</option></select>
+          <select class="filter-select" id="syFAssess"   onchange="sya.applyFilters()"><option value="">All Assessments</option></select>
           <select class="filter-select" id="syFDays"     onchange="sya.applyFilters()"><option value="">All Days</option></select>
           <select class="filter-select" id="syFStatus"   onchange="sya.applyFilters()"><option value="">All Statuses</option><option>Active</option><option>Inactive</option></select>
           <button class="btn btn-secondary" onclick="sya.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
@@ -1859,8 +1857,9 @@
         </div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden">
-        <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">All Sites <span id="syTableCount" style="color:var(--blue-mid);font-weight:500;margin-left:.375rem;font-size:.75rem"></span></div>
+        <div style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);background:var(--surface-2)">
+          <span style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">All Sites</span>
+          <span id="syTableCount" style="color:var(--blue-mid);font-weight:500;margin-left:.5rem;font-size:.75rem"></span>
         </div>
         <div style="overflow-x:auto">
           <table id="syTable" style="width:100%;border-collapse:collapse;font-size:.8125rem">
@@ -1871,8 +1870,8 @@
               <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Est.</th>
               <th style="padding:.5rem .875rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">Staff</th>
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Content</th>
-              <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Tutoring Type</th>
-              <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Assessment Model</th>
+              <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Type</th>
+              <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">Assessment</th>
             </tr></thead>
             <tbody id="syTableBody"></tbody>
           </table>
@@ -5893,64 +5892,64 @@
   // ══════════════════════════════════════════════════════════════════════════
   //  SY ANALYTICS MODULE  —  NJTC Central Team Portal  SY 2025-2026
   //
-  //  LIVE SOURCE:
-  //    Spreadsheet:  https://docs.google.com/spreadsheets/d/1bkhNNGf8-20xI-bgYNg9mRbs_gA7kb4BtqP4p9mtyVA
-  //    Tab gid:      628127573
-  //    CSV export:   SY_CSV_URL (below) — update this if the sheet moves
+  //  LIVE SOURCE — identical pattern to SHEET_CSV_URL and TALENT_CSV_URL:
+  //    Uses the published-to-web embed URL (2PACX-… format).
+  //    File → Share → Publish to web → Tab → CSV → Publish → copy URL.
+  //    This is the ONLY format that works from a static GitHub Pages host.
+  //    The /export?format=csv URL requires Google login and causes a CORS
+  //    redirect to accounts.google.com — do NOT use that format here.
   //
-  //  DATA LAYOUT:
-  //    Row 1 (idx 0): summary row (percentages / totals — skip)
-  //    Row 2 (idx 1): aggregate row (35 active locations, 1517 scholars — skip)
-  //    Row 3 (idx 2): HEADERS — "Fee for service partner", "Status", …
+  //  DATA LAYOUT (from CSV):
+  //    Row 1 (idx 0) : summary row — skip
+  //    Row 2 (idx 1) : aggregate totals row — skip
+  //    Row 3 (idx 2) : HEADERS  ("Fee for service partner", "Status", …)
   //    Row 4+ (idx 3+): DATA
   //
   //  CSV PARSING:
-  //    Uses a full RFC-4180 state-machine parser. This sheet has 170+ embedded
-  //    newlines inside quoted fields (spring-break schedules, contact info, etc.)
-  //    A naive text.split('\n') produces 172 fragmented lines → wrong counts.
-  //    DO NOT replace with a simple split-based parser.
+  //    Full RFC-4180 state-machine parser (parseCSVFull).
+  //    This sheet has 170+ embedded newlines inside quoted cells.
+  //    A naive text.split('\n') breaks those into corrupt fragments → wrong numbers.
   //
   //  ROLE GATING:
-  //    Fee for service partner (col A / idx 0):  finance, leadership only
-  //    Percent hired           (col AH / idx 33): programming, leadership, hr
-  //    Fields not rendered at all for unauthorised roles.
+  //    Fee for service (col A / idx 0)  : finance, leadership only
+  //    Percent hired   (col AH / idx 33): programming, leadership, hr only
+  //    Fields are not rendered at all for unauthorised roles.
   //
   //  CHANGE DETECTION:
   //    Diffs district+school keyed snapshots between refreshes.
-  //    Badge + modal list added / removed / changed rows with field-level detail.
+  //    Badge + modal show added / removed / changed rows with field detail.
   //
   //  GEOCODING:
-  //    Nominatim (OSM) client-side. Rate-limited to 1 req/1.1 s.
-  //    Results cached in localStorage (GEOCODE_CACHE_KEY). Re-geocodes only
-  //    when an address changes or the cache is cold.
-  //    Failed sites go to an "Unmapped" banner below the map.
+  //    Nominatim (OSM) client-side, rate-limited ≤1 req/sec.
+  //    Results cached in localStorage (key: njtc_sy_geocache_v4).
+  //    Re-geocodes only when address changes or cache is cold.
   // ══════════════════════════════════════════════════════════════════════════
 
   const sya = (() => {
 
     // ── LIVE DATA URL ────────────────────────────────────────────────────
-    // Built from the actual spreadsheet ID extracted from the share link:
-    // https://docs.google.com/spreadsheets/d/1bkhNNGf8-20xI-bgYNg9mRbs_gA7kb4BtqP4p9mtyVA/edit?gid=628127573
+    // Same 2PACX pub?output=csv pattern as SHEET_CSV_URL & TALENT_CSV_URL.
+    // The sheet is published to web — anyone with the link can access it.
     const SY_CSV_URL =
-      'https://docs.google.com/spreadsheets/d/1bkhNNGf8-20xI-bgYNg9mRbs_gA7kb4BtqP4p9mtyVA/export?format=csv&gid=628127573';
+      'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJhAQMZ8nUJ6fV03eV0-uALiqnvQ3wEZ7n03n-ZuvPSNJz9QQbjL06uVM2hnajdcLSDL3m83HfSfVM/pub?output=csv&gid=628127573';
 
-    const SY_REFRESH_MS   = 5 * 60 * 1000;   // 5 min (matches KPI refresh pattern)
-    const GEOCODE_RATE_MS = 1150;             // Nominatim ≤1 req/sec + buffer
+    const SY_REFRESH_MS   = 5 * 60 * 1000;  // 5 min — matches KPI pattern
+    const GEOCODE_RATE_MS = 1150;            // Nominatim ≤1 req/sec + buffer
     const GEOCODE_CACHE_KEY = 'njtc_sy_geocache_v4';
 
-    // ── COLUMN INDEXES (0-based, confirmed from CSV row 3 / sheet row 3) ─
+    // ── COLUMN INDEXES (0-based, from CSV row 3 / sheet row 3 headers) ───
     const C = {
       FEE:         0,   // A  — ROLE GATED: finance, leadership
       STATUS:      1,   // B
       COUNTY:      2,   // C
       PM:          3,   // D
       LEAD_HIRING: 4,   // E
-      DISTRICT:    5,   // F  — INCLUSION RULE: must be non-blank
-      SCHOOL:      6,   // G  — INCLUSION RULE: must be non-blank
-      ADDRESS:     7,   // H  — geocoding only; NEVER shown as text
+      DISTRICT:    5,   // F  — INCLUSION: must be non-blank
+      SCHOOL:      6,   // G  — INCLUSION: must be non-blank
+      ADDRESS:     7,   // H  — geocoding only; never shown as text
       CONFIRMED:   8,   // I
-      EST:         9,   // J  — Estimated # of Scholars for SY (Quote)
-      ACT:         10,  // K  — Actual # of Scholars (Pearl)
+      EST:         9,   // J  — Estimated # Scholars
+      ACT:         10,  // K  — Actual # Scholars (Pearl)
       CONTENT:     11,  // L
       GRADES:      12,  // M
       TUTOR_TYPE:  13,  // N
@@ -5960,29 +5959,23 @@
       ENDPOINT:    17,  // R
       DAYS:        18,  // S
       ASSESS:      19,  // T
-      TUTOR_TIMES: 20,  // U
-      WEEKS:       21,  // V
-      WEEKLY_TIME: 22,  // W
-      TUTOR_POS:   23,  // X
+      TUTOR_POS:   23,  // X  — Tutor Positions
       TUTOR_FILL:  24,  // Y  — Filled Tutor Positions
       APPRENT:     25,  // Z  — Apprentice Tutors
-      SC_POS:      26,  // AA
-      SC_FILL:     27,  // AB — Filled SC Positions
-      IC_POS:      28,  // AC
-      IC_FILL:     29,  // AD — Filled IC Positions
-      DR_POS:      30,  // AE
-      DR_FILL:     31,  // AF — Filled Dual Role Positions
-      TOTAL_STAFF: 32,  // AG — Total staffing (authoritative sum → 102.0)
+      SC_POS:      26,  // AA — SC Positions
+      SC_FILL:     27,  // AB — Filled SC
+      IC_POS:      28,  // AC — IC Positions
+      IC_FILL:     29,  // AD — Filled IC
+      DR_POS:      30,  // AE — Dual Role Positions
+      DR_FILL:     31,  // AF — Filled Dual Role
+      TOTAL_STAFF: 32,  // AG — Total staffing  (authoritative → 102.0)
       PCT_HIRED:   33,  // AH — ROLE GATED: programming, leadership, hr
-      SL_POS:      34,  // AI
-      CAL_LINK:    35,  // AJ
-      SPRING_BRK:  36,  // AK
-      PARTNER_NM:  37,  // AL
-      PARTNER_EM:  38,  // AM
-      MOU:         39,  // AN
-      DS_NAME:     40,  // AO
-      DS_EMAIL:    41,  // AP
-      BA_NAME:     42,  // AQ
+      PARTNER_NM:  37,  // AL — Partner Contact Name
+      PARTNER_EM:  38,  // AM — Partner Email
+      MOU:         39,  // AN — MOU/DSA Signed
+      DS_NAME:     40,  // AO — Data Specialist Name
+      DS_EMAIL:    41,  // AP — Data Specialist Email
+      BA_NAME:     42,  // AQ — BA/Finance Name
     };
 
     const ROLES_FEE   = ['finance', 'leadership'];
@@ -6003,119 +5996,82 @@
     let _lastFetch = null;
 
     // ── RFC-4180 CSV PARSER ───────────────────────────────────────────────
-    // Full state-machine parser that correctly handles:
-    //   • Quoted fields containing commas
-    //   • Quoted fields containing embedded newlines (critical for this sheet)
-    //   • Escaped double-quotes ("")
-    // The SY Database sheet has 170+ embedded newlines in quoted cells.
-    // A simple text.split('\n') approach fractures these into corrupt fragments.
+    // State-machine parser that correctly handles quoted fields containing
+    // embedded newlines and commas. Required because this sheet has 170+
+    // newlines inside quoted cells (spring-break dates, contact info, etc.).
+    // A simple text.split('\n') would fracture those rows → wrong totals.
     function parseCSVFull(text) {
       const rows = [];
-      let row   = [];
-      let field = '';
-      let inQ   = false;
+      let row = [], field = '', inQ = false;
       const src = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
       for (let i = 0; i < src.length; i++) {
         const ch = src[i];
         if (inQ) {
           if (ch === '"') {
             if (src[i + 1] === '"') { field += '"'; i++; }  // escaped ""
-            else { inQ = false; }                            // closing quote
+            else inQ = false;
           } else {
-            field += ch;  // newlines inside quotes become part of the value
+            field += ch;  // newlines inside quotes are part of the field
           }
         } else {
-          if      (ch === '"') { inQ = true; }
-          else if (ch === ',') { row.push(field.trim()); field = ''; }
-          else if (ch === '\n') {
-            row.push(field.trim());
-            field = '';
-            rows.push(row);
-            row = [];
-          } else { field += ch; }
+          if      (ch === '"')  { inQ = true; }
+          else if (ch === ',')  { row.push(field.trim()); field = ''; }
+          else if (ch === '\n') { row.push(field.trim()); field = ''; rows.push(row); row = []; }
+          else                  { field += ch; }
         }
       }
-      // Flush final field / row
       if (field.trim() || row.length) { row.push(field.trim()); rows.push(row); }
       return rows;
     }
 
     // ── PARSE SY ROWS ─────────────────────────────────────────────────────
-    // Finds header row by scanning first 8 rows for "fee for service".
-    // Headers are in sheet row 3 (CSV index 2). Data starts at index 3.
-    // Rows missing District (col F) OR School (col G) are silently excluded.
+    // Headers in sheet row 3 → CSV index 2 (contains "Fee for service partner").
+    // Data from sheet row 4 → CSV index 3+.
+    // Rows missing District (col F) OR School (col G) are excluded — always.
     function parseSYRows(text) {
       const rows = parseCSVFull(text);
-
       let hIdx = -1;
       for (let i = 0; i < Math.min(8, rows.length); i++) {
         if (rows[i].join(',').toLowerCase().includes('fee for service')) { hIdx = i; break; }
       }
-      if (hIdx < 0) { console.warn('[SY] Header row not found in CSV'); return []; }
+      if (hIdx < 0) { console.warn('[SY] Header row not found'); return []; }
 
       const sites = [];
       for (let i = hIdx + 1; i < rows.length; i++) {
         const cols = rows[i];
         if (!cols || cols.length < 7) continue;
-
-        // Clean embedded newlines from text fields
         const district = (cols[C.DISTRICT] || '').replace(/\n/g, ' ').trim();
         const school   = (cols[C.SCHOOL]   || '').replace(/\n/g, ' ').trim();
-
-        // ── DATA INCLUSION RULE ───────────────────────────────────────────
-        // Only include rows where BOTH District (F) AND School (G) are present.
-        if (!district || !school) continue;
+        if (!district || !school) continue;  // INCLUSION RULE — non-negotiable
 
         const g = idx => (cols[idx] || '').replace(/\n/g, ' ').trim();
         const n = idx => { const v = g(idx); if (!v) return 0; const f = parseFloat(v); return isNaN(f) ? 0 : f; };
 
-        // Total staff: prefer the authoritative AG column (idx 32).
-        // Fall back to summing filled positions if AG is blank.
         const agNum     = n(C.TOTAL_STAFF);
         const filledSum = n(C.TUTOR_FILL) + n(C.SC_FILL) + n(C.IC_FILL) + n(C.DR_FILL);
-
-        // Address: strip all whitespace/newlines for cleaner geocoding
-        const address = (cols[C.ADDRESS] || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        const address   = (cols[C.ADDRESS] || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
         sites.push({
-          key:       district + ' | ' + school,
+          key: district + ' | ' + school,
           district, school, address,
-          status:    g(C.STATUS),
-          county:    g(C.COUNTY),
-          pm:        g(C.PM),
-          // Scholars
-          act: n(C.ACT),
-          est: n(C.EST),
-          // Programming
-          content:    g(C.CONTENT),
-          grades:     g(C.GRADES),
-          tutorType:  g(C.TUTOR_TYPE),
-          startDate:  g(C.START),
-          midpoint:   g(C.MIDPOINT),
-          endpoint:   g(C.ENDPOINT),
-          days:       g(C.DAYS),
-          assessModel:g(C.ASSESS),
-          // Staff breakdown
-          tutorPos:  n(C.TUTOR_POS), tutorFill: n(C.TUTOR_FILL),
-          apprentice:n(C.APPRENT),
-          scPos:     n(C.SC_POS),   scFill:    n(C.SC_FILL),
-          icPos:     n(C.IC_POS),   icFill:    n(C.IC_FILL),
-          drPos:     n(C.DR_POS),   drFill:    n(C.DR_FILL),
+          status: g(C.STATUS), county: g(C.COUNTY), pm: g(C.PM),
+          act: n(C.ACT), est: n(C.EST),
+          content: g(C.CONTENT), grades: g(C.GRADES),
+          tutorType: g(C.TUTOR_TYPE), startDate: g(C.START),
+          midpoint: g(C.MIDPOINT), endpoint: g(C.ENDPOINT),
+          days: g(C.DAYS), assessModel: g(C.ASSESS),
+          tutorPos: n(C.TUTOR_POS), tutorFill: n(C.TUTOR_FILL),
+          apprentice: n(C.APPRENT),
+          scPos: n(C.SC_POS),   scFill: n(C.SC_FILL),
+          icPos: n(C.IC_POS),   icFill: n(C.IC_FILL),
+          drPos: n(C.DR_POS),   drFill: n(C.DR_FILL),
           totalStaff: agNum || filledSum,
-          // Role-gated (always stored; only rendered for authorised roles)
-          pctHired:   g(C.PCT_HIRED),
-          feePartner: g(C.FEE),
-          // Partner contacts AL–AQ
-          partnerName:  g(C.PARTNER_NM),
-          partnerEmail: g(C.PARTNER_EM),
-          mou:          g(C.MOU),
-          dsName:       g(C.DS_NAME),
-          dsEmail:      g(C.DS_EMAIL),
-          baName:       g(C.BA_NAME),
-          // Geocode result — populated asynchronously
-          lat: null, lng: null,
-          geocodeFailed: false, geocodeReason: '',
+          pctHired:   g(C.PCT_HIRED),   // role-gated
+          feePartner: g(C.FEE),         // role-gated
+          partnerName: g(C.PARTNER_NM), partnerEmail: g(C.PARTNER_EM),
+          mou: g(C.MOU), dsName: g(C.DS_NAME), dsEmail: g(C.DS_EMAIL),
+          baName: g(C.BA_NAME),
+          lat: null, lng: null, geocodeFailed: false, geocodeReason: '',
         });
       }
       return sites;
@@ -6123,42 +6079,36 @@
 
     // ── ROLE HELPERS ──────────────────────────────────────────────────────
     function dept() {
-      const d = (typeof _currentDept !== 'undefined' ? _currentDept
-               : window.NJTC_SESSION ? window.NJTC_SESSION.dept : '') || '';
-      return d.toLowerCase();
+      const d = typeof _currentDept !== 'undefined' ? _currentDept
+              : (window.NJTC_SESSION ? window.NJTC_SESSION.dept : '');
+      return (d || '').toLowerCase();
     }
     const canSeeFee = () => ROLES_FEE.includes(dept());
     const canSeePct = () => ROLES_PCTHR.includes(dept());
 
     // ── CHANGE DETECTION ──────────────────────────────────────────────────
     const TRACKED = [
-      ['act',        'Actual Scholars'], ['est',        'Est. Scholars'],
-      ['totalStaff', 'Total Staff'],     ['content',    'Content'],
-      ['tutorType',  'Tutoring Type'],   ['startDate',  'Start Date'],
-      ['midpoint',   'Midpoint'],        ['endpoint',   'End Date'],
-      ['days',       'Days of Week'],    ['assessModel','Assessment Model'],
-      ['status',     'Status'],          ['pctHired',   'Percent Hired'],
+      ['act','Actual Scholars'],['est','Est. Scholars'],['totalStaff','Total Staff'],
+      ['content','Content'],['tutorType','Tutoring Type'],['startDate','Start Date'],
+      ['midpoint','Midpoint'],['endpoint','End Date'],['days','Days of Week'],
+      ['assessModel','Assessment Model'],['status','Status'],['pctHired','% Hired'],
     ];
-
-    const mkSnap = sites => { const s = {}; sites.forEach(r => s[r.key] = r); return s; };
-
+    const mkSnap = sites => { const s = {}; sites.forEach(r => { s[r.key] = r; }); return s; };
     function diffSnaps(oldSnap, newSites) {
-      const changes = [];
-      const ns = mkSnap(newSites);
-      const ok = new Set(Object.keys(oldSnap));
-      const nk = new Set(Object.keys(ns));
-      nk.forEach(k => { if (!ok.has(k)) changes.push({ type:'added',   key:k, school:ns[k].school, district:ns[k].district }); });
-      ok.forEach(k => { if (!nk.has(k)) changes.push({ type:'removed', key:k, school:oldSnap[k].school, district:oldSnap[k].district }); });
+      const chg = [], ns = mkSnap(newSites);
+      const ok = new Set(Object.keys(oldSnap)), nk = new Set(Object.keys(ns));
+      nk.forEach(k => { if (!ok.has(k)) chg.push({ type:'added',   key:k, school:ns[k].school, district:ns[k].district }); });
+      ok.forEach(k => { if (!nk.has(k)) chg.push({ type:'removed', key:k, school:oldSnap[k].school, district:oldSnap[k].district }); });
       nk.forEach(k => {
         if (!ok.has(k)) return;
-        const fc = TRACKED.reduce((a, [f, lbl]) => {
-          const ov = String(oldSnap[k][f] ?? ''), nv = String(ns[k][f] ?? '');
-          if (ov !== nv) a.push({ field:lbl, from:ov||'—', to:nv||'—' });
+        const fc = TRACKED.reduce((a,[f,lbl]) => {
+          const ov = String(oldSnap[k][f]??''), nv = String(ns[k][f]??'');
+          if (ov !== nv) a.push({field:lbl, from:ov||'—', to:nv||'—'});
           return a;
         }, []);
-        if (fc.length) changes.push({ type:'modified', key:k, school:ns[k].school, district:ns[k].district, fields:fc });
+        if (fc.length) chg.push({type:'modified', key:k, school:ns[k].school, district:ns[k].district, fields:fc});
       });
-      return changes;
+      return chg;
     }
 
     // ── FETCH / REFRESH ───────────────────────────────────────────────────
@@ -6167,24 +6117,21 @@
       const btn = document.getElementById('syRefreshBtn');
       if (btn) btn.disabled = true;
       try {
-        // Append cache-bust timestamp when forced to prevent stale CORS responses
-        const url = SY_CSV_URL + (force ? '&_cb=' + Date.now() : '');
+        // Cache-bust appended as query param — same pattern as KPI fetch
+        const url = SY_CSV_URL + (force ? '&t=' + Date.now() : '');
         const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const csv = await res.text();
         const sites = parseSYRows(csv);
-        if (!sites.length) throw new Error('Parsed 0 valid sites — check CSV format');
-
-        _changes  = _allSites.length ? diffSnaps(mkSnap(_allSites), sites) : [];
-        _allSites = sites;
-        _snapshot = mkSnap(sites);
+        if (!sites.length) throw new Error('Parsed 0 valid sites');
+        _changes   = _allSites.length ? diffSnaps(mkSnap(_allSites), sites) : [];
+        _allSites  = sites;
+        _snapshot  = mkSnap(sites);
         _lastFetch = new Date();
-
         setSyncState('live');
         populateFilters();
         applyFilters();
         queueGeocoding();
-
       } catch (e) {
         console.warn('[SY Analytics] Fetch failed:', e.message);
         setSyncState('error');
@@ -6204,46 +6151,40 @@
       } else if (state === 'live') {
         dot.className = 'sync-dot';
         const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
-        if (txt) txt.innerHTML = `<strong>Live · Google Sheet</strong> &nbsp;· ${_allSites.length} sites · Updated ${t}`;
+        if (txt) txt.innerHTML = `<strong>Live · Google Sheet</strong>&nbsp;· ${_allSites.length} sites · Updated ${t}`;
         const hc = _changes.length > 0;
         if (cbtn) { cbtn.style.display = hc ? '' : 'none'; if (hc) document.getElementById('syChangesBtnN').textContent = _changes.length; }
         if (nbdg) { nbdg.style.display = hc ? '' : 'none'; if (hc) nbdg.textContent = _changes.length; }
       } else {
         dot.className = 'sync-dot error';
         if (txt) txt.innerHTML = _lastFetch
-          ? `<strong>⚠️ Sheet unreachable</strong> · Last data: ${_lastFetch.toLocaleTimeString()}`
-          : '<strong>⚠️ Could not load SY data</strong> · Click ↺ Refresh to retry';
+          ? `<strong>⚠️ Sheet unreachable</strong> · Last: ${_lastFetch.toLocaleTimeString()}`
+          : '<strong>⚠️ Could not load SY data</strong> · Click ↺ Refresh';
       }
     }
 
     // ── FILTERS ───────────────────────────────────────────────────────────
     function applyFilters() {
-      const v = id => (document.getElementById(id) || {}).value || '';
-      const fD = v('syFDistrict'), fC = v('syFContent'), fT = v('syFType'),
-            fA = v('syFAssess'),   fW = v('syFDays'),    fS = v('syFStatus');
-
+      const v = id => (document.getElementById(id)||{}).value||'';
+      const fD=v('syFDistrict'),fC=v('syFContent'),fT=v('syFType'),
+            fA=v('syFAssess'),  fW=v('syFDays'),   fS=v('syFStatus');
       _filtered = _allSites.filter(s =>
-        (!fD || s.district    === fD) &&
+        (!fD || s.district === fD) &&
         (!fC || s.content.toLowerCase().includes(fC.toLowerCase())) &&
         (!fT || s.tutorType.toLowerCase().includes(fT.toLowerCase())) &&
         (!fA || s.assessModel.toLowerCase().includes(fA.toLowerCase())) &&
         (!fW || s.days.toLowerCase().includes(fW.toLowerCase())) &&
-        (!fS || s.status      === fS)
+        (!fS || s.status === fS)
       );
-
       const fi = document.getElementById('syFilterInfo');
       const active = !!(fD||fC||fT||fA||fW||fS);
       if (fi) fi.textContent = active ? `${_filtered.length} site${_filtered.length!==1?'s':''} matching` : '';
-
-      updateStats();
-      renderDistrictList();
-      renderTable();
-      updateMapMarkers();
+      updateStats(); renderDistrictList(); renderTable(); updateMapMarkers();
     }
 
     function clearFilters() {
       ['syFDistrict','syFContent','syFType','syFAssess','syFDays','syFStatus']
-        .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+        .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
       applyFilters();
     }
 
@@ -6257,8 +6198,7 @@
     function populateFilters() {
       function pop(id, vals) {
         const el = document.getElementById(id); if (!el) return;
-        const cur = el.value;
-        const first = el.options[0] ? el.options[0].outerHTML : '';
+        const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
         el.innerHTML = first + [...vals].filter(Boolean).sort()
           .map(v => `<option value="${v}">${v}</option>`).join('');
         if ([...el.options].some(o => o.value === cur)) el.value = cur;
@@ -6270,45 +6210,42 @@
       pop('syFDays',     new Set(_allSites.map(s => s.days)));
     }
 
-    // ── STATS TILES ───────────────────────────────────────────────────────
+    // ── STATS ─────────────────────────────────────────────────────────────
     function updateStats() {
       const s = _filtered;
+      const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatSites',     s.length);
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
-      setText('syStatActual',    s.reduce((a, r) => a + r.act, 0).toLocaleString());
-      setText('syStatEst',       s.reduce((a, r) => a + r.est, 0).toLocaleString());
-      const stf = s.reduce((a, r) => a + r.totalStaff, 0);
-      setText('syStatStaff', stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
+      setText('syStatActual',    s.reduce((a,r) => a + r.act, 0).toLocaleString());
+      setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
+      setText('syStatStaff',     stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
     }
 
     // ── DISTRICT LIST ─────────────────────────────────────────────────────
     function renderDistrictList() {
-      const el = document.getElementById('syDistrictList');
-      if (!el) return;
+      const el = document.getElementById('syDistrictList'); if (!el) return;
       const map = {};
       _filtered.forEach(s => {
-        if (!map[s.district]) map[s.district] = { c:0, act:0, est:0, stf:0 };
-        map[s.district].c++; map[s.district].act += s.act;
-        map[s.district].est += s.est; map[s.district].stf += s.totalStaff;
+        if (!map[s.district]) map[s.district] = {c:0,act:0,est:0,stf:0};
+        map[s.district].c++; map[s.district].act+=s.act;
+        map[s.district].est+=s.est; map[s.district].stf+=s.totalStaff;
       });
-      const cur = (document.getElementById('syFDistrict') || {}).value || '';
-      el.innerHTML = Object.entries(map)
-        .sort((a, b) => b[1].act - a[1].act)
-        .map(([d, v]) => {
-          const esc = d.replace(/'/g, "\\'");
-          const stfStr = v.stf % 1 === 0 ? v.stf.toLocaleString() : v.stf.toFixed(1);
-          return `<div class="sy-district-item${cur===d?' syd-active':''}" onclick="sya.filterByDistrict('${esc}')">
-            <div class="sy-dist-name">${d}</div>
-            <div class="sy-dist-meta">
-              <span>${v.c} site${v.c!==1?'s':''}</span>
-              <span>· ${v.act.toLocaleString()} scholars</span>
-              <span>· ${stfStr} staff</span>
-            </div>
-          </div>`;
-        }).join('');
+      const cur = (document.getElementById('syFDistrict')||{}).value||'';
+      el.innerHTML = Object.entries(map).sort((a,b)=>b[1].act-a[1].act).map(([d,v]) => {
+        const esc = d.replace(/'/g,"\\'");
+        const stfStr = v.stf%1===0?v.stf.toLocaleString():v.stf.toFixed(1);
+        return `<div class="sy-district-item${cur===d?' syd-active':''}" onclick="sya.filterByDistrict('${esc}')">
+          <div class="sy-dist-name">${d}</div>
+          <div class="sy-dist-meta">
+            <span>${v.c} site${v.c!==1?'s':''}</span>
+            <span>· ${v.act.toLocaleString()} scholars</span>
+            <span>· ${stfStr} staff</span>
+          </div>
+        </div>`;
+      }).join('');
     }
 
-    // ── SCHOOLS TABLE ─────────────────────────────────────────────────────
+    // ── TABLE ─────────────────────────────────────────────────────────────
     function renderTable() {
       const tbody = document.getElementById('syTableBody');
       const cnt   = document.getElementById('syTableCount');
@@ -6317,116 +6254,84 @@
       const dash = '<span style="color:var(--muted)">—</span>';
       tbody.innerHTML = _filtered.map(s => {
         const hl  = s.key === _selKey ? 'sy-row-hl' : '';
-        const esc = s.key.replace(/'/g, "\\'");
+        const esc = s.key.replace(/'/g,"\\'");
+        const stfStr = s.totalStaff ? (s.totalStaff%1===0?s.totalStaff:s.totalStaff.toFixed(1)) : dash;
         return `<tr class="${hl}" onclick="sya.selectSite('${esc}')">
           <td style="font-size:.75rem;color:var(--text-2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.district}">${s.district}</td>
           <td style="font-weight:600;color:var(--navy);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.school}">${s.school}</td>
-          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${s.act || dash}</td>
-          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${s.est || dash}</td>
-          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${s.totalStaff ? (s.totalStaff%1===0?s.totalStaff:s.totalStaff.toFixed(1)) : dash}</td>
-          <td style="font-size:.75rem;color:var(--text-2)">${s.content || dash}</td>
-          <td style="font-size:.75rem;color:var(--text-2)">${s.tutorType || dash}</td>
-          <td style="font-size:.75rem;color:var(--text-2)">${s.assessModel || dash}</td>
+          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${s.act||dash}</td>
+          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${s.est||dash}</td>
+          <td style="text-align:center;font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy)">${stfStr}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.content||dash}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.tutorType||dash}</td>
+          <td style="font-size:.75rem;color:var(--text-2)">${s.assessModel||dash}</td>
         </tr>`;
       }).join('');
     }
 
-    // ── SITE DETAIL CARD ──────────────────────────────────────────────────
+    // ── DETAIL CARD ───────────────────────────────────────────────────────
     function selectSite(key) {
       _selKey = key;
       const site = _allSites.find(s => s.key === key);
       if (!site) return;
       renderDetail(site);
-      // Pan map — only if lat/lng are valid numbers (guard against geocoding pending)
-      if (_map && typeof site.lat === 'number' && typeof site.lng === 'number'
-          && isFinite(site.lat) && isFinite(site.lng)) {
-        _map.flyTo([site.lat, site.lng], 14, { duration: 0.8 });
+      if (_map && typeof site.lat === 'number' && isFinite(site.lat)
+               && typeof site.lng === 'number' && isFinite(site.lng)) {
+        _map.flyTo([site.lat, site.lng], 14, {duration:0.8});
         if (_markers[key]) _markers[key].openPopup();
       }
-      // Highlight table row
       document.querySelectorAll('#syTableBody tr').forEach(tr => tr.classList.remove('sy-row-hl'));
       const idx = _filtered.findIndex(s => s.key === key);
       const rows = document.querySelectorAll('#syTableBody tr');
-      if (idx >= 0 && rows[idx]) {
-        rows[idx].classList.add('sy-row-hl');
-        rows[idx].scrollIntoView({ behavior:'smooth', block:'nearest' });
-      }
+      if (idx >= 0 && rows[idx]) { rows[idx].classList.add('sy-row-hl'); rows[idx].scrollIntoView({behavior:'smooth',block:'nearest'}); }
     }
 
     function renderDetail(s) {
-      const card = document.getElementById('syDetailCard');
-      if (!card) return;
+      const card = document.getElementById('syDetailCard'); if (!card) return;
       const v   = x => (x !== null && x !== undefined && String(x).trim()) ? x : null;
       const row = (lbl, val) => val !== null && val !== undefined && String(val).trim()
         ? `<div class="sy-detail-row"><span class="sy-detail-label">${lbl}</span><span class="sy-detail-val">${val}</span></div>` : '';
       const sec = lbl => `<div class="sy-detail-section">${lbl}</div>`;
-
       const stfStr = s.totalStaff ? (s.totalStaff%1===0?s.totalStaff:s.totalStaff.toFixed(1)) : '—';
-
-      // Staff breakdown grid
-      const staffPairs = [
-        ['Tutors',      s.tutorFill, s.tutorPos],
-        ['Site Coord',  s.scFill,    s.scPos],
-        ['Instr. Coach',s.icFill,    s.icPos],
-        ['Dual Role',   s.drFill,    s.drPos],
-      ].filter(([,f,p]) => f || p);
+      const staffPairs = [['Tutors',s.tutorFill,s.tutorPos],['Site Coord',s.scFill,s.scPos],['Instr. Coach',s.icFill,s.icPos],['Dual Role',s.drFill,s.drPos]].filter(([,f,p])=>f||p);
       const staffGrid = staffPairs.length ? `<div class="sy-staff-grid">
         ${staffPairs.map(([lbl,f,p])=>`<div><div class="sy-staff-cell-label">${lbl}</div><div class="sy-staff-cell-val">${f||0}/${p||0}</div></div>`).join('')}
-        ${s.apprentice ? `<div><div class="sy-staff-cell-label">Apprentice</div><div class="sy-staff-cell-val">${s.apprentice}</div></div>` : ''}
+        ${s.apprentice?`<div><div class="sy-staff-cell-label">Apprentice</div><div class="sy-staff-cell-val">${s.apprentice}</div></div>`:''}
       </div>` : '';
-
       const partnerBlock = (v(s.partnerName)||v(s.partnerEmail)||v(s.mou)||v(s.dsName)||v(s.baName))
         ? sec('Partner & Contacts') +
-          row('LEA/Partner',     v(s.partnerName)) +
-          row('Partner Email',   v(s.partnerEmail) ? `<a href="mailto:${s.partnerEmail}" style="color:var(--blue-mid)">${s.partnerEmail}</a>` : null) +
-          row('MOU / DSA',       v(s.mou)) +
-          row('Data Specialist', v(s.dsName)) +
-          row('DS Email',        v(s.dsEmail) ? `<a href="mailto:${s.dsEmail}" style="color:var(--blue-mid)">${s.dsEmail}</a>` : null) +
-          row('BA / Finance',    v(s.baName))
-        : '';
-
-      const feeBlock = canSeeFee() ? row('Fee for Service Partner', v(s.feePartner) || 'N/A') : '';
-      const pctBlock = canSeePct() ? row('Percent Hired',           v(s.pctHired)   || '—')  : '';
+          row('LEA / Partner',    v(s.partnerName)) +
+          row('Partner Email',    v(s.partnerEmail) ? `<a href="mailto:${s.partnerEmail}" style="color:var(--blue-mid)">${s.partnerEmail}</a>` : null) +
+          row('MOU / DSA Signed', v(s.mou)) +
+          row('Data Specialist',  v(s.dsName)) +
+          row('DS Email',         v(s.dsEmail) ? `<a href="mailto:${s.dsEmail}" style="color:var(--blue-mid)">${s.dsEmail}</a>` : null) +
+          row('BA / Finance',     v(s.baName)) : '';
+      const feeBlock = canSeeFee() ? row('Fee for Service Partner', v(s.feePartner)||'N/A') : '';
+      const pctBlock = canSeePct() ? row('Percent Hired',           v(s.pctHired)||'—')    : '';
       const gatedBlock = (feeBlock||pctBlock) ? sec('Finance / Staffing') + feeBlock + pctBlock : '';
-
       card.innerHTML = `
         <div class="sy-detail-school">${s.school}</div>
         <div class="sy-detail-district">${s.district}</div>
         ${sec('Scholars')}
-        ${row('Actual (Pearl)', s.act || null)}
-        ${row('Estimated',      s.est || null)}
+        ${row('Actual (Pearl)', s.act||null)}${row('Estimated', s.est||null)}
         ${sec('Programming')}
-        ${row('Content',       v(s.content))}
-        ${row('Tutoring Type', v(s.tutorType))}
-        ${row('Days of Week',  v(s.days))}
-        ${row('Assessment',    v(s.assessModel))}
-        ${row('Start Date',    v(s.startDate))}
-        ${row('Midpoint',      v(s.midpoint))}
-        ${row('End Date',      v(s.endpoint))}
-        ${row('Grades',        v(s.grades))}
-        ${sec('Staffing')}
-        ${staffGrid}
-        ${row('Total Staff', stfStr)}
-        ${partnerBlock}
-        ${gatedBlock}`;
+        ${row('Content', v(s.content))}${row('Tutoring Type', v(s.tutorType))}
+        ${row('Days of Week', v(s.days))}${row('Assessment', v(s.assessModel))}
+        ${row('Start Date', v(s.startDate))}${row('Midpoint', v(s.midpoint))}
+        ${row('End Date', v(s.endpoint))}${row('Grades', v(s.grades))}
+        ${sec('Staffing')}${staffGrid}${row('Total Staff', stfStr)}
+        ${partnerBlock}${gatedBlock}`;
     }
 
     // ── MAP ───────────────────────────────────────────────────────────────
     function initMap() {
       if (_map || !window.L) return;
       const el = document.getElementById('syMap');
-      // GUARD: Only init when the container is actually visible in the DOM.
-      // Initialising while hidden causes "Invalid LatLng" errors because
-      // Leaflet calculates pixel positions against a zero-size container.
-      if (!el || el.offsetParent === null) return;
-
-      _map = L.map('syMap', { zoomControl: true }).setView([40.0, -74.7], 8);
+      if (!el || el.offsetParent === null) return;  // must be visible — see onPanelOpen
+      _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
-        maxZoom: 19
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
       }).addTo(_map);
-
-      // Fix Leaflet default icon paths (required when using CDN)
       delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
@@ -6437,50 +6342,36 @@
 
     function updateMapMarkers() {
       if (!_map) return;
-      const filtKeys = new Set(_filtered.map(s => s.key));
-      const allKeys  = new Set(_allSites.map(s => s.key));
-
-      // Remove markers for rows that are no longer in the dataset
-      Object.keys(_markers).forEach(k => {
-        if (!allKeys.has(k)) { _map.removeLayer(_markers[k]); delete _markers[k]; }
-      });
-      // Show filtered / hide unfiltered
+      const fk = new Set(_filtered.map(s => s.key));
+      const ak = new Set(_allSites.map(s => s.key));
+      Object.keys(_markers).forEach(k => { if (!ak.has(k)) { _map.removeLayer(_markers[k]); delete _markers[k]; } });
       Object.keys(_markers).forEach(k => {
         const m = _markers[k];
-        if (filtKeys.has(k)) { if (!_map.hasLayer(m)) m.addTo(_map); }
-        else { if (_map.hasLayer(m)) _map.removeLayer(m); }
+        if (fk.has(k)) { if (!_map.hasLayer(m)) m.addTo(_map); }
+        else            { if (_map.hasLayer(m))  _map.removeLayer(m); }
       });
-      // Create markers for newly geocoded sites
       _allSites.forEach(s => {
-        if (typeof s.lat === 'number' && isFinite(s.lat) &&
-            typeof s.lng === 'number' && isFinite(s.lng) && !_markers[s.key]) {
-          addMarker(s);
-        }
+        if (typeof s.lat==='number' && isFinite(s.lat) &&
+            typeof s.lng==='number' && isFinite(s.lng) && !_markers[s.key]) addMarker(s);
       });
       updateUnmapped();
     }
 
     function addMarker(site) {
-      // Double-check coordinates before creating the marker — Leaflet throws
-      // "Invalid LatLng object: (undefined, undefined)" if either value is
-      // missing, null, or NaN. This guard prevents that entirely.
       if (!_map) return;
       if (typeof site.lat !== 'number' || !isFinite(site.lat)) return;
       if (typeof site.lng !== 'number' || !isFinite(site.lng)) return;
-
-      const active = site.status.toLowerCase().includes('active');
-      const col = active ? '#0050c8' : '#7d8fa1';
+      const col = site.status.toLowerCase().includes('active') ? '#0050c8' : '#7d8fa1';
       const icon = L.divIcon({
-        className: '',
-        html: `<div style="width:20px;height:20px;background:${col};border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.28);cursor:pointer"></div>`,
-        iconSize: [20, 20], iconAnchor: [10, 10], popupAnchor: [0, -13]
+        className:'',
+        html:`<div style="width:20px;height:20px;background:${col};border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.28);cursor:pointer"></div>`,
+        iconSize:[20,20], iconAnchor:[10,10], popupAnchor:[0,-13]
       });
-
-      const marker = L.marker([site.lat, site.lng], { icon });
-      marker.bindPopup(buildPopup(site), { maxWidth: 260 });
+      const marker = L.marker([site.lat, site.lng], {icon});
+      marker.bindPopup(buildPopup(site), {maxWidth:260});
       marker.on('click', () => selectSite(site.key));
       _markers[site.key] = marker;
-      if (new Set(_filtered.map(s => s.key)).has(site.key)) marker.addTo(_map);
+      if (new Set(_filtered.map(s=>s.key)).has(site.key)) marker.addTo(_map);
     }
 
     function buildPopup(s) {
@@ -6497,41 +6388,27 @@
     }
 
     function updateUnmapped() {
-      const b = document.getElementById('syUnmappedBanner');
-      if (!b) return;
+      const b = document.getElementById('syUnmappedBanner'); if (!b) return;
       const u = _filtered.filter(s => s.geocodeFailed);
       b.style.display = u.length ? '' : 'none';
       if (u.length) b.textContent = `${u.length} site${u.length!==1?'s':''} could not be mapped: ${u.map(s=>s.school).join(', ')}`;
     }
 
     // ── GEOCODING ─────────────────────────────────────────────────────────
-    // Nominatim (OSM) client-side geocoder.
-    // Results are cached in localStorage (GEOCODE_CACHE_KEY) keyed by
-    // normalised address string. Checks cache before queuing new requests.
-    // Processes one request per GEOCODE_RATE_MS to respect OSM rate limits.
-    function loadGeoCache() {
-      try { _geocache = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); }
-      catch (e) { _geocache = {}; }
-    }
-    function saveGeoCache() {
-      try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(_geocache)); }
-      catch (e) {}
-    }
-    function normAddr(addr) { return addr.toLowerCase().replace(/\s+/g, ' ').trim(); }
+    function loadGeoCache() { try { _geocache = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY)||'{}'); } catch(e) { _geocache={}; } }
+    function saveGeoCache() { try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(_geocache)); } catch(e) {} }
+    const normAddr = a => a.toLowerCase().replace(/\s+/g,' ').trim();
 
     function queueGeocoding() {
-      loadGeoCache();
-      _geoQueue = [];
+      loadGeoCache(); _geoQueue = [];
       _allSites.forEach(s => {
-        if (!s.address) { s.geocodeFailed = true; s.geocodeReason = 'No address'; return; }
+        if (!s.address) { s.geocodeFailed=true; s.geocodeReason='No address'; return; }
         const ck = normAddr(s.address);
-        const cached = _geocache[ck];
-        if (cached) {
-          if (cached.failed) { s.geocodeFailed = true; s.geocodeReason = cached.reason || 'Failed'; }
-          else { s.lat = cached.lat; s.lng = cached.lng; }
-        } else {
-          _geoQueue.push({ site: s, ck });
-        }
+        const c  = _geocache[ck];
+        if (c) {
+          if (c.failed) { s.geocodeFailed=true; s.geocodeReason=c.reason||'Failed'; }
+          else { s.lat=c.lat; s.lng=c.lng; }
+        } else { _geoQueue.push({site:s, ck}); }
       });
       updateMapMarkers();
       if (_geoQueue.length && !_geocoding) processGeoQueue();
@@ -6544,81 +6421,64 @@
         await geocodeOne(item.site, item.ck);
         await new Promise(r => setTimeout(r, GEOCODE_RATE_MS));
       }
-      _geocoding = false;
-      saveGeoCache();
-      updateMapMarkers();
+      _geocoding = false; saveGeoCache(); updateMapMarkers();
     }
 
     async function geocodeOne(site, ck) {
       try {
-        const q = encodeURIComponent(site.address);
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`,
-          { headers: { 'Accept-Language': 'en', 'User-Agent': 'NJTC-Portal/2.0' },
-            signal: AbortSignal.timeout(8000) }
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(site.address)}&format=json&limit=1`,
+          { headers:{'Accept-Language':'en','User-Agent':'NJTC-Portal/2.0'}, signal:AbortSignal.timeout(8000) }
         );
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.ok) throw new Error('HTTP '+res.status);
         const data = await res.json();
         if (data && data.length) {
-          const lat = parseFloat(data[0].lat);
-          const lng = parseFloat(data[0].lon);
-          // Validate parsed coordinates before accepting
-          if (!isFinite(lat) || !isFinite(lng)) throw new Error('Non-finite coordinates');
-          site.lat = lat;
-          site.lng = lng;
-          _geocache[ck] = { lat, lng };
-          addMarker(site);  // safe: addMarker validates coords independently
-          const fk = new Set(_filtered.map(s => s.key));
+          const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
+          if (!isFinite(lat)||!isFinite(lng)) throw new Error('Non-finite coordinates');
+          site.lat=lat; site.lng=lng; _geocache[ck]={lat,lng};
+          addMarker(site);
+          const fk = new Set(_filtered.map(s=>s.key));
           if (fk.has(site.key) && _markers[site.key] && !_map.hasLayer(_markers[site.key]))
             _markers[site.key].addTo(_map);
           updateUnmapped();
         } else {
-          site.geocodeFailed = true; site.geocodeReason = 'Address not found by Nominatim';
-          _geocache[ck] = { failed: true, reason: 'Address not found' };
-          updateUnmapped();
+          site.geocodeFailed=true; site.geocodeReason='Not found';
+          _geocache[ck]={failed:true, reason:'Not found'}; updateUnmapped();
         }
-      } catch (e) {
-        site.geocodeFailed = true; site.geocodeReason = e.message;
-        _geocache[ck] = { failed: true, reason: e.message };
-        updateUnmapped();
+      } catch(e) {
+        site.geocodeFailed=true; site.geocodeReason=e.message;
+        _geocache[ck]={failed:true, reason:e.message}; updateUnmapped();
       }
     }
 
     // ── CHANGES MODAL ─────────────────────────────────────────────────────
     function openChangesModal() {
-      let overlay = document.getElementById('syChangesModal');
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'syChangesModal';
-        overlay.className = 'sy-modal-overlay';
-        overlay.onclick = e => { if (e.target === overlay) overlay.style.display = 'none'; };
-        document.body.appendChild(overlay);
-      }
+      let o = document.getElementById('syChangesModal');
+      if (!o) { o=document.createElement('div'); o.id='syChangesModal'; o.className='sy-modal-overlay'; o.onclick=e=>{if(e.target===o)o.style.display='none';}; document.body.appendChild(o); }
       const close = `<button class="sy-modal-close" onclick="document.getElementById('syChangesModal').style.display='none'">✕</button>`;
       if (!_changes.length) {
-        overlay.innerHTML = `<div class="sy-modal"><div class="sy-modal-hd"><span class="sy-modal-title">No Changes Detected</span>${close}</div><div class="sy-modal-body" style="text-align:center;padding:2rem;color:var(--muted)">Data is identical to the last refresh.</div></div>`;
+        o.innerHTML=`<div class="sy-modal"><div class="sy-modal-hd"><span class="sy-modal-title">No Changes</span>${close}</div><div class="sy-modal-body" style="text-align:center;padding:2rem;color:var(--muted)">Data matches last refresh.</div></div>`;
       } else {
-        const html = [
+        const html=[
           ..._changes.filter(c=>c.type==='added').map(c=>`<div class="sy-chg sy-chg-added"><div class="sy-chg-label">✅ Added: ${c.school}</div><div class="sy-chg-detail">${c.district}</div></div>`),
           ..._changes.filter(c=>c.type==='removed').map(c=>`<div class="sy-chg sy-chg-removed"><div class="sy-chg-label">🗑️ Removed: ${c.school}</div><div class="sy-chg-detail">${c.district}</div></div>`),
           ..._changes.filter(c=>c.type==='modified').map(c=>`<div class="sy-chg sy-chg-mod"><div class="sy-chg-label">📝 ${c.school}</div><div class="sy-chg-detail">${c.district}</div>${c.fields.map(f=>`<div class="sy-chg-detail" style="margin-top:.2rem">• ${f.field}: <strong>${f.from}</strong> → <strong>${f.to}</strong></div>`).join('')}</div>`)
         ].join('');
-        overlay.innerHTML = `<div class="sy-modal"><div class="sy-modal-hd"><div><div class="sy-modal-title">What Changed</div><div style="font-size:.8125rem;color:var(--muted);margin-top:.2rem">${_changes.length} change${_changes.length!==1?'s':''} · ${_lastFetch?_lastFetch.toLocaleTimeString():'—'}</div></div>${close}</div><div class="sy-modal-body">${html}</div><div style="padding:1rem 1.5rem;border-top:1px solid var(--border);text-align:right"><button class="btn btn-secondary" onclick="document.getElementById('syChangesModal').style.display='none'">Close</button></div></div>`;
+        o.innerHTML=`<div class="sy-modal"><div class="sy-modal-hd"><div><div class="sy-modal-title">What Changed</div><div style="font-size:.8125rem;color:var(--muted);margin-top:.2rem">${_changes.length} change${_changes.length!==1?'s':''} · ${_lastFetch?_lastFetch.toLocaleTimeString():'—'}</div></div>${close}</div><div class="sy-modal-body">${html}</div><div style="padding:1rem 1.5rem;border-top:1px solid var(--border);text-align:right"><button class="btn btn-secondary" onclick="document.getElementById('syChangesModal').style.display='none'">Close</button></div></div>`;
       }
-      overlay.style.display = 'flex';
+      o.style.display='flex';
     }
 
     // ── PANEL OPEN HOOK ───────────────────────────────────────────────────
-    // Called by the patched showPanel when the SY panel is activated.
-    // Defers map init until the container is visible (Leaflet requires this).
-    // Also calls invalidateSize() to fix tile rendering after the panel reveal.
+    // Called by patched showPanel when the SY panel becomes visible.
+    // Defers map init to ensure the container has non-zero dimensions.
+    // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
       setTimeout(() => {
         if (!_map) {
           initMap();
           if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
         }
-        // Always invalidateSize — fixes blank/grey tiles after panel show/hide
         if (_map) _map.invalidateSize();
       }, 80);
     }
@@ -6640,17 +6500,13 @@
     return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite, openChangesModal, onPanelOpen };
   })();
 
-  // ── Patch showPanel: trigger map init when SY panel becomes visible ─────
-  // Must run after all other showPanel definitions in the file.
+  // ── Patch showPanel to call onPanelOpen when SY panel is activated ─────
   (function patchShowPanelSY() {
     const _orig = showPanel;
-    window.showPanel = function(id, btn) {
-      _orig(id, btn);
-      if (id === 'sy-analytics') sya.onPanelOpen();
-    };
+    window.showPanel = function(id, btn) { _orig(id, btn); if (id === 'sy-analytics') sya.onPanelOpen(); };
   })();
 
-  // Boot SY Analytics after DOM is ready
+  // Boot SY Analytics after DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => sya.init());
   } else {
