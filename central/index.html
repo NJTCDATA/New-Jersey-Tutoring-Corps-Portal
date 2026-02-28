@@ -4981,6 +4981,7 @@
         const trColor = d.tutorRate >= 80 ? '#166534' : d.tutorRate >= 70 ? '#92400e' : '#dc2626';
         const flag    = d.scholarRate < 70 ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:20px;font-size:.65rem;font-weight:700;padding:.15rem .5rem;margin-left:.4rem">Needs attention</span>' :
                         d.scholarRate < 80 ? '<span style="background:#fffbeb;color:#92400e;border:1px solid #fde68a;border-radius:20px;font-size:.65rem;font-weight:700;padding:.15rem .5rem;margin-left:.4rem">Watch</span>' : '';
+        const ctFlag  = d.ctFlag ? `<span style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:20px;font-size:.65rem;font-weight:700;padding:.15rem .5rem;margin-left:.4rem" title="Teacher pull-outs exceed 10% of sessions — school-level conversation needed">📋 ${d.ctPct}% teacher pull-outs</span>` : '';
 
         // School sub-rows (collapsed by default, shown inline as mini bars)
         const schoolBars = d.schools.sort((a,b) => a.rate - b.rate).map(s => {
@@ -4996,7 +4997,7 @@
         return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:.875rem 1rem;margin-bottom:.625rem">
           <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
             <div style="flex:1;min-width:180px">
-              <div style="font-weight:700;font-size:.875rem;color:#1e293b">${d.name}${flag}</div>
+              <div style="font-weight:700;font-size:.875rem;color:#1e293b">${d.name}${flag}${ctFlag}</div>
               <div style="font-size:.7rem;color:#64748b;margin-top:.1rem">${d.schools.length} school${d.schools.length>1?'s':''} · ${d.scholars.toLocaleString()} scholars</div>
             </div>
             <div style="text-align:center;min-width:70px">
@@ -6981,20 +6982,47 @@
       return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
     }
     // Attended counts: actual Attended/Late status AND these miss reasons
+    // ── ATTENDANCE CLASSIFICATION ────────────────────────────────────────
+    // Scholar attendance rate = attended / (attended + SCHOLAR_MISS)
+    // Only count against a scholar when it is the SCHOLAR'S fault.
+    // Service interruptions (tutor absent, holidays, testing, etc.) are
+    // excluded from the denominator — they don't penalise the scholar.
+    //
+    // Tutor attendance rate = attended / (attended + TUTOR_MISS)
+    // Only count against a tutor when IT IS THE TUTOR'S fault.
+
+    // Counts as attended (scholar showed up, even if partially)
     const COUNTS_AS_ATTENDED = new Set([
-      'Tutor Left Early (no sub)',
-      'Scholar Left Early',
-      'Classroom Teacher Requested to Keep Scholar in Class',
-      'HADDON TWP ONLY -- Teacher requested whole group support',
+      'Scholar Left Early',   // scholar came, left early — count as attended
     ]);
+
+    // Scholar-caused misses — counted in scholar denominator
+    // These are sessions the scholar missed for reasons within their (or school's) control
+    // CT Request: teacher pulled scholar from tutoring — counts against scholar's attendance rate
+    const SCHOLAR_MISS_REASONS = new Set([
+      '',                                           // blank = unknown, counts against scholar
+      'Absent',                                     // scholar absent from school
+      'Scholar declined attending tutoring session', // scholar's own choice
+      'Classroom Teacher Requested to Keep Scholar in Class', // teacher kept scholar — counts as missed tutoring
+      'HADDON TWP ONLY -- Teacher requested whole group support', // same — teacher decision, scholar missed tutoring
+    ]);
+
+    // Tutor-caused misses — counted in tutor denominator (instructor rows only)
+    const TUTOR_MISS_REASONS = new Set([
+      '',                                           // blank instructor miss
+      'Absent; Not Covered (Tutor not available)',  // tutor absent, no coverage
+      'Absent; Covered by Sub Tutor',               // tutor absent (covered, but still absent)
+      'Absent; Covered by Dual Role',
+      'Absent; Covered by the Site Leader',
+      'Absent; Covered by the Instructional Coach',
+      'Tutor Left Early (no sub)',                  // tutor left early
+    ]);
+
+    // Legacy alias — kept for any remaining references in flag/SI logic
     const ABSENT_REASONS = new Set([
-      'Absent','Absent; Covered by Dual Role','Absent; Covered by Sub Tutor',
-      'Absent; Covered by the Instructional Coach','Absent; Covered by the Site Leader',
-      'Absent; Not Covered (Tutor not available)','Tutor Absent',
-      // Counts against attendance AND triggers a Program Team flag (see buildIndexes)
-      'Scholar declined attending tutoring session',
-      // 'Tutor Vacancy' is intentionally NOT here — it must NOT affect attendance rates.
-      // It is classified as a high-severity service interruption below.
+      'Absent','Scholar declined attending tutoring session','',
+      // Legacy set used by flag logic. Attendance rates now use
+      // SCHOLAR_MISS_REASONS / TUTOR_MISS_REASONS for precision.
     ]);
     // Declined sessions: tracked separately so we can flag patterns for Programming
     const DECLINED_REASON = 'Scholar declined attending tutoring session';
@@ -7016,14 +7044,29 @@
     };
 
     function classifyRecord(r) {
-      const attStat   = r[ATT.ATT_STATUS]  || '';
-      const missReason = r[ATT.MISS_REASON] || '';
-      if (attStat === 'Attended' || attStat === 'Late')      return 'attended';
-      if (COUNTS_AS_ATTENDED.has(missReason))                 return 'attended';
-      if (attStat === 'Not recorded')                        return 'not_recorded';
-      if (ABSENT_REASONS.has(missReason))                    return 'absent';
-      if (missReason && SI_SEVERITY[missReason])             return 'service_interruption';
-      if (missReason)                                        return 'service_interruption'; // catch-all
+      const role       = r[ATT.ROLE]       || '';
+      const attStat    = r[ATT.ATT_STATUS] || '';
+      const missReason = r[ATT.MISS_REASON]|| '';
+
+      // ── Attended ────────────────────────────────────────────────────────
+      if (attStat === 'Attended' || attStat === 'Late') return 'attended';
+      if (COUNTS_AS_ATTENDED.has(missReason))           return 'attended';
+      if (attStat === 'Not recorded')                   return 'not_recorded';
+
+      // ── Missed: classify by role ────────────────────────────────────────
+      if (attStat === 'Missed') {
+        if (role === 'Student') {
+          // Scholar-caused miss → counted in scholar denominator
+          if (SCHOLAR_MISS_REASONS.has(missReason))    return 'absent';
+          // Everything else is a service interruption — NOT the scholar's fault
+          return 'service_interruption';
+        } else {
+          // Instructor row: tutor-caused miss → counted in tutor denominator
+          if (TUTOR_MISS_REASONS.has(missReason))      return 'absent';
+          return 'service_interruption';
+        }
+      }
+
       return 'other';
     }
 
@@ -7362,6 +7405,20 @@
         }
       }
 
+      // ── Pre-compute valid tutor-scholar pairs ─────────────────────────
+      // A tutor is only "assigned" to a scholar if at least ONE session together
+      // is NOT Cancelled. If every session is Cancelled, the tutor was never
+      // actually seen by that scholar (likely assigned by mistake) — exclude them.
+      // validPairs: Set of "instId|stuId" strings
+      const validPairs = new Set();
+      for (const sess of Object.values(_sessMap)) {
+        if (sess.status === 'Cancelled') continue; // skip fully-cancelled sessions
+        if (!sess.instId) continue;
+        for (const stuId of sess.studentIds) {
+          validPairs.add(sess.instId + '|' + stuId);
+        }
+      }
+
       // ── Link sessions to schools and instructor IDs ───────────────────
       for (const sess of Object.values(_sessMap)) {
         if (!sess.school) continue;
@@ -7370,18 +7427,23 @@
         sc.sessions.push(sess);
 
         // Track per-student: which instructors taught which subject + minutes received
-        // Substitutes (name contains "SUB") tracked separately
+        // Only link tutor→scholar when the pair has at least one non-cancelled session.
+        // Substitutes (name contains "SUB") tracked separately.
         const isSub = (sess.instructor || '').toUpperCase().includes('SUB');
         const subj  = sess.subject || '';
         for (const stuId of sess.studentIds) {
           const p = _personMap[stuId]; if (!p) continue;
-          if (!isSub) p.instructorIds.add(sess.instId);
+          // Skip if this tutor-scholar pair is entirely cancelled
+          if (sess.instId && !validPairs.has(sess.instId + '|' + stuId)) continue;
           if (!p.subjectTutors[subj]) p.subjectTutors[subj] = { primary: {}, subs: {} };
-          if (isSub) p.subjectTutors[subj].subs[sess.instId]  = sess.instructor;
-          else        p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
+          if (isSub) {
+            p.subjectTutors[subj].subs[sess.instId]  = sess.instructor;
+          } else {
+            if (!isSub) p.instructorIds.add(sess.instId);
+            p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
+          }
           // Accumulate delivered minutes per subject (Completed sessions only)
           if (sess.isDelivered && sess.durMins > 0) {
-            if (!p.subjectMinutes) p.subjectMinutes = {};
             p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + sess.durMins;
           }
         }
@@ -7404,12 +7466,13 @@
               p.flags.push({ type:'continuity', severity:'medium',
                 msg: subjects.length + ' subjects on record — verify scheduling is intentional' });
             } else {
-              const issues = subjects.filter(subj =>
-                Object.keys(p.subjectTutors[subj] && p.subjectTutors[subj].primary || {}).length > 1
-              );
+              const issues = subjects.filter(subj => {
+                const st = p.subjectTutors[subj];
+                return st && st.primary && Object.keys(st.primary).length > 1;
+              });
               if (issues.length > 0) {
                 const detail = issues.map(subj => {
-                  const n = Object.keys(p.subjectTutors[subj].primary).length;
+                  const n = Object.keys((p.subjectTutors[subj] || {}).primary || {}).length;
                   return subj + ' (' + n + ' tutors)';
                 }).join(', ');
                 p.flags.push({ type:'continuity', severity:'medium',
@@ -7505,13 +7568,27 @@
         if (declinedCount > 0)
           sc.flags.push({ type:'declined', severity: declinedCount >= 5 ? 'high' : 'medium', audience:'Programming', msg:`${declinedCount} scholar-declined session${declinedCount > 1 ? 's' : ''} — Program Team engagement review needed` });
 
-        // Attendance rate for school
-        sc.attRate = sc.totalStudentRows > 0
-          ? Math.round(sc.stuAttended / (sc.stuAttended + sc.stuAbsent + sc.stuInterruptions) * 100) : 0;
+        // CT-request flag: if teacher pull-outs exceed 10% of student sessions at this school,
+        // flag for partner/school-level conversation (counts against scholar attendance but
+        // reflects a school-side pattern that warrants discussion)
+        const CT_REASON = 'Classroom Teacher Requested to Keep Scholar in Class';
+        const CT_REASON2 = 'HADDON TWP ONLY -- Teacher requested whole group support';
+        const stuTotalRows = sc.rows.filter(r => r[ATT.ROLE] === 'Student').length;
+        const ctCount = sc.rows.filter(r => r[ATT.ROLE] === 'Student' &&
+          (r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON2)).length;
+        if (stuTotalRows > 0 && ctCount / stuTotalRows > 0.10)
+          sc.flags.push({ type:'ct_pull', severity:'medium', audience:'Programming · Leadership',
+            msg: `Teacher pull-outs account for ${Math.round(ctCount/stuTotalRows*100)}% of sessions (${ctCount}) — exceeds 10% threshold, school-level conversation recommended` });
+
+        // Attendance rate: scholar-caused denominator only (not SI)
+        // stuAbsent = scholar-caused misses; stuInterruptions = SI (excluded)
+        sc.attRate = (sc.stuAttended + sc.stuAbsent) > 0
+          ? Math.round(sc.stuAttended / (sc.stuAttended + sc.stuAbsent) * 100) : 0;
       }
 
       // Update global flags badge
       updateFlagsBadge();
+      _notifyLeadershipReady();
     }
 
     function initSchool(school, district) {
@@ -8507,6 +8584,15 @@
       if (!_inited) init();
     }
 
+    // Called after buildIndexes completes — refresh talent panel if leadership is viewing it
+    function _notifyLeadershipReady() {
+      try {
+        if (typeof _currentDept !== 'undefined' && _currentDept === 'leadership') {
+          if (typeof buildTalentContent === 'function') buildTalentContent();
+        }
+      } catch(e) { /* ignore */ }
+    }
+
     // ── INIT ──────────────────────────────────────────────────────────────
     function init() {
       if (_inited) return; _inited = true;
@@ -8525,15 +8611,18 @@
     function getLeadershipData() {
       if (!_attRows.length) return null;
 
-      // ── Scholar & tutor attendance ──
-      const ABSENT_REASONS_SET = new Set(['Absent','Scholar Left Early','Scholar declined attending tutoring session','Scholar Archived - Removed from Sessions']);
-      const stuRows  = _attRows.filter(r => r[ATT.ROLE] === 'Student');
-      const instRows = _attRows.filter(r => r[ATT.ROLE] === 'Instructor');
-
-      const stuAtt  = stuRows.filter(r => r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late').length;
-      const stuMiss = stuRows.filter(r => r[ATT.ATT_STATUS] === 'Missed').length;
-      const instAtt  = instRows.filter(r => r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late').length;
-      const instMiss = instRows.filter(r => r[ATT.ATT_STATUS] === 'Missed').length;
+      // ── Scholar & tutor attendance (via classifyRecord for consistency) ──
+      let stuAtt = 0, stuMiss = 0, instAtt = 0, instMiss = 0;
+      for (const r of _attRows) {
+        const cls = classifyRecord(r);
+        if (r[ATT.ROLE] === 'Student') {
+          if (cls === 'attended') stuAtt++;
+          else if (cls === 'absent') stuMiss++;
+        } else if (r[ATT.ROLE] === 'Instructor') {
+          if (cls === 'attended') instAtt++;
+          else if (cls === 'absent') instMiss++;
+        }
+      }
 
       const scholarRate = (stuAtt + stuMiss) > 0 ? Math.round(stuAtt / (stuAtt + stuMiss) * 100) : 0;
       const tutorRate   = (instAtt + instMiss) > 0 ? Math.round(instAtt / (instAtt + instMiss) * 100) : 0;
@@ -8552,13 +8641,15 @@
       }
       const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : 0;
 
-      // ── Scholar performance tiers ──
+      // ── Scholar performance tiers (correct formula) ──
       const scholarAtt = {};
-      for (const r of stuRows) {
+      for (const r of _attRows) {
+        if (r[ATT.ROLE] !== 'Student') continue;
         const id = r[ATT.USER_ID]; if (!id) continue;
         if (!scholarAtt[id]) scholarAtt[id] = { att: 0, miss: 0 };
-        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') scholarAtt[id].att++;
-        else if (r[ATT.ATT_STATUS] === 'Missed') scholarAtt[id].miss++;
+        const cls = classifyRecord(r);
+        if (cls === 'attended') scholarAtt[id].att++;
+        else if (cls === 'absent') scholarAtt[id].miss++;
       }
       let onTrack = 0, atRisk = 0, needsAction = 0;
       for (const { att, miss } of Object.values(scholarAtt)) {
@@ -8571,34 +8662,42 @@
 
       // ── Districts ──
       const distMap = {};
-      for (const r of stuRows) {
+      for (const r of _attRows) {
+        const role = r[ATT.ROLE];
+        if (role !== 'Student' && role !== 'Instructor') continue;
         const dist = r[ATT.DISTRICT]; const school = r[ATT.SCHOOL]; if (!dist) continue;
         if (!distMap[dist]) distMap[dist] = { name: dist, schools: {}, stuAtt: 0, stuMiss: 0, instAtt: 0, instMiss: 0, scholars: new Set(), sessions: 0 };
-        distMap[dist].scholars.add(r[ATT.USER_ID]);
-        if (!distMap[dist].schools[school]) distMap[dist].schools[school] = { name: school, att: 0, miss: 0 };
-        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') {
-          distMap[dist].stuAtt++; distMap[dist].schools[school].att++;
-        } else if (r[ATT.ATT_STATUS] === 'Missed') {
-          distMap[dist].stuMiss++; distMap[dist].schools[school].miss++;
+        const cls = classifyRecord(r);
+        if (role === 'Student') {
+          distMap[dist].scholars.add(r[ATT.USER_ID]);
+          if (!distMap[dist].schools[school]) distMap[dist].schools[school] = { name: school, att: 0, miss: 0 };
+          if (cls === 'attended') { distMap[dist].stuAtt++; distMap[dist].schools[school].att++; }
+          else if (cls === 'absent') { distMap[dist].stuMiss++; distMap[dist].schools[school].miss++; }
+        } else {
+          if (cls === 'attended') distMap[dist].instAtt++;
+          else if (cls === 'absent') distMap[dist].instMiss++;
         }
-      }
-      for (const r of instRows) {
-        const dist = r[ATT.DISTRICT]; if (!dist || !distMap[dist]) continue;
-        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') distMap[dist].instAtt++;
-        else if (r[ATT.ATT_STATUS] === 'Missed') distMap[dist].instMiss++;
       }
       for (const sess of Object.values(_sessMap)) {
         if (sess.isDelivered && sess.district && distMap[sess.district]) distMap[sess.district].sessions++;
       }
+      const CT_REASON    = 'Classroom Teacher Requested to Keep Scholar in Class';
+      const CT_REASON_H  = 'HADDON TWP ONLY -- Teacher requested whole group support';
       const districts = Object.values(distMap).map(d => {
         const sTotal = d.stuAtt + d.stuMiss;
         const tTotal = d.instAtt + d.instMiss;
+        // CT pull-out rate: CT rows / all student rows in this district
+        const allStuRows  = _attRows.filter(r => r[ATT.ROLE] === 'Student' && r[ATT.DISTRICT] === d.name);
+        const ctRows      = allStuRows.filter(r => r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON_H);
+        const ctPct       = allStuRows.length > 0 ? Math.round(ctRows.length / allStuRows.length * 100) : 0;
         return {
           name: d.name,
           scholars: d.scholars.size,
           scholarRate: sTotal > 0 ? Math.round(d.stuAtt / sTotal * 100) : 0,
           tutorRate:   tTotal > 0 ? Math.round(d.instAtt / tTotal * 100) : 0,
           sessions: d.sessions,
+          ctPct,
+          ctFlag: ctPct > 10,
           schools: Object.values(d.schools).map(s => {
             const t = s.att + s.miss;
             return { name: s.name, rate: t > 0 ? Math.round(s.att / t * 100) : 0 };
@@ -8623,8 +8722,8 @@
         'HADDON TWP ONLY -- Teacher requested whole group support': 'Teacher group request',
       };
       const ctrlCounts = {}, unctrlCounts = {};
-      for (const r of stuRows) {
-        if (r[ATT.ATT_STATUS] !== 'Missed') continue;
+      for (const r of _attRows) {
+        if (r[ATT.ROLE] !== 'Student' || r[ATT.ATT_STATUS] !== 'Missed') continue;
         const reason = r[ATT.MISS_REASON];
         if (CONTROLLABLE[reason])   ctrlCounts[reason]   = (ctrlCounts[reason]   || 0) + 1;
         if (UNCONTROLLABLE[reason]) unctrlCounts[reason] = (unctrlCounts[reason] || 0) + 1;
@@ -8635,13 +8734,15 @@
       const ctrlTotal   = Object.values(ctrlCounts).reduce((s,v)=>s+v,0);
       const unctrlTotal = Object.values(unctrlCounts).reduce((s,v)=>s+v,0);
 
-      // ── Weekly trend ──
+      // ── Weekly trend (correct formula) ──
       const weekMap = {};
-      for (const r of stuRows) {
+      for (const r of _attRows) {
+        if (r[ATT.ROLE] !== 'Student') continue;
         const w = r[ATT.WEEK]; if (!w) continue;
         if (!weekMap[w]) weekMap[w] = { att: 0, miss: 0 };
-        if (r[ATT.ATT_STATUS] === 'Attended' || r[ATT.ATT_STATUS] === 'Late') weekMap[w].att++;
-        else if (r[ATT.ATT_STATUS] === 'Missed') weekMap[w].miss++;
+        const cls = classifyRecord(r);
+        if (cls === 'attended') weekMap[w].att++;
+        else if (cls === 'absent') weekMap[w].miss++;
       }
       const weeklyTrend = Object.entries(weekMap)
         .sort((a,b) => { const na = parseInt(a[0].replace(/\D/g,'')); const nb = parseInt(b[0].replace(/\D/g,'')); return na-nb; })
