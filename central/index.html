@@ -4424,26 +4424,62 @@
   const TALENT_CSV_GIDS = ['274671201'];
   const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
 
+  // Parse a full CSV text that may contain quoted multiline fields.
+  // Returns an array of string-arrays (rows → columns).
+  function _parseCSVFull(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    // Normalize line endings
+    const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inQ) {
+        if (c === '"') {
+          if (s[i+1] === '"') { cur += '"'; i++; } // escaped quote
+          else inQ = false;
+        } else {
+          cur += c; // include newlines inside quotes — this is the key fix
+        }
+      } else {
+        if (c === '"') { inQ = true; }
+        else if (c === ',') { row.push(cur); cur = ''; }
+        else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else { cur += c; }
+      }
+    }
+    if (cur || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+
   function _parseConcernsCSV(text) {
-    const lines = text.split('\n').filter(l => l.trim());
+    const rows = _parseCSVFull(text);
+    // Find header row (contains 'Timestamp') — skip any metadata rows at top
     let hRow = -1;
-    for (let i = 0; i < Math.min(5, lines.length); i++) {
-      if (lines[i].toLowerCase().includes('timestamp')) { hRow = i; break; }
+    for (let i = 0; i < Math.min(5, rows.length); i++) {
+      if ((rows[i][0]||'').toLowerCase().includes('timestamp')) { hRow = i; break; }
     }
     if (hRow < 0) return [];
+
     const fresh = [];
-    for (let i = hRow + 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i]);
-      if (!cols[0]) continue;
-      let dt;
-      try { dt = new Date(cols[0].replace(/\"/g,'')); if (isNaN(dt.getTime())) continue; } catch(e) { continue; }
-      const cType = (cols[13]||'').trim(), cOther = (cols[14]||'').trim();
+    const TS_RE = /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/;
+    for (let i = hRow + 1; i < rows.length; i++) {
+      const cols = rows[i];
+      const tsRaw = (cols[0]||'').trim().replace(/"/g,'');
+      // Strict timestamp validation — must match M/D/YYYY H:MM:SS exactly
+      if (!TS_RE.test(tsRaw)) continue;
+      const dt = new Date(tsRaw);
+      if (isNaN(dt.getTime()) || dt.getFullYear() < 2020) continue;
+      const emp = (cols[5]||'').trim();
+      if (!emp) continue; // every real row has an employee name
+      const cType  = (cols[13]||'').trim();
+      const cOther = (cols[14]||'').trim();
       fresh.push({
-        ts: cols[0],
-        month: dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
-        yr: dt.getFullYear(), mo: dt.getMonth()+1,
+        ts:           tsRaw,
+        month:        dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
+        yr:           dt.getFullYear(),
+        mo:           dt.getMonth()+1,
         submitter:    (cols[2] ||'').trim(),
-        emp:          (cols[5] ||'').trim(),
+        emp:          emp,
         role:         (cols[6] ||'').trim(),
         support_type: (cols[9] ||'').trim(),
         delivery:     (cols[11]||'').trim(),
