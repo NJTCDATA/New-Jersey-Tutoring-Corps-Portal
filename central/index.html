@@ -1749,6 +1749,182 @@
     .po-severity-high{background:#fee2e2;color:#991b1b;padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
     .po-severity-medium{background:#fef3c7;color:#92400e;padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
     .po-severity-low{background:var(--surface-2);color:var(--muted);padding:.15rem .5rem;border-radius:4px;font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LEADERSHIP EXECUTIVE VIEW
+       ═══════════════════════════════════════════════════════════════════════ */
+    .po-exec-wrap { display:flex; flex-direction:column; gap:1.25rem; }
+
+    /* Status Banner */
+    .po-exec-banner { border-radius:var(--radius); padding:1rem 1.5rem; display:flex; align-items:center; gap:1rem; }
+    .po-exec-banner.green  { background:linear-gradient(135deg,#064e2b,#0d6e3a); color:#fff; }
+    .po-exec-banner.amber  { background:linear-gradient(135deg,#78350f,#d97706); color:#fff; }
+    .po-exec-banner.red    { background:linear-gradient(135deg,#7f1d1d,#b91c1c); color:#fff; }
+    .po-exec-banner-icon   { font-size:2rem; flex-shrink:0; }
+    .po-exec-banner-label  { font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; opacity:.8; margin-bottom:.15rem; }
+    .po-exec-banner-title  { font-family:'DM Serif Display',serif; font-size:1.25rem; font-weight:700; margin-bottom:.25rem; }
+    .po-exec-banner-sub    { font-size:.8125rem; opacity:.85; }
+
+    /* KPI Cards Row */
+    .po-exec-kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; }
+    @media(max-width:900px){ .po-exec-kpi-row { grid-template-columns:repeat(2,1fr); } }
+    .po-exec-kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; position:relative; overflow:hidden; transition:var(--transition); }
+    .po-exec-kpi:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+    .po-exec-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:4px; background:var(--kpi-color,var(--blue-mid)); }
+    .po-exec-kpi-icon  { font-size:1.5rem; margin-bottom:.5rem; }
+    .po-exec-kpi-label { font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:.375rem; }
+    .po-exec-kpi-val   { font-family:'DM Serif Display',serif; font-size:2.5rem; font-weight:700; line-height:1; color:var(--navy); margin-bottom:.25rem; }
+    .po-exec-kpi-sub   { font-size:.75rem; color:var(--muted); }
+    .po-exec-kpi-trend { display:inline-flex; align-items:center; gap:.2rem; font-size:.75rem; font-weight:700; margin-top:.375rem; }
+    .po-exec-kpi-trend.up   { color:var(--met); }
+    .po-exec-kpi-trend.down { color:var(--notmet); }
+    .po-exec-kpi-trend.flat { color:var(--muted); }
+
+    /* Scholar Health Row */
+    .po-exec-health-row { display:grid; grid-template-columns:2fr 1fr; gap:1rem; }
+    @media(max-width:900px){ .po-exec-health-row { grid-template-columns:1fr; } }
+
+    /* Scholar Tier Gauges */
+    .po-exec-tiers { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; }
+    .po-exec-card-title { font-size:.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:1rem; padding-bottom:.625rem; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:.5rem; justify-content:space-between; }
+    .po-exec-tier-bars  { display:flex; flex-direction:column; gap:.75rem; }
+    .po-exec-tier-row   { display:flex; align-items:center; gap:.75rem; }
+    .po-exec-tier-lbl   { font-size:.8125rem; font-weight:600; width:100px; flex-shrink:0; }
+    .po-exec-tier-bar   { flex:1; height:10px; background:var(--border); border-radius:5px; overflow:hidden; }
+    .po-exec-tier-fill  { height:100%; border-radius:5px; transition:width .6s cubic-bezier(.4,0,.2,1); }
+    .po-exec-tier-cnt   { font-size:.8125rem; font-weight:700; color:var(--navy); width:40px; text-align:right; flex-shrink:0; }
+    .po-exec-tier-pct   { font-size:.75rem; color:var(--muted); width:36px; flex-shrink:0; }
+
+    /* Absence Drivers */
+    .po-exec-absence { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; }
+    .po-exec-driver-section { margin-bottom:1rem; }
+    .po-exec-driver-heading { font-size:.6875rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-bottom:.625rem; display:flex; align-items:center; gap:.375rem; }
+    .po-exec-driver-row     { display:flex; align-items:center; gap:.625rem; margin-bottom:.5rem; }
+    .po-exec-driver-lbl     { font-size:.8125rem; color:var(--text-2); flex:1; }
+    .po-exec-driver-bar     { width:80px; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+    .po-exec-driver-fill    { height:100%; border-radius:3px; }
+    .po-exec-driver-cnt     { font-size:.8125rem; font-weight:700; color:var(--navy); width:32px; text-align:right; }
+
+    /* Weekly Trend Chart */
+    .po-exec-trend { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; }
+    .po-exec-chart  { display:flex; align-items:flex-end; gap:4px; height:60px; margin-top:.75rem; }
+    .po-exec-bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:default; position:relative; }
+    .po-exec-bar-wrap:hover .po-exec-tooltip { display:block; }
+    .po-exec-bar     { width:100%; border-radius:3px 3px 0 0; transition:height .5s; min-height:2px; }
+    .po-exec-bar-lbl { font-size:.55rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; text-align:center; }
+    .po-exec-tooltip { display:none; position:absolute; bottom:calc(100% + 4px); left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; font-size:.7rem; padding:.2rem .4rem; border-radius:4px; white-space:nowrap; pointer-events:none; z-index:10; }
+
+    /* District Scorecard */
+    .po-exec-scorecard { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+    .po-exec-table { width:100%; border-collapse:collapse; }
+    .po-exec-table th { background:var(--navy); color:#fff; padding:.5rem .875rem; font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; text-align:left; white-space:nowrap; }
+    .po-exec-table td { padding:.625rem .875rem; font-size:.8125rem; border-bottom:1px solid var(--border-2); vertical-align:middle; }
+    .po-exec-table tr:last-child td { border-bottom:none; }
+    .po-exec-table tr:hover td { background:var(--surface-2); cursor:pointer; }
+    .po-exec-rate-pill { display:inline-flex; align-items:center; gap:.3rem; font-weight:700; font-size:.875rem; }
+    .po-exec-mini-bar { display:inline-block; height:4px; border-radius:2px; vertical-align:middle; margin-left:.375rem; }
+
+    /* Action Items */
+    .po-exec-actions { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem 1.5rem; }
+    .po-exec-action-item { display:flex; align-items:flex-start; gap:.75rem; padding:.625rem 0; border-bottom:1px solid var(--border-2); }
+    .po-exec-action-item:last-child { border-bottom:none; padding-bottom:0; }
+    .po-exec-action-icon { font-size:1.25rem; flex-shrink:0; margin-top:.1rem; }
+    .po-exec-action-title { font-size:.875rem; font-weight:700; color:var(--navy); margin-bottom:.125rem; }
+    .po-exec-action-body  { font-size:.8125rem; color:var(--text-2); }
+    .po-exec-empty { text-align:center; padding:2rem; color:var(--muted); font-size:.875rem; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       DATA DEPARTMENT — TRUE OPERATIONS DASHBOARD
+       ═══════════════════════════════════════════════════════════════════════ */
+    .po-ops-wrap { display:flex; flex-direction:column; gap:1rem; }
+
+    /* Live header bar */
+    .po-ops-header { background:linear-gradient(135deg,#0a1628 0%,#1a2f55 100%); color:#fff; border-radius:var(--radius); padding:.875rem 1.5rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+    .po-ops-header-left { display:flex; align-items:center; gap:.875rem; }
+    .po-ops-live-dot { width:10px; height:10px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.25); animation:livePulse 2s infinite; flex-shrink:0; }
+    @keyframes livePulse { 0%,100%{box-shadow:0 0 0 3px rgba(34,197,94,.25)} 50%{box-shadow:0 0 0 6px rgba(34,197,94,.1)} }
+    .po-ops-header-title { font-family:'DM Serif Display',serif; font-size:1.125rem; font-weight:700; }
+    .po-ops-header-sub   { font-size:.75rem; opacity:.7; margin-top:.1rem; }
+    .po-ops-header-meta  { display:flex; gap:1.5rem; }
+    .po-ops-meta-item    { text-align:right; }
+    .po-ops-meta-lbl     { font-size:.6rem; text-transform:uppercase; letter-spacing:.1em; opacity:.6; margin-bottom:.1rem; }
+    .po-ops-meta-val     { font-size:1rem; font-weight:700; }
+
+    /* KPI strip */
+    .po-ops-kpi-strip { display:grid; grid-template-columns:repeat(5,1fr); gap:.75rem; }
+    @media(max-width:1000px){ .po-ops-kpi-strip { grid-template-columns:repeat(3,1fr); } }
+    .po-ops-kpi { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:.875rem 1rem; position:relative; overflow:hidden; }
+    .po-ops-kpi::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--kc,#0050c8); }
+    .po-ops-kpi-lbl { font-size:.575rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:.3rem; }
+    .po-ops-kpi-val { font-family:'DM Serif Display',serif; font-size:1.875rem; font-weight:700; color:var(--navy); line-height:1; }
+    .po-ops-kpi-sub { font-size:.7rem; color:var(--muted); margin-top:.2rem; }
+    .po-ops-kpi-change { font-size:.7rem; font-weight:700; display:inline-flex; align-items:center; gap:.15rem; margin-top:.25rem; }
+
+    /* Two-column layout */
+    .po-ops-cols { display:grid; grid-template-columns:2fr 1fr; gap:.75rem; }
+    @media(max-width:900px){ .po-ops-cols { grid-template-columns:1fr; } }
+    .po-ops-three-cols { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.75rem; }
+    @media(max-width:900px){ .po-ops-three-cols { grid-template-columns:1fr; } }
+
+    /* Panel card */
+    .po-ops-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+    .po-ops-panel-hd { background:var(--surface-2); border-bottom:1px solid var(--border); padding:.5rem 1rem; font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); display:flex; align-items:center; justify-content:space-between; }
+    .po-ops-panel-body { padding:.875rem 1rem; }
+
+    /* School ops table */
+    .po-ops-table { width:100%; border-collapse:collapse; }
+    .po-ops-table th { font-size:.575rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); padding:.375rem .5rem; border-bottom:1px solid var(--border); text-align:left; white-space:nowrap; }
+    .po-ops-table td { padding:.375rem .5rem; font-size:.75rem; border-bottom:1px solid var(--border-2); vertical-align:middle; }
+    .po-ops-table tr:last-child td { border-bottom:none; }
+    .po-ops-table tr:hover td { background:var(--surface-2); cursor:pointer; }
+    .po-ops-table .school-name { font-weight:600; color:var(--navy); font-size:.75rem; }
+    .po-ops-table .dist-name   { font-size:.6rem; color:var(--muted); }
+
+    /* Rate gauge mini */
+    .po-ops-gauge { display:inline-flex; flex-direction:column; align-items:center; gap:.15rem; }
+    .po-ops-gauge-ring { width:38px; height:38px; position:relative; }
+    .po-ops-gauge-ring svg { transform:rotate(-90deg); }
+    .po-ops-gauge-val { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.6rem; font-weight:700; color:var(--navy); }
+    .po-ops-gauge-lbl { font-size:.55rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+
+    /* Flag heat indicators */
+    .po-ops-flag-heat { display:inline-flex; gap:.15rem; }
+    .po-ops-flag-dot  { width:8px; height:8px; border-radius:50%; }
+
+    /* Trend sparkline inline */
+    .po-ops-sparkline { display:flex; align-items:flex-end; gap:2px; height:28px; }
+    .po-ops-spark-bar { flex:1; border-radius:1px 1px 0 0; min-width:4px; transition:height .4s; }
+
+    /* Alert feed */
+    .po-ops-alert-feed { display:flex; flex-direction:column; gap:.375rem; max-height:220px; overflow-y:auto; }
+    .po-ops-alert { display:flex; align-items:flex-start; gap:.5rem; padding:.5rem .625rem; border-radius:6px; font-size:.75rem; }
+    .po-ops-alert.crit { background:#7f1d1d22; border-left:3px solid #b91c1c; }
+    .po-ops-alert.warn { background:#fef3c7; border-left:3px solid #d97706; }
+    .po-ops-alert.info { background:var(--prog-bg); border-left:3px solid var(--blue-mid); }
+    .po-ops-alert.ok   { background:var(--met-bg); border-left:3px solid var(--met); }
+    .po-ops-alert-icon { font-size:.875rem; flex-shrink:0; margin-top:.05rem; }
+    .po-ops-alert-body { flex:1; }
+    .po-ops-alert-title { font-weight:700; color:var(--navy); margin-bottom:.1rem; }
+    .po-ops-alert-sub   { color:var(--text-2); font-size:.6875rem; }
+
+    /* Absence donut chart */
+    .po-ops-donut-wrap { display:flex; align-items:center; gap:1rem; }
+    .po-ops-donut      { position:relative; width:80px; height:80px; flex-shrink:0; }
+    .po-ops-donut svg  { transform:rotate(-90deg); }
+    .po-ops-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.2; }
+    .po-ops-donut-pct  { font-size:.875rem; font-weight:700; color:var(--navy); }
+    .po-ops-donut-sub  { font-size:.55rem; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .po-ops-donut-legend { flex:1; display:flex; flex-direction:column; gap:.375rem; }
+    .po-ops-donut-leg-row { display:flex; align-items:center; gap:.375rem; font-size:.75rem; }
+    .po-ops-donut-leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .po-ops-donut-leg-lbl { flex:1; color:var(--text-2); }
+    .po-ops-donut-leg-cnt { font-weight:700; color:var(--navy); }
+
+    /* Scholar tier row */
+    .po-ops-tier-strip { display:flex; gap:.5rem; }
+    .po-ops-tier-box   { flex:1; border-radius:6px; padding:.625rem .75rem; text-align:center; }
+    .po-ops-tier-box .val { font-family:'DM Serif Display',serif; font-size:1.5rem; font-weight:700; line-height:1; }
+    .po-ops-tier-box .lbl { font-size:.625rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; margin-top:.2rem; }
     .po-survey-bar-wrap{display:flex;align-items:center;gap:.5rem}
     .po-survey-bar{height:8px;border-radius:4px;background:var(--border-2);flex:1;overflow:hidden}
     .po-survey-bar-fill{height:100%;border-radius:4px}
@@ -3789,9 +3965,11 @@
 
   function policyCardHTML(d, pid) {
     const color = DEPT_COLORS[d.dept] || '#888';
-    const url = d.driveUrl || (d.fileId && !d.fileId.startsWith('REPLACE') && !d.fileId.startsWith('TODO') && !d.fileId.startsWith('PASTE')
-      ? `https://drive.google.com/file/d/${d.fileId}/view`
-      : null);
+    const url = d.driveUrl && !d.driveUrl.includes('PASTE_YOUR') && !d.driveUrl.includes('REPLACE') && !d.driveUrl.includes('TODO')
+      ? d.driveUrl
+      : (d.fileId && !d.fileId.startsWith('REPLACE') && !d.fileId.startsWith('TODO') && !d.fileId.startsWith('PASTE')
+        ? `https://drive.google.com/file/d/${d.fileId}/view`
+        : null);
     const modified = d.modifiedDate && d.sectionsModified && d.sectionsModified.length > 0;
     const modTooltip = modified
       ? `<div class="has-tooltip" style="display:inline-block">
@@ -3862,14 +4040,18 @@
 
     // Drive Additions (uploaded files) open directly in Drive — no section reader modal
     if (d._isDriveUpload) {
-      const url = d.driveUrl || OPS_MANUAL_URL;
+      const rawUrl = d.driveUrl || OPS_MANUAL_URL;
+      const url = (rawUrl && !rawUrl.includes('PASTE_YOUR') && !rawUrl.includes('REPLACE') && !rawUrl.includes('TODO'))
+        ? rawUrl : null;
       // PDF uploads have a dataUrl — open in a new tab via blob
-      if (d._isPdf && url.startsWith('data:')) {
+      if (d._isPdf && url && url.startsWith('data:')) {
         const win = window.open('', '_blank');
         win.document.write('<iframe src="' + url + '" style="width:100%;height:100vh;border:none"></iframe>');
         return;
       }
-      window.open(url, '_blank', 'noopener');
+      if (url) { window.open(url, '_blank', 'noopener'); return; }
+      // No valid URL — show friendly message instead of opening a broken link
+      alert('No document URL has been configured for this entry yet. Please update the manifest with a valid Google Drive link.');
       return;
     }
 
@@ -7789,7 +7971,11 @@
     // ── VIEW ROUTER ───────────────────────────────────────────────────────
     function renderView() {
       updateStats();
-      if (_view === 'schools')         renderSchoolGrid();
+      if (_view === 'schools') {
+        if (role() === 'leadership')      renderLeadershipView();
+        else if (role() === 'data')       renderDataOpsView();
+        else                              renderSchoolGrid();
+      }
       else if (_view === 'school')     renderSchoolDetail();
       else if (_view === 'person')     renderPersonDetail();
     }
@@ -7830,6 +8016,424 @@
       }
       el.innerHTML = parts.join(' ');
       el.style.display = _view === 'schools' ? 'none' : 'flex';
+    }
+
+    // ── LEADERSHIP EXECUTIVE VIEW ─────────────────────────────────────────
+    function renderLeadershipView() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const d = getLeadershipData();
+      if (!d) { mc.innerHTML = '<div class="po-exec-empty">⏳ Loading program data…</div>'; return; }
+
+      // Status determination
+      const scholarOk = d.scholarRate >= 85;
+      const scholarWarn = d.scholarRate >= 75;
+      const tutorOk = d.tutorRate >= 85;
+      const totalScholars = d.scholarOnTrack + d.scholarAtRisk + d.scholarNeedsAction;
+      const critDistricts = d.districts.filter(dt => dt.scholarRate < 75).length;
+      const bannerClass = (scholarOk && tutorOk && critDistricts === 0) ? 'green' : (scholarWarn && critDistricts <= 1) ? 'amber' : 'red';
+      const bannerIcon = bannerClass === 'green' ? '✅' : bannerClass === 'amber' ? '⚠️' : '🔴';
+      const bannerTitle = bannerClass === 'green' ? 'Program Running Strong' : bannerClass === 'amber' ? 'Attention Needed in Some Areas' : 'Immediate Action Required';
+      const bannerSub = bannerClass === 'green'
+        ? `Scholar attendance at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered. No critical districts.`
+        : bannerClass === 'amber'
+        ? `Scholar attendance at ${d.scholarRate}%. ${critDistricts} district(s) below target — review recommended.`
+        : `Scholar attendance at ${d.scholarRate}% — below 75% threshold. ${critDistricts} district(s) in critical range.`;
+
+      // Trend arrow helper
+      const trendArr = (wt) => {
+        if (!wt || wt.length < 2) return '';
+        const last = wt[wt.length - 1].rate, prev = wt[wt.length - 2].rate;
+        const diff = last - prev;
+        if (diff > 2) return '<span class="po-exec-kpi-trend up">▲ ' + diff + 'pp</span>';
+        if (diff < -2) return '<span class="po-exec-kpi-trend down">▼ ' + Math.abs(diff) + 'pp</span>';
+        return '<span class="po-exec-kpi-trend flat">→ Stable</span>';
+      };
+
+      // Scholar survey stars
+      const stars = d.scholarSurvey > 0 ? '★'.repeat(Math.round(d.scholarSurvey)) + '☆'.repeat(5 - Math.round(d.scholarSurvey)) : '—';
+
+      // Tier percentages
+      const onTrackPct  = totalScholars > 0 ? Math.round(d.scholarOnTrack / totalScholars * 100) : 0;
+      const atRiskPct   = totalScholars > 0 ? Math.round(d.scholarAtRisk / totalScholars * 100) : 0;
+      const needActPct  = totalScholars > 0 ? Math.round(d.scholarNeedsAction / totalScholars * 100) : 0;
+
+      // Weekly trend chart (last 12 weeks)
+      const trend = (d.weeklyTrend || []).slice(-12);
+      const maxRate = trend.length ? Math.max(...trend.map(w => w.rate), 1) : 100;
+      const trendBars = trend.map(w => {
+        const h = Math.round((w.rate / 100) * 60);
+        const col = w.rate >= 85 ? '#0d6e3a' : w.rate >= 75 ? '#d97706' : '#b91c1c';
+        return `<div class="po-exec-bar-wrap" title="${w.week}: ${w.rate}%">
+          <div class="po-exec-tooltip">${w.week}<br>${w.rate}%</div>
+          <div class="po-exec-bar" style="height:${h}px;background:${col}"></div>
+          <div class="po-exec-bar-lbl">${(w.week||'').replace(/week\s*/i,'W').replace(/\s.*$/,'')}</div>
+        </div>`;
+      }).join('');
+
+      // District rows
+      const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
+        const rateColor = dt.scholarRate >= 85 ? 'var(--met)' : dt.scholarRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const pill = `<span class="po-exec-rate-pill" style="color:${rateColor}">${dt.scholarRate}%<span class="po-exec-mini-bar" style="width:${dt.scholarRate * 0.5}px;background:${rateColor};height:6px;border-radius:3px;vertical-align:middle;display:inline-block"></span></span>`;
+        const tutorColor = dt.tutorRate >= 85 ? 'var(--met)' : dt.tutorRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const flags = dt.ctFlag ? '<span class="po-badge po-badge-gold">⚠️ CT Pull-out</span>' : '<span class="po-badge po-badge-green">✓</span>';
+        return `<tr onclick="po.drillSchool('${esc(dt.schools[0]&&dt.schools[0].name||'')}')" style="cursor:pointer">
+          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} scholars · ${dt.schools.length} school(s)</div></td>
+          <td style="text-align:center">${pill}</td>
+          <td style="text-align:center"><span style="font-weight:700;color:${tutorColor}">${dt.tutorRate}%</span></td>
+          <td style="text-align:center"><span style="font-weight:600;color:var(--navy)">${dt.sessions}</span></td>
+          <td style="text-align:center">${flags}</td>
+        </tr>`;
+      }).join('');
+
+      // Action items
+      const actions = [];
+      if (d.scholarNeedsAction > 0) actions.push({ icon:'🚨', title: `${d.scholarNeedsAction} Scholar${d.scholarNeedsAction>1?'s':''} Need Immediate Attention`, body: `Attendance below 70%. These scholars are at risk of not meeting program requirements.`, sev:'crit' });
+      if (d.scholarAtRisk > 0) actions.push({ icon:'⚠️', title: `${d.scholarAtRisk} Scholar${d.scholarAtRisk>1?'s':''} At Risk`, body: `Attendance between 70–79%. Early intervention can prevent further decline.`, sev:'warn' });
+      if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Below Target Attendance`, body: `Scholar attendance below 75% threshold. Click the district table to drill into specific schools.`, sev:'crit' });
+      const ctDists = d.districts.filter(dt => dt.ctFlag);
+      if (ctDists.length) actions.push({ icon:'📋', title: `High CT Pull-out Rate in ${ctDists.map(x=>x.name).join(', ')}`, body: `Classroom teacher requests are limiting scholar access to tutoring sessions. Consider follow-up with site leadership.`, sev:'warn' });
+      if (d.absenceDrivers.controllable.total > 0) actions.push({ icon:'🔧', title: `${d.absenceDrivers.controllable.total} Controllable Absences This Period`, body: `Includes tutor absences, vacancies, and internal scheduling issues — factors within program control.`, sev:'warn' });
+      if (!actions.length) actions.push({ icon:'✅', title: 'No Critical Items', body: 'Program is operating within all acceptable thresholds.', sev:'ok' });
+      const actionHTML = actions.map(a => `<div class="po-exec-action-item"><div class="po-exec-action-icon">${a.icon}</div><div><div class="po-exec-action-title">${a.title}</div><div class="po-exec-action-body">${a.body}</div></div></div>`).join('');
+
+      // Absence drivers
+      const ctrl = d.absenceDrivers.controllable;
+      const unctrl = d.absenceDrivers.uncontrollable;
+      const maxCtrl = ctrl.reasons.length ? Math.max(...ctrl.reasons.map(r=>r.count), 1) : 1;
+      const maxUnctrl = unctrl.reasons.length ? Math.max(...unctrl.reasons.map(r=>r.count), 1) : 1;
+      const ctrlRows = ctrl.reasons.map(r => `<div class="po-exec-driver-row"><div class="po-exec-driver-lbl">${r.label}</div><div class="po-exec-driver-bar"><div class="po-exec-driver-fill" style="width:${Math.round(r.count/maxCtrl*100)}%;background:#b91c1c;height:6px;border-radius:3px"></div></div><div class="po-exec-driver-cnt">${r.count}</div></div>`).join('') || '<div style="font-size:.8rem;color:var(--muted)">None recorded</div>';
+      const unctrlRows = unctrl.reasons.map(r => `<div class="po-exec-driver-row"><div class="po-exec-driver-lbl">${r.label}</div><div class="po-exec-driver-bar"><div class="po-exec-driver-fill" style="width:${Math.round(r.count/maxUnctrl*100)}%;background:#0050c8;height:6px;border-radius:3px"></div></div><div class="po-exec-driver-cnt">${r.count}</div></div>`).join('') || '<div style="font-size:.8rem;color:var(--muted)">None recorded</div>';
+
+      mc.innerHTML = `<div class="po-exec-wrap">
+
+        <!-- STATUS BANNER -->
+        <div class="po-exec-banner ${bannerClass}">
+          <div class="po-exec-banner-icon">${bannerIcon}</div>
+          <div>
+            <div class="po-exec-banner-label">Program Health Status</div>
+            <div class="po-exec-banner-title">${bannerTitle}</div>
+            <div class="po-exec-banner-sub">${bannerSub}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;opacity:.8;font-size:.75rem">Auto-refreshes every 5 min<br>Click any district to drill down</div>
+        </div>
+
+        <!-- KPI ROW -->
+        <div class="po-exec-kpi-row">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=85?'var(--met)':d.scholarRate>=75?'#d97706':'var(--notmet)'}">
+            <div class="po-exec-kpi-icon">🎓</div>
+            <div class="po-exec-kpi-label">Scholar Attendance</div>
+            <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
+            <div class="po-exec-kpi-sub">${totalScholars} scholars tracked</div>
+            ${trendArr(d.weeklyTrend)}
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:${d.tutorRate>=85?'var(--met)':d.tutorRate>=75?'#d97706':'var(--notmet)'}">
+            <div class="po-exec-kpi-icon">👩‍🏫</div>
+            <div class="po-exec-kpi-label">Tutor Attendance</div>
+            <div class="po-exec-kpi-val">${d.tutorRate}<span style="font-size:1.25rem">%</span></div>
+            <div class="po-exec-kpi-sub">Staff showing up for scholars</div>
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:var(--blue-mid)">
+            <div class="po-exec-kpi-icon">📚</div>
+            <div class="po-exec-kpi-label">Sessions Delivered</div>
+            <div class="po-exec-kpi-val">${d.sessionsDelivered.toLocaleString()}</div>
+            <div class="po-exec-kpi-sub">Completed tutoring sessions</div>
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:#f59e0b">
+            <div class="po-exec-kpi-icon">⭐</div>
+            <div class="po-exec-kpi-label">Scholar Satisfaction</div>
+            <div class="po-exec-kpi-val" style="font-size:1.75rem">${d.scholarSurvey > 0 ? d.scholarSurvey.toFixed(1) : '—'}<span style="font-size:1rem">/5</span></div>
+            <div class="po-exec-kpi-sub" style="color:#f59e0b;font-size:.875rem">${stars}</div>
+          </div>
+        </div>
+
+        <!-- HEALTH + ABSENCE ROW -->
+        <div class="po-exec-health-row">
+          <div class="po-exec-tiers">
+            <div class="po-exec-card-title">
+              <span>📊 Scholar Attendance Health — ${totalScholars} Scholars</span>
+              <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% On Track · 70–79% At Risk · &lt;70% Needs Action</span>
+            </div>
+            <div class="po-exec-tier-bars">
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:var(--met)">🟢 On Track</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${onTrackPct}%;background:var(--met)"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarOnTrack}</div>
+                <div class="po-exec-tier-pct">${onTrackPct}%</div>
+              </div>
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:#d97706">🟡 At Risk</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${atRiskPct}%;background:#d97706"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarAtRisk}</div>
+                <div class="po-exec-tier-pct">${atRiskPct}%</div>
+              </div>
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:var(--notmet)">🔴 Needs Action</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${needActPct}%;background:var(--notmet)"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarNeedsAction}</div>
+                <div class="po-exec-tier-pct">${needActPct}%</div>
+              </div>
+            </div>
+            ${trend.length ? `
+            <div style="margin-top:1.25rem">
+              <div class="po-exec-card-title" style="margin-bottom:.625rem;border:none;padding:0">📈 Weekly Attendance Trend</div>
+              <div class="po-exec-chart">${trendBars}</div>
+            </div>` : ''}
+          </div>
+
+          <div class="po-exec-absence">
+            <div class="po-exec-card-title">🧩 Why Are Sessions Missed?</div>
+            <div class="po-exec-driver-section">
+              <div class="po-exec-driver-heading" style="color:var(--notmet)">⚡ Within Our Control (${ctrl.total})</div>
+              ${ctrlRows}
+            </div>
+            <div class="po-exec-driver-section" style="margin-bottom:0">
+              <div class="po-exec-driver-heading" style="color:var(--blue-mid)">🏫 Outside Our Control (${unctrl.total})</div>
+              ${unctrlRows}
+            </div>
+          </div>
+        </div>
+
+        <!-- DISTRICT SCORECARD -->
+        <div class="po-exec-scorecard">
+          <div class="po-exec-card-title" style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);margin:0;background:var(--surface-2)">
+            🗺️ District Performance Scorecard
+            <span style="font-weight:400;font-size:.75rem;color:var(--muted)">${d.districts.length} districts · Click a row to see schools</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="po-exec-table">
+              <thead><tr>
+                <th>District</th>
+                <th style="text-align:center">Scholar Attendance</th>
+                <th style="text-align:center">Tutor Attendance</th>
+                <th style="text-align:center">Sessions</th>
+                <th style="text-align:center">Flags</th>
+              </tr></thead>
+              <tbody>${distRows || '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted)">No district data available</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ACTION ITEMS -->
+        <div class="po-exec-actions">
+          <div class="po-exec-card-title" style="margin-bottom:.875rem">📋 Executive Briefing — Items Requiring Attention</div>
+          ${actionHTML}
+        </div>
+
+      </div>`;
+    }
+
+    // ── DATA DEPARTMENT TRUE OPERATIONS DASHBOARD ─────────────────────────
+    function renderDataOpsView() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const d = getLeadershipData();
+      if (!d) { mc.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">⏳ Loading operations data…</div>'; return; }
+
+      const schools = filteredSchools().sort((a, b) => b.attRate - a.attRate);
+      const totalScholars = d.scholarOnTrack + d.scholarAtRisk + d.scholarNeedsAction;
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      // KPI strip
+      const allFlags = schools.reduce((s, sc) => s + sc.flags.length, 0);
+      const allSI    = schools.reduce((s, sc) => s + sc.stuInterruptions, 0);
+      const critSchools = schools.filter(sc => sc.attRate < 75).length;
+
+      const kpis = [
+        { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 85 ? '#0d6e3a' : d.scholarRate >= 75 ? '#d97706' : '#b91c1c' },
+        { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 85 ? '#0d6e3a' : d.tutorRate >= 75 ? '#d97706' : '#b91c1c' },
+        { lbl:'Sessions Delivered', val: d.sessionsDelivered.toLocaleString(), sub:'Completed this period', col: '#0050c8' },
+        { lbl:'Service Interruptions', val: allSI, sub:'Non-attendance disruptions', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
+        { lbl:'HIT Flags Open', val: allFlags, sub:'Compliance violations', col: allFlags > 10 ? '#b91c1c' : allFlags > 3 ? '#d97706' : '#0d6e3a' },
+      ];
+      const kpiHTML = kpis.map(k => `
+        <div class="po-ops-kpi" style="--kc:${k.col}">
+          <div class="po-ops-kpi-lbl">${k.lbl}</div>
+          <div class="po-ops-kpi-val" style="color:${k.col}">${k.val}</div>
+          <div class="po-ops-kpi-sub">${k.sub}</div>
+        </div>`).join('');
+
+      // Alert feed
+      const alerts = [];
+      if (d.scholarNeedsAction > 0) alerts.push({ cls:'crit', icon:'🚨', title:`${d.scholarNeedsAction} scholars below 70% attendance`, sub:'Needs immediate intervention' });
+      if (d.scholarAtRisk > 0) alerts.push({ cls:'warn', icon:'⚠️', title:`${d.scholarAtRisk} scholars at risk (70–79%)`, sub:'Monitor and support' });
+      if (critSchools > 0) alerts.push({ cls:'crit', icon:'🏫', title:`${critSchools} school${critSchools>1?'s':''} below 75% attendance`, sub:'Below program threshold' });
+      schools.filter(sc => sc.flags.some(f => f.severity === 'critical')).slice(0,3).forEach(sc => alerts.push({ cls:'crit', icon:'⚑', title:`HIT Critical Flag: ${sc.school}`, sub:`${sc.flags.filter(f=>f.severity==='critical').length} critical compliance flag(s)` }));
+      schools.filter(sc => sc.stuInterruptions > 5).slice(0,3).forEach(sc => alerts.push({ cls:'warn', icon:'⚡', title:`High Service Interruptions: ${sc.school}`, sub:`${sc.stuInterruptions} disruptions this period` }));
+      if (!alerts.length) alerts.push({ cls:'ok', icon:'✅', title:'All systems nominal', sub:'No critical alerts at this time' });
+      const alertHTML = alerts.slice(0,8).map(a => `<div class="po-ops-alert ${a.cls}"><div class="po-ops-alert-icon">${a.icon}</div><div class="po-ops-alert-body"><div class="po-ops-alert-title">${a.title}</div><div class="po-ops-alert-sub">${a.sub}</div></div></div>`).join('');
+
+      // School ops table rows
+      const topSchools = schools.slice(0, 20);
+      const tableRows = topSchools.map(sc => {
+        const attColor = sc.attRate >= 85 ? 'var(--met)' : sc.attRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const hasCrit = sc.flags.some(f => f.severity === 'critical');
+        const hasHigh = sc.flags.some(f => f.severity === 'high');
+        const flagBadge = sc.flags.length ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">🚩${sc.flags.length}</span>` : '<span class="po-badge po-badge-green">✓</span>';
+        const siBadge = sc.stuInterruptions > 0 ? `<span class="po-badge ${sc.stuInterruptions>5?'po-badge-red':'po-badge-gold'}">⚠️${sc.stuInterruptions}</span>` : '<span class="po-badge po-badge-green">✓</span>';
+        const survStr = sc.stuSurveyAvg > 0 ? sc.stuSurveyAvg.toFixed(1) : '—';
+        // Mini sparkline for the school
+        const miniSpark = (() => {
+          const wm = {};
+          for (const r of _attRows) {
+            if (r[ATT.SCHOOL] !== sc.school || r[ATT.ROLE] !== 'Student') continue;
+            const w = r[ATT.WEEK]; if (!w) continue;
+            if (!wm[w]) wm[w] = {a:0,m:0};
+            const cls = classifyRecord(r);
+            if (cls==='attended') wm[w].a++; else if (cls==='absent') wm[w].m++;
+          }
+          const pts = Object.entries(wm).sort((a,b)=>{const na=parseInt(a[0].replace(/\D/g,'')),nb=parseInt(b[0].replace(/\D/g,'')); return na-nb;}).slice(-6).map(([,v])=>{const t=v.a+v.m; return t>0?Math.round(v.a/t*100):0;});
+          if (pts.length < 2) return '';
+          const mx = Math.max(...pts, 1);
+          return '<div class="po-ops-sparkline">' + pts.map(p=>{const h=Math.max(2,Math.round(p/mx*24)); const c=p>=85?'#0d6e3a':p>=75?'#d97706':'#b91c1c'; return `<div class="po-ops-spark-bar" style="height:${h}px;background:${c}"></div>`;}).join('') + '</div>';
+        })();
+        return `<tr onclick="po.drillSchool('${esc(sc.school)}')">
+          <td><div class="school-name">${sc.school}</div><div class="dist-name">${sc.district}</div></td>
+          <td style="text-align:center"><span style="font-weight:700;color:${attColor}">${sc.attRate}%</span></td>
+          <td style="text-align:center"><span style="font-weight:600;color:var(--navy)">${sc.sessions.length}</span></td>
+          <td style="text-align:center">${siBadge}</td>
+          <td style="text-align:center">${flagBadge}</td>
+          <td style="text-align:center">${survStr}</td>
+          <td>${miniSpark}</td>
+        </tr>`;
+      }).join('');
+
+      // Donut chart for absence split
+      const ctrl = d.absenceDrivers.controllable;
+      const unctrl = d.absenceDrivers.uncontrollable;
+      const totalAbs = ctrl.total + unctrl.total;
+      const ctrlPct = totalAbs > 0 ? Math.round(ctrl.total / totalAbs * 100) : 0;
+      const radius = 32, circumference = 2 * Math.PI * radius;
+      const ctrlDash = (ctrlPct / 100) * circumference;
+      const donutHTML = `
+        <div class="po-ops-donut-wrap">
+          <div class="po-ops-donut">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="${radius}" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+              <circle cx="40" cy="40" r="${radius}" fill="none" stroke="#b91c1c" stroke-width="10"
+                stroke-dasharray="${ctrlDash} ${circumference}" stroke-linecap="round"/>
+              <circle cx="40" cy="40" r="${radius}" fill="none" stroke="#0050c8" stroke-width="10"
+                stroke-dasharray="${circumference - ctrlDash} ${circumference}" stroke-dashoffset="${-ctrlDash}" stroke-linecap="round"/>
+            </svg>
+            <div class="po-ops-donut-center"><div class="po-ops-donut-pct">${totalAbs}</div><div class="po-ops-donut-sub">total</div></div>
+          </div>
+          <div class="po-ops-donut-legend">
+            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#b91c1c"></div><div class="po-ops-donut-leg-lbl">Controllable</div><div class="po-ops-donut-leg-cnt">${ctrl.total}</div></div>
+            <div class="po-ops-donut-leg-row"><div class="po-ops-donut-leg-dot" style="background:#0050c8"></div><div class="po-ops-donut-leg-lbl">External</div><div class="po-ops-donut-leg-cnt">${unctrl.total}</div></div>
+            ${ctrl.reasons.slice(0,2).map(r=>`<div class="po-ops-donut-leg-row" style="padding-left:.75rem"><div class="po-ops-donut-leg-dot" style="background:#fee2e2;border:1px solid #b91c1c"></div><div class="po-ops-donut-leg-lbl" style="font-size:.7rem">${r.label}</div><div class="po-ops-donut-leg-cnt" style="font-size:.7rem">${r.count}</div></div>`).join('')}
+          </div>
+        </div>`;
+
+      // Scholar tier boxes
+      const tierHTML = `
+        <div class="po-ops-tier-strip">
+          <div class="po-ops-tier-box" style="background:var(--met-bg)">
+            <div class="val" style="color:var(--met)">${d.scholarOnTrack}</div>
+            <div class="lbl" style="color:var(--met)">On Track</div>
+          </div>
+          <div class="po-ops-tier-box" style="background:#fef3c7">
+            <div class="val" style="color:#92400e">${d.scholarAtRisk}</div>
+            <div class="lbl" style="color:#92400e">At Risk</div>
+          </div>
+          <div class="po-ops-tier-box" style="background:var(--notm-bg)">
+            <div class="val" style="color:var(--notmet)">${d.scholarNeedsAction}</div>
+            <div class="lbl" style="color:var(--notmet)">Action Req.</div>
+          </div>
+        </div>`;
+
+      // Weekly trend chart ops style
+      const trend = (d.weeklyTrend || []).slice(-10);
+      const trendOpsHTML = trend.length ? `
+        <div style="margin-top:.625rem">
+          <div class="po-ops-sparkline" style="height:40px;gap:3px">
+            ${trend.map(w=>{const h=Math.max(2,Math.round(w.rate*0.4));const c=w.rate>=85?'#0d6e3a':w.rate>=75?'#d97706':'#b91c1c';return `<div title="${w.week}: ${w.rate}%" class="po-ops-spark-bar" style="height:${h}px;background:${c};flex:1;cursor:help"></div>`;}).join('')}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.55rem;color:var(--muted);margin-top:.25rem">
+            <span>${trend[0]?.week||''}</span><span>→ Latest: ${trend[trend.length-1]?.rate||0}%</span>
+          </div>
+        </div>` : '<div style="font-size:.75rem;color:var(--muted);padding:.5rem 0">No weekly data yet</div>';
+
+      mc.innerHTML = `<div class="po-ops-wrap">
+
+        <!-- LIVE HEADER BAR -->
+        <div class="po-ops-header">
+          <div class="po-ops-header-left">
+            <div class="po-ops-live-dot"></div>
+            <div>
+              <div class="po-ops-header-title">Pearl Operations Command Center</div>
+              <div class="po-ops-header-sub">Live data · ${schools.length} schools · Auto-refresh every 5 min</div>
+            </div>
+          </div>
+          <div class="po-ops-header-meta">
+            <div class="po-ops-meta-item">
+              <div class="po-ops-meta-lbl">Data as of</div>
+              <div class="po-ops-meta-val">${dateStr} ${timeStr}</div>
+            </div>
+            <div class="po-ops-meta-item">
+              <div class="po-ops-meta-lbl">Scholar Coverage</div>
+              <div class="po-ops-meta-val">${totalScholars.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPI STRIP -->
+        <div class="po-ops-kpi-strip">${kpiHTML}</div>
+
+        <!-- MAIN TWO-COL -->
+        <div class="po-ops-cols">
+
+          <!-- LEFT: School Table -->
+          <div class="po-ops-panel">
+            <div class="po-ops-panel-hd">
+              📋 School-Level Operations Monitor
+              <span style="font-weight:400">${schools.length} schools · Click to drill in</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table class="po-ops-table">
+                <thead><tr>
+                  <th>School / District</th>
+                  <th style="text-align:center">Att %</th>
+                  <th style="text-align:center">Sessions</th>
+                  <th style="text-align:center">Interruptions</th>
+                  <th style="text-align:center">HIT Flags</th>
+                  <th style="text-align:center">Survey</th>
+                  <th style="text-align:center">Trend</th>
+                </tr></thead>
+                <tbody>${tableRows || '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">Loading…</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- RIGHT: Alert Feed + Mini Stats -->
+          <div style="display:flex;flex-direction:column;gap:.75rem">
+
+            <!-- Alert Feed -->
+            <div class="po-ops-panel">
+              <div class="po-ops-panel-hd">🔔 Live Alert Feed</div>
+              <div class="po-ops-panel-body">
+                <div class="po-ops-alert-feed">${alertHTML}</div>
+              </div>
+            </div>
+
+            <!-- Scholar Tiers -->
+            <div class="po-ops-panel">
+              <div class="po-ops-panel-hd">🎓 Scholar Health Tiers</div>
+              <div class="po-ops-panel-body">
+                ${tierHTML}
+                ${trendOpsHTML}
+              </div>
+            </div>
+
+            <!-- Absence Breakdown -->
+            <div class="po-ops-panel">
+              <div class="po-ops-panel-hd">🧩 Absence Breakdown</div>
+              <div class="po-ops-panel-body">${donutHTML}</div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>`;
     }
 
     // ── SCHOOL GRID ───────────────────────────────────────────────────────
