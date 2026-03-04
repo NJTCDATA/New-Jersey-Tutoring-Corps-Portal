@@ -5760,6 +5760,8 @@
       if (id === 'finance-analytics') buildFinanceAnalytics();
       if (id === 'training-analytics') buildTrainingAnalytics();
       if (id === 'kpi-analytics') buildKPIAnalytics();
+      if (id === 'sy-analytics')  { if (window.sya) window.sya.onPanelOpen(); }
+      if (id === 'pearl-ops')     { if (window.po)  window.po.onPanelOpen();  }
     };
   })();
 
@@ -6997,13 +6999,18 @@
     // Defers map init to ensure the container has non-zero dimensions.
     // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
+      // 150ms for panel transition to complete, then init/invalidate
       setTimeout(() => {
         if (!_map) {
           initMap();
           if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
         }
         if (_map) _map.invalidateSize();
-      }, 80);
+      }, 150);
+      // Second invalidate at 400ms catches any remaining layout shifts
+      setTimeout(() => {
+        if (_map) _map.invalidateSize();
+      }, 400);
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
