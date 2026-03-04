@@ -31,6 +31,10 @@ on:
         description: 'Leadership code'
         required: true
         default: 'NJTC-LDR-2526'
+        CT_KB:
+        description: 'Leadership code'
+        required: true
+        default: 'NJTC-KB-2526'
       OS_CODE:
         description: 'Onsite Staff code (all onsite staff use this one code)'
         required: true
