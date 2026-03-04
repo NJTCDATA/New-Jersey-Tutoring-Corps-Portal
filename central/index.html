@@ -7273,16 +7273,14 @@
     ]);
 
     // Tutor-caused misses — counted in tutor denominator (instructor rows only)
-    // Rule: only count against a tutor when the TUTOR is the reason the session was missed.
-    // Blank reasons, school events, holidays, testing, drills, closures = NOT tutor's fault → SI.
     const TUTOR_MISS_REASONS = new Set([
+      '',                                           // blank instructor miss
       'Absent; Not Covered (Tutor not available)',  // tutor absent, no coverage
-      'Absent; Covered by Sub Tutor',               // tutor absent (sub covered, but tutor still missed)
-      'Absent; Covered by Dual Role',               // tutor absent (dual role covered)
-      'Absent; Covered by the Site Leader',         // tutor absent (site leader covered)
-      'Absent; Covered by the Instructional Coach', // tutor absent (IC covered)
-      'Tutor Left Early (no sub)',                  // tutor left session early
-      // NOTE: 'Tutor Vacancy' is a staffing gap — no tutor assigned — classified as service interruption, NOT a tutor absence
+      'Absent; Covered by Sub Tutor',               // tutor absent (covered, but still absent)
+      'Absent; Covered by Dual Role',
+      'Absent; Covered by the Site Leader',
+      'Absent; Covered by the Instructional Coach',
+      'Tutor Left Early (no sub)',                  // tutor left early
     ]);
 
     // Legacy alias — kept for any remaining references in flag/SI logic
@@ -7754,7 +7752,6 @@
         const isPartial   = isDelivered && sessAtt === 'Partially Attended';
         const isFullAtt   = isDelivered && sessAtt === 'Attended';
         const durMins     = parseDurationMins(r[SESS.ACTUAL_DUR] || r[SESS.SCHED_DUR]);
-        const actualDurMins = parseDurationMins(r[SESS.ACTUAL_DUR]); // no fallback — 0 if not recorded
         _sessMap[sid] = {
           id: sid, title: r[SESS.TITLE], instructor: r[SESS.INSTRUCTOR],
           instId: r[SESS.INST_ID], studentIds: stuIds,
@@ -7764,7 +7761,7 @@
           start: r[SESS.START], schedDur: r[SESS.SCHED_DUR],
           actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
           grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
-          durMins, actualDurMins, ratio,
+          durMins, ratio,
           ratioFlag: ratio > 4,  // HIT: must be ≤ 4:1 (flag, MOU governs)
         };
       }
@@ -7882,10 +7879,9 @@
             if (!isSub) p.instructorIds.add(sess.instId);
             p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
           }
-          // Accumulate delivered minutes per subject (Completed sessions, Actual Duration only)
-          const actualMins = parseDurationMins(sess.actualDur);
-          if (sess.isDelivered && actualMins > 0) {
-            p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + actualMins;
+          // Accumulate delivered minutes per subject (Completed sessions only)
+          if (sess.isDelivered && sess.durMins > 0) {
+            p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + sess.durMins;
           }
         }
       }
@@ -8014,12 +8010,12 @@
         // reflects a school-side pattern that warrants discussion)
         const CT_REASON = 'Classroom Teacher Requested to Keep Scholar in Class';
         const CT_REASON2 = 'HADDON TWP ONLY -- Teacher requested whole group support';
-        const stuTotalRows = sc.rows.filter(r => r[ATT.ROLE] === 'Student').length;
+        const stuMissedRows = sc.rows.filter(r => r[ATT.ROLE] === 'Student' && (r[ATT.ATT_STATUS] || '') === 'Missed').length;
         const ctCount = sc.rows.filter(r => r[ATT.ROLE] === 'Student' &&
           (r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON2)).length;
-        if (stuTotalRows > 0 && ctCount / stuTotalRows > 0.10)
+        if (stuMissedRows > 0 && ctCount / stuMissedRows > 0.10)
           sc.flags.push({ type:'ct_pull', severity:'medium', audience:'Programming · Leadership',
-            msg: `Teacher pull-outs account for ${Math.round(ctCount/stuTotalRows*100)}% of sessions (${ctCount}) — exceeds 10% threshold, school-level conversation recommended` });
+            msg: `Teacher pull-outs account for ${Math.round(ctCount/stuMissedRows*100)}% of missed sessions (${ctCount} of ${stuMissedRows}) — exceeds 10% threshold, school-level conversation recommended` });
 
         // Attendance rate: scholar-caused denominator only (not SI)
         // stuAbsent = scholar-caused misses; stuInterruptions = SI (excluded)
@@ -9880,10 +9876,11 @@
       const districts = Object.values(distMap).map(d => {
         const sTotal = d.stuAtt + d.stuMiss;
         const tTotal = d.instAtt + d.instMiss;
-        // CT pull-out rate: CT rows / all student rows in this district
-        const allStuRows  = _attRows.filter(r => r[ATT.ROLE] === 'Student' && r[ATT.DISTRICT] === d.name);
-        const ctRows      = allStuRows.filter(r => r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON_H);
-        const ctPct       = allStuRows.length > 0 ? Math.round(ctRows.length / allStuRows.length * 100) : 0;
+        // CT pull-out rate: CT rows / missed student rows in this district (not all rows)
+        const allStuRows     = _attRows.filter(r => r[ATT.ROLE] === 'Student' && r[ATT.DISTRICT] === d.name);
+        const stuMissedDist  = allStuRows.filter(r => (r[ATT.ATT_STATUS] || '') === 'Missed');
+        const ctRows         = stuMissedDist.filter(r => r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON_H);
+        const ctPct          = stuMissedDist.length > 0 ? Math.round(ctRows.length / stuMissedDist.length * 100) : 0;
         return {
           name: d.name,
           scholars: d.scholars.size,
@@ -10012,31 +10009,23 @@
           }
         }
 
-        // Duration — sum ACTUAL durations from DELIVERED (Completed) sessions only
-        // Uses Actual Duration when available; Scheduled Duration is NOT used as fallback
-        // because an unrecorded actual duration means the session may not have run as scheduled.
+        // Duration — sum actual durations from sessions this scholar was in
         let totalMins = 0;
         for (const [sid, sess] of Object.entries(_sessMap)) {
           if (!matchesSchoolFilter(sess.school, sess.district)) continue;
-          if (!sess.isDelivered) continue;                  // skip Missed / Cancelled
-          const actualMins = parseDurationMins(sess.actualDur); // Actual Duration only — no sched fallback
-          if (actualMins <= 0) continue;                    // skip if no actual duration recorded
           if (sess.studentIds && sess.studentIds.includes(uid)) {
-            totalMins += actualMins;
+            totalMins += sess.durMins || 0;
           }
         }
 
-        // Per-subject breakdown (from sessions) — delivered sessions with actual duration only
+        // Per-subject breakdown (from sessions)
         const bySubject = {};
         for (const [sid, sess] of Object.entries(_sessMap)) {
           if (!matchesSchoolFilter(sess.school, sess.district)) continue;
-          if (!sess.isDelivered) continue;                  // skip Missed / Cancelled
-          const actualMins = parseDurationMins(sess.actualDur); // Actual Duration only
-          if (actualMins <= 0) continue;
           if (sess.studentIds && sess.studentIds.includes(uid)) {
             const subj = sess.subject || 'Unknown';
             if (!bySubject[subj]) bySubject[subj] = { mins: 0, sessions: 0 };
-            bySubject[subj].mins += actualMins;
+            bySubject[subj].mins += sess.durMins || 0;
             bySubject[subj].sessions++;
           }
         }
@@ -10087,22 +10076,19 @@
         const total    = attended + absent;
         const attPct   = total > 0 ? (attended / total * 100).toFixed(1) : '';
 
-        // Sessions this tutor led — for duration, only count delivered sessions with actual duration
+        // Sessions this tutor led
         const ledSessions = Object.values(_sessMap).filter(s =>
           s.instId === uid && matchesSchoolFilter(s.school, s.district)
         );
-        const totalMins = ledSessions
-          .filter(s => s.isDelivered)
-          .reduce((a, s) => a + (s.actualDurMins || 0), 0);
+        const totalMins = ledSessions.reduce((a, s) => a + (s.durMins || 0), 0);
         const uniqueStudents = new Set(ledSessions.flatMap(s => s.studentIds || []));
 
-        // Per-subject — delivered sessions with actual duration only
+        // Per-subject
         const bySubject = {};
         for (const sess of ledSessions) {
-          if (!sess.isDelivered || !sess.actualDurMins) continue;
           const subj = sess.subject || 'Unknown';
           if (!bySubject[subj]) bySubject[subj] = { mins: 0, sessions: 0 };
-          bySubject[subj].mins += sess.actualDurMins;
+          bySubject[subj].mins += sess.durMins || 0;
           bySubject[subj].sessions++;
         }
 
@@ -10165,8 +10151,7 @@
           'Scheduled Start':     sess.start || '',
           'Scheduled Duration':  sess.schedDur || '',
           'Actual Duration':     sess.actualDur || '',
-          'Actual Duration (min)':  sess.actualDurMins || '',
-          'Duration (min, sched fallback)': sess.durMins || '',
+          'Duration (min)':      sess.durMins || '',
           'Attendance Summary':  sess.attendance || '',
           'Is Delivered':        sess.isDelivered ? 'Yes' : 'No',
           'Is Full Attendance':  sess.isFullAtt ? 'Yes' : 'No',
@@ -10189,7 +10174,7 @@
           'Service Interruptions':   sc.stuInterruptions,
           'Tutor Sessions':          sc.totalInstRows,
           'Sessions Delivered':      sc.sessions.filter(s => s.isDelivered).length,
-          'Total Duration (min)':    sc.sessions.filter(s => s.isDelivered).reduce((a,s) => a + (s.actualDurMins||0), 0),
+          'Total Duration (min)':    sc.sessions.reduce((a,s) => a + (s.durMins||0), 0),
           'Scholar Survey Avg':      safeNum(sc.stuSurveyAvg),
           'Tutor Survey Avg':        safeNum(sc.instSurveyAvg),
           'Scholar Survey Count':    sc.stuSurveyRows.length,
