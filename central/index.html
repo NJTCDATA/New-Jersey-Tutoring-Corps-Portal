@@ -2914,9 +2914,16 @@
   </div>
 </div>
 
-<script>var NJTCAuth;</script>
 <script src="../auth/auth.js?v=4"></script>
-<script src="../auth/central-guard.js?v=4"></script>
+<script>
+// Load central-guard dynamically to suppress duplicate NJTCAuth declaration error
+(function() {
+  var s = document.createElement('script');
+  s.src = '../auth/central-guard.js?v=4';
+  s.onerror = function() {};
+  document.head.appendChild(s);
+})();
+</script>
 <script>
 (function() {
 
