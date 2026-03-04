@@ -4735,48 +4735,87 @@
     </div>`;
   }
   function initTalentFilters() {
-    const dSel=document.getElementById('tf_district');
-    if (!dSel) return;
-    if (dSel.options.length<=1) {
-      ["Central Jersey College Prep", "First Philadelphia Prep", "Global Leadership Academy", "Gloucester Township SD", "HOLA Hoboken Charter", "Haddon Township SD", "Hamilton Township SD", "Lawrence Township SD", "Paterson Charter Sci & Tech", "Penns Grove-Carneys Point SD", "Salem City SD", "iLearn Charter Schools"].forEach(d=>{ const o=document.createElement('option'); o.value=o.textContent=d; dSel.appendChild(o); });
-      const mSel=document.getElementById('tf_month');
-      if (mSel) ["Mar 2025", "Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Sep 2025", "Oct 2025", "Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026"].forEach(m=>{ const o=document.createElement('option'); o.value=o.textContent=m; mSel.appendChild(o); });
-      const sSel=document.getElementById('tf_submitter');
-      if (sSel) ["Andrea Brooks", "Andrea Brooks, PM", "Andrea Brooks- PM", "Andrea Brooks- Program Manager", "Andrea Brooks/PM", "Anne Lee", "Bertin Lefkovic", "Briana Nurse", "Chelsea Ostrowski", "Colleen Elam", "Colleen Elam (Instructional Coach/Site Leader)", "Dr. Clemons", "Dr. Clemons- Program Manager", "Dr. Clemons-Program Manager", "Dr. T. Clemons / Program Manager", "Dr. Taneisha Clemons- Program Manager", "Faye Lewis Instructional Coach/Site Coordinator", "JLC", "Jenny Irwin, APM", "Jenny Irwin, Asst. Program Manager", "Jenny Irwin, Asst. Program Mgr", "Jessica Kelly, Exec Dir Programs", "Katharine Samberg-Lawrence", "Lakeeda Sessoms", "Lakeeda Sessoms (Site Leader/ Instructional Coach)", "Lakeeda Sessoms (Site Leader/Instructional Coach)", "Marta Reyes SC/IC", "Marta Reyes, IC/SC", "Marta Reyes-IC/SC", "Ms. Sessoms (Site Leader/Instructional Coach)", "Rene Lintz Program Assistant", "Sharlene Rahim", "Sharmina Ellis-SC/IC", "T Clemons Program Manager", "T. Clemons-Program Manager", "T. Clemons/Program Manager", "T.Clemons", "Taneisha Clemons", "Taneisha Clemons- Program Manager", "Tanya Israel-Sainthilaire", "Tierney Tittermary", "Tierney Tittermary (Assistant Program Manager)", "Tierney Tittermary/ APM", "Tierney Tittermary/APM"].filter(s=>s).forEach(s=>{ const o=document.createElement('option'); o.value=o.textContent=s; sSel.appendChild(o); });
-      const fb=document.getElementById('talentFilterBar');
-      if (fb&&!document.getElementById('tf_employee')) {
-        const empSel=document.createElement('select');
-        empSel.id='tf_employee'; empSel.className='filter-select'; empSel.style.cssText='flex:1;min-width:140px'; empSel.onchange=applyTalentFilters;
-        const allOpt=document.createElement('option'); allOpt.value=''; allOpt.textContent='All Employees'; empSel.appendChild(allOpt);
-        ["Alexandra Cristescu", "Angelica Werts", "Brandon (Bergen Middle Tutor)", "Bryanna Matos", "Caela Wilkerson", "Carlos Jacho", "Claudia Barbieri", "Coleen Piontkowskie", "D. Singleton", "Disan Singleton", "Durel Freeman", "Dylan Aiken", "Dylan Sepulveda", "Eliza Kabashi", "Erica Mela", "Evan White", "Fasiha SHAIKH", "Fasiha Shaikh", "Fasihah SHAIKH", "Genesis Troya", "Huda D", "Huda Deweat", "James DeJesus", "Jeff Wilder", "Jenny Seligman", "Katharine Samberg-Lawrence", "Katie Hennigan", "Kimara Ramsey", "Laura Gallucci", "Maryann Ficker", "Mattelyn Bullock", "Micaela Wilkerson", "Michelle Kim", "Naima Boutria", "Nicholas Antoine", "Nicole Cill", "Norelis Ramirez", "Pooja Tyagi", "Queen Beaute", "Rob Whittman", "Robb Whitman", "Robert Whitman", "Sara Gonzalez", "Shabnam Mustari", "Shanice Jackman", "Sharlene Rahim", "Sharmina Ellis", "Sharon Kessel", "Sharon Kessle", "Susan Dominguez", "Tabitha Parris", "Takiyah Jackson", "Ted Mills", "Timothy Winn", "Trushti Shah", "Victoria Nachimson", "Zahnick Underdue", "Zahnik Underdue"].forEach(e=>{ const o=document.createElement('option'); o.value=o.textContent=e; empSel.appendChild(o); });
-        const cb=fb.querySelector('button'); if (cb) fb.insertBefore(empSel,cb);
-      }
+    // Populate dropdowns from real CONCERNS data
+    const dSel = document.getElementById('tf_district');
+    if (dSel && dSel.options.length <= 1) {
+      ["Central Jersey College Prep", "First Philadelphia Prep", "Global Leadership Academy", "Gloucester Township SD", "Haddon Township SD", "Hamilton Township SD", "Hoboken / HOLA Charter", "Lawrence Township SD", "Paterson Charter Sci & Tech", "Penns Grove - Carneys Point SD", "Salem City SD", "iLearn Charter Schools"].forEach(d => {
+        const o = document.createElement('option'); o.value = o.textContent = d; dSel.appendChild(o);
+      });
+    }
+    const mSel = document.getElementById('tf_month');
+    if (mSel && mSel.options.length <= 1) {
+      ["Mar 2025", "Apr 2025", "May 2025", "Jun 2025", "Jul 2025", "Aug 2025", "Sep 2025", "Oct 2025", "Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026"].forEach(m => {
+        const o = document.createElement('option'); o.value = o.textContent = m; mSel.appendChild(o);
+      });
+    }
+    const sSel = document.getElementById('tf_submitter');
+    if (sSel && sSel.options.length <= 1) {
+      ["Andrea Brooks", "Andrea Brooks, PM", "Andrea Brooks- PM", "Andrea Brooks- Program Manager", "Andrea Brooks/PM", "Anne Lee", "Bertin Lefkovic", "Briana Nurse", "Chelsea Ostrowski", "Colleen Elam", "Colleen Elam (Instructional Coach/Site Leader)", "Danielle Hallahan", "Dr. Clemons", "Dr. Clemons- Program Manager", "Dr. Clemons-Program Manager", "Dr. T. Clemons / Program Manager", "Dr. Taneisha Clemons- Program Manager", "Faye Lewis Instructional Coach/Site Coordinator", "JLC", "Jenny Irwin, APM", "Jenny Irwin, Asst. Program Manager", "Jenny Irwin, Asst. Program Mgr", "Jessica Kelly, Exec Dir Programs", "Katharine Samberg-Lawrence", "Lakeeda Sessoms", "Lakeeda Sessoms (Site Leader/ Instructional Coach)", "Lakeeda Sessoms (Site Leader/Instructional Coach)", "Marta Reyes SC/IC", "Marta Reyes, IC/SC", "Marta Reyes-IC/SC", "Ms. Sessoms (Site Leader/Instructional Coach)", "Rene Lintz Program Assistant", "Sharlene Rahim", "Sharmina Ellis-SC/IC", "T Clemons Program Manager", "T. Clemons-Program Manager", "T. Clemons/Program Manager", "T.Clemons", "Taneisha Clemons", "Taneisha Clemons- Program Manager", "Tanya Israel-Sainthilaire", "Tierney Tittermary", "Tierney Tittermary (Assistant Program Manager)", "Tierney Tittermary/ APM", "Tierney Tittermary/APM"].forEach(s => {
+        const o = document.createElement('option'); o.value = o.textContent = s; sSel.appendChild(o);
+      });
+    }
+    // Employee filter — add dynamically if not present
+    const fb = document.getElementById('talentFilterBar');
+    if (fb && !document.getElementById('tf_employee')) {
+      const empSel = document.createElement('select');
+      empSel.id = 'tf_employee'; empSel.className = 'filter-select';
+      empSel.style.cssText = 'flex:1;min-width:140px';
+      empSel.onchange = applyTalentFilters;
+      const allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All Employees';
+      empSel.appendChild(allOpt);
+      ["Alexandra Cristescu", "Angelica Werts", "Brandon (Bergen Middle Tutor)", "Breaunna Braxton", "Bryanna Matos", "Carlos Jacho", "Claudia Barbieri", "Coleen Piontkowskie", "Disan Singleton", "Durel Freeman", "Dylan Aiken", "Dylan Sepulveda", "Eliza Kabashi", "Erica Mela", "Evan White", "Fasiha Shaikh", "Genesis Troya", "Huda Deweat", "James DeJesus", "Jeff Wilder", "Jenny Seligman", "Juanita Brown-Lyons", "Katharine Samberg-Lawrence", "Katie Hennigan", "Kimara Ramsey", "Laura Gallucci", "Marissa Onesi", "Maryann Ficker", "Mattelyn Bullock", "Micaela Wilkerson", "Michelle Kim", "Naima Boutria", "Nicholas Antoine", "Nicole Cill", "Norelis Ramirez", "Pooja Tyagi", "Queen Beaute", "Robert Whitman", "Sara Gonzalez", "Shabnam Mustari", "Shanice Jackman", "Sharlene Rahim", "Sharmina Ellis", "Sharon Kessel", "Sharon Kessle", "Susan Dominguez", "Tabitha Parris", "Takiyah Jackson", "Ted Mills", "Timothy Winn", "Trushti Shah", "Victoria Nachimson", "Zahnick Underdue", "Zahnik Underdue"].forEach(e => {
+        const o = document.createElement('option'); o.value = o.textContent = e; empSel.appendChild(o);
+      });
+      const cb = fb.querySelector('button'); if (cb) fb.insertBefore(empSel, cb);
     }
     applyTalentFilters();
   }
+    // District → site lookup for group-based filtering
+  const _DISTRICT_GROUPS = {"Central Jersey College Prep": ["Central Jersey College Prep"], "First Philadelphia Prep": ["First Philadelphia Prep Charter School (American Paradigm)"], "Global Leadership Academy": ["Global Leadership Academy - GLA- West"], "Gloucester Township SD": ["Gloucester Township School District- Erial Elementary School", "Gloucester Township School District- Loring Flemming Elementary School"], "Haddon Township SD": ["Haddon Township School District-Strawbridge Elementary School", "Haddon Township School District-Van Sciver Elementary School"], "Hamilton Township SD": ["Hamilton Township School District- Kuser Elementary School", "Hamilton Township School District- Mercerville Elementary School"], "Hoboken / HOLA Charter": ["Hoboken Dual Language Charter School (HOLA) - ES"], "Lawrence Township SD": ["Lawrence Township- Slackwood Elementary"], "Paterson Charter Sci & Tech": ["Paterson Charter School Science & Tech.- PCSST 4-7 Campus"], "Penns Grove - Carneys Point SD": ["Penns Grove - Carneys Point Regional School District- Penns Grove Middle School", "Penns Grove - Field Street Elementary"], "Salem City SD": ["Salem City School District- Salem - John Fenwick Academy (K-2)", "Salem City School District- Salem Middle School (3-5)"], "iLearn Charter Schools": ["iLearn Charter School- Bergen ES", "iLearn Charter School- Bergen MS", "iLearn Charter School- Clifton ES", "iLearn Charter School- Clifton MS", "iLearn Charter School- Hudson MS", "iLearn Charter School- Passaic ES", "iLearn Charter School- Passaic MS", "iLearn Charter School- Paterson ES", "iLearn Charter School- Paterson MS"]};
+
   function applyTalentFilters() {
-    const g=id=>document.getElementById(id)?.value||'';
-    const district=g('tf_district'),role=g('tf_role'),concern=g('tf_concern'),
-          month=g('tf_month'),hr=g('tf_hr'),submitter=g('tf_submitter'),employee=g('tf_employee');
-    const yr=_talentYear_selected;
-    _filteredConcerns=CONCERNS.filter(c=>
-      (!district||c.site===district)&&(!role||c.role===role)&&(!concern||c.concern_type===concern)&&
-      (!month||c.month===month)&&(!hr||c.hr_action===hr)&&(!submitter||c.submitter===submitter)&&
-      (!employee||c.emp===employee)&&(yr==='all'||yr===null||c.yr===Number(yr))
+    const g = id => document.getElementById(id)?.value || '';
+    const district  = g('tf_district');
+    const role      = g('tf_role');
+    const concern   = g('tf_concern');
+    const month     = g('tf_month');
+    const hr        = g('tf_hr');
+    const submitter = g('tf_submitter');
+    const employee  = g('tf_employee');
+    const yr        = _talentYear_selected;
+
+    // District group → array of exact site names
+    const distSites = district ? (_DISTRICT_GROUPS[district] || []) : null;
+
+    _filteredConcerns = CONCERNS.filter(c =>
+      (!distSites   || distSites.includes(c.site)) &&
+      (!role        || c.role === role) &&
+      (!concern     || c.concern_type === concern) &&
+      (!month       || c.month === month) &&
+      (!hr          || c.hr_action === hr) &&
+      (!submitter   || c.submitter === submitter) &&
+      (!employee    || c.emp === employee) &&
+      (yr === 'all' || yr === null || c.yr === Number(yr))
     );
-    const hasF=!![district,role,concern,month,hr,submitter,employee].find(v=>v)||(yr!=='all'&&yr!==null);
-    const countEl=document.getElementById('tf_count');
+
+    const hasF = !![district, role, concern, month, hr, submitter, employee].find(v => v) || (yr !== 'all' && yr !== null);
+    const countEl = document.getElementById('tf_count');
     if (countEl) {
-      countEl.textContent=hasF?`${_filteredConcerns.length} of ${CONCERNS.length} records`:`${CONCERNS.length} records`;
-      countEl.style.color=hasF&&_filteredConcerns.length<CONCERNS.length?'#e76f51':'var(--muted)';
+      countEl.textContent = hasF
+        ? `${_filteredConcerns.length} of ${CONCERNS.length} records`
+        : `${CONCERNS.length} records`;
+      countEl.style.color = hasF && _filteredConcerns.length < CONCERNS.length ? '#e76f51' : 'var(--muted)';
     }
     buildTalentContent();
   }
+  
   function clearTalentFilters() {
-    ['tf_district','tf_role','tf_concern','tf_month','tf_hr','tf_submitter','tf_employee'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-    _talentYear_selected='all';
-    document.querySelectorAll('#talentYearBar .pst-tab').forEach(b=>b.classList.remove('active'));
-    const ab=document.getElementById('tyrBtn-all'); if(ab) ab.classList.add('active');
+    ['tf_district','tf_role','tf_concern','tf_month','tf_hr','tf_submitter','tf_employee'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    _talentYear_selected = 'all';
+    document.querySelectorAll('#talentYearBar .pst-tab').forEach(b => b.classList.remove('active'));
+    const ab = document.getElementById('tyrBtn-all'); if (ab) ab.classList.add('active');
     applyTalentFilters();
   }
 
@@ -10554,6 +10593,7 @@
   window.resetConcernForm   = resetConcernForm;
   window.resetKPIInquiry    = resetKPIInquiry;
   window.setTalentTab       = setTalentTab;
+  window.applyTalentFilters = applyTalentFilters;
   window.setTalentYear      = setTalentYear;
   window.showChangeLog      = showChangeLog;
   window.submitConcernForm  = submitConcernForm;
