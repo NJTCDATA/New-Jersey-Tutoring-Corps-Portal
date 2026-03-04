@@ -2012,7 +2012,7 @@
         <span class="sl-badge" id="pearlFlagsBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
-        <span class="sl-icon">⚠️</span> Concern Form
+        <span class="sl-icon">📝</span> Support Log
       </button>
       <!-- Dept-restricted nav items — shown/hidden by initDeptNav() -->
       <button class="sidebar-link dept-nav-perf" data-panel="perf" onclick="showPanel('perf',this)" style="display:none">
@@ -2145,7 +2145,7 @@
           <span id="poSyncText" style="font-size:.8125rem;color:var(--muted)">Loading…</span>
           <button class="btn btn-secondary" onclick="po.refresh(true)" id="poRefreshBtn">↺ Refresh</button>
           <button class="btn btn-secondary" id="poCriticalBtn" onclick="po.openFlagsModal('critical')" style="display:none;background:#7f1d1d;color:#fef2f2;border-color:#7f1d1d">
-            🚨 <span id="poCriticalN">0</span> Critical
+            🔍 <span id="poCriticalN">0</span> Needs Review
           </button>
         </div>
       </div>
@@ -2174,6 +2174,7 @@
         <select class="filter-select" id="poFFlag"     onchange="po.applyFilters()"><option value="">All Records</option><option value="hit">HIT Flags Only</option><option value="si">Service Interruptions</option><option value="concern">Attendance Concern</option></select>
         <button class="btn btn-secondary" onclick="po.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
+        <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>
 
       <!-- Main content area — swaps between school grid, school detail, person detail -->
@@ -2534,8 +2535,8 @@
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">HR Reporting</div>
-          <h2 class="ph-title">Performance & Program Concern Form</h2>
-          <p class="ph-subtitle">Document a performance conversation or program concern. Submitted securely to HR — no external tools required.</p>
+          <h2 class="ph-title">Performance Support & Program Context Form</h2>
+          <p class="ph-subtitle">Document a support conversation or program context note. Submitted securely to HR — no external tools required.</p>
         </div>
       </div>
 
@@ -2831,10 +2832,10 @@
       <div style="max-width:480px">
         <div class="alert alert-info">
           <span>ℹ️</span>
-          <div>Performance and program concerns are submitted through the same secure form, which routes automatically to HR.</div>
+          <div>Performance support conversations and program context notes are submitted through the same secure form, which routes automatically to HR.</div>
         </div>
         <button class="btn btn-primary" onclick="showPanel('concern',document.querySelector('[data-panel=concern]'))">
-          📝 Open Concern Form →
+          📝 Open Support Log →
         </button>
       </div>
     </div>
@@ -2905,7 +2906,7 @@
       goalPct: '78%',
       connections: ['programming','data','training','leadership'],
       quickLinks: [
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Document a performance conversation', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Document a support conversation or context note', panel: 'concern' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Culture & retention goals', panel: 'kpi' },
         { icon: '📚', label: 'HR Policies', bg: '#f3e8ff', desc: 'Access all HR documentation', panel: 'policies' },
         { icon: '👥', label: 'Performance', bg: '#fff0e0', desc: 'Review concern submissions', panel: 'perf' },
@@ -2920,7 +2921,7 @@
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Funding & financial goals', panel: 'kpi' },
         { icon: '📚', label: 'Finance Policies', bg: '#e6f5ed', desc: 'Budget & financial guidelines', panel: 'policies' },
         { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit financial documents', panel: 'upload' },
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Report any concerns', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log a support conversation or context note', panel: 'concern' },
       ]
     },
     programming: {
@@ -2929,7 +2930,7 @@
       goalPct: '71%',
       connections: ['hr','data','training','finance'],
       quickLinks: [
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Log site-level concerns', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log site-level support conversations', panel: 'concern' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Scholar impact goals', panel: 'kpi' },
         { icon: '📚', label: 'Site Policies', bg: '#e0f0ff', desc: 'Program procedures', panel: 'policies' },
         { icon: '☁️', label: 'Upload Docs', bg: '#f6f8fc', desc: 'Submit program materials', panel: 'upload' },
@@ -2945,7 +2946,7 @@
         { icon: '🔍', label: 'KPI Analytics', bg: '#ede9fe', desc: 'Visual goal performance analytics', panel: 'kpi-analytics' },
         { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit evaluation data', panel: 'upload' },
         { icon: '📚', label: 'Data Governance', bg: '#f3e8ff', desc: 'Data policies & frameworks', panel: 'policies' },
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Report any concerns', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log a support conversation or context note', panel: 'concern' },
       ]
     },
     training: {
@@ -2957,7 +2958,7 @@
         { icon: '📚', label: 'Training Materials', bg: '#fff0e0', desc: 'PD policies & procedures', panel: 'policies' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Pipeline & apprenticeship goals', panel: 'kpi' },
         { icon: '☁️', label: 'Upload PD Docs', bg: '#f6f8fc', desc: 'Submit training materials', panel: 'upload' },
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'Log training concerns', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log training support conversations', panel: 'concern' },
       ]
     },
     leadership: {
@@ -2969,7 +2970,19 @@
         { icon: '📊', label: 'KPI Targets', bg: '#fff7e0', desc: 'Full organizational overview', panel: 'kpi' },
         { icon: '🔍', label: 'KPI Analytics', bg: '#fef3c7', desc: 'Goal health & performance breakdown', panel: 'kpi-analytics' },
         { icon: '📚', label: 'All Policies', bg: '#f6f8fc', desc: 'Organization-wide library', panel: 'policies' },
-        { icon: '⚠️', label: 'Concern Form', bg: '#fee2e2', desc: 'All concern submissions', panel: 'concern' },
+        { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'All support context submissions', panel: 'concern' },
+        { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
+      ]
+    },
+    kb: {
+      label: 'Executive Overview', emoji: '🌟', color: '#5b8dee',
+      tagline: 'Program momentum and organizational stewardship.',
+      goalPct: '82%',
+      connections: ['hr','data','programming','training'],
+      quickLinks: [
+        { icon: '📊', label: 'Program Overview', bg: '#eef4ff', desc: 'Scholar engagement and program health', panel: 'kpi' },
+        { icon: '🌱', label: 'Growth Insights', bg: '#e8f5e9', desc: 'Trends and momentum indicators', panel: 'kpi-analytics' },
+        { icon: '📚', label: 'Policy Library', bg: '#f6f8fc', desc: 'Organization-wide documentation', panel: 'policies' },
         { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
       ]
     }
@@ -3510,7 +3523,7 @@
         <div class="st-icon">🟠</div>
         <div class="st-value">${partial}</div>
         <div class="st-label">Partially Met</div>
-        <div class="st-sub">Needs attention</div>
+        <div class="st-sub">In development</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--pipeline)">
         <div class="st-icon">🟣</div>
@@ -3522,7 +3535,7 @@
         <div class="st-icon">🔴</div>
         <div class="st-value">${notmet}</div>
         <div class="st-label">Not Met</div>
-        <div class="st-sub">Requires focus</div>
+        <div class="st-sub">Area of focus</div>
       </div>
     `;
 
@@ -4667,7 +4680,7 @@
   }
 
   // ══════════════════════════════════════════════════════════════════
-  const ADMIN_DEPTS = ['leadership', 'data'];
+  const ADMIN_DEPTS = ['leadership', 'data', 'kb'];
 
   function initPolicyAdmin() {
     const bar = document.getElementById('policyAdminBar');
@@ -4760,7 +4773,7 @@
   // ══════════════════════════════════════════════════════════════════
 
   // Dept access rules
-  const TALENT_FULL_DEPTS  = ['hr','programming','leadership','data'];
+  const TALENT_FULL_DEPTS  = ['hr','programming','leadership','data','kb'];
   const TALENT_FINANCE_DEPT = ['finance'];
   const TALENT_TRAINING_DEPT = ['training'];
 
@@ -4769,6 +4782,7 @@
     hr:          ['Maintain and continue to build on strong culture'],
     programming: ['Increase Impact on Scholars','Maintain consistent partner experience','Support Growth of New Jersey\'s Educator Pipeline'],
     leadership:  ['Increase the number of fee-for-service partnerships','Continue to pursue large and multi-year sources of funding','Further Diversify board and leverage its support','Maintain cash position','Upgrade systems to support growth','Grow the NJTC brand'],
+    kb:          ['Increase the number of fee-for-service partnerships','Continue to pursue large and multi-year sources of funding','Further Diversify board and leverage its support','Maintain cash position','Upgrade systems to support growth','Grow the NJTC brand'],
     finance:     ['Increase the number of fee-for-service partnerships','Continue to pursue large and multi-year sources of funding','Maintain cash position'],
     data:        ['Upgrade systems to support growth','Increase Impact on Scholars'],
     training:    ['Support Growth of New Jersey\'s Educator Pipeline','Maintain and continue to build on strong culture'],
@@ -4986,7 +5000,7 @@
           ${byEmp.map(([emp,cnt]) => {
             const rows = data.filter(r => r.emp === emp).sort((a,b) => new Date(b.ts)-new Date(a.ts));
             const latest = rows[0];
-            const priority = cnt >= 5 ? '🔴 Critical' : cnt >= 3 ? '🟡 High' : '🟢 Monitor';
+            const priority = cnt >= 5 ? '🔍 Review Recommended' : cnt >= 3 ? '🟡 Monitor Closely' : '🟢 On Track';
             return `<tr>
               <td><strong>${emp}</strong></td>
               <td><span class="dept-tag dept-tag-prog" style="font-size:.65rem">${latest?.role||'—'}</span></td>
@@ -5190,15 +5204,15 @@
 
     // Executive briefing — auto-generated action items
     const briefs = [];
-    if (term > 0)          briefs.push({ sev:'critical', icon:'🚨', text:`${term} termination-level action${term>1?'s':''} on record — confirm HR closure and documentation are complete.` });
-    if (pgp > 0)           briefs.push({ sev:'critical', icon:'📋', text:`${pgp} employee${pgp>1?'s are':' is'} on a Performance Growth Plan — monitor milestone completion.` });
+    if (term > 0)          briefs.push({ sev:'critical', icon:'📋', text:`${term} termination-level action${term>1?'s':''} on record — confirm HR closure and documentation are complete.` });
+    if (pgp > 0)           briefs.push({ sev:'critical', icon:'🌱', text:`${pgp} employee${pgp>1?'s are':' is'} on a Performance Growth Plan — track milestone progress and provide continued support.` });
     if (writeUp > 0)       briefs.push({ sev:'warning',  icon:'⚠️', text:`${writeUp} formal write-up${writeUp>1?'s':''} issued this period. Ensure all are documented in personnel files.` });
     if (onWatch > 5)       briefs.push({ sev:'warning',  icon:'👁', text:`${onWatch} employees currently On Watch — elevated separation risk. HR + Programming alignment recommended.` });
     if (repeated/total>0.4) briefs.push({ sev:'warning', icon:'🔁', text:`${Math.round(repeated/total*100)}% of concern records are repeat occurrences for the same employee — systemic intervention may be needed.` });
     if (mTrend > 15)       briefs.push({ sev:'warning',  icon:'📈', text:`Concern volume is up ${mTrend}% this month vs. last. Review whether this reflects a new site issue or data catch-up.` });
     if (d23Partial > 0)    briefs.push({ sev:'info',     icon:'🎯', text:`${d23Partial} site leader${d23Partial>1?'s':''} rated "Partially Meets" in Instruction (Domain 2&3) — targeted coaching or PD deployment recommended.` });
     if (mTrend < -15)      briefs.push({ sev:'info',     icon:'✅', text:`Concern volume is trending down ${Math.abs(mTrend)}% vs. last month — positive signal. Continue monitoring.` });
-    if (!briefs.length)    briefs.push({ sev:'info',     icon:'✅', text:`No critical workforce signals detected in the current filter window.` });
+    if (!briefs.length)    briefs.push({ sev:'info',     icon:'✅', text:`No workforce concerns flagged in the current filter window. Program is operating well.` });
 
     const sevColor = s => s==='critical'?'#fef2f2':s==='warning'?'#fffbeb':'#f0fdf4';
     const sevBorder = s => s==='critical'?'#fecaca':s==='warning'?'#fde68a':'#bbf7d0';
@@ -5602,6 +5616,7 @@
         else if (dept === 'programming') el.innerHTML = renderProgrammingAnalytics(_filteredConcerns);
         else if (dept === 'leadership')  el.innerHTML = renderLeadershipAnalytics(_filteredConcerns);
         else if (dept === 'data')        el.innerHTML = renderDataAnalytics(_filteredConcerns);
+        else if (dept === 'kb')          el.innerHTML = renderLeadershipAnalytics(_filteredConcerns);
         else el.innerHTML = renderLeadershipAnalytics(_filteredConcerns); // fallback
       } else if (_talentTab === 'program') el.innerHTML = renderProgrammingAnalytics(_filteredConcerns);
       else if (_talentTab === 'hr')      el.innerHTML = renderHRAnalytics(_filteredConcerns);
@@ -5625,6 +5640,7 @@
         programming: '🎯 Site Overview',
         leadership: '⭐ Exec Summary',
         data: '📈 Full Analytics',
+        kb: '🌟 Exec Summary',
       };
       allTab.textContent = labels[dept] || '📊 Overview';
     }
@@ -5641,6 +5657,10 @@
       if (hrTab)      hrTab.style.display = '';
       if (logTab)     logTab.style.display = 'none';
     } else if (dept === 'leadership') {
+      if (programTab) programTab.style.display = '';
+      if (hrTab)      hrTab.style.display = '';
+      if (logTab)     logTab.style.display = '';
+    } else if (dept === 'kb') {
       if (programTab) programTab.style.display = '';
       if (hrTab)      hrTab.style.display = '';
       if (logTab)     logTab.style.display = '';
@@ -5726,8 +5746,8 @@
   function riskBucket(pct){
     if(pct >= 85) return { label:'Healthy',  short:'Healthy',  color:'#166534', bg:'#dcfce7', icon:'🟢', tip:'On track — keep going!' };
     if(pct >= 65) return { label:'Watch',    short:'Watch',    color:'#92400e', bg:'#fef3c7', icon:'🟡', tip:'Making progress but monitor closely.' };
-    if(pct >= 40) return { label:'At Risk',  short:'At Risk',  color:'#9a3412', bg:'#ffedd5', icon:'🟠', tip:'Needs attention — action recommended.' };
-    return               { label:'Critical', short:'Critical', color:'#991b1b', bg:'#fee2e2', icon:'🔴', tip:'Urgent — significant gaps to close.' };
+    if(pct >= 40) return { label:'Needs Focus',  short:'Needs Focus',  color:'#9a3412', bg:'#ffedd5', icon:'🟠', tip:'Area of focus — additional support recommended.' };
+    return               { label:'Area of Support', short:'Area of Support', color:'#991b1b', bg:'#fee2e2', icon:'🔴', tip:'Warrants closer investigation and team discussion.' };
   }
 
   // Build full analytics object fresh from live KPI_DATA
@@ -5783,7 +5803,7 @@
     const s = score.toFixed(0);
     if(risk.label==='Healthy')  return `We're performing well overall — ${s}% of our goals are on track.`;
     if(risk.label==='Watch')    return `Solid progress at ${s}%, but a few goal areas need closer attention.`;
-    if(risk.label==='At Risk')  return `We're at ${s}% — several areas need action before year-end.`;
+    if(risk.label==='Needs Focus')  return `We're at ${s}% — several areas would benefit from team attention before year-end.`;
     return `At ${s}%, we have significant gaps to close. Immediate focus is needed.`;
   }
 
@@ -5831,9 +5851,9 @@
           Out of <strong>${total} targets</strong> this cycle:
           ${counts['Met']>0?`<strong style="color:#166534">${counts['Met']} fully completed</strong>`:''}${counts['Met']>0&&counts['In Progress']>0?' · ':''}${counts['In Progress']>0?`<strong style="color:var(--progress)">${counts['In Progress']} in progress</strong>`:''}${(counts['Met']+counts['In Progress']>0)&&(counts['Partially Met']+counts['Has Not Met'])>0?' · ':''}${counts['Partially Met']>0?`<strong style="color:#92400e">${counts['Partially Met']} partially done</strong>`:''}${counts['Has Not Met']>0?` · <strong style="color:#991b1b">${counts['Has Not Met']} not yet met</strong>`:''}${counts['Coming Down the Pipeline']>0?` · <strong style="color:var(--pipeline)">${counts['Coming Down the Pipeline']} upcoming</strong>`:''}
         </div>
-        ${criticalGoals.length ? `<div style="margin-top:.625rem;font-size:.8125rem;background:#fee2e2;color:#991b1b;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">
-          🔴 ${criticalGoals.length} goal area${criticalGoals.length>1?'s require':'requires'} urgent attention: ${criticalGoals.map(([name])=>name).join(', ')}
-        </div>` : `<div style="margin-top:.625rem;font-size:.8125rem;background:#dcfce7;color:#166534;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">✅ No critical goal areas — great work!</div>`}
+        ${criticalGoals.length ? `<div style="margin-top:.625rem;font-size:.8125rem;background:#fff8e7;color:#92400e;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">
+          🔍 ${criticalGoals.length} goal area${criticalGoals.length>1?'s warrant':'warrants'} further investigation: ${criticalGoals.map(([name])=>name).join(', ')}
+        </div>` : `<div style="margin-top:.625rem;font-size:.8125rem;background:#dcfce7;color:#166534;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">✅ All goal areas are on track — great work!</div>`}
       </div>
       <div style="text-align:center;background:white;border-radius:12px;padding:1rem 1.25rem;border:1px solid ${risk.color}33;min-width:100px;flex-shrink:0">
         <div style="font-size:2.25rem;font-weight:800;color:${risk.color};font-family:'DM Serif Display',serif;line-height:1">${score.toFixed(0)}%</div>
@@ -5856,7 +5876,7 @@
             `<span style="background:${bg};color:${c};padding:.3rem .6rem;border-radius:6px;font-weight:600;font-size:.75rem;white-space:nowrap">${l} = ${p}</span>`
           ).join('')}
         </div>
-        <p style="margin:0">Risk levels: <strong style="color:#166534">🟢 Healthy ≥85%</strong> · <strong style="color:#92400e">🟡 Watch 65–84%</strong> · <strong style="color:#9a3412">🟠 At Risk 40–64%</strong> · <strong style="color:#991b1b">🔴 Critical &lt;40%</strong></p>
+        <p style="margin:0">Health levels: <strong style="color:#166534">🟢 Strong ≥85%</strong> · <strong style="color:#92400e">🟡 Developing 65–84%</strong> · <strong style="color:#9a3412">🟠 Needs Focus 40–64%</strong> · <strong style="color:#991b1b">🔴 Area of Support &lt;40%</strong></p>
       </div>
     </details>`;
 
@@ -5904,7 +5924,7 @@
         ${[
           { icon:'✅', val: counts['Met'], label:'Completed', color:'#166534', bg:'#dcfce7', desc:'Fully achieved' },
           { icon:'🔵', val: counts['In Progress'], label:'In Progress', color:'var(--progress)', bg:'#eff6ff', desc:'Actively tracked' },
-          { icon:'🟠', val: counts['Partially Met']+counts['Has Not Met'], label:'Need Attention', color:'#9a3412', bg:'#ffedd5', desc:'Partial or not met' },
+          { icon:'🟠', val: counts['Partially Met']+counts['Has Not Met'], label:'In Progress / Focus Area', color:'#9a3412', bg:'#ffedd5', desc:'Partial or needs further work' },
           { icon:'🟣', val: counts['Coming Down the Pipeline'], label:'Coming Up', color:'var(--pipeline)', bg:'var(--pipe-bg)', desc:'Planned ahead' },
         ].map(s=>`<div style="background:${s.bg};border-radius:12px;padding:1rem 1.125rem;border:1px solid ${s.color}22">
           <div style="font-size:1.625rem;margin-bottom:.25rem">${s.icon}</div>
@@ -6057,10 +6077,11 @@
       const partialN = atRiskItems.filter(k=>getS(k)==='Partially Met').length;
 
       let html = `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem">
-        <div style="font-weight:700;color:#9a3412;margin-bottom:.375rem;font-size:.9375rem">⚠️ ${atRiskItems.length} target${atRiskItems.length>1?'s need':'needs'} attention</div>
+        <div style="font-weight:700;color:#9a3412;margin-bottom:.375rem;font-size:.9375rem">🔍 ${atRiskItems.length} target${atRiskItems.length>1?'s warrant':'warrants'} further investigation</div>
         <div style="font-size:.8125rem;color:#7c2d12;line-height:1.5">
-          ${notMetN>0?`<strong>${notMetN} not yet met</strong> — these need immediate focus.`:''} 
-          ${partialN>0?`<strong>${partialN} partially completed</strong> — on the right track but not there yet.`:''}
+          ${notMetN>0?`<strong>${notMetN} not yet met</strong> — additional context and support may be helpful.`:''}
+          ${partialN>0?`<strong>${partialN} partially completed</strong> — making solid progress and on the right track.`:''}
+          Use the "Ask a Question" button below to share context or request support from leadership.
           Use the "Ask a Question" button below to flag context or request support from leadership.
         </div>
       </div>`;
@@ -6173,7 +6194,7 @@
               <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:5px;transition:width .5s ease"></div>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:.25rem;padding:0 1px">
-              <span>0%</span><span>|40% Critical</span><span>|65% Watch</span><span>|85% Healthy</span><span>100%</span>
+              <span>0%</span><span>|40% Needs Focus</span><span>|65% Developing</span><span>|85% Strong</span><span>100%</span>
             </div>
           </div>
 
@@ -7312,13 +7333,13 @@
               : (window.NJTC_SESSION ? window.NJTC_SESSION.dept : '');
       return (d || 'leadership').toLowerCase();
     }
-    const isData       = () => ['data','leadership'].includes(role());
-    const isHR         = () => ['hr','leadership','data'].includes(role());
-    const isFinance    = () => ['finance','leadership','data'].includes(role());
-    const isProg       = () => ['programming','leadership','data'].includes(role());
-    const isTD         = () => ['training_development','leadership','data'].includes(role());
-    const canSeeNames  = () => ['leadership','data','hr','programming','training_development'].includes(role());
-    const canSeeIndiv  = () => ['leadership','data','hr','programming'].includes(role());
+    const isData       = () => ['data','leadership','kb'].includes(role());
+    const isHR         = () => ['hr','leadership','data','kb'].includes(role());
+    const isFinance    = () => ['finance','leadership','data','kb'].includes(role());
+    const isProg       = () => ['programming','leadership','data','kb'].includes(role());
+    const isTD         = () => ['training_development','leadership','data','kb'].includes(role());
+    const canSeeNames  = () => ['leadership','data','hr','programming','training_development','kb'].includes(role());
+    const canSeeIndiv  = () => ['leadership','data','hr','programming','kb'].includes(role());
 
     // ── RFC-4180 CSV PARSER ───────────────────────────────────────────────
     function parseCSV(text) {
@@ -7665,7 +7686,7 @@
         if (p.role === 'Student') {
           // Flag: consecutive attendance concern (from col Y - '10 consecutive sessions missed status')
           if (p.consecStatus === 'Attendance Concern')
-            p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed — attendance concern' });
+            p.flags.push({ type:'consecutive', severity:'high', msg:'10+ consecutive sessions missed — attendance pattern worth reviewing' });
 
           // Flag: tutor continuity — subject-aware logic
           // Each subject should have exactly 1 primary tutor. Subs are expected, not flagged.
@@ -7695,12 +7716,12 @@
           // Flag: low attendance (< 70%)
           const total = p.attended + p.absent;
           if (total > 0 && (p.attended / total) < 0.70)
-            p.flags.push({ type:'low_att', severity:'high', msg:`Attendance below 70% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
+            p.flags.push({ type:'low_att', severity:'high', msg:`Attendance below 70% — area of support; verify ADP records (${Math.round(p.attended/total*100)}%)` });
 
           // Flag: vacancy — from col AC (Pearl Vacant User ID) and col AG (Vacancy Flag)
           // NOT counted in attendance — staffing gap flag for HR + Programming + Leadership
           if (p.vacantId)
-            p.flags.push({ type:'vacancy', severity:'high', msg:'Tutor vacancy active — staffing gap requires follow-up (HR, Programming)' });
+            p.flags.push({ type:'vacancy', severity:'high', msg:'Tutor vacancy active — staffing gap; coordinate with HR and Programming on backfill' });
 
           // Flag: scholar declined sessions — counts as absent AND flags Program Team
           // Count how many of this scholar's rows are a decline
@@ -7724,7 +7745,7 @@
         if (p.role === 'Instructor') {
           const total = p.attended + p.absent;
           if (total > 0 && (p.attended / total) < 0.80)
-            p.flags.push({ type:'inst_att', severity:'high', msg:`Instructor attendance below 80% — verify ADP records (${Math.round(p.attended/total*100)}%)` });
+            p.flags.push({ type:'inst_att', severity:'high', msg:`Instructor attendance below 80% — area of support; verify ADP records (${Math.round(p.attended/total*100)}%)` });
         }
       }
 
@@ -7766,18 +7787,18 @@
         const vacancySI   = sc.siReasons.filter(r => r === 'Tutor Vacancy').length;
         const otherHighSI = sc.siReasons.filter(r => getSISeverity(r) === 'high' && r !== 'Tutor Vacancy').length;
         if (criticalSI > 0)
-          sc.flags.push({ type:'critical_si', severity:'critical', msg:`${criticalSI} NJTC Internal Issues require immediate review` });
+          sc.flags.push({ type:'critical_si', severity:'critical', msg:`${criticalSI} NJTC Internal Issues flagged for review — context needed` });
         if (vacancySI > 0)
           // Vacancy is NOT counted in attendance — it is a staffing gap flag for HR, Programming, and Leadership
-          sc.flags.push({ type:'vacancy_si', severity:'high', audience:'HR · Programming · Leadership', msg:`${vacancySI} sessions impacted by tutor vacancy — backfill action required` });
+          sc.flags.push({ type:'vacancy_si', severity:'high', audience:'HR · Programming · Leadership', msg:`${vacancySI} sessions impacted by tutor vacancy — backfill coordination recommended` });
         if (otherHighSI > 0)
-          sc.flags.push({ type:'high_si', severity:'high', msg:`${otherHighSI} high-severity interruptions (closures / archived scholars)` });
+          sc.flags.push({ type:'high_si', severity:'high', msg:`${otherHighSI} high-priority interruptions (closures / archived scholars) — further context recommended` });
 
         // Declined sessions: count across all student rows for this school
         // Declines count as absences in attendance AND surface to Programming
         const declinedCount = sc.rows.filter(r => r[ATT.ROLE] === 'Student' && (r[ATT.MISS_REASON] || '') === DECLINED_REASON).length;
         if (declinedCount > 0)
-          sc.flags.push({ type:'declined', severity: declinedCount >= 5 ? 'high' : 'medium', audience:'Programming', msg:`${declinedCount} scholar-declined session${declinedCount > 1 ? 's' : ''} — Program Team engagement review needed` });
+          sc.flags.push({ type:'declined', severity: declinedCount >= 5 ? 'high' : 'medium', audience:'Programming', msg:`${declinedCount} scholar-declined session${declinedCount > 1 ? 's' : ''} — worth exploring engagement strategies with the Program Team` });
 
         // CT-request flag: if teacher pull-outs exceed 10% of student sessions at this school,
         // flag for partner/school-level conversation (counts against scholar attendance but
@@ -8000,13 +8021,29 @@
     // ── VIEW ROUTER ───────────────────────────────────────────────────────
     function renderView() {
       updateStats();
+      updateDurationPill();
       if (_view === 'schools') {
-        if (role() === 'leadership')      renderLeadershipView();
+        if (role() === 'kb')              renderKBVanityView();
+        else if (role() === 'leadership') renderLeadershipView();
         else if (role() === 'data')       renderDataOpsView();
         else                              renderSchoolGrid();
       }
       else if (_view === 'school')     renderSchoolDetail();
       else if (_view === 'person')     renderPersonDetail();
+    }
+
+    function updateDurationPill() {
+      const pill = document.getElementById('poDurationPill');
+      if (!pill) return;
+      const sess = filteredSessions().filter(s => s.isDelivered && s.durMins > 0);
+      if (!sess.length) { pill.style.display = 'none'; return; }
+      const totalMins = sess.reduce((s, r) => s + r.durMins, 0);
+      const hrs = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
+      const durStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+      const scholars = new Set(sess.flatMap(s => (s.studentIds || []))).size;
+      pill.style.display = 'block';
+      pill.textContent = `⏱ ${durStr} · ${sess.length} sessions · ${scholars} scholars`;
     }
 
     function drillSchool(school) {
@@ -8047,6 +8084,181 @@
       el.style.display = _view === 'schools' ? 'none' : 'flex';
     }
 
+    // ── KB EXECUTIVE VANITY VIEW ──────────────────────────────────────────
+    function renderKBVanityView() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+      const d = getLeadershipData();
+      if (!d) { mc.innerHTML = '<div class="po-exec-empty">⏳ Loading program data…</div>'; return; }
+
+      const totalScholars = d.scholarOnTrack + d.scholarAtRisk + d.scholarNeedsAction;
+      const onTrackPct  = totalScholars > 0 ? Math.round(d.scholarOnTrack / totalScholars * 100) : 0;
+      const momentumPct = totalScholars > 0 ? Math.round(d.scholarAtRisk / totalScholars * 100) : 0;
+      const checkInPct  = totalScholars > 0 ? Math.round(d.scholarNeedsAction / totalScholars * 100) : 0;
+
+      // Soften the banner language for KB
+      const overallStrong = d.scholarRate >= 85 && d.tutorRate >= 85;
+      const overallGrowing = d.scholarRate >= 75;
+      const bannerClass = overallStrong ? 'green' : overallGrowing ? 'amber' : 'amber';
+      const bannerIcon = overallStrong ? '🌟' : '📈';
+      const bannerTitle = overallStrong ? 'Program Momentum is Strong' : 'Program is Growing — Continued Focus Ahead';
+      const bannerSub = overallStrong
+        ? `Scholar engagement at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered across all sites.`
+        : `Scholar engagement at ${d.scholarRate}%. A few areas are worth a closer look — details below.`;
+
+      // Trend chart
+      const trend = (d.weeklyTrend || []).slice(-12);
+      const trendBars = trend.map(w => {
+        const h = Math.round((w.rate / 100) * 60);
+        const col = w.rate >= 85 ? '#0d6e3a' : w.rate >= 75 ? '#d97706' : '#e07a2f';
+        return `<div class="po-exec-bar-wrap" title="${w.week}: ${w.rate}%">
+          <div class="po-exec-tooltip">${w.week}<br>${w.rate}%</div>
+          <div class="po-exec-bar" style="height:${h}px;background:${col}"></div>
+          <div class="po-exec-bar-lbl">${(w.week||'').replace(/week\s*/i,'W').replace(/\s.*$/,'')}</div>
+        </div>`;
+      }).join('');
+
+      // Trend direction
+      const trendDir = (() => {
+        if (!trend || trend.length < 2) return '';
+        const diff = trend[trend.length-1].rate - trend[trend.length-2].rate;
+        if (diff > 2) return '<span class="po-exec-kpi-trend up">▲ ' + diff + 'pp · Gaining Momentum</span>';
+        if (diff < -2) return '<span class="po-exec-kpi-trend down" style="color:#e07a2f">▼ ' + Math.abs(diff) + 'pp · Worth Monitoring</span>';
+        return '<span class="po-exec-kpi-trend flat">→ Holding Steady</span>';
+      })();
+
+      const stars = d.scholarSurvey > 0 ? '★'.repeat(Math.round(d.scholarSurvey)) + '☆'.repeat(5-Math.round(d.scholarSurvey)) : '—';
+
+      // District rows — reframed language
+      const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
+        const lvl = dt.scholarRate >= 85 ? {label:'Strong', color:'var(--met)', icon:'🌟'} :
+                    dt.scholarRate >= 75 ? {label:'Growing', color:'#d97706', icon:'📈'} :
+                                           {label:'Developing', color:'#e07a2f', icon:'🤝'};
+        const bar = `<div style="display:flex;align-items:center;gap:.5rem">
+          <div style="flex:1;height:6px;background:var(--border-2);border-radius:3px;overflow:hidden"><div style="width:${dt.scholarRate}%;height:100%;background:${lvl.color};border-radius:3px"></div></div>
+          <span style="font-weight:700;color:${lvl.color};font-size:.8rem;min-width:30px">${dt.scholarRate}%</span>
+        </div>`;
+        return `<tr>
+          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} scholars · ${dt.schools.length} school(s)</div></td>
+          <td>${bar}</td>
+          <td style="text-align:center"><span style="background:${lvl.color}18;color:${lvl.color};border-radius:12px;padding:.2rem .7rem;font-size:.75rem;font-weight:600">${lvl.icon} ${lvl.label}</span></td>
+          <td style="text-align:center;font-weight:600;color:var(--navy)">${dt.sessions}</td>
+        </tr>`;
+      }).join('');
+
+      // Reflection points — no alarming language
+      const reflections = [];
+      if (d.scholarNeedsAction > 0) reflections.push({ icon:'🤝', title:`${d.scholarNeedsAction} Scholar${d.scholarNeedsAction>1?'s':''} Worth a Check-In`, body:`These scholars may benefit from additional outreach or a fresh connection. Attendance patterns suggest now is a good moment to engage.`, tone:'gentle' });
+      if (d.scholarAtRisk > 0) reflections.push({ icon:'📈', title:`${d.scholarAtRisk} Scholar${d.scholarAtRisk>1?'s':''} Building Momentum`, body:`Attendance is in a good-progress range. Continued consistency from tutors and site leaders will help these scholars stay on track.`, tone:'positive' });
+      if (d.absenceDrivers.controllable.total > 0) reflections.push({ icon:'🔍', title:`Some Attendance Gaps to Explore`, body:`A portion of missed sessions relate to scheduling and staffing factors — areas the program team actively monitors and supports.`, tone:'neutral' });
+      const ctDists = d.districts.filter(dt => dt.ctFlag);
+      if (ctDists.length) reflections.push({ icon:'📋', title:`Teacher Scheduling Overlaps in Some Sites`, body:`In ${ctDists.map(x=>x.name).join(' and ')}, some scholar sessions are occasionally rescheduled due to classroom activities. The team is staying in close communication with site leadership.`, tone:'neutral' });
+      if (!reflections.length) reflections.push({ icon:'✅', title:'All Sites Tracking Well', body:'Scholar engagement and program delivery are within healthy ranges across all sites.', tone:'positive' });
+      const rfHTML = reflections.map(r => {
+        const bg = r.tone==='positive' ? '#e8f5e9' : r.tone==='gentle' ? '#fff8e7' : '#f0f4ff';
+        const border = r.tone==='positive' ? '#4caf50' : r.tone==='gentle' ? '#f0a500' : '#5b8dee';
+        return `<div style="display:flex;gap:.875rem;padding:1rem 1.25rem;border-left:3px solid ${border};background:${bg};border-radius:0 .5rem .5rem 0;margin-bottom:.75rem">
+          <div style="font-size:1.5rem;flex-shrink:0">${r.icon}</div>
+          <div><div style="font-weight:700;color:var(--navy);font-size:.875rem;margin-bottom:.2rem">${r.title}</div><div style="font-size:.8125rem;color:var(--text-secondary);line-height:1.5">${r.body}</div></div>
+        </div>`;
+      }).join('');
+
+      mc.innerHTML = `<div class="po-exec-wrap">
+        <div class="po-exec-banner ${bannerClass}">
+          <div class="po-exec-banner-icon">${bannerIcon}</div>
+          <div>
+            <div class="po-exec-banner-label">Program Engagement Overview</div>
+            <div class="po-exec-banner-title">${bannerTitle}</div>
+            <div class="po-exec-banner-sub">${bannerSub}</div>
+          </div>
+          <div style="margin-left:auto;text-align:right;opacity:.8;font-size:.75rem">Live data · Refreshes every 5 min<br>Filtered to current view</div>
+        </div>
+
+        <div class="po-exec-kpi-row">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=85?'var(--met)':'#d97706'}">
+            <div class="po-exec-kpi-icon">🎓</div>
+            <div class="po-exec-kpi-label">Scholar Participation</div>
+            <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
+            <div class="po-exec-kpi-sub">${totalScholars} scholars engaged</div>
+            ${trendDir}
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:${d.tutorRate>=85?'var(--met)':'#d97706'}">
+            <div class="po-exec-kpi-icon">👩‍🏫</div>
+            <div class="po-exec-kpi-label">Tutor Consistency</div>
+            <div class="po-exec-kpi-val">${d.tutorRate}<span style="font-size:1.25rem">%</span></div>
+            <div class="po-exec-kpi-sub">Staff present for scholars</div>
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:var(--blue-mid)">
+            <div class="po-exec-kpi-icon">📚</div>
+            <div class="po-exec-kpi-label">Sessions Completed</div>
+            <div class="po-exec-kpi-val">${d.sessionsDelivered.toLocaleString()}</div>
+            <div class="po-exec-kpi-sub">Delivered tutoring sessions</div>
+          </div>
+          <div class="po-exec-kpi" style="--kpi-color:#f59e0b">
+            <div class="po-exec-kpi-icon">⭐</div>
+            <div class="po-exec-kpi-label">Scholar Experience</div>
+            <div class="po-exec-kpi-val" style="font-size:1.75rem">${d.scholarSurvey > 0 ? d.scholarSurvey.toFixed(1) : '—'}<span style="font-size:1rem">/5</span></div>
+            <div class="po-exec-kpi-sub" style="color:#f59e0b;font-size:.875rem">${stars}</div>
+          </div>
+        </div>
+
+        <div class="po-exec-health-row">
+          <div class="po-exec-tiers">
+            <div class="po-exec-card-title">
+              <span>📊 Scholar Engagement Tiers — ${totalScholars} Scholars</span>
+              <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% Actively Engaged · 70–79% Building Momentum · &lt;70% Check In With</span>
+            </div>
+            <div class="po-exec-tier-bars">
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:var(--met)">🌟 Actively Engaged</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${onTrackPct}%;background:var(--met)"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarOnTrack}</div>
+                <div class="po-exec-tier-pct">${onTrackPct}%</div>
+              </div>
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:#d97706">📈 Building Momentum</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${momentumPct}%;background:#d97706"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarAtRisk}</div>
+                <div class="po-exec-tier-pct">${momentumPct}%</div>
+              </div>
+              <div class="po-exec-tier-row">
+                <div class="po-exec-tier-lbl" style="color:#e07a2f">🤝 Check In With</div>
+                <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${checkInPct}%;background:#e07a2f"></div></div>
+                <div class="po-exec-tier-cnt">${d.scholarNeedsAction}</div>
+                <div class="po-exec-tier-pct">${checkInPct}%</div>
+              </div>
+            </div>
+            ${trend.length ? `<div style="margin-top:1.25rem">
+              <div class="po-exec-card-title" style="margin-bottom:.625rem;border:none;padding:0">📈 Weekly Participation Trend</div>
+              <div class="po-exec-chart">${trendBars}</div>
+            </div>` : ''}
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <div class="po-exec-card-title" style="margin-bottom:.5rem">🌱 Program Reflections</div>
+            ${rfHTML}
+          </div>
+        </div>
+
+        <div class="po-exec-scorecard">
+          <div class="po-exec-card-title" style="padding:.75rem 1.25rem;border-bottom:1px solid var(--border);margin:0;background:var(--surface-2)">
+            🗺️ Site Engagement Overview
+            <span style="font-weight:400;font-size:.75rem;color:var(--muted)">${d.districts.length} districts · Participation levels across sites</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="po-exec-table">
+              <thead><tr>
+                <th>District</th>
+                <th>Scholar Participation</th>
+                <th style="text-align:center">Engagement Level</th>
+                <th style="text-align:center">Sessions</th>
+              </tr></thead>
+              <tbody>${distRows || '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--muted)">No district data available</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+    }
+
     // ── LEADERSHIP EXECUTIVE VIEW ─────────────────────────────────────────
     function renderLeadershipView() {
       const mc = document.getElementById('poMainContent'); if (!mc) return;
@@ -8061,12 +8273,12 @@
       const critDistricts = d.districts.filter(dt => dt.scholarRate < 75).length;
       const bannerClass = (scholarOk && tutorOk && critDistricts === 0) ? 'green' : (scholarWarn && critDistricts <= 1) ? 'amber' : 'red';
       const bannerIcon = bannerClass === 'green' ? '✅' : bannerClass === 'amber' ? '⚠️' : '🔴';
-      const bannerTitle = bannerClass === 'green' ? 'Program Running Strong' : bannerClass === 'amber' ? 'Attention Needed in Some Areas' : 'Immediate Action Required';
+      const bannerTitle = bannerClass === 'green' ? 'Program Running Strong' : bannerClass === 'amber' ? 'Some Areas Warrant Closer Review' : 'Action Recommended — Program Team Attention Needed';
       const bannerSub = bannerClass === 'green'
-        ? `Scholar attendance at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered. No critical districts.`
+        ? `Scholar attendance at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered. No districts of concern.`
         : bannerClass === 'amber'
-        ? `Scholar attendance at ${d.scholarRate}%. ${critDistricts} district(s) below target — review recommended.`
-        : `Scholar attendance at ${d.scholarRate}% — below 75% threshold. ${critDistricts} district(s) in critical range.`;
+        ? `Scholar attendance at ${d.scholarRate}%. ${critDistricts} district(s) may benefit from additional support — review recommended.`
+        : `Scholar attendance at ${d.scholarRate}% — below the 75% target. ${critDistricts} district(s) require focused follow-up.`;
 
       // Trend arrow helper
       const trendArr = (wt) => {
@@ -8116,13 +8328,13 @@
 
       // Action items
       const actions = [];
-      if (d.scholarNeedsAction > 0) actions.push({ icon:'🚨', title: `${d.scholarNeedsAction} Scholar${d.scholarNeedsAction>1?'s':''} Need Immediate Attention`, body: `Attendance below 70%. These scholars are at risk of not meeting program requirements.`, sev:'crit' });
-      if (d.scholarAtRisk > 0) actions.push({ icon:'⚠️', title: `${d.scholarAtRisk} Scholar${d.scholarAtRisk>1?'s':''} At Risk`, body: `Attendance between 70–79%. Early intervention can prevent further decline.`, sev:'warn' });
-      if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Below Target Attendance`, body: `Scholar attendance below 75% threshold. Click the district table to drill into specific schools.`, sev:'crit' });
+      if (d.scholarNeedsAction > 0) actions.push({ icon:'🤝', title: `${d.scholarNeedsAction} Scholar${d.scholarNeedsAction>1?'s':''} Require Additional Support`, body: `Attendance below 70%. These scholars may benefit from closer check-ins and outreach from the program team.`, sev:'crit' });
+      if (d.scholarAtRisk > 0) actions.push({ icon:'📈', title: `${d.scholarAtRisk} Scholar${d.scholarAtRisk>1?'s':''} Need Continued Encouragement`, body: `Attendance between 70–79%. Consistent engagement from tutors and site leaders can help strengthen participation.`, sev:'warn' });
+      if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Warrant a Closer Look`, body: `Scholar attendance below 75% — worth reviewing with site leadership. Click a district row to drill into specific schools.`, sev:'crit' });
       const ctDists = d.districts.filter(dt => dt.ctFlag);
       if (ctDists.length) actions.push({ icon:'📋', title: `High CT Pull-out Rate in ${ctDists.map(x=>x.name).join(', ')}`, body: `Classroom teacher requests are limiting scholar access to tutoring sessions. Consider follow-up with site leadership.`, sev:'warn' });
       if (d.absenceDrivers.controllable.total > 0) actions.push({ icon:'🔧', title: `${d.absenceDrivers.controllable.total} Controllable Absences This Period`, body: `Includes tutor absences, vacancies, and internal scheduling issues — factors within program control.`, sev:'warn' });
-      if (!actions.length) actions.push({ icon:'✅', title: 'No Critical Items', body: 'Program is operating within all acceptable thresholds.', sev:'ok' });
+      if (!actions.length) actions.push({ icon:'✅', title: 'All Areas Looking Good', body: 'Program is operating within all healthy thresholds. Keep up the great work.', sev:'ok' });
       const actionHTML = actions.map(a => `<div class="po-exec-action-item"><div class="po-exec-action-icon">${a.icon}</div><div><div class="po-exec-action-title">${a.title}</div><div class="po-exec-action-body">${a.body}</div></div></div>`).join('');
 
       // Absence drivers
@@ -8180,7 +8392,7 @@
           <div class="po-exec-tiers">
             <div class="po-exec-card-title">
               <span>📊 Scholar Attendance Health — ${totalScholars} Scholars</span>
-              <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% On Track · 70–79% At Risk · &lt;70% Needs Action</span>
+              <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% On Track · 70–79% Building Momentum · &lt;70% Needs Support</span>
             </div>
             <div class="po-exec-tier-bars">
               <div class="po-exec-tier-row">
@@ -8190,13 +8402,13 @@
                 <div class="po-exec-tier-pct">${onTrackPct}%</div>
               </div>
               <div class="po-exec-tier-row">
-                <div class="po-exec-tier-lbl" style="color:#d97706">🟡 At Risk</div>
+                <div class="po-exec-tier-lbl" style="color:#d97706">🟡 Building Momentum</div>
                 <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${atRiskPct}%;background:#d97706"></div></div>
                 <div class="po-exec-tier-cnt">${d.scholarAtRisk}</div>
                 <div class="po-exec-tier-pct">${atRiskPct}%</div>
               </div>
               <div class="po-exec-tier-row">
-                <div class="po-exec-tier-lbl" style="color:var(--notmet)">🔴 Needs Action</div>
+                <div class="po-exec-tier-lbl" style="color:var(--notmet)">🤝 Needs Support</div>
                 <div class="po-exec-tier-bar"><div class="po-exec-tier-fill" style="width:${needActPct}%;background:var(--notmet)"></div></div>
                 <div class="po-exec-tier-cnt">${d.scholarNeedsAction}</div>
                 <div class="po-exec-tier-pct">${needActPct}%</div>
@@ -8284,9 +8496,9 @@
 
       // Alert feed
       const alerts = [];
-      if (d.scholarNeedsAction > 0) alerts.push({ cls:'crit', icon:'🚨', title:`${d.scholarNeedsAction} scholars below 70% attendance`, sub:'Needs immediate intervention' });
-      if (d.scholarAtRisk > 0) alerts.push({ cls:'warn', icon:'⚠️', title:`${d.scholarAtRisk} scholars at risk (70–79%)`, sub:'Monitor and support' });
-      if (critSchools > 0) alerts.push({ cls:'crit', icon:'🏫', title:`${critSchools} school${critSchools>1?'s':''} below 75% attendance`, sub:'Below program threshold' });
+      if (d.scholarNeedsAction > 0) alerts.push({ cls:'crit', icon:'🤝', title:`${d.scholarNeedsAction} scholars below 70% attendance`, sub:'Recommend outreach and support' });
+      if (d.scholarAtRisk > 0) alerts.push({ cls:'warn', icon:'📈', title:`${d.scholarAtRisk} scholars building momentum (70–79%)`, sub:'Continued encouragement recommended' });
+      if (critSchools > 0) alerts.push({ cls:'crit', icon:'🏫', title:`${critSchools} school${critSchools>1?'s':''} below 75% attendance`, sub:'Warrants further investigation' });
       schools.filter(sc => sc.flags.some(f => f.severity === 'critical')).slice(0,3).forEach(sc => alerts.push({ cls:'crit', icon:'⚑', title:`HIT Critical Flag: ${sc.school}`, sub:`${sc.flags.filter(f=>f.severity==='critical').length} critical compliance flag(s)` }));
       schools.filter(sc => sc.stuInterruptions > 5).slice(0,3).forEach(sc => alerts.push({ cls:'warn', icon:'⚡', title:`High Service Interruptions: ${sc.school}`, sub:`${sc.stuInterruptions} disruptions this period` }));
       if (!alerts.length) alerts.push({ cls:'ok', icon:'✅', title:'All systems nominal', sub:'No critical alerts at this time' });
@@ -8989,7 +9201,7 @@
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.375rem">
               <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
               <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
-              ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Low Attendance — Check ADP Records</span>' : ''}
+              ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Review Attendance Context</span>' : ''}
               ${p.consecStatus === 'Attendance Concern' ? '<span class="po-badge po-badge-critical">10+ Consecutive Misses</span>' : ''}
               ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
             </div>
@@ -9144,7 +9356,7 @@
         frequency:   'Weekly Session Frequency Below HIT Minimum',
         inst_att:    'Instructor Attendance — ADP Review Needed',
         ratio:       'Session Ratio Exceeds 1:4 — Check MOU',
-        critical_si: 'Critical Service Interruption — NJTC Internal',
+        critical_si: 'Service Interruption — Needs Investigation (NJTC Internal)',
         high_si:     'High Severity Service Interruptions',
       };
       return labels[type] || type;
@@ -9245,9 +9457,16 @@
     function getLeadershipData() {
       if (!_attRows.length) return null;
 
+      // Apply active filters to all calculations
+      const filteredRows = _attRows.filter(r => {
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
+        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        return true;
+      });
+
       // ── Scholar & tutor attendance (via classifyRecord for consistency) ──
       let stuAtt = 0, stuMiss = 0, instAtt = 0, instMiss = 0;
-      for (const r of _attRows) {
+      for (const r of filteredRows) {
         const cls = classifyRecord(r);
         if (r[ATT.ROLE] === 'Student') {
           if (cls === 'attended') stuAtt++;
