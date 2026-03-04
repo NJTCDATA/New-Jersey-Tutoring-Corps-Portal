@@ -3865,6 +3865,99 @@
       // Strategy 3: CORS proxy fallback
       // APPS_SCRIPT_URL: paste your deployed Web App URL here after setup
       // This is the primary source — reads your Drive folder live, zero CORS issues
+      // ── INLINE MANIFEST (eliminates GitHub raw fetch + CORS errors) ──────
+      const INLINE_MANIFEST = [
+  {
+    "title": "Document Title Here",
+    "dept": "hr",
+    "tag": "Human Resources",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Maintain and continue to build on strong culture"
+    ]
+  },
+  {
+    "title": "Document Title Here",
+    "dept": "finance",
+    "tag": "Finance",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Maintain cash position"
+    ]
+  },
+  {
+    "title": "Document Title Here",
+    "dept": "data",
+    "tag": "Data & Eval",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Upgrade systems to support growth"
+    ]
+  },
+  {
+    "title": "Document Title Here",
+    "dept": "training",
+    "tag": "Training & Development",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Support Growth of New Jersey's Educator Pipeline"
+    ]
+  },
+  {
+    "title": "Document Title Here",
+    "dept": "programming",
+    "tag": "Programming",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Increase Impact on Scholars"
+    ]
+  },
+  {
+    "title": "Document Title Here",
+    "dept": "leadership",
+    "tag": "Leadership",
+    "effectiveDate": "Feb 2026",
+    "modifiedDate": null,
+    "sectionsModified": [],
+    "desc": "Brief description of what this document covers.",
+    "driveUrl": null,
+    "annualGoals": [
+      "Further Diversify board and leverage its support"
+    ]
+  }
+];
+      // Use inline manifest as primary source — no network request needed
+      docs = INLINE_MANIFEST.map(d => ({
+        ...d,
+        dept: d.dept || 'shared',
+        sectionsModified: d.sectionsModified || [],
+        annualGoals: d.annualGoals || [],
+        _isDriveUpload: true,
+        _driveManifest: true,
+      }));
+      fromDrive = true;
+      console.log('[Manifest] Loaded inline:', docs.length, 'documents');
+      // ── END INLINE MANIFEST ──────────────────────────────────────────────
       const APPS_SCRIPT_URL = typeof DRIVE_APPS_SCRIPT_URL !== 'undefined' ? DRIVE_APPS_SCRIPT_URL : '';
       const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/njtcdata/New-Jersey-Tutoring-Corps-Portal/main/central/manifest.json';
       const DRIVE_DIRECT_URL = `https://drive.google.com/uc?export=download&id=${DRIVE_MANIFEST_ID}`;
@@ -3881,31 +3974,8 @@
 
       // Apps Script removed from strategy chain — causes CORS errors on GitHub Pages.
       // GitHub raw is the primary source; CORS proxy is fallback.
-      const strategies = [
-        { label: 'GitHub', url: GITHUB_MANIFEST_URL },
-        { label: 'CORS Proxy', url: CORS_PROXY_URL },
-      ];
-
-      for (const strategy of strategies) {
-        try {
-          const parsed = await tryFetch(strategy.url);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            docs = parsed.map(d => ({
-              ...d,
-              dept: d.dept || 'shared',
-              sectionsModified: d.sectionsModified || [],
-              annualGoals: d.annualGoals || [],
-              _isDriveUpload: true,
-              _driveManifest: true,
-            }));
-            fromDrive = true;
-            console.log(`[Manifest] Loaded via ${strategy.label}: ${parsed.length} documents`);
-            break;
-          }
-        } catch(e) {
-          console.warn(`[Manifest] ${strategy.label} failed:`, e.message);
-        }
-      }
+      // Network fetch skipped — inline manifest already loaded above
+      const strategies = [];
     }
 
     // Merge in any locally-uploaded PDF additions
@@ -6853,7 +6923,20 @@
     function initMap() {
       if (_map || !window.L) return;
       const el = document.getElementById('syMap');
-      if (!el || el.offsetParent === null) return;  // must be visible — see onPanelOpen
+      if (!el) return;
+      // Wait until the container has real dimensions before initializing Leaflet
+      if (el.offsetWidth < 10 || el.offsetHeight < 10) {
+        const ro = new ResizeObserver((entries, obs) => {
+          for (const entry of entries) {
+            if (entry.contentRect.width > 10 && entry.contentRect.height > 10) {
+              obs.disconnect();
+              initMap();
+            }
+          }
+        });
+        ro.observe(el);
+        return;
+      }
       _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
@@ -7000,22 +7083,15 @@
     // Defers map init to ensure the container has non-zero dimensions.
     // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
-      // 150ms for panel transition to complete, then init/invalidate
-      setTimeout(() => {
-        if (!_map) {
-          initMap();
-          if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
-        }
-        if (_map) _map.invalidateSize();
-      }, 150);
-      // Second invalidate at 400ms catches any remaining layout shifts
-      setTimeout(() => {
-        if (_map) _map.invalidateSize();
-      }, 400);
-      // Final invalidate at 800ms — catches cases where grid layout settles late
-      setTimeout(() => {
-        if (_map) { _map.invalidateSize(); _map.invalidateSize(); }
-      }, 800);
+      // Attempt init immediately — ResizeObserver inside initMap handles deferred cases
+      if (!_map) {
+        initMap();
+        if (_map && _allSites.length) { updateMapMarkers(); queueGeocoding(); }
+      }
+      // Progressive invalidateSize to handle any panel transition timing
+      [100, 300, 600, 1000].forEach(ms =>
+        setTimeout(() => { if (_map) _map.invalidateSize(); }, ms)
+      );
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
