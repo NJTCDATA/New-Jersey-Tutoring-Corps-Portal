@@ -1950,8 +1950,8 @@
     .ms-footer button{font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.1rem .2rem;}
     .ms-empty{padding:.75rem;text-align:center;font-size:.8125rem;color:var(--muted);}
   </style>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+
 </head>
 <body>
 
@@ -2119,7 +2119,7 @@
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);position:relative">
           <div id="syMap" style="height:500px;width:100%;min-height:500px;position:relative;"></div>
-          <div id="syUnmappedBanner" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.82);color:#fff;font-size:.75rem;padding:.5rem 1rem;backdrop-filter:blur(4px)"></div>
+
         </div>
         <div id="syDetailCard" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:1.25rem;overflow-y:auto;max-height:500px">
           <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;color:var(--muted);text-align:center">
@@ -6581,11 +6581,6 @@
     let _filtered  = [];
     let _snapshot  = {};
     let _changes   = [];
-    let _geocache  = {};
-    let _markers   = {};
-    let _map       = null;
-    let _geoQueue  = [];
-    let _geocoding = false;
     let _selKey    = null;
     let _inited    = false;
     let _lastFetch = null;
@@ -6726,7 +6721,7 @@
         setSyncState('live');
         populateFilters();
         applyFilters();
-        queueGeocoding();
+        updateMapMarkers();
       } catch (e) {
         console.warn('[SY Analytics] Fetch failed:', e.message);
         setSyncState('error');
@@ -6866,16 +6861,11 @@
 
     // ── DETAIL CARD ───────────────────────────────────────────────────────
     function selectSite(key) {
-      setTimeout(() => { if (_map) _map.invalidateSize(); }, 50);
       _selKey = key;
       const site = _allSites.find(s => s.key === key);
       if (!site) return;
       renderDetail(site);
-      if (_map && typeof site.lat === 'number' && isFinite(site.lat)
-               && typeof site.lng === 'number' && isFinite(site.lng)) {
-        _map.flyTo([site.lat, site.lng], 14, {duration:0.8});
-        if (_markers[key]) _markers[key].openPopup();
-      }
+      renderSVGMap();
       document.querySelectorAll('#syTableBody tr').forEach(tr => tr.classList.remove('sy-row-hl'));
       const idx = _filtered.findIndex(s => s.key === key);
       const rows = document.querySelectorAll('#syTableBody tr');
@@ -6919,155 +6909,142 @@
         ${partnerBlock}${gatedBlock}`;
     }
 
-    // ── MAP ───────────────────────────────────────────────────────────────
-    function initMap(onReady) {
-      if (_map) { if (onReady) onReady(); return; }
-      if (!window.L) return;
-      const el = document.getElementById('syMap');
-      if (!el) return;
-      _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
-      }).addTo(_map);
-      delete L.Icon.Default.prototype._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-      });
-      if (onReady) onReady();
+    // ── SVG DOT MAP ───────────────────────────────────────────────────────
+    // NJ outline path scaled to viewBox 0 0 400 500
+    // Pins positioned by lat/lng → pixel using linear projection for NJ bounds
+    // lat: 38.85–41.36 (NJ+PA range), lng: -75.65–-73.85
+    const NJ_BOUNDS = { latMin:38.85, latMax:41.36, lngMin:-75.65, lngMax:-73.85 };
+    const SVG_W = 400, SVG_H = 500;
+
+    function latLngToXY(lat, lng) {
+      const x = ((lng - NJ_BOUNDS.lngMin) / (NJ_BOUNDS.lngMax - NJ_BOUNDS.lngMin)) * SVG_W;
+      const y = SVG_H - ((lat - NJ_BOUNDS.latMin) / (NJ_BOUNDS.latMax - NJ_BOUNDS.latMin)) * SVG_H;
+      return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
     }
 
-    function updateMapMarkers() {
-      if (!_map) return;
-      const fk = new Set(_filtered.map(s => s.key));
-      const ak = new Set(_allSites.map(s => s.key));
-      Object.keys(_markers).forEach(k => { if (!ak.has(k)) { _map.removeLayer(_markers[k]); delete _markers[k]; } });
-      Object.keys(_markers).forEach(k => {
-        const m = _markers[k];
-        if (fk.has(k)) { if (!_map.hasLayer(m)) m.addTo(_map); }
-        else            { if (_map.hasLayer(m))  _map.removeLayer(m); }
-      });
-      _allSites.forEach(s => {
-        if (typeof s.lat==='number' && isFinite(s.lat) &&
-            typeof s.lng==='number' && isFinite(s.lng) && !_markers[s.key]) addMarker(s);
-      });
-      updateUnmapped();
-    }
-
-    function addMarker(site) {
-      if (!_map) return;
-      if (typeof site.lat !== 'number' || !isFinite(site.lat)) return;
-      if (typeof site.lng !== 'number' || !isFinite(site.lng)) return;
-      const col = site.status.toLowerCase().includes('active') ? '#0050c8' : '#7d8fa1';
-      const icon = L.divIcon({
-        className:'',
-        html:`<div style="width:20px;height:20px;background:${col};border:2.5px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.28);cursor:pointer"></div>`,
-        iconSize:[20,20], iconAnchor:[10,10], popupAnchor:[0,-13]
-      });
-      const marker = L.marker([site.lat, site.lng], {icon});
-      marker.bindPopup(buildPopup(site), {maxWidth:260});
-      marker.on('click', () => selectSite(site.key));
-      _markers[site.key] = marker;
-      if (new Set(_filtered.map(s=>s.key)).has(site.key)) marker.addTo(_map);
-    }
-
-    function buildPopup(s) {
-      const stfStr = s.totalStaff ? (s.totalStaff%1===0?s.totalStaff:s.totalStaff.toFixed(1)) : '—';
-      return `<div class="sy-popup">
-        <div class="sy-popup-school">${s.school}</div>
-        <div class="sy-popup-dist">${s.district}</div>
-        <div class="sy-popup-row"><span class="sy-popup-lbl">Actual Scholars</span><span class="sy-popup-val">${s.act||'—'}</span></div>
-        <div class="sy-popup-row"><span class="sy-popup-lbl">Est. Scholars</span><span class="sy-popup-val">${s.est||'—'}</span></div>
-        <div class="sy-popup-row"><span class="sy-popup-lbl">Content</span><span class="sy-popup-val">${s.content||'—'}</span></div>
-        <div class="sy-popup-row"><span class="sy-popup-lbl">Type</span><span class="sy-popup-val">${s.tutorType||'—'}</span></div>
-        <div class="sy-popup-row"><span class="sy-popup-lbl">Total Staff</span><span class="sy-popup-val">${stfStr}</span></div>
-      </div>`;
-    }
-
-    function updateUnmapped() {
-      const b = document.getElementById('syUnmappedBanner'); if (!b) return;
-      const u = _filtered.filter(s => s.geocodeFailed);
-      b.style.display = u.length ? '' : 'none';
-      if (u.length) b.textContent = `${u.length} site${u.length!==1?'s':''} could not be mapped: ${u.map(s=>s.school).join(', ')}`;
-    }
-
-    // ── GEOCODING ─────────────────────────────────────────────────────────
-    function loadGeoCache() { try { _geocache = JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY)||'{}'); } catch(e) { _geocache={}; } }
-    function saveGeoCache() { try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(_geocache)); } catch(e) {} }
-    const normAddr = a => a.toLowerCase().replace(/\s+/g,' ').trim();
-
-    // Hardcoded NJ/PA coordinate lookup — eliminates Nominatim dependency for known sites
-    const SITE_COORDS = {"ilearn charter school- bergen es": {"lat": 40.9282, "lng": -74.1312}, "ilearn charter school- bergen ms": {"lat": 40.9282, "lng": -74.1312}, "ilearn charter school- clifton es": {"lat": 40.8584, "lng": -74.1638}, "ilearn charter school- clifton ms": {"lat": 40.8584, "lng": -74.1638}, "ilearn charter school- passaic es": {"lat": 40.8568, "lng": -74.1285}, "ilearn charter school- passaic ms": {"lat": 40.8568, "lng": -74.1285}, "ilearn charter school- paterson es": {"lat": 40.9168, "lng": -74.1719}, "ilearn charter school- paterson ms": {"lat": 40.9168, "lng": -74.1719}, "ilearn charter school- hudson ms": {"lat": 40.7282, "lng": -74.0776}, "hamilton township school district": {"lat": 40.226, "lng": -74.7018}, "hamilton township- mercerville": {"lat": 40.226, "lng": -74.7018}, "hamilton township- kuser": {"lat": 40.2107, "lng": -74.7235}, "hamilton township- hamilton": {"lat": 40.226, "lng": -74.7018}, "hoboken dual language charter school": {"lat": 40.744, "lng": -74.0324}, "hoboken charter school": {"lat": 40.744, "lng": -74.0324}, "hola": {"lat": 40.744, "lng": -74.0324}, "haddon township school district": {"lat": 39.9001, "lng": -75.0652}, "haddon township": {"lat": 39.9001, "lng": -75.0652}, "van sciver": {"lat": 39.9001, "lng": -75.0652}, "strawbridge": {"lat": 39.9101, "lng": -75.0552}, "global leadership academy": {"lat": 39.9526, "lng": -75.1652}, "gla- west": {"lat": 39.949, "lng": -75.218}, "gla west": {"lat": 39.949, "lng": -75.218}, "salem city school district": {"lat": 39.5718, "lng": -75.4688}, "salem middle school": {"lat": 39.5718, "lng": -75.4688}, "john fenwick": {"lat": 39.5718, "lng": -75.4688}, "penns grove": {"lat": 39.729, "lng": -75.5135}, "carneys point": {"lat": 39.6679, "lng": -75.4649}, "field street": {"lat": 39.729, "lng": -75.5135}, "penns grove middle": {"lat": 39.7218, "lng": -75.519}, "lawrence township": {"lat": 40.2815, "lng": -74.7293}, "slackwood": {"lat": 40.2815, "lng": -74.7293}, "gloucester township": {"lat": 39.7776, "lng": -75.0316}, "erial": {"lat": 39.749, "lng": -75.0513}, "loring flemming": {"lat": 39.7776, "lng": -75.0316}, "first philadelphia prep": {"lat": 39.9942, "lng": -75.154}, "american paradigm": {"lat": 39.9942, "lng": -75.154}, "central jersey college prep": {"lat": 40.5018, "lng": -74.2954}, "paterson charter": {"lat": 40.9168, "lng": -74.1719}, "pcsst": {"lat": 40.9168, "lng": -74.1719}};
+    // Hardcoded district coordinates
+    const SITE_COORDS = {"ilearn charter school- bergen es":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- bergen ms":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- clifton es":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- clifton ms":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- passaic es":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- passaic ms":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- paterson es":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- paterson ms":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- hudson ms":{"lat":40.7282,"lng":-74.0776},"hamilton township school district":{"lat":40.226,"lng":-74.7018},"hamilton township- mercerville":{"lat":40.226,"lng":-74.7018},"hamilton township- kuser":{"lat":40.2107,"lng":-74.7235},"hamilton township- hamilton":{"lat":40.226,"lng":-74.7018},"hoboken dual language charter school":{"lat":40.744,"lng":-74.0324},"hoboken charter school":{"lat":40.744,"lng":-74.0324},"hola":{"lat":40.744,"lng":-74.0324},"haddon township school district":{"lat":39.9001,"lng":-75.0652},"haddon township":{"lat":39.9001,"lng":-75.0652},"van sciver":{"lat":39.9001,"lng":-75.0652},"strawbridge":{"lat":39.9101,"lng":-75.0552},"global leadership academy":{"lat":39.9526,"lng":-75.1652},"gla- west":{"lat":39.949,"lng":-75.218},"gla west":{"lat":39.949,"lng":-75.218},"salem city school district":{"lat":39.5718,"lng":-75.4688},"salem middle school":{"lat":39.5718,"lng":-75.4688},"john fenwick":{"lat":39.5718,"lng":-75.4688},"penns grove":{"lat":39.729,"lng":-75.5135},"carneys point":{"lat":39.6679,"lng":-75.4649},"field street":{"lat":39.729,"lng":-75.5135},"penns grove middle":{"lat":39.7218,"lng":-75.519},"lawrence township":{"lat":40.2815,"lng":-74.7293},"slackwood":{"lat":40.2815,"lng":-74.7293},"gloucester township":{"lat":39.7776,"lng":-75.0316},"erial":{"lat":39.749,"lng":-75.0513},"loring flemming":{"lat":39.7776,"lng":-75.0316},"first philadelphia prep":{"lat":39.9942,"lng":-75.154},"american paradigm":{"lat":39.9942,"lng":-75.154},"central jersey college prep":{"lat":40.5018,"lng":-74.2954},"paterson charter":{"lat":40.9168,"lng":-74.1719},"pcsst":{"lat":40.9168,"lng":-74.1719}};
 
     function lookupCoords(site) {
       const name = (site.school || '').toLowerCase();
       const dist = (site.district || '').toLowerCase();
-      // Try progressively broader matches
       for (const [key, coords] of Object.entries(SITE_COORDS)) {
-        if (name.includes(key) || dist.includes(key) || key.includes(name.split('-')[0].trim())) {
-          return coords;
+        if (name.includes(key) || dist.includes(key)) return coords;
+      }
+      // Partial match on first word of school name
+      const firstWord = name.split(/[\s\-]/)[0];
+      if (firstWord.length > 4) {
+        for (const [key, coords] of Object.entries(SITE_COORDS)) {
+          if (key.includes(firstWord)) return coords;
         }
       }
       return null;
     }
 
-    function queueGeocoding() {
-      loadGeoCache(); _geoQueue = [];
+    function assignCoords() {
       _allSites.forEach(s => {
-        // 1. Try hardcoded lookup first (instant, no network)
-        const preset = lookupCoords(s);
-        if (preset) { s.lat = preset.lat; s.lng = preset.lng; return; }
-
-        // 2. Try geocache
-        if (!s.address) { s.geocodeFailed=true; s.geocodeReason='No address'; return; }
-        const ck = normAddr(s.address);
-        const c  = _geocache[ck];
-        if (c) {
-          if (c.failed) { s.geocodeFailed=true; s.geocodeReason=c.reason||'Failed'; }
-          else { s.lat=c.lat; s.lng=c.lng; }
-        } else { _geoQueue.push({site:s, ck}); }
+        if (s.lat && s.lng) return;
+        const c = lookupCoords(s);
+        if (c) { s.lat = c.lat; s.lng = c.lng; }
       });
-      updateMapMarkers();
-      if (_geoQueue.length && !_geocoding) processGeoQueue();
     }
 
-    async function processGeoQueue() {
-      _geocoding = true;
-      while (_geoQueue.length) {
-        const item = _geoQueue.shift();
-        await geocodeOne(item.site, item.ck);
-        await new Promise(r => setTimeout(r, GEOCODE_RATE_MS));
-      }
-      _geocoding = false; saveGeoCache(); updateMapMarkers();
+    // NJ state outline path (simplified, scaled to SVG_W x SVG_H)
+    const NJ_PATH = `M 287,8 285,12 278,18 272,20 265,25 260,30 255,38 252,45 248,52
+      245,58 240,65 235,72 228,78 220,85 212,90 205,96 198,102 192,108
+      188,115 185,122 182,130 180,138 179,146 178,154 177,162 176,170
+      175,178 176,186 178,194 180,202 183,210 187,218 192,225 196,232
+      200,238 203,244 205,250 206,256 208,262 210,268 213,274 216,280
+      218,285 220,290 222,295 223,300 224,305 225,310 226,314 227,318
+      228,322 229,326 230,330 230,334 230,338 229,342 228,346 227,350
+      226,354 224,358 222,362 220,366 218,370 216,374 214,378 212,382
+      210,386 208,390 206,394 204,398 202,402 200,406 198,410 196,414
+      194,418 192,422 190,426 188,430 186,434 184,438 182,442 180,446
+      178,450 176,454 174,458 172,462 170,466 168,470 166,474 164,478
+      162,480 160,482 158,484 156,485 154,486 152,486 150,486 148,485
+      146,484 144,482 142,480 140,478 138,476 135,475 132,474 130,473
+      128,472 126,471 124,470 122,470 120,470 118,470 116,470 114,470
+      112,470 110,469 108,468 106,467 104,465 102,463 100,461 98,459
+      96,456 94,453 92,450 90,447 88,443 86,439 85,435 84,431 84,427
+      84,423 85,419 86,415 88,411 90,407 93,403 96,399 99,395 102,391
+      105,387 108,383 111,379 114,375 116,371 118,367 119,363 120,359
+      120,355 120,351 119,347 118,343 116,339 114,335 112,331 110,327
+      107,323 104,319 101,315 98,311 95,307 92,303 90,299 88,295
+      87,291 86,287 86,283 87,279 88,275 90,271 93,267 96,263
+      99,259 102,255 105,251 108,247 111,243 114,239 116,235 118,231
+      119,227 120,223 120,219 119,215 118,211 116,207 113,203 110,199
+      107,195 104,191 101,187 99,183 97,179 96,175 96,171 97,167
+      99,163 102,159 106,155 110,151 115,147 120,143 126,139 132,135
+      138,131 144,127 150,123 156,119 162,115 168,111 174,107 180,103
+      186,99 192,95 198,91 204,87 210,83 216,79 222,75 228,71
+      234,67 239,63 244,59 248,55 252,51 255,47 258,43 260,39
+      262,35 264,31 266,27 268,23 270,19 272,15 274,12 276,9
+      278,7 280,6 282,6 284,6 286,7 287,8 Z`;
+
+    function renderSVGMap() {
+      const el = document.getElementById('syMap');
+      if (!el) return;
+
+      assignCoords();
+      const fk = new Set(_filtered.map(s => s.key));
+
+      // Group sites by coords to handle stacking
+      const coordMap = {};
+      _filtered.forEach(s => {
+        if (!s.lat || !s.lng) return;
+        const { x, y } = latLngToXY(s.lat, s.lng);
+        const ck = `${Math.round(x)},${Math.round(y)}`;
+        if (!coordMap[ck]) coordMap[ck] = { x, y, sites: [] };
+        coordMap[ck].sites.push(s);
+      });
+
+      const pins = Object.values(coordMap).map(({ x, y, sites }) => {
+        const isSelected = sites.some(s => s.key === _selKey);
+        const isActive   = sites.some(s => (s.status || '').toLowerCase().includes('active'));
+        const count      = sites.length;
+        const col        = isSelected ? '#f0a500' : (isActive ? '#0050c8' : '#7d8fa1');
+        const r          = count > 1 ? 12 : 9;
+        const label      = count > 1 ? count : '';
+        const title      = sites.map(s => s.school).join(', ');
+        const keys       = sites.map(s => s.key.replace(/'/g, "\'")).join('|||');
+
+        return `<g class="sy-pin" style="cursor:pointer" onclick="(function(){var keys='${keys}'.split('|||');if(keys.length===1){sya.selectSite(keys[0]);}else{sya.selectSite(keys[0]);}})()" >
+          <circle cx="${x}" cy="${y}" r="${r + 4}" fill="${col}" opacity="0.18"/>
+          <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="2.5" filter="url(#pin-shadow)"/>
+          ${label ? `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" pointer-events="none">${label}</text>` : ''}
+          <title>${title}</title>
+        </g>`;
+      }).join('');
+
+      // Unmapped count
+      const unmapped = _filtered.filter(s => !s.lat || !s.lng);
+      const banner = unmapped.length
+        ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.82);color:#fff;font-size:.75rem;padding:.4rem 1rem;backdrop-filter:blur(4px)">${unmapped.length} site${unmapped.length>1?'s':''} could not be mapped: ${unmapped.map(s=>s.school).join(', ')}</div>`
+        : '';
+
+      el.innerHTML = `
+        <div style="position:relative;width:100%;height:100%">
+          <svg viewBox="0 0 ${SVG_W} ${SVG_H}" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="pin-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.32)"/>
+              </filter>
+            </defs>
+            <!-- NJ/PA region background -->
+            <rect width="${SVG_W}" height="${SVG_H}" fill="#e8f0f8" rx="8"/>
+            <!-- State outline -->
+            <path d="${NJ_PATH}" fill="#c8d8e8" stroke="#9ab0c8" stroke-width="1.5" stroke-linejoin="round"/>
+            <!-- Site pins -->
+            ${pins}
+          </svg>
+          ${banner}
+        </div>`;
     }
 
-    async function geocodeOne(site, ck) {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(site.address)}&format=json&limit=1`,
-          { headers:{'Accept-Language':'en','User-Agent':'NJTC-Portal/2.0'}, signal:AbortSignal.timeout(8000) }
-        );
-        if (!res.ok) throw new Error('HTTP '+res.status);
-        const data = await res.json();
-        if (data && data.length) {
-          const lat = parseFloat(data[0].lat), lng = parseFloat(data[0].lon);
-          if (!isFinite(lat)||!isFinite(lng)) throw new Error('Non-finite coordinates');
-          site.lat=lat; site.lng=lng; _geocache[ck]={lat,lng};
-          addMarker(site);
-          const fk = new Set(_filtered.map(s=>s.key));
-          if (fk.has(site.key) && _markers[site.key] && !_map.hasLayer(_markers[site.key]))
-            _markers[site.key].addTo(_map);
-          updateUnmapped();
-        } else {
-          site.geocodeFailed=true; site.geocodeReason='Not found';
-          _geocache[ck]={failed:true, reason:'Not found'}; updateUnmapped();
-        }
-      } catch(e) {
-        site.geocodeFailed=true; site.geocodeReason=e.message;
-        _geocache[ck]={failed:true, reason:e.message}; updateUnmapped();
-      }
-    }
+    // updateMapMarkers = just re-render the SVG
+    function updateMapMarkers() { renderSVGMap(); }
+
+    function updateUnmapped() { renderSVGMap(); }
 
     // ── CHANGES MODAL ─────────────────────────────────────────────────────
     function openChangesModal() {
@@ -7092,19 +7069,13 @@
     // Defers map init to ensure the container has non-zero dimensions.
     // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
-      if (!_map) {
-        initMap();
-        if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
-      }
-      setTimeout(() => { if (_map) _map.invalidateSize(); }, 50);
-      setTimeout(() => { if (_map) _map.invalidateSize(); }, 300);
+      if (_allSites.length) updateMapMarkers();
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
     function init() {
       if (_inited) return;
       _inited = true;
-      loadGeoCache();
       refresh(true);
       setInterval(() => {
         const p = document.getElementById('panel-sy-analytics');
