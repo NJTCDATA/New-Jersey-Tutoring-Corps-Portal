@@ -10544,15 +10544,7 @@
   })();
 
 
-  // ── Patch showPanel: route all module panel opens ─────────────────────
-  (function patchShowPanelModules() {
-    const _orig = window.showPanel;
-    window.showPanel = function(id, btn) {
-      if (_orig) _orig(id, btn);
-      if (id === 'sy-analytics') sya.onPanelOpen();
-      if (id === 'pearl-ops')    po.onPanelOpen();
-    };
-  })();
+
 
   // Boot all modules after DOM ready
   if (document.readyState === 'loading') {
