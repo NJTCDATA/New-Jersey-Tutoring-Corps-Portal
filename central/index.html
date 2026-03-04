@@ -6997,9 +6997,29 @@
     function saveGeoCache() { try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(_geocache)); } catch(e) {} }
     const normAddr = a => a.toLowerCase().replace(/\s+/g,' ').trim();
 
+    // Hardcoded NJ/PA coordinate lookup — eliminates Nominatim dependency for known sites
+    const SITE_COORDS = {"ilearn charter school- bergen es": {"lat": 40.9282, "lng": -74.1312}, "ilearn charter school- bergen ms": {"lat": 40.9282, "lng": -74.1312}, "ilearn charter school- clifton es": {"lat": 40.8584, "lng": -74.1638}, "ilearn charter school- clifton ms": {"lat": 40.8584, "lng": -74.1638}, "ilearn charter school- passaic es": {"lat": 40.8568, "lng": -74.1285}, "ilearn charter school- passaic ms": {"lat": 40.8568, "lng": -74.1285}, "ilearn charter school- paterson es": {"lat": 40.9168, "lng": -74.1719}, "ilearn charter school- paterson ms": {"lat": 40.9168, "lng": -74.1719}, "ilearn charter school- hudson ms": {"lat": 40.7282, "lng": -74.0776}, "hamilton township school district": {"lat": 40.226, "lng": -74.7018}, "hamilton township- mercerville": {"lat": 40.226, "lng": -74.7018}, "hamilton township- kuser": {"lat": 40.2107, "lng": -74.7235}, "hamilton township- hamilton": {"lat": 40.226, "lng": -74.7018}, "hoboken dual language charter school": {"lat": 40.744, "lng": -74.0324}, "hoboken charter school": {"lat": 40.744, "lng": -74.0324}, "hola": {"lat": 40.744, "lng": -74.0324}, "haddon township school district": {"lat": 39.9001, "lng": -75.0652}, "haddon township": {"lat": 39.9001, "lng": -75.0652}, "van sciver": {"lat": 39.9001, "lng": -75.0652}, "strawbridge": {"lat": 39.9101, "lng": -75.0552}, "global leadership academy": {"lat": 39.9526, "lng": -75.1652}, "gla- west": {"lat": 39.949, "lng": -75.218}, "gla west": {"lat": 39.949, "lng": -75.218}, "salem city school district": {"lat": 39.5718, "lng": -75.4688}, "salem middle school": {"lat": 39.5718, "lng": -75.4688}, "john fenwick": {"lat": 39.5718, "lng": -75.4688}, "penns grove": {"lat": 39.729, "lng": -75.5135}, "carneys point": {"lat": 39.6679, "lng": -75.4649}, "field street": {"lat": 39.729, "lng": -75.5135}, "penns grove middle": {"lat": 39.7218, "lng": -75.519}, "lawrence township": {"lat": 40.2815, "lng": -74.7293}, "slackwood": {"lat": 40.2815, "lng": -74.7293}, "gloucester township": {"lat": 39.7776, "lng": -75.0316}, "erial": {"lat": 39.749, "lng": -75.0513}, "loring flemming": {"lat": 39.7776, "lng": -75.0316}, "first philadelphia prep": {"lat": 39.9942, "lng": -75.154}, "american paradigm": {"lat": 39.9942, "lng": -75.154}, "central jersey college prep": {"lat": 40.5018, "lng": -74.2954}, "paterson charter": {"lat": 40.9168, "lng": -74.1719}, "pcsst": {"lat": 40.9168, "lng": -74.1719}};
+
+    function lookupCoords(site) {
+      const name = (site.school || '').toLowerCase();
+      const dist = (site.district || '').toLowerCase();
+      // Try progressively broader matches
+      for (const [key, coords] of Object.entries(SITE_COORDS)) {
+        if (name.includes(key) || dist.includes(key) || key.includes(name.split('-')[0].trim())) {
+          return coords;
+        }
+      }
+      return null;
+    }
+
     function queueGeocoding() {
       loadGeoCache(); _geoQueue = [];
       _allSites.forEach(s => {
+        // 1. Try hardcoded lookup first (instant, no network)
+        const preset = lookupCoords(s);
+        if (preset) { s.lat = preset.lat; s.lng = preset.lng; return; }
+
+        // 2. Try geocache
         if (!s.address) { s.geocodeFailed=true; s.geocodeReason='No address'; return; }
         const ck = normAddr(s.address);
         const c  = _geocache[ck];
