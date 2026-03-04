@@ -2193,7 +2193,7 @@
         <div class="ms-wrap" id="mswWeek"></div>
         <div class="ms-wrap" id="mswRole"></div>
         <div class="ms-wrap" id="mswFlag"></div>
-        <button class="btn btn-secondary" onclick="po.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
+        <button class="btn btn-secondary" onclick="sya.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
         <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>
@@ -10434,6 +10434,13 @@
   window.goStep             = goStep;
   window.openConnectionsModal = openConnectionsModal;
   window.openFlagsModal     = function(f) { po.openFlagsModal(f); };
+  window.drillPerson = function(...a) { po.drillPerson(...a); };
+  window.drillSchool = function(...a) { po.drillSchool(...a); };
+  window.goBack = function(...a) { po.goBack(...a); };
+  window.switchTab = function(...a) { po.switchTab(...a); };
+  window.switchPersonTab = function(...a) { po.switchPersonTab(...a); };
+  window.exportData = function(...a) { po.exportData(...a); };
+  window.showExportModal = function(...a) { po.showExportModal(...a); };
   window.openKPIInquiry     = openKPIInquiry;
   window.resetConcernForm   = resetConcernForm;
   window.resetKPIInquiry    = resetKPIInquiry;
@@ -10442,6 +10449,12 @@
   window.showChangeLog      = showChangeLog;
   window.submitConcernForm  = submitConcernForm;
   window.submitKPIInquiry   = submitKPIInquiry;
+  window.setKPIAnalyticsTab = setKPIAnalyticsTab;
+  window.setKpiFilter       = setKpiFilter;
+  window.openKPIInquiryWithMetric = openKPIInquiryWithMetric;
+  window.openPolicyByIdx    = openPolicyByIdx;
+  window.showPolicySection  = showPolicySection;
+  window.removePdfPolicy    = removePdfPolicy;
 
 })();
 </script>
