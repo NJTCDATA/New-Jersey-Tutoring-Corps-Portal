@@ -7257,24 +7257,22 @@
     // Only count against a tutor when IT IS THE TUTOR'S fault.
 
     // Counts as attended (scholar showed up, even if partially)
-    const COUNTS_AS_ATTENDED = new Set([
-      'Scholar Left Early',   // scholar came, left early — count as attended
-    ]);
+    // NOTE: 'Scholar Left Early' removed — Pearl always marks these as Missed status,
+    // they are scholar-caused absences and counted in SCHOLAR_MISS_REASONS
+    const COUNTS_AS_ATTENDED = new Set([]);
 
     // Scholar-caused misses — counted in scholar denominator
-    // These are sessions the scholar missed for reasons within their (or school's) control
-    // CT Request: teacher pulled scholar from tutoring — counts against scholar's attendance rate
+    // Blank reason → always unclassified (not_recorded), excluded from attendance rate and CT % calculation
     const SCHOLAR_MISS_REASONS = new Set([
-      '',                                           // blank = unknown, counts against scholar
       'Absent',                                     // scholar absent from school
       'Scholar declined attending tutoring session', // scholar's own choice
       'Classroom Teacher Requested to Keep Scholar in Class', // teacher kept scholar — counts as missed tutoring
       'HADDON TWP ONLY -- Teacher requested whole group support', // same — teacher decision, scholar missed tutoring
+      'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
     ]);
 
     // Tutor-caused misses — counted in tutor denominator (instructor rows only)
     const TUTOR_MISS_REASONS = new Set([
-      '',                                           // blank instructor miss
       'Absent; Not Covered (Tutor not available)',  // tutor absent, no coverage
       'Absent; Covered by Sub Tutor',               // tutor absent (covered, but still absent)
       'Absent; Covered by Dual Role',
@@ -7322,6 +7320,8 @@
       if (attStat === 'Missed') {
         if (role === 'Student') {
           // Scholar-caused miss → counted in scholar denominator
+          // Blank reason → always unclassified (not_recorded), excluded from all rate calculations
+          if (missReason === '')                        return 'not_recorded';
           if (SCHOLAR_MISS_REASONS.has(missReason))    return 'absent';
           // Everything else is a service interruption — NOT the scholar's fault
           return 'service_interruption';
