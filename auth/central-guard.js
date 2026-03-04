@@ -1,5 +1,5 @@
 (async () => {
-  const CT_DEPTS = ['hr','finance','programming','data','training','leadership'];
+  const CT_DEPTS = ['hr','finance','programming','data','training','leadership','kb'];
   const BASE = '/New-Jersey-Tutoring-Corps-Portal';
 
   // getStoredToken() already handles URL hash extraction internally
