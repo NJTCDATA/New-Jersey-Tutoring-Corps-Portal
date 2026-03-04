@@ -6942,22 +6942,20 @@
         if (onReady) onReady();
       }
 
-      // If container already has dimensions, init immediately
-      if (el.offsetWidth > 10 && el.offsetHeight > 10) {
-        _doInit();
-        return;
-      }
-
-      // Otherwise wait for the container to get real dimensions via ResizeObserver
-      const ro = new ResizeObserver((entries, obs) => {
-        for (const entry of entries) {
-          if (entry.contentRect.width > 10 && entry.contentRect.height > 10) {
-            obs.disconnect();
-            _doInit();
-          }
+      // Poll with rAF until the container has real painted dimensions.
+      // ResizeObserver doesn't fire reliably when parent was display:none at observe time.
+      let _attempts = 0;
+      function _waitForDimensions() {
+        _attempts++;
+        const w = el.getBoundingClientRect().width;
+        const h = el.getBoundingClientRect().height;
+        if (w > 10 && h > 10) {
+          _doInit();
+        } else if (_attempts < 60) {
+          requestAnimationFrame(_waitForDimensions);
         }
-      });
-      ro.observe(el);
+      }
+      requestAnimationFrame(_waitForDimensions);
     }
 
     function updateMapMarkers() {
