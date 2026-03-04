@@ -2118,7 +2118,7 @@
           <div id="syDistrictList" style="max-height:500px;overflow-y:auto;scrollbar-width:thin"></div>
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;position:relative">
-          <div id="syMap" style="height:500px;width:100%"></div>
+          <div id="syMap" style="height:500px;width:100%;min-height:500px;position:relative;"></div>
           <div id="syUnmappedBanner" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.82);color:#fff;font-size:.75rem;padding:.5rem 1rem;backdrop-filter:blur(4px)"></div>
         </div>
         <div id="syDetailCard" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:1.25rem;overflow-y:auto;max-height:500px">
@@ -6796,6 +6796,7 @@
 
     // ── DETAIL CARD ───────────────────────────────────────────────────────
     function selectSite(key) {
+      setTimeout(() => { if (_map) _map.invalidateSize(); }, 50);
       _selKey = key;
       const site = _allSites.find(s => s.key === key);
       if (!site) return;
@@ -7011,6 +7012,10 @@
       setTimeout(() => {
         if (_map) _map.invalidateSize();
       }, 400);
+      // Final invalidate at 800ms — catches cases where grid layout settles late
+      setTimeout(() => {
+        if (_map) { _map.invalidateSize(); _map.invalidateSize(); }
+      }, 800);
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
