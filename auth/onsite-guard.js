@@ -1,11 +1,8 @@
 (async () => {
-  const CT_DEPTS = ['hr','finance','programming','data','training','leadership','kb'];
   const BASE = '/New-Jersey-Tutoring-Corps-Portal';
-
-  // getStoredToken() already handles URL hash extraction internally
   const session = await NJTCAuth.currentSession();
 
-  if (!session || !CT_DEPTS.includes(session.dept)) {
+  if (!session || session.dept !== 'onsite') {
     window.location.replace(BASE + '/index.html');
     return;
   }
