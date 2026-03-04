@@ -8382,7 +8382,7 @@
           <span style="font-weight:700;color:${lvl.color};font-size:.8rem;min-width:30px">${dt.scholarRate}%</span>
         </div>`;
         return `<tr>
-          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} scholars · ${dt.schools.length} school(s)</div></td>
+          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} active scholars · ${dt.schools.length} school(s)</div></td>
           <td>${bar}</td>
           <td style="text-align:center"><span style="background:${lvl.color}18;color:${lvl.color};border-radius:12px;padding:.2rem .7rem;font-size:.75rem;font-weight:600">${lvl.icon} ${lvl.label}</span></td>
           <td style="text-align:center;font-weight:600;color:var(--navy)">${dt.sessions}</td>
@@ -8422,7 +8422,7 @@
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Participation</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
-            <div class="po-exec-kpi-sub">${totalScholars} scholars engaged</div>
+            <div class="po-exec-kpi-sub">${totalScholars} active scholars</div>
             ${trendDir}
           </div>
           <div class="po-exec-kpi" style="--kpi-color:${d.tutorRate>=85?'var(--met)':'#d97706'}">
@@ -8448,7 +8448,7 @@
         <div class="po-exec-health-row">
           <div class="po-exec-tiers">
             <div class="po-exec-card-title">
-              <span>📊 Scholar Engagement Tiers — ${totalScholars} Scholars</span>
+              <span>📊 Scholar Engagement Tiers — ${totalScholars} Active Scholars</span>
               <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% Actively Engaged · 70–79% Building Momentum · &lt;70% Check In With</span>
             </div>
             <div class="po-exec-tier-bars">
@@ -8562,7 +8562,7 @@
         const tutorColor = dt.tutorRate >= 85 ? 'var(--met)' : dt.tutorRate >= 75 ? '#d97706' : 'var(--notmet)';
         const flags = dt.ctFlag ? '<span class="po-badge po-badge-gold">⚠️ CT Pull-out</span>' : '<span class="po-badge po-badge-green">✓</span>';
         return `<tr onclick="po.drillSchool('${esc(dt.schools[0]&&dt.schools[0].name||'')}')" style="cursor:pointer">
-          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} scholars · ${dt.schools.length} school(s)</div></td>
+          <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} active scholars · ${dt.schools.length} school(s)</div></td>
           <td style="text-align:center">${pill}</td>
           <td style="text-align:center"><span style="font-weight:700;color:${tutorColor}">${dt.tutorRate}%</span></td>
           <td style="text-align:center"><span style="font-weight:600;color:var(--navy)">${dt.sessions}</span></td>
@@ -8608,7 +8608,7 @@
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Attendance</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
-            <div class="po-exec-kpi-sub">${totalScholars} scholars tracked</div>
+            <div class="po-exec-kpi-sub">${totalScholars} active scholars</div>
             ${trendArr(d.weeklyTrend)}
           </div>
           <div class="po-exec-kpi" style="--kpi-color:${d.tutorRate>=85?'var(--met)':d.tutorRate>=75?'#d97706':'var(--notmet)'}">
@@ -8635,7 +8635,7 @@
         <div class="po-exec-health-row">
           <div class="po-exec-tiers">
             <div class="po-exec-card-title">
-              <span>📊 Scholar Attendance Health — ${totalScholars} Scholars</span>
+              <span>📊 Scholar Attendance Health — ${totalScholars} Active Scholars</span>
               <span style="font-weight:400;font-size:.75rem;color:var(--muted)">≥80% On Track · 70–79% Building Momentum · &lt;70% Needs Support</span>
             </div>
             <div class="po-exec-tier-bars">
@@ -8855,7 +8855,7 @@
               <div class="po-ops-meta-val">${dateStr} ${timeStr}</div>
             </div>
             <div class="po-ops-meta-item">
-              <div class="po-ops-meta-lbl">Scholar Coverage</div>
+              <div class="po-ops-meta-lbl">Active Scholars</div>
               <div class="po-ops-meta-val">${totalScholars.toLocaleString()}</div>
             </div>
           </div>
@@ -9031,6 +9031,94 @@
       else if (tab === 'hit')       el.innerHTML = renderHITTab(sc);
     }
 
+
+    // ── DEMOGRAPHICS ATTENDANCE BREAKDOWN ────────────────────────────────
+    // Computes attendance rate grouped by a demographic field (race or sex).
+    // Only active scholars (attended >= 1) are included.
+    // Returns sorted array: { label, attended, absent, rate, pct }
+    function buildDemographicsBreakdown(scholars, field) {
+      const map = {};
+      for (const p of scholars) {
+        if (p.role !== 'Student') continue;
+        const key = (p[field] || '').trim() || 'Not Reported';
+        if (!map[key]) map[key] = { attended: 0, absent: 0 };
+        map[key].attended += p.attended;
+        map[key].absent   += p.absent;
+      }
+      const total = Object.values(map).reduce((s, v) => s + v.attended + v.absent, 0);
+      return Object.entries(map)
+        .map(([label, v]) => {
+          const sessions = v.attended + v.absent;
+          return {
+            label,
+            attended: v.attended,
+            absent:   v.absent,
+            rate:     sessions > 0 ? Math.round(v.attended / sessions * 100) : 0,
+            pct:      total > 0    ? Math.round((v.attended + v.absent) / total * 100) : 0,
+          };
+        })
+        .sort((a, b) => b.attended + b.absent - (a.attended + a.absent)); // sort by volume desc
+    }
+
+    // ── RENDER DEMOGRAPHICS SECTION ──────────────────────────────────────
+    function renderDemographicsSection(scholars) {
+      // Only show for roles that include students
+      const activeScholars = scholars.filter(p => p.role === 'Student' && p.attended > 0);
+      if (activeScholars.length === 0) return '';
+
+      function buildTable(breakdown, heading) {
+        const rows = breakdown.map(r => {
+          const barW = Math.max(2, r.rate);
+          const col  = r.rate >= 90 ? 'var(--met)' : r.rate >= 75 ? '#d97706' : 'var(--notmet)';
+          return `<tr style="font-size:.8rem;border-bottom:1px solid var(--border-2)">
+            <td style="padding:.4rem .75rem;color:var(--text);font-weight:500;min-width:140px">${r.label}</td>
+            <td style="padding:.4rem .75rem;text-align:center;font-weight:700;color:${col}">${r.rate}%</td>
+            <td style="padding:.4rem .75rem;text-align:center;color:var(--text-2)">${r.attended}</td>
+            <td style="padding:.4rem .75rem;text-align:center;color:var(--text-2)">${r.absent}</td>
+            <td style="padding:.4rem 1rem;min-width:100px">
+              <div style="background:var(--border-2);border-radius:4px;height:6px;overflow:hidden">
+                <div style="width:${barW}%;height:100%;background:${col};border-radius:4px"></div>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+        const thS = 'padding:.35rem .75rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);white-space:nowrap';
+        return `
+          <div>
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem">${heading}</div>
+            <div style="overflow-x:auto;border:1px solid var(--border-2);border-radius:var(--radius)">
+              <table style="width:100%;border-collapse:collapse">
+                <thead>
+                  <tr style="background:var(--surface-2)">
+                    <th style="${thS}">Category</th>
+                    <th style="${thS};text-align:center">Att. Rate</th>
+                    <th style="${thS};text-align:center">Attended</th>
+                    <th style="${thS};text-align:center">Absent</th>
+                    <th style="${thS}">Rate Bar</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }
+
+      const raceBreakdown = buildDemographicsBreakdown(activeScholars, 'race');
+      const sexBreakdown  = buildDemographicsBreakdown(activeScholars, 'sex');
+
+      return `
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.75rem">
+            📊 Attendance by Demographics
+            <span style="font-size:.65rem;font-weight:400;color:var(--muted);margin-left:.5rem">Active scholars only · session-level counts</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            ${buildTable(raceBreakdown, 'By Race / Ethnicity')}
+            ${buildTable(sexBreakdown,  'By Sex')}
+          </div>
+        </div>`;
+    }
+
     function renderAttendanceTab(sc) {
       // Respect the global role filter
       const roleFilter = _filtRole; // array of selected roles
@@ -9186,10 +9274,11 @@
       return `
         <div style="padding:1.25rem 1.5rem 0">
           ${miniStats}
+          ${(!roleFilter.length || roleFilter.includes('Student')) ? renderDemographicsSection(persons) : ''}
         </div>
         <div style="padding:0 1.5rem 1.5rem">
           ${students.length > 0 ? `
-          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Scholars (${students.length})</div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Active Scholars (${students.filter(p => p.attended > 0).length} of ${students.length})</div>
           <div style="overflow-x:auto;margin-bottom:1.5rem">
             <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
               <thead>${stuTheads}</thead>
@@ -9738,7 +9827,9 @@
       }
       const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : 0;
 
-      // ── Scholar performance tiers (correct formula) ──
+      // ── Scholar performance tiers — ACTIVE SCHOLARS ONLY ──────────────
+      // Active = attended at least 1 session (attended or late).
+      // Scholars with zero attended sessions are excluded from counts.
       const scholarAtt = {};
       for (const r of _attRows) {
         if (r[ATT.ROLE] !== 'Student') continue;
@@ -9750,6 +9841,7 @@
       }
       let onTrack = 0, atRisk = 0, needsAction = 0;
       for (const { att, miss } of Object.values(scholarAtt)) {
+        if (att === 0) continue; // exclude scholars who never attended
         const total = att + miss; if (!total) continue;
         const rate = att / total * 100;
         if (rate >= 80) onTrack++;
@@ -9766,7 +9858,8 @@
         if (!distMap[dist]) distMap[dist] = { name: dist, schools: {}, stuAtt: 0, stuMiss: 0, instAtt: 0, instMiss: 0, scholars: new Set(), sessions: 0 };
         const cls = classifyRecord(r);
         if (role === 'Student') {
-          distMap[dist].scholars.add(r[ATT.USER_ID]);
+          // Only count scholar as active if they attended (attended or late)
+          if (cls === 'attended') distMap[dist].scholars.add(r[ATT.USER_ID]);
           if (!distMap[dist].schools[school]) distMap[dist].schools[school] = { name: school, att: 0, miss: 0 };
           if (cls === 'attended') { distMap[dist].stuAtt++; distMap[dist].schools[school].att++; }
           else if (cls === 'absent') { distMap[dist].stuMiss++; distMap[dist].schools[school].miss++; }
@@ -9886,6 +9979,9 @@
           return true;
         });
         if (!personAttRows.length) continue;
+        // Active scholars only — must have attended at least 1 session
+        const hasAttended = personAttRows.some(r => classifyRecord(r) === 'attended');
+        if (!hasAttended) continue;
 
         const attended = personAttRows.filter(r => classifyRecord(r) === 'attended').length;
         const absent   = personAttRows.filter(r => classifyRecord(r) === 'absent').length;
@@ -10015,7 +10111,7 @@
           'Service Interruptions': si,
           'Attendance Rate (%)': attPct,
           'Total Duration (min)': totalMins || '',
-          'Unique Scholars Served': uniqueStudents.size,
+          'Active Scholars Served': uniqueStudents.size,
           'HIT Flags':           p.flags ? p.flags.length : 0,
           'Survey Count':        survFiltered.length,
           'Survey Avg Engagement': safeAvg(survFiltered.map(r => r[INST_S.ENGAGEMENT])),
@@ -10190,7 +10286,7 @@
       const isFiltered = _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length;
 
       // Count records for preview
-      const scholarCount = Object.values(_personMap).filter(p => p.role === 'Student' && matchesSchoolFilter(p.school, p.district)).length;
+      const scholarCount = Object.values(_personMap).filter(p => p.role === 'Student' && p.attended > 0 && matchesSchoolFilter(p.school, p.district)).length;
       const tutorCount   = Object.values(_personMap).filter(p => p.role === 'Instructor' && matchesSchoolFilter(p.school, p.district)).length;
       const sessCount    = Object.values(_sessMap).filter(s => matchesSchoolFilter(s.school, s.district)).length;
       const schoolCount  = Object.values(_schoolMap).filter(s => matchesSchoolFilter(s.school, s.district)).length;
