@@ -6913,17 +6913,45 @@
     // NJ outline path scaled to viewBox 0 0 400 500
     // Pins positioned by lat/lng → pixel using linear projection for NJ bounds
     // lat: 38.85–41.36 (NJ+PA range), lng: -75.65–-73.85
-    const NJ_BOUNDS = { latMin:38.85, latMax:41.36, lngMin:-75.65, lngMax:-73.85 };
-    const SVG_W = 400, SVG_H = 500;
+    // ── SVG DOT MAP (premium redesign) ─────────────────────────────────
+    // Projection: NJ+PA coverage, viewBox 500×600
+    const NJ_BOUNDS = { latMin:38.9, latMax:41.4, lngMin:-75.7, lngMax:-73.8 };
+    const SVG_W = 500, SVG_H = 600;
 
     function latLngToXY(lat, lng) {
       const x = ((lng - NJ_BOUNDS.lngMin) / (NJ_BOUNDS.lngMax - NJ_BOUNDS.lngMin)) * SVG_W;
       const y = SVG_H - ((lat - NJ_BOUNDS.latMin) / (NJ_BOUNDS.latMax - NJ_BOUNDS.latMin)) * SVG_H;
-      return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+      return { x: +x.toFixed(1), y: +y.toFixed(1) };
     }
 
-    // Hardcoded district coordinates
-    const SITE_COORDS = {"ilearn charter school- bergen es":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- bergen ms":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- clifton es":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- clifton ms":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- passaic es":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- passaic ms":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- paterson es":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- paterson ms":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- hudson ms":{"lat":40.7282,"lng":-74.0776},"hamilton township school district":{"lat":40.226,"lng":-74.7018},"hamilton township- mercerville":{"lat":40.226,"lng":-74.7018},"hamilton township- kuser":{"lat":40.2107,"lng":-74.7235},"hamilton township- hamilton":{"lat":40.226,"lng":-74.7018},"hoboken dual language charter school":{"lat":40.744,"lng":-74.0324},"hoboken charter school":{"lat":40.744,"lng":-74.0324},"hola":{"lat":40.744,"lng":-74.0324},"haddon township school district":{"lat":39.9001,"lng":-75.0652},"haddon township":{"lat":39.9001,"lng":-75.0652},"van sciver":{"lat":39.9001,"lng":-75.0652},"strawbridge":{"lat":39.9101,"lng":-75.0552},"global leadership academy":{"lat":39.9526,"lng":-75.1652},"gla- west":{"lat":39.949,"lng":-75.218},"gla west":{"lat":39.949,"lng":-75.218},"salem city school district":{"lat":39.5718,"lng":-75.4688},"salem middle school":{"lat":39.5718,"lng":-75.4688},"john fenwick":{"lat":39.5718,"lng":-75.4688},"penns grove":{"lat":39.729,"lng":-75.5135},"carneys point":{"lat":39.6679,"lng":-75.4649},"field street":{"lat":39.729,"lng":-75.5135},"penns grove middle":{"lat":39.7218,"lng":-75.519},"lawrence township":{"lat":40.2815,"lng":-74.7293},"slackwood":{"lat":40.2815,"lng":-74.7293},"gloucester township":{"lat":39.7776,"lng":-75.0316},"erial":{"lat":39.749,"lng":-75.0513},"loring flemming":{"lat":39.7776,"lng":-75.0316},"first philadelphia prep":{"lat":39.9942,"lng":-75.154},"american paradigm":{"lat":39.9942,"lng":-75.154},"central jersey college prep":{"lat":40.5018,"lng":-74.2954},"paterson charter":{"lat":40.9168,"lng":-74.1719},"pcsst":{"lat":40.9168,"lng":-74.1719}};
+    // Accurate NJ state outline — real coordinates projected to SVG space
+    // Key points traced from NJ boundary (lat/lng pairs → projected)
+    const NJ_LATLNG = [
+      [41.357,[-74.695]],[41.36,[-74.02]],[41.21,[-73.89]],[41.10,[-73.90]],
+      [40.99,[-73.91]],[40.96,[-73.89]],[40.86,[-73.93]],[40.79,[-73.97]],
+      [40.69,[-74.03]],[40.65,[-74.18]],[40.64,[-74.22]],[40.58,[-74.25]],
+      [40.50,[-74.27]],[40.45,[-74.27]],[40.39,[-74.22]],[40.33,[-74.11]],
+      [40.25,[-74.01]],[40.17,[-74.01]],[40.08,[-74.07]],[39.99,[-74.18]],
+      [39.92,[-74.24]],[39.87,[-74.27]],[39.79,[-74.32]],[39.73,[-74.35]],
+      [39.65,[-74.30]],[39.54,[-74.26]],[39.46,[-74.35]],[39.38,[-74.44]],
+      [39.31,[-74.58]],[39.21,[-74.72]],[39.12,[-74.83]],[39.00,[-74.88]],
+      [38.93,[-74.97]],[38.93,[-75.19]],[39.00,[-75.35]],[39.10,[-75.47]],
+      [39.22,[-75.55]],[39.38,[-75.59]],[39.50,[-75.56]],[39.62,[-75.52]],
+      [39.72,[-75.53]],[39.84,[-75.43]],[39.95,[-75.41]],[40.07,[-75.21]],
+      [40.18,[-74.94]],[40.30,[-75.07]],[40.37,[-75.19]],[40.45,[-75.21]],
+      [40.56,[-75.20]],[40.65,[-75.10]],[40.75,[-75.10]],[40.85,[-75.14]],
+      [40.97,[-75.14]],[41.09,[-74.98]],[41.18,[-74.89]],[41.28,[-74.81]],
+      [41.357,[-74.695]]
+    ];
+
+    function buildNJPath() {
+      return NJ_LATLNG.map((pt, i) => {
+        const {x, y} = latLngToXY(pt[0], pt[1][0]);
+        return (i === 0 ? 'M' : 'L') + x + ',' + y;
+      }).join(' ') + ' Z';
+    }
+
+    const SITE_COORDS = {"ilearn charter school- bergen es":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- bergen ms":{"lat":40.9282,"lng":-74.1312},"ilearn charter school- clifton es":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- clifton ms":{"lat":40.8584,"lng":-74.1638},"ilearn charter school- passaic es":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- passaic ms":{"lat":40.8568,"lng":-74.1285},"ilearn charter school- paterson es":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- paterson ms":{"lat":40.9168,"lng":-74.1719},"ilearn charter school- hudson ms":{"lat":40.7282,"lng":-74.0776},"hamilton township school district":{"lat":40.226,"lng":-74.7018},"hamilton township- mercerville":{"lat":40.226,"lng":-74.7018},"hamilton township- kuser":{"lat":40.2107,"lng":-74.7235},"hamilton township- hamilton":{"lat":40.226,"lng":-74.7018},"hoboken dual language charter school":{"lat":40.744,"lng":-74.0324},"hoboken charter school":{"lat":40.744,"lng":-74.0324},"hola":{"lat":40.744,"lng":-74.0324},"haddon township school district":{"lat":39.9001,"lng":-75.0652},"haddon township":{"lat":39.9001,"lng":-75.0652},"van sciver":{"lat":39.9001,"lng":-75.0652},"strawbridge":{"lat":39.9101,"lng":-75.0552},"global leadership academy":{"lat":39.9526,"lng":-75.1652},"gla- west":{"lat":39.949,"lng":-75.218},"gla west":{"lat":39.949,"lng":-75.218},"salem city school district":{"lat":39.5718,"lng":-75.4688},"salem middle school":{"lat":39.5718,"lng":-75.4688},"john fenwick":{"lat":39.5718,"lng":-75.4688},"penns grove":{"lat":39.729,"lng":-75.5135},"carneys point":{"lat":39.6679,"lng":-75.4649},"field street":{"lat":39.729,"lng":-75.5135},"penns grove middle":{"lat":39.7218,"lng":-75.519},"lawrence township":{"lat":40.2815,"lng":-74.7293},"slackwood":{"lat":40.2815,"lng":-74.7293},"gloucester township":{"lat":39.7776,"lng":-75.0316},"erial":{"lat":39.749,"lng":-75.0513},"loring flemming":{"lat":39.7776,"lng":-75.0316},"first philadelphia prep":{"lat":39.9942,"lng":-75.154},"american paradigm":{"lat":39.9942,"lng":-75.154},"central jersey college prep":{"lat":40.5018,"lng":-74.2954},"paterson charter":{"lat":40.9168,"lng":-74.1719},"pcsst":{"lat":40.9168,"lng":-74.1719},"middlesex stem":{"lat":40.5665,"lng":-74.4007},"thurgood marshall":{"lat":40.2260,"lng":-74.7018},"philadelphia charter":{"lat":39.9526,"lng":-75.1652}};
 
     function lookupCoords(site) {
       const name = (site.school || '').toLowerCase();
@@ -6931,7 +6959,6 @@
       for (const [key, coords] of Object.entries(SITE_COORDS)) {
         if (name.includes(key) || dist.includes(key)) return coords;
       }
-      // Partial match on first word of school name
       const firstWord = name.split(/[\s\-]/)[0];
       if (firstWord.length > 4) {
         for (const [key, coords] of Object.entries(SITE_COORDS)) {
@@ -6949,102 +6976,119 @@
       });
     }
 
-    // NJ state outline path (simplified, scaled to SVG_W x SVG_H)
-    const NJ_PATH = `M 287,8 285,12 278,18 272,20 265,25 260,30 255,38 252,45 248,52
-      245,58 240,65 235,72 228,78 220,85 212,90 205,96 198,102 192,108
-      188,115 185,122 182,130 180,138 179,146 178,154 177,162 176,170
-      175,178 176,186 178,194 180,202 183,210 187,218 192,225 196,232
-      200,238 203,244 205,250 206,256 208,262 210,268 213,274 216,280
-      218,285 220,290 222,295 223,300 224,305 225,310 226,314 227,318
-      228,322 229,326 230,330 230,334 230,338 229,342 228,346 227,350
-      226,354 224,358 222,362 220,366 218,370 216,374 214,378 212,382
-      210,386 208,390 206,394 204,398 202,402 200,406 198,410 196,414
-      194,418 192,422 190,426 188,430 186,434 184,438 182,442 180,446
-      178,450 176,454 174,458 172,462 170,466 168,470 166,474 164,478
-      162,480 160,482 158,484 156,485 154,486 152,486 150,486 148,485
-      146,484 144,482 142,480 140,478 138,476 135,475 132,474 130,473
-      128,472 126,471 124,470 122,470 120,470 118,470 116,470 114,470
-      112,470 110,469 108,468 106,467 104,465 102,463 100,461 98,459
-      96,456 94,453 92,450 90,447 88,443 86,439 85,435 84,431 84,427
-      84,423 85,419 86,415 88,411 90,407 93,403 96,399 99,395 102,391
-      105,387 108,383 111,379 114,375 116,371 118,367 119,363 120,359
-      120,355 120,351 119,347 118,343 116,339 114,335 112,331 110,327
-      107,323 104,319 101,315 98,311 95,307 92,303 90,299 88,295
-      87,291 86,287 86,283 87,279 88,275 90,271 93,267 96,263
-      99,259 102,255 105,251 108,247 111,243 114,239 116,235 118,231
-      119,227 120,223 120,219 119,215 118,211 116,207 113,203 110,199
-      107,195 104,191 101,187 99,183 97,179 96,175 96,171 97,167
-      99,163 102,159 106,155 110,151 115,147 120,143 126,139 132,135
-      138,131 144,127 150,123 156,119 162,115 168,111 174,107 180,103
-      186,99 192,95 198,91 204,87 210,83 216,79 222,75 228,71
-      234,67 239,63 244,59 248,55 252,51 255,47 258,43 260,39
-      262,35 264,31 266,27 268,23 270,19 272,15 274,12 276,9
-      278,7 280,6 282,6 284,6 286,7 287,8 Z`;
-
     function renderSVGMap() {
       const el = document.getElementById('syMap');
       if (!el) return;
 
       assignCoords();
-      const fk = new Set(_filtered.map(s => s.key));
+      const njPath = buildNJPath();
 
-      // Group sites by coords to handle stacking
+      // Group filtered sites by grid cell (jitter prevention)
+      const CELL = 18;
       const coordMap = {};
       _filtered.forEach(s => {
         if (!s.lat || !s.lng) return;
         const { x, y } = latLngToXY(s.lat, s.lng);
-        const ck = `${Math.round(x)},${Math.round(y)}`;
+        const ck = `${Math.round(x/CELL)},${Math.round(y/CELL)}`;
         if (!coordMap[ck]) coordMap[ck] = { x, y, sites: [] };
         coordMap[ck].sites.push(s);
       });
 
       const pins = Object.values(coordMap).map(({ x, y, sites }) => {
         const isSelected = sites.some(s => s.key === _selKey);
-        const isActive   = sites.some(s => (s.status || '').toLowerCase().includes('active'));
+        const isActive   = sites.some(s => (s.status||'').toLowerCase().includes('active'));
         const count      = sites.length;
-        const col        = isSelected ? '#f0a500' : (isActive ? '#0050c8' : '#7d8fa1');
-        const r          = count > 1 ? 12 : 9;
-        const label      = count > 1 ? count : '';
-        const title      = sites.map(s => s.school).join(', ');
-        const keys       = sites.map(s => s.key.replace(/'/g, "\'")).join('|||');
-
-        return `<g class="sy-pin" style="cursor:pointer" onclick="(function(){var keys='${keys}'.split('|||');if(keys.length===1){sya.selectSite(keys[0]);}else{sya.selectSite(keys[0]);}})()" >
-          <circle cx="${x}" cy="${y}" r="${r + 4}" fill="${col}" opacity="0.18"/>
-          <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#fff" stroke-width="2.5" filter="url(#pin-shadow)"/>
-          ${label ? `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" pointer-events="none">${label}</text>` : ''}
-          <title>${title}</title>
+        const r          = count > 1 ? 13 : 10;
+        const pulse      = isSelected ? `<circle cx="${x}" cy="${y}" r="${r+8}" fill="#f0a500" opacity="0.22"><animate attributeName="r" values="${r+4};${r+14};${r+4}" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.22;0.05;0.22" dur="2s" repeatCount="indefinite"/></circle>` : '';
+        const col        = isSelected ? '#f0a500' : (isActive ? '#1a56db' : '#94a3b8');
+        const stroke     = isSelected ? '#fff' : '#fff';
+        const keys       = sites.map(s => s.key.replace(/'/g,"&#39;")).join('|||');
+        const tip        = sites.map(s => s.school).join('\n');
+        return `<g style="cursor:pointer" onclick="(function(){sya.selectSite('${sites[0].key.replace(/'/g,"\\'")}')})()" >
+          ${pulse}
+          <circle cx="${x}" cy="${y}" r="${r+3}" fill="${col}" opacity="0.15"/>
+          <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="${stroke}" stroke-width="2" filter="url(#pshadow)"/>
+          ${count>1?`<text x="${x}" y="${y+4}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="system-ui" pointer-events="none">${count}</text>`:''}
+          <title>${tip}</title>
         </g>`;
       }).join('');
 
-      // Unmapped count
-      const unmapped = _filtered.filter(s => !s.lat || !s.lng);
-      const banner = unmapped.length
-        ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.82);color:#fff;font-size:.75rem;padding:.4rem 1rem;backdrop-filter:blur(4px)">${unmapped.length} site${unmapped.length>1?'s':''} could not be mapped: ${unmapped.map(s=>s.school).join(', ')}</div>`
-        : '';
+      // City labels for geographic context
+      const cities = [
+        {name:'Newark',   lat:40.7357, lng:-74.1724},
+        {name:'Trenton',  lat:40.2171, lng:-74.7429},
+        {name:'Camden',   lat:39.9259, lng:-75.1196},
+        {name:'Atlantic\nCity', lat:39.3643, lng:-74.4229},
+        {name:'Hoboken',  lat:40.7440, lng:-74.0324},
+      ];
+      const cityLabels = cities.map(c => {
+        const {x,y} = latLngToXY(c.lat, c.lng);
+        const lines = c.name.split('\n');
+        return `<g opacity="0.5">
+          <circle cx="${x}" cy="${y}" r="2.5" fill="#7d8fa1"/>
+          ${lines.map((l,i) => `<text x="${x+6}" y="${y+3+(i*11)}" font-size="9" fill="#4a5568" font-family="system-ui,sans-serif">${l}</text>`).join('')}
+        </g>`;
+      }).join('');
 
+      const unmapped = _filtered.filter(s => !s.lat || !s.lng);
+
+      el.style.background = 'transparent';
       el.innerHTML = `
-        <div style="position:relative;width:100%;height:100%">
+        <div style="position:relative;width:100%;height:100%;background:linear-gradient(160deg,#f0f5ff 0%,#e6eeff 100%);border-radius:0 0 var(--radius) var(--radius)">
           <svg viewBox="0 0 ${SVG_W} ${SVG_H}" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <filter id="pin-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="rgba(0,0,0,0.32)"/>
+              <filter id="pshadow" x="-60%" y="-60%" width="220%" height="220%">
+                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.25)"/>
               </filter>
+              <filter id="state-glow">
+                <feGaussianBlur stdDeviation="4" result="blur"/>
+                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+              </filter>
+              <linearGradient id="stateFill" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#dbeafe"/>
+                <stop offset="100%" stop-color="#bfdbfe"/>
+              </linearGradient>
             </defs>
-            <!-- NJ/PA region background -->
-            <rect width="${SVG_W}" height="${SVG_H}" fill="#e8f0f8" rx="8"/>
-            <!-- State outline -->
-            <path d="${NJ_PATH}" fill="#c8d8e8" stroke="#9ab0c8" stroke-width="1.5" stroke-linejoin="round"/>
+
+            <!-- Ocean/background water -->
+            <rect width="${SVG_W}" height="${SVG_H}" fill="url(#stateFill)" opacity="0.35"/>
+
+            <!-- State shadow -->
+            <path d="${njPath}" fill="rgba(30,58,95,0.08)" transform="translate(3,4)"/>
+
+            <!-- NJ state fill -->
+            <path d="${njPath}" fill="#dbeafe" stroke="#93c5fd" stroke-width="1.5" stroke-linejoin="round"/>
+
+            <!-- County grid lines (subtle) -->
+            <line x1="0" y1="${SVG_H*0.33}" x2="${SVG_W}" y2="${SVG_H*0.33}" stroke="#93c5fd" stroke-width="0.4" stroke-dasharray="4,6" opacity="0.4"/>
+            <line x1="0" y1="${SVG_H*0.66}" x2="${SVG_W}" y2="${SVG_H*0.66}" stroke="#93c5fd" stroke-width="0.4" stroke-dasharray="4,6" opacity="0.4"/>
+
+            <!-- City reference points -->
+            ${cityLabels}
+
             <!-- Site pins -->
             ${pins}
+
+            <!-- Legend -->
+            <g transform="translate(12, ${SVG_H-52})">
+              <rect width="130" height="46" rx="6" fill="white" opacity="0.88"/>
+              <circle cx="16" cy="14" r="6" fill="#1a56db" stroke="#fff" stroke-width="1.5"/>
+              <text x="27" y="18" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Active site</text>
+              <circle cx="16" cy="32" r="6" fill="#f0a500" stroke="#fff" stroke-width="1.5"/>
+              <text x="27" y="36" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Selected</text>
+              <circle cx="80" cy="14" r="6" fill="#94a3b8" stroke="#fff" stroke-width="1.5"/>
+              <text x="91" y="18" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Inactive</text>
+              <circle cx="80" cy="32" r="8" fill="#1a56db" stroke="#fff" stroke-width="1.5"/>
+              <text x="80" y="36" text-anchor="middle" font-size="8" font-weight="700" fill="#fff" font-family="system-ui,sans-serif">3</text>
+              <text x="91" y="36" font-size="9.5" fill="#374151" font-family="system-ui,sans-serif">Multiple</text>
+            </g>
           </svg>
-          ${banner}
+          ${unmapped.length ? `<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.78);color:#cbd5e1;font-size:.7rem;padding:.35rem 1rem;backdrop-filter:blur(6px);border-radius:0 0 var(--radius) var(--radius)">⚠️ ${unmapped.length} unmapped: ${unmapped.map(s=>s.school).join(', ')}</div>` : ''}
         </div>`;
     }
 
-    // updateMapMarkers = just re-render the SVG
     function updateMapMarkers() { renderSVGMap(); }
-
-    function updateUnmapped() { renderSVGMap(); }
+    function updateUnmapped()   { renderSVGMap(); }
 
     // ── CHANGES MODAL ─────────────────────────────────────────────────────
     function openChangesModal() {
