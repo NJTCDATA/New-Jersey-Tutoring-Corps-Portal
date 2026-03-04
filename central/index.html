@@ -7273,14 +7273,16 @@
     ]);
 
     // Tutor-caused misses — counted in tutor denominator (instructor rows only)
+    // Rule: only count against a tutor when the TUTOR is the reason the session was missed.
+    // Blank reasons, school events, holidays, testing, drills, closures = NOT tutor's fault → SI.
     const TUTOR_MISS_REASONS = new Set([
-      '',                                           // blank instructor miss
       'Absent; Not Covered (Tutor not available)',  // tutor absent, no coverage
-      'Absent; Covered by Sub Tutor',               // tutor absent (covered, but still absent)
-      'Absent; Covered by Dual Role',
-      'Absent; Covered by the Site Leader',
-      'Absent; Covered by the Instructional Coach',
-      'Tutor Left Early (no sub)',                  // tutor left early
+      'Absent; Covered by Sub Tutor',               // tutor absent (sub covered, but tutor still missed)
+      'Absent; Covered by Dual Role',               // tutor absent (dual role covered)
+      'Absent; Covered by the Site Leader',         // tutor absent (site leader covered)
+      'Absent; Covered by the Instructional Coach', // tutor absent (IC covered)
+      'Tutor Left Early (no sub)',                  // tutor left session early
+      // NOTE: 'Tutor Vacancy' is a staffing gap — no tutor assigned — classified as service interruption, NOT a tutor absence
     ]);
 
     // Legacy alias — kept for any remaining references in flag/SI logic
