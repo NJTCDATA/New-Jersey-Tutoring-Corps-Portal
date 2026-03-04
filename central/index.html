@@ -1929,6 +1929,26 @@
     .po-survey-bar{height:8px;border-radius:4px;background:var(--border-2);flex:1;overflow:hidden}
     .po-survey-bar-fill{height:100%;border-radius:4px}
     .po-filter-strip{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.875rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.25rem;box-shadow:var(--shadow-sm)}
+
+    /* ── Multi-Select Filter Widget ── */
+    .ms-wrap{position:relative;display:inline-flex;align-items:center;}
+    .ms-btn{display:flex;align-items:center;gap:.35rem;padding:.45rem .75rem;font-size:.8125rem;font-family:inherit;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;transition:var(--transition);user-select:none;}
+    .ms-btn:hover{border-color:var(--blue-mid);background:rgba(0,80,200,.04);}
+    .ms-btn.ms-active{border-color:var(--blue-mid);background:rgba(0,80,200,.08);color:var(--blue-mid);font-weight:600;}
+    .ms-btn .ms-caret{font-size:.6rem;opacity:.5;transition:transform .15s;}
+    .ms-btn.ms-open .ms-caret{transform:rotate(180deg);}
+    .ms-badge{background:var(--blue-mid);color:#fff;border-radius:99px;font-size:.7rem;font-weight:700;padding:.05rem .4rem;min-width:1.15rem;text-align:center;line-height:1.5;}
+    .ms-dropdown{position:absolute;top:calc(100% + 5px);left:0;z-index:9999;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.13);min-width:220px;max-width:320px;overflow:hidden;}
+    .ms-search{padding:.5rem .75rem;border-bottom:1px solid var(--border);}
+    .ms-search input{width:100%;border:1px solid var(--border);border-radius:7px;padding:.35rem .6rem;font-size:.8125rem;font-family:inherit;outline:none;background:var(--bg);}
+    .ms-list{max-height:260px;overflow-y:auto;padding:.35rem 0;}
+    .ms-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .8rem;cursor:pointer;font-size:.8125rem;transition:background .1s;}
+    .ms-item:hover{background:rgba(0,80,200,.06);}
+    .ms-item.ms-checked{font-weight:600;color:var(--blue-mid);}
+    .ms-item input[type=checkbox]{accent-color:var(--blue-mid);width:14px;height:14px;flex-shrink:0;}
+    .ms-footer{border-top:1px solid var(--border);padding:.4rem .75rem;display:flex;justify-content:space-between;align-items:center;}
+    .ms-footer button{font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.1rem .2rem;}
+    .ms-empty{padding:.75rem;text-align:center;font-size:.8125rem;color:var(--muted);}
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -2167,12 +2187,12 @@
       <!-- Filters -->
       <div class="po-filter-strip" id="poFilterStrip">
         <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Filter:</span>
-        <select class="filter-select" id="poFDistrict" onchange="po.applyFilters()"><option value="">All Districts</option></select>
-        <select class="filter-select" id="poFSchool"   onchange="po.applyFilters()"><option value="">All Schools</option></select>
-        <select class="filter-select" id="poFWeek"     onchange="po.applyFilters()"><option value="">All Weeks</option></select>
-        <select class="filter-select" id="poFRole"     onchange="po.applyFilters()"><option value="">All Roles</option><option>Student</option><option>Instructor</option></select>
-        <select class="filter-select" id="poFFlag"     onchange="po.applyFilters()"><option value="">All Records</option><option value="hit">HIT Flags Only</option><option value="si">Service Interruptions</option><option value="concern">Attendance Concern</option></select>
-        <button class="btn btn-secondary" onclick="po.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">✕ Clear</button>
+        <div class="ms-wrap" id="mswDistrict"></div>
+        <div class="ms-wrap" id="mswSchool"></div>
+        <div class="ms-wrap" id="mswWeek"></div>
+        <div class="ms-wrap" id="mswRole"></div>
+        <div class="ms-wrap" id="mswFlag"></div>
+        <button class="btn btn-secondary" onclick="po.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
         <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>
@@ -7388,11 +7408,143 @@
     let _selSchool  = null;
     let _selPerson  = null;
     let _activeTab  = 'attendance';
-    let _filtDistrict = '';
-    let _filtSchool   = '';
-    let _filtWeek     = '';
-    let _filtRole     = '';
-    let _filtFlag     = '';
+    // Multi-select filter state (arrays of selected values, empty = all)
+    let _filtDistrict = [];
+    let _filtSchool   = [];
+    let _filtWeek     = [];
+    let _filtRole     = [];
+    let _filtFlag     = [];
+
+    // ── Multi-Select Widget Builder ────────────────────────────────────────
+    const _msState = {};
+
+    function buildMultiSelect({ wrapperId, label, options, stateKey, staticOptions }) {
+      const wrap = document.getElementById(wrapperId);
+      if (!wrap) return;
+
+      if (!_msState[stateKey]) _msState[stateKey] = { selected: [], search: '' };
+
+      function render() {
+        const state = _msState[stateKey];
+        const sel = state.selected;
+        const allOpts = staticOptions || options;
+        const filtered = allOpts.filter(o =>
+          !state.search || o.label.toLowerCase().includes(state.search.toLowerCase())
+        );
+
+        wrap.innerHTML = '';
+
+        const btn = document.createElement('button');
+        btn.className = 'ms-btn' + (sel.length ? ' ms-active' : '');
+        btn.innerHTML = label + (sel.length ? ` <span class="ms-badge">${sel.length}</span>` : '') + ' <span class="ms-caret">▼</span>';
+        btn.onclick = (e) => { e.stopPropagation(); toggleDropdown(); };
+        wrap.appendChild(btn);
+
+        function toggleDropdown() {
+          const existing = document.getElementById('ms-dd-' + stateKey);
+          if (existing) { existing.remove(); btn.classList.remove('ms-open'); return; }
+
+          // Close all other dropdowns
+          document.querySelectorAll('[id^="ms-dd-"]').forEach(d => d.remove());
+          document.querySelectorAll('.ms-btn.ms-open').forEach(b => b.classList.remove('ms-open'));
+
+          btn.classList.add('ms-open');
+          const dd = document.createElement('div');
+          dd.className = 'ms-dropdown';
+          dd.id = 'ms-dd-' + stateKey;
+
+          // Search box
+          const searchWrap = document.createElement('div');
+          searchWrap.className = 'ms-search';
+          const searchInput = document.createElement('input');
+          searchInput.placeholder = 'Search…';
+          searchInput.value = state.search;
+          searchInput.onclick = e => e.stopPropagation();
+          searchInput.oninput = () => { state.search = searchInput.value; renderList(); };
+          searchWrap.appendChild(searchInput);
+          dd.appendChild(searchWrap);
+
+          const list = document.createElement('div');
+          list.className = 'ms-list';
+          dd.appendChild(list);
+
+          const footer = document.createElement('div');
+          footer.className = 'ms-footer';
+          const selAllBtn = document.createElement('button');
+          selAllBtn.textContent = 'Select all';
+          selAllBtn.onclick = (e) => {
+            e.stopPropagation();
+            const visOpts = getFiltered();
+            visOpts.forEach(o => { if (!state.selected.includes(o.value)) state.selected.push(o.value); });
+            renderList(); updateBtn(); po.applyFilters();
+          };
+          const clearBtn = document.createElement('button');
+          clearBtn.textContent = 'Clear';
+          clearBtn.onclick = (e) => {
+            e.stopPropagation();
+            state.selected = []; state.search = ''; renderList(); updateBtn(); po.applyFilters();
+          };
+          footer.appendChild(selAllBtn);
+          footer.appendChild(clearBtn);
+          dd.appendChild(footer);
+
+          wrap.appendChild(dd);
+          setTimeout(() => searchInput.focus(), 50);
+
+          function getFiltered() {
+            const allO = staticOptions || options;
+            return state.search ? allO.filter(o => o.label.toLowerCase().includes(state.search.toLowerCase())) : allO;
+          }
+
+          function renderList() {
+            list.innerHTML = '';
+            const opts = getFiltered();
+            if (!opts.length) { list.innerHTML = '<div class="ms-empty">No options</div>'; return; }
+            opts.forEach(o => {
+              const item = document.createElement('label');
+              item.className = 'ms-item' + (state.selected.includes(o.value) ? ' ms-checked' : '');
+              const cb = document.createElement('input');
+              cb.type = 'checkbox';
+              cb.checked = state.selected.includes(o.value);
+              cb.onclick = e => e.stopPropagation();
+              cb.onchange = () => {
+                if (cb.checked) { if (!state.selected.includes(o.value)) state.selected.push(o.value); }
+                else state.selected = state.selected.filter(v => v !== o.value);
+                item.className = 'ms-item' + (state.selected.includes(o.value) ? ' ms-checked' : '');
+                updateBtn(); po.applyFilters();
+              };
+              item.appendChild(cb);
+              item.appendChild(document.createTextNode(o.label));
+              item.onclick = e => { e.preventDefault(); cb.checked = !cb.checked; cb.onchange(); };
+              list.appendChild(item);
+            });
+          }
+
+          renderList();
+          document.addEventListener('click', function outsideClick(e) {
+            if (!dd.contains(e.target) && e.target !== btn) {
+              dd.remove(); btn.classList.remove('ms-open');
+              document.removeEventListener('click', outsideClick);
+            }
+          });
+        }
+
+        function updateBtn() {
+          const sel = _msState[stateKey].selected;
+          btn.className = 'ms-btn' + (sel.length ? ' ms-active' : '');
+          btn.innerHTML = label + (sel.length ? ` <span class="ms-badge">${sel.length}</span>` : '') + ' <span class="ms-caret">▼</span>';
+          // re-bind click
+          btn.onclick = (e) => { e.stopPropagation(); toggleDropdown(); };
+        }
+      }
+
+      render();
+      return { refresh: render };
+    }
+
+    function getFilterSelected(stateKey) {
+      return (_msState[stateKey] && _msState[stateKey].selected) ? _msState[stateKey].selected : [];
+    }
 
     // ── GID RESOLUTION ────────────────────────────────────────────────────
     // ── GID RESOLUTION ────────────────────────────────────────────────────
@@ -7847,37 +7999,74 @@
 
     // ── FILTERS ───────────────────────────────────────────────────────────
     function applyFilters() {
-      _filtDistrict = (document.getElementById('poFDistrict')||{}).value || '';
-      _filtSchool   = (document.getElementById('poFSchool')||{}).value   || '';
-      _filtWeek     = (document.getElementById('poFWeek')||{}).value     || '';
-      _filtRole     = (document.getElementById('poFRole')||{}).value     || '';
-      _filtFlag     = (document.getElementById('poFFlag')||{}).value     || '';
-      if (_filtSchool && _view === 'schools') { drillSchool(_filtSchool); return; }
+      _filtDistrict = getFilterSelected('district');
+      _filtSchool   = getFilterSelected('school');
+      _filtWeek     = getFilterSelected('week');
+      _filtRole     = getFilterSelected('role');
+      _filtFlag     = getFilterSelected('flag');
+      // If exactly one school selected and on schools view, drill into it
+      if (_filtSchool.length === 1 && _view === 'schools') { drillSchool(_filtSchool[0]); return; }
+      updateFilterInfo();
       renderView();
     }
 
+    function updateFilterInfo() {
+      const total = _attRows.length;
+      const filtered = filteredAttRows().length;
+      const el = document.getElementById('poFilterInfo');
+      const hasFilter = _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length;
+      if (el) el.textContent = hasFilter ? `${filtered.toLocaleString()} of ${total.toLocaleString()} records match` : '';
+    }
+
     function clearFilters() {
-      ['poFDistrict','poFSchool','poFWeek','poFRole','poFFlag']
-        .forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
-      _filtDistrict = _filtSchool = _filtWeek = _filtRole = _filtFlag = '';
+      ['district','school','week','role','flag'].forEach(k => {
+        if (_msState[k]) { _msState[k].selected = []; _msState[k].search = ''; }
+      });
+      _filtDistrict = []; _filtSchool = []; _filtWeek = []; _filtRole = []; _filtFlag = [];
+      populateFilters(); // re-render widgets
       renderView();
     }
 
     function populateFilters() {
-      function pop(id, vals) {
-        const el = document.getElementById(id); if (!el) return;
-        const cur = el.value, first = el.options[0] ? el.options[0].outerHTML : '';
-        el.innerHTML = first + [...vals].filter(Boolean).sort()
-          .map(v => `<option value="${v}">${v}</option>`).join('');
-        if ([...el.options].some(o => o.value === cur)) el.value = cur;
-      }
-      pop('poFDistrict', new Set(_attRows.map(r => r[ATT.DISTRICT])));
-      pop('poFSchool',   new Set(_attRows.map(r => r[ATT.SCHOOL])));
-      const weeks = new Set(_attRows.map(r => r[ATT.WEEK]).filter(Boolean));
-      pop('poFWeek', [...weeks].sort((a,b) => {
-        const na = parseInt(a.replace('Week ','')), nb = parseInt(b.replace('Week ',''));
-        return na - nb;
-      }).reduce((m,v) => {m.add(v);return m;}, new Set()));
+      // Districts
+      const districts = [...new Set(_attRows.map(r => r[ATT.DISTRICT]).filter(Boolean))].sort();
+      buildMultiSelect({
+        wrapperId: 'mswDistrict', label: 'Districts', stateKey: 'district',
+        options: districts.map(v => ({ value: v, label: v }))
+      });
+
+      // Schools
+      const schools = [...new Set(_attRows.map(r => r[ATT.SCHOOL]).filter(Boolean))].sort();
+      buildMultiSelect({
+        wrapperId: 'mswSchool', label: 'Schools', stateKey: 'school',
+        options: schools.map(v => ({ value: v, label: v }))
+      });
+
+      // Weeks (sorted numerically)
+      const weeks = [...new Set(_attRows.map(r => r[ATT.WEEK]).filter(Boolean))]
+        .sort((a,b) => parseInt(a.replace('Week ','')) - parseInt(b.replace('Week ','')));
+      buildMultiSelect({
+        wrapperId: 'mswWeek', label: 'Weeks', stateKey: 'week',
+        options: weeks.map(v => ({ value: v, label: v }))
+      });
+
+      // Roles (static)
+      buildMultiSelect({
+        wrapperId: 'mswRole', label: 'Roles', stateKey: 'role',
+        staticOptions: [{ value: 'Student', label: 'Student' }, { value: 'Instructor', label: 'Instructor' }],
+        options: []
+      });
+
+      // Flags (static)
+      buildMultiSelect({
+        wrapperId: 'mswFlag', label: 'Record Type', stateKey: 'flag',
+        staticOptions: [
+          { value: 'hit',     label: 'HIT Flags Only' },
+          { value: 'si',      label: 'Service Interruptions' },
+          { value: 'concern', label: 'Attendance Concern' }
+        ],
+        options: []
+      });
     }
 
     // ── STATS ─────────────────────────────────────────────────────────────
@@ -7890,7 +8079,7 @@
       const allScholarRows = _attRows.filter(r => {
         if (r[ATT.ROLE] !== 'Student') return false;
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) return false;
         return true;
       });
       const stuAtt  = allScholarRows.filter(r => classifyRecord(r) === 'attended').length;
@@ -7903,7 +8092,7 @@
       const allInstRows = _attRows.filter(r => {
         if (r[ATT.ROLE] !== 'Instructor') return false;
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) return false;
         return true;
       });
       const instAtt  = allInstRows.filter(r => classifyRecord(r) === 'attended').length;
@@ -7985,22 +8174,24 @@
 
     // ── FILTERED DATA HELPERS ─────────────────────────────────────────────
     function matchesSchoolFilter(school, district) {
-      if (_filtDistrict && district !== _filtDistrict) return false;
-      if (_filtSchool   && school   !== _filtSchool)   return false;
+      if (_filtDistrict.length && !_filtDistrict.includes(district)) return false;
+      if (_filtSchool.length   && !_filtSchool.includes(school))     return false;
       return true;
     }
 
     function filteredAttRows() {
       return _attRows.filter(r => {
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
-        if (_filtRole && r[ATT.ROLE] !== _filtRole) return false;
-        if (_filtFlag === 'hit') {
-          const p = _personMap[r[ATT.USER_ID]];
-          return p && p.flags && p.flags.length > 0;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) return false;
+        if (_filtRole.length && !_filtRole.includes(r[ATT.ROLE])) return false;
+        if (_filtFlag.length) {
+          // OR logic across flag types
+          let flagMatch = false;
+          if (_filtFlag.includes('hit')) { const p = _personMap[r[ATT.USER_ID]]; if (p && p.flags && p.flags.length > 0) flagMatch = true; }
+          if (_filtFlag.includes('si') && classifyRecord(r) === 'service_interruption') flagMatch = true;
+          if (_filtFlag.includes('concern') && r[ATT.CONSEC_STATUS] === 'Attendance Concern') flagMatch = true;
+          if (!flagMatch) return false;
         }
-        if (_filtFlag === 'si') return classifyRecord(r) === 'service_interruption';
-        if (_filtFlag === 'concern') return r[ATT.CONSEC_STATUS] === 'Attendance Concern';
         return true;
       });
     }
@@ -8013,8 +8204,8 @@
 
     function filteredSchools() {
       return Object.values(_schoolMap).filter(sc =>
-        (!_filtDistrict || sc.district === _filtDistrict) &&
-        (!_filtSchool   || sc.school   === _filtSchool)
+        (!_filtDistrict.length || _filtDistrict.includes(sc.district)) &&
+        (!_filtSchool.length   || _filtSchool.includes(sc.school))
       );
     }
 
@@ -8278,7 +8469,7 @@
         ? `Scholar attendance at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered. No districts of concern.`
         : bannerClass === 'amber'
         ? `Scholar attendance at ${d.scholarRate}%. ${critDistricts} district(s) may benefit from additional support — review recommended.`
-        : `Scholar attendance at ${d.scholarRate}% — below the 75% target. ${critDistricts} district(s) require focused follow-up.`;
+        : `Scholar attendance at ${d.scholarRate}% overall — ${critDistricts} district(s) below the 75% target require focused follow-up.`;
 
       // Trend arrow helper
       const trendArr = (wt) => {
@@ -8789,18 +8980,18 @@
 
     function renderAttendanceTab(sc) {
       // Respect the global role filter
-      const roleFilter = _filtRole; // '' | 'Student' | 'Instructor'
+      const roleFilter = _filtRole; // array of selected roles
 
       const persons = Object.values(_personMap)
-        .filter(p => p.school === sc.school && (!roleFilter || p.role === roleFilter))
+        .filter(p => p.school === sc.school && (!roleFilter.length || roleFilter.includes(p.role)))
         .sort((a, b) => {
           const aRate = a.attended / Math.max(1, a.attended + a.absent);
           const bRate = b.attended / Math.max(1, b.attended + b.absent);
           return aRate - bRate;
         });
 
-      const students    = roleFilter === 'Instructor' ? [] : persons.filter(p => p.role === 'Student');
-      const instructors = roleFilter === 'Student'    ? [] : persons.filter(p => p.role === 'Instructor');
+      const students    = (roleFilter.length && !roleFilter.includes('Student'))    ? [] : persons.filter(p => p.role === 'Student');
+      const instructors = (roleFilter.length && !roleFilter.includes('Instructor')) ? [] : persons.filter(p => p.role === 'Instructor');
 
       const thStyle = 'padding:.4rem .875rem;text-align:left;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)';
 
@@ -8916,7 +9107,7 @@
         + '<th style="' + thStyle + '">Flags</th>'
         + '</tr>';
 
-      const miniStats = roleFilter !== 'Instructor' ? `
+      const miniStats = (!roleFilter.length || roleFilter.includes('Student')) ? `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem">
           ${[
             ['Scholar Attendance', sc.attRate+'%', sc.attRate>=90?'var(--met)':sc.attRate>=75?'var(--gold)':'var(--notmet)'],
@@ -9460,7 +9651,7 @@
       // Apply active filters to all calculations
       const filteredRows = _attRows.filter(r => {
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
-        if (_filtWeek && r[ATT.WEEK] !== _filtWeek) return false;
+        if (_filtWeek.length && !_filtWeek.includes(r[ATT.WEEK])) return false;
         return true;
       });
 
