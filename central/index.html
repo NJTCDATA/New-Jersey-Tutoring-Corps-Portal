@@ -1949,107 +1949,9 @@
     .ms-footer{border-top:1px solid var(--border);padding:.4rem .75rem;display:flex;justify-content:space-between;align-items:center;}
     .ms-footer button{font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.1rem .2rem;}
     .ms-empty{padding:.75rem;text-align:center;font-size:.8125rem;color:var(--muted);}
-  
-    /* ── Source protection ── */
-    body { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
-    input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
-</style>
+  </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-
-  <!-- ═══════════════════════════════════════════════════════════════
-       NJTC PORTAL — PROPRIETARY SOURCE PROTECTION
-       Unauthorized inspection, copying, or redistribution of this
-       code is prohibited. © New Jersey Tutoring Corps 2025-2026.
-       ═══════════════════════════════════════════════════════════════ -->
-  <script>
-  (function _protect() {
-    'use strict';
-
-    // ── 1. Keyboard shortcut blocking ─────────────────────────────
-    document.addEventListener('keydown', function(e) {
-      const k = e.key, c = e.ctrlKey || e.metaKey, s = e.shiftKey;
-      // F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U, Ctrl+S
-      if (k === 'F12') { e.preventDefault(); e.stopPropagation(); return false; }
-      if (c && s && (k==='I'||k==='i'||k==='J'||k==='j'||k==='C'||k==='c')) {
-        e.preventDefault(); e.stopPropagation(); return false;
-      }
-      if (c && (k==='U'||k==='u'||k==='S'||k==='s')) {
-        e.preventDefault(); e.stopPropagation(); return false;
-      }
-    }, true);
-
-    // ── 2. Right-click / context menu block ───────────────────────
-    document.addEventListener('contextmenu', function(e) {
-      e.preventDefault(); return false;
-    }, true);
-
-    // ── 3. Text selection disable ─────────────────────────────────
-    document.addEventListener('selectstart', function(e) {
-      // Allow selection inside inputs/textareas
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return true;
-      e.preventDefault(); return false;
-    }, true);
-
-    // ── 4. Drag prevention ────────────────────────────────────────
-    document.addEventListener('dragstart', function(e) {
-      e.preventDefault(); return false;
-    }, true);
-
-    // ── 5. Console trap — poisons the console object ──────────────
-    // When DevTools console is open and running, this makes any
-    // attempt to use the console redirect to a warning.
-    try {
-      const _noop = function() {};
-      const _warn = function() { console.warn('⛔ This application is proprietary. Unauthorized inspection is prohibited.'); };
-      const _proxy = new Proxy(console, {
-        get: function(target, prop) {
-          if (prop === 'log' || prop === 'dir' || prop === 'table') return _noop;
-          if (prop === 'warn' || prop === 'error' || prop === 'info') return _noop;
-          return target[prop];
-        }
-      });
-      // Suppress all console output after load
-      window.addEventListener('load', function() {
-        try { Object.defineProperty(window, 'console', { value: _proxy, writable: false }); } catch(e) {}
-      });
-    } catch(e) {}
-
-    // ── 6. DevTools size detection ────────────────────────────────
-    // DevTools opening changes window.outerWidth/Height vs innerWidth/Height
-    var _dt_check_count = 0;
-    function _checkDevTools() {
-      var threshold = 160;
-      var widthDiff  = window.outerWidth  - window.innerWidth;
-      var heightDiff = window.outerHeight - window.innerHeight;
-      if (widthDiff > threshold || heightDiff > threshold) {
-        _dt_check_count++;
-        if (_dt_check_count > 2) {
-          // DevTools has been open for 3+ checks — clear the page body
-          try {
-            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#333"><div style="text-align:center"><div style="font-size:3rem">⛔</div><div style="font-size:1.25rem;font-weight:700;margin-top:1rem">Unauthorized Access Detected</div><div style="color:#666;margin-top:.5rem">Developer tools are not permitted in this application.</div></div></div>';
-          } catch(e) {}
-        }
-      } else {
-        _dt_check_count = 0;
-      }
-    }
-    setInterval(_checkDevTools, 1500);
-
-    // ── 7. Debugger trap ─────────────────────────────────────────
-    // Running a setInterval with a debugger statement causes the browser
-    // to pause repeatedly if DevTools is open with "pause on debugger" on.
-    // We use a timing-based detection instead (less disruptive to normal use).
-    var _t = function() {
-      var start = new Date();
-      (function() {}());  // empty function — takes ~0ms normally
-      // If debugger is attached, this block takes much longer
-      // We don't act on this directly but it disrupts step-through debugging
-    };
-    setInterval(_t, 500);
-
-  }());
-  </script>
 </head>
 <body>
 
@@ -7850,6 +7752,7 @@
         const isPartial   = isDelivered && sessAtt === 'Partially Attended';
         const isFullAtt   = isDelivered && sessAtt === 'Attended';
         const durMins     = parseDurationMins(r[SESS.ACTUAL_DUR] || r[SESS.SCHED_DUR]);
+        const actualDurMins = parseDurationMins(r[SESS.ACTUAL_DUR]); // no fallback — 0 if not recorded
         _sessMap[sid] = {
           id: sid, title: r[SESS.TITLE], instructor: r[SESS.INSTRUCTOR],
           instId: r[SESS.INST_ID], studentIds: stuIds,
@@ -7859,7 +7762,7 @@
           start: r[SESS.START], schedDur: r[SESS.SCHED_DUR],
           actualDur: r[SESS.ACTUAL_DUR], subject: r[SESS.SUBJECT],
           grade: r[SESS.GRADE], school: r[SESS.SCHOOL], district: r[SESS.DISTRICT],
-          durMins, ratio,
+          durMins, actualDurMins, ratio,
           ratioFlag: ratio > 4,  // HIT: must be ≤ 4:1 (flag, MOU governs)
         };
       }
@@ -7977,9 +7880,10 @@
             if (!isSub) p.instructorIds.add(sess.instId);
             p.subjectTutors[subj].primary[sess.instId] = sess.instructor;
           }
-          // Accumulate delivered minutes per subject (Completed sessions only)
-          if (sess.isDelivered && sess.durMins > 0) {
-            p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + sess.durMins;
+          // Accumulate delivered minutes per subject (Completed sessions, Actual Duration only)
+          const actualMins = parseDurationMins(sess.actualDur);
+          if (sess.isDelivered && actualMins > 0) {
+            p.subjectMinutes[subj] = (p.subjectMinutes[subj] || 0) + actualMins;
           }
         }
       }
@@ -8193,32 +8097,11 @@
         options: schools.map(v => ({ value: v, label: v }))
       });
 
-      // Weeks — only include weeks with real session activity.
-      // Exclude weeks that only have Scheduled/Not-recorded rows (phantom weeks
-      // from pre-loaded future sessions that never occurred, e.g. Weeks 1-4
-      // before the first real session on 9/23/2025).
-      // A week qualifies if at least one row classifies as attended, absent,
-      // or service_interruption.
-      const activeWeekSet = new Set();
-      for (const r of _attRows) {
-        const w = r[ATT.WEEK]; if (!w) continue;
-        const cls = classifyRecord(r);
-        if (cls === 'attended' || cls === 'absent' || cls === 'service_interruption') {
-          activeWeekSet.add(w);
-        }
-      }
-      const weeks = [...activeWeekSet]
+      // Weeks (sorted numerically)
+      const weeks = [...new Set(_attRows.map(r => r[ATT.WEEK]).filter(Boolean))]
         .sort((a,b) => parseInt(a.replace('Week ','')) - parseInt(b.replace('Week ','')));
-      // Build label that shows range and count to avoid confusion:
-      // "Week 5–27 (23 active)" makes clear it's 23 weeks of data,
-      // not 27. The highest label is 27 because weeks are anchored
-      // to SY start (Aug 25 = Week 1), not to first session.
-      const wkFirst = weeks[0] || '';
-      const wkLast  = weeks[weeks.length - 1] || '';
-      const wkRange = weeks.length > 1 ? `${wkFirst}–${wkLast} (${weeks.length} active)` : `${weeks.length} active`;
-      const wkLabelEl = document.querySelector('[data-msw-id="mswWeek"] .msw-label, #mswWeek .msw-label');
       buildMultiSelect({
-        wrapperId: 'mswWeek', label: `Weeks · ${wkRange}`, stateKey: 'week',
+        wrapperId: 'mswWeek', label: 'Weeks', stateKey: 'week',
         options: weeks.map(v => ({ value: v, label: v }))
       });
 
@@ -10127,23 +10010,31 @@
           }
         }
 
-        // Duration — sum actual durations from sessions this scholar was in
+        // Duration — sum ACTUAL durations from DELIVERED (Completed) sessions only
+        // Uses Actual Duration when available; Scheduled Duration is NOT used as fallback
+        // because an unrecorded actual duration means the session may not have run as scheduled.
         let totalMins = 0;
         for (const [sid, sess] of Object.entries(_sessMap)) {
           if (!matchesSchoolFilter(sess.school, sess.district)) continue;
+          if (!sess.isDelivered) continue;                  // skip Missed / Cancelled
+          const actualMins = parseDurationMins(sess.actualDur); // Actual Duration only — no sched fallback
+          if (actualMins <= 0) continue;                    // skip if no actual duration recorded
           if (sess.studentIds && sess.studentIds.includes(uid)) {
-            totalMins += sess.durMins || 0;
+            totalMins += actualMins;
           }
         }
 
-        // Per-subject breakdown (from sessions)
+        // Per-subject breakdown (from sessions) — delivered sessions with actual duration only
         const bySubject = {};
         for (const [sid, sess] of Object.entries(_sessMap)) {
           if (!matchesSchoolFilter(sess.school, sess.district)) continue;
+          if (!sess.isDelivered) continue;                  // skip Missed / Cancelled
+          const actualMins = parseDurationMins(sess.actualDur); // Actual Duration only
+          if (actualMins <= 0) continue;
           if (sess.studentIds && sess.studentIds.includes(uid)) {
             const subj = sess.subject || 'Unknown';
             if (!bySubject[subj]) bySubject[subj] = { mins: 0, sessions: 0 };
-            bySubject[subj].mins += sess.durMins || 0;
+            bySubject[subj].mins += actualMins;
             bySubject[subj].sessions++;
           }
         }
@@ -10194,19 +10085,22 @@
         const total    = attended + absent;
         const attPct   = total > 0 ? (attended / total * 100).toFixed(1) : '';
 
-        // Sessions this tutor led
+        // Sessions this tutor led — for duration, only count delivered sessions with actual duration
         const ledSessions = Object.values(_sessMap).filter(s =>
           s.instId === uid && matchesSchoolFilter(s.school, s.district)
         );
-        const totalMins = ledSessions.reduce((a, s) => a + (s.durMins || 0), 0);
+        const totalMins = ledSessions
+          .filter(s => s.isDelivered)
+          .reduce((a, s) => a + (s.actualDurMins || 0), 0);
         const uniqueStudents = new Set(ledSessions.flatMap(s => s.studentIds || []));
 
-        // Per-subject
+        // Per-subject — delivered sessions with actual duration only
         const bySubject = {};
         for (const sess of ledSessions) {
+          if (!sess.isDelivered || !sess.actualDurMins) continue;
           const subj = sess.subject || 'Unknown';
           if (!bySubject[subj]) bySubject[subj] = { mins: 0, sessions: 0 };
-          bySubject[subj].mins += sess.durMins || 0;
+          bySubject[subj].mins += sess.actualDurMins;
           bySubject[subj].sessions++;
         }
 
@@ -10269,7 +10163,8 @@
           'Scheduled Start':     sess.start || '',
           'Scheduled Duration':  sess.schedDur || '',
           'Actual Duration':     sess.actualDur || '',
-          'Duration (min)':      sess.durMins || '',
+          'Actual Duration (min)':  sess.actualDurMins || '',
+          'Duration (min, sched fallback)': sess.durMins || '',
           'Attendance Summary':  sess.attendance || '',
           'Is Delivered':        sess.isDelivered ? 'Yes' : 'No',
           'Is Full Attendance':  sess.isFullAtt ? 'Yes' : 'No',
@@ -10292,7 +10187,7 @@
           'Service Interruptions':   sc.stuInterruptions,
           'Tutor Sessions':          sc.totalInstRows,
           'Sessions Delivered':      sc.sessions.filter(s => s.isDelivered).length,
-          'Total Duration (min)':    sc.sessions.reduce((a,s) => a + (s.durMins||0), 0),
+          'Total Duration (min)':    sc.sessions.filter(s => s.isDelivered).reduce((a,s) => a + (s.actualDurMins||0), 0),
           'Scholar Survey Avg':      safeNum(sc.stuSurveyAvg),
           'Tutor Survey Avg':        safeNum(sc.instSurveyAvg),
           'Scholar Survey Count':    sc.stuSurveyRows.length,
@@ -10536,6 +10431,7 @@
   window.fetchAndRebuildKPI = fetchAndRebuildKPI;
   window.goStep             = goStep;
   window.openConnectionsModal = openConnectionsModal;
+  window.openFlagsModal     = openFlagsModal;
   window.openKPIInquiry     = openKPIInquiry;
   window.resetConcernForm   = resetConcernForm;
   window.resetKPIInquiry    = resetKPIInquiry;
