@@ -2117,7 +2117,7 @@
           <div style="padding:.75rem 1rem;border-bottom:1px solid var(--border);background:var(--surface-2);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">Districts</div>
           <div id="syDistrictList" style="max-height:500px;overflow-y:auto;scrollbar-width:thin"></div>
         </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;position:relative">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);position:relative">
           <div id="syMap" style="height:500px;width:100%;min-height:500px;position:relative;"></div>
           <div id="syUnmappedBanner" style="display:none;position:absolute;bottom:0;left:0;right:0;background:rgba(10,22,40,.82);color:#fff;font-size:.75rem;padding:.5rem 1rem;backdrop-filter:blur(4px)"></div>
         </div>
@@ -6925,37 +6925,17 @@
       if (!window.L) return;
       const el = document.getElementById('syMap');
       if (!el) return;
-
-      function _doInit() {
-        if (_map) { if (onReady) onReady(); return; }
-        _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
-        }).addTo(_map);
-        delete L.Icon.Default.prototype._getIconUrl;
-        L.Icon.Default.mergeOptions({
-          iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-          shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-        });
-        _map.invalidateSize();
-        if (onReady) onReady();
-      }
-
-      // Poll with rAF until the container has real painted dimensions.
-      // ResizeObserver doesn't fire reliably when parent was display:none at observe time.
-      let _attempts = 0;
-      function _waitForDimensions() {
-        _attempts++;
-        const w = el.getBoundingClientRect().width;
-        const h = el.getBoundingClientRect().height;
-        if (w > 10 && h > 10) {
-          _doInit();
-        } else if (_attempts < 60) {
-          requestAnimationFrame(_waitForDimensions);
-        }
-      }
-      requestAnimationFrame(_waitForDimensions);
+      _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
+      }).addTo(_map);
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+        shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+      });
+      if (onReady) onReady();
     }
 
     function updateMapMarkers() {
@@ -7092,18 +7072,12 @@
     // Defers map init to ensure the container has non-zero dimensions.
     // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
-      initMap(() => {
-        // Runs after map is confirmed initialized with real dimensions
+      if (!_map) {
+        initMap();
         if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
-        // Still invalidate progressively — panel CSS transition may not be done
-        [50, 200, 500].forEach(ms =>
-          setTimeout(() => { if (_map) _map.invalidateSize(); }, ms)
-        );
-      });
-      // Also invalidate if map already existed before this panel open
-      if (_map) [50, 200, 500].forEach(ms =>
-        setTimeout(() => _map.invalidateSize(), ms)
-      );
+      }
+      setTimeout(() => { if (_map) _map.invalidateSize(); }, 50);
+      setTimeout(() => { if (_map) _map.invalidateSize(); }, 300);
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
