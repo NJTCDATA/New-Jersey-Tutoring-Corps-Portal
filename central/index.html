@@ -8010,12 +8010,13 @@
         // reflects a school-side pattern that warrants discussion)
         const CT_REASON = 'Classroom Teacher Requested to Keep Scholar in Class';
         const CT_REASON2 = 'HADDON TWP ONLY -- Teacher requested whole group support';
-        const stuMissedRows = sc.rows.filter(r => r[ATT.ROLE] === 'Student' && (r[ATT.ATT_STATUS] || '') === 'Missed').length;
+        // stuAbsent = scholar-caused missed only (excludes SIs like holidays, testing, closures)
+        const ctDenominator = sc.stuAbsent;
         const ctCount = sc.rows.filter(r => r[ATT.ROLE] === 'Student' &&
           (r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON2)).length;
-        if (stuMissedRows > 0 && ctCount / stuMissedRows > 0.10)
+        if (ctDenominator > 0 && ctCount / ctDenominator > 0.10)
           sc.flags.push({ type:'ct_pull', severity:'medium', audience:'Programming · Leadership',
-            msg: `Teacher pull-outs account for ${Math.round(ctCount/stuMissedRows*100)}% of missed sessions (${ctCount} of ${stuMissedRows}) — exceeds 10% threshold, school-level conversation recommended` });
+            msg: `Teacher pull-outs account for ${Math.round(ctCount/ctDenominator*100)}% of scholar-caused absences (${ctCount} of ${ctDenominator}) — exceeds 10% threshold, school-level conversation recommended` });
 
         // Attendance rate: scholar-caused denominator only (not SI)
         // stuAbsent = scholar-caused misses; stuInterruptions = SI (excluded)
@@ -9876,11 +9877,11 @@
       const districts = Object.values(distMap).map(d => {
         const sTotal = d.stuAtt + d.stuMiss;
         const tTotal = d.instAtt + d.instMiss;
-        // CT pull-out rate: CT rows / missed student rows in this district (not all rows)
-        const allStuRows     = _attRows.filter(r => r[ATT.ROLE] === 'Student' && r[ATT.DISTRICT] === d.name);
-        const stuMissedDist  = allStuRows.filter(r => (r[ATT.ATT_STATUS] || '') === 'Missed');
-        const ctRows         = stuMissedDist.filter(r => r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON_H);
-        const ctPct          = stuMissedDist.length > 0 ? Math.round(ctRows.length / stuMissedDist.length * 100) : 0;
+        // CT pull-out rate: CT rows / scholar-caused missed only (excludes SIs like holidays, testing, closures)
+        const allStuRows      = _attRows.filter(r => r[ATT.ROLE] === 'Student' && r[ATT.DISTRICT] === d.name);
+        const scholarMissed   = allStuRows.filter(r => (r[ATT.ATT_STATUS] || '') === 'Missed' && SCHOLAR_MISS_REASONS.has(r[ATT.MISS_REASON] || ''));
+        const ctRows          = scholarMissed.filter(r => r[ATT.MISS_REASON] === CT_REASON || r[ATT.MISS_REASON] === CT_REASON_H);
+        const ctPct           = scholarMissed.length > 0 ? Math.round(ctRows.length / scholarMissed.length * 100) : 0;
         return {
           name: d.name,
           scholars: d.scholars.size,
