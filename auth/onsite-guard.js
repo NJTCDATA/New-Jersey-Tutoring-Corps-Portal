@@ -1,13 +1,14 @@
-/**
- * NJTC Onsite Portal Route Guard
- * Placed in onsite/index.html AFTER ../auth/auth.js and BEFORE ack-gate.js
- *
- * If no valid onsite session exists, redirects to the root gate.
- */
 (async () => {
+  const CT_DEPTS = ['hr','finance','programming','data','training','leadership','kb'];
+  const BASE = '/New-Jersey-Tutoring-Corps-Portal';
+
+  // getStoredToken() already handles URL hash extraction internally
   const session = await NJTCAuth.currentSession();
-  if (!session || session.dept !== 'onsite') {
-    window.location.replace('/New-Jersey-Tutoring-Corps-Portal/index.html');
+
+  if (!session || !CT_DEPTS.includes(session.dept)) {
+    window.location.replace(BASE + '/index.html');
+    return;
   }
-  // Valid onsite session — allow ack-gate.js and script.js to run normally
+
+  window.NJTC_SESSION = session;
 })();
