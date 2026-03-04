@@ -6920,33 +6920,44 @@
     }
 
     // ── MAP ───────────────────────────────────────────────────────────────
-    function initMap() {
-      if (_map || !window.L) return;
+    function initMap(onReady) {
+      if (_map) { if (onReady) onReady(); return; }
+      if (!window.L) return;
       const el = document.getElementById('syMap');
       if (!el) return;
-      // Wait until the container has real dimensions before initializing Leaflet
-      if (el.offsetWidth < 10 || el.offsetHeight < 10) {
-        const ro = new ResizeObserver((entries, obs) => {
-          for (const entry of entries) {
-            if (entry.contentRect.width > 10 && entry.contentRect.height > 10) {
-              obs.disconnect();
-              initMap();
-            }
-          }
+
+      function _doInit() {
+        if (_map) { if (onReady) onReady(); return; }
+        _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
+        }).addTo(_map);
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+          iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+          shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
         });
-        ro.observe(el);
+        _map.invalidateSize();
+        if (onReady) onReady();
+      }
+
+      // If container already has dimensions, init immediately
+      if (el.offsetWidth > 10 && el.offsetHeight > 10) {
+        _doInit();
         return;
       }
-      _map = L.map('syMap', {zoomControl:true}).setView([40.0, -74.7], 8);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>', maxZoom:19
-      }).addTo(_map);
-      delete L.Icon.Default.prototype._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconUrl:       'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-        shadowUrl:     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+
+      // Otherwise wait for the container to get real dimensions via ResizeObserver
+      const ro = new ResizeObserver((entries, obs) => {
+        for (const entry of entries) {
+          if (entry.contentRect.width > 10 && entry.contentRect.height > 10) {
+            obs.disconnect();
+            _doInit();
+          }
+        }
       });
+      ro.observe(el);
     }
 
     function updateMapMarkers() {
@@ -7083,14 +7094,17 @@
     // Defers map init to ensure the container has non-zero dimensions.
     // Calls invalidateSize() to fix blank/grey tiles after panel reveal.
     function onPanelOpen() {
-      // Attempt init immediately — ResizeObserver inside initMap handles deferred cases
-      if (!_map) {
-        initMap();
-        if (_map && _allSites.length) { updateMapMarkers(); queueGeocoding(); }
-      }
-      // Progressive invalidateSize to handle any panel transition timing
-      [100, 300, 600, 1000].forEach(ms =>
-        setTimeout(() => { if (_map) _map.invalidateSize(); }, ms)
+      initMap(() => {
+        // Runs after map is confirmed initialized with real dimensions
+        if (_allSites.length) { updateMapMarkers(); queueGeocoding(); }
+        // Still invalidate progressively — panel CSS transition may not be done
+        [50, 200, 500].forEach(ms =>
+          setTimeout(() => { if (_map) _map.invalidateSize(); }, ms)
+        );
+      });
+      // Also invalidate if map already existed before this panel open
+      if (_map) [50, 200, 500].forEach(ms =>
+        setTimeout(() => _map.invalidateSize(), ms)
       );
     }
 
