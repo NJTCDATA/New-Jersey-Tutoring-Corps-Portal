@@ -524,8 +524,10 @@ function loadDailyQuote() {
         localStorage.setItem('njtc_quote_date', today);
     }
     
-    document.getElementById('dailyQuote').textContent = `"${quote.quote}"`;
-    document.getElementById('quoteAuthor').textContent = `— ${quote.author}`;
+    const quoteEl  = document.getElementById('dailyQuote');
+    const authorEl = document.getElementById('quoteAuthor');
+    if (quoteEl)  quoteEl.textContent  = `"${quote.quote}"`;
+    if (authorEl) authorEl.textContent = `— ${quote.author}`;
 }
 
 function updateTime() {
