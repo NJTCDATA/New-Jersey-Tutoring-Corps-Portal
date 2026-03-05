@@ -1259,3 +1259,36 @@ body {
 .guide-modal-body::-webkit-scrollbar-thumb:hover {
     background: var(--gold-dark);
 }
+
+/* ============================================================================
+   SIGN OUT BUTTON
+   ============================================================================ */
+
+.sign-out-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--white);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: var(--transition-base);
+    backdrop-filter: blur(10px);
+}
+
+.sign-out-btn:hover {
+    background: rgba(220, 53, 69, 0.85);
+    border-color: #dc3545;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(220, 53, 69, 0.4);
+}
+
+.sign-out-btn svg {
+    width: 18px;
+    height: 18px;
+}
