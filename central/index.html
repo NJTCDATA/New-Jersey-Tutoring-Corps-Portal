@@ -14718,16 +14718,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
 const KPI_2PACX       = '2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd';
 const KPI_CACHE_KEY   = 'njtc_kpi_intel_v2';
-const KPI_TTL         = 2 * 60 * 60 * 1000; // 2hr
+const KPI_TTL         = 2 * 60 * 60 * 1000;
 
 // State
-let _kpiData    = [];    // quarterly rows (cols 0-13)
-let _kpiSummary = [];    // summary rows (cols 0-4), joined by Goal+Target
+let _kpiData    = [];
+let _kpiSummary = [];
 let _kpiFilter  = 'all';
-let _kpiQuarter = 'Q2';  // current active quarter
+let _kpiQuarter = 'Q2';
 let _activeGoal = null;
 
-// ── STATUS CONFIG ───────────────────────────────────────────────
+// ── STATUS CONFIG ──────────────────────────────────────────────
 const KSTS = {
   'Met':                     { cls:'hc-met',     badge:'dsc-met',     dot:'#0d6e3a', emoji:'✅', label:'Met',        score:1.0 },
   'Partially Met':           { cls:'hc-partial', badge:'dsc-partial', dot:'#c05c00', emoji:'🟡', label:'Partial',    score:0.5 },
@@ -14737,9 +14737,10 @@ const KSTS = {
 };
 function kst(s){ return KSTS[s] || { cls:'hc-pipe', badge:'dsc-pipe', dot:'#94a3b8', emoji:'⬜', label:s||'—', score:0 }; }
 
-// ── STRATEGIC MAPPING ───────────────────────────────────────────
+// ── STRATEGIC MAPPING ──────────────────────────────────────────
 const PILLAR_MAP = {
   'Increase Impact on Scholars':                         'Grow Impact',
+  "Support Growth of New Jersey\u2019s Educator Pipeline":    'Grow Impact',
   "Support Growth of New Jersey's Educator Pipeline":    'Grow Impact',
   'Increase the number of fee-for-service partnerships': 'Financial Sustainability',
   'Continue to pursue large and multi-year sources of funding': 'Financial Sustainability',
@@ -14751,21 +14752,34 @@ const PILLAR_MAP = {
   'Grow the NJTC brand':                                 'Org Infrastructure',
 };
 const PILLARS = [
-  { key:'Grow Impact',            icon:'📚', color:'#003087' },
+  { key:'Grow Impact',             icon:'📚', color:'#003087' },
   { key:'Financial Sustainability',icon:'💰', color:'#0d6e3a' },
-  { key:'Org Infrastructure',     icon:'🏛️', color:'#6b21a8' },
+  { key:'Org Infrastructure',      icon:'🏛', color:'#6b21a8' },
 ];
+const VALID_GOALS = new Set([
+  'Increase Impact on Scholars',
+  "Support Growth of New Jersey's Educator Pipeline",
+  'Increase the number of fee-for-service partnerships',
+  'Continue to pursue large and multi-year sources of funding',
+  'Maintain cash position',
+  'Further Diversify board and leverage its support',
+  'Upgrade systems to support growth',
+  'Maintain consistent partner experience',
+  'Maintain and continue to build on strong culture',
+  'Grow the NJTC brand',
+]);
 
-// ── Q COLUMN INDICES (quarterly sheet) ─────────────────────────
+// ── Q COLUMN MAP ───────────────────────────────────────────────
 const QCOL = { Q1:{d:6,s:7}, Q2:{d:8,s:9}, Q3:{d:10,s:11}, Q4:{d:12,s:13} };
-function qStatus(row,q){ return (row[QCOL[q]?.s]||'').trim(); }
-function qDataRaw(row,q){ return (row[QCOL[q]?.d]||''); }
+function qStatus(row,q){ return (row[QCOL[q]&&QCOL[q].s] !== undefined ? row[QCOL[q].s] : '').trim(); }
+function qDataRaw(row,q){ return (row[QCOL[q]&&QCOL[q].d] !== undefined ? row[QCOL[q].d] : ''); }
 
 function parseQData(raw){
   if(!raw) return {goal:'',captured:''};
-  const lines = raw.replace(/\r/g,'').split('\n').map(l=>l.trim()).filter(Boolean);
-  let goal='',captured='',mode='';
-  for(const l of lines){
+  const lines = raw.replace(/\r/g,'').split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var goal='',captured='',mode='';
+  for(var i=0;i<lines.length;i++){
+    var l=lines[i];
     if(/^Goal:/i.test(l)){goal=l.replace(/^Goal:\s*/i,'');mode='g';}
     else if(/^Captured Metric:/i.test(l)){captured=l.replace(/^Captured Metric:\s*/i,'');mode='c';}
     else if(mode==='g') goal+=' '+l;
@@ -14774,11 +14788,11 @@ function parseQData(raw){
   return {goal:goal.trim(),captured:captured.trim()};
 }
 
-// ── CSV PARSER ──────────────────────────────────────────────────
+// ── CSV PARSER ─────────────────────────────────────────────────
 function _kpiParseCSV(text){
-  const rows=[];let row=[],field='',inQ=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i];
+  var rows=[],row=[],field='',inQ=false;
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
     if(inQ){
       if(c==='"'&&text[i+1]==='"'){field+='"';i++;}
       else if(c==='"'){inQ=false;}
@@ -14796,150 +14810,137 @@ function _kpiParseCSV(text){
   return rows;
 }
 
-// ── KEY NORMALIZER for join ─────────────────────────────────────
-function kpiKey(goal,target){
-  return (goal||'').trim().toLowerCase()+'||'+(target||'').trim().toLowerCase().slice(0,60);
+// ── KEY for join ───────────────────────────────────────────────
+function _kpiKey(goal,target){
+  return ((goal||'').trim()+'||'+(target||'').trim().slice(0,60)).toLowerCase();
 }
 
-// ── DUAL FETCH ──────────────────────────────────────────────────
-async function kpiFetch(force=false){
-  // Try cache first
+// ── DUAL FETCH ─────────────────────────────────────────────────
+function kpiFetch(force){
+  force = force || false;
   if(!force){
     try{
-      const c=localStorage.getItem(KPI_CACHE_KEY);
+      var c=localStorage.getItem(KPI_CACHE_KEY);
       if(c){
-        const {ts,qRows,sRows}=JSON.parse(c);
-        if(Date.now()-ts<KPI_TTL){
-          _kpiData=qRows; _kpiSummary=sRows;
+        var obj=JSON.parse(c);
+        if(Date.now()-obj.ts < KPI_TTL){
+          _kpiData=obj.qRows||[]; _kpiSummary=obj.sRows||[];
           kpiRender();
-          const el=document.getElementById('kpiTimestamp');
-          if(el) el.textContent='Live · '+new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+          var el=document.getElementById('kpiTimestamp');
+          if(el) el.textContent='Live \u00b7 '+new Date(obj.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
           return;
         }
       }
     }catch(e){}
   }
 
-  // Show loading
-  const pillarsEl = document.getElementById('kpiPillars');
-  const gridEl    = document.getElementById('goalCardsGrid');
-  if(pillarsEl) pillarsEl.innerHTML='<div class="kpi-loading" style="grid-column:1/-1"><div class="kpi-loading-ring"></div><div class="kpi-loading-text">Fetching live data…</div></div>';
-  if(gridEl)    gridEl.innerHTML='';
+  var pillarsEl=document.getElementById('kpiPillars');
+  var gridEl=document.getElementById('goalCardsGrid');
+  if(pillarsEl) pillarsEl.innerHTML='<div class="kpi-loading" style="grid-column:1/-1"><div class="kpi-loading-ring"></div><div class="kpi-loading-text">Fetching live data\u2026</div></div>';
+  if(gridEl) gridEl.innerHTML='';
 
-  const base = `https://docs.google.com/spreadsheets/d/e/${KPI_2PACX}/pub`;
+  var base='https://docs.google.com/spreadsheets/d/e/'+KPI_2PACX+'/pub';
+  var bust='&cachebust='+Date.now();
 
-  try{
-    // Fetch both sheets in parallel
-    const [qResp, sResp] = await Promise.all([
-      fetch(`${base}?gid=880469&output=csv&cachebust=${Date.now()}`),
-      fetch(`${base}?output=csv&cachebust=${Date.now()}`)
-    ]);
+  Promise.all([
+    fetch(base+'?gid=880469&output=csv'+bust),
+    fetch(base+'?output=csv'+bust)
+  ]).then(function(resps){
+    if(!resps[0].ok) throw new Error('Quarterly sheet HTTP '+resps[0].status);
+    if(!resps[1].ok) throw new Error('Summary sheet HTTP '+resps[1].status);
+    return Promise.all([resps[0].text(), resps[1].text()]);
+  }).then(function(texts){
+    var qAll = _kpiParseCSV(texts[0]);
+    var qRows = qAll.slice(2).filter(function(r){ return r[0] && r[0].trim() && VALID_GOALS.has(r[0].trim()); });
 
-    if(!qResp.ok) throw new Error('Quarterly sheet HTTP '+qResp.status);
-    if(!sResp.ok) throw new Error('Summary sheet HTTP '+sResp.status);
+    var sAll = _kpiParseCSV(texts[1]);
+    var sRows = sAll.slice(8).filter(function(r){ return r[0] && r[0].trim(); });
 
-    const [qText, sText] = await Promise.all([qResp.text(), sResp.text()]);
-
-    // Parse quarterly: row 0 = legend, row 1 = headers, rows 2+ = data (skip blank)
-    const qAll   = _kpiParseCSV(qText);
-    const qRows  = qAll.slice(2).filter(r => r[0] && r[0].trim() &&
-      ![r[0].trim()].some(v => v.startsWith('Contributes') || v === 'Goal'));
-
-    // Parse summary: rows 0-6 = junk/legend, row 7 = headers, rows 8+ = data
-    const sAll   = _kpiParseCSV(sText);
-    const sRows  = sAll.slice(8).filter(r => r[0] && r[0].trim());
-
-    _kpiData    = qRows;
+    _kpiData = qRows;
     _kpiSummary = sRows;
 
-    const now = Date.now();
-    try{ localStorage.setItem(KPI_CACHE_KEY, JSON.stringify({ts:now,qRows,sRows})); }catch(e){}
+    var now=Date.now();
+    try{ localStorage.setItem(KPI_CACHE_KEY,JSON.stringify({ts:now,qRows:qRows,sRows:sRows})); }catch(e){}
 
-    const el=document.getElementById('kpiTimestamp');
-    if(el) el.textContent='Live · '+new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    var el=document.getElementById('kpiTimestamp');
+    if(el) el.textContent='Live \u00b7 '+new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
     kpiRender();
-
-  }catch(err){
-    console.error('[KPI] fetch error:', err);
-    if(pillarsEl) pillarsEl.innerHTML=`<div class="kpi-error" style="grid-column:1/-1">⚠ Could not load KPI data: ${err.message}<br><small>Check network & published sheet permissions</small></div>`;
-    // Try stale cache
+  }).catch(function(err){
+    console.error('[KPI] fetch error:',err);
+    if(pillarsEl) pillarsEl.innerHTML='<div class="kpi-error" style="grid-column:1/-1">\u26a0 Could not load KPI data: '+err.message+'</div>';
+    // stale cache fallback
     try{
-      const c=localStorage.getItem(KPI_CACHE_KEY);
+      var c=localStorage.getItem(KPI_CACHE_KEY);
       if(c){
-        const {ts,qRows,sRows}=JSON.parse(c);
-        _kpiData=qRows; _kpiSummary=sRows;
+        var obj=JSON.parse(c);
+        _kpiData=obj.qRows||[]; _kpiSummary=obj.sRows||[];
         kpiRender();
-        const el=document.getElementById('kpiTimestamp');
-        if(el) el.textContent='Cached · '+new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+        var el=document.getElementById('kpiTimestamp');
+        if(el) el.textContent='Cached \u00b7 '+new Date(obj.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
       }
     }catch(e2){}
-  }
+  });
 }
 
-// ── SUMMARY LOOKUP ──────────────────────────────────────────────
-function buildSummaryLookup(){
-  const map={};
-  for(const r of _kpiSummary){
-    const k=kpiKey(r[0],r[1]);
-    map[k]={mid:(r[3]||'').trim(), eoy:(r[4]||'').trim()};
+// ── SUMMARY LOOKUP ─────────────────────────────────────────────
+function _kpiSumLookup(){
+  var map={};
+  for(var i=0;i<_kpiSummary.length;i++){
+    var r=_kpiSummary[i];
+    map[_kpiKey(r[0],r[1])]={mid:(r[3]||'').trim(),eoy:(r[4]||'').trim()};
   }
   return map;
 }
-
+var _kpiSumCache = null;
 function getMidEoy(goal,target){
   if(!_kpiSummary.length) return {mid:'',eoy:''};
-  const lookup=buildSummaryLookup();
-  return lookup[kpiKey(goal,target)] || {mid:'',eoy:''};
+  if(!_kpiSumCache) _kpiSumCache = _kpiSumLookup();
+  return _kpiSumCache[_kpiKey(goal,target)] || {mid:'',eoy:''};
 }
 
-// ── GROUP BY GOAL ───────────────────────────────────────────────
+// ── GROUP BY GOAL ──────────────────────────────────────────────
 function groupByGoal(){
-  const map={};
-  // Valid goal names from our known list
-  const VALID_GOALS = new Set([
-    'Increase Impact on Scholars',
-    "Support Growth of New Jersey's Educator Pipeline",
-    'Increase the number of fee-for-service partnerships',
-    'Continue to pursue large and multi-year sources of funding',
-    'Maintain cash position',
-    'Further Diversify board and leverage its support',
-    'Upgrade systems to support growth',
-    'Maintain consistent partner experience',
-    'Maintain and continue to build on strong culture',
-    'Grow the NJTC brand',
-  ]);
-  for(const row of _kpiData){
-    const g=(row[0]||'').trim();
-    if(!g || !VALID_GOALS.has(g)) continue;
+  var map={};
+  for(var i=0;i<_kpiData.length;i++){
+    var row=_kpiData[i];
+    var g=(row[0]||'').trim();
+    if(!g||!VALID_GOALS.has(g)) continue;
     if(!map[g]) map[g]=[];
     map[g].push(row);
   }
   return map;
 }
 
-// ── HEALTH SCORE ────────────────────────────────────────────────
+// ── HEALTH SCORE ───────────────────────────────────────────────
 function healthScore(rows,q){
-  const statuses=rows.map(r=>qStatus(r,q)).filter(Boolean);
+  var statuses=[];
+  for(var i=0;i<rows.length;i++){
+    var s=qStatus(rows[i],q);
+    if(s) statuses.push(s);
+  }
   if(!statuses.length) return {score:0,pct:0,counts:{}};
-  let total=0;const counts={};
-  for(const s of statuses){ total+=kst(s).score; counts[s]=(counts[s]||0)+1; }
-  return {score:total/statuses.length, pct:Math.round((total/statuses.length)*100), counts};
+  var total=0, counts={};
+  for(var j=0;j<statuses.length;j++){
+    total+=kst(statuses[j]).score;
+    counts[statuses[j]]=(counts[statuses[j]]||0)+1;
+  }
+  return {score:total/statuses.length, pct:Math.round((total/statuses.length)*100), counts:counts};
 }
 
-// ── ARC SVG (light bg version) ──────────────────────────────────
-function arcSVG(pct,color,size=72){
-  const r=(size/2)-7,cx=size/2,cy=size/2;
-  const circ=2*Math.PI*r;
-  const id='ka'+Math.random().toString(36).slice(2,7);
-  const dash=circ-(pct/100)*circ;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="transform:rotate(-90deg)">
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(0,48,135,.08)" stroke-width="6"/>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
-      stroke="${color}" stroke-width="6" stroke-linecap="round"
-      stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
-      style="animation:kpiArc_${id} 1.2s .2s cubic-bezier(.4,0,.2,1) forwards"/>
-    <style>@keyframes kpiArc_${id}{to{stroke-dashoffset:${dash}}}</style>
-  </svg>`;
+// ── ARC SVG ────────────────────────────────────────────────────
+function arcSVG(pct,color,size){
+  size = size||72;
+  var r=(size/2)-7, cx=size/2, cy=size/2;
+  var circ=2*Math.PI*r;
+  var id='ka'+Math.random().toString(36).slice(2,7);
+  var dash=circ-(pct/100)*circ;
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" style="transform:rotate(-90deg)">'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="rgba(0,48,135,.1)" stroke-width="6"/>'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round"'
+    +' stroke-dasharray="'+circ+'" stroke-dashoffset="'+circ+'"'
+    +' style="animation:kpiArc_'+id+' 1.2s .2s cubic-bezier(.4,0,.2,1) forwards"/>'
+    +'<style>@keyframes kpiArc_'+id+'{to{stroke-dashoffset:'+dash+'}}</style>'
+    +'</svg>';
 }
 
 function ringColor(pct){
@@ -14949,288 +14950,297 @@ function ringColor(pct){
   return '#b91c1c';
 }
 
-// ── RENDER ALL ──────────────────────────────────────────────────
+// ── MASTER RENDER ──────────────────────────────────────────────
 function kpiRender(){
   if(!_kpiData.length) return;
-  const goalMap=groupByGoal();
-  kpiRenderHealthChips(goalMap);
-  kpiRenderCycleBanner();
-  kpiRenderPillars(goalMap);
-  kpiRenderGoalCards(goalMap);
+  _kpiSumCache = null; // reset summary cache on fresh data
+  var goalMap=groupByGoal();
+  _kpiRenderHealthChips(goalMap);
+  _kpiRenderCycleBanner();
+  _kpiRenderPillars(goalMap);
+  _kpiRenderGoalCards(goalMap);
 }
 
-// ── HEALTH CHIPS ────────────────────────────────────────────────
-function kpiRenderHealthChips(goalMap){
-  const el=document.getElementById('kpiHealthRow');
+// ── HEALTH CHIPS ───────────────────────────────────────────────
+function _kpiRenderHealthChips(goalMap){
+  var el=document.getElementById('kpiHealthRow');
   if(!el) return;
-  const allRows=Object.values(goalMap).flat();
-  const counts={};
-  for(const row of allRows){
-    const s=qStatus(row,_kpiQuarter)||'—';
+  var allRows=[];
+  var keys=Object.keys(goalMap);
+  for(var i=0;i<keys.length;i++) allRows=allRows.concat(goalMap[keys[i]]);
+  var counts={};
+  for(var j=0;j<allRows.length;j++){
+    var s=qStatus(allRows[j],_kpiQuarter)||'—';
     counts[s]=(counts[s]||0)+1;
   }
-  const order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
-  const total=allRows.length;
-  el.innerHTML = order.map(s=>{
-    const n=counts[s]||0;
-    if(!n) return '';
-    const cfg=kst(s);
-    return `<div class="kpi-hchip ${cfg.cls}"><span class="khc-n">${n}</span>${cfg.label}</div>`;
-  }).filter(Boolean).join('') +
-  `<span style="font-size:.65rem;color:var(--muted);margin-left:auto;font-family:var(--kpi-mono)">${total} KPIs · ${_kpiQuarter}</span>`;
+  var order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
+  var html='';
+  for(var k=0;k<order.length;k++){
+    var n=counts[order[k]]||0;
+    if(!n) continue;
+    var cfg=kst(order[k]);
+    html+='<div class="kpi-hchip '+cfg.cls+'"><span class="khc-n">'+n+'</span>'+cfg.label+'</div>';
+  }
+  html+='<span style="font-size:.65rem;color:var(--muted);margin-left:auto;font-family:var(--kpi-mono)">'+allRows.length+' KPIs \u00b7 '+_kpiQuarter+'</span>';
+  el.innerHTML=html;
 }
 
-// ── CYCLE BANNER (MOY/EOY) ──────────────────────────────────────
-function kpiRenderCycleBanner(){
+// ── CYCLE BANNER ───────────────────────────────────────────────
+function _kpiRenderCycleBanner(){
   if(!_kpiSummary.length) return;
-  const banner=document.getElementById('kpiCycleBanner');
+  var banner=document.getElementById('kpiCycleBanner');
   if(!banner) return;
   banner.style.display='grid';
-
-  // Count mid/eoy statuses across all summary rows
-  const midCounts={}, eoyCounts={};
-  for(const r of _kpiSummary){
-    const m=(r[3]||'').trim(), e=(r[4]||'').trim();
+  var midCounts={}, eoyCounts={};
+  for(var i=0;i<_kpiSummary.length;i++){
+    var r=_kpiSummary[i];
+    var m=(r[3]||'').trim(), e=(r[4]||'').trim();
     if(m) midCounts[m]=(midCounts[m]||0)+1;
     if(e) eoyCounts[e]=(eoyCounts[e]||0)+1;
   }
-
-  function miniHtml(counts, prefix){
-    const order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
-    return order.map(s=>{
-      const n=counts[s]||0;
-      const cfg=kst(s);
-      return `<div class="kpi-cycle-mini-item">
-        <span class="kpi-cycle-mini-val" style="color:${n?cfg.dot:'var(--muted)'}">${n}</span>
-        <span class="kpi-cycle-mini-lbl">${cfg.label.replace(' ','<br>')}</span>
-      </div>`;
-    }).join('');
+  function miniHtml(counts){
+    var order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
+    var h='';
+    for(var i=0;i<order.length;i++){
+      var n=counts[order[i]]||0;
+      var cfg=kst(order[i]);
+      h+='<div class="kpi-cycle-mini-item">'
+        +'<span class="kpi-cycle-mini-val" style="color:'+(n?cfg.dot:'var(--muted)')+'">'+n+'</span>'
+        +'<span class="kpi-cycle-mini-lbl">'+cfg.label.replace(' ','<br>')+'</span>'
+        +'</div>';
+    }
+    return h;
   }
-
-  function overallStatus(counts){
-    const met=(counts['Met']||0), total=Object.values(counts).reduce((a,b)=>a+b,0);
+  function overallPct(counts){
+    var met=counts['Met']||0, total=0;
+    var ks=Object.keys(counts);
+    for(var i=0;i<ks.length;i++) total+=counts[ks[i]];
     if(!total) return '—';
-    const pct=Math.round(met/total*100);
-    return `${pct}% Met`;
+    return Math.round(met/total*100)+'% Met';
   }
-
-  document.getElementById('kpiMidOverall').textContent = overallStatus(midCounts);
-  document.getElementById('kpiEoyOverall').textContent = Object.values(eoyCounts).some(v=>v>0) ? overallStatus(eoyCounts) : 'Pending EOY';
-  document.getElementById('kpiMidMini').innerHTML  = miniHtml(midCounts,'mid');
-  document.getElementById('kpiEoyMini').innerHTML  = miniHtml(eoyCounts,'eoy');
+  document.getElementById('kpiMidOverall').textContent=overallPct(midCounts);
+  var eoyTotal=0; var eoyK=Object.keys(eoyCounts);
+  for(var i=0;i<eoyK.length;i++) eoyTotal+=eoyCounts[eoyK[i]];
+  document.getElementById('kpiEoyOverall').textContent=eoyTotal?overallPct(eoyCounts):'Pending EOY';
+  document.getElementById('kpiMidMini').innerHTML=miniHtml(midCounts);
+  document.getElementById('kpiEoyMini').innerHTML=miniHtml(eoyCounts);
 }
 
-// ── PILLAR RINGS ────────────────────────────────────────────────
-function kpiRenderPillars(goalMap){
-  const el=document.getElementById('kpiPillars');
+// ── PILLAR RINGS ───────────────────────────────────────────────
+function _kpiRenderPillars(goalMap){
+  var el=document.getElementById('kpiPillars');
   if(!el) return;
-  el.innerHTML=PILLARS.map((p,i)=>{
-    const matching=Object.entries(goalMap).filter(([g])=>PILLAR_MAP[g]===p.key);
-    const allRows=matching.flatMap(([,rows])=>rows);
-    const h=healthScore(allRows,_kpiQuarter);
-    const col=ringColor(h.pct);
-    const chipHtml=Object.entries(h.counts).map(([s,n])=>{
-      return `<span class="kpi-pchip ${kst(s).cls}">${n} ${kst(s).label}</span>`;
-    }).join('');
-    return `<div class="kpi-pillar-card">
-      <div class="kpi-pillar-arc">
-        ${arcSVG(h.pct,col,72)}
-        <div class="kpi-pillar-arc-center">
-          <span class="kpi-pillar-pct" style="color:${col}">${h.pct}</span>
-          <span class="kpi-pillar-pct-lbl">HEALTH</span>
-        </div>
-      </div>
-      <div class="kpi-pillar-info">
-        <div class="kpi-pillar-name">${p.icon} ${p.key}</div>
-        <div class="kpi-pillar-chips">${chipHtml||'<span class="kpi-pchip hc-pipe">No data</span>'}</div>
-      </div>
-    </div>`;
-  }).join('');
+  var html='';
+  for(var pi=0;pi<PILLARS.length;pi++){
+    var p=PILLARS[pi];
+    var allRows=[];
+    var keys=Object.keys(goalMap);
+    for(var gi=0;gi<keys.length;gi++){
+      if(PILLAR_MAP[keys[gi]]===p.key) allRows=allRows.concat(goalMap[keys[gi]]);
+    }
+    var h=healthScore(allRows,_kpiQuarter);
+    var col=ringColor(h.pct);
+    var chipHtml='';
+    var ckeys=Object.keys(h.counts);
+    for(var ci=0;ci<ckeys.length;ci++){
+      chipHtml+='<span class="kpi-pchip '+kst(ckeys[ci]).cls+'">'+h.counts[ckeys[ci]]+' '+kst(ckeys[ci]).label+'</span>';
+    }
+    html+='<div class="kpi-pillar-card">'
+      +'<div class="kpi-pillar-arc">'+arcSVG(h.pct,col,72)
+      +'<div class="kpi-pillar-arc-center">'
+      +'<span class="kpi-pillar-pct" style="color:'+col+'">'+h.pct+'</span>'
+      +'<span class="kpi-pillar-pct-lbl">HEALTH</span>'
+      +'</div></div>'
+      +'<div class="kpi-pillar-info">'
+      +'<div class="kpi-pillar-name">'+p.icon+' '+p.key+'</div>'
+      +'<div class="kpi-pillar-chips">'+(chipHtml||'<span class="kpi-pchip hc-pipe">No data yet</span>')+'</div>'
+      +'</div></div>';
+  }
+  el.innerHTML=html;
 }
 
-// ── GOAL CARDS ──────────────────────────────────────────────────
-function kpiRenderGoalCards(goalMap){
-  const grid=document.getElementById('goalCardsGrid');
-  const countEl=document.getElementById('kpiGoalCount');
+// ── GOAL CARDS ─────────────────────────────────────────────────
+// Uses data-goal attribute to avoid apostrophe issues in onclick
+function _kpiRenderGoalCards(goalMap){
+  var grid=document.getElementById('goalCardsGrid');
+  var countEl=document.getElementById('kpiGoalCount');
   if(!grid) return;
 
-  let entries=Object.entries(goalMap);
+  var entries=[];
+  var allKeys=Object.keys(goalMap);
+  // Maintain consistent order by VALID_GOALS set order
+  var orderedGoals=['Increase Impact on Scholars',"Support Growth of New Jersey's Educator Pipeline",
+    'Increase the number of fee-for-service partnerships','Continue to pursue large and multi-year sources of funding',
+    'Maintain cash position','Further Diversify board and leverage its support',
+    'Upgrade systems to support growth','Maintain consistent partner experience',
+    'Maintain and continue to build on strong culture','Grow the NJTC brand'];
+  for(var oi=0;oi<orderedGoals.length;oi++){
+    if(goalMap[orderedGoals[oi]]) entries.push([orderedGoals[oi],goalMap[orderedGoals[oi]]]);
+  }
+  // Filter by status if needed
   if(_kpiFilter!=='all'){
-    entries=entries.filter(([,rows])=>rows.some(r=>qStatus(r,_kpiQuarter)===_kpiFilter));
+    entries=entries.filter(function(e){
+      return e[1].some(function(r){ return qStatus(r,_kpiQuarter)===_kpiFilter; });
+    });
   }
 
-  countEl.textContent=`${entries.length} goal${entries.length!==1?'s':''}`;
-
+  countEl.textContent=entries.length+' goal'+(entries.length!==1?'s':'');
   if(!entries.length){
-    grid.innerHTML=`<div class="kpi-empty" style="grid-column:1/-1">No goals match this filter.</div>`;
+    grid.innerHTML='<div class="kpi-empty" style="grid-column:1/-1">No goals match this filter.</div>';
     return;
   }
 
-  grid.innerHTML=entries.map(([goalName,rows],idx)=>{
-    const h=healthScore(rows,_kpiQuarter);
-    const col=ringColor(h.pct);
-    const pillar=PILLAR_MAP[goalName]||'Other';
+  var html='';
+  for(var idx=0;idx<entries.length;idx++){
+    var goalName=entries[idx][0], rows=entries[idx][1];
+    var h=healthScore(rows,_kpiQuarter);
+    var col=ringColor(h.pct);
+    var pillar=PILLAR_MAP[goalName]||'Other';
 
     // Q tiles
-    const qtiles=['Q1','Q2','Q3','Q4'].map(q=>{
-      const s=qStatus(rows[0],q);
-      const cfg=s?kst(s):null;
-      const isActive=q===_kpiQuarter;
-      const tileBg=isActive?(cfg?`background:var(--kpi-${cfg.cls.replace('hc-','')}-bg)`:''):'';
-      return `<div class="kpi-goal-qtile" style="${tileBg};${isActive?'border:1.5px solid var(--border);':''}" >
-        <span class="gqt-lbl">${q}</span>
-        <span class="gqt-icon">${cfg?cfg.emoji:'—'}</span>
-      </div>`;
-    }).join('');
+    var qtiles='';
+    var qs=['Q1','Q2','Q3','Q4'];
+    for(var qi=0;qi<4;qi++){
+      var q=qs[qi];
+      // aggregate status across all KPIs for this goal at this quarter
+      var qCounts={};
+      for(var ri=0;ri<rows.length;ri++){
+        var rs=qStatus(rows[ri],q);
+        if(rs) qCounts[rs]=(qCounts[rs]||0)+1;
+      }
+      var topS=''; var topN=0;
+      var qck=Object.keys(qCounts);
+      for(var qci=0;qci<qck.length;qci++){ if(qCounts[qck[qci]]>topN){topN=qCounts[qck[qci]];topS=qck[qci];} }
+      var cfg=topS?kst(topS):null;
+      var isActive=(q===_kpiQuarter);
+      qtiles+='<div class="kpi-goal-qtile" style="'+(isActive?'border:1.5px solid var(--border);background:var(--surface-2)':'')+'"><span class="gqt-lbl">'+q+'</span><span class="gqt-icon">'+(cfg?cfg.emoji:'—')+'</span></div>';
+    }
 
-    // MOY/EOY mini from summary sheet (aggregate for goal)
-    const midStatuses=[...new Set(rows.map(r=>getMidEoy(goalName,r[1]).mid).filter(Boolean))];
-    const eoyStatuses=[...new Set(rows.map(r=>getMidEoy(goalName,r[1]).eoy).filter(Boolean))];
-    const midCounts={}, eoyCounts={};
-    rows.forEach(r=>{
-      const me=getMidEoy(goalName,r[1]);
+    // MOY/EOY from summary (aggregate top status across KPIs in this goal)
+    var midCounts={}, eoyCounts={};
+    for(var ri=0;ri<rows.length;ri++){
+      var me=getMidEoy(goalName,rows[ri][1]);
       if(me.mid) midCounts[me.mid]=(midCounts[me.mid]||0)+1;
       if(me.eoy) eoyCounts[me.eoy]=(eoyCounts[me.eoy]||0)+1;
-    });
-    const topMid=Object.entries(midCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
-    const topEoy=Object.entries(eoyCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
-    const midCfg=topMid?kst(topMid):null;
-    const eoyCfg=topEoy?kst(topEoy):null;
+    }
+    var topMid='',topMidN=0; var mk=Object.keys(midCounts);
+    for(var mi=0;mi<mk.length;mi++){ if(midCounts[mk[mi]]>topMidN){topMidN=midCounts[mk[mi]];topMid=mk[mi];} }
+    var topEoy='',topEoyN=0; var ek=Object.keys(eoyCounts);
+    for(var ei=0;ei<ek.length;ei++){ if(eoyCounts[ek[ei]]>topEoyN){topEoyN=eoyCounts[ek[ei]];topEoy=ek[ei];} }
+    var midCfg=topMid?kst(topMid):null;
+    var eoyCfg=topEoy?kst(topEoy):null;
 
-    const cycleRow=`<div class="kpi-goal-cycle-row">
-      <div class="kpi-goal-cycle-chip ${midCfg?'gcch-mid':'gcch-empty'}">
-        <span class="gcch-lbl">Mid-Year</span>
-        ${midCfg?midCfg.emoji+' '+midCfg.label:'Pending'}
-      </div>
-      <div class="kpi-goal-cycle-chip ${eoyCfg?'gcch-eoy':'gcch-empty'}">
-        <span class="gcch-lbl">End of Year</span>
-        ${eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending'}
-      </div>
-    </div>`;
+    var cycleRow='<div class="kpi-goal-cycle-row">'
+      +'<div class="kpi-goal-cycle-chip '+(midCfg?'gcch-mid':'gcch-empty')+'"><span class="gcch-lbl">Mid-Year</span>'+(midCfg?midCfg.emoji+' '+midCfg.label:'Pending')+'</div>'
+      +'<div class="kpi-goal-cycle-chip '+(eoyCfg?'gcch-eoy':'gcch-empty')+'"><span class="gcch-lbl">End of Year</span>'+(eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending')+'</div>'
+      +'</div>';
 
-    const safeGoal=goalName.replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+    // Use data-goal attribute - no inline string args
+    html+='<div class="kpi-goal-card" data-goal="'+idx+'">'
+      +'<div class="kpi-goal-card-bar" style="background:linear-gradient(90deg,'+col+','+col+'55)"></div>'
+      +'<div class="kpi-goal-card-body">'
+      +'<div class="kpi-goal-name">'+goalName+'</div>'
+      +'<div class="kpi-goal-meta-row"><span class="kpi-goal-pillar-tag">'+pillar+'</span><span class="kpi-goal-kpi-badge">'+rows.length+' KPI'+(rows.length!==1?'s':'')+'</span></div>'
+      +'<div class="kpi-goal-health-row"><div class="kpi-goal-health-track"><div class="kpi-goal-health-fill" style="background:'+col+';width:'+h.pct+'%"></div></div><span class="kpi-goal-health-pct" style="color:'+col+'">'+h.pct+'%</span></div>'
+      +'<div class="kpi-goal-q-row">'+qtiles+'</div>'
+      +cycleRow
+      +'</div>'
+      +'<div class="kpi-goal-card-footer"><span class="kpi-goal-footer-left">'+_kpiQuarter+' snapshot</span><button class="kpi-goal-drill-btn">Deep dive \u2192</button></div>'
+      +'</div>';
+  }
+  grid.innerHTML=html;
 
-    return `<div class="kpi-goal-card" onclick="kpiOpenDrawer('${safeGoal}')">
-      <div class="kpi-goal-card-bar" style="background:linear-gradient(90deg,${col},${col}55)"></div>
-      <div class="kpi-goal-card-body">
-        <div class="kpi-goal-name">${goalName}</div>
-        <div class="kpi-goal-meta-row">
-          <span class="kpi-goal-pillar-tag">${pillar}</span>
-          <span class="kpi-goal-kpi-badge">${rows.length} KPI${rows.length!==1?'s':''}</span>
-        </div>
-        <div class="kpi-goal-health-row">
-          <div class="kpi-goal-health-track"><div class="kpi-goal-health-fill" style="background:${col};width:${h.pct}%"></div></div>
-          <span class="kpi-goal-health-pct" style="color:${col}">${h.pct}%</span>
-        </div>
-        <div class="kpi-goal-q-row">${qtiles}</div>
-        ${cycleRow}
-      </div>
-      <div class="kpi-goal-card-footer">
-        <span class="kpi-goal-footer-left">${_kpiQuarter} snapshot</span>
-        <button class="kpi-goal-drill-btn" onclick="event.stopPropagation();kpiOpenDrawer('${safeGoal}')">Deep dive →</button>
-      </div>
-    </div>`;
-  }).join('');
+  // ── EVENT DELEGATION — handles clicks AND apostrophes safely ──
+  grid.onclick = function(e){
+    var card=e.target.closest('.kpi-goal-card');
+    if(!card) return;
+    var idx=parseInt(card.getAttribute('data-goal'),10);
+    if(!isNaN(idx) && idx<entries.length) kpiOpenDrawer(entries[idx][0]);
+  };
 }
 
-// ── DRAWER ──────────────────────────────────────────────────────
+// ── DRAWER ─────────────────────────────────────────────────────
 function kpiOpenDrawer(goalName){
-  const goalMap=groupByGoal();
-  const rows=goalMap[goalName];
+  var goalMap=groupByGoal();
+  var rows=goalMap[goalName];
   if(!rows) return;
   _activeGoal=goalName;
 
-  document.getElementById('drawerGoalTag').textContent=PILLAR_MAP[goalName]||'Annual Goal';
+  document.getElementById('drawerGoalTag').textContent=(PILLAR_MAP[goalName]||'Annual Goal');
   document.getElementById('drawerTitle').textContent=goalName;
 
-  const owners=[...new Set(rows.map(r=>{
-    const o=(r[5]||'').trim();
-    return o.split('\n')[0].replace(/^Goal Responsibility[^:]*:\s*/i,'').replace(/^Primary Metric Owner:\s*/i,'').trim().slice(0,50);
-  }).filter(Boolean))];
-  document.getElementById('drawerOwnerRow').innerHTML=owners.slice(0,2).map(o=>`<span>👤 ${o}</span>`).join(' &nbsp;·&nbsp; ');
+  var ownerSet={};
+  for(var i=0;i<rows.length;i++){
+    var o=(rows[i][5]||'').trim().split('\n')[0]
+      .replace(/^Goal Responsibility[^:]*:\s*/i,'')
+      .replace(/^Primary Metric Owner:\s*/i,'')
+      .trim().slice(0,50);
+    if(o) ownerSet[o]=1;
+  }
+  var owners=Object.keys(ownerSet).slice(0,2);
+  document.getElementById('drawerOwnerRow').innerHTML=owners.map(function(o){ return '\uD83D\uDC64 '+o; }).join(' &nbsp;&middot;&nbsp; ');
 
-  const body=document.getElementById('drawerBody');
+  var body=document.getElementById('drawerBody');
 
-  // Summary chips
-  const h=healthScore(rows,_kpiQuarter);
-  const sumChips=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'].map(s=>{
-    const n=h.counts[s]||0;
-    const cfg=kst(s);
-    return `<div class="drawer-sum-chip ${cfg.badge}">
-      <span class="dsc-n">${n}</span>
-      <span class="dsc-l">${cfg.label}</span>
-    </div>`;
-  }).join('');
+  var h=healthScore(rows,_kpiQuarter);
+  var statusOrder=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
+  var sumChips='';
+  for(var si=0;si<statusOrder.length;si++){
+    var s=statusOrder[si], n=h.counts[s]||0, cfg=kst(s);
+    sumChips+='<div class="drawer-sum-chip '+cfg.badge+'">'
+      +'<span class="dsc-n">'+n+'</span><span class="dsc-l">'+cfg.label+'</span></div>';
+  }
 
-  // KPI accordion rows
-  const kpiRows=rows.map((row,idx)=>{
-    const target=(row[1]||'').trim();
-    const src1=(row[3]||'').replace(/Validation Method:\s*/gi,'').replace(/Secondary Validation:\s*/gi,'').trim().split('\n')[0];
-    const src2=(row[4]||'').replace(/Secondary Validation:\s*/gi,'').replace(/Asana/gi,'Asana').trim().split('\n')[0];
-    const curStat=qStatus(row,_kpiQuarter);
-    const curCfg=curStat?kst(curStat):null;
-    const me=getMidEoy(goalName,target);
+  var kpiRows='';
+  for(var ri=0;ri<rows.length;ri++){
+    var row=rows[ri];
+    var target=(row[1]||'').trim();
+    var src1=(row[3]||'').replace(/Validation Method:\s*/gi,'').trim().split('\n')[0];
+    var src2=(row[4]||'').replace(/Secondary Validation:\s*/gi,'').trim().split('\n')[0];
+    var curStat=qStatus(row,_kpiQuarter);
+    var curCfg=curStat?kst(curStat):null;
+    var me=getMidEoy(goalName,target);
+    var midCfg=me.mid?kst(me.mid):null;
+    var eoyCfg=me.eoy?kst(me.eoy):null;
 
-    // MOY/EOY persistent chips
-    const midCfg=me.mid?kst(me.mid):null;
-    const eoyCfg=me.eoy?kst(me.eoy):null;
-    const cycleHtml=`<div class="dkpi-cycle-row">
-      <div class="dkpi-cycle-chip ${midCfg?'dcc-mid':'dcc-empty'}">
-        <span class="dcc-lbl">Mid-Year</span>
-        <span class="dcc-status">${midCfg?midCfg.emoji+' '+midCfg.label:'—'}</span>
-      </div>
-      <div class="dkpi-cycle-chip ${eoyCfg?'dcc-eoy':'dcc-empty'}">
-        <span class="dcc-lbl">End of Year</span>
-        <span class="dcc-status">${eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending'}</span>
-      </div>
-    </div>`;
+    var cycleHtml='<div class="dkpi-cycle-row">'
+      +'<div class="dkpi-cycle-chip '+(midCfg?'dcc-mid':'dcc-empty')+'"><span class="dcc-lbl">Mid-Year</span><span class="dcc-status">'+(midCfg?midCfg.emoji+' '+midCfg.label:'\u2014')+'</span></div>'
+      +'<div class="dkpi-cycle-chip '+(eoyCfg?'dcc-eoy':'dcc-empty')+'"><span class="dcc-lbl">End of Year</span><span class="dcc-status">'+(eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending')+'</span></div>'
+      +'</div>';
 
-    // Q stepper
-    const qSteps=['Q1','Q2','Q3','Q4'].map(q=>{
-      const s=qStatus(row,q);
-      const d=parseQData(qDataRaw(row,q));
-      const cfg=s?kst(s):null;
-      const isCurr=q===_kpiQuarter;
-      const isFuture=!s&&!d.captured&&!d.goal;
-      return `<div class="dkpi-qstep ${isCurr?'qs-curr':''} ${isFuture?'qs-future':''}">
-        <span class="dqs-q">${q}${isCurr?' ←':''}</span>
-        <span class="dqs-icon">${cfg?cfg.emoji:'—'}</span>
-        <span class="dqs-status" style="color:${cfg?cfg.dot:'var(--muted)'}">${cfg?cfg.label:'No data'}</span>
-        ${d.goal||d.captured?`<div class="dqs-data">
-          ${d.goal?`<div class="dqs-goal">Goal: ${d.goal}</div>`:''}
-          ${d.captured?`<div class="dqs-captured">↳ ${d.captured}</div>`:''}
-        </div>`:''}
-      </div>`;
-    }).join('');
+    var qSteps='';
+    var quarters=['Q1','Q2','Q3','Q4'];
+    for(var qi=0;qi<4;qi++){
+      var qn=quarters[qi];
+      var qs2=qStatus(row,qn);
+      var qd=parseQData(qDataRaw(row,qn));
+      var qcfg=qs2?kst(qs2):null;
+      var isCurr=(qn===_kpiQuarter);
+      var dataHtml='';
+      if(qd.goal||qd.captured){
+        dataHtml='<div class="dqs-data">'+(qd.goal?'<div class="dqs-goal">Goal: '+qd.goal+'</div>':'')+(qd.captured?'<div class="dqs-captured">\u21b3 '+qd.captured+'</div>':'')+'</div>';
+      }
+      qSteps+='<div class="dkpi-qstep'+(isCurr?' qs-curr':'')+((!qs2&&!qd.captured)?' qs-future':'')+'"><span class="dqs-q">'+qn+(isCurr?' \u2190':'')+'</span><span class="dqs-icon">'+(qcfg?qcfg.emoji:'\u2014')+'</span><span class="dqs-status" style="color:'+(qcfg?qcfg.dot:'var(--muted)')+'">'+( qcfg?qcfg.label:'No data')+'</span>'+dataHtml+'</div>';
+    }
 
-    const srcHtml=(src1||src2)?`<div class="dkpi-sources">
-      ${src1?`<strong>Source:</strong> ${src1}&nbsp;`:''}
-      ${src2&&src2!==src1&&src2.toLowerCase()!=='n/a'?`&nbsp;·&nbsp; <strong>Validation:</strong> ${src2}`:''}
-    </div>`:'';
+    var srcHtml=(src1||src2)?'<div class="dkpi-sources">'+(src1?'<strong>Source:</strong> '+src1:'')+(src2&&src2!==src1&&src2.toLowerCase()!=='n/a'?' &nbsp;&middot;&nbsp; <strong>Validation:</strong> '+src2:'')+'</div>':'';
 
-    return `<div class="dkpi-row" id="dkpi-${idx}">
-      <div class="dkpi-hdr" onclick="kpiToggleKPI(${idx})">
-        <div class="dkpi-dot" style="background:${curCfg?curCfg.dot:'#94a3b8'}"></div>
-        <div class="dkpi-name">${target}</div>
-        <div class="dkpi-badge ${curCfg?curCfg.badge:'dsc-pipe'}">${curCfg?curCfg.label:'—'}</div>
-        <span class="dkpi-chev">▶</span>
-      </div>
-      <div class="dkpi-body">
-        ${cycleHtml}
-        <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.5rem 0 .25rem">Quarterly Drill-Down</div>
-        <div class="dkpi-q-grid">${qSteps}</div>
-        ${srcHtml}
-      </div>
-    </div>`;
-  }).join('');
+    kpiRows+='<div class="dkpi-row" id="dkpi-'+ri+'">'
+      +'<div class="dkpi-hdr" onclick="kpiToggleKPI('+ri+')">'
+      +'<div class="dkpi-dot" style="background:'+(curCfg?curCfg.dot:'#94a3b8')+'"></div>'
+      +'<div class="dkpi-name">'+target+'</div>'
+      +'<div class="dkpi-badge '+(curCfg?curCfg.badge:'dsc-pipe')+'">'+(curCfg?curCfg.label:'\u2014')+'</div>'
+      +'<span class="dkpi-chev">\u25BA</span>'
+      +'</div>'
+      +'<div class="dkpi-body">'+cycleHtml
+      +'<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.5rem 0 .25rem">Quarterly Drill-Down</div>'
+      +'<div class="dkpi-q-grid">'+qSteps+'</div>'+srcHtml+'</div>'
+      +'</div>';
+  }
 
-  body.innerHTML=`
-    <div class="drawer-sum-grid">${sumChips}</div>
-    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.625rem">
-      ${rows.length} KPI Target${rows.length!==1?'s':''} · Click to expand
-    </div>
-    ${kpiRows}
-  `;
+  body.innerHTML='<div class="drawer-sum-grid">'+sumChips+'</div>'
+    +'<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.625rem">'+rows.length+' KPI Target'+(rows.length!==1?'s':'')+' \u00b7 Click row to expand</div>'
+    +kpiRows;
 
   document.getElementById('kpiDrawer').classList.add('open');
   document.getElementById('drawerOverlay').classList.add('open');
@@ -15238,10 +15248,9 @@ function kpiOpenDrawer(goalName){
 }
 
 function kpiToggleKPI(idx){
-  const el=document.getElementById('dkpi-'+idx);
+  var el=document.getElementById('dkpi-'+idx);
   if(el) el.classList.toggle('open');
 }
-
 function kpiCloseDrawer(){
   document.getElementById('kpiDrawer').classList.remove('open');
   document.getElementById('drawerOverlay').classList.remove('open');
@@ -15249,32 +15258,30 @@ function kpiCloseDrawer(){
   _activeGoal=null;
 }
 
-// ── FILTER / QUARTER ────────────────────────────────────────────
+// ── FILTER & QUARTER ───────────────────────────────────────────
 function kpiSetFilter(btn,filter){
-  document.querySelectorAll('.kpi-filter-btn').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.kpi-filter-btn').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
   _kpiFilter=filter;
   if(!_kpiData.length) return;
-  const goalMap=groupByGoal();
-  kpiRenderHealthChips(goalMap);
-  kpiRenderGoalCards(goalMap);
+  var goalMap=groupByGoal();
+  _kpiRenderHealthChips(goalMap);
+  _kpiRenderGoalCards(goalMap);
 }
-
 function kpiSetQuarter(btn,q){
-  document.querySelectorAll('.kpi-qtab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.kpi-qtab').forEach(function(b){b.classList.remove('on');});
   btn.classList.add('on');
   _kpiQuarter=q;
   if(!_kpiData.length) return;
-  const goalMap=groupByGoal();
-  kpiRenderHealthChips(goalMap);
-  kpiRenderPillars(goalMap);
-  kpiRenderGoalCards(goalMap);
+  var goalMap=groupByGoal();
+  _kpiRenderHealthChips(goalMap);
+  _kpiRenderPillars(goalMap);
+  _kpiRenderGoalCards(goalMap);
 }
 
-// ESC closes drawer
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') kpiCloseDrawer(); });
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') kpiCloseDrawer(); });
 
-// Init
+// Init — fetch on load
 kpiFetch();
 
   // ── EXPOSE ────────────────────────────────────────────────────
@@ -15285,6 +15292,7 @@ kpiFetch();
   window.kpiToggleKPI    = kpiToggleKPI;
   window.kpiSetFilter    = kpiSetFilter;
   window.kpiSetQuarter   = kpiSetQuarter;
+
 
 
 })();
