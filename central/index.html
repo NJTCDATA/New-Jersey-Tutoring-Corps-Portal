@@ -2426,30 +2426,46 @@
     .kpi-q-expand.open { display: table-row; }
     .kpi-q-expand td { padding: 0 !important; border-bottom: 2px solid var(--navy) !important; }
     .kpi-q-panel {
-      padding: .875rem 1.125rem .875rem 2.5rem;
-      background: linear-gradient(135deg, #f8faff 0%, #f0f4fa 100%);
+      padding: 1rem 1.25rem 1rem 2.75rem;
+      background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
     }
     .kpi-q-label {
       font-size: .6rem; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .1em; color: var(--muted); margin-bottom: .625rem;
+      letter-spacing: .1em; color: var(--muted); margin-bottom: .75rem;
+      display: flex; align-items: center; gap: .5rem;
     }
+    .kpi-q-label::after { content:''; flex:1; height:1px; background:var(--border); }
     .kpi-q-grid { display: flex; gap: .5rem; flex-wrap: wrap; }
     .kpi-q-tile {
-      flex: 1; min-width: 80px; max-width: 130px;
-      border: 1.5px solid var(--border); border-radius: 8px;
-      padding: .5rem .625rem; background: white;
-      display: flex; flex-direction: column; gap: .2rem;
+      flex: 1; min-width: 130px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      padding: .625rem .75rem; background: white;
+      display: flex; flex-direction: column; gap: .25rem;
+      transition: border-color .15s;
     }
-    .kpi-q-tile.q-active { border-color: var(--navy); background: #f0f4fa; }
-    .kpi-q-tile.q-met    { border-color: var(--met); }
-    .kpi-q-tile.q-partial { border-color: var(--partial); }
-    .kpi-q-tile.q-notmet  { border-color: var(--notmet); }
-    .kpi-q-tile.q-prog    { border-color: var(--progress); }
-    .kqi-q-name  { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-    .kqi-q-icon  { font-size: 1rem; line-height: 1; }
-    .kqi-q-stat  { font-size: .6875rem; font-weight: 700; color: var(--navy); line-height: 1.2; }
-    .kqi-q-data  { font-size: .6rem; color: var(--muted); line-height: 1.3; margin-top: .15rem; }
-    .kqi-q-src   { font-size: .6rem; color: var(--muted); font-style: italic; }
+    .kpi-q-tile.q-active  { border-color: var(--navy); background: #f0f4ff; box-shadow: 0 0 0 2px rgba(0,50,160,.12); }
+    .kpi-q-tile.q-met     { border-color: #16a34a; background: #f0fdf4; }
+    .kpi-q-tile.q-partial { border-color: #d97706; background: #fffbeb; }
+    .kpi-q-tile.q-notmet  { border-color: #dc2626; background: #fef2f2; }
+    .kpi-q-tile.q-prog    { border-color: #2563eb; background: #eff6ff; }
+    .kpi-q-tile.q-pipe    { border-color: #7c3aed; background: #f5f3ff; }
+    .kpi-q-tile.q-future  { opacity:.45; background:#fafafa; }
+    .kqi-q-hdr   { display:flex; align-items:center; justify-content:space-between; margin-bottom:.1rem; }
+    .kqi-q-name  { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .kqi-q-badge { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+                   padding:.1rem .35rem; border-radius:20px; color:white; line-height:1.4; }
+    .kqi-q-badge.qb-met    { background:#16a34a; }
+    .kqi-q-badge.qb-partial{ background:#d97706; }
+    .kqi-q-badge.qb-notmet { background:#dc2626; }
+    .kqi-q-badge.qb-prog   { background:#2563eb; }
+    .kqi-q-badge.qb-pipe   { background:#7c3aed; }
+    .kqi-q-badge.qb-none   { background:var(--muted); }
+    .kqi-q-metric { display:grid; grid-template-columns:1fr 1fr; gap:.25rem .5rem; margin-top:.2rem; }
+    .kqi-q-metric-row { display:flex; flex-direction:column; gap:.05rem; }
+    .kqi-q-metric-lbl { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+    .kqi-q-metric-val { font-size:.75rem; font-weight:700; color:var(--navy); line-height:1.2; }
+    .kqi-q-metric-val.na { color:var(--muted); font-weight:400; font-style:italic; }
+    .kqi-q-src   { font-size: .6rem; color: var(--muted); font-style: italic; margin-top:.1rem; }
     .kpi-row-expand-btn {
       background: none; border: none; padding: 0; cursor: pointer;
       color: var(--blue); font-size: .75rem; font-weight: 600;
@@ -14230,6 +14246,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if (Date.now()-obj.ts < KPI_Q_TTL) {
             _mergeQuarterlyData(obj.rows);
             filterKPI();
+            // Re-render quarterly analytics tab if active
+            if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
+                && typeof setKPIAnalyticsTab === 'function') {
+              setKPIAnalyticsTab('quarterly');
+            }
             return;
           }
         }
@@ -14250,6 +14271,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         try { localStorage.setItem(KPI_Q_CACHE_KEY, JSON.stringify({ts:Date.now(), rows:valid})); } catch(e){}
         _mergeQuarterlyData(valid);
         filterKPI();
+        // Re-render quarterly analytics tab if it's currently active
+        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
+            && typeof setKPIAnalyticsTab === 'function') {
+          setKPIAnalyticsTab('quarterly');
+        }
         // Also rebuild analytics if it's currently showing
         var aEl=document.getElementById('kpiAnalyticsContent');
         if (aEl && aEl.innerHTML.trim()) buildKPIAnalytics();
@@ -14282,30 +14308,58 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function renderKPIQuarterlyTiles(k) {
+    var STATUS_CFG = {
+      'Met':                    { cls:'q-met',     badgeCls:'qb-met',     emoji:'✅' },
+      'Partially Met':          { cls:'q-partial', badgeCls:'qb-partial', emoji:'🟠' },
+      'Has Not Met':            { cls:'q-notmet',  badgeCls:'qb-notmet',  emoji:'🔴' },
+      'In Progress':            { cls:'q-prog',    badgeCls:'qb-prog',    emoji:'🔵' },
+      'Coming Down the Pipeline':{ cls:'q-pipe',   badgeCls:'qb-pipe',    emoji:'🟣' },
+    };
     var qs = [
-      { q:'Q1', s:k.q1s||'', d:k.q1d },
-      { q:'Q2', s:k.q2s||'', d:k.q2d },
-      { q:'Q3', s:k.q3s||'', d:k.q3d },
-      { q:'Q4', s:k.q4s||'', d:k.q4d },
+      { q:'Q1', s:k.q1s||'', d:k.q1d, isCurr:false },
+      { q:'Q2', s:k.q2s||'', d:k.q2d, isCurr:true  },
+      { q:'Q3', s:k.q3s||'', d:k.q3d, isCurr:false },
+      { q:'Q4', s:k.q4s||'', d:k.q4d, isCurr:false },
     ];
     var hasAny = qs.some(function(x){ return x.s; });
-    if (!hasAny) return '<span style="font-size:.75rem;color:var(--muted);font-style:italic">Quarterly data loading…</span>';
-
+    if (!hasAny) {
+      return '<div style="padding:.75rem 1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e;display:flex;align-items:center;gap:.5rem">⏳ Quarterly data loading… <button onclick="kpiForceQRefresh()" style="background:none;border:none;color:#0050c8;cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0">Force refresh</button></div>';
+    }
     return qs.map(function(x) {
-      var sc = _kpiStatusClass(x.s);
-      var data = x.d ? x.d : null;
-      var dataHtml = '';
-      if (data && (data.goal || data.captured)) {
-        dataHtml = '<div class="kqi-q-data">'
-          + (data.goal ? 'Goal: '+data.goal : '')
-          + (data.captured ? (data.goal?'<br>':'')+'→ '+data.captured : '')
-          + '</div>';
+      var cfg = STATUS_CFG[x.s] || null;
+      var statCls = cfg ? cfg.cls : (x.isCurr ? '' : 'q-future');
+      if (x.isCurr && !cfg) statCls = 'q-active';
+      var activeCls = x.isCurr ? ' q-active' : '';
+      var goal = x.d ? (x.d.goal||'').trim() : '';
+      var captured = x.d ? (x.d.captured||'').trim() : '';
+      // Normalize N/A
+      var goalIsNA = !goal || goal === 'N/A' || goal === 'N/A' || goal === 'NA';
+      var capIsNA  = !captured || captured === 'N/A' || captured === 'NA';
+
+      var badgeHtml = '';
+      if (x.s && cfg) {
+        badgeHtml = '<span class="kqi-q-badge '+cfg.badgeCls+'">'+cfg.emoji+' '+x.s+'</span>';
+      } else if (x.s) {
+        badgeHtml = '<span class="kqi-q-badge qb-none">'+x.s+'</span>';
+      } else {
+        badgeHtml = '<span style="font-size:.6rem;color:var(--muted);font-style:italic">Pending</span>';
       }
-      return '<div class="kpi-q-tile '+(x.q==='Q2'?'q-active ':'')+sc+'">'
-        + '<div class="kqi-q-name">'+x.q+'</div>'
-        + '<div class="kqi-q-icon">'+(x.s?_kpiStatusEmoji(x.s):'—')+'</div>'
-        + '<div class="kqi-q-stat">'+(x.s||'No data')+'</div>'
-        + dataHtml
+
+      var metricHtml = '';
+      if (!goalIsNA || !capIsNA) {
+        metricHtml = '<div class="kqi-q-metric">'
+          + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Goal</span>'
+          + '<span class="kqi-q-metric-val'+(goalIsNA?' na':'')+'">'+( goalIsNA ? '—' : goal )+'</span></div>'
+          + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Captured</span>'
+          + '<span class="kqi-q-metric-val'+(capIsNA?' na':'')+'">'+( capIsNA ? '—' : captured )+'</span></div>'
+          + '</div>';
+      } else {
+        metricHtml = '<div style="font-size:.6rem;color:var(--muted);font-style:italic;margin-top:.2rem">Data pending</div>';
+      }
+
+      return '<div class="kpi-q-tile '+statCls+activeCls+'">'
+        + '<div class="kqi-q-hdr"><span class="kqi-q-name">'+x.q+(x.isCurr?' ● NOW':'')+'</span>'+badgeHtml+'</div>'
+        + metricHtml
         + '</div>';
     }).join('');
   }
@@ -14314,67 +14368,103 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   var _origFilterKPI = filterKPI;
   filterKPI = function() {
     _origFilterKPI();
-    // After original renders, patch rows to add quarterly expand
     var tbody = document.getElementById('kpiBody');
     if (!tbody) return;
 
-    var cycle = (document.getElementById('kpiCycleFilter')||{value:'mid'}).value||'mid';
-    var goalF  = (document.getElementById('kpiGoalFilter')||{value:''}).value;
+    var cycle  = (document.getElementById('kpiCycleFilter') ||{value:'mid'}).value||'mid';
+    var goalF  = (document.getElementById('kpiGoalFilter')  ||{value:''}).value;
     var statusF= (document.getElementById('kpiStatusFilter')||{value:''}).value;
     var searchF= ((document.getElementById('kpiSearch')||{value:''}).value||'').toLowerCase();
-    var getStatus = function(k){ return cycle==='end'?(k.endStatus||k.midStatus||''):(k.midStatus||k.status||''); };
+    var getStatus = function(k){
+      return cycle==='end' ? (k.endStatus||k.midStatus||'') : (k.midStatus||k.status||'');
+    };
 
     var filtered = KPI_DATA.filter(function(k){
-      var s=getStatus(k);
-      return (!goalF||k.goal===goalF)&&(!statusF||s===statusF)&&(!searchF||k.target.toLowerCase().includes(searchF)||k.goal.toLowerCase().includes(searchF));
+      var s = getStatus(k);
+      return (!goalF   || k.goal===goalF)
+          && (!statusF || s===statusF)
+          && (!searchF || k.target.toLowerCase().indexOf(searchF)>=0
+                       || k.goal.toLowerCase().indexOf(searchF)>=0);
     });
 
-    var groups={};
-    var goalOrder=[...new Set(KPI_DATA.map(function(k){ return k.goal; }))];
+    var groups={}, goalOrder=[];
+    KPI_DATA.forEach(function(k){ if(goalOrder.indexOf(k.goal)<0) goalOrder.push(k.goal); });
     filtered.forEach(function(k){ if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
 
-    var html='';
-    var rowIdx=0;
+    function mkBadge(s, isMid) {
+      if (!s) return isMid
+        ? '<span style="color:var(--muted);font-size:.8125rem">\u2014</span>'
+        : '<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>';
+      var sc = statusClass(s), em = statusEmoji(s);
+      return '<span class="kpi-status ' + sc + '" style="cursor:pointer" '
+           + 'onclick="setKpiFilter(this.dataset.s)" data-s="' + s.replace(/"/g,'&quot;') + '" title="Filter">'
+           + em + ' ' + s + '</span>';
+    }
+
+    var html = '', rowIdx = 0;
     goalOrder.forEach(function(goal){
-      if(!groups[goal]) return;
-      html += '<tr class="goal-group-header"><td colspan="5">'+goal+'</td></tr>';
+      if (!groups[goal]) return;
+      html += '<tr class="goal-group-header"><td colspan="5">' + goal + '</td></tr>';
       groups[goal].forEach(function(k){
-        var mid=k.midStatus||'';
-        var end=k.endStatus||'';
-        var midBadge=mid?'<span class="kpi-status '+statusClass(mid)+'" style="cursor:pointer" onclick="setKpiFilter(\''+mid+'\')" title="Filter by status">'+statusEmoji(mid)+' '+mid+'</span>':'<span style="color:var(--muted);font-size:.8125rem">—</span>';
-        var endBadge=end?'<span class="kpi-status '+statusClass(end)+'" style="cursor:pointer" onclick="setKpiFilter(\''+end+'\')" title="Filter by status">'+statusEmoji(end)+' '+end+'</span>':'<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>';
-        var hasQ=k.q1s||k.q2s||k.q3s||k.q4s;
-        var ri='kqr-'+rowIdx;
-        html += '<tr class="kpi-row-expandable" onclick="toggleKPIRow(\''+ri+'\')">'
+        var kpiIdx = KPI_DATA.indexOf(k);
+        var ri = 'kqr-' + rowIdx;
+        html += '<tr class="kpi-row-expandable" onclick="toggleKPIRow(\'' + ri + '\')">'
           + '<td></td>'
-          + '<td style="font-size:.875rem;color:var(--text);line-height:1.5">'+k.target+'</td>'
-          + '<td>'+midBadge+'</td>'
-          + '<td>'+endBadge+'</td>'
-          + '<td><button class="kpi-row-expand-btn" id="btn-'+ri+'" onclick="event.stopPropagation();toggleKPIRow(\''+ri+'\')">'
-          + '<span class="chev">▶</span> '+(hasQ?'View':'—')
+          + '<td style="font-size:.875rem;color:var(--text);line-height:1.5">' + k.target + '</td>'
+          + '<td>' + mkBadge(k.midStatus||'', true) + '</td>'
+          + '<td>' + mkBadge(k.endStatus||'', false) + '</td>'
+          + '<td><button class="kpi-row-expand-btn" id="btn-' + ri + '" '
+          + 'onclick="event.stopPropagation();toggleKPIRow(\'' + ri + '\')">'
+          + '<span class="chev">&#9658;</span> Q Data'
           + '</button></td>'
           + '</tr>'
-          + '<tr class="kpi-q-expand" id="'+ri+'">'
+          + '<tr class="kpi-q-expand" id="' + ri + '" data-kpi-idx="' + kpiIdx + '">'
           + '<td colspan="5"><div class="kpi-q-panel">'
           + '<div class="kpi-q-label">Quarterly Breakdown</div>'
-          + '<div class="kpi-q-grid">'+renderKPIQuarterlyTiles(k)+'</div>'
-          + (k.owner?'<div class="kqi-q-src" style="margin-top:.5rem">Owner: '+k.owner+'</div>':'')
+          + '<div class="kpi-q-grid" id="qgrid-' + ri + '">&#8987; Loading&hellip;</div>'
+          + (k.owner ? '<div class="kqi-q-src" style="margin-top:.625rem;font-size:.65rem;color:var(--muted)">&#128203; Owner: ' + k.owner + '</div>' : '')
           + '</div></td>'
           + '</tr>';
         rowIdx++;
       });
     });
+
     tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
   };
 
   function toggleKPIRow(id) {
-    var row=document.getElementById(id);
-    var btn=document.getElementById('btn-'+id);
+    var row = document.getElementById(id);
+    var btn = document.getElementById('btn-'+id);
     if (!row) return;
-    var isOpen=row.classList.toggle('open');
+    var isOpen = row.classList.toggle('open');
     if (btn) btn.classList.toggle('open', isOpen);
+    // On open: render tiles LIVE from KPI_DATA using data-kpi-idx
+    if (isOpen) {
+      var grid = document.getElementById('qgrid-'+id);
+      if (grid) {
+        var idx = parseInt(row.getAttribute('data-kpi-idx'), 10);
+        var k = (KPI_DATA && !isNaN(idx)) ? KPI_DATA[idx] : null;
+        if (k) {
+          grid.innerHTML = renderKPIQuarterlyTiles(k);
+        } else {
+          grid.innerHTML = '<span style="color:var(--muted);font-size:.75rem;font-style:italic">Data not found</span>';
+        }
+      }
+    }
   }
   window.toggleKPIRow = toggleKPIRow;
+  window.kpiForceQRefresh = function() {
+    if (typeof fetchKPIQuarterly === 'function') {
+      fetchKPIQuarterly(true);
+      // If quarterly analytics tab is showing, re-render after short delay
+      setTimeout(function(){
+        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
+            && typeof setKPIAnalyticsTab === 'function') {
+          setKPIAnalyticsTab('quarterly');
+        }
+      }, 1500);
+    }
+  };
 
   // ══════════════════════════════════════════════════════════════════
   //  DATA COMPASS — GOVERNANCE SYSTEM
@@ -14690,75 +14780,130 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (tab !== 'quarterly') return _origRenderKPIAnalyticsTab(tab);
 
     var data = KPI_DATA || [];
-    if (!data.length) return '<div style="padding:2rem;text-align:center;color:var(--muted)">No data loaded. Click ↺ Refresh.</div>';
+    if (!data.length) {
+      return '<div style="padding:2rem;text-align:center;color:var(--muted)">No data loaded. Click ↺ Refresh.</div>';
+    }
 
     var hasQ = data.some(function(k){ return k.q1s||k.q2s||k.q3s||k.q4s; });
 
+    var STATUS_CFG = {
+      'Met':                     { color:'#16a34a', bg:'#f0fdf4', badge:'#dcfce7', text:'#15803d', emoji:'✅' },
+      'Partially Met':           { color:'#d97706', bg:'#fffbeb', badge:'#fef3c7', text:'#92400e', emoji:'🟠' },
+      'Has Not Met':             { color:'#dc2626', bg:'#fef2f2', badge:'#fee2e2', text:'#991b1b', emoji:'🔴' },
+      'In Progress':             { color:'#2563eb', bg:'#eff6ff', badge:'#dbeafe', text:'#1e40af', emoji:'🔵' },
+      'Coming Down the Pipeline':{ color:'#7c3aed', bg:'#f5f3ff', badge:'#ede9fe', text:'#5b21b6', emoji:'🟣' },
+    };
+
+    function qBadge(s) {
+      if (!s) return '<span style="font-size:.65rem;color:var(--muted);font-style:italic">Pending</span>';
+      var cfg = STATUS_CFG[s];
+      if (!cfg) return '<span style="font-size:.65rem;font-weight:700;color:var(--navy)">'+s+'</span>';
+      return '<span style="font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;'
+        +'background:'+cfg.badge+';color:'+cfg.text+'">'+cfg.emoji+' '+s+'</span>';
+    }
+
+    function qCell(qLabel, s, d, isCurrent) {
+      var cfg = s ? STATUS_CFG[s] : null;
+      var bg      = isCurrent ? '#eef2ff' : (cfg ? cfg.bg : '#fafafa');
+      var border  = isCurrent ? '2px solid #3730a3' : (cfg ? '1.5px solid '+cfg.color : '1px solid var(--border)');
+      var opacity = (!s && !isCurrent) ? 'opacity:.5;' : '';
+      var goal     = d ? (d.goal    ||'').trim() : '';
+      var captured = d ? (d.captured||'').trim() : '';
+      var goalNA   = !goal     || goal     === 'N/A' || goal     === 'NA';
+      var capNA    = !captured || captured === 'N/A' || captured === 'NA';
+      var nowTag   = isCurrent ? '<span style="font-size:.5rem;font-weight:800;letter-spacing:.08em;color:#3730a3;background:#e0e7ff;padding:.1rem .3rem;border-radius:3px;margin-left:.25rem;vertical-align:middle">NOW</span>' : '';
+
+      var html = '<div style="'+opacity+'background:'+bg+';border:'+border+';border-radius:10px;padding:.625rem .75rem;display:flex;flex-direction:column;gap:.3rem">';
+      // Header row: quarter label + status badge
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">';
+      html += '<span style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:'+(isCurrent?'#3730a3':'var(--muted)')+'">'+qLabel+nowTag+'</span>';
+      html += qBadge(s);
+      html += '</div>';
+      // Metrics grid
+      if (!goalNA || !capNA) {
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .625rem;margin-top:.15rem">';
+        html += '<div><div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.1rem">Goal</div>'
+          + '<div style="font-size:.8125rem;font-weight:700;color:'+(goalNA?'var(--muted)':'var(--navy)')+(goalNA?';font-style:italic':'')+'">'+(goalNA?'—':goal)+'</div></div>';
+        html += '<div><div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.1rem">Captured Metric</div>'
+          + '<div style="font-size:.8125rem;font-weight:700;color:'+(capNA?'var(--muted)':'var(--navy)')+(capNA?';font-style:italic':'')+'">'+(capNA?'—':captured)+'</div></div>';
+        html += '</div>';
+      } else {
+        html += '<div style="font-size:.65rem;color:var(--muted);font-style:italic">Metrics pending</div>';
+      }
+      html += '</div>';
+      return html;
+    }
+
     var html = '';
-    html += '<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:.8125rem;color:#0c4a6e;line-height:1.5">'
-      + '📅 <strong>Quarterly View:</strong> Each card shows a target\'s Q1–Q4 progression with captured metrics. '
-      + (hasQ ? 'Data live from the Quarterly tab of the KPI Dashboard.'
-               : 'Quarterly data is loading — click ↺ Refresh to fetch it.')
-      + '</div>';
+
+    // Info bar
+    html += '<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:'+(hasQ?'#f0fdf4':'#fffbeb')+';border:1px solid '+(hasQ?'#bbf7d0':'#fde68a')+';border-radius:10px;display:flex;align-items:center;gap:.625rem">';
+    html += '<span style="font-size:1rem">'+(hasQ?'✅':'⏳')+'</span>';
+    html += '<div style="font-size:.8125rem;color:'+(hasQ?'#14532d':'#92400e')+';line-height:1.5">';
+    html += hasQ
+      ? '<strong>Quarterly data loaded.</strong> Showing Q1–Q4 progression with goal vs. captured metrics for all '+data.length+' targets.'
+      : '<strong>Quarterly data loading.</strong> Click <button onclick="kpiForceQRefresh()"  style="background:#d97706;color:white;border:none;border-radius:4px;padding:.2rem .6rem;font-size:.75rem;cursor:pointer;font-weight:700">↺ Force Refresh</button> if data doesn\x27t appear.';
+    html += '</div></div>';
+
+    // Quarter legend
+    html += '<div style="display:flex;align-items:center;gap:.875rem;margin-bottom:1.25rem;flex-wrap:wrap">';
+    html += '<span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Legend:</span>';
+    var statuses = ['Met','Partially Met','In Progress','Has Not Met','Coming Down the Pipeline'];
+    statuses.forEach(function(s){
+      var cfg = STATUS_CFG[s];
+      html += '<span style="font-size:.6875rem;font-weight:600;padding:.2rem .6rem;border-radius:20px;background:'+cfg.badge+';color:'+cfg.text+'">'+cfg.emoji+' '+s+'</span>';
+    });
+    html += '</div>';
 
     // Group by goal
-    var goals = {};
-    var goalOrder = [];
+    var goals = {}, goalOrder = [];
     data.forEach(function(k){
       if (!goals[k.goal]) { goals[k.goal]=[]; goalOrder.push(k.goal); }
       goals[k.goal].push(k);
     });
-    // Deduplicate order
     goalOrder = goalOrder.filter(function(g,i){ return goalOrder.indexOf(g)===i; });
 
-    goalOrder.forEach(function(goalName) {
+    goalOrder.forEach(function(goalName){
       var items = goals[goalName];
-      html += '<div style="margin-bottom:1.5rem">';
-      html += '<div style="font-size:.8125rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);padding:.5rem 0;border-bottom:2px solid var(--navy);margin-bottom:.75rem">'+goalName+'</div>';
-      html += '<div class="kpia-q-grid">';
+      html += '<div style="margin-bottom:2rem">';
+      html += '<div style="font-size:.8125rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:white;background:var(--navy);padding:.5rem .875rem;border-radius:8px 8px 0 0;margin-bottom:0">'+goalName+'</div>';
 
-      items.forEach(function(k){
-        var qs = [
-          { q:'Q1', s:k.q1s||'', d:k.q1d },
-          { q:'Q2', s:k.q2s||'', d:k.q2d },
-          { q:'Q3', s:k.q3s||'', d:k.q3d },
-          { q:'Q4', s:k.q4s||'', d:k.q4d },
-        ];
-        var curStat = k.midStatus||k.status||'';
-        var curCfg  = curStat ? {
-          'Met':'#0d6e3a','Partially Met':'#c05c00','Has Not Met':'#b91c1c',
-          'In Progress':'#0050c8','Coming Down the Pipeline':'#6b21a8'
-        }[curStat]||'var(--muted)' : 'var(--muted)';
+      items.forEach(function(k, ki){
+        var even = ki % 2 === 0;
+        html += '<div style="padding:.875rem 1rem;border-left:3px solid var(--navy);border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:'+(even?'white':'#fafbff')+'">';
 
-        html += '<div class="kpia-q-card">';
-        html += '<div class="kpia-q-card-hdr">';
-        html += '<div class="kpia-q-card-title">'+k.target+'</div>';
-        if (curStat) html += '<div class="kpia-q-badge">'+curStat+'</div>';
+        // Target header
+        html += '<div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem">';
+        html += '<div style="flex:1">';
+        html += '<div style="font-size:.875rem;font-weight:600;color:var(--navy);line-height:1.4">'+k.target+'</div>';
+        if (k.owner) html += '<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">📋 '+k.owner+'</div>';
         html += '</div>';
-        html += '<div class="kpia-q-steps">';
-
-        qs.forEach(function(x){
-          var isCurr = (x.q==='Q2');
-          var isFuture = !x.s && !( x.d && (x.d.goal||x.d.captured) );
-          var emojiMap = {'Met':'✅','Partially Met':'🟠','Has Not Met':'🔴','In Progress':'🔵','Coming Down the Pipeline':'🟣'};
-          var emoji = x.s ? (emojiMap[x.s]||'—') : (isFuture?'◻':'—');
-          var dataHtml='';
-          if (x.d && (x.d.goal||x.d.captured)) {
-            dataHtml='<div class="qs-data">'
-              +(x.d.goal?'<span>Goal: '+x.d.goal+'</span>':'')
-              +(x.d.captured?'<span style="display:block">→ '+x.d.captured+'</span>':'')
-              +'</div>';
-          }
-          html += '<div class="kpia-q-step'+(isCurr?' qs-active':'')+(isFuture?' qs-future':'')+'"><span class="qs-q">'+x.q+(isCurr?' ←':'')+'</span><span class="qs-icon">'+emoji+'</span><div class="qs-body"><div class="qs-stat">'+(x.s||'No data yet')+'</div>'+dataHtml+'</div></div>';
-        });
-
+        // Current status badges
+        var curMid = k.midStatus||k.status||'';
+        var curEnd = k.endStatus||'';
+        if (curMid || curEnd) {
+          html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex-shrink:0">';
+          if (curMid) html += '<div style="font-size:.6rem;color:var(--muted);text-align:right">Mid-Year</div>'+qBadge(curMid);
+          if (curEnd) html += '<div style="font-size:.6rem;color:var(--muted);text-align:right;margin-top:.1rem">End of Year</div>'+qBadge(curEnd);
+          html += '</div>';
+        }
         html += '</div>';
-        if (k.owner) html += '<div style="padding:.25rem 1rem .625rem;font-size:.6rem;color:var(--muted);font-style:italic">Owner: '+k.owner+'</div>';
+
+        // Q1-Q4 grid
+        html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem">';
+        html += qCell('Q1', k.q1s, k.q1d, false);
+        html += qCell('Q2', k.q2s, k.q2d, true);
+        html += qCell('Q3', k.q3s, k.q3d, false);
+        html += qCell('Q4', k.q4s, k.q4d, false);
+        html += '</div>';
+
         html += '</div>';
       });
 
-      html += '</div></div>';
+      html += '<div style="height:.125rem;background:var(--navy);opacity:.15;border-radius:0 0 4px 4px;margin-bottom:.25rem"></div>';
+      html += '</div>';
     });
+
     return html;
   };
 
