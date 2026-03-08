@@ -7124,6 +7124,7 @@
     _filteredConcerns = CONCERNS;
     _updateTalentBadge(_talentLiveStatus);
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
+    fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
     try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
     try { initTalentTabsForDept(_currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
@@ -7193,7 +7194,20 @@
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
   const HR_CACHE_KEY  = 'njtc_hr_live_v1';
-  const HR_TTL_MS     = 20 * 60 * 1000;  // 20-min cache
+  const HR_TTL_MS     = 60 * 60 * 1000;  // 1-hour cache
+
+  // ── Site Leader Observations live sheet ──────────────────────────────
+  // To enable: paste 2PACX key from File → Share → Publish to web → CSV
+  // and set the GID of the observations tab
+  const OBS_2PACX     = null;  // TODO: paste site leader observations 2PACX key
+  const OBS_GID       = null;  // TODO: GID for observations tab
+  const OBS_CACHE_KEY = 'njtc_obs_live_v1';
+  const OBS_TTL_MS    = 60 * 60 * 1000;  // 1-hour cache
+  let   _obsRows      = [];
+  let   _obsFetched   = false;
+
+  // ── Academic data overlay (from irlab) ──────────────────────────────
+  // Pulled at render time from irlab.getTutorAcademicData() — no extra fetch needed
 
   let _hrStatus  = 'embedded';   // 'embedded' | 'live' | 'error'
   let _hrFetched = false;
@@ -7365,6 +7379,120 @@
   }
 
   // ── Async live HR fetch ───────────────────────────────────────────────────
+  // ── Fetch site leader observations ──────────────────────────────────
+  async function fetchLiveObsData(force=false) {
+    if (!OBS_2PACX || !OBS_GID) return;
+    if (!force) {
+      try {
+        const c = JSON.parse(localStorage.getItem(OBS_CACHE_KEY)||'null');
+        if (c && c.ts && (Date.now()-c.ts) < OBS_TTL_MS && c.rows) {
+          _obsRows = c.rows;
+          _obsFetched = true;
+          return;
+        }
+      } catch(e) {}
+    }
+    const bust = force ? '&t='+Date.now() : '';
+    const url = `https://docs.google.com/spreadsheets/d/e/${OBS_2PACX}/pub?output=csv&gid=${OBS_GID}${bust}`;
+    try {
+      const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
+      if (!res.ok) return;
+      const rows = _parseObsSheet(await res.text());
+      _obsRows = rows;
+      _obsFetched = true;
+      try { localStorage.setItem(OBS_CACHE_KEY, JSON.stringify({ts:Date.now(),rows})); } catch(e){}
+      console.log('[HR Profiles] Observations loaded:', rows.length, 'records');
+      _hrOverlayObs();
+    } catch(e) { console.warn('[HR Profiles] Obs fetch failed:', e.message); }
+  }
+
+  // ── Parse observation sheet CSV ───────────────────────────────────
+  function _parseObsSheet(text) {
+    const lines = text.split('\n').filter(l=>l.trim());
+    if (!lines.length) return [];
+    const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+    const g = (row, ...keys) => {
+      for (const k of keys) {
+        const i = header.indexOf(k);
+        if (i>-1) { const v=(row[i]||'').replace(/"/g,'').trim(); if(v) return v; }
+      }
+      return '';
+    };
+    return lines.slice(1).map(line => {
+      const row = line.split(',');
+      return {
+        name:     g(row,'tutor name','instructor name','staff name','name'),
+        date:     g(row,'date','observation date'),
+        rating:   g(row,'rating','score','overall','overall rating'),
+        type:     g(row,'type','observation type','visit type'),
+        notes:    g(row,'notes','comments','feedback'),
+        observer: g(row,'observer','submitted by','site leader'),
+        site:     g(row,'site','school','location'),
+      };
+    }).filter(r=>r.name);
+  }
+
+  // ── Academic data overlay from irlab tutorMap ─────────────────────
+  function _hrOverlayAcademic() {
+    if (typeof irlab === 'undefined' || !irlab || !irlab.getTutorAcademicData) return;
+    try {
+      const tutorMap = irlab.getTutorAcademicData();
+      if (!tutorMap) return;
+      let matched = 0;
+      for (const [tutorName, td] of Object.entries(tutorMap)) {
+        const k = _hn(tutorName);
+        const emp = HR_EMPS.find(e => {
+          const ek = _hn(e.n);
+          if (ek === k) return true;
+          // Fuzzy: every token in shorter name must appear in longer
+          const ep = new Set(ek.split(' ')), kp = new Set(k.split(' '));
+          return [...ep].every(p=>kp.has(p)) || [...kp].every(p=>ep.has(p));
+        });
+        if (!emp) continue;
+        emp._acadScholars    = td.scholarCount   || 0;
+        emp._acadPctMoved    = td.pctMoved       ?? null;   // % scholars improved placement
+        emp._acadPctGL       = td.pctGL          ?? null;   // % on grade level at spring
+        emp._acadAvgGain     = td.avgGain        ?? null;   // avg diagnostic gain
+        emp._acadMoved       = td.moved          || 0;
+        emp._acadHeld        = td.held           || 0;
+        emp._acadRegressed   = td.regressed      || 0;
+        emp._acadCert        = td.cert           || '';
+        emp._acadDistricts   = [...(td.districts||[])].filter(Boolean).join(', ');
+        emp._acadYears       = [...(td.years||[])].filter(Boolean).sort().reverse().join(', ');
+        emp._acadSubjects    = [...(td.subjects||[])].filter(Boolean).join(', ');
+        matched++;
+      }
+      console.log('[HR Profiles] Academic overlay matched:', matched, 'employees');
+    } catch(e) { console.warn('[HR Profiles] Academic overlay error:', e); }
+  }
+
+  // ── Site leader observation overlay ──────────────────────────────
+  function _hrOverlayObs() {
+    if (!_obsRows.length) return;
+    // Reset
+    for (const emp of HR_EMPS) { emp._obsCount=0; emp._obsLatest=null; emp._obsRatings=[]; }
+    for (const obs of _obsRows) {
+      const k = _hn(obs.name);
+      const emp = HR_EMPS.find(e => {
+        const ek = _hn(e.n);
+        if (ek===k) return true;
+        const ep=new Set(ek.split(' ')), kp=new Set(k.split(' '));
+        return [...ep].every(p=>kp.has(p)) || [...kp].every(p=>ep.has(p));
+      });
+      if (!emp) continue;
+      emp._obsCount = (emp._obsCount||0) + 1;
+      if (!emp._obsLatest || obs.date > emp._obsLatest.date) emp._obsLatest = obs;
+      const r = parseFloat(obs.rating);
+      if (!isNaN(r)) emp._obsRatings.push(r);
+    }
+    // Compute avg rating
+    for (const emp of HR_EMPS) {
+      emp._obsAvgRating = emp._obsRatings&&emp._obsRatings.length
+        ? Math.round(emp._obsRatings.reduce((a,b)=>a+b,0)/emp._obsRatings.length*10)/10 : null;
+    }
+    console.log('[HR Profiles] Obs overlay applied');
+  }
+
   async function fetchLiveHRData(force=false) {
     if (!force) {
       try {
@@ -7460,43 +7588,99 @@
 
   // ── KB VIEW ───────────────────────────────────────────────────────────────
   function _hrViewKB() {
-    const total  = HR_EMPS.length;
-    const active = HR_EMPS.filter(e=>e.s==='Active').length;
-    const stellar= HR_EMPS.filter(e=>e.t==='stellar').length;
-    const strong = HR_EMPS.filter(e=>e.t==='strong').length;
-    const dev    = HR_EMPS.filter(e=>e.t==='developing').length;
-    const ns     = HR_EMPS.filter(e=>e.t==='needs_support').length;
-    const concern= HR_EMPS.filter(e=>e._liveConcerns>0||e.co===1).length;
-    const rehireY= HR_EMPS.filter(e=>(e.rh||'').toLowerCase().startsWith('yes')).length;
-    const rehireN= HR_EMPS.filter(e=>(e.rh||'').toLowerCase().startsWith('no')).length;
-    const multi  = HR_EMPS.filter(e=>e.c>=3).length;
-    const src    = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
+    const total   = HR_EMPS.length;
+    const active  = HR_EMPS.filter(e=>e.s==='Active').length;
+    const byTier  = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
+    HR_EMPS.forEach(e=>{ if(byTier[e.t]!==undefined) byTier[e.t]++; });
+    const highPerf= byTier.stellar + byTier.strong;
+    const atRisk  = byTier.needs_support;
+    const multiCy = HR_EMPS.filter(e=>e.c>=2).length;
+    const noRehire= HR_EMPS.filter(e=>e.rh==='No'||e.rh===false).length;
+    const concerns= HR_EMPS.filter(e=>(e._liveConcerns||0)>0||e.co===1).length;
+    const getAtt  = e => e._liveAtt!==undefined ? e._liveAtt : e.att;
+    const attRisk = HR_EMPS.filter(e=>e.s==='Active'&&getAtt(e)!==null&&getAtt(e)<80).length;
+    const src     = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
+
+    // Academic summary if irlab data available
+    const hasAcad   = HR_EMPS.some(e=>e._acadPctMoved!=null);
+    const acadScholars = hasAcad ? HR_EMPS.reduce((a,e)=>a+(e._acadScholars||0),0) : null;
+    const academicMovers = hasAcad ? HR_EMPS.filter(e=>e._acadPctMoved!=null) : [];
+    const avgPctMoved = academicMovers.length
+      ? Math.round(academicMovers.reduce((a,e)=>a+e._acadPctMoved,0)/academicMovers.length) : null;
+
+    // Tier bar
+    const tierOrder = ['stellar','strong','developing','needs_support','incomplete'];
+    const tierBar = tierOrder.map(t=>{
+      const cfg=_tier(t); const n=byTier[t]; if(!n) return '';
+      const pct=Math.round(n/total*100);
+      return `<div style="flex:${pct};background:${cfg.color};height:8px;border-radius:3px" title="${cfg.label}: ${n} (${pct}%)"></div>`;
+    }).join('');
+
+    // Executive KPIs
+    const kpis = [
+      {v:total,        l:'Total Employees', sub:active+' active',       c:'var(--navy)'},
+      {v:highPerf,     l:'High Performers', sub:`${Math.round(highPerf/total*100)}% of staff`, c:'#0d6e3a'},
+      {v:multiCy,      l:'Multi-Cycle Staff',sub:`${Math.round(multiCy/total*100)}% retention`, c:'var(--navy)'},
+      {v:concerns,     l:'Active Concerns', sub:atRisk+' needs support',  c:concerns>5?'#b91c1c':'#d97706'},
+      {v:attRisk,      l:'Attendance Risk', sub:'active staff <80%',      c:attRisk>5?'#b91c1c':'#d97706'},
+      ...(avgPctMoved!=null?[{v:avgPctMoved+'%', l:'Avg Scholar Gains', sub:acadScholars+' scholars total', c:'#7c3aed'}]:[]),
+    ];
+
+    const kpiGrid = kpis.map(k=>`
+<div style="text-align:center;padding:.875rem .75rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+  <div style="font-size:1.75rem;font-weight:800;color:${k.c};line-height:1;font-family:'DM Serif Display',serif">${k.v}</div>
+  <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin:.3rem 0 .15rem">${k.l}</div>
+  <div style="font-size:.65rem;color:var(--muted)">${k.sub}</div>
+</div>`).join('');
+
+    // Top retention flags
+    const rehireable = HR_EMPS.filter(e=>e.s==='Active'&&(e.rh==='Yes'||e.rh===true)&&e.c>=2).length;
+    const termRisk   = HR_EMPS.filter(e=>(e._liveHRAction||e.hn||'').includes('Termination')).length;
+
     return `
-<div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);border-radius:var(--radius);padding:1.75rem 2rem;margin-bottom:1.5rem;color:#fff;position:relative;overflow:hidden">
-  <div style="position:absolute;top:-20px;right:-20px;font-size:8rem;opacity:.04">👥</div>
-  <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:.625rem">NJTC Talent Portfolio — Executive Summary</div>
-  <div style="display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-end">
-    ${[
-      {v:total,  l:'Total Staff Records', c:'rgba(255,255,255,.7)'},
-      {v:active, l:'Currently Active',    c:'#4ade80'},
-      {v:multi,  l:'3+ Cycles with NJTC', c:'#60a5fa'},
-      {v:stellar+strong,l:'High Performers',c:'#fbbf24'},
-    ].map(x=>`<div><div style="font-family:'DM Serif Display',Georgia,serif;font-size:2.5rem;color:${x.c};line-height:1">${x.v}</div><div style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:.2rem">${x.l}</div></div>`).join('')}
+<div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.25rem 1.5rem;border-radius:10px;color:#fff;margin-bottom:1.25rem">
+  <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.375rem">Executive Talent Summary · ${src}</div>
+  <div style="font-size:1.375rem;font-weight:700;margin-bottom:.25rem">Staff Intelligence Overview</div>
+  <div style="font-size:.8125rem;color:rgba(255,255,255,.6)">SY 2022–2026 aggregate · ${total} employees in system · ${active} currently active</div>
+</div>
+
+<!-- Tier health bar -->
+<div style="margin-bottom:1.125rem">
+  <div style="display:flex;justify-content:space-between;margin-bottom:.4rem">
+    <span style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Staff Performance Distribution</span>
+    <span style="font-size:.7rem;color:var(--muted)">${src}</span>
   </div>
-  <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:.875rem">${src} · ${total} records across all cycles · Historical data: SY 2022–2025</div>
+  <div style="display:flex;gap:3px;border-radius:6px;overflow:hidden;height:8px;margin-bottom:.5rem">${tierBar}</div>
+  <div style="display:flex;gap:.875rem;flex-wrap:wrap">
+    ${tierOrder.filter(t=>byTier[t]>0).map(t=>{const c=_tier(t);return`<span style="font-size:.7rem;color:${c.color}">${c.emoji} ${c.label}: ${byTier[t]}</span>`;}).join('')}
+  </div>
 </div>
-<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.875rem;margin-bottom:1.25rem">
-  ${[
-    {t:'stellar',n:stellar},{t:'strong',n:strong},{t:'developing',n:dev},{t:'needs_support',n:ns}
-  ].map(x=>{const c=_tier(x.t);return`<div style="background:${c.bg};border:1.5px solid ${c.color}33;border-radius:var(--radius-sm);padding:1rem;text-align:center"><div style="font-size:1.375rem">${c.emoji}</div><div style="font-family:'DM Serif Display',serif;font-size:1.875rem;color:${c.color}">${x.n}</div><div style="font-size:.7rem;color:${c.color};font-weight:600;margin-top:.15rem">${c.label}</div></div>`;}).join('')}
+
+<!-- KPI grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.75rem;margin-bottom:1.25rem">
+  ${kpiGrid}
 </div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem">
-  ${[
-    {v:rehireY,l:'Rehire Eligible',    sub:'positive pipeline signal',bg:'#f0fdf4',co:'#0d6e3a'},
-    {v:rehireN,l:'Not Eligible',       sub:'capacity constraint',     bg:'#fef2f2',co:'#b91c1c'},
-    {v:concern,l:'Performance Concerns',sub:'documented across cycles',bg:'#fff7ed',co:'#d97706'},
-  ].map(x=>`<div style="background:${x.bg};border-radius:var(--radius-sm);padding:1rem 1.25rem;border:1px solid ${x.co}22"><div style="font-family:'DM Serif Display',serif;font-size:1.875rem;color:${x.co}">${x.v}</div><div style="font-size:.8125rem;font-weight:700;color:${x.co}">${x.l}</div><div style="font-size:.7rem;color:var(--muted);margin-top:.15rem">${x.sub}</div></div>`).join('')}
-</div>`;
+
+<!-- Executive signal flags -->
+<div style="margin-bottom:1.125rem">
+  <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.625rem">Key Signals for Leadership Review</div>
+  <div style="display:flex;flex-direction:column;gap:.35rem">
+    ${[
+      {pos:true,  ico:'🌟', txt:`${highPerf} high performers (Stellar+Strong) — ${Math.round(highPerf/total*100)}% of total staff`},
+      {pos:true,  ico:'🔁', txt:`${multiCy} multi-cycle employees — institutional knowledge retention strength`},
+      {pos:true,  ico:'✅', txt:`${rehireable} currently active & eligible for rehire with 2+ cycles`},
+      ...(noRehire>0?[{pos:false,ico:'⛔', txt:`${noRehire} employees marked Do Not Rehire`}]:[]),
+      ...(termRisk>0?[{pos:false,ico:'⚠️', txt:`${termRisk} employees with active termination recommendation`}]:[]),
+      ...(attRisk>5?[{pos:false,ico:'🔴', txt:`${attRisk} active staff below 80% attendance — immediate attention needed`}]:[]),
+      ...(avgPctMoved!=null?[{pos:avgPctMoved>=40,ico:'📚',txt:`${avgPctMoved}% of tutored scholars improved i-Ready placement (${acadScholars} scholars total)`}]:[]),
+    ].map(s=>`<div style="display:flex;gap:.5rem;align-items:flex-start;padding:.4rem .75rem;background:${s.pos?'#f0fdf4':'#fff7ed'};border:1px solid ${s.pos?'#bbf7d0':'#fed7aa'};border-radius:8px">
+      <span>${s.ico}</span>
+      <span style="font-size:.8125rem;color:${s.pos?'#065f46':'#92400e'}">${s.txt}</span>
+    </div>`).join('')}
+  </div>
+</div>
+
+<div style="font-size:.7rem;color:var(--muted);text-align:right">Detailed employee profiles available to HR and Data departments</div>`;
   }
 
   // ── FINANCE VIEW ──────────────────────────────────────────────────────────
@@ -7549,87 +7733,121 @@ ${attRisk.length ? `
     const active  = HR_EMPS.filter(e=>e.s==='Active').length;
     const byTier  = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
     HR_EMPS.forEach(e=>{ if(byTier[e.t]!==undefined) byTier[e.t]++; });
-    const multi   = HR_EMPS.filter(e=>e.c>=3).length;
-    const noRehire= HR_EMPS.filter(e=>(e.rh||'').toLowerCase().startsWith('no')).length;
-    const concern = HR_EMPS.filter(e=>e._liveConcerns>0||e.co===1);
-    const attRisk = HR_EMPS.filter(e=>e.s==='Active'&&(e._liveAtt!==undefined?e._liveAtt:e.att)!==null&&(e._liveAtt!==undefined?e._liveAtt:e.att)<80);
-    const src = _hrStatus==='live' ? '🟢 Live from HR Sheet' : '📋 Embedded snapshot (SY 2022–2025)';
+    const getAtt  = e => e._liveAtt!==undefined ? e._liveAtt : e.att;
+    const src     = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
 
-    const distRows = (() => {
-      const distMap = {};
-      HR_EMPS.filter(e=>e.t!=='incomplete').forEach(e=>{
-        const d = (e.di||'').split(' ').slice(0,3).join(' ') || 'Unknown';
-        if (!distMap[d]) distMap[d] = {total:0,stellar:0,ns:0,concern:0};
-        distMap[d].total++;
-        if (e.t==='stellar'||e.t==='strong') distMap[d].stellar++;
-        if (e.t==='needs_support') distMap[d].ns++;
-        if (e._liveConcerns>0||e.co===1) distMap[d].concern++;
-      });
-      return Object.entries(distMap)
-        .sort((a,b)=>b[1].total-a[1].total).slice(0,8)
-        .map(([d,v])=>`<tr style="border-bottom:1px solid var(--border-2)">
-          <td style="padding:.4rem .75rem;font-weight:600;color:var(--navy);font-size:.8125rem">${esc(d)}</td>
-          <td style="padding:.4rem .75rem;text-align:center;font-size:.8125rem">${v.total}</td>
-          <td style="padding:.4rem .75rem;text-align:center"><span style="color:#0d6e3a;font-weight:700">${v.stellar}</span></td>
-          <td style="padding:.4rem .75rem;text-align:center"><span style="color:#b91c1c;font-weight:700">${v.ns}</span></td>
-          <td style="padding:.4rem .75rem;text-align:center"><span style="color:#d97706;font-weight:700">${v.concern}</span></td>
-        </tr>`).join('');
-    })();
+    // Academic overlay summary
+    const hasAcad = HR_EMPS.some(e=>e._acadPctMoved!=null);
+    const acadMovers = hasAcad ? HR_EMPS.filter(e=>e._acadPctMoved!=null) : [];
+    const avgPctMoved = acadMovers.length ? Math.round(acadMovers.reduce((a,e)=>a+e._acadPctMoved,0)/acadMovers.length) : null;
+    const totalScholars = HR_EMPS.reduce((a,e)=>a+(e._acadScholars||0),0);
+
+    // Risk flags
+    const termRisk  = HR_EMPS.filter(e=>(e._liveHRAction||e.hn||'').includes('Termination'));
+    const pgpList   = HR_EMPS.filter(e=>(e._liveHRAction||e.hn||'').includes('PGP'));
+    const attRisk   = HR_EMPS.filter(e=>e.s==='Active'&&getAtt(e)!==null&&getAtt(e)<80);
+    const noRehire  = HR_EMPS.filter(e=>e.rh==='No'||e.rh===false);
+    const multiConcerns = HR_EMPS.filter(e=>(e._liveConcerns||0)>=2);
+
+    // Top performers (stellar, active, multi-cycle)
+    const topPerformers = HR_EMPS.filter(e=>e.t==='stellar'&&e.s==='Active'&&e.c>=2)
+      .sort((a,b)=>b.c-a.c).slice(0,8);
+
+    // Watch list: needs_support active OR high concerns
+    const watchList = HR_EMPS.filter(e=>
+      (e.t==='needs_support'&&e.s==='Active') ||
+      ((e._liveConcerns||0)>=2&&e.s==='Active')
+    ).sort((a,b)=>(b._liveConcerns||0)-(a._liveConcerns||0)).slice(0,8);
+
+    // Tier bar
+    const tierOrder=['stellar','strong','developing','needs_support','incomplete'];
+    const tierBar = tierOrder.map(t=>{
+      const cfg=_tier(t); const n=byTier[t]; if(!n) return '';
+      const pct=Math.round(n/total*100);
+      return `<div style="flex:${pct};background:${cfg.color};height:10px;border-radius:3px" title="${cfg.label}: ${n} (${pct}%)"></div>`;
+    }).join('');
+
+    const nameRow = (e, showTier=true, showAtt=false) => {
+      const cfg=_tier(e.t); const a=getAtt(e);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem .625rem;background:var(--surface-2);border-radius:6px;font-size:.75rem">
+        <span style="font-weight:600;color:var(--navy)">${esc(e.n)}</span>
+        <div style="display:flex;gap:.35rem;align-items:center">
+          ${showTier?`<span style="font-size:.6rem;background:${cfg.bg};color:${cfg.color};padding:.1rem .35rem;border-radius:5px;font-weight:700">${cfg.emoji} ${cfg.label}</span>`:''}
+          <span style="font-size:.65rem;color:var(--muted)">${e.c}cy · ${esc(e.si||'—').slice(0,25)}</span>
+          ${showAtt&&a!==null?`<span style="font-size:.65rem;padding:.1rem .35rem;border-radius:5px;font-weight:600;background:${a<80?'#fee2e2':'#fef3c7'};color:${a<80?'#b91c1c':'#92400e'}">${a}%</span>`:''}
+          ${(e._liveConcerns||0)>0?`<span style="font-size:.6rem;background:#fee2e2;color:#b91c1c;padding:.1rem .35rem;border-radius:5px;font-weight:700">⚠️${e._liveConcerns}</span>`:''}
+        </div>
+      </div>`;
+    };
 
     return `
-<div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);border-radius:var(--radius);padding:1.5rem 1.75rem;margin-bottom:1.25rem;color:#fff">
-  <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:.5rem;text-transform:uppercase">Staff Intelligence — Chief of Staff View</div>
-  <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:center">
-    <div><div style="font-family:'DM Serif Display',serif;font-size:2.25rem;color:#fff">${total}</div><div style="font-size:.7rem;color:rgba(255,255,255,.5)">Total Staff Records</div></div>
-    <div><div style="font-family:'DM Serif Display',serif;font-size:2.25rem;color:#4ade80">${active}</div><div style="font-size:.7rem;color:rgba(255,255,255,.5)">Active This SY</div></div>
-    <div><div style="font-family:'DM Serif Display',serif;font-size:2.25rem;color:#fbbf24">${multi}</div><div style="font-size:.7rem;color:rgba(255,255,255,.5)">3+ Cycles</div></div>
-    <div><div style="font-family:'DM Serif Display',serif;font-size:2.25rem;color:#f87171">${noRehire}</div><div style="font-size:.7rem;color:rgba(255,255,255,.5)">Not Eligible Rehire</div></div>
-  </div>
-  <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:.75rem">${src}</div>
+<!-- Header -->
+<div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.125rem 1.5rem;border-radius:10px;color:#fff;margin-bottom:1.125rem">
+  <div style="font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.3rem">Chief of Staff · Staff Intelligence</div>
+  <div style="font-size:1.25rem;font-weight:700">Talent Landscape Overview · ${src}</div>
+  <div style="font-size:.8rem;color:rgba(255,255,255,.6)">${total} employees · ${active} active · SY 2022–2026</div>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
-  <div class="po-detail-card">
-    <div class="po-section-hd">📊 Performance Tier Distribution</div>
-    <div style="padding:.75rem 1rem">
-      ${['stellar','strong','developing','needs_support','incomplete'].map(t=>{
-        const c=_tier(t); const n=byTier[t]; const pct=total?Math.round(n/total*100):0;
-        return `<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem">
-          <span style="width:80px;font-size:.75rem;color:${c.color};font-weight:600">${c.emoji} ${c.label}</span>
-          <div style="flex:1;background:var(--surface-2);border-radius:4px;height:8px;overflow:hidden">
-            <div style="width:${pct}%;background:${c.color};height:100%;border-radius:4px;transition:.3s"></div>
-          </div>
-          <span style="font-size:.75rem;font-weight:700;color:var(--navy);width:30px;text-align:right">${n}</span>
-        </div>`;
-      }).join('')}
-    </div>
-  </div>
-  <div class="po-detail-card">
-    <div class="po-section-hd">🚨 Staff Flags Requiring Attention</div>
-    <div style="padding:.75rem 1rem;display:flex;flex-direction:column;gap:.625rem">
-      <div style="display:flex;justify-content:space-between;padding:.625rem .875rem;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
-        <span style="font-size:.8125rem;color:#b91c1c;font-weight:600">⚠️ Performance Concerns on File</span>
-        <span style="font-family:'DM Serif Display',serif;font-size:1.375rem;color:#b91c1c">${concern.length}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:.625rem .875rem;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa">
-        <span style="font-size:.8125rem;color:#d97706;font-weight:600">📉 Active Staff Below 80% Attendance</span>
-        <span style="font-family:'DM Serif Display',serif;font-size:1.375rem;color:#d97706">${attRisk.length}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;padding:.625rem .875rem;background:#fef2f2;border-radius:8px;border:1px solid #fecaca">
-        <span style="font-size:.8125rem;color:#b91c1c;font-weight:600">🚫 Not Eligible for Rehire</span>
-        <span style="font-family:'DM Serif Display',serif;font-size:1.375rem;color:#b91c1c">${noRehire}</span>
-      </div>
-    </div>
+
+<!-- Tier distribution -->
+<div style="margin-bottom:1.125rem;padding:1rem 1.125rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.625rem">Performance Tier Distribution</div>
+  <div style="display:flex;gap:3px;border-radius:6px;overflow:hidden;height:10px;margin-bottom:.625rem">${tierBar}</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.375rem">
+    ${tierOrder.map(t=>{const c=_tier(t); return`<div style="text-align:center;padding:.375rem .25rem;background:${c.bg+'33'};border-radius:6px">
+      <div style="font-size:1.125rem;font-weight:800;color:${c.color}">${byTier[t]}</div>
+      <div style="font-size:.6rem;color:var(--muted)">${c.label}</div>
+    </div>`;}).join('')}
   </div>
 </div>
-<div class="po-detail-card">
-  <div class="po-section-hd">🗺️ District Staff Snapshot (with performance data)</div>
-  <div style="overflow-x:auto;padding:0 1rem 1rem">
-    <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
-      <thead><tr style="background:var(--surface-2)">
-        ${['District','Staff w/ Scores','High Performers','Needs Support','Concerns'].map(h=>`<th style="padding:.4rem .75rem;text-align:${h==='District'?'left':'center'};font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase">${h}</th>`).join('')}
-      </tr></thead>
-      <tbody>${distRows||'<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--muted)">No district data available</td></tr>'}</tbody>
-    </table>
+
+<!-- 2-col: Top performers + Watch list -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:1.125rem">
+  <!-- Top performers -->
+  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#0d6e3a;letter-spacing:.07em;margin-bottom:.5rem">🌟 Stellar Performers (Active · 2+ Cycles)</div>
+    ${topPerformers.length
+      ? `<div style="display:flex;flex-direction:column;gap:.3rem">${topPerformers.map(e=>nameRow(e,false)).join('')}</div>`
+      : '<div style="font-size:.75rem;color:var(--muted)">No records match criteria</div>'}
+  </div>
+  <!-- Watch list -->
+  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid #fed7aa;border-radius:10px">
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.5rem">⚠️ Active Watch List</div>
+    ${watchList.length
+      ? `<div style="display:flex;flex-direction:column;gap:.3rem">${watchList.map(e=>nameRow(e,true,true)).join('')}</div>`
+      : '<div style="font-size:.75rem;color:#0d6e3a">No active watch items ✓</div>'}
+  </div>
+</div>
+
+<!-- Risk flags panel -->
+${(termRisk.length||pgpList.length||attRisk.length) ? `
+<div style="padding:.875rem 1rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;margin-bottom:1.125rem">
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.625rem">🚨 HR Risk Flags Requiring Leadership Awareness</div>
+  <div style="display:flex;flex-direction:column;gap:.4rem">
+    ${termRisk.length?`<div style="font-size:.8rem;color:#b91c1c"><strong>Termination Recommended (${termRisk.length}):</strong> ${termRisk.map(e=>esc(e.n)).join(' · ')}</div>`:''}
+    ${pgpList.length?`<div style="font-size:.8rem;color:#92400e"><strong>Active PGP (${pgpList.length}):</strong> ${pgpList.map(e=>esc(e.n)).join(' · ')}</div>`:''}
+    ${attRisk.length?`<div style="font-size:.8rem;color:#92400e"><strong>Attendance Below 80% - Active Staff (${attRisk.length}):</strong> ${attRisk.map(e=>esc(e.n)+' ('+getAtt(e)+'%)').join(' · ')}</div>`:''}
+    ${multiConcerns.length?`<div style="font-size:.8rem;color:#92400e"><strong>Multiple Active Concerns (${multiConcerns.length}):</strong> ${multiConcerns.map(e=>esc(e.n)+' ('+e._liveConcerns+'x)').join(' · ')}</div>`:''}
+  </div>
+</div>` : `<div style="padding:.75rem 1rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.8125rem;color:#065f46;margin-bottom:1.125rem">✅ No critical HR risk flags at this time</div>`}
+
+<!-- Academic summary -->
+${hasAcad ? `
+<div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:1.125rem">
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.625rem">📚 i-Ready Academic Outcomes (Tutor-Level)</div>
+  <div style="display:flex;gap:1.25rem;flex-wrap:wrap">
+    <span style="font-size:.875rem"><strong style="color:#7c3aed">${totalScholars}</strong> <span style="color:var(--muted)">scholars in dataset</span></span>
+    <span style="font-size:.875rem"><strong style="color:${avgPctMoved>=40?'#0d6e3a':'#d97706'}">${avgPctMoved}%</strong> <span style="color:var(--muted)">avg tutors' scholars improved placement</span></span>
+    <span style="font-size:.875rem"><strong>${acadMovers.length}</strong> <span style="color:var(--muted)">tutors with academic data</span></span>
+  </div>
+</div>` : ''}
+
+<!-- Rehire pipeline -->
+<div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.5rem">🔁 Rehire Pipeline</div>
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:.875rem">
+    <span><strong style="color:#0d6e3a">${HR_EMPS.filter(e=>(e.rh==='Yes'||e.rh===true)&&e.s!=='Active').length}</strong> <span style="color:var(--muted)">eligible for rehire</span></span>
+    <span><strong style="color:#b91c1c">${noRehire.length}</strong> <span style="color:var(--muted)">do not rehire</span></span>
+    <span><strong style="color:var(--navy)">${HR_EMPS.filter(e=>e.c>=3&&(e.rh==='Yes'||e.rh===true)).length}</strong> <span style="color:var(--muted)">3+ cycle veterans eligible</span></span>
   </div>
 </div>`;
   }
@@ -7652,7 +7870,7 @@ ${attRisk.length ? `
 
     // ── ADP-style profile cards ──
     const cards = filtered.slice(0,120).map(e=>{
-      const cfg        = _tier(e.t);
+      const cfg        = _tier(e._liveT || e.t);  // use live tier if recomputed
       const hasConcern = (e._liveConcerns||0)>0 || e.co===1;
       const att        = e._liveAtt!==undefined ? e._liveAtt : e.att;
       const concernCount = e._liveConcerns||0;
@@ -7746,57 +7964,146 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
 
   // ── Employee modal ────────────────────────────────────────────────────────
   function _hrModal(emp) {
-    const cfg = _tier(emp.t);
-    const att = emp._liveAtt!==undefined ? emp._liveAtt : emp.att;
-    const liveLabel = emp._liveAtt!==undefined ? ' <span style="font-size:.6rem;color:#38bdf8;font-weight:700">● LIVE</span>' : '';
+    const cfg          = _tier(emp.t);
+    const att          = emp._liveAtt!==undefined ? emp._liveAtt : emp.att;
+    const liveLabel    = emp._liveAtt!==undefined ? ' <span style="font-size:.6rem;color:#38bdf8;font-weight:700">● LIVE</span>' : '';
     const concernCount = emp._liveConcerns||0;
     const hrAction     = emp._liveHRAction || emp.hn || null;
     const scholars     = emp._liveScholars !== undefined ? emp._liveScholars : null;
-    const uid = emp.n.replace(/\W/g,'_');
+    const uid          = emp.n.replace(/\W/g,'_');
 
     // Rehire badge
-    const rhBadge = (emp.rh==='No'||emp.rh===false) ? '<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire</span>'
-      : (emp.rh==='Yes'||emp.rh===true) ? '<span style="background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire</span>' : '';
-
-    // Performance section (collapsible)
-    const metricsBody = emp.mp!==null ? `
-<div id="${uid}_metrics" style="">
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.625rem">
-    ${[['Attendance Target Met',emp.am],['Scholar Enjoyment Met',emp.em],['Scholar Learning Met',emp.lm],['Academic Improvement Met',emp.acm]]
-      .map(([l,v])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .625rem;background:var(--surface-2);border-radius:6px;font-size:.75rem"><span style="color:var(--text-2)">${l}</span>${_yesNo(v)}</div>`).join('')}
-  </div>
-  ${emp.pi!=null?`<div style="display:flex;gap:.875rem;flex-wrap:wrap;padding:.625rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.8125rem">
-    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">improved placement</span></span>
-    ${emp.pr!=null?`<span>📉 <strong>${emp.pr}%</strong> <span style="color:var(--muted)">regressed</span></span>`:''}
-    ${emp.p2!=null?`<span>⭐ <strong>${emp.p2}%</strong> <span style="color:var(--muted)">improved 2+ levels</span></span>`:''}
-  </div>`:''}
-</div>` : `<div id="${uid}_metrics" style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">ℹ️ Full performance metrics not available for this employee in the embedded dataset.</div>`;
-
-    // Concern section (collapsible)
-    const concernBody = (concernCount>0||emp.co===1) ? `
-<div id="${uid}_concern" style="">
-  <div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px">
-    <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.3rem">⚠️ Performance Concern${concernCount>0?' ('+concernCount+' active)':''}</div>
-    ${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
-    ${emp.cd?`<div style="font-size:.7rem;color:var(--muted)">Recorded: ${esc(emp.cd)}</div>`:''}
-    ${hrAction?`<div style="margin-top:.375rem;font-size:.75rem;background:#fee2e2;padding:.3rem .6rem;border-radius:6px;color:#b91c1c;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}
-  </div>
-</div>` : '';
+    const rhBadge = (emp.rh==='No'||emp.rh===false)
+      ? '<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire</span>'
+      : (emp.rh==='Yes'||emp.rh===true)
+        ? '<span style="background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire</span>' : '';
 
     // Section header helper with collapse toggle
     const sec = (label, id, body, defaultOpen=true) => body ? `
-<div style="margin-bottom:1rem">
-  <div onclick="_hrToggle('${id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:.4rem .5rem;background:var(--surface-2);border-radius:6px;margin-bottom:.5rem;user-select:none">
-    <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.08em">${label}</span>
+<div style="margin-bottom:1.125rem">
+  <div onclick="_hrToggle('${id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:.4rem .625rem;background:var(--surface-2);border-radius:6px;margin-bottom:.5rem;user-select:none">
+    <span style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.08em">${label}</span>
     <span id="${id}_btn" style="font-size:.65rem;color:var(--muted)">${defaultOpen?'▼ Hide':'▶ Show'}</span>
   </div>
   <div id="${id}" style="${defaultOpen?'':'display:none'}">${body}</div>
 </div>` : '';
 
+    // ── Employment section ───────────────────────────────────────────
+    const employmentBody = `
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+  <div>
+    <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Site</div>
+    <div style="font-size:.875rem;color:var(--navy);font-weight:600">${esc(emp.si||'—')}</div>
+    ${emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,60))}</div>`:''}
+    ${emp.dis&&emp.dis.length>1?`<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">All districts: ${emp.dis.slice(0,3).map(esc).join(', ')}</div>`:''}
+  </div>
+  <div>
+    <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">SY History (${emp.c} cycle${emp.c!==1?'s':''})</div>
+    <div style="font-size:.8125rem;color:var(--navy)">${esc((emp.y||[]).join(', ')||'—')}</div>
+    ${emp.rs&&emp.rs.length>1?`<div style="font-size:.7rem;color:var(--text-2);margin-top:.2rem">Roles held: ${emp.rs.slice(0,3).map(esc).join(' · ')}</div>`:''}
+    ${emp.e?`<div style="margin-top:.4rem"><a href="mailto:${esc(emp.e)}" style="font-size:.75rem;color:var(--blue-mid)">${esc(emp.e)}</a></div>`:''}
+  </div>
+</div>
+${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-wrap:wrap;padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;font-size:.8125rem">
+  <span>👩‍🎓 <strong>${scholars}</strong> <span style="color:var(--muted)">scholars (live)</span></span>
+  ${emp._liveSessions?`<span>📅 <strong>${emp._liveSessions}</strong> <span style="color:var(--muted)">sessions</span></span>`:''}
+</div>`:''}`;
+
+    // ── Historic performance metrics ─────────────────────────────────
+    const metricsBody = emp.mp!==null ? `
+<div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.375rem;margin-bottom:.625rem">
+    ${[['Att Target',emp.am],['Scholar Enjoyment',emp.em],['Scholar Learning',emp.lm],['Acad Improvement',emp.acm]]
+      .map(([l,v])=>`<div style="text-align:center;padding:.4rem .25rem;background:var(--surface-2);border-radius:6px">
+      <div style="font-size:.875rem;font-weight:700;color:${v==='Yes'||v===true?'#0d6e3a':'#b91c1c'}">${v==='Yes'||v===true?'✓':'✗'}</div>
+      <div style="font-size:.6rem;color:var(--muted);margin-top:.1rem">${l}</div>
+    </div>`).join('')}
+  </div>
+  ${emp.pi!=null?`<div style="display:flex;gap:.875rem;flex-wrap:wrap;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.8125rem">
+    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">improved placement</span></span>
+    ${emp.pr!=null?`<span>📉 <strong>${emp.pr}%</strong> <span style="color:var(--muted)">regressed</span></span>`:''}
+    ${emp.p2!=null?`<span>⭐ <strong>${emp.p2}%</strong> <span style="color:var(--muted)">improved 2+ levels</span></span>`:''}
+  </div>`:''}
+  <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">SY: ${esc(emp.py||'—')} · Overall score: ${emp.mp!==null?emp.mp+'/4':'—'}</div>
+</div>` : `<div style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">ℹ️ Full performance metrics not available in embedded dataset.</div>`;
+
+    // ── i-Ready academic outcomes ─────────────────────────────────────
+    const hasAcad = emp._acadScholars != null;
+    const acadBody = hasAcad ? `
+<div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:.625rem">
+    ${[
+      {v:emp._acadScholars,          l:'Scholars',           c:'var(--navy)'},
+      {v:emp._acadPctMoved!=null?emp._acadPctMoved+'%':'—', l:'% Improved Placement', c:emp._acadPctMoved>=50?'#0d6e3a':emp._acadPctMoved>=30?'#d97706':'#b91c1c'},
+      {v:emp._acadPctGL!=null?emp._acadPctGL+'%':'—',      l:'% On Grade Level',     c:emp._acadPctGL>=50?'#0d6e3a':emp._acadPctGL>=30?'#d97706':'#b91c1c'},
+    ].map(k=>`<div style="text-align:center;padding:.5rem .25rem;background:var(--surface-2);border-radius:6px">
+      <div style="font-size:1.25rem;font-weight:800;color:${k.c};line-height:1">${esc(String(k.v??'—'))}</div>
+      <div style="font-size:.6rem;color:var(--muted);margin-top:.15rem">${k.l}</div>
+    </div>`).join('')}
+  </div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem">
+    <span>✅ Moved: <strong>${emp._acadMoved||0}</strong></span>
+    <span>→ Held: <strong>${emp._acadHeld||0}</strong></span>
+    <span>⚠️ Regressed: <strong>${emp._acadRegressed||0}</strong></span>
+    ${emp._acadAvgGain!=null?`<span>📊 Avg gain: <strong>${emp._acadAvgGain} pts</strong></span>`:''}
+  </div>
+  <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">
+    ${emp._acadSubjects?'Subjects: '+esc(emp._acadSubjects)+' · ':''}${emp._acadDistricts?'Districts: '+esc(emp._acadDistricts.slice(0,60)):''} 
+    ${emp._acadCert?'· Cert: '+esc(emp._acadCert):''}
+  </div>
+</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">i-Ready data not yet loaded. Open the i-Ready Lab panel first to enable this overlay.</div>`;
+
+    // ── Site leader observations ──────────────────────────────────────
+    const hasObs = emp._obsCount > 0;
+    const obsBody = hasObs ? `
+<div>
+  <div style="display:flex;align-items:center;gap:.875rem;margin-bottom:.625rem;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px">
+    <span style="font-size:.8125rem"><strong>${emp._obsCount}</strong> observation${emp._obsCount!==1?'s':''}</span>
+    ${emp._obsAvgRating!=null?`<span style="font-size:.8125rem">Avg rating: <strong style="color:${emp._obsAvgRating>=4?'#0d6e3a':emp._obsAvgRating>=3?'#d97706':'#b91c1c'}">${emp._obsAvgRating}/5</strong></span>`:''}
+  </div>
+  ${emp._obsLatest?`<div style="padding:.625rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem">
+    <div style="font-size:.65rem;color:var(--muted);margin-bottom:.2rem">Most recent · ${esc(emp._obsLatest.date||'—')} · ${esc(emp._obsLatest.observer||'—')}</div>
+    <div style="color:var(--navy)">${esc(emp._obsLatest.notes?.slice(0,200)||'No notes recorded')}</div>
+    ${emp._obsLatest.rating?`<div style="margin-top:.3rem;font-size:.7rem;color:var(--muted)">Rating: ${esc(emp._obsLatest.rating)}</div>`:''}
+  </div>`:''}
+</div>` : (!OBS_2PACX ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Site leader observations sheet not yet configured (set OBS_2PACX in code).</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
+
+    // ── Concerns ─────────────────────────────────────────────────────
+    const concernBody = (concernCount>0||emp.co===1) ? `
+<div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px">
+  <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.3rem">⚠️ Performance Concern${concernCount>0?' ('+concernCount+' active)':''}</div>
+  ${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
+  ${emp.cd?`<div style="font-size:.7rem;color:var(--muted)">Recorded: ${esc(emp.cd)}</div>`:''}
+  ${hrAction?`<div style="margin-top:.375rem;font-size:.75rem;background:#fee2e2;padding:.3rem .6rem;border-radius:6px;color:#b91c1c;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}
+</div>` : '';
+
+    // ── Hiring decision summary (bottom of card) ─────────────────────
+    const hiringSignals = [];
+    if (emp.c >= 3)                              hiringSignals.push({ico:'⭐', txt:'3+ cycles — proven retention', pos:true});
+    if (emp.c >= 2 && emp.c < 3)                 hiringSignals.push({ico:'📅', txt:'Multi-cycle — building track record', pos:true});
+    if ((emp.rh==='Yes'||emp.rh===true))         hiringSignals.push({ico:'✅', txt:'Eligible for rehire', pos:true});
+    if ((emp.rh==='No'||emp.rh===false))         hiringSignals.push({ico:'⛔', txt:'Not eligible for rehire', pos:false});
+    if (emp.mp>=3)                               hiringSignals.push({ico:'📈', txt:'Strong performance score ('+emp.mp+'/4)', pos:true});
+    if (emp.mp!==null&&emp.mp<2)                 hiringSignals.push({ico:'📉', txt:'Below-threshold performance score', pos:false});
+    if (att!==null&&att>=90)                     hiringSignals.push({ico:'🟢', txt:'Excellent attendance ('+att+'%)', pos:true});
+    if (att!==null&&att<80)                      hiringSignals.push({ico:'🔴', txt:'Attendance concern ('+att+'%)', pos:false});
+    if (concernCount>1)                          hiringSignals.push({ico:'⚠️', txt:concernCount+' active program concerns', pos:false});
+    if (emp._obsCount>=3)                        hiringSignals.push({ico:'👁️', txt:emp._obsCount+' observations on record', pos:true});
+    if (emp._acadPctMoved!=null&&emp._acadPctMoved>=50) hiringSignals.push({ico:'📚', txt:emp._acadPctMoved+'% scholars improved placement', pos:true});
+    if (emp._acadPctMoved!=null&&emp._acadPctMoved<25)  hiringSignals.push({ico:'📉', txt:'Low scholar placement gains ('+emp._acadPctMoved+'%)', pos:false});
+
+    const hiringBody = hiringSignals.length ? `
+<div style="display:flex;flex-direction:column;gap:.35rem">
+  ${hiringSignals.map(s=>`<div style="display:flex;align-items:flex-start;gap:.5rem;padding:.375rem .625rem;background:${s.pos?'#f0fdf4':'#fff7ed'};border:1px solid ${s.pos?'#bbf7d0':'#fed7aa'};border-radius:6px">
+    <span>${s.ico}</span>
+    <span style="font-size:.75rem;color:${s.pos?'#065f46':'#92400e'}">${s.txt}</span>
+  </div>`).join('')}
+</div>` : `<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:8px">Insufficient data for hiring signals. Expand data sources to generate signals.</div>`;
+
     return `
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.375rem 1.75rem;color:#fff;position:relative">
   <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="position:absolute;top:.875rem;right:.875rem;background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
-  <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · ${esc(emp.py||'Historical')} SY</div>
+  <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · NJTC ADP Intelligence</div>
   <div style="font-size:1.375rem;font-weight:800;margin-bottom:.2rem">${esc(emp.n)}</div>
   ${emp.a&&emp.a.length?`<div style="font-size:.7rem;color:rgba(255,255,255,.4)">Also listed as: ${emp.a.map(esc).join(', ')}</div>`:''}
   <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.625rem;align-items:center">
@@ -7806,56 +8113,99 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
     ${rhBadge}
   </div>
 </div>
-<div style="padding:1.375rem 1.75rem;max-height:75vh;overflow-y:auto">
-  <!-- 4-KPI stat row -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem;margin-bottom:1.25rem">
+<div style="padding:1.25rem 1.75rem;max-height:78vh;overflow-y:auto">
+  <!-- 5-KPI header row -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1.125rem">
     ${[
-      {v:emp.c,                    l:'Cycles',     c:'var(--navy)'},
-      {v:att!=null?att+'%':'—',    l:`Attendance${liveLabel}`, c:_attColor(att)},
-      {v:emp.je!=null?'★'+emp.je:'—', l:'Scholar Survey', c:'#7c3aed'},
-      {v:emp.mp!=null?emp.mp+'/4':'—',l:'Perf Score',  c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
-    ].map(x=>`<div style="text-align:center;padding:.75rem .5rem;background:var(--surface-2);border-radius:8px">
-      <div style="font-size:1.5rem;font-weight:800;color:${x.c};line-height:1">${esc(String(x.v??'—'))}</div>
-      <div style="font-size:.65rem;color:var(--muted);margin-top:.25rem">${x.l}</div>
+      {v:emp.c!=null?emp.c:'—',                          l:'Cycles',          c:'var(--navy)'},
+      {v:att!=null?att+'%':'—',                           l:`Att${liveLabel}`, c:_attColor(att)},
+      {v:emp.je!=null?'★'+emp.je:'—',                    l:'Survey',          c:'#7c3aed'},
+      {v:emp.mp!=null?emp.mp+'/4':'—',                   l:'Perf Score',      c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
+      {v:emp._obsCount!=null&&emp._obsCount>0?emp._obsCount:'—', l:'Obs',    c:'var(--navy)'},
+    ].map(x=>`<div style="text-align:center;padding:.625rem .375rem;background:var(--surface-2);border-radius:8px">
+      <div style="font-size:1.375rem;font-weight:800;color:${x.c};line-height:1">${esc(String(x.v??'—'))}</div>
+      <div style="font-size:.6rem;color:var(--muted);margin-top:.2rem">${x.l}</div>
     </div>`).join('')}
   </div>
 
-  <!-- Assignment & History -->
-  ${sec('Assignment & History', uid+'_assign', `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem">
-    <div>
-      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Site</div>
-      <div style="font-size:.875rem;color:var(--navy);font-weight:600">${esc(emp.si||'—')}</div>
-      ${emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,60))}</div>`:''}
-    </div>
-    <div>
-      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">SY History</div>
-      <div style="font-size:.8125rem;color:var(--navy)">${esc((emp.y||[]).join(', ')||'—')}</div>
-      ${scholars!=null?`<div style="font-size:.7rem;color:var(--text-2);margin-top:.15rem">Scholars tutored: <strong>${scholars}</strong></div>`:''}
-      ${emp.e?`<div style="margin-top:.375rem"><a href="mailto:${esc(emp.e)}" style="font-size:.75rem;color:var(--blue-mid)">${esc(emp.e)}</a></div>`:''}
-    </div>
-  </div>`)}
+  ${sec('Employment & Assignment', uid+'_assign', employmentBody)}
+  ${sec('Historical Performance Metrics', uid+'_metrics', metricsBody)}
+  ${sec('i-Ready Academic Outcomes', uid+'_acad', acadBody, emp._acadScholars!=null)}
+  ${concernBody ? sec('Program Concerns', uid+'_concern', concernBody, true) : ''}
+  ${sec('Site Leader Observations', uid+'_obs', obsBody, hasObs)}
+  ${sec('Hiring Decision Signals', uid+'_hiring', hiringBody, true)}
 
-  <!-- Performance Metrics -->
-  ${sec('Performance Metrics', uid+'_metrics', metricsBody)}
-
-  <!-- Concerns -->
-  ${concernBody ? sec('Performance Concerns', uid+'_concern', concernBody, true) : ''}
-
-  <!-- Additional Info -->
-  ${emp.tr ? `<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;margin-bottom:.75rem">Termination reason: ${esc(emp.tr)}</div>` : ''}
+  ${emp.tr?`<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;margin-bottom:.75rem">Termination reason: ${esc(emp.tr)}</div>`:''}
 </div>`;
   }
 
   // ── Main profile panel router ─────────────────────────────────────────────
+  // ── Live tier recalculation ────────────────────────────────────────
+  // Adjusts static tier using live data: attendance, concerns, academic outcomes.
+  // Does NOT permanently override emp.t (stored in _liveT for display).
+  function _hrRecomputeTiers() {
+    for (const emp of HR_EMPS) {
+      let score = 0; let factors = 0;
+
+      // Factor 1: Static performance score (0–4) — highest weight
+      if (emp.mp !== null) {
+        score += emp.mp * 2.5;  // max 10 pts
+        factors++;
+      }
+
+      // Factor 2: Attendance
+      const att = emp._liveAtt !== undefined ? emp._liveAtt : emp.att;
+      if (att !== null && att !== undefined) {
+        const attScore = att >= 95 ? 10 : att >= 90 ? 8 : att >= 85 ? 6 : att >= 80 ? 4 : att >= 75 ? 2 : 0;
+        score += attScore;
+        factors++;
+      }
+
+      // Factor 3: Academic outcomes (iReady) — if available
+      if (emp._acadPctMoved !== null && emp._acadPctMoved !== undefined) {
+        const acadScore = emp._acadPctMoved >= 60 ? 10 : emp._acadPctMoved >= 45 ? 8 : emp._acadPctMoved >= 30 ? 5 : emp._acadPctMoved >= 15 ? 2 : 0;
+        score += acadScore;
+        factors++;
+      }
+
+      // Factor 4: Program concerns (penalty)
+      const concerns = emp._liveConcerns || 0;
+      if (concerns > 0) { score -= concerns * 3; }
+
+      // Factor 5: Cycles (longevity bonus)
+      if (emp.c >= 3) score += 3;
+      else if (emp.c >= 2) score += 1;
+
+      // Compute effective tier if enough data
+      if (factors < 1 || emp.mp === null) {
+        emp._liveT = emp.t;  // keep static tier if no live data
+        continue;
+      }
+
+      const maxScore = factors * 10 + 3;
+      const pct = Math.max(0, score) / maxScore;
+      emp._liveT = pct >= 0.75 ? 'stellar' : pct >= 0.55 ? 'strong' : pct >= 0.38 ? 'developing' : pct >= 0.2 ? 'needs_support' : 'needs_support';
+
+      // Hard override: serious concern states → cap at needs_support
+      const haAction = (emp._liveHRAction || emp.hn || '').toLowerCase();
+      if (haAction.includes('termination') || haAction.includes('pgp')) {
+        if (['stellar','strong'].includes(emp._liveT)) emp._liveT = 'needs_support';
+      }
+    }
+  }
+
   function _hrBuildProfiles(dept) {
+    // Apply all live overlays then recompute tiers before rendering
     _hrOverlayConcerns();
     _hrOverlayPearl();
+    _hrOverlayAcademic();   // iReady academic performance from irlab
+    if (_obsRows.length) _hrOverlayObs();
+    _hrRecomputeTiers();     // live tier adjustment using all sources
     const showFull = ['hr','data'].includes(dept);
-    if (dept==='kb')       return _hrViewKB();
-    if (dept==='finance')  return _hrViewFinance();
+    if (dept==='kb')         return _hrViewKB();
+    if (dept==='finance')    return _hrViewFinance();
     if (dept==='leadership') return _hrViewLeadership();
-    if (showFull)          return _hrViewFull();
+    if (showFull)            return _hrViewFull();
     return ''; // programming/training: no profiles tab
   }
 
@@ -12042,9 +12392,17 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
     const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v1';
-    const IRLAB_LIVE_2PACX = null;  // set to 2PACX key to enable live fetch
-    const IRLAB_LIVE_GIDS  = { math:null, ela:null, mathRep:null, elaRep:null };
-    const IRLAB_REFRESH_MS = 30*60*1000;
+    // ── To enable live i-Ready data: set 2PACX key + tab GIDs below ──
+    // Published sheet: File → Share → Publish to web → CSV → copy 2PACX key
+    // GIDs: each tab's numeric ?gid= value from the sheet URL
+    const IRLAB_LIVE_2PACX = null;  // TODO: paste your i-Ready sheet 2PACX key here
+    const IRLAB_LIVE_GIDS  = {
+      math:    null,  // TODO: GID for Math longitudinal tab
+      ela:     null,  // TODO: GID for ELA longitudinal tab
+      mathRep: null,  // TODO: GID for Math Repeat Scholars tab
+      elaRep:  null,  // TODO: GID for ELA Repeat Scholars tab
+    };
+    const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;  // 2-hour cache (refresh on demand or panel reopen)
     let   _irlLiveStatus   = 'embedded';
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -13098,10 +13456,19 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
       IRLAB_DATA.loaded=false;
     }
 
+    // ── Export tutor academic data for HR profile overlay ──────────────
+    function getTutorAcademicData() {
+      const allRows = [...IRLAB_DATA.math, ...IRLAB_DATA.ela,
+                       ...IRLAB_DATA.mathRepeat, ...IRLAB_DATA.elaRepeat];
+      if (!allRows.length) return null;
+      return buildTutorMap(allRows);
+    }
+
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
-             handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded };
+             handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
+             getTutorAcademicData };
   })();
 
 
