@@ -7191,6 +7191,11 @@
   // ══════════════════════════════════════════════════════════════════════════
 
   // ── HR Sheet live config ──────────────────────────────────────────────────
+  // ── HTML escape helper for HR module (scoped to outer IIFE) ──────
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
   const HR_CACHE_KEY  = 'njtc_hr_live_v1';
@@ -7520,7 +7525,14 @@
           const _lb=document.getElementById('talentTab-profiles');
           if (_lb&&_lb.classList.contains('active')) {
             const _le=document.getElementById('talentContent');
-            if (_le) _le.innerHTML='<div id="hrProfilesRoot">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
+            if (_le) {
+              try {
+                _le.innerHTML='<div id="hrProfilesRoot">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
+              } catch(_re) {
+                console.warn('[HR Profiles] Re-render after live fetch failed:', _re.message);
+                // Don't blank the screen — leave existing content
+              }
+            }
           }
         } else { _hrStatus = 'error'; }
       } else { _hrStatus = 'error'; }
