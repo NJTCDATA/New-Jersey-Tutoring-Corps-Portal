@@ -2279,13 +2279,59 @@
   .irlab-rank-table thead tr:first-child th:last-child { border-radius: 0 6px 0 0; }
 
   /* Cohort cards */
+  /* Collapsible section pills */
+  .irlab-collapse-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; padding: .625rem .875rem;
+    background: var(--surface-2); border-radius: 8px;
+    border: 1.5px solid var(--border); margin-bottom: .5rem;
+    font-size: .875rem; font-weight: 600; color: var(--navy);
+    transition: background .15s;
+  }
+  .irlab-collapse-hd:hover { background: var(--surface-3); }
+  .irlab-collapse-hd .irlab-chev { transition: transform .2s; font-style: normal; font-size: .75rem; }
+  .irlab-collapse-hd.open .irlab-chev { transform: rotate(180deg); }
+  .irlab-collapse-body { display: none; }
+  .irlab-collapse-body.open { display: block; }
+  /* Mini bar chart */
+  .irlab-mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin-top: .5rem; }
+  .irlab-mini-bar-wrap { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .irlab-mini-bar { width: 100%; border-radius: 3px 3px 0 0; transition: height .3s; }
+  .irlab-mini-bar-lbl { font-size: .5rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* Donut chart */
+  .irlab-donut-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+  .irlab-donut-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'DM Serif Display',serif; font-size: 1.125rem; font-weight: 400; color: var(--navy); }
+
   .irlab-cohort-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: .875rem;
     margin-bottom: 1rem;
   }
-  @media(max-width:800px) { .irlab-cohort-grid { grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:800px) { /* Collapsible section pills */
+  .irlab-collapse-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; padding: .625rem .875rem;
+    background: var(--surface-2); border-radius: 8px;
+    border: 1.5px solid var(--border); margin-bottom: .5rem;
+    font-size: .875rem; font-weight: 600; color: var(--navy);
+    transition: background .15s;
+  }
+  .irlab-collapse-hd:hover { background: var(--surface-3); }
+  .irlab-collapse-hd .irlab-chev { transition: transform .2s; font-style: normal; font-size: .75rem; }
+  .irlab-collapse-hd.open .irlab-chev { transform: rotate(180deg); }
+  .irlab-collapse-body { display: none; }
+  .irlab-collapse-body.open { display: block; }
+  /* Mini bar chart */
+  .irlab-mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin-top: .5rem; }
+  .irlab-mini-bar-wrap { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .irlab-mini-bar { width: 100%; border-radius: 3px 3px 0 0; transition: height .3s; }
+  .irlab-mini-bar-lbl { font-size: .5rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* Donut chart */
+  .irlab-donut-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+  .irlab-donut-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'DM Serif Display',serif; font-size: 1.125rem; font-weight: 400; color: var(--navy); }
+
+  .irlab-cohort-grid { grid-template-columns:repeat(2,1fr); } }
   .irlab-cohort-card {
     border: 1.5px solid var(--coh-color, var(--border));
     border-top: 4px solid var(--coh-color, var(--blue-mid));
@@ -2410,7 +2456,30 @@
   @media(max-width:700px) {
     .irlab-header { flex-direction: column; }
     .irlab-stats-grid { grid-template-columns: repeat(2,1fr); }
-    .irlab-cohort-grid { grid-template-columns: repeat(2,1fr); }
+    /* Collapsible section pills */
+  .irlab-collapse-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none; padding: .625rem .875rem;
+    background: var(--surface-2); border-radius: 8px;
+    border: 1.5px solid var(--border); margin-bottom: .5rem;
+    font-size: .875rem; font-weight: 600; color: var(--navy);
+    transition: background .15s;
+  }
+  .irlab-collapse-hd:hover { background: var(--surface-3); }
+  .irlab-collapse-hd .irlab-chev { transition: transform .2s; font-style: normal; font-size: .75rem; }
+  .irlab-collapse-hd.open .irlab-chev { transform: rotate(180deg); }
+  .irlab-collapse-body { display: none; }
+  .irlab-collapse-body.open { display: block; }
+  /* Mini bar chart */
+  .irlab-mini-chart { display: flex; align-items: flex-end; gap: 3px; height: 48px; margin-top: .5rem; }
+  .irlab-mini-bar-wrap { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .irlab-mini-bar { width: 100%; border-radius: 3px 3px 0 0; transition: height .3s; }
+  .irlab-mini-bar-lbl { font-size: .5rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  /* Donut chart */
+  .irlab-donut-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+  .irlab-donut-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: 'DM Serif Display',serif; font-size: 1.125rem; font-weight: 400; color: var(--navy); }
+
+  .irlab-cohort-grid { grid-template-columns: repeat(2,1fr); }
     .irlab-card-hd { flex-direction: column; align-items: flex-start; }
   }
 
@@ -2631,7 +2700,7 @@
         <div class="ph-text">
           <div class="ph-eyebrow">SY 2025–2026 · Live Pearl Data</div>
           <h2 class="ph-title">Pearl Operations Intelligence</h2>
-          <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, HIT compliance, and service interruption tracking across all sites. Auto-refreshes every 5 minutes.</p>
+          <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, session quality, and service continuity tracking across all sites. Auto-refreshes every 5 minutes.</p>
         </div>
         <div class="ph-actions">
           <span class="sync-dot loading" id="poSyncDot"></span>
@@ -2639,7 +2708,7 @@
           <button class="btn btn-secondary" onclick="po.refresh(true)" id="poRefreshBtn">↺ Refresh</button>
           <button onclick="po.showExportModal()" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">⬇ Export</button>
           <button class="btn btn-secondary" id="poCriticalBtn" onclick="po.openFlagsModal('critical')" style="display:none;background:#7f1d1d;color:#fef2f2;border-color:#7f1d1d">
-            🔍 <span id="poCriticalN">0</span> Needs Review
+            🔍 <span id="poCriticalN">0</span> Calls for Attention
           </button>
         </div>
       </div>
@@ -2655,7 +2724,6 @@
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
         <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
         <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub">Engagement · Quality · Overall</div></div>
-        <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">🚩</div><div class="st-value" id="poStatFlags">—</div><div class="st-label">HIT Flags</div><div class="st-sub">Compliance issues</div></div>
       </div>
 
       <!-- Filters -->
@@ -8915,7 +8983,7 @@
         staticOptions: [
           { value: 'hit',     label: 'HIT Flags Only' },
           { value: 'si',      label: 'Service Interruptions' },
-          { value: 'concern', label: 'Attendance Concern' }
+          { value: 'concern', label: 'Attendance to Review' }
         ],
         options: []
       });
@@ -8988,12 +9056,6 @@
         ? (instSurvScores.reduce((a,b)=>a+b,0)/instSurvScores.length).toFixed(2)
         : '—';
 
-      // ── HIT flags (school-filtered) ────────────────────────────────
-      let hitFlags = 0;
-      for (const p of Object.values(_personMap)) {
-        if (matchesSchoolFilter(p.school, p.district)) hitFlags += p.flags.length;
-      }
-
       setText('poStatAtt',           stuAttPct);
       setText('poStatInstAtt',       instAttPct);
       setText('poStatSessions',      delivered.toLocaleString());
@@ -9001,7 +9063,6 @@
       setText('poStatInterruptions', si.toLocaleString());
       setText('poStatSurveyScholar', stuSurvAvg === '—' ? '—' : '★ ' + stuSurvAvg);
       setText('poStatSurveyTutor',   instSurvAvg === '—' ? '—' : '★ ' + instSurvAvg);
-      setText('poStatFlags',         hitFlags.toLocaleString());
     }
 
     function updateFlagsBadge() {
@@ -9321,11 +9382,7 @@
         ? `Scholar attendance at ${d.scholarRate}% with ${d.sessionsDelivered} sessions delivered. No districts of concern.`
         : bannerClass === 'amber'
         ? `Scholar attendance at ${d.scholarRate}%. ${critDistricts} district(s) may benefit from additional support — review recommended.`
-        : `Scholar attendance at ${d.scholarRate}% overall — ${critDistricts} district(s) below the 75% target require focused follow-up.`;
-
-      // Trend arrow helper
-      const trendArr = (wt) => {
-        if (!wt || wt.length < 2) return '';
+        : `Scholar attendance at ${d.scholarRate}% overall — ${critDistricts} district(s) below the 75% target — a great opportunity for targeted support. Review reco'';
         const last = wt[wt.length - 1].rate, prev = wt[wt.length - 2].rate;
         const diff = last - prev;
         if (diff > 2) return '<span class="po-exec-kpi-trend up">▲ ' + diff + 'pp</span>';
@@ -9373,7 +9430,7 @@
       const actions = [];
       if (d.scholarNeedsAction > 0) actions.push({ icon:'🤝', title: `${d.scholarNeedsAction} Scholar${d.scholarNeedsAction>1?'s':''} Require Additional Support`, body: `Attendance below 70%. These scholars may benefit from closer check-ins and outreach from the program team.`, sev:'crit' });
       if (d.scholarAtRisk > 0) actions.push({ icon:'📈', title: `${d.scholarAtRisk} Scholar${d.scholarAtRisk>1?'s':''} Need Continued Encouragement`, body: `Attendance between 70–79%. Consistent engagement from tutors and site leaders can help strengthen participation.`, sev:'warn' });
-      if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Warrant a Closer Look`, body: `Scholar attendance below 75% — worth reviewing with site leadership. Click a district row to drill into specific schools.`, sev:'crit' });
+      if (critDistricts > 0) actions.push({ icon:'📍', title: `${critDistricts} District${critDistricts>1?'s':''} Are Worth a Closer Look`, body: `Scholar attendance below 75% — worth reviewing with site leadership. Click a district row to drill into specific schools.`, sev:'crit' });
       const ctDists = d.districts.filter(dt => dt.ctFlag);
       if (ctDists.length) actions.push({ icon:'📋', title: `High CT Pull-out Rate in ${ctDists.map(x=>x.name).join(', ')}`, body: `Classroom teacher requests are limiting scholar access to tutoring sessions. Consider follow-up with site leadership.`, sev:'warn' });
       if (d.absenceDrivers.controllable.total > 0) actions.push({ icon:'🔧', title: `${d.absenceDrivers.controllable.total} Controllable Absences This Period`, body: `Includes tutor absences, vacancies, and internal scheduling issues — factors within program control.`, sev:'warn' });
@@ -9499,7 +9556,7 @@
 
         <!-- ACTION ITEMS -->
         <div class="po-exec-actions">
-          <div class="po-exec-card-title" style="margin-bottom:.875rem">📋 Executive Briefing — Items Requiring Attention</div>
+          <div class="po-exec-card-title" style="margin-bottom:.875rem">📋 Leadership Briefing — Opportunities & Areas to Watch</div>
           ${actionHTML}
         </div>
 
@@ -9752,10 +9809,10 @@
             <span style="font-family:'DM Serif Display',serif;font-size:1rem;font-weight:700;color:var(--navy)">${sc.sessions.length}</span>
           </td>
           <td style="text-align:center">${siCount > 0 ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">⚠️ ${siCount}</span>` : '<span class="po-badge po-badge-green">✓ 0</span>'}</td>
-          <td style="text-align:center">${sc.ratioViolations > 0 ? `<span class="po-badge po-badge-red" title="Exceeds 1:4 — check MOU">⚑ ${sc.ratioViolations}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
+          <td style="text-align:center">${sc.ratioViolations > 0 ? `<span class="po-badge po-badge-red" title="Ratio warrants review — confirm MOU MOU">⚑ ${sc.ratioViolations}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
           <td style="text-align:center"><span style="font-weight:700;color:var(--navy)">${survAvg}</span></td>
           <td style="text-align:center">${totalFlags > 0 ? `<span class="po-badge ${totalFlags>3?'po-badge-red':'po-badge-gold'}">🚩 ${totalFlags}</span>` : '<span class="po-badge po-badge-green">✓</span>'}</td>
-          <td style="text-align:center">${hasCrit ? '<span class="po-severity-critical">Critical</span>' : hasHigh ? '<span class="po-severity-high">High</span>' : '<span class="po-badge po-badge-green">OK</span>'}</td>
+          <td style="text-align:center">${hasCrit ? '<span class="po-severity-critical">Needs Attention</span>' : hasHigh ? '<span class="po-severity-high">High</span>' : '<span class="po-badge po-badge-green">OK</span>'}</td>
         </tr>`;
       }).join('');
 
@@ -9768,7 +9825,7 @@
           <div style="overflow-x:auto">
             <table style="width:100%;border-collapse:collapse">
               <thead><tr style="background:var(--surface-2)">
-                ${['School / District','Attendance Rate','Sessions','Service Interruptions','Ratio Flags','Survey Avg','HIT Flags','Status']
+                ${['School / District','Attendance Rate','Sessions','Service Interruptions','Ratio Flags','Survey Avg','Review Items','Status']
                   .map(h=>`<th style="padding:.5rem .875rem;text-align:${h.includes('School')?'left':'center'};font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap">${h}</th>`).join('')}
               </thead>
               <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">Loading school data…</td></tr>'}</tbody>
@@ -9806,7 +9863,7 @@
       if (isProg() || isHR() || isData()) tabs.push({ id:'sessions', label:'📅 Sessions' });
       tabs.push({ id:'interruptions', label:'⚠️ Interruptions' });
       if (isTD() || isData()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
-      if (isData()) tabs.push({ id:'hit', label:'🚩 HIT Compliance' });
+      if (isData()) tabs.push({ id:'hit', label:'🔍 Review Items' });
       return tabs;
     }
 
@@ -10099,7 +10156,7 @@
       const sessions = sc.sessions.sort((a,b) => new Date(b.start) - new Date(a.start)).slice(0, 100);
       const rows = sessions.map(s => {
         const statusColor = s.status === 'Completed' ? 'var(--met)' : s.status === 'Missed' ? 'var(--notmet)' : 'var(--partial)';
-        const ratioFlag = s.ratioFlag ? `<span class="po-badge po-badge-red" title="Exceeds 1:4 ratio — check MOU">⚑ ${s.ratio}:1</span>` : `<span class="po-badge po-badge-green">✓ ${s.ratio}:1</span>`;
+        const ratioFlag = s.ratioFlag ? `<span class="po-badge po-badge-red" title="Ratio warrants review — confirm MOU">⚑ ${s.ratio}:1</span>` : `<span class="po-badge po-badge-green">✓ ${s.ratio}:1</span>`;
         return `<tr style="font-size:.8125rem">
           <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2)">${s.start||'—'}</td>
           <td style="padding:.5rem .875rem;border-bottom:1px solid var(--border-2);font-weight:600;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.title}">${s.title}</td>
@@ -10287,18 +10344,18 @@
         <div>
           <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border);background:var(--surface-2)">
             <div style="font-size:.75rem;color:var(--muted);line-height:1.6">
-              <strong>HIT Compliance Standards:</strong> &nbsp;≤4 scholars per session (1:4 ratio) &nbsp;·&nbsp; ≥2 sessions per week &nbsp;·&nbsp; Same instructor for continuity/rapport &nbsp;·&nbsp; No 10+ consecutive misses<br>
+              <strong>Session Quality Standards:</strong> &nbsp;≤4 scholars per session (1:4 ratio) &nbsp;·&nbsp; ≥2 sessions per week &nbsp;·&nbsp; Same instructor for continuity/rapport &nbsp;·&nbsp; No 10+ consecutive misses<br>
               <em>Note: Ratio flag does not equal a violation — some schools have approved higher ratios per MOU. Flag = review required.</em>
             </div>
           </div>
           ${flaggedStudents.length > 0 ? `
           <div style="padding:1rem 1.5rem .5rem">
-            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Scholars With Active HIT Flags (${flaggedStudents.length})</div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Scholars With Items to Review (${flaggedStudents.length})</div>
           </div>
           ${personFlagRows}` : '<div style="padding:2rem;text-align:center;color:var(--muted)">No HIT flags for scholars at this school</div>'}
           ${ratioRows.length > 0 ? `
           <div style="padding:1rem 1.5rem .5rem;border-top:1px solid var(--border)">
-            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Sessions With Ratio Flags (${ratioRows.length} of ${sc.ratioViolations})</div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Sessions to Review — Ratio Check (${ratioRows.length} of ${sc.ratioViolations})</div>
           </div>
           <div style="overflow-x:auto;padding:0 1.5rem 1.5rem">
             <table style="width:100%;border-collapse:collapse">
@@ -10487,7 +10544,7 @@
         declined:    'Scholar Declined Sessions — Program Team Follow-Up',
         frequency:   'Weekly Session Frequency Below HIT Minimum',
         inst_att:    'Instructor Attendance — ADP Review Needed',
-        ratio:       'Session Ratio Exceeds 1:4 — Check MOU',
+        ratio:       'Session Ratio Ratio > Check MOU',
         critical_si: 'Service Interruption — Needs Investigation (NJTC Internal)',
         high_si:     'High Severity Service Interruptions',
       };
@@ -11200,6 +11257,7 @@
     let _irlYear      = 'all';
     let _irlSubject   = 'all';
     let _irlDistrict  = 'all';
+    let _irlGrade     = 'all';
     let _irlCsvData   = null;        // Quick CSV session result (never persisted)
     let _irlBuilt     = false;
     let _irlScholarDrill = null;
@@ -11233,11 +11291,20 @@
 
     // ── Dept config ─────────────────────────────────────────────────────────
     const DEPT_CFG = {
-      leadership:  { label:'Leadership',   emoji:'👑', color:'#f0a500', bg:'#fff8e6' },
-      programming: { label:'Programming',  emoji:'🏫', color:'#457b9d', bg:'#edf4f9' },
-      data:        { label:'Data & Eval',  emoji:'🔬', color:'#7b2d8b', bg:'#f5edfb' },
-      hr:          { label:'HR',           emoji:'👥', color:'#e63946', bg:'#fdedef' },
-      finance:     { label:'Finance',      emoji:'💡', color:'#2a9d8f', bg:'#e6f5f3' },
+      kb:          { label:'Executive',    emoji:'🏛️', color:'#0a1628', bg:'#edf2fa',
+                     filters:[], quickcsv:false, canDrillTutor:false, canDrillScholar:false },
+      leadership:  { label:'Leadership',   emoji:'👑', color:'#f0a500', bg:'#fff8e6',
+                     filters:['year','subject','district'], quickcsv:false, canDrillTutor:false, canDrillScholar:false },
+      programming: { label:'Programming',  emoji:'🏫', color:'#457b9d', bg:'#edf4f9',
+                     filters:['year','subject','district','grade'], quickcsv:true, canDrillTutor:false, canDrillScholar:true },
+      data:        { label:'Data & Eval',  emoji:'🔬', color:'#7b2d8b', bg:'#f5edfb',
+                     filters:['year','subject','district','grade'], quickcsv:true, canDrillTutor:true, canDrillScholar:true },
+      hr:          { label:'HR',           emoji:'👥', color:'#e63946', bg:'#fdedef',
+                     filters:['year','subject'], quickcsv:false, canDrillTutor:true, canDrillScholar:false },
+      finance:     { label:'Finance',      emoji:'💰', color:'#2a9d8f', bg:'#e6f5f3',
+                     filters:['year','district'], quickcsv:false, canDrillTutor:false, canDrillScholar:false },
+      training:    { label:'Training',     emoji:'🎓', color:'#6d28d9', bg:'#f5f3ff',
+                     filters:['year','grade'], quickcsv:true, canDrillTutor:false, canDrillScholar:true },
     };
 
     // ── CSV parser ──────────────────────────────────────────────────────────
@@ -11396,14 +11463,16 @@
     const is2Below = p => p==='2 Grade Levels Below'||p==='3 or More Grade Levels Below';
 
     function getRows(opts={}) {
-      const subject  = opts.subject  || _irlSubject;
-      const year     = opts.year     || _irlYear;
-      const district = opts.district || _irlDistrict;
+      const subject  = opts.subject  !== undefined ? opts.subject  : _irlSubject;
+      const year     = opts.year     !== undefined ? opts.year     : _irlYear;
+      const district = opts.district !== undefined ? opts.district : _irlDistrict;
+      const grade    = opts.grade    !== undefined ? opts.grade    : _irlGrade;
       let rows = [];
       if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
       if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
       if (year    !=='all') rows=rows.filter(r=>r.year===year);
       if (district!=='all') rows=rows.filter(r=>r.district===district);
+      if (grade   !=='all') rows=rows.filter(r=>r.grade===grade);
       return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&
         PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
     }
@@ -11624,6 +11693,13 @@
               The update persists on this device until you revert or upload again.
               Other users see the embedded EOY data until they upload on their own device.
             </div>
+            <div style="margin-top:.75rem;padding:.75rem;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;font-size:.75rem;color:#5b21b6;display:flex;align-items:center;gap:.75rem">
+              <span>📥</span>
+              <span><strong>Source Data:</strong> Export CSV from
+                <a href="https://clever.com/in/iready" target="_blank" style="color:#7c3aed;font-weight:700;text-decoration:underline">i-Ready Diagnostic Dashboard</a>
+                · Select Longitudinal Dashboard → Export All Students → Download CSV
+              </span>
+            </div>
           </div>
         </div>`;
     }
@@ -11837,37 +11913,46 @@
       if(!m||!m.demog) return '';
       const d=m.demog;
       return `<div class="irlab-card" style="margin-bottom:1rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot</div><div class="irlab-card-meta">Movement & GL attainment by demographic group</div></div>
-        <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-          <div>${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
-          <div>${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Outcomes</div><div class="irlab-card-meta">Movement & GL attainment by demographic group · Click to expand</div></div>
+        <div class="irlab-card-body">
+          <div class="irlab-collapse-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+            <span>Race/Ethnicity & Gender</span><em class="irlab-chev">▼</em>
+          </div>
+          <div class="irlab-collapse-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;padding-top:.75rem">
+            <div>${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
+            <div>${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+          </div>
         </div></div>`;
     }
 
     // ── TUTOR LEADERBOARD ────────────────────────────────────────────────────
     function renderTutorLeaderboard(m, dept) {
-      if(dept==='data') return '';
+      const cfg   = DEPT_CFG[dept]||DEPT_CFG.leadership;
+      const drill = cfg.canDrillTutor;
       const tutors=Object.values(m.tutorMap).filter(t=>t.total>=5).sort((a,b)=>b.pctMoved-a.pctMoved);
       if(!tutors.length) return '';
       const rows=tutors.slice(0,20).map((t,i)=>{
         const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1)+'.';
         const col=t.pctMoved>=60?'#0d6e3a':t.pctMoved>=40?'#d97706':'#b91c1c';
         return `<tr><td><span style="margin-right:.375rem">${medal}</span>
-          <button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button></td>
+          ${drill?`<button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button>`:`<span style="font-weight:600;font-size:.8125rem">${esc(t.name)}</span>`}</td>
           <td style="min-width:160px">${renderBar(t.pctMoved,col)}</td>
           <td style="text-align:center"><span style="background:${t.pctGL>=50?'#dcfce7':'#fef3c7'};color:${t.pctGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${t.pctGL}%</span></td>
           <td style="text-align:center;font-size:.8125rem;font-weight:600;color:var(--blue-mid)">${t.avgGain!==null?'+'+t.avgGain.toFixed(1):'—'}</td>
           <td style="text-align:center;font-size:.75rem">${t.held}= · <span style="color:#b91c1c">${t.regressed}↓</span></td>
           <td style="text-align:right;font-size:.75rem;color:var(--muted)">${t.scholarCount}</td></tr>`;
       }).join('');
+      const tutorChart = miniBarChart(tutors.slice(0,10).map(t=>({label:(t.name||'').split(' ').pop().slice(0,6),value:t.pctMoved})),v=>v>=60?'#0d6e3a':v>=40?'#d97706':'#b91c1c');
       return `<div class="irlab-card" style="margin-bottom:1.25rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Impact Leaderboard</div><div class="irlab-card-meta">Min 5 scholars · Click name for profile</div></div>
-        <div class="irlab-card-body" style="overflow-x:auto">
-          <table class="irlab-rank-table">
+        <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Impact Overview</div><div class="irlab-card-meta">Min 5 scholars · Click name for profile</div></div>
+        <div class="irlab-card-body">
+          ${tutorChart}
+          <div style="font-size:.6875rem;color:var(--muted);margin-bottom:.75rem">Bar = % scholars moved up (top 10 tutors)</div>
+          <div class="irlab-collapse-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')"><span>Full Tutor Table</span><em class="irlab-chev">▼</em></div>
+          <div class="irlab-collapse-body" style="overflow-x:auto"><table class="irlab-rank-table">
             <thead><tr><th>Tutor</th><th>% Moved Up</th><th style="text-align:center">% At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:center">Held/Regressed</th><th style="text-align:right">Scholars</th></tr></thead>
             <tbody>${rows}</tbody>
-          </table>
-        </div></div>`;
+          </table></div></div></div>`;
     }
 
     // ── DEPT INSIGHT BLOCKS ──────────────────────────────────────────────────
@@ -11877,7 +11962,7 @@
         leadership:[
           {c:m.pctMoved>=60?'#0d6e3a':'#d97706',i:m.pctMoved>=60?'📈':'🔍',t:`${m.pctMoved}% of assessed scholars moved up`,b:`${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} scholars improved i-Ready placement. Grade-level attainment: ${m.pctOnGL}% by spring.`},
           {c:'#7b2d8b',i:'📍',t:'Standout & focus districts',b:(()=>{const s=Object.entries(m.byDistrict).map(([d,r])=>{const dm=computeMetrics(r);return dm?{name:d,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);return s.length?`${esc(s[0].name)} leads (${s[0].pctMoved}% moved up)${s.length>1?' · '+esc(s[s.length-1].name)+' ('+s[s.length-1].pctMoved+'%) needs attention':''}`:''})()},
-          {c:m.below2Chg<=0?'#0d6e3a':'#b91c1c',i:'⚖️',t:`Deep gap tier: ${m.pct2Below}% still 2+ levels below (spring)`,b:`${Math.abs(m.below2Chg)} scholars ${m.below2Chg<=0?'moved out of':'moved into'} the deepest gap tier. Key equity outcome for board and funder reporting.`},
+          {c:m.below2Chg<=0?'#0d6e3a':'#b91c1c',i:'⚖️',t:`Deep gap tier: ${m.pct2Belowelowelow}% still 2+ levels below (spring)`,b:`${Math.abs(m.below2Chg)} scholars ${m.below2Chg<=0?'moved out of':'moved into'} the deepest gap tier. Key equity outcome for board and funder reporting.`},
         ],
         programming:[
           {c:'#0050c8',i:'🏫',t:`Site quality: ${m.pctMoved}% movement · ${m.regress.length} regressions`,b:`${m.moved.length} scholars improved. Sites with high regression rates warrant implementation review — session frequency, pacing, tutor-scholar match.`},
@@ -11952,7 +12037,7 @@
         <div class="irlab-stats-grid" style="margin-bottom:1.25rem">
           <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Scholars Moved Up</div><div class="irlab-stat-sub">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()}</div></div>
           <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At/Near Grade Level</div><div class="irlab-stat-sub">Spring · was ${pct(m.baseOnGL.length,m.n)}% at baseline</div></div>
-          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Below}%</div><div class="irlab-stat-lbl">Still 2+ Below</div></div>
+          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Belowelowelow}%</div><div class="irlab-stat-lbl">Still 2+ Below</div></div>
           <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
           <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.metTypPct!==null?m.metTypPct+'%':'—'}</div><div class="irlab-stat-lbl">Met Typical Growth</div></div>
         </div>
@@ -12089,7 +12174,7 @@
         <div class="irlab-stats-grid" style="margin-bottom:1rem">
           <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div></div>
           <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At GL</div></div>
-          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Below}%</div><div class="irlab-stat-lbl">2+ Below</div></div>
+          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Belowelowelow}%</div><div class="irlab-stat-lbl">2+ Below</div></div>
           <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Gain</div></div>
         </div>
         ${renderPlacementShift(m)}
@@ -12106,87 +12191,436 @@
       if (_irlScholarDrill) { el.innerHTML=`<div class="irlab-wrap">${renderScholarDrill(_irlScholarDrill)}</div>`; return; }
       if (_irlTutorDrill)   { el.innerHTML=`<div class="irlab-wrap">${renderTutorDrill(_irlTutorDrill, _irlDept)}</div>`; return; }
 
-      const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela];
-      const years   = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
-      const dists   = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
-      const hasData = allRows.length > 0;
+      const allRows  = [...IRLAB_DATA.math,...IRLAB_DATA.ela];
+      const years    = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
+      const dists    = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
+      const grades   = [...new Set(allRows.map(r=>r.grade))].filter(Boolean).sort((a,b)=>(a==='K'?0:parseInt(a)||99)-(b==='K'?0:parseInt(b)||99));
+      const hasData  = allRows.length > 0;
+      const cfg      = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
 
-      const yearOpts = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
-      const subOpts  = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
-      const distOpts = ['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
+      const yearOpts  = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
+      const subOpts   = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
+      const distOpts  = ['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
+      const gradeOpts = ['all',...grades].map(g=>`<option value="${esc(g)}" ${_irlGrade===g?'selected':''}>${g==='all'?'All Grades':g==='K'?'Kindergarten':'Grade '+esc(g)}</option>`).join('');
 
-      // Data source badge
       const srcBadge = IRLAB_DATA.ts
         ? `<span style="font-size:.6875rem;background:#ede9fe;color:#6d28d9;padding:.2rem .625rem;border-radius:20px;font-weight:600">📤 Updated ${new Date(IRLAB_DATA.ts).toLocaleDateString()}</span>`
         : `<span style="font-size:.6875rem;background:var(--surface-3);color:var(--muted);padding:.2rem .625rem;border-radius:20px">EOY Embedded</span>`;
 
-      const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+      // KB gets no mode tabs (read-only)
+      // Other depts with quickcsv:true get Quick CSV button inside renderEmbeddedMode filter bar
+      const modeTabs = (_irlDept==='kb') ? '' : '';  // mode tabs removed — quickcsv button in filter bar
 
       el.innerHTML = `<div class="irlab-wrap">
         <div class="irlab-header">
           <div>
-            <div class="irlab-eyebrow">Academic Intelligence · NJTC</div>
+            <div class="irlab-eyebrow">Academic Intelligence · NJTC · ${cfg.label} View</div>
             <h2 class="irlab-title">i-Ready Analysis Lab</h2>
             <p class="irlab-sub">${years.join(', ')||'No data'} · ${dists.length} districts ${srcBadge}</p>
           </div>
-          <div style="display:flex;flex-direction:column;gap:.75rem;align-items:flex-end">
-            <div class="irlab-mode-tabs">
-              <button class="irlab-mode-tab ${_irlMode==='embedded'?'active':''}" onclick="irlab.setMode('embedded')">📊 Analysis</button>
-              <button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>
-            </div>
-          </div>
         </div>
-
-        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts)}
+        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts, gradeOpts)}
       </div>`;
     }
 
-    function renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts) {
-      const rows = getRows({});
-      const m    = hasData ? computeMetrics(rows) : null;
-      const cfg  = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+    // ── Per-dept view builders ───────────────────────────────────────────────
 
-      // Data dept always shows the update panel first
-      const dataUpdatePanel = _irlDept==='data' ? renderDataUpdatePanel() : '';
-
-      if (!hasData) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
-        <div class="irlab-empty-icon">📂</div>
-        <div class="irlab-empty-title">No data loaded</div>
-        <div class="irlab-empty-sub">${_irlDept==='data'?'Use the Embedded Data Manager above to upload CSVs.':'Data has not been loaded yet. Contact the Data & Eval team.'}</div>
-      </div></div>`;
-
-      if (!m) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
-        <div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div>
-        <div class="irlab-empty-sub">Adjust filters above.</div>
-      </div></div>`;
-
+    // KB — board/funder, pure read-only executive snapshot
+    function renderKBView(m) {
+      const dists = Object.entries(m.byDistrict).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
+      const tps = [
+        `${m.pctMoved}% of assessed scholars — ${m.moved.length.toLocaleString()} students — improved their i-Ready placement from baseline to spring.`,
+        `${m.pctOnGL}% of scholars reached Early On Grade Level or above by spring (${m.sprOnGL.length.toLocaleString()} students).`,
+        m.avgGain!=null?`Average scale score gain across the portfolio: +${m.avgGain.toFixed(1)} points.`:'',
+        m.below2Chg<0?`${Math.abs(m.below2Chg)} scholars moved out of the deepest gap tier (2+ grade levels below) — a direct equity outcome.`:'',
+        dists.length?`${esc(dists[0].name)} led all districts with ${dists[0].pctMoved}% of scholars advancing.`:'',
+      ].filter(Boolean);
       return `
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-          <div class="irlab-filter-row" style="margin-bottom:0">
-            <select class="irlab-select" onchange="irlab.setYear(this.value)">${yearOpts}</select>
-            <select class="irlab-select" onchange="irlab.setSubject(this.value)">${subOpts}</select>
-            <select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>
-          </div>
-          <div class="irlab-dept-tabs">
-            ${Object.entries(DEPT_CFG).map(([key,c])=>`
-              <button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color:''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('')}
+        <div style="background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 100%);border-radius:var(--radius);padding:1.75rem 2rem;margin-bottom:1.5rem;color:#fff;position:relative;overflow:hidden">
+          <div style="position:absolute;top:-20px;right:-20px;font-size:8rem;opacity:.05">🏛️</div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.45);margin-bottom:.75rem">NJTC Academic Impact · Executive Summary</div>
+          <div style="display:flex;gap:2.5rem;flex-wrap:wrap">
+            ${[{v:m.pctMoved+'%',l:'Scholars advanced',c:'#f0a500'},{v:m.moved.length.toLocaleString(),l:'Students impacted',c:'#4ade80'},{v:m.pctOnGL+'%',l:'At grade level',c:'#60a5fa'},{v:m.n.toLocaleString(),l:'Total assessed',c:'rgba(255,255,255,.7)'}].map(x=>`<div style="text-align:center"><div style="font-family:'DM Serif Display',Georgia,serif;font-size:2.5rem;font-weight:400;color:${x.c};line-height:1">${x.v}</div><div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:.25rem">${x.l}</div></div>`).join('')}
           </div>
         </div>
-        <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-bottom:1rem">${rows.length.toLocaleString()} valid pairs · <strong style="color:${cfg.color}">${cfg.label}</strong> view</div>
-
-        ${dataUpdatePanel}
-        ${_irlDept==='leadership' ? renderLeadershipView(m) : renderStandardView(m)}
-      `;
+        <div class="irlab-card" style="margin-bottom:1rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📋 Board & Funder Talking Points</div><div class="irlab-card-meta">SY data · Based on i-Ready diagnostic assessments</div></div>
+          <div class="irlab-card-body">${tps.map((tp,i)=>`<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .875rem;background:${i%2===0?'var(--surface-2)':'var(--surface)'};border-radius:8px;border:1px solid var(--border-2);margin-bottom:.5rem"><div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:.875rem;line-height:1.6;color:var(--navy)">${tp}</div></div>`).join('')}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Level Shift — Baseline to Spring</div></div>
+          <div class="irlab-card-body">${renderPlacementShift(m)}</div>
+        </div>
+        ${renderRepeatSection(true)}`;
     }
+
+    // LEADERSHIP — strategic lens, district + equity + cert, no tutor detail
+    function renderLeadershipV2(m) {
+      const dists = Object.entries(m.byDistrict).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
+      const stars = dists.slice(0,3).map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:.375rem"><span>⭐</span><div><div style="font-weight:700;color:#166534;font-size:.875rem">${esc(d.name)}</div><div style="font-size:.75rem;color:#166534">${d.pctMoved}% moved up · ${d.pctOnGL}% at GL · avg +${d.avgGain!=null?d.avgGain.toFixed(1):'—'}</div></div></div>`).join('');
+      const watch = dists.slice(-Math.min(2,dists.length)).reverse().map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:.375rem"><span>🔍</span><div><div style="font-weight:700;color:#991b1b;font-size:.875rem">${esc(d.name)}</div><div style="font-size:.75rem;color:#991b1b">${d.pctMoved}% moved up · ${d.n} scholars assessed</div></div></div>`).join('');
+      const tps = [`${m.pctMoved}% of scholars (${m.moved.length.toLocaleString()} students) improved placement from baseline to spring.`,`${m.pctOnGL}% reached Early On Grade Level or above (${m.sprOnGL.length.toLocaleString()} scholars).`,m.avgGain!=null?`Average scale score gain: +${m.avgGain.toFixed(1)} points across the portfolio.`:'',m.below2Chg<0?`${Math.abs(m.below2Chg)} scholars moved out of the deepest gap tier — direct equity impact.`:'',dists.length?`${esc(dists[0].name)} leads all districts with ${dists[0].pctMoved}% of scholars advancing.`:''].filter(Boolean);
+      return `
+        <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:1.25rem;color:#fff;position:relative;overflow:hidden">
+          <div style="position:absolute;top:-20px;right:-20px;font-size:8rem;opacity:.05">👑</div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:.5rem">NJTC Academic Portfolio Summary</div>
+          <div style="display:flex;gap:2.5rem;flex-wrap:wrap;margin-top:.5rem">
+            ${[{v:m.pctMoved+'%',l:'Scholars moved up',c:'#f0a500'},{v:m.pctOnGL+'%',l:'At grade level',c:'#4ade80'},{v:m.avgGain!=null?'+'+m.avgGain.toFixed(1):'—',l:'Avg scale gain',c:'#60a5fa'},{v:m.n.toLocaleString(),l:'Scholars analyzed',c:'rgba(255,255,255,.7)'}].map(x=>`<div style="text-align:center"><div style="font-family:'DM Serif Display',Georgia,serif;font-size:2.25rem;font-weight:400;color:${x.c};line-height:1">${x.v}</div><div style="font-size:.75rem;color:rgba(255,255,255,.5)">${x.l}</div></div>`).join('')}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+          <div class="irlab-card"><div class="irlab-card-hd"><div class="irlab-card-title">⭐ Standout Districts</div></div><div class="irlab-card-body">${stars||'<p style="color:var(--muted)">Not enough data</p>'}</div></div>
+          <div class="irlab-card"><div class="irlab-card-hd"><div class="irlab-card-title">🔍 Needs Attention</div></div><div class="irlab-card-body">${watch||'<p style="color:var(--muted)">All districts performing similarly</p>'}</div></div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📋 Leadership Talking Points</div><div class="irlab-card-meta">Funder · Board · Partner use</div></div>
+          <div class="irlab-card-body">${tps.map((tp,i)=>`<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .875rem;background:${i%2===0?'var(--surface-2)':'var(--surface)'};border-radius:8px;border:1px solid var(--border-2);margin-bottom:.5rem"><div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div><div style="font-size:.875rem;line-height:1.6;color:var(--navy)">${tp}</div></div>`).join('')}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 All District Rankings</div></div>
+          <div class="irlab-card-body">
+            ${miniBarChart(dists.slice(0,8).map(d=>({label:esc(d.name).split(' ')[0],value:d.pctMoved})),v=>v>=60?'#0d6e3a':v>=50?'#d97706':'#b91c1c')}
+            <div style="font-size:.6875rem;color:var(--muted);margin-bottom:.75rem">Bar = % scholars moved up · hover for details</div>
+            <div class="irlab-collapse-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')"><span>Full Rankings Table</span><em class="irlab-chev">▼</em></div>
+            <div class="irlab-collapse-body" style="overflow-x:auto"><table class="irlab-rank-table"><thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">Spring GL%</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead><tbody>${dists.map((d,i)=>{const m2=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;return `<tr><td><span style="margin-right:.375rem">${m2}</span><strong>${esc(d.name)}</strong></td><td style="min-width:140px">${renderBar(d.pctMoved,d.pctMoved>=50?'#0d6e3a':'#d97706')}</td><td style="text-align:center"><span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}% GL</span></td><td style="text-align:center;font-weight:600;color:var(--blue-mid);font-size:.8125rem">${d.avgGain!=null?'+'+d.avgGain.toFixed(1):'—'}</td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td></tr>`;}).join('')}</tbody></table></div>
+          </div>
+        </div>
+        ${renderEquitySnapshot(m)}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Trends</div></div>
+          <div class="irlab-card-body">${renderGradeTable(m)}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification Cohort</div><div class="irlab-card-meta">Observational — correlation, not causation</div></div>
+          <div class="irlab-card-body">${renderCertCohort(m)}</div>
+        </div>
+        ${renderRepeatSection(false)}`;
+    }
+
+    // PROGRAMMING — site/field operations, scholar search, no equity/tutor leaderboard
+    function renderProgrammingView(m) {
+      const mathM = computeMetrics(getRows({subject:'Math'}));
+      const elaM  = computeMetrics(getRows({subject:'ELA'}));
+      return `
+        <div class="irlab-card" style="background:#edf4f9;border:1.5px solid #457b9d33;margin-bottom:1.25rem">
+          <div class="irlab-card-hd" style="background:transparent"><div class="irlab-card-title" style="color:#457b9d">🏫 What's Happening at Our Sites?</div><div class="irlab-card-meta">${m.n.toLocaleString()} scholars · Use to guide site coordinator conversations</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-stats-grid">
+              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${m.moved.length.toLocaleString()} scholars</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At Grade Level</div><div class="irlab-stat-sub">Spring</div></div>
+              <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Belowelow}%</div><div class="irlab-stat-lbl">Still 2+ Below</div><div class="irlab-stat-sub">Targeted support opportunity</div></div>
+              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!=null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
+            </div>
+          </div>
+        </div>
+        ${mathM&&elaM?`<div class="irlab-card" style="margin-bottom:1.25rem"><div class="irlab-card-hd"><div class="irlab-card-title">➗ vs 📖 Math vs ELA</div></div><div class="irlab-card-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">${[{label:'Math',sc:mathM,color:'#0050c8',icon:'➗'},{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖'}].map(({label,sc,color,icon})=>`<div style="border:1.5px solid ${color}22;border-radius:10px;padding:1rem"><div style="font-size:.9rem;margin-bottom:.75rem">${icon} <strong style="color:${color}">${label}</strong></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.8125rem"><div><div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy)">${sc.pctMoved}%</div><div style="color:var(--muted)">Moved up</div></div><div><div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy)">${sc.pctOnGL}%</div><div style="color:var(--muted)">At GL</div></div></div></div>`).join('')}</div></div></div>`:''}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Shift — Baseline to Spring</div></div>
+          <div class="irlab-card-body">${renderPlacementShift(m)}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District & Site Rankings</div><div class="irlab-card-meta">Use to identify sites that need extra support</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto"><table class="irlab-rank-table"><thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">Spring GL%</th><th style="text-align:right">N</th></tr></thead><tbody>${Object.entries(m.byDistrict).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved).map((d,i)=>{const m2=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;return `<tr><td><span style="margin-right:.375rem">${m2}</span><strong>${esc(d.name)}</strong></td><td style="min-width:140px">${renderBar(d.pctMoved,d.pctMoved>=50?'#0d6e3a':'#d97706')}</td><td style="text-align:center"><span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}% GL</span></td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td></tr>`;}).join('')}</tbody></table></div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Breakdown</div><div class="irlab-card-meta">Identify which grades need programming adjustments</div></div>
+          <div class="irlab-card-body">${renderGradeTable(m)}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification & Outcomes</div><div class="irlab-card-meta">Reference for site-level staffing conversations</div></div>
+          <div class="irlab-card-body">${renderCertCohort(m)}</div>
+        </div>
+        ${renderScholarSearchCard()}`;
+    }
+
+    // DATA — full analyst view + uploader first
+    function renderDataView(m) {
+      const rushCount = m.rows ? m.valid.filter(r=>r.baseRushFlag==='1').length : 0;
+      const uncertN   = (m.byCert['Unidentified']||[]).length;
+      return `
+        ${renderDataUpdatePanel()}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title" style="color:#7b2d8b">🔬 Dataset Quality & Coverage</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-stats-grid">
+              <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Valid Pairs</div><div class="irlab-stat-sub">Base + Spring</div></div>
+              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${rushCount}</div><div class="irlab-stat-lbl">Rush-Flagged</div><div class="irlab-stat-sub">${rushCount>0?'Review fidelity':'Clean'}</div></div>
+              <div class="irlab-stat" style="--irstat-color:#e63946"><div class="irlab-stat-val">${uncertN}</div><div class="irlab-stat-lbl">Unidentified Cert</div><div class="irlab-stat-sub">${uncertN>0?'Data entry gap':'Clean'}</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${m.moved.length.toLocaleString()} scholars</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Distribution & Shift</div></div>
+          <div class="irlab-card-body">${renderPlacementShift(m)}</div>
+        </div>
+        ${renderEquitySnapshot(m)}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto"><table class="irlab-rank-table"><thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">Spring GL%</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead><tbody>${Object.entries(m.byDistrict).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved).map((d,i)=>{const m2=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;return `<tr><td><span style="margin-right:.375rem">${m2}</span><strong>${esc(d.name)}</strong></td><td style="min-width:140px">${renderBar(d.pctMoved,d.pctMoved>=50?'#0d6e3a':'#d97706')}</td><td style="text-align:center"><span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}% GL</span></td><td style="text-align:center;font-weight:600;color:var(--blue-mid)">${d.avgGain!=null?'+'+d.avgGain.toFixed(1):'—'}</td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td></tr>`;}).join('')}</tbody></table></div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade Trends</div></div>
+          <div class="irlab-card-body">${renderGradeTable(m)}</div>
+        </div>
+        ${renderTutorLeaderboard(m, _irlDept)}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification Cohort</div></div>
+          <div class="irlab-card-body">${renderCertCohort(m)}</div>
+        </div>
+        ${renderRepeatSection(false)}
+        ${renderScholarSearchCard()}`;
+    }
+
+    // HR — staffing lens, cert + tutor leaderboard, coaching framing
+    function renderHRView(m) {
+      const tutorCount = Object.keys(m.tutorMap||{}).length;
+      const uncertN    = (m.byCert['Unidentified']||[]).length;
+      return `
+        <div class="irlab-card" style="background:#fdedef;border:1.5px solid #e6394622;margin-bottom:1.25rem">
+          <div class="irlab-card-hd" style="background:transparent"><div class="irlab-card-title" style="color:#e63946">👥 Staff Performance Snapshot</div><div class="irlab-card-meta">How tutor certification correlates with scholar outcomes · Use alongside observation data</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-stats-grid">
+              <div class="irlab-stat" style="--irstat-color:#e63946"><div class="irlab-stat-val">${tutorCount}</div><div class="irlab-stat-lbl">Active Tutors</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Portfolio Movement</div><div class="irlab-stat-sub">All scholars</div></div>
+              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${uncertN}</div><div class="irlab-stat-lbl">Unidentified Cert</div><div class="irlab-stat-sub">${uncertN>0?'Review onboarding':'Clean'}</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At Grade Level</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification & Scholar Outcomes</div><div class="irlab-card-meta">Observational — use alongside obs data, not instead of it</div></div>
+          <div class="irlab-card-body">${renderCertCohort(m)}</div>
+        </div>
+        ${renderTutorLeaderboard(m, _irlDept)}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">ℹ️ How to Use This Data in HR Conversations</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-insight" style="--ins-color:#e63946"><div class="irlab-insight-icon">📊</div><div><div class="irlab-insight-title">Academic data provides direction, not final judgment.</div><div class="irlab-insight-body">Scholar outcomes capture many influences — site context, grade, dosage, and demographics — alongside the tutoring interaction. Our tutors are showing up and doing the work. Use this data to guide coaching, not as an independent assessment.</div></div></div>
+            <div class="irlab-insight" style="--ins-color:#e63946"><div class="irlab-insight-icon">🔍</div><div><div class="irlab-insight-title">Unidentified certification = onboarding gap, not performance gap.</div><div class="irlab-insight-body">Scholars appearing under "Unidentified" most often reflect onboarding timing or substitute placements — not a performance issue. Cleaning this data helps us tell a more complete story for every tutor.</div></div></div>
+            <div class="irlab-insight" style="--ins-color:#e63946"><div class="irlab-insight-icon">📋</div><div><div class="irlab-insight-title">Tutor profiles are for coaching, not ranking.</div><div class="irlab-insight-body">Click any tutor name to see their scholar roster and full outcomes picture. Every tutor has a story behind their numbers — bring that context into your coaching conversation before drawing conclusions.</div></div></div>
+          </div>
+        </div>`;
+    }
+
+    // FINANCE — ROI / cost-per-outcome lens
+    function renderFinanceView(m) {
+      const dists = Object.entries(m.byDistrict).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
+      return `
+        <div class="irlab-card" style="background:#e6f5f3;border:1.5px solid #2a9d8f33;margin-bottom:1.25rem">
+          <div class="irlab-card-hd" style="background:transparent"><div class="irlab-card-title" style="color:#2a9d8f">💰 Program ROI Summary</div><div class="irlab-card-meta">Anchor budget discussions and impact reporting to these numbers</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-stats-grid">
+              <div class="irlab-stat" style="--irstat-color:#2a9d8f"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Scholars Served</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.moved.length.toLocaleString()}</div><div class="irlab-stat-lbl">Measurable Benefit</div><div class="irlab-stat-sub">Improved placement level</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">Reached Grade Level</div><div class="irlab-stat-sub">${m.sprOnGL.length} scholars</div></div>
+              <div class="irlab-stat" style="--irstat-color:#f0a500"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Advancement Rate</div><div class="irlab-stat-sub">Key ROI metric</div></div>
+            </div>
+            <div style="margin-top:1rem;padding:.875rem 1rem;background:white;border-radius:8px;border:1px solid #2a9d8f33;font-size:.8125rem;color:var(--navy);line-height:1.6">
+              <strong>Budget narrative:</strong> NJTC delivered measurable academic benefit to ${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} assessed scholars (${m.pctMoved}%), with ${m.sprOnGL.length.toLocaleString()} reaching grade-level benchmarks — outcomes directly attributable to tutoring investment.
+            </div>
+          </div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📍 District-Level Investment Return</div><div class="irlab-card-meta">Higher movement = stronger cost-per-outcome case for contract renewal</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto"><table class="irlab-rank-table"><thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">GL%</th><th style="text-align:right">Scholars</th></tr></thead><tbody>${dists.map((d,i)=>{const m2=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;return `<tr><td><span style="margin-right:.375rem">${m2}</span><strong>${esc(d.name)}</strong></td><td style="min-width:140px">${renderBar(d.pctMoved,d.pctMoved>=50?'#0d6e3a':'#d97706')}</td><td style="text-align:center"><span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}%</span></td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td></tr>`;}).join('')}</tbody></table></div>
+        </div>
+        ${renderRepeatSection(true)}
+        <div class="irlab-card">
+          <div class="irlab-card-hd"><div class="irlab-card-title">💡 Finance Context Notes</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-insight" style="--ins-color:#2a9d8f"><div class="irlab-insight-icon">📈</div><div><div class="irlab-insight-title">Advancement rate is your headline cost-per-outcome metric.</div><div class="irlab-insight-body">${m.pctMoved}% of scholars improved. Divide total program cost by ${m.moved.length.toLocaleString()} for cost-per-scholar-advanced.</div></div></div>
+            <div class="irlab-insight" style="--ins-color:#2a9d8f"><div class="irlab-insight-icon">🏅</div><div><div class="irlab-insight-title">Grade-level attainment is the strongest funder claim.</div><div class="irlab-insight-body">${m.pctOnGL}% reached Early On GL or above — the outcome most funders weight most heavily.</div></div></div>
+            <div class="irlab-insight" style="--ins-color:#2a9d8f"><div class="irlab-insight-icon">🔁</div><div><div class="irlab-insight-title">Repeat scholar cohort shows compounding ROI.</div><div class="irlab-insight-body">Year-over-year scholars show higher movement rates — evidence that sustained investment yields stronger returns.</div></div></div>
+          </div>
+        </div>`;
+    }
+
+    // TRAINING — instructional development, grade detail + cert + scholar search
+    function renderTrainingView(m) {
+      const certRows = Object.entries(m.byCert);
+      const nonCertM = m.byCert['Non Certified'] ? computeMetrics(m.byCert['Non Certified']) : null;
+      const certM    = m.byCert['Certified']      ? computeMetrics(m.byCert['Certified'])      : null;
+      return `
+        <div class="irlab-card" style="background:#f5f3ff;border:1.5px solid #6d28d933;margin-bottom:1.25rem">
+          <div class="irlab-card-hd" style="background:transparent"><div class="irlab-card-title" style="color:#6d28d9">🎓 Where Do Our Tutors Need Support?</div><div class="irlab-card-meta">Use to identify training priorities and coaching focus areas</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-stats-grid">
+              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Portfolio Movement</div></div>
+              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${nonCertM?nonCertM.pctMoved+'%':'—'}</div><div class="irlab-stat-lbl">Non-Cert Movement</div><div class="irlab-stat-sub">${certM?'vs '+certM.pctMoved+'% certified':''}</div></div>
+              <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pctRegress}%</div><div class="irlab-stat-lbl">Regression Rate</div><div class="irlab-stat-sub">${m.regress.length} scholars</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At Grade Level</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Outcomes</div><div class="irlab-card-meta">Lower-performing grades = higher training priority</div></div>
+          <div class="irlab-card-body">${renderGradeTable(m)}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification & Training Impact</div><div class="irlab-card-meta">Does your training investment show up in outcomes?</div></div>
+          <div class="irlab-card-body">${renderCertCohort(m)}</div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Scholars Who Need a Fresh Approach</div><div class="irlab-card-meta">${m.regress.length} scholars declined in placement — an opportunity to revisit tutor match, session frequency, or instructional strategy</div></div>
+          <div class="irlab-card-body">
+            <div style="padding:.75rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:.8125rem;color:#9a3412;margin-bottom:1rem"><strong>${m.regress.length} scholars regressed</strong> (${m.pctRegress}%). A regression is a signal worth exploring — not a verdict. It often points to fit, frequency, or strategy rather than effort. Start the coaching conversation with curiosity.</div>
+            ${renderPlacementShift(m)}
+          </div>
+        </div>
+        ${renderScholarSearchCard()}`;
+    }
+
+    // Shared helpers used by multiple views
+    // ── Collapse toggle (used in accordion sections) ──────────────────────
+    function collapseToggle(hd) {
+      hd.classList.toggle('open');
+      const body = hd.nextElementSibling;
+      if (body) body.classList.toggle('open');
+    }
+
+    // ── SVG mini bar chart helper ──────────────────────────────────────────
+    function miniBarChart(items, colorFn) {
+      if (!items || !items.length) return '';
+      const max = Math.max(...items.map(x => x.value), 1);
+      return `<div class="irlab-mini-chart">${items.map(x => {
+        const h = Math.max(4, Math.round((x.value / max) * 44));
+        const col = colorFn ? colorFn(x.value) : '#0050c8';
+        return `<div class="irlab-mini-bar-wrap" title="${x.label}: ${x.value}">
+          <div class="irlab-mini-bar" style="height:${h}px;background:${col}"></div>
+          <div class="irlab-mini-bar-lbl">${x.label}</div>
+        </div>`;
+      }).join('')}</div>`;
+    }
+
+    // ── SVG donut helper ───────────────────────────────────────────────────
+    function donutChart(pct, color, size=72) {
+      const r = (size/2) - 8; const circ = 2 * Math.PI * r;
+      const dash = (pct / 100) * circ;
+      return `<svg width="${size}" height="${size}" style="transform:rotate(-90deg)">
+        <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--border)" stroke-width="8"/>
+        <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+          stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+      </svg>`;
+    }
+
+    function renderGradeTable(m) {
+      if(!m||!m.byGrade) return '';
+      const grades = Object.entries(m.byGrade).map(([gr,rows])=>{const dm=computeMetrics(rows);return dm?{grade:gr,...dm}:null}).filter(Boolean).sort((a,b)=>{const na=a.grade==='K'?0:parseInt(a.grade)||99,nb=b.grade==='K'?0:parseInt(b.grade)||99;return na-nb;});
+      if(!grades.length) return '<p style="color:var(--muted)">No grade data available.</p>';
+      const chartItems = grades.map(g=>({label:g.grade==='K'?'K':'G'+g.grade, value:g.pctMoved}));
+      const colorFn = v => v>=60?'#0d6e3a':v>=40?'#d97706':'#b91c1c';
+      const chart = miniBarChart(chartItems, colorFn);
+      const colId = 'grade-table-' + Math.random().toString(36).slice(2,7);
+      return `<div>
+        <div class="irlab-mini-chart-wrap" style="display:flex;gap:1rem;align-items:center;margin-bottom:.75rem">
+          <div style="flex:1">${chart}</div>
+          <div style="font-size:.6875rem;color:var(--muted);line-height:1.6">Bar = % moved up<br>Green ≥60% · Amber ≥40% · Red &lt;40%</div>
+        </div>
+        <div class="irlab-collapse-hd" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+          <span>📊 Grade Detail Table</span>
+          <em class="irlab-chev">▼</em>
+        </div>
+        <div class="irlab-collapse-body">
+          <div style="overflow-x:auto"><table class="irlab-rank-table"><thead><tr><th>Grade</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">% At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead><tbody>${grades.map(({grade,pctMoved,pctOnGL,avgGain,n})=>{const mc=colorFn(pctMoved);return `<tr><td style="font-weight:700">Grade ${esc(grade)}</td><td style="text-align:center;font-weight:700;color:${mc}">${pctMoved}%</td><td style="text-align:center;font-weight:700;color:${pctOnGL>=50?'#0d6e3a':pctOnGL>=25?'#d97706':'#b91c1c'}">${pctOnGL}%</td><td style="text-align:center;font-weight:600;color:var(--blue-mid)">${avgGain!=null?'+'+avgGain.toFixed(1):'—'}</td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${n}</td></tr>`;}).join('')}</tbody></table></div>
+        </div>
+      </div>`;
+    }
+
+    function renderCertCohort(m) {
+      if(!m||!m.byCert) return '';
+      const ORDER = ['Certified','Non Certified','Mixed Cert Status','Unidentified'];
+      const COLS  = {'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};
+      const certEntries = Object.entries(m.byCert).sort((a,b)=>(ORDER.indexOf(a[0])>-1?ORDER.indexOf(a[0]):99)-(ORDER.indexOf(b[0])>-1?ORDER.indexOf(b[0]):99));
+      const chartItems = certEntries.map(([cert,rows])=>{const dm=computeMetrics(rows);return dm?{label:cert==='Non Certified'?'Non Cert':cert==='Mixed Cert Status'?'Mixed':cert, value:dm.pctMoved}:null}).filter(Boolean);
+      const certColorFn = v => v>=60?'#0d6e3a':v>=40?'#0050c8':'#7b2d8b';
+      const chart = miniBarChart(chartItems, certColorFn);
+      const cards = certEntries.map(([cert,rows])=>{const dm=computeMetrics(rows);if(!dm)return'';const col=COLS[cert]||'#7d8fa1';return `<div class="irlab-cohort-card" style="--coh-color:${col}"><div class="irlab-cohort-name">${esc(cert)}</div><div class="irlab-cohort-val">${dm.pctMoved}%</div><div class="irlab-cohort-sub">Moved up</div><div style="font-size:.75rem;margin-top:.5rem;color:var(--text-2)"><div>At GL: <strong>${dm.pctOnGL}%</strong></div><div>Avg gain: <strong>${dm.avgGain!=null?'+'+dm.avgGain.toFixed(1):'—'}</strong></div><div style="color:var(--muted)">N = ${dm.n}</div></div></div>`;}).join('');
+      return `
+        <div style="display:flex;gap:1rem;align-items:center;margin-bottom:.75rem">
+          <div style="flex:1">${chart}</div>
+          <div style="font-size:.6875rem;color:var(--muted);line-height:1.6;flex-shrink:0">Bar = % moved up<br>by cert status</div>
+        </div>
+        <div class="irlab-cohort-grid">${cards}</div>
+        <div style="margin-top:.875rem;padding:.75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e"><strong>ℹ️ Observational:</strong> Differences may reflect site assignment, grade level, or cohort composition — not certification alone. These patterns are a starting point for coaching conversations, not evaluative conclusions.</div>`;
+    }
+
+    function renderScholarSearchCard() {
+      return `<div class="irlab-card"><div class="irlab-card-hd"><div class="irlab-card-title">🔍 Scholar Search</div><div class="irlab-card-meta">Look up individual diagnostic history by name</div></div><div class="irlab-card-body"><div style="display:flex;gap:.5rem;margin-bottom:1rem"><input id="irlScholarQ" type="text" placeholder="Type scholar name…" style="flex:1;padding:.5rem .875rem;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem" onkeydown="if(event.key==='Enter')irlab.searchScholar()"><button onclick="irlab.searchScholar()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:.5rem 1.25rem;font-size:.875rem;font-weight:600;cursor:pointer">Search</button></div><div id="irlScholarResult"></div></div></div>`;
+    }
+
+    function renderRepeatSection(compact=false) {
+      const repRows=[...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat].filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      if(!repRows.length) return '';
+      const m=computeMetrics(repRows); if(!m) return '';
+      const allM=computeMetrics(getRows({}));
+      const diff=allM?m.pctMoved-allM.pctMoved:null;
+      if(compact){return `<div class="irlab-card" style="border-left:4px solid #7b2d8b"><div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Cohort — Strongest Multi-Year Signal</div></div><div class="irlab-card-body"><div class="irlab-stats-grid"><div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholars</div></div><div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${diff!=null?(diff>=0?'+':'')+diff+'pp vs overall':''}</div></div><div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At GL (Spring)</div></div><div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!=null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div></div></div></div>`;}
+      return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem"><div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Cohort</div><div class="irlab-card-meta">Longitudinal · Strongest program signal — controls for mid-year entrants</div></div><div class="irlab-card-body"><div class="irlab-stats-grid" style="margin-bottom:1rem"><div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholars</div></div><div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${diff!=null?(diff>=0?'+':'')+diff+'pp vs overall':''}</div></div><div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At GL (Spring)</div></div><div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!=null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div></div><div class="irlab-insight" style="--ins-color:#7b2d8b"><div class="irlab-insight-icon">🔁</div><div><div class="irlab-insight-title">Cleanest multi-year evidence</div><div class="irlab-insight-body">Year-over-year scholar cohort eliminates selection bias. ${m.pctMoved}% improved${diff!=null?' — '+Math.abs(diff)+'pp '+(diff>=0?'above':'below')+' overall portfolio':''}. Anchor funder reports to this cohort.</div></div></div>${renderPlacementShift(m)}</div></div>`;
+    }
+
+    // ── NEW renderEmbeddedMode — no dept pills, role-locked routing ──────────
+    function renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts, gradeOpts) {
+      const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+      const rows = getRows({});
+      const m    = hasData ? computeMetrics(rows) : null;
+
+      // Data dept always shows uploader even when no data
+      if (!hasData) return `${_irlDept==='data'?renderDataUpdatePanel():''}<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">📂</div><div class="irlab-empty-title">No data loaded</div><div class="irlab-empty-sub">${_irlDept==='data'?'Use the Embedded Data Manager above to upload CSVs.':'Contact the Data & Eval team to refresh the embedded dataset.'}</div></div></div>`;
+      if (!m)      return `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Adjust filters above.</div></div></div>`;
+
+      // Dept-locked filter controls — only show filters this role is permitted to use
+      const showYear    = cfg.filters.includes('year');
+      const showSubject = cfg.filters.includes('subject');
+      const showDist    = cfg.filters.includes('district');
+      const showGrade   = cfg.filters.includes('grade');
+      const anyFilter   = showYear||showSubject||showDist||showGrade;
+
+      const filterBar = anyFilter ? `<div class="irlab-filter-row" style="margin-bottom:1rem">
+        ${showYear    ? `<select class="irlab-select" onchange="irlab.setYear(this.value)">${yearOpts}</select>` : ''}
+        ${showSubject ? `<select class="irlab-select" onchange="irlab.setSubject(this.value)">${subOpts}</select>` : ''}
+        ${showDist    ? `<select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>` : ''}
+        ${showGrade   ? `<select class="irlab-select" onchange="irlab.setGrade(this.value)">${gradeOpts}</select>` : ''}
+        ${cfg.quickcsv ? `<button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>` : ''}
+      </div>` : (cfg.quickcsv ? `<div style="margin-bottom:1rem"><button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button></div>` : '');
+
+      let viewHtml = '';
+      switch(_irlDept) {
+        case 'kb':          viewHtml = renderKBView(m);          break;
+        case 'leadership':  viewHtml = renderLeadershipV2(m);    break;
+        case 'programming': viewHtml = renderProgrammingView(m); break;
+        case 'data':        viewHtml = renderDataView(m);        break;
+        case 'hr':          viewHtml = renderHRView(m);          break;
+        case 'finance':     viewHtml = renderFinanceView(m);     break;
+        case 'training':    viewHtml = renderTrainingView(m);    break;
+        default:            viewHtml = renderLeadershipV2(m);
+      }
+
+      return `<div style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem"><span>${rows.length.toLocaleString()} valid pairs</span><span style="background:${cfg.bg};color:${cfg.color};padding:.15rem .5rem;border-radius:12px;font-size:.6875rem;font-weight:700">${cfg.emoji} ${cfg.label}</span></div>${filterBar}${viewHtml}`;
+    }
+
+    // searchScholar public handler
+    function searchScholar() {
+      const input  = document.getElementById('irlScholarQ');
+      const result = document.getElementById('irlScholarResult');
+      if(!input||!result) return;
+      const q = input.value.trim().toLowerCase();
+      if(!q){ result.innerHTML='<div style="color:var(--muted);font-size:.8125rem">Enter a scholar name.</div>'; return; }
+      const all=[...IRLAB_DATA.math,...IRLAB_DATA.ela,...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
+      const matches=[...new Set(all.filter(r=>(r.scholarName||'').toLowerCase().includes(q)).map(r=>r.scholarName))].slice(0,10);
+      if(!matches.length){ result.innerHTML=`<div style="color:var(--muted);font-size:.8125rem">No scholars found for "${esc(input.value)}"</div>`; return; }
+      result.innerHTML=`<div style="display:flex;flex-direction:column;gap:.375rem">${matches.map(name=>`<button onclick="irlab.drillScholar('${esc(name)}')" style="text-align:left;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:.5rem .875rem;font-size:.875rem;color:var(--navy);font-weight:600;cursor:pointer">${esc(name)}</button>`).join('')}</div>`;
+    }
+
 
     // ── Public API ────────────────────────────────────────────────────────────
     function onPanelOpen() {
       if (!_irlBuilt) {
         _irlBuilt = true;
-        // Auto-sync dept tab to current user's session dept
+        // Route to dept-specific view based on login
         const sess = window.NJTC_SESSION;
-        if (sess && sess.dept && DEPT_CFG[sess.dept]) {
-          _irlDept = sess.dept;
+        if (sess && sess.dept) {
+          _irlDept = DEPT_CFG[sess.dept] ? sess.dept : 'leadership';
         }
         loadData();
         renderLab();
@@ -12197,7 +12631,8 @@
     function setYear(y)     { _irlYear=y;    renderLab(); }
     function setSubject(s)  { _irlSubject=s; renderLab(); }
     function setDistrict(d) { _irlDistrict=d;renderLab(); }
-    function setDept(d)     { _irlDept=d;    renderLab(); }
+    function setGrade(g)   { _irlGrade=g; renderLab(); }
+    // setDept removed — dept locked to login role
 
     function drillScholar(name) { _irlScholarDrill=name; _irlTutorDrill=null;   renderLab(); }
     function drillTutor(name)   { _irlTutorDrill=name;   _irlScholarDrill=null; renderLab(); }
@@ -12228,8 +12663,8 @@
       IRLAB_DATA.loaded=false;
     }
 
-    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
-             drillScholar, drillTutor, closeDrill,
+    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setGrade,
+             drillScholar, drillTutor, closeDrill, searchScholar,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded };
   })();
