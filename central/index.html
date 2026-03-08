@@ -4917,6 +4917,7 @@
           try { window.po.onPanelOpen(); } catch(e) {}
         }
       }
+      // irlab: no prefetch needed — embedded data, loads instantly on panel open
     }, 100);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
     initDeptNav(dept);
@@ -11181,44 +11182,29 @@
 
 
     // ══════════════════════════════════════════════════════════════════════════
-  //  i-READY ANALYSIS LAB v2  (irlab)
-  //  ISOLATED MODULE — zero shared state with sya / po
-  //  Live data fetch + embedded fallback
-  //  Full demographic breakdown · Tutor linking · Scholar drill · Dept views
+  //  i-READY ANALYSIS LAB v3  (irlab)
+  //  DATA SOURCE: Embedded-only. No live Google Sheets fetch.
+  //  Data Dept can update via CSV upload → stored in localStorage → all views.
+  //  EOY data displayed by default. Snapshots via Quick CSV (session-only).
   // ══════════════════════════════════════════════════════════════════════════
   const irlab = (function() {
 
-    // ── Live data config ────────────────────────────────────────────────────
-    // Published CSV URLs — user updates the sheet and data refreshes here
-    const IRLAB_LIVE = {
-      // Base PACX published ID (from user-provided pubhtml URL)
-      BASE: '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG',
-      // Tab GIDs — will be auto-detected or use defaults
-      // The sheet tabs correspond to the 4 CSV files:
-      //   Tab 0 (default) = Math, Tab 1 = ELA, Tab 2 = Math Repeat, Tab 3 = ELA Repeat
-      // If all 4 tabs are in one sheet, we use gid param; if separate sheets, we use separate IDs
-      TABS: {
-        math:     null,  // gid=null uses default (first tab)
-        ela:      null,  // will try gid=1, gid=2, etc. auto-detect
-        mathRep:  null,
-        elaRep:   null,
-      },
-      CACHE_MS: 5 * 60 * 1000, // 5 minute cache
-    };
+    // ── Embedded data store (populated by Data dept CSV upload or hardcoded embed) ──
+    const IRLAB_DATA = { math:[], ela:[], mathRepeat:[], elaRepeat:[], loaded:false };
 
     // ── Isolated state ──────────────────────────────────────────────────────
-    let _irlMode    = 'embedded';    // 'embedded' | 'quickcsv'
-    let _irlDept    = 'leadership';
-    let _irlYear    = 'all';
-    let _irlSubject = 'all';
-    let _irlDistrict= 'all';
-    let _irlCsvData = null;
-    let _irlBuilt   = false;
-    let _irlLoading = false;
-    let _irlDataSrc = 'embedded';   // 'live' | 'embedded'
-    let _irlLastFetch = 0;
-    let _irlScholarDrill = null;    // scholar name being drilled
-    let _irlTutorDrill   = null;    // tutor name being drilled
+    let _irlMode      = 'embedded';  // 'embedded' | 'quickcsv'
+    let _irlDept      = 'leadership';
+    let _irlYear      = 'all';
+    let _irlSubject   = 'all';
+    let _irlDistrict  = 'all';
+    let _irlCsvData   = null;        // Quick CSV session result (never persisted)
+    let _irlBuilt     = false;
+    let _irlScholarDrill = null;
+    let _irlTutorDrill   = null;
+
+    // ── localStorage key for Data dept embedded CSV updates ─────────────────
+    const EMBED_STORE_KEY = 'njtc_irlab_embedded_v1';  // JSON: {ts, math, ela, mathRep, elaRep}
 
     // ── Placement config ────────────────────────────────────────────────────
     const PLACEMENT_ORDER = [
@@ -11228,7 +11214,7 @@
       'Early On Grade Level',
       'Mid or Above Grade Level',
     ];
-    const PLC = {  // colors
+    const PLC = {
       '3 or More Grade Levels Below': '#b91c1c',
       '2 Grade Levels Below':         '#e07a2f',
       '1 Grade Level Below':          '#d97706',
@@ -11252,9 +11238,6 @@
       finance:     { label:'Finance',      emoji:'💡', color:'#2a9d8f', bg:'#e6f5f3' },
     };
 
-    // ── Embedded data store ─────────────────────────────────────────────────
-    const IRLAB_DATA = { math:[], ela:[], mathRepeat:[], elaRepeat:[], loaded:false, liveLoaded:false };
-
     // ── CSV parser ──────────────────────────────────────────────────────────
     function parseCSV(text) {
       const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
@@ -11275,192 +11258,81 @@
       }).filter(Boolean);
     }
 
-    // ── Field normalizer (handles Math title-case + ELA lowercase) ──────────
+    // ── Field normalizer ────────────────────────────────────────────────────
     function g(r, ...keys) {
       for (const k of keys) {
-        const v = r[k]; if (v !== undefined && v !== null) return v;
-        // Try lowercase version
+        if (r[k] !== undefined && r[k] !== null) return r[k];
         const lk = k.toLowerCase().replace(/ /g,'_');
-        const vl = r[lk]; if (vl !== undefined && vl !== null) return vl;
+        if (r[lk] !== undefined && r[lk] !== null) return r[lk];
       }
       return '';
     }
 
     function normalizeRow(r, subject) {
       const instRaw = g(r,'Instructor').trim();
-      const tutors  = instRaw ? instRaw.split(',').map(n=>n.trim()).filter(Boolean) : [];
       return {
         subject,
-        year:            g(r,'Academic year','academic_year'),
-        district:        g(r,'District'),
-        school:          g(r,'School','school'),
-        grade:           g(r,'Student grade','student_grade'),
-        certStatus:      g(r,'Certification Status'),
-        instructor:      instRaw,
-        tutors:          tutors,  // array of individual tutor names
-        scholarId:       g(r,'Student id','student_id'),
-        scholarName:     g(r,'First and Last Name'),
-        scholarFirst:    g(r,'First name','first_name'),
-        scholarLast:     g(r,'Last name','last_name'),
-        sex:             g(r,'Sex'),
-        hispanic:        g(r,'Hispanic or latino','hispanic_or_latino'),
-        race:            g(r,'Race Analytics'),
-        ell:             g(r,'English language learner','english_language_learner'),
-        sped:            g(r,'Special education','special_education'),
-        ecodis:          g(r,'Economically disadvantaged','economically_disadvantaged'),
-        typGrowth:       parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||0,
-        basePlacement:   g(r,'Base overall placement','base_overall_placement'),
-        baseRelPlacement:g(r,'Base overall relative placement','base_overall_relative_placement'),
-        baseScore:       parseFloat(g(r,'Base overall scale score','base_overall_scale_score'))||null,
-        baseWindow:      g(r,'Base diagnostic window','base_diagnostic_window'),
-        basePercentile:  parseFloat(g(r,'Base percentile','base_percentile'))||null,
-        baseRushFlag:    g(r,'Base rush flag','base_rush_flag'),
-        springPlacement: g(r,'Spring overall placement','spring_overall_placement'),
+        year:             g(r,'Academic year','academic_year'),
+        district:         g(r,'District'),
+        school:           g(r,'School','school'),
+        grade:            g(r,'Student grade','student_grade'),
+        certStatus:       g(r,'Certification Status'),
+        instructor:       instRaw,
+        tutors:           instRaw ? instRaw.split(',').map(n=>n.trim()).filter(Boolean) : [],
+        scholarId:        g(r,'Student id','student_id'),
+        scholarName:      g(r,'First and Last Name'),
+        sex:              g(r,'Sex'),
+        hispanic:         g(r,'Hispanic or latino','hispanic_or_latino'),
+        race:             g(r,'Race Analytics'),
+        ell:              g(r,'English language learner','english_language_learner'),
+        sped:             g(r,'Special education','special_education'),
+        ecodis:           g(r,'Economically disadvantaged','economically_disadvantaged'),
+        baseRelPlacement: g(r,'Base overall relative placement','base_overall_relative_placement'),
+        baseScore:        parseFloat(g(r,'Base overall scale score','base_overall_scale_score'))||null,
+        baseRushFlag:     g(r,'Base rush flag','base_rush_flag'),
         springRelPlacement:g(r,'Spring overall relative placement','spring_overall_relative_placement'),
-        springScore:     parseFloat(g(r,'Spring overall scale score','spring_overall_scale_score'))||null,
-        springGain:      parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
-        springPercentile:parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
-        springRushFlag:  g(r,'Spring rush flag','spring_rush_flag'),
-        pctTypical:      parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth'))||null,
-        pctStretch:      parseFloat(g(r,'Spring pct progress stretch growth','spring_pct_progress_stretch_growth'))||null,
-        weeksApart:      parseFloat(g(r,'Spring weeks between diagnostics'))||null,
-        isRepeat:        (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
-        // Math domain scores
-        numOpsBase:      parseFloat(g(r,'Base number and operations scale score'))||null,
-        numOpsSpring:    parseFloat(g(r,'Spring number and operations scale score'))||null,
-        algebraBase:     parseFloat(g(r,'Base algebra and algebraic thinking scale score'))||null,
-        algebraSpring:   parseFloat(g(r,'Spring algebra and algebraic thinking scale score'))||null,
-        // ELA domain scores
-        phonicsBase:     parseFloat(g(r,'Base phonics scale score','base_phonics_scale_score'))||null,
-        phonicsSpring:   parseFloat(g(r,'Spring phonics scale score','spring_phonics_scale_score'))||null,
-        vocabBase:       parseFloat(g(r,'Base vocabulary scale score','base_vocabulary_scale_score'))||null,
-        vocabSpring:     parseFloat(g(r,'Spring vocabulary scale score','spring_vocabulary_scale_score'))||null,
-        readCompBase:    parseFloat(g(r,'Base reading comprehension overall scale score','base_reading_comprehension_overall_scale_score'))||null,
-        readCompSpring:  parseFloat(g(r,'Spring reading comprehension overall scale score','spring_reading_comprehension_overall_scale_score'))||null,
+        springScore:      parseFloat(g(r,'Spring overall scale score','spring_overall_scale_score'))||null,
+        springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
+        springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
+        springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
+        pctTypical:       parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth'))||null,
+        isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
       };
     }
 
-    // ── Live data fetch ──────────────────────────────────────────────────────
-    async function fetchLiveTab(gid, bust=false) {
-      const base = `https://docs.google.com/spreadsheets/d/e/${IRLAB_LIVE.BASE}/pub?output=csv`;
-      const url  = gid ? `${base}&gid=${gid}` : base;
-      const res  = await fetch(bust ? url + '&t=' + Date.now() : url, {signal: AbortSignal.timeout(8000)});
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.text();
-    }
+    // ── Data loading: embedded CSV strings (hardcoded or Data dept update) ──
+    function loadData() {
+      if (IRLAB_DATA.loaded) return;
 
-    async function loadLiveData() {
-      if (_irlLoading) return;
-      // ── Check NJTC_CACHE first ─────────────────────────────────────
-      if (_irlLastFetch === 0) {
-        const _ic = NJTC_CACHE.get('njtc_irlab_v1');
-        if (_ic && _ic.data) {
-          const d = _ic.data;
-          if (d.math)      IRLAB_DATA.math       = d.math;
-          if (d.ela)       IRLAB_DATA.ela        = d.ela;
-          if (d.mathRep)   IRLAB_DATA.mathRepeat = d.mathRep;
-          if (d.elaRep)    IRLAB_DATA.elaRepeat  = d.elaRep;
-          IRLAB_DATA.loaded = true;
-          _irlDataSrc = 'live';
-          _irlLastFetch = Date.now() - _ic.age;
-          updateLoadStatus(`✅ Cached i-Ready data · ${_ic.fresh ? 'Fresh' : 'Stale — refreshing…'}`);
-          renderLab();
-          if (_ic.fresh) return;  // skip network if still fresh
-        }
-      }
-      const now = Date.now();
-      if (now - _irlLastFetch < IRLAB_LIVE.CACHE_MS) return;
-      _irlLoading = true;
-      updateLoadStatus('🔄 Fetching live i-Ready data from Google Sheets…');
+      // 1. Try localStorage (Data dept uploaded update)
       try {
-        // Try to fetch default tab (Math), then detect others
-        const bust = _irlLastFetch > 0; // bust cache on force-refresh
-        const mathText = await fetchLiveTab(null, bust);
-        const mathRows = parseCSV(mathText).map(r=>normalizeRow(r,'Math'));
-
-        if (mathRows.length > 0) {
-          IRLAB_DATA.math = mathRows;
-          _irlDataSrc = 'live';
-          _irlLastFetch = now;
-          updateLoadStatus('✅ Live data loaded — Math tab');
-          // Write to NJTC_CACHE for instant reload next visit
-          try {
-            NJTC_CACHE.set('njtc_irlab_v1', {
-              math:    IRLAB_DATA.math.slice(0,4000),
-              ela:     IRLAB_DATA.ela.slice(0,4000),
-              mathRep: IRLAB_DATA.mathRepeat.slice(0,700),
-              elaRep:  IRLAB_DATA.elaRepeat.slice(0,700),
-            });
-          } catch(e) {}
-
-          // Try ELA with common GIDs (0-indexed tab positions)
-          for (const gid of [1,2,3,4,5,10,20,100]) {
-            try {
-              const elaText = await fetchLiveTab(gid);
-              const elaRows = parseCSV(elaText).map(r=>normalizeRow(r,'ELA'));
-              // Detect if it's ELA by checking for ELA-specific column or Subject
-              const isELA = elaRows.some(r=>r.subject==='ELA'||r.readCompBase!==null||r.phonicsBase!==null);
-              const isMath = elaRows.some(r=>r.numOpsBase!==null||r.algebraBase!==null);
-              if (isELA && !isMath) {
-                IRLAB_DATA.ela = elaRows;
-                updateLoadStatus('✅ Live data loaded — Math + ELA');
-                break;
-              } else if (elaRows.length > 0 && elaRows[0].subject === 'ELA') {
-                IRLAB_DATA.ela = elaRows;
-                break;
-              }
-            } catch(e) { /* try next */ }
-          }
-
-          IRLAB_DATA.liveLoaded = true;
+        const stored = JSON.parse(localStorage.getItem(EMBED_STORE_KEY) || 'null');
+        if (stored && stored.math && stored.math.length > 0) {
+          IRLAB_DATA.math       = stored.math;
+          IRLAB_DATA.ela        = stored.ela        || [];
+          IRLAB_DATA.mathRepeat = stored.mathRep    || [];
+          IRLAB_DATA.elaRepeat  = stored.elaRep     || [];
+          IRLAB_DATA.loaded     = true;
+          IRLAB_DATA.source     = 'Data dept update · ' + new Date(stored.ts).toLocaleDateString();
+          IRLAB_DATA.ts         = stored.ts;
+          return;
         }
-      } catch (err) {
-        console.warn('irlab live fetch failed:', err);
-        updateLoadStatus('⚠️ Live fetch failed — using embedded data');
-        _irlDataSrc = 'embedded';
-      } finally {
-        _irlLoading = false;
-        IRLAB_DATA.loaded = true;
-        renderLab();
-      }
-    }
+      } catch(e) {}
 
-    function updateLoadStatus(msg) {
-      const el = document.getElementById('irlabLoadStatus');
-      if (el) el.textContent = msg;
-    }
-
-    // ── Load embedded CSV data ───────────────────────────────────────────────
-    function loadEmbeddedData() {
-      // No embedded data — irlab uses live fetch exclusively.
-      // IRLAB_DATA.loaded is set by loadLiveData() after fetch completes.
-    }
-
-    // ── Data accessors ───────────────────────────────────────────────────────
-    function getRows(opts={}) {
-      const subject   = opts.subject   || _irlSubject;
-      const year      = opts.year      || _irlYear;
-      const district  = opts.district  || _irlDistrict;
-      const repeatOnly= opts.repeatOnly|| false;
-      let rows = [];
-      if (subject==='all'||subject==='Math') rows=rows.concat(repeatOnly?IRLAB_DATA.mathRepeat:IRLAB_DATA.math);
-      if (subject==='all'||subject==='ELA')  rows=rows.concat(repeatOnly?IRLAB_DATA.elaRepeat:IRLAB_DATA.ela);
-      if (year    !=='all') rows=rows.filter(r=>r.year===year);
-      if (district!=='all') rows=rows.filter(r=>r.district===district);
-      return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement);
-    }
-
-    function getAllRows(opts={}) {
-      // Returns ALL rows (not just valid pairs) for demographic/subgroup analysis
-      const subject   = opts.subject || _irlSubject;
-      const year      = opts.year    || _irlYear;
-      const district  = opts.district|| _irlDistrict;
-      let rows = [];
-      if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
-      if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
-      if (year    !=='all') rows=rows.filter(r=>r.year===year);
-      if (district!=='all') rows=rows.filter(r=>r.district===district);
-      return rows;
+      // 2. Fall back to hardcoded embedded CSV strings (set via embedData())
+      const panel = document.getElementById('panel-iready-lab');
+      if (!panel) return;
+      const mathRaw = panel.dataset.mathCsv    || '';
+      const elaRaw  = panel.dataset.elaCsv     || '';
+      const mRptRaw = panel.dataset.mathRepCsv || '';
+      const eRptRaw = panel.dataset.elaRepCsv  || '';
+      if (mathRaw) IRLAB_DATA.math       = parseCSV(mathRaw).map(r=>normalizeRow(r,'Math'));
+      if (elaRaw)  IRLAB_DATA.ela        = parseCSV(elaRaw).map(r=>normalizeRow(r,'ELA'));
+      if (mRptRaw) IRLAB_DATA.mathRepeat = parseCSV(mRptRaw).map(r=>normalizeRow(r,'Math'));
+      if (eRptRaw) IRLAB_DATA.elaRepeat  = parseCSV(eRptRaw).map(r=>normalizeRow(r,'ELA'));
+      IRLAB_DATA.loaded = true;
+      IRLAB_DATA.source = 'Embedded EOY data';
+      IRLAB_DATA.ts     = null;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -11469,53 +11341,43 @@
     const esc   = s    => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     const plIdx = p    => PLACEMENT_ORDER.indexOf(p);
     const isOnGL= p    => p==='Early On Grade Level'||p==='Mid or Above Grade Level';
-    const is2Bel= p    => p==='2 Grade Levels Below'||p==='3 or More Grade Levels Below';
-    const fmt   = n    => n!==null&&!isNaN(n)?n.toLocaleString():'—';
-    const fmtPct= (n,d)=> d>0?`${pct(n,d)}%`:'—';
-    const fmtAvg= arr  => arr.length?avg(arr.filter(v=>!isNaN(v)&&v!==null)).toFixed(1):'—';
+    const is2Below = p => p==='2 Grade Levels Below'||p==='3 or More Grade Levels Below';
+
+    function getRows(opts={}) {
+      const subject  = opts.subject  || _irlSubject;
+      const year     = opts.year     || _irlYear;
+      const district = opts.district || _irlDistrict;
+      let rows = [];
+      if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
+      if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
+      if (year    !=='all') rows=rows.filter(r=>r.year===year);
+      if (district!=='all') rows=rows.filter(r=>r.district===district);
+      return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&
+        PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+    }
 
     // ── Core analytics ───────────────────────────────────────────────────────
     function computeMetrics(rows) {
-      const valid = rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      if (!rows || !rows.length) return null;
+      const valid = rows.filter(r=>PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
       const n=valid.length; if (!n) return null;
-
       const moved   = valid.filter(r=>plIdx(r.springRelPlacement)>plIdx(r.baseRelPlacement));
       const held    = valid.filter(r=>plIdx(r.springRelPlacement)===plIdx(r.baseRelPlacement));
       const regress = valid.filter(r=>plIdx(r.springRelPlacement)<plIdx(r.baseRelPlacement));
-      const baseOnGL  = valid.filter(r=>isOnGL(r.baseRelPlacement));
-      const sprOnGL   = valid.filter(r=>isOnGL(r.springRelPlacement));
-      const base2Below= valid.filter(r=>is2Below(r.baseRelPlacement));
-      const spr2Below = valid.filter(r=>is2Below(r.springRelPlacement));
-      const gains     = valid.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
-      const typPcts   = valid.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
-      const metTyp    = typPcts.filter(v=>v>=1.0);
-
+      const baseOnGL = valid.filter(r=>isOnGL(r.baseRelPlacement));
+      const sprOnGL  = valid.filter(r=>isOnGL(r.springRelPlacement));
+      const base2Below = valid.filter(r=>is2Below(r.baseRelPlacement));
+      const spr2Below  = valid.filter(r=>is2Below(r.springRelPlacement));
+      const gains   = valid.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+      const typPcts = valid.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+      const metTyp  = typPcts.filter(v=>v>=1.0);
       const baseDist={},springDist={};
       PLACEMENT_ORDER.forEach(p=>{baseDist[p]=0;springDist[p]=0;});
       valid.forEach(r=>{
         if(baseDist[r.baseRelPlacement]!==undefined)baseDist[r.baseRelPlacement]++;
         if(springDist[r.springRelPlacement]!==undefined)springDist[r.springRelPlacement]++;
       });
-
-      // Group-by helpers
-      const groupBy = key => {
-        const m={};
-        valid.forEach(r=>{const k=r[key]||'Unknown';if(!m[k])m[k]=[];m[k].push(r);});
-        return m;
-      };
-      const byDistrict = groupBy('district');
-      const byGrade    = groupBy('grade');
-      const byCert     = groupBy('certStatus');
-      const bySchool   = groupBy('school');
-      const byYear     = groupBy('year');
-      const bySubject  = groupBy('subject');
-
-      // Demographics
-      const demog = computeDemographics(valid);
-
-      // Tutor profiles
-      const tutorMap = buildTutorMap(valid);
-
+      const groupBy = key=>{const m={};valid.forEach(r=>{const k=r[key]||'Unknown';if(!m[k])m[k]=[];m[k].push(r);});return m;};
       return {
         n, valid, moved, held, regress,
         baseOnGL, sprOnGL, base2Below, spr2Below,
@@ -11523,30 +11385,27 @@
         typPcts, metTyp, avgTyp: typPcts.length?avg(typPcts):null,
         metTypPct: typPcts.length?pct(metTyp.length,typPcts.length):null,
         baseDist, springDist,
-        byDistrict, byGrade, byCert, bySchool, byYear, bySubject,
-        demog, tutorMap,
-        pctMoved:  pct(moved.length,n),
-        pctHeld:   pct(held.length,n),
-        pctRegress:pct(regress.length,n),
-        pctOnGL:   pct(sprOnGL.length,n),
-        pct2Below: pct(spr2Below.length,n),
-        glGain:    sprOnGL.length-baseOnGL.length,
+        byDistrict: groupBy('district'), byGrade: groupBy('grade'),
+        byCert: groupBy('certStatus'),   bySubject: groupBy('subject'),
+        demog: computeDemographics(valid),
+        tutorMap: buildTutorMap(valid),
+        pctMoved: pct(moved.length,n), pctHeld: pct(held.length,n),
+        pctRegress: pct(regress.length,n), pctOnGL: pct(sprOnGL.length,n),
+        pct2Below: pct(spr2Below.length,n), glGain: sprOnGL.length-baseOnGL.length,
         below2Chg: spr2Below.length-base2Below.length,
       };
     }
 
     function computeDemographics(rows) {
-      const n=rows.length; if(!n) return null;
+      if (!rows.length) return null;
       const byRace={},bySex={},byHisp={},byELL={},bySped={},byEcoDis={};
-
       rows.forEach(r=>{
-        const race = r.race||'Not Provided';
-        const sex  = r.sex||'Not Provided';
-        const hisp = r.hispanic==='Y'?'Hispanic/Latino':r.hispanic==='N'?'Non-Hispanic':'Not Provided';
-        const ell  = r.ell==='Y'?'ELL':'Non-ELL';
-        const sped = r.sped==='Y'?'SPED':'Non-SPED';
-        const eco  = r.ecodis==='Y'?'Econ. Disadvantaged':'Not Identified';
-
+        const race=r.race||'Not Provided';
+        const sex =r.sex ||'Not Provided';
+        const hisp=r.hispanic==='Y'?'Hispanic/Latino':r.hispanic==='N'?'Non-Hispanic':'Not Provided';
+        const ell =r.ell ==='Y'?'ELL':'Non-ELL';
+        const sped=r.sped==='Y'?'SPED':'Non-SPED';
+        const eco =r.ecodis==='Y'?'Econ. Disadvantaged':'Not Identified';
         [byRace,bySex,byHisp,byELL,bySped,byEcoDis].forEach((obj,i)=>{
           const key=[race,sex,hisp,ell,sped,eco][i];
           if(!obj[key])obj[key]={total:0,moved:0,held:0,regressed:0,atGL:0,gain:[]};
@@ -11557,8 +11416,7 @@
           if(r.springGain!==null&&!isNaN(r.springGain))obj[key].gain.push(r.springGain);
         });
       });
-
-      return { byRace, bySex, byHisp, byELL, bySped, byEcoDis };
+      return {byRace,bySex,byHisp,byELL,bySped,byEcoDis};
     }
 
     function buildTutorMap(rows) {
@@ -11566,26 +11424,17 @@
       rows.forEach(r=>{
         r.tutors.forEach(tutor=>{
           if(!tutor) return;
-          if(!map[tutor])map[tutor]={
-            name:tutor, scholars:new Set(), records:[], certStatus:new Set(),
-            moved:0,held:0,regressed:0, gains:[], glCount:0,
-            districts:new Set(), schools:new Set(), years:new Set(), subjects:new Set(),
-          };
+          if(!map[tutor])map[tutor]={name:tutor,scholars:new Set(),records:[],certStatus:new Set(),moved:0,held:0,regressed:0,gains:[],glCount:0,districts:new Set(),years:new Set(),subjects:new Set()};
           const tp=map[tutor];
           tp.scholars.add(r.scholarId||r.scholarName);
-          tp.records.push(r);
-          tp.certStatus.add(r.certStatus);
-          tp.districts.add(r.district);
-          tp.schools.add(r.school);
-          tp.years.add(r.year);
-          tp.subjects.add(r.subject);
+          tp.records.push(r); tp.certStatus.add(r.certStatus);
+          tp.districts.add(r.district); tp.years.add(r.year); tp.subjects.add(r.subject);
           const mv=plIdx(r.springRelPlacement)-plIdx(r.baseRelPlacement);
           if(mv>0)tp.moved++;else if(mv<0)tp.regressed++;else tp.held++;
           if(isOnGL(r.springRelPlacement))tp.glCount++;
           if(r.springGain!==null&&!isNaN(r.springGain))tp.gains.push(r.springGain);
         });
       });
-      // Finalize
       Object.values(map).forEach(tp=>{
         tp.scholarCount=tp.scholars.size;
         tp.total=tp.moved+tp.held+tp.regressed;
@@ -11598,146 +11447,255 @@
     }
 
     // ── Render helpers ───────────────────────────────────────────────────────
-    function renderBar(pct, color, h=8) {
-      return `<div style="height:${h}px;background:var(--border-2);border-radius:4px;overflow:hidden;flex:1">
-        <div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:4px;transition:width .5s"></div>
-      </div>`;
-    }
-
-    function renderMovementPill(pctMv, pctRg) {
-      const cls = pctMv>=60?'#0d6e3a':pctMv>=40?'#d97706':'#b91c1c';
-      return `<span style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:${cls};font-weight:700">${pctMv}%</span>`;
-    }
-
-    function subgroupTable(groups, title, rows_fn) {
-      const rows = rows_fn(groups);
-      if(!rows) return '';
-      return `<div style="margin-bottom:1.5rem">
-        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">${title}</div>
-        <table class="irlab-rank-table" style="font-size:.8rem">
-          <thead><tr><th>Group</th><th style="text-align:center">Scholars</th><th style="text-align:center">Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg Gain</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-    }
-
     function demogRows(obj) {
-      if (!obj) return '';
+      if(!obj) return '';
       return Object.entries(obj).sort((a,b)=>b[1].total-a[1].total).map(([label,d])=>{
-        if(!d.total||label==='Not Provided'&&d.total<5) return '';
+        if(!d.total) return '';
+        if((label==='Not Provided'||label==='Non-ELL'||label==='Non-SPED')&&d.total<10) return '';
         const mv=pct(d.moved,d.total), gl=pct(d.atGL,d.total);
         const col=mv>=55?'#0d6e3a':mv>=35?'#d97706':'#b91c1c';
         const ag=d.gain.length?avg(d.gain).toFixed(1):'—';
-        return `<tr>
-          <td style="font-weight:600;color:var(--navy)">${esc(label)}</td>
+        return `<tr><td style="font-weight:600;color:var(--navy)">${esc(label)}</td>
           <td style="text-align:center">${d.total}</td>
           <td style="text-align:center;font-weight:700;color:${col}">${mv}%</td>
           <td style="text-align:center;font-weight:700;color:${gl>=50?'#0d6e3a':gl>=25?'#d97706':'#b91c1c'}">${gl}%</td>
-          <td style="text-align:center;color:var(--blue-mid);font-weight:600">${ag!=='—'?'+'+ag:'—'}</td>
-        </tr>`;
+          <td style="text-align:center;color:var(--blue-mid);font-weight:600">${ag!=='—'?'+'+ag:'—'}</td></tr>`;
       }).join('');
+    }
+
+    function subgroupTable(groups, title) {
+      const rows = demogRows(groups);
+      if (!rows) return '';
+      return `<div style="margin-bottom:1.5rem">
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">${title}</div>
+        <table class="irlab-rank-table" style="font-size:.8rem">
+          <thead><tr><th>Group</th><th style="text-align:center">N</th><th style="text-align:center">Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg Gain</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+    }
+
+    function renderBar(val, color) {
+      return `<div style="display:flex;align-items:center;gap:.5rem">
+        <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="width:${Math.min(val,100)}%;height:100%;background:${color};border-radius:3px"></div>
+        </div>
+        <span style="font-weight:700;color:${color};font-size:.75rem;min-width:32px">${val}%</span>
+      </div>`;
+    }
+
+    function renderPlacementShift(m) {
+      return `<table class="irlab-rank-table">
+        <thead><tr><th>Placement Level</th><th style="text-align:right">Base</th><th style="text-align:right">Spring</th><th style="text-align:center">Change</th></tr></thead>
+        <tbody>${PLACEMENT_ORDER.map(p=>{
+          const b=m.baseDist[p]||0, s=m.springDist[p]||0, c=s-b;
+          const cs=c>0?`<span style="color:#0d6e3a;font-weight:700">+${c}</span>`:c<0?`<span style="color:#b91c1c;font-weight:700">${c}</span>`:`<span style="color:var(--muted)">—</span>`;
+          return `<tr><td style="color:${PLC[p]};font-weight:600">${PLC_SHORT[p]}</td><td style="text-align:right;font-weight:600">${b}</td><td style="text-align:right;font-weight:600">${s}</td><td style="text-align:center">${cs}</td></tr>`;
+        }).join('')}</tbody></table>`;
+    }
+
+    // ── DATA DEPT: Embedded CSV Update Panel ─────────────────────────────────
+    function renderDataUpdatePanel() {
+      const stored = (() => { try { return JSON.parse(localStorage.getItem(EMBED_STORE_KEY)||'null'); } catch(e){return null;} })();
+      const lastUpdate = stored ? new Date(stored.ts).toLocaleString() : null;
+      const rowCounts  = stored ? `Math: ${(stored.math||[]).length} rows · ELA: ${(stored.ela||[]).length} rows · Math Repeat: ${(stored.mathRep||[]).length} rows · ELA Repeat: ${(stored.elaRep||[]).length} rows` : 'No update stored';
+
+      return `
+        <div class="irlab-card" style="border:2px solid #7b2d8b;margin-bottom:1.25rem">
+          <div class="irlab-card-hd" style="background:#f5edfb;border-bottom-color:#e9d5f7">
+            <div>
+              <div class="irlab-card-title" style="color:#7b2d8b">🔬 Data & Eval — Embedded Data Manager</div>
+              <div class="irlab-card-meta">Upload new CSVs to update all department views · Stored locally · No server required</div>
+            </div>
+            ${lastUpdate ? `<span style="font-size:.75rem;background:#ede9fe;color:#6d28d9;padding:.3rem .75rem;border-radius:12px;font-weight:600">Last updated: ${lastUpdate}</span>` : '<span style="font-size:.75rem;background:#fef3c7;color:#92400e;padding:.3rem .75rem;border-radius:12px;font-weight:600">Using embedded EOY data</span>'}
+          </div>
+          <div class="irlab-card-body">
+
+            <!-- Status strip -->
+            <div style="background:${stored?'#f0fdf4':'#fffbeb'};border:1px solid ${stored?'#86efac':'#fde68a'};border-radius:8px;padding:.75rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;display:flex;align-items:center;gap:.75rem">
+              <span style="font-size:1.25rem">${stored?'✅':'📦'}</span>
+              <div>
+                <div style="font-weight:700;color:var(--navy)">${stored ? 'Custom dataset active' : 'Embedded EOY data active'}</div>
+                <div style="color:var(--muted)">${rowCounts}</div>
+              </div>
+              ${stored ? `<button onclick="irlab.clearEmbedded()" style="margin-left:auto;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:6px;padding:.375rem .875rem;font-size:.75rem;font-weight:600;cursor:pointer">↩ Revert to EOY</button>` : ''}
+            </div>
+
+            <!-- How it works -->
+            <div style="background:var(--surface-2);border-radius:8px;padding:.875rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;color:var(--text-2);line-height:1.6">
+              <strong style="color:var(--navy)">How this works:</strong> Upload 1–4 i-Ready CSV exports below.
+              Data is parsed locally in your browser and saved to <em>this device's</em> localStorage.
+              All department views (Leadership, Programming, HR, Finance) will immediately reflect the new data.
+              To share an update with others, each user must re-upload on their device, <strong>or</strong> use the Quick CSV tab for a session-only view.
+            </div>
+
+            <!-- Upload grid: 4 CSV slots -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+              ${[
+                {key:'math',    label:'Math (Longitudinal)',      icon:'➗', required:true,  desc:'Main Math diagnostic data'},
+                {key:'ela',     label:'ELA (Longitudinal)',       icon:'📖', required:true,  desc:'Main ELA diagnostic data'},
+                {key:'mathRep', label:'Math Repeat Scholars',     icon:'🔁', required:false, desc:'YOY cohort — optional'},
+                {key:'elaRep',  label:'ELA Repeat Scholars',      icon:'🔁', required:false, desc:'YOY cohort — optional'},
+              ].map(slot => {
+                const hasData = stored && (stored[slot.key]||[]).length > 0;
+                const rowCount = hasData ? (stored[slot.key]||[]).length : 0;
+                return `<div class="irlab-upload-slot" id="irlabSlot_${slot.key}">
+                  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+                    <span style="font-size:1rem">${slot.icon}</span>
+                    <span style="font-weight:700;font-size:.875rem;color:var(--navy)">${slot.label}</span>
+                    ${slot.required ? '<span style="font-size:.625rem;background:#fef3c7;color:#92400e;padding:.1rem .4rem;border-radius:8px;font-weight:700">REQUIRED</span>' : '<span style="font-size:.625rem;background:var(--surface-3);color:var(--muted);padding:.1rem .4rem;border-radius:8px">OPTIONAL</span>'}
+                  </div>
+                  <div style="font-size:.75rem;color:var(--muted);margin-bottom:.5rem">${slot.desc}</div>
+                  ${hasData
+                    ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:.375rem .625rem;font-size:.75rem;color:#166534;font-weight:600;margin-bottom:.375rem">✅ ${rowCount} rows loaded</div>`
+                    : `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:.375rem .625rem;font-size:.75rem;color:var(--muted);margin-bottom:.375rem">No data loaded</div>`
+                  }
+                  <label style="display:block;cursor:pointer">
+                    <input type="file" accept=".csv" style="display:none" onchange="irlab.handleEmbedUpload('${slot.key}', this)">
+                    <span style="display:inline-flex;align-items:center;gap:.375rem;background:var(--surface);border:1.5px solid var(--border);border-radius:6px;padding:.375rem .875rem;font-size:.8125rem;font-weight:600;color:var(--navy);cursor:pointer;transition:all .15s" onmouseover="this.style.borderColor='#7b2d8b'" onmouseout="this.style.borderColor=''">
+                      📂 ${hasData ? 'Replace CSV' : 'Upload CSV'}
+                    </span>
+                  </label>
+                </div>`;
+              }).join('')}
+            </div>
+
+            <!-- Apply button -->
+            <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+              <button id="irlabApplyBtn" onclick="irlab.applyEmbeddedUpdate()" style="background:#7b2d8b;color:#fff;border:none;border-radius:8px;padding:.625rem 1.5rem;font-size:.875rem;font-weight:700;cursor:pointer;opacity:.5" disabled>
+                ✅ Apply & Refresh All Views
+              </button>
+              <span id="irlabApplyStatus" style="font-size:.8125rem;color:var(--muted)"></span>
+            </div>
+
+            <div style="margin-top:1rem;padding:.75rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:.75rem;color:#1e40af">
+              <strong>💡 Tip:</strong> After applying, all department tabs will immediately show the new data.
+              The update persists on this device until you revert or upload again.
+              Other users see the embedded EOY data until they upload on their own device.
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ── Staged upload state for Data dept ────────────────────────────────────
+    const _staged = { math:null, ela:null, mathRep:null, elaRep:null };
+
+    function handleEmbedUpload(key, input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const text = e.target.result;
+        const rawRows = parseCSV(text);
+        if (!rawRows.length) {
+          alert('Could not parse CSV — check format.');
+          return;
+        }
+        // Detect subject from filename or content
+        const isELA = file.name.toLowerCase().includes('ela') ||
+          Object.keys(rawRows[0]||{}).some(k=>k.toLowerCase().includes('phonics')||k.toLowerCase().includes('vocabulary'));
+        const subject = (key==='ela'||key==='elaRep') ? 'ELA' : isELA ? 'ELA' : 'Math';
+        const normalized = rawRows.map(r => normalizeRow(r, subject));
+        _staged[key] = normalized;
+
+        // Update slot UI
+        const slot = document.getElementById('irlabSlot_' + key);
+        if (slot) {
+          const statusEl = slot.querySelector('div[style*="border-radius:6px"]');
+          if (statusEl) {
+            statusEl.style.background='#eff6ff'; statusEl.style.borderColor='#93c5fd'; statusEl.style.color='#1e40af';
+            statusEl.textContent = `📋 ${normalized.length} rows staged — click Apply`;
+          }
+        }
+
+        // Enable apply button if at least math is staged or already stored
+        const canApply = _staged.math || _staged.ela ||
+          (() => { try { const s=JSON.parse(localStorage.getItem(EMBED_STORE_KEY)||'null'); return s&&s.math&&s.math.length; } catch(e){return false;} })();
+        const btn = document.getElementById('irlabApplyBtn');
+        const status = document.getElementById('irlabApplyStatus');
+        if (btn) { btn.disabled = !canApply; btn.style.opacity = canApply ? '1' : '.5'; }
+        if (status) status.textContent = `${Object.values(_staged).filter(Boolean).length} file(s) staged`;
+      };
+      reader.readAsText(file);
+    }
+
+    function applyEmbeddedUpdate() {
+      // Merge staged with existing stored
+      let existing = { math:[], ela:[], mathRep:[], elaRep:[], ts:null };
+      try { existing = JSON.parse(localStorage.getItem(EMBED_STORE_KEY)||'null') || existing; } catch(e) {}
+
+      const merged = {
+        ts:      Date.now(),
+        math:    _staged.math    || existing.math    || [],
+        ela:     _staged.ela     || existing.ela      || [],
+        mathRep: _staged.mathRep || existing.mathRep  || [],
+        elaRep:  _staged.elaRep  || existing.elaRep   || [],
+      };
+
+      try {
+        localStorage.setItem(EMBED_STORE_KEY, JSON.stringify(merged));
+      } catch(e) {
+        alert('Storage quota exceeded. Try reducing the CSV files (remove extra columns, limit to current SY).');
+        return;
+      }
+
+      // Reset IRLAB_DATA and reload
+      Object.assign(IRLAB_DATA, {math:[],ela:[],mathRepeat:[],elaRepeat:[],loaded:false,source:null,ts:null});
+      _staged.math=null; _staged.ela=null; _staged.mathRep=null; _staged.elaRep=null;
+      loadData();
+
+      const status = document.getElementById('irlabApplyStatus');
+      if (status) status.textContent = '✅ Applied! Refreshing…';
+      setTimeout(() => {
+        _irlMode = 'embedded';
+        renderLab();
+      }, 300);
+    }
+
+    function clearEmbedded() {
+      if (!confirm('Revert to original embedded EOY data? Your uploaded dataset will be removed from this device.')) return;
+      try { localStorage.removeItem(EMBED_STORE_KEY); } catch(e) {}
+      Object.assign(IRLAB_DATA, {math:[],ela:[],mathRepeat:[],elaRepeat:[],loaded:false,source:null,ts:null});
+      loadData();
+      renderLab();
     }
 
     // ── SCHOLAR DRILL-DOWN ───────────────────────────────────────────────────
     function renderScholarDrill(scholarName) {
       const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela,...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
-      // Match by name (case-insensitive, trim)
       const sName = scholarName.trim().toLowerCase();
-      const records = allRows.filter(r=>{
-        const rn = (r.scholarName||'').trim().toLowerCase();
-        return rn===sName;
-      });
+      const records = allRows.filter(r=>(r.scholarName||'').trim().toLowerCase()===sName);
+      if (!records.length) return `<div class="irlab-empty" style="padding:2rem">
+        <div class="irlab-empty-icon">🔍</div>
+        <div class="irlab-empty-title">Scholar not found</div>
+        <div class="irlab-empty-sub">No records found for "${esc(scholarName)}"</div>
+        <button class="btn btn-secondary" style="margin-top:1rem" onclick="irlab.closeDrill()">← Back</button></div>`;
 
-      if (!records.length) {
-        return `<div class="irlab-empty" style="padding:2rem">
-          <div class="irlab-empty-icon">🔍</div>
-          <div class="irlab-empty-title">Scholar not found</div>
-          <div class="irlab-empty-sub">No records found for "${esc(scholarName)}"</div>
-          <button class="btn btn-secondary" style="margin-top:1rem" onclick="irlab.closeDrill()">← Back</button>
-        </div>`;
-      }
-
-      // Sort by year then subject
-      records.sort((a,b)=>{
-        if(a.year<b.year)return -1; if(a.year>b.year)return 1;
-        return a.subject.localeCompare(b.subject);
-      });
-
+      records.sort((a,b)=>(a.year>b.year?1:-1)||(a.subject>b.subject?1:-1));
       const latest = records[records.length-1];
-      const name   = latest.scholarName||scholarName;
-      const race   = latest.race||'Not Provided';
-      const sex    = latest.sex||'Not Provided';
-      const hisp   = latest.hispanic==='Y'?'Hispanic/Latino':latest.hispanic==='N'?'Non-Hispanic':'—';
-      const ell    = latest.ell==='Y'?'ELL':'—';
-      const sped   = latest.sped==='Y'?'SPED':'—';
-      const eco    = latest.ecodis==='Y'?'Econ. Disadvantaged':'—';
-
       const histRows = records.map(r=>{
         const mv=plIdx(r.springRelPlacement)-plIdx(r.baseRelPlacement);
         const mvStr=mv>0?`<span style="color:#0d6e3a;font-weight:700">▲ +${mv}</span>`:mv<0?`<span style="color:#b91c1c;font-weight:700">▼ ${mv}</span>`:`<span style="color:var(--muted)">→ 0</span>`;
         const sprCol=PLC[r.springRelPlacement]||'var(--muted)';
-        const gainStr=r.springGain!==null?`+${r.springGain.toFixed(0)}`:'—';
-        const tutorStr=r.tutors.length?r.tutors.map(t=>`<span style="font-size:.75rem;background:var(--surface-2);padding:.1rem .4rem;border-radius:4px;border:1px solid var(--border)">${esc(t)}</span>`).join(' '):'<span style="color:var(--muted)">—</span>';
-        return `<tr>
-          <td><strong style="color:var(--navy)">${esc(r.year)}</strong></td>
-          <td>${esc(r.subject)}</td>
+        const tutorStr=r.tutors.length?r.tutors.map(t=>`<span style="font-size:.7rem;background:var(--surface-2);padding:.1rem .35rem;border-radius:4px;border:1px solid var(--border)">${esc(t)}</span>`).join(' '):'—';
+        return `<tr><td><strong>${esc(r.year)}</strong></td><td>${esc(r.subject)}</td>
           <td style="font-size:.75rem;color:var(--muted)">${esc(r.baseRelPlacement||'—')}</td>
           <td><span style="color:${sprCol};font-weight:600">${esc(r.springRelPlacement||'—')}</span></td>
-          <td>${mvStr}</td>
-          <td style="color:var(--blue-mid);font-weight:600">${gainStr}</td>
-          <td style="font-size:.75rem">${tutorStr}</td>
-          <td style="font-size:.75rem;color:var(--muted)">${esc(r.school)}</td>
-        </tr>`;
+          <td>${mvStr}</td><td style="color:var(--blue-mid);font-weight:600">${r.springGain!==null?'+'+r.springGain.toFixed(0):'—'}</td>
+          <td style="font-size:.75rem">${tutorStr}</td><td style="font-size:.75rem;color:var(--muted)">${esc(r.school)}</td></tr>`;
       }).join('');
 
-      // GL trajectory
-      const yearsELA  = records.filter(r=>r.subject==='ELA').sort((a,b)=>a.year>b.year?1:-1);
-      const yearsMath = records.filter(r=>r.subject==='Math').sort((a,b)=>a.year>b.year?1:-1);
-      const trendCards = [
-        { label:'Math', items:yearsMath, color:'#0050c8' },
-        { label:'ELA',  items:yearsELA,  color:'#7b2d8b' },
-      ].filter(x=>x.items.length).map(({label,items,color})=>`
-        <div style="background:var(--surface);border:1.5px solid ${color}22;border-radius:10px;padding:.875rem 1rem">
-          <div style="font-size:.75rem;font-weight:700;color:${color};margin-bottom:.5rem">${label} Trajectory</div>
-          <div style="display:flex;align-items:center;gap:.375rem;flex-wrap:wrap">
-            ${items.map((r,i)=>{
-              const sprCol=PLC[r.springRelPlacement]||'var(--muted)';
-              return `${i>0?'<span style="color:var(--muted)">→</span>':''}
-                <div style="text-align:center">
-                  <div style="font-size:.625rem;color:var(--muted)">${r.year.replace('20','')}</div>
-                  <div style="font-size:.75rem;font-weight:700;color:${sprCol};background:${sprCol}15;padding:.2rem .5rem;border-radius:4px">${PLC_SHORT[r.springRelPlacement]||r.springRelPlacement}</div>
-                </div>`;
-            }).join('')}
-          </div>
-        </div>`).join('');
-
-      return `
-        <div style="margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.closeDrill()">← Back to Analysis</button>
-          <span class="irlab-window-badge">Scholar Profile</span>
-          <span style="font-size:.875rem;color:var(--muted)">${records.length} record${records.length>1?'s':''} found</span>
-        </div>
-
-        <div class="irlab-card" style="margin-bottom:1rem">
+      return `<div style="margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.closeDrill()">← Back</button>
+        <span class="irlab-window-badge">Scholar Profile</span></div>
+        <div class="irlab-card">
           <div class="irlab-card-hd">
-            <div class="irlab-card-title">👤 ${esc(name)}</div>
+            <div class="irlab-card-title">👤 ${esc(latest.scholarName||scholarName)}</div>
             <div class="irlab-card-meta">Grade ${esc(latest.grade||'?')} · ${esc(latest.district)} · ${esc(latest.school)}</div>
           </div>
           <div class="irlab-card-body">
-            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.25rem">
-              <div style="display:flex;flex-direction:column;gap:.375rem;font-size:.8125rem;min-width:200px">
-                ${[['Race/Ethnicity',race],['Sex',sex],['Hispanic/Latino',hisp],['ELL',ell],['Special Ed.',sped],['Econ. Disadvantaged',eco]].map(([l,v])=>`
-                  <div style="display:flex;gap:.5rem;align-items:baseline">
-                    <span style="color:var(--muted);min-width:130px">${l}:</span>
-                    <span style="font-weight:600;color:var(--navy)">${esc(v||'—')}</span>
-                  </div>`).join('')}
-              </div>
-              <div style="flex:1;min-width:240px">
-                ${trendCards || '<p style="color:var(--muted);font-size:.875rem">No trajectory data</p>'}
-              </div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;font-size:.8125rem">
+              ${[['Race',latest.race||'—'],['Sex',latest.sex||'—'],['Hispanic',latest.hispanic==='Y'?'Yes':latest.hispanic==='N'?'No':'—'],['ELL',latest.ell==='Y'?'Yes':'—'],['SPED',latest.sped==='Y'?'Yes':'—'],['EcoDis',latest.ecodis==='Y'?'Yes':'—']].map(([l,v])=>`<div><span style="color:var(--muted)">${l}: </span><strong>${esc(v)}</strong></div>`).join('')}
             </div>
-
-            <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Diagnostic History</div>
             <div style="overflow-x:auto">
               <table class="irlab-rank-table">
                 <thead><tr><th>Year</th><th>Subject</th><th>Baseline</th><th>Spring</th><th>Δ Level</th><th>Scale Gain</th><th>Instructor(s)</th><th>School</th></tr></thead>
@@ -11750,37 +11708,22 @@
 
     // ── TUTOR DRILL-DOWN ─────────────────────────────────────────────────────
     function renderTutorDrill(tutorName, dept) {
-      // Tutor drill-down hidden from Data dept
-      if (dept === 'data') {
-        return `<div class="irlab-empty" style="padding:2rem">
-          <div class="irlab-empty-icon">🔒</div>
-          <div class="irlab-empty-title">Tutor profiles not available in Data view</div>
-          <div class="irlab-empty-sub">Individual tutor drill-downs are available in Leadership, Programming, HR, and Finance views.</div>
-          <button class="btn btn-secondary" style="margin-top:1rem" onclick="irlab.closeDrill()">← Back</button>
-        </div>`;
-      }
+      if (dept==='data') return `<div class="irlab-empty" style="padding:2rem">
+        <div class="irlab-empty-icon">🔒</div>
+        <div class="irlab-empty-title">Tutor profiles not available in Data & Eval view</div>
+        <button class="btn btn-secondary" style="margin-top:1rem" onclick="irlab.closeDrill()">← Back</button></div>`;
 
-      const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela,...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
-      const tName = tutorName.trim().toLowerCase();
-
-      // Match tutor records — handle multi-tutor comma fields, abbreviations, middle initials
-      const records = allRows.filter(r=>{
+      const allRows=[...IRLAB_DATA.math,...IRLAB_DATA.ela,...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
+      const tName=tutorName.trim().toLowerCase();
+      const records=allRows.filter(r=>{
         if(!r.instructor) return false;
-        const tutors = r.instructor.split(',').map(n=>n.trim().toLowerCase());
-        return tutors.some(t=>{
+        return r.instructor.split(',').map(n=>n.trim().toLowerCase()).some(t=>{
           if(t===tName) return true;
-          // Fuzzy match: same last name + first initial
-          const tParts=t.split(' '), nParts=tName.split(' ');
-          if(tParts.length>=2&&nParts.length>=2){
-            const sameLastName=tParts[tParts.length-1]===nParts[nParts.length-1];
-            const firstMatch=tParts[0][0]===nParts[0][0];
-            if(sameLastName&&firstMatch) return true;
-          }
-          return false;
+          const tp=t.split(' '), np=tName.split(' ');
+          return tp.length>=2&&np.length>=2&&tp[tp.length-1]===np[np.length-1]&&tp[0][0]===np[0][0];
         });
       });
 
-      // Group by scholar
       const scholarMap={};
       records.forEach(r=>{
         const sid=r.scholarId||r.scholarName;
@@ -11788,187 +11731,50 @@
         scholarMap[sid].records.push(r);
       });
 
-      const tutorRecords = records.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
-      const n=tutorRecords.length;
-      const moved  =tutorRecords.filter(r=>plIdx(r.springRelPlacement)>plIdx(r.baseRelPlacement));
-      const held   =tutorRecords.filter(r=>plIdx(r.springRelPlacement)===plIdx(r.baseRelPlacement));
-      const regress=tutorRecords.filter(r=>plIdx(r.springRelPlacement)<plIdx(r.baseRelPlacement));
-      const atGL   =tutorRecords.filter(r=>isOnGL(r.springRelPlacement));
-      const gains  =tutorRecords.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
-      const certSet=[...new Set(records.map(r=>r.certStatus).filter(Boolean))];
-      const years  =[...new Set(records.map(r=>r.year).filter(Boolean))].sort();
-      const districts=[...new Set(records.map(r=>r.district).filter(Boolean))].sort();
-
-      // Confidence note for multi-tutor records
+      const validRecs=records.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      const n=validRecs.length;
+      const moved=validRecs.filter(r=>plIdx(r.springRelPlacement)>plIdx(r.baseRelPlacement));
+      const atGL=validRecs.filter(r=>isOnGL(r.springRelPlacement));
+      const regress=validRecs.filter(r=>plIdx(r.springRelPlacement)<plIdx(r.baseRelPlacement));
+      const gains=validRecs.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
       const multiRecs=records.filter(r=>r.tutors.length>1);
-      const multiNote=multiRecs.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem">
-        <strong>⚠️ Attribution note:</strong> ${multiRecs.length} records list multiple tutors (e.g., "${esc(multiRecs[0].instructor.substring(0,60))}…"). Academic outcomes for these scholars cannot be attributed to a single tutor with certainty. All linked tutors receive credit. Treat as observational context only.
-      </div>`:'';
-
-      // Scholar list
-      const scholarRows = Object.values(scholarMap).slice(0,50).map(s=>{
-        const validRecs=s.records.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
-        if(!validRecs.length) return '';
-        const last=validRecs[validRecs.length-1];
-        const mv=plIdx(last.springRelPlacement)-plIdx(last.baseRelPlacement);
-        const mvStr=mv>0?`<span style="color:#0d6e3a">▲</span>`:mv<0?`<span style="color:#b91c1c">▼</span>`:`<span style="color:var(--muted)">→</span>`;
-        const sprCol=PLC[last.springRelPlacement]||'var(--muted)';
-        return `<tr>
-          <td><button onclick="irlab.drillScholar('${esc(s.name||s.id)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(s.name||s.id)}</button></td>
-          <td style="font-size:.75rem;color:var(--muted)">${esc(last.school)}</td>
-          <td style="font-size:.75rem">${esc(last.year)} ${esc(last.subject)}</td>
-          <td style="font-size:.75rem;color:var(--muted)">${esc(last.baseRelPlacement)}</td>
-          <td style="font-size:.75rem;color:${sprCol};font-weight:600">${esc(last.springRelPlacement)}</td>
-          <td style="text-align:center">${mvStr}</td>
-        </tr>`;
-      }).join('');
 
       const matchNote=records.length===0?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.875rem;margin-bottom:1rem;font-size:.8125rem;color:#991b1b">
-        <strong>🔍 No exact match found.</strong> Academic data may be available under a variation of this name (abbreviations, middle initials). Search: "${esc(tutorName)}"
-      </div>`:'';
+        <strong>🔍 No exact match.</strong> Academic data may exist under a name variation (initials, abbreviations). Searched: "${esc(tutorName)}"</div>`:'';
+      const multiNote=multiRecs.length?`<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem">
+        <strong>⚠️ Attribution:</strong> ${multiRecs.length} records list multiple tutors. Outcomes are shared across all listed tutors — not attributable to one tutor alone.</div>`:'';
 
-      return `
-        <div style="margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-          <button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.closeDrill()">← Back to Analysis</button>
-          <span class="irlab-window-badge">Tutor Profile</span>
-        </div>
+      const scholarRows=Object.values(scholarMap).slice(0,50).map(s=>{
+        const vr=s.records.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+        if(!vr.length) return '';
+        const last=vr[vr.length-1];
+        const mv=plIdx(last.springRelPlacement)-plIdx(last.baseRelPlacement);
+        const mvStr=mv>0?`<span style="color:#0d6e3a">▲</span>`:mv<0?`<span style="color:#b91c1c">▼</span>`:`<span style="color:var(--muted)">→</span>`;
+        return `<tr><td><button onclick="irlab.drillScholar('${esc(s.name||s.id)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(s.name||s.id)}</button></td>
+          <td style="font-size:.75rem;color:var(--muted)">${esc(last.school)}</td><td style="font-size:.75rem">${esc(last.year)} ${esc(last.subject)}</td>
+          <td style="font-size:.75rem;color:${PLC[last.springRelPlacement]||'var(--muted)'};font-weight:600">${esc(last.springRelPlacement||'—')}</td>
+          <td style="text-align:center">${mvStr}</td></tr>`;
+      }).join('');
 
-        ${matchNote}
-        ${multiNote}
-
-        <div class="irlab-card" style="margin-bottom:1rem">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title">👩‍🏫 ${esc(tutorName)}</div>
-            <div class="irlab-card-meta">${certSet.join(' / ')} · ${years.join(', ')} · ${districts.join(', ')}</div>
-          </div>
+      return `<div style="margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.closeDrill()">← Back</button>
+        <span class="irlab-window-badge">Tutor Profile</span></div>
+        ${matchNote}${multiNote}
+        <div class="irlab-card">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 ${esc(tutorName)}</div></div>
           <div class="irlab-card-body">
             <div class="irlab-stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:1.25rem">
-              <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${Object.keys(scholarMap).length}</div><div class="irlab-stat-lbl">Scholars Linked</div></div>
+              <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${Object.keys(scholarMap).length}</div><div class="irlab-stat-lbl">Scholars</div></div>
               <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${n>0?pct(moved.length,n):0}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${moved.length} of ${n}</div></div>
-              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${n>0?pct(atGL.length,n):0}%</div><div class="irlab-stat-lbl">At Grade Level</div><div class="irlab-stat-sub">Spring placement</div></div>
-              <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${n>0?pct(regress.length,n):0}%</div><div class="irlab-stat-lbl">Regressed</div><div class="irlab-stat-sub">${regress.length} scholars</div></div>
-              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${gains.length?'+'+avg(gains).toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
+              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${n>0?pct(atGL.length,n):0}%</div><div class="irlab-stat-lbl">At Grade Level</div></div>
+              <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${n>0?pct(regress.length,n):0}%</div><div class="irlab-stat-lbl">Regressed</div></div>
+              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${gains.length?'+'+avg(gains).toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Gain</div></div>
             </div>
-
-            <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Linked Scholars (${Math.min(Object.keys(scholarMap).length,50)} shown)</div>
             <div style="overflow-x:auto">
               <table class="irlab-rank-table">
-                <thead><tr><th>Scholar</th><th>School</th><th>Year / Subject</th><th>Baseline</th><th>Spring</th><th style="text-align:center">Δ</th></tr></thead>
-                <tbody>${scholarRows||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:1.5rem">No valid diagnostic pairs found</td></tr>'}</tbody>
+                <thead><tr><th>Scholar</th><th>School</th><th>Year/Subject</th><th>Spring Placement</th><th style="text-align:center">Δ</th></tr></thead>
+                <tbody>${scholarRows||'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1.5rem">No valid pairs found</td></tr>'}</tbody>
               </table>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    // ── LEADERSHIP EXECUTIVE SNAPSHOT ────────────────────────────────────────
-    function renderLeadershipSnapshot(m) {
-      if(!m) return '<div class="irlab-empty"><div class="irlab-empty-icon">📊</div><div class="irlab-empty-title">Insufficient data</div></div>';
-
-      const headline = m.pctMoved>=60
-        ? `<span style="color:#0d6e3a">Strong academic momentum</span> — ${m.pctMoved}% of scholars improved placement`
-        : m.pctMoved>=40
-          ? `<span style="color:#d97706">Moderate movement</span> — ${m.pctMoved}% of scholars moved up`
-          : `<span style="color:#b91c1c">Acceleration needed</span> — ${m.pctMoved}% placement improvement rate`;
-
-      // Top and bottom districts
-      const distList = Object.entries(m.byDistrict).map(([d,rows])=>{
-        const dm=computeMetrics(rows); return dm?{name:d,...dm}:null;
-      }).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
-
-      const stars = distList.slice(0,3).map(d=>
-        `<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:.375rem">
-          <span style="font-size:1.125rem">⭐</span>
-          <div><div style="font-weight:700;color:#166534;font-size:.875rem">${esc(d.name)}</div>
-          <div style="font-size:.75rem;color:#166534">${d.pctMoved}% moved up · ${d.pctOnGL}% at GL · +${d.avgGain?.toFixed(1)||'—'} avg gain</div></div>
-        </div>`).join('');
-
-      const watchList = distList.slice(-3).reverse().map(d=>
-        `<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:.375rem">
-          <span style="font-size:1.125rem">🔍</span>
-          <div><div style="font-weight:700;color:#991b1b;font-size:.875rem">${esc(d.name)}</div>
-          <div style="font-size:.75rem;color:#991b1b">${d.pctMoved}% moved up · ${d.pctOnGL}% at GL · ${d.n} scholars</div></div>
-        </div>`).join('');
-
-      // Key funder metrics
-      const funderMetrics = [
-        { icon:'🎯', val:`${m.pctOnGL}%`, label:'Scholars at/near grade level (spring)', color:'#0d6e3a' },
-        { icon:'📈', val:`${m.pctMoved}%`, label:'Placement improvement rate', color:'#0050c8' },
-        { icon:'📉', val:`${m.pct2Below}%`, label:'Still 2+ grade levels below', color:'#b91c1c' },
-        { icon:'📐', val:m.avgGain!==null?`+${m.avgGain.toFixed(1)}`:'—', label:'Avg scale score gain', color:'#d97706' },
-        { icon:'📊', val:m.metTypPct!==null?`${m.metTypPct}%`:'—', label:'Met typical growth target', color:'#7b2d8b' },
-        { icon:'🔢', val:m.n.toLocaleString(), label:'Valid diagnostic pairs analyzed', color:'var(--muted)' },
-      ];
-
-      return `
-        <!-- EXECUTIVE BANNER -->
-        <div style="background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 100%);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:1.25rem;color:#fff;position:relative;overflow:hidden">
-          <div style="position:absolute;top:-20px;right:-20px;font-size:8rem;opacity:.05">🎓</div>
-          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.5);margin-bottom:.5rem">NJTC Academic Impact Summary</div>
-          <div style="font-size:1.25rem;font-weight:700;line-height:1.4;margin-bottom:.75rem">${headline}</div>
-          <div style="display:flex;gap:2rem;flex-wrap:wrap">
-            <div style="text-align:center">
-              <div style="font-family:'DM Serif Display',serif;font-size:2.5rem;font-weight:700;color:#f0a500;line-height:1">${m.pctMoved}%</div>
-              <div style="font-size:.75rem;color:rgba(255,255,255,.6)">Scholars moved up</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-family:'DM Serif Display',serif;font-size:2.5rem;font-weight:700;color:#4ade80;line-height:1">${m.pctOnGL}%</div>
-              <div style="font-size:.75rem;color:rgba(255,255,255,.6)">At grade level (spring)</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-family:'DM Serif Display',serif;font-size:2.5rem;font-weight:700;color:#60a5fa;line-height:1">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div>
-              <div style="font-size:.75rem;color:rgba(255,255,255,.6)">Avg scale score gain</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-family:'DM Serif Display',serif;font-size:2.5rem;font-weight:700;color:#fff;line-height:1">${m.n.toLocaleString()}</div>
-              <div style="font-size:.75rem;color:rgba(255,255,255,.6)">Scholars analyzed</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- FUNDER METRICS -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin-bottom:1.25rem">
-          ${funderMetrics.map(fm=>`
-            <div style="background:var(--surface);border:1.5px solid ${fm.color}22;border-radius:10px;padding:1rem;display:flex;align-items:flex-start;gap:.75rem">
-              <div style="font-size:1.5rem">${fm.icon}</div>
-              <div>
-                <div style="font-family:'DM Serif Display',serif;font-size:1.75rem;color:${fm.color};line-height:1">${fm.val}</div>
-                <div style="font-size:.75rem;color:var(--text-2);margin-top:.25rem;line-height:1.4">${fm.label}</div>
-              </div>
-            </div>`).join('')}
-        </div>
-
-        <!-- STARS + WATCH -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
-          <div class="irlab-card">
-            <div class="irlab-card-hd"><div class="irlab-card-title">⭐ Standout Districts</div><div class="irlab-card-meta">Highest movement rates</div></div>
-            <div class="irlab-card-body">${stars||'<p style="color:var(--muted);font-size:.875rem">Insufficient data</p>'}</div>
-          </div>
-          <div class="irlab-card">
-            <div class="irlab-card-hd"><div class="irlab-card-title">🔍 Needs Attention</div><div class="irlab-card-meta">Lowest movement rates — worth monitoring</div></div>
-            <div class="irlab-card-body">${watchList||'<p style="color:var(--muted);font-size:.875rem">Insufficient data</p>'}</div>
-          </div>
-        </div>
-
-        <!-- EQUITY SNAPSHOT FOR LEADERSHIP -->
-        ${renderEquitySnapshot(m)}
-
-        <!-- NARRATIVE TALKING POINTS -->
-        <div class="irlab-card">
-          <div class="irlab-card-hd"><div class="irlab-card-title">📋 Meeting-Ready Talking Points</div><div class="irlab-card-meta">Funder · Board · Partner use</div></div>
-          <div class="irlab-card-body">
-            <div style="display:flex;flex-direction:column;gap:.625rem">
-              ${[
-                `${m.pctMoved}% of assessed scholars — ${m.moved.length.toLocaleString()} students — improved their i-Ready placement level from baseline to spring.`,
-                `${m.pctOnGL}% of scholars reached Early On Grade Level or above, representing ${m.sprOnGL.length.toLocaleString()} students accessing grade-level content by spring.`,
-                m.avgGain!==null?`The average scale score gain was +${m.avgGain.toFixed(1)} points, indicating measurable academic growth across the portfolio.`:'',
-                m.below2Chg<0?`The number of scholars 2+ grade levels below decreased by ${Math.abs(m.below2Chg)} from baseline to spring — a direct equity impact signal.`:`The number of scholars 2+ grade levels below changed by ${m.below2Chg} from baseline to spring.`,
-                distList.length?`${esc(distList[0].name)} led the portfolio with ${distList[0].pctMoved}% of scholars moving up placement levels.`:'',
-              ].filter(Boolean).map((pt,i)=>`
-                <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .875rem;background:${i%2===0?'var(--surface-2)':'var(--surface)'};border-radius:8px;border:1px solid var(--border-2)">
-                  <div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div>
-                  <div style="font-size:.875rem;line-height:1.5;color:var(--navy)">${pt}</div>
-                </div>`).join('')}
             </div>
           </div>
         </div>`;
@@ -11978,590 +11784,402 @@
     function renderEquitySnapshot(m) {
       if(!m||!m.demog) return '';
       const d=m.demog;
-      return `
-        <div class="irlab-card" style="margin-bottom:1rem">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot</div>
-            <div class="irlab-card-meta">Placement movement & grade-level attainment by demographic group</div>
-          </div>
-          <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-            <div>
-              ${subgroupTable(d.byRace,'By Race/Ethnicity',g=>demogRows(g))}
-              ${subgroupTable(d.bySex,'By Gender',g=>demogRows(g))}
-            </div>
-            <div>
-              ${subgroupTable(d.byHisp,'By Hispanic/Latino Status',g=>demogRows(g))}
-              ${subgroupTable(d.byELL,'ELL Status',g=>demogRows(g))}
-              ${subgroupTable(d.bySped,'Special Education Status',g=>demogRows(g))}
-              ${subgroupTable(d.byEcoDis,'Economic Status',g=>demogRows(g))}
-            </div>
-          </div>
-        </div>`;
+      return `<div class="irlab-card" style="margin-bottom:1rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot</div><div class="irlab-card-meta">Movement & GL attainment by demographic group</div></div>
+        <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+          <div>${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
+          <div>${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+        </div></div>`;
     }
 
-    // ── TUTOR LEADERBOARD (non-data depts only) ──────────────────────────────
+    // ── TUTOR LEADERBOARD ────────────────────────────────────────────────────
     function renderTutorLeaderboard(m, dept) {
       if(dept==='data') return '';
-      const tutors = Object.values(m.tutorMap).filter(t=>t.total>=5).sort((a,b)=>b.pctMoved-a.pctMoved);
+      const tutors=Object.values(m.tutorMap).filter(t=>t.total>=5).sort((a,b)=>b.pctMoved-a.pctMoved);
       if(!tutors.length) return '';
-
-      const rows = tutors.slice(0,20).map((t,i)=>{
+      const rows=tutors.slice(0,20).map((t,i)=>{
         const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1)+'.';
-        const mvColor=t.pctMoved>=60?'#0d6e3a':t.pctMoved>=40?'#d97706':'#b91c1c';
-        const bar=`<div style="display:flex;align-items:center;gap:.5rem">
-          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-            <div style="width:${t.pctMoved}%;height:100%;background:${mvColor};border-radius:3px"></div>
-          </div>
-          <span style="font-weight:700;color:${mvColor};font-size:.75rem;min-width:32px">${t.pctMoved}%</span>
-        </div>`;
-        return `<tr>
-          <td><span style="margin-right:.375rem">${medal}</span>
-            <button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button>
-          </td>
-          <td style="min-width:160px">${bar}</td>
-          <td style="text-align:center;font-size:.75rem"><span style="background:${t.pctGL>=50?'#dcfce7':'#fef3c7'};color:${t.pctGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-weight:700">${t.pctGL}%</span></td>
+        const col=t.pctMoved>=60?'#0d6e3a':t.pctMoved>=40?'#d97706':'#b91c1c';
+        return `<tr><td><span style="margin-right:.375rem">${medal}</span>
+          <button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button></td>
+          <td style="min-width:160px">${renderBar(t.pctMoved,col)}</td>
+          <td style="text-align:center"><span style="background:${t.pctGL>=50?'#dcfce7':'#fef3c7'};color:${t.pctGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${t.pctGL}%</span></td>
           <td style="text-align:center;font-size:.8125rem;font-weight:600;color:var(--blue-mid)">${t.avgGain!==null?'+'+t.avgGain.toFixed(1):'—'}</td>
-          <td style="text-align:center;font-size:.75rem">${t.held} held · <span style="color:#b91c1c">${t.regressed} ↓</span></td>
-          <td style="text-align:right;font-size:.75rem;color:var(--muted)">${t.scholarCount}</td>
-        </tr>`;
+          <td style="text-align:center;font-size:.75rem">${t.held}= · <span style="color:#b91c1c">${t.regressed}↓</span></td>
+          <td style="text-align:right;font-size:.75rem;color:var(--muted)">${t.scholarCount}</td></tr>`;
       }).join('');
-
-      return `
-        <div class="irlab-card">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title">👩‍🏫 Tutor Academic Impact Leaderboard</div>
-            <div class="irlab-card-meta">By % of scholars who moved up · min 5 scholars · Click name for profile</div>
-          </div>
-          <div class="irlab-card-body" style="overflow-x:auto">
-            <table class="irlab-rank-table">
-              <thead><tr><th>Tutor</th><th>% Scholars Moved Up</th><th style="text-align:center">% At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:center">Held/Regressed</th><th style="text-align:right">Scholars</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-        </div>`;
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Impact Leaderboard</div><div class="irlab-card-meta">Min 5 scholars · Click name for profile</div></div>
+        <div class="irlab-card-body" style="overflow-x:auto">
+          <table class="irlab-rank-table">
+            <thead><tr><th>Tutor</th><th>% Moved Up</th><th style="text-align:center">% At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:center">Held/Regressed</th><th style="text-align:right">Scholars</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div></div>`;
     }
 
-    // ── DEPT INSIGHTS ────────────────────────────────────────────────────────
-    function renderDeptInsightsBlock(m, dept) {
+    // ── DEPT INSIGHT BLOCKS ──────────────────────────────────────────────────
+    function renderDeptInsights(m, dept) {
       if(!m) return '';
-      const cfg = DEPT_CFG[dept];
-
       const insights = {
-        leadership: [
-          { color:m.pctMoved>=60?'#0d6e3a':'#d97706', icon:m.pctMoved>=60?'📈':'🔍',
-            title:`${m.pctMoved}% of assessed scholars moved up at least one placement level`,
-            body:`${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} scholars improved i-Ready placement. ${m.pctMoved>=60?'This represents strong academic impact.':'There is room to accelerate gains across the portfolio.'} Grade-level attainment: ${m.pctOnGL}% by spring.` },
-          { color:'#7b2d8b', icon:'📍',
-            title:'Standout site and area of focus',
-            body:(() => {
-              const sorted=Object.entries(m.byDistrict).map(([d,rows])=>{const dm=computeMetrics(rows);return dm?{name:d,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
-              const top=sorted[0], bot=sorted[sorted.length-1];
-              return `${top?esc(top.name)+' leads ('+top.pctMoved+'% moved up)':''} ${bot&&bot!==top?' · '+esc(bot.name)+' needs attention ('+bot.pctMoved+'% moved up)':''}.`;
-            })() },
-          { color:m.below2Chg<=0?'#0d6e3a':'#b91c1c', icon:'⚖️',
-            title:`Deep gap tier: ${m.pct2Below}% still 2+ levels below (spring)`,
-            body:`Was ${pct(m.base2Below.length,m.n)}% at baseline. ${Math.abs(m.below2Chg)} scholars ${m.below2Chg<=0?'moved out of':'moved into'} the deepest gap tier. This is the key equity outcome for board and funder reporting.` },
+        leadership:[
+          {c:m.pctMoved>=60?'#0d6e3a':'#d97706',i:m.pctMoved>=60?'📈':'🔍',t:`${m.pctMoved}% of assessed scholars moved up`,b:`${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} scholars improved i-Ready placement. Grade-level attainment: ${m.pctOnGL}% by spring.`},
+          {c:'#7b2d8b',i:'📍',t:'Standout & focus districts',b:(()=>{const s=Object.entries(m.byDistrict).map(([d,r])=>{const dm=computeMetrics(r);return dm?{name:d,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);return s.length?`${esc(s[0].name)} leads (${s[0].pctMoved}% moved up)${s.length>1?' · '+esc(s[s.length-1].name)+' ('+s[s.length-1].pctMoved+'%) needs attention':''}`:''})()},
+          {c:m.below2Chg<=0?'#0d6e3a':'#b91c1c',i:'⚖️',t:`Deep gap tier: ${m.pct2Below}% still 2+ levels below (spring)`,b:`${Math.abs(m.below2Chg)} scholars ${m.below2Chg<=0?'moved out of':'moved into'} the deepest gap tier. Key equity outcome for board and funder reporting.`},
         ],
-        programming: [
-          { color:'#0050c8', icon:'🏫',
-            title:`Site quality signal: ${m.pctMoved}% overall movement`,
-            body:`${m.moved.length} scholars improved. ${m.regress.length} regressed. Sites with high regression rates warrant implementation review — session frequency, pacing, and tutor-scholar match quality are primary levers.` },
-          { color:'#7b2d8b', icon:'📐',
-            title:(() => {
-              const g=Object.entries(m.byGrade).map(([gr,rows])=>{const dm=computeMetrics(rows);return dm?{grade:gr,pct:dm.pctMoved,n:dm.n}:null}).filter(Boolean).sort((a,b)=>a.pct-b.pct)[0];
-              return g?`Grade ${g.grade} shows lowest movement (${g.pct}% of ${g.n} scholars)`:'Grade differentiation needed';
-            })(),
-            body:'Grade-level content alignment and tutoring strategy calibration should be reviewed for underperforming grades. Consider whether lesson plan rigor matches grade-level expectations.' },
-          { color:m.metTypPct>=70?'#0d6e3a':'#d97706', icon:'⭐',
-            title:`Typical growth: ${m.metTypPct!==null?m.metTypPct+'%':'N/A'} met or exceeded expected growth`,
-            body:m.metTypPct!==null?`${m.metTyp.length} scholars met i-Ready typical growth. Avg attainment: ${m.avgTyp!==null?(m.avgTyp*100).toFixed(0)+'%':'—'} of typical. Scholars below typical growth should be prioritized for increased session frequency.`:'Typical growth data not fully available.' },
+        programming:[
+          {c:'#0050c8',i:'🏫',t:`Site quality: ${m.pctMoved}% movement · ${m.regress.length} regressions`,b:`${m.moved.length} scholars improved. Sites with high regression rates warrant implementation review — session frequency, pacing, tutor-scholar match.`},
+          {c:'#7b2d8b',i:'📐',t:(()=>{const g=Object.entries(m.byGrade).map(([gr,r])=>{const dm=computeMetrics(r);return dm?{grade:gr,pct:dm.pctMoved,n:dm.n}:null}).filter(Boolean).sort((a,b)=>a.pct-b.pct)[0];return g?`Grade ${g.grade}: lowest movement (${g.pct}% of ${g.n} scholars)`:'Grade differentiation signal'})(),b:'Consider whether lesson plan rigor and tutor strategy match grade-level expectations for underperforming grades.'},
+          {c:m.metTypPct>=70?'#0d6e3a':'#d97706',i:'⭐',t:`${m.metTypPct!==null?m.metTypPct+'%':'N/A'} met typical growth target`,b:m.metTypPct!==null?`${m.metTyp.length} scholars met i-Ready typical growth. Scholars below typical growth should be prioritized for increased session frequency.`:'Typical growth data not fully available.'},
         ],
-        data: [
-          { color:'#7b2d8b', icon:'🔬',
-            title:`${m.n} valid baseline-spring pairs · ${m.valid.filter(r=>r.isRepeat).length} repeat scholars`,
-            body:`Valid pair rate reflects diagnostic window coverage. Missing pairs (baseline without spring or vice versa) reduce confidence in site-level comparisons. Review by district for systematic gaps.` },
-          { color:'#0050c8', icon:'📋',
-            title:'Certification field completeness',
-            body:`"Unidentified" certification: ${(m.byCert['Unidentified']||[]).length} records. May reflect onboarding delays, sub tutors, or data entry gaps. HR alignment recommended for resolution protocol.` },
-          { color:m.valid.filter(r=>r.baseRushFlag==='1'||r.springRushFlag==='1').length>0?'#d97706':'#0d6e3a', icon:'⏱️',
-            title:`Rush flag check: ${m.valid.filter(r=>r.baseRushFlag==='1'||r.springRushFlag==='1').length} flagged diagnostics`,
-            body:'Rushed assessments may underrepresent true ability. Exclude or flag these when reporting to funders requiring assessment fidelity certification.' },
-          { color:'#0d9488', icon:'🔁',
-            title:'Repeat scholar cohort available',
-            body:`The repeat scholar (YOY) flag provides the cleanest longitudinal signal. Use this cohort for multi-year impact claims and to control for regression-to-mean. Recommend anchoring grant reports to this subset.` },
+        data:[
+          {c:'#7b2d8b',i:'🔬',t:`${m.n} valid baseline-spring pairs · ${m.valid.filter(r=>r.isRepeat).length} repeat scholars`,b:'Valid pair rate reflects diagnostic window coverage. Missing pairs reduce confidence in site-level comparisons.'},
+          {c:'#0050c8',i:'📋',t:'Certification field completeness',b:`"Unidentified" certification: ${(m.byCert['Unidentified']||[]).length} records. May reflect onboarding delays or data entry gaps.`},
+          {c:m.valid.filter(r=>r.baseRushFlag==='1'||r.springRushFlag==='1').length>0?'#d97706':'#0d6e3a',i:'⏱️',t:`Rush flag check: ${m.valid.filter(r=>r.baseRushFlag==='1'||r.springRushFlag==='1').length} flagged diagnostics`,b:'Rushed assessments may underrepresent ability. Flag when reporting to funders requiring assessment fidelity certification.'},
+          {c:'#0d9488',i:'🔁',t:'Repeat scholar cohort — strongest longitudinal signal',b:'Use repeat-scholar cohort to anchor multi-year impact claims and control for regression-to-mean.'},
         ],
-        hr: [
-          { color:'#0d6e3a', icon:'👥',
-            title:`Certified tutor cohort: ${(()=>{const c=m.byCert['Certified'];const dm=c?computeMetrics(c):null;return dm?dm.pctMoved+'% scholars moved up':'insufficient data'})()}`,
-            body:'Certified tutor records provide a comparison baseline for staffing quality analysis. Use placement movement rate as a directional performance signal alongside observation data.' },
-          { color:'#e63946', icon:'🔍',
-            title:`${(m.byCert['Unidentified']||[]).length} records with unidentified certification status`,
-            body:'These may reflect onboarding gaps, substitute tutors, or data entry issues. Resolving certification data quality improves HR-linked academic reporting accuracy.' },
-          { color:'#d97706', icon:'📊',
-            title:'Staffing continuity and academic outcomes',
-            body:'High-movement tutors may reflect stronger relationship continuity with scholars. Consider exploring whether multi-year tutor-scholar pairings correlate with higher movement rates as a staffing retention argument.' },
+        hr:[
+          {c:'#0d6e3a',i:'👥',t:(()=>{const c=m.byCert['Certified'];const dm=c?computeMetrics(c):null;return `Certified cohort: ${dm?dm.pctMoved+'% moved up':'insufficient data'}`})(),b:'Certified tutor records provide a comparison baseline. Use placement movement rate as a directional signal alongside observation data.'},
+          {c:'#e63946',i:'🔍',t:`${(m.byCert['Unidentified']||[]).length} records with unidentified certification`,b:'May reflect onboarding gaps, substitute tutors, or data entry issues.'},
+          {c:'#d97706',i:'📊',t:'Staffing continuity & academic outcomes',b:'High-movement tutors may reflect stronger relationship continuity. Consider multi-year tutor-scholar pairings as a retention argument.'},
         ],
-        finance: [
-          { color:'#2a9d8f', icon:'💡',
-            title:`Program ROI signal: ${m.pctMoved}% of scholars improved placement`,
-            body:`${m.moved.length.toLocaleString()} scholars received measurable academic benefit. This metric anchors cost-per-outcome calculations and funder return analysis.` },
-          { color:'#0d6e3a', icon:'🏅',
-            title:`Grade-level attainment: ${m.pctOnGL}% at/near grade level (${m.sprOnGL.length.toLocaleString()} scholars)`,
-            body:'Grade-level access is the primary outcome for grant reporting, board metrics, and philanthropic communication. This should be the headline number in budget and impact discussions.' },
-          { color:'#0050c8', icon:'📍',
-            title:'Site-level resource allocation signal',
-            body:'Variation in academic outcomes across districts provides a directional guide for resource allocation decisions. High-performing sites may justify investment continuity; lower-performing sites warrant cost-effectiveness review.' },
+        finance:[
+          {c:'#2a9d8f',i:'💡',t:`Program ROI: ${m.pctMoved}% of scholars improved placement`,b:`${m.moved.length.toLocaleString()} scholars received measurable academic benefit — core metric for cost-per-outcome calculations.`},
+          {c:'#0d6e3a',i:'🏅',t:`Grade-level attainment: ${m.pctOnGL}% (${m.sprOnGL.length.toLocaleString()} scholars)`,b:'This should be the headline number in budget and impact discussions.'},
+          {c:'#0050c8',i:'📍',t:'Site-level resource allocation signal',b:'High-performing sites justify investment continuity; lower-performing sites warrant cost-effectiveness review.'},
         ],
       };
-
-      const deptInsights = insights[dept]||insights.leadership;
-      return deptInsights.map(ins=>`
-        <div class="irlab-insight" style="--ins-color:${ins.color}">
-          <div class="irlab-insight-icon">${ins.icon}</div>
-          <div><div class="irlab-insight-title">${ins.title}</div><div class="irlab-insight-body">${ins.body}</div></div>
+      return (insights[dept]||insights.leadership).map(ins=>`
+        <div class="irlab-insight" style="--ins-color:${ins.c}">
+          <div class="irlab-insight-icon">${ins.i}</div>
+          <div><div class="irlab-insight-title">${ins.t}</div><div class="irlab-insight-body">${ins.b}</div></div>
         </div>`).join('');
     }
 
-    // ── PLACEMENT SHIFT TABLE ─────────────────────────────────────────────────
-    function renderPlacementShift(m) {
-      return `<table class="irlab-rank-table">
-        <thead><tr><th>Placement Level</th><th style="text-align:right">Base</th><th style="text-align:right">Spring</th><th style="text-align:center">Change</th></tr></thead>
-        <tbody>
-          ${PLACEMENT_ORDER.map(p=>{
-            const base=m.baseDist[p]||0, spring=m.springDist[p]||0, chg=spring-base;
-            const cs=chg>0?`<span style="color:#0d6e3a;font-weight:700">+${chg}</span>`:chg<0?`<span style="color:#b91c1c;font-weight:700">${chg}</span>`:`<span style="color:var(--muted)">—</span>`;
-            return `<tr><td style="color:${PLC[p]};font-weight:600">${PLC_SHORT[p]}</td><td style="text-align:right;font-weight:600">${base}</td><td style="text-align:right;font-weight:600">${spring}</td><td style="text-align:center">${cs}</td></tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-    }
-
-    // ── DISTRICT RANKING ──────────────────────────────────────────────────────
-    function renderDistrictRanking(m) {
-      const dists=Object.entries(m.byDistrict).map(([name,rows])=>{
-        const dm=computeMetrics(rows); return dm?{name,...dm}:null;
-      }).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
-
-      return `<table class="irlab-rank-table">
-        <thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">Spring GL%</th><th style="text-align:center">Avg Gain</th><th style="text-align:center">Typical Growth</th><th style="text-align:right">N</th></tr></thead>
-        <tbody>
-          ${dists.map((d,i)=>{
-            const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
-            const bar=`<div style="display:flex;align-items:center;gap:.5rem"><div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${d.pctMoved}%;height:100%;background:#0d6e3a;border-radius:3px"></div></div><span style="font-weight:700;color:#0d6e3a;font-size:.75rem;min-width:32px">${d.pctMoved}%</span></div>`;
-            const glPill=`<span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}% at GL</span>`;
-            const typStr=d.metTypPct!==null?`${d.metTypPct}%`:'—';
-            return `<tr>
-              <td><span style="margin-right:.375rem">${medal}</span><strong style="font-size:.8125rem">${esc(d.name)}</strong></td>
-              <td style="min-width:140px">${bar}</td>
-              <td style="text-align:center">${glPill}</td>
-              <td style="text-align:center;font-weight:600;color:var(--blue-mid);font-size:.8125rem">${d.avgGain!==null?'+'+d.avgGain.toFixed(1):'—'}</td>
-              <td style="text-align:center;font-size:.8125rem;color:var(--muted)">${typStr}</td>
-              <td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n.toLocaleString()}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-    }
-
-    // ── GRADE TRENDS ──────────────────────────────────────────────────────────
-    function renderGradeTrend(m) {
-      const grades=Object.entries(m.byGrade).map(([g,rows])=>{
-        const dm=computeMetrics(rows); return dm?{grade:g,...dm}:null;
-      }).filter(Boolean).sort((a,b)=>{
-        const na=a.grade==='K'?0:parseInt(a.grade)||99;
-        const nb=b.grade==='K'?0:parseInt(b.grade)||99;
-        return na-nb;
-      });
-
-      return `<table class="irlab-rank-table">
-        <thead><tr><th>Grade</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">% At GL (Spring)</th><th style="text-align:center">Avg Scale Gain</th><th style="text-align:center">Typical Growth</th><th style="text-align:right">N</th></tr></thead>
-        <tbody>
-          ${grades.map(({grade,pctMoved,pctOnGL,avgGain,metTypPct,n})=>{
-            const mc=pctMoved>=60?'#0d6e3a':pctMoved>=40?'#d97706':'#b91c1c';
-            const gc=pctOnGL>=50?'#0d6e3a':pctOnGL>=25?'#d97706':'#b91c1c';
-            return `<tr>
-              <td style="font-weight:700;color:var(--navy)">Grade ${esc(grade)}</td>
-              <td style="text-align:center;font-weight:700;color:${mc}">${pctMoved}%</td>
-              <td style="text-align:center;font-weight:700;color:${gc}">${pctOnGL}%</td>
-              <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${avgGain!==null?'+'+avgGain.toFixed(1):'—'}</td>
-              <td style="text-align:center;color:var(--muted)">${metTypPct!==null?metTypPct+'%':'—'}</td>
-              <td style="text-align:right;font-size:.75rem;color:var(--muted)">${n}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-    }
-
-    // ── CERT COHORT ───────────────────────────────────────────────────────────
-    function renderCertCohort(m) {
-      const CERT_COLORS={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};
-      const cohorts=Object.entries(m.byCert).map(([cert,rows])=>{
-        const dm=computeMetrics(rows); return dm?{cert,dm,color:CERT_COLORS[cert]||'#7d8fa1'}:null;
-      }).filter(Boolean).sort((a,b)=>b.dm.pctMoved-a.dm.pctMoved);
-
+    // ── LEADERSHIP EXECUTIVE VIEW ─────────────────────────────────────────────
+    function renderLeadershipView(m) {
+      if(!m) return '<div class="irlab-empty"><div class="irlab-empty-icon">📊</div><div class="irlab-empty-title">No data loaded</div></div>';
+      const dists=Object.entries(m.byDistrict).map(([name,rows])=>{const dm=computeMetrics(rows);return dm?{name,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved);
+      const stars=dists.slice(0,3).map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:.375rem">
+        <span>⭐</span><div><div style="font-weight:700;color:#166534;font-size:.875rem">${esc(d.name)}</div>
+        <div style="font-size:.75rem;color:#166534">${d.pctMoved}% moved up · ${d.pctOnGL}% at GL · +${d.avgGain?.toFixed(1)||'—'} avg gain</div></div></div>`).join('');
+      const watch=dists.slice(-2).reverse().map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:.375rem">
+        <span>🔍</span><div><div style="font-weight:700;color:#991b1b;font-size:.875rem">${esc(d.name)}</div>
+        <div style="font-size:.75rem;color:#991b1b">${d.pctMoved}% moved up · ${d.n} scholars</div></div></div>`).join('');
       return `
-        <div class="irlab-cohort-grid">
-          ${cohorts.map(c=>`
-            <div class="irlab-cohort-card" style="--coh-color:${c.color}">
-              <div class="irlab-cohort-name">${esc(c.cert)}</div>
-              <div class="irlab-cohort-val">${c.dm.pctMoved}%</div>
-              <div class="irlab-cohort-sub">Scholars moved up</div>
-              <div style="margin-top:.625rem;font-size:.75rem;display:flex;flex-direction:column;gap:.2rem;color:var(--text-2)">
-                <div>GL rate: <strong>${c.dm.pctOnGL}%</strong></div>
-                <div>Avg gain: <strong>${c.dm.avgGain!==null?'+'+c.dm.avgGain.toFixed(1):'—'}</strong></div>
-                <div>Met typical growth: <strong>${c.dm.metTypPct!==null?c.dm.metTypPct+'%':'—'}</strong></div>
-                <div style="color:var(--muted)">N = ${c.dm.n} scholars</div>
+        <div style="background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 100%);border-radius:var(--radius);padding:1.5rem 2rem;margin-bottom:1.25rem;color:#fff;position:relative;overflow:hidden">
+          <div style="position:absolute;top:-20px;right:-20px;font-size:8rem;opacity:.05">🎓</div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.5);margin-bottom:.5rem">NJTC Academic Impact Summary</div>
+          <div style="display:flex;gap:2.5rem;flex-wrap:wrap;margin-top:.5rem">
+            ${[{v:`${m.pctMoved}%`,l:'Scholars moved up',c:'#f0a500'},{v:`${m.pctOnGL}%`,l:'At grade level (spring)',c:'#4ade80'},{v:m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—',l:'Avg scale gain',c:'#60a5fa'},{v:m.n.toLocaleString(),l:'Scholars analyzed',c:'#fff'}].map(x=>`
+            <div style="text-align:center"><div style="font-family:'DM Serif Display',Georgia,serif;font-size:2.25rem;font-weight:400;color:${x.c};line-height:1">${x.v}</div><div style="font-size:.75rem;color:rgba(255,255,255,.6)">${x.l}</div></div>`).join('')}
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+          <div class="irlab-card"><div class="irlab-card-hd"><div class="irlab-card-title">⭐ Standout Districts</div></div><div class="irlab-card-body">${stars||'<p style="color:var(--muted)">Not enough data</p>'}</div></div>
+          <div class="irlab-card"><div class="irlab-card-hd"><div class="irlab-card-title">🔍 Needs Attention</div></div><div class="irlab-card-body">${watch||'<p style="color:var(--muted)">Not enough data</p>'}</div></div>
+        </div>
+        ${renderEquitySnapshot(m)}
+        <div class="irlab-card">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📋 Talking Points</div><div class="irlab-card-meta">Funder · Board · Partner use</div></div>
+          <div class="irlab-card-body">
+            ${[`${m.pctMoved}% of assessed scholars — ${m.moved.length.toLocaleString()} students — improved i-Ready placement from baseline to spring.`,`${m.pctOnGL}% reached Early On Grade Level or above (${m.sprOnGL.length.toLocaleString()} scholars).`,m.avgGain!==null?`Average scale score gain: +${m.avgGain.toFixed(1)} points across the portfolio.`:'',m.below2Chg<0?`${Math.abs(m.below2Chg)} scholars moved out of the 2+ grade levels below tier — a direct equity impact.`:'',dists.length?`${esc(dists[0].name)} led with ${dists[0].pctMoved}% of scholars moving up placement levels.`:''].filter(Boolean).map((pt,i)=>`
+            <div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .875rem;background:${i%2===0?'var(--surface-2)':'var(--surface)'};border-radius:8px;border:1px solid var(--border-2);margin-bottom:.5rem">
+              <div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div>
+              <div style="font-size:.875rem;line-height:1.5;color:var(--navy)">${pt}</div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    // ── STANDARD VIEW (non-leadership depts) ─────────────────────────────────
+    function renderStandardView(m) {
+      const mathM = getRows({subject:'Math'}).length ? computeMetrics(getRows({subject:'Math'})) : null;
+      const elaM  = getRows({subject:'ELA'}).length  ? computeMetrics(getRows({subject:'ELA'}))  : null;
+      return `
+        <div class="irlab-stats-grid" style="margin-bottom:1.25rem">
+          <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Scholars Moved Up</div><div class="irlab-stat-sub">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()}</div></div>
+          <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At/Near Grade Level</div><div class="irlab-stat-sub">Spring · was ${pct(m.baseOnGL.length,m.n)}% at baseline</div></div>
+          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Below}%</div><div class="irlab-stat-lbl">Still 2+ Below</div></div>
+          <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
+          <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.metTypPct!==null?m.metTypPct+'%':'—'}</div><div class="irlab-stat-lbl">Met Typical Growth</div></div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title" style="color:${DEPT_CFG[_irlDept]?.color}">${DEPT_CFG[_irlDept]?.emoji} ${DEPT_CFG[_irlDept]?.label} Insight View</div></div>
+          <div class="irlab-card-body">${renderDeptInsights(m,_irlDept)}</div>
+        </div>
+        ${mathM&&elaM?`<div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📐 Math vs ELA</div></div>
+          <div class="irlab-card-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            ${[{label:'Math',sc:mathM,color:'#0050c8',icon:'➗'},{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖'}].map(({label,sc,color,icon})=>`
+            <div style="border:1.5px solid ${color}22;border-radius:10px;padding:1rem;background:${color}07">
+              <div style="font-size:.9rem;margin-bottom:.5rem">${icon} <strong style="color:${color}">${label}</strong></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.8125rem">
+                <div><div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;color:var(--navy)">${sc.pctMoved}%</div><div style="color:var(--muted)">Moved up</div></div>
+                <div><div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;color:var(--navy)">${sc.pctOnGL}%</div><div style="color:var(--muted)">At GL</div></div>
+                <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?'+'+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted)">Avg gain</div></div>
+                <div><div style="font-weight:700">${sc.n.toLocaleString()}</div><div style="color:var(--muted)">Scholars</div></div>
               </div>
             </div>`).join('')}
+          </div></div></div>`:''}
+        ${_irlDept!=='finance'?renderEquitySnapshot(m):''}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Shift</div><div class="irlab-card-meta">Baseline → Spring</div></div>
+          <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+            <div><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Spring Distribution</div>
+              ${PLACEMENT_ORDER.map(p=>{const pc=pct(m.springDist[p]||0,m.n);return `<div class="irlab-funnel-row"><div class="irlab-funnel-label" style="color:${PLC[p]}">${PLC_SHORT[p]}</div><div class="irlab-funnel-bar-wrap"><div class="irlab-funnel-bar" style="width:${pc}%;background:${PLC[p]}"></div></div><div class="irlab-funnel-pct" style="color:${PLC[p]}">${pc}%</div><div class="irlab-funnel-n">${m.springDist[p]||0}</div></div>`;}).join('')}
+            </div>
+            <div>${renderPlacementShift(m)}</div>
+          </div>
         </div>
-        <div style="margin-top:.875rem;padding:.75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">
-          <strong>ℹ️ Observational note:</strong> Cohort comparisons reflect association patterns only. Differences may be influenced by site assignment, grade level, district, or student population — not certification status alone.
-        </div>`;
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto">
+            <table class="irlab-rank-table">
+              <thead><tr><th>District</th><th>% Moved Up</th><th style="text-align:center">Spring GL%</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+              <tbody>${Object.entries(m.byDistrict).map(([name,rows])=>{const dm=computeMetrics(rows);return dm?{name,...dm}:null}).filter(Boolean).sort((a,b)=>b.pctMoved-a.pctMoved).map((d,i)=>{
+                const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`;
+                return `<tr><td><span style="margin-right:.375rem">${medal}</span><strong style="font-size:.8125rem">${esc(d.name)}</strong></td>
+                  <td style="min-width:140px">${renderBar(d.pctMoved,d.pctMoved>=50?'#0d6e3a':'#d97706')}</td>
+                  <td style="text-align:center"><span style="background:${d.pctOnGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctOnGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${d.pctOnGL}% at GL</span></td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid);font-size:.8125rem">${d.avgGain!==null?'+'+d.avgGain.toFixed(1):'—'}</td>
+                  <td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td></tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Trends</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto">
+            <table class="irlab-rank-table">
+              <thead><tr><th>Grade</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">% At GL (Spring)</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+              <tbody>${Object.entries(m.byGrade).map(([gr,rows])=>{const dm=computeMetrics(rows);return dm?{grade:gr,...dm}:null}).filter(Boolean).sort((a,b)=>{const na=a.grade==='K'?0:parseInt(a.grade)||99,nb=b.grade==='K'?0:parseInt(b.grade)||99;return na-nb;}).map(({grade,pctMoved,pctOnGL,avgGain,n})=>{
+                const mc=pctMoved>=60?'#0d6e3a':pctMoved>=40?'#d97706':'#b91c1c';
+                return `<tr><td style="font-weight:700">Grade ${esc(grade)}</td><td style="text-align:center;font-weight:700;color:${mc}">${pctMoved}%</td><td style="text-align:center;font-weight:700;color:${pctOnGL>=50?'#0d6e3a':pctOnGL>=25?'#d97706':'#b91c1c'}">${pctOnGL}%</td><td style="text-align:center;font-weight:600;color:var(--blue-mid)">${avgGain!==null?'+'+avgGain.toFixed(1):'—'}</td><td style="text-align:right;font-size:.75rem;color:var(--muted)">${n}</td></tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+        ${renderTutorLeaderboard(m,_irlDept)}
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification Cohort</div><div class="irlab-card-meta">Observational · Not causal</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-cohort-grid">
+              ${Object.entries(m.byCert).map(([cert,rows])=>{const dm=computeMetrics(rows);if(!dm)return'';const cols={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};const col=cols[cert]||'#7d8fa1';return `<div class="irlab-cohort-card" style="--coh-color:${col}"><div class="irlab-cohort-name">${esc(cert)}</div><div class="irlab-cohort-val">${dm.pctMoved}%</div><div class="irlab-cohort-sub">Moved up</div><div style="font-size:.75rem;margin-top:.5rem;color:var(--text-2)"><div>GL: <strong>${dm.pctOnGL}%</strong></div><div>Avg gain: <strong>${dm.avgGain!==null?'+'+dm.avgGain.toFixed(1):'—'}</strong></div><div style="color:var(--muted)">N=${dm.n}</div></div></div>`;}).join('')}
+            </div>
+            <div style="margin-top:.875rem;padding:.75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">
+              <strong>ℹ️ Observational:</strong> Differences may reflect site assignment, grade level, or student population — not certification alone.
+            </div>
+          </div>
+        </div>
+        ${renderRepeatSection()}`;
     }
 
     // ── REPEAT SCHOLARS ───────────────────────────────────────────────────────
     function renderRepeatSection() {
-      const repRows=[...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat].filter(r=>r.baseRelPlacement&&r.springRelPlacement);
+      const repRows=[...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat].filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
       if(!repRows.length) return '';
       const m=computeMetrics(repRows); if(!m) return '';
-
       const allM=computeMetrics(getRows({}));
-      const diffMoved=allM?m.pctMoved-allM.pctMoved:null;
-
-      return `
-        <div class="irlab-card" style="border-left:4px solid #7b2d8b">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title">🔁 Repeat Scholar YOY Analysis</div>
-            <div class="irlab-card-meta">Longitudinal cohort · Strongest multi-year impact signal</div>
+      const diff=allM?m.pctMoved-allM.pctMoved:null;
+      return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar YOY</div><div class="irlab-card-meta">Longitudinal · Strongest program signal</div></div>
+        <div class="irlab-card-body">
+          <div class="irlab-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+            <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholars</div></div>
+            <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${diff!==null?`${diff>=0?'+':''}${diff}pp vs overall`:''}</div></div>
+            <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At GL (Spring)</div></div>
+            <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
           </div>
-          <div class="irlab-card-body">
-            <div class="irlab-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.25rem">
-              <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.n.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholars</div><div class="irlab-stat-sub">Valid diagnostic pairs</div></div>
-              <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${diffMoved!==null?`${diffMoved>=0?'+':''}${diffMoved}pp vs overall`:''}</div></div>
-              <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At Grade Level</div><div class="irlab-stat-sub">Spring</div></div>
-              <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Gain</div></div>
-            </div>
-            <div class="irlab-insight" style="--ins-color:#7b2d8b;margin-bottom:1rem">
-              <div class="irlab-insight-icon">🔁</div>
-              <div><div class="irlab-insight-title">Repeat scholars provide the cleanest multi-year program impact signal</div>
-              <div class="irlab-insight-body">Eliminates selection bias from scholars entering mid-year. ${m.pctMoved}% improved placement — ${diffMoved!==null?Math.abs(diffMoved)+'pp '+(diffMoved>=0?'above':'below')+' the overall program rate':''}.  Use this cohort to anchor grant reports requiring longitudinal evidence.</div></div>
-            </div>
-            ${renderPlacementShift(m)}
+          <div class="irlab-insight" style="--ins-color:#7b2d8b;margin-bottom:1rem">
+            <div class="irlab-insight-icon">🔁</div>
+            <div><div class="irlab-insight-title">Cleanest multi-year program signal</div>
+            <div class="irlab-insight-body">Eliminates selection bias from mid-year entrants. ${m.pctMoved}% improved — ${diff!==null?Math.abs(diff)+'pp '+(diff>=0?'above':'below')+' overall':''}.  Anchor grant reports requiring longitudinal evidence to this cohort.</div></div>
           </div>
-        </div>`;
+          ${renderPlacementShift(m)}
+        </div>
+      </div>`;
     }
 
-    // ── QUICK CSV MODE ────────────────────────────────────────────────────────
+    // ── QUICK CSV MODE (session-only snapshots) ───────────────────────────────
     function renderQuickCSVMode() {
-      const hasResult=_irlCsvData&&_irlCsvData.rows;
-      return `
-        <div class="irlab-card">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title">⬆️ Quick CSV Analysis — Temporary Upload</div>
-            <div class="irlab-card-meta">Client-side only · Session-only · Never affects live dashboard</div>
+      const hasResult = _irlCsvData && _irlCsvData.rows;
+      return `<div class="irlab-card">
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">📸 Quick CSV — Session Snapshot</div>
+          <div class="irlab-card-meta">Upload any i-Ready export · Session-only · Never persisted · Never affects embedded data</div>
+        </div>
+        <div class="irlab-card-body">
+          <div style="margin-bottom:1rem;padding:.75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.8125rem;color:#92400e">
+            <strong>⚠️ Session-only:</strong> Data parsed locally. Cleared on refresh. Does not update any view's embedded data.
+            ${_irlDept==='data'?'<br><strong>Data & Eval:</strong> To update embedded data for all departments, use the <em>Embedded Data Manager</em> in the Analysis tab.':''}
           </div>
-          <div class="irlab-card-body">
-            <div style="margin-bottom:1rem;padding:.75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.8125rem;color:#92400e">
-              <strong>⚠️ Isolated mode:</strong> CSV data parsed locally in your browser only. Not sent to any server. Cleared on page refresh. Does not affect live dashboard data.
-            </div>
-            <div class="irlab-upload-zone" id="irlabDropZone">
-              <input type="file" accept=".csv" onchange="irlab.handleFileUpload(event)">
-              <div class="irlab-upload-icon">📂</div>
-              <div class="irlab-upload-title">Drop i-Ready CSV here or click to browse</div>
-              <div class="irlab-upload-sub">Supports Math or ELA longitudinal export · Base + Spring columns required</div>
-            </div>
-            ${hasResult?renderQuickCSVResult():''}
+          <div class="irlab-upload-zone" id="irlabDropZone">
+            <input type="file" accept=".csv" onchange="irlab.handleFileUpload(event)">
+            <div class="irlab-upload-icon">📂</div>
+            <div class="irlab-upload-title">Drop i-Ready CSV here or click to browse</div>
+            <div class="irlab-upload-sub">Math or ELA longitudinal export · Base + Spring columns required</div>
           </div>
-        </div>`;
-    }
-
-    function validateCSV(rows) {
-      const checks=[];
-      const h=Object.keys(rows[0]||{});
-      const hasBasePl=h.some(k=>k.toLowerCase().includes('base')&&k.toLowerCase().includes('relative placement'));
-      const hasSpringPl=h.some(k=>k.toLowerCase().includes('spring')&&k.toLowerCase().includes('relative placement'));
-      if(!hasBasePl||!hasSpringPl) checks.push({sev:'crit',msg:'Missing baseline or spring relative placement columns',sub:'Core comparison columns not found'});
-      else checks.push({sev:'pass',msg:'Base and Spring placement columns found',sub:`${h.length} columns detected`});
-      checks.push({sev:'pass',msg:`${rows.length} rows loaded`,sub:'All records parsed'});
-      const noId=rows.filter(r=>!r['Student id']&&!r['student_id']).length;
-      if(noId>0)checks.push({sev:'warn',msg:`${noId} rows missing student ID`,sub:'Cannot de-duplicate without ID'});
-      const pairs=rows.filter(r=>{
-        const bp=r['Base overall relative placement']||r['base_overall_relative_placement'];
-        const sp=r['Spring overall relative placement']||r['spring_overall_relative_placement'];
-        return bp&&sp&&PLACEMENT_ORDER.includes(bp)&&PLACEMENT_ORDER.includes(sp);
-      });
-      const ppct=pct(pairs.length,rows.length);
-      checks.push({sev:ppct>=90?'pass':ppct>=70?'warn':'crit',msg:`${pairs.length} valid pairs (${ppct}%)`,sub:ppct<90?'Some records missing a diagnostic window':'High pairing completeness'});
-      const rushed=rows.filter(r=>r['Base rush flag']==='1'||r['Spring rush flag']==='1').length;
-      if(rushed>0)checks.push({sev:'warn',msg:`${rushed} rushed diagnostic records`,sub:'May underrepresent ability'});
-      return checks;
+          ${hasResult ? renderQuickCSVResult() : ''}
+        </div>
+      </div>`;
     }
 
     function renderQuickCSVResult() {
-      const {rows,filename,subject,checks}=_irlCsvData;
-      const norm=rows.map(r=>normalizeRow(r,subject||'Unknown'));
-      const valid=norm.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
-      const m=computeMetrics(valid);
-      const critN=checks.filter(c=>c.sev==='crit').length, warnN=checks.filter(c=>c.sev==='warn').length;
-      const chkHtml=checks.map(c=>`<div class="irlab-val-item irlab-val-${c.sev}"><div class="irlab-val-icon">${c.sev==='pass'?'✅':c.sev==='warn'?'⚠️':'🚨'}</div><div><div class="irlab-val-msg">${esc(c.msg)}</div>${c.sub?`<div class="irlab-val-sub">${esc(c.sub)}</div>`:''}</div></div>`).join('');
-      if(!m)return `<div style="margin-top:1rem">${chkHtml}<div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">Insufficient valid pairs</div></div></div>`;
+      const {rows,filename} = _irlCsvData;
+      const isELA = Object.keys(rows[0]||{}).some(k=>k.toLowerCase().includes('phonics')||k.toLowerCase().includes('vocabulary'));
+      const norm = rows.map(r=>normalizeRow(r, isELA?'ELA':'Math'));
+      const valid = norm.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      const m = computeMetrics(valid);
+      if (!m) return `<div class="irlab-empty" style="margin-top:1rem"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No valid diagnostic pairs found</div></div>`;
       return `<div style="margin-top:1.25rem">
-        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem">
-          <div class="irlab-file-chip ${critN?'invalid':warnN?'pending':'valid'}">📄 ${esc(filename)} · ${rows.length} rows · ${valid.length} valid pairs</div>
-          <span style="font-size:.75rem;font-weight:700;color:${critN?'#b91c1c':warnN?'#d97706':'#0d6e3a'}">${critN?'Critical Issues':warnN?'Warnings':'Clean'}</span>
-        </div>
-        <details style="margin-bottom:1.25rem"><summary style="cursor:pointer;font-size:.875rem;font-weight:600;color:var(--blue-mid)">▸ Validation Report</summary><div style="margin-top:.75rem">${chkHtml}</div></details>
+        <div class="irlab-file-chip valid" style="margin-bottom:1rem">📄 ${esc(filename)} · ${rows.length} rows · ${valid.length} valid pairs</div>
         <div class="irlab-stats-grid" style="margin-bottom:1rem">
-          <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div><div class="irlab-stat-sub">${m.moved.length} of ${m.n}</div></div>
-          <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At Grade Level</div></div>
+          <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div></div>
+          <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At GL</div></div>
           <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Below}%</div><div class="irlab-stat-lbl">2+ Below</div></div>
           <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Gain</div></div>
         </div>
         ${renderPlacementShift(m)}
-        ${Object.keys(m.byDistrict).length>1?`<div style="overflow-x:auto;margin-top:1rem">${renderDistrictRanking(m)}</div>`:''}
-        <button class="btn btn-secondary" style="margin-top:1.25rem;font-size:.8125rem" onclick="irlab.clearCsv()">✕ Clear Upload</button>
+        <button class="btn btn-secondary" style="margin-top:1rem;font-size:.8125rem" onclick="irlab.clearCsv()">✕ Clear</button>
       </div>`;
     }
 
     // ── MAIN RENDER ───────────────────────────────────────────────────────────
     function renderLab() {
-      loadEmbeddedData();
-      const el=document.getElementById('irlabContainer');
-      if(!el) return;
+      loadData();
+      const el = document.getElementById('irlabContainer');
+      if (!el) return;
 
-      // Drill-down states take priority
-      if(_irlScholarDrill){
-        el.innerHTML=`<div class="irlab-wrap">${renderScholarDrill(_irlScholarDrill)}</div>`;
-        return;
-      }
-      if(_irlTutorDrill){
-        el.innerHTML=`<div class="irlab-wrap">${renderTutorDrill(_irlTutorDrill, _irlDept)}</div>`;
-        return;
-      }
+      if (_irlScholarDrill) { el.innerHTML=`<div class="irlab-wrap">${renderScholarDrill(_irlScholarDrill)}</div>`; return; }
+      if (_irlTutorDrill)   { el.innerHTML=`<div class="irlab-wrap">${renderTutorDrill(_irlTutorDrill, _irlDept)}</div>`; return; }
 
-      const hasData=IRLAB_DATA.math.length+IRLAB_DATA.ela.length>0;
-      const allRows=[...IRLAB_DATA.math,...IRLAB_DATA.ela];
-      const years=[...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
-      const dists=[...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
+      const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela];
+      const years   = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
+      const dists   = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
+      const hasData = allRows.length > 0;
 
-      const yearOpts=['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
-      const subOpts=`<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
-      const distOpts=['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
+      const yearOpts = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
+      const subOpts  = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
+      const distOpts = ['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
 
-      const liveTag=_irlDataSrc==='live'
-        ?'<span style="display:inline-flex;align-items:center;gap:.375rem;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;background:#dcfce7;color:#166534;padding:.25rem .625rem;border-radius:20px"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;animation:livePulse 2s infinite;display:inline-block"></span>LIVE</span>'
-        :'<span style="font-size:.6875rem;font-weight:600;background:var(--surface-3);color:var(--muted);padding:.25rem .625rem;border-radius:20px">Embedded data</span>';
+      // Data source badge
+      const srcBadge = IRLAB_DATA.ts
+        ? `<span style="font-size:.6875rem;background:#ede9fe;color:#6d28d9;padding:.2rem .625rem;border-radius:20px;font-weight:600">📤 Updated ${new Date(IRLAB_DATA.ts).toLocaleDateString()}</span>`
+        : `<span style="font-size:.6875rem;background:var(--surface-3);color:var(--muted);padding:.2rem .625rem;border-radius:20px">EOY Embedded</span>`;
 
-      const cfg=DEPT_CFG[_irlDept]||DEPT_CFG.leadership;
+      const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
 
-      el.innerHTML=`<div class="irlab-wrap">
-        <!-- HEADER -->
+      el.innerHTML = `<div class="irlab-wrap">
         <div class="irlab-header">
           <div>
             <div class="irlab-eyebrow">Academic Intelligence · NJTC</div>
             <h2 class="irlab-title">i-Ready Analysis Lab</h2>
-            <p class="irlab-sub">${years.join(', ')} · Math & ELA · ${dists.length} districts · ${liveTag}</p>
-            <div id="irlabLoadStatus" style="font-size:.75rem;color:var(--muted);margin-top:.25rem"></div>
+            <p class="irlab-sub">${years.join(', ')||'No data'} · ${dists.length} districts ${srcBadge}</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:.75rem;align-items:flex-end">
             <div class="irlab-mode-tabs">
               <button class="irlab-mode-tab ${_irlMode==='embedded'?'active':''}" onclick="irlab.setMode('embedded')">📊 Analysis</button>
-              <button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">⬆️ Quick CSV</button>
+              <button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>
             </div>
-            <button class="btn btn-secondary" style="font-size:.75rem;padding:.375rem .875rem" onclick="irlab.refreshLive()">↺ Refresh Live Data</button>
           </div>
         </div>
 
-        ${_irlMode==='quickcsv'?renderQuickCSVMode():renderEmbeddedMode(hasData,yearOpts,subOpts,distOpts)}
+        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts)}
       </div>`;
     }
 
-    function renderEmbeddedMode(hasData,yearOpts,subOpts,distOpts) {
-      if(!hasData) return `<div class="irlab-card"><div class="irlab-empty">
+    function renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts) {
+      const rows = getRows({});
+      const m    = hasData ? computeMetrics(rows) : null;
+      const cfg  = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+
+      // Data dept always shows the update panel first
+      const dataUpdatePanel = _irlDept==='data' ? renderDataUpdatePanel() : '';
+
+      if (!hasData) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
         <div class="irlab-empty-icon">📂</div>
         <div class="irlab-empty-title">No data loaded</div>
-        <div class="irlab-empty-sub">Data is loading or unavailable. Try refreshing.</div>
-        <button class="btn btn-secondary" style="margin-top:1rem" onclick="irlab.refreshLive()">↺ Retry</button>
+        <div class="irlab-empty-sub">${_irlDept==='data'?'Use the Embedded Data Manager above to upload CSVs.':'Data has not been loaded yet. Contact the Data & Eval team.'}</div>
       </div></div>`;
 
-      const rows=getRows({});
-      const m=computeMetrics(rows);
-      const cfg=DEPT_CFG[_irlDept]||DEPT_CFG.leadership;
-
-      if(!m) return `<div class="irlab-card"><div class="irlab-empty">
-        <div class="irlab-empty-icon">🔍</div>
-        <div class="irlab-empty-title">No matching records</div>
-        <div class="irlab-empty-sub">Adjust year, subject, or district filters.</div>
+      if (!m) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
+        <div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div>
+        <div class="irlab-empty-sub">Adjust filters above.</div>
       </div></div>`;
-
-      // Subject comparison
-      const mathM=getRows({subject:'Math'}).length?computeMetrics(getRows({subject:'Math'})):null;
-      const elaM =getRows({subject:'ELA'}).length ?computeMetrics(getRows({subject:'ELA'})) :null;
 
       return `
-        <!-- FILTERS + DEPT LENS ROW -->
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:.5rem">
           <div class="irlab-filter-row" style="margin-bottom:0">
             <select class="irlab-select" onchange="irlab.setYear(this.value)">${yearOpts}</select>
             <select class="irlab-select" onchange="irlab.setSubject(this.value)">${subOpts}</select>
             <select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>
           </div>
-          <div class="irlab-dept-tabs" style="margin-bottom:0">
+          <div class="irlab-dept-tabs">
             ${Object.entries(DEPT_CFG).map(([key,c])=>`
               <button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color:''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('')}
           </div>
         </div>
-        <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-bottom:1rem">${rows.length.toLocaleString()} valid diagnostic pairs · Viewing as <strong style="color:${cfg.color}">${cfg.label}</strong></div>
+        <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-bottom:1rem">${rows.length.toLocaleString()} valid pairs · <strong style="color:${cfg.color}">${cfg.label}</strong> view</div>
 
-        <!-- DEPT-SPECIFIC VIEW -->
-        ${_irlDept==='leadership'?renderLeadershipSnapshot(m):''}
-        ${_irlDept!=='leadership'?renderStandardView(m):''}
+        ${dataUpdatePanel}
+        ${_irlDept==='leadership' ? renderLeadershipView(m) : renderStandardView(m)}
       `;
     }
 
-    function renderStandardView(m) {
-      const cfg=DEPT_CFG[_irlDept]||DEPT_CFG.programming;
-      const mathM=getRows({subject:'Math'}).length?computeMetrics(getRows({subject:'Math'})):null;
-      const elaM =getRows({subject:'ELA'}).length ?computeMetrics(getRows({subject:'ELA'})) :null;
-
-      return `
-        <!-- HERO KPIs -->
-        <div class="irlab-stats-grid" style="margin-bottom:1.25rem">
-          <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${m.pctMoved}%</div><div class="irlab-stat-lbl">Scholars Moved Up</div><div class="irlab-stat-sub">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()}</div></div>
-          <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${m.pctOnGL}%</div><div class="irlab-stat-lbl">At/Near Grade Level</div><div class="irlab-stat-sub">Spring · was ${pct(m.baseOnGL.length,m.n)}% at baseline</div></div>
-          <div class="irlab-stat" style="--irstat-color:#b91c1c"><div class="irlab-stat-val">${m.pct2Below}%</div><div class="irlab-stat-lbl">Still 2+ Levels Below</div><div class="irlab-stat-sub">${m.spr2Below.length.toLocaleString()} scholars (spring)</div></div>
-          <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${m.avgGain!==null?'+'+m.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Scale Score Gain</div></div>
-          <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${m.metTypPct!==null?m.metTypPct+'%':'—'}</div><div class="irlab-stat-lbl">Met Typical Growth</div><div class="irlab-stat-sub">${m.metTyp.length} of ${m.typPcts.length}</div></div>
-        </div>
-
-        <!-- DEPT INSIGHT BLOCKS -->
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd">
-            <div class="irlab-card-title" style="color:${DEPT_CFG[_irlDept]?.color}">${DEPT_CFG[_irlDept]?.emoji} ${DEPT_CFG[_irlDept]?.label} Insight View</div>
-            <div class="irlab-card-meta">Tailored interpretation for this department</div>
-          </div>
-          <div class="irlab-card-body">${renderDeptInsightsBlock(m,_irlDept)}</div>
-        </div>
-
-        <!-- SUBJECT COMPARISON (if both subjects have data) -->
-        ${mathM&&elaM?`
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">📐 Math vs ELA Comparison</div></div>
-          <div class="irlab-card-body">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-              ${[{label:'Math',sc:mathM,color:'#0050c8',icon:'➗'},{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖'}].map(({label,sc,color,icon})=>`
-                <div style="border:1.5px solid ${color}22;border-radius:10px;padding:1rem;background:${color}07">
-                  <div style="font-size:1rem;margin-bottom:.5rem">${icon} <strong style="color:${color}">${label}</strong></div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.8125rem">
-                    <div><div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy)">${sc.pctMoved}%</div><div style="color:var(--muted)">Moved up</div></div>
-                    <div><div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy)">${sc.pctOnGL}%</div><div style="color:var(--muted)">At grade level</div></div>
-                    <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?'+'+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted)">Avg gain</div></div>
-                    <div><div style="font-weight:700;color:var(--navy)">${sc.n.toLocaleString()}</div><div style="color:var(--muted)">Scholars</div></div>
-                  </div>
-                </div>`).join('')}
-            </div>
-          </div>
-        </div>`:''}
-
-        <!-- EQUITY SNAPSHOT (all depts except simplified) -->
-        ${_irlDept!=='finance'?renderEquitySnapshot(m):''}
-
-        <!-- PLACEMENT SHIFT -->
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Level Shift</div><div class="irlab-card-meta">Baseline → Spring</div></div>
-          <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
-            <div>
-              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Spring Distribution</div>
-              ${PLACEMENT_ORDER.map(p=>{
-                const pc=pct(m.springDist[p]||0,m.n);
-                return `<div class="irlab-funnel-row"><div class="irlab-funnel-label" style="color:${PLC[p]};font-weight:500">${PLC_SHORT[p]}</div><div class="irlab-funnel-bar-wrap"><div class="irlab-funnel-bar" style="width:${pc}%;background:${PLC[p]}"></div></div><div class="irlab-funnel-pct" style="color:${PLC[p]}">${pc}%</div><div class="irlab-funnel-n">${m.springDist[p]||0}</div></div>`;
-              }).join('')}
-            </div>
-            <div>
-              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Base vs Spring Table</div>
-              ${renderPlacementShift(m)}
-            </div>
-          </div>
-        </div>
-
-        <!-- DISTRICT RANKING -->
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div><div class="irlab-card-meta">By placement movement rate</div></div>
-          <div class="irlab-card-body" style="overflow-x:auto">${renderDistrictRanking(m)}</div>
-        </div>
-
-        <!-- GRADE TRENDS -->
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Trends</div><div class="irlab-card-meta">Movement · GL attainment · Scale gain · by grade</div></div>
-          <div class="irlab-card-body" style="overflow-x:auto">${renderGradeTrend(m)}</div>
-        </div>
-
-        <!-- TUTOR LEADERBOARD (non-data depts) -->
-        ${renderTutorLeaderboard(m,_irlDept)}
-
-        <!-- CERT COHORT -->
-        <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Certification Cohort</div><div class="irlab-card-meta">Observational · HR & Finance lens · Not causal</div></div>
-          <div class="irlab-card-body">${renderCertCohort(m)}</div>
-        </div>
-
-        <!-- REPEAT SCHOLARS -->
-        ${renderRepeatSection()}
-      `;
-    }
-
-    // ── Public API ─────────────────────────────────────────────────────────────
+    // ── Public API ────────────────────────────────────────────────────────────
     function onPanelOpen() {
-      if(!_irlBuilt){
-        _irlBuilt=true;
-        loadEmbeddedData();
+      if (!_irlBuilt) {
+        _irlBuilt = true;
+        // Auto-sync dept tab to current user's session dept
+        const sess = window.NJTC_SESSION;
+        if (sess && sess.dept && DEPT_CFG[sess.dept]) {
+          _irlDept = sess.dept;
+        }
+        loadData();
         renderLab();
-        // Try live fetch in background
-        setTimeout(()=>loadLiveData(),500);
       }
     }
 
-    function setMode(m)     { _irlMode=m;     _irlScholarDrill=null; _irlTutorDrill=null; renderLab(); }
-    function setYear(y)     { _irlYear=y;     renderLab(); }
-    function setSubject(s)  { _irlSubject=s;  renderLab(); }
-    function setDistrict(d) { _irlDistrict=d; renderLab(); }
-    function setDept(d)     { _irlDept=d;     renderLab(); }
+    function setMode(m)     { _irlMode=m;    _irlScholarDrill=null; _irlTutorDrill=null; renderLab(); }
+    function setYear(y)     { _irlYear=y;    renderLab(); }
+    function setSubject(s)  { _irlSubject=s; renderLab(); }
+    function setDistrict(d) { _irlDistrict=d;renderLab(); }
+    function setDept(d)     { _irlDept=d;    renderLab(); }
 
-    function drillScholar(name) { _irlScholarDrill=name; _irlTutorDrill=null; renderLab(); }
-    function drillTutor(name)   { _irlTutorDrill=name;  _irlScholarDrill=null; renderLab(); }
-    function closeDrill()       { _irlScholarDrill=null; _irlTutorDrill=null; renderLab(); }
-
-    function refreshLive() {
-      _irlLastFetch=0;
-      loadLiveData();
-    }
+    function drillScholar(name) { _irlScholarDrill=name; _irlTutorDrill=null;   renderLab(); }
+    function drillTutor(name)   { _irlTutorDrill=name;   _irlScholarDrill=null; renderLab(); }
+    function closeDrill()       { _irlScholarDrill=null;  _irlTutorDrill=null;   renderLab(); }
 
     function handleFileUpload(e) {
       const file=e.target.files[0]; if(!file) return;
       const reader=new FileReader();
-      reader.onload=(ev)=>{
-        const text=ev.target.result;
-        const rows=parseCSV(text); if(!rows.length){alert('Could not parse CSV.');return;}
-        const headers=Object.keys(rows[0]);
-        const isELA=headers.some(h=>h.toLowerCase().includes('phonics')||h.toLowerCase().includes('vocabulary')||h.toLowerCase().includes('reading comprehension'));
-        const subject=isELA?'ELA':'Math';
-        const checks=validateCSV(rows);
-        _irlCsvData={rows,filename:file.name,subject,checks};
+      reader.onload=ev=>{
+        const rows=parseCSV(ev.target.result);
+        if(!rows.length){alert('Could not parse CSV.');return;}
+        _irlCsvData={rows,filename:file.name};
         renderLab();
       };
       reader.readAsText(file);
     }
-
     function clearCsv() { _irlCsvData=null; renderLab(); }
 
+    // Called from legacy embed script (now a no-op — data loads from localStorage or panel dataset)
     function embedData(mathCsv,elaCsv,mathRepCsv,elaRepCsv) {
-      // Legacy: no-op. irlab now uses live Google Sheets fetch exclusively.
-      // Data is loaded lazily when the i-Ready Lab panel is first opened.
+      const panel=document.getElementById('panel-iready-lab');
+      if(!panel) return;
+      if(mathCsv)    panel.dataset.mathCsv=mathCsv;
+      if(elaCsv)     panel.dataset.elaCsv=elaCsv;
+      if(mathRepCsv) panel.dataset.mathRepCsv=mathRepCsv;
+      if(elaRepCsv)  panel.dataset.elaRepCsv=elaRepCsv;
+      // Reset so loadData() re-reads on next panel open
+      IRLAB_DATA.loaded=false;
     }
 
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
-             drillScholar, drillTutor, closeDrill, refreshLive,
-             handleFileUpload, clearCsv, embedData };
+             drillScholar, drillTutor, closeDrill,
+             handleFileUpload, clearCsv, embedData,
+             handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded };
   })();
 
 
