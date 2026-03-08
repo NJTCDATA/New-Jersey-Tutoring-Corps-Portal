@@ -2655,7 +2655,6 @@
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">⚠️</div><div class="st-value" id="poStatInterruptions">—</div><div class="st-label">Service Interruptions</div><div class="st-sub">Non-absence disruptions</div></div>
         <div class="stat-tile" style="--accent-color:#8b5cf6"><div class="st-icon">⭐</div><div class="st-value" id="poStatSurveyScholar">—</div><div class="st-label">Scholar Survey Avg</div><div class="st-sub">Confidence · Learning · Overall</div></div>
         <div class="stat-tile" style="--accent-color:#a855f7"><div class="st-icon">📋</div><div class="st-value" id="poStatSurveyTutor">—</div><div class="st-label">Tutor Survey Avg</div><div class="st-sub">Engagement · Quality · Overall</div></div>
-        <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">🚩</div><div class="st-value" id="poStatFlags">—</div><div class="st-label">HIT Flags</div><div class="st-sub">Compliance issues</div></div>
       </div>
 
       <!-- Filters -->
@@ -6377,13 +6376,13 @@
     const TAB_IDS = ['profiles','all','program','hr','reviews','log'];
     // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
     const TAB_MAP = {
-      kb:          ['profiles'],                          // KB: exec summary only
-      leadership:  ['profiles','all','program','hr','reviews','log'], // leadership: full access
-      data:        ['profiles','all','program','hr','reviews','log'], // data: full access
-      hr:          ['profiles','all','log'],              // HR: their view + full log
-      programming: ['profiles','all'],                    // Programming: their site overview
-      finance:     ['profiles','all'],                    // Finance: their view
-      training:    ['all'],                               // Training: concerns only
+      kb:          ['profiles'],                                        // KB: exec summary only
+      leadership:  ['profiles','all','program','hr','reviews','log'],   // leadership: full access
+      data:        ['profiles','all','program','hr','reviews','log'],   // data: full access
+      hr:          ['profiles','all','reviews','log'],                  // HR: profiles + concerns + site leader reviews + log
+      programming: ['profiles','all'],                                  // Programming: site overview
+      finance:     ['profiles','all'],                                  // Finance: their view
+      training:    ['all'],                                             // Training: concerns only
     };
     const allowed = new Set(TAB_MAP[dept] || ['all']);
 
@@ -7220,8 +7219,13 @@
 
   // ── Fuzzy name normalize ──────────────────────────────────────────────────
   function _hn(name) {
-    return (name || '').toLowerCase()
-      .replace(/[^a-z ]/g, '')
+    return (name || '')
+      .replace(/\s*-\s*sub\b/gi, '')            // strip "-SUB" suffix (Pearl sub-tutors)
+      .replace(/\s*-\s*sub$/gi, '')
+      .replace(/\([^)]*\)/g, '')                 // strip parenthetical nicknames: (Mary Carmen)
+      .replace(/\s*-\s*(sub|pilot only)\b/gi,'') // strip other Pearl suffixes
+      .toLowerCase()
+      .replace(/[^a-z ]/g, '')                   // keep only letters+spaces
       .split(' ')
       .filter(p => p.length > 1)
       .sort()
@@ -7256,14 +7260,15 @@
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
-        yr:       (r[C.yr]  ||'').trim(),
-        name:     (r[C.name]||'').trim(),
-        email:    (r[C.email]||'').trim().toLowerCase(),
-        role:     (r[C.role]||'').trim(),
-        site:     (r[C.site]||'').trim(),
+        yr:       (r[C.yr]      ||'').trim(),
+        name:     (r[C.name]    ||'').trim(),
+        email:    (r[C.email]   ||'').trim().toLowerCase(),
+        role:     (r[C.role]    ||'').trim(),
+        site:     (r[C.site]    ||'').trim(),
         district: (r[C.district]||'').trim(),
-        status:   (r[C.status]||'').trim(),
-        cycles:   (r[C.cycles]||'').trim(),
+        status:   (r[C.status]  ||'').trim(),
+        cycles:   (r[C.cycles]  ||'').trim(),
+        rehire:   (r[C.rehire]  ||'').trim(),  // live rehire status from Master List
       }))
       .filter(r => r.name && r.yr);
   }
@@ -7293,15 +7298,21 @@
       }
       if (!rows.length) continue;
       const latest = rows.sort((a,b)=>b.yr.localeCompare(a.yr))[0];
-      // Update live fields
-      if (latest.role)   emp.r  = latest.role;
-      if (latest.site)   emp.si = latest.site.slice(0,45);
-      if (latest.status) emp.s  = latest.status;
-      const newYrs = [...new Set(rows.map(r=>r.yr).filter(y=>!emp.y.includes(y)))];
+      // Live sheet is source of truth for name/role/site/status — overwrite always
+      if (latest.role)     emp.r  = latest.role;
+      if (latest.site)     emp.si = latest.site.slice(0,45);
+      if (latest.district) emp.di = latest.district.slice(0,45);
+      if (latest.status)   emp.s  = latest.status;
+      if (latest.name)     emp.n  = latest.name;  // canonical name from Master List
+      // Years tracking
+      const newYrs = [...new Set(rows.map(r=>r.yr).filter(y => y && !emp.y.includes(y)))];
       if (newYrs.length) emp.y = [...emp.y, ...newYrs].sort().reverse();
+      emp._liveYears = rows.map(r=>r.yr).filter(Boolean);  // all SYs from live sheet
+      // Cycles: take max across all live rows
       const maxCyc = rows.reduce((m,r)=>Math.max(m,parseInt(r.cycles)||0),0);
-      if (maxCyc > emp.c) emp.c = maxCyc;
-      if (latest.email && !emp.e) emp.e = latest.email;
+      if (maxCyc > 0) emp.c = maxCyc;  // live sheet is authoritative for cycles
+      if (latest.email) emp.e = latest.email;  // always update email from live
+      if (latest.rehire !== undefined) emp.rh = latest.rehire;  // live rehire status
       emp._live = true;
       updated++;
     }
@@ -7585,10 +7596,14 @@
   }
 
   // ── Filter state ──────────────────────────────────────────────────────────
-  let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active'; // default: active tab
+  let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active', _pSY='2025-2026'; // SY drill-down
 
   function _filtered() {
     let list = HR_EMPS;
+    // SY filter: restrict to employees who have a record in the selected SY
+    if (_pSY && _pSY !== 'all') {
+      list = list.filter(e => (e.y||[]).includes(_pSY) || (e._liveYears||[]).includes(_pSY));
+    }
     // Tab-aware status filter: 'active' tab = Active only; 'inactive' tab = all non-Active
     if (_pViewTab === 'active')   list = list.filter(e => e.s === 'Active');
     if (_pViewTab === 'inactive') list = list.filter(e => e.s !== 'Active');
@@ -7907,7 +7922,14 @@ ${hasAcad ? `
 
   // ── FULL HR / DATA VIEW ───────────────────────────────────────────────────
   function _hrViewFull() {
-    const allEmps   = HR_EMPS;
+    // Available SYs from embedded data + live overlay years
+    const allSYs = [...new Set(HR_EMPS.flatMap(e => e.y||[]))].sort().reverse();
+    const curSY  = _pSY || '2025-2026';
+
+    // Filter to selected SY for stats
+    const syEmps    = curSY === 'all' ? HR_EMPS
+                    : HR_EMPS.filter(e => (e.y||[]).includes(curSY)||(e._liveYears||[]).includes(curSY));
+    const allEmps   = syEmps;
     const active    = allEmps.filter(e => e.s === 'Active');
     const inactive  = allEmps.filter(e => e.s !== 'Active');
     const src       = _hrStatus === 'live' ? '🟢 Live' : '📋 Snapshot';
@@ -7969,6 +7991,9 @@ ${hasAcad ? `
 
       // Academic mini badge (if iReady data available)
       const acadBadge = e._acadPctMoved != null ? `<div style="margin-top:.35rem;font-size:.6rem;color:#7c3aed;font-weight:600">📊 ${e._acadPctMoved}% scholars advanced placement</div>` : '';
+      // Pearl data gap flag — active staff with no Pearl attendance record
+      const noPearlFlag = (e.s==='Active' && e._liveAtt===undefined && e.att===null) 
+        ? `<div style="margin-top:.35rem;font-size:.6rem;color:#64748b;font-weight:600">⬜ Not yet in Pearl this SY</div>` : '';
 
       // Concern badge
       const concernBadge = hasConcern ? `<div style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}</div>` : '';
@@ -7990,7 +8015,7 @@ ${hasAcad ? `
     <div style="font-size:.62rem;color:var(--muted);margin-top:.06rem">${esc((e.si||'—').slice(0,34))}${e.di?' · '+esc(e.di.slice(0,22)):''}</div>
   </div>
   <div style="padding:0 .75rem .4rem;display:flex;gap:.2rem">${kpiTiles}</div>
-  <div style="padding:0 .75rem .5rem">${metricRow}${acadBadge}${concernBadge}</div>
+  <div style="padding:0 .75rem .5rem">${metricRow}${acadBadge}${concernBadge}${noPearlFlag}</div>
   <div style="margin-top:auto;padding:.3rem .75rem;border-top:1px solid var(--border);font-size:.58rem;color:var(--muted);text-align:right">View full profile →</div>
 </div>`;
     };
@@ -8048,9 +8073,23 @@ ${hasAcad ? `
 
     const gridClose = `</div>`; // closes the tab content box
 
+    // SY selector dropdown options
+    const syOpts = ['all',...allSYs].map(sy =>
+      `<option value="${sy}" ${sy===curSY?'selected':''}>${sy==='all'?'All Years':sy}</option>`
+    ).join('');
+
     return `
 ${summaryBar}
-<div style="font-size:.72rem;font-weight:700;color:var(--navy);margin-bottom:.25rem">Employee Profiles</div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+  <div style="font-size:.72rem;font-weight:700;color:var(--navy)">Employee Profiles</div>
+  <div style="display:flex;align-items:center;gap:.5rem">
+    <label style="font-size:.65rem;color:var(--muted);font-weight:600">School Year:</label>
+    <select onchange="_hrSetSY(this.value)" style="font-size:.72rem;padding:.3rem .625rem;border:1.5px solid var(--navy);border-radius:6px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer">
+      ${syOpts}
+    </select>
+    <span style="font-size:.62rem;color:var(--muted);font-style:italic">${src}</span>
+  </div>
+</div>
 ${viewTabs}
 ${filtersRow}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.75rem;margin-bottom:.5rem">
@@ -8323,6 +8362,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _pQ       = '';
     _hrRebuildProfiles();
   };
+  window._hrSetSY = sy => { _pSY = sy; _pViewTab='active'; _pTier='all'; _pQ=''; _hrRebuildProfiles(); };
   window._hrSetRole    = r  => { _pRole=r;   _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => { _pQ=q;      _hrRebuildProfiles(); };
@@ -12459,14 +12499,26 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── Per-tutor attendance map for HR profiles overlay ──────────────
     function getTutorAttendanceMap() {
+      // Normalize Pearl instructor names the same way _hn() does
+      // so that cross-module matching is consistent
+      function _normPearlName(name) {
+        return (name || '')
+          .replace(/\s*-\s*sub\b/gi, '')
+          .replace(/\s*-\s*sub$/gi, '')
+          .replace(/\([^)]*\)/g, '')
+          .replace(/\s*-\s*(sub|pilot only)\b/gi,'')
+          .toLowerCase()
+          .replace(/[^a-z ]/g, '')
+          .split(' ').filter(w=>w.length>1).sort().join(' ');
+      }
       const map = {};
       for (const [uid, p] of Object.entries(_personMap)) {
         if (p.role !== 'Instructor') continue;
         const total = p.attended + p.absent;
         if (total === 0) continue;
         const attRate = Math.round(p.attended / total * 100);
-        const nameKey = (p.name || '').toLowerCase().replace(/[^a-z ]/g,'')
-          .split(' ').filter(w=>w.length>1).sort().join(' ');
+        const nameKey = _normPearlName(p.name);
+        // Keep record with most sessions (highest confidence)
         if (!map[nameKey] || map[nameKey].total < total) {
           map[nameKey] = {
             name:     p.name,
