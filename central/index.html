@@ -6372,45 +6372,48 @@
 
   // Update tab labels and layout based on dept
   function initTalentTabsForDept(dept) {
-    const tabBar = document.querySelector('#panel-talent .pst-tab[id="talentTab-all"]')?.parentElement;
-    if (!tabBar) return;
-    // Update "All Insights" label to be dept-specific
+    // Full tab list: profiles, all (concerns), program, hr, reviews, log
+    const TAB_IDS = ['profiles','all','program','hr','reviews','log'];
+    // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
+    const TAB_MAP = {
+      kb:          ['profiles'],                          // KB: exec summary only
+      leadership:  ['profiles','all','program','hr','reviews','log'], // leadership: full access
+      data:        ['profiles','all','program','hr','reviews','log'], // data: full access
+      hr:          ['profiles','all','log'],              // HR: their view + full log
+      programming: ['profiles','all'],                    // Programming: their site overview
+      finance:     ['profiles','all'],                    // Finance: their view
+      training:    ['all'],                               // Training: concerns only
+    };
+    const allowed = new Set(TAB_MAP[dept] || ['all']);
+
+    // Label override for the "all" tab per dept
+    const labels = {
+      hr:          '👔 HR Overview',
+      programming: '🎯 Site Overview',
+      leadership:  '⭐ Exec Summary',
+      data:        '📈 Full Analytics',
+      kb:          '🌟 Exec Summary',
+      finance:     '💰 Finance View',
+      training:    '📚 Training View',
+    };
     const allTab = document.getElementById('talentTab-all');
-    if (allTab) {
-      const labels = {
-        hr: '👔 HR Overview',
-        programming: '🎯 Site Overview',
-        leadership: '⭐ Exec Summary',
-        data: '📈 Full Analytics',
-        kb: '🌟 Exec Summary',
-      };
-      allTab.textContent = labels[dept] || '📊 Overview';
+    if (allTab) allTab.textContent = labels[dept] || '📊 Overview';
+
+    // Show/hide each tab strictly
+    for (const id of TAB_IDS) {
+      const el = document.getElementById('talentTab-' + id);
+      if (!el) continue;
+      el.style.display = allowed.has(id) ? '' : 'none';
     }
-    // Show/hide tabs based on dept
-    const programTab = document.getElementById('talentTab-program');
-    const hrTab      = document.getElementById('talentTab-hr');
-    const logTab     = document.getElementById('talentTab-log');
-    if (dept === 'hr') {
-      if (programTab) programTab.style.display = '';
-      if (hrTab)      hrTab.style.display = 'none'; // their main view is "all"
-      if (logTab)     logTab.style.display = '';
-    } else if (dept === 'programming') {
-      if (programTab) programTab.style.display = 'none';
-      if (hrTab)      hrTab.style.display = '';
-      if (logTab)     logTab.style.display = 'none';
-    } else if (dept === 'leadership') {
-      if (programTab) programTab.style.display = '';
-      if (hrTab)      hrTab.style.display = '';
-      if (logTab)     logTab.style.display = '';
-    } else if (dept === 'kb') {
-      if (programTab) programTab.style.display = '';
-      if (hrTab)      hrTab.style.display = '';
-      if (logTab)     logTab.style.display = '';
-    } else if (dept === 'data') {
-      if (programTab) programTab.style.display = '';
-      if (hrTab)      hrTab.style.display = '';
-      if (logTab)     logTab.style.display = '';
-    }
+
+    // Also intercept onclick on ALL tab buttons to block cross-dept toggling
+    // Only leadership and data can click tabs outside their dept-allowed set
+    document.querySelectorAll('[id^="talentTab-"]').forEach(btn => {
+      const tabId = btn.id.replace('talentTab-','');
+      if (!allowed.has(tabId)) {
+        btn.onclick = null; // already hidden, double-lock
+      }
+    });
   }
 
   // ── Finance analytics panel ────────────────────────────────────
@@ -7638,65 +7641,103 @@ ${attRisk.length ? `
     const byTier   = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
     HR_EMPS.forEach(e=>{ if(byTier[e.t]!==undefined) byTier[e.t]++; });
     const active   = HR_EMPS.filter(e=>e.s==='Active').length;
-    const src = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
+    const src      = _hrStatus==='live' ? '🟢 Live' : '📋 Snapshot';
 
+    // ── Tier filter pills ──
     const tierPills = Object.entries(byTier).map(([t,n])=>{
       const c=_tier(t); const on=_pTier===t;
       return `<button onclick="_hrSetTier('${t}')" style="padding:.3rem .75rem;border-radius:20px;border:1.5px solid ${on?c.color:c.color+'44'};background:${on?c.bg:'transparent'};color:${c.color};font-size:.7rem;font-weight:700;cursor:pointer">${c.emoji} ${c.label} (${n})</button>`;
     }).join('');
     const allBtn = `<button onclick="_hrSetTier('all')" style="padding:.3rem .75rem;border-radius:20px;border:1.5px solid ${_pTier==='all'?'var(--navy)':'var(--border)'};background:${_pTier==='all'?'var(--navy)':'transparent'};color:${_pTier==='all'?'#fff':'var(--navy)'};font-size:.7rem;font-weight:700;cursor:pointer">All (${total})</button>`;
 
+    // ── ADP-style profile cards ──
     const cards = filtered.slice(0,120).map(e=>{
-      const cfg=_tier(e.t);
+      const cfg        = _tier(e.t);
       const hasConcern = (e._liveConcerns||0)>0 || e.co===1;
-      const att = e._liveAtt!==undefined ? e._liveAtt : e.att;
-      const isActive = e.s==='Active';
+      const att        = e._liveAtt!==undefined ? e._liveAtt : e.att;
       const concernCount = e._liveConcerns||0;
-      return `<div onclick="_hrShowProfile('${esc(e.n)}')" style="cursor:pointer;background:var(--surface);border:1.5px solid ${hasConcern?'#fecaca':cfg.color+'22'};border-radius:var(--radius-sm);padding:.875rem;transition:.15s" onmouseenter="this.style.background='var(--surface-2)'" onmouseleave="this.style.background='var(--surface)'">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.375rem">
-    <span style="background:${cfg.bg};color:${cfg.color};padding:.1rem .4rem;border-radius:8px;font-size:.6rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
-    ${_statusDot(e.s)}
+      const hrActionRaw  = e._liveHRAction || e.hn || null;
+      const scholars     = e._liveScholars!==undefined ? e._liveScholars : null;
+      const borderColor  = hasConcern ? '#fecaca' : (e.s==='Active' ? cfg.color+'33' : 'var(--border)');
+
+      // 4 KPI tiles
+      const kpiTiles = [
+        { v: e.c!=null ? e.c+'cy' : '—',             l: 'Cycles',       color: 'var(--navy)' },
+        { v: att!=null ? att+'%' : '—',               l: 'Attendance',   color: _attColor(att) },
+        { v: e.je!=null ? '★'+e.je : '—',             l: 'Survey',       color: '#7c3aed' },
+        { v: e.mp!=null ? e.mp+'/4' : '—',            l: 'Perf Score',   color: e.mp!=null?(e.mp>=3?'#0d6e3a':e.mp>=2?'#d97706':'#b91c1c'):'var(--muted)' },
+      ].map(k=>`<div style="flex:1;min-width:60px;text-align:center;padding:.5rem .25rem;background:var(--surface-2);border-radius:6px">
+  <div style="font-size:1rem;font-weight:800;color:${k.color};line-height:1.1">${esc(k.v)}</div>
+  <div style="font-size:.6rem;color:var(--muted);margin-top:.15rem">${k.l}</div>
+</div>`).join('');
+
+      // Metric row (4 pass/fail flags)
+      const metricRow = e.mp!=null ? `<div style="display:flex;gap:.25rem;flex-wrap:wrap;margin-top:.5rem">
+  ${[['Att',e.am],['Enjoy',e.em],['Learn',e.lm],['Acad',e.acm]].map(([l,v])=>`<span style="font-size:.6rem;padding:.1rem .35rem;border-radius:5px;font-weight:700;background:${v?'#d1fae5':'#fee2e2'};color:${v?'#065f46':'#b91c1c'}">${l} ${v?'✓':'✗'}</span>`).join('')}
+</div>` : '';
+
+      // Concern badge
+      const concernBadge = hasConcern ? `<div style="margin-top:.5rem;padding:.3rem .6rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:.65rem;color:#92400e;font-weight:600">⚠️ ${concernCount>0?concernCount+' concern'+(concernCount>1?'s':''):' Concern on record'}${hrActionRaw?' · '+esc(hrActionRaw.slice(0,25)):''}</div>` : '';
+
+      // Rehire badge
+      const rhBadge = (e.rh==='No'||e.rh==='no'||e.rh===false) ? `<span style="font-size:.6rem;background:#fee2e2;color:#b91c1c;padding:.1rem .35rem;border-radius:5px;font-weight:700">⛔ No Rehire</span>` : (e.rh==='Yes'||e.rh==='yes'||e.rh===true) ? `<span style="font-size:.6rem;background:#d1fae5;color:#065f46;padding:.1rem .35rem;border-radius:5px;font-weight:700">✅ Rehire</span>` : '';
+
+      return `<div onclick="_hrShowProfile('${esc(e.n)}')" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.10)'" onmouseleave="this.style.boxShadow='none'">
+  <!-- Header bar -->
+  <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.625rem .875rem;display:flex;justify-content:space-between;align-items:center">
+    <span style="background:${cfg.bg};color:${cfg.color};padding:.15rem .45rem;border-radius:8px;font-size:.6rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
+    <div style="display:flex;gap:.35rem;align-items:center">${rhBadge} ${_statusDot(e.s)}</div>
   </div>
-  <div style="font-weight:700;color:var(--navy);font-size:.8125rem;line-height:1.3;margin-bottom:.15rem">${esc(e.n)}</div>
-  <div style="font-size:.7rem;color:var(--text-2);margin-bottom:.125rem">${esc(e.r||'—')}</div>
-  <div style="font-size:.65rem;color:var(--muted);margin-bottom:.5rem">${esc((e.si||'—').slice(0,32))} · ${e.c}cy</div>
-  <div style="display:flex;gap:.35rem;flex-wrap:wrap">
-    ${att!==null&&att!==undefined?`<span style="font-size:.65rem;background:${att>=85?'#d1fae5':'#fef3c7'};color:${att>=85?'#065f46':'#92400e'};padding:.1rem .35rem;border-radius:5px;font-weight:600">${att}%</span>`:''}
-    ${e.je!==null&&e.je!==undefined?`<span style="font-size:.65rem;background:#ede9fe;color:#5b21b6;padding:.1rem .35rem;border-radius:5px;font-weight:600">★${e.je}</span>`:''}
-    ${hasConcern?`<span style="font-size:.65rem;background:#fee2e2;color:#b91c1c;padding:.1rem .35rem;border-radius:5px;font-weight:600">⚠️${concernCount>0?concernCount:''}</span>`:''}
-    ${(e.rh||'').toLowerCase().startsWith('no')?`<span style="font-size:.65rem;background:#fef2f2;color:#b91c1c;padding:.1rem .35rem;border-radius:5px;font-weight:600">🚫</span>`:''}
+  <!-- Name + role -->
+  <div style="padding:.625rem .875rem .375rem">
+    <div style="font-weight:800;color:var(--navy);font-size:.875rem;line-height:1.25">${esc(e.n)}</div>
+    <div style="font-size:.7rem;color:var(--text-2);margin-top:.1rem">${esc(e.r||'—')}</div>
+    <div style="font-size:.65rem;color:var(--muted);margin-top:.1rem">${esc((e.si||'—').slice(0,36))}${e.di?' · '+esc(e.di.slice(0,24)):''}</div>
   </div>
+  <!-- 4-KPI row -->
+  <div style="padding:0 .875rem .5rem;display:flex;gap:.25rem">${kpiTiles}</div>
+  <!-- Metric flags + concern -->
+  <div style="padding:0 .875rem .625rem">
+    ${metricRow}
+    ${concernBadge}
+    ${scholars!=null?`<div style="margin-top:.375rem;font-size:.65rem;color:var(--muted)">Scholars tutored (live): <strong>${scholars}</strong></div>`:''}
+  </div>
+  <!-- Click hint -->
+  <div style="margin-top:auto;padding:.375rem .875rem;border-top:1px solid var(--border);font-size:.6rem;color:var(--muted);text-align:right">View full profile →</div>
 </div>`;
     }).join('');
 
     return `
-<div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);border-radius:var(--radius);padding:1.25rem 1.5rem;margin-bottom:1rem;color:#fff;display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center">
-  <div style="flex:1"><div style="font-size:1.125rem;font-weight:700">${total} Staff Records</div><div style="font-size:.7rem;color:rgba(255,255,255,.5)">${active} active · ${HR_EMPS.filter(e=>e.c>=3).length} with 3+ cycles · ${src}</div></div>
-  <div style="display:flex;gap:1rem;flex-wrap:wrap">
-    ${['stellar','strong','developing','needs_support'].map(t=>{const c=_tier(t);return`<div style="text-align:center"><div style="font-size:1rem">${c.emoji}</div><div style="font-family:'DM Serif Display',serif;font-size:1.125rem;color:#fff">${byTier[t]}</div></div>`;}).join('')}
+<div style="margin-bottom:1rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.625rem">
+    <div style="font-size:.75rem;font-weight:700;color:var(--navy)">Employee Profiles <span style="font-weight:400;color:var(--muted)">(${active} active · ${total} total · ${src})</span></div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <select onchange="_hrSetRole(this.value)" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--navy)">
+        <option value="all">All Roles</option>
+        <option value="tutor">Tutor</option>
+        <option value="site coord">Site Coordinator</option>
+        <option value="dual">Dual Role</option>
+      </select>
+      <select onchange="_hrSetStatus(this.value)" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--navy)">
+        <option value="all">All Status</option>
+        <option value="active">Active Only</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+  </div>
+  <!-- Tier pills -->
+  <div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:.75rem">${allBtn} ${tierPills}</div>
+  <!-- Search -->
+  <div style="position:relative;margin-bottom:.875rem">
+    <input id="hrSearch" type="text" placeholder="Search by name, site, or role…" oninput="_hrDoSearch(this.value)"
+      style="width:100%;padding:.5rem .75rem .5rem 2.25rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem;background:var(--surface);color:var(--navy);box-sizing:border-box">
+    <span style="position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.875rem">🔍</span>
   </div>
 </div>
-<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:.75rem">${allBtn} ${tierPills}</div>
-<div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:1rem">
-  <input id="hrEmpQ" type="text" placeholder="Search name, site, role…" value="${esc(_pQ)}"
-    style="flex:2;min-width:180px;padding:.45rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem"
-    oninput="_hrDoSearch(this.value)">
-  <select onchange="_hrSetRole(this.value)" style="flex:1;min-width:120px;padding:.45rem .625rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem">
-    <option value="all" ${_pRole==='all'?'selected':''}>All Roles</option>
-    <option value="Certified Tutor" ${_pRole==='Certified Tutor'?'selected':''}>Certified Tutor</option>
-    <option value="Non-cert" ${_pRole==='Non-cert'?'selected':''}>Non-cert Tutor</option>
-    <option value="Dual Role" ${_pRole==='Dual Role'?'selected':''}>Dual Role</option>
-    <option value="Site Coordinator" ${_pRole==='Site Coordinator'?'selected':''}>Site Coordinator</option>
-    <option value="Instructional Coach" ${_pRole==='Instructional Coach'?'selected':''}>Instructional Coach</option>
-  </select>
-  <select onchange="_hrSetStatus(this.value)" style="flex:1;min-width:110px;padding:.45rem .625rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem">
-    <option value="all" ${_pStatus==='all'?'selected':''}>All Status</option>
-    <option value="active" ${_pStatus==='active'?'selected':''}>Active Only</option>
-    <option value="terminated" ${_pStatus==='terminated'?'selected':''}>Past Staff</option>
-  </select>
-  <span style="font-size:.75rem;color:var(--muted);align-self:center;white-space:nowrap">${filtered.length} shown</span>
-</div>
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.75rem;margin-bottom:1.25rem">
+<!-- Results count -->
+<div style="font-size:.7rem;color:var(--muted);margin-bottom:.5rem;text-align:right">${filtered.length} employees shown</div>
+<!-- Card grid -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.875rem;margin-bottom:1.25rem">
   ${cards||'<div style="grid-column:1/-1;text-align:center;padding:2.5rem;color:var(--muted)">No employees match your filters.</div>'}
 </div>
 ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Showing 120 of ${filtered.length} — refine filters to see more</div>`:''}
@@ -7707,78 +7748,102 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
   function _hrModal(emp) {
     const cfg = _tier(emp.t);
     const att = emp._liveAtt!==undefined ? emp._liveAtt : emp.att;
-    const liveAttLabel = emp._liveAtt!==undefined ? ' <span style="font-size:.6rem;color:var(--blue-mid);font-weight:600">LIVE</span>' : '';
+    const liveLabel = emp._liveAtt!==undefined ? ' <span style="font-size:.6rem;color:#38bdf8;font-weight:700">● LIVE</span>' : '';
     const concernCount = emp._liveConcerns||0;
     const hrAction     = emp._liveHRAction || emp.hn || null;
     const scholars     = emp._liveScholars !== undefined ? emp._liveScholars : null;
+    const uid = emp.n.replace(/\W/g,'_');
 
-    const metrics = emp.mp!==null ? `
-<div style="margin-bottom:1.25rem">
-  <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.08em;margin-bottom:.5rem">Performance Metrics (SY ${esc(emp.py||'—')})</div>
+    // Rehire badge
+    const rhBadge = (emp.rh==='No'||emp.rh===false) ? '<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire</span>'
+      : (emp.rh==='Yes'||emp.rh===true) ? '<span style="background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire</span>' : '';
+
+    // Performance section (collapsible)
+    const metricsBody = emp.mp!==null ? `
+<div id="${uid}_metrics" style="">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.625rem">
-    ${[
-      ['Attendance Met',          emp.am],
-      ['Scholar Enjoyment Met',   emp.em],
-      ['Scholar Learning Met',    emp.lm],
-      ['Academic Improvement Met',emp.acm],
-    ].map(([l,v])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .625rem;background:var(--surface-2);border-radius:6px;font-size:.75rem"><span style="color:var(--text-2)">${l}</span>${_yesNo(v)}</div>`).join('')}
+    ${[['Attendance Target Met',emp.am],['Scholar Enjoyment Met',emp.em],['Scholar Learning Met',emp.lm],['Academic Improvement Met',emp.acm]]
+      .map(([l,v])=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .625rem;background:var(--surface-2);border-radius:6px;font-size:.75rem"><span style="color:var(--text-2)">${l}</span>${_yesNo(v)}</div>`).join('')}
   </div>
-  ${emp.pi!==null?`<div style="display:flex;gap:1rem;padding:.625rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.8125rem">
-    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">scholars improved placement</span></span>
-    ${emp.pr!==null?`<span>📉 <strong>${emp.pr}%</strong> <span style="color:var(--muted)">regressed</span></span>`:''}
-    ${emp.p2!==null?`<span>⭐ <strong>${emp.p2}%</strong> <span style="color:var(--muted)">improved 2+</span></span>`:''}
+  ${emp.pi!=null?`<div style="display:flex;gap:.875rem;flex-wrap:wrap;padding:.625rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.8125rem">
+    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">improved placement</span></span>
+    ${emp.pr!=null?`<span>📉 <strong>${emp.pr}%</strong> <span style="color:var(--muted)">regressed</span></span>`:''}
+    ${emp.p2!=null?`<span>⭐ <strong>${emp.p2}%</strong> <span style="color:var(--muted)">improved 2+ levels</span></span>`:''}
   </div>`:''}
-</div>` : '<div style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e;margin-bottom:1.25rem">ℹ️ Full performance metrics not available for this employee in the embedded dataset.</div>';
+</div>` : `<div id="${uid}_metrics" style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">ℹ️ Full performance metrics not available for this employee in the embedded dataset.</div>`;
 
-    const concernSection = (concernCount>0||emp.co===1) ? `
-<div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;margin-bottom:1rem">
-  <div style="font-size:.75rem;font-weight:700;color:#92400e;margin-bottom:.25rem">⚠️ Performance Concern on Record${concernCount>0?' ('+concernCount+' live)':''}</div>
-  ${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
-  ${emp.cd?`<div style="font-size:.7rem;color:var(--muted)">Date: ${esc(emp.cd)}</div>`:''}
-  ${hrAction?`<div style="font-size:.7rem;color:#92400e;margin-top:.25rem;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}
+    // Concern section (collapsible)
+    const concernBody = (concernCount>0||emp.co===1) ? `
+<div id="${uid}_concern" style="">
+  <div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px">
+    <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.3rem">⚠️ Performance Concern${concernCount>0?' ('+concernCount+' active)':''}</div>
+    ${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
+    ${emp.cd?`<div style="font-size:.7rem;color:var(--muted)">Recorded: ${esc(emp.cd)}</div>`:''}
+    ${hrAction?`<div style="margin-top:.375rem;font-size:.75rem;background:#fee2e2;padding:.3rem .6rem;border-radius:6px;color:#b91c1c;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}
+  </div>
+</div>` : '';
+
+    // Section header helper with collapse toggle
+    const sec = (label, id, body, defaultOpen=true) => body ? `
+<div style="margin-bottom:1rem">
+  <div onclick="_hrToggle('${id}')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:.4rem .5rem;background:var(--surface-2);border-radius:6px;margin-bottom:.5rem;user-select:none">
+    <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.08em">${label}</span>
+    <span id="${id}_btn" style="font-size:.65rem;color:var(--muted)">${defaultOpen?'▼ Hide':'▶ Show'}</span>
+  </div>
+  <div id="${id}" style="${defaultOpen?'':'display:none'}">${body}</div>
 </div>` : '';
 
     return `
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.375rem 1.75rem;color:#fff;position:relative">
   <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="position:absolute;top:.875rem;right:.875rem;background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
-  <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);margin-bottom:.375rem;text-transform:uppercase">Employee Profile — Historical Snapshot</div>
-  <div style="font-size:1.25rem;font-weight:700;margin-bottom:.2rem">${esc(emp.n)}</div>
+  <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · ${esc(emp.py||'Historical')} SY</div>
+  <div style="font-size:1.375rem;font-weight:800;margin-bottom:.2rem">${esc(emp.n)}</div>
   ${emp.a&&emp.a.length?`<div style="font-size:.7rem;color:rgba(255,255,255,.4)">Also listed as: ${emp.a.map(esc).join(', ')}</div>`:''}
-  <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-top:.625rem;align-items:center">
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.625rem;align-items:center">
     <span style="background:${cfg.bg};color:${cfg.color};padding:.2rem .5rem;border-radius:10px;font-size:.7rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
     <span style="font-size:.75rem;color:rgba(255,255,255,.6)">${esc(emp.r||'—')}</span>
-    ${_statusDot(emp.s).replace('color:','style="color:')}
-    ${_rehireBadge(emp.rh)}
+    ${_statusDot(emp.s)}
+    ${rhBadge}
   </div>
 </div>
-<div style="padding:1.375rem 1.75rem">
+<div style="padding:1.375rem 1.75rem;max-height:75vh;overflow-y:auto">
+  <!-- 4-KPI stat row -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem;margin-bottom:1.25rem">
     ${[
-      {v:emp.c,          l:'Cycles',        c:'var(--navy)',  s:'DM Serif Display'},
-      {v:att!==null?att+'%':'—', l:`Attendance${liveAttLabel}`, c:_attColor(att), s:'DM Serif Display'},
-      {v:emp.je!==null?'★'+emp.je:'—', l:'Scholar Survey', c:'#7c3aed', s:''},
-      {v:emp.mp!==null?emp.mp+'/4':'—', l:'Perf Score', c:emp.mp!==null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)', s:'DM Serif Display'},
+      {v:emp.c,                    l:'Cycles',     c:'var(--navy)'},
+      {v:att!=null?att+'%':'—',    l:`Attendance${liveLabel}`, c:_attColor(att)},
+      {v:emp.je!=null?'★'+emp.je:'—', l:'Scholar Survey', c:'#7c3aed'},
+      {v:emp.mp!=null?emp.mp+'/4':'—',l:'Perf Score',  c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
     ].map(x=>`<div style="text-align:center;padding:.75rem .5rem;background:var(--surface-2);border-radius:8px">
-      <div style="font-family:'${x.s}',serif;font-size:1.5rem;color:${x.c};line-height:1">${x.v}</div>
+      <div style="font-size:1.5rem;font-weight:800;color:${x.c};line-height:1">${esc(String(x.v??'—'))}</div>
       <div style="font-size:.65rem;color:var(--muted);margin-top:.25rem">${x.l}</div>
     </div>`).join('')}
   </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:1.25rem">
+
+  <!-- Assignment & History -->
+  ${sec('Assignment & History', uid+'_assign', `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem">
     <div>
-      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Assignment</div>
+      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Site</div>
       <div style="font-size:.875rem;color:var(--navy);font-weight:600">${esc(emp.si||'—')}</div>
-      ${emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,50))}</div>`:''}
+      ${emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,60))}</div>`:''}
     </div>
     <div>
-      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Years with NJTC</div>
+      <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">SY History</div>
       <div style="font-size:.8125rem;color:var(--navy)">${esc((emp.y||[]).join(', ')||'—')}</div>
-      ${scholars!==null?`<div style="font-size:.7rem;color:var(--text-2);margin-top:.15rem">Scholars tutored (live): ${scholars}</div>`:''}
+      ${scholars!=null?`<div style="font-size:.7rem;color:var(--text-2);margin-top:.15rem">Scholars tutored: <strong>${scholars}</strong></div>`:''}
+      ${emp.e?`<div style="margin-top:.375rem"><a href="mailto:${esc(emp.e)}" style="font-size:.75rem;color:var(--blue-mid)">${esc(emp.e)}</a></div>`:''}
     </div>
-  </div>
-  ${metrics}
-  ${concernSection}
-  ${emp.tr?`<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;margin-bottom:.75rem">Termination reason: ${esc(emp.tr)}</div>`:''}
-  ${emp.e?`<div style="font-size:.75rem;padding:.5rem .75rem;background:var(--surface-2);border-radius:6px"><span style="color:var(--muted)">Email:</span> <a href="mailto:${esc(emp.e)}" style="color:var(--blue-mid)">${esc(emp.e)}</a></div>`:''}
+  </div>`)}
+
+  <!-- Performance Metrics -->
+  ${sec('Performance Metrics', uid+'_metrics', metricsBody)}
+
+  <!-- Concerns -->
+  ${concernBody ? sec('Performance Concerns', uid+'_concern', concernBody, true) : ''}
+
+  <!-- Additional Info -->
+  ${emp.tr ? `<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;margin-bottom:.75rem">Termination reason: ${esc(emp.tr)}</div>` : ''}
 </div>`;
   }
 
@@ -7806,6 +7871,15 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
   window._hrSetRole    = r  => { _pRole=r;   _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => { _pQ=q;      _hrRebuildProfiles(); };
+  // Toggle collapsible section in profiles
+  window._hrToggle = (id) => {
+    const el = document.getElementById(id);
+    const btn = document.getElementById(id+'_btn');
+    if (!el) return;
+    const isOpen = el.style.display !== 'none';
+    el.style.display = isOpen ? 'none' : '';
+    if (btn) btn.textContent = isOpen ? '▶ Show' : '▼ Hide';
+  };
   window._hrShowProfile= nm => {
     const emp = HR_EMPS.find(e=>e.n===nm);
     if (!emp) return;
@@ -9155,6 +9229,39 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
           if (GIDS.stu  === null) { GIDS.stu  = r.gid; continue; }
         }
       }
+
+      // Third pass: relaxed matching for att and sess using remaining unassigned tabs
+      if (GIDS.att === null || GIDS.sess === null) {
+        const assignedGids2 = new Set(Object.values(GIDS).filter(v => v !== null));
+        const remaining = validResults.filter(r => !assignedGids2.has(r.gid));
+        for (const r of remaining) {
+          const h = r.firstRow;
+          // Attendance: any tab whose first column is 'user' (loose match)
+          if (GIDS.att === null && (h.startsWith('user,') || h.startsWith('"user",'))) {
+            GIDS.att = r.gid; continue;
+          }
+          // Session: any tab whose first column is 'title' (loose match)
+          if (GIDS.sess === null && (h.startsWith('title,') || h.startsWith('"title",'))) {
+            GIDS.sess = r.gid; continue;
+          }
+        }
+        // Last resort: assign any remaining unmatched tabs
+        const assignedGids3 = new Set(Object.values(GIDS).filter(v => v !== null));
+        const lastResort = validResults.filter(r => !assignedGids3.has(r.gid));
+        for (const r of lastResort) {
+          if (GIDS.att  === null) { GIDS.att  = r.gid; continue; }
+          if (GIDS.sess === null) { GIDS.sess = r.gid; continue; }
+        }
+      }
+
+      // Persist resolved GIDs to localStorage so repeat visits skip the probe entirely
+      try {
+        const _GCK2 = 'njtc_pearl_gids_v1';
+        if (Object.values(GIDS).every(v => v !== null)) {
+          localStorage.setItem(_GCK2, JSON.stringify({att:GIDS.att,inst:GIDS.inst,stu:GIDS.stu,sess:GIDS.sess}));
+          console.log('[Pearl Ops] GIDs persisted to localStorage');
+        }
+      } catch(e) {}
 
       // Log what was resolved (helps with future debugging)
       console.log('[Pearl Ops] GIDs resolved →', JSON.stringify(GIDS));
