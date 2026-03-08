@@ -3406,6 +3406,33 @@
 (function() {
 
   // ══════════════════════════════════════════════════════════
+  //  NJTC_CACHE — shared stale-while-revalidate localStorage utility
+  //  All modules use this for 30-min TTL data caching
+  // ══════════════════════════════════════════════════════════
+  const NJTC_CACHE = {
+    TTL: 30 * 60 * 1000,  // 30 minutes
+    get(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (!obj || !obj.ts || !obj.d) return null;
+        return { data: obj.d, age: Date.now() - obj.ts, fresh: (Date.now() - obj.ts) < this.TTL };
+      } catch(e) { return null; }
+    },
+    set(key, data) {
+      try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), d: data })); } catch(e) {}
+    },
+    bust(key) {
+      try { localStorage.removeItem(key); } catch(e) {}
+    },
+    bustAll() {
+      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v1','njtc_pearl_gids_v1'];
+      keys.forEach(k => this.bust(k));
+    }
+  };
+
+  // ══════════════════════════════════════════════════════════
   //  DEPARTMENT CONFIGURATION
   // ══════════════════════════════════════════════════════════
   const DEPT_CONFIG = {
@@ -3659,6 +3686,15 @@
     // Deduplicate concurrent fetches
     if (_docFetchPromise && !forceRefresh) return _docFetchPromise;
 
+    // ── Check localStorage cache before fetching ───────────────────
+    const _oc = NJTC_CACHE.get('njtc_ops_v1');
+    if (_oc && _oc.data && !forceRefresh) {
+      _docCache = _oc.data;
+      _docFetchPromise = null;
+      if (_oc.fresh) return _docCache;  // fresh: no network needed
+      // stale: fall through to background re-fetch (return cache immediately too)
+    }
+
     _docFetchPromise = (async () => {
       try {
         const resp = await fetch(OPS_MANUAL_PUB_URL + '?cachebust=' + Math.floor(Date.now() / 60000), {
@@ -3668,6 +3704,7 @@
         const html = await resp.text();
         const sections = parseDocHTML(html);
         _docCache = { fetchedAt: Date.now(), sections, raw: html };
+        NJTC_CACHE.set('njtc_ops_v1', _docCache);
         _docFetchPromise = null;
         return _docCache;
       } catch(e) {
@@ -4161,24 +4198,21 @@
     if (txt) txt.textContent = 'Fetching live data from Google Sheet…';
     if (btn) btn.disabled = true;
 
-    // ── localStorage cache (5-min TTL) — skip network on repeat opens ──
-    const _KPI_CACHE_KEY = 'njtc_kpi_v2';
-    const _KPI_CACHE_TTL = 5 * 60 * 1000;
+    // ── NJTC_CACHE stale-while-revalidate (30-min TTL) ──────────────────
     if (!forceRefresh) {
-      try {
-        const _cached = JSON.parse(localStorage.getItem(_KPI_CACHE_KEY) || 'null');
-        if (_cached && _cached.ts && (Date.now() - _cached.ts) < _KPI_CACHE_TTL && _cached.d && _cached.d.length) {
-          KPI_DATA = _cached.d;
-          _kpiFromSheet = true;
-          _kpiLastFetched = new Date(_cached.ts);
-          if (dot) { dot.className = 'sync-dot'; }
-          if (txt) txt.innerHTML = `<strong>Cached</strong> · ${KPI_DATA.length} targets · ${_kpiLastFetched.toLocaleTimeString()}`;
-          if (btn) btn.disabled = false;
-          const _sess = window.NJTC_SESSION;
-          if (_sess) buildHome(_sess.dept);
-          return;
-        }
-      } catch(e) {}
+      const _kc = NJTC_CACHE.get('njtc_kpi_v2');
+      if (_kc && _kc.data && _kc.data.length) {
+        KPI_DATA = _kc.data;
+        _kpiFromSheet = true;
+        _kpiLastFetched = new Date(Date.now() - _kc.age);
+        if (dot) { dot.className = 'sync-dot'; }
+        if (txt) txt.innerHTML = `<strong>${_kc.fresh ? 'Cached' : 'Stale cache'}</strong> · ${KPI_DATA.length} targets · ${_kpiLastFetched.toLocaleTimeString()}`;
+        if (btn) btn.disabled = false;
+        const _sess = window.NJTC_SESSION;
+        if (_sess) buildHome(_sess.dept);
+        if (_kc.fresh) return;  // still fresh — skip network fetch
+        // stale: fall through to re-fetch silently in background
+      }
     }
 
     let parsed = null;
@@ -4212,7 +4246,7 @@
     if (parsed && parsed.length > 0) {
       // Live data successfully fetched — update everything
       KPI_DATA = parsed;
-      try { localStorage.setItem(_KPI_CACHE_KEY, JSON.stringify({ts:Date.now(),d:parsed})); } catch(e) {}
+      NJTC_CACHE.set('njtc_kpi_v2', parsed);
       _kpiFromSheet = true;
       _kpiLastFetched = new Date();
       if (dot) { dot.className = 'sync-dot'; }
@@ -4865,8 +4899,25 @@
     // Calling it here first would render stale static counts then visibly jump — race condition eliminated.
     buildSidebarDept(dept);
     buildPolicies(false);
-    // Fetch live KPI data in background — home renders from cache/static first
-    setTimeout(() => fetchAndRebuildKPI(false), 0);
+    // ── Parallel background prefetch — all data sources fired simultaneously ──
+    // By the time the user opens any panel, data is either served from
+    // this prefetch or from the localStorage cache loaded above.
+    setTimeout(() => {
+      // Fire all 4 fetches in parallel — none block the UI
+      fetchAndRebuildKPI(false).catch(() => {});
+      if (window.sya && window.sya.refresh) {
+        try { window.sya.refresh(false); } catch(e) {}
+      }
+      // Talent: trigger via buildTalentDashboard but non-blocking
+      // (it guards with _talentLoaded flag so safe to call early)
+      // Pearl: only prefetch if user has pearl panel access
+      const dept = window.NJTC_SESSION && window.NJTC_SESSION.dept;
+      if (dept && ['leadership','data','programming'].includes(dept)) {
+        if (window.po && window.po.onPanelOpen) {
+          try { window.po.onPanelOpen(); } catch(e) {}
+        }
+      }
+    }, 100);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
     initDeptNav(dept);
     setTimeout(() => initPolicyAdmin(), 500);
@@ -5110,9 +5161,18 @@
   }
 
   async function fetchLiveConcerns() {
-    // Direct export URL: sheet ID + gid=274671201 (Form Responses 1 tab)
-    // Same fetch pattern as KPI — plain fetch, AbortSignal.timeout, no extra headers
-    const cacheBust = (typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh) ? '&t=' + Date.now() : '';
+    // ── stale-while-revalidate: show cached data instantly ────────────
+    const _forceRefresh = typeof _talentForceRefresh !== 'undefined' && _talentForceRefresh;
+    if (!_forceRefresh) {
+      const _tc = NJTC_CACHE.get('njtc_talent_v1');
+      if (_tc && _tc.data && _tc.data.length) {
+        CONCERNS = _tc.data;
+        _talentLiveStatus = 'live';
+        if (_tc.fresh) return;  // cache fresh — skip network
+        // stale: fall through to background re-fetch
+      }
+    }
+    const cacheBust = _forceRefresh ? '&t=' + Date.now() : '';
     const url = TALENT_CSV_URL + '&gid=' + TALENT_CSV_GIDS[0] + cacheBust;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
@@ -5122,6 +5182,7 @@
         if (fresh.length > 0) {
           CONCERNS = fresh;
           _talentLiveStatus = 'live';
+          NJTC_CACHE.set('njtc_talent_v1', fresh);
           console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           return;
         }
@@ -7244,9 +7305,27 @@
 
     // ── FETCH / REFRESH ───────────────────────────────────────────────────
     async function refresh(force = false) {
-      setSyncState('loading');
       const btn = document.getElementById('syRefreshBtn');
       if (btn) btn.disabled = true;
+
+      // ── stale-while-revalidate: show cached data immediately ─────────
+      if (!force) {
+        const _sc = NJTC_CACHE.get('njtc_sya_v1');
+        if (_sc && _sc.data && _sc.data.length) {
+          _allSites  = _sc.data;
+          _snapshot  = mkSnap(_sc.data);
+          _lastFetch = new Date(Date.now() - _sc.age);
+          setSyncState(_sc.fresh ? 'live' : 'stale');
+          populateFilters();
+          applyFilters();
+          updateMapMarkers();
+          if (btn) btn.disabled = false;
+          if (_sc.fresh) return;  // cache still fresh, skip network
+          // stale: continue to background re-fetch below
+        }
+      }
+
+      setSyncState('loading');
       try {
         // Cache-bust appended as query param — same pattern as KPI fetch
         const url = SY_CSV_URL + (force ? '&t=' + Date.now() : '');
@@ -7259,6 +7338,7 @@
         _allSites  = sites;
         _snapshot  = mkSnap(sites);
         _lastFetch = new Date();
+        NJTC_CACHE.set('njtc_sya_v1', sites);
         setSyncState('live');
         populateFilters();
         applyFilters();
@@ -7279,6 +7359,10 @@
       if (state === 'loading') {
         dot.className = 'sync-dot loading';
         if (txt) txt.textContent = 'Fetching live SY data…';
+      } else if (state === 'stale') {
+        dot.className = 'sync-dot';
+        dot.style.background = '#f59e0b';
+        if (txt) txt.innerHTML = 'Cached data · <em style="color:#92400e">Refreshing…</em>';
       } else if (state === 'live') {
         dot.className = 'sync-dot';
         const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
@@ -8358,6 +8442,30 @@
     async function refresh(force = false) {
       if (_loading) return;
       _loading = true;
+
+      // ── stale-while-revalidate: show cached data instantly ──────────
+      if (!force) {
+        const _pc = NJTC_CACHE.get('njtc_pearl_v1');
+        if (_pc && _pc.data) {
+          const d = _pc.data;
+          try {
+            _attRows  = d.att  || [];
+            _sessRows = d.sess || [];
+            _stuRows  = d.stu  || [];
+            _instRows = d.inst || [];
+            buildIndexes();
+            _loaded = true;
+            setSyncState(_pc.fresh ? 'live' : 'stale');
+            render();
+            const btn2 = document.getElementById('poRefreshBtn');
+            if (btn2) btn2.disabled = false;
+            _loading = false;
+            if (_pc.fresh) return;  // cache fresh — skip network
+            // stale: continue to background re-fetch below
+          } catch(e) { /* fall through to network */ }
+        }
+      }
+
       setSyncState('loading');
       const btn = document.getElementById('poRefreshBtn');
       if (btn) btn.disabled = true;
@@ -8381,6 +8489,15 @@
         _instRows = parseCSV(instText).slice(1);
         _lastFetch = new Date();
         buildIndexes();
+        // Cache parsed row arrays for instant reload next visit
+        try {
+          NJTC_CACHE.set('njtc_pearl_v1', {
+            att:  _attRows.slice(0, 8000),
+            sess: _sessRows.slice(0, 8000),
+            stu:  _stuRows.slice(0, 8000),
+            inst: _instRows.slice(0, 3000),
+          });
+        } catch(e) {}
         setSyncState('live');
         populateFilters();
         renderView();
@@ -11224,23 +11341,41 @@
     }
 
     // ── Live data fetch ──────────────────────────────────────────────────────
-    async function fetchLiveTab(gid) {
+    async function fetchLiveTab(gid, bust=false) {
       const base = `https://docs.google.com/spreadsheets/d/e/${IRLAB_LIVE.BASE}/pub?output=csv`;
       const url  = gid ? `${base}&gid=${gid}` : base;
-      const res  = await fetch(url + '&t=' + Date.now());
+      const res  = await fetch(bust ? url + '&t=' + Date.now() : url, {signal: AbortSignal.timeout(8000)});
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.text();
     }
 
     async function loadLiveData() {
       if (_irlLoading) return;
+      // ── Check NJTC_CACHE first ─────────────────────────────────────
+      if (_irlLastFetch === 0) {
+        const _ic = NJTC_CACHE.get('njtc_irlab_v1');
+        if (_ic && _ic.data) {
+          const d = _ic.data;
+          if (d.math)      IRLAB_DATA.math       = d.math;
+          if (d.ela)       IRLAB_DATA.ela        = d.ela;
+          if (d.mathRep)   IRLAB_DATA.mathRepeat = d.mathRep;
+          if (d.elaRep)    IRLAB_DATA.elaRepeat  = d.elaRep;
+          IRLAB_DATA.loaded = true;
+          _irlDataSrc = 'live';
+          _irlLastFetch = Date.now() - _ic.age;
+          updateLoadStatus(`✅ Cached i-Ready data · ${_ic.fresh ? 'Fresh' : 'Stale — refreshing…'}`);
+          renderLab();
+          if (_ic.fresh) return;  // skip network if still fresh
+        }
+      }
       const now = Date.now();
       if (now - _irlLastFetch < IRLAB_LIVE.CACHE_MS) return;
       _irlLoading = true;
       updateLoadStatus('🔄 Fetching live i-Ready data from Google Sheets…');
       try {
         // Try to fetch default tab (Math), then detect others
-        const mathText = await fetchLiveTab(null);
+        const bust = _irlLastFetch > 0; // bust cache on force-refresh
+        const mathText = await fetchLiveTab(null, bust);
         const mathRows = parseCSV(mathText).map(r=>normalizeRow(r,'Math'));
 
         if (mathRows.length > 0) {
@@ -11248,6 +11383,15 @@
           _irlDataSrc = 'live';
           _irlLastFetch = now;
           updateLoadStatus('✅ Live data loaded — Math tab');
+          // Write to NJTC_CACHE for instant reload next visit
+          try {
+            NJTC_CACHE.set('njtc_irlab_v1', {
+              math:    IRLAB_DATA.math.slice(0,4000),
+              ela:     IRLAB_DATA.ela.slice(0,4000),
+              mathRep: IRLAB_DATA.mathRepeat.slice(0,700),
+              elaRep:  IRLAB_DATA.elaRepeat.slice(0,700),
+            });
+          } catch(e) {}
 
           // Try ELA with common GIDs (0-indexed tab positions)
           for (const gid of [1,2,3,4,5,10,20,100]) {
