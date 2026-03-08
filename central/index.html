@@ -2418,724 +2418,350 @@
 
 /* ══ KPI INTELLIGENCE MODULE CSS ══════════════════════════ */
 /* KPI Intel CSS Variables */
-#kpi-intel-root{
-  --base:#070d1a;
-  --surface:#0d1629;
-  --surface-2:#111f38;
-  --surface-3:#162544;
-  --border:rgba(255,255,255,.07);
-  --border-glow:rgba(244,176,0,.25);
-  --gold:#f4b000;
-  --gold-dim:#c48a00;
-  --text:#e8edf5;
-  --text-2:#8fa3c0;
-  --text-3:#4f6680;
-  --met:#10d98a;
-  --met-bg:rgba(16,217,138,.1);
-  --partial:#f59e0b;
-  --partial-bg:rgba(245,158,11,.1);
-  --notmet:#f03e3e;
-  --notmet-bg:rgba(240,62,62,.1);
-  --progress:#818cf8;
-  --progress-bg:rgba(129,140,248,.1);
-  --pipeline:#64748b;
-  --pipeline-bg:rgba(100,116,139,.1);
-  --radius:10px;
-  --drawer-w:480px;
-  --font-head:'Bricolage Grotesque',sans-serif;
-  --font-mono:'DM Mono',monospace;
+/* ── KPI INTELLIGENCE — NJTC BRAND THEME ──────────────────── */
+#kpi-intel-root {
+  --kpi-met:          #0d6e3a;
+  --kpi-met-bg:       #e6f5ed;
+  --kpi-met-bdr:      #b7dfca;
+  --kpi-partial:      #c05c00;
+  --kpi-partial-bg:   #fff4e6;
+  --kpi-partial-bdr:  #f5c99a;
+  --kpi-notmet:       #b91c1c;
+  --kpi-notmet-bg:    #fee2e2;
+  --kpi-notmet-bdr:   #fca5a5;
+  --kpi-prog:         #1d4ed8;
+  --kpi-prog-bg:      #eff6ff;
+  --kpi-prog-bdr:     #bfdbfe;
+  --kpi-pipe:         #6b21a8;
+  --kpi-pipe-bg:      #f3e8ff;
+  --kpi-pipe-bdr:     #d8b4fe;
+  --kpi-gold:         #f0a500;
+  --kpi-navy:         #003087;
+  --kpi-font:         'DM Sans', -apple-system, sans-serif;
+  --kpi-mono:         'JetBrains Mono', 'DM Mono', monospace;
+  --kpi-serif:        'DM Serif Display', serif;
+  --kpi-radius:       12px;
+  --kpi-shadow-sm:    0 1px 3px rgba(0,48,135,.06), 0 1px 2px rgba(0,48,135,.04);
+  --kpi-shadow:       0 4px 16px rgba(0,48,135,.08), 0 1px 4px rgba(0,48,135,.04);
 }
 
-/* ── RESET & BASE ──────────────────────────────────────────── */
-*{box-sizing:border-box;margin:0;padding:0}
+/* Arc ring track uses light grey on white bg */
+#kpi-intel-root .ring-track-bg { stroke: rgba(0,48,135,.08); }
 
+.kpi-panel { padding: 0 0 5rem; font-family: var(--kpi-font); background: var(--bg); }
 
-body{
-  font-family:var(--font-head);
-  background:var(--base);
-  color:var(--text);
-  min-height:100vh;
-  overflow-x:hidden;
+/* HEADER */
+.kpi-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 1rem;
+  padding: 1.75rem 1.75rem 0; flex-wrap: wrap;
 }
-
-/* ── PANEL WRAPPER ─────────────────────────────────────────── */
-.kpi-panel{
-  padding:0 0 80px;
-  position:relative;
+.kpi-header-left h2 {
+  font-family: var(--kpi-serif); font-size: 1.875rem; font-weight: 400;
+  color: var(--text); letter-spacing: -.02em; line-height: 1.1;
 }
-
-/* ── PANEL HEADER ──────────────────────────────────────────── */
-.kpi-header{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:20px;
-  padding:28px 28px 0;
-  flex-wrap:wrap;
+.kpi-header-left h2 em { color: var(--kpi-gold); font-style: italic; }
+.kpi-header-sub {
+  font-size: .6875rem; color: var(--muted); margin-top: .375rem;
+  font-family: var(--kpi-mono); letter-spacing: .05em; text-transform: uppercase;
 }
-.kpi-header-left h2{
-  font-size:1.6rem;
-  font-weight:800;
-  color:var(--text);
-  letter-spacing:-.02em;
-  line-height:1.1;
+.kpi-live-badge {
+  display: flex; align-items: center; gap: .5rem;
+  background: #fff; border: 1.5px solid var(--border);
+  border-radius: 999px; padding: .375rem 1rem;
+  font-size: .6875rem; font-family: var(--kpi-mono);
+  color: var(--text-2); white-space: nowrap;
+  box-shadow: var(--kpi-shadow-sm);
 }
-.kpi-header-left h2 span{
-  color:var(--gold);
+.kpi-live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--kpi-met);
+  animation: kpiDotPulse 2s infinite;
 }
-.kpi-header-sub{
-  font-size:.72rem;
-  color:var(--text-3);
-  margin-top:.35rem;
-  font-family:var(--font-mono);
-  font-weight:400;
-  letter-spacing:.04em;
-  text-transform:uppercase;
-}
-.kpi-live-badge{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  background:var(--surface-2);
-  border:1px solid var(--border);
-  border-radius:999px;
-  padding:6px 14px;
-  font-size:.65rem;
-  font-family:var(--font-mono);
-  color:var(--text-2);
-  white-space:nowrap;
-}
-.kpi-live-dot{
-  width:7px;height:7px;
-  border-radius:50%;
-  background:var(--met);
-  animation:pulse-dot 2s infinite;
-}
-@keyframes pulse-dot{
-  0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,217,138,.4)}
-  50%{opacity:.7;box-shadow:0 0 0 4px rgba(16,217,138,0)}
+@keyframes kpiDotPulse {
+  0%,100%{ opacity:1; box-shadow:0 0 0 0 rgba(13,110,58,.4); }
+  50%{ opacity:.7; box-shadow:0 0 0 4px rgba(13,110,58,0); }
 }
 
-/* ── FILTER BAR ────────────────────────────────────────────── */
-.kpi-filter-bar{
-  display:flex;
-  gap:8px;
-  padding:18px 28px 0;
-  flex-wrap:wrap;
-  align-items:center;
+/* FILTER BAR */
+.kpi-filter-bar {
+  display: flex; gap: .375rem; padding: 1.25rem 1.75rem .875rem;
+  flex-wrap: wrap; align-items: center;
+  border-bottom: 1px solid var(--border-2);
 }
-.kpi-filter-btn{
-  border:1px solid var(--border);
-  background:transparent;
-  color:var(--text-2);
-  font-family:var(--font-head);
-  font-size:.68rem;
-  font-weight:600;
-  padding:5px 12px;
-  border-radius:999px;
-  cursor:pointer;
-  transition:all .2s;
-  letter-spacing:.01em;
+.kpi-filter-btn {
+  border: 1.5px solid var(--border);
+  background: #fff; color: var(--text-2);
+  font-family: var(--kpi-font); font-size: .6875rem; font-weight: 600;
+  padding: .3125rem .875rem; border-radius: 999px; cursor: pointer;
+  transition: all .18s; letter-spacing: .01em;
+  display: flex; align-items: center; gap: .3rem;
 }
-.kpi-filter-btn:hover{
-  border-color:var(--gold);
-  color:var(--gold);
-}
-.kpi-filter-btn.on{
-  background:var(--gold);
-  border-color:var(--gold);
-  color:#000;
-}
-.kpi-filter-sep{
-  width:1px;height:18px;
-  background:var(--border);
-  margin:0 4px;
-}
-.kpi-quarter-select{
-  background:var(--surface-2);
-  border:1px solid var(--border);
-  color:var(--text-2);
-  font-family:var(--font-mono);
-  font-size:.65rem;
-  padding:5px 10px;
-  border-radius:6px;
-  cursor:pointer;
-  outline:none;
-  margin-left:auto;
-}
-.kpi-quarter-select option{background:var(--surface-2)}
+.kpi-filter-btn:hover { border-color: var(--kpi-navy); color: var(--text); }
+.kpi-filter-btn.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.kpi-filter-sep { width: 1px; height: 18px; background: var(--border); margin: 0 .125rem; flex-shrink: 0; }
 
-/* ── STRATEGIC GOAL RINGS ──────────────────────────────────── */
-.strategic-rings{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:16px;
-  padding:20px 28px 0;
+/* Quarter pill tabs */
+.kpi-q-tabs {
+  display: flex; gap: 0; margin-left: auto;
+  background: var(--surface-3); border-radius: 8px; padding: 3px; border: 1px solid var(--border-2);
 }
-@media(max-width:700px){.strategic-rings{grid-template-columns:1fr}}
+.kpi-qtab {
+  border: none; background: transparent; color: var(--muted);
+  font-family: var(--kpi-mono); font-size: .6rem; font-weight: 700;
+  padding: .25rem .625rem; border-radius: 5px; cursor: pointer;
+  letter-spacing: .07em; text-transform: uppercase; transition: all .15s; white-space: nowrap;
+}
+.kpi-qtab:hover { color: var(--text); }
+.kpi-qtab.on { background: var(--navy); color: #fff; box-shadow: 0 1px 4px rgba(0,48,135,.25); }
+.kpi-qtab.q-curr::after { content: ' ·'; color: var(--kpi-gold); }
 
-.ring-card{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:20px;
-  display:flex;
-  gap:16px;
-  align-items:center;
-  cursor:default;
-  transition:border-color .25s, box-shadow .25s;
-  position:relative;
-  overflow:hidden;
+/* HEALTH SUMMARY CHIPS */
+.kpi-health-row {
+  display: flex; gap: .5rem; padding: .875rem 1.75rem;
+  flex-wrap: wrap; align-items: center;
+  border-bottom: 1px solid var(--border-2);
 }
-.ring-card::before{
-  content:'';
-  position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(244,176,0,.03),transparent 60%);
-  pointer-events:none;
+.kpi-hchip {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .3rem .875rem; border-radius: 999px;
+  font-size: .6875rem; font-weight: 700; border: 1.5px solid;
 }
-.ring-card:hover{
-  border-color:var(--border-glow);
-  box-shadow:0 0 28px rgba(244,176,0,.07);
+.kpi-hchip .khc-n { font-size: 1.0625rem; font-family: var(--kpi-mono); font-weight: 800; line-height: 1; }
+.kpi-hchip.hc-met     { background: var(--kpi-met-bg);     color: var(--kpi-met);     border-color: var(--kpi-met-bdr); }
+.kpi-hchip.hc-partial { background: var(--kpi-partial-bg); color: var(--kpi-partial); border-color: var(--kpi-partial-bdr); }
+.kpi-hchip.hc-notmet  { background: var(--kpi-notmet-bg);  color: var(--kpi-notmet);  border-color: var(--kpi-notmet-bdr); }
+.kpi-hchip.hc-prog    { background: var(--kpi-prog-bg);    color: var(--kpi-prog);    border-color: var(--kpi-prog-bdr); }
+.kpi-hchip.hc-pipe    { background: var(--kpi-pipe-bg);    color: var(--kpi-pipe);    border-color: var(--kpi-pipe-bdr); }
+
+/* PILLAR CARDS */
+.kpi-pillars {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  gap: .875rem; padding: 1.25rem 1.75rem .75rem;
 }
-.ring-svg-wrap{
-  position:relative;
-  flex-shrink:0;
+@media(max-width:700px){ .kpi-pillars{ grid-template-columns:1fr; } }
+.kpi-pillar-card {
+  background: #fff; border: 1.5px solid var(--border);
+  border-radius: var(--kpi-radius); padding: 1rem 1.125rem;
+  display: flex; align-items: center; gap: .875rem;
+  box-shadow: var(--kpi-shadow-sm); transition: box-shadow .2s;
 }
-.ring-svg-wrap svg{
-  transform:rotate(-90deg);
+.kpi-pillar-card:hover { box-shadow: var(--kpi-shadow); }
+.kpi-pillar-arc { position: relative; flex-shrink: 0; width: 72px; height: 72px; }
+.kpi-pillar-arc-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.ring-center{
-  position:absolute;
-  inset:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  pointer-events:none;
+.kpi-pillar-pct { font-family: var(--kpi-mono); font-size: .9375rem; font-weight: 800; line-height: 1; }
+.kpi-pillar-pct-lbl { font-size: .45rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 1px; }
+.kpi-pillar-info { flex: 1; min-width: 0; }
+.kpi-pillar-name { font-size: .8125rem; font-weight: 700; color: var(--text); margin-bottom: .4rem; line-height: 1.3; }
+.kpi-pillar-chips { display: flex; flex-wrap: wrap; gap: .25rem; }
+.kpi-pchip { font-size: .55rem; font-weight: 700; padding: .15rem .4rem; border-radius: 4px; letter-spacing: .03em; text-transform: uppercase; }
+.kpi-pchip.hc-met     { background: var(--kpi-met-bg);     color: var(--kpi-met); }
+.kpi-pchip.hc-partial { background: var(--kpi-partial-bg); color: var(--kpi-partial); }
+.kpi-pchip.hc-notmet  { background: var(--kpi-notmet-bg);  color: var(--kpi-notmet); }
+.kpi-pchip.hc-prog    { background: var(--kpi-prog-bg);    color: var(--kpi-prog); }
+.kpi-pchip.hc-pipe    { background: var(--kpi-pipe-bg);    color: var(--kpi-pipe); }
+
+/* MID-YEAR / EOY PERSISTENT BANNER */
+.kpi-cycle-banner {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: .75rem; padding: 0 1.75rem .875rem;
 }
-.ring-pct{
-  font-family:var(--font-mono);
-  font-size:1.1rem;
-  font-weight:500;
-  color:var(--text);
-  line-height:1;
+@media(max-width:520px){ .kpi-cycle-banner{ grid-template-columns:1fr; } }
+.kpi-cycle-tile {
+  background: #fff; border: 1.5px solid;
+  border-radius: var(--kpi-radius); overflow: hidden;
+  box-shadow: var(--kpi-shadow-sm);
 }
-.ring-pct-sub{
-  font-size:.5rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  margin-top:2px;
-  letter-spacing:.05em;
+.kpi-cycle-tile.ct-mid { border-color: #bfdbfe; }
+.kpi-cycle-tile.ct-eoy { border-color: var(--kpi-met-bdr); }
+.kpi-cycle-tile-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .625rem 1rem; border-bottom: 1px solid var(--border-2);
 }
-.ring-info{}
-.ring-title{
-  font-size:.8rem;
-  font-weight:700;
-  color:var(--text);
-  line-height:1.3;
-  margin-bottom:6px;
+.kpi-cycle-label { font-size: .6rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.ct-mid .kpi-cycle-label { color: var(--kpi-prog); }
+.ct-eoy .kpi-cycle-label { color: var(--kpi-met); }
+.kpi-cycle-overall { font-size: .75rem; font-weight: 700; font-family: var(--kpi-mono); }
+.kpi-cycle-mini {
+  display: flex; gap: 0; padding: .625rem .875rem;
 }
-.ring-chips{
-  display:flex;
-  gap:4px;
-  flex-wrap:wrap;
+.kpi-cycle-mini-item { flex: 1; text-align: center; padding: .2rem 0; }
+.kpi-cycle-mini-val { font-family: var(--kpi-mono); font-size: .9375rem; font-weight: 800; line-height: 1; display: block; }
+.kpi-cycle-mini-lbl { font-size: .5rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: block; margin-top: 2px; }
+
+/* SECTION HEADER */
+.kpi-sec-hdr {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .75rem 1.75rem .5rem;
 }
-.ring-chip{
-  font-size:.55rem;
-  font-family:var(--font-mono);
-  font-weight:500;
-  padding:2px 6px;
-  border-radius:4px;
-  letter-spacing:.02em;
+.kpi-sec-hdr-title { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--blue-mid); }
+.kpi-sec-hdr-line { flex: 1; height: 1px; background: var(--border-2); }
+.kpi-sec-hdr-count {
+  font-size: .65rem; font-weight: 700; font-family: var(--kpi-mono);
+  color: var(--muted); background: var(--surface-3);
+  padding: .15rem .55rem; border-radius: 999px;
 }
 
-/* ── SECTION LABEL ─────────────────────────────────────────── */
-.kpi-section-label{
-  padding:24px 28px 10px;
-  display:flex;
-  align-items:center;
-  gap:10px;
+/* GOAL CARDS GRID */
+.goal-cards-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(310px,1fr));
+  gap: .875rem; padding: 0 1.75rem 1.5rem;
 }
-.kpi-section-label-text{
-  font-size:.65rem;
-  font-family:var(--font-mono);
-  font-weight:500;
-  color:var(--text-3);
-  letter-spacing:.1em;
-  text-transform:uppercase;
+.kpi-goal-card {
+  background: #fff; border: 1.5px solid var(--border);
+  border-radius: var(--kpi-radius); overflow: hidden;
+  box-shadow: var(--kpi-shadow-sm); cursor: pointer;
+  transition: box-shadow .2s, transform .18s;
 }
-.kpi-section-label-line{
-  flex:1;
-  height:1px;
-  background:var(--border);
+.kpi-goal-card:hover { box-shadow: var(--kpi-shadow); transform: translateY(-2px); }
+.kpi-goal-card-bar { height: 3px; }
+.kpi-goal-card-body { padding: .875rem 1rem .625rem; }
+.kpi-goal-name { font-size: .8125rem; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: .5rem; }
+.kpi-goal-meta-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; margin-bottom: .5rem;
 }
-.kpi-section-count{
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
+.kpi-goal-pillar-tag { font-size: .55rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); background: var(--surface-3); padding: .2rem .5rem; border-radius: 4px; }
+.kpi-goal-kpi-badge { font-size: .6rem; font-family: var(--kpi-mono); color: var(--muted); background: var(--surface-3); padding: .15rem .5rem; border-radius: 4px; }
+.kpi-goal-health-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.kpi-goal-health-track { flex: 1; height: 5px; background: var(--surface-3); border-radius: 3px; overflow: hidden; }
+.kpi-goal-health-fill { height: 100%; border-radius: 3px; transition: width .7s cubic-bezier(.4,0,.2,1); }
+.kpi-goal-health-pct { font-size: .65rem; font-family: var(--kpi-mono); font-weight: 700; color: var(--text-2); min-width: 2.25rem; text-align: right; }
+/* Q tiles on card */
+.kpi-goal-q-row { display: flex; gap: .3rem; margin-bottom: .25rem; }
+.kpi-goal-qtile {
+  flex: 1; text-align: center; padding: .3rem .1rem;
+  border-radius: 6px; border: 1px solid transparent;
 }
+.kpi-goal-qtile .gqt-lbl { font-size: .5rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; display: block; margin-bottom: 2px; opacity: .6; }
+.kpi-goal-qtile .gqt-icon { font-size: .9375rem; line-height: 1; display: block; }
+/* MOY/EOY mini row on card */
+.kpi-goal-cycle-row {
+  display: flex; gap: .375rem; margin-top: .375rem; padding-top: .5rem;
+  border-top: 1px solid var(--border-2);
+}
+.kpi-goal-cycle-chip {
+  flex: 1; text-align: center; padding: .25rem .25rem;
+  border-radius: 5px; border: 1px solid; font-size: .55rem; font-weight: 700;
+}
+.kpi-goal-cycle-chip .gcch-lbl { display: block; font-size: .48rem; opacity: .7; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; }
+.gcch-mid { background: var(--kpi-prog-bg); color: var(--kpi-prog); border-color: var(--kpi-prog-bdr); }
+.gcch-eoy { background: var(--kpi-met-bg);  color: var(--kpi-met);  border-color: var(--kpi-met-bdr); }
+.gcch-empty { background: var(--surface-3); color: var(--muted); border-color: var(--border-2); }
+/* Card footer */
+.kpi-goal-card-footer {
+  padding: .5rem 1rem; border-top: 1px solid var(--border-2);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.kpi-goal-footer-left { font-size: .6rem; color: var(--muted); }
+.kpi-goal-drill-btn {
+  font-size: .65rem; font-weight: 700; color: var(--blue-mid);
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; padding: 0; display: flex; align-items: center; gap: .2rem;
+}
+.kpi-goal-drill-btn:hover { color: var(--navy); }
 
-/* ── GOAL CARDS GRID ───────────────────────────────────────── */
-.goal-cards-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
-  gap:12px;
-  padding:0 28px;
+/* DRAWER */
+.drawer-overlay { display:none; position:fixed; inset:0; background:rgba(10,22,40,.3); backdrop-filter:blur(3px); z-index:300; }
+.drawer-overlay.open { display:block; }
+.drawer {
+  position:fixed; top:0; right:-520px; width:500px; max-width:96vw;
+  height:100dvh; background:#fff; z-index:310;
+  box-shadow:-20px 0 60px rgba(0,0,0,.12);
+  transition:right .38s cubic-bezier(.32,.72,0,1);
+  display:flex; flex-direction:column; overflow:hidden;
 }
+.drawer.open { right:0; }
+.drawer-header {
+  padding:1.25rem 1.5rem 1rem; border-bottom:1px solid var(--border-2);
+  flex-shrink:0; background:var(--surface-2); position:relative;
+}
+.drawer-close {
+  position:absolute; top:1rem; right:1.25rem;
+  background:none; border:none; font-size:1.125rem;
+  color:var(--muted); cursor:pointer; padding:.25rem;
+  border-radius:6px; transition:background .15s,color .15s; line-height:1;
+}
+.drawer-close:hover { background:var(--border-2); color:var(--text); }
+.drawer-goal-tag { font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--blue-mid); margin-bottom:.3rem; }
+.drawer-title { font-family:var(--kpi-serif); font-size:1.0625rem; color:var(--text); line-height:1.3; padding-right:2.5rem; }
+.drawer-owner-row { font-size:.7rem; color:var(--muted); margin-top:.375rem; line-height:1.4; }
+.drawer-body { flex:1; overflow-y:auto; padding:1.25rem 1.5rem 2rem; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.drawer-body::-webkit-scrollbar{ width:4px; }
+.drawer-body::-webkit-scrollbar-thumb{ background:var(--border); border-radius:2px; }
 
-.goal-card{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:0;
-  cursor:pointer;
-  transition:all .22s cubic-bezier(.4,0,.2,1);
-  position:relative;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-}
-.goal-card:hover{
-  border-color:var(--border-glow);
-  transform:translateY(-2px);
-  box-shadow:0 8px 32px rgba(0,0,0,.35),0 0 0 1px rgba(244,176,0,.12);
-}
-.goal-card-accent{
-  height:3px;
-  width:100%;
-  flex-shrink:0;
-}
-.goal-card-body{
-  padding:16px 18px 14px;
-  flex:1;
-  display:flex;
-  flex-direction:column;
-}
-.goal-card-top{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap:8px;
-  margin-bottom:10px;
-}
-.goal-card-title{
-  font-size:.8rem;
-  font-weight:700;
-  color:var(--text);
-  line-height:1.35;
-  flex:1;
-}
-.goal-card-id{
-  font-family:var(--font-mono);
-  font-size:.58rem;
-  color:var(--text-3);
-  background:var(--surface-2);
-  padding:2px 6px;
-  border-radius:4px;
-  flex-shrink:0;
-  margin-top:1px;
-}
-.goal-card-meta{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-  margin-bottom:12px;
-}
-.goal-card-metrics{
-  display:grid;
-  grid-template-columns:1fr 1fr 1fr 1fr;
-  gap:6px;
-  margin-top:auto;
-}
-.gcm-tile{
-  background:var(--surface-2);
-  border-radius:6px;
-  padding:6px 4px;
-  text-align:center;
-}
-.gcm-label{
-  font-size:.52rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  letter-spacing:.03em;
-  display:block;
-  margin-bottom:3px;
-}
-.gcm-val{
-  font-size:.72rem;
-  font-family:var(--font-mono);
-  font-weight:500;
-  color:var(--text);
-}
-.goal-card-footer{
-  padding:10px 18px;
-  border-top:1px solid var(--border);
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-.goal-card-kpi-count{
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-}
-.goal-card-drill{
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--gold);
-  display:flex;
-  align-items:center;
-  gap:4px;
-}
-.goal-card-drill::after{
-  content:'→';
-  transition:transform .2s;
-}
-.goal-card:hover .goal-card-drill::after{
-  transform:translateX(3px);
-}
+/* Drawer status summary */
+.drawer-sum-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:.375rem; margin-bottom:1.25rem; }
+.drawer-sum-chip { text-align:center; padding:.5rem .25rem; border-radius:8px; border:1.5px solid; }
+.drawer-sum-chip .dsc-n { font-family:var(--kpi-mono); font-size:1.25rem; font-weight:800; line-height:1; display:block; }
+.drawer-sum-chip .dsc-l { font-size:.48rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; margin-top:3px; display:block; opacity:.8; }
+.dsc-met     { background:var(--kpi-met-bg);     color:var(--kpi-met);     border-color:var(--kpi-met-bdr); }
+.dsc-partial { background:var(--kpi-partial-bg); color:var(--kpi-partial); border-color:var(--kpi-partial-bdr); }
+.dsc-notmet  { background:var(--kpi-notmet-bg);  color:var(--kpi-notmet);  border-color:var(--kpi-notmet-bdr); }
+.dsc-prog    { background:var(--kpi-prog-bg);    color:var(--kpi-prog);    border-color:var(--kpi-prog-bdr); }
+.dsc-pipe    { background:var(--kpi-pipe-bg);    color:var(--kpi-pipe);    border-color:var(--kpi-pipe-bdr); }
 
-/* ── STATUS CHIPS ──────────────────────────────────────────── */
-.sc{
-  display:inline-flex;align-items:center;gap:4px;
-  font-family:var(--font-mono);
-  font-size:.58rem;font-weight:500;
-  padding:2px 8px;border-radius:999px;
-  border:1px solid transparent;
-  letter-spacing:.02em;
-  white-space:nowrap;
+/* Drawer KPI accordion row */
+.dkpi-row {
+  border:1.5px solid var(--border-2); border-radius:var(--kpi-radius);
+  margin-bottom:.625rem; overflow:hidden; background:#fff;
+  box-shadow:var(--kpi-shadow-sm);
 }
-.sc-met{background:var(--met-bg);color:var(--met);border-color:rgba(16,217,138,.2)}
-.sc-partial{background:var(--partial-bg);color:var(--partial);border-color:rgba(245,158,11,.2)}
-.sc-notmet{background:var(--notmet-bg);color:var(--notmet);border-color:rgba(240,62,62,.2)}
-.sc-progress{background:var(--progress-bg);color:var(--progress);border-color:rgba(129,140,248,.2)}
-.sc-pipeline{background:var(--pipeline-bg);color:var(--pipeline);border-color:rgba(100,116,139,.2)}
+.dkpi-hdr {
+  display:flex; align-items:flex-start; gap:.75rem;
+  padding:.75rem 1rem; cursor:pointer; transition:background .15s;
+}
+.dkpi-hdr:hover { background:var(--surface-2); }
+.dkpi-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.dkpi-name { flex:1; font-size:.75rem; font-weight:600; color:var(--text); line-height:1.4; }
+.dkpi-badge { font-size:.575rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:.2rem .5rem; border-radius:4px; flex-shrink:0; white-space:nowrap; }
+.dkpi-chev { color:var(--muted); font-size:.625rem; flex-shrink:0; margin-top:3px; transition:transform .2s; }
+.dkpi-row.open .dkpi-chev { transform:rotate(90deg); }
 
-.sc-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
-.sc-progress .sc-dot{animation:pulse-dot 1.8s infinite}
+/* KPI drill-down body */
+.dkpi-body { display:none; padding:0 1rem .875rem; border-top:1px solid var(--border-2); }
+.dkpi-row.open .dkpi-body { display:block; }
 
-/* ── HEALTH PROGRESS BAR ───────────────────────────────────── */
-.health-bar-wrap{
-  margin-top:10px;
-}
-.health-bar-label{
-  display:flex;
-  justify-content:space-between;
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  margin-bottom:4px;
-}
-.health-bar{
-  height:3px;
-  background:var(--surface-3);
-  border-radius:999px;
-  overflow:hidden;
-}
-.health-bar-fill{
-  height:100%;
-  border-radius:999px;
-  transition:width 1s cubic-bezier(.4,0,.2,1);
-  width:0;
-}
+/* MOY/EOY persistent in drawer */
+.dkpi-cycle-row { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; padding:.75rem 0 .5rem; }
+.dkpi-cycle-chip { border-radius:8px; padding:.625rem .75rem; border:1.5px solid; }
+.dkpi-cycle-chip.dcc-mid { background:var(--kpi-prog-bg); border-color:var(--kpi-prog-bdr); }
+.dkpi-cycle-chip.dcc-eoy { background:var(--kpi-met-bg);  border-color:var(--kpi-met-bdr); }
+.dkpi-cycle-chip.dcc-empty { background:var(--surface-2); border-color:var(--border-2); }
+.dkpi-cycle-chip .dcc-lbl { font-size:.55rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; margin-bottom:.25rem; display:block; }
+.dcc-mid .dcc-lbl { color:var(--kpi-prog); }
+.dcc-eoy .dcc-lbl { color:var(--kpi-met); }
+.dcc-empty .dcc-lbl { color:var(--muted); }
+.dkpi-cycle-chip .dcc-status { font-size:.75rem; font-weight:700; color:var(--text); }
+.dkpi-cycle-chip .dcc-note { font-size:.6rem; color:var(--muted); margin-top:.2rem; }
 
-/* ── RIGHT DRAWER ──────────────────────────────────────────── */
-.drawer-overlay{
-  position:fixed;inset:0;
-  background:rgba(7,13,26,.7);
-  backdrop-filter:blur(4px);
-  z-index:999;
-  opacity:0;pointer-events:none;
-  transition:opacity .3s;
+/* Q stepper grid in drawer */
+.dkpi-q-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.375rem; padding:.5rem 0 .5rem; }
+.dkpi-qstep {
+  background:var(--surface-2); border:1.5px solid var(--border-2);
+  border-radius:8px; padding:.625rem .5rem; text-align:center;
 }
-.drawer-overlay.open{opacity:1;pointer-events:all}
+.dkpi-qstep.qs-curr { background:#fff; border-color:var(--border); box-shadow:var(--kpi-shadow-sm); }
+.dkpi-qstep.qs-future { opacity:.4; }
+.dkpi-qstep .dqs-q { font-size:.5rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:.3rem; display:block; }
+.dkpi-qstep .dqs-icon { font-size:1.0625rem; line-height:1; margin-bottom:.25rem; display:block; }
+.dkpi-qstep .dqs-status { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.dkpi-qstep .dqs-data { font-size:.6rem; color:var(--text-2); margin-top:.375rem; line-height:1.4; text-align:left; }
+.dkpi-qstep .dqs-goal { color:var(--muted); }
+.dkpi-qstep .dqs-captured { font-family:var(--kpi-mono); font-weight:600; color:var(--text); }
+.dkpi-sources { padding:.375rem 0 0; font-size:.7rem; color:var(--muted); line-height:1.5; border-top:1px solid var(--border-2); margin-top:.375rem; }
+.dkpi-sources strong { color:var(--text-2); }
 
-.drawer{
-  position:fixed;
-  top:0;right:0;
-  width:var(--drawer-w);
-  max-width:95vw;
-  height:100vh;
-  background:var(--surface);
-  border-left:1px solid var(--border);
-  z-index:1000;
-  display:flex;
-  flex-direction:column;
-  transform:translateX(100%);
-  transition:transform .38s cubic-bezier(.4,0,.2,1);
-  overflow:hidden;
-}
-.drawer.open{transform:translateX(0)}
+/* Loading / error / empty */
+.kpi-loading { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem; gap:.75rem; grid-column:1/-1; }
+.kpi-loading-ring { width:32px; height:32px; border:3px solid var(--border-2); border-top-color:var(--navy); border-radius:50%; animation:kpiSpin .7s linear infinite; }
+@keyframes kpiSpin { to{transform:rotate(360deg);} }
+.kpi-loading-text { font-size:.8125rem; color:var(--muted); }
+.kpi-error { font-size:.875rem; color:var(--kpi-notmet); padding:2rem; text-align:center; grid-column:1/-1; background:var(--kpi-notmet-bg); border-radius:var(--kpi-radius); margin:1rem; }
+.kpi-empty { font-size:.8125rem; color:var(--muted); padding:3rem; text-align:center; grid-column:1/-1; }
 
-.drawer-header{
-  padding:20px 24px 16px;
-  border-bottom:1px solid var(--border);
-  flex-shrink:0;
-  background:linear-gradient(180deg,var(--surface-2),var(--surface));
-}
-.drawer-close{
-  position:absolute;
-  top:16px;right:20px;
-  background:var(--surface-3);
-  border:1px solid var(--border);
-  color:var(--text-2);
-  width:32px;height:32px;
-  border-radius:8px;
-  font-size:1rem;
-  cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  transition:all .15s;
-}
-.drawer-close:hover{background:var(--notmet-bg);color:var(--notmet);border-color:var(--notmet)}
-.drawer-goal-tag{
-  font-family:var(--font-mono);
-  font-size:.58rem;
-  font-weight:500;
-  color:var(--gold);
-  letter-spacing:.1em;
-  text-transform:uppercase;
-  margin-bottom:6px;
-}
-.drawer-title{
-  font-size:1rem;
-  font-weight:700;
-  color:var(--text);
-  line-height:1.3;
-  padding-right:40px;
-}
-.drawer-owner-row{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  margin-top:10px;
-}
-.drawer-owner-chip{
-  display:flex;align-items:center;gap:5px;
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-2);
-  background:var(--surface-3);
-  padding:3px 8px;
-  border-radius:5px;
-  border:1px solid var(--border);
-}
-.drawer-owner-chip strong{color:var(--text-2);font-weight:400}
-.drawer-owner-chip em{color:var(--gold);font-style:normal;font-weight:500}
-
-.drawer-body{
-  flex:1;
-  overflow-y:auto;
-  padding:20px 24px;
-  scrollbar-width:thin;
-  scrollbar-color:var(--surface-3) transparent;
-}
-.drawer-body::-webkit-scrollbar{width:4px}
-.drawer-body::-webkit-scrollbar-thumb{background:var(--surface-3);border-radius:4px}
-
-/* ── QUARTERLY TIMELINE ────────────────────────────────────── */
-.kpi-drawer-item{
-  border:1px solid var(--border);
-  border-radius:10px;
-  margin-bottom:14px;
-  overflow:hidden;
-  background:var(--surface);
-}
-.kpi-drawer-item-header{
-  padding:12px 16px;
-  background:var(--surface-2);
-  border-bottom:1px solid var(--border);
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
-}
-.kpi-di-num{
-  font-family:var(--font-mono);
-  font-size:.6rem;
-  font-weight:500;
-  color:#000;
-  background:var(--gold);
-  padding:2px 6px;
-  border-radius:4px;
-  flex-shrink:0;
-  margin-top:1px;
-}
-.kpi-di-target{
-  font-size:.78rem;
-  font-weight:600;
-  color:var(--text);
-  line-height:1.35;
-  flex:1;
-}
-.kpi-di-sources{
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  padding:8px 16px;
-  border-bottom:1px solid var(--border);
-  display:flex;gap:12px;flex-wrap:wrap;
-}
-.kpi-di-source-item{}
-.kpi-di-source-item span{color:var(--text-2)}
-
-/* ── QUARTER STEPPER ───────────────────────────────────────── */
-.quarter-stepper{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:0;
-  border-top:1px solid var(--border);
-}
-.q-step{
-  padding:10px 10px 12px;
-  border-right:1px solid var(--border);
-  position:relative;
-}
-.q-step:last-child{border-right:none}
-.q-step-label{
-  font-size:.55rem;
-  font-family:var(--font-mono);
-  font-weight:500;
-  color:var(--text-3);
-  letter-spacing:.06em;
-  text-transform:uppercase;
-  margin-bottom:6px;
-  display:flex;align-items:center;gap:4px;
-}
-.q-step-label.active{color:var(--gold)}
-.q-dot{
-  width:5px;height:5px;border-radius:50%;
-  background:var(--text-3);
-  display:inline-block;
-}
-.q-step-label.active .q-dot{background:var(--gold);box-shadow:0 0 6px rgba(244,176,0,.5)}
-
-.q-step-status{
-  margin-bottom:6px;
-}
-.q-step-data{
-  font-size:.6rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  line-height:1.5;
-}
-.q-step-data .q-goal{
-  color:var(--text-3);
-}
-.q-step-data .q-captured{
-  color:var(--text-2);
-  font-weight:500;
-}
-.q-step-data .q-delta{
-  font-size:.55rem;
-  color:var(--met);
-  margin-top:2px;
-}
-.q-step-empty{
-  font-size:.58rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  opacity:.5;
-  font-style:italic;
-}
-.q-connector{
-  position:absolute;
-  top:17px;right:-8px;
-  width:16px;height:1px;
-  background:linear-gradient(90deg,var(--border),transparent);
-  z-index:1;
-  pointer-events:none;
-}
-
-/* ── DRAWER HEALTH SUMMARY ─────────────────────────────────── */
-.drawer-health-bar{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:8px;
-  margin-bottom:20px;
-  padding:14px;
-  background:var(--surface-2);
-  border:1px solid var(--border);
-  border-radius:10px;
-}
-.dhb-item{
-  text-align:center;
-}
-.dhb-count{
-  font-family:var(--font-mono);
-  font-size:1.2rem;
-  font-weight:500;
-  line-height:1;
-  display:block;
-  margin-bottom:4px;
-}
-.dhb-label{
-  font-size:.52rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  letter-spacing:.03em;
-}
-
-/* ── LOADING STATE ─────────────────────────────────────────── */
-.kpi-loading{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:60px 20px;
-  gap:16px;
-}
-.kpi-loading-ring{
-  width:40px;height:40px;
-  border:2px solid var(--border);
-  border-top-color:var(--gold);
-  border-radius:50%;
-  animation:spin .8s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-.kpi-loading-text{
-  font-size:.7rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  letter-spacing:.08em;
-}
-
-/* ── ERROR STATE ───────────────────────────────────────────── */
-.kpi-error{
-  margin:20px 28px;
-  padding:16px;
-  background:var(--notmet-bg);
-  border:1px solid rgba(240,62,62,.2);
-  border-radius:var(--radius);
-  font-size:.75rem;
-  color:var(--notmet);
-  font-family:var(--font-mono);
-  display:flex;align-items:center;gap:10px;
-}
-
-/* ── ANIMATIONS ────────────────────────────────────────────── */
-.fade-in{animation:fadeIn .4s ease forwards}
-@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-.stagger-1{animation-delay:.05s}
-.stagger-2{animation-delay:.10s}
-.stagger-3{animation-delay:.15s}
-.stagger-4{animation-delay:.20s}
-.stagger-5{animation-delay:.25s}
-.stagger-6{animation-delay:.30s}
-.stagger-7{animation-delay:.35s}
-.stagger-8{animation-delay:.40s}
-.stagger-9{animation-delay:.45s}
-.stagger-10{animation-delay:.50s}
-
-.goal-card{opacity:0}
-.goal-card.visible{animation:fadeIn .4s ease forwards}
-
-/* ── NO-DATA PLACEHOLDER ───────────────────────────────────── */
-.q-empty-badge{
-  font-size:.55rem;
-  font-family:var(--font-mono);
-  color:var(--text-3);
-  background:var(--surface-3);
-  padding:1px 6px;
-  border-radius:3px;
-  opacity:.6;
-}
 
 
     /* ════════════════════════════════════════════════════
@@ -3758,81 +3384,102 @@ body{
     <!-- ══ END PEARL OPERATIONS PANEL ══════════════════════════════════════ -->
     <!-- ══ KPI PANEL ════════════════════════════════════════ -->
     <div class="panel" id="panel-kpi">
-      <div id="kpi-intel-root">
-<div class="kpi-panel" id="kpiPanel">
+  <div id="kpi-intel-root">
+  <div class="kpi-panel" id="kpiPanel">
 
-  <!-- HEADER -->
-  <div class="kpi-header">
-    <div class="kpi-header-left">
-      <h2>KPI <span>Intelligence</span></h2>
-      <div class="kpi-header-sub">SY 2025-2026 · Quarterly Goal Tracking · Live from Google Sheets</div>
-    </div>
-    <div class="kpi-live-badge">
-      <span class="kpi-live-dot"></span>
-      <span id="kpiTimestamp">Loading...</span>
-    </div>
-  </div>
-
-  <!-- FILTER BAR -->
-  <div class="kpi-filter-bar">
-    <button class="kpi-filter-btn on" data-filter="all" onclick="kpiSetFilter(this,'all')">All Goals</button>
-    <div class="kpi-filter-sep"></div>
-    <button class="kpi-filter-btn" data-filter="Met" onclick="kpiSetFilter(this,'Met')">
-      <span style="color:var(--met)">●</span> Met
-    </button>
-    <button class="kpi-filter-btn" data-filter="Partially Met" onclick="kpiSetFilter(this,'Partially Met')">
-      <span style="color:var(--partial)">●</span> Partial
-    </button>
-    <button class="kpi-filter-btn" data-filter="In Progress" onclick="kpiSetFilter(this,'In Progress')">
-      <span style="color:var(--progress)">●</span> In Progress
-    </button>
-    <button class="kpi-filter-btn" data-filter="Has Not Met" onclick="kpiSetFilter(this,'Has Not Met')">
-      <span style="color:var(--notmet)">●</span> Not Met
-    </button>
-    <button class="kpi-filter-btn" data-filter="Coming Down the Pipeline" onclick="kpiSetFilter(this,'Coming Down the Pipeline')">
-      <span style="color:var(--pipeline)">●</span> Pipeline
-    </button>
-    <select class="kpi-quarter-select" id="kpiQuarterSel" onchange="kpiSetQuarter(this.value)">
-      <option value="Q2">Q2 (Current)</option>
-      <option value="Q1">Q1</option>
-      <option value="Q3">Q3</option>
-      <option value="Q4">Q4</option>
-    </select>
-  </div>
-
-  <!-- STRATEGIC RINGS -->
-  <div class="strategic-rings" id="strategicRings">
-    <div class="kpi-loading" style="grid-column:1/-1">
-      <div class="kpi-loading-ring"></div>
-      <div class="kpi-loading-text">Fetching live data...</div>
-    </div>
-  </div>
-
-  <!-- GOAL CARDS -->
-  <div class="kpi-section-label">
-    <span class="kpi-section-label-text">Annual Goals</span>
-    <div class="kpi-section-label-line"></div>
-    <span class="kpi-section-count" id="kpiGoalCount">—</span>
-  </div>
-  <div class="goal-cards-grid" id="goalCardsGrid"></div>
-
-</div>
-
-<!-- DRAWER OVERLAY -->
-<div class="drawer-overlay" id="drawerOverlay" onclick="kpiCloseDrawer()"></div>
-
-<!-- RIGHT DRAWER -->
-<div class="drawer" id="kpiDrawer">
-  <div class="drawer-header">
-    <button class="drawer-close" onclick="kpiCloseDrawer()">✕</button>
-    <div class="drawer-goal-tag" id="drawerGoalTag"></div>
-    <div class="drawer-title" id="drawerTitle"></div>
-    <div class="drawer-owner-row" id="drawerOwnerRow"></div>
-  </div>
-  <div class="drawer-body" id="drawerBody"></div>
-</div>
+    <!-- HEADER -->
+    <div class="kpi-header">
+      <div class="kpi-header-left">
+        <h2>KPI <em>Intelligence</em></h2>
+        <div class="kpi-header-sub">SY 2025–2026 · Annual Goal Tracking · Live from Google Sheets</div>
       </div>
-<div class="panel" id="panel-kpi-analytics">
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <div class="kpi-live-badge">
+          <span class="kpi-live-dot"></span>
+          <span id="kpiTimestamp">Loading…</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="kpiFetch(true)" title="Force refresh from Google Sheets" style="font-size:.65rem">↺ Refresh</button>
+      </div>
+    </div>
+
+    <!-- FILTER + QUARTER BAR -->
+    <div class="kpi-filter-bar">
+      <button class="kpi-filter-btn on" onclick="kpiSetFilter(this,'all')">All Goals</button>
+      <div class="kpi-filter-sep"></div>
+      <button class="kpi-filter-btn" onclick="kpiSetFilter(this,'Met')"><span style="color:var(--kpi-met)">●</span> Met</button>
+      <button class="kpi-filter-btn" onclick="kpiSetFilter(this,'Partially Met')"><span style="color:var(--kpi-partial)">●</span> Partial</button>
+      <button class="kpi-filter-btn" onclick="kpiSetFilter(this,'In Progress')"><span style="color:var(--kpi-prog)">●</span> In Progress</button>
+      <button class="kpi-filter-btn" onclick="kpiSetFilter(this,'Has Not Met')"><span style="color:var(--kpi-notmet)">●</span> Not Met</button>
+      <button class="kpi-filter-btn" onclick="kpiSetFilter(this,'Coming Down the Pipeline')"><span style="color:var(--kpi-pipe)">●</span> Pipeline</button>
+      <div class="kpi-q-tabs" id="kpiQTabs">
+        <button class="kpi-qtab q-curr on" onclick="kpiSetQuarter(this,'Q1')">Q1</button>
+        <button class="kpi-qtab q-curr" onclick="kpiSetQuarter(this,'Q2')">Q2</button>
+        <button class="kpi-qtab" onclick="kpiSetQuarter(this,'Q3')">Q3</button>
+        <button class="kpi-qtab" onclick="kpiSetQuarter(this,'Q4')">Q4</button>
+      </div>
+    </div>
+
+    <!-- HEALTH CHIPS ROW -->
+    <div class="kpi-health-row" id="kpiHealthRow">
+      <div class="kpi-loading" style="padding:.75rem 0;grid-column:unset">
+        <div class="kpi-loading-ring" style="width:18px;height:18px;border-width:2px"></div>
+      </div>
+    </div>
+
+    <!-- MID-YEAR / EOY PERSISTENT BANNER -->
+    <div class="kpi-cycle-banner" id="kpiCycleBanner" style="display:none">
+      <div class="kpi-cycle-tile ct-mid">
+        <div class="kpi-cycle-tile-head">
+          <span class="kpi-cycle-label">Mid-Year Status</span>
+          <span class="kpi-cycle-overall" id="kpiMidOverall">—</span>
+        </div>
+        <div class="kpi-cycle-mini" id="kpiMidMini"></div>
+      </div>
+      <div class="kpi-cycle-tile ct-eoy">
+        <div class="kpi-cycle-tile-head">
+          <span class="kpi-cycle-label">End of Year Status</span>
+          <span class="kpi-cycle-overall" id="kpiEoyOverall">—</span>
+        </div>
+        <div class="kpi-cycle-mini" id="kpiEoyMini"></div>
+      </div>
+    </div>
+
+    <!-- STRATEGIC PILLAR RINGS -->
+    <div class="kpi-pillars" id="kpiPillars">
+      <div class="kpi-loading" style="grid-column:1/-1">
+        <div class="kpi-loading-ring"></div>
+        <div class="kpi-loading-text">Fetching live data…</div>
+      </div>
+    </div>
+
+    <!-- GOAL CARDS -->
+    <div class="kpi-sec-hdr">
+      <span class="kpi-sec-hdr-title">Annual Goals</span>
+      <div class="kpi-sec-hdr-line"></div>
+      <span class="kpi-sec-hdr-count" id="kpiGoalCount">—</span>
+    </div>
+    <div class="goal-cards-grid" id="goalCardsGrid"></div>
+
+  </div><!-- /kpi-panel -->
+
+  <!-- DRAWER OVERLAY -->
+  <div class="drawer-overlay" id="drawerOverlay" onclick="kpiCloseDrawer()"></div>
+
+  <!-- RIGHT DRAWER -->
+  <div class="drawer" id="kpiDrawer">
+    <div class="drawer-header">
+      <button class="drawer-close" onclick="kpiCloseDrawer()">✕</button>
+      <div class="drawer-goal-tag" id="drawerGoalTag"></div>
+      <div class="drawer-title" id="drawerTitle"></div>
+      <div class="drawer-owner-row" id="drawerOwnerRow"></div>
+    </div>
+    <div class="drawer-body" id="drawerBody"></div>
+  </div>
+
+  </div><!-- /kpi-intel-root -->
+
+
+      <div class="panel" id="panel-kpi-analytics">
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">Performance Intelligence</div>
@@ -15065,147 +14712,71 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
 
 
-/* ══ KPI INTELLIGENCE MODULE JS ════════════════════════════ */
+/* ══ KPI INTELLIGENCE MODULE JS ══════════════════════════════ */
+// Two-sheet live fetch: Summary (mid/eoy) + Quarterly (Q1-Q4 detail)
+// NJTC brand theme — light mode
 
-// ═══════════════════════════════════════════════════════════════
-//  NJTC KPI INTELLIGENCE — LIVE DATA MODULE
-//  Data source: Published Google Sheet (CSV pub)
-//  Cache: localStorage njtc_kpi_intel_v1, 2hr TTL
-// ═══════════════════════════════════════════════════════════════
+const KPI_2PACX       = '2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd';
+const KPI_CACHE_KEY   = 'njtc_kpi_intel_v2';
+const KPI_TTL         = 2 * 60 * 60 * 1000; // 2hr
 
-const KPI_2PACX = '2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd';
-const KPI_CACHE_KEY = 'njtc_kpi_intel_v1';
-const KPI_TTL = 2 * 60 * 60 * 1000; // 2hr
-
-let _kpiData = [];       // parsed rows
-let _kpiFilter = 'all';
-let _kpiQuarter = 'Q2';
+// State
+let _kpiData    = [];    // quarterly rows (cols 0-13)
+let _kpiSummary = [];    // summary rows (cols 0-4), joined by Goal+Target
+let _kpiFilter  = 'all';
+let _kpiQuarter = 'Q2';  // current active quarter
 let _activeGoal = null;
 
-// ── STATUS CONFIG ──────────────────────────────────────────────
-const STATUS_CFG = {
-  'Met':                    { cls:'sc-met',       emoji:'✅', label:'Met',           color:'#10d98a', score:1.0 },
-  'Partially Met':          { cls:'sc-partial',   emoji:'🟡', label:'Partially Met', color:'#f59e0b', score:0.5 },
-  'Has Not Met':            { cls:'sc-notmet',    emoji:'🔴', label:'Has Not Met',   color:'#f03e3e', score:0.0 },
-  'In Progress':            { cls:'sc-progress',  emoji:'🔵', label:'In Progress',   color:'#818cf8', score:0.25 },
-  'Coming Down the Pipeline':{ cls:'sc-pipeline', emoji:'🔘', label:'Pipeline',      color:'#64748b', score:0.1 },
+// ── STATUS CONFIG ───────────────────────────────────────────────
+const KSTS = {
+  'Met':                     { cls:'hc-met',     badge:'dsc-met',     dot:'#0d6e3a', emoji:'✅', label:'Met',        score:1.0 },
+  'Partially Met':           { cls:'hc-partial', badge:'dsc-partial', dot:'#c05c00', emoji:'🟡', label:'Partial',    score:0.5 },
+  'Has Not Met':             { cls:'hc-notmet',  badge:'dsc-notmet',  dot:'#b91c1c', emoji:'🔴', label:'Not Met',    score:0.0 },
+  'In Progress':             { cls:'hc-prog',    badge:'dsc-prog',    dot:'#1d4ed8', emoji:'🔵', label:'In Progress',score:0.25 },
+  'Coming Down the Pipeline':{ cls:'hc-pipe',    badge:'dsc-pipe',    dot:'#6b21a8', emoji:'🔘', label:'Pipeline',   score:0.1 },
 };
+function kst(s){ return KSTS[s] || { cls:'hc-pipe', badge:'dsc-pipe', dot:'#94a3b8', emoji:'⬜', label:s||'—', score:0 }; }
 
-function statusCfg(s){ return STATUS_CFG[s] || { cls:'sc-pipeline', emoji:'⬜', label:s||'—', color:'#64748b', score:0 }; }
-
-// ── STRATEGIC GOAL MAPPING ──────────────────────────────────────
-const STRATEGIC_MAP = {
-  'Increase Impact on Scholars':                        'Grow Impact',
-  'Support Growth of New Jersey\'s Educator Pipeline':  'Grow Impact',
-  'Increase the number of fee-for-service partnerships':'Financial Sustainability',
+// ── STRATEGIC MAPPING ───────────────────────────────────────────
+const PILLAR_MAP = {
+  'Increase Impact on Scholars':                         'Grow Impact',
+  "Support Growth of New Jersey's Educator Pipeline":    'Grow Impact',
+  'Increase the number of fee-for-service partnerships': 'Financial Sustainability',
   'Continue to pursue large and multi-year sources of funding': 'Financial Sustainability',
-  'Maintain cash position':                             'Financial Sustainability',
-  'Further Diversify board and leverage its support':   'Financial Sustainability',
-  'Upgrade systems to support growth':                  'Organizational Infrastructure',
-  'Maintain consistent partner experience':             'Organizational Infrastructure',
-  'Maintain and continue to build on strong culture':   'Organizational Infrastructure',
-  'Grow the NJTC brand':                                'Organizational Infrastructure',
+  'Maintain cash position':                              'Financial Sustainability',
+  'Further Diversify board and leverage its support':    'Financial Sustainability',
+  'Upgrade systems to support growth':                   'Org Infrastructure',
+  'Maintain consistent partner experience':              'Org Infrastructure',
+  'Maintain and continue to build on strong culture':    'Org Infrastructure',
+  'Grow the NJTC brand':                                 'Org Infrastructure',
 };
-
-const STRATEGIC_GOALS = [
-  { key:'Grow Impact', icon:'📈', short:'Scholar Impact & Pipeline' },
-  { key:'Financial Sustainability', icon:'💰', short:'Long-Term Sustainability' },
-  { key:'Organizational Infrastructure', icon:'🏗️', short:'Org Infrastructure' },
+const PILLARS = [
+  { key:'Grow Impact',            icon:'📚', color:'#003087' },
+  { key:'Financial Sustainability',icon:'💰', color:'#0d6e3a' },
+  { key:'Org Infrastructure',     icon:'🏛️', color:'#6b21a8' },
 ];
 
-// ── DEPT/OWNER ABBREVIATIONS ──────────────────────────────────
-function shortOwner(s){
-  if(!s) return '—';
-  s = s.replace(/Goal Responsibility[^:]*:\s*/gi,'')
-       .replace(/Primary Metric Owner:\s*/gi,'')
-       .replace(/Secondary Metric Owner:\s*/gi,'')
-       .replace(/Metric Owner:\s*/gi,'')
-       .trim();
-  // Keep first meaningful segment
-  return s.split('\n')[0].split('&')[0].trim().slice(0,40);
-}
+// ── Q COLUMN INDICES (quarterly sheet) ─────────────────────────
+const QCOL = { Q1:{d:6,s:7}, Q2:{d:8,s:9}, Q3:{d:10,s:11}, Q4:{d:12,s:13} };
+function qStatus(row,q){ return (row[QCOL[q]?.s]||'').trim(); }
+function qDataRaw(row,q){ return (row[QCOL[q]?.d]||''); }
 
-function shortSource(s){
-  if(!s) return '';
-  return s.replace(/Validation Method:\s*/gi,'')
-          .replace(/Secondary Validation:\s*/gi,'')
-          .trim().split('\n')[0];
-}
-
-// ── PARSE QUARTER DATA ──────────────────────────────────────────
 function parseQData(raw){
   if(!raw) return {goal:'',captured:''};
   const lines = raw.replace(/\r/g,'').split('\n').map(l=>l.trim()).filter(Boolean);
-  let goal='', captured='', reading='';
+  let goal='',captured='',mode='';
   for(const l of lines){
-    if(/^Goal:/i.test(l)){goal=l.replace(/^Goal:\s*/i,'');reading='goal';}
-    else if(/^Captured Metric:/i.test(l)){captured=l.replace(/^Captured Metric:\s*/i,'');reading='cap';}
-    else if(reading==='goal') goal+=' '+l;
-    else if(reading==='cap') captured+=' '+l;
+    if(/^Goal:/i.test(l)){goal=l.replace(/^Goal:\s*/i,'');mode='g';}
+    else if(/^Captured Metric:/i.test(l)){captured=l.replace(/^Captured Metric:\s*/i,'');mode='c';}
+    else if(mode==='g') goal+=' '+l;
+    else if(mode==='c') captured+=' '+l;
   }
-  return {goal:goal.trim(), captured:captured.trim()};
-}
-
-// ── QUARTER STATUS COLUMN INDEX ─────────────────────────────────
-const Q_COL = { Q1:{data:6,status:7}, Q2:{data:8,status:9}, Q3:{data:10,status:11}, Q4:{data:12,status:13} };
-
-function getQStatus(row, q){ return (row[Q_COL[q]?.status]||'').trim(); }
-function getQData(row, q){   return parseQData(row[Q_COL[q]?.data]||''); }
-
-// ── FETCH LIVE CSV ──────────────────────────────────────────────
-async function kpiFetch(force=false){
-  // Check cache
-  if(!force){
-    try{
-      const cached = localStorage.getItem(KPI_CACHE_KEY);
-      if(cached){
-        const {ts, rows} = JSON.parse(cached);
-        if(Date.now() - ts < KPI_TTL){
-          _kpiData = rows;
-          kpiRender();
-          document.getElementById('kpiTimestamp').textContent = 'Live · ' + new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-          return;
-        }
-      }
-    }catch(e){}
-  }
-
-  // Fetch fresh
-  const url = `https://docs.google.com/spreadsheets/d/e/${KPI_2PACX}/pub?output=csv`;
-  try{
-    const resp = await fetch(url);
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const text = await resp.text();
-    const rows = _kpiParseCSV(text);
-    // Row index 1 = headers (0-indexed), data starts at index 2
-    const headerRow = rows[1] || [];
-    const dataRows  = rows.slice(2).filter(r => r[0] && r[0].trim());
-    _kpiData = dataRows;
-
-    const now = Date.now();
-    try{ localStorage.setItem(KPI_CACHE_KEY, JSON.stringify({ts:now, rows:dataRows})); }catch(e){}
-    document.getElementById('kpiTimestamp').textContent = 'Live · ' + new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    kpiRender();
-  }catch(err){
-    console.error('KPI fetch error:', err);
-    document.getElementById('strategicRings').innerHTML = `<div class="kpi-error" style="grid-column:1/-1">⚠ Could not load live KPI data. ${err.message}</div>`;
-    // Try to use stale cache anyway
-    try{
-      const cached = localStorage.getItem(KPI_CACHE_KEY);
-      if(cached){
-        const {ts, rows} = JSON.parse(cached);
-        _kpiData = rows;
-        kpiRender();
-        document.getElementById('kpiTimestamp').textContent = 'Cached · ' + new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-      }
-    }catch(e){}
-  }
+  return {goal:goal.trim(),captured:captured.trim()};
 }
 
 // ── CSV PARSER ──────────────────────────────────────────────────
 function _kpiParseCSV(text){
-  const rows=[];
-  let row=[], field='', inQ=false;
+  const rows=[];let row=[],field='',inQ=false;
   for(let i=0;i<text.length;i++){
     const c=text[i];
     if(inQ){
@@ -15217,8 +14788,7 @@ function _kpiParseCSV(text){
       else if(c===','){row.push(field);field='';}
       else if(c==='\n'||c==='\r'){
         if(c==='\r'&&text[i+1]==='\n')i++;
-        row.push(field);field='';
-        rows.push(row);row=[];
+        row.push(field);field='';rows.push(row);row=[];
       }else field+=c;
     }
   }
@@ -15226,337 +14796,496 @@ function _kpiParseCSV(text){
   return rows;
 }
 
-// ── GROUP DATA ──────────────────────────────────────────────────
+// ── KEY NORMALIZER for join ─────────────────────────────────────
+function kpiKey(goal,target){
+  return (goal||'').trim().toLowerCase()+'||'+(target||'').trim().toLowerCase().slice(0,60);
+}
+
+// ── DUAL FETCH ──────────────────────────────────────────────────
+async function kpiFetch(force=false){
+  // Try cache first
+  if(!force){
+    try{
+      const c=localStorage.getItem(KPI_CACHE_KEY);
+      if(c){
+        const {ts,qRows,sRows}=JSON.parse(c);
+        if(Date.now()-ts<KPI_TTL){
+          _kpiData=qRows; _kpiSummary=sRows;
+          kpiRender();
+          const el=document.getElementById('kpiTimestamp');
+          if(el) el.textContent='Live · '+new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+          return;
+        }
+      }
+    }catch(e){}
+  }
+
+  // Show loading
+  const pillarsEl = document.getElementById('kpiPillars');
+  const gridEl    = document.getElementById('goalCardsGrid');
+  if(pillarsEl) pillarsEl.innerHTML='<div class="kpi-loading" style="grid-column:1/-1"><div class="kpi-loading-ring"></div><div class="kpi-loading-text">Fetching live data…</div></div>';
+  if(gridEl)    gridEl.innerHTML='';
+
+  const base = `https://docs.google.com/spreadsheets/d/e/${KPI_2PACX}/pub`;
+
+  try{
+    // Fetch both sheets in parallel
+    const [qResp, sResp] = await Promise.all([
+      fetch(`${base}?gid=880469&output=csv&cachebust=${Date.now()}`),
+      fetch(`${base}?output=csv&cachebust=${Date.now()}`)
+    ]);
+
+    if(!qResp.ok) throw new Error('Quarterly sheet HTTP '+qResp.status);
+    if(!sResp.ok) throw new Error('Summary sheet HTTP '+sResp.status);
+
+    const [qText, sText] = await Promise.all([qResp.text(), sResp.text()]);
+
+    // Parse quarterly: row 0 = legend, row 1 = headers, rows 2+ = data (skip blank)
+    const qAll   = _kpiParseCSV(qText);
+    const qRows  = qAll.slice(2).filter(r => r[0] && r[0].trim() &&
+      ![r[0].trim()].some(v => v.startsWith('Contributes') || v === 'Goal'));
+
+    // Parse summary: rows 0-6 = junk/legend, row 7 = headers, rows 8+ = data
+    const sAll   = _kpiParseCSV(sText);
+    const sRows  = sAll.slice(8).filter(r => r[0] && r[0].trim());
+
+    _kpiData    = qRows;
+    _kpiSummary = sRows;
+
+    const now = Date.now();
+    try{ localStorage.setItem(KPI_CACHE_KEY, JSON.stringify({ts:now,qRows,sRows})); }catch(e){}
+
+    const el=document.getElementById('kpiTimestamp');
+    if(el) el.textContent='Live · '+new Date(now).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    kpiRender();
+
+  }catch(err){
+    console.error('[KPI] fetch error:', err);
+    if(pillarsEl) pillarsEl.innerHTML=`<div class="kpi-error" style="grid-column:1/-1">⚠ Could not load KPI data: ${err.message}<br><small>Check network & published sheet permissions</small></div>`;
+    // Try stale cache
+    try{
+      const c=localStorage.getItem(KPI_CACHE_KEY);
+      if(c){
+        const {ts,qRows,sRows}=JSON.parse(c);
+        _kpiData=qRows; _kpiSummary=sRows;
+        kpiRender();
+        const el=document.getElementById('kpiTimestamp');
+        if(el) el.textContent='Cached · '+new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      }
+    }catch(e2){}
+  }
+}
+
+// ── SUMMARY LOOKUP ──────────────────────────────────────────────
+function buildSummaryLookup(){
+  const map={};
+  for(const r of _kpiSummary){
+    const k=kpiKey(r[0],r[1]);
+    map[k]={mid:(r[3]||'').trim(), eoy:(r[4]||'').trim()};
+  }
+  return map;
+}
+
+function getMidEoy(goal,target){
+  if(!_kpiSummary.length) return {mid:'',eoy:''};
+  const lookup=buildSummaryLookup();
+  return lookup[kpiKey(goal,target)] || {mid:'',eoy:''};
+}
+
+// ── GROUP BY GOAL ───────────────────────────────────────────────
 function groupByGoal(){
-  const map = {};
+  const map={};
+  // Valid goal names from our known list
+  const VALID_GOALS = new Set([
+    'Increase Impact on Scholars',
+    "Support Growth of New Jersey's Educator Pipeline",
+    'Increase the number of fee-for-service partnerships',
+    'Continue to pursue large and multi-year sources of funding',
+    'Maintain cash position',
+    'Further Diversify board and leverage its support',
+    'Upgrade systems to support growth',
+    'Maintain consistent partner experience',
+    'Maintain and continue to build on strong culture',
+    'Grow the NJTC brand',
+  ]);
   for(const row of _kpiData){
-    const g = row[0]?.trim();
-    if(!g) continue;
-    if(!map[g]) map[g] = [];
+    const g=(row[0]||'').trim();
+    if(!g || !VALID_GOALS.has(g)) continue;
+    if(!map[g]) map[g]=[];
     map[g].push(row);
   }
   return map;
 }
 
-// ── HEALTH SCORE FOR A GROUP ────────────────────────────────────
-function healthScore(rows, q){
-  const statuses = rows.map(r => getQStatus(r, q)).filter(Boolean);
-  if(!statuses.length) return {score:0, pct:0, counts:{}};
-  let total=0;
-  const counts = {};
-  for(const s of statuses){
-    const sc = statusCfg(s).score;
-    total += sc;
-    counts[s] = (counts[s]||0) + 1;
-  }
-  return { score: total/statuses.length, pct: Math.round((total/statuses.length)*100), counts };
+// ── HEALTH SCORE ────────────────────────────────────────────────
+function healthScore(rows,q){
+  const statuses=rows.map(r=>qStatus(r,q)).filter(Boolean);
+  if(!statuses.length) return {score:0,pct:0,counts:{}};
+  let total=0;const counts={};
+  for(const s of statuses){ total+=kst(s).score; counts[s]=(counts[s]||0)+1; }
+  return {score:total/statuses.length, pct:Math.round((total/statuses.length)*100), counts};
 }
 
-// ── STRATEGIC HEALTH ────────────────────────────────────────────
-function strategicHealth(goalMap, q){
-  const result = {};
-  for(const sg of STRATEGIC_GOALS){
-    const matchingGoals = Object.entries(goalMap).filter(([g]) => STRATEGIC_MAP[g] === sg.key);
-    const allRows = matchingGoals.flatMap(([,rows]) => rows);
-    result[sg.key] = healthScore(allRows, q);
-  }
-  return result;
-}
-
-// ── RENDER ──────────────────────────────────────────────────────
-function kpiRender(){
-  if(!_kpiData.length) return;
-  const goalMap = groupByGoal();
-  renderStrategicRings(goalMap);
-  renderGoalCards(goalMap);
-}
-
-// ── ARC SVG ─────────────────────────────────────────────────────
-function arcSVG(pct, color, size=72){
-  const r = (size/2)-7, cx=size/2, cy=size/2;
-  const circ = 2*Math.PI*r;
-  const id = 'arc'+Math.random().toString(36).slice(2,7);
-  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <defs>
-      <linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stop-color="${color}"/>
-        <stop offset="100%" stop-color="${color}88"/>
-      </linearGradient>
-    </defs>
-    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="5"/>
+// ── ARC SVG (light bg version) ──────────────────────────────────
+function arcSVG(pct,color,size=72){
+  const r=(size/2)-7,cx=size/2,cy=size/2;
+  const circ=2*Math.PI*r;
+  const id='ka'+Math.random().toString(36).slice(2,7);
+  const dash=circ-(pct/100)*circ;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="transform:rotate(-90deg)">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(0,48,135,.08)" stroke-width="6"/>
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none"
-      stroke="url(#${id})" stroke-width="5"
-      stroke-linecap="round"
-      stroke-dasharray="${circ}"
-      stroke-dashoffset="${circ}"
-      style="transition:stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1);
-             animation:arcAnim_${id} 1.2s .3s cubic-bezier(.4,0,.2,1) forwards"
-    />
-    <style>
-      @keyframes arcAnim_${id}{
-        to{stroke-dashoffset:${circ - (pct/100)*circ}}
-      }
-    </style>
+      stroke="${color}" stroke-width="6" stroke-linecap="round"
+      stroke-dasharray="${circ}" stroke-dashoffset="${circ}"
+      style="animation:kpiArc_${id} 1.2s .2s cubic-bezier(.4,0,.2,1) forwards"/>
+    <style>@keyframes kpiArc_${id}{to{stroke-dashoffset:${dash}}}</style>
   </svg>`;
 }
 
 function ringColor(pct){
-  if(pct>=80) return '#10d98a';
-  if(pct>=60) return '#f59e0b';
+  if(pct>=80) return '#0d6e3a';
+  if(pct>=65) return '#c05c00';
   if(pct>=40) return '#f97316';
-  return '#f03e3e';
+  return '#b91c1c';
 }
 
-// ── STRATEGIC RINGS RENDER ───────────────────────────────────────
-function renderStrategicRings(goalMap){
-  const health = strategicHealth(goalMap, _kpiQuarter);
-  const rings = document.getElementById('strategicRings');
+// ── RENDER ALL ──────────────────────────────────────────────────
+function kpiRender(){
+  if(!_kpiData.length) return;
+  const goalMap=groupByGoal();
+  kpiRenderHealthChips(goalMap);
+  kpiRenderCycleBanner();
+  kpiRenderPillars(goalMap);
+  kpiRenderGoalCards(goalMap);
+}
 
-  rings.innerHTML = STRATEGIC_GOALS.map((sg, i) => {
-    const h = health[sg.key];
-    const pct = h.pct;
-    const col = ringColor(pct);
-    const chips = Object.entries(h.counts).map(([s,n]) => {
-      const cfg = statusCfg(s);
-      return `<span class="ring-chip sc ${cfg.cls}">${n} ${cfg.label}</span>`;
+// ── HEALTH CHIPS ────────────────────────────────────────────────
+function kpiRenderHealthChips(goalMap){
+  const el=document.getElementById('kpiHealthRow');
+  if(!el) return;
+  const allRows=Object.values(goalMap).flat();
+  const counts={};
+  for(const row of allRows){
+    const s=qStatus(row,_kpiQuarter)||'—';
+    counts[s]=(counts[s]||0)+1;
+  }
+  const order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
+  const total=allRows.length;
+  el.innerHTML = order.map(s=>{
+    const n=counts[s]||0;
+    if(!n) return '';
+    const cfg=kst(s);
+    return `<div class="kpi-hchip ${cfg.cls}"><span class="khc-n">${n}</span>${cfg.label}</div>`;
+  }).filter(Boolean).join('') +
+  `<span style="font-size:.65rem;color:var(--muted);margin-left:auto;font-family:var(--kpi-mono)">${total} KPIs · ${_kpiQuarter}</span>`;
+}
+
+// ── CYCLE BANNER (MOY/EOY) ──────────────────────────────────────
+function kpiRenderCycleBanner(){
+  if(!_kpiSummary.length) return;
+  const banner=document.getElementById('kpiCycleBanner');
+  if(!banner) return;
+  banner.style.display='grid';
+
+  // Count mid/eoy statuses across all summary rows
+  const midCounts={}, eoyCounts={};
+  for(const r of _kpiSummary){
+    const m=(r[3]||'').trim(), e=(r[4]||'').trim();
+    if(m) midCounts[m]=(midCounts[m]||0)+1;
+    if(e) eoyCounts[e]=(eoyCounts[e]||0)+1;
+  }
+
+  function miniHtml(counts, prefix){
+    const order=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'];
+    return order.map(s=>{
+      const n=counts[s]||0;
+      const cfg=kst(s);
+      return `<div class="kpi-cycle-mini-item">
+        <span class="kpi-cycle-mini-val" style="color:${n?cfg.dot:'var(--muted)'}">${n}</span>
+        <span class="kpi-cycle-mini-lbl">${cfg.label.replace(' ','<br>')}</span>
+      </div>`;
     }).join('');
+  }
 
-    return `<div class="ring-card fade-in stagger-${i+1}">
-      <div class="ring-svg-wrap">
-        ${arcSVG(pct, col, 76)}
-        <div class="ring-center">
-          <span class="ring-pct" style="color:${col}">${pct}</span>
-          <span class="ring-pct-sub">HEALTH</span>
+  function overallStatus(counts){
+    const met=(counts['Met']||0), total=Object.values(counts).reduce((a,b)=>a+b,0);
+    if(!total) return '—';
+    const pct=Math.round(met/total*100);
+    return `${pct}% Met`;
+  }
+
+  document.getElementById('kpiMidOverall').textContent = overallStatus(midCounts);
+  document.getElementById('kpiEoyOverall').textContent = Object.values(eoyCounts).some(v=>v>0) ? overallStatus(eoyCounts) : 'Pending EOY';
+  document.getElementById('kpiMidMini').innerHTML  = miniHtml(midCounts,'mid');
+  document.getElementById('kpiEoyMini').innerHTML  = miniHtml(eoyCounts,'eoy');
+}
+
+// ── PILLAR RINGS ────────────────────────────────────────────────
+function kpiRenderPillars(goalMap){
+  const el=document.getElementById('kpiPillars');
+  if(!el) return;
+  el.innerHTML=PILLARS.map((p,i)=>{
+    const matching=Object.entries(goalMap).filter(([g])=>PILLAR_MAP[g]===p.key);
+    const allRows=matching.flatMap(([,rows])=>rows);
+    const h=healthScore(allRows,_kpiQuarter);
+    const col=ringColor(h.pct);
+    const chipHtml=Object.entries(h.counts).map(([s,n])=>{
+      return `<span class="kpi-pchip ${kst(s).cls}">${n} ${kst(s).label}</span>`;
+    }).join('');
+    return `<div class="kpi-pillar-card">
+      <div class="kpi-pillar-arc">
+        ${arcSVG(h.pct,col,72)}
+        <div class="kpi-pillar-arc-center">
+          <span class="kpi-pillar-pct" style="color:${col}">${h.pct}</span>
+          <span class="kpi-pillar-pct-lbl">HEALTH</span>
         </div>
       </div>
-      <div class="ring-info">
-        <div class="ring-title">${sg.icon} ${sg.key}</div>
-        <div class="ring-chips">${chips}</div>
+      <div class="kpi-pillar-info">
+        <div class="kpi-pillar-name">${p.icon} ${p.key}</div>
+        <div class="kpi-pillar-chips">${chipHtml||'<span class="kpi-pchip hc-pipe">No data</span>'}</div>
       </div>
     </div>`;
   }).join('');
 }
 
-// ── GOAL CARD STATUS SUMMARY ─────────────────────────────────────
-function goalCardStatus(rows, q){
-  const counts = {};
-  for(const r of rows){
-    const s = getQStatus(r,q)||'—';
-    counts[s]=(counts[s]||0)+1;
-  }
-  return counts;
-}
+// ── GOAL CARDS ──────────────────────────────────────────────────
+function kpiRenderGoalCards(goalMap){
+  const grid=document.getElementById('goalCardsGrid');
+  const countEl=document.getElementById('kpiGoalCount');
+  if(!grid) return;
 
-// ── GOAL CARDS RENDER ────────────────────────────────────────────
-function renderGoalCards(goalMap){
-  const grid = document.getElementById('goalCardsGrid');
-  const count = document.getElementById('kpiGoalCount');
-
-  let entries = Object.entries(goalMap);
-
-  // Apply status filter
-  if(_kpiFilter !== 'all'){
-    entries = entries.filter(([g, rows]) =>
-      rows.some(r => getQStatus(r, _kpiQuarter) === _kpiFilter)
-    );
+  let entries=Object.entries(goalMap);
+  if(_kpiFilter!=='all'){
+    entries=entries.filter(([,rows])=>rows.some(r=>qStatus(r,_kpiQuarter)===_kpiFilter));
   }
 
-  count.textContent = `${entries.length} goal${entries.length!==1?'s':''}`;
+  countEl.textContent=`${entries.length} goal${entries.length!==1?'s':''}`;
 
   if(!entries.length){
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-3);font-family:var(--font-mono);font-size:.75rem">No goals match this filter.</div>`;
+    grid.innerHTML=`<div class="kpi-empty" style="grid-column:1/-1">No goals match this filter.</div>`;
     return;
   }
 
-  grid.innerHTML = entries.map(([goalName, rows], idx) => {
-    const qStat = goalCardStatus(rows, _kpiQuarter);
-    const health = healthScore(rows, _kpiQuarter);
-    const col = ringColor(health.pct);
-    const sg = STRATEGIC_MAP[goalName] || 'Other';
+  grid.innerHTML=entries.map(([goalName,rows],idx)=>{
+    const h=healthScore(rows,_kpiQuarter);
+    const col=ringColor(h.pct);
+    const pillar=PILLAR_MAP[goalName]||'Other';
 
-    // Status chips row
-    const chips = Object.entries(qStat).map(([s,n]) => {
-      const cfg = statusCfg(s);
-      return `<span class="sc ${cfg.cls}"><span class="sc-dot"></span>${n} ${cfg.label}</span>`;
-    }).join('');
-
-    // Q metric tiles
-    const metricTiles = ['Q1','Q2','Q3','Q4'].map(q => {
-      const s = getQStatus(rows[0], q);
-      const cfg = s ? statusCfg(s) : null;
-      return `<div class="gcm-tile">
-        <span class="gcm-label">${q}</span>
-        <span class="gcm-val" style="color:${cfg?cfg.color:'var(--text-3)'}">${cfg?cfg.emoji:'—'}</span>
+    // Q tiles
+    const qtiles=['Q1','Q2','Q3','Q4'].map(q=>{
+      const s=qStatus(rows[0],q);
+      const cfg=s?kst(s):null;
+      const isActive=q===_kpiQuarter;
+      const tileBg=isActive?(cfg?`background:var(--kpi-${cfg.cls.replace('hc-','')}-bg)`:''):'';
+      return `<div class="kpi-goal-qtile" style="${tileBg};${isActive?'border:1.5px solid var(--border);':''}" >
+        <span class="gqt-lbl">${q}</span>
+        <span class="gqt-icon">${cfg?cfg.emoji:'—'}</span>
       </div>`;
     }).join('');
 
-    // Health bar fill width
-    const healthPct = health.pct;
+    // MOY/EOY mini from summary sheet (aggregate for goal)
+    const midStatuses=[...new Set(rows.map(r=>getMidEoy(goalName,r[1]).mid).filter(Boolean))];
+    const eoyStatuses=[...new Set(rows.map(r=>getMidEoy(goalName,r[1]).eoy).filter(Boolean))];
+    const midCounts={}, eoyCounts={};
+    rows.forEach(r=>{
+      const me=getMidEoy(goalName,r[1]);
+      if(me.mid) midCounts[me.mid]=(midCounts[me.mid]||0)+1;
+      if(me.eoy) eoyCounts[me.eoy]=(eoyCounts[me.eoy]||0)+1;
+    });
+    const topMid=Object.entries(midCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+    const topEoy=Object.entries(eoyCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
+    const midCfg=topMid?kst(topMid):null;
+    const eoyCfg=topEoy?kst(topEoy):null;
 
-    return `<div class="goal-card stagger-${Math.min(idx+1,10)}" 
-                 id="gc-${idx}"
-                 onclick="kpiOpenDrawer(${JSON.stringify(goalName).replace(/"/g,'&quot;')})">
-      <div class="goal-card-accent" style="background:linear-gradient(90deg,${col},${col}44)"></div>
-      <div class="goal-card-body">
-        <div class="goal-card-top">
-          <div class="goal-card-title">${goalName}</div>
-          <div class="goal-card-id">${rows.length} KPI${rows.length!==1?'s':''}</div>
-        </div>
-        <div class="goal-card-meta">${chips}</div>
-        <div class="health-bar-wrap">
-          <div class="health-bar-label">
-            <span style="color:var(--text-3)">Health Score</span>
-            <span style="color:${col};font-family:var(--font-mono)">${healthPct}%</span>
-          </div>
-          <div class="health-bar">
-            <div class="health-bar-fill" style="background:${col};width:${healthPct}%"></div>
-          </div>
-        </div>
-        <div class="goal-card-metrics" style="margin-top:10px">${metricTiles}</div>
+    const cycleRow=`<div class="kpi-goal-cycle-row">
+      <div class="kpi-goal-cycle-chip ${midCfg?'gcch-mid':'gcch-empty'}">
+        <span class="gcch-lbl">Mid-Year</span>
+        ${midCfg?midCfg.emoji+' '+midCfg.label:'Pending'}
       </div>
-      <div class="goal-card-footer">
-        <span class="goal-card-kpi-count">${sg}</span>
-        <span class="goal-card-drill">Deep dive</span>
+      <div class="kpi-goal-cycle-chip ${eoyCfg?'gcch-eoy':'gcch-empty'}">
+        <span class="gcch-lbl">End of Year</span>
+        ${eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending'}
+      </div>
+    </div>`;
+
+    const safeGoal=goalName.replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+
+    return `<div class="kpi-goal-card" onclick="kpiOpenDrawer('${safeGoal}')">
+      <div class="kpi-goal-card-bar" style="background:linear-gradient(90deg,${col},${col}55)"></div>
+      <div class="kpi-goal-card-body">
+        <div class="kpi-goal-name">${goalName}</div>
+        <div class="kpi-goal-meta-row">
+          <span class="kpi-goal-pillar-tag">${pillar}</span>
+          <span class="kpi-goal-kpi-badge">${rows.length} KPI${rows.length!==1?'s':''}</span>
+        </div>
+        <div class="kpi-goal-health-row">
+          <div class="kpi-goal-health-track"><div class="kpi-goal-health-fill" style="background:${col};width:${h.pct}%"></div></div>
+          <span class="kpi-goal-health-pct" style="color:${col}">${h.pct}%</span>
+        </div>
+        <div class="kpi-goal-q-row">${qtiles}</div>
+        ${cycleRow}
+      </div>
+      <div class="kpi-goal-card-footer">
+        <span class="kpi-goal-footer-left">${_kpiQuarter} snapshot</span>
+        <button class="kpi-goal-drill-btn" onclick="event.stopPropagation();kpiOpenDrawer('${safeGoal}')">Deep dive →</button>
       </div>
     </div>`;
   }).join('');
-
-  // Trigger visibility for animation
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.goal-card').forEach((el,i) => {
-      setTimeout(() => el.classList.add('visible'), i * 50);
-    });
-  });
 }
 
-// ── OPEN DRAWER ──────────────────────────────────────────────────
+// ── DRAWER ──────────────────────────────────────────────────────
 function kpiOpenDrawer(goalName){
-  const goalMap = groupByGoal();
-  const rows = goalMap[goalName];
+  const goalMap=groupByGoal();
+  const rows=goalMap[goalName];
   if(!rows) return;
+  _activeGoal=goalName;
 
-  _activeGoal = goalName;
+  document.getElementById('drawerGoalTag').textContent=PILLAR_MAP[goalName]||'Annual Goal';
+  document.getElementById('drawerTitle').textContent=goalName;
 
-  // Header
-  document.getElementById('drawerGoalTag').textContent = STRATEGIC_MAP[goalName] || goalName;
-  document.getElementById('drawerTitle').textContent = goalName;
+  const owners=[...new Set(rows.map(r=>{
+    const o=(r[5]||'').trim();
+    return o.split('\n')[0].replace(/^Goal Responsibility[^:]*:\s*/i,'').replace(/^Primary Metric Owner:\s*/i,'').trim().slice(0,50);
+  }).filter(Boolean))];
+  document.getElementById('drawerOwnerRow').innerHTML=owners.slice(0,2).map(o=>`<span>👤 ${o}</span>`).join(' &nbsp;·&nbsp; ');
 
-  // Owner chips from first KPI
-  const owners = [...new Set(rows.map(r => shortOwner(r[5])).filter(Boolean))];
-  document.getElementById('drawerOwnerRow').innerHTML = owners.slice(0,3).map(o =>
-    `<div class="drawer-owner-chip"><em>Owner</em> <strong>${o}</strong></div>`
-  ).join('');
+  const body=document.getElementById('drawerBody');
 
-  // Body
-  const body = document.getElementById('drawerBody');
-
-  // Summary counts
-  const health = healthScore(rows, _kpiQuarter);
-  const dhbItems = Object.entries(STATUS_CFG).map(([s,cfg]) => {
-    const n = health.counts[s] || 0;
-    return `<div class="dhb-item">
-      <span class="dhb-count" style="color:${cfg.color}">${n}</span>
-      <span class="dhb-label">${cfg.label}</span>
+  // Summary chips
+  const h=healthScore(rows,_kpiQuarter);
+  const sumChips=['Met','Partially Met','In Progress','Coming Down the Pipeline','Has Not Met'].map(s=>{
+    const n=h.counts[s]||0;
+    const cfg=kst(s);
+    return `<div class="drawer-sum-chip ${cfg.badge}">
+      <span class="dsc-n">${n}</span>
+      <span class="dsc-l">${cfg.label}</span>
     </div>`;
   }).join('');
 
-  const kpiItems = rows.map((row, idx) => {
-    const target = (row[1]||'').trim();
-    const primarySrc = shortSource(row[3]);
-    const secondarySrc = shortSource(row[4]);
-    const ownerRaw = shortOwner(row[5]);
+  // KPI accordion rows
+  const kpiRows=rows.map((row,idx)=>{
+    const target=(row[1]||'').trim();
+    const src1=(row[3]||'').replace(/Validation Method:\s*/gi,'').replace(/Secondary Validation:\s*/gi,'').trim().split('\n')[0];
+    const src2=(row[4]||'').replace(/Secondary Validation:\s*/gi,'').replace(/Asana/gi,'Asana').trim().split('\n')[0];
+    const curStat=qStatus(row,_kpiQuarter);
+    const curCfg=curStat?kst(curStat):null;
+    const me=getMidEoy(goalName,target);
 
-    // All 4 quarters
-    const quarters = ['Q1','Q2','Q3','Q4'].map((q, qi) => {
-      const status = getQStatus(row, q);
-      const qdata  = getQData(row, q);
-      const cfg    = status ? statusCfg(status) : null;
-      const isCurrentQ = q === _kpiQuarter;
+    // MOY/EOY persistent chips
+    const midCfg=me.mid?kst(me.mid):null;
+    const eoyCfg=me.eoy?kst(me.eoy):null;
+    const cycleHtml=`<div class="dkpi-cycle-row">
+      <div class="dkpi-cycle-chip ${midCfg?'dcc-mid':'dcc-empty'}">
+        <span class="dcc-lbl">Mid-Year</span>
+        <span class="dcc-status">${midCfg?midCfg.emoji+' '+midCfg.label:'—'}</span>
+      </div>
+      <div class="dkpi-cycle-chip ${eoyCfg?'dcc-eoy':'dcc-empty'}">
+        <span class="dcc-lbl">End of Year</span>
+        <span class="dcc-status">${eoyCfg?eoyCfg.emoji+' '+eoyCfg.label:'Pending'}</span>
+      </div>
+    </div>`;
 
-      const statusChip = cfg
-        ? `<div class="sc ${cfg.cls} q-step-status"><span class="sc-dot"></span>${cfg.label}</div>`
-        : `<span class="q-empty-badge">No data</span>`;
-
-      let dataHtml = '';
-      if(qdata.captured || qdata.goal){
-        dataHtml = `<div class="q-step-data">`;
-        if(qdata.goal) dataHtml += `<div class="q-goal">Goal: ${qdata.goal}</div>`;
-        if(qdata.captured) dataHtml += `<div class="q-captured">↳ ${qdata.captured}</div>`;
-        dataHtml += `</div>`;
-      }
-
-      return `<div class="q-step" style="${!cfg?'opacity:.45':''}">
-        <div class="q-step-label ${isCurrentQ?'active':''}">
-          <span class="q-dot"></span>${q}${isCurrentQ?' ←':''}
-        </div>
-        ${statusChip}
-        ${dataHtml}
+    // Q stepper
+    const qSteps=['Q1','Q2','Q3','Q4'].map(q=>{
+      const s=qStatus(row,q);
+      const d=parseQData(qDataRaw(row,q));
+      const cfg=s?kst(s):null;
+      const isCurr=q===_kpiQuarter;
+      const isFuture=!s&&!d.captured&&!d.goal;
+      return `<div class="dkpi-qstep ${isCurr?'qs-curr':''} ${isFuture?'qs-future':''}">
+        <span class="dqs-q">${q}${isCurr?' ←':''}</span>
+        <span class="dqs-icon">${cfg?cfg.emoji:'—'}</span>
+        <span class="dqs-status" style="color:${cfg?cfg.dot:'var(--muted)'}">${cfg?cfg.label:'No data'}</span>
+        ${d.goal||d.captured?`<div class="dqs-data">
+          ${d.goal?`<div class="dqs-goal">Goal: ${d.goal}</div>`:''}
+          ${d.captured?`<div class="dqs-captured">↳ ${d.captured}</div>`:''}
+        </div>`:''}
       </div>`;
     }).join('');
 
-    return `<div class="kpi-drawer-item fade-in" style="animation-delay:${idx*.06}s">
-      <div class="kpi-drawer-item-header">
-        <span class="kpi-di-num">${String(idx+1).padStart(2,'0')}</span>
-        <div class="kpi-di-target">${target}</div>
+    const srcHtml=(src1||src2)?`<div class="dkpi-sources">
+      ${src1?`<strong>Source:</strong> ${src1}&nbsp;`:''}
+      ${src2&&src2!==src1&&src2.toLowerCase()!=='n/a'?`&nbsp;·&nbsp; <strong>Validation:</strong> ${src2}`:''}
+    </div>`:'';
+
+    return `<div class="dkpi-row" id="dkpi-${idx}">
+      <div class="dkpi-hdr" onclick="kpiToggleKPI(${idx})">
+        <div class="dkpi-dot" style="background:${curCfg?curCfg.dot:'#94a3b8'}"></div>
+        <div class="dkpi-name">${target}</div>
+        <div class="dkpi-badge ${curCfg?curCfg.badge:'dsc-pipe'}">${curCfg?curCfg.label:'—'}</div>
+        <span class="dkpi-chev">▶</span>
       </div>
-      <div class="kpi-di-sources">
-        ${primarySrc ? `<span class="kpi-di-source-item">📊 <span>${primarySrc}</span></span>` : ''}
-        ${secondarySrc && secondarySrc !== primarySrc && secondarySrc !== 'N/A' ? `<span class="kpi-di-source-item">📋 <span>${secondarySrc}</span></span>` : ''}
-        ${ownerRaw ? `<span class="kpi-di-source-item">👤 <span style="color:var(--gold)">${ownerRaw}</span></span>` : ''}
+      <div class="dkpi-body">
+        ${cycleHtml}
+        <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:.5rem 0 .25rem">Quarterly Drill-Down</div>
+        <div class="dkpi-q-grid">${qSteps}</div>
+        ${srcHtml}
       </div>
-      <div class="quarter-stepper">${quarters}</div>
     </div>`;
   }).join('');
 
-  body.innerHTML = `
-    <div class="drawer-health-bar">${dhbItems}</div>
-    ${kpiItems}
+  body.innerHTML=`
+    <div class="drawer-sum-grid">${sumChips}</div>
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.625rem">
+      ${rows.length} KPI Target${rows.length!==1?'s':''} · Click to expand
+    </div>
+    ${kpiRows}
   `;
 
   document.getElementById('kpiDrawer').classList.add('open');
   document.getElementById('drawerOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
+  document.body.style.overflow='hidden';
 }
 
-// ── CLOSE DRAWER ─────────────────────────────────────────────────
+function kpiToggleKPI(idx){
+  const el=document.getElementById('dkpi-'+idx);
+  if(el) el.classList.toggle('open');
+}
+
 function kpiCloseDrawer(){
   document.getElementById('kpiDrawer').classList.remove('open');
   document.getElementById('drawerOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-  _activeGoal = null;
+  document.body.style.overflow='';
+  _activeGoal=null;
 }
 
-// ── FILTER & QUARTER CONTROLS ─────────────────────────────────────
-function kpiSetFilter(btn, filter){
-  document.querySelectorAll('.kpi-filter-btn').forEach(b => b.classList.remove('on'));
+// ── FILTER / QUARTER ────────────────────────────────────────────
+function kpiSetFilter(btn,filter){
+  document.querySelectorAll('.kpi-filter-btn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  _kpiFilter = filter;
-  const goalMap = groupByGoal();
-  renderGoalCards(goalMap);
+  _kpiFilter=filter;
+  if(!_kpiData.length) return;
+  const goalMap=groupByGoal();
+  kpiRenderHealthChips(goalMap);
+  kpiRenderGoalCards(goalMap);
 }
 
-function kpiSetQuarter(q){
-  _kpiQuarter = q;
-  const goalMap = groupByGoal();
-  renderStrategicRings(goalMap);
-  renderGoalCards(goalMap);
+function kpiSetQuarter(btn,q){
+  document.querySelectorAll('.kpi-qtab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  _kpiQuarter=q;
+  if(!_kpiData.length) return;
+  const goalMap=groupByGoal();
+  kpiRenderHealthChips(goalMap);
+  kpiRenderPillars(goalMap);
+  kpiRenderGoalCards(goalMap);
 }
 
-// ── KEYBOARD ESCAPE ───────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if(e.key === 'Escape') kpiCloseDrawer();
-});
+// ESC closes drawer
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') kpiCloseDrawer(); });
 
-// ── INIT ──────────────────────────────────────────────────────────
+// Init
 kpiFetch();
 
-  // ── EXPOSE KPI FUNCTIONS TO GLOBAL SCOPE ───────────────────────
-  window.kpiFetch      = kpiFetch;
-  window.kpiRender     = kpiRender;
-  window.kpiOpenDrawer = kpiOpenDrawer;
-  window.kpiCloseDrawer= kpiCloseDrawer;
-  window.kpiSetFilter  = kpiSetFilter;
-  window.kpiSetQuarter = kpiSetQuarter;
+  // ── EXPOSE ────────────────────────────────────────────────────
+  window.kpiFetch        = kpiFetch;
+  window.kpiRender       = kpiRender;
+  window.kpiOpenDrawer   = kpiOpenDrawer;
+  window.kpiCloseDrawer  = kpiCloseDrawer;
+  window.kpiToggleKPI    = kpiToggleKPI;
+  window.kpiSetFilter    = kpiSetFilter;
+  window.kpiSetQuarter   = kpiSetQuarter;
+
 
 })();
 
