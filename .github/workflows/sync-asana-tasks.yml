@@ -1,0 +1,178 @@
+# NJTC Portal — Asana Task Sync
+# ─────────────────────────────────────────────────────────────────
+# WHAT THIS DOES:
+#   Calls the Asana API every 30 minutes using a stored secret,
+#   writes the results to /data/tasks.json, and commits the file
+#   back to the repo so GitHub Pages can serve it statically.
+#
+# WHY THIS APPROACH:
+#   GitHub Pages is static — browsers can't call Asana directly
+#   (CORS + PAT security). This workflow runs server-side where
+#   the PAT is safe, then stores the output as a plain JSON file.
+#
+# REQUIRED GITHUB SECRET (set once, never changes the code):
+#   Go to: GitHub Repo → Settings → Secrets and variables → Actions
+#   Add secret named:  ASANA_PAT
+#   Value:             2/1208833157453193/1213578412856693:4c47aa1a3dbcfe7166b94178c4f358ff
+#
+# TO CHANGE THE SCHEDULE:
+#   Edit the cron line below. Format is standard Unix cron.
+#   Current setting: every 30 minutes, 24/7.
+#   Tool to help: https://crontab.guru
+#
+# TO RUN MANUALLY:
+#   GitHub Repo → Actions tab → "Sync Asana Tasks" → Run workflow
+# ─────────────────────────────────────────────────────────────────
+
+name: Sync Asana Tasks
+
+on:
+  # Run automatically every 30 minutes
+  schedule:
+    - cron: '*/30 * * * *'
+
+  # Also allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Fetch tasks from Asana and write tasks.json
+    runs-on: ubuntu-latest
+
+    # Only the minimum permissions needed
+    permissions:
+      contents: write   # needed to commit tasks.json back to the repo
+
+    steps:
+
+      # ── 1. Check out the repo ──────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Fetch tasks from Asana API ─────────────────────────
+      #
+      # We use Node.js inline so no external dependencies are needed.
+      # The PAT comes from the GitHub Secret — never hardcoded here.
+      #
+      - name: Fetch Asana tasks and write tasks.json
+        env:
+          ASANA_PAT: ${{ secrets.ASANA_PAT }}
+        run: |
+          node - <<'EOF'
+          const https = require('https');
+          const fs    = require('fs');
+          const path  = require('path');
+
+          // ── Config ──────────────────────────────────────────────
+          const PROJECT_ID = '1211431518555737';
+          const FIELDS     = 'name,due_on,assignee,permalink_url,completed,notes,followers';
+          const OUT_DIR    = path.join(process.cwd(), 'data');
+          const OUT_FILE   = path.join(OUT_DIR, 'tasks.json');
+          const PAT        = process.env.ASANA_PAT;
+
+          if (!PAT) {
+            console.error('ERROR: ASANA_PAT secret is not set.');
+            console.error('Go to: Repo → Settings → Secrets → Actions → New repository secret');
+            process.exit(1);
+          }
+
+          // ── Fetch from Asana ─────────────────────────────────────
+          const url = `https://app.asana.com/api/1.0/projects/${PROJECT_ID}/tasks`
+                    + `?opt_fields=${encodeURIComponent(FIELDS)}&limit=100`;
+
+          function get(url) {
+            return new Promise((resolve, reject) => {
+              const req = https.get(url, {
+                headers: {
+                  'Authorization': `Bearer ${PAT}`,
+                  'Accept': 'application/json',
+                }
+              }, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                  if (res.statusCode !== 200) {
+                    reject(new Error(`Asana returned HTTP ${res.statusCode}: ${body}`));
+                    return;
+                  }
+                  try { resolve(JSON.parse(body)); }
+                  catch (e) { reject(new Error('Invalid JSON from Asana: ' + e.message)); }
+                });
+              });
+              req.on('error', reject);
+            });
+          }
+
+          // ── Paginate through all tasks ────────────────────────────
+          async function fetchAll() {
+            let allTasks = [];
+            let nextUrl  = url;
+
+            while (nextUrl) {
+              const data = await get(nextUrl);
+              if (Array.isArray(data.data)) {
+                allTasks = allTasks.concat(data.data);
+              }
+              // Asana paginates via next_page.uri
+              nextUrl = data.next_page ? data.next_page.uri : null;
+            }
+
+            return allTasks;
+          }
+
+          // ── Main ──────────────────────────────────────────────────
+          (async () => {
+            try {
+              console.log(`Fetching tasks from Asana project ${PROJECT_ID}…`);
+              const tasks = await fetchAll();
+              console.log(`  Retrieved ${tasks.length} total tasks.`);
+
+              // Filter to only open tasks with a due date
+              // (keeps the JSON small — completed tasks aren't needed for alerts)
+              const filtered = tasks.filter(t => !t.completed && t.due_on);
+              console.log(`  ${filtered.length} open tasks with due dates kept.`);
+
+              // Write output
+              if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+
+              const output = {
+                generated: new Date().toISOString(),
+                project:   PROJECT_ID,
+                count:     filtered.length,
+                tasks:     filtered,
+              };
+
+              fs.writeFileSync(OUT_FILE, JSON.stringify(output, null, 2));
+              console.log(`  Written to ${OUT_FILE}`);
+            } catch (err) {
+              console.error('Sync failed:', err.message);
+              process.exit(1);
+            }
+          })();
+          EOF
+
+      # ── 3. Commit tasks.json back to the repo ─────────────────
+      #
+      # Only commits if the file actually changed.
+      # The [skip ci] tag prevents this commit from triggering
+      # another workflow run (avoids an infinite loop).
+      #
+      - name: Commit updated tasks.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add data/tasks.json
+
+          # Only commit if there's actually a change
+          if git diff --cached --quiet; then
+            echo "tasks.json is unchanged — nothing to commit."
+          else
+            TASK_COUNT=$(node -e "const f=require('./data/tasks.json'); console.log(f.count)")
+            git commit -m "chore: sync Asana tasks [skip ci]
+
+          Tasks with open deadlines: ${TASK_COUNT}
+          Generated: $(date -u +"%Y-%m-%d %H:%M UTC")"
+            git push
+            echo "Committed and pushed updated tasks.json."
+          fi
