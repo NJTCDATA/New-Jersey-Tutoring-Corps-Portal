@@ -6745,11 +6745,11 @@
     if(btn) btn.classList.add('active');
     const con = document.getElementById('kpiaTabContent');
     if(con) con.innerHTML = renderKPIAnalyticsTab(tab);
-    // For quarterly tab: if data not yet loaded, trigger fetch and schedule re-render
-    if (tab === 'quarterly') {
+    // For quarterly tab: trigger fetch only if data missing AND not already fetching
+    if (tab === 'quarterly' && !window._kpiQFetching) {
       var hasQ = KPI_DATA && KPI_DATA.some(function(k){ return k.q1s||k.q2s||k.q3s||k.q4s; });
       if (!hasQ && typeof fetchKPIQuarterly === 'function') {
-        fetchKPIQuarterly(false); // will re-render quarterly tab when done (via post-fetch trigger)
+        fetchKPIQuarterly(false);
       }
     }
   }
@@ -14245,6 +14245,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   // Fetch quarterly sheet (called after main KPI fetch succeeds)
   function fetchKPIQuarterly(force) {
+    // Prevent concurrent fetches causing infinite loops
+    if (window._kpiQFetching && !force) return;
+    window._kpiQFetching = true;
     if (!force) {
       try {
         var c=localStorage.getItem(KPI_Q_CACHE_KEY);
@@ -14257,10 +14260,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
               var pending = window._kpiQPendingRows.splice(0);
               pending.forEach(function(rid){ _kpiRenderExpandRow(rid); });
             }
-            if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
-                && typeof setKPIAnalyticsTab === 'function') {
-              setKPIAnalyticsTab('quarterly');
+            if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly') {
+              var _qCon = document.getElementById('kpiaTabContent');
+              if (_qCon) _qCon.innerHTML = renderKPIAnalyticsTab('quarterly');
             }
+            window._kpiQFetching = false;
             return;
           }
         }
@@ -14286,11 +14290,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var pending = window._kpiQPendingRows.splice(0);
           pending.forEach(function(rid){ _kpiRenderExpandRow(rid); });
         }
-        // Re-render quarterly analytics tab if it's currently active
-        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
-            && typeof setKPIAnalyticsTab === 'function') {
-          setKPIAnalyticsTab('quarterly');
+        // Re-render quarterly analytics tab directly (avoid loop)
+        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly') {
+          var _qCon = document.getElementById('kpiaTabContent');
+          if (_qCon) _qCon.innerHTML = renderKPIAnalyticsTab('quarterly');
         }
+        window._kpiQFetching = false;
         // Also rebuild analytics if it's currently showing
         var aEl=document.getElementById('kpiAnalyticsContent');
         if (aEl && aEl.innerHTML.trim()) buildKPIAnalytics();
@@ -14302,6 +14307,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var c=localStorage.getItem(KPI_Q_CACHE_KEY);
           if (c) { var obj=JSON.parse(c); _mergeQuarterlyData(obj.rows); filterKPI(); }
         } catch(e2){}
+      
+        window._kpiQFetching = false;
       });
   }
 
