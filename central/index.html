@@ -7135,6 +7135,11 @@
     _updateTalentBadge(_talentLiveStatus);
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
     fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
+    // Fire iReady live fetch so HR profiles get fresh academic data
+    // _irlFetchLive is inside irlab IIFE — call via public API
+    if (typeof irlab !== 'undefined' && irlab && irlab.fetchLive) {
+      irlab.fetchLive(!!forceRefresh).catch(e=>console.warn('[irlab live]',e.message));
+    }
     try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
     try { initTalentTabsForDept(_currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
@@ -12652,14 +12657,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── To enable live i-Ready data: set 2PACX key + tab GIDs below ──
     // Published sheet: File → Share → Publish to web → CSV → copy 2PACX key
     // GIDs: each tab's numeric ?gid= value from the sheet URL
-    const IRLAB_LIVE_2PACX = null;  // TODO: paste your i-Ready sheet 2PACX key here
-    const IRLAB_LIVE_GIDS  = {
-      math:    null,  // TODO: GID for Math longitudinal tab
-      ela:     null,  // TODO: GID for ELA longitudinal tab
-      mathRep: null,  // TODO: GID for Math Repeat Scholars tab
-      elaRep:  null,  // TODO: GID for ELA Repeat Scholars tab
-    };
-    const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;  // 2-hour cache (refresh on demand or panel reopen)
+    const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
+    // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
+    // Cache key for discovered GIDs
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v1';
+    const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
+    let   IRLAB_LIVE_GIDS  = { math: null, ela: null, mathRep: null, elaRep: null };
+    const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
+    let   _irlGIDsResolved = false;
     let   _irlLiveStatus   = 'embedded';
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -12841,11 +12846,111 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       IRLAB_DATA.ts     = null;
     }
 
+    // ── Auto-discover tab GIDs from pubhtml (runs once per session, cached 24hr) ──
+    async function _irlDiscoverGIDs() {
+      if (_irlGIDsResolved) return true;
+      // 1. Try localStorage cache
+      try {
+        const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
+        if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
+          IRLAB_LIVE_GIDS = cached.gids;
+          _irlGIDsResolved = true;
+          console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
+          return true;
+        }
+      } catch(e) {}
+
+      // 2. Probe pubhtml for GID list
+      const baseUrl  = 'https://docs.google.com/spreadsheets/d/e/' + IRLAB_LIVE_2PACX;
+      const csvBase  = baseUrl + '/pub?output=csv';
+      let probedGids = [];
+      try {
+        const res = await fetch(baseUrl + '/pubhtml', { signal: AbortSignal.timeout(6000) });
+        if (res.ok) {
+          const html = await res.text();
+          const matches = [...html.matchAll(/[?&]gid=(\d+)/g)];
+          const found = [...new Set(matches.map(m => parseInt(m[1], 10)))].filter(n => !isNaN(n));
+          probedGids = found;
+          console.log('[irlab] Discovered GIDs from pubhtml:', found);
+        }
+      } catch(e) { console.warn('[irlab] pubhtml probe failed:', e.message); }
+
+      // 3. Fallback: common GIDs + gid=0 (default tab)
+      if (!probedGids.length) probedGids = [0, 1, 2, 3, 100, 200, 300, 400];
+
+      // 4. Fetch each candidate and identify by header signature
+      const results = await Promise.all(probedGids.map(async gid => {
+        try {
+          const r = await fetch(csvBase + '&gid=' + gid + '&t=' + Date.now(), { signal: AbortSignal.timeout(5000) });
+          if (!r.ok) return null;
+          const text = await r.text();
+          const hdr  = text.split('\n')[0].toLowerCase().replace(/"/g, '');
+          return { gid, hdr };
+        } catch { return null; }
+      }));
+
+      // 5. Assign GIDs by header signature
+      const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
+      for (const row of results.filter(Boolean)) {
+        const h = row.hdr;
+        // Math longitudinal: has "academic year" + "instructor" + subject=Math
+        if (!resolved.math && h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar')) {
+          // Peek first data row to check subject
+          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(4000) }).catch(()=>null);
+          if (r2 && r2.ok) {
+            const lines = (await r2.text()).split('\n');
+            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
+            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
+            if (firstDataSubject.includes('math')) { resolved.math = row.gid; continue; }
+            if (firstDataSubject.includes('ela') || firstDataSubject.includes('reading')) { resolved.ela = row.gid; continue; }
+            // Can't determine subject — assign by order (math first)
+            if (!resolved.math) { resolved.math = row.gid; } else { resolved.ela = row.gid; }
+          }
+        }
+        // Repeat scholars: has "repeat scholar" in header
+        if (h.includes('repeat scholar') && h.includes('instructor')) {
+          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(4000) }).catch(()=>null);
+          if (r2 && r2.ok) {
+            const lines = (await r2.text()).split('\n');
+            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
+            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
+            if (firstDataSubject.includes('math') && !resolved.mathRep) { resolved.mathRep = row.gid; }
+            else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
+          }
+        }
+      }
+
+      // 6. Fallback: if only one tab found with instructor data, assign it as math
+      if (!resolved.math && !resolved.ela) {
+        const withInstructor = results.filter(r => r && r.hdr.includes('instructor'));
+        if (withInstructor.length > 0) resolved.math = withInstructor[0].gid;
+        if (withInstructor.length > 1) resolved.ela  = withInstructor[1].gid;
+      }
+
+      IRLAB_LIVE_GIDS = resolved;
+      _irlGIDsResolved = Object.values(resolved).some(v => v !== null);
+      if (_irlGIDsResolved) {
+        try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
+        console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
+      } else {
+        console.warn('[irlab] Could not resolve any tab GIDs');
+      }
+      return _irlGIDsResolved;
+    }
+
     async function _irlFetchLive(force=false) {
       if (!IRLAB_LIVE_2PACX) return;
+      // Ensure GIDs are resolved before fetching
+      const gidsOk = await _irlDiscoverGIDs();
+      if (!gidsOk) { console.warn('[irlab] Skipping live fetch — no GIDs resolved'); return; }
       if (!force) {
         try { const c=JSON.parse(localStorage.getItem(IRLAB_LIVE_CACHE)||'null');
-          if (c&&c.ts&&(Date.now()-c.ts)<IRLAB_REFRESH_MS) { _irlMergeLive(c); return; }
+          if (c&&c.ts&&(Date.now()-c.ts)<IRLAB_REFRESH_MS) {
+            _irlMergeLive(c);
+            _irlLiveStatus='live';
+            if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+            return;
+          }
         } catch(e) {}
       }
       const base='https://docs.google.com/spreadsheets/d/e/'+IRLAB_LIVE_2PACX+'/pub?output=csv';
@@ -12853,15 +12958,52 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const res={};
       for (const [tab,gid] of Object.entries(IRLAB_LIVE_GIDS)) {
         if (!gid) continue;
-        try { const r=await fetch(base+'&gid='+gid+bust,{signal:AbortSignal.timeout(12000)});
-          if (r.ok) res[tab]=(await r.text()).split('\n').slice(1).map(row=>normalizeRow(parseCSV(row)[0]||[],tab.startsWith('math')?'Math':'ELA'));
-        } catch(e) { console.warn('[irlab] live '+tab+':',e.message); }
+        const subj = tab.startsWith('math') ? 'Math' : 'ELA';
+        try {
+          const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
+          if (r.ok) {
+            const text = await r.text();
+            const lines = text.split('\n');
+            const hdrLine = lines[0];
+            // Build header→index map from actual CSV header row
+            const hdrs = parseCSV(hdrLine)[0] || [];
+            const hdrMap = {};
+            hdrs.forEach((h,i) => { hdrMap[h.trim()] = i; });
+            // Parse rows using header-aware normalizeRow
+            const parsed = lines.slice(1)
+              .filter(l => l.trim())
+              .map(line => {
+                const cols = parseCSV(line)[0] || [];
+                const obj = {};
+                hdrs.forEach((h,i) => { obj[h.trim()] = cols[i] || ''; });
+                return normalizeRow(obj, subj);
+              })
+              .filter(r => r.scholarId || r.scholarName);
+            res[tab] = parsed;
+            console.log('[irlab] Live '+tab+': '+parsed.length+' rows (gid='+gid+')');
+          }
+        } catch(e) { console.warn('[irlab] live '+tab+':', e.message); }
       }
       if (Object.keys(res).length) {
         const pkg={ts:Date.now(),...res};
         try { localStorage.setItem(IRLAB_LIVE_CACHE,JSON.stringify(pkg)); } catch(e){}
-        _irlMergeLive(pkg); _irlLiveStatus='live'; renderLab();
-        console.log('[irlab] Live data merged');
+        _irlMergeLive(pkg);
+        _irlLiveStatus='live';
+        // Invalidate HR profiles overlay so academic data updates
+        if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+        // If HR profiles tab is active, trigger a re-render
+        const profilesTab = document.getElementById('talentTab-profiles');
+        const talentEl    = document.getElementById('talentContent');
+        if (profilesTab && profilesTab.classList.contains('active') && talentEl) {
+          try {
+            const dept = (window.NJTC_SESSION||{}).dept || 'hr';
+            const _vr  = (typeof _hrOverlayVersion !== 'undefined') ? String(_hrOverlayVersion) : '0';
+            talentEl.innerHTML = '<div id="hrProfilesRoot" data-overlay-version="'+_vr+'">' +
+              (typeof _hrBuildProfiles === 'function' ? _hrBuildProfiles(dept) : '') + '</div>';
+          } catch(e) { /* don't blank screen */ }
+        }
+        if (typeof renderLab === 'function') renderLab();
+        console.log('[irlab] Live data merged — academic overlay will update on next render');
       }
     }
     function _irlMergeLive(pkg) {
@@ -13774,7 +13916,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
-             getTutorAcademicData };
+             getTutorAcademicData,
+             fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
   })();
 
 
