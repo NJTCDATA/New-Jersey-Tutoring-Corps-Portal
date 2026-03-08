@@ -8254,6 +8254,12 @@ ${hasAcad ? `
   ${statCard(avgAtt != null ? avgAtt + '%' : '—', 'Avg Attendance', attColor)}
   ${statCard(noRehire, 'No Rehire Flags', noRehire > 0 ? '#b91c1c' : 'var(--muted)')}
   <div style="display:flex;align-items:center;margin-left:auto;font-size:.65rem;color:var(--muted);font-style:italic">${src}</div>
+</div>
+<div style="display:flex;align-items:center;gap:.375rem;font-size:.6875rem;color:var(--muted);background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;padding:.375rem .75rem;margin-bottom:.875rem;line-height:1.4">
+  <span style="flex-shrink:0">ℹ️</span>
+  <span><strong style="color:var(--navy)">Att ●</strong> = Live attendance rate from Pearl (per-person average, Active HR staff only).
+  This may differ from Pearl Operations, which shows a session-weighted rate across <em>all</em> instructors including termed staff.
+  The <span style="color:#0050c8;font-weight:600">●</span> dot indicates data pulled live from Pearl this session.</span>
 </div>`;
 
     // ── View-tab toggle: Active | Inactive ───────────────────────
@@ -14128,7 +14134,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ══════════════════════════════════════════════════════════════════
 
   const KPI_Q_GID       = '880469';
-  const KPI_Q_CACHE_KEY = 'njtc_kpi_quarterly_v1';
+  const KPI_Q_CACHE_KEY = 'njtc_kpi_quarterly_v2';
   const KPI_Q_TTL       = 30 * 60 * 1000;  // 30 min, same as main
 
   // Minimal CSV parser (handles quoted multiline cells)
@@ -14170,35 +14176,48 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   // Merge quarterly rows into KPI_DATA items
   function _mergeQuarterlyData(qRows) {
-    // Build lookup: (goal+target) → quarterly row
-    var lookup = {};
+    if (!qRows || !qRows.length) return;
+    // Build two lookups: exact key + prefix key (first 60 chars of target)
+    var lookup = {}, prefixLookup = {};
     for (var i=0; i<qRows.length; i++) {
       var r=qRows[i];
       var goal=(r[0]||'').trim(), target=(r[1]||'').trim();
       if (!goal || !target) continue;
-      var key=(goal+'||'+target).toLowerCase();
-      lookup[key] = {
-        owner:   (r[5]||'').trim().split('\n')[0].replace(/^Goal Responsibility[^:]*:\s*/i,'').replace(/^Primary Metric Owner:\s*/i,'').trim(),
+      var ownerRaw = (r[5]||'').trim().split('\n')[0]
+        .replace(/^Goal Responsibility[^:]*:\s*/i,'')
+        .replace(/^Secondary Metric Owner[^:]*:\s*/i,'')
+        .replace(/^Primary Metric Owner:\s*/i,'').trim();
+      var qdata = {
+        owner: ownerRaw.slice(0,60),
         q1d: _parseQCell(r[6]),  q1s: (r[7]||'').trim(),
         q2d: _parseQCell(r[8]),  q2s: (r[9]||'').trim(),
         q3d: _parseQCell(r[10]), q3s: (r[11]||'').trim(),
         q4d: _parseQCell(r[12]), q4s: (r[13]||'').trim(),
       };
+      // Exact key
+      var exactKey = (goal+'||'+target).toLowerCase();
+      lookup[exactKey] = qdata;
+      // Prefix key: goal + first 60 chars of target (handles slight wording differences)
+      var prefKey = (goal+'||'+target.slice(0,60)).toLowerCase();
+      if (!prefixLookup[prefKey]) prefixLookup[prefKey] = qdata;
     }
     // Merge into KPI_DATA
+    var matched = 0;
     for (var j=0; j<KPI_DATA.length; j++) {
       var k=KPI_DATA[j];
-      var key=((k.goal||'')+'||'+(k.target||'')).toLowerCase();
-      var q=lookup[key];
+      var exactKey = ((k.goal||'')+'||'+(k.target||'')).toLowerCase();
+      var prefKey  = ((k.goal||'')+'||'+(k.target||'').slice(0,60)).toLowerCase();
+      var q = lookup[exactKey] || prefixLookup[prefKey];
       if (q) {
         k.owner=q.owner;
         k.q1d=q.q1d; k.q1s=q.q1s;
         k.q2d=q.q2d; k.q2s=q.q2s;
         k.q3d=q.q3d; k.q3s=q.q3s;
         k.q4d=q.q4d; k.q4s=q.q4s;
+        matched++;
       }
     }
-    console.log('[KPI] Quarterly data merged into', KPI_DATA.length, 'targets');
+    console.log('[KPI] Quarterly data merged: '+matched+'/'+KPI_DATA.length+' targets matched');
   }
 
   // Fetch quarterly sheet (called after main KPI fetch succeeds)
@@ -14612,6 +14631,34 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') govClose(); });
+
+  // Show beacon immediately on page load based on active panel
+  document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to let portal initialize
+    setTimeout(function() {
+      var activePanel = document.querySelector('.panel.active');
+      if (activePanel) {
+        govUpdateBeacon(activePanel.id);
+      }
+      // Also watch for panel changes via MutationObserver as backup
+      var panels = document.querySelectorAll('.panel');
+      if (panels.length) {
+        var obs = new MutationObserver(function(mutations) {
+          mutations.forEach(function(m) {
+            if (m.type === 'attributes' && m.attributeName === 'class') {
+              var el = m.target;
+              if (el.classList.contains('active') && el.id) {
+                govUpdateBeacon(el.id);
+              }
+            }
+          });
+        });
+        panels.forEach(function(p) {
+          obs.observe(p, { attributes: true, attributeFilter: ['class'] });
+        });
+      }
+    }, 800);
+  });
 
   window.govOpen   = govOpen;
   window.govClose  = govClose;
