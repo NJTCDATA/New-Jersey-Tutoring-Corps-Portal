@@ -6743,8 +6743,15 @@
     document.querySelectorAll('.kpia-tab').forEach(t=>t.classList.remove('active'));
     const btn = document.getElementById('kpiaTab-'+tab);
     if(btn) btn.classList.add('active');
-    const content = document.getElementById('kpiaTabContent');
-    if(content) content.innerHTML = renderKPIAnalyticsTab(tab);
+    const con = document.getElementById('kpiaTabContent');
+    if(con) con.innerHTML = renderKPIAnalyticsTab(tab);
+    // For quarterly tab: if data not yet loaded, trigger fetch and schedule re-render
+    if (tab === 'quarterly') {
+      var hasQ = KPI_DATA && KPI_DATA.some(function(k){ return k.q1s||k.q2s||k.q3s||k.q4s; });
+      if (!hasQ && typeof fetchKPIQuarterly === 'function') {
+        fetchKPIQuarterly(false); // will re-render quarterly tab when done (via post-fetch trigger)
+      }
+    }
   }
 
   // ── Friendly plain-English headline ─────────────────────────────
@@ -14246,7 +14253,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if (Date.now()-obj.ts < KPI_Q_TTL) {
             _mergeQuarterlyData(obj.rows);
             filterKPI();
-            // Re-render quarterly analytics tab if active
+            if (window._kpiQPendingRows && window._kpiQPendingRows.length) {
+              var pending = window._kpiQPendingRows.splice(0);
+              pending.forEach(function(rid){ _kpiRenderExpandRow(rid); });
+            }
             if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
                 && typeof setKPIAnalyticsTab === 'function') {
               setKPIAnalyticsTab('quarterly');
@@ -14271,6 +14281,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         try { localStorage.setItem(KPI_Q_CACHE_KEY, JSON.stringify({ts:Date.now(), rows:valid})); } catch(e){}
         _mergeQuarterlyData(valid);
         filterKPI();
+        // Re-render any open expand rows that were waiting for data
+        if (window._kpiQPendingRows && window._kpiQPendingRows.length) {
+          var pending = window._kpiQPendingRows.splice(0);
+          pending.forEach(function(rid){ _kpiRenderExpandRow(rid); });
+        }
         // Re-render quarterly analytics tab if it's currently active
         if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
             && typeof setKPIAnalyticsTab === 'function') {
@@ -14406,7 +14421,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if (!groups[goal]) return;
       html += '<tr class="goal-group-header"><td colspan="5">' + goal + '</td></tr>';
       groups[goal].forEach(function(k){
-        var kpiIdx = KPI_DATA.indexOf(k);
+        var kpiKey = (k.goal + '||' + k.target).replace(/"/g, '&quot;');
         var ri = 'kqr-' + rowIdx;
         html += '<tr class="kpi-row-expandable" onclick="toggleKPIRow(\'' + ri + '\')">'
           + '<td></td>'
@@ -14418,7 +14433,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           + '<span class="chev">&#9658;</span> Q Data'
           + '</button></td>'
           + '</tr>'
-          + '<tr class="kpi-q-expand" id="' + ri + '" data-kpi-idx="' + kpiIdx + '">'
+          + '<tr class="kpi-q-expand" id="' + ri + '" data-kpi-key="' + kpiKey + '">'
           + '<td colspan="5"><div class="kpi-q-panel">'
           + '<div class="kpi-q-label">Quarterly Breakdown</div>'
           + '<div class="kpi-q-grid" id="qgrid-' + ri + '">&#8987; Loading&hellip;</div>'
@@ -14438,31 +14453,56 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (!row) return;
     var isOpen = row.classList.toggle('open');
     if (btn) btn.classList.toggle('open', isOpen);
-    // On open: render tiles LIVE from KPI_DATA using data-kpi-idx
     if (isOpen) {
-      var grid = document.getElementById('qgrid-'+id);
-      if (grid) {
-        var idx = parseInt(row.getAttribute('data-kpi-idx'), 10);
-        var k = (KPI_DATA && !isNaN(idx)) ? KPI_DATA[idx] : null;
-        if (k) {
-          grid.innerHTML = renderKPIQuarterlyTiles(k);
-        } else {
-          grid.innerHTML = '<span style="color:var(--muted);font-size:.75rem;font-style:italic">Data not found</span>';
-        }
-      }
+      _kpiRenderExpandRow(id);
     }
   }
+  // Render expand row grid — re-callable after data arrives
+  function _kpiRenderExpandRow(id) {
+    var row  = document.getElementById(id);
+    var grid = document.getElementById('qgrid-'+id);
+    if (!row || !grid) return;
+    var key = row.getAttribute('data-kpi-key') || '';
+    var k = null;
+    if (key && KPI_DATA) {
+      var decoded = key.replace(/&quot;/g, '"');
+      for (var _i=0; _i<KPI_DATA.length; _i++) {
+        var _c = KPI_DATA[_i];
+        if ((_c.goal + '||' + _c.target) === decoded) { k = _c; break; }
+      }
+    }
+    if (!k) {
+      grid.innerHTML = '<span style="color:var(--muted);font-size:.75rem;font-style:italic">'
+        + 'Loading… <button onclick="kpiForceQRefresh()" '
+        + 'style="background:none;border:none;color:#0050c8;cursor:pointer;font-size:.75rem;'
+        + 'text-decoration:underline;padding:0">Refresh</button></span>';
+      return;
+    }
+    var hasQ = k.q1s||k.q2s||k.q3s||k.q4s;
+    if (!hasQ && typeof fetchKPIQuarterly === 'function') {
+      // Data not yet merged — fetch and re-render this specific row when done
+      grid.innerHTML = '<span style="color:var(--muted);font-size:.75rem;font-style:italic">'
+        + '⧗ Fetching quarterly data…</span>';
+      // Post-fetch re-render hook for open rows
+      if (!window._kpiQPendingRows) window._kpiQPendingRows = [];
+      window._kpiQPendingRows.push(id);
+      fetchKPIQuarterly(false);
+      return;
+    }
+    grid.innerHTML = renderKPIQuarterlyTiles(k);
+  }
+  window._kpiRenderExpandRow = _kpiRenderExpandRow;
   window.toggleKPIRow = toggleKPIRow;
   window.kpiForceQRefresh = function() {
     if (typeof fetchKPIQuarterly === 'function') {
-      fetchKPIQuarterly(true);
-      // If quarterly analytics tab is showing, re-render after short delay
-      setTimeout(function(){
-        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly'
-            && typeof setKPIAnalyticsTab === 'function') {
-          setKPIAnalyticsTab('quarterly');
+      // Register all currently open expand rows as pending re-render
+      if (!window._kpiQPendingRows) window._kpiQPendingRows = [];
+      document.querySelectorAll('.kpi-q-expand.open').forEach(function(r){
+        if (r.id && window._kpiQPendingRows.indexOf(r.id) < 0) {
+          window._kpiQPendingRows.push(r.id);
         }
-      }, 1500);
+      });
+      fetchKPIQuarterly(true);
     }
   };
 
