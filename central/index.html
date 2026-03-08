@@ -12200,6 +12200,21 @@
   window.showPolicySection  = showPolicySection;
   window.removePdfPolicy    = removePdfPolicy;
 
+  // ── Global scope exposure — required for onclick= in HTML ──────────────────
+  window.sya                  = sya;
+  window.po                   = po;
+  window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
+  window.buildKPIAnalytics    = buildKPIAnalytics;
+  window.buildTalentDashboard = buildTalentDashboard;
+  window.buildPolicies        = buildPolicies;
+  window.clearTalentFilters   = clearTalentFilters;
+  window.closeConnectionsModal= closeConnectionsModal;
+  window.openConnectionsModal = openConnectionsModal;
+  window.closeKPIInquiry      = closeKPIInquiry;
+  window.closePolicyModal     = closePolicyModal;
+  window.goStep               = goStep;
+  window.esc                  = esc;
+
 })();
 </script>
 <script src="../alerts/asana-service.js?v=1"></script>
