@@ -10712,7 +10712,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 85 ? '#0d6e3a' : d.tutorRate >= 75 ? '#d97706' : '#b91c1c' },
         { lbl:'Sessions Delivered', val: d.sessionsDelivered.toLocaleString(), sub:'Completed this period', col: '#0050c8' },
         { lbl:'Service Interruptions', val: allSI, sub:'Non-attendance disruptions', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
-        { lbl:'HIT Flags Open', val: allFlags, sub:'Compliance violations', col: allFlags > 10 ? '#b91c1c' : allFlags > 3 ? '#d97706' : '#0d6e3a' },
       ];
       const kpiHTML = kpis.map(k => `
         <div class="po-ops-kpi" style="--kc:${k.col}">
@@ -13360,7 +13359,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           <div style="display:flex;flex-direction:column;gap:.75rem;align-items:flex-end">
             <div class="irlab-mode-tabs">
               <button class="irlab-mode-tab ${_irlMode==='embedded'?'active':''}" onclick="irlab.setMode('embedded')">📊 Analysis</button>
-              <button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>
+              ${(()=>{
+                const sess = window.NJTC_SESSION;
+                const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
+                // Quick CSV uploader only visible to data dept
+                return myDept === 'data'
+                  ? `<button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>`
+                  : '';
+              })()}
             </div>
           </div>
         </div>
@@ -13396,8 +13402,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             <select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>
           </div>
           <div class="irlab-dept-tabs">
-            ${Object.entries(DEPT_CFG).map(([key,c])=>`
-              <button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color:''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('')}
+            ${(()=>{
+              const sess = window.NJTC_SESSION;
+              const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
+              const canSwitch = ['leadership','data'].includes(myDept);
+              if (canSwitch) {
+                // Privileged: show full clickable switcher
+                return Object.entries(DEPT_CFG).map(([key,c])=>`
+                  <button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color+';color:#fff':''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('');
+              } else {
+                // Non-privileged: show locked dept badge only — no switching
+                const c = DEPT_CFG[myDept] || DEPT_CFG.leadership;
+                return `<div style="display:flex;align-items:center;gap:.375rem;padding:.3rem .75rem;background:${c.color};border-radius:20px;color:#fff;font-size:.75rem;font-weight:700">
+                  ${c.emoji} ${c.label} <span style="font-size:.6rem;opacity:.8;margin-left:.25rem">🔒</span>
+                </div>`;
+              }
+            })()}
           </div>
         </div>
         <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-bottom:1rem">${rows.length.toLocaleString()} valid pairs · <strong style="color:${cfg.color}">${cfg.label}</strong> view</div>
@@ -13409,23 +13429,51 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── Public API ────────────────────────────────────────────────────────────
     function onPanelOpen() {
+      // Always re-read session dept so dept is locked even if session was set after first open
+      const sess = window.NJTC_SESSION;
+      if (sess && sess.dept && DEPT_CFG[sess.dept]) {
+        _irlDept = sess.dept;
+      }
       if (!_irlBuilt) {
         _irlBuilt = true;
-        const sess = window.NJTC_SESSION;
-        if (sess && sess.dept && DEPT_CFG[sess.dept]) { _irlDept = sess.dept; }
         loadData(); renderLab();
         if (IRLAB_LIVE_2PACX) {
           setTimeout(()=>_irlFetchLive(false).catch(()=>{}),800);
           setInterval(()=>{ const p=document.getElementById('panel-iready-lab'); if(p&&p.classList.contains('active')) _irlFetchLive(false).catch(()=>{}); },IRLAB_REFRESH_MS);
         }
-      } else if (IRLAB_LIVE_2PACX) { _irlFetchLive(false).catch(()=>{}); }
+      } else {
+        renderLab();  // re-render on every open so dept lock persists
+        if (IRLAB_LIVE_2PACX) { _irlFetchLive(false).catch(()=>{}); }
+      }
     }
 
-    function setMode(m)     { _irlMode=m;    _irlScholarDrill=null; _irlTutorDrill=null; renderLab(); }
+    function setMode(m) {
+      // Quick CSV mode restricted to data dept only
+      if (m === 'quickcsv') {
+        const sess = window.NJTC_SESSION;
+        const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
+        if (myDept !== 'data') return;
+      }
+      _irlMode = m;
+      _irlScholarDrill = null;
+      _irlTutorDrill   = null;
+      renderLab();
+    }
     function setYear(y)     { _irlYear=y;    renderLab(); }
     function setSubject(s)  { _irlSubject=s; renderLab(); }
     function setDistrict(d) { _irlDistrict=d;renderLab(); }
-    function setDept(d)     { _irlDept=d;    renderLab(); }
+    function setDept(d) {
+      // Only leadership and data may switch dept views
+      const sess = window.NJTC_SESSION;
+      const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
+      const canSwitch = ['leadership','data'].includes(myDept);
+      if (!canSwitch) {
+        // Non-privileged dept — silently ignore any attempt to switch
+        return;
+      }
+      _irlDept = d;
+      renderLab();
+    }
 
     function drillScholar(name) { _irlScholarDrill=name; _irlTutorDrill=null;   renderLab(); }
     function drillTutor(name)   { _irlTutorDrill=name;   _irlScholarDrill=null; renderLab(); }
