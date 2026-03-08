@@ -2938,6 +2938,12 @@
         <span id="tyrCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
       </div>
       <div id="talentContent"><!-- filled by JS --></div>
+    <!-- HR Profile Modal (shared across all profile views) -->
+    <div id="hrEmpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;overflow:auto;padding:1.5rem" onclick="if(event.target===this)this.style.display='none'">
+      <div style="max-width:680px;margin:0 auto;background:var(--surface);border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div id="hrEmpModalInner"></div>
+      </div>
+    </div>
     </div>
 
     <!-- ══ FINANCE ANALYTICS PANEL ═══════════════════════════ -->
@@ -4016,6 +4022,13 @@
     if (id === "talent") {
       buildTalentDashboard(false);
       if (!_talentLoaded) setTimeout(() => initTalentFilters(), 800);
+      // Ensure profiles tab renders for relevant depts
+      const _spDept = (window.NJTC_SESSION||{}).dept||'hr';
+      if (['hr','data','leadership','kb','finance'].includes(_spDept)) {
+        setTimeout(() => {
+          if (typeof setTalentTab === 'function') setTalentTab('profiles');
+        }, 300);
+      }
     }
     if (id === "iready-lab") {
       setTimeout(() => { if (window.irlab) irlab.onPanelOpen(); }, 50);
@@ -5261,7 +5274,17 @@
     if (tab==='profiles') {
       const _el=document.getElementById('talentContent');
       const _dp=(window.NJTC_SESSION||{}).dept||'hr';
-      if (_el) _el.innerHTML='<div id="hrProfilesRoot">'+_hrBuildProfiles(_dp)+'</div>';
+      console.log('[HR Profiles] Rendering for dept:', _dp, 'HR_EMPS:', HR_EMPS.length);
+      if (_el) {
+        try {
+          const _html = _hrBuildProfiles(_dp);
+          _el.innerHTML = '<div id="hrProfilesRoot">' + _html + '</div>';
+          console.log('[HR Profiles] Rendered OK, HTML length:', _html.length);
+        } catch(_err) {
+          console.error('[HR Profiles] Render error:', _err);
+          _el.innerHTML = '<div style="padding:2rem;color:#b91c1c">Profile render error: '+_err.message+'</div>';
+        }
+      }
       return;
     }
     _talentTab=tab; buildTalentContent();
@@ -6444,6 +6467,13 @@
       if (id === 'talent') {
         buildTalentDashboard(false);
         if (!_talentLoaded) setTimeout(() => initTalentFilters(), 800);
+        // Ensure profiles tab renders for relevant depts
+        const _sp2Dept = (window.NJTC_SESSION||{}).dept||'hr';
+        if (['hr','data','leadership','kb','finance'].includes(_sp2Dept)) {
+          setTimeout(() => {
+            if (typeof setTalentTab === 'function') setTalentTab('profiles');
+          }, 300);
+        }
       }
       if (id === 'finance-analytics') buildFinanceAnalytics();
       if (id === 'training-analytics') buildTrainingAnalytics();
@@ -7072,7 +7102,14 @@
   async function buildTalentDashboard(forceRefresh) {
     const el = document.getElementById('talentContent');
     if (!el) return;
-    if (_talentLoaded && !forceRefresh) { buildTalentContent(); return; }
+    if (_talentLoaded && !forceRefresh) {
+      const _er_dept=(window.NJTC_SESSION||{}).dept||'hr';
+      console.log('[Talent] Early-return path, dept:', _er_dept);
+      if (['hr','data','leadership','kb','finance'].includes(_er_dept)) {
+        setTalentTab('profiles');
+      } else { buildTalentContent(); }
+      return;
+    }
     el.innerHTML = '<div class="policy-loading-state"><div class="policy-loading-spinner"></div><div>Loading analytics…</div></div>';
     _talentLiveStatus = 'pending';
     _updateTalentBadge('pending');
@@ -7084,12 +7121,16 @@
     _filteredConcerns = CONCERNS;
     _updateTalentBadge(_talentLiveStatus);
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
-    initTalentFilters();
-    initTalentTabsForDept(_currentDept || 'hr');
+    try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
+    try { initTalentTabsForDept(_currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
+    console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', _talentLoaded);
     if (['hr','data','leadership','kb','finance'].includes(_td)) {
-      setTimeout(()=>setTalentTab('profiles'),60);
-    } else { buildTalentContent(); }
+      console.log('[Talent] Calling setTalentTab profiles...');
+      setTalentTab('profiles');
+    } else {
+      buildTalentContent();
+    }
   }
 
   function _updateTalentBadge(status) {
@@ -7344,6 +7385,12 @@
           _hrOverlayLive(rows);
           _hrStatus = 'live';
           console.log('[HR Profiles] Live sheet loaded: '+rows.length+' rows');
+          // Re-render if profiles tab is active
+          const _lb=document.getElementById('talentTab-profiles');
+          if (_lb&&_lb.classList.contains('active')) {
+            const _le=document.getElementById('talentContent');
+            if (_le) _le.innerHTML='<div id="hrProfilesRoot">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
+          }
         } else { _hrStatus = 'error'; }
       } else { _hrStatus = 'error'; }
     } catch(e) {
@@ -7653,11 +7700,7 @@ ${attRisk.length ? `
   ${cards||'<div style="grid-column:1/-1;text-align:center;padding:2.5rem;color:var(--muted)">No employees match your filters.</div>'}
 </div>
 ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(--muted);margin-bottom:.75rem">Showing 120 of ${filtered.length} — refine filters to see more</div>`:''}
-<div id="hrEmpModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;overflow:auto;padding:1.5rem" onclick="if(event.target===this)this.style.display='none'">
-  <div style="max-width:680px;margin:0 auto;background:var(--surface);border-radius:var(--radius);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div id="hrEmpModalInner"></div>
-  </div>
-</div>`;
+`;
   }
 
   // ── Employee modal ────────────────────────────────────────────────────────
@@ -12979,6 +13022,11 @@ ${filtered.length>120?`<div style="text-align:center;font-size:.75rem;color:var(
   window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
   window.buildKPIAnalytics    = buildKPIAnalytics;
   window.buildTalentDashboard = buildTalentDashboard;
+  window._showProfiles = function() {
+    const dept = (window.NJTC_SESSION||{}).dept||'hr';
+    console.log('[Manual] _showProfiles called, dept:', dept);
+    setTalentTab('profiles');
+  };
   window.buildPolicies        = buildPolicies;
   window.clearTalentFilters   = clearTalentFilters;
   window.closeConnectionsModal= closeConnectionsModal;
