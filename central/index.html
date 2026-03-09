@@ -2422,85 +2422,9 @@
     /* ── KPI Table quarterly expand ── */
     .kpi-table tr.kpi-row-expandable { cursor: pointer; }
     .kpi-table tr.kpi-row-expandable:hover td { background: var(--surface-2); }
-    .kpi-q-expand { display: none; }
-    .kpi-q-expand.open { display: table-row; }
-    .kpi-q-expand td { padding: 0 !important; border-bottom: 2px solid var(--navy) !important; }
-    .kpi-q-panel {
-      padding: 1rem 1.25rem 1rem 2.75rem;
-      background: linear-gradient(135deg, #f8faff 0%, #eef2ff 100%);
-    }
-    .kpi-q-label {
-      font-size: .6rem; font-weight: 800; text-transform: uppercase;
-      letter-spacing: .1em; color: var(--muted); margin-bottom: .75rem;
-      display: flex; align-items: center; gap: .5rem;
-    }
-    .kpi-q-label::after { content:''; flex:1; height:1px; background:var(--border); }
-    .kpi-q-grid { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .kpi-q-tile {
-      flex: 1; min-width: 130px;
-      border: 1.5px solid var(--border); border-radius: 10px;
-      padding: .625rem .75rem; background: white;
-      display: flex; flex-direction: column; gap: .25rem;
-      transition: border-color .15s;
-    }
-    .kpi-q-tile.q-active  { border-color: var(--navy); background: #f0f4ff; box-shadow: 0 0 0 2px rgba(0,50,160,.12); }
-    .kpi-q-tile.q-met     { border-color: #16a34a; background: #f0fdf4; }
-    .kpi-q-tile.q-partial { border-color: #d97706; background: #fffbeb; }
-    .kpi-q-tile.q-notmet  { border-color: #dc2626; background: #fef2f2; }
-    .kpi-q-tile.q-prog    { border-color: #2563eb; background: #eff6ff; }
-    .kpi-q-tile.q-pipe    { border-color: #7c3aed; background: #f5f3ff; }
-    .kpi-q-tile.q-future  { opacity:.45; background:#fafafa; }
-    .kqi-q-hdr   { display:flex; align-items:center; justify-content:space-between; margin-bottom:.1rem; }
-    .kqi-q-name  { font-size: .6rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-    .kqi-q-badge { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
-                   padding:.1rem .35rem; border-radius:20px; color:white; line-height:1.4; }
-    .kqi-q-badge.qb-met    { background:#16a34a; }
-    .kqi-q-badge.qb-partial{ background:#d97706; }
-    .kqi-q-badge.qb-notmet { background:#dc2626; }
-    .kqi-q-badge.qb-prog   { background:#2563eb; }
-    .kqi-q-badge.qb-pipe   { background:#7c3aed; }
-    .kqi-q-badge.qb-none   { background:var(--muted); }
-    .kqi-q-metric { display:grid; grid-template-columns:1fr 1fr; gap:.25rem .5rem; margin-top:.2rem; }
-    .kqi-q-metric-row { display:flex; flex-direction:column; gap:.05rem; }
-    .kqi-q-metric-lbl { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
-    .kqi-q-metric-val { font-size:.75rem; font-weight:700; color:var(--navy); line-height:1.2; }
-    .kqi-q-metric-val.na { color:var(--muted); font-weight:400; font-style:italic; }
-    .kqi-q-src   { font-size: .6rem; color: var(--muted); font-style: italic; margin-top:.1rem; }
-    .kpi-row-expand-btn {
-      background: none; border: none; padding: 0; cursor: pointer;
-      color: var(--blue); font-size: .75rem; font-weight: 600;
-      white-space: nowrap; display: flex; align-items: center; gap: .25rem;
-    }
-    .kpi-row-expand-btn .chev { transition: transform .2s ease; display: inline-block; }
-    .kpi-row-expand-btn.open .chev { transform: rotate(90deg); }
 
-    /* ── KPI Analytics quarterly tab ── */
-    .kpia-q-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 1rem; }
-    .kpia-q-card {
-      border: 1px solid var(--border); border-radius: 12px;
-      background: var(--surface); overflow: hidden;
-    }
-    .kpia-q-card-hdr {
-      padding: .75rem 1rem; background: var(--navy);
-      display: flex; align-items: center; gap: .5rem;
-    }
-    .kpia-q-card-title { font-size: .8125rem; font-weight: 700; color: white; flex: 1; }
-    .kpia-q-badge {
-      font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
-      padding: .2rem .5rem; border-radius: 20px; background: rgba(255,255,255,.15); color: white;
-    }
-    .kpia-q-steps { padding: .75rem 1rem; display: flex; flex-direction: column; gap: .375rem; }
-    .kpia-q-step {
-      display: flex; align-items: flex-start; gap: .625rem;
-      padding: .375rem .5rem; border-radius: 6px; border: 1px solid var(--border-2);
-    }
-    .kpia-q-step.qs-active { border-color: var(--navy); background: #f0f4fa; }
-    .kpia-q-step.qs-future  { opacity: .5; }
-    .qs-q    { font-size: .6rem; font-weight: 800; color: var(--muted); text-transform: uppercase; min-width: 20px; margin-top: .1rem; }
-    .qs-icon { font-size: .875rem; flex-shrink: 0; }
-    .qs-body { flex: 1; min-width: 0; }
-    .qs-stat { font-size: .75rem; font-weight: 700; color: var(--navy); }
-    .qs-data { font-size: .6rem; color: var(--muted); line-height: 1.4; margin-top: .1rem; }
+
+    
 
     /* ── Data Compass (Governance Beacon) ── */
     #govBeacon {
@@ -2894,8 +2818,7 @@
               <th>2025–2026 Organizational Target</th>
               <th style="width:160px" id="midCycleHeader">Mid-Year Status</th>
               <th style="width:160px" id="endCycleHeader">End of Year Status</th>
-              <th style="width:90px">Quarterly</th>
-            </tr>
+              </tr>
           </thead>
           <tbody id="kpiBody"></tbody>
         </table>
@@ -4394,11 +4317,6 @@
       const _kc = NJTC_CACHE.get('njtc_kpi_v2');
       if (_kc && _kc.data && _kc.data.length) {
         KPI_DATA = _kc.data;
-        // Re-merge quarterly data from cache
-        try {
-          var _qc2 = localStorage.getItem('njtc_kpi_quarterly_v2');
-          if (_qc2) { var _qobj2 = JSON.parse(_qc2); if (_qobj2 && _qobj2.rows) _mergeQuarterlyData(_qobj2.rows); }
-        } catch(_qe2) {}
         _kpiFromSheet = true;
         _kpiLastFetched = new Date(Date.now() - _kc.age);
         if (dot) { dot.className = 'sync-dot'; }
@@ -4406,11 +4324,7 @@
         if (btn) btn.disabled = false;
         const _sess = window.NJTC_SESSION;
         if (_sess) buildHome(_sess.dept);
-        if (_kc.fresh) {
-          // Summary cache is fresh — still fetch quarterly to ensure expand rows render
-          if (typeof fetchKPIQuarterly === 'function') fetchKPIQuarterly(false);
-          return;
-        }
+        if (_kc.fresh) return;  // still fresh — skip network fetch
         // stale: fall through to re-fetch silently in background
       }
     }
@@ -4446,11 +4360,6 @@
     if (parsed && parsed.length > 0) {
       // Live data successfully fetched — update everything
       KPI_DATA = parsed;
-      // Immediately re-merge quarterly data from cache so q data survives summary refresh
-      try {
-        var _qc = localStorage.getItem('njtc_kpi_quarterly_v2');
-        if (_qc) { var _qobj = JSON.parse(_qc); if (_qobj && _qobj.rows) _mergeQuarterlyData(_qobj.rows); }
-      } catch(_qe) {}
       NJTC_CACHE.set('njtc_kpi_v2', parsed);
       _kpiFromSheet = true;
       _kpiLastFetched = new Date();
@@ -4477,8 +4386,6 @@
 
     buildKPISummary();
     buildKPI();
-    // Fetch quarterly detail in parallel
-    if (typeof fetchKPIQuarterly === 'function') fetchKPIQuarterly(forceRefresh);
     // Always rebuild home stats after every data refresh — data is now guaranteed accurate
     const session = window.NJTC_SESSION;
     if (session) buildHome(session.dept);
@@ -6759,13 +6666,7 @@
     if(btn) btn.classList.add('active');
     const con = document.getElementById('kpiaTabContent');
     if(con) con.innerHTML = renderKPIAnalyticsTab(tab);
-    // For quarterly tab: trigger fetch only if data missing AND not already fetching
-    if (tab === 'quarterly' && !window._kpiQFetching) {
-      var hasQ = KPI_DATA && KPI_DATA.some(function(k){ return k.q1s||k.q2s||k.q3s||k.q4s; });
-      if (!hasQ && typeof fetchKPIQuarterly === 'function') {
-        fetchKPIQuarterly(false);
-      }
-    }
+
   }
 
   // ── Friendly plain-English headline ─────────────────────────────
@@ -14158,7 +14059,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.sya                  = sya;
   window.po                   = po;
   window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
-  window.fetchKPIQuarterly    = fetchKPIQuarterly;
   window.buildKPIAnalytics    = buildKPIAnalytics;
   window.buildTalentDashboard = buildTalentDashboard;
   window._showProfiles = function() {
@@ -14174,14 +14074,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.closePolicyModal     = closePolicyModal;
   window.goStep               = goStep;
 
-  // ══════════════════════════════════════════════════════════════════
-  //  KPI QUARTERLY DATA — fetch + merge into KPI_DATA
-  //  Uses the same 2PACX key, second tab (gid=880469)
-  // ══════════════════════════════════════════════════════════════════
 
   const KPI_Q_GID       = '880469';
-  const KPI_Q_CACHE_KEY = 'njtc_kpi_quarterly_v2';
-  const KPI_Q_TTL       = 30 * 60 * 1000;  // 30 min, same as main
+    const KPI_Q_TTL       = 30 * 60 * 1000;  // 30 min, same as main
 
   // Minimal CSV parser (handles quoted multiline cells)
   function _parseKPIcsv(text) {
@@ -14206,350 +14101,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   // Parse Q data cell: "Goal: X\n\nCaptured Metric: Y"
-  function _parseQCell(raw) {
-    if (!raw) return { goal: '', captured: '' };
-    var lines = raw.replace(/\r/g,'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-    var g='', cap='', mode='';
-    for (var i=0; i<lines.length; i++) {
-      var l=lines[i];
-      if (/^Goal:/i.test(l)) { g=l.replace(/^Goal:\s*/i,''); mode='g'; }
-      else if (/^Captured Metric:/i.test(l)) { cap=l.replace(/^Captured Metric:\s*/i,''); mode='c'; }
-      else if (mode==='g') { g+=' '+l; }
-      else if (mode==='c') { cap+=' '+l; }
-    }
-    return { goal: g.trim(), captured: cap.trim() };
-  }
-
-  // Merge quarterly rows into KPI_DATA items
-  function _mergeQuarterlyData(qRows) {
-    if (!qRows || !qRows.length) return;
-    // Build two lookups: exact key + prefix key (first 60 chars of target)
-    var lookup = {}, prefixLookup = {};
-    for (var i=0; i<qRows.length; i++) {
-      var r=qRows[i];
-      var goal=(r[0]||'').trim(), target=(r[1]||'').trim();
-      if (!goal || !target) continue;
-      var ownerRaw = (r[5]||'').trim().split('\n')[0]
-        .replace(/^Goal Responsibility[^:]*:\s*/i,'')
-        .replace(/^Secondary Metric Owner[^:]*:\s*/i,'')
-        .replace(/^Primary Metric Owner:\s*/i,'').trim();
-      var qdata = {
-        owner: ownerRaw.slice(0,60),
-        q1d: _parseQCell(r[6]),  q1s: (r[7]||'').trim(),
-        q2d: _parseQCell(r[8]),  q2s: (r[9]||'').trim(),
-        q3d: _parseQCell(r[10]), q3s: (r[11]||'').trim(),
-        q4d: _parseQCell(r[12]), q4s: (r[13]||'').trim(),
-      };
-      // Exact key
-      var exactKey = (goal+'||'+target).toLowerCase();
-      lookup[exactKey] = qdata;
-      // Prefix key: goal + first 60 chars of target (handles slight wording differences)
-      var prefKey = (goal+'||'+target.slice(0,60)).toLowerCase();
-      if (!prefixLookup[prefKey]) prefixLookup[prefKey] = qdata;
-    }
-    // Merge into KPI_DATA
-    var matched = 0;
-    for (var j=0; j<KPI_DATA.length; j++) {
-      var k=KPI_DATA[j];
-      var exactKey = ((k.goal||'')+'||'+(k.target||'')).toLowerCase();
-      var prefKey  = ((k.goal||'')+'||'+(k.target||'').slice(0,60)).toLowerCase();
-      var q = lookup[exactKey] || prefixLookup[prefKey];
-      if (q) {
-        k.owner=q.owner;
-        k.q1d=q.q1d; k.q1s=q.q1s;
-        k.q2d=q.q2d; k.q2s=q.q2s;
-        k.q3d=q.q3d; k.q3s=q.q3s;
-        k.q4d=q.q4d; k.q4s=q.q4s;
-        matched++;
-      }
-    }
-    console.log('[KPI] Quarterly data merged: '+matched+'/'+KPI_DATA.length+' targets matched');
-  }
-
-  // Fetch quarterly sheet (called after main KPI fetch succeeds)
-  function fetchKPIQuarterly(force) {
-    // Prevent concurrent fetches causing infinite loops
-    if (window._kpiQFetching && !force) return;
-    window._kpiQFetching = true;
-    if (!force) {
-      try {
-        var c=localStorage.getItem(KPI_Q_CACHE_KEY);
-        if (c) {
-          var obj=JSON.parse(c);
-          if (Date.now()-obj.ts < KPI_Q_TTL) {
-            _mergeQuarterlyData(obj.rows);
-            filterKPI();
-            if (window._kpiQPendingRows && window._kpiQPendingRows.length) {
-              var pending = window._kpiQPendingRows.splice(0);
-              pending.forEach(function(rid){ _kpiRenderExpandRow(rid); });
-            }
-            if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly') {
-              var _qCon = document.getElementById('kpiaTabContent');
-              if (_qCon) _qCon.innerHTML = renderKPIAnalyticsTab('quarterly');
-            }
-            window._kpiQFetching = false;
-            return;
-          }
-        }
-      } catch(e) {}
-    }
-    var url = SHEET_CSV_URL.replace('?output=csv','?gid='+KPI_Q_GID+'&output=csv') + (force?'&t='+Date.now():'');
-    fetch(url, { signal: AbortSignal.timeout(8000) })
-      .then(function(r){ return r.ok ? r.text() : Promise.reject(r.status); })
-      .then(function(csv){
-        var all = _parseKPIcsv(csv);
-        // Find header row (col 0 = "Goal")
-        var headerIdx = -1;
-        for (var i=0; i<all.length; i++) {
-          if ((all[i][0]||'').trim()==='Goal') { headerIdx=i; break; }
-        }
-        var dataRows = headerIdx>=0 ? all.slice(headerIdx+1) : all.slice(2);
-        var valid = dataRows.filter(function(r){ return r[0]&&r[0].trim()&&r[1]&&r[1].trim(); });
-        try { localStorage.setItem(KPI_Q_CACHE_KEY, JSON.stringify({ts:Date.now(), rows:valid})); } catch(e){}
-        _mergeQuarterlyData(valid);
-        filterKPI();
-        // Re-render any open expand rows that were waiting for data
-        // Re-render quarterly analytics tab directly (avoid loop)
-        if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly') {
-          var _qCon = document.getElementById('kpiaTabContent');
-          if (_qCon) _qCon.innerHTML = renderKPIAnalyticsTab('quarterly');
-        }
-        window._kpiQFetching = false;
-        // Also rebuild analytics if it's currently showing
-        var aEl=document.getElementById('kpiAnalyticsContent');
-        if (aEl && aEl.innerHTML.trim()) buildKPIAnalytics();
-      })
-      .catch(function(err){
-        console.warn('[KPI Quarterly] fetch failed:', err);
-        // Try stale cache
-        try {
-          var c=localStorage.getItem(KPI_Q_CACHE_KEY);
-          if (c) { var obj=JSON.parse(c); _mergeQuarterlyData(obj.rows); filterKPI(); }
-        } catch(e2){}
+    // Merge quarterly rows into KPI_DATA items
+    // Fetch quarterly sheet (called after main KPI fetch succeeds)
       
-        window._kpiQFetching = false;
-      });
-  }
-
-  // ── QUARTERLY TILE RENDERER (for table expand) ─────────────────
-  function _kpiStatusClass(s) {
-    if (s==='Met') return 'q-met';
-    if (s==='Partially Met') return 'q-partial';
-    if (s==='Has Not Met') return 'q-notmet';
-    if (s==='In Progress') return 'q-prog';
-    return '';
-  }
-  function _kpiStatusEmoji(s) {
-    if (s==='Met') return '✅';
-    if (s==='Partially Met') return '🟠';
-    if (s==='Has Not Met') return '🔴';
-    if (s==='In Progress') return '🔵';
-    if (s==='Coming Down the Pipeline') return '🟣';
-    return '—';
-  }
-
-  function renderKPIQuarterlyTiles(k) {
-    var STATUS_CFG = {
-      'Met':                    { cls:'q-met',     badgeCls:'qb-met',     emoji:'✅' },
-      'Partially Met':          { cls:'q-partial', badgeCls:'qb-partial', emoji:'🟠' },
-      'Has Not Met':            { cls:'q-notmet',  badgeCls:'qb-notmet',  emoji:'🔴' },
-      'In Progress':            { cls:'q-prog',    badgeCls:'qb-prog',    emoji:'🔵' },
-      'Coming Down the Pipeline':{ cls:'q-pipe',   badgeCls:'qb-pipe',    emoji:'🟣' },
-    };
-    var qs = [
-      { q:'Q1', s:k.q1s||'', d:k.q1d, isCurr:false },
-      { q:'Q2', s:k.q2s||'', d:k.q2d, isCurr:true  },
-      { q:'Q3', s:k.q3s||'', d:k.q3d, isCurr:false },
-      { q:'Q4', s:k.q4s||'', d:k.q4d, isCurr:false },
-    ];
-    var hasAny = qs.some(function(x){ return x.s; });
-    if (!hasAny) {
-      return '<div style="padding:.75rem 1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e;display:flex;align-items:center;gap:.5rem">⏳ Quarterly data loading… <button onclick="kpiForceQRefresh()" style="background:none;border:none;color:#0050c8;cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0">Force refresh</button></div>';
-    }
-    return qs.map(function(x) {
-      var cfg = STATUS_CFG[x.s] || null;
-      var statCls = cfg ? cfg.cls : (x.isCurr ? '' : 'q-future');
-      if (x.isCurr && !cfg) statCls = 'q-active';
-      var activeCls = x.isCurr ? ' q-active' : '';
-      var goal = x.d ? (x.d.goal||'').trim() : '';
-      var captured = x.d ? (x.d.captured||'').trim() : '';
-      // Normalize N/A
-      var goalIsNA = !goal || goal === 'N/A' || goal === 'N/A' || goal === 'NA';
-      var capIsNA  = !captured || captured === 'N/A' || captured === 'NA';
-
-      var badgeHtml = '';
-      if (x.s && cfg) {
-        badgeHtml = '<span class="kqi-q-badge '+cfg.badgeCls+'">'+cfg.emoji+' '+x.s+'</span>';
-      } else if (x.s) {
-        badgeHtml = '<span class="kqi-q-badge qb-none">'+x.s+'</span>';
-      } else {
-        badgeHtml = '<span style="font-size:.6rem;color:var(--muted);font-style:italic">Pending</span>';
-      }
-
-      var metricHtml = '';
-      if (!goalIsNA || !capIsNA) {
-        metricHtml = '<div class="kqi-q-metric">'
-          + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Goal</span>'
-          + '<span class="kqi-q-metric-val'+(goalIsNA?' na':'')+'">'+( goalIsNA ? '—' : goal )+'</span></div>'
-          + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Captured</span>'
-          + '<span class="kqi-q-metric-val'+(capIsNA?' na':'')+'">'+( capIsNA ? '—' : captured )+'</span></div>'
-          + '</div>';
-      } else {
-        metricHtml = '<div style="font-size:.6rem;color:var(--muted);font-style:italic;margin-top:.2rem">Data pending</div>';
-      }
-
-      return '<div class="kpi-q-tile '+statCls+activeCls+'">'
-        + '<div class="kqi-q-hdr"><span class="kqi-q-name">'+x.q+(x.isCurr?' ● NOW':'')+'</span>'+badgeHtml+'</div>'
-        + metricHtml
-        + '</div>';
-    }).join('');
-  }
-
-  // ── PATCH filterKPI: quarterly expand rows baked at render time ──────
-  var _origFilterKPI = filterKPI;
-  filterKPI = function() {
-    _origFilterKPI();
-    var tbody = document.getElementById('kpiBody');
-    if (!tbody) return;
-
-    var cycle  = (document.getElementById('kpiCycleFilter')  || {value:'mid'}).value || 'mid';
-    var goalF  = (document.getElementById('kpiGoalFilter')   || {value:''}).value;
-    var statF  = (document.getElementById('kpiStatusFilter') || {value:''}).value;
-    var srchF  = ((document.getElementById('kpiSearch') || {value:''}).value || '').toLowerCase().trim();
-    var statusField = (cycle === 'end') ? 'endStatus' : 'midStatus';
-
-    // Build filtered + grouped list
-    var groups = {}, order = [];
-    KPI_DATA.forEach(function(k) {
-      var s = k[statusField] || '';
-      if (goalF && k.goal !== goalF) return;
-      if (statF && s !== statF) return;
-      if (srchF) {
-        var tl = (k.target || '').toLowerCase();
-        var gl = (k.goal   || '').toLowerCase();
-        if (tl.indexOf(srchF) < 0 && gl.indexOf(srchF) < 0) return;
-      }
-      if (!groups[k.goal]) { groups[k.goal] = []; order.push(k.goal); }
-      groups[k.goal].push(k);
-    });
-
-    var STATUS_CFG = {
-      'Met':                     { cls:'q-met',     badgeCls:'qb-met',     emoji:'\u2705' },
-      'Partially Met':           { cls:'q-partial', badgeCls:'qb-partial', emoji:'🟠' },
-      'Has Not Met':             { cls:'q-notmet',  badgeCls:'qb-notmet',  emoji:'🔴' },
-      'In Progress':             { cls:'q-prog',    badgeCls:'qb-prog',    emoji:'🔵' },
-      'Coming Down the Pipeline':{ cls:'q-pipe',    badgeCls:'qb-pipe',    emoji:'🟣' }
-    };
-
-    function qTile(qName, s, d, isCurr) {
-      var cfg = STATUS_CFG[s] || null;
-      var tileCls = 'kpi-q-tile ' + (cfg ? cfg.cls : (isCurr ? 'q-active' : 'q-future'));
-      if (isCurr) tileCls += ' q-active';
-      var header = '<span class="kqi-q-name">' + qName + (isCurr ? ' \u25CF NOW' : '') + '</span>';
-      var badge  = s
-        ? '<span class="kqi-q-badge ' + (cfg ? cfg.badgeCls : 'qb-none') + '">'
-            + (cfg ? cfg.emoji + ' ' : '') + s + '</span>'
-        : '<span style="font-size:.6rem;color:var(--muted);font-style:italic">Pending</span>';
-      var goal     = d ? (d.goal     || '').trim() : '';
-      var captured = d ? (d.captured || '').trim() : '';
-      var gNA = !goal     || goal     === 'N/A' || goal     === 'NA';
-      var cNA = !captured || captured === 'N/A' || captured === 'NA';
-      var metric = (!gNA || !cNA)
-        ? '<div class="kqi-q-metric">'
-            + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Goal</span>'
-            + '<span class="kqi-q-metric-val' + (gNA ? ' na' : '') + '">' + (gNA ? '\u2014' : goal) + '</span></div>'
-            + '<div class="kqi-q-metric-row"><span class="kqi-q-metric-lbl">Captured</span>'
-            + '<span class="kqi-q-metric-val' + (cNA ? ' na' : '') + '">' + (cNA ? '\u2014' : captured) + '</span></div>'
-            + '</div>'
-        : '<div style="font-size:.6rem;color:var(--muted);font-style:italic;margin-top:.2rem">Data pending</div>';
-      return '<div class="' + tileCls + '"><div class="kqi-q-hdr">' + header + badge + '</div>' + metric + '</div>';
-    }
-
-    function qExpandContent(k) {
-      var hasQ = k.q1s || k.q2s || k.q3s || k.q4s;
-      if (!hasQ) {
-        return '<div style="padding:.75rem 1rem;background:#fffbeb;border:1px solid #fde68a;'
-          + 'border-radius:8px;font-size:.75rem;color:#92400e;display:flex;align-items:center;gap:.5rem">'
-          + '\u23F3 Quarterly data loading\u2026 '
-          + '<button onclick="kpiForceQRefresh()" style="background:none;border:none;color:#0050c8;'
-          + 'cursor:pointer;font-size:.75rem;text-decoration:underline;padding:0">Force refresh</button></div>';
-      }
-      return qTile('Q1', k.q1s||'', k.q1d, false)
-           + qTile('Q2', k.q2s||'', k.q2d, true)
-           + qTile('Q3', k.q3s||'', k.q3d, false)
-           + qTile('Q4', k.q4s||'', k.q4d, false);
-    }
-
-    var html = ''; var rowIdx = 0;
-    order.forEach(function(goal) {
-      html += '<tr class="goal-group-header"><td colspan="5">' + goal + '</td></tr>';
-      groups[goal].forEach(function(k) {
-        var ri = 'kqr-' + rowIdx;
-        // Main row — onclick via data-expand-id delegation
-        html += '<tr class="kpi-row-expandable" data-expand-id="' + ri + '">'
-          + '<td></td>'
-          + '<td style="font-size:.875rem;color:var(--text);line-height:1.5">' + k.target + '</td>'
-          + '<td>' + (k.midStatus
-              ? '<span class="kpi-status ' + statusClass(k.midStatus) + '">'
-                + statusEmoji(k.midStatus) + ' ' + k.midStatus + '</span>'
-              : '<span style="color:var(--muted);font-size:.8125rem">\u2014</span>') + '</td>'
-          + '<td>' + (k.endStatus
-              ? '<span class="kpi-status ' + statusClass(k.endStatus) + '">'
-                + statusEmoji(k.endStatus) + ' ' + k.endStatus + '</span>'
-              : '<span style="color:var(--muted);font-size:.8125rem">\u2014</span>') + '</td>'
-          + '<td><button class="kpi-row-expand-btn" id="btn-' + ri + '" data-expand-id="' + ri + '">'
-          + '<span class="chev">&#9658;</span> Q Data'
-          + '</button></td>'
-          + '</tr>'
-          // Expand row — quarterly content BAKED IN at render time
-          + '<tr class="kpi-q-expand" id="' + ri + '">'
-          + '<td colspan="5"><div class="kpi-q-panel">'
-          + '<div class="kpi-q-label">Quarterly Breakdown</div>'
-          + '<div class="kpi-q-grid">' + qExpandContent(k) + '</div>'
-          + (k.owner ? '<div style="margin-top:.625rem;font-size:.65rem;color:var(--muted)">&#128203; ' + k.owner + '</div>' : '')
-          + '</div></td>'
-          + '</tr>';
-        rowIdx++;
-      });
-    });
-
-    tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
-  };
-
-  // ── toggleKPIRow: pure CSS open/close, no async ──
-  function toggleKPIRow(id) {
-    var row = document.getElementById(id);
-    var btn = document.getElementById('btn-' + id);
-    if (!row) return;
-    var isOpen = row.classList.toggle('open');
-    if (btn) btn.classList.toggle('open', isOpen);
-  }
-  window.toggleKPIRow = toggleKPIRow;
-
-  // ── Delegated click handler ──
-  document.addEventListener('click', function(e) {
-    var target = e.target;
-    var expandId = null;
-    for (var i = 0; i < 4 && target && target !== document; i++) {
-      if (target.getAttribute && target.getAttribute('data-expand-id')) {
-        expandId = target.getAttribute('data-expand-id');
-        break;
-      }
-      target = target.parentNode;
-    }
-    if (!expandId) return;
-    e.stopPropagation();
-    toggleKPIRow(expandId);
-  });
-
-  // ── kpiForceQRefresh: re-merge and re-render ──
-  window.kpiForceQRefresh = function() {
-    if (typeof fetchKPIQuarterly === 'function') {
-      fetchKPIQuarterly(true);
-    }
-  };
-
-
   // ══════════════════════════════════════════════════════════════════
   //  DATA COMPASS — GOVERNANCE SYSTEM
   // ══════════════════════════════════════════════════════════════════
@@ -14842,154 +14396,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   //  PATCH renderKPIAnalyticsTab — Add Quarterly tab
   // ══════════════════════════════════════════════════════════════════
 
-  var _origRenderKPIAnalytics = renderKPIAnalytics;
-  renderKPIAnalytics = function() {
-    var html = _origRenderKPIAnalytics();
-    // Inject quarterly tab button into tab nav
-    html = html.replace(
-      'id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab(\'scorecard\')"',
-      'id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab(\'scorecard\')"'
-    );
-    // Add quarterly tab after scorecard tab
-    html = html.replace(
-      '<button class="kpia-tab"        id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab(\'scorecard\')">🏆 Full Scorecard</button>',
-      '<button class="kpia-tab"        id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab(\'scorecard\')">🏆 Full Scorecard</button>'
-      + '<button class="kpia-tab"      id="kpiaTab-quarterly"  onclick="setKPIAnalyticsTab(\'quarterly\')">📅 Quarterly View</button>'
-    );
-    return html;
-  };
-
-  var _origRenderKPIAnalyticsTab = renderKPIAnalyticsTab;
-  renderKPIAnalyticsTab = function(tab) {
-    if (tab !== 'quarterly') return _origRenderKPIAnalyticsTab(tab);
-
-    var data = KPI_DATA || [];
-    if (!data.length) {
-      return '<div style="padding:2rem;text-align:center;color:var(--muted)">No data loaded. Click ↺ Refresh.</div>';
-    }
-
-    var hasQ = data.some(function(k){ return k.q1s||k.q2s||k.q3s||k.q4s; });
-
-    var STATUS_CFG = {
-      'Met':                     { color:'#16a34a', bg:'#f0fdf4', badge:'#dcfce7', text:'#15803d', emoji:'✅' },
-      'Partially Met':           { color:'#d97706', bg:'#fffbeb', badge:'#fef3c7', text:'#92400e', emoji:'🟠' },
-      'Has Not Met':             { color:'#dc2626', bg:'#fef2f2', badge:'#fee2e2', text:'#991b1b', emoji:'🔴' },
-      'In Progress':             { color:'#2563eb', bg:'#eff6ff', badge:'#dbeafe', text:'#1e40af', emoji:'🔵' },
-      'Coming Down the Pipeline':{ color:'#7c3aed', bg:'#f5f3ff', badge:'#ede9fe', text:'#5b21b6', emoji:'🟣' },
-    };
-
-    function qBadge(s) {
-      if (!s) return '<span style="font-size:.65rem;color:var(--muted);font-style:italic">Pending</span>';
-      var cfg = STATUS_CFG[s];
-      if (!cfg) return '<span style="font-size:.65rem;font-weight:700;color:var(--navy)">'+s+'</span>';
-      return '<span style="font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;'
-        +'background:'+cfg.badge+';color:'+cfg.text+'">'+cfg.emoji+' '+s+'</span>';
-    }
-
-    function qCell(qLabel, s, d, isCurrent) {
-      var cfg = s ? STATUS_CFG[s] : null;
-      var bg      = isCurrent ? '#eef2ff' : (cfg ? cfg.bg : '#fafafa');
-      var border  = isCurrent ? '2px solid #3730a3' : (cfg ? '1.5px solid '+cfg.color : '1px solid var(--border)');
-      var opacity = (!s && !isCurrent) ? 'opacity:.5;' : '';
-      var goal     = d ? (d.goal    ||'').trim() : '';
-      var captured = d ? (d.captured||'').trim() : '';
-      var goalNA   = !goal     || goal     === 'N/A' || goal     === 'NA';
-      var capNA    = !captured || captured === 'N/A' || captured === 'NA';
-      var nowTag   = isCurrent ? '<span style="font-size:.5rem;font-weight:800;letter-spacing:.08em;color:#3730a3;background:#e0e7ff;padding:.1rem .3rem;border-radius:3px;margin-left:.25rem;vertical-align:middle">NOW</span>' : '';
-
-      var html = '<div style="'+opacity+'background:'+bg+';border:'+border+';border-radius:10px;padding:.625rem .75rem;display:flex;flex-direction:column;gap:.3rem">';
-      // Header row: quarter label + status badge
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap">';
-      html += '<span style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:'+(isCurrent?'#3730a3':'var(--muted)')+'">'+qLabel+nowTag+'</span>';
-      html += qBadge(s);
-      html += '</div>';
-      // Metrics grid
-      if (!goalNA || !capNA) {
-        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem .625rem;margin-top:.15rem">';
-        html += '<div><div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.1rem">Goal</div>'
-          + '<div style="font-size:.8125rem;font-weight:700;color:'+(goalNA?'var(--muted)':'var(--navy)')+(goalNA?';font-style:italic':'')+'">'+(goalNA?'—':goal)+'</div></div>';
-        html += '<div><div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.1rem">Captured Metric</div>'
-          + '<div style="font-size:.8125rem;font-weight:700;color:'+(capNA?'var(--muted)':'var(--navy)')+(capNA?';font-style:italic':'')+'">'+(capNA?'—':captured)+'</div></div>';
-        html += '</div>';
-      } else {
-        html += '<div style="font-size:.65rem;color:var(--muted);font-style:italic">Metrics pending</div>';
-      }
-      html += '</div>';
-      return html;
-    }
-
-    var html = '';
-
-    // Info bar
-    html += '<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:'+(hasQ?'#f0fdf4':'#fffbeb')+';border:1px solid '+(hasQ?'#bbf7d0':'#fde68a')+';border-radius:10px;display:flex;align-items:center;gap:.625rem">';
-    html += '<span style="font-size:1rem">'+(hasQ?'✅':'⏳')+'</span>';
-    html += '<div style="font-size:.8125rem;color:'+(hasQ?'#14532d':'#92400e')+';line-height:1.5">';
-    html += hasQ
-      ? '<strong>Quarterly data loaded.</strong> Showing Q1–Q4 progression with goal vs. captured metrics for all '+data.length+' targets.'
-      : '<strong>Quarterly data loading.</strong> Click <button onclick="kpiForceQRefresh()"  style="background:#d97706;color:white;border:none;border-radius:4px;padding:.2rem .6rem;font-size:.75rem;cursor:pointer;font-weight:700">↺ Force Refresh</button> if data doesn\x27t appear.';
-    html += '</div></div>';
-
-    // Quarter legend
-    html += '<div style="display:flex;align-items:center;gap:.875rem;margin-bottom:1.25rem;flex-wrap:wrap">';
-    html += '<span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Legend:</span>';
-    var statuses = ['Met','Partially Met','In Progress','Has Not Met','Coming Down the Pipeline'];
-    statuses.forEach(function(s){
-      var cfg = STATUS_CFG[s];
-      html += '<span style="font-size:.6875rem;font-weight:600;padding:.2rem .6rem;border-radius:20px;background:'+cfg.badge+';color:'+cfg.text+'">'+cfg.emoji+' '+s+'</span>';
-    });
-    html += '</div>';
-
-    // Group by goal
-    var goals = {}, goalOrder = [];
-    data.forEach(function(k){
-      if (!goals[k.goal]) { goals[k.goal]=[]; goalOrder.push(k.goal); }
-      goals[k.goal].push(k);
-    });
-    goalOrder = goalOrder.filter(function(g,i){ return goalOrder.indexOf(g)===i; });
-
-    goalOrder.forEach(function(goalName){
-      var items = goals[goalName];
-      html += '<div style="margin-bottom:2rem">';
-      html += '<div style="font-size:.8125rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:white;background:var(--navy);padding:.5rem .875rem;border-radius:8px 8px 0 0;margin-bottom:0">'+goalName+'</div>';
-
-      items.forEach(function(k, ki){
-        var even = ki % 2 === 0;
-        html += '<div style="padding:.875rem 1rem;border-left:3px solid var(--navy);border-right:1px solid var(--border);border-bottom:1px solid var(--border);background:'+(even?'white':'#fafbff')+'">';
-
-        // Target header
-        html += '<div style="display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.75rem">';
-        html += '<div style="flex:1">';
-        html += '<div style="font-size:.875rem;font-weight:600;color:var(--navy);line-height:1.4">'+k.target+'</div>';
-        if (k.owner) html += '<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">📋 '+k.owner+'</div>';
-        html += '</div>';
-        // Current status badges
-        var curMid = k.midStatus||k.status||'';
-        var curEnd = k.endStatus||'';
-        if (curMid || curEnd) {
-          html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;flex-shrink:0">';
-          if (curMid) html += '<div style="font-size:.6rem;color:var(--muted);text-align:right">Mid-Year</div>'+qBadge(curMid);
-          if (curEnd) html += '<div style="font-size:.6rem;color:var(--muted);text-align:right;margin-top:.1rem">End of Year</div>'+qBadge(curEnd);
-          html += '</div>';
-        }
-        html += '</div>';
-
-        // Q1-Q4 grid
-        html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.625rem">';
-        html += qCell('Q1', k.q1s, k.q1d, false);
-        html += qCell('Q2', k.q2s, k.q2d, true);
-        html += qCell('Q3', k.q3s, k.q3d, false);
-        html += qCell('Q4', k.q4s, k.q4d, false);
-        html += '</div>';
-
-        html += '</div>';
-      });
-
-      html += '<div style="height:.125rem;background:var(--navy);opacity:.15;border-radius:0 0 4px 4px;margin-bottom:.25rem"></div>';
-      html += '</div>';
-    });
-
-    return html;
-  };
+  ;
 
   window.renderKPIAnalytics    = renderKPIAnalytics;
   window.renderKPIAnalyticsTab = renderKPIAnalyticsTab;
