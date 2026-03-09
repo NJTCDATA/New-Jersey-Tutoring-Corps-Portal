@@ -5685,7 +5685,7 @@
     const cacheBust = _forceRefresh ? '&t=' + Date.now() : '';
     const url = TALENT_CSV_URL + '&gid=' + TALENT_CSV_GIDS[0] + cacheBust;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
         const text = await res.text();
         const fresh = _parseConcernsCSV(text);
@@ -9199,7 +9199,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       try {
         // Cache-bust appended as query param — same pattern as KPI fetch
         const url = SY_CSV_URL + (force ? '&t=' + Date.now() : '');
-        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(url, { signal: AbortSignal.timeout(25000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const csv = await res.text();
         const sites = parseSYRows(csv);
@@ -9741,7 +9741,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       VACANCY_FLAG: 46,  // AG Vacancy Flag  ("Current Vacancy...")
       // col 47 = Active Flag
     };
-    const ATT_MAX_COL = 31; // read through col AF (idx 31), ignore rest
+    const ATT_MAX_COL  = 31; // read through col AF (idx 31), ignore rest
+    const STU_MAX_COL  = 22; // Scholar survey: cols 0-22 (WEEK is last needed)
+    const INST_MAX_COL = 22; // Instructor survey: cols 0-22
+    const SESS_MAX_COL = 35; // Session details: enough cols for all session fields
 
     // ── COLUMN INDEXES — SESSION DETAILS ─────────────────────────────────
     const SESS = {
@@ -10165,7 +10168,28 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
 
       render();
-      return { refresh: render };
+      return {
+      refresh:      refresh,          // force=true triggers live re-fetch
+      onPanelOpen:  function() {      // called by showPanel('pearl-ops')
+        if (!_inited) {
+          init();
+        } else if (!_loaded) {
+          refresh(false);             // not yet loaded — fetch now
+        }
+      },
+      openFlagsModal:   function() { try { openFlagsModal(); } catch(e) {} },
+      showExportModal:  function() { try { showExportModal(); } catch(e) {} },
+      getTutorAttendanceMap: function() {
+        var map = {};
+        if (_personMap) {
+          Object.keys(_personMap).forEach(function(k) {
+            var p = _personMap[k];
+            if (p) map[k] = p;
+          });
+        }
+        return map;
+      }
+    };
     }
 
     function getFilterSelected(stateKey) {
@@ -10205,7 +10229,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       let probedGids = [];
       try {
         const pubhtmlUrl = `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pubhtml`;
-        const res = await fetch(pubhtmlUrl, { signal: AbortSignal.timeout(5000) });
+        const res = await fetch(pubhtmlUrl, { signal: AbortSignal.timeout(12000) });
         if (res.ok) {
           const html = await res.text();
           // Extract all numeric gid values from href/data attributes in the HTML
@@ -10231,7 +10255,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Step 3: fetch each candidate gid as CSV — in parallel, ignore 400s
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(5000)});
+          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(10000)});
           if (!res.ok) return null;
           const text = await res.text();
           const firstRow = text.split('\n')[0].toLowerCase().replace(/"/g, '');
@@ -10332,7 +10356,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // ── Hardcoded known-good GID fallbacks ──────────────────────────────
       // If discovery didn't resolve a tab, or resolved the wrong one,
       // fall back to the last-known-good GIDs for this spreadsheet.
-      const KNOWN_GIDS = { att: 702726038, inst: 1955492004, stu: 1245403832, sess: 625567780 };
+      const KNOWN_GIDS = { att: 702726038, inst: 1955492004, stu: 1748668439, sess: 625567780 };
       if (!GIDS.att  || GIDS.att  === 117217808) GIDS.att  = KNOWN_GIDS.att;
       if (!GIDS.inst || GIDS.inst === 117217808) GIDS.inst = KNOWN_GIDS.inst;
       if (!GIDS.stu  || GIDS.stu  === 117217808) GIDS.stu  = KNOWN_GIDS.stu;
@@ -10384,35 +10408,111 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       try {
         await resolveGids();
         const bust = force ? '&t=' + Date.now() : '';
-        const [attText, instText, stuText, sessText] = await Promise.all([
-          fetchTab(GIDS.att,  bust), fetchTab(GIDS.inst, bust),
-          fetchTab(GIDS.stu,  bust), fetchTab(GIDS.sess, bust),
+
+        // ── Per-tab fetch with independent timeouts ──────────────────────
+        // att/sess/inst fetch fast — stu (scholar survey) is a large growing file.
+        // Promise.allSettled: a stu timeout does NOT kill the other tabs.
+        const [attResult, instResult, stuResult, sessResult] = await Promise.allSettled([
+          fetchTabTimed(GIDS.att,  bust, 20000, 'att'),
+          fetchTabTimed(GIDS.inst, bust, 15000, 'inst'),
+          fetchTabTimed(GIDS.stu,  bust, 45000, 'stu'),   // large growing file
+          fetchTabTimed(GIDS.sess, bust, 20000, 'sess'),
         ]);
-        // Attendance Detail — read through col AF (idx 31), ignore rest
-        _attRows  = parseCSVLimit(attText,  ATT_MAX_COL).slice(1);  // skip header
-        // Backfill week from session date when Pearl col AA (idx 26) is blank
-        for (const r of _attRows) {
-          if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) {
-            r[ATT.WEEK] = weekKeyFromDateStr(r[ATT.SESS_DATE]);
+
+        // ── Parse resolved tabs ─────────────────────────────────────────
+        // att
+        if (attResult.status === 'fulfilled' && attResult.value) {
+          _attRows = parseCSVLimit(attResult.value, ATT_MAX_COL).slice(1);
+          for (const r of _attRows) {
+            if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) {
+              r[ATT.WEEK] = weekKeyFromDateStr(r[ATT.SESS_DATE]);
+            }
           }
+        } else {
+          console.warn('[Pearl Ops] att tab failed:', attResult.reason && attResult.reason.message);
         }
-        _sessRows = parseCSV(sessText).slice(1);
-        _stuRows  = parseCSV(stuText).slice(1);
-        _instRows = parseCSV(instText).slice(1);
+
+        // sess
+        if (sessResult.status === 'fulfilled' && sessResult.value) {
+          _sessRows = parseCSVLimit(sessResult.value, SESS_MAX_COL).slice(1);
+        } else {
+          console.warn('[Pearl Ops] sess tab failed:', sessResult.reason && sessResult.reason.message);
+        }
+
+        // inst
+        if (instResult.status === 'fulfilled' && instResult.value) {
+          _instRows = parseCSVLimit(instResult.value, INST_MAX_COL).slice(1);
+        } else {
+          console.warn('[Pearl Ops] inst tab failed:', instResult.reason && instResult.reason.message);
+        }
+
+        // stu (scholar survey) — graceful degradation
+        const stuLoaded = stuResult.status === 'fulfilled' && stuResult.value;
+        if (stuLoaded) {
+          _stuRows = parseCSVLimit(stuResult.value, STU_MAX_COL).slice(1);
+          console.log('[Pearl Ops] Scholar survey loaded:', _stuRows.length, 'rows');
+        } else {
+          // Fall back to cached stu rows if live fetch failed
+          const _stuCache = NJTC_CACHE.get('njtc_pearl_v1');
+          const _cachedStu = _stuCache && _stuCache.data && _stuCache.data.stu;
+          if (_cachedStu && _cachedStu.length) {
+            _stuRows = _cachedStu;
+            console.warn('[Pearl Ops] stu tab timed out — serving', _stuRows.length, 'cached rows. Retry scheduled.');
+          // Show partial state indicator (survey fetching in background)
+          setTimeout(function() { setSyncState('partial'); }, 50);
+          } else {
+            _stuRows = [];
+            console.warn('[Pearl Ops] stu tab failed, no cache available:', stuResult.reason && stuResult.reason.message);
+          }
+          // Schedule a single background retry for stu after other tabs finish rendering
+          setTimeout(async function() {
+            try {
+              const stuRetry = await fetchTabTimed(GIDS.stu, '', 60000, 'stu-retry');
+              if (stuRetry) {
+                _stuRows = parseCSVLimit(stuRetry, STU_MAX_COL).slice(1);
+                console.log('[Pearl Ops] stu retry succeeded:', _stuRows.length, 'rows');
+                buildIndexes();
+                renderView();
+                setSyncState('live');
+                // Update cache with fresh stu data
+                try {
+                  const existing = (NJTC_CACHE.get('njtc_pearl_v1') || {}).data || {};
+                  NJTC_CACHE.set('njtc_pearl_v1', Object.assign({}, existing, {
+                    stu: _stuRows.slice(0, 25000)  // scholar survey grows all year - keep generous slice
+                  }));
+                } catch(e) {}
+              }
+            } catch(e) {
+              console.warn('[Pearl Ops] stu retry also failed:', e.message);
+            }
+          }, 3000);
+        }
+
         _lastFetch = new Date();
         buildIndexes();
-        // Cache parsed row arrays for instant reload next visit
+
+        // ── Cache all successfully loaded tabs ──────────────────────────
         try {
-          NJTC_CACHE.set('njtc_pearl_v1', {
-            att:  _attRows.slice(0, 8000),
-            sess: _sessRows.slice(0, 8000),
-            stu:  _stuRows.slice(0, 8000),
-            inst: _instRows.slice(0, 3000),
-          });
+          const _cachePayload = {
+            att:  _attRows.slice(0, 15000),
+            sess: _sessRows.slice(0, 15000),
+            inst: _instRows.slice(0, 5000),
+          };
+          // Only cache stu if it loaded successfully (don't overwrite good cache with empty)
+          if (stuLoaded) _cachePayload.stu = _stuRows.slice(0, 10000);
+          NJTC_CACHE.set('njtc_pearl_v1', _cachePayload);
         } catch(e) {}
-        setSyncState('live');
-        populateFilters();
-        renderView();
+
+        // ── Render: even if stu failed, show what we have ──────────────
+        const allTabsFailed = !_attRows.length && !_sessRows.length && !_instRows.length;
+        if (allTabsFailed) {
+          console.warn('[Pearl Ops] All primary tabs failed to load.');
+          setSyncState('error');
+        } else {
+          setSyncState('live');
+          populateFilters();
+          renderView();
+        }
       } catch(e) {
         console.warn('[Pearl Ops] Fetch failed:', e.message);
         setSyncState('error');
@@ -10422,10 +10522,29 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     async function fetchTab(gid, bust) {
-      if (gid === null) return '';   // tab gid was not resolved — return empty, skip silently
-      const res = await fetch(csvUrl(gid) + bust, {signal: AbortSignal.timeout(6000)});
+      if (gid === null) return '';
+      const res = await fetch(csvUrl(gid) + bust, {signal: AbortSignal.timeout(20000)});
       if (!res.ok) throw new Error('HTTP ' + res.status + ' for tab gid=' + gid);
       return res.text();
+    }
+
+    // Per-tab fetch with custom timeout — allows independent failure handling
+    async function fetchTabTimed(gid, bust, timeoutMs, label) {
+      if (gid === null) {
+        console.warn('[Pearl Ops] GID null for tab:', label, '— skipping');
+        return '';
+      }
+      const url = csvUrl(gid) + (bust || '');
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' tab=' + label);
+        const text = await res.text();
+        console.log('[Pearl Ops] Tab', label, 'loaded:', Math.round(text.length/1024), 'KB');
+        return text;
+      } catch(e) {
+        console.warn('[Pearl Ops] Tab', label, 'failed (' + timeoutMs + 'ms timeout):', e.message);
+        throw e;
+      }
     }
 
     // ── BUILD INDEXES ─────────────────────────────────────────────────────
@@ -12457,6 +12576,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
         const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
         if (txt) txt.innerHTML = `<strong>Live · Pearl</strong> · ${totalRec.toLocaleString()} records · Updated ${t}`;
+      } else if (state === 'partial') {
+        dot.className = 'sync-dot';
+        dot.style.background = '#f59e0b';
+        const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
+        const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
+        if (txt) txt.innerHTML = `<strong>Live · Pearl</strong> · ${totalRec.toLocaleString()} records · Survey fetching… · ${t}`;
+      } else if (state === 'stale') {
+        dot.className = 'sync-dot';
+        dot.style.background = '#f59e0b';
+        const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
+        if (txt) txt.innerHTML = `<strong>Cached · Pearl</strong> · ${totalRec.toLocaleString()} records · <em style="color:#92400e">Refreshing…</em>`;
       } else {
         dot.className = 'sync-dot error';
         if (txt) txt.innerHTML = _lastFetch
@@ -13380,7 +13510,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const csvBase  = baseUrl + '/pub?output=csv';
       let probedGids = [];
       try {
-        const res = await fetch(baseUrl + '/pubhtml', { signal: AbortSignal.timeout(6000) });
+        const res = await fetch(baseUrl + '/pubhtml', { signal: AbortSignal.timeout(15000) });
         if (res.ok) {
           const html = await res.text();
           const matches = [...html.matchAll(/[?&]gid=(\d+)/g)];
@@ -13396,7 +13526,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // 4. Fetch each candidate and identify by header signature
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const r = await fetch(csvBase + '&gid=' + gid + '&t=' + Date.now(), { signal: AbortSignal.timeout(5000) });
+          const r = await fetch(csvBase + '&gid=' + gid + '&t=' + Date.now(), { signal: AbortSignal.timeout(12000) });
           if (!r.ok) return null;
           const text = await r.text();
           const hdr  = text.split('\n')[0].toLowerCase().replace(/"/g, '');
@@ -13411,7 +13541,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         // Math longitudinal: has "academic year" + "instructor" + subject=Math
         if (!resolved.math && h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar')) {
           // Peek first data row to check subject
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(4000) }).catch(()=>null);
+          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
             const lines = (await r2.text()).split('\n');
             const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
@@ -13424,7 +13554,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }
         // Repeat scholars: has "repeat scholar" in header
         if (h.includes('repeat scholar') && h.includes('instructor')) {
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(4000) }).catch(()=>null);
+          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
             const lines = (await r2.text()).split('\n');
             const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
