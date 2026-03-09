@@ -4781,9 +4781,9 @@
     fetchKPIMetadata(false);
   }
 
-  // Invalidate export on KPI refresh
-  if (typeof expInvalidate === 'function') expInvalidate();
   function buildKPISummary() {
+    // Invalidate export cache so next open reflects fresh KPI data
+    if (typeof expInvalidate === 'function') expInvalidate();
     // Use midStatus for summary counts (primary cycle view)
     const cycle = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
     const getStatus = k => cycle === 'end' ? (k.endStatus || k.midStatus || '') : (k.midStatus || k.status || '');
