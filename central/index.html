@@ -468,7 +468,73 @@
       letter-spacing: .06em; color: var(--blue-mid);
       display: flex; align-items: center; gap: .375rem;
     }
-    .kpi-status {
+    /* ── KPI Owner/Source meta chips ── */
+    .kpi-owner-line { font-size:.7rem; color:var(--muted); margin-top:.3rem; display:flex; gap:.625rem; flex-wrap:wrap; line-height:1.3; }
+    .kpi-chip { display:inline-flex; align-items:center; gap:.2rem; background:var(--surface-2); border:1px solid var(--border-2); border-radius:6px; padding:.1rem .35rem; font-size:.65rem; font-weight:600; white-space:nowrap; }
+
+    /* ── Quarterly Report Upload ── */
+    #kpiQRSection { margin:1.5rem 0 0; border:2px solid var(--border); border-radius:14px; overflow:hidden; background:white; }
+    .kqr-hdr { background:linear-gradient(135deg,#0a1628 0%,#162347 100%); color:white; padding:.875rem 1.25rem; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .kqr-hdr-left { display:flex; align-items:center; gap:.625rem; }
+    .kqr-hdr-icon { font-size:1.25rem; }
+    .kqr-hdr-title { font-size:.9375rem; font-weight:800; }
+    .kqr-hdr-sub { font-size:.7rem; opacity:.65; margin-top:.1rem; }
+    .kqr-hdr-badge { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); padding:.15rem .5rem; border-radius:20px; white-space:nowrap; margin-top:.2rem; }
+    .kqr-drop-zone { padding:1.5rem 1.25rem; border-top:1px solid var(--border); display:flex; flex-direction:column; align-items:center; gap:1rem; }
+    .kqr-dropbox { width:100%; max-width:520px; border:2px dashed var(--border); border-radius:12px; padding:1.75rem 1rem; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; background:var(--surface); }
+    .kqr-dropbox:hover,.kqr-dropbox.drag-over { border-color:var(--navy); background:#eef3ff; }
+    .kqr-dz-icon { font-size:2.25rem; margin-bottom:.5rem; }
+    .kqr-dz-title { font-size:.9375rem; font-weight:700; color:var(--navy); }
+    .kqr-dz-sub { font-size:.75rem; color:var(--muted); margin-top:.25rem; }
+    #kqrFileInput { display:none; }
+    .kqr-drop-hint { font-size:.7rem; color:var(--muted); text-align:center; max-width:400px; }
+    #kpiQRReport { display:none; border-top:1px solid var(--border); }
+    #kpiQRReport.visible { display:block; }
+    .kqr-snap-bar { background:linear-gradient(135deg,#0a1628 0%,#1a3060 100%); color:white; padding:1.5rem 1.75rem 1.25rem; }
+    .kqr-snap-top { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
+    .kqr-snap-q-badge { display:inline-flex; align-items:center; gap:.35rem; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); border-radius:20px; padding:.2rem .75rem; font-size:.8rem; font-weight:700; margin-bottom:.5rem; }
+    .kqr-snap-title { font-size:1.25rem; font-weight:900; line-height:1.2; }
+    .kqr-snap-desc { font-size:.8rem; opacity:.7; margin-top:.35rem; max-width:520px; line-height:1.5; }
+    .kqr-snap-actions { display:flex; gap:.5rem; align-items:flex-start; flex-shrink:0; padding-top:.25rem; }
+    .kqr-action-btn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25); color:white; font-size:.75rem; font-weight:600; padding:.375rem .75rem; border-radius:7px; cursor:pointer; white-space:nowrap; }
+    .kqr-action-btn:hover { background:rgba(255,255,255,.22); }
+    .kqr-snap-stats { display:flex; gap:1.25rem; flex-wrap:wrap; margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(255,255,255,.15); }
+    .kqr-stat { text-align:center; min-width:56px; }
+    .kqr-stat-n { font-size:1.75rem; font-weight:900; line-height:1; }
+    .kqr-stat-l { font-size:.58rem; text-transform:uppercase; letter-spacing:.08em; opacity:.6; margin-top:.15rem; }
+    .kqr-stat.sv-met .kqr-stat-n{color:#4ade80;} .kqr-stat.sv-partial .kqr-stat-n{color:#fbbf24;} .kqr-stat.sv-prog .kqr-stat-n{color:#60a5fa;} .kqr-stat.sv-notmet .kqr-stat-n{color:#f87171;} .kqr-stat.sv-pipe .kqr-stat-n{color:#c084fc;}
+    .kqr-health-strip { background:var(--surface-2); padding:.875rem 1.75rem; display:flex; align-items:center; gap:1rem; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+    .kqr-hs-lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); white-space:nowrap; }
+    .kqr-hs-track { flex:1; min-width:160px; height:9px; border-radius:5px; background:var(--border); overflow:hidden; }
+    .kqr-hs-fill { height:100%; border-radius:5px; }
+    .kqr-hs-pct { font-size:.8125rem; font-weight:700; color:var(--navy); white-space:nowrap; }
+    .kqr-hs-badge { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:.2rem .625rem; border-radius:20px; white-space:nowrap; }
+    .kqr-hs-badge.hb-healthy{background:#dcfce7;color:#15803d;} .kqr-hs-badge.hb-watch{background:#fef9c3;color:#854d0e;} .kqr-hs-badge.hb-risk{background:#fee2e2;color:#b91c1c;} .kqr-hs-badge.hb-crit{background:#f3e8ff;color:#7e22ce;}
+    .kqr-spotlights { padding:1rem 1.75rem; background:#f8faff; border-bottom:1px solid var(--border); display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:1.25rem; }
+    .kqr-sl-col { display:flex; flex-direction:column; gap:0; }
+    .kqr-sl-title { font-size:.62rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:.4rem; }
+    .kqr-sl-item { font-size:.75rem; color:var(--text); padding:.3rem 0; border-bottom:1px solid var(--border-2); line-height:1.35; }
+    .kqr-sl-item:last-child { border-bottom:none; }
+    .kqr-sl-empty { font-size:.75rem; color:var(--muted); font-style:italic; padding:.3rem 0; }
+    .kqr-goals-section { padding:1.25rem 1.75rem 1.5rem; }
+    .kqr-goals-section-title { font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); margin-bottom:1rem; }
+    .kqr-goals-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); gap:1rem; }
+    .kqr-goal-card { border:1.5px solid var(--border); border-radius:13px; overflow:hidden; }
+    .kqr-gc-hdr { padding:.625rem 1rem; background:var(--navy); color:white; display:flex; align-items:center; gap:.5rem; }
+    .kqr-gc-title { font-size:.78rem; font-weight:700; flex:1; }
+    .kqr-gc-count { font-size:.65rem; opacity:.65; white-space:nowrap; }
+    .kqr-gc-body { padding:.75rem .875rem; background:white; display:flex; flex-direction:column; gap:.45rem; }
+    .kqr-t-row { display:flex; align-items:flex-start; gap:.5rem; padding:.5rem .625rem; border-radius:8px; border:1px solid var(--border-2); background:var(--surface); }
+    .kqr-t-badge { flex-shrink:0; font-size:.58rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:.12rem .4rem; border-radius:10px; color:white; margin-top:.1rem; }
+    .kqr-t-met{background:#16a34a;} .kqr-t-partial{background:#d97706;} .kqr-t-prog{background:#2563eb;} .kqr-t-notmet{background:#dc2626;} .kqr-t-pipe{background:#7c3aed;} .kqr-t-default{background:var(--muted);}
+    .kqr-t-body { flex:1; min-width:0; }
+    .kqr-t-txt { font-size:.8125rem; color:var(--text); line-height:1.4; }
+    .kqr-t-meta { font-size:.65rem; color:var(--muted); margin-top:.2rem; line-height:1.3; }
+    .kqr-t-pills { display:flex; gap:.25rem; flex-wrap:wrap; margin-top:.3rem; }
+    .kqr-t-pill { font-size:.6rem; font-weight:700; padding:.1rem .375rem; border-radius:8px; border:1px solid; }
+    .kqr-tp-met{color:#15803d;border-color:#86efac;background:#f0fdf4;} .kqr-tp-partial{color:#92400e;border-color:#fde68a;background:#fffbeb;} .kqr-tp-prog{color:#1e40af;border-color:#93c5fd;background:#eff6ff;} .kqr-tp-notmet{color:#991b1b;border-color:#fca5a5;background:#fef2f2;} .kqr-tp-pipe{color:#6d28d9;border-color:#c4b5fd;background:#f5f3ff;}
+
+        .kpi-status {
       display: inline-flex; align-items: center; gap: .375rem;
       font-size: .6875rem; font-weight: 700; padding: .3rem .75rem;
       border-radius: 20px; white-space: nowrap; letter-spacing: .02em;
@@ -2781,7 +2847,7 @@
         <div class="ph-text">
           <div class="ph-eyebrow">SY 2025–2026</div>
           <h2 class="ph-title">KPI Targets</h2>
-          <p class="ph-subtitle">Organizational targets across all goal areas — live from the NJTC KPI Dashboard. Click any row to see quarterly progress.</p>
+          <p class="ph-subtitle">Organizational targets across all goal areas — live from the NJTC KPI Dashboard. Owner and source fields pulled from the Quarterly Goal Tracking sheet.</p>
         </div>
         <div class="ph-actions">
           <button class="btn btn-secondary" id="kpiRefreshBtn" onclick="fetchAndRebuildKPI(true)" title="Re-sync from Google Sheet">↺ Refresh</button>
@@ -2818,6 +2884,7 @@
               <th>2025–2026 Organizational Target</th>
               <th style="width:160px" id="midCycleHeader">Mid-Year Status</th>
               <th style="width:160px" id="endCycleHeader">End of Year Status</th>
+              <th style="width:150px" id="kpiOwnerHeader">Owner &amp; Source</th>
               </tr>
           </thead>
           <tbody id="kpiBody"></tbody>
@@ -2825,6 +2892,30 @@
       </div>
     </div>
 
+
+    <!-- Quarterly Report — Data dept only, shown/hidden by JS -->
+    <div id="kpiQRSection" style="display:none">
+      <div class="kqr-hdr">
+        <div class="kqr-hdr-left">
+          <div class="kqr-hdr-icon">&#128197;</div>
+          <div>
+            <div class="kqr-hdr-title">Quarterly Report Out</div>
+            <div class="kqr-hdr-sub">Drop the Quarterly Goal Tracking CSV to generate an executive snapshot visible to all staff</div>
+          </div>
+        </div>
+        <div class="kqr-hdr-badge">&#128274; Data Department Only</div>
+      </div>
+      <div class="kqr-drop-zone" id="kqrDropZone">
+        <div class="kqr-dropbox" id="kqrDropbox" onclick="document.getElementById('kqrFileInput').click()">
+          <div class="kqr-dz-icon">&#128194;</div>
+          <div class="kqr-dz-title">Drop Quarterly Goal Tracking CSV here</div>
+          <div class="kqr-dz-sub">or click to browse &mdash; exported from the KPI Dashboard Google Sheet</div>
+        </div>
+        <input type="file" id="kqrFileInput" accept=".csv" onchange="kqrHandleFile(this.files[0])">
+        <p class="kqr-drop-hint">The snapshot is visible to all logged-in staff until you clear it or the session ends. Only the Data department sees this upload zone.</p>
+      </div>
+      <div id="kpiQRReport"></div>
+    </div>
 
     <!-- ══ KPI ANALYTICS PANEL ══════════════════════════════ -->
     
@@ -3687,6 +3778,9 @@
   // ══════════════════════════════════════════════════════════
   // ── Live Google Sheet CSV URL (auto-refreshes from published sheet) ──
   const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd/pub?output=csv';
+  var KPI_META_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd/pub?output=csv&gid=1313501732';
+  var KPI_META_CACHE_KEY = 'njtc_kpi_meta_v1';
+  var KPI_META_TTL = 24 * 60 * 60 * 1000;
 
   // Fallback static data (exact from official KPI spreadsheet, SY 2025-26)
   const KPI_DATA_STATIC = [
@@ -4389,6 +4483,7 @@
     // Always rebuild home stats after every data refresh — data is now guaranteed accurate
     const session = window.NJTC_SESSION;
     if (session) buildHome(session.dept);
+    fetchKPIMetadata(false);
   }
 
   function buildKPISummary() {
@@ -4428,50 +4523,50 @@
   function buildKPI() { filterKPI(); }
 
   function filterKPI() {
-    const goalF   = document.getElementById('kpiGoalFilter').value;
-    const statusF = document.getElementById('kpiStatusFilter').value;
-    const searchF = document.getElementById('kpiSearch').value.toLowerCase();
-    const cycle   = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
-
-    // Update header labels to reflect selected cycle
-    const midH = document.getElementById('midCycleHeader');
-    const endH = document.getElementById('endCycleHeader');
+    var goalF   = document.getElementById('kpiGoalFilter').value;
+    var statusF = document.getElementById('kpiStatusFilter').value;
+    var searchF = document.getElementById('kpiSearch').value.toLowerCase();
+    var cycle   = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
+    var midH = document.getElementById('midCycleHeader');
+    var endH = document.getElementById('endCycleHeader');
     if (midH) midH.style.opacity = cycle === 'mid' ? '1' : '.45';
     if (endH) endH.style.opacity = cycle === 'end' ? '1' : '.45';
 
-    const getStatus = k => cycle === 'end'
-      ? (k.endStatus || k.midStatus || '')
-      : (k.midStatus || k.status || '');
-
-    const filtered = KPI_DATA.filter(k => {
-      const s = getStatus(k);
-      return (!goalF   || k.goal === goalF)
-          && (!statusF || s === statusF)
-          && (!searchF || k.target.toLowerCase().includes(searchF) || k.goal.toLowerCase().includes(searchF));
+    var getStatus = function(k) { return cycle==='end' ? (k.endStatus||k.midStatus||'') : (k.midStatus||k.status||''); };
+    var filtered = KPI_DATA.filter(function(k) {
+      var s = getStatus(k);
+      return (!goalF || k.goal===goalF) && (!statusF || s===statusF) &&
+             (!searchF || k.target.toLowerCase().includes(searchF) || k.goal.toLowerCase().includes(searchF));
     });
+    var groups = {};
+    var goalOrder = KPI_DATA.reduce(function(acc,k){ if(acc.indexOf(k.goal)<0) acc.push(k.goal); return acc; },[]);
+    filtered.forEach(function(k){ if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
 
-    // Group by goal
-    const groups = {};
-    const goalOrder = [...new Set(KPI_DATA.map(k => k.goal))]; // preserve spreadsheet order
-    filtered.forEach(k => { if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
+    function ownerCell(k) {
+      var parts = [];
+      if (k.owner) parts.push('<span class="kpi-chip">' + k.owner + '</span>');
+      if (k.source) parts.push('<span class="kpi-chip" style="color:var(--blue)">' + k.source + '</span>');
+      return parts.length ? '<div class="kpi-owner-line">' + parts.join('') + '</div>' : '<span style="color:var(--muted);font-size:.75rem">&#8212;</span>';
+    }
 
-    let html = '';
-    goalOrder.forEach(goal => {
+    var html = '';
+    goalOrder.forEach(function(goal) {
       if (!groups[goal]) return;
-      html += `<tr class="goal-group-header"><td colspan="4">${goal}</td></tr>`;
-      groups[goal].forEach(k => {
-        const mid = k.midStatus || '';
-        const end = k.endStatus || '';
-        html += `<tr>
-          <td></td>
-          <td style="font-size:.875rem;color:var(--text);line-height:1.5">${k.target}</td>
-          <td>${mid ? `<span class="kpi-status ${statusClass(mid)}" style="cursor:pointer" onclick="setKpiFilter('${mid}')" title="Click to filter by this status">${statusEmoji(mid)} ${mid}</span>` : '<span style="color:var(--muted);font-size:.8125rem">—</span>'}</td>
-          <td>${end ? `<span class="kpi-status ${statusClass(end)}" style="cursor:pointer" onclick="setKpiFilter('${end}')" title="Click to filter by this status">${statusEmoji(end)} ${end}</span>` : '<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>'}</td>
-        </tr>`;
+      html += '<tr class="goal-group-header"><td colspan="5">' + goal + '</td></tr>';
+      groups[goal].forEach(function(k) {
+        var mid = k.midStatus || ''; var end = k.endStatus || '';
+        var midS = mid.replace(/'/g, '&#39;'); var endS = end.replace(/'/g, '&#39;');
+        html += '<tr>' +
+          '<td></td>' +
+          '<td style="font-size:.875rem;color:var(--text);line-height:1.5">' + k.target + '</td>' +
+          '<td>' + (mid ? '<span class="kpi-status ' + statusClass(mid) + '" style="cursor:pointer" onclick="setKpiFilter(\'' + midS + '\')" title="Click to filter">' + statusEmoji(mid) + ' ' + mid + '</span>' : '<span style="color:var(--muted);font-size:.8125rem">&#8212;</span>') + '</td>' +
+          '<td>' + (end ? '<span class="kpi-status ' + statusClass(end) + '" style="cursor:pointer" onclick="setKpiFilter(\'' + endS + '\')" title="Click to filter">' + statusEmoji(end) + ' ' + end + '</span>' : '<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>') + '</td>' +
+          '<td style="vertical-align:top;padding-top:.5rem">' + ownerCell(k) + '</td>' +
+          '</tr>';
       });
     });
-    const tbody = document.getElementById('kpiBody');
-    if (tbody) tbody.innerHTML = html || '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
+    var tbody = document.getElementById('kpiBody');
+    if (tbody) tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
   }
 
   // ══════════════════════════════════════════════════════════
@@ -14058,7 +14153,292 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ── Global scope exposure — required for onclick= in HTML ──────────────────
   window.sya                  = sya;
   window.po                   = po;
-  window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
+
+  // ── Expose metadata fetch ──────────────────────────────────
+  window.fetchKPIMetadata      = fetchKPIMetadata;
+
+  // ── showPanel KPI hook: show/hide QR section ───────────────
+  (function() {
+    var _origSP2 = window.showPanel;
+    window.showPanel = function(id, btn) {
+      _origSP2(id, btn);
+      if (id === 'kpi') {
+        var dept = (window.NJTC_SESSION||{}).dept||'';
+        var qrs = document.getElementById('kpiQRSection');
+        if (qrs) {
+          if (dept === 'data') {
+            qrs.style.display = 'block';
+          } else {
+            qrs.style.display = 'none';
+            kqrRestoreSnapshot();
+          }
+        }
+      }
+    };
+  })();
+
+  // ── Drag-and-drop wiring ───────────────────────────────────
+  document.addEventListener('DOMContentLoaded', function() {
+    var box = document.getElementById('kqrDropbox');
+    if (!box) return;
+    box.addEventListener('dragover', function(e) { e.preventDefault(); box.classList.add('drag-over'); });
+    box.addEventListener('dragleave', function() { box.classList.remove('drag-over'); });
+    box.addEventListener('drop', function(e) {
+      e.preventDefault(); box.classList.remove('drag-over');
+      var f = e.dataTransfer.files[0];
+      if (f) kqrHandleFile(f);
+    });
+  });
+
+  function _mergeKPIMeta(dataRows) {
+    if (!KPI_DATA || !dataRows) return;
+    var lookup = {};
+    dataRows.forEach(function(r) {
+      var g = (r[0]||'').trim(); var t = (r[1]||'').trim();
+      var owner  = _cleanOwner(r[5]||'');
+      var source = _cleanSource(r[3]||'', r[4]||'');
+      if (!g || !t) return;
+      var key1 = (g + '||' + t).toLowerCase();
+      var key2 = (g + '||' + t.slice(0, 60)).toLowerCase();
+      var val  = {owner: owner, source: source};
+      lookup[key1] = val; lookup[key2] = val;
+    });
+    KPI_DATA.forEach(function(k) {
+      var key1 = (k.goal + '||' + k.target).toLowerCase();
+      var key2 = (k.goal + '||' + k.target.slice(0, 60)).toLowerCase();
+      var meta = lookup[key1] || lookup[key2];
+      if (meta) { k.owner = meta.owner; k.source = meta.source; }
+    });
+    if (typeof filterKPI === 'function') filterKPI();
+  }
+
+    function _cleanOwner(raw) {
+    if (!raw) return '';
+    var lines = raw.replace(/\r/g,'').split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var full = lines.join(' ');
+    var m = full.match(/Primary Metric Owner[s]?\s*[:\s]+([^&\n\r]+?)(?:\s*&|\s*Secondary|$)/i);
+    if (m) return m[1].trim().replace(/,\s*$/, '').trim();
+    var m2 = lines[0].match(/(?:Goal Responsibility[^:]*:|Metric Owner[s]?:)\s*(.+)/i);
+    if (m2) return m2[1].trim();
+    return lines[0].slice(0, 50);
+  }
+
+  function _cleanSource(src1, src2) {
+    var s1 = (src1||'').replace(/Validation Method\s*:/i,'').replace(/Validation\s*:/i,'').trim();
+    var s2 = (src2||'').replace(/S?e?condary Validation\s*:/i,'').replace(/N\/A/gi,'').trim();
+    return [s1, s2].filter(function(s){ return s && s.length > 0; }).join(' \u00B7 ');
+  }
+
+  function fetchKPIMetadata(force) {
+    if (!force) {
+      try {
+        var cached = localStorage.getItem(KPI_META_CACHE_KEY);
+        if (cached) {
+          var obj = JSON.parse(cached);
+          if (obj && obj.ts && (Date.now() - obj.ts < KPI_META_TTL) && obj.rows) {
+            _mergeKPIMeta(obj.rows); return;
+          }
+        }
+      } catch(e) {}
+    }
+    fetch(KPI_META_URL)
+      .then(function(r){ return r.ok ? r.text() : ''; })
+      .then(function(csv){
+        if (!csv) return;
+        var rows = _parseKPIcsv(csv);
+        if (!rows || rows.length < 2) return;
+        var dataRows = rows.slice(2).filter(function(r2){ return r2[0] && r2[1]; });
+        try { localStorage.setItem(KPI_META_CACHE_KEY, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
+        _mergeKPIMeta(dataRows);
+      })
+      .catch(function(){});
+  }
+
+    function kqrHandleFile(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var rows = _parseKPIcsv(e.target.result);
+        if (!rows || rows.length < 3) { alert('Could not parse CSV. Make sure you are using the Quarterly Goal Tracking tab export.'); return; }
+        var dataRows = rows.slice(2).filter(function(r){ return r[0] && r[1]; });
+        kqrRenderSnapshot(dataRows, file.name);
+        try { sessionStorage.setItem('njtc_kqr_snapshot', JSON.stringify({rows: dataRows, fname: file.name, ts: Date.now()})); } catch(ex) {}
+      } catch(err) { alert('Error reading CSV: ' + err.message); }
+    };
+    reader.readAsText(file);
+  }
+
+  function kqrRestoreSnapshot() {
+    try {
+      var saved = sessionStorage.getItem('njtc_kqr_snapshot');
+      if (!saved) return;
+      var obj = JSON.parse(saved);
+      if (obj && obj.rows && obj.rows.length) kqrRenderSnapshot(obj.rows, obj.fname, true);
+    } catch(e) {}
+  }
+
+  function kqrRenderSnapshot(dataRows, fname, isRestore) {
+    var qCols = [[6,7],[8,9],[10,11],[12,13]];
+    var activeQ = 0;
+    for (var qi = 3; qi >= 0; qi--) {
+      var sc = qCols[qi][1];
+      var hasData = dataRows.some(function(r){ return r[sc] && r[sc].trim(); });
+      if (hasData) { activeQ = qi + 1; break; }
+    }
+    var qLabel     = activeQ ? ('Q' + activeQ + ' \u2014 SY 2025\u20132026') : 'SY 2025\u20132026';
+    var qStatusCol = activeQ > 0 ? qCols[activeQ-1][1] : 7;
+    var qDataCol   = activeQ > 0 ? qCols[activeQ-1][0] : 6;
+
+    var SCORE_MAP = {'Met':1,'Partially Met':0.5,'In Progress':0.25,'Coming Down the Pipeline':0.1,'Has Not Met':0};
+    var counts = {met:0,partial:0,prog:0,notmet:0,pipe:0,total:0};
+    var scoreSum = 0;
+    dataRows.forEach(function(r) {
+      var s = (r[qStatusCol]||'').trim();
+      if (!s) return;
+      counts.total++;
+      if (s==='Met') counts.met++;
+      else if (s==='Partially Met') counts.partial++;
+      else if (s==='In Progress') counts.prog++;
+      else if (s==='Has Not Met') counts.notmet++;
+      else if (s==='Coming Down the Pipeline') counts.pipe++;
+      scoreSum += (SCORE_MAP[s] !== undefined ? SCORE_MAP[s] : 0);
+    });
+    var healthPct   = counts.total ? Math.round((scoreSum/counts.total)*100) : 0;
+    var healthLabel = healthPct>=85?'Healthy':healthPct>=65?'Watch':healthPct>=40?'Needs Focus':'Area of Support';
+    var healthClass = healthPct>=85?'hb-healthy':healthPct>=65?'hb-watch':healthPct>=40?'hb-risk':'hb-crit';
+    var fillColor   = healthPct>=85?'#16a34a':healthPct>=65?'#d97706':healthPct>=40?'#dc2626':'#7c3aed';
+    var tsStr = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+    var wins  = dataRows.filter(function(r){ return (r[qStatusCol]||'').trim()==='Met'; }).slice(0,4);
+    var needs = dataRows.filter(function(r){ var s=(r[qStatusCol]||'').trim(); return s==='Has Not Met'||s==='Partially Met'; }).slice(0,4);
+    var pipe  = dataRows.filter(function(r){ return (r[qStatusCol]||'').trim()==='Coming Down the Pipeline'; }).slice(0,4);
+    function hlItems(arr) {
+      if (!arr.length) return '<div class="kqr-sl-empty">None this quarter</div>';
+      return arr.map(function(r){ var t=r[1].trim(); return '<div class="kqr-sl-item">'+(t.length>80?t.slice(0,80)+'&hellip;':t)+'</div>'; }).join('');
+    }
+
+    var goalOrder=[]; var groups={};
+    dataRows.forEach(function(r){
+      var g=(r[0]||'').trim(); var t=(r[1]||'').trim();
+      if(!g||!t) return;
+      if(goalOrder.indexOf(g)<0) goalOrder.push(g);
+      if(!groups[g]) groups[g]=[];
+      groups[g].push(r);
+    });
+
+    function tbClass(s){ if(s==='Met') return 'kqr-t-met'; if(s==='Partially Met') return 'kqr-t-partial'; if(s==='In Progress') return 'kqr-t-prog'; if(s==='Has Not Met') return 'kqr-t-notmet'; if(s==='Coming Down the Pipeline') return 'kqr-t-pipe'; return 'kqr-t-default'; }
+    function pillClass(s){ if(s==='Met') return 'kqr-tp-met'; if(s==='Partially Met') return 'kqr-tp-partial'; if(s==='In Progress') return 'kqr-tp-prog'; if(s==='Has Not Met') return 'kqr-tp-notmet'; if(s==='Coming Down the Pipeline') return 'kqr-tp-pipe'; return ''; }
+    function shortStatus(s){ return s.replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+    function parseQData(raw){
+      if(!raw) return {g:'',c:''};
+      var lines=raw.replace(/\r/g,'').split('\n').map(function(l){return l.trim();}).filter(Boolean);
+      var g='',c='',mode='';
+      lines.forEach(function(l){
+        if(/^Goal:/i.test(l)){g=l.replace(/^Goal:\s*/i,'');mode='g';}
+        else if(/^Captured Metric:/i.test(l)){c=l.replace(/^Captured Metric:\s*/i,'');mode='c';}
+        else if(mode==='g') g+=' '+l;
+        else if(mode==='c') c+=' '+l;
+      });
+      return {g:g.trim(),c:c.trim()};
+    }
+
+    var cardsHtml = goalOrder.map(function(goal){
+      var rows2=groups[goal];
+      var gMet=rows2.filter(function(r){return (r[qStatusCol]||'').trim()==='Met';}).length;
+      var body=rows2.map(function(r){
+        var s=(r[qStatusCol]||'').trim();
+        var qd=parseQData(r[qDataCol]||'');
+        var owner=_cleanOwner(r[5]||'');
+        var src=_cleanSource(r[3]||'',r[4]||'');
+        var metaParts=[];
+        if(owner) metaParts.push('Owner: '+owner);
+        if(src)   metaParts.push('Source: '+src);
+        var metaStr=metaParts.join('  &middot;  ');
+        var detailStr='';
+        if(qd.g&&qd.g!=='N/A'&&qd.g.replace(/\s/g,'')!=='') detailStr+='Goal: '+qd.g;
+        if(qd.c&&qd.c!=='N/A'&&qd.c.replace(/\s/g,'')!=='') detailStr+=(detailStr?' &mdash; ':'')+' Captured: '+qd.c;
+        var prevPills='';
+        for(var pqi=0;pqi<4;pqi++){
+          if(pqi+1===activeQ) continue;
+          var ps=(r[qCols[pqi][1]]||'').trim();
+          if(ps) prevPills+='<span class="kqr-t-pill '+pillClass(ps)+'">Q'+(pqi+1)+': '+shortStatus(ps)+'</span>';
+        }
+        return '<div class="kqr-t-row">'+
+          '<div class="kqr-t-badge '+tbClass(s)+'">'+shortStatus(s||'TBD')+'</div>'+
+          '<div class="kqr-t-body">'+
+            '<div class="kqr-t-txt">'+r[1].trim()+'</div>'+
+            (detailStr?'<div class="kqr-t-meta">'+detailStr+'</div>':'')+
+            (metaStr?'<div class="kqr-t-meta">'+metaStr+'</div>':'')+
+            (prevPills?'<div class="kqr-t-pills">'+prevPills+'</div>':'')+
+          '</div>'+
+          '</div>';
+      }).join('');
+      return '<div class="kqr-goal-card">'+
+        '<div class="kqr-gc-hdr"><div class="kqr-gc-title">'+goal+'</div><div class="kqr-gc-count">'+gMet+'/'+rows2.length+' Met</div></div>'+
+        '<div class="kqr-gc-body">'+body+'</div>'+
+        '</div>';
+    }).join('');
+
+    var clearBtn = (!isRestore) ? '<button class="kqr-action-btn" onclick="kqrClear()">&#xD7; Clear Report</button>' : '';
+
+    var html =
+      '<div class="kqr-snap-bar">'+
+        '<div class="kqr-snap-top">'+
+          '<div>'+
+            '<div class="kqr-snap-q-badge">&#128197; '+qLabel+'</div>'+
+            '<div class="kqr-snap-title">NJTC Quarterly Performance Snapshot</div>'+
+            '<div class="kqr-snap-desc">Executive summary across '+counts.total+' organizational targets &mdash; snapshot generated '+tsStr+'</div>'+
+          '</div>'+
+          '<div class="kqr-snap-actions">'+clearBtn+'</div>'+
+        '</div>'+
+        '<div class="kqr-snap-stats">'+
+          '<div class="kqr-stat sv-met"><div class="kqr-stat-n">'+counts.met+'</div><div class="kqr-stat-l">Met</div></div>'+
+          '<div class="kqr-stat sv-partial"><div class="kqr-stat-n">'+counts.partial+'</div><div class="kqr-stat-l">Partial</div></div>'+
+          '<div class="kqr-stat sv-prog"><div class="kqr-stat-n">'+counts.prog+'</div><div class="kqr-stat-l">In Progress</div></div>'+
+          '<div class="kqr-stat sv-pipe"><div class="kqr-stat-n">'+counts.pipe+'</div><div class="kqr-stat-l">Pipeline</div></div>'+
+          '<div class="kqr-stat sv-notmet"><div class="kqr-stat-n">'+counts.notmet+'</div><div class="kqr-stat-l">Not Met</div></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="kqr-health-strip">'+
+        '<div class="kqr-hs-lbl">Organizational Health Score</div>'+
+        '<div class="kqr-hs-track"><div class="kqr-hs-fill" style="width:'+healthPct+'%;background:'+fillColor+'"></div></div>'+
+        '<div class="kqr-hs-pct">'+healthPct+'%</div>'+
+        '<div class="kqr-hs-badge '+healthClass+'">'+healthLabel+'</div>'+
+      '</div>'+
+      '<div class="kqr-spotlights">'+
+        '<div class="kqr-sl-col"><div class="kqr-sl-title">Wins This Quarter</div>'+hlItems(wins)+'</div>'+
+        '<div class="kqr-sl-col"><div class="kqr-sl-title">Needs Attention</div>'+hlItems(needs)+'</div>'+
+        '<div class="kqr-sl-col"><div class="kqr-sl-title">Coming Up</div>'+hlItems(pipe)+'</div>'+
+      '</div>'+
+      '<div class="kqr-goals-section">'+
+        '<div class="kqr-goals-section-title">All Targets &mdash; '+qLabel+'</div>'+
+        '<div class="kqr-goals-grid">'+cardsHtml+'</div>'+
+      '</div>';
+
+    var rptEl = document.getElementById('kpiQRReport');
+    if (rptEl) { rptEl.innerHTML = html; rptEl.classList.add('visible'); }
+    var qrs = document.getElementById('kpiQRSection');
+    if (qrs && (window.NJTC_SESSION||{}).dept !== 'data') {
+      qrs.style.display = 'block';
+      var dz = document.getElementById('kqrDropZone');
+      if (dz) dz.style.display = 'none';
+    }
+  }
+
+  function kqrClear() {
+    try { sessionStorage.removeItem('njtc_kqr_snapshot'); } catch(e) {}
+    var rptEl = document.getElementById('kpiQRReport');
+    if (rptEl) { rptEl.innerHTML = ''; rptEl.classList.remove('visible'); }
+    var dz = document.getElementById('kqrDropZone');
+    if (dz) dz.style.display = '';
+  }
+
+  window.kqrHandleFile      = kqrHandleFile;
+  window.kqrClear           = kqrClear;
+  window.kqrRestoreSnapshot = kqrRestoreSnapshot;
+
+    window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
   window.buildKPIAnalytics    = buildKPIAnalytics;
   window.buildTalentDashboard = buildTalentDashboard;
   window._showProfiles = function() {
