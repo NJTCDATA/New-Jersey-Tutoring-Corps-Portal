@@ -14395,56 +14395,41 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     var cycle  = (document.getElementById('kpiCycleFilter') ||{value:'mid'}).value||'mid';
     var goalF  = (document.getElementById('kpiGoalFilter')  ||{value:''}).value;
-    var statusF= (document.getElementById('kpiStatusFilter')||{value:''}).value;
-    var searchF= ((document.getElementById('kpiSearch')||{value:''}).value||'').toLowerCase();
-    var getStatus = function(k){
-      return cycle==='end' ? (k.endStatus||k.midStatus||'') : (k.midStatus||k.status||'');
-    };
+    var statF  = (document.getElementById('kpiStatusFilter')||{value:''}).value;
+    var srchF  = ((document.getElementById('kpiSearchFilter')||{value:''}).value||'').toLowerCase().trim();
+    var statusField = (cycle === 'end') ? 'endStatus' : 'midStatus';
 
-    var filtered = KPI_DATA.filter(function(k){
-      var s = getStatus(k);
-      return (!goalF   || k.goal===goalF)
-          && (!statusF || s===statusF)
-          && (!searchF || k.target.toLowerCase().indexOf(searchF)>=0
-                       || k.goal.toLowerCase().indexOf(searchF)>=0);
+    var groups = {}; var order = [];
+    KPI_DATA.forEach(function(k) {
+      var s = k[statusField]||'';
+      if (goalF && k.goal !== goalF) return;
+      if (statF && s !== statF) return;
+      if (srchF && (k.target||'').toLowerCase().indexOf(srchF) < 0) return;
+      if (!groups[k.goal]) { groups[k.goal] = []; order.push(k.goal); }
+      groups[k.goal].push(k);
     });
 
-    var groups={}, goalOrder=[];
-    KPI_DATA.forEach(function(k){ if(goalOrder.indexOf(k.goal)<0) goalOrder.push(k.goal); });
-    filtered.forEach(function(k){ if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
-
-    function mkBadge(s, isMid) {
-      if (!s) return isMid
-        ? '<span style="color:var(--muted);font-size:.8125rem">\u2014</span>'
-        : '<span style="color:var(--muted);font-size:.8125rem;font-style:italic">Pending</span>';
-      var sc = statusClass(s), em = statusEmoji(s);
-      return '<span class="kpi-status ' + sc + '" style="cursor:pointer" '
-           + 'onclick="setKpiFilter(this.dataset.s)" data-s="' + s.replace(/"/g,'&quot;') + '" title="Filter">'
-           + em + ' ' + s + '</span>';
-    }
-
-    var html = '', rowIdx = 0;
-    goalOrder.forEach(function(goal){
-      if (!groups[goal]) return;
+    var html = ''; var rowIdx = 0;
+    order.forEach(function(goal) {
       html += '<tr class="goal-group-header"><td colspan="5">' + goal + '</td></tr>';
-      groups[goal].forEach(function(k){
-        var kpiKey = (k.goal + '||' + k.target).replace(/"/g, '&quot;');
+      groups[goal].forEach(function(k) {
+        var kpiKey = (k.goal + '||' + k.target);
         var ri = 'kqr-' + rowIdx;
-        html += '<tr class="kpi-row-expandable" onclick="toggleKPIRow(\'' + ri + '\')">'
+        // NO onclick — use data-expand-id, delegation handles clicks
+        html += '<tr class="kpi-row-expandable" data-expand-id="' + ri + '">'
           + '<td></td>'
           + '<td style="font-size:.875rem;color:var(--text);line-height:1.5">' + k.target + '</td>'
           + '<td>' + mkBadge(k.midStatus||'', true) + '</td>'
           + '<td>' + mkBadge(k.endStatus||'', false) + '</td>'
-          + '<td><button class="kpi-row-expand-btn" id="btn-' + ri + '" '
-          + 'onclick="event.stopPropagation();toggleKPIRow(\'' + ri + '\')">'
+          + '<td><button class="kpi-row-expand-btn" id="btn-' + ri + '" data-expand-id="' + ri + '">'
           + '<span class="chev">&#9658;</span> Q Data'
           + '</button></td>'
           + '</tr>'
-          + '<tr class="kpi-q-expand" id="' + ri + '" data-kpi-key="' + kpiKey + '">'
+          + '<tr class="kpi-q-expand" id="' + ri + '" data-kpi-key="' + kpiKey.replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '">'
           + '<td colspan="5"><div class="kpi-q-panel">'
           + '<div class="kpi-q-label">Quarterly Breakdown</div>'
           + '<div class="kpi-q-grid" id="qgrid-' + ri + '">&#8987; Loading&hellip;</div>'
-          + (k.owner ? '<div class="kqi-q-src" style="margin-top:.625rem;font-size:.65rem;color:var(--muted)">&#128203; Owner: ' + k.owner + '</div>' : '')
+          + (k.owner ? '<div style="margin-top:.625rem;font-size:.65rem;color:var(--muted)">&#128203; Owner: ' + k.owner + '</div>' : '')
           + '</div></td>'
           + '</tr>';
         rowIdx++;
@@ -14472,10 +14457,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     var key = row.getAttribute('data-kpi-key') || '';
     var k = null;
     if (key && KPI_DATA) {
-      var decoded = key.replace(/&quot;/g, '"');
       for (var _i=0; _i<KPI_DATA.length; _i++) {
         var _c = KPI_DATA[_i];
-        if ((_c.goal + '||' + _c.target) === decoded) { k = _c; break; }
+        if ((_c.goal + '||' + _c.target) === key) { k = _c; break; }
       }
     }
     if (!k) {
@@ -14500,6 +14484,24 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
   window._kpiRenderExpandRow = _kpiRenderExpandRow;
   window.toggleKPIRow = toggleKPIRow;
+
+  // ── Delegated click handler for KPI expand rows (no inline onclick needed) ──
+  document.addEventListener('click', function(e) {
+    // Walk up from clicked element to find a node with data-expand-id
+    var target = e.target;
+    var expandId = null;
+    for (var i = 0; i < 4 && target && target !== document; i++) {
+      if (target.getAttribute && target.getAttribute('data-expand-id')) {
+        expandId = target.getAttribute('data-expand-id');
+        break;
+      }
+      target = target.parentNode;
+    }
+    if (!expandId) return;
+    // Stop the button click from also firing the row click
+    e.stopPropagation();
+    toggleKPIRow(expandId);
+  });
   window.kpiForceQRefresh = function() {
     if (typeof fetchKPIQuarterly === 'function') {
       // Register all currently open expand rows as pending re-render
