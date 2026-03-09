@@ -3919,7 +3919,7 @@
       try { localStorage.removeItem(key); } catch(e) {}
     },
     bustAll() {
-      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v1','njtc_pearl_gids_v1'];
+      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v1','njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2'];
       keys.forEach(k => this.bust(k));
     }
   };
@@ -9690,7 +9690,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── PUBLISHED SHEET CONFIG ────────────────────────────────────────────
     const BASE_ID = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+    // Scholar survey is a tab on the same published workbook (same BASE_ID).
+    // Edit URL gid: 1245403832 — pubhtml discovery may resolve to same or different value.
+    // KNOWN_GIDS.stu holds the authoritative fallback; pubhtml probe takes priority.
+    const STU_GID_FALLBACK = 1245403832;  // from edit URL — used if pubhtml probe fails
+    const STU_AGG_KEY = 'njtc_pearl_stu_agg_v2';  // dedicated agg cache key — 4hr TTL
+    const STU_AGG_TTL = 4 * 60 * 60 * 1000;       // 4 hours (surveys update ~daily)
     const csvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pub?output=csv&gid=${gid}`;
+    // stuCsvUrl — same BASE_ID as all other tabs (one published workbook).
+    // Uses the GID resolved by pubhtml discovery (GIDS.stu), falling back to edit-URL gid.
+    const stuCsvUrl = () => {
+      const gid = GIDS.stu || STU_GID_FALLBACK;
+      return 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + gid;
+    };
     // GIDs for tab order: Attendance Detail(0), Instructor Surveys(1), Student Surveys(2), Session Details(3)
     // Auto-detected at load time — stored once resolved
     const GIDS = { att: null, inst: null, stu: null, sess: null };
@@ -10356,7 +10368,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // ── Hardcoded known-good GID fallbacks ──────────────────────────────
       // If discovery didn't resolve a tab, or resolved the wrong one,
       // fall back to the last-known-good GIDs for this spreadsheet.
+      // KNOWN_GIDS: last-resort fallbacks if pubhtml discovery fails entirely.
+      // stu: 1748668439 = pubhtml-discovered | 1245403832 = edit-URL tab gid (backup)
       const KNOWN_GIDS = { att: 702726038, inst: 1955492004, stu: 1748668439, sess: 625567780 };
+      const KNOWN_GIDS_STU_ALT = 1245403832; // edit-URL fallback — used if discovered gid returns empty data
       if (!GIDS.att  || GIDS.att  === 117217808) GIDS.att  = KNOWN_GIDS.att;
       if (!GIDS.inst || GIDS.inst === 117217808) GIDS.inst = KNOWN_GIDS.inst;
       if (!GIDS.stu  || GIDS.stu  === 117217808) GIDS.stu  = KNOWN_GIDS.stu;
@@ -10412,10 +10427,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         // ── Per-tab fetch with independent timeouts ──────────────────────
         // att/sess/inst fetch fast — stu (scholar survey) is a large growing file.
         // Promise.allSettled: a stu timeout does NOT kill the other tabs.
-        const [attResult, instResult, stuResult, sessResult] = await Promise.allSettled([
+        // att, inst, sess fetch in parallel with timeouts
+        // stu (scholar survey) streams independently — does NOT block rendering
+        const [attResult, instResult, sessResult] = await Promise.allSettled([
           fetchTabTimed(GIDS.att,  bust, 20000, 'att'),
           fetchTabTimed(GIDS.inst, bust, 15000, 'inst'),
-          fetchTabTimed(GIDS.stu,  bust, 45000, 'stu'),   // large growing file
           fetchTabTimed(GIDS.sess, bust, 20000, 'sess'),
         ]);
 
@@ -10446,47 +10462,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           console.warn('[Pearl Ops] inst tab failed:', instResult.reason && instResult.reason.message);
         }
 
-        // stu (scholar survey) — graceful degradation
-        const stuLoaded = stuResult.status === 'fulfilled' && stuResult.value;
-        if (stuLoaded) {
-          _stuRows = parseCSVLimit(stuResult.value, STU_MAX_COL).slice(1);
-          console.log('[Pearl Ops] Scholar survey loaded:', _stuRows.length, 'rows');
-        } else {
-          // Fall back to cached stu rows if live fetch failed
-          const _stuCache = NJTC_CACHE.get('njtc_pearl_v1');
-          const _cachedStu = _stuCache && _stuCache.data && _stuCache.data.stu;
-          if (_cachedStu && _cachedStu.length) {
-            _stuRows = _cachedStu;
-            console.warn('[Pearl Ops] stu tab timed out — serving', _stuRows.length, 'cached rows. Retry scheduled.');
-          // Show partial state indicator (survey fetching in background)
-          setTimeout(function() { setSyncState('partial'); }, 50);
-          } else {
-            _stuRows = [];
-            console.warn('[Pearl Ops] stu tab failed, no cache available:', stuResult.reason && stuResult.reason.message);
-          }
-          // Schedule a single background retry for stu after other tabs finish rendering
-          setTimeout(async function() {
-            try {
-              const stuRetry = await fetchTabTimed(GIDS.stu, '', 60000, 'stu-retry');
-              if (stuRetry) {
-                _stuRows = parseCSVLimit(stuRetry, STU_MAX_COL).slice(1);
-                console.log('[Pearl Ops] stu retry succeeded:', _stuRows.length, 'rows');
-                buildIndexes();
-                renderView();
-                setSyncState('live');
-                // Update cache with fresh stu data
-                try {
-                  const existing = (NJTC_CACHE.get('njtc_pearl_v1') || {}).data || {};
-                  NJTC_CACHE.set('njtc_pearl_v1', Object.assign({}, existing, {
-                    stu: _stuRows.slice(0, 25000)  // scholar survey grows all year - keep generous slice
-                  }));
-                } catch(e) {}
-              }
-            } catch(e) {
-              console.warn('[Pearl Ops] stu retry also failed:', e.message);
-            }
-          }, 3000);
+        // ── Scholar survey: restore from aggregated cache first (instant), then stream ──
+        // The stu CSV is 100k+ rows and grows all year. We never wait for the full download.
+        // Instead: restore compact aggregated cache immediately so the card shows a real number,
+        // then stream fresh data in the background and update when complete.
+        _stuRows = _restoreStuAggCache();  // instant restore — empty array if no cache
+        if (_stuRows.length) {
+          console.log('[Pearl Ops] Scholar survey: restored', _stuRows.length, 'rows from agg cache');
         }
+        // Always stream fresh stu data in background (don't block att/inst/sess)
+        _streamStuInBackground(force ? '&t=' + Date.now() : '');
 
         _lastFetch = new Date();
         buildIndexes();
@@ -10519,6 +10504,259 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
       if (btn) btn.disabled = false;
       _loading = false;
+    }
+
+    // ── Scholar Survey: aggregated cache restore ────────────────────────
+    // Reads the compact aggregated cache and reconstructs _stuRows as slim objects.
+    // Each slim row has only the fields buildIndexes() needs — not the full 23 cols.
+    // This means the cache is ~50-100x smaller than raw rows.
+    function _restoreStuAggCache() {
+      try {
+        var raw = localStorage.getItem(STU_AGG_KEY);
+        if (!raw) return [];
+        var obj = JSON.parse(raw);
+        if (!obj || !obj.ts || !obj.schools) return [];
+        if (Date.now() - obj.ts > STU_AGG_TTL) return [];  // expired
+        // Reconstruct slim _stuRows from aggregated per-school score arrays
+        var rows = [];
+        var schools = obj.schools;
+        for (var school in schools) {
+          var sc = schools[school];
+          // Each entry: [conf, enjoy, learn, overall, comment, sessId, userId, district, week]
+          for (var i = 0; i < sc.entries.length; i++) {
+            var e = sc.entries[i];
+            var r = [];
+            // STU_S: FILLED_BY=0, FILLED_FOR=1, CONF=2, ENJOY=3, LEARN=4, OVERALL=5,
+            //         COMMENT=6, DATE=7, SCHOOL=8, DISTRICT=9, ..., SESS_ID=11, FILLED_BY_ID=12, ..., WEEK=22
+            r[0]  = e[5] || '';    // FILLED_BY (name) — not critical
+            r[1]  = '';            // FILLED_FOR
+            r[2]  = e[0];         // CONFIDENCE
+            r[3]  = e[1];         // ENJOYMENT
+            r[4]  = e[2];         // LEARNING
+            r[5]  = e[3];         // OVERALL
+            r[6]  = e[4] || '';   // COMMENT
+            r[7]  = '';           // DATE
+            r[8]  = school;       // SCHOOL
+            r[9]  = sc.district || ''; // DISTRICT
+            r[11] = e[6] || '';   // SESS_ID
+            r[12] = e[7] || '';   // FILLED_BY_ID
+            r[22] = e[8] || '';   // WEEK
+            rows.push(r);
+          }
+        }
+        console.log('[Pearl Ops] STU agg cache restored:', rows.length, 'rows,', Object.keys(schools).length, 'schools, age:', Math.round((Date.now()-obj.ts)/60000), 'min');
+        return rows;
+      } catch(e) {
+        console.warn('[Pearl Ops] STU agg cache restore failed:', e.message);
+        return [];
+      }
+    }
+
+    // ── Scholar Survey: streaming fetch + live aggregation ───────────────
+    // Fetches the stu CSV tab as a stream, parsing rows as network chunks arrive.
+    // After first PARTIAL_THRESHOLD rows parsed: re-renders card with partial data.
+    // After full stream: saves fresh aggregated cache, final render.
+    var _stuStreamRunning = false;
+    async function _streamStuInBackground(bust) {
+      if (_stuStreamRunning) return;
+      _stuStreamRunning = true;
+      var PARTIAL_THRESHOLD = 800;  // rows before first partial render
+      var url = stuCsvUrl() + (bust || '');
+      console.log('[Pearl Ops] Streaming scholar survey from:', url.slice(0, 80) + '...');
+      try {
+        // Use no AbortSignal for streaming — we want it to run to completion
+        var res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        if (!res.body) {
+          // Fallback: ReadableStream not supported — load full text
+          var text = await res.text();
+          _processStuText(text, bust);
+          return;
+        }
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder('utf-8');
+        var buffer = '';
+        var headerSkipped = false;
+        var parsedRows = 0;
+        var partialRendered = false;
+        // Aggregation structures built during stream
+        var streamAgg = {};   // school -> { district, entries:[], sum, cnt }
+        var globalSum = 0, globalCnt = 0;
+
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          // Decode chunk (stream=true: handles multi-byte chars across chunk boundaries)
+          buffer += decoder.decode(chunk.value, { stream: true });
+          // Process complete lines from buffer
+          var lines = buffer.split('\n');
+          buffer = lines.pop();  // last element may be incomplete line — keep for next chunk
+          for (var li = 0; li < lines.length; li++) {
+            var line = lines[li].trimEnd();
+            if (!line) continue;
+            if (!headerSkipped) { headerSkipped = true; continue; }
+            // Fast column extraction: split on comma, handle quoted fields minimally
+            var cols = _fastSplitStuRow(line);
+            if (!cols) continue;
+            var conf    = parseFloat(cols[2]);
+            var enjoy   = parseFloat(cols[3]);
+            var learn   = parseFloat(cols[4]);
+            var overall = parseFloat(cols[5]);
+            var comment = (cols[6] || '').trim();
+            var school  = (cols[8] || '').trim();
+            var district= (cols[9] || '').trim();
+            var sessId  = (cols[11] || '').trim();
+            var userId  = (cols[12] || '').trim();
+            var week    = (cols[22] || '').trim();
+            // Build slim row for _stuRows (same structure _restoreStuAggCache returns)
+            var r = [];
+            r[2]=cols[2]; r[3]=cols[3]; r[4]=cols[4]; r[5]=cols[5];
+            r[6]=comment; r[8]=school;  r[9]=district;
+            r[11]=sessId; r[12]=userId; r[22]=week;
+            _stuRows.push(r);
+            parsedRows++;
+            // Aggregate scores for cache
+            var hasScore = false;
+            if (!isNaN(conf)    && conf > 0)    { globalSum += conf;    globalCnt++; hasScore=true; }
+            if (!isNaN(enjoy)   && enjoy > 0)   { globalSum += enjoy;   globalCnt++; hasScore=true; }
+            if (!isNaN(learn)   && learn > 0)   { globalSum += learn;   globalCnt++; hasScore=true; }
+            if (!isNaN(overall) && overall > 0) { globalSum += overall; globalCnt++; hasScore=true; }
+            if (school) {
+              if (!streamAgg[school]) streamAgg[school] = { district: district, entries: [], sum: 0, cnt: 0 };
+              var scAgg = streamAgg[school];
+              scAgg.entries.push([conf||'', enjoy||'', learn||'', overall||'', comment, userId, sessId, userId, week]);
+              if (hasScore) { scAgg.sum += (conf||0)+(enjoy||0)+(learn||0)+(overall||0); scAgg.cnt += 4; }
+            }
+            // Partial render after threshold
+            if (!partialRendered && parsedRows >= PARTIAL_THRESHOLD) {
+              partialRendered = true;
+              try {
+                buildIndexes();
+                renderView();
+                setSyncState('partial');
+                console.log('[Pearl Ops] STU partial render at', parsedRows, 'rows — card updated');
+              } catch(e) {}
+            }
+          }
+        }
+        // Flush remaining buffer
+        if (buffer.trim() && headerSkipped) {
+          var cols2 = _fastSplitStuRow(buffer.trim());
+          if (cols2) {
+            var r2 = [];
+            r2[2]=cols2[2]; r2[3]=cols2[3]; r2[4]=cols2[4]; r2[5]=cols2[5];
+            r2[6]=(cols2[6]||'').trim(); r2[8]=(cols2[8]||'').trim(); r2[9]=(cols2[9]||'').trim();
+            r2[11]=(cols2[11]||'').trim(); r2[12]=(cols2[12]||'').trim(); r2[22]=(cols2[22]||'').trim();
+            _stuRows.push(r2);
+          }
+        }
+        console.log('[Pearl Ops] STU stream complete:', _stuRows.length, 'rows,', Object.keys(streamAgg).length, 'schools');
+        // Final rebuild + render
+        buildIndexes();
+        renderView();
+        setSyncState('live');
+        // Save aggregated cache (compact — only entries needed for restore)
+        try {
+          // Trim entries per school to last 500 (newest surveys most relevant)
+          var cacheSchools = {};
+          for (var s in streamAgg) {
+            cacheSchools[s] = {
+              district: streamAgg[s].district,
+              entries: streamAgg[s].entries.slice(-500),
+              sum: streamAgg[s].sum,
+              cnt: streamAgg[s].cnt
+            };
+          }
+          var cacheObj = { ts: Date.now(), schools: cacheSchools, totalRows: _stuRows.length };
+          localStorage.setItem(STU_AGG_KEY, JSON.stringify(cacheObj));
+          console.log('[Pearl Ops] STU agg cache saved:', _stuRows.length, 'rows,',
+            Math.round(JSON.stringify(cacheObj).length / 1024), 'KB');
+        } catch(e) {
+          console.warn('[Pearl Ops] STU agg cache save failed (storage full?):', e.message);
+        }
+      } catch(e) {
+        console.warn('[Pearl Ops] STU stream failed:', e.message);
+        // If primary gid failed and we have an alternate gid, try it once
+        if (!_stuRows.length && GIDS.stu !== KNOWN_GIDS_STU_ALT) {
+          console.log('[Pearl Ops] STU retrying with alt gid:', KNOWN_GIDS_STU_ALT);
+          var altUrl = 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + KNOWN_GIDS_STU_ALT;
+          try {
+            var altRes = await fetch(altUrl);
+            if (altRes.ok) {
+              var altText = await altRes.text();
+              if (altText.length > 500) {
+                GIDS.stu = KNOWN_GIDS_STU_ALT; // persist corrected gid
+                _processStuText(altText, '');
+                return; // _processStuText sets state
+              }
+            }
+          } catch(e2) { console.warn('[Pearl Ops] STU alt gid also failed:', e2.message); }
+        }
+        if (!_stuRows.length) setSyncState('error');
+      } finally {
+        _stuStreamRunning = false;
+      }
+    }
+
+    // Fast CSV row splitter for stu rows — only extracts cols 0-22.
+    // Handles quoted fields (Google Sheets wraps fields with commas in quotes).
+    // Returns array or null if row has < 5 columns.
+    function _fastSplitStuRow(line) {
+      var cols = [];
+      var cur = '';
+      var inQ = false;
+      var ci = 0;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (inQ) {
+          if (ch === '"') {
+            if (line[i+1] === '"') { cur += '"'; i++; }
+            else inQ = false;
+          } else cur += ch;
+        } else {
+          if (ch === '"') { inQ = true; }
+          else if (ch === ',') {
+            cols[ci++] = cur; cur = '';
+            if (ci > 22) break;  // have all cols we need — stop parsing
+          } else cur += ch;
+        }
+      }
+      cols[ci] = cur;
+      return cols.length >= 5 ? cols : null;
+    }
+
+    // Fallback: full text load (when ReadableStream not available)
+    function _processStuText(text, bust) {
+      try {
+        _stuRows = parseCSVLimit(text, STU_MAX_COL).slice(1);
+        console.log('[Pearl Ops] STU full text load:', _stuRows.length, 'rows');
+        buildIndexes();
+        renderView();
+        setSyncState('live');
+        // Save agg cache from parsed rows
+        _saveStuAggFromRows(_stuRows);
+      } catch(e) {
+        console.warn('[Pearl Ops] STU text process failed:', e.message);
+      } finally {
+        _stuStreamRunning = false;
+      }
+    }
+
+    // Build and save agg cache from already-parsed _stuRows array
+    function _saveStuAggFromRows(rows) {
+      try {
+        var schools = {};
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          var school = r[8] || '';
+          if (!school) continue;
+          if (!schools[school]) schools[school] = { district: r[9]||'', entries: [], sum: 0, cnt: 0 };
+          schools[school].entries.push([r[2]||'',r[3]||'',r[4]||'',r[5]||'',r[6]||'',r[0]||'',r[11]||'',r[12]||'',r[22]||'']);
+        }
+        var cacheObj = { ts: Date.now(), schools: schools, totalRows: rows.length };
+        localStorage.setItem(STU_AGG_KEY, JSON.stringify(cacheObj));
+        console.log('[Pearl Ops] STU agg saved from rows:', rows.length);
+      } catch(e) {}
     }
 
     async function fetchTab(gid, bust) {
