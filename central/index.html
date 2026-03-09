@@ -2917,6 +2917,10 @@
     .adv-audience-intro .adv-audience-tag { display:block;font-size:.71rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem; }
     .adv-audience-intro p { font-size:.83rem;color:var(--text-1);margin:.2rem 0;line-height:1.5; }
     .adv-audience-intro .adv-audience-cta { display:block;font-size:.75rem;color:var(--muted);margin-top:.35rem;font-style:italic; }
+    .adv-leader-banner { background:linear-gradient(135deg,var(--navy) 0%,#1a3a6b 100%);border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,.15); }
+    .adv-leader-banner-title { font-size:.76rem;font-weight:700;color:rgba(255,255,255,.85);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.7rem; }
+    .adv-leader-stats-row { display:flex;flex-wrap:wrap;gap:.6rem; }
+    .adv-leader-stat-chip { display:flex;align-items:flex-start;gap:.45rem;background:rgba(255,255,255,.1);border-radius:8px;padding:.5rem .7rem;min-width:110px;max-width:160px;flex:1; }
     .adv-tp-label {
       font-size: .68rem; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--muted); margin-bottom: .5rem;
@@ -4087,6 +4091,8 @@
         <div style="flex:1"></div>
         <button class="adv-btn-print" onclick="advPrintOnePager()">🖨️ Print / Export PDF One-Pager</button>
       </div>
+
+      <div id="advLeadershipBanner"></div>
 
       <div class="adv-tabs">
         <button class="adv-tab active" onclick="advSetTab('talking-points',this)">💬 Talking Points</button>
@@ -14763,7 +14769,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Reset IRLAB_DATA and reload
       Object.assign(IRLAB_DATA, {math:[],ela:[],mathRepeat:[],elaRepeat:[],loaded:false,source:null,ts:null});
       _staged.math=null; _staged.ela=null; _staged.mathRep=null; _staged.elaRep=null;
+
+      // Set source label before loadData so getSummary reflects it
+      IRLAB_DATA.source = 'Data Upload · ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       loadData();
+
+      // ── Broadcast snapshot to all departments ──────────────────
+      // Compute summary AFTER loadData so it uses the new data
+      setTimeout(function() {
+        try {
+          var snap = getSummary();
+          if (snap) {
+            var dept = window.NJTC_SESSION ? window.NJTC_SESSION.dept : 'data';
+            var snapshot = {
+              ts: Date.now(),
+              uploadedBy: dept,
+              summary: snap,
+              sy: snap.activeSY || 'SY 2025-2026',
+              totalRows: merged.math.length + merged.ela.length + merged.mathRep.length + merged.elaRep.length
+            };
+            localStorage.setItem('njtc_irlab_snapshot_v1', JSON.stringify(snapshot));
+            console.log('[irlab] Snapshot saved and broadcast to all depts:', snapshot.sy, snapshot.totalRows, 'rows');
+          }
+        } catch(e) { console.warn('[irlab] Snapshot broadcast failed:', e.message); }
+      }, 400);
 
       const status = document.getElementById('irlabApplyStatus');
       if (status) status.textContent = '✅ Applied! Refreshing…';
@@ -15355,48 +15384,102 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       return buildTutorMap(allRows);
     }
 
-    // getSummary() — for Advocacy module: returns aggregate iReady outcome numbers
-    function getSummary() {
+    // getSummary() — returns aggregate iReady outcomes using named row properties
+    function getSummary(syFilter) {
+      // IRLAB_DATA rows are OBJECTS (from normalizeRow/decodeRows), not arrays.
+      // Fields: r.scholarId, r.year, r.grade, r.school, r.district,
+      //         r.springGain, r.pctTypical, r.baseRelPlacement, r.springRelPlacement,
+      //         r.race, r.sex, r.ell, r.sped, r.ecodis, r.subject
       var allRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || [],
                               IRLAB_DATA.mathRepeat || [], IRLAB_DATA.elaRepeat || []);
       if (!allRows.length) return null;
-      // Column indexes: studentId=1, grade=2, syear=3, placementRaw=4, placementLabel=5,
-      // overallScaleScore=6, placementStart=7, placementEnd=8, typical=9, stretch=10,
-      // percentileStart=11, percentileEnd=12, growth=13, passedTyp=14, passedStr=15
+
+      // SY filter: if syFilter passed, restrict to that year. Otherwise use most recent.
+      var allYears = [];
+      allRows.forEach(function(r){ if (r.year) allYears.push(r.year); });
+      var uniqueYears = allYears.filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+      var activeSY = syFilter || uniqueYears[uniqueYears.length-1] || null;
+
+      // Filter to active SY (or all years if no year data found)
+      var filtered = activeSY
+        ? allRows.filter(function(r){ return r.year === activeSY; })
+        : allRows;
+
       var totalScholars = new Set();
       var totalWithGrowth = 0, totalRows = 0;
-      var mathRows = 0, elaRows = 0;
       var gradeSet = new Set();
-      var sySet = new Set();
-      allRows.forEach(function(r) {
-        if (!r || r.length < 14) return;
+      var schoolSet = new Set();
+      var districtSet = new Set();
+      // Placement breakdown
+      var placementCounts = { base: {}, spring: {} };
+      // Growth by subject
+      var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
+      // Race breakdown (unique scholars)
+      var scholarRace = {};
+      var seenScholars = {};
+
+      filtered.forEach(function(r) {
+        if (!r) return;
         totalRows++;
-        if (r[1]) totalScholars.add(r[1]);
-        var growth = typeof r[13] !== 'undefined' ? parseFloat(r[13]) : NaN;
-        if (!isNaN(growth) && growth > 0) totalWithGrowth++;
-        if (r[2]) gradeSet.add(r[2]);
-        if (r[3]) sySet.add(r[3]);
+        var sid = r.scholarId || r.scholarName || '';
+        if (sid) totalScholars.add(sid);
+        var gain = r.springGain != null ? parseFloat(r.springGain) : NaN;
+        var hasGrowth = !isNaN(gain) && gain > 0;
+        if (hasGrowth) totalWithGrowth++;
+        if (r.grade) gradeSet.add(r.grade);
+        if (r.school) schoolSet.add(r.school);
+        if (r.district) districtSet.add(r.district);
+        // Placement
+        if (r.baseRelPlacement) placementCounts.base[r.baseRelPlacement] = (placementCounts.base[r.baseRelPlacement]||0)+1;
+        if (r.springRelPlacement) placementCounts.spring[r.springRelPlacement] = (placementCounts.spring[r.springRelPlacement]||0)+1;
+        // By subject
+        var subj = (r.subject||'').toLowerCase();
+        if (subj.indexOf('math')>=0) { mathTotal++; if(hasGrowth) mathGrowth++; }
+        else if (subj.indexOf('ela')>=0) { elaTotal++; if(hasGrowth) elaGrowth++; }
+        // Race — count unique scholars
+        if (sid && !seenScholars[sid]) {
+          seenScholars[sid] = true;
+          var race = r.race || 'Not Specified';
+          scholarRace[race] = (scholarRace[race]||0)+1;
+        }
       });
-      (IRLAB_DATA.math||[]).forEach(function(){ mathRows++; });
-      (IRLAB_DATA.ela||[]).forEach(function(){ elaRows++; });
+
       var growthPct = totalRows > 0 ? parseFloat((totalWithGrowth/totalRows*100).toFixed(1)) : null;
       return {
+        activeSY: activeSY,
+        allYears: uniqueYears,
+        hasCurrentYearData: uniqueYears.indexOf('2025-2026') >= 0,
+        dataSource: IRLAB_DATA.source || 'Embedded Historical (SY 2022-2025)',
         totalScholars: totalScholars.size,
         totalRows: totalRows,
         totalWithGrowth: totalWithGrowth,
         growthPct: growthPct,
         mathRows: (IRLAB_DATA.math||[]).length + (IRLAB_DATA.mathRepeat||[]).length,
         elaRows: (IRLAB_DATA.ela||[]).length + (IRLAB_DATA.elaRepeat||[]).length,
-        grades: gradeSet.size,
-        schoolYears: Array.from(sySet).sort()
+        mathGrowthPct: mathTotal>0 ? parseFloat((mathGrowth/mathTotal*100).toFixed(1)) : null,
+        elaGrowthPct:  elaTotal>0  ? parseFloat((elaGrowth/elaTotal*100).toFixed(1)) : null,
+        grades: Array.from(gradeSet).sort(),
+        schools: schoolSet.size,
+        districts: districtSet.size,
+        schoolYears: uniqueYears,
+        placementCounts: placementCounts,
+        scholarRace: scholarRace
       };
+    }
+
+    // Expose snapshot reader so any module can access the latest Data upload
+    function getSnapshot() {
+      try {
+        var snap = JSON.parse(localStorage.getItem('njtc_irlab_snapshot_v1') || 'null');
+        return snap;
+      } catch(e) { return null; }
     }
 
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
-             getTutorAcademicData, getSummary,
+             getTutorAcademicData, getSummary, getSnapshot,
              fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
   })();
 
@@ -17026,7 +17109,14 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     function getIRLData() {
       if (_cache.irl !== undefined) return _cache.irl;
       var d = null;
-      try { if (window.irlab && window.irlab.getSummary) d = window.irlab.getSummary(); } catch(e) {}
+      try {
+        if (window.irlab && window.irlab.getSummary) d = window.irlab.getSummary();
+        // If irlab not loaded yet, try reading the stored snapshot (from Data upload)
+        if (!d && window.irlab && window.irlab.getSnapshot) {
+          var snap = window.irlab.getSnapshot();
+          if (snap && snap.summary) d = snap.summary;
+        }
+      } catch(e) {}
       _cache.irl = d;
       return d;
     }
@@ -17034,7 +17124,18 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     function getRaceData() {
       if (_cache.race !== undefined) return _cache.race;
       var d = null;
-      try { if (window.po && window.po.getRaceData) d = window.po.getRaceData(); } catch(e) {}
+      // Prefer irlab getSummary's scholarRace (deduped by scholarId, SY-filtered)
+      try {
+        var irl = getIRLData();
+        if (irl && irl.scholarRace && Object.keys(irl.scholarRace).length) {
+          var total = Object.values(irl.scholarRace).reduce(function(s,v){return s+v;},0);
+          d = { byScholar: irl.scholarRace, totalScholars: total };
+        }
+      } catch(e) {}
+      // Fallback: Pearl ATT race data
+      if (!d) {
+        try { if (window.po && window.po.getRaceData) d = window.po.getRaceData(); } catch(e2) {}
+      }
       _cache.race = d;
       return d;
     }
@@ -17169,20 +17270,35 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       }
 
       // ── Academic Outcomes (iReady) ──
-      if (irl && irl.growthPct !== null) {
-        var irlFrames = {
-          policy:      fmtPct(irl.growthPct)+' of scholars show measurable iReady growth — '+fmtNum(irl.totalWithGrowth)+' of '+fmtNum(irl.totalRows)+' diagnostic records. Independent, nationally normed data.',
-          fiscal:      'iReady diagnostics — the same tool districts use — show '+fmtPct(irl.growthPct)+' growth. Public funds are producing verifiable academic movement, not just contact hours.',
-          impact:      fmtPct(irl.growthPct)+' of the scholars your gift supports show measurable growth on iReady. '+fmtNum(irl.totalWithGrowth)+' children moved forward. That is the number.',
-          operational: 'iReady data across your scholars: '+fmtPct(irl.growthPct)+' show growth. Cross-reference with your district iReady data to validate NJTC\'s contribution.'
-        };
-        cards.push({ color:'green', label:'Academic Outcomes',
-          headline: fmtPct(irl.growthPct)+' of scholars show iReady growth — '+fmtNum(irl.totalRows)+' diagnostic records',
-          body: irlFrames[tone] || irlFrames.policy,
-          source:'iReady Diagnostic Data · Live Google Sheet' });
+      if (irl) {
+        var irlSY = irl.activeSY || 'Historical';
+        var irlSrc = irl.dataSource || 'iReady Historical Data';
+        var has2526 = irl.hasCurrentYearData;
+        var growthNote = has2526 ? '' : ' &#9432; Historical ('+irlSY+'). 25-26 upload pending from Data team.';
+        if (irl.growthPct !== null && irl.growthPct !== undefined) {
+          var irlFrames = {
+            policy:      fmtPct(irl.growthPct)+' of scholars show measurable iReady growth ('+irlSY+') — '+fmtNum(irl.totalWithGrowth)+' of '+fmtNum(irl.totalRows)+' records. Independent, nationally normed data.',
+            fiscal:      'iReady diagnostics — the same tool districts use — show '+fmtPct(irl.growthPct)+' growth ('+irlSY+'). Public funds produce verifiable academic movement, not just contact hours.',
+            impact:      fmtPct(irl.growthPct)+' of the scholars your gift supports show measurable iReady growth. '+fmtNum(irl.totalWithGrowth)+' of '+fmtNum(irl.totalRows)+' scholars moved forward ('+irlSY+').',
+            operational: 'iReady data for your scholars ('+irlSY+'): '+fmtPct(irl.growthPct)+'% show growth. Cross-reference with your district iReady data to validate NJTC contribution.'
+          };
+          cards.push({ color:'green', label:'Academic Outcomes',
+            headline: fmtPct(irl.growthPct)+'% of scholars show iReady growth — '+fmtNum(irl.totalRows)+' records' + (has2526 ? '' : ' ('+irlSY+')'),
+            body: (irlFrames[tone] || irlFrames.policy) + growthNote,
+            source: irlSrc + ' · ' + irlSY });
+        } else if (!has2526) {
+          cards.push({ color:'gold', label:'Academic Outcomes',
+            headline: '&#9432; iReady 2025-26 Data Pending Upload',
+            body: 'The Data team has not yet uploaded the mid-year iReady CSV. Historical '+irlSY+' data is available. Once uploaded, this card shows growth rates, placements, and math vs. ELA breakdown.',
+            source: 'Pending Data upload · i-Ready Lab panel' });
+        }
+      } else {
+        cards.push({ color:'gold', label:'Academic Outcomes',
+          headline: '&#9432; iReady Data Loads from i-Ready Lab',
+          body: 'Visit the i-Ready Analysis Lab panel to load academic outcome data. Or — Data team: upload the mid-year CSV in the Lab panel to make data available here automatically.',
+          source: 'Load via i-Ready Analysis Lab panel' });
       }
-
-      // ── KPI Goals ──
+            // ── KPI Goals ──
       if (kpi.total > 0) {
         var metEx = kpi.met.slice(0,2).map(function(k){ return k.target.substring(0,55)+(k.target.length>55?'…':''); }).join('; ');
         var kpiFrames = {
@@ -17268,7 +17384,34 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       var grades = getGradeData();
       var stellar= getStellarSchools();
       var kpi    = getKPIWins();
+      var irl    = getIRLData();
       var html   = '';
+
+      // ── iReady snapshot notice ──
+      try {
+        var snap = window.irlab && window.irlab.getSnapshot ? window.irlab.getSnapshot() : null;
+        if (snap && snap.summary) {
+          var snapAge = Math.round((Date.now()-snap.ts)/60000);
+          var ageStr = snapAge<60 ? snapAge+' min ago' : Math.round(snapAge/60)+' hr ago';
+          html += '<div class="adv-chart-card" style="border-left:3px solid #7c3aed;margin-bottom:.75rem">'+
+            '<div style="display:flex;justify-content:space-between;align-items:center">'+
+              '<div style="font-size:.78rem;font-weight:700;color:#7c3aed">&#128203; iReady Snapshot Active &mdash; '+snap.sy+'</div>'+
+              '<div style="font-size:.7rem;color:var(--muted)">'+ageStr+'</div>'+
+            '</div>'+
+            '<div style="font-size:.77rem;color:var(--text-1);margin-top:.35rem">'+
+              fmtNum(snap.totalRows)+' rows uploaded by Data team &nbsp;&#183;&nbsp; '+
+              fmtNum(snap.summary.totalScholars)+' unique scholars &nbsp;&#183;&nbsp; '+
+              (snap.summary.growthPct!==null ? snap.summary.growthPct+'% growth rate' : 'No growth data yet')+
+              ' &nbsp;&#183;&nbsp; <em style="color:var(--muted)">Visible to all departments</em>'+
+            '</div>'+
+          '</div>';
+        } else if (!snap) {
+          html += '<div class="adv-chart-card" style="border-left:3px solid #9ca3af;opacity:.75;margin-bottom:.75rem">'+
+            '<div style="font-size:.78rem;font-weight:600;color:var(--muted)">&#9432; iReady 2025-26 Snapshot Not Yet Available</div>'+
+            '<div style="font-size:.76rem;color:var(--muted);margin-top:.25rem">The Data team has not yet uploaded the mid-year iReady CSV. When they do, it will automatically appear here and in all department views.</div>'+
+          '</div>';
+        }
+      } catch(e) {}
 
       // ── Stellar Schools ──
       if (stellar && stellar.length) {
@@ -17552,10 +17695,12 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       document.querySelectorAll('.adv-pane').forEach(function(p){ p.classList.remove('active'); });
       if (btn) btn.classList.add('active');
       var pane = document.getElementById('advPane-'+tab); if (pane) pane.classList.add('active');
-      if (tab==='impact-snapshot') buildSnapshot();
+      // Clear irl/race/stellar cache on each tab switch so data refreshes from latest Pearl state
+      if (tab==='talking-points') { _cache.irl=undefined; _cache.race=undefined; _cache.stellar=undefined; buildLeadershipHighlightBanner(); buildTalkingPoints(); }
+      if (tab==='impact-snapshot') { _cache.irl=undefined; buildSnapshot(); }
       if (tab==='roi')             prefillROI();
       if (tab==='kpi-brief')       buildKPIBrief();
-      if (tab==='highlights')      buildHighlights();
+      if (tab==='highlights')      { _cache.irl=undefined; _cache.race=undefined; _cache.stellar=undefined; buildHighlights(); }
     };
 
     window.advSetAudience = function(audience, btn) {
@@ -17566,9 +17711,107 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if (_activeTab==='talking-points') buildTalkingPoints();
     };
 
+    // ── Auto-prefetch: trigger Pearl + irlab loads so leadership doesn't need to visit those panels ──
+    function _advPrefetch() {
+      // 1. Trigger Pearl Ops load (silently — won't re-fetch if cache fresh)
+      try {
+        if (window.po) {
+          // po.getStats() reading _attRows etc is sufficient — data already streamed
+          var s = window.po.getStats();
+          if (!s.loaded) {
+            // Pearl not loaded yet — trigger it silently
+            if (typeof window.initPearlOps === 'function') window.initPearlOps(true);
+          }
+        }
+      } catch(e) {}
+      // 2. Trigger irlab load (reads from localStorage EMBED_STORE_KEY or __IRLAB_RAW__)
+      try {
+        if (window.irlab && window.irlab.getSummary) {
+          window.irlab.getSummary(); // calling this triggers loadData() inside irlab
+        }
+      } catch(e) {}
+      // 3. Check for stored snapshot from Data team upload
+      try {
+        var snap = window.irlab && window.irlab.getSnapshot ? window.irlab.getSnapshot() : null;
+        if (snap && snap.summary) {
+          _cache.irl = snap.summary;
+          console.log('[Advocacy] Loaded iReady snapshot from Data upload:', snap.sy, snap.summary.totalRows, 'rows');
+        }
+      } catch(e) {}
+    }
+
+    // ── Leadership top highlights: rendered without visiting any other panel ──
+    function buildLeadershipHighlightBanner() {
+      var el = document.getElementById('advLeadershipBanner');
+      if (!el) return;
+      var s     = getLiveStats();
+      var kpi   = getKPIWins();
+      var irl   = getIRLData();
+      var stellar = getStellarSchools();
+      var snap  = null;
+      try { snap = window.irlab && window.irlab.getSnapshot ? window.irlab.getSnapshot() : null; } catch(e) {}
+
+      var items = [];
+
+      // ── Pearl highlights (auto-loaded) ──
+      if (s.loaded) {
+        if (s.instAttPct >= 90) items.push({ icon:'&#127941;', color:'#0d6e3a', label:'Tutor Reliability', stat: s.instAttPct+'%', sub:'instructor attendance rate' });
+        else if (s.instAttPct)  items.push({ icon:'&#128202;', color:'#0050c8', label:'Tutor Reliability', stat: s.instAttPct+'%', sub:'instructor attendance' });
+        if (s.scholAttPct)      items.push({ icon:'&#128218;', color:'#0050c8', label:'Scholar Engagement', stat: s.scholAttPct+'%', sub:'scholar attendance rate' });
+        if (s.sessions)         items.push({ icon:'&#9200;',  color:'#374151', label:'Sessions YTD',      stat: s.sessions.toLocaleString(), sub:'tutoring sessions delivered' });
+        if (s.surveyAvg)        items.push({ icon:'&#11088;', color:'#b45309', label:'Scholar Satisfaction', stat: s.surveyAvg+'/5', sub:'avg post-session rating' });
+        if (s.sites)            items.push({ icon:'&#127960;', color:'#374151', label:'Active Sites',     stat: s.sites, sub: 'school sites · '+(s.districts||'')+(s.districts?' districts':'') });
+      } else {
+        items.push({ icon:'&#8635;', color:'#6b7280', label:'Pearl Loading', stat:'...', sub:'Live attendance data loading' });
+      }
+
+      // ── KPI wins ──
+      if (kpi.total > 0) {
+        var pct = Math.round(kpi.met.length/kpi.total*100);
+        var kpiColor = pct>=70?'#0d6e3a':pct>=40?'#0050c8':'#b45309';
+        items.push({ icon:'&#127919;', color:kpiColor, label:'Goals Met (Mid-Year)', stat: kpi.met.length+'/'+kpi.total, sub: pct+'% of annual goals achieved' });
+      }
+
+      // ── iReady ── (from snapshot or getSummary)
+      var irlData = irl || (snap && snap.summary) || null;
+      if (irlData && irlData.growthPct !== null) {
+        var irlSY = irlData.activeSY || '';
+        items.push({ icon:'&#128200;', color:'#7c3aed', label:'iReady Growth'+(irlSY?' ('+irlSY+')':''), stat: irlData.growthPct+'%', sub: fmtNum(irlData.totalWithGrowth)+' of '+fmtNum(irlData.totalRows)+' scholars' });
+      } else if (!irlData || !irlData.hasCurrentYearData) {
+        items.push({ icon:'&#9432;', color:'#9ca3af', label:'iReady 2025-26', stat:'Pending', sub:'Data team upload needed' });
+      }
+
+      // ── Top stellar school ──
+      if (stellar && stellar[0]) {
+        var top = stellar[0];
+        items.push({ icon:'&#127941;', color:'#b45309', label:'Top School', stat: top.attRate+'%', sub: top.school.length>28 ? top.school.substring(0,28)+'…' : top.school });
+      }
+
+      el.innerHTML = items.length
+        ? '<div class="adv-leader-banner">'+
+            '<div class="adv-leader-banner-title">&#9889; Live Program Highlights &nbsp;<span style="font-size:.7rem;font-weight:400;color:rgba(255,255,255,.6)">Auto-loaded · Pearl + KPI + iReady</span></div>'+
+            '<div class="adv-leader-stats-row">'+
+              items.map(function(it){
+                return '<div class="adv-leader-stat-chip">'+
+                  '<div style="font-size:1.1rem">'+it.icon+'</div>'+
+                  '<div style="min-width:0">'+
+                    '<div style="font-weight:800;font-size:1rem;color:white;line-height:1.1">'+it.stat+'</div>'+
+                    '<div style="font-size:.67rem;color:rgba(255,255,255,.65);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+it.sub+'</div>'+
+                    '<div style="font-size:.6rem;color:rgba(255,255,255,.4);margin-top:.1rem">'+it.label+'</div>'+
+                  '</div>'+
+                '</div>';
+              }).join('')+
+            '</div>'+
+            (snap ? '<div style="font-size:.65rem;color:rgba(255,255,255,.35);margin-top:.5rem;text-align:right">&#128203; iReady snapshot: '+new Date(snap.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+'</div>' : '')+
+          '</div>'
+        : '';
+    }
+
     window.advOnPanelOpen = function() {
       _cache = {};  // always re-read live data on open
       _inited = true;
+      _advPrefetch();                     // pre-load data silently
+      buildLeadershipHighlightBanner();   // top stats strip — no panel visits required
       buildTalkingPoints();
     };
 
