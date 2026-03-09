@@ -4394,6 +4394,11 @@
       const _kc = NJTC_CACHE.get('njtc_kpi_v2');
       if (_kc && _kc.data && _kc.data.length) {
         KPI_DATA = _kc.data;
+        // Re-merge quarterly data from cache
+        try {
+          var _qc2 = localStorage.getItem('njtc_kpi_quarterly_v2');
+          if (_qc2) { var _qobj2 = JSON.parse(_qc2); if (_qobj2 && _qobj2.rows) _mergeQuarterlyData(_qobj2.rows); }
+        } catch(_qe2) {}
         _kpiFromSheet = true;
         _kpiLastFetched = new Date(Date.now() - _kc.age);
         if (dot) { dot.className = 'sync-dot'; }
@@ -4401,7 +4406,11 @@
         if (btn) btn.disabled = false;
         const _sess = window.NJTC_SESSION;
         if (_sess) buildHome(_sess.dept);
-        if (_kc.fresh) return;  // still fresh — skip network fetch
+        if (_kc.fresh) {
+          // Summary cache is fresh — still fetch quarterly to ensure expand rows render
+          if (typeof fetchKPIQuarterly === 'function') fetchKPIQuarterly(false);
+          return;
+        }
         // stale: fall through to re-fetch silently in background
       }
     }
@@ -4437,6 +4446,11 @@
     if (parsed && parsed.length > 0) {
       // Live data successfully fetched — update everything
       KPI_DATA = parsed;
+      // Immediately re-merge quarterly data from cache so q data survives summary refresh
+      try {
+        var _qc = localStorage.getItem('njtc_kpi_quarterly_v2');
+        if (_qc) { var _qobj = JSON.parse(_qc); if (_qobj && _qobj.rows) _mergeQuarterlyData(_qobj.rows); }
+      } catch(_qe) {}
       NJTC_CACHE.set('njtc_kpi_v2', parsed);
       _kpiFromSheet = true;
       _kpiLastFetched = new Date();
@@ -10014,6 +10028,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           console.log('[Pearl Ops] GIDs persisted to localStorage');
         }
       } catch(e) {}
+
+      // ── Hardcoded known-good GID fallbacks ──────────────────────────────
+      // If discovery didn't resolve a tab, or resolved the wrong one,
+      // fall back to the last-known-good GIDs for this spreadsheet.
+      const KNOWN_GIDS = { att: 702726038, inst: 1955492004, stu: 1245403832, sess: 625567780 };
+      if (!GIDS.att  || GIDS.att  === 117217808) GIDS.att  = KNOWN_GIDS.att;
+      if (!GIDS.inst || GIDS.inst === 117217808) GIDS.inst = KNOWN_GIDS.inst;
+      if (!GIDS.stu  || GIDS.stu  === 117217808) GIDS.stu  = KNOWN_GIDS.stu;
+      if (!GIDS.sess || GIDS.sess === 117217808) GIDS.sess = KNOWN_GIDS.sess;
 
       // Log what was resolved (helps with future debugging)
       console.log('[Pearl Ops] GIDs resolved →', JSON.stringify(GIDS));
