@@ -2529,7 +2529,260 @@
       box-shadow: 0 -8px 40px rgba(10,22,40,.18);
     }
     #govSheet.open { transform: translateY(0); }
-    .gov-handle {
+
+    /* ════════════════════════════════════════════════════
+       EXPORT / PRINT SYSTEM
+    ════════════════════════════════════════════════════ */
+    /* Export button in sidebar */
+    .sidebar-export-btn {
+      display:none;
+      align-items:center; gap:.625rem;
+      padding:.625rem 1.25rem;
+      font-size:.8125rem; font-weight:600;
+      color:rgba(255,255,255,.7);
+      cursor:pointer; transition:var(--transition);
+      border:none; background:none; width:100%; text-align:left;
+      border-left:2px solid transparent;
+      margin-top:.25rem;
+    }
+    .sidebar-export-btn.visible { display:flex; }
+    .sidebar-export-btn:hover {
+      color:#fff;
+      background:rgba(255,255,255,.06);
+      border-left-color:rgba(255,255,255,.25);
+    }
+    .sidebar-export-btn .sl-icon { font-size:.9375rem; width:18px; text-align:center; opacity:.7; }
+
+    /* Export modal overlay */
+    #njtcExportModal {
+      display:none; position:fixed; inset:0; z-index:900;
+      background:#f4f5f7; overflow-y:auto;
+      font-family:'Georgia',serif;
+    }
+    #njtcExportModal.open { display:block; }
+
+    /* Modal toolbar (screen only, not printed) */
+    .exp-toolbar {
+      position:sticky; top:0; z-index:10;
+      background:#0a1628; color:white;
+      padding:.75rem 2rem;
+      display:flex; align-items:center; gap:1rem;
+      box-shadow:0 2px 12px rgba(0,0,0,.3);
+    }
+    .exp-toolbar-title { font-family:'Georgia',serif; font-size:.9375rem; font-weight:700; color:white; flex:1; }
+    .exp-toolbar-sub   { font-size:.75rem; color:rgba(255,255,255,.45); margin-top:.1rem; }
+    .exp-mode-pills { display:flex; gap:.5rem; }
+    .exp-mode-pill {
+      padding:.35rem .875rem; border-radius:20px; font-size:.75rem; font-weight:700;
+      border:1.5px solid rgba(255,255,255,.2); color:rgba(255,255,255,.55);
+      cursor:pointer; transition:all .2s; font-family:inherit; background:transparent;
+    }
+    .exp-mode-pill.active { background:white; color:#0a1628; border-color:white; }
+    .exp-toolbar-actions { display:flex; gap:.5rem; margin-left:auto; }
+    .exp-btn {
+      padding:.4rem 1rem; border-radius:8px; font-size:.8125rem; font-weight:700;
+      cursor:pointer; transition:all .15s; border:none; font-family:inherit;
+    }
+    .exp-btn-print { background:#2563eb; color:white; }
+    .exp-btn-print:hover { background:#1d4ed8; }
+    .exp-btn-close { background:rgba(255,255,255,.1); color:white; }
+    .exp-btn-close:hover { background:rgba(255,255,255,.15); }
+
+    /* Report paper */
+    .exp-paper {
+      max-width:816px; margin:2rem auto 3rem;
+      background:white;
+      box-shadow:0 4px 40px rgba(0,0,0,.12);
+      border-radius:4px;
+      overflow:hidden;
+    }
+
+    /* Report header */
+    .exp-hdr {
+      background:linear-gradient(135deg,#0a1628 0%,#0f2347 60%,#1a3a6e 100%);
+      padding:2.5rem 2.5rem 2rem;
+      position:relative; overflow:hidden;
+    }
+    .exp-hdr::before {
+      content:''; position:absolute; inset:0;
+      background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+    .exp-hdr-njtc {
+      display:flex; align-items:center; gap:.75rem; margin-bottom:1.5rem;
+    }
+    .exp-hdr-logo {
+      width:36px; height:36px; border-radius:8px;
+      background:linear-gradient(135deg,#2563eb,#7c3aed);
+      display:flex; align-items:center; justify-content:center;
+      font-size:1.125rem; font-weight:900; color:white; font-family:sans-serif;
+      flex-shrink:0;
+    }
+    .exp-hdr-org { font-size:.75rem; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.12em; font-family:sans-serif; }
+    .exp-hdr-full { font-size:.875rem; font-weight:600; color:rgba(255,255,255,.85); font-family:sans-serif; }
+    .exp-hdr-title { font-size:1.875rem; font-weight:700; color:white; line-height:1.15; margin-bottom:.5rem; }
+    .exp-hdr-subtitle { font-size:1rem; color:rgba(255,255,255,.65); line-height:1.5; max-width:520px; }
+    .exp-hdr-meta {
+      display:flex; gap:1.5rem; margin-top:1.75rem;
+      padding-top:1.25rem; border-top:1px solid rgba(255,255,255,.12);
+    }
+    .exp-hdr-meta-item { font-size:.75rem; color:rgba(255,255,255,.5); font-family:sans-serif; }
+    .exp-hdr-meta-item strong { color:rgba(255,255,255,.85); display:block; font-size:.8125rem; }
+
+    /* Confidence band */
+    .exp-confidence {
+      background:linear-gradient(90deg,#1e3a5f,#1e4a3f);
+      padding:.625rem 2.5rem;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:1rem;
+    }
+    .exp-conf-label { font-size:.6875rem; text-transform:uppercase; letter-spacing:.1em; color:rgba(255,255,255,.45); font-family:sans-serif; }
+    .exp-conf-score { font-size:1.25rem; font-weight:700; color:#34d399; font-family:sans-serif; }
+    .exp-conf-band { font-size:.75rem; color:rgba(255,255,255,.6); font-family:sans-serif; }
+    .exp-conf-bar-wrap { flex:1; max-width:200px; height:6px; background:rgba(255,255,255,.1); border-radius:3px; overflow:hidden; }
+    .exp-conf-bar-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#34d399,#059669); transition:width .6s; }
+
+    /* Body sections */
+    .exp-body { padding:0 2.5rem 2rem; }
+
+    /* Section */
+    .exp-section { margin-top:1.875rem; }
+    .exp-section-hdr {
+      display:flex; align-items:center; gap:.625rem;
+      padding-bottom:.625rem; border-bottom:2px solid #e8ecf2;
+      margin-bottom:1.25rem;
+    }
+    .exp-section-icon { font-size:1.125rem; }
+    .exp-section-title { font-size:1rem; font-weight:700; color:#0a1628; font-family:sans-serif; text-transform:uppercase; letter-spacing:.05em; font-size:.8125rem; }
+    .exp-section-badge {
+      margin-left:auto; font-size:.65rem; font-weight:700;
+      padding:.2rem .5rem; border-radius:10px;
+      background:#e8ecf2; color:#4a5568; font-family:sans-serif;
+    }
+
+    /* Narrative block */
+    .exp-narrative {
+      font-size:.9375rem; line-height:1.75; color:#1a202c;
+      font-family:'Georgia',serif;
+    }
+    .exp-narrative + .exp-narrative { margin-top:.875rem; }
+    .exp-narrative strong { font-weight:700; color:#0a1628; }
+    .exp-narrative em { color:#2563eb; font-style:normal; font-weight:600; font-family:sans-serif; font-size:.875rem; }
+
+    /* Big stat row */
+    .exp-stat-row {
+      display:grid; gap:1rem; margin:1.25rem 0;
+    }
+    .exp-stat-row.cols-3 { grid-template-columns:repeat(3,1fr); }
+    .exp-stat-row.cols-4 { grid-template-columns:repeat(4,1fr); }
+    .exp-stat-row.cols-2 { grid-template-columns:repeat(2,1fr); }
+    .exp-stat-card {
+      border:1.5px solid #e8ecf2; border-radius:10px;
+      padding:1rem 1.25rem;
+      background:#fafbfd;
+    }
+    .exp-stat-card.accent { border-color:#dbeafe; background:linear-gradient(135deg,#eff6ff,#f0f9ff); }
+    .exp-stat-card.gold   { border-color:#fde68a; background:linear-gradient(135deg,#fffbeb,#fef3c7); }
+    .exp-stat-card.green  { border-color:#bbf7d0; background:linear-gradient(135deg,#f0fdf4,#dcfce7); }
+    .exp-stat-card.red    { border-color:#fecaca; background:linear-gradient(135deg,#fff5f5,#fee2e2); }
+    .exp-stat-num   { font-size:2rem; font-weight:800; color:#0a1628; font-family:sans-serif; line-height:1; }
+    .exp-stat-label { font-size:.75rem; color:#64748b; margin-top:.3rem; font-family:sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+    .exp-stat-sub   { font-size:.6875rem; color:#94a3b8; margin-top:.2rem; font-family:sans-serif; }
+
+    /* Goal area table (leadership mode) */
+    .exp-table { width:100%; border-collapse:collapse; margin:1rem 0; font-family:sans-serif; font-size:.8125rem; }
+    .exp-table th { background:#0a1628; color:white; padding:.5rem .75rem; text-align:left; font-size:.6875rem; text-transform:uppercase; letter-spacing:.07em; font-weight:700; }
+    .exp-table td { padding:.6rem .75rem; border-bottom:1px solid #e8ecf2; vertical-align:top; color:#1a202c; }
+    .exp-table tr:nth-child(even) td { background:#f8fafc; }
+    .exp-table tr:last-child td { border-bottom:none; }
+    .exp-table .t-goal { font-weight:600; color:#0a1628; }
+    .exp-table .t-count { text-align:center; font-weight:700; }
+    .exp-table .t-health { text-align:center; }
+    .exp-table .t-owner { color:#64748b; font-size:.75rem; }
+
+    /* Health pill */
+    .hp { display:inline-block; padding:.15rem .5rem; border-radius:10px; font-size:.65rem; font-weight:700; font-family:sans-serif; white-space:nowrap; }
+    .hp-healthy { background:#dcfce7; color:#15803d; }
+    .hp-watch   { background:#fef9c3; color:#854d0e; }
+    .hp-focus   { background:#ffedd5; color:#c2410c; }
+    .hp-support { background:#fee2e2; color:#b91c1c; }
+
+    /* KPI status pill */
+    .ksp { display:inline-flex; align-items:center; gap:.2rem; padding:.15rem .45rem; border-radius:8px; font-size:.65rem; font-weight:700; font-family:sans-serif; white-space:nowrap; }
+    .ksp-met     { background:#dcfce7; color:#15803d; }
+    .ksp-partial { background:#ffedd5; color:#c2410c; }
+    .ksp-prog    { background:#dbeafe; color:#1e40af; }
+    .ksp-pipe    { background:#f3e8ff; color:#7e22ce; }
+    .ksp-notmet  { background:#fee2e2; color:#b91c1c; }
+
+    /* Spotlight grid */
+    .exp-spot-grid { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1rem 0; }
+    .exp-spot-card {
+      border-radius:10px; padding:1rem 1.125rem;
+      border:1.5px solid;
+    }
+    .exp-spot-card.momentum { border-color:#bbf7d0; background:#f0fdf4; }
+    .exp-spot-card.attention { border-color:#fed7aa; background:#fff7ed; }
+    .exp-spot-hdr { font-size:.65rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; margin-bottom:.625rem; display:flex; align-items:center; gap:.3rem; font-family:sans-serif; }
+    .exp-spot-hdr.momentum-txt  { color:#15803d; }
+    .exp-spot-hdr.attention-txt { color:#c2410c; }
+    .exp-spot-item { font-size:.8rem; color:#1a202c; padding:.3rem 0; border-bottom:1px solid rgba(0,0,0,.06); line-height:1.4; font-family:sans-serif; }
+    .exp-spot-item:last-child { border-bottom:none; }
+    .exp-spot-item-name { font-weight:600; }
+    .exp-spot-item-owner { font-size:.7rem; color:#64748b; }
+
+    /* Forward look section */
+    .exp-forward {
+      background:linear-gradient(135deg,#f0f4ff,#e8f5e9);
+      border-radius:12px; padding:1.25rem 1.5rem; margin-top:1.5rem;
+      border:1.5px solid #c7d7f5;
+    }
+    .exp-forward-title { font-size:.75rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:#0a1628; margin-bottom:.75rem; font-family:sans-serif; }
+    .exp-forward-item { font-size:.875rem; line-height:1.6; color:#1a202c; padding:.35rem 0; border-bottom:1px solid rgba(10,22,40,.07); font-family:sans-serif; }
+    .exp-forward-item:last-child { border-bottom:none; }
+    .exp-forward-item strong { color:#0a1628; font-weight:700; }
+
+    /* Footer */
+    .exp-footer {
+      background:#0a1628; padding:1.25rem 2.5rem;
+      display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    }
+    .exp-footer-l { font-size:.6875rem; color:rgba(255,255,255,.4); font-family:sans-serif; line-height:1.5; }
+    .exp-footer-l strong { color:rgba(255,255,255,.7); display:block; }
+    .exp-footer-conf { font-size:.6875rem; color:rgba(255,255,255,.35); font-family:sans-serif; text-align:right; }
+
+    /* Divider */
+    .exp-divider { height:1px; background:#e8ecf2; margin:1.5rem 0; }
+
+    /* Section label pill */
+    .exp-slabel {
+      display:inline-block; font-size:.6rem; font-weight:800;
+      text-transform:uppercase; letter-spacing:.12em;
+      padding:.2rem .55rem; border-radius:4px;
+      background:#0a1628; color:white; font-family:sans-serif;
+      margin-bottom:.75rem;
+    }
+
+    /* ════ PRINT MEDIA ════ */
+    @media print {
+      * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+      body > *:not(#njtcExportModal) { display:none !important; }
+      #njtcExportModal { display:block !important; position:static !important; background:white !important; overflow:visible !important; }
+      .exp-toolbar { display:none !important; }
+      .exp-paper { box-shadow:none !important; margin:0 !important; max-width:100% !important; border-radius:0 !important; }
+      .exp-mode-panel { display:none !important; }
+      .exp-mode-panel.print-active { display:block !important; }
+
+      @page {
+        size: letter portrait;
+        margin: 0.5in 0.6in;
+      }
+      .exp-hdr { -webkit-print-color-adjust:exact; }
+      .exp-footer { -webkit-print-color-adjust:exact; }
+      .exp-confidence { -webkit-print-color-adjust:exact; }
+    }
+
+        .gov-handle {
       width: 36px; height: 4px; border-radius: 2px;
       background: var(--border); margin: .75rem auto .5rem;
       flex-shrink: 0;
@@ -2726,6 +2979,14 @@
       </div>
       <div id="deptConnectionsList"><!-- filled by JS --></div>
       <button onclick="openConnectionsModal()" style="margin-top:.625rem;font-size:.6875rem;color:rgba(255,255,255,.45);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;display:flex;align-items:center;gap:.25rem;">View all connections →</button>
+    </div>
+
+    <!-- Export button — leadership + kb only -->
+    <div style="padding:.5rem 1rem .75rem;">
+      <button class="sidebar-export-btn" id="sidebarExportBtn" onclick="expOpen()">
+        <span class="sl-icon">&#128438;</span>
+        Export Leadership Report
+      </button>
     </div>
 
   </aside>
@@ -4520,6 +4781,8 @@
     fetchKPIMetadata(false);
   }
 
+  // Invalidate export on KPI refresh
+  if (typeof expInvalidate === 'function') expInvalidate();
   function buildKPISummary() {
     // Use midStatus for summary counts (primary cycle view)
     const cycle = (document.getElementById('kpiCycleFilter') || {value:'mid'}).value || 'mid';
@@ -5781,7 +6044,6 @@
     // Rename the talent nav link and panel for finance/training
     if (dept === 'finance') {
       if (label) label.textContent = 'Partnership Risk';
-      // Point talent nav to finance analytics panel
       talentBtns.forEach(b => {
         b.setAttribute('data-panel', 'finance-analytics');
         b.setAttribute('onclick', "showPanel('finance-analytics',this)");
@@ -5799,6 +6061,16 @@
         b.setAttribute('data-panel', 'talent');
         b.onclick = () => showPanel('talent', b);
       });
+    }
+
+    // Show export button only for leadership and kb
+    const expBtn = document.getElementById('sidebarExportBtn');
+    if (expBtn) {
+      if (dept === 'leadership' || dept === 'kb') {
+        expBtn.classList.add('visible');
+      } else {
+        expBtn.classList.remove('visible');
+      }
     }
   }
 
@@ -14184,7 +14456,527 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   // ── Global scope exposure — required for onclick= in HTML ──────────────────
   window.sya                  = sya;
-  window.po                   = po;
+
+  // ══════════════════════════════════════════════════════════════
+  //  NJTC LEADERSHIP EXPORT MODULE
+  // ══════════════════════════════════════════════════════════════
+  var _expCurrentMode = 'kb';
+  var _expBuilt = { kb: false, leadership: false };
+
+  // ── Helpers ────────────────────────────────────────────────
+  function _expGetStatus(k) {
+    return k.midStatus || k.status || '';
+  }
+
+  function _expScore(k) {
+    var s = _expGetStatus(k);
+    if (s === 'Met')                          return 1.0;
+    if (s === 'Partially Met')                return 0.5;
+    if (s === 'In Progress')                  return 0.25;
+    if (s === 'Coming Down the Pipeline')     return 0.1;
+    if (s === 'Has Not Met')                  return 0.0;
+    return 0;
+  }
+
+  function _expHealthLabel(pct) {
+    if (pct >= 0.85) return { label: 'Healthy',        cls: 'hp-healthy', bar: '#16a34a' };
+    if (pct >= 0.65) return { label: 'Watch',          cls: 'hp-watch',   bar: '#d97706' };
+    if (pct >= 0.40) return { label: 'Needs Focus',    cls: 'hp-focus',   bar: '#ea580c' };
+    return            { label: 'Area of Support',      cls: 'hp-support', bar: '#dc2626' };
+  }
+
+  function _expKSP(s) {
+    var map = {
+      'Met':                        ['ksp-met',     '&#10003; Met'],
+      'Partially Met':              ['ksp-partial',  '&#9711; Partial'],
+      'In Progress':                ['ksp-prog',     '&#9679; In Progress'],
+      'Coming Down the Pipeline':   ['ksp-pipe',     '&#9675; Pipeline'],
+      'Has Not Met':                ['ksp-notmet',   '&#10005; Not Met'],
+    };
+    var d = map[s] || ['ksp-prog', s || '&#8212;'];
+    return '<span class="ksp ' + d[0] + '">' + d[1] + '</span>';
+  }
+
+  function _expNow() {
+    var d = new Date();
+    var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  }
+
+  function _expComputeGoalAreas() {
+    var areas = {};
+    KPI_DATA.forEach(function(k) {
+      var g = k.goal || 'Other';
+      if (!areas[g]) areas[g] = { goal: g, items: [], met:0, partial:0, prog:0, pipe:0, notmet:0, total:0 };
+      areas[g].items.push(k);
+      areas[g].total++;
+      var s = _expGetStatus(k);
+      if (s === 'Met')                          areas[g].met++;
+      else if (s === 'Partially Met')           areas[g].partial++;
+      else if (s === 'In Progress')             areas[g].prog++;
+      else if (s === 'Coming Down the Pipeline')areas[g].pipe++;
+      else if (s === 'Has Not Met')             areas[g].notmet++;
+    });
+    // Compute weighted health score per area
+    Object.keys(areas).forEach(function(g) {
+      var a = areas[g];
+      if (!a.total) { a.health = 0; return; }
+      var sum = 0;
+      a.items.forEach(function(k) { sum += _expScore(k); });
+      a.health = sum / a.total;
+    });
+    return areas;
+  }
+
+  function _expComputeOrgHealth() {
+    if (!KPI_DATA.length) return 0;
+    var sum = 0;
+    KPI_DATA.forEach(function(k) { sum += _expScore(k); });
+    return sum / KPI_DATA.length;
+  }
+
+  function _expReportHeader(title, subtitle, mode) {
+    var dept = (window.NJTC_SESSION || {}).dept || 'leadership';
+    var modeLabel = dept === 'kb' ? 'CEO Executive Brief' : 'Leadership Detail Brief';
+    var orgH = _expComputeOrgHealth();
+    var hlth = _expHealthLabel(orgH);
+    var pct = Math.round(orgH * 100);
+    var met = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Met'; }).length;
+    var total = KPI_DATA.length;
+
+    return '<div class="exp-hdr">' +
+      '<div class="exp-hdr-njtc">' +
+        '<div class="exp-hdr-logo">N</div>' +
+        '<div>' +
+          '<div class="exp-hdr-org">NJTC</div>' +
+          '<div class="exp-hdr-full">New Jersey Tutoring Corps</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="exp-hdr-title">' + title + '</div>' +
+      '<div class="exp-hdr-subtitle">' + subtitle + '</div>' +
+      '<div class="exp-hdr-meta">' +
+        '<div class="exp-hdr-meta-item"><strong>SY 2025–2026</strong>School Year</div>' +
+        '<div class="exp-hdr-meta-item"><strong>' + _expNow() + '</strong>Generated</div>' +
+        '<div class="exp-hdr-meta-item"><strong>' + modeLabel + '</strong>Report Type</div>' +
+        '<div class="exp-hdr-meta-item"><strong>' + met + ' of ' + total + ' targets</strong>Goals Met</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="exp-confidence">' +
+      '<div>' +
+        '<div class="exp-conf-label">Organizational Health Score</div>' +
+        '<div style="display:flex;align-items:baseline;gap:.5rem">' +
+          '<div class="exp-conf-score">' + pct + '%</div>' +
+          '<div class="exp-conf-band">' + hlth.label + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="exp-conf-bar-wrap"><div class="exp-conf-bar-fill" style="width:' + pct + '%;background:' + hlth.bar + '"></div></div>' +
+      '<div style="font-size:.7rem;color:rgba(255,255,255,.4);font-family:sans-serif;text-align:right">Weighted composite across<br>all ' + total + ' organizational targets</div>' +
+    '</div>';
+  }
+
+  function _expReportFooter() {
+    return '<div class="exp-footer">' +
+      '<div class="exp-footer-l">' +
+        '<strong>New Jersey Tutoring Corps — Central Team Portal</strong>' +
+        'Data & Evaluation Department &nbsp;·&nbsp; Director of Program Evaluation &amp; Impact' +
+      '</div>' +
+      '<div class="exp-footer-conf">' +
+        'CONFIDENTIAL — For Internal Leadership Use Only<br>Not for External Distribution Without Director Approval' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ── KB MODE: CEO Executive Brief ──────────────────────────
+  function _buildKbReport() {
+    var areas = _expComputeGoalAreas();
+    var orgH = _expComputeOrgHealth();
+    var hlth = _expHealthLabel(orgH);
+    var pct = Math.round(orgH * 100);
+
+    var met     = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Met'; }).length;
+    var partial = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Partially Met'; }).length;
+    var prog    = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='In Progress'; }).length;
+    var pipe    = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Coming Down the Pipeline'; }).length;
+    var notmet  = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Has Not Met'; }).length;
+    var total   = KPI_DATA.length;
+
+    // Momentum items (Met)
+    var wins = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Met'; }).slice(0,4);
+    // Attention items (Not Met)
+    var attn = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Has Not Met' || _expGetStatus(k)==='Partially Met'; }).slice(0,4);
+    // Goal area health summary
+    var areaKeys = Object.keys(areas);
+    var healthyAreas = areaKeys.filter(function(g){ return areas[g].health >= 0.85; }).length;
+    var watchAreas   = areaKeys.filter(function(g){ return areas[g].health >= 0.65 && areas[g].health < 0.85; }).length;
+    var focusAreas   = areaKeys.filter(function(g){ return areas[g].health < 0.65; }).length;
+
+    var html = _expReportHeader(
+      'Executive Performance Brief',
+      'A summary of NJTC\'s organizational standing for SY 2025–2026 — scholar impact, program momentum, and goal progress across all strategic areas.',
+      'kb'
+    );
+
+    html += '<div class="exp-body">';
+
+    // ── OPENING NARRATIVE (Sandwich Top) ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-slabel">Organizational Standing</div>';
+    html += '<p class="exp-narrative">';
+    html += 'NJTC is demonstrating <strong>sustained organizational momentum</strong> across SY 2025–2026. ';
+    html += 'Of ' + total + ' strategic targets tracked this school year, <strong>' + met + ' have been fully met</strong> — ';
+    html += 'with an additional ' + (partial + prog) + ' actively in progress. ';
+    html += 'The organization\'s weighted health score of <em>' + pct + '%</em> reflects a <strong>' + hlth.label.toLowerCase() + ' standing</strong> ';
+    html += 'across our three strategic pillars: scholar impact, financial sustainability, and organizational infrastructure.';
+    html += '</p>';
+    html += '<p class="exp-narrative" style="margin-top:.875rem">';
+    html += healthyAreas + ' of ' + areaKeys.length + ' goal areas are operating at a <strong>Healthy</strong> threshold. ';
+    if (watchAreas > 0) html += watchAreas + ' area' + (watchAreas > 1 ? 's are' : ' is') + ' in a <strong>Watch</strong> position — progressing with areas warranting continued attention. ';
+    if (focusAreas > 0) html += focusAreas + ' area' + (focusAreas > 1 ? 's are' : ' is') + ' identified for <strong>focused leadership attention</strong> in the current cycle.';
+    html += '</p>';
+    html += '</div>';
+
+    // ── KPI STATUS SUMMARY ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#127919;</span><span class="exp-section-title">Goal Progress at a Glance</span><span class="exp-section-badge">Mid-Year Status</span></div>';
+    html += '<div class="exp-stat-row cols-3">';
+    html += '<div class="exp-stat-card green"><div class="exp-stat-num">' + met + '</div><div class="exp-stat-label">Targets Met</div><div class="exp-stat-sub">Fully achieved</div></div>';
+    html += '<div class="exp-stat-card accent"><div class="exp-stat-num">' + (partial + prog) + '</div><div class="exp-stat-label">In Progress</div><div class="exp-stat-sub">Partial + active</div></div>';
+    html += '<div class="exp-stat-card ' + (notmet > 0 ? 'red' : 'gold') + '"><div class="exp-stat-num">' + notmet + '</div><div class="exp-stat-label">Not Yet Met</div><div class="exp-stat-sub">Requires attention</div></div>';
+    html += '</div>';
+    html += '</div>';
+
+    // ── MOMENTUM SPOTLIGHTS ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#127775;</span><span class="exp-section-title">Program Spotlights</span></div>';
+    html += '<div class="exp-spot-grid">';
+
+    // Wins
+    html += '<div class="exp-spot-card momentum">';
+    html += '<div class="exp-spot-hdr momentum-txt">&#10003; Where We Are Delivering</div>';
+    if (wins.length) {
+      wins.forEach(function(k) {
+        html += '<div class="exp-spot-item"><span class="exp-spot-item-name">' + k.goal + '</span><br>';
+        html += '<span style="font-size:.75rem;color:#374151">' + (k.target||'').substring(0,90) + (k.target && k.target.length > 90 ? '…' : '') + '</span>';
+        html += '</div>';
+      });
+    } else {
+      html += '<div class="exp-spot-item" style="color:#64748b">Targets in progress — data populating as cycle advances.</div>';
+    }
+    html += '</div>';
+
+    // Attention
+    html += '<div class="exp-spot-card attention">';
+    html += '<div class="exp-spot-hdr attention-txt">&#9888; Areas Warranting Leadership Visibility</div>';
+    if (attn.length) {
+      attn.forEach(function(k) {
+        html += '<div class="exp-spot-item"><span class="exp-spot-item-name">' + k.goal + '</span><br>';
+        html += '<span style="font-size:.75rem;color:#374151">' + (k.target||'').substring(0,85) + (k.target && k.target.length > 85 ? '…' : '') + '</span>';
+        html += '</div>';
+      });
+    } else {
+      html += '<div class="exp-spot-item" style="color:#64748b">No targets in Not Met status at this time.</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    // ── GOAL AREA OVERVIEW (simplified for CEO) ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#128200;</span><span class="exp-section-title">Strategic Goal Area Summary</span></div>';
+    html += '<table class="exp-table">';
+    html += '<thead><tr><th style="width:40%">Goal Area</th><th class="t-count">Total</th><th class="t-count">Met</th><th class="t-count">Active</th><th class="t-health">Health</th></tr></thead>';
+    html += '<tbody>';
+    areaKeys.forEach(function(g) {
+      var a = areas[g];
+      var hl = _expHealthLabel(a.health);
+      html += '<tr>';
+      html += '<td class="t-goal">' + g + '</td>';
+      html += '<td class="t-count">' + a.total + '</td>';
+      html += '<td class="t-count" style="color:#15803d;font-weight:700">' + a.met + '</td>';
+      html += '<td class="t-count" style="color:#2563eb">' + (a.partial + a.prog) + '</td>';
+      html += '<td class="t-health"><span class="hp ' + hl.cls + '">' + hl.label + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // ── FORWARD MOMENTUM (Sandwich Close) ──
+    html += '<div class="exp-forward">';
+    html += '<div class="exp-forward-title">&#128336; Forward Indicators</div>';
+
+    var forwardItems = [
+      { lbl: 'Scholar Impact Trajectory', txt: 'Academic performance data from iReady is actively informing tutoring placements across all program sites. MOY assessment windows position NJTC to demonstrate measurable scholar growth ahead of EOY reporting.' },
+      { lbl: 'Program Operational Strength', txt: 'Pearl Operations data reflects consistent session delivery across sites. Attendance monitoring and HIT compliance reviews are ongoing as part of NJTC\'s quality assurance infrastructure.' },
+      { lbl: 'Workforce Pipeline', txt: 'Staff onboarding and talent analytics reflect active program operations with ' + (KPI_DATA.filter(function(k){return _expGetStatus(k)==='In Progress';}).length) + ' workforce and infrastructure targets currently in progress toward year-end benchmarks.' },
+    ];
+    if (pipe > 0) {
+      forwardItems.push({ lbl: 'Upcoming Targets (' + pipe + ' in Pipeline)', txt: 'A set of targets are staged for activation in the second half of the school year — strategically sequenced to align with program milestones and reporting cycles.' });
+    }
+    forwardItems.forEach(function(fi) {
+      html += '<div class="exp-forward-item"><strong>' + fi.lbl + ': </strong>' + fi.txt + '</div>';
+    });
+    html += '</div>';
+
+    // ── CLOSING NARRATIVE ──
+    html += '<div style="margin-top:1.5rem">';
+    html += '<p class="exp-narrative">';
+    html += 'NJTC\'s SY 2025–2026 performance reflects the organization\'s <strong>commitment to evidence-based programming</strong> ';
+    html += 'and the strength of its operational infrastructure. The data presented in this brief is drawn live from the NJTC Central Team Portal ';
+    html += 'and reflects the most current available information as of the date of this report. ';
+    html += 'Goal owners across all departments continue to drive progress toward each target.';
+    html += '</p>';
+    html += '</div>';
+
+    html += '</div>'; // exp-body
+    html += _expReportFooter();
+    return html;
+  }
+
+  // ── LEADERSHIP MODE: Chief of Staff Detail Brief ──────────
+  function _buildLeadershipReport() {
+    var areas = _expComputeGoalAreas();
+    var orgH = _expComputeOrgHealth();
+    var pct = Math.round(orgH * 100);
+    var hlth = _expHealthLabel(orgH);
+
+    var met     = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Met'; }).length;
+    var partial = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Partially Met'; }).length;
+    var prog    = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='In Progress'; }).length;
+    var pipe    = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Coming Down the Pipeline'; }).length;
+    var notmet  = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Has Not Met'; }).length;
+    var total   = KPI_DATA.length;
+    var areaKeys = Object.keys(areas);
+
+    var html = _expReportHeader(
+      'Leadership Performance Report',
+      'Detailed organizational performance brief for SY 2025–2026 — goal-area breakdown, KPI status, owner accountability, and current standing across all strategic dimensions.',
+      'leadership'
+    );
+
+    html += '<div class="exp-body">';
+
+    // ── OPENING NARRATIVE ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-slabel">Executive Summary</div>';
+    html += '<p class="exp-narrative">';
+    html += 'Across SY 2025–2026, NJTC\'s leadership team is navigating a <strong>complex and ambitious year</strong> with notable achievement and clear directional progress. ';
+    html += 'The organization is actively tracking <strong>' + total + ' strategic targets</strong> across ' + areaKeys.length + ' annual goal areas. ';
+    html += 'With <strong>' + met + ' targets fully achieved</strong> at mid-year, ' + partial + ' partially met, and ' + prog + ' actively in progress, ';
+    html += 'NJTC\'s operational engine is producing real results while maintaining focus on the areas that require leadership attention.';
+    html += '</p>';
+    html += '<p class="exp-narrative" style="margin-top:.875rem">';
+    html += 'The organization\'s weighted health score of <em>' + pct + '%</em> places NJTC in a <strong>' + hlth.label + '</strong> standing — ';
+    html += 'a composite measure that accounts for both fully achieved targets and work that is meaningfully underway. ';
+    html += 'This report provides goal-area level detail, accountability mapping, and forward context to support leadership decision-making in the current cycle.';
+    html += '</p>';
+    html += '</div>';
+
+    // ── FULL STAT GRID ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#127919;</span><span class="exp-section-title">Mid-Year KPI Status Distribution</span><span class="exp-section-badge">' + total + ' Targets Total</span></div>';
+    html += '<div class="exp-stat-row cols-4" style="grid-template-columns:repeat(5,1fr)">';
+    html += '<div class="exp-stat-card green"><div class="exp-stat-num">' + met + '</div><div class="exp-stat-label">Met</div><div class="exp-stat-sub">' + Math.round(met/total*100) + '% of targets</div></div>';
+    html += '<div class="exp-stat-card accent"><div class="exp-stat-num">' + partial + '</div><div class="exp-stat-label">Partially Met</div><div class="exp-stat-sub">Progress made</div></div>';
+    html += '<div class="exp-stat-card" style="border-color:#bfdbfe;background:#eff6ff"><div class="exp-stat-num" style="color:#1d4ed8">' + prog + '</div><div class="exp-stat-label">In Progress</div><div class="exp-stat-sub">Active work</div></div>';
+    html += '<div class="exp-stat-card" style="border-color:#ddd6fe;background:#f5f3ff"><div class="exp-stat-num" style="color:#7c3aed">' + pipe + '</div><div class="exp-stat-label">Pipeline</div><div class="exp-stat-sub">Upcoming</div></div>';
+    html += '<div class="exp-stat-card ' + (notmet > 0 ? 'red' : 'gold') + '"><div class="exp-stat-num">' + notmet + '</div><div class="exp-stat-label">Not Met</div><div class="exp-stat-sub">Attention needed</div></div>';
+    html += '</div>';
+    html += '</div>';
+
+    // ── GOAL AREA DETAIL TABLE ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#128200;</span><span class="exp-section-title">Goal Area Performance Breakdown</span></div>';
+    html += '<table class="exp-table">';
+    html += '<thead><tr><th style="width:32%">Goal Area</th><th class="t-count">Total</th><th class="t-count">Met</th><th class="t-count">Partial</th><th class="t-count">Active</th><th class="t-count">Not Met</th><th class="t-health">Health</th></tr></thead>';
+    html += '<tbody>';
+    areaKeys.forEach(function(g) {
+      var a = areas[g];
+      var hl = _expHealthLabel(a.health);
+      html += '<tr>';
+      html += '<td class="t-goal">' + g + '</td>';
+      html += '<td class="t-count">' + a.total + '</td>';
+      html += '<td class="t-count" style="color:#15803d;font-weight:700">' + a.met + '</td>';
+      html += '<td class="t-count" style="color:#c2410c">' + a.partial + '</td>';
+      html += '<td class="t-count" style="color:#2563eb">' + a.prog + '</td>';
+      html += '<td class="t-count" style="color:#dc2626;font-weight:700">' + a.notmet + '</td>';
+      html += '<td class="t-health"><span class="hp ' + hl.cls + '">' + hl.label + '</span></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // ── FULL KPI DETAIL by area ──
+    html += '<div class="exp-section">';
+    html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#128221;</span><span class="exp-section-title">Detailed KPI Standings by Goal Area</span></div>';
+
+    areaKeys.forEach(function(g) {
+      var a = areas[g];
+      html += '<div style="margin-bottom:1.5rem">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">';
+      html += '<div style="font-size:.8125rem;font-weight:800;color:#0a1628;font-family:sans-serif;text-transform:uppercase;letter-spacing:.04em">' + g + '</div>';
+      var ahl = _expHealthLabel(a.health);
+      html += '<span class="hp ' + ahl.cls + '">' + ahl.label + ' &nbsp;' + Math.round(a.health*100) + '%</span>';
+      html += '</div>';
+      html += '<table class="exp-table" style="font-size:.76rem">';
+      html += '<thead><tr><th style="width:52%">Target</th><th>Mid-Year</th><th>EOY</th><th>Owner</th></tr></thead>';
+      html += '<tbody>';
+      a.items.forEach(function(k) {
+        var ms = _expGetStatus(k);
+        var es = k.endStatus || '—';
+        html += '<tr>';
+        html += '<td>' + (k.target || '—') + '</td>';
+        html += '<td style="white-space:nowrap">' + _expKSP(ms) + '</td>';
+        html += '<td style="white-space:nowrap;color:#64748b;font-size:.72rem">' + (es === 'Pending' || !es || es === '—' ? '<span style="color:#94a3b8">Pending</span>' : _expKSP(es)) + '</td>';
+        html += '<td class="t-owner">' + (k.owner || '—') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // ── AREAS REQUIRING ATTENTION ──
+    var attnItems = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Has Not Met' || _expGetStatus(k)==='Partially Met'; });
+    if (attnItems.length) {
+      html += '<div class="exp-section">';
+      html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#9888;</span><span class="exp-section-title">Targets Requiring Leadership Visibility</span><span class="exp-section-badge">' + attnItems.length + ' targets</span></div>';
+      html += '<p class="exp-narrative" style="margin-bottom:1rem">';
+      html += 'The following targets are currently tracking below threshold. These are surfaced for leadership visibility — ';
+      html += 'each reflects an area where organizational attention, resources, or context may be relevant to the current cycle\'s outcome.';
+      html += '</p>';
+      html += '<table class="exp-table">';
+      html += '<thead><tr><th style="width:28%">Goal Area</th><th style="width:42%">Target</th><th>Status</th><th>Owner</th></tr></thead>';
+      html += '<tbody>';
+      attnItems.forEach(function(k) {
+        html += '<tr>';
+        html += '<td class="t-goal" style="color:#64748b;font-size:.76rem">' + (k.goal||'—') + '</td>';
+        html += '<td style="font-size:.76rem">' + (k.target||'—') + '</td>';
+        html += '<td style="white-space:nowrap">' + _expKSP(_expGetStatus(k)) + '</td>';
+        html += '<td class="t-owner">' + (k.owner||'—') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      html += '</div>';
+    }
+
+    // ── PIPELINE TARGETS ──
+    var pipeItems = KPI_DATA.filter(function(k){ return _expGetStatus(k)==='Coming Down the Pipeline'; });
+    if (pipeItems.length) {
+      html += '<div class="exp-section">';
+      html += '<div class="exp-section-hdr"><span class="exp-section-icon">&#128336;</span><span class="exp-section-title">Pipeline — Targets Activating This Cycle</span><span class="exp-section-badge">' + pipeItems.length + ' upcoming</span></div>';
+      html += '<table class="exp-table" style="font-size:.76rem">';
+      html += '<thead><tr><th>Goal Area</th><th>Target</th><th>Owner</th></tr></thead>';
+      html += '<tbody>';
+      pipeItems.forEach(function(k) {
+        html += '<tr><td class="t-goal">' + (k.goal||'—') + '</td><td>' + (k.target||'—') + '</td><td class="t-owner">' + (k.owner||'—') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      html += '</div>';
+    }
+
+    // ── CLOSING NARRATIVE (Sandwich Close) ──
+    html += '<div class="exp-forward" style="margin-top:1.75rem">';
+    html += '<div class="exp-forward-title">&#128336; EOY Horizon & Forward Context</div>';
+    html += '<div class="exp-forward-item"><strong>EOY Status Pending: </strong>End-of-Year statuses for ' + (KPI_DATA.filter(function(k){return !k.endStatus || k.endStatus==='Pending';}).length) + ' targets are pending — final assessments will be completed at program wrap-up (May–June). Current Mid-Year standing reflects the most complete available view.</div>';
+    html += '<div class="exp-forward-item"><strong>Academic Impact Window: </strong>iReady EOY diagnostics (April–May) will finalize scholar placement movement data — the primary outcome metric for NJTC\'s impact narrative with funders and partners.</div>';
+    html += '<div class="exp-forward-item"><strong>Workforce Cycle: </strong>ADP Suite rehire decisions are staged for EOY finalization following academic data availability. Current talent pipeline positions NJTC for effective program continuity into SY 2026–2027.</div>';
+    html += '</div>';
+
+    // Closing
+    html += '<div style="margin-top:1.5rem">';
+    html += '<p class="exp-narrative">';
+    html += 'This report was generated from live data in the NJTC Central Team Portal and reflects mid-year standing across all tracked organizational targets. ';
+    html += 'Goal owners across all departments are accountable for final EOY status entries. ';
+    html += 'For questions on specific targets, source data, or validation methodology, contact the <strong>Director of Program Evaluation & Impact</strong>.';
+    html += '</p>';
+    html += '</div>';
+
+    html += '</div>'; // exp-body
+    html += _expReportFooter();
+    return html;
+  }
+
+  // ── Public API ────────────────────────────────────────────
+  function expOpen() {
+    var dept = (window.NJTC_SESSION || {}).dept || 'leadership';
+    var modal = document.getElementById('njtcExportModal');
+    if (!modal) return;
+
+    // Determine default mode
+    _expCurrentMode = (dept === 'kb') ? 'kb' : 'leadership';
+
+    // Show mode switcher only for leadership (not kb — they see one view)
+    var pills = document.getElementById('expModePills');
+    if (pills) pills.style.display = (dept === 'leadership') ? 'flex' : 'none';
+
+    // Update toolbar subtitle
+    var sub = document.getElementById('expToolbarSub');
+    if (sub) {
+      sub.textContent = dept === 'kb'
+        ? 'CEO Executive Brief  ·  SY 2025–2026'
+        : 'Leadership Detail Brief  ·  SY 2025–2026  ·  Chief of Staff View';
+    }
+
+    // Build reports
+    _expBuildMode('kb');
+    if (dept === 'leadership') _expBuildMode('leadership');
+
+    // Set active mode
+    expSwitchMode(_expCurrentMode);
+
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function _expBuildMode(mode) {
+    if (_expBuilt[mode]) return;
+    var paperId = mode === 'kb' ? 'expPaperKb' : 'expPaperLeadership';
+    var paper = document.getElementById(paperId);
+    if (!paper) return;
+    paper.innerHTML = mode === 'kb' ? _buildKbReport() : _buildLeadershipReport();
+    _expBuilt[mode] = true;
+  }
+
+  function expSwitchMode(mode) {
+    _expCurrentMode = mode;
+    var kbPanel = document.getElementById('expPanelKb');
+    var ldPanel = document.getElementById('expPanelLeadership');
+    var kbPill  = document.getElementById('expPillKb');
+    var ldPill  = document.getElementById('expPillLeadership');
+
+    if (kbPanel) { kbPanel.style.display = mode === 'kb' ? 'block' : 'none'; kbPanel.classList.toggle('print-active', mode === 'kb'); }
+    if (ldPanel) { ldPanel.style.display = mode === 'leadership' ? 'block' : 'none'; ldPanel.classList.toggle('print-active', mode === 'leadership'); }
+    if (kbPill)  kbPill.classList.toggle('active',  mode === 'kb');
+    if (ldPill)  ldPill.classList.toggle('active',  mode === 'leadership');
+
+    // Scroll to top
+    var modal = document.getElementById('njtcExportModal');
+    if (modal) modal.scrollTop = 0;
+  }
+
+  function expClose() {
+    var modal = document.getElementById('njtcExportModal');
+    if (modal) modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function expPrint() {
+    window.print();
+  }
+
+  // Force rebuild on next open (e.g. after KPI data refreshes)
+  function expInvalidate() {
+    _expBuilt.kb = false;
+    _expBuilt.leadership = false;
+  }
+
+  window.expOpen       = expOpen;
+  window.expClose      = expClose;
+  window.expPrint      = expPrint;
+  window.expSwitchMode = expSwitchMode;
+  window.expInvalidate = expInvalidate;
+
+    window.po                   = po;
 
   // ── Expose metadata fetch ──────────────────────────────────
   window.fetchKPIMetadata      = fetchKPIMetadata;
@@ -15155,6 +15947,38 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   </div>
   <div class="gov-body" id="govBody"></div>
 </div>
+
+
+  <!-- ══ NJTC LEADERSHIP EXPORT MODAL ══════════════════════════ -->
+  <div id="njtcExportModal" role="dialog" aria-label="Leadership Report Export">
+
+    <!-- Toolbar (screen only) -->
+    <div class="exp-toolbar" id="expToolbar">
+      <div>
+        <div class="exp-toolbar-title">NJTC Leadership Report</div>
+        <div class="exp-toolbar-sub" id="expToolbarSub">SY 2025–2026 · Organizational Performance Summary</div>
+      </div>
+      <div class="exp-mode-pills" id="expModePills" style="display:none">
+        <button class="exp-mode-pill active" id="expPillKb" onclick="expSwitchMode('kb')">Executive Brief</button>
+        <button class="exp-mode-pill" id="expPillLeadership" onclick="expSwitchMode('leadership')">Leadership Detail</button>
+      </div>
+      <div class="exp-toolbar-actions">
+        <button class="exp-btn exp-btn-print" onclick="expPrint()">&#128438; Print / Save PDF</button>
+        <button class="exp-btn exp-btn-close" onclick="expClose()">&#10005; Close</button>
+      </div>
+    </div>
+
+    <!-- KB MODE: Executive Brief -->
+    <div class="exp-mode-panel" id="expPanelKb">
+      <div class="exp-paper" id="expPaperKb"><!-- filled by JS --></div>
+    </div>
+
+    <!-- LEADERSHIP MODE: Detail Brief -->
+    <div class="exp-mode-panel" id="expPanelLeadership" style="display:none">
+      <div class="exp-paper" id="expPaperLeadership"><!-- filled by JS --></div>
+    </div>
+
+  </div>
 
 </body>
 </html>
