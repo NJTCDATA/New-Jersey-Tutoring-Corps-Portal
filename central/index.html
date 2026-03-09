@@ -10031,8 +10031,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── STATE ─────────────────────────────────────────────────────────────
     let _attRows  = [];   // parsed attendance (cols A–AF only)
     let _sessRows = [];   // parsed session details
-    let _stuRows  = [];   // parsed student surveys
+    let _stuRows  = [];   // parsed student surveys (grows during stream)
     let _instRows = [];   // parsed instructor surveys
+
+    // Scholar survey stream state
+    // _stuAggScores: final scores from a COMPLETE stream run (or restored from cache)
+    // Only updated when stream finishes — never mid-stream. This ensures all depts
+    // see the same score regardless of when they open the panel.
+    let _stuStreamComplete = false;  // true only after stream runs to 100% completion
+    let _stuAggScores = null;        // { globalAvg, bySchool: {school:{avg,cnt}} } — final only
 
     // Derived indexes (built once after all tabs load)
     let _schoolMap   = {};  // school → {att, sess, stu, inst, ...}
@@ -10544,6 +10551,23 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             rows.push(r);
           }
         }
+        // Pre-compute final agg scores from cache so survey card shows correctly
+        // before any stream runs. This gives cross-dept score consistency.
+        var restoredScores = { globalSum: 0, globalCnt: 0, bySchool: {} };
+        for (var rs in schools) {
+          var rsc = schools[rs];
+          var sSum = 0, sCnt = 0;
+          for (var ri = 0; ri < rsc.entries.length; ri++) {
+            var re2 = rsc.entries[ri];
+            [0,1,2,3].forEach(function(ci) {
+              var v = parseFloat(re2[ci]);
+              if (!isNaN(v) && v > 0) { sSum += v; sCnt++; restoredScores.globalSum += v; restoredScores.globalCnt++; }
+            });
+          }
+          restoredScores.bySchool[rs] = { avg: sCnt > 0 ? sSum/sCnt : 0, cnt: sCnt };
+        }
+        _stuAggScores = restoredScores;
+        _stuStreamComplete = true;   // cache = a previous complete run → treat as complete
         console.log('[Pearl Ops] STU agg cache restored:', rows.length, 'rows,', Object.keys(schools).length, 'schools, age:', Math.round((Date.now()-obj.ts)/60000), 'min');
         return rows;
       } catch(e) {
@@ -10560,6 +10584,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     async function _streamStuInBackground(bust) {
       if (_stuStreamRunning) return;
       _stuStreamRunning = true;
+      _stuStreamComplete = false;  // mark incomplete until stream finishes
       var PARTIAL_THRESHOLD = 800;  // rows before first partial render
       var url = stuCsvUrl() + (bust || '');
       console.log('[Pearl Ops] Streaming scholar survey from:', url.slice(0, 80) + '...');
@@ -10651,7 +10676,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           }
         }
         console.log('[Pearl Ops] STU stream complete:', _stuRows.length, 'rows,', Object.keys(streamAgg).length, 'schools');
-        // Final rebuild + render
+        // Compute final agg scores from the complete stream
+        var finalScores = { globalSum: globalSum, globalCnt: globalCnt, bySchool: {} };
+        for (var fs in streamAgg) {
+          var fsc = streamAgg[fs];
+          finalScores.bySchool[fs] = { avg: fsc.cnt > 0 ? fsc.sum/fsc.cnt : 0, cnt: fsc.cnt };
+        }
+        _stuAggScores = finalScores;
+        _stuStreamComplete = true;   // mark complete — survey card now reads final score
+        // Final rebuild + render with authoritative complete-stream score
         buildIndexes();
         renderView();
         setSyncState('live');
@@ -10730,6 +10763,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       try {
         _stuRows = parseCSVLimit(text, STU_MAX_COL).slice(1);
         console.log('[Pearl Ops] STU full text load:', _stuRows.length, 'rows');
+        _stuStreamComplete = true;   // full text = complete data
         buildIndexes();
         renderView();
         setSyncState('live');
@@ -10746,13 +10780,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     function _saveStuAggFromRows(rows) {
       try {
         var schools = {};
+        var gSum = 0, gCnt = 0;
+        var memScores = { globalSum: 0, globalCnt: 0, bySchool: {} };
         for (var i = 0; i < rows.length; i++) {
           var r = rows[i];
           var school = r[8] || '';
           if (!school) continue;
           if (!schools[school]) schools[school] = { district: r[9]||'', entries: [], sum: 0, cnt: 0 };
-          schools[school].entries.push([r[2]||'',r[3]||'',r[4]||'',r[5]||'',r[6]||'',r[0]||'',r[11]||'',r[12]||'',r[22]||'']);
+          var entry = [r[2]||'',r[3]||'',r[4]||'',r[5]||'',r[6]||'',r[0]||'',r[11]||'',r[12]||'',r[22]||''];
+          schools[school].entries.push(entry);
+          [0,1,2,3].forEach(function(ci) {
+            var v = parseFloat(entry[ci]);
+            if (!isNaN(v) && v > 0) { schools[school].sum+=v; schools[school].cnt++; gSum+=v; gCnt++; }
+          });
+          if (!memScores.bySchool[school]) memScores.bySchool[school] = { avg:0, cnt:0, sum:0 };
+          [0,1,2,3].forEach(function(ci) {
+            var v2 = parseFloat(entry[ci]);
+            if (!isNaN(v2) && v2 > 0) { memScores.bySchool[school].sum+=v2; memScores.bySchool[school].cnt++; memScores.globalSum+=v2; memScores.globalCnt++; }
+          });
         }
+        for (var s2 in memScores.bySchool) {
+          var sb = memScores.bySchool[s2];
+          sb.avg = sb.cnt > 0 ? sb.sum/sb.cnt : 0;
+        }
+        _stuAggScores = memScores;  // update in-memory scores from this complete run
         var cacheObj = { ts: Date.now(), schools: schools, totalRows: rows.length };
         localStorage.setItem(STU_AGG_KEY, JSON.stringify(cacheObj));
         console.log('[Pearl Ops] STU agg saved from rows:', rows.length);
@@ -11036,7 +11087,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       for (const [school, sc] of Object.entries(_schoolMap)) {
         // Student surveys
         const stuRows = _stuRows.filter(r => r[STU_S.SCHOOL] === school);
-        sc.stuSurveyAvg = avgSurvey(stuRows, [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL]);
+        // Use agg cache for per-school avg when stream is incomplete (consistency)
+        if (_stuStreamComplete) {
+          sc.stuSurveyAvg = avgSurvey(stuRows, [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL]);
+        } else if (_stuAggScores && _stuAggScores.bySchool && _stuAggScores.bySchool[school]) {
+          sc.stuSurveyAvg = _stuAggScores.bySchool[school].avg || 0;
+        } else {
+          sc.stuSurveyAvg = avgSurvey(stuRows, [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL]);
+        }
         sc.stuSurveyRows = stuRows;
         // Instructor surveys
         const instRows = _instRows.filter(r => r[INST_S.SCHOOL] === school);
@@ -11228,18 +11286,45 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const delivered  = fullAtt + partial;   // Completed = Attended + Partially Attended
       const totalSess  = filtSess.filter(s => s.status && s.status !== '' && s.status !== 'Scheduled').length;
 
-      // ── Scholar survey avg (from student survey rows, filtered by school) ──
-      // Uses raw score columns: CONFIDENCE, ENJOYMENT, LEARNING, OVERALL (cols 2-5)
-      const stuSurvRows = _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]));
-      const stuSurvScores = [];
-      for (const r of stuSurvRows) {
-        [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(c => {
-          const v = parseFloat(r[c]); if (!isNaN(v) && v > 0) stuSurvScores.push(v);
-        });
+      // ── Scholar survey avg ──────────────────────────────────────────────
+      // SOURCE PRIORITY:
+      // 1. If stream is complete (_stuStreamComplete=true): compute from full _stuRows
+      // 2. If stream is in progress but we have cached agg scores: use _stuAggScores
+      //    (scores from the LAST complete run — guaranteed consistent across all depts)
+      // 3. No data at all: show '—'
+      // This prevents mid-stream partial averages from showing different scores per dept.
+      let stuSurvAvg = '—';
+      if (_stuStreamComplete && _stuRows.length) {
+        // Full data available — compute from rows (school filter applied)
+        const stuSurvRows = _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]));
+        const stuSurvScores = [];
+        for (const r of stuSurvRows) {
+          [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(c => {
+            const v = parseFloat(r[c]); if (!isNaN(v) && v > 0) stuSurvScores.push(v);
+          });
+        }
+        if (stuSurvScores.length)
+          stuSurvAvg = (stuSurvScores.reduce((a,b)=>a+b,0)/stuSurvScores.length).toFixed(2);
+      } else if (_stuAggScores) {
+        // Stream in progress or just starting — use last complete run's scores
+        // Apply school filter against the cached bySchool map
+        const _noSchoolFilter = !_activeFilters || (!_activeFilters.school && !_activeFilters.district);
+        if (_noSchoolFilter) {
+          // Global avg — most common case
+          const { globalSum, globalCnt } = _stuAggScores;
+          if (globalCnt > 0) stuSurvAvg = (globalSum / globalCnt).toFixed(2);
+        } else {
+          // School-filtered: sum only matching schools from bySchool cache
+          let fSum = 0, fCnt = 0;
+          for (const [school, sc] of Object.entries(_stuAggScores.bySchool || {})) {
+            if (matchesSchoolFilter(school, '')) {
+              fSum += (sc.avg || 0) * (sc.cnt || 0);
+              fCnt += (sc.cnt || 0);
+            }
+          }
+          if (fCnt > 0) stuSurvAvg = (fSum / fCnt).toFixed(2);
+        }
       }
-      const stuSurvAvg = stuSurvScores.length
-        ? (stuSurvScores.reduce((a,b)=>a+b,0)/stuSurvScores.length).toFixed(2)
-        : '—';
 
       // ── Tutor survey avg (from instructor survey rows, filtered by school) ──
       // Uses raw score columns: ENGAGEMENT, ENJOYMENT, LEARNING, OVERALL (cols 2-5)
@@ -12812,7 +12897,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       } else if (state === 'live') {
         dot.className = 'sync-dot';
         const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
-        const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
+        // Exclude _stuRows from count while stream is in progress — avoids
+        // showing different record counts across depts mid-stream.
+        const _stuCount = _stuStreamComplete ? _stuRows.length : 0;
+        const totalRec = _attRows.length + _sessRows.length + _stuCount + _instRows.length;
         if (txt) txt.innerHTML = `<strong>Live · Pearl</strong> · ${totalRec.toLocaleString()} records · Updated ${t}`;
       } else if (state === 'partial') {
         dot.className = 'sync-dot';
