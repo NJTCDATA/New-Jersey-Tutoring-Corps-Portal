@@ -4090,34 +4090,7 @@
 
         <!-- ── TALKING POINTS ── -->
         <div class="adv-pane active" id="advPane-talking-points">
-          <div class="adv-ai-box">
-            <div class="adv-ai-box-title">
-              <span>✨</span> AI Talking Point Generator
-            </div>
-            <div class="adv-ai-controls">
-              <select class="adv-ai-select" id="advAiTopic">
-                <option value="scholar_outcomes">Scholar Academic Outcomes</option>
-                <option value="roi_state">ROI on State Funding</option>
-                <option value="attendance">Attendance & Engagement</option>
-                <option value="workforce">Educator Pipeline</option>
-                <option value="scale">Program Scale & Growth</option>
-                <option value="equity">Equity & Access</option>
-              </select>
-              <select class="adv-ai-select" id="advAiLength">
-                <option value="brief">3 concise points</option>
-                <option value="standard" selected>5 standard points</option>
-                <option value="detailed">7 detailed points</option>
-              </select>
-              <button class="adv-ai-btn" id="advAiGenerateBtn" onclick="advGenerateTalkingPoints()">
-                Generate Talking Points
-              </button>
-            </div>
-            <div class="adv-ai-output" id="advAiOutput"></div>
-            <div id="advAiCopyRow" style="display:none">
-              <button class="adv-copy-btn" onclick="advCopyOutput()">📋 Copy to clipboard</button>
-            </div>
-          </div>
-
+          <div id="advTpLoading" style="padding:.5rem 0;font-size:.82rem;color:var(--muted)">Loading live data…</div>
           <div class="adv-tp-grid" id="advTpGrid">
             <!-- populated by advBuildTalkingPoints() -->
           </div>
@@ -10569,6 +10542,61 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           });
         }
         return map;
+      },
+      // getStats() — for Advocacy module, returns real computed Pearl numbers
+      getStats: function() {
+        // Compute directly from the internal data arrays (same logic as updateStats)
+        var stats = { loaded: false, scholAttPct: null, instAttPct: null, sessions: null,
+                      siCount: null, surveyAvg: null, totalRows: 0, schoolCount: 0,
+                      districtCount: 0, activeTutors: 0 };
+        try {
+          // Scholar attendance from all att rows
+          var stuAttRows = _attRows.filter(function(r){ return r[ATT.ROLE]==='Student'; });
+          var stuAtt  = stuAttRows.filter(function(r){ var c=classifyRecord(r); return c==='attended'; }).length;
+          var stuAbs  = stuAttRows.filter(function(r){ var c=classifyRecord(r); return c==='absent'; }).length;
+          var stuTotal = stuAtt + stuAbs;
+          if (stuTotal > 0) stats.scholAttPct = parseFloat((stuAtt/stuTotal*100).toFixed(1));
+
+          // Instructor attendance
+          var instAttRows = _attRows.filter(function(r){ return r[ATT.ROLE]==='Instructor'; });
+          var instAtt = instAttRows.filter(function(r){ var c=classifyRecord(r); return c==='attended'; }).length;
+          var instAbs = instAttRows.filter(function(r){ var c=classifyRecord(r); return c==='absent'; }).length;
+          var instTotal = instAtt + instAbs;
+          if (instTotal > 0) stats.instAttPct = parseFloat((instAtt/instTotal*100).toFixed(1));
+
+          // Sessions from _sessRows
+          if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
+
+          // Service interruptions from att rows (SI classification)
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='si'||c==='service-interruption'; });
+          stats.siCount = siRows.length;
+
+          // Scholar survey avg from _stuRows (complete only)
+          if (_stuStreamComplete && _stuRows.length) {
+            var survScores = [];
+            _stuRows.forEach(function(r){
+              [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(function(c){
+                var v = parseFloat(r[c]); if (!isNaN(v) && v > 0) survScores.push(v);
+              });
+            });
+            if (survScores.length) stats.surveyAvg = parseFloat((survScores.reduce(function(a,b){return a+b;},0)/survScores.length).toFixed(2));
+          } else if (_stuAggScores && _stuAggScores.globalCnt > 0) {
+            stats.surveyAvg = parseFloat((_stuAggScores.globalSum / _stuAggScores.globalCnt).toFixed(2));
+          }
+
+          // Schools / districts / tutors
+          if (_schoolMap) {
+            var schools = Object.keys(_schoolMap);
+            stats.schoolCount = schools.length;
+            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; })).size;
+          }
+          if (_personMap) {
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+          }
+          stats.totalRows = _attRows.length + _sessRows.length + _instRows.length;
+          stats.loaded = stats.scholAttPct !== null;
+        } catch(e) { console.warn('[po.getStats] error:', e.message); }
+        return stats;
       }
     };
     }
@@ -15245,11 +15273,48 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       return buildTutorMap(allRows);
     }
 
+    // getSummary() — for Advocacy module: returns aggregate iReady outcome numbers
+    function getSummary() {
+      var allRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || [],
+                              IRLAB_DATA.mathRepeat || [], IRLAB_DATA.elaRepeat || []);
+      if (!allRows.length) return null;
+      // Column indexes: studentId=1, grade=2, syear=3, placementRaw=4, placementLabel=5,
+      // overallScaleScore=6, placementStart=7, placementEnd=8, typical=9, stretch=10,
+      // percentileStart=11, percentileEnd=12, growth=13, passedTyp=14, passedStr=15
+      var totalScholars = new Set();
+      var totalWithGrowth = 0, totalRows = 0;
+      var mathRows = 0, elaRows = 0;
+      var gradeSet = new Set();
+      var sySet = new Set();
+      allRows.forEach(function(r) {
+        if (!r || r.length < 14) return;
+        totalRows++;
+        if (r[1]) totalScholars.add(r[1]);
+        var growth = typeof r[13] !== 'undefined' ? parseFloat(r[13]) : NaN;
+        if (!isNaN(growth) && growth > 0) totalWithGrowth++;
+        if (r[2]) gradeSet.add(r[2]);
+        if (r[3]) sySet.add(r[3]);
+      });
+      (IRLAB_DATA.math||[]).forEach(function(){ mathRows++; });
+      (IRLAB_DATA.ela||[]).forEach(function(){ elaRows++; });
+      var growthPct = totalRows > 0 ? parseFloat((totalWithGrowth/totalRows*100).toFixed(1)) : null;
+      return {
+        totalScholars: totalScholars.size,
+        totalRows: totalRows,
+        totalWithGrowth: totalWithGrowth,
+        growthPct: growthPct,
+        mathRows: (IRLAB_DATA.math||[]).length + (IRLAB_DATA.mathRepeat||[]).length,
+        elaRows: (IRLAB_DATA.ela||[]).length + (IRLAB_DATA.elaRepeat||[]).length,
+        grades: gradeSet.size,
+        schoolYears: Array.from(sySet).sort()
+      };
+    }
+
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
-             getTutorAcademicData,
+             getTutorAcademicData, getSummary,
              fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
   })();
 
@@ -16081,6 +16146,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.kqrRestoreSnapshot = kqrRestoreSnapshot;
 
     window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
+  // Expose KPI data accessors for Advocacy module (read-only)
+  window.advGetKPIData   = function() { return (typeof KPI_DATA !== 'undefined'        && KPI_DATA.length)        ? KPI_DATA        : []; };
+  window.advGetKPIStatic = function() { return (typeof KPI_DATA_STATIC !== 'undefined' && KPI_DATA_STATIC.length) ? KPI_DATA_STATIC  : []; };
   window.buildKPIAnalytics    = buildKPIAnalytics;
   window.buildTalentDashboard = buildTalentDashboard;
   window._showProfiles = function() {
@@ -16744,656 +16812,409 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
   <!-- ══════════════════════════════════════════════════════════════════
        ADVOCACY & MEDIA INTELLIGENCE MODULE  —  NJTC Central Team Portal
-       Dept access: leadership | kb | data
-       Pulls live data from: window.po, window.irlab, KPI_DATA_STATIC
-  ══════════════════════════════════════════════════════════════════════ -->
+       Data: 100% live from window.po.getStats(), window.advGetKPIData(),
+       window.irlab.getSummary(), SYA DOM elements.
+       NO AI components — all talking points computed from live sheet data.
+  ══════════════════════════════════════════════════════════════════ -->
   <script>
   (function() {
     'use strict';
 
-    // ── Module state ────────────────────────────────────────────────
     var _inited    = false;
     var _audience  = 'governor';
     var _activeTab = 'talking-points';
+    var _cache     = {};  // { stats, kpi, irl } — cleared on panel open
 
-    // ── Historical program data (static, pre-loaded) ────────────────
-    // Used for ROI storytelling and longitudinal charts even before live data loads
-    var HIST = {
-      scholars:  [{ sy:'SY 22-23', n:810 }, { sy:'SY 23-24', n:1200 }, { sy:'SY 24-25', n:1550 }, { sy:'SY 25-26', n:1687 }],
-      sites:     [{ sy:'SY 22-23', n:18  }, { sy:'SY 23-24', n:26   }, { sy:'SY 24-25', n:33   }, { sy:'SY 25-26', n:38   }],
-      sessions:  [{ sy:'SY 22-23', n:4200}, { sy:'SY 23-24', n:7100 }, { sy:'SY 24-25', n:10300}, { sy:'SY 25-26', n:12106}],
-      tutorAtt:  [{ sy:'SY 22-23', n:88  }, { sy:'SY 23-24', n:90   }, { sy:'SY 24-25', n:92   }, { sy:'SY 25-26', n:93   }],
-      // Educator pipeline
-      apprentices:[{ sy:'SY 23-24', n:12 }, { sy:'SY 24-25', n:28   }, { sy:'SY 25-26', n:35   }],
-      // Funding history
-      stateFunding:[{ fy:'FY23', n:500000 }, { fy:'FY24', n:650000 }, { fy:'FY25', n:850000 }],
-      // Scholar outcome data (from iReady cycles)
-      growthPct:  [{ sy:'SY 22-23', n:55 }, { sy:'SY 23-24', n:61   }, { sy:'SY 24-25', n:68   }],
-    };
-
-    // ── Audience-specific framing ────────────────────────────────────
-    var AUDIENCE_FRAMES = {
-      governor: {
-        label: "Governor's Office",
-        headline: "NJTC is delivering measurable academic progress across New Jersey's highest-need communities.",
-        emphasis: "statewide impact, ROI on state investment, educator pipeline",
-        cta: "Request a program briefing or site visit",
-        tone: "executive summary — concise, metric-first, policy-relevant"
-      },
-      legislature: {
-        label: "Legislature / Appropriations",
-        headline: "Every dollar in state tutoring funding is generating documented academic gains for NJ students.",
-        emphasis: "cost per scholar served, outcomes per funding dollar, districts reached",
-        cta: "Support continued and expanded state funding",
-        tone: "policy brief — evidence-based, district-level, budget-conscious"
-      },
-      donor: {
-        label: "Philanthropic Donors",
-        headline: "Your investment is closing achievement gaps for scholars who need it most.",
-        emphasis: "scholar stories, equity impact, organizational health, leverage of philanthropic dollars",
-        cta: "Partner with NJTC to scale proven impact",
-        tone: "narrative — mission-driven, human impact, financial stewardship"
-      },
-      partner: {
-        label: "District Partners",
-        headline: "NJTC&#39;s embedded tutoring model delivers measurable outcomes within your existing school day.",
-        emphasis: "attendance, session completion, survey satisfaction, local site data",
-        cta: "Renew or expand your partnership",
-        tone: "operational brief — site-level data, staff quality, logistics"
-      }
-    };
-
-    // ── Get live Pearl stats (graceful fallback to HIST) ────────────
+    // ── Live data readers ────────────────────────────────────────
     function getLiveStats() {
-      var stats = {
-        scholars:   1687,
-        sites:      38,
-        sessions:   12106,
-        tutorAttPct: 93,
-        scholAttPct: 82,
-        surveyAvg:   4.41,
-        siCount:     11908,
-        districts:   6,
-        tutorCount:  107,
-        loaded: false
-      };
+      if (_cache.stats) return _cache.stats;
+      var s = { loaded:false, scholAttPct:null, instAttPct:null,
+                sessions:null, siCount:null, surveyAvg:null,
+                sites:null, districts:null, totalRows:0, schoolCount:0 };
+      // Primary: po.getStats() — real computed values from data arrays
       try {
-        var poEl = document.getElementById('poStatScholarAtt');
-        if (poEl && poEl.textContent && poEl.textContent !== '—') {
-          var attStr = poEl.textContent.replace('%','').replace('★','').trim();
-          var attVal = parseFloat(attStr);
-          if (!isNaN(attVal)) { stats.scholAttPct = attVal; stats.loaded = true; }
-        }
-        var tutEl = document.getElementById('poStatTutorAtt');
-        if (tutEl && tutEl.textContent && tutEl.textContent !== '—') {
-          var tStr = tutEl.textContent.replace('%','').trim();
-          var tVal = parseFloat(tStr);
-          if (!isNaN(tVal)) stats.tutorAttPct = tVal;
-        }
-        var sessEl = document.getElementById('poStatSessions');
-        if (sessEl && sessEl.textContent && sessEl.textContent !== '—') {
-          var sVal = parseInt(sessEl.textContent.replace(/,/g,''));
-          if (!isNaN(sVal) && sVal > 0) stats.sessions = sVal;
-        }
-        var survEl = document.getElementById('poStatSurveyScholar');
-        if (survEl && survEl.textContent && survEl.textContent !== '—') {
-          var svStr = survEl.textContent.replace('★','').trim();
-          var svVal = parseFloat(svStr);
-          if (!isNaN(svVal)) stats.surveyAvg = svVal;
-        }
-        var siEl = document.getElementById('poStatInterruptions');
-        if (siEl && siEl.textContent && siEl.textContent !== '—') {
-          var siVal = parseInt(siEl.textContent.replace(/,/g,''));
-          if (!isNaN(siVal) && siVal >= 0) stats.siCount = siVal;
-        }
-        // Active scholars from command center
-        var activeEl = document.getElementById('poActiveScholars');
-        if (activeEl && activeEl.textContent) {
-          var aVal = parseInt(activeEl.textContent.replace(/,/g,''));
-          if (!isNaN(aVal) && aVal > 0) stats.scholars = aVal;
-        }
-        // Sites from command center
-        var sitesEl = document.querySelector('.po-cmd-sites');
-        if (sitesEl && sitesEl.textContent) {
-          var siteVal = parseInt(sitesEl.textContent);
-          if (!isNaN(siteVal) && siteVal > 0) stats.sites = siteVal;
+        if (window.po && window.po.getStats) {
+          var ps = window.po.getStats();
+          if (ps) {
+            s.scholAttPct = ps.scholAttPct;
+            s.instAttPct  = ps.instAttPct;
+            s.sessions    = ps.sessions;
+            s.siCount     = ps.siCount;
+            s.surveyAvg   = ps.surveyAvg;
+            s.schoolCount = ps.schoolCount;
+            s.districtCount = ps.districtCount;
+            s.totalRows   = ps.totalRows;
+            s.loaded      = ps.loaded;
+          }
         }
       } catch(e) {}
-      return stats;
+      // SYA DOM elements (sites / districts / actual sessions)
+      function domTxt(id) {
+        var el = document.getElementById(id);
+        if (!el) return null;
+        var t = el.textContent.replace(/,/g,'').trim();
+        return (t === '—' || t === '') ? null : t;
+      }
+      var syaSites = domTxt('syStatSites');
+      var syaDist  = domTxt('syStatDistricts');
+      if (syaSites) s.sites     = parseInt(syaSites) || null;
+      if (syaDist)  s.districts = parseInt(syaDist)  || null;
+      if (!s.sites && s.schoolCount) s.sites     = s.schoolCount;
+      if (!s.districts && s.districtCount) s.districts = s.districtCount;
+      // Fallback: Pearl stat DOM cards
+      if (!s.loaded) {
+        function readStat(id) {
+          var el = document.getElementById(id);
+          if (!el) return null;
+          var t = el.textContent.replace(/[★%,]/g,'').trim();
+          return (t === '—' || t === '') ? null : t;
+        }
+        var att = readStat('poStatAtt'), inst = readStat('poStatInstAtt'),
+            sess = readStat('poStatSessions'), surv = readStat('poStatSurveyScholar'),
+            si   = readStat('poStatInterruptions');
+        if (att)  s.scholAttPct = parseFloat(att);
+        if (inst) s.instAttPct  = parseFloat(inst);
+        if (sess) s.sessions    = parseInt(sess.replace(/,/g,''));
+        if (surv) s.surveyAvg   = parseFloat(surv);
+        if (si)   s.siCount     = parseInt(si.replace(/,/g,''));
+        s.loaded = s.scholAttPct !== null;
+      }
+      _cache.stats = s;
+      return s;
     }
 
-    // ── KPI wins (Met + Partially Met) ──────────────────────────────
+    function getKPIData() {
+      if (_cache.kpi) return _cache.kpi;
+      var rows = [];
+      try {
+        if (typeof window.advGetKPIData === 'function')   rows = window.advGetKPIData();
+        if (!rows.length && typeof window.advGetKPIStatic === 'function') rows = window.advGetKPIStatic();
+      } catch(e) {}
+      _cache.kpi = rows;
+      return rows;
+    }
+
     function getKPIWins() {
-      var data = (typeof KPI_DATA_STATIC !== 'undefined') ? KPI_DATA_STATIC : [];
-      var met = [], partial = [], progress = [];
+      var data = getKPIData();
+      var met=[], partial=[], progress=[], notMet=[], pipeline=[];
       data.forEach(function(k) {
-        var s = (k.midStatus||'').toLowerCase();
-        if (s === 'met') met.push(k);
-        else if (s === 'partially met') partial.push(k);
-        else if (s === 'in progress') progress.push(k);
+        var st = (k.midStatus||k.status||'').toLowerCase();
+        if      (st==='met')                       met.push(k);
+        else if (st==='partially met')             partial.push(k);
+        else if (st==='in progress')               progress.push(k);
+        else if (st==='has not met')               notMet.push(k);
+        else if (st==='coming down the pipeline')  pipeline.push(k);
       });
-      return { met: met, partial: partial, progress: progress, total: data.length };
+      return { met:met, partial:partial, progress:progress, notMet:notMet, pipeline:pipeline, total:data.length };
     }
 
-    // ── ROI calculations ─────────────────────────────────────────────
-    function calcROI(funding, scholars, sessions, sessionMins, growthPct, remCostPerScholar) {
-      var costPerScholar    = funding / Math.max(scholars, 1);
-      var totalHours        = (sessions * sessionMins) / 60;
-      var costPerHour       = funding / Math.max(totalHours, 1);
-      var scholarsGrowing   = Math.round(scholars * (growthPct / 100));
-      var remCostAvoided    = scholarsGrowing * remCostPerScholar;
-      var roi               = ((remCostAvoided - funding) / funding) * 100;
-      var leverageRatio     = remCostAvoided / Math.max(funding, 1);
-      return {
-        costPerScholar:  Math.round(costPerScholar),
-        totalHours:      Math.round(totalHours),
-        costPerHour:     Math.round(costPerHour),
-        scholarsGrowing: scholarsGrowing,
-        remCostAvoided:  Math.round(remCostAvoided),
-        roi:             Math.round(roi),
-        leverageRatio:   leverageRatio.toFixed(1),
-        funding:         funding,
-        scholars:        scholars
-      };
+    function getIRLData() {
+      if (_cache.irl !== undefined) return _cache.irl;
+      var d = null;
+      try { if (window.irlab && window.irlab.getSummary) d = window.irlab.getSummary(); } catch(e) {}
+      _cache.irl = d;
+      return d;
     }
 
-    // ── Format helpers ───────────────────────────────────────────────
+    // ── Format helpers ───────────────────────────────────────────
     function fmtDollars(n) {
-      if (n >= 1000000) return '$' + (n/1000000).toFixed(1) + 'M';
-      if (n >= 1000)    return '$' + Math.round(n/1000) + 'K';
-      return '$' + n.toLocaleString();
+      if (n==null) return '—';
+      if (n>=1000000) return '$'+(n/1000000).toFixed(1)+'M';
+      if (n>=1000)    return '$'+Math.round(n/1000)+'K';
+      return '$'+n.toLocaleString();
     }
-    function fmtNum(n) {
-      return n.toLocaleString();
-    }
+    function fmtNum(n) { return (n!=null) ? Number(n).toLocaleString() : '—'; }
+    function fmtPct(n) { return (n!=null) ? n+'%' : '—'; }
     function statusPill(s) {
-      var map = { 'met':'met', 'partially met':'partial', 'in progress':'progress',
-                  'coming down the pipeline':'pipeline', 'has not met':'notmet' };
-      var cls = map[(s||'').toLowerCase()] || 'progress';
-      var labels = { met:'✅ Met', partial:'⚡ Partially Met', progress:'🔄 In Progress',
-                     pipeline:'🔜 Pipeline', notmet:'❌ Not Met' };
-      return '<span class="adv-status-pill ' + cls + '">' + (labels[cls]||s) + '</span>';
+      var m={'met':'met','partially met':'partial','in progress':'progress',
+             'coming down the pipeline':'pipeline','has not met':'notmet'};
+      var cls=m[(s||'').toLowerCase()]||'progress';
+      var lbl={met:'Met',partial:'Partially Met',progress:'In Progress',pipeline:'In Pipeline',notmet:'Not Met'};
+      var ico={met:'&#10003;',partial:'&#8987;',progress:'&#8635;',pipeline:'&#8594;',notmet:'&#215;'};
+      return '<span class="adv-status-pill '+cls+'">'+ico[cls]+' '+lbl[cls]+'</span>';
     }
 
-    // ── BUILD: Talking Points grid ───────────────────────────────────
+    // ── Talking Points — built entirely from live data ────────────
     function buildTalkingPoints() {
-      var stats  = getLiveStats();
-      var kpi    = getKPIWins();
-      var frame  = AUDIENCE_FRAMES[_audience] || AUDIENCE_FRAMES.governor;
-      var grid   = document.getElementById('advTpGrid');
+      var s    = getLiveStats();
+      var kpi  = getKPIWins();
+      var irl  = getIRLData();
+      var grid = document.getElementById('advTpGrid');
+      var ldg  = document.getElementById('advTpLoading');
       if (!grid) return;
 
-      var growthPrevSY = HIST.growthPct[HIST.growthPct.length - 2] || { n: 61 };
-      var growthThis   = HIST.growthPct[HIST.growthPct.length - 1] || { n: 68 };
-      var scholarGrowth = HIST.scholars[HIST.scholars.length-1].n - HIST.scholars[0].n;
+      var cards = [];
 
-      var cards = [
-        {
-          color: 'blue', label: 'Scale & Reach',
-          headline: fmtNum(stats.scholars) + ' scholars served across ' + stats.sites + ' school sites in ' + stats.districts + ' districts',
-          body: 'A ' + Math.round(scholarGrowth/HIST.scholars[0].n * 100) + '% increase in scholars served since SY 22-23, expanding from ' + HIST.scholars[0].n + ' to ' + HIST.scholars[HIST.scholars.length-1].n + ' students — with 38 active partnerships this school year.',
-          source: 'Pearl Operations · SY 2025-26 Live Data'
-        },
-        {
-          color: 'green', label: 'Academic Outcomes',
-          headline: growthThis.n + '% of scholars demonstrate measurable academic growth',
-          body: 'Scholars receiving NJTC embedded tutoring show consistent progression in iReady diagnostic placement levels. The program targets 80% growth — with ' + kpi.met.length + ' of ' + kpi.total + ' annual goals already met at mid-year.',
-          source: 'iReady Diagnostic Data · MOY 2025-26'
-        },
-        {
-          color: 'gold', label: 'Tutor Quality & Attendance',
-          headline: stats.tutorAttPct + '% tutor attendance rate — tutors show up for scholars',
-          body: fmtNum(stats.sessions) + ' tutoring sessions delivered this school year. High tutor consistency means scholars receive the sustained, relationship-based support that drives gains — not a substitute or one-time intervention.',
-          source: 'Pearl Instructor Attendance · SY 2025-26'
-        },
-        {
-          color: 'purple', label: 'Scholar Experience',
-          headline: '★ ' + stats.surveyAvg + '/5.0 scholar satisfaction — confidence, learning, and enjoyment',
-          body: 'Scholars report tutoring is building their academic confidence. Survey data shows strong engagement across confidence, learning, and enjoyment dimensions — validating the embedded, personalized model.',
-          source: 'Pearl Scholar Survey · SY 2025-26'
-        },
-        {
-          color: 'blue', label: 'Educator Pipeline',
-          headline: '35+ tutor apprentices enrolled in NJ&#39;s Educator Pipeline',
-          body: 'NJTC secured a DOL-registered Apprenticeship grant and is actively developing the next generation of New Jersey educators — directly addressing the state&#39;s teacher shortage while delivering academic support today.',
-          source: 'KPI Dashboard · Apprenticeship Goal · SY 2025-26'
-        },
-        {
-          color: 'green', label: 'ROI on State Investment',
-          headline: 'Every $1 in state funding generates an estimated $' + (4200*0.68/500).toFixed(0) + ' in remediation cost avoidance',
-          body: 'With ' + fmtDollars(850000) + ' in state funding, NJTC served ' + fmtNum(stats.scholars) + ' scholars — just ' + fmtDollars(Math.round(850000/stats.scholars)) + ' per scholar per year. Preventing even one grade retention saves districts $4,000–$12,000 per student.',
-          source: 'NJTC Financial Data · National Remediation Cost Benchmarks'
+      // Card: Scale — from SYA live
+      if (s.sites || s.districts) {
+        var scaleHead = (s.sites ? s.sites+' school sites' : 'Multiple sites') +
+                        (s.districts ? ' across '+s.districts+' districts' : '') + ' — SY 2025-26';
+        cards.push({ color:'blue', label:'Scale & Reach', headline: scaleHead,
+          body: 'NJTC delivers embedded tutoring directly within the school day across New Jersey. ' +
+                (s.sites ? s.sites+' active school partnerships ' : 'Program partnerships ') +
+                (s.districts ? 'spanning '+s.districts+' districts ' : '') +
+                'mean scholars receive support without leaving their campus.',
+          source:'SY Analytics · Live Google Sheet · SY 2025-26' });
+      }
+
+      // Card: Tutor Attendance — from Pearl live
+      if (s.instAttPct !== null) {
+        cards.push({ color:'gold', label:'Tutor Reliability',
+          headline: fmtPct(s.instAttPct)+' tutor attendance rate — consistent instructors, consistent growth',
+          body: 'Pearl real-time tracking shows '+fmtPct(s.instAttPct)+' of scheduled instructors present for their sessions. ' +
+                'High tutor consistency is the foundation of the relationship-based model that drives measurable academic gains.',
+          source:'Pearl Instructor Attendance · Live Google Sheet · SY 2025-26' });
+      }
+
+      // Card: Scholar Attendance — from Pearl live
+      if (s.scholAttPct !== null) {
+        cards.push({ color:'blue', label:'Scholar Engagement',
+          headline: fmtPct(s.scholAttPct)+' scholar attendance rate — students show up because tutoring works',
+          body: 'Pearl records '+fmtPct(s.scholAttPct)+' scholar attendance program-wide. ' +
+                'Embedding tutoring in the school day removes every logistical barrier — ' +
+                'no transportation, no afterschool scheduling, no family coordination required.',
+          source:'Pearl Scholar Attendance · Live Google Sheet · SY 2025-26' });
+      }
+
+      // Card: Sessions Delivered — from Pearl live
+      if (s.sessions !== null) {
+        var sessBody = fmtNum(s.sessions)+' tutoring sessions have been delivered this school year, tracked session-by-session in Pearl. ';
+        if (s.instAttPct && s.scholAttPct) {
+          sessBody += 'With '+fmtPct(s.instAttPct)+' tutor attendance and '+fmtPct(s.scholAttPct)+
+                      '% scholar attendance, these are real, completed instructional contacts — not projections.';
         }
-      ];
+        cards.push({ color:'green', label:'Program Delivery',
+          headline: fmtNum(s.sessions)+' tutoring sessions delivered — SY 2025-26',
+          body: sessBody,
+          source:'Pearl Session Details · Live Google Sheet · SY 2025-26' });
+      }
 
-      // Filter for audience emphasis
-      if (_audience === 'donor') {
-        cards[5].headline = 'Every philanthropic dollar is leveraged against state and district fees';
-        cards[5].body = 'NJTC&#39;s diversified funding model ensures philanthropic investments are multiplied — not siloed. Donor capital funds innovation, coverage gaps, and pipeline development that fee-for-service revenue cannot.';
+      // Card: Scholar Survey — from Pearl live
+      if (s.surveyAvg !== null) {
+        cards.push({ color:'purple', label:'Scholar Experience',
+          headline: '&#9733; '+s.surveyAvg+'/5.0 scholar satisfaction — confidence, learning, and enjoyment',
+          body: 'Post-session scholar surveys average '+s.surveyAvg+'/5.0 across confidence, learning, and enjoyment dimensions. ' +
+                'Student voice data confirms the embedded model builds academic self-efficacy alongside measurable skill gains.',
+          source:'Pearl Scholar Survey · Live Google Sheet · SY 2025-26' });
       }
-      if (_audience === 'partner') {
-        cards[0].headline = stats.scholAttPct + '% scholar attendance — engagement you can count on';
-        cards[0].body = 'Scholars in NJTC programs attend at ' + stats.scholAttPct + '% — above typical intervention program benchmarks — because tutoring is embedded into the school day, not added to an already-full schedule.';
-        cards[0].label = 'Engagement';
+
+      // Card: iReady Growth — from irlab live
+      if (irl && irl.growthPct !== null) {
+        cards.push({ color:'green', label:'Academic Outcomes',
+          headline: fmtPct(irl.growthPct)+' of scholars show measurable iReady growth across '+fmtNum(irl.totalRows)+' diagnostic records',
+          body: 'iReady diagnostic data shows '+fmtNum(irl.totalWithGrowth)+' of '+fmtNum(irl.totalRows)+
+                ' scholar assessments reflecting positive growth from starting placement. ' +
+                'This is nationally normed, independent assessment data — not self-reported.',
+          source:'iReady Diagnostic Data · Live Google Sheet · SY 2025-26' });
       }
+
+      // Card: KPI Health — from KPI live sheet
+      if (kpi.total > 0) {
+        var metEx = kpi.met.slice(0,2).map(function(k){ return k.target.substring(0,60)+(k.target.length>60?'…':''); }).join('; ');
+        cards.push({ color:'blue', label:'Organizational Health',
+          headline: kpi.met.length+' of '+kpi.total+' annual KPI goals already Met at mid-year',
+          body: 'The KPI dashboard shows '+kpi.met.length+' goals Met and '+kpi.partial.length+' Partially Met with the school year still underway. ' +
+                (metEx ? 'Goals Met include: '+metEx+'.' : ''),
+          source:'KPI Dashboard · Live Google Sheet · Mid-Year SY 2025-26' });
+      }
+
+      // Card: Service Interruptions — data integrity / transparency point
+      if (s.siCount !== null) {
+        cards.push({ color:'gold', label:'Operational Transparency',
+          headline: fmtNum(s.siCount)+' service interruptions documented — real-time accountability',
+          body: 'NJTC tracks every non-attendance service interruption — school closures, schedule conflicts, facility issues — in Pearl in real time. ' +
+                'This level of operational transparency allows honest reporting on program reach vs. delivery loss to partners, funders, and state agencies.',
+          source:'Pearl Service Interruption Tracking · Live Google Sheet · SY 2025-26' });
+      }
+
+      if (ldg) ldg.style.display = !cards.length ? 'block' : 'none';
+      if (ldg && !cards.length) ldg.textContent = 'Live Pearl data is still loading. Visit the Pearl Operations panel to prefetch data, then return here.';
 
       grid.innerHTML = cards.map(function(c) {
-        return '<div class="adv-tp-card ' + c.color + '">' +
-          '<div class="adv-tp-label">' + c.label + '</div>' +
-          '<div class="adv-tp-headline">' + c.headline + '</div>' +
-          '<div class="adv-tp-body">' + c.body + '</div>' +
-          '<div class="adv-tp-source">📌 ' + c.source + '</div>' +
+        return '<div class="adv-tp-card '+c.color+'">'+
+          '<div class="adv-tp-label">'+c.label+'</div>'+
+          '<div class="adv-tp-headline">'+c.headline+'</div>'+
+          '<div class="adv-tp-body">'+c.body+'</div>'+
+          '<div class="adv-tp-source">&#128204; Source: '+c.source+'</div>'+
         '</div>';
       }).join('');
     }
 
-    // ── BUILD: Impact Snapshot stats ─────────────────────────────────
+    // ── Impact Snapshot ───────────────────────────────────────────
     function buildSnapshot() {
-      var stats  = getLiveStats();
-      var grid   = document.getElementById('advSnapGrid');
+      var s   = getLiveStats();
+      var kpi = getKPIWins();
+      var irl = getIRLData();
+      var grid = document.getElementById('advSnapGrid');
       if (!grid) return;
-
-      var prevScholars = HIST.scholars[HIST.scholars.length-2].n;
-      var scholDelta   = stats.scholars - prevScholars;
-      var prevSessions = HIST.sessions[HIST.sessions.length-2].n;
-      var sessDelta    = stats.sessions - prevSessions;
-
-      var snaps = [
-        { num: fmtNum(stats.scholars),     unit: '',     lbl: 'Scholars Served\nSY 2025-26',            delta: '+' + fmtNum(scholDelta) + ' vs last SY' },
-        { num: stats.sites,                unit: '',     lbl: 'Active School Sites\nacross NJ',          delta: '+5 vs SY 24-25' },
-        { num: fmtNum(stats.sessions),     unit: '',     lbl: 'Sessions Delivered\nthis school year',    delta: '+' + fmtNum(sessDelta) + ' vs SY 24-25' },
-        { num: stats.tutorAttPct,          unit: '%',    lbl: 'Tutor Attendance Rate\nprogram-wide',     delta: '+1pp vs SY 24-25' },
-        { num: stats.scholAttPct,          unit: '%',    lbl: 'Scholar Attendance\nAttended + Late',     delta: '' },
-        { num: '★ ' + stats.surveyAvg,    unit: '/5',   lbl: 'Scholar Survey Avg\nConfidence·Learning', delta: '' },
-        { num: HIST.apprentices[HIST.apprentices.length-1].n + '+', unit: '', lbl: 'Tutor Apprentices\nin Pipeline SY 25-26', delta: '3× growth since SY 23-24' },
-        { num: fmtDollars(850000),         unit: '',     lbl: 'State Funding Secured\nFY 2024-25',       delta: '+31% vs prior year' },
-      ];
-
-      grid.innerHTML = snaps.map(function(s) {
-        return '<div class="adv-snap-stat">' +
-          '<div class="adv-snap-num">' + s.num + '<span class="adv-snap-unit">' + s.unit + '</span></div>' +
-          '<div class="adv-snap-lbl">' + s.lbl.replace('\n','<br>') + '</div>' +
-          (s.delta ? '<div class="adv-snap-delta">▲ ' + s.delta + '</div>' : '') +
-        '</div>';
-      }).join('');
-
-      buildCharts(stats);
+      var snaps = [];
+      if (s.sites !== null)       snaps.push({ n:s.sites,                    l:'Active School Sites',             src:'SYA' });
+      if (s.districts !== null)   snaps.push({ n:s.districts,                l:'Districts Served',                src:'SYA' });
+      if (s.sessions !== null)    snaps.push({ n:fmtNum(s.sessions),         l:'Sessions Delivered',              src:'Pearl' });
+      if (s.instAttPct !== null)  snaps.push({ n:s.instAttPct+'%',           l:'Tutor Attendance Rate',           src:'Pearl' });
+      if (s.scholAttPct !== null) snaps.push({ n:s.scholAttPct+'%',          l:'Scholar Attendance Rate',         src:'Pearl' });
+      if (s.surveyAvg !== null)   snaps.push({ n:'&#9733; '+s.surveyAvg,     l:'Scholar Survey Avg (out of 5)',   src:'Pearl' });
+      if (s.siCount !== null)     snaps.push({ n:fmtNum(s.siCount),          l:'Service Interruptions',           src:'Pearl' });
+      if (irl&&irl.growthPct)     snaps.push({ n:irl.growthPct+'%',          l:'Scholars Showing iReady Growth',  src:'iReady' });
+      if (kpi.total>0)            snaps.push({ n:kpi.met.length+'/'+kpi.total, l:'Annual Goals Met (Mid-Year)',   src:'KPI' });
+      grid.innerHTML = snaps.length
+        ? snaps.map(function(sn){ return '<div class="adv-snap-stat"><div class="adv-snap-num">'+sn.n+'</div><div class="adv-snap-lbl">'+sn.l+'</div><div style="font-size:.64rem;color:var(--muted);margin-top:.2rem">'+sn.src+'</div></div>'; }).join('')
+        : '<div style="grid-column:1/-1;padding:1rem;color:var(--muted);font-size:.83rem">Data loading — open Pearl Operations first, then return here.</div>';
       buildKPIWins();
     }
 
-    // ── BUILD: Bar charts ────────────────────────────────────────────
-    function buildCharts(stats) {
-      var row = document.getElementById('advChartRow');
-      if (!row) return;
-
-      // Chart 1: Scholars served YoY
-      var maxScholars = Math.max.apply(null, HIST.scholars.map(function(h){return h.n;}));
-      var scholBars = HIST.scholars.map(function(h) {
-        var pct = Math.round(h.n / maxScholars * 100);
-        var isLast = h.sy === 'SY 25-26';
-        return '<div class="adv-bar-row">' +
-          '<div class="adv-bar-lbl">' + h.sy + '</div>' +
-          '<div class="adv-bar-track"><div class="adv-bar-fill" style="width:' + pct + '%;background:' + (isLast?'#003087':'#93c5fd') + '"></div></div>' +
-          '<div class="adv-bar-val" style="' + (isLast?'font-weight:800;color:#003087':'') + '">' + fmtNum(h.n) + '</div>' +
-        '</div>';
-      }).join('');
-
-      // Chart 2: Funding growth
-      var maxFunding = Math.max.apply(null, HIST.stateFunding.map(function(h){return h.n;}));
-      var fundBars = HIST.stateFunding.map(function(h) {
-        var pct = Math.round(h.n / maxFunding * 100);
-        var isLast = h.fy === 'FY25';
-        return '<div class="adv-bar-row">' +
-          '<div class="adv-bar-lbl">' + h.fy + '</div>' +
-          '<div class="adv-bar-track"><div class="adv-bar-fill" style="width:' + pct + '%;background:' + (isLast?'#0d6e3a':'#6ee7b7') + '"></div></div>' +
-          '<div class="adv-bar-val" style="' + (isLast?'font-weight:800;color:#0d6e3a':'') + '">' + fmtDollars(h.n) + '</div>' +
-        '</div>';
-      }).join('');
-
-      // Chart 3: Growth pct YoY
-      var maxGrowth = Math.max.apply(null, HIST.growthPct.map(function(h){return h.n;}));
-      var growthBars = HIST.growthPct.map(function(h) {
-        var pct = Math.round(h.n / maxGrowth * 100);
-        var isLast = h.sy === 'SY 24-25';
-        return '<div class="adv-bar-row">' +
-          '<div class="adv-bar-lbl">' + h.sy + '</div>' +
-          '<div class="adv-bar-track"><div class="adv-bar-fill" style="width:' + pct + '%;background:' + (isLast?'#7b2d8b':'#d8b4fe') + '"></div></div>' +
-          '<div class="adv-bar-val" style="' + (isLast?'font-weight:800;color:#7b2d8b':'') + '">' + h.n + '%</div>' +
-        '</div>';
-      }).join('');
-
-      row.innerHTML =
-        '<div class="adv-chart-card" style="grid-column:1/2">' +
-          '<div class="adv-chart-title">📈 Scholars Served — Year Over Year</div>' +
-          scholBars +
-        '</div>' +
-        '<div style="display:grid;gap:1rem">' +
-          '<div class="adv-chart-card">' +
-            '<div class="adv-chart-title">💰 State Funding Growth</div>' +
-            fundBars +
-          '</div>' +
-          '<div class="adv-chart-card">' +
-            '<div class="adv-chart-title">🎓 Scholar Growth Rate</div>' +
-            growthBars +
-          '</div>' +
-        '</div>';
-    }
-
-    // ── BUILD: KPI wins table ────────────────────────────────────────
     function buildKPIWins() {
-      var el = document.getElementById('advSnapKPIWins');
-      if (!el) return;
-      var kpi = getKPIWins();
-      var rows = kpi.met.slice(0, 10).concat(kpi.partial.slice(0, 5));
-      el.innerHTML =
-        '<div class="adv-chart-card" style="margin-top:1rem">' +
-          '<div class="adv-chart-title">🎯 Mid-Year KPI Status — Goal Highlights</div>' +
-          '<table class="adv-kpi-table">' +
-            '<thead><tr><th>Goal Area</th><th>Target</th><th>Status</th></tr></thead>' +
-            '<tbody>' +
-              rows.map(function(k) {
-                return '<tr><td style="color:var(--muted);width:180px">' + k.goal + '</td>' +
-                  '<td>' + k.target + '</td>' +
-                  '<td style="white-space:nowrap">' + statusPill(k.midStatus) + '</td></tr>';
-              }).join('') +
-            '</tbody>' +
-          '</table>' +
-          '<div style="font-size:.75rem;color:var(--muted);margin-top:.5rem">' +
-            kpi.met.length + ' goals Met · ' + kpi.partial.length + ' Partially Met · ' + kpi.progress.length + ' In Progress · out of ' + kpi.total + ' total goals' +
-          '</div>' +
-        '</div>';
+      var el = document.getElementById('advSnapKPIWins'); if (!el) return;
+      var kpi = getKPIWins(); if (!kpi.total) { el.innerHTML=''; return; }
+      var rows = kpi.met.concat(kpi.partial).slice(0,15);
+      el.innerHTML = '<div class="adv-chart-card" style="margin-top:1rem">'+
+        '<div class="adv-chart-title">&#127919; Mid-Year KPI Status — Goal Highlights</div>'+
+        '<div style="font-size:.74rem;color:var(--muted);margin-bottom:.75rem">'+
+          '<strong style="color:#0d6e3a">'+kpi.met.length+' Met</strong> &nbsp;&#183;&nbsp; '+
+          '<strong style="color:#92400e">'+kpi.partial.length+' Partially Met</strong> &nbsp;&#183;&nbsp; '+
+          '<strong style="color:#0050c8">'+kpi.progress.length+' In Progress</strong> &nbsp;&#183;&nbsp; '+
+          kpi.total+' goals total &nbsp;&#183;&nbsp; '+
+          '<em style="font-size:.7rem">Source: KPI Dashboard &middot; Live Google Sheet</em>'+
+        '</div>'+
+        '<table class="adv-kpi-table"><thead><tr><th>Goal Area</th><th>Target</th><th>Mid-Year</th></tr></thead><tbody>'+
+          rows.map(function(k){ return '<tr><td style="color:var(--muted);width:155px;font-size:.74rem">'+(k.goal||'')+'</td><td style="font-size:.8rem">'+(k.target||'')+'</td><td>'+statusPill(k.midStatus||k.status||'')+'</td></tr>'; }).join('')+
+        '</tbody></table></div>';
     }
 
-    // ── BUILD: ROI Calculator ────────────────────────────────────────
-    function buildROI() {
+    // ── ROI Calculator — inputs pre-filled from live data ─────────
+    function prefillROI() {
+      var s   = getLiveStats();
+      var irl = getIRLData();
+      if (s.sessions) { var e=document.getElementById('roiSessions'); if(e) e.value=s.sessions; }
+      if (irl&&irl.growthPct) { var e2=document.getElementById('roiGrowthPct'); if(e2) e2.value=irl.growthPct; }
       window.advCalcROI();
     }
 
     window.advCalcROI = function() {
-      var funding    = parseFloat(document.getElementById('roiStateFunding').value) || 850000;
-      var scholars   = parseFloat(document.getElementById('roiScholars').value)     || 1687;
-      var sessions   = parseFloat(document.getElementById('roiSessions').value)     || 12106;
-      var mins       = parseFloat(document.getElementById('roiSessionMins').value)  || 45;
-      var growthPct  = parseFloat(document.getElementById('roiGrowthPct').value)    || 68;
-      var remCost    = parseFloat(document.getElementById('roiRemCost').value)      || 4200;
-      var r = calcROI(funding, scholars, sessions, mins, growthPct, remCost);
-      var el = document.getElementById('advRoiResults');
-      if (!el) return;
-      el.innerHTML =
-        '<h4>💡 Return on Investment</h4>' +
-        '<div class="adv-roi-metric">' +
-          '<div class="adv-roi-metric-num">' + fmtDollars(r.costPerScholar) + '</div>' +
-          '<div class="adv-roi-metric-lbl">Cost per scholar served (annualized)</div>' +
-        '</div>' +
-        '<div class="adv-roi-metric">' +
-          '<div class="adv-roi-metric-num">' + fmtDollars(r.costPerHour) + '</div>' +
-          '<div class="adv-roi-metric-lbl">Cost per instructional hour delivered (' + fmtNum(r.totalHours) + ' total hours)</div>' +
-        '</div>' +
-        '<hr class="adv-roi-divider">' +
-        '<div class="adv-roi-metric">' +
-          '<div class="adv-roi-metric-num">' + fmtNum(r.scholarsGrowing) + '</div>' +
-          '<div class="adv-roi-metric-lbl">Estimated scholars showing measurable growth (' + growthPct + '%)</div>' +
-        '</div>' +
-        '<div class="adv-roi-metric">' +
-          '<div class="adv-roi-metric-num">' + fmtDollars(r.remCostAvoided) + '</div>' +
-          '<div class="adv-roi-metric-lbl">Remediation & retention cost avoidance (est.)</div>' +
-        '</div>' +
-        '<hr class="adv-roi-divider">' +
-        '<div class="adv-roi-metric">' +
-          '<div class="adv-roi-metric-num" style="color:#f0a500">' + r.leverageRatio + 'x</div>' +
-          '<div class="adv-roi-metric-lbl">Economic leverage ratio — for every $1 invested</div>' +
-        '</div>' +
-        '<div style="font-size:.72rem;color:rgba(255,255,255,.45);margin-top:.5rem;line-height:1.4">' +
-          'Remediation cost estimate based on national avg for grade retention ($' + fmtNum(remCost) + '/scholar). ' +
-          'Actual district savings vary. Sources: EdWeek Research, NJTC program data.' +
-        '</div>';
+      var funding  = parseFloat((document.getElementById('roiStateFunding')||{}).value)||0;
+      var scholars = parseFloat((document.getElementById('roiScholars')||{}).value)||0;
+      var sessions = parseFloat((document.getElementById('roiSessions')||{}).value)||0;
+      var mins     = parseFloat((document.getElementById('roiSessionMins')||{}).value)||45;
+      var gpct     = parseFloat((document.getElementById('roiGrowthPct')||{}).value)||0;
+      var remCost  = parseFloat((document.getElementById('roiRemCost')||{}).value)||0;
+      var el = document.getElementById('advRoiResults'); if (!el) return;
+      if (!funding||!scholars) { el.innerHTML='<h4>ROI Output</h4><div style="color:rgba(255,255,255,.5);font-size:.83rem">Enter State Funding and Scholars Served to compute ROI.</div>'; return; }
+      var cps = Math.round(funding/scholars);
+      var hrs = Math.round(sessions*mins/60);
+      var cph = hrs>0 ? Math.round(funding/hrs) : 0;
+      var growing = Math.round(scholars*(gpct/100));
+      var avoided = Math.round(growing*remCost);
+      var lev = avoided>0 ? (avoided/funding).toFixed(1)+'x' : '—';
+      el.innerHTML = '<h4>Return on Investment</h4>'+
+        '<div class="adv-roi-metric"><div class="adv-roi-metric-num">'+fmtDollars(cps)+'</div><div class="adv-roi-metric-lbl">Cost per scholar served</div></div>'+
+        (hrs>0?'<div class="adv-roi-metric"><div class="adv-roi-metric-num">'+fmtDollars(cph)+'</div><div class="adv-roi-metric-lbl">Cost per instructional hour ('+fmtNum(hrs)+' total hrs)</div></div>':'')+
+        '<hr class="adv-roi-divider">'+
+        '<div class="adv-roi-metric"><div class="adv-roi-metric-num">'+fmtNum(growing)+'</div><div class="adv-roi-metric-lbl">Scholars estimated to show measurable growth ('+gpct+'%)</div></div>'+
+        (avoided>0?'<div class="adv-roi-metric"><div class="adv-roi-metric-num">'+fmtDollars(avoided)+'</div><div class="adv-roi-metric-lbl">Remediation cost avoidance (est.)</div></div>':'') +
+        (avoided>0?'<hr class="adv-roi-divider"><div class="adv-roi-metric"><div class="adv-roi-metric-num" style="color:#f0a500">'+lev+'</div><div class="adv-roi-metric-lbl">Economic leverage ratio per $1 invested</div></div>':'')+
+        '<div style="font-size:.69rem;color:rgba(255,255,255,.4);margin-top:.75rem;line-height:1.4">Remediation cost estimate based on national avg for grade retention. Adjust inputs to match current program actuals. Sources: EdWeek Research Center, NJTC program data.</div>';
     };
 
-    // ── BUILD: KPI Brief tab ─────────────────────────────────────────
+    // ── KPI Brief ─────────────────────────────────────────────────
     function buildKPIBrief() {
-      var el = document.getElementById('advKpiBriefContent');
-      if (!el) return;
+      var el = document.getElementById('advKpiBriefContent'); if (!el) return;
+      var data = getKPIData();
+      if (!data.length) { el.innerHTML='<div style="padding:1.5rem;color:var(--muted);font-size:.85rem">KPI data loading — visit KPI Targets first then return here.</div>'; return; }
       var kpi = getKPIWins();
       var byGoal = {};
-      var data = (typeof KPI_DATA_STATIC !== 'undefined') ? KPI_DATA_STATIC : [];
-      data.forEach(function(k) {
-        if (!byGoal[k.goal]) byGoal[k.goal] = [];
-        byGoal[k.goal].push(k);
-      });
-      var html = '<div class="adv-chart-card">' +
-        '<div class="adv-chart-title">📋 Full KPI Brief — State Advocacy View</div>' +
-        '<div style="font-size:.78rem;color:var(--muted);margin-bottom:1rem">' +
-          'Mid-year status across all ' + kpi.total + ' annual goals — ' +
-          '<strong style="color:#0d6e3a">' + kpi.met.length + ' Met</strong> · ' +
-          '<strong style="color:#92400e">' + kpi.partial.length + ' Partially Met</strong> · ' +
-          '<strong style="color:#0050c8">' + kpi.progress.length + ' In Progress</strong>' +
-        '</div>' +
-        Object.entries(byGoal).map(function(entry) {
-          var goal = entry[0], items = entry[1];
-          var metCount = items.filter(function(i){return (i.midStatus||'').toLowerCase()==='met';}).length;
-          return '<div style="margin-bottom:1.25rem">' +
-            '<div style="font-size:.78rem;font-weight:700;color:var(--navy);padding:.3rem .5rem;background:var(--surface-2);border-radius:4px;margin-bottom:.4rem">' +
-              goal + ' <span style="color:var(--muted);font-weight:400">(' + metCount + '/' + items.length + ' Met)</span>' +
-            '</div>' +
-            '<table class="adv-kpi-table" style="margin:0">' +
-              '<tbody>' +
-                items.map(function(k) {
-                  return '<tr><td>' + k.target + '</td><td style="white-space:nowrap;width:130px">' + statusPill(k.midStatus) + '</td></tr>';
-                }).join('') +
-              '</tbody>' +
-            '</table>' +
-          '</div>';
-        }).join('') +
+      data.forEach(function(k){ if(!byGoal[k.goal]) byGoal[k.goal]=[]; byGoal[k.goal].push(k); });
+      el.innerHTML = '<div class="adv-chart-card">'+
+        '<div class="adv-chart-title">&#128203; Full KPI Brief — State Advocacy View</div>'+
+        '<div style="font-size:.76rem;color:var(--muted);margin-bottom:1rem">'+
+          'Mid-year status across all <strong>'+kpi.total+'</strong> annual goals &nbsp;&#183;&nbsp; '+
+          '<strong style="color:#0d6e3a">'+kpi.met.length+' Met</strong> &nbsp;&#183;&nbsp; '+
+          '<strong style="color:#92400e">'+kpi.partial.length+' Partially Met</strong> &nbsp;&#183;&nbsp; '+
+          '<strong style="color:#0050c8">'+kpi.progress.length+' In Progress</strong><br>'+
+          '<em style="font-size:.7rem">Source: KPI Dashboard &middot; Live Google Sheet &middot; Mid-Year SY 2025-26</em>'+
+        '</div>'+
+        Object.entries(byGoal).map(function(e2){
+          var goal=e2[0], items=e2[1];
+          var mc=items.filter(function(i){return(i.midStatus||'').toLowerCase()==='met';}).length;
+          return '<div style="margin-bottom:1.25rem">'+
+            '<div style="font-size:.78rem;font-weight:700;color:var(--navy);padding:.35rem .6rem;background:var(--surface-2);border-radius:4px;margin-bottom:.35rem">'+
+              goal+' <span style="color:var(--muted);font-weight:400">('+mc+'/'+items.length+' Met)</span>'+
+            '</div>'+
+            '<table class="adv-kpi-table" style="margin:0"><tbody>'+
+              items.map(function(k){ return '<tr><td style="font-size:.8rem">'+(k.target||'')+'</td><td style="white-space:nowrap;width:140px">'+statusPill(k.midStatus||k.status||'')+'</td></tr>'; }).join('')+
+            '</tbody></table></div>';
+        }).join('')+
       '</div>';
-      el.innerHTML = html;
     }
 
-    // ── AI Talking Point Generator ────────────────────────────────────
-    window.advGenerateTalkingPoints = async function() {
-      var btn    = document.getElementById('advAiGenerateBtn');
-      var output = document.getElementById('advAiOutput');
-      var copy   = document.getElementById('advAiCopyRow');
-      var topic  = (document.getElementById('advAiTopic')||{}).value || 'scholar_outcomes';
-      var length = (document.getElementById('advAiLength')||{}).value || 'standard';
-      var frame  = AUDIENCE_FRAMES[_audience] || AUDIENCE_FRAMES.governor;
-      var stats  = getLiveStats();
-      var kpi    = getKPIWins();
-      if (!btn || !output) return;
-      btn.disabled = true;
-      btn.textContent = 'Generating…';
-      output.className = 'adv-ai-output visible';
-      output.textContent = '✨ Crafting talking points…';
-      if (copy) copy.style.display = 'none';
-
-      var countMap = { brief: 3, standard: 5, detailed: 7 };
-      var count = countMap[length] || 5;
-
-      var topicLabels = {
-        scholar_outcomes: 'scholar academic outcomes and measurable learning gains',
-        roi_state: 'return on investment and cost-effectiveness of state tutoring funding',
-        attendance: 'scholar and tutor attendance, engagement, and session delivery',
-        workforce: 'educator pipeline, tutor apprenticeship, and workforce development',
-        scale: 'program scale, school partnerships, and statewide growth',
-        equity: 'equity, access, and impact in high-need communities'
-      };
-      var topicLabel = topicLabels[topic] || topic;
-
-      var dataContext = [
-        'Current SY 2025-26 program data:',
-        '- Scholars served: ' + fmtNum(stats.scholars),
-        '- Active school sites: ' + stats.sites,
-        '- Sessions delivered: ' + fmtNum(stats.sessions),
-        '- Tutor attendance rate: ' + stats.tutorAttPct + '%',
-        '- Scholar attendance rate: ' + stats.scholAttPct + '%',
-        '- Scholar survey avg: ' + stats.surveyAvg + '/5.0',
-        '- Service interruptions: ' + fmtNum(stats.siCount),
-        '- Tutor/staff headcount: ' + stats.tutorCount,
-        '- KPI goals Met at mid-year: ' + kpi.met.length + ' of ' + kpi.total,
-        '- State funding secured (FY25): $850,000',
-        '- Cost per scholar estimate: $' + fmtNum(Math.round(850000/stats.scholars)),
-        '- Educator pipeline apprentices enrolled: 35+',
-        '- Year-over-year scholar growth: 810 (SY22-23) → ' + fmtNum(stats.scholars) + ' (SY25-26)',
-        'Key accomplishments: DOL Apprenticeship grant secured, 35 fee-for-service sites, expanded to out-of-state partners.'
-      ].join('\n');
-
-      var prompt = 'You are a policy communications expert helping an educational nonprofit called New Jersey Tutoring Corps (NJTC) prepare advocacy materials.\n\n' +
-        'Generate ' + count + ' high-impact talking points about ' + topicLabel + ' for an audience of: ' + frame.label + '.\n\n' +
-        'Audience context: ' + frame.headline + '\n' +
-        'Tone: ' + frame.tone + '\n' +
-        'Emphasis: ' + frame.emphasis + '\n\n' +
-        dataContext + '\n\n' +
-        'Format: numbered list. Each talking point should be 2-3 sentences — lead with a specific data point, then contextualize its significance, then connect to the audience\'s interests. ' +
-        'Do not use hedging language. Be specific, confident, and evidence-based. ' +
-        'Use exact numbers from the data above where relevant.';
-
-      try {
-        var resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{ role: 'user', content: prompt }]
-          })
-        });
-        var data = await resp.json();
-        var text = (data.content || []).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n');
-        output.textContent = text || 'No response generated. Try again.';
-        if (copy) copy.style.display = 'block';
-      } catch(err) {
-        output.textContent = 'Error generating talking points. Check your connection and try again.';
-      }
-      btn.disabled = false;
-      btn.textContent = 'Generate Talking Points';
-    };
-
-    window.advCopyOutput = function() {
-      var el = document.getElementById('advAiOutput');
-      if (!el) return;
-      try {
-        navigator.clipboard.writeText(el.textContent).then(function() {
-          var btn = document.querySelector('.adv-copy-btn');
-          if (btn) { btn.textContent = '✅ Copied!'; setTimeout(function(){ btn.textContent = '📋 Copy to clipboard'; }, 2000); }
-        });
-      } catch(e) {}
-    };
-
-    // ── Print / PDF One-Pager ─────────────────────────────────────────
+    // ── Print One-Pager ───────────────────────────────────────────
     window.advPrintOnePager = function() {
-      var stats  = getLiveStats();
-      var kpi    = getKPIWins();
-      var frame  = AUDIENCE_FRAMES[_audience] || AUDIENCE_FRAMES.governor;
-      var r      = calcROI(850000, stats.scholars, stats.sessions, 45, 68, 4200);
-      var dept   = (window.NJTC_SESSION && window.NJTC_SESSION.dept) || '';
-      var deptLabels = { leadership:'Chief of Staff', kb:'Executive Overview', data:'Data & Evaluation' };
-      var today  = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
-
-      var topTalkingPoints = [
-        { color:'blue',  head:'Scale', body: fmtNum(stats.scholars) + ' scholars across ' + stats.sites + ' school sites — growing ' + Math.round((stats.scholars-810)/810*100) + '% since SY 2022-23.' },
-        { color:'green', head:'Tutor Quality', body: stats.tutorAttPct + '% tutor attendance and ' + fmtNum(stats.sessions) + ' sessions delivered. Scholars receive sustained, relationship-based support.' },
-        { color:'gold',  head:'Scholar Experience', body: '★ ' + stats.surveyAvg + '/5.0 satisfaction. Scholars report increased academic confidence, enjoyment, and learning.' },
-        { color:'blue',  head:'Educator Pipeline', body: '35+ apprentices enrolled under DOL-registered program — directly developing NJ\'s future teachers.' },
-        { color:'green', head:'Academic Progress', body: '68% of scholars demonstrate measurable iReady growth. Program tracks toward 80% placement level advancement.' },
-        { color:'gold',  head:'ROI on Investment', body: fmtDollars(r.costPerScholar) + ' per scholar. Est. ' + r.leverageRatio + 'x economic leverage from remediation cost avoidance.' },
-      ];
-
-      var kpiHighlights = kpi.met.slice(0, 6).map(function(k) {
-        return '<div class="adv-print-roi-item"><div class="adv-print-roi-num" style="font-size:8pt;font-weight:700;color:#0d6e3a">✅ Met</div><div class="adv-print-roi-lbl">' + k.target.substring(0,60) + (k.target.length>60?'…':'') + '</div></div>';
-      }).join('');
-
-      var printContent = document.getElementById('advPrintContent');
-      printContent.innerHTML =
-        '<div class="adv-print-header">' +
-          '<div class="adv-print-logo-area">' +
-            '<h1>New Jersey Tutoring Corps</h1>' +
-            '<p>SY 2025-2026 · Program Impact Report · Prepared for ' + frame.label + '</p>' +
-          '</div>' +
-          '<div>' +
-            '<div class="adv-print-badge">CONFIDENTIAL</div>' +
-            '<div style="font-size:8pt;color:#7d8fa1;margin-top:4px;text-align:right">' + today + '</div>' +
-            '<div style="font-size:8pt;color:#7d8fa1;text-align:right">Prepared by ' + (deptLabels[dept]||'NJTC') + '</div>' +
-          '</div>' +
-        '</div>' +
-
-        '<div class="adv-print-headline">' + frame.headline + '</div>' +
-        '<div class="adv-print-sub">' +
-          'New Jersey Tutoring Corps embeds evidence-based, personalized tutoring directly into the school day across New Jersey\'s highest-need districts. ' +
-          'This brief summarizes current program performance, historical growth, and the measurable return on state investment.' +
-        '</div>' +
-
-        '<div class="adv-print-section-title">Program Metrics — Mid-Year SY 2025-26</div>' +
-        '<div class="adv-print-stats">' +
-          [
-            { n: fmtNum(stats.scholars),     l: 'Scholars Served' },
-            { n: stats.sites + ' Sites',      l: 'School Partnerships' },
-            { n: fmtNum(stats.sessions),      l: 'Sessions Delivered' },
-            { n: stats.tutorAttPct + '%',     l: 'Tutor Attendance Rate' },
-            { n: stats.scholAttPct + '%',     l: 'Scholar Attendance' },
-            { n: '★ ' + stats.surveyAvg,     l: 'Scholar Satisfaction' },
-            { n: '35+',                        l: 'Apprentices Enrolled' },
-            { n: fmtDollars(850000),           l: 'State Funding (FY25)' },
-          ].map(function(s){
-            return '<div class="adv-print-stat"><div class="adv-print-stat-num">' + s.n + '</div><div class="adv-print-stat-lbl">' + s.l + '</div></div>';
-          }).join('') +
-        '</div>' +
-
-        '<div class="adv-print-section-title">Key Talking Points</div>' +
-        '<div class="adv-print-tp-grid">' +
-          topTalkingPoints.map(function(tp) {
-            return '<div class="adv-print-tp ' + tp.color + '"><div class="adv-print-tp-head">' + tp.head + '</div><div class="adv-print-tp-body">' + tp.body + '</div></div>';
-          }).join('') +
-        '</div>' +
-
-        '<div class="adv-print-section-title">Return on Investment</div>' +
-        '<div class="adv-print-roi">' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">' + fmtDollars(r.costPerScholar) + '</div><div class="adv-print-roi-lbl">Cost per scholar served</div></div>' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">' + fmtDollars(r.costPerHour) + '</div><div class="adv-print-roi-lbl">Cost per instructional hour (' + fmtNum(r.totalHours) + ' hrs total)</div></div>' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">' + fmtDollars(r.remCostAvoided) + '</div><div class="adv-print-roi-lbl">Estimated remediation cost avoidance</div></div>' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">' + r.leverageRatio + 'x</div><div class="adv-print-roi-lbl">Economic leverage ratio per $1 invested</div></div>' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">' + fmtNum(HIST.scholars[HIST.scholars.length-1].n - HIST.scholars[0].n) + '</div><div class="adv-print-roi-lbl">Additional scholars served since SY 22-23</div></div>' +
-          '<div class="adv-print-roi-item"><div class="adv-print-roi-num">208%</div><div class="adv-print-roi-lbl">Scholar growth since program start</div></div>' +
-        '</div>' +
-
-        '<div class="adv-print-section-title">Mid-Year Goals: Already Met</div>' +
-        '<div class="adv-print-roi">' + kpiHighlights + '</div>' +
-
-        '<div class="adv-print-footer">' +
-          '<p>New Jersey Tutoring Corps · njtutoringcorps.org · Data as of ' + today + '</p>' +
-          '<div class="adv-print-confidential">Confidential · Internal Use Only</div>' +
+      var s    = getLiveStats();
+      var kpi  = getKPIWins();
+      var irl  = getIRLData();
+      var aLbl = { governor:"Governor's Office", legislature:'Legislature', donor:'Philanthropic Donors', partner:'District Partners' };
+      var today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+      var dept = (window.NJTC_SESSION&&window.NJTC_SESSION.dept)||'';
+      var dLbl = { leadership:'Chief of Staff', kb:'Executive Overview', data:'Data & Evaluation' };
+      var statsArr = [];
+      if (s.sites)        statsArr.push({n:s.sites,                 l:'Active School Sites'});
+      if (s.districts)    statsArr.push({n:s.districts+' Districts',l:'Served Statewide'});
+      if (s.sessions)     statsArr.push({n:fmtNum(s.sessions),      l:'Sessions Delivered'});
+      if (s.instAttPct)   statsArr.push({n:s.instAttPct+'%',        l:'Tutor Attendance Rate'});
+      if (s.scholAttPct)  statsArr.push({n:s.scholAttPct+'%',       l:'Scholar Attendance'});
+      if (s.surveyAvg)    statsArr.push({n:s.surveyAvg+'/5',        l:'Scholar Satisfaction'});
+      if (irl&&irl.growthPct) statsArr.push({n:irl.growthPct+'%',   l:'iReady Growth Rate'});
+      if (kpi.total)      statsArr.push({n:kpi.met.length+'/'+kpi.total, l:'Goals Met (Mid-Year)'});
+      var tpCards = [];
+      if (s.sites&&s.districts)  tpCards.push({color:'blue',  head:'Scale',             body:s.sites+' school sites across '+s.districts+' districts. Embedded school-day tutoring — no scheduling burden.'});
+      if (s.instAttPct)          tpCards.push({color:'gold',  head:'Tutor Quality',      body:s.instAttPct+'% tutor attendance. Same instructors, every session. Sustained relationships drive gains.'});
+      if (s.scholAttPct)         tpCards.push({color:'blue',  head:'Scholar Engagement', body:s.scholAttPct+'% scholar attendance. Embedded delivery removes barriers that sideline out-of-school programs.'});
+      if (s.sessions)            tpCards.push({color:'green', head:'Delivery',           body:fmtNum(s.sessions)+' sessions delivered this school year — documented individually in Pearl.'});
+      if (s.surveyAvg)           tpCards.push({color:'purple',head:'Experience',         body:s.surveyAvg+'/5.0 scholar satisfaction. Students report measurable gains in confidence, learning, and enjoyment.'});
+      if (irl&&irl.growthPct)    tpCards.push({color:'green', head:'Outcomes',           body:irl.growthPct+'% of scholars show iReady growth — '+fmtNum(irl.totalWithGrowth)+' of '+fmtNum(irl.totalRows)+' diagnostic records.'});
+      var printEl = document.getElementById('advPrintContent'); if (!printEl) return;
+      printEl.innerHTML =
+        '<div class="adv-print-header">'+
+          '<div class="adv-print-logo-area"><h1>New Jersey Tutoring Corps</h1>'+
+            '<p>SY 2025-2026 &middot; Program Impact Brief &middot; Prepared for '+(aLbl[_audience]||'Stakeholders')+'</p></div>'+
+          '<div><div class="adv-print-badge">CONFIDENTIAL</div>'+
+            '<div style="font-size:8pt;color:#7d8fa1;margin-top:4px;text-align:right">'+today+'</div>'+
+            '<div style="font-size:8pt;color:#7d8fa1;text-align:right">Prepared by '+(dLbl[dept]||'NJTC')+'</div></div>'+
+        '</div>'+
+        '<div class="adv-print-section-title">Current Program Metrics &mdash; Live Pearl, SYA &amp; iReady Data</div>'+
+        '<div class="adv-print-stats">'+statsArr.slice(0,8).map(function(ss){ return '<div class="adv-print-stat"><div class="adv-print-stat-num">'+ss.n+'</div><div class="adv-print-stat-lbl">'+ss.l+'</div></div>'; }).join('')+'</div>'+
+        (tpCards.length?'<div class="adv-print-section-title">Key Talking Points &mdash; Live Data Sources</div>'+
+          '<div class="adv-print-tp-grid">'+tpCards.slice(0,6).map(function(tp){ return '<div class="adv-print-tp '+tp.color+'"><div class="adv-print-tp-head">'+tp.head+'</div><div class="adv-print-tp-body">'+tp.body+'</div></div>'; }).join('')+'</div>':'')+
+        (kpi.met.length?'<div class="adv-print-section-title">Mid-Year Goals: Already Met</div>'+
+          '<div class="adv-print-roi">'+kpi.met.slice(0,6).map(function(k){ return '<div class="adv-print-roi-item"><div class="adv-print-roi-num" style="font-size:8pt;font-weight:700;color:#0d6e3a">&#10003; Met</div><div class="adv-print-roi-lbl">'+(k.target||'').substring(0,70)+(k.target&&k.target.length>70?'&hellip;':'')+'</div></div>'; }).join('')+'</div>':'')+
+        '<div class="adv-print-footer">'+
+          '<p>New Jersey Tutoring Corps &middot; Data as of '+today+' &middot; Sources: Pearl Operations, SY Analytics, iReady Diagnostics, KPI Dashboard (All Live Google Sheet Data)</p>'+
+          '<div class="adv-print-confidential">Confidential &middot; Internal Use Only</div>'+
         '</div>';
-
       window.print();
     };
 
-    // ── Tab switcher ──────────────────────────────────────────────────
     window.advSetTab = function(tab, btn) {
       _activeTab = tab;
       document.querySelectorAll('.adv-tab').forEach(function(b){ b.classList.remove('active'); });
       document.querySelectorAll('.adv-pane').forEach(function(p){ p.classList.remove('active'); });
       if (btn) btn.classList.add('active');
-      var pane = document.getElementById('advPane-' + tab);
-      if (pane) pane.classList.add('active');
-      // Lazy-build each tab on first open
-      if (tab === 'impact-snapshot') buildSnapshot();
-      if (tab === 'roi') buildROI();
-      if (tab === 'kpi-brief') buildKPIBrief();
+      var pane = document.getElementById('advPane-'+tab); if (pane) pane.classList.add('active');
+      if (tab==='impact-snapshot') buildSnapshot();
+      if (tab==='roi')             prefillROI();
+      if (tab==='kpi-brief')       buildKPIBrief();
     };
 
-    // ── Audience switcher ─────────────────────────────────────────────
     window.advSetAudience = function(audience, btn) {
       _audience = audience;
       document.querySelectorAll('.adv-audience-chip').forEach(function(b){ b.classList.remove('active'); });
       if (btn) btn.classList.add('active');
-      // Rebuild active tab with new audience framing
-      if (_activeTab === 'talking-points') buildTalkingPoints();
+      if (_activeTab==='talking-points') buildTalkingPoints();
     };
 
-    // ── Panel open ────────────────────────────────────────────────────
     window.advOnPanelOpen = function() {
-      if (!_inited) {
-        _inited = true;
-        buildTalkingPoints();
-      }
+      _cache = {};  // always re-read live data on panel open
+      _inited = true;
+      buildTalkingPoints();
     };
 
   })();
