@@ -6415,8 +6415,8 @@
       }
     }
 
-    // Show advocacy nav for leadership, kb, data
-    const ADV_DEPTS = ['leadership','kb','data'];
+    // Show advocacy nav for leadership and kb only — Data dept has i-Ready Lab (upload access), not Advocacy
+    const ADV_DEPTS = ['leadership','kb'];
     const advBtns = document.querySelectorAll('.dept-nav-advocacy');
     advBtns.forEach(b => b.style.display = ADV_DEPTS.includes(dept) ? '' : 'none');
   }
