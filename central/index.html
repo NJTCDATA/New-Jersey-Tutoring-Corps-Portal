@@ -2574,7 +2574,41 @@
     .gov-row-body { flex: 1; }
     .gov-row-label { font-size: .8125rem; font-weight: 700; color: var(--navy); }
     .gov-row-desc  { font-size: .75rem; color: var(--text-2); margin-top: .15rem; line-height: 1.4; }
-    .gov-badge {
+    /* ── Gov Panel Hero ── */
+    .gov-panel-hero { display:flex; align-items:flex-start; gap:.75rem; margin-bottom:1rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
+    .gov-hero-icon { font-size:1.75rem; flex-shrink:0; margin-top:.1rem; }
+    .gov-hero-title { font-size:1rem; font-weight:800; color:var(--navy); line-height:1.2; }
+    .gov-hero-desc { font-size:.8125rem; color:var(--text-2); margin-top:.25rem; line-height:1.5; }
+    .gov-alert { margin:.75rem 0; padding:.625rem .875rem; border-radius:8px; font-size:.75rem; line-height:1.5; }
+    .gov-alert:not(.notify):not(.pii) { background:#fff8e1; border-left:3px solid #f59e0b; color:#78350f; }
+    .gov-alert.notify { background:#e0f2fe; border-left:3px solid #0284c7; color:#0c4a6e; }
+    .gov-alert.pii    { background:#fce7f3; border-left:3px solid #db2777; color:#831843; margin-top:1rem; }
+    .gov-source-row { display:flex; gap:.5rem; flex-wrap:wrap; margin:.625rem 0 .875rem; }
+    .gov-source-pill { font-size:.68rem; font-weight:700; padding:.2rem .625rem; border-radius:20px; display:inline-flex; align-items:center; gap:.25rem; }
+    .gov-intro-text { font-size:.8125rem; color:var(--text-2); line-height:1.6; margin-bottom:.875rem; padding:.75rem; background:var(--surface-2); border-radius:8px; }
+    .gov-mission-note { margin-top:1rem; padding:.75rem .875rem; background:linear-gradient(135deg,#f0f4ff,#e8f4ff); border-radius:10px; border:1px solid #c7d7f5; }
+    .gov-mission-title { font-size:.65rem; font-weight:800; text-transform:uppercase; letter-spacing:.1em; color:var(--navy); margin-bottom:.3rem; }
+    .gov-mission-body { font-size:.78rem; color:var(--text); line-height:1.6; }
+    .gov-badge.live { background:#dcfce7; color:#15803d; }
+    /* Gov Timeline */
+    .gov-timeline-row { display:flex; gap:.75rem; padding:.5rem 0; }
+    .gov-tl-dot { width:8px; height:8px; border-radius:50%; background:var(--navy); flex-shrink:0; margin-top:.35rem; }
+    .gov-tl-label { font-size:.8rem; font-weight:700; color:var(--navy); }
+    .gov-tl-desc { font-size:.75rem; color:var(--text-2); margin-top:.1rem; line-height:1.4; }
+    /* Gov Access Table */
+    .gov-access-table { border:1px solid var(--border); border-radius:10px; overflow:hidden; font-size:.78rem; }
+    .gov-access-head { display:grid; grid-template-columns:1.4fr 1.2fr .8fr; padding:.5rem .75rem; background:var(--navy); color:white; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; gap:.5rem; }
+    .gov-access-row { display:grid; grid-template-columns:1.4fr 1.2fr .8fr; padding:.5rem .75rem; border-top:1px solid var(--border); gap:.5rem; align-items:center; }
+    .gov-access-row:nth-child(even) { background:var(--surface-2); }
+    .gov-access-role { font-weight:600; color:var(--navy); }
+    .gov-access-scope { color:var(--text-2); }
+    .gov-access-level { font-size:.65rem; font-weight:700; padding:.15rem .45rem; border-radius:10px; text-align:center; }
+    .gov-al-full  { background:#dcfce7; color:#15803d; }
+    .gov-al-view  { background:#dbeafe; color:#1e40af; }
+    .gov-al-limit { background:#fef3c7; color:#92400e; }
+    .gov-al-none  { background:#fee2e2; color:#b91c1c; }
+
+        .gov-badge {
       font-size: .6rem; font-weight: 700; text-transform: uppercase;
       letter-spacing: .07em; padding: .175rem .45rem; border-radius: 20px;
       background: var(--met-bg); color: var(--met); flex-shrink: 0;
@@ -4543,10 +4577,8 @@
     filtered.forEach(function(k){ if(!groups[k.goal]) groups[k.goal]=[]; groups[k.goal].push(k); });
 
     function ownerCell(k) {
-      var parts = [];
-      if (k.owner) parts.push('<span class="kpi-chip">' + k.owner + '</span>');
-      if (k.source) parts.push('<span class="kpi-chip" style="color:var(--blue)">' + k.source + '</span>');
-      return parts.length ? '<div class="kpi-owner-line">' + parts.join('') + '</div>' : '<span style="color:var(--muted);font-size:.75rem">&#8212;</span>';
+      if (!k.owner) return '<span style="color:var(--muted);font-size:.75rem">&#8212;</span>';
+      return '<div class="kpi-owner-line"><span class="kpi-chip">' + k.owner + '</span></div>';
     }
 
     var html = '';
@@ -14489,169 +14521,410 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ══════════════════════════════════════════════════════════════════
 
   var GOV_DATA = {
+
+    /* ══════════════════════════════════════════════════════
+       KPI TARGETS — panel-kpi
+    ══════════════════════════════════════════════════════ */
     'panel-kpi': {
       what: {
         title: 'KPI Targets',
         icon: '🎯',
-        desc: 'This view shows every organizational target for SY 2025–2026 across all 10 annual goal areas. Data is pulled live from the NJTC KPI Dashboard spreadsheet (Summary tab).',
+        desc: 'Every organizational target for SY 2025–2026 across all 10 annual goal areas. Status, ownership, and source data pulled live from the NJTC KPI Dashboard Google Sheet. The Data & Evaluation department owns this view.',
+        alert: '⚠️ Any change to the KPI Dashboard spreadsheet structure, column order, or tab names must be communicated to PEI before implementation. The portal auto-syncs — silent schema changes will break the live feed.',
+        sources: [
+          { icon: '📊', label: 'KPI Dashboard', color: '#dbeafe', text: '#1e40af' },
+          { icon: '📋', label: 'Summary Tab', color: '#dcfce7', text: '#15803d' },
+          { icon: '📅', label: 'Quarterly Tab (gid:1313501732)', color: '#f3e8ff', text: '#7e22ce' },
+        ],
         items: [
-          { icon: '📋', label: 'Mid-Year Status', desc: 'Reflects progress as of the mid-year review cycle. Updated by goal owners when status changes.' },
-          { icon: '📅', label: 'End of Year Status', desc: 'Final assessment against the target. Populated at end-of-year review.' },
-          { icon: '📊', label: 'Quarterly Detail', desc: 'Click any row to see Q1–Q4 captured metrics and progress snapshots from the Quarterly tab.' },
-        ]
+          { icon: '🏷️', label: 'Goal Area', desc: 'One of 10 annual strategic goal categories from the NJTC strategic plan.', live: false },
+          { icon: '📌', label: 'Organizational Target', desc: 'The specific, measurable commitment for SY 2025–2026. Targets are set annually during strategic planning.', live: false },
+          { icon: '🟡', label: 'Mid-Year Status', desc: 'Formal review status as of January. Populated by goal owners in the KPI Dashboard spreadsheet.', live: true },
+          { icon: '🏁', label: 'End of Year Status', desc: 'Final cycle assessment. Completed at end-of-year review (May–June). This is the definitive measure of target achievement.', live: true },
+          { icon: '👤', label: 'Owner', desc: 'The primary metric owner responsible for capturing and reporting data. Pulled live from the Quarterly Goal Tracking tab.', live: true },
+        ],
+        mission: 'Our KPIs are the heartbeat of the NJTC mission — measuring our promise to deliver transformational impact for scholars, sustain the organization financially, and build the infrastructure required to serve students across New Jersey at scale. Every department owns a portion of organizational health.'
       },
       read: {
+        title: 'KPI Status Guide',
+        intro: 'Status bands are standardized across all goal areas. Teams report both quantitative progress (% of target achieved) and qualitative context. Context always matters — a 75% rate may be on-track given external factors, or concerning if foundational barriers exist.',
         items: [
-          { icon: '✅', label: 'Met', desc: 'Target fully achieved for this cycle.' },
-          { icon: '🟠', label: 'Partially Met', desc: 'Meaningful progress made but target not fully achieved. Review narrative for context.' },
-          { icon: '🔵', label: 'In Progress', desc: 'Active work underway. Not yet at a point where Met/Unmet can be determined.' },
-          { icon: '🟣', label: 'Coming Down the Pipeline', desc: 'Not yet started but planned. Expected to be active in a future quarter.' },
-          { icon: '🔴', label: 'Has Not Met', desc: 'Target was not achieved for this cycle. Leadership review recommended.' },
+          { icon: '✅', label: 'Met (81–100%)', desc: 'Target fully achieved this cycle. Goal owner has validated the captured metric against the stated target.', badge: '81–100%' },
+          { icon: '🟠', label: 'Partially Met (51–80.9%)', desc: 'Meaningful progress made but the target was not fully achieved. A narrative context note is required from the goal owner.', badge: '51–80%' },
+          { icon: '🔵', label: 'In Progress', desc: 'Active work underway. Insufficient data to determine Met/Unmet — typically used mid-cycle when data is still being collected.', badge: 'Active' },
+          { icon: '🟣', label: 'Coming Down the Pipeline', desc: 'Not yet initiated but planned. Expected to move to In Progress in a future quarter.', badge: 'Planned' },
+          { icon: '🔴', label: 'Has Not Met (0–50.9%)', desc: 'Target was not achieved. Leadership review and action planning are required. This triggers an automatic flag in the Analytics dashboard.', badge: '0–50%' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Update Frequency', desc: 'KPI statuses are reviewed and updated quarterly by goal owners. Mid-Year and EOY are formal review points.', badge: 'Quarterly' },
-          { icon: '👤', label: 'Data Owner', desc: 'Director of Program Evaluation & Impact (PEI). Goal owners update their respective targets in the KPI Dashboard spreadsheet.', badge: 'PEI' },
-          { icon: '🔄', label: 'Sync Cadence', desc: 'Portal syncs live from Google Sheets. Data refreshes every 30 minutes automatically. Click ↺ to force a refresh.', badge: 'Auto' },
-        ]
+          { icon: '📆', label: 'Reporting Cadence', desc: 'Quarterly informal pulse checks (Q1:Oct, Q2:Jan, Q3:Mar, Q4:Jun). Mid-Year and EOY are formal board reporting cycles.', badge: 'Quarterly' },
+          { icon: '👤', label: 'Primary Data Owner', desc: 'Director of Program Evaluation & Impact (PEI). Each goal owner updates their targets directly in the KPI Dashboard Google Sheet.', badge: 'PEI' },
+          { icon: '🔄', label: 'Portal Sync', desc: 'Summary tab syncs every 30 minutes automatically. Quarterly Goal Tracking tab (owner/source metadata) syncs every 24 hours. Click ↺ Refresh to force an immediate re-sync.', badge: '30 min' },
+          { icon: '📊', label: 'Data Source', desc: 'KPI Dashboard — Summary tab (Mid/EOY statuses) + Quarterly Goal Tracking tab (Q1–Q4 detail, owners, validation sources). Google Sheet ID: 1woHFd7OzO_IS5yD8HOGifVCu0hW3qAStyja63hcxvWg', badge: 'Live Sheet' },
+        ],
+        timeline: [
+          { label: 'October: Q1 Pulse Check', desc: 'Informal progress check. Goal owners update status in the KPI Dashboard.' },
+          { label: 'January: Mid-Year Review', desc: 'Formal review. All statuses finalized by goal owners. Shared with leadership and board.' },
+          { label: 'March: Q3 Pulse Check', desc: 'Informal check-in to identify targets at risk before EOY.' },
+          { label: 'May–June: End-of-Year Assessment', desc: 'Final EOY statuses captured. Comprehensive review of all 43 targets against annual commitments.' },
+        ],
+        notify: '📣 PEI Notification Required: Any structural changes to the KPI Dashboard spreadsheet (new columns, renamed tabs, reordered rows) must be communicated to the Director of PEI before changes are made. The portal live feed will break silently if the schema changes without coordination.'
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full administration', lvl: 'full', label: 'Full Admin' },
+          { role: 'Goal Owners (All Depts)', scope: 'Own KPI rows only', lvl: 'view', label: 'Edit + View' },
+          { role: 'Executive Leadership', scope: 'View + approve policy', lvl: 'full', label: 'Full View' },
+          { role: 'Central Team (All Depts)', scope: 'Portal read-only', lvl: 'view', label: 'View Only' },
+          { role: 'External Partners', scope: 'No access', lvl: 'none', label: 'No Access' },
+        ],
+        notes: [
+          { icon: '🔑', label: 'Sheet Access', desc: 'The KPI Dashboard Google Sheet is accessible to goal owners for direct status updates. View-only access is granted to all central team members via Google Workspace.' },
+          { icon: '📅', label: 'Quarterly Report Upload', desc: 'Data department staff can upload the Quarterly Goal Tracking CSV directly in this portal to generate an executive snapshot visible to all departments.' },
+        ],
+        pii: '⚠️ No scholar PII or employee personal data is present in the KPI Dashboard. All targets are organizational-level aggregates. Access restrictions are applied as a matter of data governance best practice.'
       }
     },
+
+    /* ══════════════════════════════════════════════════════
+       KPI ANALYTICS — panel-kpi-analytics
+    ══════════════════════════════════════════════════════ */
     'panel-kpi-analytics': {
       what: {
         title: 'KPI Analytics Dashboard',
         icon: '📊',
-        desc: 'This view provides an analytical lens on organizational KPI performance — aggregated scores, goal area health, targets needing attention, and quarterly progression.',
+        desc: 'An analytical lens on organizational KPI performance — aggregated health scores, goal area breakdowns, targets needing leadership attention, and the full scorecard. Powered by the same live KPI Dashboard data.',
+        sources: [
+          { icon: '📊', label: 'KPI Dashboard', color: '#dbeafe', text: '#1e40af' },
+          { icon: '🔢', label: 'Weighted Score Model', color: '#f3e8ff', text: '#7e22ce' },
+        ],
         items: [
-          { icon: '🏠', label: 'At a Glance', desc: 'High-level overview with status counts, overall weighted score, and goal area health grid.' },
-          { icon: '📊', label: 'By Goal Area', desc: 'Deep dive into each of the 10 annual goals with individual target breakdowns and quarterly data.' },
-          { icon: '⚠️', label: 'Needs Attention', desc: 'Surfaces targets marked Partially Met or Has Not Met — the areas requiring leadership focus.' },
-          { icon: '🏆', label: 'Full Scorecard', desc: 'Complete view of all 43 targets with status, scores, and owner information.' },
+          { icon: '🏠', label: 'At a Glance', desc: 'High-level overview — status distribution, weighted organizational health score, and goal area health grid.', live: false },
+          { icon: '📊', label: 'By Goal Area', desc: 'Deep dive into each of the 10 annual goals — individual targets, statuses, and health calculations.', live: false },
+          { icon: '⚠️', label: 'Needs Attention', desc: 'Surfaces all Partially Met and Has Not Met targets — the areas requiring immediate leadership focus and action planning.', live: false },
+          { icon: '🔮', label: 'Coming Up', desc: 'Targets currently in the pipeline — planned but not yet initiated. Visibility into the forward work queue.', live: false },
+          { icon: '🏆', label: 'Full Scorecard', desc: 'Complete view of all 43 targets with status, weighted score contribution, and owner.', live: false },
         ]
       },
       read: {
+        title: 'Health Score Methodology',
+        intro: 'The organizational health score uses a weighted model calibrated to the NJTC KPI framework. Each status maps to a point value, and the score is the average across all targets within a goal area — or across all 43 targets for the overall score.',
         items: [
-          { icon: '📐', label: 'Weighted Score', desc: 'Met=100%, Partially Met=50%, In Progress=25%, Pipeline=10%, Not Met=0%. Averaged across all targets in a goal area.' },
-          { icon: '🟢', label: 'Healthy (≥85%)', desc: 'Goal area is on track. Majority of targets are met or well in progress.' },
-          { icon: '🟡', label: 'Watch (65–84%)', desc: 'Reasonable progress but some targets need closer attention.' },
-          { icon: '🟠', label: 'Needs Focus (40–64%)', desc: 'Multiple targets behind. Team attention and action planning recommended.' },
-          { icon: '🔴', label: 'Area of Support (<40%)', desc: 'Significant gaps. Immediate leadership discussion and intervention needed.' },
+          { icon: '✅', label: 'Met = 100 pts', desc: 'Full point value awarded. Target fully achieved.' },
+          { icon: '🟠', label: 'Partially Met = 50 pts', desc: 'Half credit. Meaningful progress but target not fully achieved.' },
+          { icon: '🔵', label: 'In Progress = 25 pts', desc: 'Quarter credit. Active work underway, insufficient data for final determination.' },
+          { icon: '🟣', label: 'Coming Down the Pipeline = 10 pts', desc: 'Minimal credit. Planned but not yet initiated.' },
+          { icon: '🔴', label: 'Has Not Met = 0 pts', desc: 'No credit. Target was not achieved this cycle.' },
+        ],
+        title2: 'Health Bands',
+        items2: [
+          { icon: '🟢', label: 'Healthy (≥85%)', desc: 'Goal area on track. Majority of targets met or actively progressing. No immediate intervention needed.' },
+          { icon: '🟡', label: 'Watch (65–84%)', desc: 'Reasonable overall progress but some targets require closer monitoring. Leadership awareness recommended.' },
+          { icon: '🟠', label: 'Needs Focus (40–64%)', desc: 'Multiple targets behind expectations. Team-level action planning and intervention recommended.' },
+          { icon: '🔴', label: 'Area of Support (<40%)', desc: 'Significant performance gaps. Immediate executive discussion and structured support plan required.' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Data Source', desc: 'KPI Dashboard Google Sheet — Summary tab for Mid/EOY status, Quarterly tab for Q1–Q4 detail.', badge: 'Live' },
-          { icon: '👤', label: 'Analytical Owner', desc: 'Data & Evaluation Department. Interpretation and narratives are owned by goal area leads.', badge: 'PEI' },
-          { icon: '🔄', label: 'Review Points', desc: 'Q1 (Oct), Q2 (Jan), Q3 (Mar), Q4 (Jun). Mid-Year and EOY are the formal board reporting cycles.', badge: 'Quarterly' },
+          { icon: '📆', label: 'Review Points', desc: 'Q1 (Oct), Q2 (Jan / Mid-Year formal), Q3 (Mar), Q4 (Jun / EOY formal). Health scores update automatically as statuses are entered.', badge: 'Quarterly' },
+          { icon: '👤', label: 'Analytical Owner', desc: 'Data & Evaluation Department owns this dashboard. Goal area leads own the interpretation and narrative behind their health scores.', badge: 'PEI' },
+          { icon: '🔄', label: 'Sync Source', desc: 'Pulls from the same KPI Dashboard Google Sheet as the KPI Targets view. Status changes made by goal owners are reflected within 30 minutes.', badge: '30 min' },
+        ]
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full dashboard access', lvl: 'full', label: 'Full Admin' },
+          { role: 'Executive Leadership', scope: 'Full view + board reporting', lvl: 'full', label: 'Full View' },
+          { role: 'All Central Team Depts', scope: 'Portal read-only', lvl: 'view', label: 'View Only' },
+          { role: 'External Partners', scope: 'No access', lvl: 'none', label: 'No Access' },
+        ],
+        notes: [
+          { icon: '📋', label: 'Board Reporting', desc: 'The Mid-Year and EOY analytics snapshots are used in board reporting packages. The Director of PEI is responsible for narrative context accompanying health scores.' },
         ]
       }
     },
+
+    /* ══════════════════════════════════════════════════════
+       SY SITE ANALYTICS — panel-sy-analytics
+    ══════════════════════════════════════════════════════ */
     'panel-sy-analytics': {
       what: {
         title: 'SY Site Analytics',
         icon: '🏫',
-        desc: 'School-year site performance data across all active NJTC program sites. Shows enrollment, session delivery, scholar progress, and site-level metrics.',
+        desc: 'School-year site performance across all active NJTC program locations for SY 2025–2026. Enrollment, session counts, scholar engagement, and site health indicators. Pulls from the SY Database Google Sheet.',
+        sources: [
+          { icon: '🗄️', label: 'SY Database', color: '#dbeafe', text: '#1e40af' },
+          { icon: '💠', label: 'PEARL', color: '#f0fdf4', text: '#15803d' },
+          { icon: '📐', label: 'iReady', color: '#fefce8', text: '#713f12' },
+        ],
         items: [
-          { icon: '📍', label: 'Site Coverage', desc: 'All fee-for-service and pilot sites for SY 2025–2026.' },
-          { icon: '📈', label: 'Progress Metrics', desc: 'Scholar placement levels, growth indicators, and iReady alignment.' },
-        ]
+          { icon: '📍', label: 'Site List', desc: 'All fee-for-service and pilot sites for SY 2025–2026. Pulled from the SY Database master list.', live: true },
+          { icon: '📊', label: 'Scholar Enrollment', desc: 'Count of scholars enrolled per site. Updated from the SY Database as sites onboard scholars.', live: true },
+          { icon: '📈', label: 'Session Progress', desc: 'Sessions delivered vs. committed per site. Pulled from PEARL.', live: true },
+          { icon: '🗺️', label: 'District View', desc: 'Site-level breakdown by district and region across New Jersey.', live: false },
+        ],
+        mission: 'By 2026, NJTC\'s target is to serve 2,000 scholars across 35+ sites annually. Site Analytics tracks our progress toward this core impact goal in real-time.'
       },
       read: {
+        title: 'Site Status Indicators',
+        intro: 'Site health is determined by session delivery rate, scholar attendance, and enrollment completion. Indicators update weekly as PEARL and SY Database data are refreshed.',
         items: [
-          { icon: '🟢', label: 'On Track', desc: 'Site is meeting session targets and scholar attendance thresholds.' },
-          { icon: '🟡', label: 'Monitor', desc: 'Some metrics below target. Site coordinator follow-up recommended.' },
-          { icon: '🔴', label: 'Needs Support', desc: 'Multiple indicators below threshold. Regional director escalation needed.' },
+          { icon: '🟢', label: 'On Track', desc: 'Site is meeting session delivery targets (≥80%) and scholar attendance thresholds. No coordinator action needed.' },
+          { icon: '🟡', label: 'Monitor', desc: 'One or more metrics are below target but not critical. Site coordinator follow-up recommended within the week.' },
+          { icon: '🔴', label: 'Needs Support', desc: 'Multiple indicators below threshold. Regional director escalation required. Action plan to be documented.' },
+          { icon: '🔵', label: 'New / Setup', desc: 'Site recently onboarded. Baseline data still being established.' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Update Frequency', desc: 'Synced from Pearl (session data) and iReady (academic data). Pearl updates daily; iReady updates as assessments are scored.', badge: 'Weekly' },
-          { icon: '👤', label: 'Data Owner', desc: 'Data & Evaluation — Programming provides site context and narrative.', badge: 'PEI' },
-        ]
+          { icon: '📆', label: 'SY Database Updates', desc: 'Owned by the Programming team. Updated as site enrollments change, new sites onboard, and program changes occur throughout the year.', badge: 'Ongoing' },
+          { icon: '💠', label: 'PEARL Sync', desc: 'Session data syncs from PEARL daily. Portal cache refreshes every 2 hours. Pearl GIDs are auto-discovered once per session.', badge: 'Daily' },
+          { icon: '👤', label: 'Data Owner', desc: 'Data & Evaluation owns SY Analytics reporting. Programming provides ground-truth site data and context.', badge: 'PEI + Prog' },
+        ],
+        timeline: [
+          { label: 'September–October: Site Onboarding', desc: 'Sites activated in SY Database. Baseline enrollment and staffing data entered. Pearl sessions begin.' },
+          { label: 'January: Mid-Year Site Review', desc: 'MOY snapshot captured. Session counts, scholar enrollment, and site health reviewed against KPI targets.' },
+          { label: 'May–June: End-of-Year Wrap', desc: 'Final session counts, scholar totals, and site closure data entered. EOY site analytics finalized.' },
+        ],
+        notify: '📣 PEI Notification Required: If the SY Database schema changes (new columns, renamed districts, restructured site records) the SY Analytics module must be updated. Contact the Director of PEI before making structural changes.'
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full admin + reporting', lvl: 'full', label: 'Full Admin' },
+          { role: 'Executive Director of Programs', scope: 'All sites, view + edit SY DB', lvl: 'full', label: 'Full Access' },
+          { role: 'Regional Program Team', scope: 'Assigned region only', lvl: 'view', label: 'View Only' },
+          { role: 'Site Coordinators', scope: 'Assigned site only', lvl: 'limit', label: 'Site View' },
+          { role: 'Finance Department', scope: 'Enrollment + billing data', lvl: 'view', label: 'View Only' },
+          { role: 'External Partners (Districts)', scope: 'Own district only', lvl: 'limit', label: 'Limited' },
+        ],
+        notes: [
+          { icon: '🔗', label: 'Data Source Link', desc: 'SY Database is a Google Sheet owned by the Programming team. Director of PEI has view access. Any structural changes require PEI coordination.' },
+          { icon: '📊', label: 'KPI Connection', desc: 'Site count and scholar totals feed directly into KPI targets: "By 2026, serve 35 sites" and "serve 2,000 scholars annually." Data must remain consistent across both sources.' },
+        ],
+        pii: '⚠️ Scholar names and identifying information in the SY Database are protected under FERPA. The portal displays aggregate site-level data only. Do not share site-level individual records externally without coordinator approval.'
       }
     },
+
+    /* ══════════════════════════════════════════════════════
+       PEARL OPERATIONS — panel-pearl-ops
+    ══════════════════════════════════════════════════════ */
     'panel-pearl-ops': {
       what: {
         title: 'Pearl Operations',
         icon: '💠',
-        desc: 'Live operational data from the Pearl platform — session attendance, instructor performance, student session counts, and HIT compliance flags.',
+        desc: 'Live operational data from the Pearl platform — session attendance by instructor, program delivery metrics, student session counts, and HIT compliance indicators. Pearl is the source of truth for all session-level program operations.',
+        alert: '⚠️ Pearl is the authoritative source for session-level data. Any discrepancy between Pearl and other reports must be resolved at the Pearl level first. Contact the Programming team to correct Pearl records before updating any downstream report.',
+        sources: [
+          { icon: '💠', label: 'PEARL Platform', color: '#f0fdf4', text: '#15803d' },
+          { icon: '📋', label: 'Instructor Attendance', color: '#dbeafe', text: '#1e40af' },
+          { icon: '🎓', label: 'Scholar Sessions', color: '#fef9c3', text: '#713f12' },
+        ],
         items: [
-          { icon: '📋', label: 'Session Attendance', desc: 'Instructor-level session attendance rates across all active sites and programs.' },
-          { icon: '👩‍🏫', label: 'Instructor Performance', desc: 'Session delivery counts, consistency scores, and attendance flags.' },
-          { icon: '🎓', label: 'Scholar Sessions', desc: 'Student-level session engagement data pulled directly from Pearl.' },
-        ]
+          { icon: '📋', label: 'Instructor Attendance Rate', desc: 'Session attendance rate per instructor across all active sites. Calculated as (sessions attended / sessions scheduled). Session-weighted across ALL Pearl instructors including termed staff.', live: true },
+          { icon: '👩‍🏫', label: 'Instructor Session Count', desc: 'Total sessions delivered per instructor for the current SY. Pulled from the Pearl Instructor Attendance tab.', live: true },
+          { icon: '🎓', label: 'Scholar Session Engagement', desc: 'Student-level session counts pulled from the Pearl Student Sessions tab. Tracks dosage per scholar.', live: true },
+          { icon: '🚩', label: 'HIT Compliance Flags', desc: 'High-Impact Tutoring threshold monitoring. Flags scholars or sites not meeting minimum session dosage requirements.', live: true },
+        ],
+        mission: 'High-dosage tutoring effectiveness depends on session consistency. Pearl Operations gives the Programming and PEI teams real-time visibility into whether we are delivering on our dosage commitments to partner schools and scholars.'
       },
       read: {
+        title: 'Attendance Rate Thresholds',
+        intro: 'Two attendance rate measures are displayed in this portal. Tutor Session Rate (Pearl Ops) is session-weighted across all Pearl instructors including termed staff. Average Attendance Rate (Talent) is the mean of per-person rates for Active HR staff with Pearl name matches only. Both are labeled explicitly.',
         items: [
-          { icon: '✅', label: 'Green (≥80%)', desc: 'Instructor meeting or exceeding attendance expectations.' },
-          { icon: '🟡', label: 'Yellow (60–79%)', desc: 'Attendance below target. Monitor and support.' },
-          { icon: '🔴', label: 'Red (<60%)', desc: 'Significant attendance concern. Coordinator intervention required.' },
+          { icon: '🟢', label: 'Green (≥80%)', desc: 'Instructor meeting or exceeding program attendance expectations. No immediate action needed.' },
+          { icon: '🟡', label: 'Yellow (60–79%)', desc: 'Attendance below target. Site coordinator should follow up and document any contextual factors (illness, school events, etc.).' },
+          { icon: '🔴', label: 'Red (<60%)', desc: 'Significant attendance concern. Regional director escalation required. Documentation of intervention plan needed within 48 hours.' },
+        ],
+        title2: 'HIT Compliance Flags',
+        items2: [
+          { icon: '✅', label: 'Compliant', desc: 'Scholar meeting or exceeding minimum session dosage for High-Impact Tutoring designation.' },
+          { icon: '⚠️', label: 'At Risk', desc: 'Scholar approaching minimum threshold. Site coordinator alert issued.' },
+          { icon: '🚩', label: 'Non-Compliant', desc: 'Scholar below HIT minimum. Partner school notification may be required per contract terms.' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Sync Frequency', desc: 'Pearl data refreshes on page load with a 2-hour cache. Force refresh via the ↺ button.', badge: 'Daily' },
-          { icon: '👤', label: 'Data Owner', desc: 'Programming Department owns Pearl data entry. PEI owns reporting and flags.', badge: 'Programming' },
-          { icon: '🚩', label: 'Flag Reports', desc: 'HIT compliance and attendance flags are sent to regional teams every Monday EOD.', badge: 'Weekly' },
-        ]
+          { icon: '📆', label: 'Pearl Sync', desc: 'Pearl data refreshes on panel open with a 2-hour cache. GIDs (tab IDs) are auto-discovered using a 3-pass resolution system and cached for the session. Force refresh via ↺.', badge: '2hr Cache' },
+          { icon: '👤', label: 'Data Entry Owner', desc: 'Programming Department owns all Pearl data entry (session records, instructor assignments, student rostering). PEI owns the reporting, flagging, and analytics layer.', badge: 'Programming' },
+          { icon: '🚩', label: 'Flag Reports', desc: 'HIT compliance and attendance flag reports are generated and sent to regional teams every Monday by EOD. Onsite teams receive site-specific summaries.', badge: 'Monday EOD' },
+          { icon: '🔄', label: 'Data Quality', desc: 'Inactive instructor records in Pearl must be archived to prevent data skew. PEI conducts monthly Pearl audits against the HR Master List to flag mismatches.', badge: 'Monthly' },
+        ],
+        timeline: [
+          { label: 'Weekly: Monday EOD', desc: 'Flag reports sent to regional program teams. Session attendance updated in portal.' },
+          { label: 'Monthly: Pearl Audit', desc: 'PEI cross-references Pearl instructor list against HR Master List. Unmatched or termed records are flagged for Programming to archive.' },
+          { label: 'January (MOY): Mid-Year Pearl Review', desc: 'Session totals reviewed against KPI targets. Site dosage compliance formally assessed.' },
+          { label: 'May–June (EOY): Final Session Counts', desc: 'All sessions finalized in Pearl. EOY dosage data used for ADP Suite academic overlay and annual impact report.' },
+        ],
+        notify: '📣 PEI Notification Required: If Pearl\'s tab structure (GIDs), column headers, or instructor name formatting changes, the portal\'s auto-discovery may fail. Contact PEI immediately if Pearl data stops loading correctly in the portal.'
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full admin + reporting', lvl: 'full', label: 'Full Admin' },
+          { role: 'Programming / Exec Dir', scope: 'All sites, data entry', lvl: 'full', label: 'Full Access' },
+          { role: 'Regional Program Leads', scope: 'Assigned region', lvl: 'view', label: 'View Only' },
+          { role: 'Site Coordinators', scope: 'Assigned site', lvl: 'limit', label: 'Site View' },
+          { role: 'HR Department', scope: 'Attendance overlay only', lvl: 'view', label: 'View Only' },
+          { role: 'External Partners', scope: 'No direct access', lvl: 'none', label: 'No Access' },
+        ],
+        notes: [
+          { icon: '🔐', label: 'Pearl Platform Access', desc: 'Pearl platform credentials are managed by the Programming team. The portal connects to Pearl via published Google Sheet (2PACX link) — no Pearl login is required for portal users.' },
+          { icon: '📊', label: 'ADP Suite Integration', desc: 'Pearl attendance data feeds directly into the ADP Suite Employee Profile Dashboard for rehire decision scoring. Data quality in Pearl directly impacts automated rehire recommendations.' },
+        ],
+        pii: '⚠️ Pearl contains scholar names and session records protected under FERPA. The portal displays aggregated instructor-level and site-level data only. Individual scholar records are never surfaced in the Central Team Portal. Access to raw Pearl export data is restricted to PEI and Programming leadership.'
       }
     },
+
+    /* ══════════════════════════════════════════════════════
+       TALENT ANALYTICS — panel-talent
+    ══════════════════════════════════════════════════════ */
     'panel-talent': {
       what: {
         title: 'Talent Analytics',
         icon: '👥',
-        desc: 'HR and talent data for all NJTC staff — central team and onsite. Includes staff profiles, attendance overlays from Pearl, academic performance context from iReady, and performance concern records.',
+        desc: 'Comprehensive HR and talent intelligence for all NJTC staff — central team and onsite. Integrates ADP Workforce Now data, Pearl attendance overlays, iReady academic performance context, and program concern records. Powered by the ADP Suite: Employee Profile Dashboard methodology.',
+        alert: '⚠️ The ADP Suite Employee Profile Dashboard is the system of record for rehire decisions. Any changes to ADP benchmark thresholds (Scholar Learning Gained, Rapport scores, attendance floors, academic placement standards) require Program Team approval for moderate changes or Executive approval for major methodology changes. Contact the Director of PEI.',
+        sources: [
+          { icon: '⚙️', label: 'ADP Workforce Now', color: '#dbeafe', text: '#1e40af' },
+          { icon: '💠', label: 'PEARL', color: '#f0fdf4', text: '#15803d' },
+          { icon: '📐', label: 'iReady', color: '#fefce8', text: '#713f12' },
+          { icon: '📋', label: 'Program Concerns', color: '#fce7f3', text: '#be185d' },
+        ],
         items: [
-          { icon: '👤', label: 'Staff Profiles', desc: 'HR records for all active and historical staff. Enriched with live Pearl attendance and iReady academic data.' },
-          { icon: '⚠️', label: 'Performance Concerns', desc: 'Documented concern records by staff member and concern type.' },
-          { icon: '📊', label: 'Talent Analytics', desc: 'Aggregate HR metrics — retention, tiers, site distribution, and role breakdown.' },
-        ]
+          { icon: '👤', label: 'Staff Profiles', desc: 'HR records from ADP Workforce Now via the Master List Google Sheet. Enriched with live Pearl attendance overlays and iReady academic impact data.', live: true },
+          { icon: '⚠️', label: 'Performance Concerns', desc: 'Program Concern Form (PGP) records by staff member. Critical thresholds: 1 PGP = documented concern; 3 PGPs = enhanced monitoring; 6+ PGPs = critical intervention.', live: true },
+          { icon: '📊', label: 'Talent Analytics', desc: 'Aggregate HR metrics — retention rates, tier distribution, site staffing, role breakdown, and hire/term trends.', live: true },
+          { icon: '🔄', label: 'Rehire Decision Layer', desc: 'ADP Suite automated rehire recommendation (YES / MAYBE / NO / UNKNOWN / PENDING) based on 4-benchmark evaluation: Scholar Learning, Rapport, Attendance, Academic Placement.', live: true },
+        ],
+        mission: 'The ADP Suite removes subjectivity from rehiring decisions through objective, measurable benchmarks. Every decision can be traced to specific performance data — Scholar Learning Gained, Tutor-Scholar Rapport, Attendance Rate, and Academic Placement Progress.'
       },
       read: {
+        title: 'Staff Tier System',
+        intro: 'Staff tiers are calculated by PEI using a composite score across attendance (Pearl), academic impact (iReady), and concern record (Program Concerns). Tiers update automatically as live overlays refresh. The live tier (_liveT) takes precedence over the static embedded tier.',
         items: [
-          { icon: '🥇', label: 'Tier 1 (Elite)', desc: 'Top performers. High attendance + strong academic growth outcomes.' },
-          { icon: '🥈', label: 'Tier 2 (Strong)', desc: 'Solid performance. Meeting expectations across key indicators.' },
-          { icon: '🥉', label: 'Tier 3 (Developing)', desc: 'Growth areas identified. Support plan or coaching in place.' },
-          { icon: '⬜', label: 'Tier 4 (Needs Support)', desc: 'Multiple performance concerns. Active intervention required.' },
+          { icon: '🥇', label: 'Tier 1 — Elite', desc: 'Top performers. High Pearl attendance (≥90%) + strong academic growth outcomes (≥65% scholars advancing 1+ grade level) + zero-minimal concerns.' },
+          { icon: '🥈', label: 'Tier 2 — Strong', desc: 'Solid performance. Meeting expectations across key indicators. ≥80% attendance + positive scholar learning outcomes.' },
+          { icon: '🥉', label: 'Tier 3 — Developing', desc: 'Growth areas identified. Attendance or academic outcomes below target. Active coaching or support plan in place.' },
+          { icon: '⬜', label: 'Tier 4 — Needs Support', desc: 'Multiple performance concerns. Below-threshold on 2+ benchmarks. Active intervention required. ADP Suite rehire status typically MAYBE or NO.' },
+        ],
+        title2: 'ADP Suite Rehire Status Guide',
+        items2: [
+          { icon: '✅', label: 'YES — Recommended', desc: 'All 4 ADP benchmarks met. Scholar Learning ≥4.2 (full year), Rapport ≥4.5, Attendance ≥90%, Academic Placement Progress ≥65%.' },
+          { icon: '⚠️', label: 'MAYBE — Leadership Review', desc: 'Mixed performance. At least one benchmark below threshold but contextual factors may warrant rehire. Case-by-case with documented rationale required.' },
+          { icon: '❌', label: 'NO — Not Recommended', desc: 'Multiple benchmark failures, severe concerns (4+ PGPs), HR-escalated termination, or critical attendance (<80%).' },
+          { icon: '📊', label: 'UNKNOWN — Data Missing', desc: 'At least one required metric not yet available. Cannot make a complete determination. Pending data collection.' },
+          { icon: '⏳', label: 'PENDING — Awaiting Academic Data', desc: 'Profile complete but academic data (iReady/PEARL surveys) not yet available for the current cycle.' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'HR Data', desc: 'Master List updated by HR as changes occur. Portal reflects live sheet within 1 hour.', badge: 'Live' },
-          { icon: '👤', label: 'Data Owner', desc: 'HR Department owns staff records. PEI owns performance analytics and tier calculations.', badge: 'HR + PEI' },
-          { icon: '🔄', label: 'Overlay Data', desc: 'Pearl attendance and iReady academic data overlays update with each module fetch.', badge: 'Per Session' },
-        ]
+          { icon: '⚙️', label: 'ADP / HR Master List', desc: 'Director of PEI is primary data steward. HR Master List Google Sheet is the portal\'s live HR source (GID: 911694457). Updates within 1 hour of sheet changes. New SY 2025-2026 staff added to sheet → auto-appears in portal.', badge: '1hr Sync' },
+          { icon: '💠', label: 'Pearl Overlay', desc: 'Attendance data merged by tutor name from Pearl at panel open. Uses normalized name matching (strips -SUB suffixes and parentheticals). Refreshes each session.', badge: 'Per Session' },
+          { icon: '📐', label: 'iReady Overlay', desc: 'Academic impact data synced from the NJTC iReady Dashboard Sheet every 2 hours. GIDs auto-discovered on first load. Tutor attribution handles multi-tutor assignments.', badge: '2hr Cache' },
+          { icon: '📋', label: 'Concern Records', desc: 'Program Concern Forms (PGPs) are entered in the Talent Concerns sheet by program coordinators. Syncs to Talent panel on load.', badge: 'Weekly' },
+        ],
+        timeline: [
+          { label: 'September–October: Baseline Onboarding', desc: 'New staff added to HR Master List. Initial ADP profiles created. Pearl assignments configured.' },
+          { label: 'January (MOY): Mid-Year ADP Assessment', desc: 'Academic data collected. PEARL surveys administered. Preliminary rehire decisions generated by ADP Suite.' },
+          { label: 'May–June (EOY): Final ADP Decisions', desc: 'Final academic data, PEARL surveys, and concern records reviewed. Final rehire decisions documented.' },
+          { label: 'July–August: Rehire Communications', desc: 'Offers extended to YES/MAYBE staff. Feedback provided to NO decisions. Recruitment begins for vacancies.' },
+        ],
+        notify: '📣 PEI Notification Required: If ADP Workforce Now\'s Census Report format changes, or if the HR Master List Google Sheet structure is modified (new columns, renamed fields), the Talent module\'s live overlay will break. Contact the Director of PEI before making structural changes to either system.'
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full admin, data steward', lvl: 'full', label: 'Full Admin' },
+          { role: 'Executive Leadership', scope: 'All staff, all decisions', lvl: 'full', label: 'Full Access' },
+          { role: 'Human Resources', scope: 'All staff, edit ADP data', lvl: 'full', label: 'Full Access' },
+          { role: 'Program Coordinators', scope: 'Assigned site only', lvl: 'limit', label: 'Site View' },
+          { role: 'Central Team (Data Dept)', scope: 'Full portal view', lvl: 'view', label: 'View Only' },
+          { role: 'Onsite Staff', scope: 'Own profile only', lvl: 'limit', label: 'Personal' },
+        ],
+        notes: [
+          { icon: '🔐', label: 'ADP Suite Access Policy', desc: 'Policy changes require tiered approval: minor changes (visual, corrections) → Director of PEI authority; moderate (benchmark ±0.2, new features) → Program Team approval; major (methodology, decision logic) → Executive approval.' },
+          { icon: '📊', label: 'Annual System Review', desc: 'Each summer, the Director of PEI conducts a comprehensive review of benchmark effectiveness, decision accuracy, equity analysis, and data quality. Results shared with Executive Leadership.' },
+        ],
+        pii: '⚠️ Talent Analytics contains protected employee personal data under FERPA and employment law. Performance records are confidential employment documents. Scholar survey data has identifying information removed. Medical/accommodation information is maintained separately by HR. Unauthorized access or sharing may result in disciplinary action up to termination.'
       }
     },
+
+    /* ══════════════════════════════════════════════════════
+       i-READY ANALYSIS LAB — panel-iready-lab
+    ══════════════════════════════════════════════════════ */
     'panel-iready-lab': {
       what: {
         title: 'i-Ready Analysis Lab',
         icon: '🧪',
-        desc: 'Academic performance analysis using iReady diagnostic and growth data. Covers scholar placement levels, on-grade-level rates, growth velocity, and tutor-level academic impact.',
+        desc: 'Academic performance analysis using iReady diagnostic data. Scholar placement levels, on-grade-level rates, grade level movement, scale score growth, and tutor-level academic impact. The authoritative source for proving NJTC\'s academic impact to stakeholders and partners.',
+        alert: '⚠️ iReady data is provided by partner districts. Any BOY/MOY/EOY assessment windows that change, new districts added, or changes to the iReady Google Sheet structure require PEI notification. Data quality in this module directly impacts the ADP Suite rehire decisions and all external partner presentations.',
+        sources: [
+          { icon: '📐', label: 'iReady Platform', color: '#fefce8', text: '#713f12' },
+          { icon: '🗄️', label: 'NJTC iReady Dashboard Sheet', color: '#dbeafe', text: '#1e40af' },
+          { icon: '📊', label: 'Longitudinal (SY22–Present)', color: '#f3e8ff', text: '#7e22ce' },
+        ],
         items: [
-          { icon: '📊', label: 'Placement Levels', desc: 'iReady diagnostic placement (Early K through Grade 8+) for Math and ELA by site, grade, and tutor.' },
-          { icon: '📈', label: 'Growth Metrics', desc: 'Lexile/scale score change from baseline to most recent diagnostic. Annualized growth rates.' },
-          { icon: '🔁', label: 'Repeat Scholars', desc: 'Multi-year scholars with longitudinal growth tracking across consecutive school years.' },
-        ]
+          { icon: '📊', label: 'Placement Levels (5-Tier)', desc: 'iReady diagnostic placement: Mid/Above Grade Level, Early On Grade, 1 Level Below, 2 Levels Below, 3+ Levels Below. Available for Math and ELA by site, grade, and tutor.', live: true },
+          { icon: '📈', label: 'Progress to Grade Level Proficiency', desc: 'Overall relative placement movement for scholars beginning at least 1 grade level below. Primary impact metric.', live: true },
+          { icon: '⬆️', label: 'Progress ≥1 Grade Level', desc: 'Percentage of scholars who advanced at least one placement level from baseline to spring. Key external reporting metric.', live: true },
+          { icon: '📉', label: 'Regression Rate', desc: 'Percent of scholars who regressed from baseline placement level. Target: ≤7% for full-cycle tutors per ADP Suite benchmarks.', live: true },
+          { icon: '🎯', label: 'Median % to Typical Growth', desc: 'iReady\'s alignment metric — in 30 weeks, scholars should reach 100% typical growth. NJTC tracks and reports this to partners.', live: true },
+          { icon: '🔁', label: 'Repeat Scholar Metrics', desc: 'Multi-year scholars tracked longitudinally. Repeat cohorts demonstrate long-term effectiveness of NJTC\'s high-dosage model.', live: true },
+        ],
+        mission: 'We rigorously collect and analyze academic data to demonstrate the tangible impact of high-impact tutoring — particularly for scholars performing 2+ grade levels below. This data provides concrete FACTS of scholar progress for stakeholders, funders, and partners.'
       },
       read: {
+        title: 'iReady 5-Level Placement System',
+        intro: 'The 5-Level Placements provide greater insight into student performance using the same five placements that calculate student growth in the iReady growth model. These are available at both overall and domain level with demographic filters. NJTC\'s primary focus population: scholars at 2+ grade levels below.',
         items: [
-          { icon: '🟢', label: 'On Grade Level', desc: 'Scholar placed at or above their enrolled grade level in iReady.' },
-          { icon: '🟡', label: '1 Level Below', desc: 'One grade level below enrolled grade. Targeted support in place.' },
-          { icon: '🔴', label: '2+ Levels Below', desc: 'Two or more grade levels below. Priority intervention group.' },
+          { icon: '🟢', label: 'Mid or Above Grade Level', desc: 'Met or surpassed minimum college- and career-ready standards. Benefits from late on-grade or above-grade instruction. NJTC scholars at this level typically do not need intensive intervention.' },
+          { icon: '🟢', label: 'Early On Grade Level', desc: 'Partially met grade-level expectations. Benefits from on-grade instruction. Likely does not need specialized intervention.' },
+          { icon: '🟡', label: 'One Grade Level Below', desc: 'Approaching grade-level. BOY: performing consistently with students just starting the year. Mid/EOY: may need intensive intervention.' },
+          { icon: '🟠', label: 'Two Grade Levels Below', desc: 'NJTC primary target population. Likely needs additional support with key skills below chronological grade level. Intensive intervention recommended.' },
+          { icon: '🔴', label: 'Three or More Levels Below', desc: 'NJTC priority scholars. Intensive foundational intervention required. ADP Suite academic placement benchmark focuses on this group\'s movement.' },
+        ],
+        title2: 'Tier Identification Framework',
+        items2: [
+          { icon: '🟢', label: 'Tier 1 (No Intensive Intervention)', desc: 'BOY: Emerging or above. MOY: Early On Grade or Mid/Above. EOY: On or Above Grade Level.' },
+          { icon: '🟡', label: 'Tier 2 (Targeted Support)', desc: 'BOY: Two Levels Below. MOY: One Level Below. EOY: One Level Below or Early On Grade.' },
+          { icon: '🔴', label: 'Tier 3 (Intensive Intervention)', desc: 'BOY: Three+ Levels Below. MOY: Two or Three+ Levels Below. EOY: Two or Three+ Levels Below.' },
         ]
       },
       cadence: {
         items: [
-          { icon: '📆', label: 'Assessment Windows', desc: 'iReady diagnostics: Fall (Sep–Oct), Winter (Jan–Feb), Spring (Apr–May). Data available after each window closes.', badge: '3x/Year' },
-          { icon: '👤', label: 'Data Owner', desc: 'Data & Evaluation. iReady data is provided by partner districts and uploaded to the NJTC iReady Dashboard Sheet.', badge: 'PEI' },
-          { icon: '🔄', label: 'Portal Sync', desc: 'Live sheet syncs on panel open. GIDs auto-discovered. 2-hour cache for performance.', badge: '2hr Cache' },
-        ]
+          { icon: '📆', label: 'Assessment Windows', desc: 'Fall/BOY: September–October. Winter/MOY: January–February. Spring/EOY: April–May. Data available in the portal after each window closes and partner districts export to the iReady Dashboard Sheet.', badge: '3x/Year' },
+          { icon: '👤', label: 'Data Owner', desc: 'Director of PEI — primary data owner, collection oversight, dashboard creation, quality assurance. Districts provide iReady exports. PEI cleans, validates, and publishes data.', badge: 'PEI' },
+          { icon: '🔄', label: 'Portal Sync', desc: 'Live iReady Dashboard Sheet syncs on panel open. GIDs auto-discovered using tab header signature matching. 2-hour cache. After merge: HR profiles automatically re-rendered with academic overlays.', badge: '2hr Cache' },
+          { icon: '📋', label: 'Reporting Cadence', desc: 'Report-outs done at MOY and EOY. External partner presentations use NJTC-framed language (% improvement toward typical growth, grade level spotlights) per the Academic Data Governance Manual.', badge: 'MOY + EOY' },
+        ],
+        timeline: [
+          { label: 'Sep–Oct (BOY): Baseline Assessment', desc: 'Pre-program diagnostics administered by partner districts. BOY data uploaded to iReady Dashboard Sheet. Baseline established for all scholars.' },
+          { label: 'Jan–Feb (MOY): Mid-Year Assessment', desc: 'MOY diagnostics. Preliminary academic impact data available. Used for ADP Suite mid-year rehire decisions and partner mid-year presentations.' },
+          { label: 'Apr–May (EOY): Final Assessment', desc: 'Post-program diagnostics. Full academic impact calculated. ADP Suite final rehire decisions triggered. External evaluation partner receives data.' },
+          { label: 'Jun–Aug: Evaluation Reporting', desc: 'External evaluation underway (complemented by internal evaluation for data validation). Program wrap-up report completed by end of July.' },
+        ],
+        notify: '📣 PEI Notification Required: iReady connects via published Google Sheet (2PACX link). If the NJTC iReady Dashboard Sheet is restructured, columns reordered, or new tabs added, the portal GID auto-discovery may fail silently. Contact PEI before any structural changes. Missing BOY/EOY assessment pairs are flagged by the Missing Data % indicator — resolve in the source sheet.'
+      },
+      access: {
+        rows: [
+          { role: 'Director of PEI', scope: 'Full admin, data owner', lvl: 'full', label: 'Full Admin' },
+          { role: 'Executive Director of Operations', scope: 'Full view', lvl: 'full', label: 'Full View' },
+          { role: 'Leadership', scope: 'Dashboard view + reporting', lvl: 'view', label: 'View Only' },
+          { role: 'Program Team', scope: 'Partner presentations + context', lvl: 'view', label: 'View Only' },
+          { role: 'External Partners (Districts)', scope: 'District-level view only', lvl: 'limit', label: 'Limited' },
+          { role: 'External Evaluator', scope: 'Full access for evaluation', lvl: 'full', label: 'Full Access' },
+        ],
+        notes: [
+          { icon: '🔐', label: 'iReady Platform Access', desc: 'iReady Connect login: njtc@njtutoring.org | State: New Jersey. Managed by Director of PEI. District credentials are maintained separately per district contract.' },
+          { icon: '📊', label: 'ADP Suite Integration', desc: 'iReady academic placement data feeds directly into ADP Suite rehire scoring (Academic Placement Progress benchmark: ≥65% for full-cycle tutors). Data must be finalized before ADP Suite runs EOY decisions.' },
+          { icon: '🤝', label: 'External Partner Framing', desc: 'Per NJTC Academic Data Governance: partner-facing presentations use specific approved language regardless of academic outcomes — framing growth emotionally and academically to ensure partner impact. See the Academic Data Governance Manual for approved language.' },
+        ],
+        pii: '⚠️ iReady data contains scholar diagnostic results protected under FERPA. All iReady data in the portal is aggregated at the tutor, grade, or site level — no individual scholar records are surfaced. Raw iReady exports are restricted to the Director of PEI. District partners access only their own district\'s aggregated data. External evaluator access is governed by a separate data sharing agreement.'
       }
     }
+
   };
 
-  var _govCurrentPanel = 'panel-kpi';
+    var _govCurrentPanel = 'panel-kpi';
   var _govCurrentTab   = 'what';
 
   var BEACON_PANELS = new Set(['panel-kpi','panel-kpi-analytics','panel-sy-analytics','panel-pearl-ops','panel-talent','panel-iready-lab']);
@@ -14676,38 +14949,104 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     govRenderBody(tabId);
   }
   function govRenderBody(tab) {
-    var content = GOV_DATA[_govCurrentPanel];
-    if (!content) return;
+    var panelData = GOV_DATA[_govCurrentPanel];
+    if (!panelData) return;
     var body = document.getElementById('govBody');
     if (!body) return;
-    var d = content[tab];
+    var d = panelData[tab];
     if (!d) return;
-
     var html = '';
 
     if (tab === 'what') {
-      html += '<div class="gov-section">';
-      html += '<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.875rem">';
-      html += '<span style="font-size:1.5rem">'+content.what.icon+'</span>';
-      html += '<div><div style="font-size:1rem;font-weight:800;color:var(--navy)">'+content.what.title+'</div>';
-      html += '<div style="font-size:.8125rem;color:var(--text-2);margin-top:.15rem;line-height:1.5">'+content.what.desc+'</div></div>';
-      html += '</div></div>';
-      html += '<div class="gov-section-title">Data Elements</div>';
+      // Panel identity header
+      html += '<div class="gov-panel-hero">';
+      html += '<span class="gov-hero-icon">'+panelData.what.icon+'</span>';
+      html += '<div>';
+      html += '<div class="gov-hero-title">'+panelData.what.title+'</div>';
+      html += '<div class="gov-hero-desc">'+panelData.what.desc+'</div>';
+      if (panelData.what.alert) {
+        html += '<div class="gov-alert">'+panelData.what.alert+'</div>';
+      }
+      html += '</div>';
+      html += '</div>';
+      // Data source pills
+      if (panelData.what.sources && panelData.what.sources.length) {
+        html += '<div class="gov-source-row">';
+        for (var si=0; si<panelData.what.sources.length; si++) {
+          var src = panelData.what.sources[si];
+          html += '<span class="gov-source-pill" style="background:'+src.color+';color:'+src.text+'">';
+          html += src.icon+' '+src.label;
+          html += '</span>';
+        }
+        html += '</div>';
+      }
+      html += '<div class="gov-section-title">Data Elements in This View</div>';
       for (var i=0; i<d.items.length; i++) {
         var item = d.items[i];
-        html += '<div class="gov-row"><span class="gov-row-icon">'+item.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div></div>';
+        html += '<div class="gov-row">';
+        html += '<span class="gov-row-icon">'+item.icon+'</span>';
+        html += '<div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div>';
+        if (item.live) html += '<span class="gov-badge live">Live</span>';
+        html += '</div>';
+      }
+      // Mission note
+      if (panelData.what.mission) {
+        html += '<div class="gov-mission-note"><div class="gov-mission-title">Mission Context</div><div class="gov-mission-body">'+panelData.what.mission+'</div></div>';
       }
     } else if (tab === 'read') {
-      html += '<div class="gov-section-title">Status Guide — What Each Status Means</div>';
+      if (d.intro) html += '<div class="gov-intro-text">'+d.intro+'</div>';
+      html += '<div class="gov-section-title">'+((d.title)||'Status Guide')+'</div>';
       for (var i=0; i<d.items.length; i++) {
         var item = d.items[i];
-        html += '<div class="gov-row"><span class="gov-row-icon">'+item.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div></div>';
+        html += '<div class="gov-row">';
+        html += '<span class="gov-row-icon">'+item.icon+'</span>';
+        html += '<div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div>';
+        if (item.badge) html += '<span class="gov-badge">'+item.badge+'</span>';
+        html += '</div>';
+      }
+      if (d.items2 && d.items2.length) {
+        html += '<div class="gov-section-title" style="margin-top:1rem">'+d.title2+'</div>';
+        for (var j=0; j<d.items2.length; j++) {
+          var item2 = d.items2[j];
+          html += '<div class="gov-row"><span class="gov-row-icon">'+item2.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+item2.label+'</div><div class="gov-row-desc">'+item2.desc+'</div></div></div>';
+        }
       }
     } else if (tab === 'cadence') {
-      html += '<div class="gov-section-title">Update Schedule & Ownership</div>';
+      html += '<div class="gov-section-title">Update Schedule & Data Ownership</div>';
       for (var i=0; i<d.items.length; i++) {
         var item = d.items[i];
         html += '<div class="gov-row"><span class="gov-row-icon">'+item.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+item.label+'</div><div class="gov-row-desc">'+item.desc+'</div></div>'+(item.badge?'<span class="gov-badge cadence">'+item.badge+'</span>':'')+'</div>';
+      }
+      if (d.timeline && d.timeline.length) {
+        html += '<div class="gov-section-title" style="margin-top:1rem">Annual Timeline</div>';
+        for (var ti=0; ti<d.timeline.length; ti++) {
+          var tl = d.timeline[ti];
+          html += '<div class="gov-timeline-row"><div class="gov-tl-dot"></div><div class="gov-tl-body"><div class="gov-tl-label">'+tl.label+'</div><div class="gov-tl-desc">'+tl.desc+'</div></div></div>';
+        }
+      }
+      if (d.notify) {
+        html += '<div class="gov-alert notify">'+d.notify+'</div>';
+      }
+    } else if (tab === 'access') {
+      html += '<div class="gov-section-title">Security Levels & Access Control</div>';
+      if (d.rows && d.rows.length) {
+        html += '<div class="gov-access-table">';
+        html += '<div class="gov-access-head"><span>Role / Department</span><span>Scope</span><span>Level</span></div>';
+        for (var ai=0; ai<d.rows.length; ai++) {
+          var ar = d.rows[ai];
+          html += '<div class="gov-access-row"><span class="gov-access-role">'+ar.role+'</span><span class="gov-access-scope">'+ar.scope+'</span><span class="gov-access-level gov-al-'+ar.lvl+'">'+ar.label+'</span></div>';
+        }
+        html += '</div>';
+      }
+      if (d.notes && d.notes.length) {
+        html += '<div class="gov-section-title" style="margin-top:1rem">Policy Notes</div>';
+        for (var ni=0; ni<d.notes.length; ni++) {
+          var note = d.notes[ni];
+          html += '<div class="gov-row"><span class="gov-row-icon">'+note.icon+'</span><div class="gov-row-body"><div class="gov-row-label">'+note.label+'</div><div class="gov-row-desc">'+note.desc+'</div></div></div>';
+        }
+      }
+      if (d.pii) {
+        html += '<div class="gov-alert pii">'+d.pii+'</div>';
       }
     }
     body.innerHTML = html;
@@ -14812,6 +15151,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     <button class="gov-tab active" id="govTab-what" onclick="govTab(this,'what')">📋 What This Is</button>
     <button class="gov-tab" id="govTab-read" onclick="govTab(this,'read')">📖 How to Read It</button>
     <button class="gov-tab" id="govTab-cadence" onclick="govTab(this,'cadence')">📅 Cadence & Ownership</button>
+    <button class="gov-tab" id="govTab-access" onclick="govTab(this,'access')">🔐 Access & Security</button>
   </div>
   <div class="gov-body" id="govBody"></div>
 </div>
