@@ -1,7 +1,7 @@
 {
-  "generated": "2026-03-09T12:53:06.595Z",
+  "generated": "2026-03-09T14:03:41.904Z",
   "project": "1211431518555737",
-  "count": 35,
+  "count": 34,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -280,40 +280,6 @@
       "name": "State of Apprenticeship Event with TAN",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212755283202640"
-    },
-    {
-      "gid": "1211431680337985",
-      "assignee": {
-        "gid": "1213327755449997",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-06-12",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        }
-      ],
-      "name": "35 SY sites - all of which are fee-for-service sites (does not include low-cost pilot)",
-      "notes": "This milestone represents work securing revenue generating sites. https://docs.google.com/spreadsheets/d/1jq7KZloR9l6hisd5W_muvLVXtN02Jpjre8H35o8_9co/edit?gid=1585927968#gid=1585927968 (second tab - column A)",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431680337985"
     },
     {
       "gid": "1212481119258742",
