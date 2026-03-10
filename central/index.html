@@ -15664,6 +15664,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var districtSet = new Set();
       // Placement breakdown
       var placementCounts = { base: {}, spring: {} };
+      // Avg placement index by subject (PLACEMENT_ORDER index 0–4)
+      var mathBasePlIdx=0,mathSpringPlIdx=0,mathPlN=0;
+      var elaBasePlIdx=0,elaSpringPlIdx=0,elaPlN=0;
+      var PL_ORDER=['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+      var PL_SHORT=['3+ Below','2 Below','1 Below','Early GL','On/Above GL'];
+      function _plIdx(p){var i=PL_ORDER.indexOf(p);return i>=0?i:null;}
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
       // Race breakdown (unique scholars)
@@ -15686,8 +15692,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         if (r.springRelPlacement) placementCounts.spring[r.springRelPlacement] = (placementCounts.spring[r.springRelPlacement]||0)+1;
         // By subject
         var subj = (r.subject||'').toLowerCase();
-        if (subj.indexOf('math')>=0) { mathTotal++; if(hasGrowth) mathGrowth++; }
-        else if (subj.indexOf('ela')>=0) { elaTotal++; if(hasGrowth) elaGrowth++; }
+        if (subj.indexOf('math')>=0) {
+          mathTotal++;
+          if(hasGrowth) mathGrowth++;
+          var _mb=_plIdx(r.baseRelPlacement),_ms=_plIdx(r.springRelPlacement);
+          if(_mb!==null&&_ms!==null){mathBasePlIdx+=_mb;mathSpringPlIdx+=_ms;mathPlN++;}
+        } else if (subj.indexOf('ela')>=0) {
+          elaTotal++;
+          if(hasGrowth) elaGrowth++;
+          var _eb=_plIdx(r.baseRelPlacement),_es=_plIdx(r.springRelPlacement);
+          if(_eb!==null&&_es!==null){elaBasePlIdx+=_eb;elaSpringPlIdx+=_es;elaPlN++;}
+        }
         // Race — count unique scholars
         if (sid && !seenScholars[sid]) {
           seenScholars[sid] = true;
@@ -15697,6 +15712,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       });
 
       var growthPct = totalRows > 0 ? parseFloat((totalWithGrowth/totalRows*100).toFixed(1)) : null;
+      // Avg placement labels (short) from index
+      function _plLabel(sum,n){if(!n)return null;var idx=Math.round(sum/n);return PL_SHORT[Math.max(0,Math.min(4,idx))]||null;}
+      function _plAvg(sum,n){if(!n)return null;return parseFloat((sum/n).toFixed(2));}
       return {
         activeSY: activeSY,
         allYears: uniqueYears,
@@ -15715,7 +15733,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         districts: districtSet.size,
         schoolYears: uniqueYears,
         placementCounts: placementCounts,
-        scholarRace: scholarRace
+        scholarRace: scholarRace,
+        mathAvgBasePl:   _plLabel(mathBasePlIdx,mathPlN),
+        mathAvgSpringPl: _plLabel(mathSpringPlIdx,mathPlN),
+        elaAvgBasePl:    _plLabel(elaBasePlIdx,elaPlN),
+        elaAvgSpringPl:  _plLabel(elaSpringPlIdx,elaPlN),
+        mathPlN: mathPlN,
+        elaPlN:  elaPlN
       };
     }
 
@@ -17401,9 +17425,17 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       // ── iREADY ──
       if (irl&&irl.growthPct!=null) {
         var irlSY=irl.activeSY||'Historical';
-        chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
-        if (irl.mathGrowthPct!=null) chips.push({ico:'&#10133;',col:'#ede9fe',txt:fmtP(irl.mathGrowthPct),sub:'Math Growth Rate'});
-        if (irl.elaGrowthPct!=null)  chips.push({ico:'&#128217;',col:'#ede9fe',txt:fmtP(irl.elaGrowthPct),sub:'ELA Growth Rate'});
+        // Show avg grade-level placement shift (iReady compass standard)
+        if (irl.mathAvgBasePl&&irl.mathAvgSpringPl) {
+          chips.push({ico:'&#10133;',col:'#ede9fe',txt:irl.mathAvgBasePl+' → '+irl.mathAvgSpringPl,sub:'Math Avg Placement ('+irlSY+')',tip:'Average grade-level placement per iReady diagnostic. Baseline (BOY) vs. Spring (EOY). iReady compass standard.'});
+        }
+        if (irl.elaAvgBasePl&&irl.elaAvgSpringPl) {
+          chips.push({ico:'&#128217;',col:'#ede9fe',txt:irl.elaAvgBasePl+' → '+irl.elaAvgSpringPl,sub:'ELA Avg Placement ('+irlSY+')',tip:'Average grade-level placement per iReady diagnostic. Baseline (BOY) vs. Spring (EOY). iReady compass standard.'});
+        }
+        // Fallback: show growth pct if no placement data
+        if (!irl.mathAvgBasePl&&!irl.elaAvgBasePl) {
+          chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
+        }
       } else {
         chips.push({ico:'&#9432;',col:'#f3f4f6',txt:'Pending',sub:'iReady 2025-26 Upload'});
       }
