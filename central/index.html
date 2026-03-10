@@ -14458,6 +14458,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
         pctTypical:       parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth'))||null,
+        annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
         isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
       };
     }
@@ -15670,6 +15671,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var PL_ORDER=['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
       var PL_SHORT=['3+ Below','2 Below','1 Below','Early GL','On/Above GL'];
       function _plIdx(p){var i=PL_ORDER.indexOf(p);return i>=0?i:null;}
+      // Avg diagnostic gain vs typical growth by subject
+      var mathGainSum=0,mathGainN=0,mathTypicalSum=0,mathTypicalN=0;
+      var elaGainSum=0,elaGainN=0,elaTypicalSum=0,elaTypicalN=0;
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
       // Race breakdown (unique scholars)
@@ -15697,11 +15701,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if(hasGrowth) mathGrowth++;
           var _mb=_plIdx(r.baseRelPlacement),_ms=_plIdx(r.springRelPlacement);
           if(_mb!==null&&_ms!==null){mathBasePlIdx+=_mb;mathSpringPlIdx+=_ms;mathPlN++;}
+          var _mg=r.springGain!=null?parseFloat(r.springGain):NaN;
+          if(!isNaN(_mg)){mathGainSum+=_mg;mathGainN++;}
+          var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
+          if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
           if(hasGrowth) elaGrowth++;
           var _eb=_plIdx(r.baseRelPlacement),_es=_plIdx(r.springRelPlacement);
           if(_eb!==null&&_es!==null){elaBasePlIdx+=_eb;elaSpringPlIdx+=_es;elaPlN++;}
+          var _eg=r.springGain!=null?parseFloat(r.springGain):NaN;
+          if(!isNaN(_eg)){elaGainSum+=_eg;elaGainN++;}
+          var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
+          if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
         }
         // Race — count unique scholars
         if (sid && !seenScholars[sid]) {
@@ -15715,6 +15727,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Avg placement labels (short) from index
       // Returns numeric placement avg on 0–4 scale (1 decimal), e.g. "2.5"
       function _plAvg(sum,n){if(!n)return null;return (sum/n).toFixed(1);}
+      // Avg gain and pct of typical
+      var mathAvgGain    = mathGainN    ? Math.round(mathGainSum/mathGainN)       : null;
+      var mathAvgTypical = mathTypicalN ? Math.round(mathTypicalSum/mathTypicalN) : null;
+      var mathPctTypical = (mathAvgGain!==null&&mathAvgTypical) ? Math.round(mathAvgGain/mathAvgTypical*100) : null;
+      var elaAvgGain     = elaGainN     ? Math.round(elaGainSum/elaGainN)         : null;
+      var elaAvgTypical  = elaTypicalN  ? Math.round(elaTypicalSum/elaTypicalN)   : null;
+      var elaPctTypical  = (elaAvgGain!==null&&elaAvgTypical)  ? Math.round(elaAvgGain/elaAvgTypical*100)   : null;
       return {
         activeSY: activeSY,
         allYears: uniqueYears,
@@ -15739,7 +15758,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaAvgBasePl:    _plAvg(elaBasePlIdx,elaPlN),
         elaAvgSpringPl:  _plAvg(elaSpringPlIdx,elaPlN),
         mathPlN: mathPlN,
-        elaPlN:  elaPlN
+        elaPlN:  elaPlN,
+        mathAvgGain:    mathAvgGain,
+        mathAvgTypical: mathAvgTypical,
+        mathPctTypical: mathPctTypical,
+        elaAvgGain:     elaAvgGain,
+        elaAvgTypical:  elaAvgTypical,
+        elaPctTypical:  elaPctTypical,
+        mathGainN:      mathGainN,
+        elaGainN:       elaGainN
       };
     }
 
@@ -17425,15 +17452,22 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       // ── iREADY ──
       if (irl&&irl.growthPct!=null) {
         var irlSY=irl.activeSY||'Historical';
-        // Show avg grade-level placement shift (iReady compass standard)
-        if (irl.mathAvgBasePl&&irl.mathAvgSpringPl) {
-          chips.push({ico:'&#10133;',col:'#ede9fe',txt:irl.mathAvgBasePl+' → '+irl.mathAvgSpringPl,sub:'Math Avg Placement (0–4 scale)',tip:'iReady avg grade-level placement index: 0=3+ Below, 1=2 Below, 2=1 Below, 3=Early GL, 4=On/Above GL. BOY→EOY shift.'});
+        if (irl.mathAvgGain!==null&&irl.mathAvgTypical) {
+          var mCol=irl.mathPctTypical>=100?'#dcfce7':irl.mathPctTypical>=80?'#ede9fe':'#fef3c7';
+          chips.push({ico:'&#10133;',col:mCol,
+            txt:'+'+irl.mathAvgGain+' pts · '+irl.mathPctTypical+'%',
+            sub:'Math Growth vs. Typical ('+irlSY+')',
+            key:'irl-math'});
         }
-        if (irl.elaAvgBasePl&&irl.elaAvgSpringPl) {
-          chips.push({ico:'&#128217;',col:'#ede9fe',txt:irl.elaAvgBasePl+' → '+irl.elaAvgSpringPl,sub:'ELA Avg Placement (0–4 scale)',tip:'iReady avg grade-level placement index: 0=3+ Below, 1=2 Below, 2=1 Below, 3=Early GL, 4=On/Above GL. BOY→EOY shift.'});
+        if (irl.elaAvgGain!==null&&irl.elaAvgTypical) {
+          var eCol=irl.elaPctTypical>=100?'#dcfce7':irl.elaPctTypical>=80?'#ede9fe':'#fef3c7';
+          chips.push({ico:'&#128217;',col:eCol,
+            txt:'+'+irl.elaAvgGain+' pts · '+irl.elaPctTypical+'%',
+            sub:'ELA Growth vs. Typical ('+irlSY+')',
+            key:'irl-ela'});
         }
-        // Fallback: show growth pct if no placement data
-        if (!irl.mathAvgBasePl&&!irl.elaAvgBasePl) {
+        // Fallback if gain data absent
+        if (irl.mathAvgGain===null&&irl.elaAvgGain===null) {
           chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
         }
       } else {
@@ -17460,10 +17494,11 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         '</div>'+
         '<div class="adv-leader-stats-row">'+
           chips.map(function(c){
-            return '<div class="adv-leader-stat-chip" style="background:'+c.col+'">'+
+            var extra = c.key ? ' data-chip-key="'+c.key+'" onclick="advOpenChipDetail(\''+c.key+'\')" style="background:'+c.col+';cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 0 0 2px #6366f1\'" onmouseleave="this.style.boxShadow=\'\'"' : ' style="background:'+c.col+'"';
+            return '<div class="adv-leader-stat-chip"'+extra+'>'+
               '<div style="font-size:1rem;flex-shrink:0">'+c.ico+'</div>'+
               '<div style="min-width:0">'+
-                '<div style="font-weight:800;font-size:.95rem;color:#1e293b;line-height:1.1">'+c.txt+'</div>'+
+                '<div style="font-weight:800;font-size:.95rem;color:#1e293b;line-height:1.1">'+c.txt+(c.key ? ' <span style="font-size:.58rem;color:#6366f1;opacity:.8;vertical-align:middle">ⓘ</span>' : '')+'</div>'+
                 '<div style="font-size:.63rem;color:#475569;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px">'+c.sub+'</div>'+
               '</div>'+
             '</div>';
@@ -18437,6 +18472,145 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   // Expose for external calls (e.g. after dept switch)
   window.kn = { build: buildKnowtionPanel };
 
+})();
+</script>
+<!-- ── iReady Chip Detail Modal ─────────────────────────────────── -->
+<div id="irlChipModal" onclick="if(event.target===this)advCloseChipDetail()" style="display:none;position:fixed;inset:0;z-index:10500;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1.5rem">
+  <div style="background:var(--surface,#fff);border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.22);width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden">
+    <!-- Header -->
+    <div id="irlChipModalHd" style="padding:1.25rem 1.5rem;border-bottom:1px solid var(--border,#e2e8f0);display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-shrink:0;background:linear-gradient(135deg,#1e3a8a 0%,#1a3a6b 100%)">
+      <div>
+        <div style="font-size:.65rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:.3rem">ACADEMIC INTELLIGENCE · iREADY</div>
+        <div id="irlChipModalTitle" style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#fff;line-height:1.25"></div>
+        <div id="irlChipModalSY" style="font-size:.78rem;color:rgba(255,255,255,.6);margin-top:.2rem"></div>
+      </div>
+      <button onclick="advCloseChipDetail()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:.35rem .65rem;cursor:pointer;font-size:.9rem;line-height:1;flex-shrink:0">✕</button>
+    </div>
+    <!-- Body -->
+    <div id="irlChipModalBody" style="padding:1.5rem;overflow-y:auto;flex:1;min-height:0"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ── Chip detail definitions ─────────────────────────────────────────────
+  var CHIP_DEFS = {
+    'irl-math': {
+      title: 'Math Diagnostic Growth',
+      icon: '➕',
+      color: '#dcfce7',
+      getContent: function(irl) {
+        return _buildIrlDetail(irl, 'math');
+      }
+    },
+    'irl-ela': {
+      title: 'ELA Diagnostic Growth',
+      icon: '📗',
+      color: '#ede9fe',
+      getContent: function(irl) {
+        return _buildIrlDetail(irl, 'ela');
+      }
+    }
+  };
+
+  function _buildIrlDetail(irl, subj) {
+    if (!irl) return '<p style="color:var(--muted)">No iReady data loaded.</p>';
+    var avgGain    = subj==='math' ? irl.mathAvgGain    : irl.elaAvgGain;
+    var avgTypical = subj==='math' ? irl.mathAvgTypical : irl.elaAvgTypical;
+    var pctTypical = subj==='math' ? irl.mathPctTypical : irl.elaPctTypical;
+    var gainN      = subj==='math' ? irl.mathGainN      : irl.elaGainN;
+    var label      = subj==='math' ? 'Math'             : 'ELA (Reading)';
+    var sy         = irl.activeSY || 'Historical';
+
+    var statusColor = pctTypical>=100 ? '#166534' : pctTypical>=80 ? '#4338ca' : '#92400e';
+    var statusBg    = pctTypical>=100 ? '#dcfce7'  : pctTypical>=80 ? '#ede9fe' : '#fef3c7';
+    var statusLabel = pctTypical>=100 ? 'At or Above Typical Growth' : pctTypical>=80 ? 'Approaching Typical Growth' : 'Below Typical Growth';
+
+    return [
+      // ── Metric summary ──
+      '<div style="display:flex;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap">',
+        _statBox('+'+avgGain+' pts', 'Avg Scale Score Gain', '#f0f9ff', '#0369a1'),
+        _statBox(avgTypical+' pts', 'iReady Typical Growth', '#f5f3ff', '#5b21b6'),
+        _statBox(pctTypical+'%', 'Of Typical Growth', statusBg, statusColor),
+      '</div>',
+
+      // ── Status badge ──
+      '<div style="display:inline-flex;align-items:center;gap:.4rem;background:'+statusBg+';color:'+statusColor+';border-radius:99px;padding:.3rem .85rem;font-size:.78rem;font-weight:700;margin-bottom:1.2rem">',
+        (pctTypical>=100?'✅':'📈')+' '+statusLabel,
+      '</div>',
+
+      // ── Plain-language explanation ──
+      '<div style="background:#f8fafc;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.1rem;border-left:3px solid #6366f1">',
+        '<div style="font-weight:700;font-size:.875rem;color:#1e293b;margin-bottom:.5rem">📖 What This Means</div>',
+        '<p style="font-size:.84rem;color:#374151;line-height:1.6;margin:0">',
+          'On average, each scholar gained <strong>+'+avgGain+' scale score points</strong> in '+label+' between their fall (BOY) and spring (EOY) iReady diagnostic.',
+          ' iReady defines <strong>typical growth</strong> as '+avgTypical+' points — the amount an average student nationwide gains in a full school year.',
+          ' NJTC scholars achieved <strong>'+pctTypical+'% of that benchmark</strong>, based on '+gainN+' scholar records in '+sy+'.',
+        '</p>',
+      '</div>',
+
+      // ── Why it matters ──
+      '<div style="background:#f8fafc;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.1rem;border-left:3px solid #0ea5e9">',
+        '<div style="font-weight:700;font-size:.875rem;color:#1e293b;margin-bottom:.5rem">🎯 Why It Matters</div>',
+        '<p style="font-size:.84rem;color:#374151;line-height:1.6;margin:0">',
+          'NJTC scholars begin significantly below grade level. Reaching or exceeding typical growth means they are <strong>closing the gap</strong> with peers, not just making incremental progress.',
+          ' A scholar who gains more than '+avgTypical+' points is growing <em>faster</em> than the national average — the definition of acceleration.',
+        '</p>',
+      '</div>',
+
+      // ── How to read the number ──
+      '<div style="background:#f8fafc;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.1rem;border-left:3px solid #10b981">',
+        '<div style="font-weight:700;font-size:.875rem;color:#1e293b;margin-bottom:.5rem">🔢 How to Read the Number</div>',
+        '<table style="width:100%;font-size:.8rem;border-collapse:collapse">',
+          '<tr style="background:#e2e8f0"><th style="padding:.4rem .6rem;text-align:left;border-radius:6px 0 0 6px">What you see</th><th style="padding:.4rem .6rem;text-align:left">What it means</th></tr>',
+          '<tr><td style="padding:.4rem .6rem;color:#1e293b;font-weight:600">+'+avgGain+' pts</td><td style="padding:.4rem .6rem;color:#374151">Average scale score gain per scholar (BOY → EOY)</td></tr>',
+          '<tr style="background:#f8fafc"><td style="padding:.4rem .6rem;color:#5b21b6;font-weight:600">'+pctTypical+'%</td><td style="padding:.4rem .6rem;color:#374151">That gain expressed as a % of iReady\'s national typical growth benchmark</td></tr>',
+          '<tr><td style="padding:.4rem .6rem;color:#374151;font-weight:600">100%</td><td style="padding:.4rem .6rem;color:#374151">The target — equal to a full year of typical national growth</td></tr>',
+          '<tr style="background:#f8fafc"><td style="padding:.4rem .6rem;color:#166534;font-weight:600">&gt;100%</td><td style="padding:.4rem .6rem;color:#374151">Exceeding typical — scholars are closing the gap faster than peers</td></tr>',
+        '</table>',
+      '</div>',
+
+      // ── Data source ──
+      '<div style="font-size:.72rem;color:var(--muted,#94a3b8);display:flex;align-items:center;gap:.4rem;margin-top:.5rem">',
+        '<span>📊</span>',
+        '<span>Source: iReady Longitudinal Dashboard · '+label+' · '+sy+' · n='+gainN+' scholar records · <em>Annual Typical Growth Measure per iReady Compass</em></span>',
+      '</div>',
+    ].join('');
+  }
+
+  function _statBox(val, label, bg, col) {
+    return '<div style="background:'+bg+';border-radius:10px;padding:.75rem 1rem;flex:1;min-width:110px;text-align:center">'+
+      '<div style="font-size:1.35rem;font-weight:800;color:'+col+';line-height:1">'+val+'</div>'+
+      '<div style="font-size:.68rem;color:'+col+';margin-top:.25rem;font-weight:600;line-height:1.3">'+label+'</div>'+
+    '</div>';
+  }
+
+  window.advOpenChipDetail = function(key) {
+    var def = CHIP_DEFS[key];
+    if (!def) return;
+    var irl = (window.irlab && window.irlab.getSummary) ? window.irlab.getSummary() : null;
+    var modal  = document.getElementById('irlChipModal');
+    var title  = document.getElementById('irlChipModalTitle');
+    var sy     = document.getElementById('irlChipModalSY');
+    var body   = document.getElementById('irlChipModalBody');
+    if (!modal) return;
+    title.textContent = def.title;
+    sy.textContent    = irl ? (irl.activeSY || '') : '';
+    body.innerHTML    = def.getContent(irl);
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  };
+
+  window.advCloseChipDetail = function() {
+    var modal = document.getElementById('irlChipModal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+  };
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') window.advCloseChipDetail();
+  });
 })();
 </script>
 </body>
