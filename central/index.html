@@ -14489,6 +14489,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           springRelPlacement: L['15'][r[15]],
           springGain:         r[16],
           pctTypical:         r[17],
+          annualTypical:      (r[17]>0&&r[16]!=null) ? parseFloat((r[16]/(r[17]/100)).toFixed(1)) : null,
           baseRushFlag:       r[18] ? '1' : '',
           springRushFlag:     '',
           baseScore:          null,
@@ -17647,18 +17648,35 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         var irlSY=irl.activeSY||'Historical';
         var has2526=irl.hasCurrentYearData;
         if (irl.growthPct!=null) {
-          var bySubj = '';
-          if (irl.mathGrowthPct!=null&&irl.elaGrowthPct!=null) bySubj=' Math: '+irl.mathGrowthPct+'% · ELA: '+irl.elaGrowthPct+'%.';
           var note=has2526?'':' &#9432; '+irlSY+' data shown — 2025-26 pending Data team upload.';
-          var iFrames2={
-            policy:      fmtP(irl.growthPct)+' of scholars show measurable iReady growth ('+irlSY+') — '+fmtN(irl.totalWithGrowth)+' of '+fmtN(irl.totalRows)+' records.'+bySubj+' Independent, nationally normed data.',
-            fiscal:      'iReady — the same diagnostic tool districts use — shows '+fmtP(irl.growthPct)+' growth ('+irlSY+').'+bySubj+' Public funds produce verifiable academic movement, not just contact hours.',
-            impact:      fmtP(irl.growthPct)+' of scholars show measurable iReady growth.'+bySubj+' '+fmtN(irl.totalWithGrowth)+' children moved forward. That is the number.',
-            operational: 'iReady results ('+irlSY+'): '+fmtP(irl.growthPct)+' growth.'+bySubj+' Cross-reference with your district iReady data to validate NJTC&#39;s contribution.'
-          };
+          var hasGainData = (irl.mathAvgGain!==null&&irl.mathAvgGain!==undefined)||(irl.elaAvgGain!==null&&irl.elaAvgGain!==undefined);
+          var irlHeadline, iFrames2;
+          if (hasGainData) {
+            var mStr = (irl.mathAvgGain!=null&&irl.mathPctTypical!=null) ? 'Math: +'+irl.mathAvgGain+' pts ('+irl.mathPctTypical+'% of typical)' : '';
+            var eStr = (irl.elaAvgGain!=null&&irl.elaPctTypical!=null)   ? 'ELA: +'+irl.elaAvgGain+' pts ('+irl.elaPctTypical+'% of typical)'   : '';
+            var gainSummary = [mStr,eStr].filter(Boolean).join(' · ');
+            irlHeadline = gainSummary + (has2526?'':' ('+irlSY+')');
+            iFrames2 = {
+              policy:      'NJTC scholars averaged measurable scale score gains against iReady\'s national typical growth benchmark ('+irlSY+'). '+gainSummary+'. '+fmtN(irl.totalRows)+' scholar records. Independent, nationally normed data.',
+              fiscal:      'iReady — the same diagnostic tool districts use — confirms scholar progress ('+irlSY+'): '+gainSummary+'. '+fmtP(irl.growthPct)+' of scholars showed measurable growth. Public funds produce verifiable academic movement.',
+              impact:      gainSummary+'. iReady\'s own benchmark defines what a full year of growth looks like — NJTC scholars are meeting or approaching that standard. '+fmtN(irl.totalRows)+' scholars. '+irlSY+'.',
+              operational: 'iReady results ('+irlSY+'): '+gainSummary+'. '+fmtP(irl.growthPct)+' of scholars showed positive gains. Cross-reference with your district iReady data to validate NJTC&#39;s contribution.'
+            };
+          } else {
+            var bySubj = '';
+            if (irl.mathGrowthPct!=null&&irl.elaGrowthPct!=null) bySubj=' Math: '+irl.mathGrowthPct+'% · ELA: '+irl.elaGrowthPct+'%.';
+            irlHeadline = fmtP(irl.growthPct)+'% iReady growth rate — '+fmtN(irl.totalRows)+' records'+(has2526?'':' ('+irlSY+')');
+            iFrames2 = {
+              policy:      fmtP(irl.growthPct)+' of scholars show measurable iReady growth ('+irlSY+') — '+fmtN(irl.totalWithGrowth)+' of '+fmtN(irl.totalRows)+' records.'+bySubj+' Independent, nationally normed data.',
+              fiscal:      'iReady — the same diagnostic tool districts use — shows '+fmtP(irl.growthPct)+' growth ('+irlSY+').'+bySubj+' Public funds produce verifiable academic movement, not just contact hours.',
+              impact:      fmtP(irl.growthPct)+' of scholars show measurable iReady growth.'+bySubj+' '+fmtN(irl.totalWithGrowth)+' children moved forward. That is the number.',
+              operational: 'iReady results ('+irlSY+'): '+fmtP(irl.growthPct)+' growth.'+bySubj+' Cross-reference with your district iReady data to validate NJTC&#39;s contribution.'
+            };
+          }
           cards.push({color:'green',label:'Academic Outcomes (iReady)',
-            headline:fmtP(irl.growthPct)+'% iReady growth rate — '+fmtN(irl.totalRows)+' records'+(has2526?'':' ('+irlSY+')'),
-            body:(iFrames2[tone]||iFrames2.policy)+note, source:(irl.dataSource||'iReady')+' · '+irlSY});
+            headline: irlHeadline,
+            body:(iFrames2[tone]||iFrames2.policy)+note,
+            source:'iReady Longitudinal Dashboard · '+irlSY+' · '+fmtN(irl.totalRows)+' records'});
         } else {
           cards.push({color:'gold',label:'Academic Outcomes',
             headline:'&#9432; iReady 2025-26 Data Pending Upload',
