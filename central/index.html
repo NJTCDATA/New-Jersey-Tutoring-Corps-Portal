@@ -6327,6 +6327,219 @@
     }
     _talentTab=tab; buildTalentContent();
   }
+  // ── Programming Dept — Site Leader Reviews Tab ───────────────────────────
+  function renderProgrammingReviews() {
+    const total = REVIEWS.length;
+    if (!total) return '<div style="padding:2rem;text-align:center;color:var(--muted)">No site leader review data available.</div>';
+
+    // Domain stats
+    const d1Meets  = REVIEWS.filter(r => r.d1  && r.d1.includes('Meets')  && !r.d1.includes('Partial')).length;
+    const d23Meets = REVIEWS.filter(r => r.d23 && r.d23.includes('Meets') && !r.d23.includes('Partial')).length;
+    const d4Meets  = REVIEWS.filter(r => r.d4  && r.d4.includes('Meets')  && !r.d4.includes('Partial')).length;
+    const d1Part   = REVIEWS.filter(r => r.d1  && r.d1.includes('Partially')).length;
+    const d23Part  = REVIEWS.filter(r => r.d23 && r.d23.includes('Partially')).length;
+    const d4Part   = REVIEWS.filter(r => r.d4  && r.d4.includes('Partially')).length;
+    const allMeets = REVIEWS.filter(r =>
+      r.d1.includes('Meets') && !r.d1.includes('Partial') &&
+      r.d23.includes('Meets') && !r.d23.includes('Partial') &&
+      r.d4.includes('Meets') && !r.d4.includes('Partial')
+    ).length;
+    const partial  = REVIEWS.filter(r => r.d1.includes('Partially') || r.d23.includes('Partially') || r.d4.includes('Partially'));
+    const uniqueSites = [...new Set(REVIEWS.map(r => r.site))].length;
+
+    const domColor = d => d && d.includes('Partially') ? '#92400e' : d && d.includes('N/A') ? '#64748b' : '#166534';
+    const domBg    = d => d && d.includes('Partially') ? '#fffbeb' : d && d.includes('N/A') ? '#f8fafc' : '#f0fdf4';
+    const domShort = d => d ? d.replace('Expectations','').replace('Meets','✅ Meets').replace('Partially','⚠️ Partially').replace('N/A','—').trim() : '—';
+
+    let html = `<div style="padding:.25rem 0">`;
+
+    // KPI banner
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;margin-bottom:1.25rem">
+      ${[
+        { label:'Reviews Completed', val: total, color:'#1d4ed8' },
+        { label:'All Domains: Meets', val: allMeets, color: allMeets===total?'#059669':'#d97706' },
+        { label:'Need Coaching', val: partial.length, color: partial.length>0?'#b91c1c':'#059669' },
+        { label:'Sites Covered', val: uniqueSites, color:'#7c3aed' },
+        { label:'D1 Planning — Meets', val: Math.round(d1Meets/total*100)+'%', color: d1Meets===total?'#059669':'#d97706' },
+        { label:'D2&3 Instruction — Meets', val: Math.round(d23Meets/total*100)+'%', color: d23Part>0?'#d97706':'#059669' },
+        { label:'D4 Professionalism — Meets', val: Math.round(d4Meets/total*100)+'%', color: d4Meets===total?'#059669':'#d97706' },
+      ].map(s=>`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;text-align:center">
+        <div style="font-size:1.2rem;font-weight:800;color:${s.color}">${s.val}</div>
+        <div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px">${s.label}</div>
+      </div>`).join('')}
+    </div>`;
+
+    // Alert strip for partial leaders
+    if (partial.length) {
+      html += `<div class="ta-alert-strip" style="margin-bottom:1rem"><div class="ta-alert-icon">⚠️</div><div>
+        <div class="ta-alert-title">🟡 ${partial.length} site leader${partial.length>1?'s':''} rated "Partially Meets" — coaching follow-up needed</div>
+        <div class="ta-alert-body">${partial.map(r=>`<strong>${r.leader}</strong> — ${r.site} (${r.month})${r.d23.includes('Partially')?' · D2&3: Instruction':''}${r.d1.includes('Partially')?' · D1: Planning':''}${r.d4.includes('Partially')?' · D4: Professionalism':''}`).join('; ')}</div>
+      </div></div>`;
+    } else {
+      html += `<div style="padding:.6rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:1rem;font-size:.8rem;color:#166534">
+        ✅ All reviewed site leaders are meeting expectations across all domains this cycle.
+      </div>`;
+    }
+
+    // Per-site breakdown cards
+    const bySite = {};
+    REVIEWS.forEach(r => { if (!bySite[r.site]) bySite[r.site] = []; bySite[r.site].push(r); });
+    const siteCards = Object.entries(bySite).map(([site, reviews]) => {
+      const latest = reviews.sort((a,b) => new Date(b.ts)-new Date(a.ts))[0];
+      const hasPartial = reviews.some(r => r.d1.includes('Partially') || r.d23.includes('Partially') || r.d4.includes('Partially'));
+      const border = hasPartial ? '#f59e0b' : '#10b981';
+      const leaders = [...new Set(reviews.map(r=>r.leader))].join(', ');
+      return `<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${border};border-radius:10px;padding:.9rem 1rem;margin-bottom:.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.4rem">
+          <div>
+            <div style="font-weight:700;font-size:.9rem;color:#1e293b">${site}</div>
+            <div style="font-size:.75rem;color:#64748b;margin-top:1px">Leader${reviews.length>1?'(s)':''}: ${leaders} · ${reviews.length} review${reviews.length>1?'s':''}</div>
+          </div>
+          <div style="font-size:.72rem;color:#94a3b8">Most recent: ${latest.month}</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem">
+          ${['d1','d23','d4'].map((dom,i) => {
+            const label = ['D1: Planning','D2&3: Instruction','D4: Professionalism'][i];
+            const val = latest[dom] || '—';
+            return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:600;background:${domBg(val)};color:${domColor(val)}">${label}: ${domShort(val)}</span>`;
+          }).join('')}
+        </div>
+        ${latest.notes ? `<div style="font-size:.7rem;color:#64748b;margin-top:.4rem;font-style:italic">${latest.notes}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    html += `<div style="margin-bottom:1.25rem">
+      <div style="font-weight:700;font-size:.85rem;color:#1e293b;margin-bottom:.6rem">📍 Site-by-Site Review Snapshot</div>
+      ${siteCards}
+    </div>`;
+
+    // Full log table
+    const sorted = REVIEWS.slice().sort((a,b) => new Date(b.ts)-new Date(a.ts));
+    html += `<div class="ta-card"><div class="ta-card-title">📋 Full Site Leader Review Log</div>
+      <div style="overflow-x:auto"><table class="ta-table">
+        <thead><tr><th>Leader</th><th>District / Site</th><th>Reviewed By</th><th>Month</th><th>D1: Planning</th><th>D2&3: Instruction</th><th>D4: Professionalism</th></tr></thead>
+        <tbody>${sorted.map(r=>`<tr>
+          <td><strong>${r.leader}</strong><br><span style="font-size:.68rem;color:#94a3b8">${r.role||''}</span></td>
+          <td style="font-size:.75rem">${r.site}</td>
+          <td style="font-size:.75rem">${r.pm}</td>
+          <td style="font-size:.75rem;white-space:nowrap">${r.month}</td>
+          ${['d1','d23','d4'].map(dom=>`<td><span style="padding:.1rem .4rem;border-radius:4px;font-size:.67rem;font-weight:600;background:${domBg(r[dom])};color:${domColor(r[dom])}">${domShort(r[dom])}</span></td>`).join('')}
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+    html += `</div>`;
+    return html;
+  }
+
+  // ── Training Dept — Site Leader Reviews Tab ──────────────────────────────
+  function renderTrainingReviews() {
+    const total = REVIEWS.length;
+    if (!total) return '<div style="padding:2rem;text-align:center;color:var(--muted)">No site leader review data available.</div>';
+
+    const d23Meets  = REVIEWS.filter(r => r.d23 && r.d23.includes('Meets') && !r.d23.includes('Partial')).length;
+    const d23Part   = REVIEWS.filter(r => r.d23 && r.d23.includes('Partially')).length;
+    const d1Part    = REVIEWS.filter(r => r.d1  && r.d1.includes('Partially')).length;
+    const d4Part    = REVIEWS.filter(r => r.d4  && r.d4.includes('Partially')).length;
+    const allMeets  = REVIEWS.filter(r =>
+      r.d1.includes('Meets') && !r.d1.includes('Partial') &&
+      r.d23.includes('Meets') && !r.d23.includes('Partial') &&
+      r.d4.includes('Meets') && !r.d4.includes('Partial')
+    ).length;
+    const needsPD   = REVIEWS.filter(r => r.d1.includes('Partially') || r.d23.includes('Partially') || r.d4.includes('Partially'));
+    const uniqueSites = [...new Set(REVIEWS.map(r => r.site))].length;
+
+    const domColor = d => d && d.includes('Partially') ? '#92400e' : d && d.includes('N/A') ? '#64748b' : '#166534';
+    const domBg    = d => d && d.includes('Partially') ? '#fffbeb' : d && d.includes('N/A') ? '#f8fafc' : '#f0fdf4';
+    const domShort = d => d ? d.replace('Expectations','').replace('Meets','✅ Meets').replace('Partially','⚠️ Partially').replace('N/A','—').trim() : '—';
+
+    let html = `<div style="padding:.25rem 0">`;
+
+    // Training-specific framing: focus is PD deployment and instructional coaching
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;margin-bottom:1.25rem">
+      ${[
+        { label:'Reviews Completed', val: total, color:'#1d4ed8' },
+        { label:'All Domains: Meets', val: allMeets, color: allMeets===total?'#059669':'#d97706' },
+        { label:'PD Deployment Needed', val: needsPD.length, color: needsPD.length>0?'#b91c1c':'#059669' },
+        { label:'Sites Reviewed', val: uniqueSites, color:'#7c3aed' },
+        { label:'D2&3 Instruction — Meets', val: Math.round(d23Meets/total*100)+'%', color: d23Part>0?'#d97706':'#059669' },
+        { label:'D2&3 Instruction — Partial', val: d23Part, color: d23Part>0?'#b91c1c':'#059669' },
+        { label:'D1 Planning — Partial', val: d1Part, color: d1Part>0?'#d97706':'#059669' },
+      ].map(s=>`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;text-align:center">
+        <div style="font-size:1.2rem;font-weight:800;color:${s.color}">${s.val}</div>
+        <div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px">${s.label}</div>
+      </div>`).join('')}
+    </div>`;
+
+    // Training lens: PD recommendations
+    if (needsPD.length) {
+      html += `<div class="ta-alert-strip" style="margin-bottom:1rem"><div class="ta-alert-icon">🎯</div><div>
+        <div class="ta-alert-title">PD Deployment Recommended — ${needsPD.length} site leader${needsPD.length>1?'s':''} rated "Partially Meets" in at least one domain</div>
+        <div class="ta-alert-body" style="margin-top:.3rem">
+          ${needsPD.map(r=>{
+            const gaps = [];
+            if (r.d1.includes('Partially'))  gaps.push('D1: Planning');
+            if (r.d23.includes('Partially')) gaps.push('D2&3: Instruction');
+            if (r.d4.includes('Partially'))  gaps.push('D4: Professionalism');
+            return `<strong>${r.leader}</strong> (${r.site}, ${r.month}) — Gap areas: ${gaps.join(', ')}`;
+          }).join('<br>')}
+        </div>
+      </div></div>`;
+    } else {
+      html += `<div style="padding:.6rem 1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:1rem;font-size:.8rem;color:#166534">
+        ✅ All reviewed site leaders are meeting expectations across all domains. No PD deployment triggered at this time.
+      </div>`;
+    }
+
+    // Domain breakdown — Training framing focuses on instructional coaching capacity
+    html += `<div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">`;
+    const domains = [
+      { key:'d1',  label:'Domain 1: Planning',               desc:'Curriculum alignment, lesson plan quality, and pacing strategy' },
+      { key:'d23', label:'Domain 2&3: Instruction',           desc:'Core instructional delivery — primary Training & Development focus for PD deployment' },
+      { key:'d4',  label:'Domain 4: Professionalism',         desc:'Conduct, communication standards, and site partnership norms' },
+    ];
+    domains.forEach(dom => {
+      const meets   = REVIEWS.filter(r => r[dom.key] && r[dom.key].includes('Meets') && !r[dom.key].includes('Partial')).length;
+      const part    = REVIEWS.filter(r => r[dom.key] && r[dom.key].includes('Partially')).length;
+      const pct     = total ? Math.round(meets/total*100) : 0;
+      const barColor = part > 0 ? '#f59e0b' : '#10b981';
+      html += `<div class="ta-card">
+        <div class="ta-card-title">${dom.label}</div>
+        <div style="font-size:.75rem;color:#64748b;margin-bottom:.75rem">${dom.desc}</div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+          <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px"></div>
+          </div>
+          <span style="font-size:.8rem;font-weight:700;color:${barColor};min-width:2.5rem">${pct}%</span>
+        </div>
+        <div style="font-size:.72rem;color:#64748b">${meets} of ${total} site leaders — Meets Expectations</div>
+        ${part > 0 ? `<div style="margin-top:.4rem;padding:.3rem .5rem;background:#fffbeb;border-radius:4px;font-size:.7rem;color:#92400e">⚠️ ${part} leader${part>1?'s':''} Partially Meets — targeted PD or coaching support recommended</div>` : `<div style="margin-top:.4rem;padding:.3rem .5rem;background:#f0fdf4;border-radius:4px;font-size:.7rem;color:#166534">✅ No coaching gaps in this domain</div>`}
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Full review log
+    const sorted = REVIEWS.slice().sort((a,b) => new Date(b.ts)-new Date(a.ts));
+    html += `<div class="ta-card"><div class="ta-card-title">📋 Site Leader Review Log — Training & Development View</div>
+      <div style="overflow-x:auto"><table class="ta-table">
+        <thead><tr><th>Leader</th><th>Site</th><th>Month</th><th>D1: Planning</th><th>D2&3: Instruction</th><th>D4: Professionalism</th><th>PD Needed?</th></tr></thead>
+        <tbody>${sorted.map(r=>{
+          const needsPDRow = r.d1.includes('Partially') || r.d23.includes('Partially') || r.d4.includes('Partially');
+          return `<tr>
+            <td><strong>${r.leader}</strong></td>
+            <td style="font-size:.75rem">${r.site}</td>
+            <td style="font-size:.75rem;white-space:nowrap">${r.month}</td>
+            ${['d1','d23','d4'].map(dom=>`<td><span style="padding:.1rem .4rem;border-radius:4px;font-size:.67rem;font-weight:600;background:${domBg(r[dom])};color:${domColor(r[dom])}">${domShort(r[dom])}</span></td>`).join('')}
+            <td><span style="padding:.1rem .4rem;border-radius:4px;font-size:.67rem;font-weight:600;background:${needsPDRow?'#fffbeb':'#f0fdf4'};color:${needsPDRow?'#92400e':'#166534'}">${needsPDRow?'⚠️ Yes':'✅ No'}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+    html += `</div>`;
+    return html;
+  }
+
   function renderTalentReviews() {
     const total=REVIEWS.length; if (!total) return '<div style="padding:2rem;text-align:center;color:var(--muted)">No review data.</div>';
     const d1Total=REVIEWS.filter(r=>r.d1.includes('Meets')&&!r.d1.includes('Partial')).length;
@@ -7416,7 +7629,11 @@
         else el.innerHTML = renderLeadershipAnalytics(_filteredConcerns); // fallback
       } else if (_talentTab === 'program') el.innerHTML = renderProgrammingAnalytics(_filteredConcerns);
       else if (_talentTab === 'hr')      el.innerHTML = renderHRAnalytics(_filteredConcerns);
-      else if (_talentTab === 'reviews') el.innerHTML = renderTalentReviews();
+      else if (_talentTab === 'reviews') {
+        if (dept === 'programming') el.innerHTML = renderProgrammingReviews();
+        else if (dept === 'training') el.innerHTML = renderTrainingReviews();
+        else el.innerHTML = renderTalentReviews();
+      }
       else if (_talentTab === 'log')     el.innerHTML = renderTalentLog();
     } catch(e) {
       document.getElementById('talentContent').innerHTML = `<div style="padding:2rem;color:var(--muted);text-align:center">Render error: ${e.message}</div>`;
@@ -7434,9 +7651,9 @@
       leadership:  ['profiles','all','program','hr','reviews','log'],   // leadership: full access
       data:        ['profiles','all','program','hr','reviews','log'],   // data: full access
       hr:          ['profiles','all','reviews','log'],                  // HR: profiles + concerns + site leader reviews + log
-      programming: ['profiles','all'],                                  // Programming: site overview
+      programming: ['profiles','all','reviews'],                        // Programming: profiles + site overview + site leader reviews
       finance:     ['profiles','all'],                                  // Finance: their view
-      training:    ['all'],                                             // Training: concerns only
+      training:    ['profiles','all','reviews'],                        // Training: profiles + concerns + site leader reviews
     };
     const allowed = new Set(TAB_MAP[dept] || ['all']);
 
@@ -9536,6 +9753,29 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const liveCo = emp._liveConcerns ?? emp.co ?? 0;
       const hnTxt = emp._liveHRAction || emp.hn || '';
 
+      // Site leader review — most recent review matching this tutor's site
+      const siteReviews = REVIEWS.filter(r => r.site && emp.si && r.site.toLowerCase().includes(emp.si.toLowerCase().split('-')[0].trim()) || (emp.si && r.site === emp.si));
+      const latestReview = siteReviews.sort((a,b) => new Date(b.ts)-new Date(a.ts))[0] || null;
+      let slrHtml = '';
+      if (latestReview) {
+        const domColor = d => d && d.includes('Partially') ? '#92400e' : d && d.includes('N/A') ? '#64748b' : '#166534';
+        const domBg   = d => d && d.includes('Partially') ? '#fffbeb' : d && d.includes('N/A') ? '#f8fafc' : '#f0fdf4';
+        const domShort = d => d ? d.replace('Expectations','').replace('Meets','✅ Meets').replace('Partially','⚠️ Partially').replace('N/A','—').trim() : '—';
+        slrHtml = `<div style="font-size:.78rem;grid-column:1/-1;margin-top:.25rem;padding:.6rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">
+          <div style="color:#475569;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.4rem">📋 Site Leader Review — ${esc(latestReview.leader)} · ${esc(latestReview.month)}</div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            ${['d1','d23','d4'].map((dom,i)=>{
+              const label = ['Domain 1: Planning','Domain 2&3: Instruction','Domain 4: Professionalism'][i];
+              const val = latestReview[dom] || '—';
+              return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:600;background:${domBg(val)};color:${domColor(val)}">${label}: ${domShort(val)}</span>`;
+            }).join('')}
+          </div>
+          ${latestReview.notes ? `<div style="font-size:.7rem;color:#64748b;margin-top:.3rem;font-style:italic">${esc(latestReview.notes)}</div>` : ''}
+        </div>`;
+      } else {
+        slrHtml = `<div style="font-size:.72rem;color:#94a3b8;grid-column:1/-1;font-style:italic;margin-top:.25rem">No site leader review on record for this site.</div>`;
+      }
+
       const borderLeft = flags.some(f=>f.sev==='critical') ? '#ef4444'
         : flags.length > 0 ? '#f59e0b' : '#10b981';
 
@@ -9579,6 +9819,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Lesson Plans</div>
       <div style="font-weight:400;color:#94a3b8;font-style:italic">Placeholder — coming soon</div>
     </div>
+    ${slrHtml}
   </div>
 </div>`;
     });
