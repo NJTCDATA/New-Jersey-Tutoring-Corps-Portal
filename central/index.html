@@ -15713,8 +15713,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
       var growthPct = totalRows > 0 ? parseFloat((totalWithGrowth/totalRows*100).toFixed(1)) : null;
       // Avg placement labels (short) from index
-      function _plLabel(sum,n){if(!n)return null;var idx=Math.round(sum/n);return PL_SHORT[Math.max(0,Math.min(4,idx))]||null;}
-      function _plAvg(sum,n){if(!n)return null;return parseFloat((sum/n).toFixed(2));}
+      // Returns numeric placement avg on 0–4 scale (1 decimal), e.g. "2.5"
+      function _plAvg(sum,n){if(!n)return null;return (sum/n).toFixed(1);}
       return {
         activeSY: activeSY,
         allYears: uniqueYears,
@@ -15734,10 +15734,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         schoolYears: uniqueYears,
         placementCounts: placementCounts,
         scholarRace: scholarRace,
-        mathAvgBasePl:   _plLabel(mathBasePlIdx,mathPlN),
-        mathAvgSpringPl: _plLabel(mathSpringPlIdx,mathPlN),
-        elaAvgBasePl:    _plLabel(elaBasePlIdx,elaPlN),
-        elaAvgSpringPl:  _plLabel(elaSpringPlIdx,elaPlN),
+        mathAvgBasePl:   _plAvg(mathBasePlIdx,mathPlN),
+        mathAvgSpringPl: _plAvg(mathSpringPlIdx,mathPlN),
+        elaAvgBasePl:    _plAvg(elaBasePlIdx,elaPlN),
+        elaAvgSpringPl:  _plAvg(elaSpringPlIdx,elaPlN),
         mathPlN: mathPlN,
         elaPlN:  elaPlN
       };
@@ -17427,10 +17427,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         var irlSY=irl.activeSY||'Historical';
         // Show avg grade-level placement shift (iReady compass standard)
         if (irl.mathAvgBasePl&&irl.mathAvgSpringPl) {
-          chips.push({ico:'&#10133;',col:'#ede9fe',txt:irl.mathAvgBasePl+' → '+irl.mathAvgSpringPl,sub:'Math Avg Placement ('+irlSY+')',tip:'Average grade-level placement per iReady diagnostic. Baseline (BOY) vs. Spring (EOY). iReady compass standard.'});
+          chips.push({ico:'&#10133;',col:'#ede9fe',txt:irl.mathAvgBasePl+' → '+irl.mathAvgSpringPl,sub:'Math Avg Placement (0–4 scale)',tip:'iReady avg grade-level placement index: 0=3+ Below, 1=2 Below, 2=1 Below, 3=Early GL, 4=On/Above GL. BOY→EOY shift.'});
         }
         if (irl.elaAvgBasePl&&irl.elaAvgSpringPl) {
-          chips.push({ico:'&#128217;',col:'#ede9fe',txt:irl.elaAvgBasePl+' → '+irl.elaAvgSpringPl,sub:'ELA Avg Placement ('+irlSY+')',tip:'Average grade-level placement per iReady diagnostic. Baseline (BOY) vs. Spring (EOY). iReady compass standard.'});
+          chips.push({ico:'&#128217;',col:'#ede9fe',txt:irl.elaAvgBasePl+' → '+irl.elaAvgSpringPl,sub:'ELA Avg Placement (0–4 scale)',tip:'iReady avg grade-level placement index: 0=3+ Below, 1=2 Below, 2=1 Below, 3=Early GL, 4=On/Above GL. BOY→EOY shift.'});
         }
         // Fallback: show growth pct if no placement data
         if (!irl.mathAvgBasePl&&!irl.elaAvgBasePl) {
