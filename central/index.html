@@ -17761,9 +17761,12 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         if(ld.scholarOnTrack!=null) snaps.push({n:ld.scholarOnTrack+'/'+tot,l:'Scholars On Track',s:'Pearl'});
         if(ld.scholarAtRisk!=null)  snaps.push({n:ld.scholarAtRisk,l:'Scholars At Risk',s:'Pearl'});
       }
-      if(irl&&irl.growthPct!=null) snaps.push({n:irl.growthPct+'%',l:'Scholars w/ iReady Growth',s:'iReady'});
-      if(irl&&irl.mathGrowthPct!=null) snaps.push({n:irl.mathGrowthPct+'%',l:'Math Growth Rate',s:'iReady'});
-      if(irl&&irl.elaGrowthPct!=null)  snaps.push({n:irl.elaGrowthPct+'%',l:'ELA Growth Rate',s:'iReady'});
+      if(irl&&irl.mathAvgGain!=null&&irl.mathPctTypical!=null)
+        snaps.push({n:'+'+irl.mathAvgGain+' pts \xb7 '+irl.mathPctTypical+'%',l:'Math Growth vs. Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
+      if(irl&&irl.elaAvgGain!=null&&irl.elaPctTypical!=null)
+        snaps.push({n:'+'+irl.elaAvgGain+' pts \xb7 '+irl.elaPctTypical+'%',l:'ELA Growth vs. Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
+      if(irl&&irl.growthPct!=null&&(irl.mathAvgGain==null||irl.elaAvgGain==null))
+        snaps.push({n:irl.growthPct+'%',l:'Scholars w/ iReady Growth',s:'iReady'});
       if(kpi.total>0) snaps.push({n:kpi.met.length+'/'+kpi.total,l:'Annual Goals Met (Mid-Year)',s:'KPI'});
       if(kpi.partial.length) snaps.push({n:kpi.partial.length,l:'Goals Partially Met',s:'KPI'});
       el.innerHTML=snaps.length
@@ -17936,7 +17939,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       var mediaAngles=[
         {ico:'&#127941;',h:'Top-Performing School',body:st&&st[0]?'"'+st[0].school+' in '+st[0].district+' has achieved '+st[0].attRate+'% scholar attendance — among the highest of all '+((getPo()&&getPo().schoolCount)||'NJTC')+' sites." Local press hook with real name and number.':'Load Pearl data to surface top school.'},
         {ico:'&#9878;', h:'Equity Narrative', body:race&&race.byScholar?'NJTC&#39;s scholars represent New Jersey&#39;s most underserved communities. The race breakdown (above) supports equity framing for state and federal funding applications.':'Pearl race data available after Pearl Operations loads.'},
-        {ico:'&#128200;',h:'iReady Growth Angle', body:getIRL()&&getIRL().growthPct!=null?fmtP(getIRL().growthPct)+'% of NJTC scholars show measurable iReady growth — the same diagnostic tool their own districts use. Independently verifiable, not self-reported.':'iReady data loads from the i-Ready Lab module.'},
+        {ico:'&#128200;',h:'iReady Growth Angle', body:(function(){var _i=getIRL();if(!_i)return'iReady data loads from the i-Ready Lab module.';var parts=[];if(_i.mathAvgGain!=null&&_i.mathPctTypical!=null)parts.push('Math: +'+_i.mathAvgGain+' pts ('+_i.mathPctTypical+'% of typical)');if(_i.elaAvgGain!=null&&_i.elaPctTypical!=null)parts.push('ELA: +'+_i.elaAvgGain+' pts ('+_i.elaPctTypical+'% of typical)');if(parts.length)return'NJTC scholars averaged '+parts.join(' \xb7 ')+' on iReady\u2019s national growth benchmark ('+(_i.activeSY||'Historical')+') \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';return fmtP(_i.growthPct)+'% of NJTC scholars show measurable iReady growth \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';}())},
         {ico:'&#128203;',h:'Performance Tier Story', body:ld?fmtN(ld.scholarOnTrack)+' scholars are On Track (80%+ attendance). NJTC does not just place tutors — it tracks every scholar&#39;s trajectory and flags at-risk students for intervention in real time.':'Load Pearl data to see scholar tiers.'},
         {ico:'&#129309;',h:'Tutor Workforce Pipeline', body:'NJTC is training the next generation of New Jersey educators. The Apprentice-to-Teacher pipeline is a workforce development story for op-eds and education policy forums.'},
         {ico:'&#127759;',h:'No Transportation Barrier', body:'Unlike afterschool programs, NJTC operates inside the school day. This is the only tutoring model that removes every access barrier for low-income families — no bus, no childcare, no scheduling.'},
@@ -18028,7 +18031,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if(po&&po.instAttPct!=null) statsArr.push({n:po.instAttPct+'%',l:'Tutor Attendance'});
       if(po&&po.scholAttPct!=null)statsArr.push({n:po.scholAttPct+'%',l:'Scholar Attendance'});
       if(po&&po.surveyAvg!=null)  statsArr.push({n:po.surveyAvg+'/5',l:'Scholar Satisfaction'});
-      if(irl&&irl.growthPct!=null)statsArr.push({n:irl.growthPct+'%',l:'iReady Growth Rate'});
+      if(irl&&(irl.mathAvgGain!=null||irl.elaAvgGain!=null)){
+        if(irl.mathAvgGain!=null&&irl.mathPctTypical!=null) statsArr.push({n:'+'+irl.mathAvgGain+' pts ('+irl.mathPctTypical+'%)',l:'Math Growth vs. Typical'});
+        if(irl.elaAvgGain!=null&&irl.elaPctTypical!=null)   statsArr.push({n:'+'+irl.elaAvgGain+' pts ('+irl.elaPctTypical+'%)',l:'ELA Growth vs. Typical'});
+      } else if(irl&&irl.growthPct!=null) statsArr.push({n:irl.growthPct+'%',l:'iReady Growth Rate'});
       if(kpi.total>0)      statsArr.push({n:kpi.met.length+'/'+kpi.total,l:'Goals Met Mid-Year'});
       if(ld)               statsArr.push({n:fmtN(ld.scholarOnTrack),l:'Scholars On Track'});
       var topSch=st.slice(0,3);
