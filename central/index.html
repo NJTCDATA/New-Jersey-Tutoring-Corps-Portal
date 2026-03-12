@@ -3714,11 +3714,15 @@
         </div>
       </div>
       <div class="stats-strip">
-        <div class="stat-tile" style="--accent-color:var(--blue-mid)"><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites</div><div class="st-sub">District &amp; school data</div></div>
+        <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Active Sites: Total school sites listed in the SY Program Sheet. Note: Pilot schools are counted separately from the main school program — pilot site totals are tracked independently from Pearl roster data."><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites <span style="font-size:.6rem;background:rgba(0,80,200,.12);color:#003087;border-radius:99px;padding:.05rem .3rem;cursor:help;font-weight:700" title="Pilot schools are counted separately from the actual school program due to Pearl roster upload. The site count reflects all sites listed in the SY Program Sheet.">ⓘ</span></div><div class="st-sub">District &amp; school data</div></div>
         <div class="stat-tile" style="--accent-color:var(--prog)"><div class="st-icon">🏛️</div><div class="st-value" id="syStatDistricts">—</div><div class="st-label">Districts</div><div class="st-sub">Unique partners</div></div>
         <div class="stat-tile" style="--accent-color:var(--met)"><div class="st-icon">🎓</div><div class="st-value" id="syStatActual">—</div><div class="st-label">Actual Scholars</div><div class="st-sub">Enrolled via Pearl</div></div>
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">📋</div><div class="st-value" id="syStatEst">—</div><div class="st-label">Est. Scholars</div><div class="st-sub">Quoted capacity</div></div>
         <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">👥</div><div class="st-value" id="syStatStaff">—</div><div class="st-label">Total Staff</div><div class="st-sub">Across all sites</div></div>
+      </div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem 1rem;margin-bottom:.75rem;font-size:.7rem;color:#1e40af;display:flex;align-items:flex-start;gap:.4rem">
+        <span style="font-weight:700;flex-shrink:0">ⓘ</span>
+        <span><strong>Pilot schools</strong> are counted separately from the actual school program due to Pearl roster upload. The site count above reflects all program sites listed in the SY spreadsheet. Pilot sites are independently tracked and not included in Pearl session or scholar totals.</span>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
@@ -5764,6 +5768,15 @@
         const _rMap = {};
         _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
         const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+        // Apprentice-specific race data
+        const _appPool = _activeP.filter(e => e._apprentice === 'Yes');
+        const _appWithR = _appPool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
+        const _appNW    = _appWithR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
+        const _appNWPct = _appWithR.length ? Math.round(_appNW/_appWithR.length*100) : null;
+        const _appHisp  = _appPool.filter(e => /hispanic|latino/i.test(e._ethnicity||'')).length;
+        const _appRMap  = {};
+        _appWithR.forEach(e => { const r = e._race||'Unknown'; _appRMap[r] = (_appRMap[r]||0)+1; });
+        const _appRRows = Object.entries(_appRMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
         return `<div class="ecd-divider"><div class="ecd-divider-txt">Staff Diversity & Equity</div><div class="ecd-divider-line"></div></div>
 <div style="background:#fff;border:1px solid #e8edf4;border-radius:12px;padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:.75rem">
   <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:stretch">
@@ -5787,6 +5800,16 @@
     </div>` : ''}
   </div>
   <div style="font-size:.6rem;color:#94a3b8;font-weight:600">Active on-site staff · Live HR sheet · ${_withR.length} of ${_tot} with race data on file</div>
+  ${_appPool.length ? `<div style="margin-top:.75rem;padding:.625rem .75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.07em;margin-bottom:.4rem">🎓 Apprentice Cohort (${_appPool.length} active)
+      <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem" title="Apprentice flag comes from column K of the HR Master List. Updates with each live HR data sync.">ⓘ col K · HR Master List</span>
+    </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
+      ${_appNWPct!==null?`<div style="text-align:center;padding:.3rem .5rem;background:#fff;border-radius:6px;min-width:80px"><div style="font-size:.9rem;font-weight:900;color:#854d0e">${_appNWPct}%</div><div style="font-size:.53rem;color:#92400e;font-weight:700">Non-White</div><div style="font-size:.5rem;color:#94a3b8">${_appNW} of ${_appWithR.length}</div></div>`:''}
+      <div style="text-align:center;padding:.3rem .5rem;background:#fff;border-radius:6px;min-width:80px"><div style="font-size:.9rem;font-weight:900;color:#b45309">${_appHisp}</div><div style="font-size:.53rem;color:#92400e;font-weight:700">Hispanic/Latino</div></div>
+    </div>
+    ${_appRRows.length?`<div style="display:flex;flex-direction:column;gap:.25rem">${_appRRows.map(([r,n])=>{const p=_appWithR.length?Math.round(n/_appWithR.length*100):0;const isW=(r||'').toLowerCase()==='white';return `<div style="display:flex;align-items:center;gap:.3rem"><div style="font-size:.6rem;font-weight:600;color:#1e293b;width:100px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r}</div><div style="flex:1;height:4px;background:#fef9c3;border-radius:99px;overflow:hidden"><div style="height:100%;width:${p}%;background:${isW?'#cbd5e1':'#d97706'};border-radius:99px"></div></div><div style="font-size:.58rem;font-weight:700;color:${isW?'#94a3b8':'#d97706'};width:24px;text-align:right">${p}%</div></div>`;}).join('')}</div>`:'<div style="font-size:.6rem;color:#94a3b8;font-style:italic">Race data available after live HR sync</div>'}
+  </div>` : ''}
 </div>`;
       }())}
 
@@ -9201,20 +9224,24 @@
       role: ci('position'), site: ci('site'), district: ci('district'),
       rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
       race: ci('race'), ethnicity: ci('ethnicity'),
+      // Column K in HR Master List — apprentice designation (matches header containing "apprentice")
+      apprentice: ci('apprentice'),
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
-        yr:        (r[C.yr]         ||'').trim(),
-        name:      (r[C.name]       ||'').trim(),
-        email:     (r[C.email]      ||'').trim().toLowerCase(),
-        role:      (r[C.role]       ||'').trim(),
-        site:      (r[C.site]       ||'').trim(),
-        district:  (r[C.district]   ||'').trim(),
-        status:    (r[C.status]     ||'').trim(),
-        cycles:    (r[C.cycles]     ||'').trim(),
-        rehire:    (r[C.rehire]     ||'').trim(),  // live rehire status from Master List
-        race:      C.race      >= 0 ? (r[C.race]      ||'').trim() : '',
-        ethnicity: C.ethnicity >= 0 ? (r[C.ethnicity] ||'').trim() : '',
+        yr:         (r[C.yr]          ||'').trim(),
+        name:       (r[C.name]        ||'').trim(),
+        email:      (r[C.email]       ||'').trim().toLowerCase(),
+        role:       (r[C.role]        ||'').trim(),
+        site:       (r[C.site]        ||'').trim(),
+        district:   (r[C.district]    ||'').trim(),
+        status:     (r[C.status]      ||'').trim(),
+        cycles:     (r[C.cycles]      ||'').trim(),
+        rehire:     (r[C.rehire]      ||'').trim(),  // live rehire status from Master List
+        race:       C.race       >= 0 ? (r[C.race]       ||'').trim() : '',
+        ethnicity:  C.ethnicity  >= 0 ? (r[C.ethnicity]  ||'').trim() : '',
+        // Apprentice indicator from Master List (col K) — "Yes"/"Y"/non-empty = is apprentice
+        apprentice: C.apprentice >= 0 ? (r[C.apprentice] ||'').trim() : (r[10] ? (r[10]||'').trim() : ''),
       }))
       .filter(r => r.name && r.yr);
   }
@@ -9265,8 +9292,11 @@
       if (latest.status)    emp.s          = latest.status;
       if (latest.rehire)    emp.rh         = latest.rehire;
       if (latest.email)     emp.e          = latest.email;
-      if (latest.race)      emp._race      = latest.race;
-      if (latest.ethnicity) emp._ethnicity = latest.ethnicity;
+      if (latest.race)        emp._race        = latest.race;
+      if (latest.ethnicity)   emp._ethnicity   = latest.ethnicity;
+      // Apprentice indicator from col K — flag if any current SY row is marked
+      const anyApprent = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice));
+      emp._apprentice = anyApprent ? 'Yes' : (emp._apprentice || '');
       // Track all SYs this person has appeared in
       const allYrs = [...new Set(rows.map(r=>r.yr).filter(Boolean))].sort().reverse();
       emp.y = allYrs;
@@ -9316,6 +9346,7 @@
         pi:null, pr:null, p2:null, att:null, je:null, jl:null,
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
         _race: latest.race||null, _ethnicity: latest.ethnicity||null,
+        _apprentice: (latest.apprentice && /yes|y|true|1/i.test(latest.apprentice)) ? 'Yes' : '',
         _live:true, _liveYears:['2025-2026'],
       });
       _hrLiveAddedKeys.add(k);
@@ -9997,8 +10028,11 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
           ? `<span style="font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Rehire</span>` : '';
 
       return `<div onclick="_hrShowProfile('${esc(e.n)}')" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column;opacity:${isActive?'1':'0.72'}" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.12)';this.style.opacity='1'" onmouseleave="this.style.boxShadow='none';this.style.opacity='${isActive?'1':'0.72'}'">
-  <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center">
-    <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
+  <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
+    <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
+      <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
+      ${(e._apprentice==='Yes')?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: This employee is enrolled in the NJTC DOL-registered apprenticeship program (col K · HR Master List)">🎓 Apprentice</span>`:''}
+    </div>
     <div style="display:flex;gap:.3rem;align-items:center">${rhBadge} <span style="font-size:.6rem;padding:.1rem .35rem;border-radius:4px;font-weight:700;background:${isActive?'#d1fae5':'#f1f5f9'};color:${isActive?'#065f46':'#64748b'}">${isActive?'Active':'Inactive'}</span></div>
   </div>
   <div style="padding:.5rem .75rem .3rem">
@@ -10351,6 +10385,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const withEth  = pool.filter(e => e._ethnicity && e._ethnicity !== '' && !/not listed|prefer not/i.test(e._ethnicity||''));
     if (!withRace.length && !withEth.length) return '';
     const tot = pool.length;
+    // Apprentices in this pool
+    const apprentices = pool.filter(e => e._apprentice === 'Yes');
     // Race breakdown
     const raceMap = {};
     withRace.forEach(e => { const r = e._race||'Unknown'; raceMap[r] = (raceMap[r]||0)+1; });
@@ -10404,6 +10440,33 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Ethnicity Distribution</div>
     ${ethRows.map(([eth,n])=>{const p=withEth.length?Math.round(n/withEth.length*100):0;const isH=/hispanic|latino/i.test(eth);const bc=isH?'#d97706':'#7c3aed';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eth)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
   </div>` : ''}
+  ${apprentices.length ? (()=>{
+    const appRaceMap={};
+    const appWithRace=apprentices.filter(e=>e._race&&e._race!==''&&!/not listed|prefer not/i.test(e._race||''));
+    appWithRace.forEach(e=>{const r=e._race||'Unknown';appRaceMap[r]=(appRaceMap[r]||0)+1;});
+    const appNonWhite=appWithRace.filter(e=>(e._race||'').toLowerCase()!=='white').length;
+    const appNonWhitePct=appWithRace.length?Math.round(appNonWhite/appWithRace.length*100):0;
+    const appHisp=apprentices.filter(e=>/hispanic|latino/i.test(e._ethnicity||'')).length;
+    const appRaceRows=Object.entries(appRaceMap).sort((a,b)=>b[1]-a[1]);
+    return `<div style="margin-top:.875rem;padding:.75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+      <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.08em;margin-bottom:.5rem">🎓 DOL Apprentices (${apprentices.length}) — Race & Ethnicity
+        <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem">col K · HR Master List · live data</span>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+        <div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
+          <div style="font-size:1rem;font-weight:900;color:#854d0e">${appNonWhitePct}%</div>
+          <div style="font-size:.55rem;color:#92400e;font-weight:700">Non-White</div>
+          <div style="font-size:.52rem;color:#94a3b8">${appNonWhite} of ${appWithRace.length}</div>
+        </div>
+        <div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
+          <div style="font-size:1rem;font-weight:900;color:#b45309">${appHisp}</div>
+          <div style="font-size:.55rem;color:#92400e;font-weight:700">Hispanic/Latino</div>
+          <div style="font-size:.52rem;color:#94a3b8">of ${apprentices.length} appr.</div>
+        </div>
+      </div>
+      ${appRaceRows.length?`<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#a16207;letter-spacing:.07em;margin-bottom:.35rem">Race Breakdown</div>${appRaceRows.map(([race,n])=>{const p=appWithRace.length?Math.round(n/appWithRace.length*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#d97706';return `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem"><div style="font-size:.63rem;font-weight:600;color:#1e293b;width:150px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.64rem;font-weight:800;color:${bc};width:28px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.58rem;color:#94a3b8;width:22px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}`:'<div style="font-size:.63rem;color:#94a3b8;font-style:italic">Race data not yet on file for apprentices — available after live HR sheet syncs.</div>'}
+    </div>`;
+  })() : ''}
 </div>`;
   }
 
@@ -10525,7 +10588,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
     <div>
       <div style="font-weight:700;font-size:.95rem;color:#1e293b">${esc(emp.n)}</div>
-      <div style="font-size:.78rem;color:#64748b;margin-top:1px">${esc(emp.r)} · ${esc(emp.si||emp.di||'—')}</div>
+      <div style="font-size:.78rem;color:#64748b;margin-top:1px;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        <span>${esc(emp.r)} · ${esc(emp.si||emp.di||'—')}</span>
+        ${(emp._apprentice==='Yes')?`<span style="background:#fef9c3;color:#854d0e;padding:.1rem .35rem;border-radius:5px;font-size:.65rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice">🎓 Apprentice</span>`:''}
+      </div>
     </div>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">
       ${flags.map(f=>`<span style="font-size:.72rem;padding:.15rem .5rem;border-radius:999px;font-weight:600;${chipCls(f.sev)}">${f.icon} ${esc(f.label)}</span>`).join('')}
@@ -16786,10 +16852,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if(!m||!m.demog) return '';
       const d=m.demog;
       return `<div class="irlab-card" style="margin-bottom:1rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot</div><div class="irlab-card-meta">Movement & GL attainment by demographic group</div></div>
-        <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
-          <div>${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
-          <div>${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot <span style="font-size:.7rem;font-weight:400;background:rgba(0,0,0,.06);border-radius:99px;padding:.1rem .45rem;cursor:help;margin-left:.25rem" title="Rows show placement-pair scholars grouped by demographic field from iReady CSV. 'Moved Up' = improved placement level. 'At GL' = on or above grade level at spring. 'Avg Gain' = average scale score gain. Groups with fewer than 10 valid pairs are hidden. Scroll right if tables are clipped.">ⓘ How to read</span></div><div class="irlab-card-meta">Movement & GL attainment by demographic group · Scroll right if needed</div></div>
+        <div class="irlab-card-body" style="overflow-x:auto">
+          <div style="display:grid;grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);gap:1.5rem;min-width:640px">
+            <div style="min-width:0;overflow-x:auto">${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
+            <div style="min-width:0;overflow-x:auto">${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+          </div>
         </div></div>`;
     }
 
@@ -17037,12 +17105,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           lbl: 'Median Typical Growth (ELA)',
           sub: elaMed !== null ? `${elaTyp.length} scholars w/ growth data` : 'No ELA growth data',
           color: elaMed !== null && elaMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '📖',
+          tip: 'Median of spring_pct_progress_typical_growth (iReady pre-computed col) across all ELA rows with a valid value. 100% = met exactly typical growth; >100% = exceeded typical growth norms. The MEDIAN (not average) is used to be robust to outliers.',
         },
         {
           val: mathMed !== null ? (mathMed*100).toFixed(1)+'%' : '—',
           lbl: 'Median Typical Growth (Math)',
           sub: mathMed !== null ? `${mathTyp.length} scholars w/ growth data` : 'No Math growth data',
           color: mathMed !== null && mathMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '➗',
+          tip: 'Median of spring_pct_progress_typical_growth (iReady pre-computed col) across all Math rows with a valid value. 100% = met exactly typical growth norms.',
         },
         {
           val: elaMet !== null ? elaMet+'%' : '—',
@@ -17070,10 +17140,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         },
       ];
       return `<div class="irlab-stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-bottom:1.5rem">
-        ${kpis.map(k=>`<div class="irlab-stat" style="--irstat-color:${k.color}">
+        ${kpis.map(k=>`<div class="irlab-stat" style="--irstat-color:${k.color}"${k.tip?` title="${k.tip.replace(/"/g,"'")}"`:''}">
           <div style="font-size:1.5rem;margin-bottom:.25rem">${k.icon}</div>
           <div class="irlab-stat-val">${esc(k.val)}</div>
-          <div class="irlab-stat-lbl">${esc(k.lbl)}</div>
+          <div class="irlab-stat-lbl">${esc(k.lbl)}${k.tip?` <span style="font-size:.55rem;background:rgba(0,0,0,.08);border-radius:99px;padding:.05rem .25rem;cursor:help" title="${k.tip.replace(/"/g,"'")}">ⓘ</span>`:''}
+          </div>
           <div class="irlab-stat-sub">${esc(k.sub)}</div>
         </div>`).join('')}
       </div>`;
@@ -17581,16 +17652,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             <div class="irlab-kpi-strip">
               ${[
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
-                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80' },
-                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa' },
+                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
+                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · Values come directly from iReady CSV' },
                 { v: avgSpringGLAll!==null?fmtGradeLevel(avgSpringGLAll):'—', l:'Avg Grade Level Placement', s: avgBaseGLAll!==null?'BOY: '+fmtGradeLevel(avgBaseGLAll):'Spring (BOY→Spring)', c:'#fbbf24' },
                 { v: elaMeetPct!==null?elaMeetPct+'%':'—', l:'% Meeting Typical ELA', s:'≥100% typical growth', c:'#f9a8d4' },
                 { v: mathMeetPct!==null?mathMeetPct+'%':'—', l:'% Meeting Typical Math', s:'≥100% typical growth', c:'#a78bfa' },
                 { v: elaGainAvg!==null?(elaGainAvg>=0?'+':'')+elaGainAvg.toFixed(1):'—', l:'Avg Scale Gain ELA', s:'scale score points', c:'#34d399' },
                 { v: mathGainAvg!==null?(mathGainAvg>=0?'+':'')+mathGainAvg.toFixed(1):'—', l:'Avg Scale Gain Math', s:'scale score points', c:'#fdba74' },
-              ].map(k=>`<div>
+              ].map(k=>`<div${k.tip?` title="${k.tip.replace(/"/g,"'")}"`:''}">
                 <div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;font-weight:400;color:${k.c};line-height:1.1;margin-bottom:.2rem">${k.v}</div>
-                <div style="font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);line-height:1.3">${k.l}</div>
+                <div style="font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);line-height:1.3">${k.l}${k.tip?`<span style="font-size:.55rem;background:rgba(255,255,255,.15);border-radius:99px;padding:.05rem .25rem;margin-left:.2rem;cursor:help">ⓘ</span>`:''}</div>
                 <div style="font-size:.6rem;color:rgba(255,255,255,.35)">${k.s}</div>
               </div>`).join('')}
             </div>
@@ -17957,7 +18028,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Read r.pctTypical DIRECTLY — this is the BW col (Math) and CP col (ELA) from iReady CSVs.
       // Both store the ratio: 1.0 = 100% of typical growth. Include ALL rows with a numeric value
       // (including zeros) — matches iReady's own pivot-table median.
-      // Accurate values: Math all-years=83%, ELA all-years=94%, ELA 2024-2025=100%, Math 2024-2025=86%.
+      // Computed from embedded data corpus: Math all-years≈83%, ELA all-years≈89%, ELA 2024-2025=100%, Math 2024-2025≈86%.
       var mathPctTypArr=[], elaPctTypArr=[];
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
