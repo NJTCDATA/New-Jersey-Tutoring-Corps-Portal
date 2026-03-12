@@ -3722,7 +3722,7 @@
       </div>
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem 1rem;margin-bottom:.75rem;font-size:.7rem;color:#1e40af;display:flex;align-items:flex-start;gap:.4rem">
         <span style="font-weight:700;flex-shrink:0">ⓘ</span>
-        <span><strong>Pilot schools</strong> are counted separately from the actual school program due to Pearl roster upload. The site count above reflects all program sites listed in the SY spreadsheet. Pilot sites are independently tracked and not included in Pearl session or scholar totals.</span>
+        <span><strong>Why does the site count include more locations than expected?</strong> The total reflects <strong>all sites listed in the SY Database</strong>, including <strong>pilot program sites</strong>. Pilot schools operate under a separate program structure and are tracked independently from the main school program in Pearl — they are not included in Pearl session or scholar totals. The <strong>SY Database is the authoritative source</strong> for site counts; Pearl only reflects schools in the regular program roster.</span>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
@@ -4067,6 +4067,8 @@
         <button class="pst-tab" id="talentTab-reviews" onclick="setTalentTab('reviews')">⭐ Site Leader Reviews</button>
         <button class="pst-tab" id="talentTab-log" onclick="setTalentTab('log')">📋 Full Log</button>
       </div>
+      <!-- Central Team Race & Ethnicity Card (always visible at top of Talent Analytics) -->
+      <div id="centralTeamRaceCard" style="margin-bottom:1.125rem"><!-- populated by JS on load --></div>
       <!-- Filter bar -->
       <div id="talentFilterBar" style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;align-items:center">
         <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;flex-shrink:0">Filters</span>
@@ -5811,6 +5813,14 @@
     ${_appRRows.length?`<div style="display:flex;flex-direction:column;gap:.25rem">${_appRRows.map(([r,n])=>{const p=_appWithR.length?Math.round(n/_appWithR.length*100):0;const isW=(r||'').toLowerCase()==='white';return `<div style="display:flex;align-items:center;gap:.3rem"><div style="font-size:.6rem;font-weight:600;color:#1e293b;width:100px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r}</div><div style="flex:1;height:4px;background:#fef9c3;border-radius:99px;overflow:hidden"><div style="height:100%;width:${p}%;background:${isW?'#cbd5e1':'#d97706'};border-radius:99px"></div></div><div style="font-size:.58rem;font-weight:700;color:${isW?'#94a3b8':'#d97706'};width:24px;text-align:right">${p}%</div></div>`;}).join('')}</div>`:'<div style="font-size:.6rem;color:#94a3b8;font-style:italic">Race data available after live HR sync</div>'}
   </div>` : ''}
 </div>`;
+      }())}
+
+      <!-- ═══ 5c. CENTRAL TEAM STAFF DIVERSITY ═══ -->
+      ${(function(){
+        if (typeof _buildCentralTeamDiversityCard === 'function') {
+          return `<div class="ecd-divider"><div class="ecd-divider-txt">Central Team — Staff Diversity</div><div class="ecd-divider-line"></div></div>` + _buildCentralTeamDiversityCard();
+        }
+        return '';
       }())}
 
       <!-- ═══ 6. TALENT RISK ═══ -->
@@ -9093,6 +9103,13 @@
     }
     try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
     try { initTalentTabsForDept(_currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
+    // Render Central Team race/ethnicity card at top of Talent Analytics
+    try {
+      const _ctCard = document.getElementById('centralTeamRaceCard');
+      if (_ctCard && typeof _buildCentralTeamDiversityCard === 'function') {
+        _ctCard.innerHTML = _buildCentralTeamDiversityCard();
+      }
+    } catch(e) { console.warn('[Talent] Central team race card error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
     console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', _talentLoaded);
     if (['hr','data','leadership','kb','finance'].includes(_td)) {
@@ -9185,6 +9202,28 @@
   // Year-indexed race/ethnicity stats built from live HR sheet rows (for YoY trend)
   // Structure: { '2025-2026': { total, withRace, nonWhite, hispanic, withEth, raceMap, ethMap }, ... }
   let _hrRaceByYear = {};
+
+  // ── Central Team Staff — Race & Ethnicity (hardcoded; race self-identification does not change) ──
+  // Source: HR Master List cross-referenced with staff self-identification. Not found in live data
+  // for these individuals so values are hardcoded per confirmed self-identification on file.
+  const CENTRAL_TEAM_STAFF = [
+    { n: 'Andrea Bowman',      _race: 'Two or More Races',          _ethnicity: '',                   s: 'Active' },
+    { n: 'Tierney Tittermary', _race: '',                           _ethnicity: '',                   s: 'Active' },
+    { n: 'Renea Lintz',        _race: '',                           _ethnicity: '',                   s: 'Active' },
+    { n: 'Jessica Kelly',      _race: '',                           _ethnicity: '',                   s: 'Active' },
+    { n: 'Scott Oswald',       _race: '',                           _ethnicity: '',                   s: 'Active' },
+    { n: 'Taneisha Clemons',   _race: 'Black or African American',  _ethnicity: '',                   s: 'Active' },
+    { n: 'Jenny Irwin',        _race: 'Asian',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Anne Lee',           _race: 'Asian',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Katherine Bassett',  _race: 'White',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Ashley Bencan',      _race: 'White',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Bertin Lefcovick',   _race: 'White',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Amir Wallace',       _race: 'Black or African American',  _ethnicity: '',                   s: 'Active' },
+    { n: 'Ashley Petty',       _race: '',                           _ethnicity: '',                   s: 'Active' },
+    { n: 'Mariely Rodriguez',  _race: '',                           _ethnicity: 'Hispanic or Latino', s: 'Active' },
+    { n: 'Mysti Diaz',         _race: 'White',                      _ethnicity: '',                   s: 'Active' },
+    { n: 'Dalitza Sanchez',    _race: '',                           _ethnicity: 'Hispanic or Latino', s: 'Active' },
+  ];
 
   // ── Fuzzy name normalize ──────────────────────────────────────────────────
   function _hn(name) {
@@ -10553,6 +10592,70 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       ${appRaceRows.length?`<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#a16207;letter-spacing:.07em;margin-bottom:.35rem">Race Breakdown</div>${appRaceRows.map(([race,n])=>{const p=appWithRace.length?Math.round(n/appWithRace.length*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#d97706';return `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem"><div style="font-size:.63rem;font-weight:600;color:#1e293b;width:150px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.64rem;font-weight:800;color:${bc};width:28px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.58rem;color:#94a3b8;width:22px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}`:'<div style="font-size:.63rem;color:#94a3b8;font-style:italic">Race data not yet on file for apprentices — available after live HR sheet syncs.</div>'}
     </div>`;
   })() : ''}
+</div>`;
+  }
+
+  // ── Central Team Staff Diversity Card ────────────────────────────────────
+  // Renders a race/ethnicity breakdown card for central team staff using hardcoded
+  // CENTRAL_TEAM_STAFF data. Used in Talent Analytics (top) and Home Dashboard.
+  function _buildCentralTeamDiversityCard() {
+    const pool = CENTRAL_TEAM_STAFF;
+    const tot = pool.length;
+    const withRace = pool.filter(e => e._race && e._race !== '');
+    const withEth  = pool.filter(e => e._ethnicity && e._ethnicity !== '');
+    const raceMap = {};
+    withRace.forEach(e => { const r = e._race; raceMap[r] = (raceMap[r]||0)+1; });
+    const ethMap = {};
+    withEth.forEach(e => { const v = e._ethnicity; ethMap[v] = (ethMap[v]||0)+1; });
+    const nonWhiteCount = withRace.filter(e => e._race.toLowerCase() !== 'white').length;
+    const nonWhitePct   = withRace.length ? Math.round(nonWhiteCount/withRace.length*100) : 0;
+    const hispCount     = withEth.filter(e => /hispanic|latino/i.test(e._ethnicity)).length;
+    const hispPct       = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
+    const diverseCount  = pool.filter(e =>
+      ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '') ||
+      (/hispanic|latino/i.test(e._ethnicity||''))
+    ).length;
+    const diversePct = tot ? Math.round(diverseCount/tot*100) : 0;
+    const raceRows = Object.entries(raceMap).sort((a,b)=>b[1]-a[1]);
+    const ethRows  = Object.entries(ethMap).sort((a,b)=>b[1]-a[1]);
+    const pBar = (p, color) => `<div style="flex:1;height:6px;border-radius:99px;background:#f1f5f9;overflow:hidden"><div style="height:100%;width:${p}%;background:${color};border-radius:99px;transition:width .6s"></div></div>`;
+    const unknownCount = pool.filter(e => !e._race && !e._ethnicity).length;
+
+    return `
+<div style="padding:1rem 1.125rem;background:var(--surface);border:2px solid #c7d2fe;border-radius:12px;margin-bottom:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:.5rem">
+    <div style="font-size:.7rem;font-weight:900;text-transform:uppercase;color:#3730a3;letter-spacing:.1em">🏢 Central Team Staff — Race &amp; Ethnicity</div>
+    <span style="font-size:.6rem;color:#6366f1;font-weight:600;background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:.15rem .5rem">${tot} staff · ${withRace.length} race on file · ${withEth.length} ethnicity on file · ${unknownCount} not on file</span>
+  </div>
+  <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.875rem">
+    <div style="background:linear-gradient(135deg,#1e1b4b,#3730a3);color:#fff;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#a5b4fc">${diversePct}%</div>
+      <div style="font-size:.62rem;opacity:.75;margin-top:.2rem">Non-White or Hispanic</div>
+      <div style="font-size:.58rem;opacity:.45">${diverseCount} of ${tot} staff</div>
+    </div>
+    <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#059669">${nonWhitePct}%</div>
+      <div style="font-size:.62rem;color:#065f46;margin-top:.2rem;font-weight:700">Non-White (Race)</div>
+      <div style="font-size:.58rem;color:#94a3b8">${nonWhiteCount} of ${withRace.length} w/ race data</div>
+    </div>
+    <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#d97706">${hispPct}%</div>
+      <div style="font-size:.62rem;color:#92400e;margin-top:.2rem;font-weight:700">Hispanic / Latino</div>
+      <div style="font-size:.58rem;color:#94a3b8">${hispCount} of ${withEth.length} w/ eth. data</div>
+    </div>
+  </div>
+  ${raceRows.length ? `
+  <div style="margin-bottom:.75rem">
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Race Distribution</div>
+    ${raceRows.map(([race,n])=>{const p=withRace.length?Math.round(n/withRace.length*100):0;const isW=race.toLowerCase()==='white';const bc=isW?'#cbd5e1':'#6366f1';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
+  </div>` : ''}
+  ${ethRows.length ? `
+  <div style="margin-bottom:.75rem">
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Ethnicity Distribution</div>
+    ${ethRows.map(([eth,n])=>{const p=withEth.length?Math.round(n/withEth.length*100):0;const bc='#d97706';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eth)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
+  </div>` : ''}
+  ${unknownCount ? `<div style="font-size:.6rem;color:#94a3b8;font-style:italic;border-top:1px solid #f1f5f9;padding-top:.5rem;margin-top:.25rem">⚠️ ${unknownCount} staff member${unknownCount>1?'s':''} do not have race/ethnicity on file (self-identification pending).</div>` : ''}
+  <div style="font-size:.58rem;color:#a5b4fc;font-weight:600;margin-top:.5rem">Hardcoded per staff self-identification · Race/ethnicity does not change · Central team only</div>
 </div>`;
   }
 
