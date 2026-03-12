@@ -5180,7 +5180,15 @@
     const execEl = document.getElementById('execDashboard');
     if (execDepts.includes(dept) && execEl) {
       execEl.style.display = '';
-      buildExecDashboard(dept);
+      const poReady = window.po && typeof window.po.getStats === 'function';
+      if (poReady) {
+        buildExecDashboard(dept);
+      } else {
+        // Pearl not ready yet — show skeleton; polling boot will fill in shortly
+        execEl.innerHTML = `<div style="padding:1.5rem 0;color:#94a3b8;font-size:.75rem;text-align:center">
+          ⏳ Loading operational data… dashboard will appear shortly.
+        </div>`;
+      }
       document.getElementById('homeStatsStrip').style.display = 'none';
     } else if (execEl) {
       execEl.style.display = 'none';
@@ -15147,6 +15155,85 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       getLeadershipData,
       getTutorAttendanceMap,
       exportData, showExportModal,
+      getStats: function() {
+        // Compute directly from the internal data arrays
+        var stats = { loaded: false, scholAttPct: null, instAttPct: null, sessions: null,
+                      siCount: null, surveyAvg: null, totalRows: 0, schoolCount: 0,
+                      districtCount: 0, activeTutors: 0 };
+        try {
+          var stuAttRows = _attRows.filter(function(r){ return r[ATT.ROLE]==='Student'; });
+          var stuAtt  = stuAttRows.filter(function(r){ var c=classifyRecord(r); return c==='attended'; }).length;
+          var stuAbs  = stuAttRows.filter(function(r){ var c=classifyRecord(r); return c==='absent'; }).length;
+          var stuTotal = stuAtt + stuAbs;
+          if (stuTotal > 0) stats.scholAttPct = parseFloat((stuAtt/stuTotal*100).toFixed(1));
+          var instAttRows = _attRows.filter(function(r){ return r[ATT.ROLE]==='Instructor'; });
+          var instAtt = instAttRows.filter(function(r){ var c=classifyRecord(r); return c==='attended'; }).length;
+          var instAbs = instAttRows.filter(function(r){ var c=classifyRecord(r); return c==='absent'; }).length;
+          var instTotal = instAtt + instAbs;
+          if (instTotal > 0) stats.instAttPct = parseFloat((instAtt/instTotal*100).toFixed(1));
+          if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='si'||c==='service-interruption'; });
+          stats.siCount = siRows.length;
+          if (_stuStreamComplete && _stuRows.length) {
+            var survScores = [];
+            _stuRows.forEach(function(r){
+              [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL].forEach(function(c){
+                var v = parseFloat(r[c]); if (!isNaN(v) && v > 0) survScores.push(v);
+              });
+            });
+            if (survScores.length) stats.surveyAvg = parseFloat((survScores.reduce(function(a,b){return a+b;},0)/survScores.length).toFixed(2));
+          } else if (_stuAggScores && _stuAggScores.globalCnt > 0) {
+            stats.surveyAvg = parseFloat((_stuAggScores.globalSum / _stuAggScores.globalCnt).toFixed(2));
+          }
+          if (_schoolMap) {
+            var schools = Object.keys(_schoolMap);
+            stats.schoolCount = schools.length;
+            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s] && _schoolMap[s].district; }).filter(Boolean)).size;
+          }
+          if (_personMap) {
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+          }
+          stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
+          stats.loaded = stats.scholAttPct !== null;
+        } catch(e) { console.warn('[po.getStats] error:', e.message); }
+        return stats;
+      },
+      getStellarSchools: function() {
+        try {
+          var schools = [];
+          Object.keys(_schoolMap).forEach(function(name) {
+            var sc = _schoolMap[name];
+            if (!sc) return;
+            var total = sc.stuAttended + sc.stuAbsent;
+            var attRate = total > 0 ? Math.round(sc.stuAttended / total * 100) : 0;
+            var sessCount = sc.sessions ? sc.sessions.length : 0;
+            if (sessCount < 5) return;
+            schools.push({
+              school: name, district: sc.district || '',
+              attRate: attRate, sessions: sessCount,
+              surveyAvg: sc.stuSurveyAvg ? parseFloat(sc.stuSurveyAvg.toFixed(2)) : null,
+            });
+          });
+          schools.sort(function(a, b) {
+            if (b.attRate !== a.attRate) return b.attRate - a.attRate;
+            return b.sessions - a.sessions;
+          });
+          return schools;
+        } catch(e) { return []; }
+      },
+      getRaceData: function() {
+        try {
+          var scholarRace = {}; var seen = {};
+          _attRows.forEach(function(r) {
+            if (r[ATT.ROLE] !== 'Student') return;
+            var uid = r[ATT.USER_ID] || r[ATT.USER];
+            if (seen[uid]) return; seen[uid] = true;
+            var race = (r[ATT.RACE] || 'Not Specified').trim() || 'Not Specified';
+            scholarRace[race] = (scholarRace[race] || 0) + 1;
+          });
+          return { byScholar: scholarRace, totalScholars: Object.keys(seen).length };
+        } catch(e) { return null; }
+      },
     };
   })();
 
