@@ -5434,8 +5434,8 @@
 
     // ── 3. Academic Impact ────────────────────────────────────────────
     // Use all-years program-wide median — honest full-corpus signal across all embedded SYs
-    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical) : null;
-    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical)  : null;
+    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : (irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)) : null;
+    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : (irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical))  : null;
     const mathGain = irl ? irl.mathAvgGain          : null;
     const elaGain  = irl ? irl.elaAvgGain           : null;
     const mathN    = irl ? irl.mathTotal             : null;
@@ -15550,7 +15550,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
-        pctTypical:       parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth'))||null,
+        pctTypical:       (function(){ var _v=parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth')); return isNaN(_v)?null:_v; }()),
         annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
         isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
       };
@@ -16768,9 +16768,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Avg diagnostic gain vs typical growth by subject
       var mathGainSum=0,mathGainN=0,mathTypicalSum=0,mathTypicalN=0;
       var elaGainSum=0,elaGainN=0,elaTypicalSum=0,elaTypicalN=0;
-      // Per-scholar pctTypical arrays for median — computed from gain/annualTypical (ratio, 1.0=100%)
-      // We do NOT use the stored pctTypical column: Math stores it correctly as a ratio,
-      // but ELA stores garbage values unrelated to gain/typical. Deriving directly is reliable for both.
+      // Per-scholar pctTypical arrays for median.
+      // Read r.pctTypical DIRECTLY — this is the BW col (Math) and CP col (ELA) from iReady CSVs.
+      // Both store the ratio: 1.0 = 100% of typical growth. Include ALL rows with a numeric value
+      // (including zeros) — matches iReady's own pivot-table median. Math=83%, ELA=94%.
       var mathPctTypArr=[], elaPctTypArr=[];
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
@@ -16802,12 +16803,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mg=r.springGain!=null?parseFloat(r.springGain):NaN;
           if(!isNaN(_mg)){mathGainSum+=_mg;mathGainN++;}
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-          if(!isNaN(_mt)&&_mt>0){
-            mathTypicalSum+=_mt;mathTypicalN++;
-            // Compute ratio from source data — reliable for both CSV paths and encoded rows
-            // Include ALL scholars with valid typical growth (gain can be 0/negative — honest population median)
-            if(!isNaN(_mg)){mathPctTypArr.push(_mg/_mt);}
-          }
+          if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
+          // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
+          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
           if(hasGrowth) elaGrowth++;
@@ -16816,12 +16815,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _eg=r.springGain!=null?parseFloat(r.springGain):NaN;
           if(!isNaN(_eg)){elaGainSum+=_eg;elaGainN++;}
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-          if(!isNaN(_et)&&_et>0){
-            elaTypicalSum+=_et;elaTypicalN++;
-            // Compute ratio from source data
-            // Include ALL scholars with valid typical growth (honest population median)
-            if(!isNaN(_eg)){elaPctTypArr.push(_eg/_et);}
-          }
+          if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
+          // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
+          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
         }
         // Race — count unique scholars
         if (sid && !seenScholars[sid]) {
@@ -16887,12 +16884,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathGainN:      mathGainN,
         elaGainN:       elaGainN,
         // All-years program-wide medians (for exec dashboard — full embedded corpus regardless of SY filter)
+        // All-years program-wide medians — read pctTypical (BW/CP col) across full corpus
         mathMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r)return; var g=r.springGain!=null?parseFloat(r.springGain):NaN;
-            var t=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-            if(!isNaN(g)&&!isNaN(t)&&t>0) arr.push(g/t);
+            if(!r)return;
+            var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+            if(!isNaN(p)) arr.push(p);
           });
           if(!arr.length) return mathMedianPctTypical;
           var s=arr.slice().sort(function(a,b){return a-b;}); var m=Math.floor(s.length/2);
@@ -16901,9 +16899,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r)return; var g=r.springGain!=null?parseFloat(r.springGain):NaN;
-            var t=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-            if(!isNaN(g)&&!isNaN(t)&&t>0) arr.push(g/t);
+            if(!r)return;
+            var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+            if(!isNaN(p)) arr.push(p);
           });
           if(!arr.length) return elaMedianPctTypical;
           var s=arr.slice().sort(function(a,b){return a-b;}); var m=Math.floor(s.length/2);
@@ -17505,22 +17503,41 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   })();
 
   // ── Exec Dashboard polling boot ────────────────────────────────────────
-  // On login, if exec dept, re-render exec dash once Pearl and irlab are available
+  // Re-render every 800ms until Pearl has real attendance data loaded
   (function() {
     var _execRetries = 0;
+    var _lastRenderHadData = false;
     function _tryRenderExec() {
       var dept = (window.NJTC_SESSION||{}).dept||'';
       if (!['leadership','data','kb'].includes(dept)) return;
       var homePanel = document.getElementById('panel-home');
-      if (!homePanel) return;
+      if (!homePanel || !homePanel.classList.contains('active')) {
+        // Panel not active yet — keep waiting
+        if (_execRetries < 30) { _execRetries++; setTimeout(_tryRenderExec, 800); }
+        return;
+      }
       var poReady = window.po && typeof window.po.getStats === 'function';
       var irlReady = window.irlab && typeof window.irlab.getSummary === 'function';
-      if ((poReady || irlReady) && homePanel.classList.contains('active')) {
+      // Check if Pearl has real data (not just the module reference)
+      var poHasData = false;
+      if (poReady) {
+        try {
+          var st = window.po.getStats();
+          poHasData = st && (st.scholAttPct !== null || st.sessions !== null || st.schoolCount > 0);
+        } catch(e) {}
+      }
+      // Render whenever we have something useful
+      if (poReady || irlReady) {
         try { buildExecDashboard(dept); } catch(e) { console.warn('[Exec] dash render err:', e); }
       }
-      if (_execRetries < 20) {
+      // Keep retrying until Pearl has actual attendance data loaded
+      if (_execRetries < 30 && !poHasData) {
         _execRetries++;
         setTimeout(_tryRenderExec, 800);
+      } else if (poHasData && !_lastRenderHadData) {
+        // One final render now that real data arrived
+        _lastRenderHadData = true;
+        try { buildExecDashboard(dept); } catch(e) {}
       }
     }
     setTimeout(_tryRenderExec, 500);
@@ -18647,17 +18664,17 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       // ── iREADY ──
       if (irl&&irl.growthPct!=null) {
         var irlSY=irl.activeSY||'Historical';
-        if (irl.mathAvgGain!==null&&irl.mathMedianPctTypical!=null) {
+        if (irl.mathAvgGain!==null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null) {
           var mCol=irl.mathMedianPctTypical>=100?'#dcfce7':irl.mathMedianPctTypical>=70?'#ede9fe':'#fef3c7';
           chips.push({ico:'&#10133;',col:mCol,
-            txt:'+'+irl.mathAvgGain+' pts · '+irl.mathMedianPctTypical+'%',
+            txt:'+'+irl.mathAvgGain+' pts · '+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%',
             sub:'Math Growth · Median % to Typical ('+irlSY+')',
             key:'irl-math'});
         }
-        if (irl.elaAvgGain!==null&&irl.elaMedianPctTypical!=null) {
+        if (irl.elaAvgGain!==null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null) {
           var eCol=irl.elaMedianPctTypical>=100?'#dcfce7':irl.elaMedianPctTypical>=70?'#ede9fe':'#fef3c7';
           chips.push({ico:'&#128217;',col:eCol,
-            txt:'+'+irl.elaAvgGain+' pts · '+irl.elaMedianPctTypical+'%',
+            txt:'+'+irl.elaAvgGain+' pts · '+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%',
             sub:'ELA Growth · Median % to Typical ('+irlSY+')',
             key:'irl-ela'});
         }
@@ -18955,10 +18972,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         if(ld.scholarOnTrack!=null) snaps.push({n:ld.scholarOnTrack+'/'+tot,l:'Scholars On Track',s:'Pearl'});
         if(ld.scholarAtRisk!=null)  snaps.push({n:ld.scholarAtRisk,l:'Scholars At Risk',s:'Pearl'});
       }
-      if(irl&&irl.mathAvgGain!=null&&irl.mathMedianPctTypical!=null)
-        snaps.push({n:'+'+irl.mathAvgGain+' pts \xb7 '+irl.mathMedianPctTypical+'%',l:'Math Growth · Median % to Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
-      if(irl&&irl.elaAvgGain!=null&&irl.elaMedianPctTypical!=null)
-        snaps.push({n:'+'+irl.elaAvgGain+' pts \xb7 '+irl.elaMedianPctTypical+'%',l:'ELA Growth · Median % to Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
+      if(irl&&irl.mathAvgGain!=null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null)
+        snaps.push({n:'+'+irl.mathAvgGain+' pts \xb7 '+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%',l:'Math Growth · Median % to Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
+      if(irl&&irl.elaAvgGain!=null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null)
+        snaps.push({n:'+'+irl.elaAvgGain+' pts \xb7 '+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%',l:'ELA Growth · Median % to Typical',s:'iReady \xb7 '+(irl.activeSY||'Historical')});
       if(irl&&irl.growthPct!=null&&(irl.mathAvgGain==null||irl.elaAvgGain==null))
         snaps.push({n:irl.growthPct+'%',l:'Scholars w/ iReady Growth',s:'iReady'});
       if(kpi.total>0) snaps.push({n:kpi.met.length+'/'+kpi.total,l:'Annual Goals Met (Mid-Year)',s:'KPI'});
@@ -19226,8 +19243,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if(po&&po.scholAttPct!=null)statsArr.push({n:po.scholAttPct+'%',l:'Scholar Attendance'});
       if(po&&po.surveyAvg!=null)  statsArr.push({n:po.surveyAvg+'/5',l:'Scholar Satisfaction'});
       if(irl&&(irl.mathAvgGain!=null||irl.elaAvgGain!=null)){
-        if(irl.mathAvgGain!=null&&irl.mathMedianPctTypical!=null) statsArr.push({n:'+'+irl.mathAvgGain+' pts ('+irl.mathMedianPctTypical+'%)',l:'Math Growth · Median % to Typical'});
-        if(irl.elaAvgGain!=null&&irl.elaMedianPctTypical!=null)   statsArr.push({n:'+'+irl.elaAvgGain+' pts ('+irl.elaMedianPctTypical+'%)',l:'ELA Growth · Median % to Typical'});
+        if(irl.mathAvgGain!=null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null) statsArr.push({n:'+'+irl.mathAvgGain+' pts ('+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%)',l:'Math Growth · Median % to Typical'});
+        if(irl.elaAvgGain!=null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null)   statsArr.push({n:'+'+irl.elaAvgGain+' pts ('+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%)',l:'ELA Growth · Median % to Typical'});
       } else if(irl&&irl.growthPct!=null) statsArr.push({n:irl.growthPct+'%',l:'iReady Growth Rate'});
       if(kpi.total>0)      statsArr.push({n:kpi.met.length+'/'+kpi.total,l:'Goals Met Mid-Year'});
       if(ld)               statsArr.push({n:fmtN(ld.scholarOnTrack),l:'Scholars On Track'});
@@ -19734,7 +19751,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   function _buildIrlDetail(irl, subj) {
     if (!irl) return '<p style="color:var(--muted)">No iReady data loaded.</p>';
     var avgGain      = subj==='math' ? irl.mathAvgGain          : irl.elaAvgGain;
-    var medianPctTyp = subj==='math' ? irl.mathMedianPctTypical : irl.elaMedianPctTypical;
+    var medianPctTyp = subj==='math'
+      ? (irl.mathMedianPctAllYears!=null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical)
+      : (irl.elaMedianPctAllYears!=null  ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical);
     var gainN        = subj==='math' ? irl.mathGainN            : irl.elaGainN;
     var label        = subj==='math' ? 'Math'                   : 'ELA (Reading)';
     var sy           = irl.activeSY || 'Historical';
