@@ -16045,7 +16045,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const res={};
       const _gidSeen = new Set(); // avoid double-fetching when math and ela map to same gid
       for (const [tab,gid] of Object.entries(IRLAB_LIVE_GIDS)) {
-        if (!gid) continue;
+        if (gid === null || gid === undefined) continue; // gid=0 is valid (ELA default tab) — must not use !gid
         const isRepeat = tab.includes('Rep') || tab.includes('rep');
         const defaultSubj = tab.startsWith('math') ? 'Math' : 'ELA';
         // If this gid was already fetched (math/ela share same tab), reuse and split
@@ -16132,6 +16132,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const plIdx = p    => PLACEMENT_ORDER.indexOf(p);
     const isOnGL= p    => p==='Early On Grade Level'||p==='Mid or Above Grade Level';
     const is2Below = p => p==='2 Grade Levels Below'||p==='3 or More Grade Levels Below';
+    // Grade-level placement scale: maps each placement category to a grade-level numeric offset
+    // 0="3+below"→-3, 1="2below"→-2, 2="1below"→-1, 3="Early GL"→0, 4="Mid/Above GL"→+1
+    const PL_GL_SCALE = [-3, -2, -1, 0, 1];
+    const plToGL = p => { const i=plIdx(p); return i>=0?PL_GL_SCALE[i]:null; };
+    // Format a grade-level numeric score into readable English (e.g. -1.5 → "1½ GL below")
+    function fmtGradeLevel(gl) {
+      if (gl===null||gl===undefined||isNaN(gl)) return '—';
+      const abs=Math.abs(gl), dir=gl>0?'above':gl<0?'below':'';
+      const whole=Math.floor(abs), frac=abs-whole;
+      const fracStr=frac>=0.75?'¾':frac>=0.4?'½':frac>=0.15?'¼':'';
+      const numStr=(whole>0?whole:'')+(fracStr?(whole>0?' ':'')+fracStr:'');
+      if (!numStr||numStr==='0') return 'On grade level';
+      return numStr+' GL '+(dir||'');
+    }
 
     function getRows(opts={}) {
       const subject     = opts.subject     !== undefined ? opts.subject     : _irlSubject;
@@ -16221,6 +16235,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         pctRegress: pct(regress.length,n), pctOnGL: pct(sprOnGL.length,n),
         pct2Below: pct(spr2Below.length,n), glGain: sprOnGL.length-baseOnGL.length,
         below2Chg: spr2Below.length-base2Below.length,
+        // Average grade-level placement (numeric scale: -3 to +1)
+        avgBaseGL:   (()=>{ const s=valid.map(r=>plToGL(r.baseRelPlacement)).filter(v=>v!==null); return s.length?s.reduce((a,b)=>a+b,0)/s.length:null; })(),
+        avgSpringGL: (()=>{ const s=valid.map(r=>plToGL(r.springRelPlacement)).filter(v=>v!==null); return s.length?s.reduce((a,b)=>a+b,0)/s.length:null; })(),
       };
     }
 
