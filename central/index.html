@@ -16814,7 +16814,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
           // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
-          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
+          var _mp=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
@@ -16826,7 +16827,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
           // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
-          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
+          var _ep=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
         }
         // Race — count unique scholars
@@ -16893,11 +16895,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathGainN:      mathGainN,
         elaGainN:       elaGainN,
         // All-years program-wide medians (for exec dashboard — full embedded corpus regardless of SY filter)
-        // All-years program-wide medians — read pctTypical (BW/CP col) across full corpus
+        // Gated on springScore: only scholars with completed spring diagnostic (iReady-correct methodology)
         mathMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r)return;
+            if(!r||r.springScore==null) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -16908,7 +16910,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r)return;
+            if(!r||r.springScore==null) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
