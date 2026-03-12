@@ -735,6 +735,292 @@
     }
 
     /* ════════════════════════════════════════════════════
+       EXECUTIVE ANALYTICS DASHBOARD
+    ════════════════════════════════════════════════════ */
+    #execDashboard {
+      margin-bottom: 2.25rem;
+    }
+    .exec-dash-hidden { display: none !important; }
+
+    /* Command bar */
+    .exec-command-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: .75rem;
+      background: linear-gradient(135deg, var(--navy) 0%, #162347 100%);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.75rem;
+      margin-bottom: 1.5rem;
+      position: relative; overflow: hidden;
+    }
+    .exec-command-bar::after {
+      content: '';
+      position: absolute; top: -40px; right: -40px;
+      width: 180px; height: 180px;
+      background: radial-gradient(circle, rgba(240,165,0,.08), transparent);
+      border-radius: 50%;
+    }
+    .ecb-left {}
+    .ecb-eyebrow {
+      font-size: .625rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--gold); margin-bottom: .375rem;
+    }
+    .ecb-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.375rem; color: #fff; line-height: 1.2;
+      letter-spacing: -.02em;
+    }
+    .ecb-sub { font-size: .8125rem; color: rgba(255,255,255,.5); margin-top: .25rem; }
+    .ecb-right { display: flex; align-items: center; gap: .625rem; }
+    .ecb-status-badge {
+      display: flex; align-items: center; gap: .4rem;
+      font-size: .6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      padding: .3rem .875rem; border-radius: 20px;
+    }
+    .ecb-status-badge.green { background: rgba(13,110,58,.25); color: #4ade80; border: 1px solid rgba(74,222,128,.2); }
+    .ecb-status-badge.amber { background: rgba(217,119,6,.25); color: #fbbf24; border: 1px solid rgba(251,191,36,.2); }
+    .ecb-status-badge.red   { background: rgba(185,28,28,.25); color: #f87171; border: 1px solid rgba(248,113,113,.2); }
+    .ecb-pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+      animation: ecbPulse 2s infinite;
+    }
+    @keyframes ecbPulse {
+      0%,100%{ opacity: 1; } 50%{ opacity: .4; }
+    }
+    .ecb-refresh-btn {
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+      color: rgba(255,255,255,.75); font-size: .75rem; font-weight: 600;
+      padding: .375rem .75rem; border-radius: 8px;
+      font-family: inherit; cursor: pointer; transition: var(--transition);
+    }
+    .ecb-refresh-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+
+    /* Layer headers */
+    .exec-layer-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .875rem;
+    }
+    .exec-layer-label {
+      font-size: .625rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--muted);
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .exec-layer-label::before {
+      content: '';
+      display: inline-block; width: 3px; height: 14px;
+      background: var(--layer-color, var(--blue-mid));
+      border-radius: 2px;
+    }
+    .exec-layer-action {
+      font-size: .75rem; font-weight: 600; color: var(--blue-mid);
+      background: none; border: none; cursor: pointer; font-family: inherit;
+      padding: .25rem .5rem; border-radius: 6px; transition: var(--transition);
+    }
+    .exec-layer-action:hover { background: var(--prog-bg); }
+
+    /* Executive metric cards */
+    .exec-metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+      gap: .875rem;
+      margin-bottom: 1.5rem;
+    }
+    .exec-metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.125rem 1.25rem;
+      box-shadow: var(--shadow-sm);
+      position: relative; overflow: hidden;
+      transition: var(--transition);
+      cursor: default;
+    }
+    .exec-metric:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .exec-metric::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--em-color, var(--blue-mid));
+    }
+    .exec-metric-icon { font-size: 1.125rem; margin-bottom: .5rem; }
+    .exec-metric-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem; color: var(--navy);
+      line-height: 1; letter-spacing: -.03em;
+    }
+    .exec-metric-label {
+      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--muted); margin-top: .375rem;
+    }
+    .exec-metric-sub { font-size: .75rem; color: var(--text-2); margin-top: .2rem; }
+    .exec-metric-loading .exec-metric-val { color: var(--border); }
+
+    /* Health row */
+    .exec-health-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: .875rem;
+      margin-bottom: 1.5rem;
+    }
+    .exec-health-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.125rem 1.25rem;
+      box-shadow: var(--shadow-sm);
+      display: flex; flex-direction: column; gap: .5rem;
+    }
+    .ehc-icon { font-size: 1.5rem; }
+    .ehc-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.25rem; color: var(--navy);
+      line-height: 1; letter-spacing: -.03em;
+    }
+    .ehc-label { font-size: .6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .ehc-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: .25rem; }
+    .ehc-bar { height: 100%; border-radius: 3px; background: var(--em-color, var(--blue-mid)); transition: width .6s ease; }
+    .ehc-sub { font-size: .75rem; color: var(--text-2); }
+
+    /* Academic summary */
+    .exec-academic-banner {
+      background: linear-gradient(135deg, var(--navy) 0%, #1e3a70 100%);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      margin-bottom: 1.5rem;
+      color: #fff;
+      position: relative; overflow: hidden;
+      display: flex; align-items: flex-start; gap: 2rem; flex-wrap: wrap;
+    }
+    .exec-academic-banner::before {
+      content: '📈';
+      position: absolute; right: 1.5rem; top: 50%; transform: translateY(-50%);
+      font-size: 5rem; opacity: .06;
+    }
+    .eab-left { flex: 1; min-width: 200px; }
+    .eab-eyebrow { font-size: .625rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.4); margin-bottom: .375rem; }
+    .eab-title { font-family: 'DM Serif Display', serif; font-size: 1.125rem; margin-bottom: .25rem; }
+    .eab-note { font-size: .75rem; color: rgba(255,255,255,.45); line-height: 1.5; }
+    .eab-stats { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .eab-stat { text-align: center; }
+    .eab-stat-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.25rem; line-height: 1; letter-spacing: -.03em;
+    }
+    .eab-stat-lbl { font-size: .6875rem; color: rgba(255,255,255,.5); margin-top: .2rem; }
+
+    /* Leaderboard */
+    .exec-leaderboard {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 1.5rem;
+    }
+    .exec-lb-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .exec-lb-title { font-size: .75rem; font-weight: 700; color: var(--navy); }
+    .exec-lb-tabs { display: flex; gap: .25rem; }
+    .exec-lb-tab {
+      font-size: .6875rem; font-weight: 600; padding: .25rem .625rem;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      cursor: pointer; font-family: inherit; transition: var(--transition);
+    }
+    .exec-lb-tab.active {
+      background: var(--navy); color: #fff; border-color: var(--navy);
+    }
+    .exec-lb-body { padding: .75rem 1.25rem; }
+    .exec-lb-row {
+      display: flex; align-items: center; gap: .75rem;
+      padding: .5rem 0;
+      border-bottom: 1px solid var(--border-2);
+    }
+    .exec-lb-row:last-child { border-bottom: none; }
+    .exec-lb-rank {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem; font-weight: 700; color: var(--muted);
+      min-width: 22px;
+    }
+    .exec-lb-rank.gold { color: #d97706; }
+    .exec-lb-rank.silver { color: #6b7280; }
+    .exec-lb-rank.bronze { color: #92400e; }
+    .exec-lb-name { font-size: .875rem; font-weight: 600; color: var(--navy); flex: 1; }
+    .exec-lb-district { font-size: .75rem; color: var(--muted); }
+    .exec-lb-score {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.25rem; color: var(--navy);
+    }
+    .exec-lb-bar-wrap { width: 80px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .exec-lb-bar { height: 100%; border-radius: 3px; }
+
+    /* KPI summary row */
+    .exec-kpi-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .75rem;
+      margin-bottom: 1.5rem;
+    }
+    .exec-kpi-tile {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .875rem 1rem;
+      text-align: center;
+      cursor: pointer; transition: var(--transition);
+      border-top: 3px solid var(--kpi-color, var(--blue-mid));
+    }
+    .exec-kpi-tile:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+    .exec-kpi-n {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.75rem; line-height: 1; letter-spacing: -.03em;
+      color: var(--kpi-color, var(--navy));
+    }
+    .exec-kpi-lbl { font-size: .6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: .25rem; }
+
+    /* Concerns / restricted layer */
+    .exec-restricted-bar {
+      display: flex; align-items: center; gap: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .exec-restricted-icon { font-size: 1.25rem; }
+    .exec-restricted-text { flex: 1; }
+    .exec-restricted-title { font-size: .875rem; font-weight: 700; color: var(--navy); }
+    .exec-restricted-sub { font-size: .75rem; color: var(--muted); }
+    .exec-restricted-count {
+      font-family: 'DM Serif Display', serif; font-size: 2rem;
+      color: var(--notmet);
+    }
+    .exec-restricted-count.ok { color: var(--met); }
+
+    /* Data placeholders when loading */
+    .exec-dash-loading {
+      text-align: center; padding: 1.5rem 1rem;
+      color: var(--muted); font-size: .875rem;
+    }
+    .exec-no-data {
+      font-size: .8125rem; color: var(--muted);
+      padding: .75rem 1rem;
+      background: var(--surface-2); border-radius: 8px;
+      border: 1px solid var(--border-2);
+    }
+
+    @media (max-width: 900px) {
+      .exec-kpi-row { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .exec-kpi-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ════════════════════════════════════════════════════
        CONCERN FORM - PREMIUM
     ════════════════════════════════════════════════════ */
     .form-wrapper {
@@ -3435,7 +3721,9 @@
           <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
         </div>
       </div>
-      <!-- KPI summary strip -->
+      <!-- ══ EXECUTIVE ANALYTICS DASHBOARD (injected by buildExecDashboard) ══ -->
+      <div id="execDashboard" class="exec-dash-hidden"></div>
+      <!-- KPI summary strip (legacy — kept for non-leadership depts) -->
       <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
       <!-- Quick links -->
       <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
@@ -5061,6 +5349,9 @@
     if (id === "knowtion") {
       setTimeout(() => { if (window.kn) window.kn.build((window.NJTC_SESSION||{}).dept || 'all'); }, 50);
     }
+    if (id === "home" && window.refreshExecDashboard) {
+      setTimeout(() => window.refreshExecDashboard(), 50);
+    }
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
     // Find the sidebar button if not passed
@@ -5090,6 +5381,20 @@
     document.getElementById('homeEyebrow').textContent = cfg.label;
     document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
     document.getElementById('homeSubtitle').textContent = cfg.tagline;
+
+    // ── Build executive dashboard for leadership/data/kb ──────────────
+    buildExecDashboard(dept);
+
+    // For exec depts, hide legacy stats strip (KPI tiles shown in dashboard)
+    const EXEC_DEPTS = ['leadership','data','kb'];
+    const statsStrip = document.getElementById('homeStatsStrip');
+    if (statsStrip) {
+      if (EXEC_DEPTS.includes(dept)) {
+        statsStrip.style.display = 'none';
+      } else {
+        statsStrip.style.display = '';
+      }
+    }
 
     // Stats strip — use midStatus as primary (falls back to status for legacy data)
     const getS = k => k.midStatus || k.status || '';
@@ -5145,6 +5450,429 @@
       </div>
     `).join('');
   }
+
+  // ══════════════════════════════════════════════════════════
+  //  EXECUTIVE ANALYTICS DASHBOARD
+  //  Renders above KPI strip and quick links for leadership
+  //  and data roles. Sourced exclusively from already-loaded
+  //  portal data objects — zero new pipelines.
+  // ══════════════════════════════════════════════════════════
+  var _execDashLastDept = null;
+
+  function buildExecDashboard(dept) {
+    const el = document.getElementById('execDashboard');
+    if (!el) return;
+
+    const EXEC_DEPTS = ['leadership','data','kb'];
+    if (!EXEC_DEPTS.includes(dept)) {
+      el.classList.add('exec-dash-hidden');
+      return;
+    }
+    el.classList.remove('exec-dash-hidden');
+    _execDashLastDept = dept;
+
+    // ── Gather data from already-loaded portal modules ──────────────────
+    // Pearl / Operations
+    const po = window.po;
+    const poStats = (po && po.getStats) ? (() => { try { return po.getStats(); } catch(e) { return null; } })() : null;
+    const poLoaded = poStats && poStats.loaded;
+
+    // Pearl leadership summary (attendance tiers, districts, weekly trend)
+    const poLeadData = (po && po.getLeadershipData) ? (() => { try { return po.getLeadershipData(); } catch(e) { return null; } })() : null;
+
+    // SY Analytics
+    const syaData = (() => {
+      try {
+        if (window.sya && window.sya.getSitesData) return window.sya.getSitesData();
+        // Fallback: read from DOM stat elements
+        const sites    = document.getElementById('syStatSites');
+        const districts= document.getElementById('syStatDistricts');
+        const actual   = document.getElementById('syStatActual');
+        const est      = document.getElementById('syStatEst');
+        const staff    = document.getElementById('syStatStaff');
+        if (sites && sites.textContent && sites.textContent !== '—') {
+          return {
+            siteCount: parseInt(sites.textContent)||0,
+            districtCount: parseInt((districts||{}).textContent)||0,
+            actualScholars: parseInt((actual||{}).textContent)||0,
+            estScholars: parseInt((est||{}).textContent)||0,
+            staffCount: parseInt((staff||{}).textContent)||0
+          };
+        }
+      } catch(e) {}
+      return null;
+    })();
+
+    // iReady (academic) summary
+    const irlSummary = (() => {
+      try {
+        if (window.irlab && window.irlab.getSummary) return window.irlab.getSummary();
+        // try snapshot
+        const snap = window.irlab && window.irlab.getSnapshot ? window.irlab.getSnapshot() : null;
+        if (snap && snap.summary) return snap.summary;
+      } catch(e) {}
+      return null;
+    })();
+
+    // KPI data
+    const getS = k => k.midStatus || k.status || '';
+    const kpiMet     = KPI_DATA.filter(k=>getS(k)==='Met').length;
+    const kpiProg    = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
+    const kpiPartial = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
+    const kpiPipe    = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
+    const kpiNotmet  = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
+    const kpiTotal   = KPI_DATA.length;
+
+    // Performance concerns (leadership/data only)
+    const showConcerns = ['leadership','data','kb'].includes(dept);
+    const concernCount = CONCERNS ? CONCERNS.length : 0;
+    const concernDistricts = CONCERNS ? [...new Set(CONCERNS.map(c => {
+      const site = c.site || '';
+      const parts = site.split('-');
+      return parts[0].trim();
+    }).filter(Boolean))].length : 0;
+
+    // ── Program overall health status ────────────────────────────────
+    const scholarRate = poLoaded ? poStats.scholAttPct : null;
+    const tutorRate   = poLoaded ? poStats.instAttPct : null;
+    let healthBadge = 'green', healthLabel = 'Program Running Strong', healthPulse = '';
+    if (scholarRate !== null) {
+      if (scholarRate < 75) { healthBadge = 'red'; healthLabel = 'Attention Recommended'; }
+      else if (scholarRate < 85) { healthBadge = 'amber'; healthLabel = 'Monitor Closely'; }
+    }
+
+    // ── School leaderboard (top 6 by attendance) ─────────────────────
+    const topSchools = (po && po.getStellarSchools) ? (() => {
+      try { return po.getStellarSchools().slice(0,6); } catch(e) { return []; }
+    })() : [];
+
+    // ── Sessions as minutes ──────────────────────────────────────────
+    const sessions = poLoaded ? (poStats.sessions || 0) : 0;
+    const sessionMinutes = sessions * 45; // 45 min per session NJTC standard
+
+    // ── Active scholars (from Pearl or SY) ───────────────────────────
+    const activeScholars = poLoaded ? (() => {
+      if (poLeadData) {
+        return (poLeadData.scholarOnTrack||0) + (poLeadData.scholarAtRisk||0) + (poLeadData.scholarNeedsAction||0);
+      }
+      return null;
+    })() : null;
+
+    const totalScholars = syaData ? (syaData.actualScholars||syaData.estScholars) : null;
+    const totalStaff    = syaData ? syaData.staffCount : null;
+    const districtCount = syaData ? syaData.districtCount : (poLoaded ? poStats.districtCount : null);
+    const schoolCount   = syaData ? syaData.siteCount : (poLoaded ? poStats.schoolCount : null);
+
+    // ── iReady academic indicators ────────────────────────────────────
+    const irlLoaded = irlSummary && (irlSummary.totalScholars > 0 || (irlSummary.n && irlSummary.n > 0));
+    const medianPctTypical = (irlSummary && irlSummary.medianPctTypical != null) ? irlSummary.medianPctTypical
+                           : (irlSummary && irlSummary.mathMetTypPct != null) ? Math.round((irlSummary.mathMetTypPct||0 + irlSummary.elaMetTypPct||0)/2)
+                           : null;
+    const pctMoved = irlSummary ? (irlSummary.pctMoved || null) : null;
+    const pctOnGL  = irlSummary ? (irlSummary.pctOnGL  || null) : null;
+
+    // ── Helper: render a value (show — if null) ────────────────────────
+    const D = (v, suffix='') => v != null ? (v.toLocaleString ? v.toLocaleString() : v) + suffix : '—';
+    const Dp = (v) => v != null ? v + '%' : '—';
+
+    // ── Leaderboard tab data ──────────────────────────────────────────
+    function leaderboardRows(sortBy) {
+      if (!topSchools.length) return '<div class="exec-no-data">Attendance data loading — visit Pearl Operations to initialize.</div>';
+      const sorted = [...topSchools].sort((a,b) => {
+        if (sortBy === 'academic') return (b.surveyAvg||0) - (a.surveyAvg||0);
+        if (sortBy === 'operations') return (a.flags||0) - (b.flags||0) || b.sessions - a.sessions;
+        return b.attRate - a.attRate; // default attendance
+      });
+      return sorted.map((s,i) => {
+        const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+        const rankLabel = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
+        const pct = sortBy==='academic' ? (s.surveyAvg?s.surveyAvg.toFixed(1)+'★':'—') : sortBy==='operations' ? `${s.sessions} sess` : `${s.attRate}%`;
+        const barW = sortBy==='academic' ? (s.surveyAvg ? Math.round(s.surveyAvg/5*100) : 0) : sortBy==='operations' ? Math.min(100,Math.round(s.sessions/50*100)) : s.attRate;
+        const barCol = s.attRate >= 85 ? '#0d6e3a' : s.attRate >= 75 ? '#d97706' : '#b91c1c';
+        return `<div class="exec-lb-row">
+          <div class="exec-lb-rank ${rankClass}">${rankLabel}</div>
+          <div style="flex:1;min-width:0">
+            <div class="exec-lb-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.school}</div>
+            <div class="exec-lb-district">${s.district}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.625rem">
+            <div class="exec-lb-bar-wrap"><div class="exec-lb-bar" style="width:${barW}%;background:${barCol}"></div></div>
+            <div class="exec-lb-score" style="min-width:48px;text-align:right;font-size:1rem">${pct}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ── District performance summary from Pearl ────────────────────────
+    function districtRows() {
+      if (!poLeadData || !poLeadData.districts || !poLeadData.districts.length) return '<div class="exec-no-data">District data loading…</div>';
+      return poLeadData.districts.sort((a,b)=>b.scholarRate-a.scholarRate).slice(0,5).map((d,i) => {
+        const col = d.scholarRate>=85?'#0d6e3a':d.scholarRate>=75?'#d97706':'#b91c1c';
+        const rankLabel = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
+        return `<div class="exec-lb-row">
+          <div class="exec-lb-rank ${i<3?['gold','silver','bronze'][i]:''}">${rankLabel}</div>
+          <div style="flex:1">
+            <div class="exec-lb-name">${d.name}</div>
+            <div class="exec-lb-district">${d.scholars} active scholars · ${d.schools.length} school(s)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <div class="exec-lb-bar-wrap"><div class="exec-lb-bar" style="width:${d.scholarRate}%;background:${col}"></div></div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1rem;color:${col};min-width:40px;text-align:right">${d.scholarRate}%</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ── Build attendance tier bars (from poLeadData) ───────────────────
+    function tierBars() {
+      if (!poLeadData) return '';
+      const total = (poLeadData.scholarOnTrack||0) + (poLeadData.scholarAtRisk||0) + (poLeadData.scholarNeedsAction||0);
+      if (!total) return '';
+      const tiers = [
+        { label:'🟢 On Track', count: poLeadData.scholarOnTrack||0, color:'#0d6e3a', threshold:'≥80%' },
+        { label:'🟡 Building Momentum', count: poLeadData.scholarAtRisk||0, color:'#d97706', threshold:'70–79%' },
+        { label:'🤝 Needs Support', count: poLeadData.scholarNeedsAction||0, color:'#b91c1c', threshold:'<70%' },
+      ];
+      return tiers.map(t => {
+        const pct = Math.round(t.count/total*100);
+        return `<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.5rem">
+          <div style="font-size:.75rem;color:${t.color};font-weight:600;min-width:140px">${t.label}</div>
+          <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${pct}%;background:${t.color};border-radius:4px;transition:width .6s ease"></div>
+          </div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--navy);min-width:32px;text-align:right">${t.count}</div>
+          <div style="font-size:.6875rem;color:var(--muted);min-width:36px">${pct}%</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ── Render ────────────────────────────────────────────────────────
+    el.innerHTML = `
+      <!-- Command Bar -->
+      <div class="exec-command-bar">
+        <div class="ecb-left">
+          <div class="ecb-eyebrow">NJTC · SY 2025–2026 · Executive Intelligence Layer</div>
+          <div class="ecb-title">Program Command Center</div>
+          <div class="ecb-sub">Scale · Health · Impact · Talent · Priorities — all in one view</div>
+        </div>
+        <div class="ecb-right">
+          <div class="ecb-status-badge ${healthBadge}">
+            <div class="ecb-pulse"></div>
+            ${healthLabel}
+          </div>
+          <button class="ecb-refresh-btn" onclick="window.refreshExecDashboard && window.refreshExecDashboard()">↺ Refresh</button>
+        </div>
+      </div>
+
+      <!-- ── LAYER 1: PROGRAM FOOTPRINT ── -->
+      <div class="exec-layer-header" style="--layer-color:var(--blue-mid)">
+        <div class="exec-layer-label">Layer 1 — Program Footprint</div>
+        <button class="exec-layer-action" onclick="showPanel('sy-analytics',document.querySelector('[data-panel=sy-analytics]'))">View SY Data →</button>
+      </div>
+      <div class="exec-metric-grid">
+        <div class="exec-metric" style="--em-color:var(--blue-mid)" onclick="showPanel('pearl-ops',document.querySelector('[data-panel=pearl-ops]'))">
+          <div class="exec-metric-icon">🎓</div>
+          <div class="exec-metric-val">${D(totalScholars)}</div>
+          <div class="exec-metric-label">Total Scholars</div>
+          <div class="exec-metric-sub">Enrolled via Pearl</div>
+        </div>
+        <div class="exec-metric" style="--em-color:var(--met)" onclick="showPanel('pearl-ops',document.querySelector('[data-panel=pearl-ops]'))">
+          <div class="exec-metric-icon">✅</div>
+          <div class="exec-metric-val">${D(activeScholars)}</div>
+          <div class="exec-metric-label">Active Scholars</div>
+          <div class="exec-metric-sub">Attended ≥1 session</div>
+        </div>
+        <div class="exec-metric" style="--em-color:var(--partial)">
+          <div class="exec-metric-icon">👩‍🏫</div>
+          <div class="exec-metric-val">${D(totalStaff)}</div>
+          <div class="exec-metric-label">Total Staff</div>
+          <div class="exec-metric-sub">Across all sites</div>
+        </div>
+        <div class="exec-metric" style="--em-color:var(--prog)" onclick="showPanel('sy-analytics',document.querySelector('[data-panel=sy-analytics]'))">
+          <div class="exec-metric-icon">🏛️</div>
+          <div class="exec-metric-val">${D(districtCount)}</div>
+          <div class="exec-metric-label">District Partners</div>
+          <div class="exec-metric-sub">Active relationships</div>
+        </div>
+        <div class="exec-metric" style="--em-color:var(--blue-lite)" onclick="showPanel('sy-analytics',document.querySelector('[data-panel=sy-analytics]'))">
+          <div class="exec-metric-icon">🏫</div>
+          <div class="exec-metric-val">${D(schoolCount)}</div>
+          <div class="exec-metric-label">School Partners</div>
+          <div class="exec-metric-sub">Active sites</div>
+        </div>
+        <div class="exec-metric" style="--em-color:var(--gold)">
+          <div class="exec-metric-icon">🕐</div>
+          <div class="exec-metric-val">${sessionMinutes > 0 ? Math.round(sessionMinutes/1000)+'K' : '—'}</div>
+          <div class="exec-metric-label">Tutoring Minutes</div>
+          <div class="exec-metric-sub">${sessions > 0 ? sessions.toLocaleString()+' sessions × 45 min' : 'Loading Pearl data…'}</div>
+        </div>
+      </div>
+
+      <!-- ── LAYER 2: OPERATIONAL HEALTH ── -->
+      <div class="exec-layer-header" style="--layer-color:${scholarRate>=85?'#0d6e3a':scholarRate>=75?'#d97706':'#b91c1c'}">
+        <div class="exec-layer-label">Layer 2 — Operational Health</div>
+        <button class="exec-layer-action" onclick="showPanel('pearl-ops',document.querySelector('[data-panel=pearl-ops]'))">View Operations →</button>
+      </div>
+      <div class="exec-health-row">
+        <div class="exec-health-card" style="--em-color:${scholarRate!==null?(scholarRate>=85?'#0d6e3a':scholarRate>=75?'#d97706':'#b91c1c'):'var(--border)'}">
+          <div class="ehc-icon">🎓</div>
+          <div class="ehc-val" style="color:${scholarRate!==null?(scholarRate>=85?'#0d6e3a':scholarRate>=75?'#d97706':'#b91c1c'):'var(--muted)'}">${Dp(scholarRate)}</div>
+          <div class="ehc-label">Scholar Attendance Rate</div>
+          <div class="ehc-bar-wrap"><div class="ehc-bar" style="width:${scholarRate||0}%;background:${scholarRate!==null?(scholarRate>=85?'#0d6e3a':scholarRate>=75?'#d97706':'#b91c1c'):'var(--border)'}"></div></div>
+          <div class="ehc-sub">Target: ≥85%</div>
+        </div>
+        <div class="exec-health-card" style="--em-color:${tutorRate!==null?(tutorRate>=85?'#0d6e3a':tutorRate>=75?'#d97706':'#b91c1c'):'var(--border)'}">
+          <div class="ehc-icon">👩‍🏫</div>
+          <div class="ehc-val" style="color:${tutorRate!==null?(tutorRate>=85?'#0d6e3a':tutorRate>=75?'#d97706':'#b91c1c'):'var(--muted)'}">${Dp(tutorRate)}</div>
+          <div class="ehc-label">Tutor Attendance Rate</div>
+          <div class="ehc-bar-wrap"><div class="ehc-bar" style="width:${tutorRate||0}%;background:${tutorRate!==null?(tutorRate>=85?'#0d6e3a':tutorRate>=75?'#d97706':'#b91c1c'):'var(--border)'}"></div></div>
+          <div class="ehc-sub">Target: ≥85%</div>
+        </div>
+        <div class="exec-health-card" style="--em-color:#f59e0b">
+          <div class="ehc-icon">⭐</div>
+          <div class="ehc-val" style="color:#d97706">${poStats&&poStats.surveyAvg?poStats.surveyAvg.toFixed(1)+'<span style="font-size:1rem">/5</span>':'—'}</div>
+          <div class="ehc-label">Scholar Survey Avg</div>
+          <div class="ehc-bar-wrap"><div class="ehc-bar" style="width:${poStats&&poStats.surveyAvg?Math.round(poStats.surveyAvg/5*100):0}%;background:#f59e0b"></div></div>
+          <div class="ehc-sub">Confidence · Learning · Overall</div>
+        </div>
+        <div class="exec-health-card" style="--em-color:var(--blue-mid)">
+          <div class="ehc-icon">📋</div>
+          <div class="ehc-val">${D(sessions)}</div>
+          <div class="ehc-label">Sessions Delivered</div>
+          <div class="ehc-bar-wrap" style="display:none"></div>
+          <div class="ehc-sub">${sessionMinutes>0?sessionMinutes.toLocaleString()+' total minutes':''}</div>
+        </div>
+      </div>
+
+      <!-- Scholar Attendance Tiers -->
+      ${poLeadData ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.125rem 1.375rem;box-shadow:var(--shadow-sm);margin-bottom:1.5rem">
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.875rem">
+          📊 Scholar Attendance Health — ${D((poLeadData.scholarOnTrack||0)+(poLeadData.scholarAtRisk||0)+(poLeadData.scholarNeedsAction||0))} Active Scholars
+        </div>
+        ${tierBars()}
+      </div>` : ''}
+
+      <!-- ── LAYER 3: ACADEMIC IMPACT ── -->
+      <div class="exec-layer-header" style="--layer-color:var(--data)">
+        <div class="exec-layer-label">Layer 3 — Academic Impact</div>
+        <button class="exec-layer-action" onclick="showPanel('irlab',document.querySelector('[data-panel=irlab]'))">View i-Ready Analytics →</button>
+      </div>
+      ${irlLoaded ? `
+      <div class="exec-academic-banner">
+        <div class="eab-left">
+          <div class="eab-eyebrow">i-Ready Academic Evaluation · NJTC Framework</div>
+          <div class="eab-title">Scholar Growth Summary</div>
+          <div class="eab-note">Median % to Typical Growth measures NJTC program impact.<br>100% Typical Growth ≈ 30 weeks of uninterrupted instruction.</div>
+        </div>
+        <div class="eab-stats">
+          ${pctMoved!=null?`<div class="eab-stat"><div class="eab-stat-val" style="color:#f0a500">${pctMoved}%</div><div class="eab-stat-lbl">Scholars moved up</div></div>`:''}
+          ${pctOnGL!=null?`<div class="eab-stat"><div class="eab-stat-val" style="color:#4ade80">${pctOnGL}%</div><div class="eab-stat-lbl">At grade level</div></div>`:''}
+          ${irlSummary.avgGain!=null?`<div class="eab-stat"><div class="eab-stat-val" style="color:#60a5fa">+${irlSummary.avgGain.toFixed(1)}</div><div class="eab-stat-lbl">Avg scale gain</div></div>`:''}
+          ${irlSummary.n?`<div class="eab-stat"><div class="eab-stat-val" style="color:#fff">${irlSummary.n.toLocaleString()}</div><div class="eab-stat-lbl">Scholars analyzed</div></div>`:''}
+        </div>
+      </div>` : `
+      <div class="exec-no-data" style="margin-bottom:1.5rem">
+        📊 i-Ready data not yet loaded for this session. Visit the i-Ready Analytics panel to initialize academic data — it will appear here automatically.
+      </div>`}
+
+      <!-- ── LAYER 4: SCHOOL PERFORMANCE LEADERBOARD ── -->
+      <div class="exec-layer-header" style="--layer-color:var(--prog)">
+        <div class="exec-layer-label">Layer 4 — School Performance Leaderboard</div>
+        <button class="exec-layer-action" onclick="showPanel('pearl-ops',document.querySelector('[data-panel=pearl-ops]'))">View All Sites →</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <div class="exec-leaderboard">
+          <div class="exec-lb-header">
+            <div class="exec-lb-title">🏆 Top Schools by Attendance</div>
+          </div>
+          <div class="exec-lb-body">
+            ${leaderboardRows('attendance')}
+          </div>
+        </div>
+        <div class="exec-leaderboard">
+          <div class="exec-lb-header">
+            <div class="exec-lb-title">🗺️ District Scorecard</div>
+          </div>
+          <div class="exec-lb-body">
+            ${districtRows()}
+          </div>
+        </div>
+      </div>
+
+      <!-- ── LAYER 5: KPI TRACKING ── -->
+      <div class="exec-layer-header" style="--layer-color:var(--gold)">
+        <div class="exec-layer-label">Layer 5 — KPI Goal Tracking</div>
+        <button class="exec-layer-action" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'))">View Full KPI Table →</button>
+      </div>
+      <div class="exec-kpi-row">
+        <div class="exec-kpi-tile" style="--kpi-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
+          <div class="exec-kpi-n">${kpiMet}</div>
+          <div class="exec-kpi-lbl">Goals Met</div>
+        </div>
+        <div class="exec-kpi-tile" style="--kpi-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
+          <div class="exec-kpi-n">${kpiProg}</div>
+          <div class="exec-kpi-lbl">In Progress</div>
+        </div>
+        <div class="exec-kpi-tile" style="--kpi-color:var(--partial)">
+          <div class="exec-kpi-n">${kpiPartial}</div>
+          <div class="exec-kpi-lbl">Partially Met</div>
+        </div>
+        <div class="exec-kpi-tile" style="--kpi-color:var(--pipeline)">
+          <div class="exec-kpi-n">${kpiPipe}</div>
+          <div class="exec-kpi-lbl">Pipeline</div>
+        </div>
+        <div class="exec-kpi-tile" style="--kpi-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
+          <div class="exec-kpi-n">${kpiNotmet}</div>
+          <div class="exec-kpi-lbl">Not Met</div>
+        </div>
+      </div>
+      ${kpiTotal > 0 ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.75rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.5rem">KPI Progress Overview — ${kpiTotal} Total Targets</div>
+        <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;display:flex">
+          ${kpiMet>0?`<div style="width:${Math.round(kpiMet/kpiTotal*100)}%;background:var(--met)"></div>`:''}
+          ${kpiProg>0?`<div style="width:${Math.round(kpiProg/kpiTotal*100)}%;background:var(--progress)"></div>`:''}
+          ${kpiPartial>0?`<div style="width:${Math.round(kpiPartial/kpiTotal*100)}%;background:var(--partial)"></div>`:''}
+          ${kpiPipe>0?`<div style="width:${Math.round(kpiPipe/kpiTotal*100)}%;background:var(--pipeline)"></div>`:''}
+          ${kpiNotmet>0?`<div style="width:${Math.round(kpiNotmet/kpiTotal*100)}%;background:var(--notmet)"></div>`:''}
+        </div>
+        <div style="display:flex;gap:1rem;margin-top:.5rem;flex-wrap:wrap">
+          <span style="font-size:.6875rem;color:var(--met)">✅ ${Math.round(kpiMet/kpiTotal*100)}% Met</span>
+          <span style="font-size:.6875rem;color:var(--progress)">🔵 ${Math.round(kpiProg/kpiTotal*100)}% In Progress</span>
+          <span style="font-size:.6875rem;color:var(--partial)">🟠 ${Math.round(kpiPartial/kpiTotal*100)}% Partial</span>
+          <span style="font-size:.6875rem;color:var(--notmet)">🔴 ${Math.round(kpiNotmet/kpiTotal*100)}% Not Met</span>
+        </div>
+      </div>` : ''}
+
+      <!-- ── LAYER 6: LEADERSHIP-RESTRICTED — Concerns ── -->
+      ${showConcerns ? `
+      <div class="exec-layer-header" style="--layer-color:var(--notmet)">
+        <div class="exec-layer-label">Layer 6 — Talent Risk Signals <span style="background:rgba(185,28,28,.1);color:var(--notmet);font-size:.6rem;padding:.1rem .4rem;border-radius:6px;margin-left:.375rem;border:1px solid rgba(185,28,28,.2)">🔒 Restricted</span></div>
+        <button class="exec-layer-action" onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))">View Talent Analytics →</button>
+      </div>
+      <div class="exec-restricted-bar">
+        <div class="exec-restricted-icon">⚠️</div>
+        <div class="exec-restricted-text">
+          <div class="exec-restricted-title">Performance Concern Log</div>
+          <div class="exec-restricted-sub">Documented concerns across ${concernDistricts} district${concernDistricts!==1?'s':''} this school year — visible to Leadership and Data only</div>
+        </div>
+        <div>
+          <div class="exec-restricted-count ${concernCount===0?'ok':''}">${concernCount}</div>
+          <div style="font-size:.6875rem;color:var(--muted);text-align:right">Total Concerns</div>
+        </div>
+      </div>` : ''}
+
+      <div style="height:.25rem"></div>
+    `;
+  }
+
+  // Refresh hook — can be called after Pearl/iReady data loads
+  window.refreshExecDashboard = function() {
+    const sess = window.NJTC_SESSION;
+    if (sess && _execDashLastDept) buildExecDashboard(sess.dept);
+    else if (sess) buildExecDashboard(sess.dept);
+  };
 
   // ══════════════════════════════════════════════════════════
   //  SIDEBAR DEPT CARD + CONNECTIONS
@@ -12645,6 +13373,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
       else if (_view === 'school')     renderSchoolDetail();
       else if (_view === 'person')     renderPersonDetail();
+      // ── Refresh exec dashboard if home panel is visible ──────────────
+      try {
+        const homePanel = document.getElementById('panel-home');
+        if (homePanel && homePanel.classList.contains('active') && window.refreshExecDashboard) {
+          window.refreshExecDashboard();
+        }
+      } catch(e) {}
     }
 
     function updateDurationPill() {
@@ -15953,6 +16688,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       loadData();
       const el = document.getElementById('irlabContainer');
       if (!el) return;
+      // ── Refresh exec dashboard if home panel is visible ───────────────
+      try {
+        const homePanel = document.getElementById('panel-home');
+        if (homePanel && homePanel.classList.contains('active') && window.refreshExecDashboard) {
+          window.refreshExecDashboard();
+        }
+      } catch(e) {}
 
       if (_irlScholarDrill) { el.innerHTML=`<div class="irlab-wrap">${renderScholarDrill(_irlScholarDrill)}</div>`; return; }
       if (_irlTutorDrill)   { el.innerHTML=`<div class="irlab-wrap">${renderTutorDrill(_irlTutorDrill, _irlDept)}</div>`; return; }
