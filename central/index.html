@@ -3527,6 +3527,16 @@
     .ecd-race-n { font-size:.62rem; color:#94a3b8; width:34px; text-align:right; flex-shrink:0; }
     .ecd-race-foot { margin-top:.5rem; padding-top:.5rem; border-top:1px solid #f1f5f9; font-size:.6rem; color:#94a3b8; font-weight:600; }
 
+    /* ── irlab inner layout grids (responsive) ─────────────────── */
+    .irlab-kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem 1.25rem; }
+    @media(max-width:900px) { .irlab-kpi-strip { grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:480px) { .irlab-kpi-strip { grid-template-columns:1fr 1fr; } }
+    .irlab-2col { display:grid; grid-template-columns:1fr 1fr; gap:.875rem; margin-bottom:.875rem; }
+    @media(max-width:700px) { .irlab-2col { grid-template-columns:1fr; } }
+    .irlab-kpi-strip > div, .irlab-2col > div { min-width:0; }
+    .irlab-wrap { box-sizing:border-box; }
+    .irlab-card { box-sizing:border-box; }
+
     </style>
 
 
@@ -5732,6 +5742,53 @@
         <div class="ecd-goal g-pipe"><div class="ecd-goal-n">${kPipe}</div><div class="ecd-goal-lbl">Pipeline</div></div>
         <div class="ecd-goal g-not"><div class="ecd-goal-n">${kNot}</div><div class="ecd-goal-lbl">Not Met</div></div>
       </div>
+
+      <!-- ═══ 5b. STAFF DIVERSITY ═══ -->
+      ${(function(){
+        const _hrPool    = (typeof HR_EMPS !== 'undefined' && HR_EMPS.length) ? HR_EMPS : [];
+        const _activeP   = _hrPool.filter(e => e.s === 'Active');
+        const _withDivP  = _activeP.filter(e => e._race || e._ethnicity);
+        if (!_withDivP.length) return '';
+        const _tot    = _activeP.length;
+        const _withR  = _withDivP.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
+        const _withE  = _withDivP.filter(e => e._ethnicity && e._ethnicity !== '' && !/not listed|prefer not/i.test(e._ethnicity||''));
+        const _nw     = _withR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
+        const _hisp   = _withE.filter(e => /hispanic|latino/i.test(e._ethnicity||'')).length;
+        const _div    = _activeP.filter(e =>
+          ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
+          (/hispanic|latino/i.test(e._ethnicity||''))
+        ).length;
+        const _divPct  = _tot   ? Math.round(_div/_tot*100)          : 0;
+        const _nwPct   = _withR.length ? Math.round(_nw/_withR.length*100)   : 0;
+        const _hispPct = _withE.length ? Math.round(_hisp/_withE.length*100) : 0;
+        const _rMap = {};
+        _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
+        const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+        return `<div class="ecd-divider"><div class="ecd-divider-txt">Staff Diversity & Equity</div><div class="ecd-divider-line"></div></div>
+<div style="background:#fff;border:1px solid #e8edf4;border-radius:12px;padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:.75rem">
+  <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:stretch">
+    <div style="background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border-radius:10px;padding:.625rem .875rem;min-width:100px;text-align:center">
+      <div style="font-size:1.375rem;font-weight:900;line-height:1;color:#f0a500">${_divPct}%</div>
+      <div style="font-size:.58rem;opacity:.75;margin-top:.15rem">Non-White or Hispanic</div>
+      <div style="font-size:.55rem;opacity:.45">${_div} of ${_tot} active staff</div>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.625rem .875rem;min-width:100px;text-align:center">
+      <div style="font-size:1.375rem;font-weight:900;line-height:1;color:#059669">${_nwPct}%</div>
+      <div style="font-size:.58rem;color:#065f46;margin-top:.15rem;font-weight:700">Non-White</div>
+      <div style="font-size:.55rem;color:#94a3b8">${_nw} of ${_withR.length}</div>
+    </div>
+    <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:.625rem .875rem;min-width:100px;text-align:center">
+      <div style="font-size:1.375rem;font-weight:900;line-height:1;color:#d97706">${_hispPct}%</div>
+      <div style="font-size:.58rem;color:#92400e;margin-top:.15rem;font-weight:700">Hispanic / Latino</div>
+      <div style="font-size:.55rem;color:#94a3b8">${_hisp} of ${_withE.length}</div>
+    </div>
+    ${_rRows.length ? `<div style="display:flex;flex-direction:column;justify-content:center;gap:.3rem;flex:1;min-width:160px;padding:.25rem 0">
+      ${_rRows.map(([r,n])=>{const p=_withR.length?Math.round(n/_withR.length*100):0;const isW=(r||'').toLowerCase()==='white';return `<div style="display:flex;align-items:center;gap:.375rem"><div style="font-size:.62rem;color:#1e293b;font-weight:600;width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r}</div><div style="flex:1;height:5px;background:#f1f5f9;border-radius:99px;overflow:hidden"><div style="height:100%;width:${p}%;background:${isW?'#cbd5e1':'#0050c8'};border-radius:99px"></div></div><div style="font-size:.61rem;font-weight:700;color:${isW?'#94a3b8':'#0050c8'};width:26px;text-align:right">${p}%</div></div>`;}).join('')}
+    </div>` : ''}
+  </div>
+  <div style="font-size:.6rem;color:#94a3b8;font-weight:600">Active on-site staff · Live HR sheet · ${_withR.length} of ${_tot} with race data on file</div>
+</div>`;
+      }())}
 
       <!-- ═══ 6. TALENT RISK ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Talent Risk Intelligence</div><div class="ecd-divider-line"></div></div>
@@ -9143,18 +9200,21 @@
       yr: ci('academic'), email: ci('email'), name: ci('full name'),
       role: ci('position'), site: ci('site'), district: ci('district'),
       rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
+      race: ci('race'), ethnicity: ci('ethnicity'),
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
-        yr:       (r[C.yr]      ||'').trim(),
-        name:     (r[C.name]    ||'').trim(),
-        email:    (r[C.email]   ||'').trim().toLowerCase(),
-        role:     (r[C.role]    ||'').trim(),
-        site:     (r[C.site]    ||'').trim(),
-        district: (r[C.district]||'').trim(),
-        status:   (r[C.status]  ||'').trim(),
-        cycles:   (r[C.cycles]  ||'').trim(),
-        rehire:   (r[C.rehire]  ||'').trim(),  // live rehire status from Master List
+        yr:        (r[C.yr]         ||'').trim(),
+        name:      (r[C.name]       ||'').trim(),
+        email:     (r[C.email]      ||'').trim().toLowerCase(),
+        role:      (r[C.role]       ||'').trim(),
+        site:      (r[C.site]       ||'').trim(),
+        district:  (r[C.district]   ||'').trim(),
+        status:    (r[C.status]     ||'').trim(),
+        cycles:    (r[C.cycles]     ||'').trim(),
+        rehire:    (r[C.rehire]     ||'').trim(),  // live rehire status from Master List
+        race:      C.race      >= 0 ? (r[C.race]      ||'').trim() : '',
+        ethnicity: C.ethnicity >= 0 ? (r[C.ethnicity] ||'').trim() : '',
       }))
       .filter(r => r.name && r.yr);
   }
@@ -9198,13 +9258,15 @@
       const curSYRows = rows.filter(r => r.yr === '2025-2026');
       const latest = (curSYRows.length ? curSYRows : rows).sort((a,b)=>b.yr.localeCompare(a.yr))[0];
       // Live sheet is source of truth — overwrite all fields
-      if (latest.name)     emp.n  = latest.name;
-      if (latest.role)     emp.r  = latest.role;
-      if (latest.site)     emp.si = latest.site.slice(0,45);
-      if (latest.district) emp.di = latest.district.slice(0,45);
-      if (latest.status)   emp.s  = latest.status;
-      if (latest.rehire)   emp.rh = latest.rehire;
-      if (latest.email)    emp.e  = latest.email;
+      if (latest.name)      emp.n          = latest.name;
+      if (latest.role)      emp.r          = latest.role;
+      if (latest.site)      emp.si         = latest.site.slice(0,45);
+      if (latest.district)  emp.di         = latest.district.slice(0,45);
+      if (latest.status)    emp.s          = latest.status;
+      if (latest.rehire)    emp.rh         = latest.rehire;
+      if (latest.email)     emp.e          = latest.email;
+      if (latest.race)      emp._race      = latest.race;
+      if (latest.ethnicity) emp._ethnicity = latest.ethnicity;
       // Track all SYs this person has appeared in
       const allYrs = [...new Set(rows.map(r=>r.yr).filter(Boolean))].sort().reverse();
       emp.y = allYrs;
@@ -9253,6 +9315,7 @@
         mp:null, py:'', am:null, em:null, lm:null, acm:null,
         pi:null, pr:null, p2:null, att:null, je:null, jl:null,
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
+        _race: latest.race||null, _ethnicity: latest.ethnicity||null,
         _live:true, _liveYears:['2025-2026'],
       });
       _hrLiveAddedKeys.add(k);
@@ -9835,14 +9898,16 @@ ${hasAcad ? `
 </div>` : ''}
 
 <!-- Rehire pipeline -->
-<div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+<div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:1.125rem">
   <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.5rem">🔁 Rehire Pipeline</div>
   <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:.875rem">
     <span><strong style="color:#0d6e3a">${HR_EMPS.filter(e=>(e.rh==='Yes'||e.rh===true)&&e.s!=='Active').length}</strong> <span style="color:var(--muted)">eligible for rehire</span></span>
     <span><strong style="color:#b91c1c">${noRehire.length}</strong> <span style="color:var(--muted)">do not rehire</span></span>
     <span><strong style="color:var(--navy)">${HR_EMPS.filter(e=>e.c>=3&&(e.rh==='Yes'||e.rh===true)).length}</strong> <span style="color:var(--muted)">3+ cycle veterans eligible</span></span>
   </div>
-</div>`;
+</div>
+${_buildStaffDiversityHtml(HR_EMPS.filter(e=>e.s==='Active'), 'Active Staff — Race & Ethnicity')}
+${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Ethnicity')}`;
   }
 
   // ── FULL HR / DATA VIEW ───────────────────────────────────────────────────
@@ -9858,6 +9923,8 @@ ${hasAcad ? `
     const active    = allEmps.filter(e => e.s === 'Active');
     const inactive  = allEmps.filter(e => e.s !== 'Active');
     const src       = _hrStatus === 'live' ? '🟢 Live' : '📋 Snapshot';
+    // ── Diversity section for current SY pool ────────────────────
+    const _divHtml  = _buildStaffDiversityHtml(allEmps, `Staff Diversity · ${curSY === 'all' ? 'All Years' : curSY}`);
 
     // ── Summary stats for active cohort ──────────────────────────
     const activeTiers = {stellar:0, strong:0, developing:0, needs_support:0, incomplete:0};
@@ -10016,6 +10083,7 @@ ${hasAcad ? `
 
     return `
 ${summaryBar}
+${_divHtml}
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
   <div style="font-size:.72rem;font-weight:700;color:var(--navy)">Employee Profiles</div>
   <div style="display:flex;align-items:center;gap:.5rem">
@@ -10275,6 +10343,69 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   let _hrLastOverlayVersion = -1;
 
   function _hrInvalidateOverlay() { _hrOverlayVersion++; }  // call when data changes
+
+  // ── Staff Diversity & Equity Analytics ────────────────────────────────────
+  function _buildStaffDiversityHtml(pool, title) {
+    if (!pool || !pool.length) return '';
+    const withRace = pool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
+    const withEth  = pool.filter(e => e._ethnicity && e._ethnicity !== '' && !/not listed|prefer not/i.test(e._ethnicity||''));
+    if (!withRace.length && !withEth.length) return '';
+    const tot = pool.length;
+    // Race breakdown
+    const raceMap = {};
+    withRace.forEach(e => { const r = e._race||'Unknown'; raceMap[r] = (raceMap[r]||0)+1; });
+    const nonWhiteCount = withRace.filter(e => (e._race||'').toLowerCase() !== 'white').length;
+    const nonWhitePct   = withRace.length ? Math.round(nonWhiteCount/withRace.length*100) : 0;
+    // Ethnicity breakdown
+    const ethMap = {};
+    withEth.forEach(e => { const v = e._ethnicity||'Unknown'; ethMap[v] = (ethMap[v]||0)+1; });
+    const hispCount = withEth.filter(e => /hispanic|latino/i.test(e._ethnicity||'')).length;
+    const hispPct   = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
+    // Combined: non-white OR Hispanic/Latino
+    const diverseCount = pool.filter(e =>
+      ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
+      (/hispanic|latino/i.test(e._ethnicity||''))
+    ).length;
+    const diversePct = tot ? Math.round(diverseCount/tot*100) : 0;
+    const raceRows = Object.entries(raceMap).sort((a,b)=>b[1]-a[1]);
+    const ethRows  = Object.entries(ethMap).sort((a,b)=>b[1]-a[1]);
+    const pBar = (p, color) => `<div style="flex:1;height:6px;border-radius:99px;background:#f1f5f9;overflow:hidden"><div style="height:100%;width:${p}%;background:${color};border-radius:99px;transition:width .6s"></div></div>`;
+
+    return `
+<div style="padding:1rem 1.125rem;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;margin-bottom:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:.5rem">
+    <div style="font-size:.7rem;font-weight:900;text-transform:uppercase;color:#475569;letter-spacing:.1em">👥 ${title||'Staff Diversity & Equity'}</div>
+    <span style="font-size:.6rem;color:#94a3b8;font-weight:600">${tot} staff · ${withRace.length} race on file · ${withEth.length} ethnicity on file · Live HR Sheet</span>
+  </div>
+  <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.875rem">
+    <div style="background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#f0a500">${diversePct}%</div>
+      <div style="font-size:.62rem;opacity:.75;margin-top:.2rem">Non-White or Hispanic</div>
+      <div style="font-size:.58rem;opacity:.45">${diverseCount} of ${tot} staff</div>
+    </div>
+    <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#059669">${nonWhitePct}%</div>
+      <div style="font-size:.62rem;color:#065f46;margin-top:.2rem;font-weight:700">Non-White (Race)</div>
+      <div style="font-size:.58rem;color:#94a3b8">${nonWhiteCount} of ${withRace.length} w/ race data</div>
+    </div>
+    <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#d97706">${hispPct}%</div>
+      <div style="font-size:.62rem;color:#92400e;margin-top:.2rem;font-weight:700">Hispanic / Latino</div>
+      <div style="font-size:.58rem;color:#94a3b8">${hispCount} of ${withEth.length} w/ eth. data</div>
+    </div>
+  </div>
+  ${raceRows.length ? `
+  <div style="margin-bottom:.75rem">
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Race Distribution</div>
+    ${raceRows.map(([race,n])=>{const p=withRace.length?Math.round(n/withRace.length*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#0050c8';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
+  </div>` : ''}
+  ${ethRows.length ? `
+  <div>
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Ethnicity Distribution</div>
+    ${ethRows.map(([eth,n])=>{const p=withEth.length?Math.round(n/withEth.length*100):0;const isH=/hispanic|latino/i.test(eth);const bc=isH?'#d97706':'#7c3aed';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eth)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
+  </div>` : ''}
+</div>`;
+  }
 
   function _hrBuildProfiles(dept) {
     // Only re-apply overlays when data has actually changed (prevents cascade re-renders)
@@ -17410,9 +17541,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }
       </div>`;
 
-      // Pre-compute key values
-      const elaMedian  = medianArr(allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
-      const mathMedian = medianArr(allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+      // Pre-compute key values — use getSummary for medians to include repeat data & match exec dashboard
+      const _irlCtxSum  = getSummary(_irlYear !== 'all' ? _irlYear : 'ALL');
+      const _elaRaw     = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.elaMedianPctTypical  : _irlCtxSum.elaMedianPctAllYears)  : null;
+      const _mathRaw    = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.mathMedianPctTypical : _irlCtxSum.mathMedianPctAllYears) : null;
+      // getSummary returns integers (100 = 100%); convert to ratio (1.0) to match existing display code
+      const elaMedian   = _elaRaw  !== null && _elaRaw  !== undefined ? _elaRaw  / 100 : medianArr(allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+      const mathMedian  = _mathRaw !== null && _mathRaw !== undefined ? _mathRaw / 100 : medianArr(allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
       const elaMeetPct = (()=>{ const t=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return t.length?pct(t.filter(v=>v>=1.0).length,t.length):null; })();
       const mathMeetPct= (()=>{ const t=allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return t.length?pct(t.filter(v=>v>=1.0).length,t.length):null; })();
       const elaGainAvg = (()=>{ const g=rows.filter(r=>r.subject==='ELA').map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v)); return g.length?avg(g):null; })();
@@ -17443,7 +17578,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           <div style="position:absolute;inset:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22200%22><circle cx=%22350%22 cy=%2250%22 r=%22120%22 fill=%22rgba(255,255,255,.03)%22/><circle cx=%2250%22 cy=%22150%22 r=%2280%22 fill=%22rgba(255,255,255,.02)%22/></svg>');background-size:cover;pointer-events:none"></div>
           <div style="position:relative">
             <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:.625rem">📊 NJTC · iReady Academic Impact · Live Data</div>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem 1.25rem">
+            <div class="irlab-kpi-strip">
               ${[
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
                 { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80' },
@@ -17476,7 +17611,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         ${dataUpdatePanel}
 
         <!-- ── ROW: MATH vs ELA + PLACEMENT SHIFT (2-col) ── -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:.875rem">
+        <div class="irlab-2col">
           <!-- Math vs ELA -->
           <div class="irlab-card" style="margin:0">
             <div class="irlab-card-hd"><div class="irlab-card-title">📐 ELA vs Math</div></div>
@@ -17484,7 +17619,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
                 ${[{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖',aRows:allELA},{label:'Math',sc:mathM,color:'#0050c8',icon:'➗',aRows:allMath}].map(({label,sc,color,icon,aRows})=>{
                   if (!sc) return `<div style="border:1.5px solid ${color}22;border-radius:10px;padding:.875rem;background:${color}07;text-align:center;color:var(--muted);font-size:.75rem">No ${label} data</div>`;
-                  const medT = medianArr(aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const _subjRaw = _irlCtxSum ? (label==='ELA' ? (_irlYear!=='all'?_irlCtxSum.elaMedianPctTypical:_irlCtxSum.elaMedianPctAllYears) : (_irlYear!=='all'?_irlCtxSum.mathMedianPctTypical:_irlCtxSum.mathMedianPctAllYears)) : null;
+                  const medT = (_subjRaw!==null&&_subjRaw!==undefined) ? _subjRaw/100 : medianArr(aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const totT = aRows.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical));
                   const metT = totT.filter(v=>v.pctTypical>=1.0);
                   return `<div style="border:1.5px solid ${color}33;border-radius:10px;padding:.875rem;background:${color}06">
@@ -17524,7 +17660,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         </div>
 
         <!-- ── ROW: CHARTS B + C (side by side) ── -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:.875rem">
+        <div class="irlab-2col">
           ${renderGrowthDistChart()}
           ${renderPlacementDistChart()}
         </div>
@@ -19669,7 +19805,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if (_cache.irl !== undefined) return _cache.irl;
       var d = null;
       try {
-        if (window.irlab && window.irlab.getSummary) d = window.irlab.getSummary();
+        if (window.irlab && window.irlab.getSummary) d = window.irlab.getSummary('ALL');
         if (!d) { var snap=window.irlab&&window.irlab.getSnapshot?window.irlab.getSnapshot():null; if(snap&&snap.summary) d=snap.summary; }
       } catch(e) {}
       _cache.irl = d;
