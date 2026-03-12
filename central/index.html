@@ -5460,9 +5460,11 @@
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
     const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
-    // Scholar counts: use unique scholars served (attended ≥1 session) to match Pearl Operations session analytics
-    const activeScholars   = ldData ? (ldData.scholarsServed   || ldData.activeScholars   || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
-    const rosteredScholars = ldData ? (ldData.scholarsServed   || ldData.rosteredScholars || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
+    // Scholar counts: use Pearl Ops _personMap count (scholars with ≥1 attended session) as primary source
+    // so exec and Pearl Operations panel always show the same number.
+    const _pearlScholars = poStats ? poStats.activeScholars : null;
+    const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
+    const rosteredScholars = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.rosteredScholars) : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
@@ -15665,7 +15667,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     function normalizeRow(r, subject) {
-      const instRaw = g(r,'Instructor').trim();
+      // Case-normalize keys so lookups work regardless of exact column name casing in the sheet
+      const _rn = {};
+      for (const k of Object.keys(r)) {
+        _rn[k] = r[k];
+        const lk = k.toLowerCase().replace(/ /g, '_');
+        if (!(_rn[lk] !== undefined)) _rn[lk] = r[k];
+      }
+      r = _rn;
+      const instRaw = g(r,'Instructor','Tutor','tutor','instructor').trim();
       return {
         subject,
         year:             g(r,'Academic year','academic_year'),
@@ -15675,8 +15685,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         certStatus:       g(r,'Certification Status'),
         instructor:       instRaw,
         tutors:           instRaw ? instRaw.split(',').map(n=>n.trim()).filter(Boolean) : [],
-        scholarId:        g(r,'Student id','student_id'),
-        scholarName:      g(r,'First and Last Name'),
+        scholarId:        g(r,'Student id','student_id','Student ID','Student Id','Local Student ID','local_student_id','Id','ID'),
+        scholarName:      g(r,'First and Last Name','first_and_last_name','Student Name','student_name','Scholar Name','Name','Full Name'),
         sex:              g(r,'Sex'),
         hispanic:         g(r,'Hispanic or latino','hispanic_or_latino'),
         race:             g(r,'Race Analytics'),
@@ -15842,42 +15852,75 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }));
 
       // 5. Assign GIDs by header signature
+      // Helper: detect subject from first data row (handles Subject, subject, or Language Arts variants)
+      function _detectSubject(rows) {
+        if (!rows.length) return '';
+        const s = (rows[0]['Subject'] || rows[0]['subject'] || rows[0]['SUBJECT'] || '').toLowerCase();
+        return s;
+      }
+      const _isElaSubject = s => s.includes('ela') || s.includes('reading') || s.includes('language');
+      const _isMathSubject = s => s.includes('math');
+      const _isLongitudinalHdr = h => (h.includes('academic year') || h.includes('school year')) && !h.includes('repeat scholar');
+      const _hasStaffCol = h => h.includes('instructor') || h.includes('tutor');
+
       const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
       for (const row of results.filter(Boolean)) {
         const h = row.hdr;
-        // Math/ELA longitudinal: has "academic year" + "instructor" — check subject to assign correctly
-        if (h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar') && (!resolved.math || !resolved.ela)) {
-          // Parse full CSV text to safely read the Subject column — avoids split(',') failures on quoted fields
+        // Math/ELA longitudinal: has "academic year"/"school year" + "instructor"/"tutor" header
+        if (_isLongitudinalHdr(h) && _hasStaffCol(h) && (!resolved.math || !resolved.ela)) {
+          // Parse full CSV text to safely read the Subject column
           const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
             const fullText = await r2.text();
             const rows = parseCSV(fullText);
-            const firstDataSubject = (rows.length > 0 ? (rows[0]['Subject'] || rows[0]['subject'] || '') : '').toLowerCase();
-            if (firstDataSubject.includes('math')) { resolved.math = row.gid; continue; }
-            if (firstDataSubject.includes('ela') || firstDataSubject.includes('reading')) { resolved.ela = row.gid; continue; }
-            // Can't determine subject — assign by order (math first)
-            if (!resolved.math) { resolved.math = row.gid; } else { resolved.ela = row.gid; }
+            const subj = _detectSubject(rows);
+            if (_isMathSubject(subj) && !resolved.math) { resolved.math = row.gid; continue; }
+            if (_isElaSubject(subj) && !resolved.ela) { resolved.ela = row.gid; continue; }
+            // Subject field empty or unrecognised — assign by order (math first)
+            if (!resolved.math) { resolved.math = row.gid; } else if (!resolved.ela) { resolved.ela = row.gid; }
           }
         }
         // Repeat scholars: has "repeat scholar" in header
-        if (h.includes('repeat scholar') && h.includes('instructor')) {
-          // Parse full CSV text to safely read the Subject column — avoids split(',') failures on quoted fields
+        if (h.includes('repeat scholar') && _hasStaffCol(h)) {
           const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
             const fullText = await r2.text();
             const rows = parseCSV(fullText);
-            const firstDataSubject = (rows.length > 0 ? (rows[0]['Subject'] || rows[0]['subject'] || '') : '').toLowerCase();
-            if (firstDataSubject.includes('math') && !resolved.mathRep) { resolved.mathRep = row.gid; }
+            const subj = _detectSubject(rows);
+            if (_isMathSubject(subj) && !resolved.mathRep) { resolved.mathRep = row.gid; }
             else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
           }
         }
       }
 
-      // 6. Fallback: if only one tab found with instructor data, assign it as math
+      // 6. ELA fallback: if ela still null, check unmatched tabs for longitudinal academic data
+      if (!resolved.ela) {
+        const assignedGids = new Set(Object.values(resolved).filter(Boolean));
+        for (const row of results.filter(Boolean)) {
+          if (assignedGids.has(row.gid)) continue;
+          const h = row.hdr;
+          // Accept tabs with academic year indicator — instructor column may be absent for ELA tab
+          if (_isLongitudinalHdr(h)) {
+            const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
+            if (r2 && r2.ok) {
+              const fullText = await r2.text();
+              const rows = parseCSV(fullText);
+              const subj = _detectSubject(rows);
+              if (_isElaSubject(subj) || (!_isMathSubject(subj) && rows.length > 0)) {
+                resolved.ela = row.gid;
+                console.log('[irlab] ELA GID found via extended fallback: gid=' + row.gid + ' subject=' + subj);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 7. Final fallback: if only one tab found with instructor/tutor data, assign it as math
       if (!resolved.math && !resolved.ela) {
-        const withInstructor = results.filter(r => r && r.hdr.includes('instructor'));
-        if (withInstructor.length > 0) resolved.math = withInstructor[0].gid;
-        if (withInstructor.length > 1) resolved.ela  = withInstructor[1].gid;
+        const withStaff = results.filter(r => r && _hasStaffCol(r.hdr));
+        if (withStaff.length > 0) resolved.math = withStaff[0].gid;
+        if (withStaff.length > 1) resolved.ela  = withStaff[1].gid;
       }
 
       IRLAB_LIVE_GIDS = resolved;
@@ -15913,19 +15956,46 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const base='https://docs.google.com/spreadsheets/d/e/'+IRLAB_LIVE_2PACX+'/pub?output=csv';
       const bust=force?'&t='+Date.now():'';
       const res={};
+      const _gidSeen = new Set(); // avoid double-fetching when math and ela map to same gid
       for (const [tab,gid] of Object.entries(IRLAB_LIVE_GIDS)) {
         if (!gid) continue;
-        const subj = tab.startsWith('math') ? 'Math' : 'ELA';
+        const isRepeat = tab.includes('Rep') || tab.includes('rep');
+        const defaultSubj = tab.startsWith('math') ? 'Math' : 'ELA';
+        // If this gid was already fetched (math/ela share same tab), reuse and split
+        if (!isRepeat && _gidSeen.has(gid)) {
+          // ELA rows were already extracted from this shared tab when processing math
+          continue;
+        }
         try {
           const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
           if (r.ok) {
             const text = await r.text();
             const parsedRows = parseCSV(text);
-            const parsed = parsedRows
-              .map(row => normalizeRow(row, subj))
+            const allNorm = parsedRows
+              .map(row => {
+                // Use actual Subject field from each row when available; fall back to tab-assigned subject
+                const rawSubj = (row['Subject'] || row['subject'] || row['SUBJECT'] || '').toLowerCase();
+                const rowSubj = rawSubj.includes('ela') || rawSubj.includes('reading') || rawSubj.includes('language') ? 'ELA'
+                              : rawSubj.includes('math') ? 'Math'
+                              : defaultSubj;
+                return normalizeRow(row, rowSubj);
+              })
               .filter(r => r.scholarId || r.scholarName);
-            res[tab] = parsed;
-            console.log('[irlab] Live '+tab+': '+parsed.length+' rows (gid='+gid+')');
+            if (isRepeat) {
+              res[tab] = allNorm;
+            } else {
+              // Split by actual subject — so a single mixed-subject tab populates both math and ela
+              const mathRows = allNorm.filter(r => r.subject === 'Math');
+              const elaRows  = allNorm.filter(r => r.subject === 'ELA');
+              if (tab === 'math' || tab === 'ela') {
+                res['math'] = (res['math'] || []).concat(mathRows);
+                res['ela']  = (res['ela']  || []).concat(elaRows);
+                _gidSeen.add(gid);
+              } else {
+                res[tab] = allNorm;
+              }
+            }
+            console.log('[irlab] Live '+tab+': '+allNorm.length+' rows (gid='+gid+')');
           }
         } catch(e) { console.warn('[irlab] live '+tab+':', e.message); }
       }
