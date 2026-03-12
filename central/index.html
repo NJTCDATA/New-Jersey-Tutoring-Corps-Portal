@@ -5434,8 +5434,8 @@
 
     // ── 3. Academic Impact ────────────────────────────────────────────
     // Use all-years program-wide median — honest full-corpus signal across all embedded SYs
-    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : (irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)) : null;
-    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : (irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical))  : null;
+    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical) : null;
+    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical)  : null;
     const mathGain = irl ? irl.mathAvgGain          : null;
     const elaGain  = irl ? irl.elaAvgGain           : null;
     const mathN    = irl ? irl.mathTotal             : null;
@@ -15550,7 +15550,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
-        pctTypical:       (function(){ var _v=parseFloat(g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth')); return isNaN(_v)?null:_v; }()),
+        pctTypical:       (function(){
+          var _raw=g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth');
+          var _v=parseFloat(_raw);
+          if(isNaN(_v)) return null;
+          // Handle %-suffixed values: '16%' → parseFloat gives 16.0 → divide by 100 → 0.16
+          if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
+          // Guard: iReady ratio column is 0–~15 range; if >15 it's a malformed pct-as-integer, normalize
+          else if(_v > 15) { _v=_v/100; }
+          return _v;
+        }()),
         annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
         isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
       };
@@ -15581,7 +15590,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           baseRelPlacement:   L['14'][r[14]],
           springRelPlacement: L['15'][r[15]],
           springGain:         r[16],
-          pctTypical:         r[17],
+          pctTypical:         (function(){ var _pv=r[17]; if(_pv==null) return null; var _pf=parseFloat(_pv); if(isNaN(_pf)) return null; if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;} else if(_pf>15){_pf=_pf/100;} return _pf; }()),
           annualTypical:      (r[17]>0&&r[16]!=null) ? parseFloat((r[16]/r[17]).toFixed(1)) : null,
           baseRushFlag:       r[18] ? '1' : '',
           springRushFlag:     '',
@@ -17469,78 +17478,111 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     window.po                   = po;
 
-  // ── Exec Dashboard refresh hooks ──────────────────────────────────────
-  // Pearl Ops: wrap renderView so exec dashboard refreshes whenever Pearl data updates
+  // ── Exec Dashboard: robust multi-signal render engine ─────────────────────
+  // Works on any network speed. Fires on: poll, Pearl re-render, iReady load,
+  // panel activation. Tracks data fingerprint — only re-paints when data changes.
   (function() {
-    var _poModule = po;  // close over the po module
-    if (_poModule && typeof _poModule.onPanelOpen === 'function') {
-      var _origPoPanelOpen = _poModule.onPanelOpen.bind(_poModule);
-      // We can't wrap internal renderView directly, so poll after Pearl fires
-    }
-    // Intercept setSyncState-equivalent: patch window.po's renderView side-effect
-    // by observing Pearl's final load via a MutationObserver on the pearl panel
-    var _poObs = null;
-    function _watchPearlAndRefreshExec() {
-      var pearlPanel = document.getElementById('poMainContent') ||
-                       document.getElementById('panel-pearl-ops');
-      if (!pearlPanel) {
-        // Try again after DOM ready
-        setTimeout(_watchPearlAndRefreshExec, 500);
-        return;
-      }
-      _poObs = new MutationObserver(function() {
-        var homePanel = document.getElementById('panel-home');
-        if (homePanel && homePanel.classList.contains('active')) {
-          var dept = (window.NJTC_SESSION||{}).dept||'';
-          if (['leadership','data','kb'].includes(dept)) {
-            try { buildExecDashboard(dept); } catch(e) {}
-          }
-        }
-      });
-      _poObs.observe(pearlPanel, { childList: true, subtree: true });
-    }
-    setTimeout(_watchPearlAndRefreshExec, 300);
-  })();
+    var _lastFP = '';
+    var _pollCount = 0;
+    var _pollDone = false;
+    var _stableHits = 0;
+    var _INTERVALS = [400,600,800,1000,1200,1500,2000,2500,3000];
 
-  // ── Exec Dashboard polling boot ────────────────────────────────────────
-  // Re-render every 800ms until Pearl has real attendance data loaded
-  (function() {
-    var _execRetries = 0;
-    var _lastRenderHadData = false;
-    function _tryRenderExec() {
-      var dept = (window.NJTC_SESSION||{}).dept||'';
-      if (!['leadership','data','kb'].includes(dept)) return;
-      var homePanel = document.getElementById('panel-home');
-      if (!homePanel || !homePanel.classList.contains('active')) {
-        // Panel not active yet — keep waiting
-        if (_execRetries < 30) { _execRetries++; setTimeout(_tryRenderExec, 800); }
-        return;
-      }
-      var poReady = window.po && typeof window.po.getStats === 'function';
-      var irlReady = window.irlab && typeof window.irlab.getSummary === 'function';
-      // Check if Pearl has real data (not just the module reference)
-      var poHasData = false;
-      if (poReady) {
-        try {
-          var st = window.po.getStats();
-          poHasData = st && (st.scholAttPct !== null || st.sessions !== null || st.schoolCount > 0);
-        } catch(e) {}
-      }
-      // Render whenever we have something useful
-      if (poReady || irlReady) {
-        try { buildExecDashboard(dept); } catch(e) { console.warn('[Exec] dash render err:', e); }
-      }
-      // Keep retrying until Pearl has actual attendance data loaded
-      if (_execRetries < 30 && !poHasData) {
-        _execRetries++;
-        setTimeout(_tryRenderExec, 800);
-      } else if (poHasData && !_lastRenderHadData) {
-        // One final render now that real data arrived
-        _lastRenderHadData = true;
-        try { buildExecDashboard(dept); } catch(e) {}
-      }
+    function _isDept(dept) { return ['leadership','data','kb'].includes(dept||''); }
+
+    function _fingerprint() {
+      try {
+        var st  = (window.po    && typeof window.po.getStats==='function')    ? window.po.getStats()    : null;
+        var irl = (window.irlab && typeof window.irlab.getSummary==='function') ? window.irlab.getSummary() : null;
+        return [
+          st  ? (st.scholAttPct||'')  : '',
+          st  ? (st.schoolCount||'')  : '',
+          st  ? (st.sessions||'')     : '',
+          st  ? (st.activeTutors||'') : '',
+          irl ? (irl.mathRows||'')    : '',
+          irl ? (irl.elaRows||'')     : '',
+          irl ? (irl.mathMedianPctAllYears||'') : '',
+          irl ? (irl.elaMedianPctAllYears||'')  : ''
+        ].join('|');
+      } catch(e) { return ''; }
     }
-    setTimeout(_tryRenderExec, 500);
+
+    function _hasData() {
+      try {
+        if (window.po && typeof window.po.getStats==='function') {
+          var s=window.po.getStats();
+          if (s && (s.scholAttPct!==null || s.schoolCount>0 || s.sessions>0)) return true;
+        }
+        if (window.irlab && typeof window.irlab.getSummary==='function') {
+          var i=window.irlab.getSummary();
+          if (i && (i.mathRows>0 || i.elaRows>0)) return true;
+        }
+      } catch(e) {}
+      return false;
+    }
+
+    function _render(force) {
+      var dept = (window.NJTC_SESSION||{}).dept||'';
+      if (!_isDept(dept)) return;
+      var hp = document.getElementById('panel-home');
+      if (!hp || !hp.classList.contains('active')) return;
+      var fp = _fingerprint();
+      if (!force && fp && fp===_lastFP) return;
+      _lastFP = fp;
+      try { buildExecDashboard(dept); } catch(e) { console.warn('[ExecDash] render err:',e.message); }
+    }
+
+    // Polling loop — escalating delays, min 5 polls, stops after 2 stable data-confirmed rounds
+    function _poll() {
+      if (_pollDone) return;
+      _render(false);
+      var hasData = _hasData();
+      if (hasData) _stableHits++; else _stableHits = 0;
+      if (_stableHits >= 2 && _pollCount >= 5) { _pollDone = true; return; }
+      var delay = _INTERVALS[Math.min(_pollCount, _INTERVALS.length-1)];
+      _pollCount++;
+      if (_pollCount <= 75) setTimeout(_poll, delay); // ~2 min max on slow network
+    }
+    setTimeout(_poll, 400);
+
+    // Re-render on panel-home activation
+    var _origSP_exec = window.showPanel;
+    window.showPanel = function(id, btn) {
+      if (typeof _origSP_exec==='function') _origSP_exec(id, btn);
+      if (id==='home') setTimeout(function(){ _render(true); }, 80);
+    };
+
+    // Expose for external trigger (Pearl MutationObserver already wired above)
+    window._execDashRefresh = function(force) { _render(force===true); };
+
+    // MutationObserver on Pearl panel — fire re-render when Pearl re-draws
+    (function _watchPearl() {
+      var panel = document.getElementById('poMainContent') || document.getElementById('panel-pearl-ops');
+      if (!panel) { setTimeout(_watchPearl, 500); return; }
+      new MutationObserver(function() {
+        var hp = document.getElementById('panel-home');
+        if (hp && hp.classList.contains('active')) {
+          var dept=(window.NJTC_SESSION||{}).dept||'';
+          if (_isDept(dept)) setTimeout(function(){ _render(false); }, 200);
+        }
+      }).observe(panel, { childList:true, subtree:true });
+    })();
+
+    // Patch irlab: watch for data arrival on slow network
+    (function _watchIrlab() {
+      if (!window.irlab) { setTimeout(_watchIrlab, 600); return; }
+      if (window.irlab._execWatched) return;
+      window.irlab._execWatched = true;
+      var _ic = 0;
+      (function _chk() {
+        try {
+          var irl = window.irlab.getSummary();
+          if (irl && (irl.mathRows>0 || irl.elaRows>0)) { _render(false); return; }
+        } catch(e) {}
+        if (_ic++ < 60) setTimeout(_chk, 1500);
+      })();
+    })();
+
   })();
   window.fetchKPIMetadata      = fetchKPIMetadata;
 
