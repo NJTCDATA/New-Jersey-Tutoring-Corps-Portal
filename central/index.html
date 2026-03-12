@@ -9182,6 +9182,9 @@
 
   let _hrStatus  = 'embedded';   // 'embedded' | 'live' | 'error'
   let _hrFetched = false;
+  // Year-indexed race/ethnicity stats built from live HR sheet rows (for YoY trend)
+  // Structure: { '2025-2026': { total, withRace, nonWhite, hispanic, withEth, raceMap, ethMap }, ... }
+  let _hrRaceByYear = {};
 
   // ── Fuzzy name normalize ──────────────────────────────────────────────────
   function _hn(name) {
@@ -9352,6 +9355,33 @@
       _hrLiveAddedKeys.add(k);
       added++;
     }
+    // ── Build year-indexed race/ethnicity stats from all raw live rows ──────────
+    // Deduplicate by name within each year so each person counts once per SY.
+    const _rByYr = {};
+    const _seen  = {};  // 'yr|normalizedName' dedup key
+    for (const r of liveRows) {
+      if (!r.yr || !r.name) continue;
+      const _dk = r.yr + '|' + _hn(r.name);
+      if (_seen[_dk]) continue;
+      _seen[_dk] = true;
+      if (!_rByYr[r.yr]) _rByYr[r.yr] = { total:0, withRace:0, nonWhite:0, hispanic:0, withEth:0, raceMap:{}, ethMap:{} };
+      const y = _rByYr[r.yr];
+      y.total++;
+      const rc = (r.race||'').trim();
+      const et = (r.ethnicity||'').trim();
+      if (rc && !/not listed|prefer not/i.test(rc)) {
+        y.withRace++;
+        y.raceMap[rc] = (y.raceMap[rc]||0)+1;
+        if (rc.toLowerCase() !== 'white') y.nonWhite++;
+      }
+      if (et && !/not listed|prefer not/i.test(et)) {
+        y.withEth++;
+        y.ethMap[et] = (y.ethMap[et]||0)+1;
+        if (/hispanic|latino/i.test(et)) y.hispanic++;
+      }
+    }
+    _hrRaceByYear = _rByYr;
+
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
     console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only)');
   }
@@ -10436,10 +10466,66 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     ${raceRows.map(([race,n])=>{const p=withRace.length?Math.round(n/withRace.length*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#0050c8';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
   </div>` : ''}
   ${ethRows.length ? `
-  <div>
+  <div style="margin-bottom:.75rem">
     <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">Ethnicity Distribution</div>
     ${ethRows.map(([eth,n])=>{const p=withEth.length?Math.round(n/withEth.length*100):0;const isH=/hispanic|latino/i.test(eth);const bc=isH?'#d97706':'#7c3aed';return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem"><div style="font-size:.67rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(eth)}</div>${pBar(p,bc)}<div style="font-size:.68rem;font-weight:800;color:${bc};width:30px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.62rem;color:#94a3b8;width:28px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}
   </div>` : ''}
+  ${(()=>{
+    // Year-over-year race/ethnicity trend from _hrRaceByYear (populated from live HR sheet)
+    const yrs = Object.keys(_hrRaceByYear||{}).sort().reverse();
+    if (yrs.length < 2) return '';
+    const yData = yrs.map(yr => {
+      const d = _hrRaceByYear[yr];
+      const nwPct  = d.withRace ? Math.round(d.nonWhite/d.withRace*100)  : null;
+      const hPct   = d.withEth  ? Math.round(d.hispanic/d.withEth*100)   : null;
+      const divPct = d.total    ? Math.round((d.nonWhite + (d.hispanic - (d.withRace ? _hrRaceByYear[yr].raceMap['Not Provided']||0 : 0))) / d.total * 100) : null;
+      // Simpler: non-white % of those with race data
+      return { yr, total: d.total, withRace: d.withRace, nwPct, hPct, withEth: d.withEth, raceMap: d.raceMap };
+    });
+    // Build year-over-year change indicators
+    const yoyRows = yData.map((d, i) => {
+      const prev = yData[i+1];
+      const nwChg  = (prev && d.nwPct !== null && prev.nwPct !== null) ? d.nwPct - prev.nwPct : null;
+      const hChg   = (prev && d.hPct  !== null && prev.hPct  !== null) ? d.hPct  - prev.hPct  : null;
+      const nwChgStr = nwChg === null ? '—' : (nwChg > 0 ? `<span style="color:#0d6e3a;font-weight:800">▲${nwChg}pp</span>` : nwChg < 0 ? `<span style="color:#b91c1c;font-weight:800">▼${Math.abs(nwChg)}pp</span>` : `<span style="color:#94a3b8">→0pp</span>`);
+      const hChgStr  = hChg  === null ? '—' : (hChg  > 0 ? `<span style="color:#0d6e3a;font-weight:800">▲${hChg}pp</span>`  : hChg  < 0 ? `<span style="color:#b91c1c;font-weight:800">▼${Math.abs(hChg)}pp</span>`  : `<span style="color:#94a3b8">→0pp</span>`);
+      // Top 3 races this year
+      const top3 = Object.entries(d.raceMap||{}).sort((a,b)=>b[1]-a[1]).slice(0,3)
+        .map(([r,n])=>`<span style="font-size:.55rem;background:#f1f5f9;color:#334155;border-radius:4px;padding:.05rem .3rem">${r}: ${d.withRace?Math.round(n/d.withRace*100):0}%</span>`).join(' ');
+      return `<tr>
+        <td style="font-size:.68rem;font-weight:700;color:#0a1628;white-space:nowrap;padding:.3rem .5rem">${esc(d.yr)}</td>
+        <td style="text-align:center;font-size:.68rem;color:#475569;padding:.3rem .4rem">${d.total}<br><span style="font-size:.55rem;color:#94a3b8">${d.withRace} w/ race</span></td>
+        <td style="text-align:center;padding:.3rem .4rem">
+          <span style="font-size:.82rem;font-weight:900;color:${d.nwPct!==null&&d.nwPct>=50?'#0050c8':'#334155'}">${d.nwPct!==null?d.nwPct+'%':'—'}</span>
+          <div style="font-size:.6rem;margin-top:.1rem">${nwChgStr}</div>
+        </td>
+        <td style="text-align:center;padding:.3rem .4rem">
+          <span style="font-size:.82rem;font-weight:900;color:${d.hPct!==null&&d.hPct>=20?'#d97706':'#334155'}">${d.hPct!==null?d.hPct+'%':'—'}</span>
+          <div style="font-size:.6rem;margin-top:.1rem">${hChgStr}</div>
+        </td>
+        <td style="padding:.3rem .5rem;display:flex;gap:.2rem;flex-wrap:wrap;align-items:center">${top3}</td>
+      </tr>`;
+    }).join('');
+    return `<div style="margin-bottom:.75rem">
+    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#94a3b8;letter-spacing:.08em;margin-bottom:.5rem">📅 Year-over-Year Race Trends
+      <span style="font-weight:400;font-size:.55rem;color:#94a3b8;margin-left:.35rem" title="Unique staff per school year · Source: HR Master List (live sheet) · pp = percentage point change vs prior year. ▲ = increased representation, ▼ = decreased">ⓘ unique staff per SY · pp = percentage point change</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;min-width:440px">
+      <thead>
+        <tr style="background:#f8fafc">
+          <th style="font-size:.6rem;font-weight:700;color:#64748b;text-align:left;padding:.25rem .5rem;border-bottom:1.5px solid #e2e8f0">SY</th>
+          <th style="font-size:.6rem;font-weight:700;color:#64748b;text-align:center;padding:.25rem .4rem;border-bottom:1.5px solid #e2e8f0">Total Staff</th>
+          <th style="font-size:.6rem;font-weight:700;color:#0050c8;text-align:center;padding:.25rem .4rem;border-bottom:1.5px solid #e2e8f0">Non-White %<br><span style="color:#94a3b8;font-weight:400">(of w/ race)</span></th>
+          <th style="font-size:.6rem;font-weight:700;color:#d97706;text-align:center;padding:.25rem .4rem;border-bottom:1.5px solid #e2e8f0">Hispanic/Latino<br><span style="color:#94a3b8;font-weight:400">(of w/ eth.)</span></th>
+          <th style="font-size:.6rem;font-weight:700;color:#64748b;text-align:left;padding:.25rem .5rem;border-bottom:1.5px solid #e2e8f0">Top Races This SY</th>
+        </tr>
+      </thead>
+      <tbody>${yoyRows}</tbody>
+    </table>
+    </div>
+  </div>`;
+  })()}
   ${apprentices.length ? (()=>{
     const appRaceMap={};
     const appWithRace=apprentices.filter(e=>e._race&&e._race!==''&&!/not listed|prefer not/i.test(e._race||''));
@@ -16510,12 +16596,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     function subgroupTable(groups, title) {
       const rows = demogRows(groups);
       if (!rows) return '';
-      return `<div style="margin-bottom:1.5rem">
+      return `<div style="margin-bottom:1.25rem;min-width:340px;flex:1">
         <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">${title}</div>
-        <table class="irlab-rank-table" style="font-size:.8rem">
-          <thead><tr><th>Group</th><th style="text-align:center">N</th><th style="text-align:center">Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg Gain</th></tr></thead>
+        <div style="overflow-x:auto">
+        <table class="irlab-rank-table" style="font-size:.8rem;width:auto;min-width:100%">
+          <thead><tr><th>Group</th><th style="text-align:center;min-width:42px">N</th><th style="text-align:center;min-width:70px">Moved Up</th><th style="text-align:center;min-width:56px">At GL</th><th style="text-align:center;min-width:72px">Avg Gain</th></tr></thead>
           <tbody>${rows}</tbody>
-        </table></div>`;
+        </table></div></div>`;
     }
 
     function renderBar(val, color) {
@@ -16852,11 +16939,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if(!m||!m.demog) return '';
       const d=m.demog;
       return `<div class="irlab-card" style="margin-bottom:1rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot <span style="font-size:.7rem;font-weight:400;background:rgba(0,0,0,.06);border-radius:99px;padding:.1rem .45rem;cursor:help;margin-left:.25rem" title="Rows show placement-pair scholars grouped by demographic field from iReady CSV. 'Moved Up' = improved placement level. 'At GL' = on or above grade level at spring. 'Avg Gain' = average scale score gain. Groups with fewer than 10 valid pairs are hidden. Scroll right if tables are clipped.">ⓘ How to read</span></div><div class="irlab-card-meta">Movement & GL attainment by demographic group · Scroll right if needed</div></div>
-        <div class="irlab-card-body" style="overflow-x:auto">
-          <div style="display:grid;grid-template-columns:minmax(320px,1fr) minmax(320px,1fr);gap:1.5rem;min-width:640px">
-            <div style="min-width:0;overflow-x:auto">${subgroupTable(d.byRace,'By Race/Ethnicity')}${subgroupTable(d.bySex,'By Gender')}</div>
-            <div style="min-width:0;overflow-x:auto">${subgroupTable(d.byHisp,'Hispanic/Latino Status')}${subgroupTable(d.byELL,'ELL Status')}${subgroupTable(d.bySped,'Special Education')}${subgroupTable(d.byEcoDis,'Economic Status')}</div>
+        <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot <span style="font-size:.7rem;font-weight:400;background:rgba(0,0,0,.06);border-radius:99px;padding:.1rem .45rem;cursor:help;margin-left:.25rem" title="Rows show placement-pair scholars grouped by demographic field from iReady CSV. 'Moved Up' = improved placement level. 'At GL' = on or above grade level at spring. 'Avg Gain' = average scale score gain. Groups with fewer than 10 valid pairs are hidden.">ⓘ How to read</span></div><div class="irlab-card-meta">Movement & GL attainment by demographic group</div></div>
+        <div class="irlab-card-body">
+          <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start">
+            ${subgroupTable(d.byRace,'By Race/Ethnicity')}
+            ${subgroupTable(d.byHisp,'Hispanic/Latino Status')}
+            ${subgroupTable(d.byELL,'ELL Status')}
+            ${subgroupTable(d.bySped,'Special Education')}
+            ${subgroupTable(d.byEcoDis,'Economic Status')}
+            ${subgroupTable(d.bySex,'By Gender')}
           </div>
         </div></div>`;
     }
