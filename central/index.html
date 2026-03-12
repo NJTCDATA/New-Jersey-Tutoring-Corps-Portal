@@ -6,6 +6,7 @@
   <title>NJTC Central Team Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -15578,15 +15579,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const IRLAB_DATA = { math:[], ela:[], mathRepeat:[], elaRepeat:[], loaded:false };
 
     // ── Isolated state ──────────────────────────────────────────────────────
-    let _irlMode      = 'embedded';  // 'embedded' | 'quickcsv'
-    let _irlDept      = 'leadership';
-    let _irlYear      = 'all';
-    let _irlSubject   = 'all';
-    let _irlDistrict  = 'all';
-    let _irlCsvData   = null;        // Quick CSV session result (never persisted)
-    let _irlBuilt     = false;
+    let _irlMode        = 'embedded';  // 'embedded' | 'quickcsv'
+    let _irlDept        = 'leadership';
+    let _irlYear        = 'all';
+    let _irlSubject     = 'all';
+    let _irlDistrict    = 'all';
+    let _irlSchool      = 'all';
+    let _irlGrade       = 'all';
+    let _irlScholarType = 'all'; // 'all' | 'repeat' | 'nonrepeat'
+    let _irlCsvData     = null;        // Quick CSV session result (never persisted)
+    let _irlBuilt       = false;
     let _irlScholarDrill = null;
     let _irlTutorDrill   = null;
+    let _irlCharts       = {};         // Track Chart.js instances for cleanup
 
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
@@ -15712,8 +15717,44 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           else if(_v > 15) { _v=_v/100; }
           return _v;
         }()),
+        pctStretch:       (function(){
+          var _raw=g(r,'Spring pct progress stretch growth','spring_pct_progress_stretch_growth');
+          var _v=parseFloat(_raw);
+          if(isNaN(_v)) return null;
+          if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
+          else if(_v > 15) { _v=_v/100; }
+          return _v;
+        }()),
         annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
+        annualStretch:    parseFloat(g(r,'Annual stretch growth measure','annual_stretch_growth_measure'))||null,
         isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
+        basePlacement:    g(r,'Base overall placement','base_overall_placement'),
+        springPlacement:  g(r,'Spring overall placement','spring_overall_placement'),
+        springWeeks:      parseFloat(g(r,'Spring weeks between diagnostics','spring_weeks_between_diagnostics'))||null,
+        // ELA domain subscores
+        elaPhonologicalScore:   parseFloat(g(r,'Base phonological awareness scale score','base_phonological_awareness_scale_score'))||null,
+        elaPhonicsScore:        parseFloat(g(r,'Base phonics scale score','base_phonics_scale_score'))||null,
+        elaHFWScore:            parseFloat(g(r,'Base high frequency words scale score','base_high_frequency_words_scale_score'))||null,
+        elaVocabScore:          parseFloat(g(r,'Base vocabulary scale score','base_vocabulary_scale_score'))||null,
+        elaRCOverallScore:      parseFloat(g(r,'Base reading comprehension overall scale score','base_reading_comprehension_overall_scale_score'))||null,
+        elaRCLitScore:          parseFloat(g(r,'Base reading comprehension literature scale score','base_reading_comprehension_literature_scale_score'))||null,
+        elaRCInfoScore:         parseFloat(g(r,'Base reading comprehension informational text scale score','base_reading_comprehension_informational_text_scale_score'))||null,
+        elaPhonologicalSpringScore: parseFloat(g(r,'Spring phonological awareness scale score','spring_phonological_awareness_scale_score'))||null,
+        elaPhonicsSpringScore:      parseFloat(g(r,'Spring phonics scale score','spring_phonics_scale_score'))||null,
+        elaHFWSpringScore:          parseFloat(g(r,'Spring high frequency words scale score','spring_high_frequency_words_scale_score'))||null,
+        elaVocabSpringScore:        parseFloat(g(r,'Spring vocabulary scale score','spring_vocabulary_scale_score'))||null,
+        elaRCOverallSpringScore:    parseFloat(g(r,'Spring reading comprehension overall scale score','spring_reading_comprehension_overall_scale_score'))||null,
+        elaRCLitSpringScore:        parseFloat(g(r,'Spring reading comprehension literature scale score','spring_reading_comprehension_literature_scale_score'))||null,
+        elaRCInfoSpringScore:       parseFloat(g(r,'Spring reading comprehension informational text scale score','spring_reading_comprehension_informational_text_scale_score'))||null,
+        // Math domain subscores
+        mathNumOpsScore:     parseFloat(g(r,'Base number and operations scale score','base_number_and_operations_scale_score'))||null,
+        mathAlgebraScore:    parseFloat(g(r,'Base algebra and algebraic thinking scale score','base_algebra_and_algebraic_thinking_scale_score'))||null,
+        mathMeasDataScore:   parseFloat(g(r,'Base measurement and data scale score','base_measurement_and_data_scale_score'))||null,
+        mathGeometryScore:   parseFloat(g(r,'Base geometry scale score','base_geometry_scale_score'))||null,
+        mathNumOpsSpringScore:   parseFloat(g(r,'Spring number and operations scale score','spring_number_and_operations_scale_score'))||null,
+        mathAlgebraSpringScore:  parseFloat(g(r,'Spring algebra and algebraic thinking scale score','spring_algebra_and_algebraic_thinking_scale_score'))||null,
+        mathMeasDataSpringScore: parseFloat(g(r,'Spring measurement and data scale score','spring_measurement_and_data_scale_score'))||null,
+        mathGeometrySpringScore: parseFloat(g(r,'Spring geometry scale score','spring_geometry_scale_score'))||null,
       };
     }
 
@@ -16026,21 +16067,65 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const pct   = (n,d) => d>0?Math.round(n/d*100):0;
     const avg   = arr  => arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
     const esc   = s    => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const medianArr = arr => {
+      const nums = arr.map(v=>parseFloat(v)).filter(v=>!isNaN(v)&&isFinite(v));
+      if (!nums.length) return null;
+      nums.sort((a,b)=>a-b);
+      const mid = Math.floor(nums.length/2);
+      return nums.length%2 !== 0 ? nums[mid] : (nums[mid-1]+nums[mid])/2;
+    };
+    const fmtPct = val => val===null||val===undefined ? '—' : (val*100).toFixed(1)+'%';
     const plIdx = p    => PLACEMENT_ORDER.indexOf(p);
     const isOnGL= p    => p==='Early On Grade Level'||p==='Mid or Above Grade Level';
     const is2Below = p => p==='2 Grade Levels Below'||p==='3 or More Grade Levels Below';
 
     function getRows(opts={}) {
-      const subject  = opts.subject  || _irlSubject;
-      const year     = opts.year     || _irlYear;
-      const district = opts.district || _irlDistrict;
+      const subject     = opts.subject     !== undefined ? opts.subject     : _irlSubject;
+      const year        = opts.year        !== undefined ? opts.year        : _irlYear;
+      const district    = opts.district    !== undefined ? opts.district    : _irlDistrict;
+      const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
+      const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
+      const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
       let rows = [];
       if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
       if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
-      if (year    !=='all') rows=rows.filter(r=>r.year===year);
-      if (district!=='all') rows=rows.filter(r=>r.district===district);
+      // Include repeat sheets too unless filtering by scholarType
+      if (scholarType === 'repeat') {
+        rows = [];
+        if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.mathRepeat);
+        if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.elaRepeat);
+      }
+      if (year        !== 'all') rows = rows.filter(r => r.year === year);
+      if (district    !== 'all') rows = rows.filter(r => r.district === district);
+      if (school      !== 'all') rows = rows.filter(r => r.school === school);
+      if (grade       !== 'all') rows = rows.filter(r => r.grade === grade);
+      if (scholarType === 'nonrepeat') rows = rows.filter(r => !r.isRepeat);
       return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&
         PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+    }
+
+    // Get all rows without placement filter (for typical growth KPI which uses all rows with pctTypical)
+    function getAllRows(opts={}) {
+      const subject     = opts.subject     !== undefined ? opts.subject     : _irlSubject;
+      const year        = opts.year        !== undefined ? opts.year        : _irlYear;
+      const district    = opts.district    !== undefined ? opts.district    : _irlDistrict;
+      const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
+      const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
+      const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
+      let rows = [];
+      if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
+      if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
+      if (scholarType === 'repeat') {
+        rows = [];
+        if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.mathRepeat);
+        if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.elaRepeat);
+      }
+      if (year        !== 'all') rows = rows.filter(r => r.year === year);
+      if (district    !== 'all') rows = rows.filter(r => r.district === district);
+      if (school      !== 'all') rows = rows.filter(r => r.school === school);
+      if (grade       !== 'all') rows = rows.filter(r => r.grade === grade);
+      if (scholarType === 'nonrepeat') rows = rows.filter(r => !r.isRepeat);
+      return rows;
     }
 
     // ── Core analytics ───────────────────────────────────────────────────────
@@ -16070,9 +16155,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         baseOnGL, sprOnGL, base2Below, spr2Below,
         gains, avgGain: gains.length?avg(gains):null,
         typPcts, metTyp, avgTyp: typPcts.length?avg(typPcts):null,
+        medianTyp: medianArr(typPcts),
         metTypPct: typPcts.length?pct(metTyp.length,typPcts.length):null,
         baseDist, springDist,
         byDistrict: groupBy('district'), byGrade: groupBy('grade'),
+        bySchool:   groupBy('school'),
         byCert: groupBy('certStatus'),   bySubject: groupBy('subject'),
         demog: computeDemographics(valid),
         tutorMap: buildTutorMap(valid),
@@ -16711,6 +16798,388 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       </div>`;
     }
 
+    // ── CHART CLEANUP ─────────────────────────────────────────────────────────
+    function _destroyCharts() {
+      Object.values(_irlCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+      _irlCharts = {};
+    }
+
+    // ── SECTION A: KPI CARDS ─────────────────────────────────────────────────
+    function renderAnalyticsKPIs(allRowsELA, allRowsMath, rows) {
+      // MEDIAN typical growth — all rows with pctTypical (not filtered to placement pairs)
+      const elaTyp  = allRowsELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+      const mathTyp = allRowsMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+      const elaMed  = medianArr(elaTyp);
+      const mathMed = medianArr(mathTyp);
+      // % meeting typical growth (pct >= 1.0)
+      const elaMet  = elaTyp.length  ? pct(elaTyp.filter(v=>v>=1.0).length,  elaTyp.length)  : null;
+      const mathMet = mathTyp.length ? pct(mathTyp.filter(v=>v>=1.0).length, mathTyp.length) : null;
+      // Avg scale gain — use placement-pair rows
+      const elaGains  = rows.filter(r=>r.subject==='ELA' ).map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+      const mathGains = rows.filter(r=>r.subject==='Math').map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+      const elaAvgG   = elaGains.length  ? avg(elaGains)  : null;
+      const mathAvgG  = mathGains.length ? avg(mathGains) : null;
+      // Total unique scholars
+      const uids = new Set(rows.map(r=>r.scholarId||r.scholarName).filter(Boolean));
+      const kpis = [
+        {
+          val: uids.size.toLocaleString(),
+          lbl: 'Total Scholars Served',
+          sub: `${rows.length} valid diagnostic pairs`,
+          color: '#7b2d8b', icon: '👥',
+        },
+        {
+          val: elaMed !== null ? (elaMed*100).toFixed(1)+'%' : '—',
+          lbl: 'Median Typical Growth (ELA)',
+          sub: elaMed !== null ? `${elaTyp.length} scholars w/ growth data` : 'No ELA growth data',
+          color: elaMed !== null && elaMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '📖',
+        },
+        {
+          val: mathMed !== null ? (mathMed*100).toFixed(1)+'%' : '—',
+          lbl: 'Median Typical Growth (Math)',
+          sub: mathMed !== null ? `${mathTyp.length} scholars w/ growth data` : 'No Math growth data',
+          color: mathMed !== null && mathMed >= 1.0 ? '#0d6e3a' : '#d97706', icon: '➗',
+        },
+        {
+          val: elaMet !== null ? elaMet+'%' : '—',
+          lbl: '% Meeting Typical Growth (ELA)',
+          sub: `Scholars with ≥100% typical growth`,
+          color: elaMet !== null && elaMet >= 50 ? '#0d6e3a' : '#b91c1c', icon: '🎯',
+        },
+        {
+          val: mathMet !== null ? mathMet+'%' : '—',
+          lbl: '% Meeting Typical Growth (Math)',
+          sub: `Scholars with ≥100% typical growth`,
+          color: mathMet !== null && mathMet >= 50 ? '#0d6e3a' : '#b91c1c', icon: '🎯',
+        },
+        {
+          val: elaAvgG !== null ? (elaAvgG>=0?'+':'')+elaAvgG.toFixed(1) : '—',
+          lbl: 'Avg Scale Score Gain (ELA)',
+          sub: elaGains.length ? `${elaGains.length} scholars` : 'No ELA gain data',
+          color: '#0050c8', icon: '📈',
+        },
+        {
+          val: mathAvgG !== null ? (mathAvgG>=0?'+':'')+mathAvgG.toFixed(1) : '—',
+          lbl: 'Avg Scale Score Gain (Math)',
+          sub: mathGains.length ? `${mathGains.length} scholars` : 'No Math gain data',
+          color: '#0050c8', icon: '📐',
+        },
+      ];
+      return `<div class="irlab-stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-bottom:1.5rem">
+        ${kpis.map(k=>`<div class="irlab-stat" style="--irstat-color:${k.color}">
+          <div style="font-size:1.5rem;margin-bottom:.25rem">${k.icon}</div>
+          <div class="irlab-stat-val">${esc(k.val)}</div>
+          <div class="irlab-stat-lbl">${esc(k.lbl)}</div>
+          <div class="irlab-stat-sub">${esc(k.sub)}</div>
+        </div>`).join('')}
+      </div>`;
+    }
+
+    // ── SECTION B: GROWTH DISTRIBUTION CHART ─────────────────────────────────
+    function renderGrowthDistChart() {
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">📊 Growth Distribution</div>
+          <div class="irlab-card-meta">% of Typical Growth — all scholars with spring diagnostic</div>
+        </div>
+        <div class="irlab-card-body">
+          <canvas id="irlGrowthDistChart" height="260" style="max-height:260px"></canvas>
+        </div>
+      </div>`;
+    }
+
+    function _initGrowthDistChart(allRowsELA, allRowsMath) {
+      const canvas = document.getElementById('irlGrowthDistChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      const bins = [
+        { label: '< 0%',      min: -Infinity, max: 0 },
+        { label: '0–25%',     min: 0,         max: 0.25 },
+        { label: '26–50%',    min: 0.25,      max: 0.50 },
+        { label: '51–75%',    min: 0.50,      max: 0.75 },
+        { label: '76–99%',    min: 0.75,      max: 1.0 },
+        { label: '100–149%',  min: 1.0,       max: 1.50 },
+        { label: '150–199%',  min: 1.50,      max: 2.0 },
+        { label: '200%+',     min: 2.0,       max: Infinity },
+      ];
+      const binRows = (rows) => bins.map(b => rows.filter(r => r.pctTypical !== null && !isNaN(r.pctTypical) && r.pctTypical >= b.min && r.pctTypical < b.max).length);
+      const elaCounts  = binRows(allRowsELA);
+      const mathCounts = binRows(allRowsMath);
+      _irlCharts['growthDist'] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: bins.map(b=>b.label),
+          datasets: [
+            { label: 'ELA',  data: elaCounts,  backgroundColor: 'rgba(123,45,139,0.75)', borderColor: '#7b2d8b', borderWidth: 1 },
+            { label: 'Math', data: mathCounts, backgroundColor: 'rgba(0,80,200,0.65)',   borderColor: '#0050c8', borderWidth: 1 },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} scholars` } } },
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Number of Scholars' } },
+          },
+        },
+      });
+    }
+
+    // ── SECTION C: PLACEMENT DISTRIBUTION BOY vs EOY ─────────────────────────
+    function renderPlacementDistChart() {
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">📍 Placement Distribution: BOY vs Spring</div>
+          <div class="irlab-card-meta">Relative placement — all scholars with valid diagnostic pair</div>
+        </div>
+        <div class="irlab-card-body">
+          <canvas id="irlPlacementChart" height="240" style="max-height:240px"></canvas>
+        </div>
+      </div>`;
+    }
+
+    function _initPlacementDistChart(rows) {
+      const canvas = document.getElementById('irlPlacementChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      const labels   = PLACEMENT_ORDER.map(p => PLC_SHORT[p]);
+      const baseData = PLACEMENT_ORDER.map(p => rows.filter(r=>r.baseRelPlacement===p).length);
+      const sprData  = PLACEMENT_ORDER.map(p => rows.filter(r=>r.springRelPlacement===p).length);
+      const colors   = PLACEMENT_ORDER.map(p => PLC[p]);
+      _irlCharts['placement'] = new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'BOY (Baseline)',  data: baseData, backgroundColor: colors.map(c=>c+'99'), borderColor: colors, borderWidth: 2 },
+            { label: 'Spring (EOY)',    data: sprData,  backgroundColor: colors, borderColor: colors, borderWidth: 2 },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} scholars` } } },
+          scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, title: { display: true, text: 'Number of Scholars' } },
+          },
+        },
+      });
+    }
+
+    // ── SECTION D: SCHOOL-LEVEL BREAKDOWN TABLE ───────────────────────────────
+    function renderSchoolBreakdown(rows, allRowsForTypical) {
+      // Build school-level map
+      const schoolMap = {};
+      // From placement-pair rows
+      rows.forEach(r => {
+        const key = r.school || 'Unknown';
+        if (!schoolMap[key]) schoolMap[key] = { school: key, district: r.district||'', year: r.year||'', subjects: new Set(), rows: [], typRows: [] };
+        schoolMap[key].rows.push(r);
+        schoolMap[key].subjects.add(r.subject);
+      });
+      // Add typical growth rows (all rows not just placement pairs)
+      allRowsForTypical.forEach(r => {
+        const key = r.school || 'Unknown';
+        if (schoolMap[key] && r.pctTypical !== null && !isNaN(r.pctTypical)) {
+          schoolMap[key].typRows.push(r.pctTypical);
+        }
+      });
+      const schools = Object.values(schoolMap).filter(s=>s.rows.length>=2).map(s=>{
+        const sm = computeMetrics(s.rows);
+        const medTyp = medianArr(s.typRows);
+        return {
+          school: s.school,
+          district: s.district,
+          subjects: [...s.subjects].join(', '),
+          n: s.rows.length,
+          medianTyp: medTyp,
+          metTypPct: sm ? sm.metTypPct : null,
+          avgGain: sm ? sm.avgGain : null,
+          pctMoved: sm ? sm.pctMoved : null,
+        };
+      }).sort((a,b)=> {
+        const am = a.medianTyp !== null ? a.medianTyp : -Infinity;
+        const bm = b.medianTyp !== null ? b.medianTyp : -Infinity;
+        return bm - am;
+      });
+      if (!schools.length) return '';
+      const rows_html = schools.map(s=>{
+        const medC = s.medianTyp !== null && s.medianTyp >= 1.0 ? '#0d6e3a' : s.medianTyp !== null ? '#b91c1c' : 'var(--muted)';
+        const metC = s.metTypPct !== null && s.metTypPct >= 50  ? '#0d6e3a' : s.metTypPct !== null ? '#b91c1c' : 'var(--muted)';
+        return `<tr>
+          <td style="font-weight:600;color:var(--navy)">${esc(s.school)}</td>
+          <td style="font-size:.8rem;color:var(--muted)">${esc(s.district)}</td>
+          <td style="font-size:.75rem">${esc(s.subjects)}</td>
+          <td style="text-align:center">${s.n}</td>
+          <td style="text-align:center;font-weight:700;color:${medC}">${s.medianTyp !== null ? (s.medianTyp*100).toFixed(1)+'%' : '—'}</td>
+          <td style="text-align:center;font-weight:700;color:${metC}">${s.metTypPct !== null ? s.metTypPct+'%' : '—'}</td>
+          <td style="text-align:center;color:var(--blue-mid);font-weight:600">${s.avgGain !== null ? (s.avgGain>=0?'+':'')+s.avgGain.toFixed(1) : '—'}</td>
+        </tr>`;
+      }).join('');
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">🏫 School-Level Breakdown</div>
+          <div class="irlab-card-meta">Sorted by Median Typical Growth % · min 2 scholars</div>
+        </div>
+        <div class="irlab-card-body" style="overflow-x:auto">
+          <table class="irlab-rank-table">
+            <thead><tr>
+              <th>School</th>
+              <th>District</th>
+              <th>Subject(s)</th>
+              <th style="text-align:center">N</th>
+              <th style="text-align:center">Median Typical Growth %</th>
+              <th style="text-align:center">% Meeting Typical</th>
+              <th style="text-align:center">Avg Gain</th>
+            </tr></thead>
+            <tbody>${rows_html}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
+    // ── SECTION E: REPEAT SCHOLAR LONGITUDINAL ────────────────────────────────
+    function renderRepeatLongitudinal() {
+      const repRows = [...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
+      if (!repRows.length) return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal View</div></div>
+        <div class="irlab-card-body"><div class="irlab-empty"><div class="irlab-empty-icon">📂</div><div class="irlab-empty-title">No repeat scholar data loaded</div></div></div>
+      </div>`;
+      // Group by student ID
+      const byStudent = {};
+      repRows.forEach(r => {
+        const sid = r.scholarId || r.scholarName;
+        if (!sid) return;
+        if (!byStudent[sid]) byStudent[sid] = { name: r.scholarName||sid, id: r.scholarId||sid, records: [] };
+        byStudent[sid].records.push(r);
+      });
+      // Only keep students with 2+ years
+      const multiyear = Object.values(byStudent).filter(s=>s.records.length>=2).slice(0,50);
+      const repPlacement = repRows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      const repM = repPlacement.length ? computeMetrics(repPlacement) : null;
+      const repTyp = repRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+      const repMedTyp = medianArr(repTyp);
+
+      const summaryHtml = repM ? `<div class="irlab-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
+        <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${repPlacement.length.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholar Records</div></div>
+        <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${repMedTyp!==null?(repMedTyp*100).toFixed(1)+'%':'—'}</div><div class="irlab-stat-lbl">Median Typical Growth</div></div>
+        <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${repM.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div></div>
+        <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${repM.avgGain!==null?(repM.avgGain>=0?'+':'')+repM.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Gain</div></div>
+      </div>` : '';
+
+      const studentTableHtml = multiyear.length ? `
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:.75rem 0 .5rem">Multi-Year Scholars (${multiyear.length} shown)</div>
+        <div style="overflow-x:auto">
+        <table class="irlab-rank-table" style="font-size:.8rem">
+          <thead><tr><th>Scholar</th><th>Subjects</th><th>Years</th><th>Scale Scores (by year)</th><th>Typical Growth %</th></tr></thead>
+          <tbody>${multiyear.map(s => {
+            const sorted = s.records.sort((a,b)=>a.year>b.year?1:-1);
+            const years  = [...new Set(sorted.map(r=>r.year))].join(', ');
+            const subjs  = [...new Set(sorted.map(r=>r.subject))].join(', ');
+            const scores = sorted.map(r=>{
+              const sc = r.springScore||r.baseScore;
+              return sc ? `${r.year.slice(2,4)}: <strong>${Math.round(sc)}</strong>` : '';
+            }).filter(Boolean).join(' → ');
+            const typs = sorted.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).map(r=>`${r.year.slice(2,4)}: ${(r.pctTypical*100).toFixed(0)}%`).join(', ');
+            return `<tr>
+              <td><button onclick="irlab.drillScholar('${esc(s.name||s.id)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8rem;text-align:left;padding:0">${esc(s.name||s.id)}</button></td>
+              <td style="color:var(--muted)">${esc(subjs)}</td>
+              <td style="font-size:.75rem">${esc(years)}</td>
+              <td style="font-size:.75rem">${scores||'—'}</td>
+              <td style="font-size:.75rem;color:${typs?'var(--blue-mid)':'var(--muted)'}">${typs||'—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>` : '';
+
+      return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal View</div><div class="irlab-card-meta">Multi-year scholars — strongest program impact signal</div></div>
+        <div class="irlab-card-body">${summaryHtml}${studentTableHtml}</div>
+      </div>`;
+    }
+
+    // ── SECTION F: ELA DOMAIN SUBSCORES ───────────────────────────────────────
+    function renderELADomainSubscores(rows) {
+      const elaRows = rows.filter(r=>r.subject==='ELA');
+      if (!elaRows.length) return '';
+      const domains = [
+        { key: 'elaPhonologicalScore',   springKey: 'elaPhonologicalSpringScore',   label: 'Phonological Awareness' },
+        { key: 'elaPhonicsScore',         springKey: 'elaPhonicsSpringScore',         label: 'Phonics' },
+        { key: 'elaHFWScore',             springKey: 'elaHFWSpringScore',             label: 'High Frequency Words' },
+        { key: 'elaVocabScore',           springKey: 'elaVocabSpringScore',           label: 'Vocabulary' },
+        { key: 'elaRCOverallScore',       springKey: 'elaRCOverallSpringScore',       label: 'Reading Comprehension (Overall)' },
+        { key: 'elaRCLitScore',           springKey: 'elaRCLitSpringScore',           label: 'Reading Comprehension (Literature)' },
+        { key: 'elaRCInfoScore',          springKey: 'elaRCInfoSpringScore',          label: 'Reading Comprehension (Informational)' },
+      ];
+      const domainRows = domains.map(d => {
+        const baseVals   = elaRows.map(r=>r[d.key]).filter(v=>v!==null&&!isNaN(v)&&v>0);
+        const springVals = elaRows.map(r=>r[d.springKey]).filter(v=>v!==null&&!isNaN(v)&&v>0);
+        if (!baseVals.length && !springVals.length) return null;
+        const baseMed   = medianArr(baseVals);
+        const springMed = medianArr(springVals);
+        const diff = baseMed !== null && springMed !== null ? springMed - baseMed : null;
+        return { label: d.label, baseMed, springMed, diff, n: Math.max(baseVals.length, springVals.length) };
+      }).filter(Boolean);
+      if (!domainRows.length) return '';
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">📖 ELA Domain Subscores</div><div class="irlab-card-meta">Median scale score — BOY vs Spring</div></div>
+        <div class="irlab-card-body" style="overflow-x:auto">
+          <table class="irlab-rank-table">
+            <thead><tr><th>Domain</th><th style="text-align:right">BOY Median</th><th style="text-align:right">Spring Median</th><th style="text-align:center">Change</th><th style="text-align:right">N</th></tr></thead>
+            <tbody>${domainRows.map(d=>{
+              const diffStr = d.diff !== null ? (d.diff>=0?`<span style="color:#0d6e3a;font-weight:700">+${d.diff.toFixed(1)}</span>`:`<span style="color:#b91c1c;font-weight:700">${d.diff.toFixed(1)}</span>`) : '—';
+              return `<tr>
+                <td style="font-weight:600;color:var(--navy)">${esc(d.label)}</td>
+                <td style="text-align:right;color:var(--muted)">${d.baseMed !== null ? d.baseMed.toFixed(1) : '—'}</td>
+                <td style="text-align:right;font-weight:700;color:var(--blue-mid)">${d.springMed !== null ? d.springMed.toFixed(1) : '—'}</td>
+                <td style="text-align:center">${diffStr}</td>
+                <td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
+    // ── SECTION G: MATH DOMAIN SUBSCORES ──────────────────────────────────────
+    function renderMathDomainSubscores(rows) {
+      const mathRows = rows.filter(r=>r.subject==='Math');
+      if (!mathRows.length) return '';
+      const domains = [
+        { key: 'mathNumOpsScore',    springKey: 'mathNumOpsSpringScore',    label: 'Number and Operations' },
+        { key: 'mathAlgebraScore',   springKey: 'mathAlgebraSpringScore',   label: 'Algebra and Algebraic Thinking' },
+        { key: 'mathMeasDataScore',  springKey: 'mathMeasDataSpringScore',  label: 'Measurement and Data' },
+        { key: 'mathGeometryScore',  springKey: 'mathGeometrySpringScore',  label: 'Geometry' },
+      ];
+      const domainRows = domains.map(d => {
+        const baseVals   = mathRows.map(r=>r[d.key]).filter(v=>v!==null&&!isNaN(v)&&v>0);
+        const springVals = mathRows.map(r=>r[d.springKey]).filter(v=>v!==null&&!isNaN(v)&&v>0);
+        if (!baseVals.length && !springVals.length) return null;
+        const baseMed   = medianArr(baseVals);
+        const springMed = medianArr(springVals);
+        const diff = baseMed !== null && springMed !== null ? springMed - baseMed : null;
+        return { label: d.label, baseMed, springMed, diff, n: Math.max(baseVals.length, springVals.length) };
+      }).filter(Boolean);
+      if (!domainRows.length) return '';
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd"><div class="irlab-card-title">➗ Math Domain Subscores</div><div class="irlab-card-meta">Median scale score — BOY vs Spring</div></div>
+        <div class="irlab-card-body" style="overflow-x:auto">
+          <table class="irlab-rank-table">
+            <thead><tr><th>Domain</th><th style="text-align:right">BOY Median</th><th style="text-align:right">Spring Median</th><th style="text-align:center">Change</th><th style="text-align:right">N</th></tr></thead>
+            <tbody>${domainRows.map(d=>{
+              const diffStr = d.diff !== null ? (d.diff>=0?`<span style="color:#0d6e3a;font-weight:700">+${d.diff.toFixed(1)}</span>`:`<span style="color:#b91c1c;font-weight:700">${d.diff.toFixed(1)}</span>`) : '—';
+              return `<tr>
+                <td style="font-weight:600;color:var(--navy)">${esc(d.label)}</td>
+                <td style="text-align:right;color:var(--muted)">${d.baseMed !== null ? d.baseMed.toFixed(1) : '—'}</td>
+                <td style="text-align:right;font-weight:700;color:var(--blue-mid)">${d.springMed !== null ? d.springMed.toFixed(1) : '—'}</td>
+                <td style="text-align:center">${diffStr}</td>
+                <td style="text-align:right;font-size:.75rem;color:var(--muted)">${d.n}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }
+
     // ── QUICK CSV MODE (session-only snapshots) ───────────────────────────────
     function renderQuickCSVMode() {
       const hasResult = _irlCsvData && _irlCsvData.rows;
@@ -16758,6 +17227,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── MAIN RENDER ───────────────────────────────────────────────────────────
     function renderLab() {
       loadData();
+      _destroyCharts();
       const el = document.getElementById('irlabContainer');
       if (!el) return;
 
@@ -16767,33 +17237,48 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela];
       const years   = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
       const dists   = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
+      // Schools cascade from district
+      const distFiltered = _irlDistrict !== 'all' ? allRows.filter(r=>r.district===_irlDistrict) : allRows;
+      const schools = [...new Set(distFiltered.map(r=>r.school))].filter(Boolean).sort();
+      const grades  = [...new Set(allRows.map(r=>r.grade))].filter(Boolean).sort((a,b)=>{
+        const na=parseInt(a)||99, nb=parseInt(b)||99; return na-nb;
+      });
       const hasData = allRows.length > 0;
 
-      const yearOpts = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
-      const subOpts  = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
-      const distOpts = ['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
+      // Default year to most recent available on first load (only if still at default 'all')
+      if (_irlYear === 'all' && years.length > 0 && !_irlBuilt) {
+        if (years.includes('2024-2025')) { _irlYear = '2024-2025'; }
+        else { _irlYear = years[years.length - 1]; }
+      }
 
-      // Data source badge
+      const yearOpts   = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
+      const subOpts    = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
+      const distOpts   = ['all',...dists].map(d=>`<option value="${esc(d)}" ${_irlDistrict===d?'selected':''}>${d==='all'?'All Districts':esc(d)}</option>`).join('');
+      const schoolOpts = ['all',...schools].map(s=>`<option value="${esc(s)}" ${_irlSchool===s?'selected':''}>${s==='all'?'All Schools':esc(s)}</option>`).join('');
+      const gradeOpts  = ['all',...grades].map(g=>`<option value="${esc(g)}" ${_irlGrade===g?'selected':''}>${g==='all'?'All Grades':'Grade '+esc(g)}</option>`).join('');
+      const typeOpts   = `<option value="all" ${_irlScholarType==='all'?'selected':''}>All Scholars</option><option value="repeat" ${_irlScholarType==='repeat'?'selected':''}>Repeat Only</option><option value="nonrepeat" ${_irlScholarType==='nonrepeat'?'selected':''}>Non-Repeat Only</option>`;
+
+      // Live data status badge
+      const liveStatus = _irlLiveStatus === 'live'
+        ? `<span style="font-size:.6875rem;background:#dcfce7;color:#166534;padding:.2rem .625rem;border-radius:20px;font-weight:600">🟢 Live data</span>`
+        : `<span style="font-size:.6875rem;background:#fef3c7;color:#92400e;padding:.2rem .625rem;border-radius:20px;font-weight:600">⏳ Loading…</span>`;
       const srcBadge = IRLAB_DATA.ts
         ? `<span style="font-size:.6875rem;background:#ede9fe;color:#6d28d9;padding:.2rem .625rem;border-radius:20px;font-weight:600">📤 Updated ${new Date(IRLAB_DATA.ts).toLocaleDateString()}</span>`
-        : `<span style="font-size:.6875rem;background:var(--surface-3);color:var(--muted);padding:.2rem .625rem;border-radius:20px">EOY Embedded</span>`;
-
-      const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+        : liveStatus;
 
       el.innerHTML = `<div class="irlab-wrap">
         <div class="irlab-header">
           <div>
             <div class="irlab-eyebrow">Academic Intelligence · NJTC</div>
-            <h2 class="irlab-title">i-Ready Analysis Lab</h2>
-            <p class="irlab-sub">${years.join(', ')||'No data'} · ${dists.length} districts ${srcBadge}</p>
+            <h2 class="irlab-title">iReady Analytics</h2>
+            <p class="irlab-sub">${years.join(', ')||'Fetching live data…'} · ${dists.length} districts ${srcBadge}</p>
           </div>
           <div style="display:flex;flex-direction:column;gap:.75rem;align-items:flex-end">
             <div class="irlab-mode-tabs">
-              <button class="irlab-mode-tab ${_irlMode==='embedded'?'active':''}" onclick="irlab.setMode('embedded')">📊 Analysis</button>
+              <button class="irlab-mode-tab ${_irlMode==='embedded'?'active':''}" onclick="irlab.setMode('embedded')">📊 Analytics</button>
               ${(()=>{
                 const sess = window.NJTC_SESSION;
                 const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
-                // Quick CSV uploader only visible to data dept
                 return myDept === 'data'
                   ? `<button class="irlab-mode-tab ${_irlMode==='quickcsv'?'active':''}" onclick="irlab.setMode('quickcsv')">📸 Quick CSV</button>`
                   : '';
@@ -16802,59 +17287,123 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           </div>
         </div>
 
-        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts)}
+        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}
       </div>`;
+
+      // Initialize Chart.js charts after HTML is set
+      if (_irlMode === 'embedded' && hasData) {
+        const pairRows = getRows({});
+        const elaAllRows  = getAllRows({subject:'ELA'});
+        const mathAllRows = getAllRows({subject:'Math'});
+        _initGrowthDistChart(elaAllRows, mathAllRows);
+        _initPlacementDistChart(pairRows);
+      }
     }
 
-    function renderEmbeddedMode(hasData, yearOpts, subOpts, distOpts) {
-      const rows = getRows({});
-      const m    = hasData ? computeMetrics(rows) : null;
-      const cfg  = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+    function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {
+      const sess    = window.NJTC_SESSION;
+      const myDept  = (sess && sess.dept) ? sess.dept : _irlDept;
+      const dataUpdatePanel = myDept === 'data' ? renderDataUpdatePanel() : '';
 
-      // Data dept always shows the update panel first
-      const dataUpdatePanel = _irlDept==='data' ? renderDataUpdatePanel() : '';
+      if (!hasData) return `
+        ${dataUpdatePanel}
+        <div class="irlab-card">
+          <div class="irlab-empty">
+            <div class="irlab-empty-icon">⏳</div>
+            <div class="irlab-empty-title">Loading live iReady data…</div>
+            <div class="irlab-empty-sub">Fetching from Google Sheets. This takes a few seconds on first load.</div>
+          </div>
+        </div>`;
 
-      if (!hasData) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
-        <div class="irlab-empty-icon">📂</div>
-        <div class="irlab-empty-title">No data loaded</div>
-        <div class="irlab-empty-sub">${_irlDept==='data'?'Use the Embedded Data Manager above to upload CSVs.':'Data has not been loaded yet. Contact the Data & Eval team.'}</div>
-      </div></div>`;
+      const rows       = getRows({});
+      const allELA     = getAllRows({subject:'ELA'});
+      const allMath    = getAllRows({subject:'Math'});
+      const m          = rows.length ? computeMetrics(rows) : null;
 
-      if (!m) return `${dataUpdatePanel}<div class="irlab-card"><div class="irlab-empty">
-        <div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div>
-        <div class="irlab-empty-sub">Adjust filters above.</div>
-      </div></div>`;
+      // All rows for school breakdown typical growth calculation
+      const allRows = getAllRows({});
+
+      // Filter row count
+      const activeFilt = [
+        _irlYear !== 'all' ? _irlYear : null,
+        _irlSubject !== 'all' ? _irlSubject : null,
+        _irlDistrict !== 'all' ? _irlDistrict : null,
+        _irlSchool !== 'all' ? _irlSchool : null,
+        _irlGrade !== 'all' ? 'Grade '+_irlGrade : null,
+        _irlScholarType !== 'all' ? _irlScholarType : null,
+      ].filter(Boolean);
 
       return `
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-          <div class="irlab-filter-row" style="margin-bottom:0">
+        <!-- Filter bar -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">FILTERS</div>
+          <div class="irlab-filter-row" style="flex-wrap:wrap;gap:.5rem;margin-bottom:0">
             <select class="irlab-select" onchange="irlab.setYear(this.value)">${yearOpts}</select>
             <select class="irlab-select" onchange="irlab.setSubject(this.value)">${subOpts}</select>
             <select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>
+            <select class="irlab-select" onchange="irlab.setSchool(this.value)">${schoolOpts}</select>
+            <select class="irlab-select" onchange="irlab.setGrade(this.value)">${gradeOpts}</select>
+            <select class="irlab-select" onchange="irlab.setScholarType(this.value)">${typeOpts}</select>
           </div>
-          <div class="irlab-dept-tabs">
-            ${(()=>{
-              const sess = window.NJTC_SESSION;
-              const myDept = (sess && sess.dept) ? sess.dept : _irlDept;
-              const canSwitch = ['leadership','data'].includes(myDept);
-              if (canSwitch) {
-                // Privileged: show full clickable switcher
-                return Object.entries(DEPT_CFG).map(([key,c])=>`
-                  <button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color+';color:#fff':''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('');
-              } else {
-                // Non-privileged: show locked dept badge only — no switching
-                const c = DEPT_CFG[myDept] || DEPT_CFG.leadership;
-                return `<div style="display:flex;align-items:center;gap:.375rem;padding:.3rem .75rem;background:${c.color};border-radius:20px;color:#fff;font-size:.75rem;font-weight:700">
-                  ${c.emoji} ${c.label} <span style="font-size:.6rem;opacity:.8;margin-left:.25rem">🔒</span>
-                </div>`;
-              }
-            })()}
-          </div>
+          ${activeFilt.length ? `<div style="font-size:.75rem;color:var(--blue-mid);margin-top:.375rem">Filtering: ${activeFilt.join(' · ')} · ${rows.length.toLocaleString()} valid diagnostic pairs</div>` : `<div style="font-size:.75rem;color:var(--muted);margin-top:.375rem">${rows.length.toLocaleString()} valid diagnostic pairs · ${[...new Set(getAllRows({}).map(r=>r.scholarId||r.scholarName).filter(Boolean))].length.toLocaleString()} unique scholars</div>`}
         </div>
-        <div style="text-align:right;font-size:.75rem;color:var(--muted);margin-bottom:1rem">${rows.length.toLocaleString()} valid pairs · <strong style="color:${cfg.color}">${cfg.label}</strong> view</div>
 
         ${dataUpdatePanel}
-        ${_irlDept==='leadership' ? renderLeadershipView(m) : renderStandardView(m)}
+
+        ${!m ? `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Adjust filters above.</div></div></div>` : `
+        <!-- Section A: KPI Cards -->
+        ${renderAnalyticsKPIs(allELA, allMath, rows)}
+
+        <!-- Section B: Growth Distribution -->
+        ${renderGrowthDistChart()}
+
+        <!-- Section C: Placement Distribution BOY vs Spring -->
+        ${renderPlacementDistChart()}
+
+        <!-- Section D: School Breakdown -->
+        ${renderSchoolBreakdown(rows, allRows)}
+
+        <!-- Placement shift detail -->
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Shift Detail</div><div class="irlab-card-meta">BOY → Spring by level</div></div>
+          <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
+            <div>
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Spring Distribution</div>
+              ${PLACEMENT_ORDER.map(p=>{const pc=pct(m.springDist[p]||0,m.n);return `<div class="irlab-funnel-row"><div class="irlab-funnel-label" style="color:${PLC[p]}">${PLC_SHORT[p]}</div><div class="irlab-funnel-bar-wrap"><div class="irlab-funnel-bar" style="width:${pc}%;background:${PLC[p]}"></div></div><div class="irlab-funnel-pct" style="color:${PLC[p]}">${pc}%</div><div class="irlab-funnel-n">${m.springDist[p]||0}</div></div>`;}).join('')}
+            </div>
+            <div>${renderPlacementShift(m)}</div>
+          </div>
+        </div>
+
+        <!-- Section E: Repeat Scholar Longitudinal -->
+        ${renderRepeatLongitudinal()}
+
+        <!-- Section F: ELA Domain Subscores -->
+        ${renderELADomainSubscores(rows)}
+
+        <!-- Section G: Math Domain Subscores -->
+        ${renderMathDomainSubscores(rows)}
+
+        <!-- District rankings -->
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto">
+            <table class="irlab-rank-table">
+              <thead><tr><th>District</th><th>Median Typical %</th><th style="text-align:center">% Meeting Typical</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+              <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
+                const dm=computeMetrics(drows); if(!dm) return '';
+                const dTyp=medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                const medC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':'#b91c1c';
+                return `<tr><td style="font-weight:600">${esc(name)}</td>
+                  <td><div style="display:flex;align-items:center;gap:.5rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${medC};border-radius:3px"></div></div><span style="font-weight:700;color:${medC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                  <td style="text-align:center"><span style="background:${dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid);font-size:.8125rem">${dm.avgGain!==null?(dm.avgGain>=0?'+':'')+dm.avgGain.toFixed(1):'—'}</td>
+                  <td style="text-align:right;font-size:.75rem;color:var(--muted)">${dm.n}</td></tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+        `}
       `;
     }
 
@@ -16890,9 +17439,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       _irlTutorDrill   = null;
       renderLab();
     }
-    function setYear(y)     { _irlYear=y;    renderLab(); }
-    function setSubject(s)  { _irlSubject=s; renderLab(); }
-    function setDistrict(d) { _irlDistrict=d;renderLab(); }
+    function setYear(y)        { _irlYear=y;         renderLab(); }
+    function setSubject(s)     { _irlSubject=s;      renderLab(); }
+    function setDistrict(d)    { _irlDistrict=d; _irlSchool='all'; renderLab(); }
+    function setSchool(s)      { _irlSchool=s;       renderLab(); }
+    function setGrade(g)       { _irlGrade=g;        renderLab(); }
+    function setScholarType(t) { _irlScholarType=t;  renderLab(); }
     function setDept(d) {
       // Only leadership and data may switch dept views
       const sess = window.NJTC_SESSION;
@@ -17136,7 +17688,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       } catch(e) { return null; }
     }
 
-    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setDept,
+    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setDept,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
