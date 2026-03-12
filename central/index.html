@@ -15785,10 +15785,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       try {
         const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
         if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
-          IRLAB_LIVE_GIDS = cached.gids;
-          _irlGIDsResolved = true;
-          console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
-          return true;
+          const cg = cached.gids || {};
+          const hasCore = !!(cg.math && cg.ela);
+          const hasAny  = !!(cg.math || cg.ela || cg.mathRep || cg.elaRep);
+          if (hasCore) {
+            IRLAB_LIVE_GIDS = cg;
+            _irlGIDsResolved = true;
+            console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
+            return true;
+          }
+          console.warn('[irlab] Ignoring partial GID cache — core tabs missing:', JSON.stringify(cg));
+          if (!hasAny) {
+            // fall through to fresh discovery
+          }
         }
       } catch(e) {}
 
@@ -15895,21 +15904,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
           if (r.ok) {
             const text = await r.text();
-            const lines = text.split('\n');
-            const hdrLine = lines[0];
-            // Build header→index map from actual CSV header row
-            const hdrs = parseCSV(hdrLine)[0] || [];
-            const hdrMap = {};
-            hdrs.forEach((h,i) => { hdrMap[h.trim()] = i; });
-            // Parse rows using header-aware normalizeRow
-            const parsed = lines.slice(1)
-              .filter(l => l.trim())
-              .map(line => {
-                const cols = parseCSV(line)[0] || [];
-                const obj = {};
-                hdrs.forEach((h,i) => { obj[h.trim()] = cols[i] || ''; });
-                return normalizeRow(obj, subj);
-              })
+            const parsedRows = parseCSV(text);
+            const parsed = parsedRows
+              .map(row => normalizeRow(row, subj))
               .filter(r => r.scholarId || r.scholarName);
             res[tab] = parsed;
             console.log('[irlab] Live '+tab+': '+parsed.length+' rows (gid='+gid+')');
@@ -15935,6 +15932,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           } catch(e) { /* don't blank screen */ }
         }
         if (typeof renderLab === 'function') renderLab();
+        try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
         console.log('[irlab] Live data merged — academic overlay will update on next render');
       }
     }
@@ -16869,6 +16867,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // getSummary() — returns aggregate iReady outcomes using named row properties
     function getSummary(syFilter) {
+      if (!IRLAB_DATA.loaded) loadData();
       // IRLAB_DATA rows are OBJECTS (from normalizeRow/decodeRows), not arrays.
       // Fields: r.scholarId, r.year, r.grade, r.school, r.district,
       //         r.springGain, r.pctTypical, r.baseRelPlacement, r.springRelPlacement,
