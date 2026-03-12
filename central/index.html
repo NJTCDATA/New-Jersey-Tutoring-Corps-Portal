@@ -3285,6 +3285,88 @@
     }
     .kn-prompt-cta:hover { background: var(--blue-lite); }
 
+    /* ── Executive Analytics Dashboard ───────────────────────────────── */
+    #execDashboard { margin-bottom: 1.5rem; }
+    .exec-section-label {
+      font-size:.65rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+      color:var(--blue-mid); margin:1.25rem 0 .5rem; opacity:.7;
+    }
+    .exec-metric-grid {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.625rem;
+      margin-bottom:.75rem;
+    }
+    .exec-metric {
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+      padding:.75rem .875rem; display:flex; flex-direction:column; gap:.2rem;
+    }
+    .exec-metric-val { font-size:1.5rem; font-weight:800; color:var(--navy); line-height:1; }
+    .exec-metric-lbl { font-size:.7rem; color:#64748b; font-weight:600; }
+    .exec-metric.accent-blue { border-top:3px solid var(--blue); }
+    .exec-metric.accent-gold { border-top:3px solid var(--gold); }
+    .exec-metric.accent-green { border-top:3px solid #16a34a; }
+    .exec-metric.accent-purple { border-top:3px solid #7c3aed; }
+    .exec-2col { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:.75rem; }
+    @media(max-width:680px){ .exec-2col { grid-template-columns:1fr; } }
+    .exec-health-card {
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.875rem 1rem;
+    }
+    .exec-health-card h4 { font-size:.75rem; font-weight:700; color:var(--navy); margin:0 0 .625rem; }
+    .exec-att-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.375rem; }
+    .exec-att-label { font-size:.7rem; color:#475569; width:90px; flex-shrink:0; }
+    .exec-att-bar-wrap { flex:1; background:#f1f5f9; border-radius:4px; height:8px; overflow:hidden; }
+    .exec-att-bar { height:100%; border-radius:4px; transition:width .4s; }
+    .exec-att-pct { font-size:.7rem; font-weight:700; color:var(--navy); width:36px; text-align:right; }
+    .exec-att-bar.green { background:#16a34a; }
+    .exec-att-bar.amber { background:#d97706; }
+    .exec-att-bar.red   { background:#dc2626; }
+    .exec-academic-banner {
+      background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%);
+      border-radius:10px; padding:.875rem 1rem; color:#fff; margin-bottom:.75rem;
+      display:flex; flex-wrap:wrap; gap:.75rem; align-items:center;
+    }
+    .exec-academic-banner h4 { font-size:.75rem; font-weight:700; margin:0; opacity:.75; flex-basis:100%; }
+    .exec-acad-chip {
+      border-radius:8px; padding:.5rem .875rem; display:flex; flex-direction:column; gap:.15rem;
+      flex:1; min-width:120px;
+    }
+    .exec-acad-chip.math-chip { background:rgba(255,255,255,.12); }
+    .exec-acad-chip.ela-chip  { background:rgba(255,255,255,.08); }
+    .exec-acad-val { font-size:1.25rem; font-weight:800; }
+    .exec-acad-lbl { font-size:.65rem; opacity:.7; }
+    .exec-leaderboard {
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.875rem 1rem; margin-bottom:.75rem;
+    }
+    .exec-leaderboard h4 { font-size:.75rem; font-weight:700; color:var(--navy); margin:0 0 .625rem; }
+    .exec-lb-row {
+      display:flex; align-items:center; gap:.5rem; padding:.3rem 0;
+      border-bottom:1px solid #f1f5f9; font-size:.72rem;
+    }
+    .exec-lb-row:last-child { border-bottom:none; }
+    .exec-lb-rank { font-weight:800; color:var(--blue); width:18px; flex-shrink:0; font-size:.8rem; }
+    .exec-lb-name { flex:1; color:#1e293b; font-weight:600; }
+    .exec-lb-val  { color:#475569; font-weight:600; }
+    .exec-kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:.5rem; margin-bottom:.75rem; }
+    @media(max-width:600px){ .exec-kpi-grid { grid-template-columns:repeat(3,1fr); } }
+    .exec-kpi-tile {
+      background:#fff; border:1px solid #e2e8f0; border-radius:8px;
+      padding:.625rem .5rem; text-align:center;
+    }
+    .exec-kpi-tile-val { font-size:1.35rem; font-weight:800; }
+    .exec-kpi-tile-lbl { font-size:.63rem; color:#64748b; font-weight:600; margin-top:.1rem; }
+    .exec-kpi-met    { border-top:3px solid #16a34a; } .exec-kpi-met    .exec-kpi-tile-val { color:#16a34a; }
+    .exec-kpi-prog   { border-top:3px solid #2563eb; } .exec-kpi-prog   .exec-kpi-tile-val { color:#2563eb; }
+    .exec-kpi-part   { border-top:3px solid #d97706; } .exec-kpi-part   .exec-kpi-tile-val { color:#d97706; }
+    .exec-kpi-pipe   { border-top:3px solid #7c3aed; } .exec-kpi-pipe   .exec-kpi-tile-val { color:#7c3aed; }
+    .exec-kpi-notmet { border-top:3px solid #dc2626; } .exec-kpi-notmet .exec-kpi-tile-val { color:#dc2626; }
+    .exec-talent-bar {
+      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+      padding:.75rem 1rem; display:flex; gap:1.5rem; flex-wrap:wrap; align-items:center;
+    }
+    .exec-talent-stat { display:flex; flex-direction:column; gap:.1rem; }
+    .exec-talent-val  { font-size:1.3rem; font-weight:800; color:var(--navy); }
+    .exec-talent-lbl  { font-size:.68rem; color:#64748b; font-weight:600; }
+    .exec-talent-val.alert { color:#dc2626; }
+
     </style>
 
 
@@ -3435,6 +3517,8 @@
           <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
         </div>
       </div>
+      <!-- Executive Analytics Dashboard (leadership/data/kb only) -->
+      <div id="execDashboard" style="display:none"></div>
       <!-- KPI summary strip -->
       <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
       <!-- Quick links -->
@@ -5091,6 +5175,18 @@
     document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
     document.getElementById('homeSubtitle').textContent = cfg.tagline;
 
+    // ── Exec dashboard (leadership / data / kb only) ──
+    const execDepts = ['leadership','data','kb'];
+    const execEl = document.getElementById('execDashboard');
+    if (execDepts.includes(dept) && execEl) {
+      execEl.style.display = '';
+      buildExecDashboard(dept);
+      document.getElementById('homeStatsStrip').style.display = 'none';
+    } else if (execEl) {
+      execEl.style.display = 'none';
+      document.getElementById('homeStatsStrip').style.display = '';
+    }
+
     // Stats strip — use midStatus as primary (falls back to status for legacy data)
     const getS = k => k.midStatus || k.status || '';
     const met = KPI_DATA.filter(k=>getS(k)==='Met').length;
@@ -5144,6 +5240,201 @@
         <div class="ql-arrow">Go → </div>
       </div>
     `).join('');
+  }
+
+  // ── Executive Analytics Dashboard ─────────────────────────────────────────
+  function buildExecDashboard(dept) {
+    const el = document.getElementById('execDashboard');
+    if (!el) return;
+
+    // ── Pull data from available modules ──────────────────────────────
+    const po  = (typeof window.po  !== 'undefined') ? window.po  : null;
+    const irlb = (typeof window.irlab !== 'undefined') ? window.irlab : null;
+
+    const poStats = po ? po.getStats()        : null;
+    const ldData  = po ? po.getLeadershipData(): null;
+    const stellar = po ? po.getStellarSchools(): null;
+    const irl     = irlb ? irlb.getSummary()  : null;
+
+    // ── Helper: safe integer display ──────────────────────────────────
+    const fv = (v, suf) => (v == null || isNaN(v)) ? '—' : (v + (suf||''));
+    const fp = (v) => (v == null || isNaN(v)) ? '—' : Math.round(v) + '%';
+
+    // ── 1. PROGRAM FOOTPRINT ─────────────────────────────────────────
+    const totalScholars  = poStats ? poStats.totalScholars  : null;
+    const activeScholars = poStats ? poStats.activeScholars : null;
+    const totalStaff     = poStats ? poStats.totalStaff     : null;
+    const districts      = ldData  ? ldData.length          : null;
+    const schools        = poStats ? poStats.totalSchools   : null;
+    const tutMins        = poStats ? poStats.totalTutoringMinutes : null;
+    const tutHrs         = tutMins != null ? Math.round(tutMins / 60).toLocaleString() : '—';
+
+    // ── 2. OPERATIONAL HEALTH ─────────────────────────────────────────
+    const scholarAtt = poStats ? poStats.scholarAttendanceRate  : null;
+    const tutorAtt   = poStats ? poStats.tutorAttendanceRate    : null;
+    const surveyAvg  = poStats ? poStats.avgSurveyRating        : null;
+    const sessions   = poStats ? poStats.totalSessions          : null;
+
+    function attBarClass(v) {
+      if (v == null) return 'green';
+      return v >= 85 ? 'green' : v >= 75 ? 'amber' : 'red';
+    }
+
+    // Tier distribution from ldData
+    let tierCounts = { stellar:0, strong:0, developing:0, needs_support:0 };
+    if (ldData) {
+      ldData.forEach(d => {
+        const t = d.tiers || {};
+        Object.keys(tierCounts).forEach(k => { tierCounts[k] += (t[k] || 0); });
+      });
+    }
+
+    // ── 3. ACADEMIC IMPACT ────────────────────────────────────────────
+    const mathGain   = irl ? irl.mathAvgGain          : null;
+    const elaGain    = irl ? irl.elaAvgGain            : null;
+    const mathMedPct = irl ? irl.mathMedianPctTypical  : null;
+    const elaMedPct  = irl ? irl.elaMedianPctTypical   : null;
+    const irlSY      = irl ? (irl.activeSY || 'Historical') : null;
+
+    // ── 4. SCHOOL LEADERBOARD ─────────────────────────────────────────
+    const topSchools = (stellar && stellar.length) ? stellar.slice(0,6) : [];
+
+    // ── 5. KPI STATUS ─────────────────────────────────────────────────
+    const getS  = k => k.midStatus || k.status || '';
+    const kMet  = KPI_DATA.filter(k=>getS(k)==='Met').length;
+    const kProg = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
+    const kPart = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
+    const kNot  = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
+    const kPipe = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
+    const kTot  = KPI_DATA.length || 1;
+
+    // ── 6. TALENT RISK (leadership/data/kb) ───────────────────────────
+    const concerns      = (typeof CONCERNS !== 'undefined') ? CONCERNS : [];
+    const concernTotal  = concerns.length;
+    const concernDists  = new Set(concerns.map(c=>c.district).filter(Boolean)).size;
+
+    // ── BUILD HTML ────────────────────────────────────────────────────
+    const attScholPct = scholarAtt != null ? Math.min(100, Math.round(scholarAtt)) : 0;
+    const attTutPct   = tutorAtt   != null ? Math.min(100, Math.round(tutorAtt))   : 0;
+
+    el.innerHTML = `
+      <!-- Footprint -->
+      <div class="exec-section-label">📍 Program Footprint</div>
+      <div class="exec-metric-grid">
+        <div class="exec-metric accent-blue">
+          <div class="exec-metric-val">${fv(activeScholars)}</div>
+          <div class="exec-metric-lbl">Active Scholars</div>
+        </div>
+        <div class="exec-metric accent-blue">
+          <div class="exec-metric-val">${fv(totalScholars)}</div>
+          <div class="exec-metric-lbl">Total Scholars</div>
+        </div>
+        <div class="exec-metric accent-gold">
+          <div class="exec-metric-val">${fv(totalStaff)}</div>
+          <div class="exec-metric-lbl">Active Staff</div>
+        </div>
+        <div class="exec-metric">
+          <div class="exec-metric-val">${fv(districts)}</div>
+          <div class="exec-metric-lbl">Districts</div>
+        </div>
+        <div class="exec-metric">
+          <div class="exec-metric-val">${fv(schools)}</div>
+          <div class="exec-metric-lbl">Schools</div>
+        </div>
+        <div class="exec-metric accent-green">
+          <div class="exec-metric-val">${tutHrs}</div>
+          <div class="exec-metric-lbl">Tutoring Hours</div>
+        </div>
+      </div>
+
+      <!-- Operational Health + Tiers -->
+      <div class="exec-section-label">⚡ Operational Health</div>
+      <div class="exec-2col">
+        <div class="exec-health-card">
+          <h4>Attendance Rates</h4>
+          <div class="exec-att-row">
+            <div class="exec-att-label">Scholar Att.</div>
+            <div class="exec-att-bar-wrap"><div class="exec-att-bar ${attBarClass(scholarAtt)}" style="width:${attScholPct}%"></div></div>
+            <div class="exec-att-pct">${fp(scholarAtt)}</div>
+          </div>
+          <div class="exec-att-row">
+            <div class="exec-att-label">Tutor Att.</div>
+            <div class="exec-att-bar-wrap"><div class="exec-att-bar ${attBarClass(tutorAtt)}" style="width:${attTutPct}%"></div></div>
+            <div class="exec-att-pct">${fp(tutorAtt)}</div>
+          </div>
+          ${surveyAvg != null ? `<div style="margin-top:.5rem;font-size:.7rem;color:#475569">Survey Avg: <strong>${surveyAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` · ${sessions.toLocaleString()} sessions` : ''}</div>` : ''}
+        </div>
+        <div class="exec-health-card">
+          <h4>Tutor Performance Tiers</h4>
+          ${[
+            { key:'stellar',      label:'⭐ Stellar',         color:'#16a34a' },
+            { key:'strong',       label:'💪 Strong',          color:'#2563eb' },
+            { key:'developing',   label:'📈 Developing',      color:'#d97706' },
+            { key:'needs_support',label:'🔴 Needs Support',   color:'#dc2626' },
+          ].map(t => `
+            <div class="exec-att-row">
+              <div class="exec-att-label" style="width:110px">${t.label}</div>
+              <div style="font-size:.75rem;font-weight:700;color:${t.color}">${tierCounts[t.key]}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Academic Impact -->
+      ${(mathGain != null || elaGain != null) ? `
+      <div class="exec-section-label">📚 Academic Impact${irlSY ? ' · ' + irlSY : ''}</div>
+      <div class="exec-academic-banner">
+        <h4>iReady Diagnostic Growth — Median % to Typical</h4>
+        ${mathGain != null ? `
+        <div class="exec-acad-chip math-chip">
+          <div class="exec-acad-val">+${mathGain} pts${mathMedPct != null ? ' · ' + mathMedPct + '%' : ''}</div>
+          <div class="exec-acad-lbl">Math Avg Gain · Median to Typical</div>
+        </div>` : ''}
+        ${elaGain != null ? `
+        <div class="exec-acad-chip ela-chip">
+          <div class="exec-acad-val">+${elaGain} pts${elaMedPct != null ? ' · ' + elaMedPct + '%' : ''}</div>
+          <div class="exec-acad-lbl">ELA Avg Gain · Median to Typical</div>
+        </div>` : ''}
+      </div>` : ''}
+
+      <!-- School Leaderboard -->
+      ${topSchools.length ? `
+      <div class="exec-section-label">🏆 Top Schools by Scholar Attendance</div>
+      <div class="exec-leaderboard">
+        <h4>School Performance Leaderboard</h4>
+        ${topSchools.map((s,i) => `
+          <div class="exec-lb-row">
+            <div class="exec-lb-rank">${i+1}</div>
+            <div class="exec-lb-name">${s.school || s.name || '—'}</div>
+            <div class="exec-lb-val">${s.attendanceRate != null ? Math.round(s.attendanceRate)+'%' : '—'}</div>
+          </div>`).join('')}
+      </div>` : ''}
+
+      <!-- KPI Goals -->
+      <div class="exec-section-label">🎯 KPI Goal Tracking</div>
+      <div class="exec-kpi-grid">
+        <div class="exec-kpi-tile exec-kpi-met"><div class="exec-kpi-tile-val">${kMet}</div><div class="exec-kpi-tile-lbl">✅ Met</div></div>
+        <div class="exec-kpi-tile exec-kpi-prog"><div class="exec-kpi-tile-val">${kProg}</div><div class="exec-kpi-tile-lbl">🔵 In Progress</div></div>
+        <div class="exec-kpi-tile exec-kpi-part"><div class="exec-kpi-tile-val">${kPart}</div><div class="exec-kpi-tile-val" style="display:none"></div><div class="exec-kpi-tile-lbl">🟠 Partial</div></div>
+        <div class="exec-kpi-tile exec-kpi-pipe"><div class="exec-kpi-tile-val">${kPipe}</div><div class="exec-kpi-tile-lbl">🟣 Pipeline</div></div>
+        <div class="exec-kpi-tile exec-kpi-notmet"><div class="exec-kpi-tile-val">${kNot}</div><div class="exec-kpi-tile-lbl">🔴 Not Met</div></div>
+      </div>
+
+      <!-- Talent Risk -->
+      <div class="exec-section-label">⚠️ Talent Risk Intelligence</div>
+      <div class="exec-talent-bar">
+        <div class="exec-talent-stat">
+          <div class="exec-talent-val ${concernTotal > 10 ? 'alert' : ''}">${concernTotal}</div>
+          <div class="exec-talent-lbl">Active Concerns</div>
+        </div>
+        <div class="exec-talent-stat">
+          <div class="exec-talent-val">${concernDists}</div>
+          <div class="exec-talent-lbl">Districts Affected</div>
+        </div>
+        <div style="flex:1;display:flex;justify-content:flex-end">
+          <button onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))" style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.4rem .875rem;font-size:.72rem;font-weight:700;cursor:pointer">View Talent Analytics →</button>
+        </div>
+      </div>
+    `;
   }
 
   // ══════════════════════════════════════════════════════════
@@ -11454,7 +11745,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Step 3: fetch each candidate gid as CSV — in parallel, ignore 400s
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(10000)});
+          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(15000)});
           if (!res.ok) return null;
           const text = await res.text();
           const firstRow = text.split('\n')[0].toLowerCase().replace(/"/g, '');
@@ -11617,9 +11908,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         // att, inst, sess fetch in parallel with timeouts
         // stu (scholar survey) streams independently — does NOT block rendering
         const [attResult, instResult, sessResult] = await Promise.allSettled([
-          fetchTabTimed(GIDS.att,  bust, 20000, 'att'),
-          fetchTabTimed(GIDS.inst, bust, 15000, 'inst'),
-          fetchTabTimed(GIDS.sess, bust, 20000, 'sess'),
+          fetchTabWithRetry(GIDS.att,  bust, 35000, 'att',  2),
+          fetchTabWithRetry(GIDS.inst, bust, 20000, 'inst', 2),
+          fetchTabWithRetry(GIDS.sess, bust, 35000, 'sess', 2),
         ]);
 
         // ── Parse resolved tabs ─────────────────────────────────────────
@@ -12014,6 +12305,33 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         console.warn('[Pearl Ops] Tab', label, 'failed (' + timeoutMs + 'ms timeout):', e.message);
         throw e;
       }
+    }
+
+    // fetchTabWithRetry: wraps fetchTabTimed with exponential-backoff retry.
+    // maxAttempts=2 → tries once, waits backoffMs, then tries again with a
+    // cache-busted URL on each retry (Google CDN sometimes needs a fresh request).
+    // On final failure the error is re-thrown so the caller can warn + fall through.
+    async function fetchTabWithRetry(gid, bust, timeoutMs, label, maxAttempts) {
+      maxAttempts = maxAttempts || 2;
+      let lastErr;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Always cache-bust on retry so a stale 503 isn't served from CDN edge
+        const b = attempt === 1 ? (bust || '') : ('&t=' + Date.now());
+        try {
+          const text = await fetchTabTimed(gid, b, timeoutMs, label);
+          if (attempt > 1) console.log('[Pearl Ops] Tab', label, 'succeeded on attempt', attempt);
+          return text;
+        } catch(e) {
+          lastErr = e;
+          if (attempt < maxAttempts) {
+            const delay = 2000 * attempt; // 2s, then 4s …
+            console.warn('[Pearl Ops] Tab', label, 'attempt', attempt, 'failed — retrying in', delay + 'ms');
+            await new Promise(res => setTimeout(res, delay));
+          }
+        }
+      }
+      console.warn('[Pearl Ops] Tab', label, 'exhausted', maxAttempts, 'attempts:', lastErr && lastErr.message);
+      throw lastErr;
     }
 
     // ── BUILD INDEXES ─────────────────────────────────────────────────────
