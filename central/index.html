@@ -3501,6 +3501,30 @@
     }
     .ecd-risk-cta:hover { background:var(--blue-mid); transform:translateY(-1px); }
 
+    /* ── SY Drill-down pills ───────────────────────────────── */
+    .ecd-sy-bar {
+      display:flex; align-items:center; flex-wrap:wrap; gap:.375rem;
+      margin-bottom:.75rem; padding:.5rem .75rem;
+      background:#f8fafc; border:1px solid #e8edf4; border-radius:8px;
+    }
+    .ecd-sy-lbl { font-size:.6rem; font-weight:800; color:#94a3b8; letter-spacing:.06em; text-transform:uppercase; margin-right:.25rem; flex-shrink:0; }
+    .ecd-sy-pill {
+      font-size:.65rem; font-weight:700; padding:.22rem .65rem;
+      border:1.5px solid #cbd5e1; border-radius:99px; background:#fff; color:#475569;
+      cursor:pointer; transition:all .15s; letter-spacing:.02em;
+    }
+    .ecd-sy-pill:hover { border-color:#0050c8; color:#0050c8; }
+    .ecd-sy-pill.active { background:#0050c8; border-color:#0050c8; color:#fff; font-weight:800; }
+
+    /* ── Race / Demographics card ─────────────────────────── */
+    .ecd-race-row { display:flex; align-items:center; gap:.5rem; padding:.3rem 0; border-bottom:1px solid #f8fafc; }
+    .ecd-race-row:last-of-type { border-bottom:none; }
+    .ecd-race-lbl { font-size:.67rem; font-weight:600; color:#1e293b; width:140px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ecd-race-track { flex:1; height:7px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
+    .ecd-race-fill { height:100%; background:linear-gradient(90deg,#0050c8,#1a7aff); border-radius:99px; transition:width .6s cubic-bezier(.4,0,.2,1); }
+    .ecd-race-pct { font-size:.68rem; font-weight:800; color:#0050c8; width:30px; text-align:right; flex-shrink:0; }
+    .ecd-race-n { font-size:.62rem; color:#94a3b8; width:34px; text-align:right; flex-shrink:0; }
+    .ecd-race-foot { margin-top:.5rem; padding-top:.5rem; border-top:1px solid #f1f5f9; font-size:.6rem; color:#94a3b8; font-weight:600; }
 
     </style>
 
@@ -5407,13 +5431,27 @@
     const poStats = po   ? po.getStats()         : null;
     const ldData  = po   ? po.getLeadershipData() : null;
     const stellar = po   ? po.getStellarSchools() : null;
-    const irl     = irlb ? irlb.getSummary()      : null;
+    const raceRaw = po   ? po.getRaceData()       : null;
+    const irl     = irlb ? irlb.getSummary('ALL') : null;
+
+    // ── SY Drill-down state (persisted on el dataset) ─────────────────
+    // Available SYs from iReady corpus
+    const irlYears = (irl && irl.allYears) ? irl.allYears.filter(y=>y) : [];
+    const _selSY   = el.dataset.selectedSY || '';  // '' = all-years / program-wide
+    // Build filtered iReady summary for selected SY
+    function _irlForSY(sy) {
+      if (!irlb || typeof irlb.getSummary !== 'function') return null;
+      // Pass 'ALL' to getSummary for program-wide all-years view (no activeSY filter)
+      try { return irlb.getSummary(sy || 'ALL'); } catch(e) { return irl; }
+    }
+    const irlView = _irlForSY(_selSY); // what we display
 
     // ── Helpers ───────────────────────────────────────────────────────
     const fv  = (v, suf='') => (v == null || v === '' || (typeof v==='number' && isNaN(v))) ? '\u2014' : (v + suf);
     const fp  = v => (v == null || isNaN(v)) ? '\u2014' : Math.round(v) + '%';
     const fc  = v => (v == null || isNaN(v)) ? '\u2014' : Number(v).toLocaleString();
     const att = v => v >= 85 ? 'c-g' : v >= 75 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
+    const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
 
     // ── 1. Program Footprint ──────────────────────────────────────────
     const tutors    = poStats ? poStats.activeTutors  : null;
@@ -5421,6 +5459,7 @@
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
+    const totalMins = poStats ? poStats.totalMins     : null;
     const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
 
     // ── 2. Operational Health ─────────────────────────────────────────
@@ -5432,19 +5471,21 @@
     const scholPct = scholAtt != null ? Math.min(100, Math.round(scholAtt)) : 0;
     const tutPct   = tutorAtt != null ? Math.min(100, Math.round(tutorAtt)) : 0;
 
-    // ── 3. Academic Impact ────────────────────────────────────────────
-    // Use all-years program-wide median — honest full-corpus signal across all embedded SYs
-    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical) : null;
-    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical)  : null;
-    const mathGain = irl ? irl.mathAvgGain          : null;
-    const elaGain  = irl ? irl.elaAvgGain           : null;
-    const mathN    = irl ? irl.mathTotal             : null;
-    const elaN     = irl ? irl.elaTotal              : null;
-    const irlSY    = irl ? (irl.activeSY || null)    : null;
-    // Cap bar at 150% for display
-    const mathBar  = mathPct != null ? Math.min(100, Math.round(mathPct/150*100)) : 0;
-    const elaBar   = elaPct  != null ? Math.min(100, Math.round(elaPct /150*100)) : 0;
-    const hasAcad  = mathPct != null || elaPct != null;
+    // ── 3. Academic Impact — SY-aware ────────────────────────────────
+    const _mPctAll  = irlView ? irlView.mathMedianPctAllYears  : null;
+    const _mPctTyp  = irlView ? irlView.mathMedianPctTypical   : null;
+    const _ePctAll  = irlView ? irlView.elaMedianPctAllYears   : null;
+    const _ePctTyp  = irlView ? irlView.elaMedianPctTypical    : null;
+    const mathPct   = _mPctAll != null ? _mPctAll : _mPctTyp;
+    const elaPct    = _ePctAll != null ? _ePctAll : _ePctTyp;
+    const mathGain  = irlView ? irlView.mathAvgGain  : null;
+    const elaGain   = irlView ? irlView.elaAvgGain   : null;
+    const mathN     = irlView ? irlView.mathRows      : null;
+    const elaN      = irlView ? irlView.elaRows       : null;
+    const irlSY     = irlView ? (irlView.activeSY || null) : null;
+    const mathBar   = mathPct != null ? Math.min(100, Math.round(mathPct/150*100)) : 0;
+    const elaBar    = elaPct  != null ? Math.min(100, Math.round(elaPct /150*100)) : 0;
+    const hasAcad   = mathPct != null || elaPct != null;
 
     // ── 4. School Leaderboard ─────────────────────────────────────────
     const topSchools = (stellar && stellar.length) ? stellar.slice(0,6) : [];
@@ -5458,15 +5499,29 @@
     const kPipe = KPI_DATA.filter(k=>gS(k)==='Coming Down the Pipeline').length;
 
     // ── 6. Talent Risk ────────────────────────────────────────────────
-    const concerns     = (typeof CONCERNS !== 'undefined' && Array.isArray(CONCERNS)) ? CONCERNS : [];
-    const cTotal       = concerns.length;
-    const cDists       = new Set(concerns.map(c=>(c&&c.district)||'').filter(Boolean)).size;
+    const concerns = (typeof CONCERNS !== 'undefined' && Array.isArray(CONCERNS)) ? CONCERNS : [];
+    const cTotal   = concerns.length;
+    const cDists   = new Set(concerns.map(c=>(c&&c.site||'').split('-')[0].trim()).filter(Boolean)).size;
 
-    // ── Medal class helper ────────────────────────────────────────────
+    // ── 7. Race Analytics ─────────────────────────────────────────────
+    const raceMap  = (raceRaw && raceRaw.byScholar) ? raceRaw.byScholar : null;
+    const raceTot  = raceMap ? Object.values(raceMap).reduce((a,b)=>a+b,0) : 0;
+    // Sort top 5 by count
+    const raceRows = raceMap
+      ? Object.entries(raceMap).filter(([k])=>k&&k!=='Not Specified'&&k!=='Not Provided').sort((a,b)=>b[1]-a[1]).slice(0,5)
+      : [];
+
+    // ── Medal / helpers ───────────────────────────────────────────────
     const medal = i => i===0?'m1':i===1?'m2':i===2?'m3':'mx';
-
-    // ── Now date display ──────────────────────────────────────────────
     const nowStr = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+    // ── SY pill bar HTML ─────────────────────────────────────────────
+    const syPills = irlYears.length ? `
+      <div class="ecd-sy-bar">
+        <span class="ecd-sy-lbl">iReady View:</span>
+        <button class="ecd-sy-pill${!_selSY?' active':''}" onclick="document.getElementById('execDashboard').dataset.selectedSY='';window._execDashRefresh&&window._execDashRefresh(true)">All Years</button>
+        ${irlYears.map(sy=>`<button class="ecd-sy-pill${_selSY===sy?' active':''}" onclick="document.getElementById('execDashboard').dataset.selectedSY='${sy}';window._execDashRefresh&&window._execDashRefresh(true)">${sy}</button>`).join('')}
+      </div>` : '';
 
     el.innerHTML = `
       <!-- ═══ HEADER ═══ -->
@@ -5501,15 +5556,15 @@
           <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total delivered</div>
         </div>
-        <div class="ecd-kpi ck-teal">
+        <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}">
           <div class="ecd-kpi-lbl">Service Interruptions</div>
-          <div class="ecd-kpi-val">${fv(siCount)}</div>
-          <div class="ecd-kpi-foot">Logged this period</div>
+          <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '\u2014'}</div>
+          <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged \u2713' : 'Logged this period'}</div>
         </div>
         <div class="ecd-kpi ck-rose">
-          <div class="ecd-kpi-lbl">Survey Avg</div>
-          <div class="ecd-kpi-val sm">${survAvg != null ? survAvg.toFixed(1)+'/5' : '\u2014'}</div>
-          <div class="ecd-kpi-foot">Scholar satisfaction</div>
+          <div class="ecd-kpi-lbl">Total Minutes</div>
+          <div class="ecd-kpi-val sm">${fmins(totalMins)}</div>
+          <div class="ecd-kpi-foot">Instructional time</div>
         </div>
       </div>
 
@@ -5528,18 +5583,18 @@
             <div class="ecd-att-track"><div class="ecd-att-fill ${att(tutorAtt||0)}" style="width:${tutPct}%"></div></div>
             <div class="ecd-att-pct">${fp(tutorAtt)}</div>
           </div>
-          ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;·&nbsp; ${fc(sessions)} sessions` : ''}</div>` : ''}
+          ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
           <div class="ecd-card-title">Scholar Attendance Tiers</div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#059669"></div>
-            <div class="ecd-tier-lbl">On Track (≥80%)</div>
+            <div class="ecd-tier-lbl">On Track (&ge;80%)</div>
             <div class="ecd-tier-n" style="color:#059669">${tierOn}</div>
           </div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#d97706"></div>
-            <div class="ecd-tier-lbl">At Risk (70–79%)</div>
+            <div class="ecd-tier-lbl">At Risk (70&ndash;79%)</div>
             <div class="ecd-tier-n" style="color:#d97706">${tierRisk}</div>
           </div>
           <div class="ecd-tier">
@@ -5551,11 +5606,12 @@
       </div>
 
       <!-- ═══ 3. ACADEMIC IMPACT ═══ -->
-      <div class="ecd-divider"><div class="ecd-divider-txt">Academic Impact${irlSY ? ' · ' + irlSY : ''}</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-divider"><div class="ecd-divider-txt">Academic Impact</div><div class="ecd-divider-line"></div></div>
+      ${syPills}
       <div class="ecd-academic">
         <div class="ecd-academic-glow"></div>
         <div class="ecd-academic-inner">
-          <div class="ecd-academic-eyebrow">iReady Diagnostic — Median % of Typical Growth · All Scholars</div>
+          <div class="ecd-academic-eyebrow">iReady Diagnostic &mdash; Median % of Typical Growth &middot; ${_selSY || 'All Years (Program-Wide)'}</div>
           <div class="ecd-academic-row">
             ${mathPct != null ? `
             <div class="ecd-achip">
@@ -5564,10 +5620,10 @@
                 <div class="ecd-achip-pct">${mathPct}</div>
                 <div class="ecd-achip-pct-unit">% of Typical</div>
               </div>
-              <div class="ecd-achip-desc">${mathPct >= 100 ? 'At or above typical growth' : 'Below typical growth pace'}</div>
-              ${mathGain != null ? `<div class="ecd-achip-gain">Avg gain: +${mathGain} pts${mathN != null ? ' · n=' + fc(mathN) : ''}</div>` : ''}
+              <div class="ecd-achip-desc">${mathPct >= 100 ? '\u2705 At or above typical growth' : '\u26a0\ufe0f Below typical growth pace'}</div>
+              ${mathGain != null ? `<div class="ecd-achip-gain">Avg gain: +${mathGain} pts${mathN != null ? ' &middot; n='+fc(mathN) : ''}</div>` : ''}
               <div class="ecd-achip-track"><div class="ecd-achip-fill math" style="width:${mathBar}%"></div></div>
-            </div>` : '<div class="ecd-achip" style="opacity:.4"><div class="ecd-achip-subj">Mathematics</div><div class="ecd-achip-pct" style="font-size:1.5rem;opacity:.4">—</div></div>'}
+            </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">Mathematics</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}
             ${elaPct != null ? `
             <div class="ecd-achip">
               <div class="ecd-achip-subj">ELA / Reading</div>
@@ -5575,37 +5631,53 @@
                 <div class="ecd-achip-pct">${elaPct}</div>
                 <div class="ecd-achip-pct-unit">% of Typical</div>
               </div>
-              <div class="ecd-achip-desc">${elaPct >= 100 ? 'At or above typical growth' : 'Below typical growth pace'}</div>
-              ${elaGain != null ? `<div class="ecd-achip-gain">Avg gain: +${elaGain} pts${elaN != null ? ' · n=' + fc(elaN) : ''}</div>` : ''}
+              <div class="ecd-achip-desc">${elaPct >= 100 ? '\u2705 At or above typical growth' : '\u26a0\ufe0f Below typical growth pace'}</div>
+              ${elaGain != null ? `<div class="ecd-achip-gain">Avg gain: +${elaGain} pts${elaN != null ? ' &middot; n='+fc(elaN) : ''}</div>` : ''}
               <div class="ecd-achip-track"><div class="ecd-achip-fill ela" style="width:${elaBar}%"></div></div>
-            </div>` : '<div class="ecd-achip" style="opacity:.4"><div class="ecd-achip-subj">ELA / Reading</div><div class="ecd-achip-pct" style="font-size:1.5rem;opacity:.4">—</div></div>'}
+            </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">ELA / Reading</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}
           </div>
           <div class="ecd-academic-foot">
-            <span>Source: iReady Longitudinal CSV</span>
-            <span>Median includes all scholars with valid typical growth baseline</span>
-            ${!hasAcad ? '<span style="color:#fbbf24">⚠ iReady data not yet loaded</span>' : ''}
+            <span>Source: iReady Longitudinal CSV &middot; Spring-diagnostic scholars only</span>
+            ${!hasAcad ? '<span style="color:#fbbf24">\u26a0 iReady data loading &mdash; refresh in a moment</span>' : `<span>${_selSY ? 'SY '+_selSY : 'Program-wide all years'}</span>`}
           </div>
         </div>
       </div>
 
-      <!-- ═══ 4. SCHOOL LEADERBOARD ═══ -->
-      ${topSchools.length ? `
-      <div class="ecd-divider"><div class="ecd-divider-txt">Top Schools — Scholar Attendance</div><div class="ecd-divider-line"></div></div>
-      <div class="ecd-card">
-        <div class="ecd-card-title">School Performance Leaderboard</div>
-        ${topSchools.map((s,i)=>`
-          <div class="ecd-lb-row">
-            <div class="ecd-lb-medal ${medal(i)}">${i+1}</div>
-            <div>
-              <div class="ecd-lb-name">${s.school||s.name||'—'}</div>
-              ${s.district ? `<span class="ecd-lb-dist">${s.district}</span>` : ''}
-            </div>
-            <div style="margin-left:auto;text-align:right">
-              <div class="ecd-lb-att">${s.attRate != null ? s.attRate+'%' : '—'}</div>
-              ${s.sessions ? `<div class="ecd-lb-sess">${fc(s.sessions)} sess</div>` : ''}
-            </div>
-          </div>`).join('')}
-      </div>` : ''}
+      <!-- ═══ 4. SCHOOL LEADERBOARD + RACE ═══ -->
+      <div class="ecd-2col" style="margin-top:.75rem">
+        ${topSchools.length ? `
+        <div class="ecd-card">
+          <div class="ecd-card-title">Top Schools &mdash; Scholar Attendance</div>
+          ${topSchools.map((s,i)=>`
+            <div class="ecd-lb-row">
+              <div class="ecd-lb-medal ${medal(i)}">${i+1}</div>
+              <div>
+                <div class="ecd-lb-name">${s.school||s.name||'&mdash;'}</div>
+                ${s.district ? `<span class="ecd-lb-dist">${s.district}</span>` : ''}
+              </div>
+              <div style="margin-left:auto;text-align:right">
+                <div class="ecd-lb-att">${s.attRate != null ? s.attRate+'%' : '&mdash;'}</div>
+                ${s.sessions ? `<div class="ecd-lb-sess">${fc(s.sessions)} sess</div>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>` : '<div class="ecd-card"><div class="ecd-card-title">School Leaderboard</div><div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">Loading Pearl data&hellip;</div></div>'}
+
+        ${raceRows.length ? `
+        <div class="ecd-card">
+          <div class="ecd-card-title">Scholar Demographics &mdash; Race / Ethnicity</div>
+          ${raceRows.map(([race, n])=>{
+            const pct = raceTot > 0 ? Math.round(n/raceTot*100) : 0;
+            return `
+            <div class="ecd-race-row">
+              <div class="ecd-race-lbl">${race}</div>
+              <div class="ecd-race-track"><div class="ecd-race-fill" style="width:${pct}%"></div></div>
+              <div class="ecd-race-pct">${pct}%</div>
+              <div class="ecd-race-n">${fc(n)}</div>
+            </div>`;
+          }).join('')}
+          <div class="ecd-race-foot">n=${fc(raceTot)} scholars &middot; Active enrollment</div>
+        </div>` : '<div class="ecd-card"><div class="ecd-card-title">Scholar Demographics</div><div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">Loading attendance data&hellip;</div></div>'}
+      </div>
 
       <!-- ═══ 5. KPI GOAL TRACKING ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">KPI Goal Tracking</div><div class="ecd-divider-line"></div></div>
@@ -5626,10 +5698,10 @@
         </div>
         <div class="ecd-risk-stat">
           <div class="ecd-risk-n">${cDists}</div>
-          <div class="ecd-risk-lbl">Districts Affected</div>
+          <div class="ecd-risk-lbl">Sites Affected</div>
         </div>
         <button class="ecd-risk-cta" onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))">
-          View Talent Analytics →
+          View Talent Analytics &rarr;
         </button>
       </div>
     `;
@@ -11769,7 +11841,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
 
           // Service interruptions from att rows (SI classification)
-          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='si'||c==='service-interruption'; });
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='service_interruption'||c==='si'||c==='service-interruption'; });
           stats.siCount = siRows.length;
 
           // Scholar survey avg from _stuRows (complete only)
@@ -15354,7 +15426,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var instTotal = instAtt + instAbs;
           if (instTotal > 0) stats.instAttPct = parseFloat((instAtt/instTotal*100).toFixed(1));
           if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
-          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='si'||c==='service-interruption'; });
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='service_interruption'||c==='si'||c==='service-interruption'; });
           stats.siCount = siRows.length;
           if (_stuStreamComplete && _stuRows.length) {
             var survScores = [];
@@ -15376,6 +15448,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
           }
           stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
+          // Total instructional minutes from delivered sessions
+          try {
+            var _tm = 0;
+            Object.values(_sessMap).forEach(function(sess){ if(sess&&sess.isDelivered&&sess.durMins>0) _tm+=sess.durMins; });
+            if (_tm > 0) stats.totalMins = _tm;
+          } catch(e){}
           stats.loaded = stats.scholAttPct !== null;
         } catch(e) { console.warn('[po.getStats] error:', e.message); }
         return stats;
@@ -16754,7 +16832,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var allYears = [];
       allRows.forEach(function(r){ if (r.year) allYears.push(r.year); });
       var uniqueYears = allYears.filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
-      var activeSY = syFilter || uniqueYears[uniqueYears.length-1] || null;
+      // syFilter='ALL' → include all years; falsy → default to most recent year
+      var activeSY = (syFilter && syFilter !== 'ALL') ? syFilter : (syFilter === 'ALL' ? null : (uniqueYears[uniqueYears.length-1] || null));
 
       // Filter to active SY (or all years if no year data found)
       var filtered = activeSY
