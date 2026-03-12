@@ -15600,9 +15600,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
     // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
     // Cache key for discovered GIDs
-    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v4';  // bumped — v3 may have wrong math GID (15-row tab)
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v5';  // bumped — v4 had wrong math/ela (confusing main with repeat)
     const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
-    let   IRLAB_LIVE_GIDS  = { math: null, ela: null, mathRep: null, elaRep: null };
+    // Confirmed GIDs from published sheet edit URLs (authoritative — never overridden by discovery)
+    // Math main: gid=127145553  |  ELA main: gid=0 (default tab)
+    let   IRLAB_LIVE_GIDS  = { math: 127145553, ela: 0, mathRep: null, elaRep: null };
     const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
     let   _irlGIDsResolved = false;
     let   _irlDiscoveryPromise = null;  // promise lock — prevents concurrent discovery races
@@ -15868,20 +15870,24 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     async function _irlDiscoverGIDsInner() {
-      // 1. Try localStorage cache
+      // math=127145553 and ela=0 are hardcoded (confirmed from sheet edit URLs) — always authoritative.
+      // Discovery only needed for mathRep and elaRep (repeat-scholar tabs).
+
+      // 1. Try localStorage cache for repeat GIDs only
       try {
         const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
         if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
           const cg = cached.gids || {};
-          // Require math and ela to be non-null (and non-zero) — partial caches cause wrong assignments
-          const hasCore = !!(cg.math && cg.ela);
-          if (hasCore) {
-            IRLAB_LIVE_GIDS = cg;
+          if (cg.mathRep != null && cg.elaRep != null) {
+            IRLAB_LIVE_GIDS.mathRep = cg.mathRep;
+            IRLAB_LIVE_GIDS.elaRep  = cg.elaRep;
+            // Re-assert hardcoded core GIDs (cache must not override)
+            IRLAB_LIVE_GIDS.math = 127145553;
+            IRLAB_LIVE_GIDS.ela  = 0;
             _irlGIDsResolved = true;
             console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
             return true;
           }
-          console.warn('[irlab] Ignoring incomplete GID cache:', JSON.stringify(cg));
           try { localStorage.removeItem(IRLAB_GID_CACHE); } catch(e) {}
         }
       } catch(e) {}
@@ -16007,18 +16013,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         if (withStaff.length > 1) resolved.ela  = withStaff[1].gid;
       }
 
+      // Re-assert hardcoded core GIDs — discovery must never override these
+      resolved.math = 127145553;
+      resolved.ela  = 0;
+
       IRLAB_LIVE_GIDS = resolved;
-      _irlGIDsResolved = Object.values(resolved).some(v => v !== null);
-      if (_irlGIDsResolved) {
-        // Cache only when both core GIDs are valid (non-null, non-zero)
-        if (resolved.math && resolved.ela) {
-          try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
-        }
-        console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
-      } else {
-        console.warn('[irlab] Could not resolve any tab GIDs');
-      }
-      return _irlGIDsResolved;
+      _irlGIDsResolved = true; // math + ela are always known
+      // Cache repeat GIDs for faster load on return visits
+      try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: { mathRep: resolved.mathRep, elaRep: resolved.elaRep } })); } catch(e) {}
+      console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
+      return true;
     }
 
     async function _irlFetchLive(force=false) {
