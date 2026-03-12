@@ -5454,7 +5454,12 @@
     const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
 
     // ── 1. Program Footprint ──────────────────────────────────────────
-    const tutors    = poStats ? poStats.activeTutors  : null;
+    // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap
+    // Pearl personMap counts unique instructor names in attendance data (includes prior-year staff)
+    const hrActiveTutors = (typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+      ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
+      : null;
+    const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
@@ -5556,10 +5561,10 @@
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy" title="Active Tutors: Count of unique instructors with role='Instructor' in Pearl attendance data.">
+        <div class="ecd-kpi ck-navy" title="Active Tutors: Count of employees with Active status in HR roster (HR_EMPS). This is the authoritative headcount — sourced from HR data, not Pearl attendance records.">
           <div class="ecd-kpi-lbl">Active Tutors</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">Instructors on record</div>
+          <div class="ecd-kpi-foot">Active employees · HR roster</div>
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: Count of unique partner districts derived from Pearl Operations attendance records.">
           <div class="ecd-kpi-lbl">Districts</div>
@@ -11863,8 +11868,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           // Sessions from _sessRows
           if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
 
-          // Service interruptions from att rows (SI classification)
-          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='service_interruption'||c==='si'||c==='service-interruption'; });
+          // Service interruptions — Student role only (matches Pearl Ops panel definition)
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return r[ATT.ROLE]==='Student' && (c==='service_interruption'||c==='si'||c==='service-interruption'); });
           stats.siCount = siRows.length;
 
           // Scholar survey avg from _stuRows (complete only)
@@ -15449,7 +15454,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var instTotal = instAtt + instAbs;
           if (instTotal > 0) stats.instAttPct = parseFloat((instAtt/instTotal*100).toFixed(1));
           if (_sessRows && _sessRows.length) stats.sessions = _sessRows.length;
-          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return c==='service_interruption'||c==='si'||c==='service-interruption'; });
+          var siRows = _attRows.filter(function(r){ var c=classifyRecord(r); return r[ATT.ROLE]==='Student' && (c==='service_interruption'||c==='si'||c==='service-interruption'); });
           stats.siCount = siRows.length;
           if (_stuStreamComplete && _stuRows.length) {
             var survScores = [];
@@ -15799,8 +15804,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
       for (const row of results.filter(Boolean)) {
         const h = row.hdr;
-        // Math longitudinal: has "academic year" + "instructor" + subject=Math
-        if (!resolved.math && h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar')) {
+        // Math/ELA longitudinal: has "academic year" + "instructor" — check subject to assign correctly
+        if (h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar') && (!resolved.math || !resolved.ela)) {
           // Peek first data row to check subject
           const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
@@ -18776,7 +18781,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       // ── SCALE ──
       if (sya.sites)     chips.push({ico:'&#127960;',col:'#e0e7ff',txt:''+sya.sites,sub:'School Sites'+(sya.districts?' · '+sya.districts+' Districts':'')});
       if (po&&po.sessions)chips.push({ico:'&#9200;', col:'#dcfce7',txt:fmtN(po.sessions),sub:'Sessions Delivered'});
-      if (po&&po.activeTutors) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+po.activeTutors,sub:'Active Tutors'});
+      var _hrActiveCt = (typeof HR_EMPS!=='undefined'&&HR_EMPS.length) ? HR_EMPS.filter(function(e){return e.s==='Active';}).length : (po?po.activeTutors:null);
+      if (_hrActiveCt) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+_hrActiveCt,sub:'Active Tutors'});
 
       // ── ATTENDANCE ──
       if (po&&po.instAttPct!=null) {
@@ -19108,7 +19114,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if(sya.sites)         snaps.push({n:sya.sites,l:'Active School Sites',s:'SYA'});
       if(sya.districts)     snaps.push({n:sya.districts,l:'Districts Served',s:'SYA'});
       if(po&&po.sessions)   snaps.push({n:fmtN(po.sessions),l:'Sessions Delivered',s:'Pearl'});
-      if(po&&po.activeTutors) snaps.push({n:po.activeTutors,l:'Active Tutors',s:'Pearl'});
+      var _hrSnap=(typeof HR_EMPS!=='undefined'&&HR_EMPS.length)?HR_EMPS.filter(function(e){return e.s==='Active';}).length:(po?po.activeTutors:null);
+      if(_hrSnap)           snaps.push({n:_hrSnap,l:'Active Tutors',s:'HR Roster'});
       if(po&&po.instAttPct!=null) snaps.push({n:po.instAttPct+'%',l:'Tutor Attendance Rate',s:'Pearl'});
       if(po&&po.scholAttPct!=null) snaps.push({n:po.scholAttPct+'%',l:'Scholar Attendance Rate',s:'Pearl'});
       if(po&&po.surveyAvg!=null) snaps.push({n:'&#9733; '+po.surveyAvg,l:'Scholar Survey (of 5)',s:'Pearl'});
