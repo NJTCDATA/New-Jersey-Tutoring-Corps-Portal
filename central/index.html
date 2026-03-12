@@ -5460,35 +5460,7 @@
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
     const totalMins = poStats ? poStats.totalMins     : null;
-    // Scholar-level aggregate instructional minutes (sum of every active scholar's total received minutes)
-    // This differs from session-level: a 40-min session with 4 scholars = 40 session-mins but 160 scholar-mins
-    const scholarTotalMins = (function() {
-      if (!po || typeof po.getPersonMap !== 'function') return null;
-      try {
-        var pm = po.getPersonMap();
-        if (!pm) return null;
-        var total = 0;
-        Object.values(pm).forEach(function(p) {
-          if (p.role !== 'Student' || p.attended === 0) return;
-          Object.values(p.subjectMinutes || {}).forEach(function(m) { total += m; });
-        });
-        return total > 0 ? total : null;
-      } catch(e){ return null; }
-    }());
     const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
-    // Active scholars — unique students with at least 1 attended session
-    const activeScholars = (function(){
-      if (ldData && ldData.districts) {
-        return ldData.districts.reduce(function(sum, d){ return sum + (d.scholars||0); }, 0);
-      }
-      if (po && typeof po.getPersonMap === 'function') {
-        try {
-          var pm = po.getPersonMap();
-          return pm ? Object.values(pm).filter(function(p){ return p.role==='Student' && p.attended>0; }).length : null;
-        } catch(e){ return null; }
-      }
-      return null;
-    }());
 
     // ── 2. Operational Health ─────────────────────────────────────────
     const scholAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
@@ -5500,16 +5472,29 @@
     const tutPct   = tutorAtt != null ? Math.min(100, Math.round(tutorAtt)) : 0;
 
     // ── 3. Academic Impact — SY-aware ────────────────────────────────
+    // Cycle (diagnostic window) drill-down state
+    const _selCycle = el.dataset.selectedCycle || ''; // '' = all cycles
+    // Median % of Typical Growth calculation:
+    //   - Source: iReady Longitudinal CSV, column "Spring pct progress typical growth"
+    //   - Gated on springScore != null (only scholars with a completed spring diagnostic)
+    //   - When a specific SY is selected: mathMedianPctTypical (median of that SY's values)
+    //   - When "All Years" is selected: mathMedianPctAllYears (median across all embedded SYs)
+    //   - Formula: median(scholar_spring_scale_score / annual_typical_growth_measure) × 100
+    //   - 100% = exactly typical growth; >100% = above typical; <100% = below typical
     const _mPctAll  = irlView ? irlView.mathMedianPctAllYears  : null;
     const _mPctTyp  = irlView ? irlView.mathMedianPctTypical   : null;
     const _ePctAll  = irlView ? irlView.elaMedianPctAllYears   : null;
     const _ePctTyp  = irlView ? irlView.elaMedianPctTypical    : null;
-    const mathPct   = _mPctAll != null ? _mPctAll : _mPctTyp;
-    const elaPct    = _ePctAll != null ? _ePctAll : _ePctTyp;
+    // Use SY-filtered median when a year is active; use program-wide all-years median otherwise
+    const mathPct   = _selSY ? (_mPctTyp != null ? _mPctTyp : _mPctAll) : (_mPctAll != null ? _mPctAll : _mPctTyp);
+    const elaPct    = _selSY ? (_ePctTyp != null ? _ePctTyp : _ePctAll) : (_ePctAll != null ? _ePctAll : _ePctTyp);
+    // Data source label for transparency
+    const _dataSource = irlView ? (irlView.dataSource || 'iReady Longitudinal CSV') : 'iReady Longitudinal CSV';
     const mathGain  = irlView ? irlView.mathAvgGain  : null;
     const elaGain   = irlView ? irlView.elaAvgGain   : null;
-    const mathN     = irlView ? irlView.mathRows      : null;
-    const elaN      = irlView ? irlView.elaRows       : null;
+    // Row counts: use SY-specific counts from filtered view when a year is selected
+    const mathN     = irlView ? (irlView.mathGainN != null ? irlView.mathGainN : irlView.mathRows) : null;
+    const elaN      = irlView ? (irlView.elaGainN  != null ? irlView.elaGainN  : irlView.elaRows)  : null;
     const irlSY     = irlView ? (irlView.activeSY || null) : null;
     const mathBar   = mathPct != null ? Math.min(100, Math.round(mathPct/150*100)) : 0;
     const elaBar    = elaPct  != null ? Math.min(100, Math.round(elaPct /150*100)) : 0;
@@ -5546,10 +5531,13 @@
     // ── SY pill bar HTML ─────────────────────────────────────────────
     const syPills = irlYears.length ? `
       <div class="ecd-sy-bar">
-        <span class="ecd-sy-lbl">iReady View:</span>
+        <span class="ecd-sy-lbl">School Year:</span>
         <button class="ecd-sy-pill${!_selSY?' active':''}" onclick="document.getElementById('execDashboard').dataset.selectedSY='';window._execDashRefresh&&window._execDashRefresh(true)">All Years</button>
         ${irlYears.map(sy=>`<button class="ecd-sy-pill${_selSY===sy?' active':''}" onclick="document.getElementById('execDashboard').dataset.selectedSY='${sy}';window._execDashRefresh&&window._execDashRefresh(true)">${sy}</button>`).join('')}
       </div>` : '';
+    // Note: Cycle filter is informational — iReady methodology counts only scholars with a completed
+    // spring diagnostic (springScore != null). The CSV includes Fall/Winter/Spring window records;
+    // only those with a spring score contribute to % of Typical Growth calculations.
 
     el.innerHTML = `
       <!-- ═══ HEADER ═══ -->
@@ -5558,49 +5546,45 @@
           <div class="ecd-header-title">Executive Command Center</div>
           <div class="ecd-header-sub">Live operational snapshot · ${nowStr}</div>
         </div>
-        <div class="ecd-header-badge">Leadership View</div>
+        <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
+          <span style="font-size:.6rem;background:#f0f4fa;color:#475569;border:1px solid #dde3ec;border-radius:20px;padding:.2rem .625rem;font-weight:600">${_dataSource}</span>
+          <button onclick="(function(){if(window.po&&window.po.refresh)window.po.refresh(true);if(window.irlab&&window.irlab.fetchLive)window.irlab.fetchLive(true).catch(function(){});setTimeout(function(){window._execDashRefresh&&window._execDashRefresh(true);},1200);})()" title="Refresh all live data sources" style="display:flex;align-items:center;gap:.35rem;background:linear-gradient(135deg,#003087,#0050c8);color:#fff;border:none;border-radius:8px;padding:.4rem .875rem;font-size:.75rem;font-weight:700;cursor:pointer;letter-spacing:.01em;box-shadow:0 2px 8px rgba(0,48,135,.2)">↺ Refresh</button>
+          <div class="ecd-header-badge">Leadership View</div>
+        </div>
       </div>
 
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy">
+        <div class="ecd-kpi ck-navy" title="Active Tutors: Count of unique instructors with role='Instructor' in Pearl attendance data.">
           <div class="ecd-kpi-lbl">Active Tutors</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">With attended sessions</div>
+          <div class="ecd-kpi-foot">Instructors on record</div>
         </div>
-        <div class="ecd-kpi ck-gold">
+        <div class="ecd-kpi ck-gold" title="Districts: Count of unique partner districts derived from Pearl Operations attendance records.">
           <div class="ecd-kpi-lbl">Districts</div>
           <div class="ecd-kpi-val">${fv(districts)}</div>
           <div class="ecd-kpi-foot">Partner districts</div>
         </div>
-        <div class="ecd-kpi ck-blue">
-          <div class="ecd-kpi-lbl">Active Sites</div>
+        <div class="ecd-kpi ck-blue" title="Schools: Count of unique active school sites with at least one attendance record in Pearl.">
+          <div class="ecd-kpi-lbl">Schools</div>
           <div class="ecd-kpi-val">${fv(schools)}</div>
-          <div class="ecd-kpi-foot">Schools with sessions</div>
+          <div class="ecd-kpi-foot">Active sites</div>
         </div>
-        <div class="ecd-kpi ck-green">
-          <div class="ecd-kpi-lbl">Active Scholars</div>
-          <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
-          <div class="ecd-kpi-foot">With attended sessions</div>
-        </div>
-        <div class="ecd-kpi ck-teal">
+        <div class="ecd-kpi ck-green" title="Sessions Delivered: Total session records from Pearl Sessions tab. Counts all completed sessions (full and partial).">
           <div class="ecd-kpi-lbl">Sessions</div>
           <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total delivered</div>
         </div>
-        <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}">
+        <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}" title="Service Interruptions: Attendance records classified as disruptions NOT caused by scholar absence — e.g. tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences. Source: Pearl Ops — same value shown on Pearl Operations dashboard.">
           <div class="ecd-kpi-lbl">Service Interruptions</div>
           <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '\u2014'}</div>
           <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged \u2713' : 'Logged this period'}</div>
         </div>
-        <div class="ecd-kpi ck-rose">
-          <div class="ecd-kpi-lbl">Tutored Minutes</div>
+        <div class="ecd-kpi ck-rose" title="Total Instructional Minutes: Sum of session duration in minutes across all delivered sessions. Sourced from Pearl Operations session data.">
+          <div class="ecd-kpi-lbl">Total Minutes</div>
           <div class="ecd-kpi-val sm">${fmins(totalMins)}</div>
-          <div class="ecd-kpi-foot" style="line-height:1.5">
-            Session-level total
-            ${scholarTotalMins != null ? `<br><span style="color:var(--gold);font-weight:700">${fmins(scholarTotalMins)}</span> scholar-level aggregate` : ''}
-          </div>
+          <div class="ecd-kpi-foot">Instructional time</div>
         </div>
       </div>
 
@@ -5609,12 +5593,12 @@
       <div class="ecd-2col">
         <div class="ecd-card">
           <div class="ecd-card-title">Attendance Rates</div>
-          <div class="ecd-att-row">
+          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruption records — those are not scholar-caused absences. Source: Pearl Operations.">
             <div class="ecd-att-lbl">Scholar</div>
             <div class="ecd-att-track"><div class="ecd-att-fill ${att(scholAtt||0)}" style="width:${scholPct}%"></div></div>
             <div class="ecd-att-pct">${fp(scholAtt)}</div>
           </div>
-          <div class="ecd-att-row">
+          <div class="ecd-att-row" title="Tutor Attendance Rate: Attended ÷ (Attended + Absent) × 100 for Instructor role records. Source: Pearl Operations.">
             <div class="ecd-att-lbl">Tutor</div>
             <div class="ecd-att-track"><div class="ecd-att-fill ${att(tutorAtt||0)}" style="width:${tutPct}%"></div></div>
             <div class="ecd-att-pct">${fp(tutorAtt)}</div>
@@ -5622,7 +5606,7 @@
           ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
-          <div class="ecd-card-title">Scholar Attendance Tiers</div>
+          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar from Pearl Operations data. On Track: individual attendance ≥80%. At Risk: 70–79%. Needs Action: <70%.">ⓘ</span></div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#059669"></div>
             <div class="ecd-tier-lbl">On Track (&ge;80%)</div>
@@ -5647,10 +5631,13 @@
       <div class="ecd-academic">
         <div class="ecd-academic-glow"></div>
         <div class="ecd-academic-inner">
-          <div class="ecd-academic-eyebrow">iReady Diagnostic &mdash; Median % of Typical Growth &middot; ${_selSY || 'All Years (Program-Wide)'}</div>
+          <div class="ecd-academic-eyebrow" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <span>iReady Diagnostic &mdash; Median % of Typical Growth &middot; ${_selSY || 'All Years (Program-Wide)'}</span>
+            <span title="Median % of Typical Growth Definition:&#10;&#10;Formula: median(Spring Pct Progress Typical Growth) × 100&#10;&#10;Source column: 'spring_pct_progress_typical_growth' in iReady Longitudinal CSV&#10;&#10;Inclusion rule: Only scholars with a completed spring diagnostic (spring_overall_scale_score is not null) are included — consistent with iReady's own reporting methodology.&#10;&#10;100% = scholars made exactly typical growth per iReady norms&#10;>100% = above-typical growth (exceeding grade-level expectation)&#10;<100% = below-typical growth&#10;&#10;This is the MEDIAN (middle value), not an average, making it robust to outliers." style="background:rgba(255,255,255,.15);border-radius:99px;padding:.15rem .5rem;font-size:.6rem;font-weight:700;cursor:help;border:1px solid rgba(255,255,255,.2)">ⓘ How it's calculated</span>
+          </div>
           <div class="ecd-academic-row">
             ${mathPct != null ? `
-            <div class="ecd-achip">
+            <div class="ecd-achip" title="Mathematics Median % of Typical Growth&#10;Source: iReady Longitudinal CSV (Math tab)&#10;Column: spring_pct_progress_typical_growth&#10;n = ${mathN != null ? mathN.toLocaleString() : '?'} scholars with completed spring diagnostic">
               <div class="ecd-achip-subj">Mathematics</div>
               <div class="ecd-achip-pct-row">
                 <div class="ecd-achip-pct">${mathPct}</div>
@@ -5661,7 +5648,7 @@
               <div class="ecd-achip-track"><div class="ecd-achip-fill math" style="width:${mathBar}%"></div></div>
             </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">Mathematics</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}
             ${elaPct != null ? `
-            <div class="ecd-achip">
+            <div class="ecd-achip" title="ELA/Reading Median % of Typical Growth&#10;Source: iReady Longitudinal CSV (ELA tab)&#10;Column: spring_pct_progress_typical_growth&#10;n = ${elaN != null ? elaN.toLocaleString() : '?'} scholars with completed spring diagnostic">
               <div class="ecd-achip-subj">ELA / Reading</div>
               <div class="ecd-achip-pct-row">
                 <div class="ecd-achip-pct">${elaPct}</div>
@@ -5673,8 +5660,8 @@
             </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">ELA / Reading</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}
           </div>
           <div class="ecd-academic-foot">
-            <span>Source: iReady Longitudinal CSV &middot; Spring-diagnostic scholars only</span>
-            ${!hasAcad ? '<span style="color:#fbbf24">\u26a0 iReady data loading &mdash; refresh in a moment</span>' : `<span>${_selSY ? 'SY '+_selSY : 'Program-wide all years'}</span>`}
+            <span>Source: ${_dataSource} &middot; Scholars with completed spring diagnostic only</span>
+            ${!hasAcad ? '<span style="color:#fbbf24">\u26a0 iReady data loading &mdash; refresh in a moment</span>' : `<span>${_selSY ? 'SY '+_selSY : 'Program-wide all years'} &middot; ${(mathN||0)+(elaN||0) > 0 ? 'n='+(((mathN||0)+(elaN||0)).toLocaleString())+' records' : ''}</span>`}
           </div>
         </div>
       </div>
@@ -11894,15 +11881,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           }
 
           // Schools / districts / tutors
-          // schoolCount: only schools that have at least 1 delivered session (active sites)
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap).filter(function(s){ return _schoolMap[s] && (_schoolMap[s].stuAttended > 0 || _schoolMap[s].instAttended > 0); });
+            var schools = Object.keys(_schoolMap);
             stats.schoolCount = schools.length;
-            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; }).filter(Boolean)).size;
+            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; })).size;
           }
-          // activeTutors: only instructors with at least 1 attended session
           if (_personMap) {
-            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
           }
           stats.totalRows = _attRows.length + _sessRows.length + _instRows.length;
           stats.loaded = stats.scholAttPct !== null;
@@ -15446,7 +15431,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       openFlagsModal, onPanelOpen,
       getLeadershipData,
       getTutorAttendanceMap,
-      getPersonMap: function() { return _personMap; },
       exportData, showExportModal,
       getStats: function() {
         // Compute directly from the internal data arrays
@@ -15479,12 +15463,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             stats.surveyAvg = parseFloat((_stuAggScores.globalSum / _stuAggScores.globalCnt).toFixed(2));
           }
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap).filter(function(s){ return _schoolMap[s] && (_schoolMap[s].stuAttended > 0 || _schoolMap[s].instAttended > 0); });
+            var schools = Object.keys(_schoolMap);
             stats.schoolCount = schools.length;
             stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s] && _schoolMap[s].district; }).filter(Boolean)).size;
           }
           if (_personMap) {
-            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
           }
           stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
           // Total instructional minutes from delivered sessions
@@ -16932,8 +16916,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
           // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Include all rows with a valid pctTypical value (covers BOY→MOY and BOY→Spring pairs)
-          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
+          var _mp=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
@@ -16945,8 +16929,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
           // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Include all rows with a valid pctTypical value (covers BOY→MOY and BOY→Spring pairs)
-          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
+          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
+          var _ep=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
         }
         // Race — count unique scholars
@@ -17017,7 +17001,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r) return;
+            if(!r||r.springScore==null) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -17028,7 +17012,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r) return;
+            if(!r||r.springScore==null) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
