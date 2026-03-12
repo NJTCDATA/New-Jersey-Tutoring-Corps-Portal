@@ -15673,12 +15673,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     function normalizeRow(r, subject) {
-      // Case-normalize keys so lookups work regardless of exact column name casing in the sheet
+      // Full header normalization: lowercase, replace ALL non-alphanumeric with _, trim underscores
+      // Handles Title Case, snake_case, headers with %, &, () etc.
       const _rn = {};
       for (const k of Object.keys(r)) {
         _rn[k] = r[k];
-        const lk = k.toLowerCase().replace(/ /g, '_');
-        if (!(_rn[lk] !== undefined)) _rn[lk] = r[k];
+        const lk = k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        if (_rn[lk] === undefined) _rn[lk] = r[k];
+        // Also store with spaces→underscores only (legacy compatibility)
+        const lk2 = k.toLowerCase().replace(/ /g, '_');
+        if (_rn[lk2] === undefined) _rn[lk2] = r[k];
       }
       r = _rn;
       const instRaw = g(r,'Instructor','Tutor','tutor','instructor').trim();
@@ -15708,12 +15712,24 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
         pctTypical:       (function(){
-          var _raw=g(r,'Spring pct progress typical growth','spring_pct_progress_typical_growth');
+          // Try all known column name variants across Math (Title Case) and ELA (snake_case) sheets
+          var _raw = g(r,
+            'Spring pct progress typical growth',
+            'spring_pct_progress_typical_growth',
+            'spring_pct_toward_typical_growth',
+            'Spring Pct Progress Toward Typical Growth',
+            'spring__progress_typical_growth',       // % sign → _ in normalization
+            'spring_growth_inclusion',               // ELA repeat sheet variant
+            'Spring Growth Inclusion',
+            'Spring % Progress Typical Growth',
+            'spring_pct_typical',
+            'pct_progress_typical_growth'
+          );
           var _v=parseFloat(_raw);
-          if(isNaN(_v)) return null;
-          // Handle %-suffixed values: '16%' → parseFloat gives 16.0 → divide by 100 → 0.16
+          if(isNaN(_v)||_raw===''||_raw===null||_raw===undefined) return null;
+          // Handle %-suffixed values: '97%' → parseFloat gives 97 → divide by 100 → 0.97
           if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
-          // Guard: iReady ratio column is 0–~15 range; if >15 it's a malformed pct-as-integer, normalize
+          // Guard: iReady ratio column is 0–~15 range (e.g. 1.50 = 150%); >15 is pct-as-integer
           else if(_v > 15) { _v=_v/100; }
           return _v;
         }()),
@@ -17245,11 +17261,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       });
       const hasData = allRows.length > 0;
 
-      // Default year to most recent available on first load (only if still at default 'all')
-      if (_irlYear === 'all' && years.length > 0 && !_irlBuilt) {
-        if (years.includes('2024-2025')) { _irlYear = '2024-2025'; }
-        else { _irlYear = years[years.length - 1]; }
-      }
+      // Year defaults to 'all' (show all available years) — users can filter via dropdown
 
       const yearOpts   = ['all',...years].map(y=>`<option value="${y}" ${_irlYear===y?'selected':''}>${y==='all'?'All Years':y}</option>`).join('');
       const subOpts    = `<option value="all" ${_irlSubject==='all'?'selected':''}>Both Subjects</option><option value="Math" ${_irlSubject==='Math'?'selected':''}>Math</option><option value="ELA" ${_irlSubject==='ELA'?'selected':''}>ELA</option>`;
@@ -17303,6 +17315,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {
       const sess    = window.NJTC_SESSION;
       const myDept  = (sess && sess.dept) ? sess.dept : _irlDept;
+      // Dept switch: leadership & data can switch; everyone else is locked to own dept
+      const canSwitch = ['leadership','data'].includes(myDept);
+      // Sync _irlDept to session dept if not a privileged switcher
+      if (!canSwitch && DEPT_CFG[myDept]) _irlDept = myDept;
+      const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
+
       const dataUpdatePanel = myDept === 'data' ? renderDataUpdatePanel() : '';
 
       if (!hasData) return `
@@ -17311,19 +17329,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           <div class="irlab-empty">
             <div class="irlab-empty-icon">⏳</div>
             <div class="irlab-empty-title">Loading live iReady data…</div>
-            <div class="irlab-empty-sub">Fetching from Google Sheets. This takes a few seconds on first load.</div>
+            <div class="irlab-empty-sub">Fetching all four sheets (ELA, Math, ELA Repeat, Math Repeat) from Google Sheets. Usually ready in 3–5 seconds.</div>
           </div>
         </div>`;
 
-      const rows       = getRows({});
-      const allELA     = getAllRows({subject:'ELA'});
-      const allMath    = getAllRows({subject:'Math'});
-      const m          = rows.length ? computeMetrics(rows) : null;
-
-      // All rows for school breakdown typical growth calculation
+      const rows    = getRows({});
+      const allELA  = getAllRows({subject:'ELA'});
+      const allMath = getAllRows({subject:'Math'});
       const allRows = getAllRows({});
+      const m       = rows.length ? computeMetrics(rows) : null;
+      const mathM   = getRows({subject:'Math'}).length ? computeMetrics(getRows({subject:'Math'})) : null;
+      const elaM    = getRows({subject:'ELA'}).length  ? computeMetrics(getRows({subject:'ELA'}))  : null;
 
-      // Filter row count
+      // Active filter chips
       const activeFilt = [
         _irlYear !== 'all' ? _irlYear : null,
         _irlSubject !== 'all' ? _irlSubject : null,
@@ -17333,11 +17351,21 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         _irlScholarType !== 'all' ? _irlScholarType : null,
       ].filter(Boolean);
 
+      const totalUnique = [...new Set(allRows.map(r=>r.scholarId||r.scholarName).filter(Boolean))].length;
+
+      // Dept tab HTML
+      const deptTabsHtml = `<div class="irlab-dept-tabs" style="margin-bottom:1.25rem">
+        ${canSwitch
+          ? Object.entries(DEPT_CFG).map(([key,c])=>`<button class="irlab-dept-tab ${_irlDept===key?'active':''}" style="${_irlDept===key?'background:'+c.color+';border-color:'+c.color+';color:#fff':''}" onclick="irlab.setDept('${key}')">${c.emoji} ${c.label}</button>`).join('')
+          : `<div style="display:inline-flex;align-items:center;gap:.375rem;padding:.35rem .875rem;background:${cfg.color};border-radius:20px;color:#fff;font-size:.8125rem;font-weight:700">${cfg.emoji} ${cfg.label} View <span style="font-size:.6rem;opacity:.75;margin-left:.2rem">🔒</span></div>`
+        }
+      </div>`;
+
       return `
         <!-- Filter bar -->
-        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem">
-          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">FILTERS</div>
-          <div class="irlab-filter-row" style="flex-wrap:wrap;gap:.5rem;margin-bottom:0">
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:.875rem 1rem;margin-bottom:1.25rem">
+          <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.5rem">DASHBOARD FILTERS</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
             <select class="irlab-select" onchange="irlab.setYear(this.value)">${yearOpts}</select>
             <select class="irlab-select" onchange="irlab.setSubject(this.value)">${subOpts}</select>
             <select class="irlab-select" onchange="irlab.setDistrict(this.value)">${distOpts}</select>
@@ -17345,66 +17373,220 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             <select class="irlab-select" onchange="irlab.setGrade(this.value)">${gradeOpts}</select>
             <select class="irlab-select" onchange="irlab.setScholarType(this.value)">${typeOpts}</select>
           </div>
-          ${activeFilt.length ? `<div style="font-size:.75rem;color:var(--blue-mid);margin-top:.375rem">Filtering: ${activeFilt.join(' · ')} · ${rows.length.toLocaleString()} valid diagnostic pairs</div>` : `<div style="font-size:.75rem;color:var(--muted);margin-top:.375rem">${rows.length.toLocaleString()} valid diagnostic pairs · ${[...new Set(getAllRows({}).map(r=>r.scholarId||r.scholarName).filter(Boolean))].length.toLocaleString()} unique scholars</div>`}
+          ${activeFilt.length
+            ? `<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.375rem">${activeFilt.map(f=>`<span style="background:#dbeafe;color:#1e40af;font-size:.7rem;font-weight:700;padding:.2rem .5rem;border-radius:20px">✓ ${esc(f)}</span>`).join('')}<span style="color:var(--muted);font-size:.75rem;align-self:center">${rows.length.toLocaleString()} diagnostic pairs</span></div>`
+            : `<div style="font-size:.75rem;color:var(--muted);margin-top:.375rem">Showing <strong>${totalUnique.toLocaleString()}</strong> unique scholars · <strong>${rows.length.toLocaleString()}</strong> valid diagnostic pairs · all years & subjects</div>`
+          }
         </div>
 
         ${dataUpdatePanel}
 
-        ${!m ? `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Adjust filters above.</div></div></div>` : `
-        <!-- Section A: KPI Cards -->
-        ${renderAnalyticsKPIs(allELA, allMath, rows)}
+        ${!m ? `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Try broadening your filters.</div></div></div>` : `
 
-        <!-- Section B: Growth Distribution -->
+        <!-- ═══ SECTION A: PROGRAM-LEVEL KPI HERO ═══ -->
+        <div style="background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 60%,#003087 100%);border-radius:14px;padding:1.5rem 2rem;margin-bottom:1.25rem;position:relative;overflow:hidden">
+          <div style="position:absolute;inset:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22200%22><circle cx=%22350%22 cy=%2250%22 r=%22120%22 fill=%22rgba(255,255,255,.03)%22/><circle cx=%2250%22 cy=%22150%22 r=%2280%22 fill=%22rgba(255,255,255,.02)%22/></svg>');background-size:cover"></div>
+          <div style="position:relative">
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.5);margin-bottom:.75rem">📊 NJTC · iReady Academic Impact Dashboard · Live Data</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:1rem">
+              ${[
+                { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: `${rows.length} valid pairs`, c: '#fff' },
+                { v: (() => { const v=medianArr(allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v))); return v!==null?(v*100).toFixed(1)+'%':'—'; })(), l: 'ELA Median Typical Growth', s: `${allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length} scholars`, c: '#4ade80' },
+                { v: (() => { const v=medianArr(allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v))); return v!==null?(v*100).toFixed(1)+'%':'—'; })(), l: 'Math Median Typical Growth', s: `${allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length} scholars`, c: '#60a5fa' },
+                { v: (() => { const tp=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return tp.length?pct(tp.filter(v=>v>=1.0).length,tp.length)+'%':'—'; })(), l: '% Meeting Typical (ELA)', s: '≥100% typical growth', c: '#fbbf24' },
+                { v: (() => { const tp=allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return tp.length?pct(tp.filter(v=>v>=1.0).length,tp.length)+'%':'—'; })(), l: '% Meeting Typical (Math)', s: '≥100% typical growth', c: '#f472b6' },
+                { v: (() => { const g=rows.filter(r=>r.subject==='ELA').map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v)); return g.length?(avg(g)>=0?'+':'')+avg(g).toFixed(1):'—'; })(), l: 'Avg Scale Gain (ELA)', s: 'scale score points', c: '#a78bfa' },
+                { v: (() => { const g=rows.filter(r=>r.subject==='Math').map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v)); return g.length?(avg(g)>=0?'+':'')+avg(g).toFixed(1):'—'; })(), l: 'Avg Scale Gain (Math)', s: 'scale score points', c: '#34d399' },
+              ].map(k=>`<div style="text-align:center">
+                <div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.875rem;font-weight:400;color:${k.c};line-height:1;margin-bottom:.25rem">${k.v}</div>
+                <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.7);line-height:1.3">${k.l}</div>
+                <div style="font-size:.65rem;color:rgba(255,255,255,.4);margin-top:.15rem">${k.s}</div>
+              </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ DEPT LENS SELECTOR ═══ -->
+        ${deptTabsHtml}
+
+        <!-- ═══ DEPT-SPECIFIC INSIGHT VIEW ═══ -->
+        <div class="irlab-card" style="margin-bottom:1.25rem;border-left:4px solid ${cfg.color}">
+          <div class="irlab-card-hd" style="background:${cfg.bg||'var(--surface-2)'}">
+            <div>
+              <div class="irlab-card-title" style="color:${cfg.color}">${cfg.emoji} ${cfg.label} — Academic Intelligence View</div>
+              <div class="irlab-card-meta">${_irlDept==='leadership'?'Executive summary · Program-wide academic outcomes':'Dept-specific analytics · '+m.n.toLocaleString()+' scholars analyzed'}</div>
+            </div>
+          </div>
+          <div class="irlab-card-body">
+            ${_irlDept==='leadership' ? renderLeadershipInsights(m, mathM, elaM) : renderDeptInsights(m, _irlDept)}
+            ${_irlDept==='data' ? renderDataUpdatePanel() : ''}
+          </div>
+        </div>
+
+        <!-- ═══ MATH vs ELA COMPARISON ═══ -->
+        ${mathM && elaM ? `<div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📐 Math vs ELA — Side by Side</div><div class="irlab-card-meta">Key metrics by subject</div></div>
+          <div class="irlab-card-body"><div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            ${[{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖',aRows:allELA},{label:'Math',sc:mathM,color:'#0050c8',icon:'➗',aRows:allMath}].map(({label,sc,color,icon,aRows})=>{
+              const medT = medianArr(aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+              const metT = aRows.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>=1.0);
+              const totT = aRows.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical));
+              return `<div style="border:2px solid ${color}22;border-radius:12px;padding:1.25rem;background:${color}07">
+                <div style="font-size:1rem;font-weight:700;color:${color};margin-bottom:.875rem">${icon} ${label}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.625rem;font-size:.8125rem">
+                  <div><div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;color:var(--navy)">${medT!==null?(medT*100).toFixed(1)+'%':'—'}</div><div style="color:var(--muted);font-size:.75rem">Median Typical Growth</div></div>
+                  <div><div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;color:var(--navy)">${totT.length?pct(metT.length,totT.length)+'%':'—'}</div><div style="color:var(--muted);font-size:.75rem">% Meeting Typical</div></div>
+                  <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.75rem">Avg Scale Gain</div></div>
+                  <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.75rem">Moved Up (Placement)</div></div>
+                  <div><div style="font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.75rem">At Grade Level</div></div>
+                  <div><div style="font-weight:700;color:var(--muted)">${sc.n.toLocaleString()}</div><div style="color:var(--muted);font-size:.75rem">Scholars</div></div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div></div>
+        </div>` : ''}
+
+        <!-- ═══ SECTION B: GROWTH DISTRIBUTION CHART ═══ -->
         ${renderGrowthDistChart()}
 
-        <!-- Section C: Placement Distribution BOY vs Spring -->
+        <!-- ═══ SECTION C: PLACEMENT DISTRIBUTION CHART ═══ -->
         ${renderPlacementDistChart()}
 
-        <!-- Section D: School Breakdown -->
+        <!-- ═══ SECTION D: SCHOOL-LEVEL BREAKDOWN ═══ -->
         ${renderSchoolBreakdown(rows, allRows)}
 
-        <!-- Placement shift detail -->
+        <!-- ═══ PLACEMENT SHIFT DETAIL ═══ -->
         <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">📊 Placement Shift Detail</div><div class="irlab-card-meta">BOY → Spring by level</div></div>
+          <div class="irlab-card-hd">
+            <div class="irlab-card-title">📊 Placement Shift: BOY → Spring</div>
+            <div class="irlab-card-meta">Level-by-level movement across ${m.n.toLocaleString()} scholars</div>
+          </div>
           <div class="irlab-card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;align-items:start">
             <div>
-              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Spring Distribution</div>
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.625rem">Spring Placement Distribution</div>
               ${PLACEMENT_ORDER.map(p=>{const pc=pct(m.springDist[p]||0,m.n);return `<div class="irlab-funnel-row"><div class="irlab-funnel-label" style="color:${PLC[p]}">${PLC_SHORT[p]}</div><div class="irlab-funnel-bar-wrap"><div class="irlab-funnel-bar" style="width:${pc}%;background:${PLC[p]}"></div></div><div class="irlab-funnel-pct" style="color:${PLC[p]}">${pc}%</div><div class="irlab-funnel-n">${m.springDist[p]||0}</div></div>`;}).join('')}
             </div>
             <div>${renderPlacementShift(m)}</div>
           </div>
         </div>
 
-        <!-- Section E: Repeat Scholar Longitudinal -->
-        ${renderRepeatLongitudinal()}
+        <!-- ═══ EQUITY SNAPSHOT ═══ -->
+        ${renderEquitySnapshot(m)}
 
-        <!-- Section F: ELA Domain Subscores -->
-        ${renderELADomainSubscores(rows)}
-
-        <!-- Section G: Math Domain Subscores -->
-        ${renderMathDomainSubscores(rows)}
-
-        <!-- District rankings -->
+        <!-- ═══ DISTRICT RANKINGS ═══ -->
         <div class="irlab-card" style="margin-bottom:1.25rem">
-          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div></div>
+          <div class="irlab-card-hd"><div class="irlab-card-title">🏆 District Rankings</div><div class="irlab-card-meta">Sorted by Median Typical Growth %</div></div>
           <div class="irlab-card-body" style="overflow-x:auto">
             <table class="irlab-rank-table">
-              <thead><tr><th>District</th><th>Median Typical %</th><th style="text-align:center">% Meeting Typical</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+              <thead><tr><th>District</th><th>Median Typical Growth %</th><th style="text-align:center">% Meeting Typical</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
               <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
                 const dm=computeMetrics(drows); if(!dm) return '';
-                const dTyp=medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
-                const medC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':'#b91c1c';
-                return `<tr><td style="font-weight:600">${esc(name)}</td>
-                  <td><div style="display:flex;align-items:center;gap:.5rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${medC};border-radius:3px"></div></div><span style="font-weight:700;color:${medC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                  <td style="text-align:center"><span style="background:${dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>
-                  <td style="text-align:center;font-weight:600;color:var(--blue-mid);font-size:.8125rem">${dm.avgGain!==null?(dm.avgGain>=0?'+':'')+dm.avgGain.toFixed(1):'—'}</td>
-                  <td style="text-align:right;font-size:.75rem;color:var(--muted)">${dm.n}</td></tr>`;
-              }).join('')}</tbody>
+                const dTyp=medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&isFinite(v)));
+                const medC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':dTyp!==null?'#b91c1c':'var(--muted)';
+                return `<tr>
+                  <td style="font-weight:700;color:var(--navy)">${esc(name)}</td>
+                  <td style="min-width:160px"><div style="display:flex;align-items:center;gap:.5rem"><div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${medC};border-radius:3px"></div></div><span style="font-weight:700;color:${medC};font-size:.8125rem;min-width:44px">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                  <td style="text-align:center"><span style="background:${dm.metTypPct!==null&&dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct!==null&&dm.metTypPct>=50?'#166534':'#92400e'};padding:.2rem .6rem;border-radius:12px;font-size:.75rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>
+                  <td style="text-align:center;font-weight:700;color:${dm.pctMoved>=50?'#0d6e3a':'#d97706'}">${dm.pctMoved}%</td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${dm.avgGain!==null?(dm.avgGain>=0?'+':'')+dm.avgGain.toFixed(1):'—'}</td>
+                  <td style="text-align:right;font-size:.75rem;color:var(--muted)">${dm.n}</td>
+                </tr>`;
+              }).sort((a,b)=>0).join('')}</tbody>
             </table>
           </div>
         </div>
+
+        <!-- ═══ GRADE TRENDS ═══ -->
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">📚 Grade-Level Breakdown</div><div class="irlab-card-meta">Median Typical Growth % and placement movement by grade</div></div>
+          <div class="irlab-card-body" style="overflow-x:auto">
+            <table class="irlab-rank-table">
+              <thead><tr><th>Grade</th><th>Median Typical Growth %</th><th style="text-align:center">% Meeting Typical</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+              <tbody>${Object.entries(m.byGrade).map(([gr,grows])=>{
+                const gm=computeMetrics(grows); if(!gm) return '';
+                const gTyp=medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&isFinite(v)));
+                const gC=gTyp!==null&&gTyp>=1.0?'#0d6e3a':gTyp!==null?'#b91c1c':'var(--muted)';
+                return {gr:gr, num:parseInt(gr)||99, html:`<tr>
+                  <td style="font-weight:700">Grade ${esc(gr)}</td>
+                  <td style="min-width:140px"><div style="display:flex;align-items:center;gap:.5rem"><div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((gTyp||0)*100,200)/2}%;height:100%;background:${gC};border-radius:3px"></div></div><span style="font-weight:700;color:${gC};font-size:.8rem;min-width:40px">${gTyp!==null?(gTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                  <td style="text-align:center;font-size:.8rem"><span style="background:${gm.metTypPct!==null&&gm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${gm.metTypPct!==null&&gm.metTypPct>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:10px;font-weight:700">${gm.metTypPct!==null?gm.metTypPct+'%':'—'}</span></td>
+                  <td style="text-align:center;font-weight:700;color:${gm.pctMoved>=50?'#0d6e3a':'#d97706'}">${gm.pctMoved}%</td>
+                  <td style="text-align:center;font-weight:700;color:#0d6e3a">${gm.pctOnGL}%</td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${gm.avgGain!==null?(gm.avgGain>=0?'+':'')+gm.avgGain.toFixed(1):'—'}</td>
+                  <td style="text-align:right;font-size:.75rem;color:var(--muted)">${gm.n}</td>
+                </tr>`};
+              }).filter(Boolean).sort((a,b)=>a.num-b.num).map(x=>x.html).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ═══ TUTOR IMPACT LEADERBOARD ═══ -->
+        ${_irlDept !== 'data' ? renderTutorLeaderboard(m, _irlDept) : ''}
+
+        <!-- ═══ CERT COHORT ═══ -->
+        <div class="irlab-card" style="margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🎓 Certification Cohort Analysis</div><div class="irlab-card-meta">Academic outcomes by tutor certification status · observational only</div></div>
+          <div class="irlab-card-body">
+            <div class="irlab-cohort-grid">
+              ${Object.entries(m.byCert).map(([cert,crows])=>{const cm=computeMetrics(crows);if(!cm)return'';const cTyp=medianArr(getAllRows({}).filter(r=>r.certStatus===cert).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));const cols={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};const col=cols[cert]||'#7d8fa1';return `<div class="irlab-cohort-card" style="--coh-color:${col}"><div class="irlab-cohort-name">${esc(cert)}</div><div class="irlab-cohort-val">${cTyp!==null?(cTyp*100).toFixed(0)+'%':'—'}</div><div class="irlab-cohort-sub">Median Typical Growth</div><div style="font-size:.75rem;margin-top:.5rem;color:var(--text-2)"><div>Moved up: <strong>${cm.pctMoved}%</strong></div><div>At GL: <strong>${cm.pctOnGL}%</strong></div><div>Avg gain: <strong>${cm.avgGain!==null?(cm.avgGain>=0?'+':'')+cm.avgGain.toFixed(1):'—'}</strong></div><div style="color:var(--muted)">N = ${cm.n}</div></div></div>`;}).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ SECTION E: REPEAT SCHOLARS ═══ -->
+        ${renderRepeatLongitudinal()}
+
+        <!-- ═══ SECTION F: ELA DOMAIN SUBSCORES ═══ -->
+        ${renderELADomainSubscores(rows)}
+
+        <!-- ═══ SECTION G: MATH DOMAIN SUBSCORES ═══ -->
+        ${renderMathDomainSubscores(rows)}
+
         `}
       `;
+    }
+
+    // Leadership-specific insight block (replaces old renderLeadershipView dept section)
+    function renderLeadershipInsights(m, mathM, elaM) {
+      if (!m) return '';
+      const dists = Object.entries(m.byDistrict).map(([name,drows])=>{
+        const dm=computeMetrics(drows);
+        if (!dm) return null;
+        const dTyp = medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+        return {name, ...dm, medianTyp:dTyp};
+      }).filter(Boolean).sort((a,b)=>(b.medianTyp||0)-(a.medianTyp||0));
+
+      const stars = dists.slice(0,3).map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:.375rem">
+        <span>⭐</span><div><div style="font-weight:700;color:#166534;font-size:.875rem">${esc(d.name)}</div>
+        <div style="font-size:.75rem;color:#166534">${d.medianTyp!==null?(d.medianTyp*100).toFixed(0)+'% median growth · ':''}${d.pctMoved}% moved up · +${d.avgGain?.toFixed(1)||'—'} avg gain</div></div></div>`).join('');
+      const watch = dists.slice(-Math.min(2,dists.length)).reverse().map(d=>`<div style="display:flex;align-items:center;gap:.625rem;padding:.5rem .875rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:.375rem">
+        <span>🔍</span><div><div style="font-weight:700;color:#991b1b;font-size:.875rem">${esc(d.name)}</div>
+        <div style="font-size:.75rem;color:#991b1b">${d.medianTyp!==null?(d.medianTyp*100).toFixed(0)+'% median growth · ':''}${d.n} scholars</div></div></div>`).join('');
+
+      // Talking points with live numbers
+      const pts = [
+        m.pctMoved + '% of assessed scholars — ' + m.moved.length.toLocaleString() + ' students — improved their i-Ready placement from BOY to spring.',
+        m.pctOnGL + '% reached Early On Grade Level or above (' + m.sprOnGL.length.toLocaleString() + ' scholars).',
+        m.avgGain !== null ? 'Average scale score gain: +' + m.avgGain.toFixed(1) + ' points across the full portfolio.' : null,
+        m.below2Chg < 0 ? Math.abs(m.below2Chg) + ' scholars moved out of the 2+ grade levels below tier — a direct equity impact.' : null,
+        dists.length ? dists[0].name + ' led all districts with ' + (dists[0].medianTyp!==null?(dists[0].medianTyp*100).toFixed(0)+'% median typical growth':'—') + '.' : null,
+      ].filter(Boolean);
+
+      return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">⭐ Standout Districts</div>
+          ${stars || '<div style="color:var(--muted);font-size:.875rem">Insufficient data</div>'}
+        </div>
+        <div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">🔍 Needs Attention</div>
+          ${watch || '<div style="color:var(--muted);font-size:.875rem">All districts performing well</div>'}
+        </div>
+      </div>
+      <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">📋 Ready-to-Use Talking Points</div>
+      ${pts.map((pt,i)=>`<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .875rem;background:${i%2===0?'var(--surface-2)':'var(--surface)'};border-radius:8px;border:1px solid var(--border-2);margin-bottom:.375rem">
+        <div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div>
+        <div style="font-size:.875rem;line-height:1.5;color:var(--navy)">${pt}</div>
+      </div>`).join('')}`;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
