@@ -5454,15 +5454,17 @@
     const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
 
     // ── 1. Program Footprint ──────────────────────────────────────────
-    // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap
-    // Pearl personMap counts unique instructor names in attendance data (includes prior-year staff)
-    const hrActiveTutors = (typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+    // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap.
+    // Only read HR_EMPS after live HR data has been fetched — prevents showing stale embedded snapshot count.
+    const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
     const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
-    // Scholar counts from Pearl _personMap (live, accurate)
-    const activeScholars   = ldData ? (ldData.activeScholars   || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
-    const rosteredScholars = ldData ? (ldData.rosteredScholars || (poStats ? poStats.rosteredScholars : null)) : (poStats ? poStats.rosteredScholars : null);
+    // Scholar counts: use Pearl Ops _personMap count (scholars with ≥1 attended session) as primary source
+    // so exec and Pearl Operations panel always show the same number.
+    const _pearlScholars = poStats ? poStats.activeScholars : null;
+    const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
+    const rosteredScholars = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.rosteredScholars) : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
@@ -9462,6 +9464,9 @@
           _hrOverlayLive(c.rows);
           _hrStatus = 'live';
           _hrFetched = true;
+          window._hrDataFetched = true;
+          // Trigger exec dashboard refresh so tutor count updates from correct live data
+          try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
           return;
         }
       } catch(e) {}
@@ -9498,6 +9503,9 @@
       _hrStatus = 'error';
     }
     _hrFetched = true;
+    window._hrDataFetched = true;
+    // Trigger exec dashboard refresh so tutor count updates from live HR data
+    try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
   }
 
   // ── Tier config ───────────────────────────────────────────────────────────
@@ -14983,8 +14991,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           return { week, rate: t > 0 ? Math.round(v.att/t*100) : 0, total: t };
         });
 
+      // Unique scholars served: scholars with at least 1 attended session — consistent with Pearl Operations view
+      const scholarsServed = onTrack + atRisk + needsAction;
+
       return {
         scholarRate, tutorRate, sessionsDelivered, scholarSurvey,
+        scholarsServed,
         scholarOnTrack: onTrack, scholarAtRisk: atRisk, scholarNeedsAction: needsAction,
         districts,
         absenceDrivers: {
@@ -15578,18 +15590,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
-    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v1';
+    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v3';  // bumped to purge stale cached row data
     // ── To enable live i-Ready data: set 2PACX key + tab GIDs below ──
     // Published sheet: File → Share → Publish to web → CSV → copy 2PACX key
     // GIDs: each tab's numeric ?gid= value from the sheet URL
     const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
     // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
     // Cache key for discovered GIDs
-    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v1';
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v3';  // bumped to purge corrupted v1/v2 caches
     const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
     let   IRLAB_LIVE_GIDS  = { math: null, ela: null, mathRep: null, elaRep: null };
     const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
     let   _irlGIDsResolved = false;
+    let   _irlDiscoveryPromise = null;  // promise lock — prevents concurrent discovery races
     let   _irlLiveStatus   = 'embedded';
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -15655,7 +15668,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     function normalizeRow(r, subject) {
-      const instRaw = g(r,'Instructor').trim();
+      // Case-normalize keys so lookups work regardless of exact column name casing in the sheet
+      const _rn = {};
+      for (const k of Object.keys(r)) {
+        _rn[k] = r[k];
+        const lk = k.toLowerCase().replace(/ /g, '_');
+        if (!(_rn[lk] !== undefined)) _rn[lk] = r[k];
+      }
+      r = _rn;
+      const instRaw = g(r,'Instructor','Tutor','tutor','instructor').trim();
       return {
         subject,
         year:             g(r,'Academic year','academic_year'),
@@ -15665,8 +15686,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         certStatus:       g(r,'Certification Status'),
         instructor:       instRaw,
         tutors:           instRaw ? instRaw.split(',').map(n=>n.trim()).filter(Boolean) : [],
-        scholarId:        g(r,'Student id','student_id'),
-        scholarName:      g(r,'First and Last Name'),
+        scholarId:        g(r,'Student id','student_id','Student ID','Student Id','Local Student ID','local_student_id','Id','ID'),
+        scholarName:      g(r,'First and Last Name','first_and_last_name','Student Name','student_name','Scholar Name','Name','Full Name'),
         sex:              g(r,'Sex'),
         hispanic:         g(r,'Hispanic or latino','hispanic_or_latino'),
         race:             g(r,'Race Analytics'),
@@ -15785,14 +15806,28 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Auto-discover tab GIDs from pubhtml (runs once per session, cached 24hr) ──
     async function _irlDiscoverGIDs() {
       if (_irlGIDsResolved) return true;
+      // Promise lock: if discovery is already in-flight, wait on same promise instead of racing
+      if (_irlDiscoveryPromise) return _irlDiscoveryPromise;
+      _irlDiscoveryPromise = _irlDiscoverGIDsInner();
+      return _irlDiscoveryPromise;
+    }
+
+    async function _irlDiscoverGIDsInner() {
       // 1. Try localStorage cache
       try {
         const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
         if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
-          IRLAB_LIVE_GIDS = cached.gids;
-          _irlGIDsResolved = true;
-          console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
-          return true;
+          const cg = cached.gids || {};
+          // Require math and ela to be non-null (and non-zero) — partial caches cause wrong assignments
+          const hasCore = !!(cg.math && cg.ela);
+          if (hasCore) {
+            IRLAB_LIVE_GIDS = cg;
+            _irlGIDsResolved = true;
+            console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
+            return true;
+          }
+          console.warn('[irlab] Ignoring incomplete GID cache:', JSON.stringify(cg));
+          try { localStorage.removeItem(IRLAB_GID_CACHE); } catch(e) {}
         }
       } catch(e) {}
 
@@ -15814,59 +15849,80 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // 3. Fallback: common GIDs + gid=0 (default tab)
       if (!probedGids.length) probedGids = [0, 1, 2, 3, 100, 200, 300, 400];
 
-      // 4. Fetch each candidate and identify by header signature
+      // 4. Fetch each candidate — capture header + first data line in ONE request (no re-fetch needed)
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const r = await fetch(csvBase + '&gid=' + gid + '&t=' + Date.now(), { signal: AbortSignal.timeout(12000) });
+          const r = await fetch(csvBase + '&gid=' + gid, { signal: AbortSignal.timeout(12000) });
           if (!r.ok) return null;
           const text = await r.text();
-          const hdr  = text.split('\n')[0].toLowerCase().replace(/"/g, '');
-          return { gid, hdr };
+          const lines = text.split('\n');
+          const hdr   = lines[0].toLowerCase().replace(/"/g, '');
+          // Keep first 3 lines for subject detection — avoids a second HTTP request entirely
+          const snippet = lines.slice(0, 3).join('\n');
+          return { gid, hdr, snippet };
         } catch { return null; }
       }));
 
-      // 5. Assign GIDs by header signature
+      // 5. Helpers
+      const _detectSubject = rows => {
+        if (!rows.length) return '';
+        return (rows[0]['Subject'] || rows[0]['subject'] || rows[0]['SUBJECT'] || '').toLowerCase();
+      };
+      const _isElaSubject    = s => s.includes('ela') || s.includes('reading') || s.includes('language');
+      const _isMathSubject   = s => s.includes('math');
+      const _isLongitudinalH = h => (h.includes('academic year') || h.includes('school year')) && !h.includes('repeat scholar');
+      const _hasStaffCol     = h => h.includes('instructor') || h.includes('tutor');
+
+      // 6. Assign GIDs by header + first-row subject (no extra HTTP requests)
       const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
       for (const row of results.filter(Boolean)) {
         const h = row.hdr;
-        // Math/ELA longitudinal: has "academic year" + "instructor" — check subject to assign correctly
-        if (h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar') && (!resolved.math || !resolved.ela)) {
-          // Peek first data row to check subject
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
-          if (r2 && r2.ok) {
-            const lines = (await r2.text()).split('\n');
-            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
-            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
-            if (firstDataSubject.includes('math')) { resolved.math = row.gid; continue; }
-            if (firstDataSubject.includes('ela') || firstDataSubject.includes('reading')) { resolved.ela = row.gid; continue; }
-            // Can't determine subject — assign by order (math first)
-            if (!resolved.math) { resolved.math = row.gid; } else { resolved.ela = row.gid; }
-          }
+        // Math/ELA longitudinal tab
+        if (_isLongitudinalH(h) && _hasStaffCol(h) && (!resolved.math || !resolved.ela)) {
+          const subj = _detectSubject(parseCSV(row.snippet));
+          if (_isMathSubject(subj) && !resolved.math) { resolved.math = row.gid; continue; }
+          if (_isElaSubject(subj)  && !resolved.ela)  { resolved.ela  = row.gid; continue; }
+          // Subject field empty/unrecognised — assign by order
+          if (!resolved.math) { resolved.math = row.gid; } else if (!resolved.ela) { resolved.ela = row.gid; }
         }
-        // Repeat scholars: has "repeat scholar" in header
-        if (h.includes('repeat scholar') && h.includes('instructor')) {
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
-          if (r2 && r2.ok) {
-            const lines = (await r2.text()).split('\n');
-            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
-            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
-            if (firstDataSubject.includes('math') && !resolved.mathRep) { resolved.mathRep = row.gid; }
-            else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
+        // Repeat-scholar tab
+        if (h.includes('repeat scholar') && _hasStaffCol(h)) {
+          const subj = _detectSubject(parseCSV(row.snippet));
+          if (_isMathSubject(subj) && !resolved.mathRep) { resolved.mathRep = row.gid; }
+          else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
+        }
+      }
+
+      // 7. ELA fallback — reuse already-fetched snippets, no new HTTP requests
+      if (!resolved.ela) {
+        const assignedGids = new Set(Object.values(resolved).filter(Boolean));
+        for (const row of results.filter(Boolean)) {
+          if (assignedGids.has(row.gid)) continue;
+          if (_isLongitudinalH(row.hdr)) {
+            const subj = _detectSubject(parseCSV(row.snippet));
+            if (_isElaSubject(subj) || (!_isMathSubject(subj) && parseCSV(row.snippet).length > 0)) {
+              resolved.ela = row.gid;
+              console.log('[irlab] ELA via fallback: gid=' + row.gid + ' subject=' + subj);
+              break;
+            }
           }
         }
       }
 
-      // 6. Fallback: if only one tab found with instructor data, assign it as math
+      // 8. Last-resort fallback — assign first two staff-header tabs if nothing resolved
       if (!resolved.math && !resolved.ela) {
-        const withInstructor = results.filter(r => r && r.hdr.includes('instructor'));
-        if (withInstructor.length > 0) resolved.math = withInstructor[0].gid;
-        if (withInstructor.length > 1) resolved.ela  = withInstructor[1].gid;
+        const withStaff = results.filter(r => r && _hasStaffCol(r.hdr));
+        if (withStaff.length > 0) resolved.math = withStaff[0].gid;
+        if (withStaff.length > 1) resolved.ela  = withStaff[1].gid;
       }
 
       IRLAB_LIVE_GIDS = resolved;
       _irlGIDsResolved = Object.values(resolved).some(v => v !== null);
       if (_irlGIDsResolved) {
-        try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
+        // Cache only when both core GIDs are valid (non-null, non-zero)
+        if (resolved.math && resolved.ela) {
+          try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
+        }
         console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
       } else {
         console.warn('[irlab] Could not resolve any tab GIDs');
@@ -15892,31 +15948,46 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const base='https://docs.google.com/spreadsheets/d/e/'+IRLAB_LIVE_2PACX+'/pub?output=csv';
       const bust=force?'&t='+Date.now():'';
       const res={};
+      const _gidSeen = new Set(); // avoid double-fetching when math and ela map to same gid
       for (const [tab,gid] of Object.entries(IRLAB_LIVE_GIDS)) {
         if (!gid) continue;
-        const subj = tab.startsWith('math') ? 'Math' : 'ELA';
+        const isRepeat = tab.includes('Rep') || tab.includes('rep');
+        const defaultSubj = tab.startsWith('math') ? 'Math' : 'ELA';
+        // If this gid was already fetched (math/ela share same tab), reuse and split
+        if (!isRepeat && _gidSeen.has(gid)) {
+          // ELA rows were already extracted from this shared tab when processing math
+          continue;
+        }
         try {
           const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
           if (r.ok) {
             const text = await r.text();
-            const lines = text.split('\n');
-            const hdrLine = lines[0];
-            // Build header→index map from actual CSV header row
-            const hdrs = parseCSV(hdrLine)[0] || [];
-            const hdrMap = {};
-            hdrs.forEach((h,i) => { hdrMap[h.trim()] = i; });
-            // Parse rows using header-aware normalizeRow
-            const parsed = lines.slice(1)
-              .filter(l => l.trim())
-              .map(line => {
-                const cols = parseCSV(line)[0] || [];
-                const obj = {};
-                hdrs.forEach((h,i) => { obj[h.trim()] = cols[i] || ''; });
-                return normalizeRow(obj, subj);
+            const parsedRows = parseCSV(text);
+            const allNorm = parsedRows
+              .map(row => {
+                // Use actual Subject field from each row when available; fall back to tab-assigned subject
+                const rawSubj = (row['Subject'] || row['subject'] || row['SUBJECT'] || '').toLowerCase();
+                const rowSubj = rawSubj.includes('ela') || rawSubj.includes('reading') || rawSubj.includes('language') ? 'ELA'
+                              : rawSubj.includes('math') ? 'Math'
+                              : defaultSubj;
+                return normalizeRow(row, rowSubj);
               })
               .filter(r => r.scholarId || r.scholarName);
-            res[tab] = parsed;
-            console.log('[irlab] Live '+tab+': '+parsed.length+' rows (gid='+gid+')');
+            if (isRepeat) {
+              res[tab] = allNorm;
+            } else {
+              // Split by actual subject — so a single mixed-subject tab populates both math and ela
+              const mathRows = allNorm.filter(r => r.subject === 'Math');
+              const elaRows  = allNorm.filter(r => r.subject === 'ELA');
+              if (tab === 'math' || tab === 'ela') {
+                res['math'] = (res['math'] || []).concat(mathRows);
+                res['ela']  = (res['ela']  || []).concat(elaRows);
+                _gidSeen.add(gid);
+              } else {
+                res[tab] = allNorm;
+              }
+            }
+            console.log('[irlab] Live '+tab+': '+allNorm.length+' rows (gid='+gid+')');
           }
         } catch(e) { console.warn('[irlab] live '+tab+':', e.message); }
       }
@@ -15939,6 +16010,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           } catch(e) { /* don't blank screen */ }
         }
         if (typeof renderLab === 'function') renderLab();
+        try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
         console.log('[irlab] Live data merged — academic overlay will update on next render');
       }
     }
@@ -16873,6 +16945,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // getSummary() — returns aggregate iReady outcomes using named row properties
     function getSummary(syFilter) {
+      if (!IRLAB_DATA.loaded) loadData();
       // IRLAB_DATA rows are OBJECTS (from normalizeRow/decodeRows), not arrays.
       // Fields: r.scholarId, r.year, r.grade, r.school, r.district,
       //         r.springGain, r.pctTypical, r.baseRelPlacement, r.springRelPlacement,
@@ -17613,6 +17686,26 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.expInvalidate = expInvalidate;
 
     window.po                   = po;
+
+  // ── Global data bootstrap — preloads all data sources on page load ─────────
+  // Ensures leadership numbers appear on first load without visiting sub-pages.
+  (function bootstrapData() {
+    function _doBootstrap() {
+      // 1. Pearl operations — starts GID discovery + data fetch
+      try { if (window.po && typeof window.po.onPanelOpen === 'function') window.po.onPanelOpen(); } catch(e) {}
+      // 2. iReady — loads embedded data + starts live fetch (GID discovery + CSV)
+      try { if (window.irlab && typeof window.irlab.onPanelOpen === 'function') window.irlab.onPanelOpen(); } catch(e) {}
+      // 3. HR profiles — fetch live HR data without requiring the panel to open
+      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(function(){}); } catch(e) {}
+      // 4. Survey / concerns data
+      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(function(){}); } catch(e) {}
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(_doBootstrap, 300); });
+    } else {
+      setTimeout(_doBootstrap, 300);
+    }
+  })();
 
   // ── Exec Dashboard: robust multi-signal render engine ─────────────────────
   // Works on any network speed. Fires on: poll, Pearl re-render, iReady load,
