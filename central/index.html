@@ -11900,9 +11900,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
           // Schools / districts / tutors
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap);
+            // Filter out empty/null keys — Pearl may create a blank-string entry from records missing a school name
+            var schools = Object.keys(_schoolMap).filter(function(s){ return s && s.trim(); });
             stats.schoolCount = schools.length;
-            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; })).size;
+            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; }).filter(Boolean)).size;
           }
           if (_personMap) {
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
@@ -11965,6 +11966,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         try {
           var schools = [];
           Object.keys(_schoolMap).forEach(function(name) {
+            if (!name || !name.trim()) return; // skip blank school-name entries
             var sc = _schoolMap[name];
             if (!sc) return;
             var total = sc.stuAttended + sc.stuAbsent;
@@ -15485,7 +15487,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             stats.surveyAvg = parseFloat((_stuAggScores.globalSum / _stuAggScores.globalCnt).toFixed(2));
           }
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap);
+            // Filter out empty/null keys — Pearl may create a blank-string entry from records missing a school name
+            var schools = Object.keys(_schoolMap).filter(function(s){ return s && s.trim(); });
             stats.schoolCount = schools.length;
             stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s] && _schoolMap[s].district; }).filter(Boolean)).size;
           }
@@ -15511,6 +15514,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         try {
           var schools = [];
           Object.keys(_schoolMap).forEach(function(name) {
+            if (!name || !name.trim()) return; // skip blank school-name entries
             var sc = _schoolMap[name];
             if (!sc) return;
             var total = sc.stuAttended + sc.stuAbsent;
