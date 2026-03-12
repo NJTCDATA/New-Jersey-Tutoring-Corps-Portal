@@ -3285,87 +3285,222 @@
     }
     .kn-prompt-cta:hover { background: var(--blue-lite); }
 
-    /* ── Executive Analytics Dashboard ───────────────────────────────── */
-    #execDashboard { margin-bottom: 1.5rem; }
-    .exec-section-label {
-      font-size:.65rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
-      color:var(--blue-mid); margin:1.25rem 0 .5rem; opacity:.7;
+    /* ══ EXECUTIVE COMMAND CENTER — Premium Redesign ══════════════════ */
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
+
+    #execDashboard {
+      margin-bottom: 2rem;
+      animation: ecdFadeIn .4s ease both;
     }
-    .exec-metric-grid {
-      display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.625rem;
-      margin-bottom:.75rem;
+    @keyframes ecdFadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+    /* Header strip */
+    .ecd-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 1.25rem; padding-bottom: .875rem;
+      border-bottom: 1px solid #e2e8f0;
     }
-    .exec-metric {
-      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
-      padding:.75rem .875rem; display:flex; flex-direction:column; gap:.2rem;
+    .ecd-header-title {
+      font-size: .7rem; font-weight: 900; letter-spacing: .14em;
+      text-transform: uppercase; color: #0a1628;
     }
-    .exec-metric-val { font-size:1.5rem; font-weight:800; color:var(--navy); line-height:1; }
-    .exec-metric-lbl { font-size:.7rem; color:#64748b; font-weight:600; }
-    .exec-metric.accent-blue { border-top:3px solid var(--blue); }
-    .exec-metric.accent-gold { border-top:3px solid var(--gold); }
-    .exec-metric.accent-green { border-top:3px solid #16a34a; }
-    .exec-metric.accent-purple { border-top:3px solid #7c3aed; }
-    .exec-2col { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:.75rem; }
-    @media(max-width:680px){ .exec-2col { grid-template-columns:1fr; } }
-    .exec-health-card {
-      background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.875rem 1rem;
+    .ecd-header-sub { font-size: .63rem; color: #94a3b8; margin-top: .1rem; }
+    .ecd-header-badge {
+      font-size: .6rem; font-weight: 800; letter-spacing: .06em;
+      text-transform: uppercase; background: #0a1628; color: #f0a500;
+      border-radius: 4px; padding: .2rem .5rem;
     }
-    .exec-health-card h4 { font-size:.75rem; font-weight:700; color:var(--navy); margin:0 0 .625rem; }
-    .exec-att-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.375rem; }
-    .exec-att-label { font-size:.7rem; color:#475569; width:90px; flex-shrink:0; }
-    .exec-att-bar-wrap { flex:1; background:#f1f5f9; border-radius:4px; height:8px; overflow:hidden; }
-    .exec-att-bar { height:100%; border-radius:4px; transition:width .4s; }
-    .exec-att-pct { font-size:.7rem; font-weight:700; color:var(--navy); width:36px; text-align:right; }
-    .exec-att-bar.green { background:#16a34a; }
-    .exec-att-bar.amber { background:#d97706; }
-    .exec-att-bar.red   { background:#dc2626; }
-    .exec-academic-banner {
-      background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%);
-      border-radius:10px; padding:.875rem 1rem; color:#fff; margin-bottom:.75rem;
-      display:flex; flex-wrap:wrap; gap:.75rem; align-items:center;
+
+    /* Section labels */
+    .ecd-divider {
+      display: flex; align-items: center; gap: .5rem;
+      margin: 1.375rem 0 .75rem;
     }
-    .exec-academic-banner h4 { font-size:.75rem; font-weight:700; margin:0; opacity:.75; flex-basis:100%; }
-    .exec-acad-chip {
-      border-radius:8px; padding:.5rem .875rem; display:flex; flex-direction:column; gap:.15rem;
-      flex:1; min-width:120px;
+    .ecd-divider-txt {
+      font-size: .58rem; font-weight: 900; letter-spacing: .14em;
+      text-transform: uppercase; color: #94a3b8; white-space: nowrap;
     }
-    .exec-acad-chip.math-chip { background:rgba(255,255,255,.12); }
-    .exec-acad-chip.ela-chip  { background:rgba(255,255,255,.08); }
-    .exec-acad-val { font-size:1.25rem; font-weight:800; }
-    .exec-acad-lbl { font-size:.65rem; opacity:.7; }
-    .exec-leaderboard {
-      background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:.875rem 1rem; margin-bottom:.75rem;
+    .ecd-divider-line { flex:1; height:1px; background:#e8edf4; }
+
+    /* ── Hero KPI row ── */
+    .ecd-hero {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: .625rem;
     }
-    .exec-leaderboard h4 { font-size:.75rem; font-weight:700; color:var(--navy); margin:0 0 .625rem; }
-    .exec-lb-row {
-      display:flex; align-items:center; gap:.5rem; padding:.3rem 0;
-      border-bottom:1px solid #f1f5f9; font-size:.72rem;
+    @media(max-width:900px){ .ecd-hero { grid-template-columns: repeat(3,1fr); } }
+    @media(max-width:500px){ .ecd-hero { grid-template-columns: repeat(2,1fr); } }
+
+    .ecd-kpi {
+      background: #fff;
+      border: 1px solid #e8edf4;
+      border-radius: 12px;
+      padding: 1rem 1rem .875rem;
+      display: flex; flex-direction: column; gap: .2rem;
+      position: relative; overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+      transition: box-shadow .18s, transform .18s;
     }
-    .exec-lb-row:last-child { border-bottom:none; }
-    .exec-lb-rank { font-weight:800; color:var(--blue); width:18px; flex-shrink:0; font-size:.8rem; }
-    .exec-lb-name { flex:1; color:#1e293b; font-weight:600; }
-    .exec-lb-val  { color:#475569; font-weight:600; }
-    .exec-kpi-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:.5rem; margin-bottom:.75rem; }
-    @media(max-width:600px){ .exec-kpi-grid { grid-template-columns:repeat(3,1fr); } }
-    .exec-kpi-tile {
-      background:#fff; border:1px solid #e2e8f0; border-radius:8px;
-      padding:.625rem .5rem; text-align:center;
+    .ecd-kpi:hover { box-shadow: 0 6px 20px rgba(0,30,100,.1); transform: translateY(-2px); }
+    .ecd-kpi::after {
+      content: ''; position: absolute; bottom:0; left:0; right:0; height:3px;
     }
-    .exec-kpi-tile-val { font-size:1.35rem; font-weight:800; }
-    .exec-kpi-tile-lbl { font-size:.63rem; color:#64748b; font-weight:600; margin-top:.1rem; }
-    .exec-kpi-met    { border-top:3px solid #16a34a; } .exec-kpi-met    .exec-kpi-tile-val { color:#16a34a; }
-    .exec-kpi-prog   { border-top:3px solid #2563eb; } .exec-kpi-prog   .exec-kpi-tile-val { color:#2563eb; }
-    .exec-kpi-part   { border-top:3px solid #d97706; } .exec-kpi-part   .exec-kpi-tile-val { color:#d97706; }
-    .exec-kpi-pipe   { border-top:3px solid #7c3aed; } .exec-kpi-pipe   .exec-kpi-tile-val { color:#7c3aed; }
-    .exec-kpi-notmet { border-top:3px solid #dc2626; } .exec-kpi-notmet .exec-kpi-tile-val { color:#dc2626; }
-    .exec-talent-bar {
-      background:#fff; border:1px solid #e2e8f0; border-radius:10px;
-      padding:.75rem 1rem; display:flex; gap:1.5rem; flex-wrap:wrap; align-items:center;
+    .ecd-kpi.ck-navy::after  { background: #0a1628; }
+    .ecd-kpi.ck-blue::after  { background: #0050c8; }
+    .ecd-kpi.ck-gold::after  { background: #f0a500; }
+    .ecd-kpi.ck-green::after { background: #059669; }
+    .ecd-kpi.ck-teal::after  { background: #0891b2; }
+    .ecd-kpi.ck-rose::after  { background: #e11d48; }
+
+    .ecd-kpi-lbl { font-size: .62rem; color: #94a3b8; font-weight: 700; letter-spacing: .04em; text-transform:uppercase; }
+    .ecd-kpi-val {
+      font-size: 1.875rem; font-weight: 800; color: #0a1628;
+      line-height: 1; letter-spacing: -.05em; margin: .125rem 0;
     }
-    .exec-talent-stat { display:flex; flex-direction:column; gap:.1rem; }
-    .exec-talent-val  { font-size:1.3rem; font-weight:800; color:var(--navy); }
-    .exec-talent-lbl  { font-size:.68rem; color:#64748b; font-weight:600; }
-    .exec-talent-val.alert { color:#dc2626; }
+    .ecd-kpi-val.sm { font-size: 1.35rem; letter-spacing: -.03em; }
+    .ecd-kpi-foot { font-size: .6rem; color: #cbd5e1; font-weight: 600; }
+
+    /* ── Two-col grid ── */
+    .ecd-2col { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
+    @media(max-width:700px){ .ecd-2col { grid-template-columns:1fr; } }
+
+    /* ── Cards ── */
+    .ecd-card {
+      background: #fff; border:1px solid #e8edf4; border-radius:12px;
+      padding: 1rem 1.125rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .ecd-card-title {
+      font-size: .6rem; font-weight: 900; letter-spacing: .12em;
+      text-transform: uppercase; color: #475569;
+      margin-bottom: .75rem; display:flex; align-items:center; gap:.375rem;
+    }
+
+    /* ── Attendance bars ── */
+    .ecd-att-row { display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; }
+    .ecd-att-lbl { font-size:.68rem; color:#475569; font-weight:600; width:72px; flex-shrink:0; }
+    .ecd-att-track { flex:1; height:8px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
+    .ecd-att-fill { height:100%; border-radius:99px; transition:width .7s cubic-bezier(.4,0,.2,1); }
+    .ecd-att-fill.c-g { background: linear-gradient(90deg,#059669,#10b981); }
+    .ecd-att-fill.c-a { background: linear-gradient(90deg,#d97706,#fbbf24); }
+    .ecd-att-fill.c-r { background: linear-gradient(90deg,#dc2626,#f87171); }
+    .ecd-att-fill.c-x { background: #e2e8f0; }
+    .ecd-att-pct { font-size:.72rem; font-weight:800; color:#0a1628; width:36px; text-align:right; }
+    .ecd-survey-row { margin-top:.625rem; padding-top:.625rem; border-top:1px solid #f1f5f9; font-size:.68rem; color:#64748b; }
+    .ecd-survey-row strong { color:#0a1628; }
+
+    /* ── Scholar tiers ── */
+    .ecd-tier { display:flex; align-items:center; gap:.5rem; padding:.375rem 0; border-bottom:1px solid #f8fafc; }
+    .ecd-tier:last-child { border-bottom:none; }
+    .ecd-tier-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .ecd-tier-lbl { font-size:.7rem; color:#475569; font-weight:600; flex:1; }
+    .ecd-tier-n { font-size:1.1rem; font-weight:800; color:#0a1628; }
+
+    /* ── Academic Impact — flagship panel ── */
+    .ecd-academic {
+      border-radius: 14px; overflow: hidden;
+      background: linear-gradient(140deg, #020d1f 0%, #002270 55%, #0050c8 100%);
+      color: #fff; position: relative;
+    }
+    .ecd-academic-glow {
+      position:absolute; top:-60px; right:-60px; width:280px; height:280px;
+      background: radial-gradient(circle, rgba(240,165,0,.18) 0%, transparent 65%);
+      pointer-events:none;
+    }
+    .ecd-academic-inner { padding: 1.25rem 1.5rem; position:relative; z-index:1; }
+    .ecd-academic-eyebrow {
+      font-size:.58rem; font-weight:900; letter-spacing:.14em;
+      text-transform:uppercase; opacity:.45; margin-bottom:.625rem;
+    }
+    .ecd-academic-row { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:.875rem; }
+    .ecd-achip {
+      flex:1; min-width:160px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px; padding: 1rem 1.125rem;
+    }
+    .ecd-achip-subj {
+      font-size:.58rem; font-weight:900; letter-spacing:.12em;
+      text-transform:uppercase; opacity:.5; margin-bottom:.5rem;
+    }
+    .ecd-achip-pct-row { display:flex; align-items:baseline; gap:.35rem; margin-bottom:.25rem; }
+    .ecd-achip-pct { font-size:2.75rem; font-weight:800; line-height:1; letter-spacing:-.06em; }
+    .ecd-achip-pct-unit { font-size:.75rem; opacity:.55; font-weight:700; }
+    .ecd-achip-desc { font-size:.65rem; opacity:.6; font-weight:600; }
+    .ecd-achip-gain { font-size:.7rem; opacity:.5; margin-top:.25rem; }
+    .ecd-achip-track { margin-top:.625rem; height:3px; background:rgba(255,255,255,.12); border-radius:99px; overflow:hidden; }
+    .ecd-achip-fill { height:100%; border-radius:99px; }
+    .ecd-achip-fill.math { background: linear-gradient(90deg,#f0a500,#fcd34d); }
+    .ecd-achip-fill.ela  { background: linear-gradient(90deg,#38bdf8,#7dd3fc); }
+
+    .ecd-academic-foot {
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding-top: .625rem; font-size:.62rem; opacity:.4;
+      display:flex; gap:1rem;
+    }
+
+    /* ── School leaderboard ── */
+    .ecd-lb-row {
+      display:flex; align-items:center; gap:.625rem;
+      padding:.5rem 0; border-bottom:1px solid #f8fafc;
+    }
+    .ecd-lb-row:last-child { border-bottom:none; }
+    .ecd-lb-medal {
+      width:24px; height:24px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:.65rem; font-weight:900; flex-shrink:0; color:#fff;
+    }
+    .ecd-lb-medal.m1 { background: linear-gradient(135deg,#d4a017,#f0c040); }
+    .ecd-lb-medal.m2 { background: linear-gradient(135deg,#8e9aad,#b0bec5); }
+    .ecd-lb-medal.m3 { background: linear-gradient(135deg,#a0522d,#cd853f); }
+    .ecd-lb-medal.mx { background: #e8edf4; color:#64748b; }
+    .ecd-lb-name { flex:1; font-size:.72rem; font-weight:700; color:#1e293b; }
+    .ecd-lb-dist { font-size:.62rem; color:#94a3b8; display:block; }
+    .ecd-lb-att  { font-size:.85rem; font-weight:800; color:#0a1628; }
+    .ecd-lb-sess { font-size:.62rem; color:#94a3b8; }
+
+    /* ── KPI Goals ── */
+    .ecd-goals { display:grid; grid-template-columns:repeat(5,1fr); gap:.5rem; }
+    @media(max-width:580px){ .ecd-goals { grid-template-columns:repeat(3,1fr); } }
+    .ecd-goal {
+      border-radius:10px; padding:.875rem .5rem .75rem;
+      text-align:center; background:#fff;
+      border:1px solid #e8edf4;
+      box-shadow:0 1px 3px rgba(0,0,0,.04);
+      position:relative; overflow:hidden;
+    }
+    .ecd-goal::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+    .ecd-goal.g-met::before   { background:#059669; }
+    .ecd-goal.g-prog::before  { background:#2563eb; }
+    .ecd-goal.g-part::before  { background:#d97706; }
+    .ecd-goal.g-pipe::before  { background:#7c3aed; }
+    .ecd-goal.g-not::before   { background:#e11d48; }
+    .ecd-goal-n { font-size:1.875rem; font-weight:800; line-height:1; letter-spacing:-.04em; }
+    .ecd-goal.g-met  .ecd-goal-n { color:#059669; }
+    .ecd-goal.g-prog .ecd-goal-n { color:#2563eb; }
+    .ecd-goal.g-part .ecd-goal-n { color:#d97706; }
+    .ecd-goal.g-pipe .ecd-goal-n { color:#7c3aed; }
+    .ecd-goal.g-not  .ecd-goal-n { color:#e11d48; }
+    .ecd-goal-lbl { font-size:.6rem; font-weight:800; color:#94a3b8; letter-spacing:.06em; text-transform:uppercase; margin-top:.25rem; }
+
+    /* ── Talent risk ── */
+    .ecd-risk {
+      background:#fff; border:1px solid #e8edf4; border-radius:12px;
+      padding:1rem 1.25rem; display:flex; align-items:center; gap:2rem; flex-wrap:wrap;
+      box-shadow:0 1px 4px rgba(0,0,0,.05);
+    }
+    .ecd-risk-stat { display:flex; flex-direction:column; gap:.15rem; }
+    .ecd-risk-n { font-size:2rem; font-weight:800; line-height:1; letter-spacing:-.04em; color:#0a1628; }
+    .ecd-risk-n.hot { color:#e11d48; }
+    .ecd-risk-lbl { font-size:.65rem; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
+    .ecd-risk-cta {
+      margin-left:auto; background:var(--navy); color:#fff; border:none;
+      border-radius:8px; padding:.5rem 1.125rem; font-size:.72rem;
+      font-weight:800; cursor:pointer; letter-spacing:.02em;
+      transition:background .15s, transform .15s;
+    }
+    .ecd-risk-cta:hover { background:var(--blue-mid); transform:translateY(-1px); }
+
 
     </style>
 
@@ -5265,190 +5400,237 @@
   }
   function _buildExecDashboardInner(dept, el) {
 
-    // ── Pull data from available modules ──────────────────────────────
-    const po  = (typeof window.po  !== 'undefined') ? window.po  : null;
+    // ── Data sources ──────────────────────────────────────────────────
+    const po   = (typeof window.po   !== 'undefined') ? window.po   : null;
     const irlb = (typeof window.irlab !== 'undefined') ? window.irlab : null;
 
-    const poStats = po ? po.getStats()        : null;
-    const ldData  = po ? po.getLeadershipData(): null;
-    const stellar = po ? po.getStellarSchools(): null;
-    const irl     = irlb ? irlb.getSummary()  : null;
+    const poStats = po   ? po.getStats()         : null;
+    const ldData  = po   ? po.getLeadershipData() : null;
+    const stellar = po   ? po.getStellarSchools() : null;
+    const irl     = irlb ? irlb.getSummary()      : null;
 
-    // ── Helper: safe integer display ──────────────────────────────────
-    const fv = (v, suf) => (v == null || isNaN(v)) ? '—' : (v + (suf||''));
-    const fp = (v) => (v == null || isNaN(v)) ? '—' : Math.round(v) + '%';
+    // ── Helpers ───────────────────────────────────────────────────────
+    const fv  = (v, suf='') => (v == null || v === '' || (typeof v==='number' && isNaN(v))) ? '\u2014' : (v + suf);
+    const fp  = v => (v == null || isNaN(v)) ? '\u2014' : Math.round(v) + '%';
+    const fc  = v => (v == null || isNaN(v)) ? '\u2014' : Number(v).toLocaleString();
+    const att = v => v >= 85 ? 'c-g' : v >= 75 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
 
-    // ── 1. PROGRAM FOOTPRINT ─────────────────────────────────────────
-    const totalScholars  = null; // derived from Pearl race data
-    const activeScholars = null; // not directly in getStats
-    const totalStaff     = poStats ? poStats.activeTutors    : null;
-    const districts      = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
-    const schools        = poStats ? poStats.schoolCount     : null;
-    const tutMins        = null; // not in getStats
-    const tutHrs         = poStats && poStats.sessions ? poStats.sessions.toLocaleString() + ' sess' : '—';
+    // ── 1. Program Footprint ──────────────────────────────────────────
+    const tutors    = poStats ? poStats.activeTutors  : null;
+    const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
+    const schools   = poStats ? poStats.schoolCount   : null;
+    const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
+    const siCount   = poStats ? poStats.siCount       : null;
+    const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
 
-    // ── 2. OPERATIONAL HEALTH ─────────────────────────────────────────
-    const scholarAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
-    const tutorAtt   = ldData ? ldData.tutorRate   : (poStats ? poStats.instAttPct  : null);
-    const surveyAvg  = ldData ? ldData.scholarSurvey : (poStats ? poStats.surveyAvg : null);
-    const sessions   = ldData ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
+    // ── 2. Operational Health ─────────────────────────────────────────
+    const scholAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
+    const tutorAtt = ldData ? ldData.tutorRate   : (poStats ? poStats.instAttPct  : null);
+    const tierOn   = ldData ? (ldData.scholarOnTrack    || 0) : 0;
+    const tierRisk = ldData ? (ldData.scholarAtRisk      || 0) : 0;
+    const tierAct  = ldData ? (ldData.scholarNeedsAction || 0) : 0;
+    const scholPct = scholAtt != null ? Math.min(100, Math.round(scholAtt)) : 0;
+    const tutPct   = tutorAtt != null ? Math.min(100, Math.round(tutorAtt)) : 0;
 
-    function attBarClass(v) {
-      if (v == null) return 'green';
-      return v >= 85 ? 'green' : v >= 75 ? 'amber' : 'red';
-    }
+    // ── 3. Academic Impact ────────────────────────────────────────────
+    // Use all-years program-wide median — honest full-corpus signal across all embedded SYs
+    const mathPct  = irl ? (irl.mathMedianPctAllYears != null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical) : null;
+    const elaPct   = irl ? (irl.elaMedianPctAllYears  != null ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical)  : null;
+    const mathGain = irl ? irl.mathAvgGain          : null;
+    const elaGain  = irl ? irl.elaAvgGain           : null;
+    const mathN    = irl ? irl.mathTotal             : null;
+    const elaN     = irl ? irl.elaTotal              : null;
+    const irlSY    = irl ? (irl.activeSY || null)    : null;
+    // Cap bar at 150% for display
+    const mathBar  = mathPct != null ? Math.min(100, Math.round(mathPct/150*100)) : 0;
+    const elaBar   = elaPct  != null ? Math.min(100, Math.round(elaPct /150*100)) : 0;
+    const hasAcad  = mathPct != null || elaPct != null;
 
-    // Tier distribution from ldData (scholar attendance tiers)
-    const tierOnTrack   = ldData ? (ldData.scholarOnTrack    || 0) : 0;
-    const tierAtRisk    = ldData ? (ldData.scholarAtRisk      || 0) : 0;
-    const tierNeeds     = ldData ? (ldData.scholarNeedsAction || 0) : 0;
-
-    // ── 3. ACADEMIC IMPACT ────────────────────────────────────────────
-    const mathGain   = irl ? irl.mathAvgGain          : null;
-    const elaGain    = irl ? irl.elaAvgGain            : null;
-    const mathMedPct = irl ? irl.mathMedianPctTypical  : null;
-    const elaMedPct  = irl ? irl.elaMedianPctTypical   : null;
-    const irlSY      = irl ? (irl.activeSY || 'Historical') : null;
-
-    // ── 4. SCHOOL LEADERBOARD ─────────────────────────────────────────
+    // ── 4. School Leaderboard ─────────────────────────────────────────
     const topSchools = (stellar && stellar.length) ? stellar.slice(0,6) : [];
 
-    // ── 5. KPI STATUS ─────────────────────────────────────────────────
-    const getS  = k => k.midStatus || k.status || '';
-    const kMet  = KPI_DATA.filter(k=>getS(k)==='Met').length;
-    const kProg = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
-    const kPart = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
-    const kNot  = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
-    const kPipe = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
-    const kTot  = KPI_DATA.length || 1;
+    // ── 5. KPI Status ─────────────────────────────────────────────────
+    const gS   = k => k.midStatus || k.status || '';
+    const kMet  = KPI_DATA.filter(k=>gS(k)==='Met').length;
+    const kProg = KPI_DATA.filter(k=>gS(k)==='In Progress').length;
+    const kPart = KPI_DATA.filter(k=>gS(k)==='Partially Met').length;
+    const kNot  = KPI_DATA.filter(k=>gS(k)==='Has Not Met').length;
+    const kPipe = KPI_DATA.filter(k=>gS(k)==='Coming Down the Pipeline').length;
 
-    // ── 6. TALENT RISK (leadership/data/kb) ───────────────────────────
-    const concerns      = (typeof CONCERNS !== 'undefined' && Array.isArray(CONCERNS)) ? CONCERNS : [];
-    const concernTotal  = concerns.length;
-    const concernDists  = new Set(concerns.map(c=>(c&&c.district)||'').filter(Boolean)).size;
+    // ── 6. Talent Risk ────────────────────────────────────────────────
+    const concerns     = (typeof CONCERNS !== 'undefined' && Array.isArray(CONCERNS)) ? CONCERNS : [];
+    const cTotal       = concerns.length;
+    const cDists       = new Set(concerns.map(c=>(c&&c.district)||'').filter(Boolean)).size;
 
-    // ── BUILD HTML ────────────────────────────────────────────────────
-    const attScholPct = scholarAtt != null ? Math.min(100, Math.round(scholarAtt)) : 0;
-    const attTutPct   = tutorAtt   != null ? Math.min(100, Math.round(tutorAtt))   : 0;
+    // ── Medal class helper ────────────────────────────────────────────
+    const medal = i => i===0?'m1':i===1?'m2':i===2?'m3':'mx';
+
+    // ── Now date display ──────────────────────────────────────────────
+    const nowStr = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 
     el.innerHTML = `
-      <!-- Footprint -->
-      <div class="exec-section-label">📍 Program Footprint</div>
-      <div class="exec-metric-grid">
-        <div class="exec-metric accent-blue">
-          <div class="exec-metric-val">${fv(totalStaff)}</div>
-          <div class="exec-metric-lbl">Active Tutors</div>
+      <!-- ═══ HEADER ═══ -->
+      <div class="ecd-header">
+        <div>
+          <div class="ecd-header-title">Executive Command Center</div>
+          <div class="ecd-header-sub">Live operational snapshot · ${nowStr}</div>
         </div>
-        <div class="exec-metric accent-gold">
-          <div class="exec-metric-val">${fv(districts)}</div>
-          <div class="exec-metric-lbl">Districts</div>
+        <div class="ecd-header-badge">Leadership View</div>
+      </div>
+
+      <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
+      <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-hero">
+        <div class="ecd-kpi ck-navy">
+          <div class="ecd-kpi-lbl">Active Tutors</div>
+          <div class="ecd-kpi-val">${fv(tutors)}</div>
+          <div class="ecd-kpi-foot">Instructors on record</div>
         </div>
-        <div class="exec-metric">
-          <div class="exec-metric-val">${fv(schools)}</div>
-          <div class="exec-metric-lbl">Schools</div>
+        <div class="ecd-kpi ck-gold">
+          <div class="ecd-kpi-lbl">Districts</div>
+          <div class="ecd-kpi-val">${fv(districts)}</div>
+          <div class="ecd-kpi-foot">Partner districts</div>
         </div>
-        <div class="exec-metric accent-green">
-          <div class="exec-metric-val">${sessions != null ? sessions.toLocaleString() : '—'}</div>
-          <div class="exec-metric-lbl">Total Sessions</div>
+        <div class="ecd-kpi ck-blue">
+          <div class="ecd-kpi-lbl">Schools</div>
+          <div class="ecd-kpi-val">${fv(schools)}</div>
+          <div class="ecd-kpi-foot">Active sites</div>
         </div>
-        <div class="exec-metric">
-          <div class="exec-metric-val">${poStats && poStats.siCount != null ? poStats.siCount : '—'}</div>
-          <div class="exec-metric-lbl">Service Interruptions</div>
+        <div class="ecd-kpi ck-green">
+          <div class="ecd-kpi-lbl">Sessions</div>
+          <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
+          <div class="ecd-kpi-foot">Total delivered</div>
         </div>
-        <div class="exec-metric">
-          <div class="exec-metric-val">${surveyAvg != null ? surveyAvg.toFixed(1)+'/5' : '—'}</div>
-          <div class="exec-metric-lbl">Scholar Survey Avg</div>
+        <div class="ecd-kpi ck-teal">
+          <div class="ecd-kpi-lbl">Service Interruptions</div>
+          <div class="ecd-kpi-val">${fv(siCount)}</div>
+          <div class="ecd-kpi-foot">Logged this period</div>
+        </div>
+        <div class="ecd-kpi ck-rose">
+          <div class="ecd-kpi-lbl">Survey Avg</div>
+          <div class="ecd-kpi-val sm">${survAvg != null ? survAvg.toFixed(1)+'/5' : '\u2014'}</div>
+          <div class="ecd-kpi-foot">Scholar satisfaction</div>
         </div>
       </div>
 
-      <!-- Operational Health + Tiers -->
-      <div class="exec-section-label">⚡ Operational Health</div>
-      <div class="exec-2col">
-        <div class="exec-health-card">
-          <h4>Attendance Rates</h4>
-          <div class="exec-att-row">
-            <div class="exec-att-label">Scholar Att.</div>
-            <div class="exec-att-bar-wrap"><div class="exec-att-bar ${attBarClass(scholarAtt)}" style="width:${attScholPct}%"></div></div>
-            <div class="exec-att-pct">${fp(scholarAtt)}</div>
+      <!-- ═══ 2. OPERATIONAL HEALTH ═══ -->
+      <div class="ecd-divider"><div class="ecd-divider-txt">Operational Health</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-2col">
+        <div class="ecd-card">
+          <div class="ecd-card-title">Attendance Rates</div>
+          <div class="ecd-att-row">
+            <div class="ecd-att-lbl">Scholar</div>
+            <div class="ecd-att-track"><div class="ecd-att-fill ${att(scholAtt||0)}" style="width:${scholPct}%"></div></div>
+            <div class="ecd-att-pct">${fp(scholAtt)}</div>
           </div>
-          <div class="exec-att-row">
-            <div class="exec-att-label">Tutor Att.</div>
-            <div class="exec-att-bar-wrap"><div class="exec-att-bar ${attBarClass(tutorAtt)}" style="width:${attTutPct}%"></div></div>
-            <div class="exec-att-pct">${fp(tutorAtt)}</div>
+          <div class="ecd-att-row">
+            <div class="ecd-att-lbl">Tutor</div>
+            <div class="ecd-att-track"><div class="ecd-att-fill ${att(tutorAtt||0)}" style="width:${tutPct}%"></div></div>
+            <div class="ecd-att-pct">${fp(tutorAtt)}</div>
           </div>
-          ${surveyAvg != null ? `<div style="margin-top:.5rem;font-size:.7rem;color:#475569">Survey Avg: <strong>${surveyAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` · ${sessions.toLocaleString()} sessions` : ''}</div>` : ''}
+          ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;·&nbsp; ${fc(sessions)} sessions` : ''}</div>` : ''}
         </div>
-        <div class="exec-health-card">
-          <h4>Scholar Attendance Tiers</h4>
-          <div class="exec-att-row">
-            <div class="exec-att-label" style="width:110px">✅ On Track (≥80%)</div>
-            <div style="font-size:.75rem;font-weight:700;color:#16a34a">${tierOnTrack}</div>
+        <div class="ecd-card">
+          <div class="ecd-card-title">Scholar Attendance Tiers</div>
+          <div class="ecd-tier">
+            <div class="ecd-tier-dot" style="background:#059669"></div>
+            <div class="ecd-tier-lbl">On Track (≥80%)</div>
+            <div class="ecd-tier-n" style="color:#059669">${tierOn}</div>
           </div>
-          <div class="exec-att-row">
-            <div class="exec-att-label" style="width:110px">⚠️ At Risk (70-79%)</div>
-            <div style="font-size:.75rem;font-weight:700;color:#d97706">${tierAtRisk}</div>
+          <div class="ecd-tier">
+            <div class="ecd-tier-dot" style="background:#d97706"></div>
+            <div class="ecd-tier-lbl">At Risk (70–79%)</div>
+            <div class="ecd-tier-n" style="color:#d97706">${tierRisk}</div>
           </div>
-          <div class="exec-att-row">
-            <div class="exec-att-label" style="width:110px">🔴 Needs Action (&lt;70%)</div>
-            <div style="font-size:.75rem;font-weight:700;color:#dc2626">${tierNeeds}</div>
+          <div class="ecd-tier">
+            <div class="ecd-tier-dot" style="background:#e11d48"></div>
+            <div class="ecd-tier-lbl">Needs Action (&lt;70%)</div>
+            <div class="ecd-tier-n" style="color:#e11d48">${tierAct}</div>
           </div>
         </div>
       </div>
 
-      <!-- Academic Impact -->
-      ${(mathGain != null || elaGain != null) ? `
-      <div class="exec-section-label">📚 Academic Impact${irlSY ? ' · ' + irlSY : ''}</div>
-      <div class="exec-academic-banner">
-        <h4>iReady Diagnostic Growth — Median % to Typical</h4>
-        ${mathGain != null ? `
-        <div class="exec-acad-chip math-chip">
-          <div class="exec-acad-val">+${mathGain} pts${mathMedPct != null ? ' · ' + mathMedPct + '%' : ''}</div>
-          <div class="exec-acad-lbl">Math Avg Gain · Median to Typical</div>
-        </div>` : ''}
-        ${elaGain != null ? `
-        <div class="exec-acad-chip ela-chip">
-          <div class="exec-acad-val">+${elaGain} pts${elaMedPct != null ? ' · ' + elaMedPct + '%' : ''}</div>
-          <div class="exec-acad-lbl">ELA Avg Gain · Median to Typical</div>
-        </div>` : ''}
-      </div>` : ''}
+      <!-- ═══ 3. ACADEMIC IMPACT ═══ -->
+      <div class="ecd-divider"><div class="ecd-divider-txt">Academic Impact${irlSY ? ' · ' + irlSY : ''}</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-academic">
+        <div class="ecd-academic-glow"></div>
+        <div class="ecd-academic-inner">
+          <div class="ecd-academic-eyebrow">iReady Diagnostic — Median % of Typical Growth · All Scholars</div>
+          <div class="ecd-academic-row">
+            ${mathPct != null ? `
+            <div class="ecd-achip">
+              <div class="ecd-achip-subj">Mathematics</div>
+              <div class="ecd-achip-pct-row">
+                <div class="ecd-achip-pct">${mathPct}</div>
+                <div class="ecd-achip-pct-unit">% of Typical</div>
+              </div>
+              <div class="ecd-achip-desc">${mathPct >= 100 ? 'At or above typical growth' : 'Below typical growth pace'}</div>
+              ${mathGain != null ? `<div class="ecd-achip-gain">Avg gain: +${mathGain} pts${mathN != null ? ' · n=' + fc(mathN) : ''}</div>` : ''}
+              <div class="ecd-achip-track"><div class="ecd-achip-fill math" style="width:${mathBar}%"></div></div>
+            </div>` : '<div class="ecd-achip" style="opacity:.4"><div class="ecd-achip-subj">Mathematics</div><div class="ecd-achip-pct" style="font-size:1.5rem;opacity:.4">—</div></div>'}
+            ${elaPct != null ? `
+            <div class="ecd-achip">
+              <div class="ecd-achip-subj">ELA / Reading</div>
+              <div class="ecd-achip-pct-row">
+                <div class="ecd-achip-pct">${elaPct}</div>
+                <div class="ecd-achip-pct-unit">% of Typical</div>
+              </div>
+              <div class="ecd-achip-desc">${elaPct >= 100 ? 'At or above typical growth' : 'Below typical growth pace'}</div>
+              ${elaGain != null ? `<div class="ecd-achip-gain">Avg gain: +${elaGain} pts${elaN != null ? ' · n=' + fc(elaN) : ''}</div>` : ''}
+              <div class="ecd-achip-track"><div class="ecd-achip-fill ela" style="width:${elaBar}%"></div></div>
+            </div>` : '<div class="ecd-achip" style="opacity:.4"><div class="ecd-achip-subj">ELA / Reading</div><div class="ecd-achip-pct" style="font-size:1.5rem;opacity:.4">—</div></div>'}
+          </div>
+          <div class="ecd-academic-foot">
+            <span>Source: iReady Longitudinal CSV</span>
+            <span>Median includes all scholars with valid typical growth baseline</span>
+            ${!hasAcad ? '<span style="color:#fbbf24">⚠ iReady data not yet loaded</span>' : ''}
+          </div>
+        </div>
+      </div>
 
-      <!-- School Leaderboard -->
+      <!-- ═══ 4. SCHOOL LEADERBOARD ═══ -->
       ${topSchools.length ? `
-      <div class="exec-section-label">🏆 Top Schools by Scholar Attendance</div>
-      <div class="exec-leaderboard">
-        <h4>School Performance Leaderboard</h4>
-        ${topSchools.map((s,i) => `
-          <div class="exec-lb-row">
-            <div class="exec-lb-rank">${i+1}</div>
-            <div class="exec-lb-name">${s.school || s.name || '—'}</div>
-            <div class="exec-lb-val">${s.attRate != null ? s.attRate+'%' : s.attendanceRate != null ? Math.round(s.attendanceRate)+'%' : '—'}</div>
+      <div class="ecd-divider"><div class="ecd-divider-txt">Top Schools — Scholar Attendance</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-card">
+        <div class="ecd-card-title">School Performance Leaderboard</div>
+        ${topSchools.map((s,i)=>`
+          <div class="ecd-lb-row">
+            <div class="ecd-lb-medal ${medal(i)}">${i+1}</div>
+            <div>
+              <div class="ecd-lb-name">${s.school||s.name||'—'}</div>
+              ${s.district ? `<span class="ecd-lb-dist">${s.district}</span>` : ''}
+            </div>
+            <div style="margin-left:auto;text-align:right">
+              <div class="ecd-lb-att">${s.attRate != null ? s.attRate+'%' : '—'}</div>
+              ${s.sessions ? `<div class="ecd-lb-sess">${fc(s.sessions)} sess</div>` : ''}
+            </div>
           </div>`).join('')}
       </div>` : ''}
 
-      <!-- KPI Goals -->
-      <div class="exec-section-label">🎯 KPI Goal Tracking</div>
-      <div class="exec-kpi-grid">
-        <div class="exec-kpi-tile exec-kpi-met"><div class="exec-kpi-tile-val">${kMet}</div><div class="exec-kpi-tile-lbl">✅ Met</div></div>
-        <div class="exec-kpi-tile exec-kpi-prog"><div class="exec-kpi-tile-val">${kProg}</div><div class="exec-kpi-tile-lbl">🔵 In Progress</div></div>
-        <div class="exec-kpi-tile exec-kpi-part"><div class="exec-kpi-tile-val">${kPart}</div><div class="exec-kpi-tile-val" style="display:none"></div><div class="exec-kpi-tile-lbl">🟠 Partial</div></div>
-        <div class="exec-kpi-tile exec-kpi-pipe"><div class="exec-kpi-tile-val">${kPipe}</div><div class="exec-kpi-tile-lbl">🟣 Pipeline</div></div>
-        <div class="exec-kpi-tile exec-kpi-notmet"><div class="exec-kpi-tile-val">${kNot}</div><div class="exec-kpi-tile-lbl">🔴 Not Met</div></div>
+      <!-- ═══ 5. KPI GOAL TRACKING ═══ -->
+      <div class="ecd-divider"><div class="ecd-divider-txt">KPI Goal Tracking</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-goals">
+        <div class="ecd-goal g-met"><div class="ecd-goal-n">${kMet}</div><div class="ecd-goal-lbl">Met</div></div>
+        <div class="ecd-goal g-prog"><div class="ecd-goal-n">${kProg}</div><div class="ecd-goal-lbl">In Progress</div></div>
+        <div class="ecd-goal g-part"><div class="ecd-goal-n">${kPart}</div><div class="ecd-goal-lbl">Partial</div></div>
+        <div class="ecd-goal g-pipe"><div class="ecd-goal-n">${kPipe}</div><div class="ecd-goal-lbl">Pipeline</div></div>
+        <div class="ecd-goal g-not"><div class="ecd-goal-n">${kNot}</div><div class="ecd-goal-lbl">Not Met</div></div>
       </div>
 
-      <!-- Talent Risk -->
-      <div class="exec-section-label">⚠️ Talent Risk Intelligence</div>
-      <div class="exec-talent-bar">
-        <div class="exec-talent-stat">
-          <div class="exec-talent-val ${concernTotal > 10 ? 'alert' : ''}">${concernTotal}</div>
-          <div class="exec-talent-lbl">Active Concerns</div>
+      <!-- ═══ 6. TALENT RISK ═══ -->
+      <div class="ecd-divider"><div class="ecd-divider-txt">Talent Risk Intelligence</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-risk">
+        <div class="ecd-risk-stat">
+          <div class="ecd-risk-n ${cTotal > 10 ? 'hot' : ''}">${cTotal}</div>
+          <div class="ecd-risk-lbl">Active Concerns</div>
         </div>
-        <div class="exec-talent-stat">
-          <div class="exec-talent-val">${concernDists}</div>
-          <div class="exec-talent-lbl">Districts Affected</div>
+        <div class="ecd-risk-stat">
+          <div class="ecd-risk-n">${cDists}</div>
+          <div class="ecd-risk-lbl">Districts Affected</div>
         </div>
-        <div style="flex:1;display:flex;justify-content:flex-end">
-          <button onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))" style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:.4rem .875rem;font-size:.72rem;font-weight:700;cursor:pointer">View Talent Analytics →</button>
-        </div>
+        <button class="ecd-risk-cta" onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))">
+          View Talent Analytics →
+        </button>
       </div>
     `;
   } // end _buildExecDashboardInner
@@ -16623,7 +16805,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if(!isNaN(_mt)&&_mt>0){
             mathTypicalSum+=_mt;mathTypicalN++;
             // Compute ratio from source data — reliable for both CSV paths and encoded rows
-            if(!isNaN(_mg)&&_mg>0){mathPctTypArr.push(_mg/_mt);}
+            // Include ALL scholars with valid typical growth (gain can be 0/negative — honest population median)
+            if(!isNaN(_mg)){mathPctTypArr.push(_mg/_mt);}
           }
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
@@ -16636,7 +16819,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if(!isNaN(_et)&&_et>0){
             elaTypicalSum+=_et;elaTypicalN++;
             // Compute ratio from source data
-            if(!isNaN(_eg)&&_eg>0){elaPctTypArr.push(_eg/_et);}
+            // Include ALL scholars with valid typical growth (honest population median)
+            if(!isNaN(_eg)){elaPctTypArr.push(_eg/_et);}
           }
         }
         // Race — count unique scholars
@@ -16701,7 +16885,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaPctTypical:  elaPctTypical,
         elaMedianPctTypical: elaMedianPctTypical,
         mathGainN:      mathGainN,
-        elaGainN:       elaGainN
+        elaGainN:       elaGainN,
+        // All-years program-wide medians (for exec dashboard — full embedded corpus regardless of SY filter)
+        mathMedianPctAllYears: (function(){
+          var arr=[];
+          [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
+            if(!r)return; var g=r.springGain!=null?parseFloat(r.springGain):NaN;
+            var t=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
+            if(!isNaN(g)&&!isNaN(t)&&t>0) arr.push(g/t);
+          });
+          if(!arr.length) return mathMedianPctTypical;
+          var s=arr.slice().sort(function(a,b){return a-b;}); var m=Math.floor(s.length/2);
+          return Math.round((s.length%2?s[m]:(s[m-1]+s[m])/2)*100);
+        }()),
+        elaMedianPctAllYears: (function(){
+          var arr=[];
+          [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
+            if(!r)return; var g=r.springGain!=null?parseFloat(r.springGain):NaN;
+            var t=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
+            if(!isNaN(g)&&!isNaN(t)&&t>0) arr.push(g/t);
+          });
+          if(!arr.length) return elaMedianPctTypical;
+          var s=arr.slice().sort(function(a,b){return a-b;}); var m=Math.floor(s.length/2);
+          return Math.round((s.length%2?s[m]:(s[m-1]+s[m])/2)*100);
+        }())
       };
     }
 
