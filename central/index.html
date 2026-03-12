@@ -15590,18 +15590,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
-    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v1';
+    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v3';  // bumped to purge stale cached row data
     // ── To enable live i-Ready data: set 2PACX key + tab GIDs below ──
     // Published sheet: File → Share → Publish to web → CSV → copy 2PACX key
     // GIDs: each tab's numeric ?gid= value from the sheet URL
     const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
     // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
     // Cache key for discovered GIDs
-    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v1';
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v3';  // bumped to purge corrupted v1/v2 caches
     const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
     let   IRLAB_LIVE_GIDS  = { math: null, ela: null, mathRep: null, elaRep: null };
     const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
     let   _irlGIDsResolved = false;
+    let   _irlDiscoveryPromise = null;  // promise lock — prevents concurrent discovery races
     let   _irlLiveStatus   = 'embedded';
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -15805,20 +15806,28 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Auto-discover tab GIDs from pubhtml (runs once per session, cached 24hr) ──
     async function _irlDiscoverGIDs() {
       if (_irlGIDsResolved) return true;
+      // Promise lock: if discovery is already in-flight, wait on same promise instead of racing
+      if (_irlDiscoveryPromise) return _irlDiscoveryPromise;
+      _irlDiscoveryPromise = _irlDiscoverGIDsInner();
+      return _irlDiscoveryPromise;
+    }
+
+    async function _irlDiscoverGIDsInner() {
       // 1. Try localStorage cache
       try {
         const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
         if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
           const cg = cached.gids || {};
-          // Require all 4 keys to be non-null — a cache with any null key is corrupt and must be regenerated
-          const hasAll = !!(cg.math && cg.ela && cg.mathRep && cg.elaRep);
-          if (hasAll) {
+          // Require math and ela to be non-null (and non-zero) — partial caches cause wrong assignments
+          const hasCore = !!(cg.math && cg.ela);
+          if (hasCore) {
             IRLAB_LIVE_GIDS = cg;
             _irlGIDsResolved = true;
             console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
             return true;
           }
-          console.warn('[irlab] Ignoring incomplete GID cache — some required keys missing or null:', JSON.stringify(cg));
+          console.warn('[irlab] Ignoring incomplete GID cache:', JSON.stringify(cg));
+          try { localStorage.removeItem(IRLAB_GID_CACHE); } catch(e) {}
         }
       } catch(e) {}
 
@@ -15840,83 +15849,67 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // 3. Fallback: common GIDs + gid=0 (default tab)
       if (!probedGids.length) probedGids = [0, 1, 2, 3, 100, 200, 300, 400];
 
-      // 4. Fetch each candidate and identify by header signature
+      // 4. Fetch each candidate — capture header + first data line in ONE request (no re-fetch needed)
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const r = await fetch(csvBase + '&gid=' + gid + '&t=' + Date.now(), { signal: AbortSignal.timeout(12000) });
+          const r = await fetch(csvBase + '&gid=' + gid, { signal: AbortSignal.timeout(12000) });
           if (!r.ok) return null;
           const text = await r.text();
-          const hdr  = text.split('\n')[0].toLowerCase().replace(/"/g, '');
-          return { gid, hdr };
+          const lines = text.split('\n');
+          const hdr   = lines[0].toLowerCase().replace(/"/g, '');
+          // Keep first 3 lines for subject detection — avoids a second HTTP request entirely
+          const snippet = lines.slice(0, 3).join('\n');
+          return { gid, hdr, snippet };
         } catch { return null; }
       }));
 
-      // 5. Assign GIDs by header signature
-      // Helper: detect subject from first data row (handles Subject, subject, or Language Arts variants)
-      function _detectSubject(rows) {
+      // 5. Helpers
+      const _detectSubject = rows => {
         if (!rows.length) return '';
-        const s = (rows[0]['Subject'] || rows[0]['subject'] || rows[0]['SUBJECT'] || '').toLowerCase();
-        return s;
-      }
-      const _isElaSubject = s => s.includes('ela') || s.includes('reading') || s.includes('language');
-      const _isMathSubject = s => s.includes('math');
-      const _isLongitudinalHdr = h => (h.includes('academic year') || h.includes('school year')) && !h.includes('repeat scholar');
-      const _hasStaffCol = h => h.includes('instructor') || h.includes('tutor');
+        return (rows[0]['Subject'] || rows[0]['subject'] || rows[0]['SUBJECT'] || '').toLowerCase();
+      };
+      const _isElaSubject    = s => s.includes('ela') || s.includes('reading') || s.includes('language');
+      const _isMathSubject   = s => s.includes('math');
+      const _isLongitudinalH = h => (h.includes('academic year') || h.includes('school year')) && !h.includes('repeat scholar');
+      const _hasStaffCol     = h => h.includes('instructor') || h.includes('tutor');
 
+      // 6. Assign GIDs by header + first-row subject (no extra HTTP requests)
       const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
       for (const row of results.filter(Boolean)) {
         const h = row.hdr;
-        // Math/ELA longitudinal: has "academic year"/"school year" + "instructor"/"tutor" header
-        if (_isLongitudinalHdr(h) && _hasStaffCol(h) && (!resolved.math || !resolved.ela)) {
-          // Parse full CSV text to safely read the Subject column
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
-          if (r2 && r2.ok) {
-            const fullText = await r2.text();
-            const rows = parseCSV(fullText);
-            const subj = _detectSubject(rows);
-            if (_isMathSubject(subj) && !resolved.math) { resolved.math = row.gid; continue; }
-            if (_isElaSubject(subj) && !resolved.ela) { resolved.ela = row.gid; continue; }
-            // Subject field empty or unrecognised — assign by order (math first)
-            if (!resolved.math) { resolved.math = row.gid; } else if (!resolved.ela) { resolved.ela = row.gid; }
-          }
+        // Math/ELA longitudinal tab
+        if (_isLongitudinalH(h) && _hasStaffCol(h) && (!resolved.math || !resolved.ela)) {
+          const subj = _detectSubject(parseCSV(row.snippet));
+          if (_isMathSubject(subj) && !resolved.math) { resolved.math = row.gid; continue; }
+          if (_isElaSubject(subj)  && !resolved.ela)  { resolved.ela  = row.gid; continue; }
+          // Subject field empty/unrecognised — assign by order
+          if (!resolved.math) { resolved.math = row.gid; } else if (!resolved.ela) { resolved.ela = row.gid; }
         }
-        // Repeat scholars: has "repeat scholar" in header
+        // Repeat-scholar tab
         if (h.includes('repeat scholar') && _hasStaffCol(h)) {
-          const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
-          if (r2 && r2.ok) {
-            const fullText = await r2.text();
-            const rows = parseCSV(fullText);
-            const subj = _detectSubject(rows);
-            if (_isMathSubject(subj) && !resolved.mathRep) { resolved.mathRep = row.gid; }
-            else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
-          }
+          const subj = _detectSubject(parseCSV(row.snippet));
+          if (_isMathSubject(subj) && !resolved.mathRep) { resolved.mathRep = row.gid; }
+          else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
         }
       }
 
-      // 6. ELA fallback: if ela still null, check unmatched tabs for longitudinal academic data
+      // 7. ELA fallback — reuse already-fetched snippets, no new HTTP requests
       if (!resolved.ela) {
         const assignedGids = new Set(Object.values(resolved).filter(Boolean));
         for (const row of results.filter(Boolean)) {
           if (assignedGids.has(row.gid)) continue;
-          const h = row.hdr;
-          // Accept tabs with academic year indicator — instructor column may be absent for ELA tab
-          if (_isLongitudinalHdr(h)) {
-            const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
-            if (r2 && r2.ok) {
-              const fullText = await r2.text();
-              const rows = parseCSV(fullText);
-              const subj = _detectSubject(rows);
-              if (_isElaSubject(subj) || (!_isMathSubject(subj) && rows.length > 0)) {
-                resolved.ela = row.gid;
-                console.log('[irlab] ELA GID found via extended fallback: gid=' + row.gid + ' subject=' + subj);
-                break;
-              }
+          if (_isLongitudinalH(row.hdr)) {
+            const subj = _detectSubject(parseCSV(row.snippet));
+            if (_isElaSubject(subj) || (!_isMathSubject(subj) && parseCSV(row.snippet).length > 0)) {
+              resolved.ela = row.gid;
+              console.log('[irlab] ELA via fallback: gid=' + row.gid + ' subject=' + subj);
+              break;
             }
           }
         }
       }
 
-      // 7. Final fallback: if only one tab found with instructor/tutor data, assign it as math
+      // 8. Last-resort fallback — assign first two staff-header tabs if nothing resolved
       if (!resolved.math && !resolved.ela) {
         const withStaff = results.filter(r => r && _hasStaffCol(r.hdr));
         if (withStaff.length > 0) resolved.math = withStaff[0].gid;
@@ -15926,9 +15919,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       IRLAB_LIVE_GIDS = resolved;
       _irlGIDsResolved = Object.values(resolved).some(v => v !== null);
       if (_irlGIDsResolved) {
-        // Only cache when all 4 required keys are non-null — prevents null-key corruption on next load
-        const _allGidsValid = !!(resolved.math && resolved.ela && resolved.mathRep && resolved.elaRep);
-        if (_allGidsValid) {
+        // Cache only when both core GIDs are valid (non-null, non-zero)
+        if (resolved.math && resolved.ela) {
           try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
         }
         console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
