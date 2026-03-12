@@ -5460,7 +5460,35 @@
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
     const totalMins = poStats ? poStats.totalMins     : null;
+    // Scholar-level aggregate instructional minutes (sum of every active scholar's total received minutes)
+    // This differs from session-level: a 40-min session with 4 scholars = 40 session-mins but 160 scholar-mins
+    const scholarTotalMins = (function() {
+      if (!po || typeof po.getPersonMap !== 'function') return null;
+      try {
+        var pm = po.getPersonMap();
+        if (!pm) return null;
+        var total = 0;
+        Object.values(pm).forEach(function(p) {
+          if (p.role !== 'Student' || p.attended === 0) return;
+          Object.values(p.subjectMinutes || {}).forEach(function(m) { total += m; });
+        });
+        return total > 0 ? total : null;
+      } catch(e){ return null; }
+    }());
     const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
+    // Active scholars — unique students with at least 1 attended session
+    const activeScholars = (function(){
+      if (ldData && ldData.districts) {
+        return ldData.districts.reduce(function(sum, d){ return sum + (d.scholars||0); }, 0);
+      }
+      if (po && typeof po.getPersonMap === 'function') {
+        try {
+          var pm = po.getPersonMap();
+          return pm ? Object.values(pm).filter(function(p){ return p.role==='Student' && p.attended>0; }).length : null;
+        } catch(e){ return null; }
+      }
+      return null;
+    }());
 
     // ── 2. Operational Health ─────────────────────────────────────────
     const scholAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
@@ -5539,7 +5567,7 @@
         <div class="ecd-kpi ck-navy">
           <div class="ecd-kpi-lbl">Active Tutors</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">Instructors on record</div>
+          <div class="ecd-kpi-foot">With attended sessions</div>
         </div>
         <div class="ecd-kpi ck-gold">
           <div class="ecd-kpi-lbl">Districts</div>
@@ -5547,11 +5575,16 @@
           <div class="ecd-kpi-foot">Partner districts</div>
         </div>
         <div class="ecd-kpi ck-blue">
-          <div class="ecd-kpi-lbl">Schools</div>
+          <div class="ecd-kpi-lbl">Active Sites</div>
           <div class="ecd-kpi-val">${fv(schools)}</div>
-          <div class="ecd-kpi-foot">Active sites</div>
+          <div class="ecd-kpi-foot">Schools with sessions</div>
         </div>
         <div class="ecd-kpi ck-green">
+          <div class="ecd-kpi-lbl">Active Scholars</div>
+          <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
+          <div class="ecd-kpi-foot">With attended sessions</div>
+        </div>
+        <div class="ecd-kpi ck-teal">
           <div class="ecd-kpi-lbl">Sessions</div>
           <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total delivered</div>
@@ -5562,9 +5595,12 @@
           <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged \u2713' : 'Logged this period'}</div>
         </div>
         <div class="ecd-kpi ck-rose">
-          <div class="ecd-kpi-lbl">Total Minutes</div>
+          <div class="ecd-kpi-lbl">Tutored Minutes</div>
           <div class="ecd-kpi-val sm">${fmins(totalMins)}</div>
-          <div class="ecd-kpi-foot">Instructional time</div>
+          <div class="ecd-kpi-foot" style="line-height:1.5">
+            Session-level total
+            ${scholarTotalMins != null ? `<br><span style="color:var(--gold);font-weight:700">${fmins(scholarTotalMins)}</span> scholar-level aggregate` : ''}
+          </div>
         </div>
       </div>
 
@@ -11858,13 +11894,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           }
 
           // Schools / districts / tutors
+          // schoolCount: only schools that have at least 1 delivered session (active sites)
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap);
+            var schools = Object.keys(_schoolMap).filter(function(s){ return _schoolMap[s] && (_schoolMap[s].stuAttended > 0 || _schoolMap[s].instAttended > 0); });
             stats.schoolCount = schools.length;
-            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; })).size;
+            stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s].district; }).filter(Boolean)).size;
           }
+          // activeTutors: only instructors with at least 1 attended session
           if (_personMap) {
-            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
           }
           stats.totalRows = _attRows.length + _sessRows.length + _instRows.length;
           stats.loaded = stats.scholAttPct !== null;
@@ -15408,6 +15446,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       openFlagsModal, onPanelOpen,
       getLeadershipData,
       getTutorAttendanceMap,
+      getPersonMap: function() { return _personMap; },
       exportData, showExportModal,
       getStats: function() {
         // Compute directly from the internal data arrays
@@ -15440,12 +15479,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             stats.surveyAvg = parseFloat((_stuAggScores.globalSum / _stuAggScores.globalCnt).toFixed(2));
           }
           if (_schoolMap) {
-            var schools = Object.keys(_schoolMap);
+            var schools = Object.keys(_schoolMap).filter(function(s){ return _schoolMap[s] && (_schoolMap[s].stuAttended > 0 || _schoolMap[s].instAttended > 0); });
             stats.schoolCount = schools.length;
             stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s] && _schoolMap[s].district; }).filter(Boolean)).size;
           }
           if (_personMap) {
-            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+            stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
           }
           stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
           // Total instructional minutes from delivered sessions
@@ -16893,8 +16932,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
           // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
-          var _mp=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
+          // Include all rows with a valid pctTypical value (covers BOY→MOY and BOY→Spring pairs)
+          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
@@ -16906,8 +16945,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
           // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
-          var _ep=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
+          // Include all rows with a valid pctTypical value (covers BOY→MOY and BOY→Spring pairs)
+          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
         }
         // Race — count unique scholars
@@ -16978,7 +17017,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r||r.springScore==null) return;
+            if(!r) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -16989,7 +17028,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r||r.springScore==null) return;
+            if(!r) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
