@@ -5454,15 +5454,15 @@
     const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
 
     // ── 1. Program Footprint ──────────────────────────────────────────
-    // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap.
-    // Only read HR_EMPS after live HR data has been fetched — prevents showing stale embedded snapshot count.
-    const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+    // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap
+    // Pearl personMap counts unique instructor names in attendance data (includes prior-year staff)
+    const hrActiveTutors = (typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
     const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
-    // Scholar counts: use unique scholars served (attended ≥1 session) to match Pearl Operations session analytics
-    const activeScholars   = ldData ? (ldData.scholarsServed   || ldData.activeScholars   || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
-    const rosteredScholars = ldData ? (ldData.scholarsServed   || ldData.rosteredScholars || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
+    // Scholar counts from Pearl _personMap (live, accurate)
+    const activeScholars   = ldData ? (ldData.activeScholars   || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
+    const rosteredScholars = ldData ? (ldData.rosteredScholars || (poStats ? poStats.rosteredScholars : null)) : (poStats ? poStats.rosteredScholars : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
@@ -9462,9 +9462,6 @@
           _hrOverlayLive(c.rows);
           _hrStatus = 'live';
           _hrFetched = true;
-          window._hrDataFetched = true;
-          // Trigger exec dashboard refresh so tutor count updates from correct live data
-          try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
           return;
         }
       } catch(e) {}
@@ -9501,9 +9498,6 @@
       _hrStatus = 'error';
     }
     _hrFetched = true;
-    window._hrDataFetched = true;
-    // Trigger exec dashboard refresh so tutor count updates from live HR data
-    try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
   }
 
   // ── Tier config ───────────────────────────────────────────────────────────
@@ -14987,12 +14981,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           return { week, rate: t > 0 ? Math.round(v.att/t*100) : 0, total: t };
         });
 
-      // Unique scholars served: scholars with at least 1 attended session — consistent with Pearl Operations view
-      const scholarsServed = onTrack + atRisk + needsAction;
-
       return {
         scholarRate, tutorRate, sessionsDelivered, scholarSurvey,
-        scholarsServed,
         scholarOnTrack: onTrack, scholarAtRisk: atRisk, scholarNeedsAction: needsAction,
         districts,
         absenceDrivers: {
@@ -15795,16 +15785,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       try {
         const cached = JSON.parse(localStorage.getItem(IRLAB_GID_CACHE) || 'null');
         if (cached && cached.ts && (Date.now() - cached.ts) < IRLAB_GID_TTL_MS && cached.gids) {
-          const cg = cached.gids || {};
-          // Require all 4 keys to be non-null — a cache with any null key is corrupt and must be regenerated
-          const hasAll = !!(cg.math && cg.ela && cg.mathRep && cg.elaRep);
-          if (hasAll) {
-            IRLAB_LIVE_GIDS = cg;
-            _irlGIDsResolved = true;
-            console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
-            return true;
-          }
-          console.warn('[irlab] Ignoring incomplete GID cache — some required keys missing or null:', JSON.stringify(cg));
+          IRLAB_LIVE_GIDS = cached.gids;
+          _irlGIDsResolved = true;
+          console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
+          return true;
         }
       } catch(e) {}
 
@@ -15843,12 +15827,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         const h = row.hdr;
         // Math/ELA longitudinal: has "academic year" + "instructor" — check subject to assign correctly
         if (h.includes('academic year') && h.includes('instructor') && !h.includes('repeat scholar') && (!resolved.math || !resolved.ela)) {
-          // Parse full CSV text to safely read the Subject column — avoids split(',') failures on quoted fields
+          // Peek first data row to check subject
           const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
-            const fullText = await r2.text();
-            const rows = parseCSV(fullText);
-            const firstDataSubject = (rows.length > 0 ? (rows[0]['Subject'] || rows[0]['subject'] || '') : '').toLowerCase();
+            const lines = (await r2.text()).split('\n');
+            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
+            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
             if (firstDataSubject.includes('math')) { resolved.math = row.gid; continue; }
             if (firstDataSubject.includes('ela') || firstDataSubject.includes('reading')) { resolved.ela = row.gid; continue; }
             // Can't determine subject — assign by order (math first)
@@ -15857,12 +15841,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }
         // Repeat scholars: has "repeat scholar" in header
         if (h.includes('repeat scholar') && h.includes('instructor')) {
-          // Parse full CSV text to safely read the Subject column — avoids split(',') failures on quoted fields
           const r2 = await fetch(csvBase + '&gid=' + row.gid, { signal: AbortSignal.timeout(12000) }).catch(()=>null);
           if (r2 && r2.ok) {
-            const fullText = await r2.text();
-            const rows = parseCSV(fullText);
-            const firstDataSubject = (rows.length > 0 ? (rows[0]['Subject'] || rows[0]['subject'] || '') : '').toLowerCase();
+            const lines = (await r2.text()).split('\n');
+            const subjectCol = lines[0].toLowerCase().split(',').indexOf('subject');
+            const firstDataSubject = subjectCol > -1 ? (lines[1]||'').split(',')[subjectCol]?.toLowerCase() : '';
             if (firstDataSubject.includes('math') && !resolved.mathRep) { resolved.mathRep = row.gid; }
             else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
           }
@@ -15879,11 +15862,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       IRLAB_LIVE_GIDS = resolved;
       _irlGIDsResolved = Object.values(resolved).some(v => v !== null);
       if (_irlGIDsResolved) {
-        // Only cache when all 4 required keys are non-null — prevents null-key corruption on next load
-        const _allGidsValid = !!(resolved.math && resolved.ela && resolved.mathRep && resolved.elaRep);
-        if (_allGidsValid) {
-          try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
-        }
+        try { localStorage.setItem(IRLAB_GID_CACHE, JSON.stringify({ ts: Date.now(), gids: resolved })); } catch(e) {}
         console.log('[irlab] GIDs resolved:', JSON.stringify(resolved));
       } else {
         console.warn('[irlab] Could not resolve any tab GIDs');
@@ -15916,9 +15895,21 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
           if (r.ok) {
             const text = await r.text();
-            const parsedRows = parseCSV(text);
-            const parsed = parsedRows
-              .map(row => normalizeRow(row, subj))
+            const lines = text.split('\n');
+            const hdrLine = lines[0];
+            // Build header→index map from actual CSV header row
+            const hdrs = parseCSV(hdrLine)[0] || [];
+            const hdrMap = {};
+            hdrs.forEach((h,i) => { hdrMap[h.trim()] = i; });
+            // Parse rows using header-aware normalizeRow
+            const parsed = lines.slice(1)
+              .filter(l => l.trim())
+              .map(line => {
+                const cols = parseCSV(line)[0] || [];
+                const obj = {};
+                hdrs.forEach((h,i) => { obj[h.trim()] = cols[i] || ''; });
+                return normalizeRow(obj, subj);
+              })
               .filter(r => r.scholarId || r.scholarName);
             res[tab] = parsed;
             console.log('[irlab] Live '+tab+': '+parsed.length+' rows (gid='+gid+')');
@@ -15944,7 +15935,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           } catch(e) { /* don't blank screen */ }
         }
         if (typeof renderLab === 'function') renderLab();
-        try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
         console.log('[irlab] Live data merged — academic overlay will update on next render');
       }
     }
@@ -16879,7 +16869,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // getSummary() — returns aggregate iReady outcomes using named row properties
     function getSummary(syFilter) {
-      if (!IRLAB_DATA.loaded) loadData();
       // IRLAB_DATA rows are OBJECTS (from normalizeRow/decodeRows), not arrays.
       // Fields: r.scholarId, r.year, r.grade, r.school, r.district,
       //         r.springGain, r.pctTypical, r.baseRelPlacement, r.springRelPlacement,
@@ -17620,26 +17609,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.expInvalidate = expInvalidate;
 
     window.po                   = po;
-
-  // ── Global data bootstrap — preloads all data sources on page load ─────────
-  // Ensures leadership numbers appear on first load without visiting sub-pages.
-  (function bootstrapData() {
-    function _doBootstrap() {
-      // 1. Pearl operations — starts GID discovery + data fetch
-      try { if (window.po && typeof window.po.onPanelOpen === 'function') window.po.onPanelOpen(); } catch(e) {}
-      // 2. iReady — loads embedded data + starts live fetch (GID discovery + CSV)
-      try { if (window.irlab && typeof window.irlab.onPanelOpen === 'function') window.irlab.onPanelOpen(); } catch(e) {}
-      // 3. HR profiles — fetch live HR data without requiring the panel to open
-      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(function(){}); } catch(e) {}
-      // 4. Survey / concerns data
-      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(function(){}); } catch(e) {}
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() { setTimeout(_doBootstrap, 300); });
-    } else {
-      setTimeout(_doBootstrap, 300);
-    }
-  })();
 
   // ── Exec Dashboard: robust multi-signal render engine ─────────────────────
   // Works on any network speed. Fires on: poll, Pearl re-render, iReady load,
