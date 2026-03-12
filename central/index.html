@@ -12027,15 +12027,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     async function resolveGids() {
       if (_gidsResolved) return true;
 
-      // ── Try localStorage GID cache first (avoids pubhtml probe on return visits) ──
-      const _GID_CACHE_KEY = 'njtc_pearl_gids_v1';
+      // ── Known-good GIDs (authoritative — confirmed from published sheet) ──
+      // att = Missed Reasons tab (702726038), sess = Session Details (625567780)
+      // Always applied first — prevents stale-cache/bad-discovery 400 errors.
+      GIDS.att  = 702726038;
+      GIDS.sess = 625567780;
+
+      // ── Try localStorage GID cache (v2 — v1 busted to clear stale entries) ──
+      const _GID_CACHE_KEY = 'njtc_pearl_gids_v2';
       try {
         const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
-        if (_gc && _gc.att != null && _gc.inst != null && _gc.stu != null && _gc.sess != null) {
-          GIDS.att = _gc.att; GIDS.inst = _gc.inst; GIDS.stu = _gc.stu; GIDS.sess = _gc.sess;
+        if (_gc && _gc.inst != null && _gc.stu != null) {
+          GIDS.inst = _gc.inst; GIDS.stu = _gc.stu;
           _gidsResolved = true;
-      try { localStorage.setItem(_GID_CACHE_KEY, JSON.stringify({att:GIDS.att,inst:GIDS.inst,stu:GIDS.stu,sess:GIDS.sess})); } catch(e) {}
-          console.log('[Pearl Ops] GIDs loaded from localStorage cache');
+          console.log('[Pearl Ops] GIDs loaded from localStorage cache (v2)');
           return true;
         }
       } catch(e) {}
@@ -12160,26 +12165,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }
       }
 
-      // Persist resolved GIDs to localStorage so repeat visits skip the probe entirely
-      try {
-        const _GCK2 = 'njtc_pearl_gids_v1';
-        if (Object.values(GIDS).every(v => v !== null)) {
-          localStorage.setItem(_GCK2, JSON.stringify({att:GIDS.att,inst:GIDS.inst,stu:GIDS.stu,sess:GIDS.sess}));
-          console.log('[Pearl Ops] GIDs persisted to localStorage');
-        }
-      } catch(e) {}
+      // ── Apply known-good fallbacks for any tab still unresolved ─────────
+      // att + sess are already set above; inst/stu use discovery or these fallbacks.
+      if (!GIDS.inst) GIDS.inst = 1955492004;
+      if (!GIDS.stu)  GIDS.stu  = 1748668439;
+      // Always re-assert att/sess to confirmed values (discovery cannot override)
+      GIDS.att  = 702726038;
+      GIDS.sess = 625567780;
 
-      // ── Hardcoded known-good GID fallbacks ──────────────────────────────
-      // If discovery didn't resolve a tab, or resolved the wrong one,
-      // fall back to the last-known-good GIDs for this spreadsheet.
-      // KNOWN_GIDS: last-resort fallbacks if pubhtml discovery fails entirely.
-      // stu: 1748668439 = pubhtml-discovered | 1245403832 = edit-URL tab gid (backup)
-      const KNOWN_GIDS = { att: 702726038, inst: 1955492004, stu: 1748668439, sess: 625567780 };
-      const KNOWN_GIDS_STU_ALT = 1245403832; // edit-URL fallback — used if discovered gid returns empty data
-      if (!GIDS.att  || GIDS.att  === 117217808) GIDS.att  = KNOWN_GIDS.att;
-      if (!GIDS.inst || GIDS.inst === 117217808) GIDS.inst = KNOWN_GIDS.inst;
-      if (!GIDS.stu  || GIDS.stu  === 117217808) GIDS.stu  = KNOWN_GIDS.stu;
-      if (!GIDS.sess || GIDS.sess === 117217808) GIDS.sess = KNOWN_GIDS.sess;
+      // Persist inst/stu to localStorage v2 cache (att/sess always hardcoded)
+      try {
+        localStorage.setItem('njtc_pearl_gids_v2', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
+        console.log('[Pearl Ops] GIDs persisted to localStorage v2');
+      } catch(e) {}
 
       // Log what was resolved (helps with future debugging)
       console.log('[Pearl Ops] GIDs resolved →', JSON.stringify(GIDS));
