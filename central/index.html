@@ -5460,6 +5460,9 @@
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
     const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
+    // Scholar counts from Pearl _personMap (live, accurate)
+    const activeScholars   = ldData ? (ldData.activeScholars   || (poStats ? poStats.activeScholars   : null)) : (poStats ? poStats.activeScholars   : null);
+    const rosteredScholars = ldData ? (ldData.rosteredScholars || (poStats ? poStats.rosteredScholars : null)) : (poStats ? poStats.rosteredScholars : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     const schools   = poStats ? poStats.schoolCount   : null;
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
@@ -5481,7 +5484,7 @@
     const _selCycle = el.dataset.selectedCycle || ''; // '' = all cycles
     // Median % of Typical Growth calculation:
     //   - Source: iReady Longitudinal CSV, column "Spring pct progress typical growth"
-    //   - Gated on springScore != null (only scholars with a completed spring diagnostic)
+    //   - pctTypical (spring_pct_progress_typical_growth) is pre-computed by iReady — valid for all rows
     //   - When a specific SY is selected: mathMedianPctTypical (median of that SY's values)
     //   - When "All Years" is selected: mathMedianPctAllYears (median across all embedded SYs)
     //   - Formula: median(scholar_spring_scale_score / annual_typical_growth_measure) × 100
@@ -5541,7 +5544,7 @@
         ${irlYears.map(sy=>`<button class="ecd-sy-pill${_selSY===sy?' active':''}" onclick="document.getElementById('execDashboard').dataset.selectedSY='${sy}';window._execDashRefresh&&window._execDashRefresh(true)">${sy}</button>`).join('')}
       </div>` : '';
     // Note: Cycle filter is informational — iReady methodology counts only scholars with a completed
-    // spring diagnostic (springScore != null). The CSV includes Fall/Winter/Spring window records;
+    // spring diagnostic. pctTypical is pre-computed by iReady for all rows with a spring window.
     // only those with a spring score contribute to % of Typical Growth calculations.
 
     el.innerHTML = `
@@ -5580,6 +5583,16 @@
           <div class="ecd-kpi-lbl">Sessions</div>
           <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total delivered</div>
+        </div>
+        <div class="ecd-kpi ck-navy" title="Active Scholars: Unique students with at least 1 attended session in Pearl Operations. Live from Pearl data.">
+          <div class="ecd-kpi-lbl">Active Scholars</div>
+          <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
+          <div class="ecd-kpi-foot">Attended ≥1 session</div>
+        </div>
+        <div class="ecd-kpi ck-blue" title="Rostered Scholars: All unique students appearing in Pearl Operations (attended or absent). Total enrollment on the Pearl roster.">
+          <div class="ecd-kpi-lbl">Rostered Scholars</div>
+          <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '\u2014'}</div>
+          <div class="ecd-kpi-foot">Total Pearl enrollment</div>
         </div>
         <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}" title="Service Interruptions: Attendance records classified as disruptions NOT caused by scholar absence — e.g. tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences. Source: Pearl Ops — same value shown on Pearl Operations dashboard.">
           <div class="ecd-kpi-lbl">Service Interruptions</div>
@@ -11893,6 +11906,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           }
           if (_personMap) {
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+            // Active scholars: unique students who have at least 1 attended session in Pearl
+            stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
+            // Rostered scholars: all unique students in Pearl (attended OR absent — ever appeared)
+            stats.rosteredScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
           }
           stats.totalRows = _attRows.length + _sessRows.length + _instRows.length;
           stats.loaded = stats.scholAttPct !== null;
@@ -15474,6 +15491,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           }
           if (_personMap) {
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
+            // Active scholars: unique students who have at least 1 attended session in Pearl
+            stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
+            // Rostered scholars: all unique students in Pearl (attended OR absent — ever appeared)
+            stats.rosteredScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
           }
           stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
           // Total instructional minutes from delivered sessions
@@ -16887,7 +16908,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Per-scholar pctTypical arrays for median.
       // Read r.pctTypical DIRECTLY — this is the BW col (Math) and CP col (ELA) from iReady CSVs.
       // Both store the ratio: 1.0 = 100% of typical growth. Include ALL rows with a numeric value
-      // (including zeros) — matches iReady's own pivot-table median. Math=83%, ELA=94%.
+      // (including zeros) — matches iReady's own pivot-table median.
+      // Accurate values: Math all-years=83%, ELA all-years=94%, ELA 2024-2025=100%, Math 2024-2025=86%.
       var mathPctTypArr=[], elaPctTypArr=[];
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
@@ -16921,8 +16943,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
           // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
-          var _mp=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
+          // pctTypical (spring_pct_progress_typical_growth) is pre-computed by iReady and is valid
+          // whether springScore is stored or not (embedded rows have springScore=null but valid pctTypical)
+          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
@@ -16934,8 +16957,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
           // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // Gate on springScore: only include rows with completed spring diagnostic (iReady-correct)
-          var _ep=r.pctTypical!=null&&r.springScore!=null?parseFloat(r.pctTypical):NaN;
+          // pctTypical is pre-computed by iReady and valid regardless of springScore storage
+          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
           if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
         }
         // Race — count unique scholars
@@ -17006,7 +17029,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r||r.springScore==null) return;
+            if(!r) return;  // pctTypical valid without springScore (pre-computed by iReady)
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -17017,7 +17040,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         elaMedianPctAllYears: (function(){
           var arr=[];
           [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r||r.springScore==null) return;
+            if(!r) return;  // pctTypical valid without springScore (pre-computed by iReady)
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -18817,14 +18840,16 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if (irl&&irl.growthPct!=null) {
         var irlSY=irl.activeSY||'Historical';
         if (irl.mathAvgGain!==null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null) {
-          var mCol=irl.mathMedianPctTypical>=100?'#dcfce7':irl.mathMedianPctTypical>=70?'#ede9fe':'#fef3c7';
+          var _mPct=irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical;
+          var mCol=_mPct>=100?'#dcfce7':_mPct>=70?'#ede9fe':'#fef3c7';
           chips.push({ico:'&#10133;',col:mCol,
             txt:'+'+irl.mathAvgGain+' pts · '+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%',
             sub:'Math Growth · Median % to Typical ('+irlSY+')',
             key:'irl-math'});
         }
         if (irl.elaAvgGain!==null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null) {
-          var eCol=irl.elaMedianPctTypical>=100?'#dcfce7':irl.elaMedianPctTypical>=70?'#ede9fe':'#fef3c7';
+          var _ePct=irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical;
+          var eCol=_ePct>=100?'#dcfce7':_ePct>=70?'#ede9fe':'#fef3c7';
           chips.push({ico:'&#128217;',col:eCol,
             txt:'+'+irl.elaAvgGain+' pts · '+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%',
             sub:'ELA Growth · Median % to Typical ('+irlSY+')',
@@ -18873,9 +18898,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
     // Exposed for _notifyLeadershipReady to call
     window.advRefreshBanner = function() {
-      _cache.po=undefined; _cache.ld=undefined; _cache.stellar=undefined;
+      _cache.po=undefined; _cache.ld=undefined; _cache.stellar=undefined; _cache.irl=undefined; _cache.race=undefined;
       buildLeadershipBanner();
-      if (_activeTab==='talking-points') { _cache.po=undefined; buildTalkingPoints(); }
+      if (_activeTab==='talking-points') { _cache.po=undefined; _cache.irl=undefined; buildTalkingPoints(); }
     };
 
     // ── TALKING POINTS ────────────────────────────────────────────
@@ -19015,8 +19040,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           var hasGainData = (irl.mathAvgGain!==null&&irl.mathAvgGain!==undefined)||(irl.elaAvgGain!==null&&irl.elaAvgGain!==undefined);
           var irlHeadline, iFrames2;
           if (hasGainData) {
-            var mStr = (irl.mathAvgGain!=null&&irl.mathMedianPctTypical!=null) ? 'Math: +'+irl.mathAvgGain+' pts ('+irl.mathMedianPctTypical+'% median to typical)' : '';
-            var eStr = (irl.elaAvgGain!=null&&irl.elaMedianPctTypical!=null)   ? 'ELA: +'+irl.elaAvgGain+' pts ('+irl.elaMedianPctTypical+'% median to typical)'   : '';
+            var _mMed=irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical;
+            var _eMed=irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical;
+            var mStr = (irl.mathAvgGain!=null&&_mMed!=null) ? 'Math: +'+irl.mathAvgGain+' pts ('+_mMed+'% median to typical)' : '';
+            var eStr = (irl.elaAvgGain!=null&&_eMed!=null)   ? 'ELA: +'+irl.elaAvgGain+' pts ('+_eMed+'% median to typical)'   : '';
             var gainSummary = [mStr,eStr].filter(Boolean).join(' · ');
             irlHeadline = gainSummary + (has2526?'':' ('+irlSY+')');
             iFrames2 = {
@@ -19303,7 +19330,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       var mediaAngles=[
         {ico:'&#127941;',h:'Top-Performing School',body:st&&st[0]?'"'+st[0].school+' in '+st[0].district+' has achieved '+st[0].attRate+'% scholar attendance — among the highest of all '+((getPo()&&getPo().schoolCount)||'NJTC')+' sites." Local press hook with real name and number.':'Load Pearl data to surface top school.'},
         {ico:'&#9878;', h:'Equity Narrative', body:race&&race.byScholar?'NJTC&#39;s scholars represent New Jersey&#39;s most underserved communities. The race breakdown (above) supports equity framing for state and federal funding applications.':'Pearl race data available after Pearl Operations loads.'},
-        {ico:'&#128200;',h:'iReady Growth Angle', body:(function(){var _i=getIRL();if(!_i)return'iReady data loads from the i-Ready Lab module.';var parts=[];if(_i.mathAvgGain!=null&&_i.mathMedianPctTypical!=null)parts.push('Math: +'+_i.mathAvgGain+' pts ('+_i.mathMedianPctTypical+'% median to typical)');if(_i.elaAvgGain!=null&&_i.elaMedianPctTypical!=null)parts.push('ELA: +'+_i.elaAvgGain+' pts ('+_i.elaMedianPctTypical+'% median to typical)');if(parts.length)return'NJTC scholars: '+parts.join(' \xb7 ')+' on iReady\u2019s national growth benchmark ('+(_i.activeSY||'Historical')+') \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';return fmtP(_i.growthPct)+'% of NJTC scholars show measurable iReady growth \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';}())},
+        {ico:'&#128200;',h:'iReady Growth Angle', body:(function(){var _i=getIRL();if(!_i)return'iReady data loads from the i-Ready Lab module.';var parts=[];var _mM=_i.mathMedianPctAllYears!=null?_i.mathMedianPctAllYears:_i.mathMedianPctTypical;var _eM=_i.elaMedianPctAllYears!=null?_i.elaMedianPctAllYears:_i.elaMedianPctTypical;if(_i.mathAvgGain!=null&&_mM!=null)parts.push('Math: +'+_i.mathAvgGain+' pts ('+_mM+'% median to typical)');if(_i.elaAvgGain!=null&&_eM!=null)parts.push('ELA: +'+_i.elaAvgGain+' pts ('+_eM+'% median to typical)');if(parts.length)return'NJTC scholars: '+parts.join(' \xb7 ')+' on iReady\u2019s national growth benchmark ('+(_i.activeSY||'Historical')+') \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';return fmtP(_i.growthPct)+'% of NJTC scholars show measurable iReady growth \u2014 the same diagnostic tool their own districts use. Independently verifiable, not self-reported.';}())},
         {ico:'&#128203;',h:'Performance Tier Story', body:ld?fmtN(ld.scholarOnTrack)+' scholars are On Track (80%+ attendance). NJTC does not just place tutors — it tracks every scholar&#39;s trajectory and flags at-risk students for intervention in real time.':'Load Pearl data to see scholar tiers.'},
         {ico:'&#129309;',h:'Tutor Workforce Pipeline', body:'NJTC is training the next generation of New Jersey educators. The Apprentice-to-Teacher pipeline is a workforce development story for op-eds and education policy forums.'},
         {ico:'&#127759;',h:'No Transportation Barrier', body:'Unlike afterschool programs, NJTC operates inside the school day. This is the only tutoring model that removes every access barrier for low-income families — no bus, no childcare, no scheduling.'},
