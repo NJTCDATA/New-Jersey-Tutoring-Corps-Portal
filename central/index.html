@@ -5246,6 +5246,16 @@
   function buildExecDashboard(dept) {
     const el = document.getElementById('execDashboard');
     if (!el) return;
+    try {
+      _buildExecDashboardInner(dept, el);
+    } catch(e) {
+      console.error('[ExecDash] render error:', e);
+      el.innerHTML = `<div style="padding:1rem;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:.75rem">
+        <strong>Dashboard Error:</strong> ${e.message}. Pearl data may still be loading — this will auto-refresh.
+      </div>`;
+    }
+  }
+  function _buildExecDashboardInner(dept, el) {
 
     // ── Pull data from available modules ──────────────────────────────
     const po  = (typeof window.po  !== 'undefined') ? window.po  : null;
@@ -5261,33 +5271,29 @@
     const fp = (v) => (v == null || isNaN(v)) ? '—' : Math.round(v) + '%';
 
     // ── 1. PROGRAM FOOTPRINT ─────────────────────────────────────────
-    const totalScholars  = poStats ? poStats.totalScholars  : null;
-    const activeScholars = poStats ? poStats.activeScholars : null;
-    const totalStaff     = poStats ? poStats.totalStaff     : null;
-    const districts      = ldData  ? ldData.length          : null;
-    const schools        = poStats ? poStats.totalSchools   : null;
-    const tutMins        = poStats ? poStats.totalTutoringMinutes : null;
-    const tutHrs         = tutMins != null ? Math.round(tutMins / 60).toLocaleString() : '—';
+    const totalScholars  = null; // derived from Pearl race data
+    const activeScholars = null; // not directly in getStats
+    const totalStaff     = poStats ? poStats.activeTutors    : null;
+    const districts      = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
+    const schools        = poStats ? poStats.schoolCount     : null;
+    const tutMins        = null; // not in getStats
+    const tutHrs         = poStats && poStats.sessions ? poStats.sessions.toLocaleString() + ' sess' : '—';
 
     // ── 2. OPERATIONAL HEALTH ─────────────────────────────────────────
-    const scholarAtt = poStats ? poStats.scholarAttendanceRate  : null;
-    const tutorAtt   = poStats ? poStats.tutorAttendanceRate    : null;
-    const surveyAvg  = poStats ? poStats.avgSurveyRating        : null;
-    const sessions   = poStats ? poStats.totalSessions          : null;
+    const scholarAtt = ldData ? ldData.scholarRate : (poStats ? poStats.scholAttPct : null);
+    const tutorAtt   = ldData ? ldData.tutorRate   : (poStats ? poStats.instAttPct  : null);
+    const surveyAvg  = ldData ? ldData.scholarSurvey : (poStats ? poStats.surveyAvg : null);
+    const sessions   = ldData ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
 
     function attBarClass(v) {
       if (v == null) return 'green';
       return v >= 85 ? 'green' : v >= 75 ? 'amber' : 'red';
     }
 
-    // Tier distribution from ldData
-    let tierCounts = { stellar:0, strong:0, developing:0, needs_support:0 };
-    if (ldData) {
-      ldData.forEach(d => {
-        const t = d.tiers || {};
-        Object.keys(tierCounts).forEach(k => { tierCounts[k] += (t[k] || 0); });
-      });
-    }
+    // Tier distribution from ldData (scholar attendance tiers)
+    const tierOnTrack   = ldData ? (ldData.scholarOnTrack    || 0) : 0;
+    const tierAtRisk    = ldData ? (ldData.scholarAtRisk      || 0) : 0;
+    const tierNeeds     = ldData ? (ldData.scholarNeedsAction || 0) : 0;
 
     // ── 3. ACADEMIC IMPACT ────────────────────────────────────────────
     const mathGain   = irl ? irl.mathAvgGain          : null;
@@ -5309,9 +5315,9 @@
     const kTot  = KPI_DATA.length || 1;
 
     // ── 6. TALENT RISK (leadership/data/kb) ───────────────────────────
-    const concerns      = (typeof CONCERNS !== 'undefined') ? CONCERNS : [];
+    const concerns      = (typeof CONCERNS !== 'undefined' && Array.isArray(CONCERNS)) ? CONCERNS : [];
     const concernTotal  = concerns.length;
-    const concernDists  = new Set(concerns.map(c=>c.district).filter(Boolean)).size;
+    const concernDists  = new Set(concerns.map(c=>(c&&c.district)||'').filter(Boolean)).size;
 
     // ── BUILD HTML ────────────────────────────────────────────────────
     const attScholPct = scholarAtt != null ? Math.min(100, Math.round(scholarAtt)) : 0;
@@ -5322,18 +5328,10 @@
       <div class="exec-section-label">📍 Program Footprint</div>
       <div class="exec-metric-grid">
         <div class="exec-metric accent-blue">
-          <div class="exec-metric-val">${fv(activeScholars)}</div>
-          <div class="exec-metric-lbl">Active Scholars</div>
-        </div>
-        <div class="exec-metric accent-blue">
-          <div class="exec-metric-val">${fv(totalScholars)}</div>
-          <div class="exec-metric-lbl">Total Scholars</div>
+          <div class="exec-metric-val">${fv(totalStaff)}</div>
+          <div class="exec-metric-lbl">Active Tutors</div>
         </div>
         <div class="exec-metric accent-gold">
-          <div class="exec-metric-val">${fv(totalStaff)}</div>
-          <div class="exec-metric-lbl">Active Staff</div>
-        </div>
-        <div class="exec-metric">
           <div class="exec-metric-val">${fv(districts)}</div>
           <div class="exec-metric-lbl">Districts</div>
         </div>
@@ -5342,8 +5340,16 @@
           <div class="exec-metric-lbl">Schools</div>
         </div>
         <div class="exec-metric accent-green">
-          <div class="exec-metric-val">${tutHrs}</div>
-          <div class="exec-metric-lbl">Tutoring Hours</div>
+          <div class="exec-metric-val">${sessions != null ? sessions.toLocaleString() : '—'}</div>
+          <div class="exec-metric-lbl">Total Sessions</div>
+        </div>
+        <div class="exec-metric">
+          <div class="exec-metric-val">${poStats && poStats.siCount != null ? poStats.siCount : '—'}</div>
+          <div class="exec-metric-lbl">Service Interruptions</div>
+        </div>
+        <div class="exec-metric">
+          <div class="exec-metric-val">${surveyAvg != null ? surveyAvg.toFixed(1)+'/5' : '—'}</div>
+          <div class="exec-metric-lbl">Scholar Survey Avg</div>
         </div>
       </div>
 
@@ -5365,17 +5371,19 @@
           ${surveyAvg != null ? `<div style="margin-top:.5rem;font-size:.7rem;color:#475569">Survey Avg: <strong>${surveyAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` · ${sessions.toLocaleString()} sessions` : ''}</div>` : ''}
         </div>
         <div class="exec-health-card">
-          <h4>Tutor Performance Tiers</h4>
-          ${[
-            { key:'stellar',      label:'⭐ Stellar',         color:'#16a34a' },
-            { key:'strong',       label:'💪 Strong',          color:'#2563eb' },
-            { key:'developing',   label:'📈 Developing',      color:'#d97706' },
-            { key:'needs_support',label:'🔴 Needs Support',   color:'#dc2626' },
-          ].map(t => `
-            <div class="exec-att-row">
-              <div class="exec-att-label" style="width:110px">${t.label}</div>
-              <div style="font-size:.75rem;font-weight:700;color:${t.color}">${tierCounts[t.key]}</div>
-            </div>`).join('')}
+          <h4>Scholar Attendance Tiers</h4>
+          <div class="exec-att-row">
+            <div class="exec-att-label" style="width:110px">✅ On Track (≥80%)</div>
+            <div style="font-size:.75rem;font-weight:700;color:#16a34a">${tierOnTrack}</div>
+          </div>
+          <div class="exec-att-row">
+            <div class="exec-att-label" style="width:110px">⚠️ At Risk (70-79%)</div>
+            <div style="font-size:.75rem;font-weight:700;color:#d97706">${tierAtRisk}</div>
+          </div>
+          <div class="exec-att-row">
+            <div class="exec-att-label" style="width:110px">🔴 Needs Action (&lt;70%)</div>
+            <div style="font-size:.75rem;font-weight:700;color:#dc2626">${tierNeeds}</div>
+          </div>
         </div>
       </div>
 
@@ -5405,7 +5413,7 @@
           <div class="exec-lb-row">
             <div class="exec-lb-rank">${i+1}</div>
             <div class="exec-lb-name">${s.school || s.name || '—'}</div>
-            <div class="exec-lb-val">${s.attendanceRate != null ? Math.round(s.attendanceRate)+'%' : '—'}</div>
+            <div class="exec-lb-val">${s.attRate != null ? s.attRate+'%' : s.attendanceRate != null ? Math.round(s.attendanceRate)+'%' : '—'}</div>
           </div>`).join('')}
       </div>` : ''}
 
@@ -5435,7 +5443,7 @@
         </div>
       </div>
     `;
-  }
+  } // end _buildExecDashboardInner
 
   // ══════════════════════════════════════════════════════════
   //  SIDEBAR DEPT CARD + CONNECTIONS
@@ -6247,7 +6255,7 @@
       // (it guards with _talentLoaded flag so safe to call early)
       // Pearl: only prefetch if user has pearl panel access
       const dept = window.NJTC_SESSION && window.NJTC_SESSION.dept;
-      if (dept && ['leadership','data','programming'].includes(dept)) {
+      if (dept && ['leadership','data','programming','kb'].includes(dept)) {
         if (window.po && window.po.onPanelOpen) {
           try { window.po.onPanelOpen(); } catch(e) {}
         }
@@ -15305,7 +15313,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           springRelPlacement: L['15'][r[15]],
           springGain:         r[16],
           pctTypical:         r[17],
-          annualTypical:      (r[17]>0&&r[16]!=null) ? parseFloat((r[16]/(r[17]/100)).toFixed(1)) : null,
+          annualTypical:      (r[17]>0&&r[16]!=null) ? parseFloat((r[16]/r[17]).toFixed(1)) : null,
           baseRushFlag:       r[18] ? '1' : '',
           springRushFlag:     '',
           baseScore:          null,
@@ -16491,7 +16499,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Avg diagnostic gain vs typical growth by subject
       var mathGainSum=0,mathGainN=0,mathTypicalSum=0,mathTypicalN=0;
       var elaGainSum=0,elaGainN=0,elaTypicalSum=0,elaTypicalN=0;
-      // Per-scholar pctTypical arrays for median computation (stored as decimals 0-1)
+      // Per-scholar pctTypical arrays for median — computed from gain/annualTypical (ratio, 1.0=100%)
+      // We do NOT use the stored pctTypical column: Math stores it correctly as a ratio,
+      // but ELA stores garbage values unrelated to gain/typical. Deriving directly is reliable for both.
       var mathPctTypArr=[], elaPctTypArr=[];
       // Growth by subject
       var mathGrowth = 0, mathTotal = 0, elaGrowth = 0, elaTotal = 0;
@@ -16523,9 +16533,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mg=r.springGain!=null?parseFloat(r.springGain):NaN;
           if(!isNaN(_mg)){mathGainSum+=_mg;mathGainN++;}
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-          if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
-          var _mpct=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
-          if(!isNaN(_mpct)&&_mpct>0){mathPctTypArr.push(_mpct);}
+          if(!isNaN(_mt)&&_mt>0){
+            mathTypicalSum+=_mt;mathTypicalN++;
+            // Compute ratio from source data — reliable for both CSV paths and encoded rows
+            if(!isNaN(_mg)&&_mg>0){mathPctTypArr.push(_mg/_mt);}
+          }
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
           if(hasGrowth) elaGrowth++;
@@ -16534,9 +16546,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _eg=r.springGain!=null?parseFloat(r.springGain):NaN;
           if(!isNaN(_eg)){elaGainSum+=_eg;elaGainN++;}
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
-          if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
-          var _epct=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
-          if(!isNaN(_epct)&&_epct>0){elaPctTypArr.push(_epct);}
+          if(!isNaN(_et)&&_et>0){
+            elaTypicalSum+=_et;elaTypicalN++;
+            // Compute ratio from source data
+            if(!isNaN(_eg)&&_eg>0){elaPctTypArr.push(_eg/_et);}
+          }
         }
         // Race — count unique scholars
         if (sid && !seenScholars[sid]) {
@@ -16557,7 +16571,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var elaAvgGain     = elaGainN     ? Math.round(elaGainSum/elaGainN)         : null;
       var elaAvgTypical  = elaTypicalN  ? Math.round(elaTypicalSum/elaTypicalN)   : null;
       var elaPctTypical  = (elaAvgGain!==null&&elaAvgTypical)  ? Math.round(elaAvgGain/elaAvgTypical*100)   : null;
-      // Median % to Typical Growth — true median of per-scholar pctTypical (stored as 0–1 decimal, display as %)
+      // Median % to Typical Growth — median of per-scholar gain/annualTypical ratios → *100 for display
       function _median(arr) {
         if (!arr.length) return null;
         var sorted = arr.slice().sort(function(a,b){return a-b;});
@@ -17163,7 +17177,60 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     window.po                   = po;
 
-  // ── Expose metadata fetch ──────────────────────────────────
+  // ── Exec Dashboard refresh hooks ──────────────────────────────────────
+  // Pearl Ops: wrap renderView so exec dashboard refreshes whenever Pearl data updates
+  (function() {
+    var _poModule = po;  // close over the po module
+    if (_poModule && typeof _poModule.onPanelOpen === 'function') {
+      var _origPoPanelOpen = _poModule.onPanelOpen.bind(_poModule);
+      // We can't wrap internal renderView directly, so poll after Pearl fires
+    }
+    // Intercept setSyncState-equivalent: patch window.po's renderView side-effect
+    // by observing Pearl's final load via a MutationObserver on the pearl panel
+    var _poObs = null;
+    function _watchPearlAndRefreshExec() {
+      var pearlPanel = document.getElementById('poMainContent') ||
+                       document.getElementById('panel-pearl-ops');
+      if (!pearlPanel) {
+        // Try again after DOM ready
+        setTimeout(_watchPearlAndRefreshExec, 500);
+        return;
+      }
+      _poObs = new MutationObserver(function() {
+        var homePanel = document.getElementById('panel-home');
+        if (homePanel && homePanel.classList.contains('active')) {
+          var dept = (window.NJTC_SESSION||{}).dept||'';
+          if (['leadership','data','kb'].includes(dept)) {
+            try { buildExecDashboard(dept); } catch(e) {}
+          }
+        }
+      });
+      _poObs.observe(pearlPanel, { childList: true, subtree: true });
+    }
+    setTimeout(_watchPearlAndRefreshExec, 300);
+  })();
+
+  // ── Exec Dashboard polling boot ────────────────────────────────────────
+  // On login, if exec dept, re-render exec dash once Pearl and irlab are available
+  (function() {
+    var _execRetries = 0;
+    function _tryRenderExec() {
+      var dept = (window.NJTC_SESSION||{}).dept||'';
+      if (!['leadership','data','kb'].includes(dept)) return;
+      var homePanel = document.getElementById('panel-home');
+      if (!homePanel) return;
+      var poReady = window.po && typeof window.po.getStats === 'function';
+      var irlReady = window.irlab && typeof window.irlab.getSummary === 'function';
+      if ((poReady || irlReady) && homePanel.classList.contains('active')) {
+        try { buildExecDashboard(dept); } catch(e) { console.warn('[Exec] dash render err:', e); }
+      }
+      if (_execRetries < 20) {
+        _execRetries++;
+        setTimeout(_tryRenderExec, 800);
+      }
+    }
+    setTimeout(_tryRenderExec, 500);
+  })();
   window.fetchKPIMetadata      = fetchKPIMetadata;
 
   // ── showPanel KPI hook: show/hide QR section ───────────────
