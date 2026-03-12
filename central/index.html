@@ -15600,7 +15600,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
     // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
     // Cache key for discovered GIDs
-    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v3';  // bumped to purge corrupted v1/v2 caches
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v4';  // bumped — v3 may have wrong math GID (15-row tab)
     const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
     let   IRLAB_LIVE_GIDS  = { math: null, ela: null, mathRep: null, elaRep: null };
     const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
@@ -15904,17 +15904,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // 3. Fallback: common GIDs + gid=0 (default tab)
       if (!probedGids.length) probedGids = [0, 1, 2, 3, 100, 200, 300, 400];
 
-      // 4. Fetch each candidate — capture header + first data line in ONE request (no re-fetch needed)
+      // 4. Fetch each candidate — capture header + first data line + row count in ONE request
       const results = await Promise.all(probedGids.map(async gid => {
         try {
           const r = await fetch(csvBase + '&gid=' + gid, { signal: AbortSignal.timeout(12000) });
           if (!r.ok) return null;
           const text = await r.text();
           const lines = text.split('\n');
-          const hdr   = lines[0].toLowerCase().replace(/"/g, '');
-          // Keep first 3 lines for subject detection — avoids a second HTTP request entirely
-          const snippet = lines.slice(0, 3).join('\n');
-          return { gid, hdr, snippet };
+          const hdr      = lines[0].toLowerCase().replace(/["\u201c\u201d]/g, '');
+          const snippet  = lines.slice(0, 3).join('\n');
+          const rowCount = lines.filter(l => l.trim()).length - 1; // non-empty lines minus header
+          return { gid, hdr, snippet, rowCount };
         } catch { return null; }
       }));
 
@@ -15925,48 +15925,84 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       };
       const _isElaSubject    = s => s.includes('ela') || s.includes('reading') || s.includes('language');
       const _isMathSubject   = s => s.includes('math');
-      const _isLongitudinalH = h => (h.includes('academic year') || h.includes('school year')) && !h.includes('repeat scholar');
-      const _hasStaffCol     = h => h.includes('instructor') || h.includes('tutor');
+      // Handle both Title Case ("Academic Year") and snake_case ("academic_year" / "school_year")
+      const _isLongitudinalH = h =>
+        (h.includes('academic year') || h.includes('academic_year') ||
+         h.includes('school year')   || h.includes('school_year')) &&
+        !h.includes('repeat scholar') && !h.includes('repeat_scholar');
+      const _hasStaffCol = h => h.includes('instructor') || h.includes('tutor');
 
-      // 6. Assign GIDs by header + first-row subject (no extra HTTP requests)
-      const resolved = { math: null, ela: null, mathRep: null, elaRep: null };
+      // 6. Assign GIDs — prefer larger tabs (more rows = more likely to be the real longitudinal)
+      const resolved   = { math: null, ela: null, mathRep: null, elaRep: null };
+      const resolvedRC = { math: 0, ela: 0 }; // track row counts for assigned tabs
+
       for (const row of results.filter(Boolean)) {
         const h = row.hdr;
-        // Math/ELA longitudinal tab
-        if (_isLongitudinalH(h) && _hasStaffCol(h) && (!resolved.math || !resolved.ela)) {
-          const subj = _detectSubject(parseCSV(row.snippet));
-          if (_isMathSubject(subj) && !resolved.math) { resolved.math = row.gid; continue; }
-          if (_isElaSubject(subj)  && !resolved.ela)  { resolved.ela  = row.gid; continue; }
-          // Subject field empty/unrecognised — assign by order
-          if (!resolved.math) { resolved.math = row.gid; } else if (!resolved.ela) { resolved.ela = row.gid; }
+        // Main longitudinal tabs
+        if (_isLongitudinalH(h) && _hasStaffCol(h)) {
+          const subj   = _detectSubject(parseCSV(row.snippet));
+          const isMath = _isMathSubject(subj);
+          const isEla  = _isElaSubject(subj);
+          // Always upgrade to a larger tab if subject matches
+          if (isMath && (!resolved.math || row.rowCount > resolvedRC.math)) {
+            resolved.math = row.gid; resolvedRC.math = row.rowCount; continue;
+          }
+          if (isEla && (!resolved.ela || row.rowCount > resolvedRC.ela)) {
+            resolved.ela = row.gid; resolvedRC.ela = row.rowCount; continue;
+          }
+          // Subject not detected — assign by order, still prefer larger
+          if (!resolved.math || row.rowCount > resolvedRC.math * 3) {
+            resolved.math = row.gid; resolvedRC.math = row.rowCount;
+          } else if (!resolved.ela || row.rowCount > resolvedRC.ela * 3) {
+            resolved.ela = row.gid; resolvedRC.ela = row.rowCount;
+          }
         }
-        // Repeat-scholar tab
-        if (h.includes('repeat scholar') && _hasStaffCol(h)) {
+        // Repeat-scholar tabs
+        if ((h.includes('repeat scholar') || h.includes('repeat_scholar')) && _hasStaffCol(h)) {
           const subj = _detectSubject(parseCSV(row.snippet));
-          if (_isMathSubject(subj) && !resolved.mathRep) { resolved.mathRep = row.gid; }
-          else if (!resolved.elaRep) { resolved.elaRep = row.gid; }
+          if (_isMathSubject(subj) && (!resolved.mathRep || row.rowCount > (resolved._mathRepRC||0))) {
+            resolved.mathRep = row.gid; resolved._mathRepRC = row.rowCount;
+          } else if (!resolved.elaRep || row.rowCount > (resolved._elaRepRC||0)) {
+            resolved.elaRep = row.gid; resolved._elaRepRC = row.rowCount;
+          }
         }
       }
+      delete resolved._mathRepRC; delete resolved._elaRepRC;
 
-      // 7. ELA fallback — reuse already-fetched snippets, no new HTTP requests
+      // 7. ELA fallback — scan all unassigned longitudinal tabs, pick largest
       if (!resolved.ela) {
         const assignedGids = new Set(Object.values(resolved).filter(Boolean));
+        let bestEla = null, bestElaRC = 0;
         for (const row of results.filter(Boolean)) {
           if (assignedGids.has(row.gid)) continue;
           if (_isLongitudinalH(row.hdr)) {
             const subj = _detectSubject(parseCSV(row.snippet));
-            if (_isElaSubject(subj) || (!_isMathSubject(subj) && parseCSV(row.snippet).length > 0)) {
-              resolved.ela = row.gid;
-              console.log('[irlab] ELA via fallback: gid=' + row.gid + ' subject=' + subj);
-              break;
+            if (_isElaSubject(subj) || (!_isMathSubject(subj) && row.rowCount > bestElaRC)) {
+              bestEla = row.gid; bestElaRC = row.rowCount;
             }
+          }
+        }
+        if (bestEla) {
+          resolved.ela = bestEla;
+          console.log('[irlab] ELA via fallback: gid=' + bestEla + ' rowCount=' + bestElaRC);
+        }
+      }
+
+      // 8. Low-row-count sanity: if math has <50 rows and a larger unassigned longitudinal exists, swap
+      if (resolved.math && resolvedRC.math < 50) {
+        const assignedGids = new Set(Object.values(resolved).filter(Boolean));
+        for (const row of results.filter(Boolean)) {
+          if (assignedGids.has(row.gid)) continue;
+          if (_isLongitudinalH(row.hdr) && _hasStaffCol(row.hdr) && row.rowCount > resolvedRC.math * 5) {
+            console.log('[irlab] Math upgrade: ' + resolved.math + '(' + resolvedRC.math + 'r)→' + row.gid + '(' + row.rowCount + 'r)');
+            resolved.math = row.gid; resolvedRC.math = row.rowCount; break;
           }
         }
       }
 
-      // 8. Last-resort fallback — assign first two staff-header tabs if nothing resolved
+      // 9. Final last-resort — assign by row size if nothing resolved at all
       if (!resolved.math && !resolved.ela) {
-        const withStaff = results.filter(r => r && _hasStaffCol(r.hdr));
+        const withStaff = results.filter(r => r && _hasStaffCol(r.hdr)).sort((a,b) => b.rowCount - a.rowCount);
         if (withStaff.length > 0) resolved.math = withStaff[0].gid;
         if (withStaff.length > 1) resolved.ela  = withStaff[1].gid;
       }
