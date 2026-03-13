@@ -5470,7 +5470,9 @@
     const fp  = v => (v == null || isNaN(v)) ? '\u2014' : Math.round(v) + '%';
     const fc  = v => (v == null || isNaN(v)) ? '\u2014' : Number(v).toLocaleString();
     const att = v => v >= 85 ? 'c-g' : v >= 75 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
-    const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
+    // fmins: for ≥100h show as "X,XXXh Ym" to match the Pearl filter bar format exactly.
+    // 450,547 min → 7,509h 7m (same as filter bar "7509h 7m"). Small values stay in minutes.
+    const fmins = m => { if (!m) return '\u2014'; const _h=Math.floor(m/60),_r=m%60; if(_h>=100) return _h.toLocaleString()+'h'+(_r>0?' '+_r+'m':''); if(m>=1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
 
     // ── 1. Program Footprint ──────────────────────────────────────────
     // Active Tutors: sourced from HR_EMPS (authoritative employee roster) not Pearl personMap.
@@ -15944,15 +15946,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             // Active scholars: unique students who have at least 1 attended session in Pearl
             stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
           }
-          // Rostered scholars: unique student IDs from _sessMap (Pearl Sessions tab) — same source as
-          // the filter bar pill. Using _sessMap.studentIds avoids over-counting caused by duplicate /
-          // variant name entries in _personMap (built from the attendance tab).
-          // This guarantees the home dashboard matches the Pearl Operations filter bar exactly.
+          // Rostered scholars: unique student IDs from DELIVERED sessions in _sessMap — identical
+          // computation to the Pearl Operations filter bar pill (isDelivered && durMins > 0).
+          // This is the single authoritative count; _personMap is NOT used here because the
+          // attendance-tab name keys can have duplicate variants that inflate the count.
           try {
             var _rosterSet = new Set();
             if (_sessMap) {
               Object.values(_sessMap).forEach(function(sess) {
-                if (sess && sess.studentIds) {
+                if (sess && sess.isDelivered && sess.durMins > 0 && sess.studentIds) {
                   sess.studentIds.forEach(function(id) { if (id) _rosterSet.add(id); });
                 }
               });
