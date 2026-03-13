@@ -10140,6 +10140,7 @@
           _hrStatus = 'live';
           _hrFetched = true;
           window._hrDataFetched = true;
+          window._njtcActiveEmployees = HR_EMPS.filter(e => e.s === 'Active').length;
           // Trigger exec dashboard refresh so tutor count updates from correct live data
           try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
           return;
@@ -10179,6 +10180,7 @@
     }
     _hrFetched = true;
     window._hrDataFetched = true;
+    if (_hrStatus === 'live') window._njtcActiveEmployees = HR_EMPS.filter(e => e.s === 'Active').length;
     // Trigger exec dashboard refresh so tutor count updates from live HR data
     try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
   }
@@ -21826,22 +21828,30 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   function buildDataStrip() {
     const pearlLoaded = window.po && typeof window.po.getStats === 'function';
     const stats = pearlLoaded ? (() => { try { return window.po.getStats(); } catch(e) { return {}; } })() : {};
+    const ldData = (window.po && typeof window.po.getLeadershipData === 'function')
+      ? (() => { try { return window.po.getLeadershipData(); } catch(e) { return null; } })()
+      : null;
 
     if (!stats.loaded) return '';
 
-    // Use same authoritative source as exec dashboard: HR_EMPS Active count first, Pearl fallback
-    const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
-      ? HR_EMPS.filter(e => e.s === 'Active').length
-      : null;
-    const activeTutorCount = hrActiveTutors != null ? hrActiveTutors : stats.activeTutors;
-    const activeTutorSub   = hrActiveTutors != null ? 'Active employees · HR roster' : 'In Pearl data';
+    // Active tutors: window._njtcActiveEmployees is set in fetchLiveHRData() in the HR module's
+    // own scope (same IIFE as HR_EMPS) — the only scope where HR_EMPS is accessible.
+    // This matches the exec dashboard's HR-first logic exactly.
+    const activeTutorCount = (window._njtcActiveEmployees != null) ? window._njtcActiveEmployees : stats.activeTutors;
+    const activeTutorSub   = (window._njtcActiveEmployees != null) ? 'Active employees · HR roster' : 'Pearl data';
+
+    // Sessions: use getLeadershipData().sessionsDelivered — same calculation Pearl Operations
+    // panel uses (filters _sessMap to isDelivered sessions only, matching the displayed 12,106)
+    const sessionCount = (ldData && ldData.sessionsDelivered != null)
+      ? ldData.sessionsDelivered
+      : stats.sessions;
 
     const items = [];
     if (stats.scholAttPct !== null) {
       items.push({ label: 'Scholar Attendance', value: stats.scholAttPct + '%', sub: 'Current cycle' });
     }
-    if (stats.sessions !== null) {
-      items.push({ label: 'Sessions Delivered', value: Number(stats.sessions).toLocaleString(), sub: 'Completed sessions' });
+    if (sessionCount != null) {
+      items.push({ label: 'Sessions Delivered', value: Number(sessionCount).toLocaleString(), sub: 'Completed sessions' });
     }
     if (activeTutorCount > 0) {
       items.push({ label: 'Active Tutors', value: activeTutorCount, sub: activeTutorSub });
