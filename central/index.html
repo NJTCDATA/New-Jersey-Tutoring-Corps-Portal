@@ -5486,8 +5486,12 @@
   //  PANEL SWITCHING
   // ══════════════════════════════════════════════════════════
   function showPanel(id, btn) {
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    // Remove active only from the single currently-active panel/link (not all elements)
+    const prevPanel = document.querySelector('.panel.active');
+    if (prevPanel) prevPanel.classList.remove('active');
+    const prevLink = document.querySelector('.sidebar-link.active');
+    if (prevLink) prevLink.classList.remove('active');
+
     // Pre-warm the Operations Manual cache when policies panel is opened
     if (id === "policies" && typeof fetchOpsManual === "function") fetchOpsManual(false);
     if (id === "policies") {
@@ -5512,15 +5516,13 @@
     if (id === "iready-lab") {
       setTimeout(() => { if (window.irlab) irlab.onPanelOpen(); }, 50);
     }
-    if (id === "knowtion") {
-      setTimeout(() => { if (window.kn) window.kn.build((window.NJTC_SESSION||{}).dept || 'all'); }, 50);
-    }
+    // Note: Knowtion render is handled exclusively by the IIFE override below (no double-render)
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
     // Find the sidebar button if not passed
     const linkEl = btn || document.querySelector(`[data-panel="${id}"]`);
     if (linkEl) linkEl.classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }
   window.showPanel = showPanel; // expose before patch IIFE captures _base
 
@@ -21827,6 +21829,13 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
     if (!stats.loaded) return '';
 
+    // Use same authoritative source as exec dashboard: HR_EMPS Active count first, Pearl fallback
+    const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+      ? HR_EMPS.filter(e => e.s === 'Active').length
+      : null;
+    const activeTutorCount = hrActiveTutors != null ? hrActiveTutors : stats.activeTutors;
+    const activeTutorSub   = hrActiveTutors != null ? 'Active employees · HR roster' : 'In Pearl data';
+
     const items = [];
     if (stats.scholAttPct !== null) {
       items.push({ label: 'Scholar Attendance', value: stats.scholAttPct + '%', sub: 'Current cycle' });
@@ -21834,8 +21843,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     if (stats.sessions !== null) {
       items.push({ label: 'Sessions Delivered', value: Number(stats.sessions).toLocaleString(), sub: 'Completed sessions' });
     }
-    if (stats.activeTutors > 0) {
-      items.push({ label: 'Active Tutors', value: stats.activeTutors, sub: 'In Pearl data' });
+    if (activeTutorCount > 0) {
+      items.push({ label: 'Active Tutors', value: activeTutorCount, sub: activeTutorSub });
     }
     if (stats.surveyAvg !== null) {
       items.push({ label: 'Scholar Survey Avg', value: '★ ' + stats.surveyAvg, sub: 'Out of 5.0' });
