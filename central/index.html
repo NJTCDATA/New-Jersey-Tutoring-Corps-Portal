@@ -5621,7 +5621,7 @@
           <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Attended ≥1 session</div>
         </div>
-        <div class="ecd-kpi ck-blue" title="Rostered Scholars: ALL unique students in Pearl Operations — includes both active (attended ≥1 session) and absent-only scholars. This is the authoritative total Pearl enrollment count. Source: Pearl _personMap (role=Student), unfiltered.">
+        <div class="ecd-kpi ck-blue" title="Rostered Scholars: Unique student IDs from Pearl Sessions tab — the same source as the filter bar pill. Uses stable Pearl internal IDs to avoid duplicate counting from attendance-tab name variants. Matches the Pearl Operations filter bar exactly.">
           <div class="ecd-kpi-lbl">Rostered Scholars</div>
           <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total Pearl enrollment</div>
@@ -15943,8 +15943,24 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
             // Active scholars: unique students who have at least 1 attended session in Pearl
             stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
-            // Rostered scholars: all unique students in Pearl (attended OR absent — ever appeared)
-            stats.rosteredScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
+          }
+          // Rostered scholars: unique student IDs from _sessMap (Pearl Sessions tab) — same source as
+          // the filter bar pill. Using _sessMap.studentIds avoids over-counting caused by duplicate /
+          // variant name entries in _personMap (built from the attendance tab).
+          // This guarantees the home dashboard matches the Pearl Operations filter bar exactly.
+          try {
+            var _rosterSet = new Set();
+            if (_sessMap) {
+              Object.values(_sessMap).forEach(function(sess) {
+                if (sess && sess.studentIds) {
+                  sess.studentIds.forEach(function(id) { if (id) _rosterSet.add(id); });
+                }
+              });
+            }
+            stats.rosteredScholars = _rosterSet.size > 0 ? _rosterSet.size :
+              Object.keys(_personMap||{}).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
+          } catch(e) {
+            stats.rosteredScholars = Object.keys(_personMap||{}).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
           }
           stats.totalRows = _attRows.length + (_sessRows ? _sessRows.length : 0) + (_instRows ? _instRows.length : 0);
           // Total instructional minutes from delivered sessions
