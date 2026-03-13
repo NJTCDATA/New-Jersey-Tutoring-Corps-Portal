@@ -16551,6 +16551,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     let _irlScholarDrill = null;
     let _irlTutorDrill   = null;
     let _irlCharts       = {};         // Track Chart.js instances for cleanup
+    let _irlRepeatIndex  = null;       // Cached cross-year repeat scholar index; reset on data change
 
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
@@ -17077,6 +17078,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       IRLAB_DATA.math=mrg(IRLAB_DATA.math,pkg.math); IRLAB_DATA.ela=mrg(IRLAB_DATA.ela,pkg.ela);
       IRLAB_DATA.mathRepeat=mrg(IRLAB_DATA.mathRepeat,pkg.mathRep); IRLAB_DATA.elaRepeat=mrg(IRLAB_DATA.elaRepeat,pkg.elaRep);
       IRLAB_DATA.source='Live+Embedded ('+new Date(pkg.ts).toLocaleDateString()+')';
+      _irlRepeatIndex = null; // invalidate cached repeat index so it rebuilds from fresh data
     }
     // ── Helpers ──────────────────────────────────────────────────────────────
     const pct   = (n,d) => d>0?Math.round(n/d*100):0;
@@ -17108,6 +17110,75 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       return numStr+' GL '+(dir||'');
     }
 
+    // ── Repeat Scholar Cross-Year Detection ───────────────────────────────────
+    // Pool ALL data sources (math + ela + mathRepeat + elaRepeat) with de-dup.
+    // This handles cases where live data loads only into the repeat sheets.
+    function _getPooledRows() {
+      const seen = new Set();
+      const rows = [];
+      const addRows = arr => arr.forEach(r => {
+        const rawId   = (r.scholarId   || '').trim();
+        const rawName = (r.scholarName || '').trim();
+        const useId   = rawId && rawId !== '0';
+        const pKey    = useId ? 'id:'+rawId : rawName ? 'n:'+rawName.toLowerCase().replace(/\s+/g,' ') : null;
+        if (!pKey) return;
+        const k = (r.year||'') + '|' + (r.subject||'') + '|' + pKey;
+        if (!seen.has(k)) { seen.add(k); rows.push(r); }
+      });
+      addRows(IRLAB_DATA.math);
+      addRows(IRLAB_DATA.ela);
+      addRows(IRLAB_DATA.mathRepeat);
+      addRows(IRLAB_DATA.elaRepeat);
+      return rows;
+    }
+
+    // Build the cross-year repeat scholar index from ALL pooled data.
+    // Primary match: scholarId. Fallback (only when no valid ID): normalized name.
+    // A scholar is "repeat" if they appear in 2+ distinct academic years.
+    function _buildRepeatIndex() {
+      const allRows = _getPooledRows();
+      const byKey = new Map();
+      allRows.forEach(r => {
+        const rawId   = (r.scholarId   || '').trim();
+        const rawName = (r.scholarName || '').trim();
+        const useId   = rawId && rawId !== '0';
+        const key     = useId ? 'id:'+rawId : rawName ? 'n:'+rawName.toLowerCase().replace(/\s+/g,' ') : null;
+        if (!key) return;
+        if (!byKey.has(key)) byKey.set(key, { id: useId?rawId:null, name: rawName||rawId, usedId: useId, years: new Set(), records: [] });
+        const e = byKey.get(key);
+        e.years.add(r.year);
+        if (rawName && !e.name) e.name = rawName;
+        e.records.push(r);
+      });
+      const repeatIdSet   = new Set();
+      const repeatNameSet = new Set();
+      const repeatScholars = [];
+      byKey.forEach((data, key) => {
+        if (data.years.size >= 2) {
+          if (key.startsWith('id:')) repeatIdSet.add(key.slice(3));
+          else repeatNameSet.add(key.slice(2));
+          repeatScholars.push({ ...data, key, yearsArr: [...data.years].sort() });
+        }
+      });
+      repeatScholars.sort((a,b) => b.years.size - a.years.size || a.name.localeCompare(b.name));
+      return { byKey, repeatIdSet, repeatNameSet, repeatScholars };
+    }
+
+    function _getRepeatIndex() {
+      if (!_irlRepeatIndex) _irlRepeatIndex = _buildRepeatIndex();
+      return _irlRepeatIndex;
+    }
+
+    // Check if a single row belongs to a repeat scholar.
+    // Uses ID lookup first; name lookup only when row has no valid ID.
+    function _isRepeatScholar(r) {
+      const idx    = _getRepeatIndex();
+      const rawId  = (r.scholarId || '').trim();
+      if (rawId && rawId !== '0') return idx.repeatIdSet.has(rawId);
+      const nameKey = (r.scholarName || '').trim().toLowerCase().replace(/\s+/g,' ');
+      return nameKey ? idx.repeatNameSet.has(nameKey) : false;
+    }
+
     function getRows(opts={}) {
       const subject     = opts.subject     !== undefined ? opts.subject     : _irlSubject;
       const year        = opts.year        !== undefined ? opts.year        : _irlYear;
@@ -17115,20 +17186,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
       const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
       const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
-      let rows = [];
-      if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
-      if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
-      // Include repeat sheets too unless filtering by scholarType
-      if (scholarType === 'repeat') {
-        rows = [];
-        if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.mathRepeat);
-        if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.elaRepeat);
-      }
-      if (year        !== 'all') rows = rows.filter(r => r.year === year);
+      // Pool all 4 sources (handles live data landing in mathRepeat/elaRepeat sheets)
+      let rows = _getPooledRows();
+      if (subject     !== 'all') rows = rows.filter(r => r.subject  === subject);
+      if (year        !== 'all') rows = rows.filter(r => r.year     === year);
       if (district    !== 'all') rows = rows.filter(r => r.district === district);
-      if (school      !== 'all') rows = rows.filter(r => r.school === school);
-      if (grade       !== 'all') rows = rows.filter(r => r.grade === grade);
-      if (scholarType === 'nonrepeat') rows = rows.filter(r => !r.isRepeat);
+      if (school      !== 'all') rows = rows.filter(r => r.school   === school);
+      if (grade       !== 'all') rows = rows.filter(r => r.grade    === grade);
+      // Repeat filter uses computed cross-year index (ID-first, name-fallback)
+      if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
+      if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
       return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&
         PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
     }
@@ -17141,19 +17208,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
       const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
       const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
-      let rows = [];
-      if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.math);
-      if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.ela);
-      if (scholarType === 'repeat') {
-        rows = [];
-        if (subject==='all'||subject==='Math') rows=rows.concat(IRLAB_DATA.mathRepeat);
-        if (subject==='all'||subject==='ELA')  rows=rows.concat(IRLAB_DATA.elaRepeat);
-      }
-      if (year        !== 'all') rows = rows.filter(r => r.year === year);
+      let rows = _getPooledRows();
+      if (subject     !== 'all') rows = rows.filter(r => r.subject  === subject);
+      if (year        !== 'all') rows = rows.filter(r => r.year     === year);
       if (district    !== 'all') rows = rows.filter(r => r.district === district);
-      if (school      !== 'all') rows = rows.filter(r => r.school === school);
-      if (grade       !== 'all') rows = rows.filter(r => r.grade === grade);
-      if (scholarType === 'nonrepeat') rows = rows.filter(r => !r.isRepeat);
+      if (school      !== 'all') rows = rows.filter(r => r.school   === school);
+      if (grade       !== 'all') rows = rows.filter(r => r.grade    === grade);
+      if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
+      if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
       return rows;
     }
 
@@ -18081,61 +18143,263 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     // ── SECTION E: REPEAT SCHOLAR LONGITUDINAL ────────────────────────────────
+    // Repeat scholars = same Student ID (fallback: name) across 2+ academic years.
+    // This view always shows ALL years regardless of the year filter (longitudinal
+    // analysis requires the full trajectory), but respects the subject filter.
     function renderRepeatLongitudinal() {
-      const repRows = [...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat];
-      if (!repRows.length) return `<div class="irlab-card" style="margin-bottom:1.25rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal View</div></div>
-        <div class="irlab-card-body"><div class="irlab-empty"><div class="irlab-empty-icon">📂</div><div class="irlab-empty-title">No repeat scholar data loaded</div></div></div>
-      </div>`;
-      // Group by student ID
-      const byStudent = {};
-      repRows.forEach(r => {
-        const sid = r.scholarId || r.scholarName;
-        if (!sid) return;
-        if (!byStudent[sid]) byStudent[sid] = { name: r.scholarName||sid, id: r.scholarId||sid, records: [] };
-        byStudent[sid].records.push(r);
+      const idx = _getRepeatIndex();
+      const subjectFilter = _irlSubject === 'all' ? null : _irlSubject;
+
+      if (!idx.repeatScholars.length) {
+        const pooled = _getPooledRows();
+        const yearCount = new Set(pooled.map(r=>r.year).filter(Boolean)).size;
+        return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal Analysis</div></div>
+          <div class="irlab-card-body"><div class="irlab-empty">
+            <div class="irlab-empty-icon">🔁</div>
+            <div class="irlab-empty-title">No repeat scholars found</div>
+            <div class="irlab-empty-sub">${yearCount < 2
+              ? 'Load data from at least 2 academic years to identify year-over-year repeat scholars.'
+              : 'No scholars matched by Student ID (or name) across multiple years in the loaded data.'
+            }</div>
+          </div></div>
+        </div>`;
+      }
+
+      // Build per-scholar cycle data, filtered by subject if active
+      const scholars = idx.repeatScholars.map(s => {
+        let recs = s.records;
+        if (subjectFilter) recs = recs.filter(r => r.subject === subjectFilter);
+        // Group by year+subject → keep one representative row (valid placement pair preferred)
+        const byYS = {};
+        recs.forEach(r => {
+          const k = (r.year||'') + '|' + (r.subject||'');
+          if (!byYS[k] || (r.baseRelPlacement && !byYS[k].baseRelPlacement)) byYS[k] = r;
+        });
+        const cycles = Object.values(byYS).filter(r=>r.year&&r.baseRelPlacement).sort((a,b)=>a.year>b.year?1:-1);
+        const uniqueYrs = [...new Set(cycles.map(r=>r.year))].sort();
+        if (uniqueYrs.length < 2) return null; // not truly multi-year for this subject
+        return { id: s.id, name: s.name, usedId: s.usedId, cycles, uniqueYrs, numYears: uniqueYrs.length };
+      }).filter(Boolean);
+
+      if (!scholars.length) {
+        return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal Analysis</div></div>
+          <div class="irlab-card-body"><div class="irlab-empty">
+            <div class="irlab-empty-icon">🔁</div>
+            <div class="irlab-empty-title">No repeat scholars for ${esc(subjectFilter||'selected')} subject</div>
+            <div class="irlab-empty-sub">Try switching to "All Subjects" or check that multi-year ${esc(subjectFilter||'')} data is loaded.</div>
+          </div></div>
+        </div>`;
+      }
+
+      const twoYr = scholars.filter(s=>s.numYears===2).length;
+      const threeYr = scholars.filter(s=>s.numYears===3).length;
+      const fourPlus = scholars.filter(s=>s.numYears>=4).length;
+
+      // All valid placement-pair records across all repeat scholars' cycles
+      const allCycleRecs = scholars.flatMap(s=>s.cycles).filter(r=>
+        r.baseRelPlacement && r.springRelPlacement &&
+        PLACEMENT_ORDER.includes(r.baseRelPlacement) && PLACEMENT_ORDER.includes(r.springRelPlacement));
+      const aggM = allCycleRecs.length ? computeMetrics(allCycleRecs) : null;
+
+      // Retention: did a scholar's BOY in year N+1 meet or exceed their Spring in year N?
+      let retTotal = 0, retKept = 0;
+      scholars.forEach(s => {
+        // Group cycles by subject for proper consecutive-year comparison
+        const bySubj = {};
+        s.cycles.forEach(r => { if (!bySubj[r.subject]) bySubj[r.subject]=[]; bySubj[r.subject].push(r); });
+        Object.values(bySubj).forEach(subjC => {
+          subjC.sort((a,b)=>a.year>b.year?1:-1);
+          for (let i=1; i<subjC.length; i++) {
+            const prev=subjC[i-1], curr=subjC[i];
+            if (prev.springRelPlacement && curr.baseRelPlacement) {
+              retTotal++;
+              if (plIdx(curr.baseRelPlacement) >= plIdx(prev.springRelPlacement)) retKept++;
+            }
+          }
+        });
       });
-      // Only keep students with 2+ years
-      const multiyear = Object.values(byStudent).filter(s=>s.records.length>=2).slice(0,50);
-      const repPlacement = repRows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
-      const repM = repPlacement.length ? computeMetrics(repPlacement) : null;
-      const repTyp = repRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
-      const repMedTyp = medianArr(repTyp);
+      const retPct = retTotal > 0 ? Math.round(retKept/retTotal*100) : null;
 
-      const summaryHtml = repM ? `<div class="irlab-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1rem">
-        <div class="irlab-stat" style="--irstat-color:#7b2d8b"><div class="irlab-stat-val">${repPlacement.length.toLocaleString()}</div><div class="irlab-stat-lbl">Repeat Scholar Records</div></div>
-        <div class="irlab-stat" style="--irstat-color:#0d6e3a"><div class="irlab-stat-val">${repMedTyp!==null?(repMedTyp*100).toFixed(1)+'%':'—'}</div><div class="irlab-stat-lbl">Median Typical Growth</div></div>
-        <div class="irlab-stat" style="--irstat-color:#0050c8"><div class="irlab-stat-val">${repM.pctMoved}%</div><div class="irlab-stat-lbl">Moved Up</div></div>
-        <div class="irlab-stat" style="--irstat-color:#d97706"><div class="irlab-stat-val">${repM.avgGain!==null?(repM.avgGain>=0?'+':'')+repM.avgGain.toFixed(1):'—'}</div><div class="irlab-stat-lbl">Avg Gain</div></div>
-      </div>` : '';
+      // Per-year aggregate metrics (across all repeat scholars, for that year)
+      const allYears = [...new Set(allCycleRecs.map(r=>r.year))].sort();
+      const yearMetrics = allYears.map(yr => {
+        const yRows = allCycleRecs.filter(r=>r.year===yr);
+        const boyGLs = yRows.map(r=>plToGL(r.baseRelPlacement)).filter(v=>v!==null);
+        const sprGLs = yRows.map(r=>plToGL(r.springRelPlacement)).filter(v=>v!==null);
+        const gains  = yRows.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+        const moved  = yRows.filter(r=>plIdx(r.springRelPlacement)>plIdx(r.baseRelPlacement)).length;
+        const onGL   = yRows.filter(r=>isOnGL(r.springRelPlacement)).length;
+        return {
+          yr, n: yRows.length,
+          avgBoyGL: boyGLs.length ? boyGLs.reduce((a,b)=>a+b,0)/boyGLs.length : null,
+          avgSprGL: sprGLs.length ? sprGLs.reduce((a,b)=>a+b,0)/sprGLs.length : null,
+          avgGain:  gains.length  ? gains.reduce((a,b)=>a+b,0)/gains.length   : null,
+          pctMoved: yRows.length  ? Math.round(moved/yRows.length*100) : null,
+          pctOnGL:  yRows.length  ? Math.round(onGL/yRows.length*100)  : null,
+        };
+      });
 
-      const studentTableHtml = multiyear.length ? `
-        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:.75rem 0 .5rem">Multi-Year Scholars (${multiyear.length} shown)</div>
-        <div style="overflow-x:auto">
-        <table class="irlab-rank-table" style="font-size:.8rem">
-          <thead><tr><th>Scholar</th><th>Subjects</th><th>Years</th><th>Scale Scores (by year)</th><th>Typical Growth %</th></tr></thead>
-          <tbody>${multiyear.map(s => {
-            const sorted = s.records.sort((a,b)=>a.year>b.year?1:-1);
-            const years  = [...new Set(sorted.map(r=>r.year))].join(', ');
-            const subjs  = [...new Set(sorted.map(r=>r.subject))].join(', ');
-            const scores = sorted.map(r=>{
-              const sc = r.springScore||r.baseScore;
-              return sc ? `${r.year.slice(2,4)}: <strong>${Math.round(sc)}</strong>` : '';
-            }).filter(Boolean).join(' → ');
-            const typs = sorted.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).map(r=>`${r.year.slice(2,4)}: ${(r.pctTypical*100).toFixed(0)}%`).join(', ');
-            return `<tr>
-              <td><button onclick="irlab.drillScholar('${esc(s.name||s.id)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8rem;text-align:left;padding:0">${esc(s.name||s.id)}</button></td>
-              <td style="color:var(--muted)">${esc(subjs)}</td>
-              <td style="font-size:.75rem">${esc(years)}</td>
-              <td style="font-size:.75rem">${scores||'—'}</td>
-              <td style="font-size:.75rem;color:${typs?'var(--blue-mid)':'var(--muted)'}">${typs||'—'}</td>
-            </tr>`;
-          }).join('')}</tbody>
-        </table></div>` : '';
+      // GL label helper: -3→"3 GL↓", -2→"2 GL↓", -1→"1 GL↓", 0→"GL", 1→"✓GL"
+      const glLbl = (gl, bold) => {
+        if (gl === null) return '—';
+        const s = gl >= 1 ? '✓GL' : gl === 0 ? 'GL' : Math.abs(gl)+'GL↓';
+        const c = gl >= 0 ? '#0d6e3a' : gl >= -1 ? '#d97706' : '#b91c1c';
+        return bold ? `<strong style="color:${c}">${s}</strong>` : `<span style="color:${c}">${s}</span>`;
+      };
+
+      // ── Summary strip ──────────────────────────────────────────────────────
+      const summaryHtml = `
+        <div class="irlab-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.25rem">
+          <div class="irlab-stat" style="--irstat-color:#7b2d8b">
+            <div class="irlab-stat-val">${scholars.length.toLocaleString()}</div>
+            <div class="irlab-stat-lbl">Repeat Scholars</div>
+            <div style="font-size:.6875rem;color:var(--muted);margin-top:.15rem">${twoYr} two-yr · ${threeYr} three-yr${fourPlus?' · '+fourPlus+' four+':''}</div>
+          </div>
+          <div class="irlab-stat" style="--irstat-color:#0d6e3a">
+            <div class="irlab-stat-val">${aggM ? aggM.pctMoved+'%' : '—'}</div>
+            <div class="irlab-stat-lbl">Moved Up / Cycle</div>
+            <div style="font-size:.6875rem;color:var(--muted);margin-top:.15rem">placement level improvement</div>
+          </div>
+          <div class="irlab-stat" style="--irstat-color:#0050c8">
+            <div class="irlab-stat-val">${aggM&&aggM.avgGain!==null?(aggM.avgGain>=0?'+':'')+aggM.avgGain.toFixed(1):'—'}</div>
+            <div class="irlab-stat-lbl">Avg Scale Gain / Cycle</div>
+            <div style="font-size:.6875rem;color:var(--muted);margin-top:.15rem">scale score points</div>
+          </div>
+          <div class="irlab-stat" style="--irstat-color:${retPct!==null&&retPct>=50?'#0d6e3a':'#d97706'}">
+            <div class="irlab-stat-val">${retPct!==null?retPct+'%':'—'}</div>
+            <div class="irlab-stat-lbl">Gains Retained</div>
+            <div style="font-size:.6875rem;color:var(--muted);margin-top:.15rem">BOY ≥ prior-year Spring</div>
+          </div>
+        </div>`;
+
+      // ── Cycle-over-cycle progression table ────────────────────────────────
+      const cycleTableHtml = yearMetrics.length >= 2 ? `
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">📅 Cycle-Over-Cycle Progression — Repeat Scholars Only</div>
+          <div style="overflow-x:auto">
+            <table class="irlab-rank-table" style="font-size:.8rem">
+              <thead><tr>
+                <th>Year</th>
+                <th style="text-align:center">N</th>
+                <th style="text-align:center">Avg BOY GL</th>
+                <th style="text-align:center">Avg Spring GL</th>
+                <th style="text-align:center">Within-Cycle Gain</th>
+                <th style="text-align:center">Avg Scale Gain</th>
+                <th style="text-align:center">% Moved Up</th>
+                <th style="text-align:center">% At/Above GL</th>
+              </tr></thead>
+              <tbody>${yearMetrics.map((ym,i) => {
+                const glGain = (ym.avgBoyGL!==null&&ym.avgSprGL!==null) ? ym.avgSprGL-ym.avgBoyGL : null;
+                const glGainStr = glGain!==null
+                  ? (glGain>0.05?`<span style="color:#0d6e3a;font-weight:700">+${glGain.toFixed(2)} GL</span>`
+                     :glGain<-0.05?`<span style="color:#b91c1c;font-weight:700">${glGain.toFixed(2)} GL</span>`
+                     :`<span style="color:var(--muted)">Stable</span>`) : '—';
+                // BOY trend vs previous year BOY
+                let boyTrend = '';
+                if (i>0 && yearMetrics[i-1].avgBoyGL!==null && ym.avgBoyGL!==null) {
+                  const d = ym.avgBoyGL - yearMetrics[i-1].avgBoyGL;
+                  boyTrend = d>0.05?' <span style="color:#0d6e3a;font-size:.65rem">↑</span>' : d<-0.05?' <span style="color:#b91c1c;font-size:.65rem">↓</span>' : '';
+                }
+                return `<tr>
+                  <td style="font-weight:700;color:var(--navy)">${esc(ym.yr)}</td>
+                  <td style="text-align:center">${ym.n}</td>
+                  <td style="text-align:center">${ym.avgBoyGL!==null?glLbl(Math.round(ym.avgBoyGL))+boyTrend:'—'}</td>
+                  <td style="text-align:center">${ym.avgSprGL!==null?glLbl(Math.round(ym.avgSprGL),true):'—'}</td>
+                  <td style="text-align:center">${glGainStr}</td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${ym.avgGain!==null?(ym.avgGain>=0?'+':'')+ym.avgGain.toFixed(1):'—'}</td>
+                  <td style="text-align:center;font-weight:700;color:${ym.pctMoved!==null&&ym.pctMoved>=50?'#0d6e3a':'#d97706'}">${ym.pctMoved!==null?ym.pctMoved+'%':'—'}</td>
+                  <td style="text-align:center;font-weight:700;color:${ym.pctOnGL!==null&&ym.pctOnGL>=30?'#0d6e3a':'#d97706'}">${ym.pctOnGL!==null?ym.pctOnGL+'%':'—'}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>` : '';
+
+      // ── Individual scholar trajectory table (top 50 by most years, then alpha) ──
+      const top50 = scholars.slice(0, 50);
+      const scholarTableHtml = `
+        <div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">
+            🎓 Multi-Year Scholar Trajectories · ${scholars.length.toLocaleString()} total${scholars.length>50?' · 50 shown':''}
+          </div>
+          <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+            <table class="irlab-rank-table" style="font-size:.78rem">
+              <thead style="position:sticky;top:0;background:var(--surface-2);z-index:2">
+                <tr>
+                  <th>Scholar</th>
+                  <th style="text-align:center">Yrs</th>
+                  <th>Grades</th>
+                  <th>Cycle Trajectory <span style="font-weight:400;font-size:.65rem">(BOY→Spring per year)</span></th>
+                  <th style="text-align:right">Tot. Gain</th>
+                  <th style="text-align:center">Long-Term Trend</th>
+                </tr>
+              </thead>
+              <tbody>${top50.map(s => {
+                const gradesByYear = {};
+                s.cycles.forEach(r => { if (r.grade && !gradesByYear[r.year]) gradesByYear[r.year] = r.grade; });
+                const grades = s.uniqueYrs.map(yr=>gradesByYear[yr]).filter(Boolean);
+                const gradePath = grades.length ? 'Gr.'+grades.join('→') : '—';
+
+                // Build trajectory string: "22-23: 1GL↓→GL  23-24: GL→✓GL"
+                const trajParts = s.cycles.map(r => {
+                  const boyGL = plToGL(r.baseRelPlacement);
+                  const sprGL = plToGL(r.springRelPlacement);
+                  const yr = r.year ? r.year.slice(2,7) : '?';
+                  const boy = boyGL!==null ? (boyGL>=1?'✓GL':boyGL===0?'GL':Math.abs(boyGL)+'GL↓') : '?';
+                  const spr = sprGL!==null ? (sprGL>=1?'✓GL':sprGL===0?'GL':Math.abs(sprGL)+'GL↓') : '?';
+                  const boyC = boyGL!==null ? (boyGL>=0?'#0d6e3a':boyGL>=-1?'#d97706':'#b91c1c') : 'var(--muted)';
+                  const sprC = sprGL!==null ? (sprGL>=0?'#0d6e3a':sprGL>=-1?'#d97706':'#b91c1c') : 'var(--muted)';
+                  const arrow = sprGL!==null&&boyGL!==null ? (sprGL>boyGL?' ↑':sprGL<boyGL?' ↓':' →') : '';
+                  return `<span style="white-space:nowrap;margin-right:.625rem"><span style="color:var(--muted)">${yr}:</span> <span style="color:${boyC}">${boy}</span>→<strong style="color:${sprC}">${spr}</strong>${arrow}</span>`;
+                }).join('');
+
+                // Total gain: sum of springGain across all cycles
+                const totalGain = s.cycles.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v)).reduce((a,b)=>a+b,0);
+                const hasGain = s.cycles.some(r=>r.springGain!==null&&!isNaN(r.springGain));
+
+                // Long-term trend: first cycle BOY GL → last cycle Spring GL
+                const firstRec = s.cycles[0], lastRec = s.cycles[s.cycles.length-1];
+                let trendStr = '—', trendColor = 'var(--muted)';
+                if (firstRec && lastRec && firstRec.baseRelPlacement && lastRec.springRelPlacement) {
+                  const startGL = plToGL(firstRec.baseRelPlacement);
+                  const endGL   = plToGL(lastRec.springRelPlacement);
+                  if (startGL!==null && endGL!==null) {
+                    const delta = endGL - startGL;
+                    if (delta > 0)      { trendStr='↑ +'+delta+' GL'; trendColor='#0d6e3a'; }
+                    else if (delta < 0) { trendStr='↓ '+delta+' GL'; trendColor='#b91c1c'; }
+                    else                { trendStr='→ Stable';        trendColor='var(--muted)'; }
+                  }
+                }
+
+                return `<tr>
+                  <td>
+                    <div style="font-weight:600;color:var(--navy);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.name)}">${esc(s.name)}</div>
+                    <div style="font-size:.65rem;color:var(--muted)">by ${s.usedId?'ID':'Name'}</div>
+                  </td>
+                  <td style="text-align:center;font-weight:700;color:#7b2d8b">${s.numYears}</td>
+                  <td style="font-size:.72rem;color:var(--muted);white-space:nowrap">${esc(gradePath)}</td>
+                  <td style="font-size:.72rem">${trajParts||'—'}</td>
+                  <td style="text-align:right;font-weight:600;color:var(--blue-mid)">${hasGain?(totalGain>=0?'+':'')+totalGain.toFixed(1):'—'}</td>
+                  <td style="text-align:center;font-weight:700;color:${trendColor};white-space:nowrap">${trendStr}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem;line-height:1.6">
+            ✓GL = At/Above Grade Level · GL = Early On Grade Level · 1GL↓ = 1 Grade Level Below · 2GL↓ = 2 Below · 3GL↓ = 3+ Below
+            ${retTotal>0?` · <strong>${retPct}%</strong> of return-year transitions: scholar's BOY matched or exceeded their prior-year Spring placement`:''}
+            · Scholars matched by ${idx.repeatIdSet.size} IDs${idx.repeatNameSet.size?' + '+idx.repeatNameSet.size+' names (ID absent)':''}
+          </div>
+        </div>`;
 
       return `<div class="irlab-card" style="border-left:4px solid #7b2d8b;margin-bottom:1.25rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">🔁 Repeat Scholar Longitudinal View</div><div class="irlab-card-meta">Multi-year scholars — strongest program impact signal</div></div>
-        <div class="irlab-card-body">${summaryHtml}${studentTableHtml}</div>
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">🔁 Repeat Scholar Longitudinal Analysis</div>
+          <div class="irlab-card-meta">Year-over-year scholars matched by Student ID · Are they moving toward grade level?</div>
+        </div>
+        <div class="irlab-card-body">${summaryHtml}${cycleTableHtml}${scholarTableHtml}</div>
       </div>`;
     }
 
