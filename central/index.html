@@ -17261,7 +17261,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         const mv=pct(d.moved,d.total), gl=pct(d.atGL,d.total);
         const col=mv>=55?'#0d6e3a':mv>=35?'#d97706':'#b91c1c';
         const ag=d.gain.length?avg(d.gain).toFixed(1):'—';
-        return `<tr><td style="font-weight:600;color:var(--navy)">${esc(label)}</td>
+        return `<tr><td style="font-weight:600;color:var(--navy);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(label)}">${esc(label)}</td>
           <td style="text-align:center">${d.total}</td>
           <td style="text-align:center;font-weight:700;color:${col}">${mv}%</td>
           <td style="text-align:center;font-weight:700;color:${gl>=50?'#0d6e3a':gl>=25?'#d97706':'#b91c1c'}">${gl}%</td>
@@ -17272,13 +17272,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     function subgroupTable(groups, title) {
       const rows = demogRows(groups);
       if (!rows) return '';
-      return `<div style="margin-bottom:1.25rem;min-width:340px;flex:1">
-        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.5rem">${title}</div>
-        <div style="overflow-x:auto">
-        <table class="irlab-rank-table" style="font-size:.8rem;width:auto;min-width:100%">
-          <thead><tr><th>Group</th><th style="text-align:center;min-width:42px">N</th><th style="text-align:center;min-width:70px">Moved Up</th><th style="text-align:center;min-width:56px">At GL</th><th style="text-align:center;min-width:72px">Avg Gain</th></tr></thead>
+      return `<div>
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.4rem">${title}</div>
+        <table class="irlab-rank-table" style="font-size:.775rem;width:100%;table-layout:fixed">
+          <colgroup><col style="width:auto"><col style="width:38px"><col style="width:64px"><col style="width:52px"><col style="width:64px"></colgroup>
+          <thead><tr><th>Group</th><th style="text-align:center">N</th><th style="text-align:center">Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg Gain</th></tr></thead>
           <tbody>${rows}</tbody>
-        </table></div></div>`;
+        </table></div>`;
     }
 
     function renderBar(val, color) {
@@ -17616,8 +17616,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const d=m.demog;
       return `<div class="irlab-card" style="margin-bottom:1rem">
         <div class="irlab-card-hd"><div class="irlab-card-title">⚖️ Equity & Subgroup Snapshot <span style="font-size:.7rem;font-weight:400;background:rgba(0,0,0,.06);border-radius:99px;padding:.1rem .45rem;cursor:help;margin-left:.25rem" title="Rows show placement-pair scholars grouped by demographic field from iReady CSV. 'Moved Up' = improved placement level. 'At GL' = on or above grade level at spring. 'Avg Gain' = average scale score gain. Groups with fewer than 10 valid pairs are hidden.">ⓘ How to read</span></div><div class="irlab-card-meta">Movement & GL attainment by demographic group</div></div>
-        <div class="irlab-card-body">
-          <div style="display:flex;flex-wrap:wrap;gap:1.25rem;align-items:flex-start">
+        <div class="irlab-card-body" style="padding:.75rem">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1.25rem;align-items:start">
             ${subgroupTable(d.byRace,'By Race/Ethnicity')}
             ${subgroupTable(d.byHisp,'Hispanic/Latino Status')}
             ${subgroupTable(d.byELL,'ELL Status')}
@@ -18634,30 +18634,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           </div>
         </div>
 
-        <!-- ── ROW: EQUITY SNAPSHOT + CERT COHORT ── -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:.875rem">
-          <div style="min-width:0">${renderEquitySnapshot(m)}</div>
-          <div class="irlab-card" style="margin:0">
-            <div class="irlab-card-hd"><div class="irlab-card-title">🎓 Cert Cohort</div><div class="irlab-card-meta">Observational · outcomes by cert status</div></div>
-            <div class="irlab-card-body" style="padding:.75rem">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-                ${Object.entries(m.byCert).map(([cert,crows])=>{
-                  const cm=computeMetrics(crows); if(!cm) return '';
-                  const cTyp=medianArr(getAllRows({}).filter(r=>r.certStatus===cert).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
-                  const cols={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};
-                  const col=cols[cert]||'#7d8fa1';
-                  return `<div style="border:1.5px solid ${col}33;border-radius:8px;padding:.625rem;background:${col}07">
-                    <div style="font-size:.7rem;font-weight:700;color:${col};margin-bottom:.25rem">${esc(cert)}</div>
-                    <div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${cTyp!==null?(cTyp*100).toFixed(0)+'%':'—'}</div>
-                    <div style="font-size:.6rem;color:var(--muted)">Median Typical Growth</div>
-                    <div style="font-size:.7rem;margin-top:.35rem;color:var(--text-2)">Moved up: <strong>${cm.pctMoved}%</strong> · At GL: <strong>${cm.pctOnGL}%</strong></div>
-                    <div style="font-size:.65rem;color:var(--muted)">N = ${cm.n}</div>
-                  </div>`;
-                }).join('')}
-              </div>
+        <!-- ── ROW: CERT COHORT (full-width, compact 4-across) ── -->
+        <div class="irlab-card" style="margin-bottom:.875rem">
+          <div class="irlab-card-hd"><div class="irlab-card-title">🎓 Cert Cohort</div><div class="irlab-card-meta">Observational · outcomes by cert status</div></div>
+          <div class="irlab-card-body" style="padding:.75rem">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem">
+              ${Object.entries(m.byCert).map(([cert,crows])=>{
+                const cm=computeMetrics(crows); if(!cm) return '';
+                const cTyp=medianArr(getAllRows({}).filter(r=>r.certStatus===cert).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                const cols={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};
+                const col=cols[cert]||'#7d8fa1';
+                return `<div style="border:1.5px solid ${col}33;border-radius:8px;padding:.625rem;background:${col}07">
+                  <div style="font-size:.7rem;font-weight:700;color:${col};margin-bottom:.25rem">${esc(cert)}</div>
+                  <div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${cTyp!==null?(cTyp*100).toFixed(0)+'%':'—'}</div>
+                  <div style="font-size:.6rem;color:var(--muted)">Median Typical Growth</div>
+                  <div style="font-size:.7rem;margin-top:.35rem;color:var(--text-2)">Moved up: <strong>${cm.pctMoved}%</strong> · At GL: <strong>${cm.pctOnGL}%</strong></div>
+                  <div style="font-size:.65rem;color:var(--muted)">N = ${cm.n}</div>
+                </div>`;
+              }).join('')}
             </div>
           </div>
         </div>
+
+        <!-- ── ROW: EQUITY SNAPSHOT (full-width) ── -->
+        ${renderEquitySnapshot(m)}
 
         <!-- ── TUTOR LEADERBOARD ── -->
         ${_irlDept !== 'data' ? renderTutorLeaderboard(m, _irlDept) : ''}
@@ -18673,8 +18673,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           <div class="irlab-card-body" style="padding:.875rem">
             ${_irlDeepTab === 'repeat' ? renderRepeatLongitudinal() : `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
-              <div>${renderELADomainSubscores(rows)}</div>
-              <div>${renderMathDomainSubscores(rows)}</div>
+              <div style="min-width:0">${renderELADomainSubscores(rows)}</div>
+              <div style="min-width:0">${renderMathDomainSubscores(rows)}</div>
             </div>`}
           </div>
         </div>
