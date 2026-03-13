@@ -5579,6 +5579,40 @@
     // spring diagnostic. pctTypical is pre-computed by iReady for all rows with a spring window.
     // only those with a spring score contribute to % of Typical Growth calculations.
 
+    // ── Time breakdown popover helper ─────────────────────────────────────────
+    // Toggle visibility of a time-breakdown popover; closes the other if open.
+    window._njtcTimePop = function(id) {
+      ['ecdTmBrk1','ecdTmBrk2'].forEach(function(pid) {
+        var el = document.getElementById(pid);
+        if (!el) return;
+        if (pid === id) { el.style.display = el.style.display === 'none' ? 'flex' : 'none'; }
+        else { el.style.display = 'none'; }
+      });
+    };
+    // Close any open time popover when clicking elsewhere
+    document.onclick = (function(_prev) { return function(e) {
+      if (!e.target.closest || !e.target.closest('[data-timepop]')) {
+        ['ecdTmBrk1','ecdTmBrk2'].forEach(function(pid) { var el=document.getElementById(pid); if(el) el.style.display='none'; });
+      }
+      if (_prev) _prev(e);
+    }; })(document.onclick);
+
+    // Pre-compute breakdown rows for each time metric
+    function _minsBreakdownHTML(m) {
+      if (!m) return '';
+      var mins = Math.round(m);
+      var h = Math.floor(mins / 60), r = mins % 60;
+      var schoolDays = Math.round(mins / 390);           // 6.5h school day = 390 min
+      var months     = (mins / 60 / 6.5 / 20).toFixed(1); // 20 school days/month
+      return '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;padding-bottom:.4rem;border-bottom:1px solid #f1f5f9;margin-bottom:.1rem">⏱ Time Breakdown</div>'
+        + '<div style="display:flex;justify-content:space-between;gap:2rem"><span style="color:#64748b">Minutes</span><strong>' + mins.toLocaleString() + ' min</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:2rem"><span style="color:#64748b">Hours</span><strong>' + h.toLocaleString() + 'h' + (r > 0 ? ' ' + r + 'm' : '') + '</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:2rem"><span style="color:#64748b">School days (~6.5h)</span><strong>~' + schoolDays.toLocaleString() + '</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;gap:2rem"><span style="color:#64748b">Months (~20 school days)</span><strong>~' + months + '</strong></div>';
+    }
+    var _tmBrkHTML  = totalMins       ? _minsBreakdownHTML(totalMins)       : '';
+    var _tsmBrkHTML = totalScholarMins ? _minsBreakdownHTML(totalScholarMins) : '';
+
     el.innerHTML = `
       <!-- ═══ HEADER ═══ -->
       <div class="ecd-header">
@@ -5631,15 +5665,19 @@
           <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '\u2014'}</div>
           <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged \u2713' : 'Logged this period'}</div>
         </div>
-        <div class="ecd-kpi ck-rose" title="Total Instructional Minutes: Sum of session duration in minutes across all delivered sessions. Sourced from Pearl Operations session data.">
+        <div class="ecd-kpi ck-rose" data-timepop="1" title="Total Instructional Minutes: Sum of session duration in minutes across all delivered sessions. Sourced from Pearl Operations session data. Click ⓘ for breakdown." style="overflow:visible">
           <div class="ecd-kpi-lbl">Total Minutes</div>
-          <div class="ecd-kpi-val sm">${fmins(totalMins)}</div>
-          <div class="ecd-kpi-foot">Instructional time</div>
+          <div class="ecd-kpi-val sm" style="position:relative">
+            ${fmins(totalMins)}${totalMins ? `<button data-timepop="1" onclick="event.stopPropagation();window._njtcTimePop('ecdTmBrk1')" style="font-size:.5rem;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:99px;padding:.08rem .3rem;cursor:pointer;vertical-align:super;margin-left:.2rem;font-weight:700;line-height:1.3" title="View breakdown in hours, days, months">ⓘ</button><div id="ecdTmBrk1" data-timepop="1" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + .4rem);z-index:600;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:.75rem 1rem;min-width:230px;flex-direction:column;gap:.32rem;font-size:.77rem;white-space:nowrap">${_tmBrkHTML}</div>` : ''}
+          </div>
+          <div class="ecd-kpi-foot">Instructional time · ⓘ breakdown</div>
         </div>
-        <div class="ecd-kpi ck-green" title="Scholar Tutored Minutes: Aggregate total instructional minutes across all scholars — each scholar's individual session minutes summed program-wide. Differs from Total Minutes: a session with multiple scholars is counted once per scholar, so this reflects total scholar contact-time (not total session time). Source: Pearl Sessions, all time.">
+        <div class="ecd-kpi ck-green" data-timepop="2" title="Scholar Tutored Minutes: Aggregate total instructional minutes across all scholars — each scholar's individual session minutes summed program-wide. Differs from Total Minutes: a session with multiple scholars is counted once per scholar, so this reflects total scholar contact-time (not total session time). Source: Pearl Sessions, all time. Click ⓘ for breakdown." style="overflow:visible">
           <div class="ecd-kpi-lbl">Scholar Tutored Min</div>
-          <div class="ecd-kpi-val sm">${totalScholarMins != null ? fmins(totalScholarMins) : '\u2014'}</div>
-          <div class="ecd-kpi-foot">Aggregate contact-time</div>
+          <div class="ecd-kpi-val sm" style="position:relative">
+            ${totalScholarMins != null ? fmins(totalScholarMins) : '\u2014'}${totalScholarMins ? `<button data-timepop="2" onclick="event.stopPropagation();window._njtcTimePop('ecdTmBrk2')" style="font-size:.5rem;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:99px;padding:.08rem .3rem;cursor:pointer;vertical-align:super;margin-left:.2rem;font-weight:700;line-height:1.3" title="View breakdown in hours, days, months">ⓘ</button><div id="ecdTmBrk2" data-timepop="2" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + .4rem);z-index:600;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:.75rem 1rem;min-width:230px;flex-direction:column;gap:.32rem;font-size:.77rem;white-space:nowrap">${_tsmBrkHTML}</div>` : ''}
+          </div>
+          <div class="ecd-kpi-foot">Aggregate contact-time · ⓘ breakdown</div>
         </div>
       </div>
 
@@ -15944,15 +15982,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             // Active scholars: unique students who have at least 1 attended session in Pearl
             stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
           }
-          // Rostered scholars: unique student IDs from _sessMap (Pearl Sessions tab) — same source as
-          // the filter bar pill. Using _sessMap.studentIds avoids over-counting caused by duplicate /
-          // variant name entries in _personMap (built from the attendance tab).
-          // This guarantees the home dashboard matches the Pearl Operations filter bar exactly.
+          // Rostered scholars: unique student IDs from DELIVERED sessions in _sessMap — identical
+          // computation to the Pearl Operations filter bar pill (isDelivered && durMins > 0).
+          // This is the single authoritative count; _personMap is NOT used here because the
+          // attendance-tab name keys can have duplicate variants that inflate the count.
           try {
             var _rosterSet = new Set();
             if (_sessMap) {
               Object.values(_sessMap).forEach(function(sess) {
-                if (sess && sess.studentIds) {
+                if (sess && sess.isDelivered && sess.durMins > 0 && sess.studentIds) {
                   sess.studentIds.forEach(function(id) { if (id) _rosterSet.add(id); });
                 }
               });
