@@ -3361,6 +3361,198 @@
     .ecd-kpi-val.sm { font-size: 1.35rem; letter-spacing: -.03em; }
     .ecd-kpi-foot { font-size: .6rem; color: #cbd5e1; font-weight: 600; }
 
+    /* ── Executive Insight Panel layout ── */
+    .ecd-outer-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 1rem;
+      align-items: start;
+    }
+    .ecd-main-col { min-width: 0; }
+    @media(max-width:1120px) {
+      .ecd-outer-grid { grid-template-columns: 1fr; }
+      .ecd-insight-panel { display: grid; grid-template-columns: repeat(2,1fr); gap: .75rem; }
+    }
+    @media(max-width:640px) {
+      .ecd-insight-panel { grid-template-columns: 1fr; }
+    }
+    .ecd-insight-panel {
+      display: flex; flex-direction: column; gap: .75rem;
+      position: sticky; top: .75rem;
+    }
+    .ecdi-panel-hdr {
+      font-size: .6rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .08em; color: #94a3b8; padding: .125rem 0 .5rem;
+      border-bottom: 2px solid #e8edf4; margin-bottom: .125rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    /* ── Insight Card ── */
+    .ecdi-card {
+      background: #fff; border: 1px solid #e8edf4;
+      border-radius: 14px; padding: 1rem 1.125rem .875rem;
+      position: relative; overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,.05);
+      transition: box-shadow .18s, transform .18s;
+    }
+    .ecdi-card:hover { box-shadow: 0 6px 20px rgba(0,30,100,.1); transform: translateY(-1px); }
+    /* Left accent strip via ::before */
+    .ecdi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px;
+    }
+    .ecdi-card.cci-teal::before   { background: #0891b2; }
+    .ecdi-card.cci-blue::before   { background: #0050c8; }
+    .ecdi-card.cci-gold::before   { background: #f0a500; }
+    .ecdi-card.cci-purple::before { background: #7c3aed; }
+    .ecdi-card.cci-green::before  { background: #059669; }
+    .ecdi-eyebrow {
+      font-size: .57rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .07em; margin-bottom: .2rem;
+    }
+    .ecdi-card.cci-teal   .ecdi-eyebrow { color: #0891b2; }
+    .ecdi-card.cci-blue   .ecdi-eyebrow { color: #0050c8; }
+    .ecdi-card.cci-gold   .ecdi-eyebrow { color: #b45309; }
+    .ecdi-card.cci-purple .ecdi-eyebrow { color: #7c3aed; }
+    .ecdi-card.cci-green  .ecdi-eyebrow { color: #059669; }
+    .ecdi-val {
+      font-size: 2.25rem; font-weight: 900; color: #0a1628;
+      line-height: 1; letter-spacing: -.04em;
+    }
+    .ecdi-val-unit {
+      font-size: .75rem; font-weight: 700; color: #64748b;
+      letter-spacing: -.01em; margin-left: .1rem;
+    }
+    .ecdi-card-title {
+      font-size: .72rem; font-weight: 700; color: #0a1628;
+      margin: .35rem 0 .2rem; line-height: 1.2;
+    }
+    .ecdi-card-desc {
+      font-size: .65rem; color: #64748b; line-height: 1.4;
+    }
+    .ecdi-card-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: .625rem; padding-top: .5rem;
+      border-top: 1px solid #f1f5f9;
+    }
+    .ecdi-n { font-size: .58rem; color: #94a3b8; font-weight: 600; }
+    .ecdi-drill-btn {
+      font-size: .6rem; font-weight: 700; color: #0050c8;
+      background: #eef3ff; border: 1px solid #c7d7f7;
+      border-radius: 6px; padding: .2rem .5rem; cursor: pointer;
+      transition: background .15s, color .15s; white-space: nowrap;
+    }
+    .ecdi-drill-btn:hover { background: #0050c8; color: #fff; }
+    /* Tooltip icon */
+    .ecdi-tip {
+      font-size: .52rem; background: rgba(0,48,135,.1); color: #003087;
+      border: 1px solid rgba(0,48,135,.15); border-radius: 99px;
+      padding: .06rem .28rem; cursor: help; font-weight: 700; vertical-align: middle;
+      margin-left: .25rem;
+    }
+    /* Placeholder state */
+    .ecdi-card.ecdi-ph {
+      background: #f8fafc; border-style: dashed; border-color: #dde3ec;
+      opacity: .85;
+    }
+    .ecdi-ph .ecdi-val { color: #cbd5e1; font-size: 1.5rem; }
+    .ecdi-ph-msg {
+      font-size: .67rem; color: #64748b; line-height: 1.45;
+      font-style: italic; margin-top: .375rem; padding: .5rem .625rem;
+      background: #fff8e1; border-left: 3px solid #f0a500;
+      border-radius: 0 6px 6px 0;
+    }
+    /* ── Insight Drilldown Modal ── */
+    .ecdi-overlay {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(10,22,40,.55); backdrop-filter: blur(3px);
+      display: flex; align-items: flex-start; justify-content: center;
+      padding: 2rem 1rem; overflow-y: auto;
+      opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .ecdi-overlay.open { opacity: 1; pointer-events: auto; }
+    .ecdi-modal {
+      background: #fff; border-radius: 18px; width: 100%; max-width: 900px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      transform: translateY(16px) scale(.98);
+      transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+      overflow: hidden; flex-shrink: 0;
+    }
+    .ecdi-overlay.open .ecdi-modal { transform: none; }
+    .ecdi-modal-hdr {
+      padding: 1.25rem 1.5rem 1rem;
+      background: linear-gradient(135deg, #0a1628, #003087);
+      color: #fff; display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .ecdi-modal-title { font-size: 1.1rem; font-weight: 800; }
+    .ecdi-modal-sub   { font-size: .75rem; opacity: .65; margin-top: .2rem; }
+    .ecdi-modal-close {
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      color: #fff; border-radius: 8px; width: 32px; height: 32px;
+      cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-left: 1rem;
+    }
+    .ecdi-modal-close:hover { background: rgba(255,255,255,.25); }
+    .ecdi-modal-tabs {
+      display: flex; gap: .25rem; padding: .75rem 1.5rem .5rem;
+      background: #f8fafc; border-bottom: 1px solid #e8edf4; flex-wrap: wrap;
+    }
+    .ecdi-tab {
+      font-size: .72rem; font-weight: 600; padding: .3rem .75rem;
+      border-radius: 20px; border: 1.5px solid #dde3ec;
+      background: transparent; color: #64748b; cursor: pointer; transition: all .15s;
+    }
+    .ecdi-tab.active { background: #0a1628; border-color: #0a1628; color: #fff; }
+    .ecdi-tab:hover:not(.active) { color: #0a1628; border-color: #0a1628; }
+    .ecdi-modal-filters {
+      display: flex; flex-wrap: wrap; gap: .5rem;
+      padding: .75rem 1.5rem; background: #f8fafc;
+      border-bottom: 1px solid #e8edf4;
+    }
+    .ecdi-filter-sel {
+      font-size: .7rem; padding: .3rem .6rem; border-radius: 7px;
+      border: 1.5px solid #dde3ec; background: #fff; color: #0a1628;
+      font-weight: 600; cursor: pointer; outline: none;
+    }
+    .ecdi-filter-sel:focus { border-color: #0050c8; }
+    .ecdi-modal-body { padding: 1rem 1.5rem 1.5rem; max-height: 60vh; overflow-y: auto; }
+    .ecdi-tbl {
+      width: 100%; border-collapse: collapse; font-size: .7rem;
+    }
+    .ecdi-tbl thead tr { background: #0a1628; }
+    .ecdi-tbl thead th {
+      color: #fff; font-weight: 700; padding: .5rem .75rem;
+      text-align: left; white-space: nowrap; position: sticky; top: 0;
+      cursor: pointer; user-select: none;
+    }
+    .ecdi-tbl thead th:hover { background: #1a3a6b; }
+    .ecdi-tbl tbody tr:nth-child(even) { background: #f8fafc; }
+    .ecdi-tbl tbody tr:hover td { background: #eef3ff; }
+    .ecdi-tbl tbody td {
+      padding: .4rem .75rem; border-bottom: 1px solid #f1f5f9; color: #1e293b;
+    }
+    .ecdi-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ecdi-gain-pos { color: #059669; font-weight: 700; }
+    .ecdi-gain-neg { color: #e11d48; font-weight: 700; }
+    .ecdi-bar-cell { min-width: 80px; }
+    .ecdi-bar-wrap { background: #f1f5f9; border-radius: 99px; height: 6px; overflow: hidden; }
+    .ecdi-bar-fill { height: 100%; border-radius: 99px; background: #0050c8; }
+    .ecdi-paginate {
+      display: flex; align-items: center; gap: .75rem; margin-top: .75rem;
+      font-size: .7rem; color: #64748b;
+    }
+    .ecdi-pg-btn {
+      font-size: .7rem; font-weight: 600; padding: .25rem .625rem;
+      border: 1.5px solid #dde3ec; border-radius: 6px; background: #fff;
+      color: #0a1628; cursor: pointer;
+    }
+    .ecdi-pg-btn:hover { background: #eef3ff; border-color: #0050c8; }
+    .ecdi-pg-btn:disabled { opacity: .35; cursor: default; }
+    @media(max-width:640px) {
+      .ecdi-modal-filters { gap: .35rem; }
+      .ecdi-modal-body { max-height: 55vh; padding: .75rem 1rem 1rem; }
+      .ecdi-tbl { font-size: .65rem; }
+      .ecdi-tbl thead th, .ecdi-tbl tbody td { padding: .35rem .5rem; }
+    }
+
     /* ── Two-col grid ── */
     .ecd-2col { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; }
     @media(max-width:700px){ .ecd-2col { grid-template-columns:1fr; } }
@@ -5613,7 +5805,348 @@
     var _tmBrkHTML  = totalMins       ? _minsBreakdownHTML(totalMins)       : '';
     var _tsmBrkHTML = totalScholarMins ? _minsBreakdownHTML(totalScholarMins) : '';
 
-    el.innerHTML = `
+    // ── Executive Insight Panel ────────────────────────────────────────────────
+    var im = (irlb && typeof irlb.getInsightMetrics === 'function')
+      ? irlb.getInsightMetrics(_selSY)
+      : null;
+
+    // Store latest metrics globally so the drilldown modal can access them
+    window._njtcIM = im;
+
+    // ── Insight drilldown modal ──────────────────────────────────────────────
+    window._njtcInsightDrill = function(tab) {
+      var d = window._njtcIM;
+      if (!d) return;
+      // Remove existing modal if any
+      var old = document.getElementById('ecdiModal');
+      if (old) old.remove();
+
+      // ── Helper: small median bar cell ──
+      function _barCell(val, max, cls) {
+        var pct = (max > 0 && val != null) ? Math.min(100, Math.max(0, Math.round(val/max*100))) : 0;
+        return '<td class="ecdi-bar-cell"><div class="ecdi-bar-wrap"><div class="ecdi-bar-fill" style="width:'+pct+'%;background:'+(cls||'#0050c8')+'"></div></div></td>';
+      }
+      function _gainSpan(v) {
+        if (v == null) return '—';
+        var s = (v>0?'+':'')+v;
+        return '<span class="'+(v>0?'ecdi-gain-pos':v<0?'ecdi-gain-neg':'')+'">' +s+'</span>';
+      }
+      function _fmt1(v) { return v != null ? v.toFixed(1) : '—'; }
+      function _fmtPct(v) { return v != null ? Math.round(v)+'%' : '—'; }
+
+      // ── Get unique values for filter dropdowns ──
+      var rows   = d.drillRows || [];
+      var _uniq  = function(field) {
+        var s={}; rows.forEach(function(r){if(r[field]) s[r[field]]=1;}); return Object.keys(s).sort();
+      };
+      var selects = [
+        { id:'ecdi-f-year',    label:'Year',       field:'year',       vals:_uniq('year')       },
+        { id:'ecdi-f-dist',    label:'District',   field:'district',   vals:_uniq('district')   },
+        { id:'ecdi-f-school',  label:'School',     field:'school',     vals:_uniq('school')     },
+        { id:'ecdi-f-grade',   label:'Grade',      field:'grade',      vals:_uniq('grade')      },
+        { id:'ecdi-f-subject', label:'Subject',    field:'subject',    vals:_uniq('subject')    },
+        { id:'ecdi-f-race',    label:'Race',       field:'race',       vals:_uniq('race')       },
+        { id:'ecdi-f-eth',     label:'Ethnicity',  field:'ethnicity',  vals:_uniq('ethnicity')  },
+        { id:'ecdi-f-econ',    label:'Econ Status',field:'econ',       vals:_uniq('econ')       },
+        { id:'ecdi-f-tutor',   label:'Tutor',      field:'tutor',      vals:_uniq('tutor')      }
+      ].filter(function(s){ return s.vals.length > 1; });
+
+      function _sel(s) {
+        return '<select id="'+s.id+'" class="ecdi-filter-sel" onchange="window._ecdiApplyFilters()">'
+          +'<option value="">'+s.label+' (all)</option>'
+          +s.vals.map(function(v){return '<option value="'+v.replace(/"/g,'&quot;')+'">'+v+'</option>';}).join('')
+          +'</select>';
+      }
+
+      // ── Apply filters + sort + paginate ──
+      var _ecdiPage = 0, _ecdiPageSize = 50, _ecdiSortCol = 'scaleGain', _ecdiSortAsc = false;
+      window._ecdiApplyFilters = function() {
+        var filtered = rows.filter(function(r) {
+          return selects.every(function(s) {
+            var el2 = document.getElementById(s.id);
+            var v = el2 ? el2.value : '';
+            return !v || r[s.field] === v;
+          });
+        });
+        filtered.sort(function(a,b){
+          var av=a[_ecdiSortCol], bv=b[_ecdiSortCol];
+          if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1;
+          return _ecdiSortAsc ? (av>bv?1:av<bv?-1:0) : (av<bv?1:av>bv?-1:0);
+        });
+        _ecdiPage = 0;
+        window._ecdiFiltered = filtered;
+        _ecdiRender();
+      };
+      window._ecdiSort = function(col) {
+        if(_ecdiSortCol===col) _ecdiSortAsc=!_ecdiSortAsc; else {_ecdiSortCol=col;_ecdiSortAsc=false;}
+        window._ecdiApplyFilters();
+      };
+      window._ecdiChangePage = function(dir) {
+        var pages = Math.ceil((window._ecdiFiltered||[]).length/_ecdiPageSize);
+        _ecdiPage = Math.max(0, Math.min(pages-1, _ecdiPage+dir));
+        _ecdiRender();
+      };
+
+      function _thSort(col, label) {
+        var arr = _ecdiSortCol===col ? (_ecdiSortAsc?' ▲':' ▼') : '';
+        return '<th onclick="window._ecdiSort(\''+col+'\')" title="Sort by '+label+'">'+label+arr+'</th>';
+      }
+
+      function _ecdiRender() {
+        var filtered = window._ecdiFiltered || [];
+        var start    = _ecdiPage * _ecdiPageSize;
+        var page     = filtered.slice(start, start+_ecdiPageSize);
+        var pages    = Math.ceil(filtered.length/_ecdiPageSize);
+        var body     = document.getElementById('ecdi-body');
+        if (!body) return;
+        // Scholar Growth Detail
+        var rows2 = page.map(function(r){
+          return '<tr>'
+            +'<td>'+(r.scholarId||'—')+'</td>'
+            +'<td>'+(r.district||'—')+'</td>'
+            +'<td>'+(r.school||'—')+'</td>'
+            +'<td>'+(r.grade||'—')+'</td>'
+            +'<td>'+(r.subject||'—')+'</td>'
+            +'<td class="num">'+(r.baseScore!=null?r.baseScore:'—')+'</td>'
+            +'<td class="num">'+(r.springScore!=null?r.springScore:'—')+'</td>'
+            +'<td class="num">'+_gainSpan(r.scaleGain)+'</td>'
+            +'<td class="num">'+_fmt1(r.monthsGrowth)+'</td>'
+            +'<td class="num">'+_fmtPct(r.pctExpected)+'</td>'
+            +'</tr>';
+        }).join('');
+        body.innerHTML = '<table class="ecdi-tbl"><thead><tr>'
+          +_thSort('scholarId','Scholar ID')
+          +_thSort('district','District')
+          +_thSort('school','School')
+          +_thSort('grade','Grade')
+          +_thSort('subject','Subject')
+          +_thSort('baseScore','Baseline')
+          +_thSort('springScore','Spring')
+          +_thSort('scaleGain','Scale Gain')
+          +_thSort('monthsGrowth','Months')
+          +_thSort('pctExpected','% Expected')
+          +'</tr></thead><tbody>'+rows2+'</tbody></table>'
+          +'<div class="ecdi-paginate">'
+          +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(-1)" '+(start<=0?'disabled':'')+'>← Prev</button>'
+          +'<span>Showing '+(filtered.length?start+1:0)+'–'+Math.min(start+_ecdiPageSize,filtered.length)+' of '+filtered.length.toLocaleString()+' records</span>'
+          +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(1)" '+(start+_ecdiPageSize>=filtered.length?'disabled':'')+'>Next →</button>'
+          +'</div>';
+      }
+
+      var _tabs = [
+        { id:'growth',    label:'Scholar Growth Detail' },
+        { id:'demo',      label:'Demographic Insights' },
+        { id:'district',  label:'District Outcomes' }
+      ];
+      var _activeTab = tab || 'growth';
+
+      // ── Demographic breakdown table ──
+      function _demoTable(groups, title) {
+        if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
+        var maxGain = Math.max.apply(null, groups.map(function(g){return g.medGain||0;}));
+        var rows3 = groups.map(function(g){
+          return '<tr>'
+            +'<td>'+g.label+'</td>'
+            +'<td class="num">'+g.n+'</td>'
+            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+            +_barCell(g.medGain, maxGain, '#0891b2')
+            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+            +'</tr>';
+        }).join('');
+        return '<div style="font-size:.72rem;font-weight:700;color:#0a1628;margin-bottom:.5rem">'+title+'</div>'
+          +'<table class="ecdi-tbl" style="margin-bottom:1.25rem"><thead><tr>'
+          +'<th>Group</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+          +'</tr></thead><tbody>'+rows3+'</tbody></table>';
+      }
+
+      // ── District outcomes table ──
+      function _distTable() {
+        var groups = d.byDistrict||[];
+        if (!groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No district data.</div>';
+        var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
+        var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
+        var rows4 = sorted.map(function(g, i){
+          return '<tr>'
+            +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
+            +'<td>'+g.label+'</td>'
+            +'<td class="num">'+g.n+'</td>'
+            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+            +_barCell(g.medGain, maxGain, '#059669')
+            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+            +'</tr>';
+        }).join('');
+        return '<table class="ecdi-tbl"><thead><tr>'
+          +'<th></th><th>District</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+          +'</tr></thead><tbody>'+rows4+'</tbody></table>';
+      }
+
+      function _tabBody() {
+        if (_activeTab==='growth') {
+          return '<div id="ecdi-filters-wrap"><div class="ecdi-modal-filters">'
+            +selects.map(_sel).join('')
+            +'</div></div>'
+            +'<div class="ecdi-modal-body" id="ecdi-body"></div>';
+        }
+        if (_activeTab==='demo') {
+          return '<div class="ecdi-modal-body">'
+            +_demoTable(d.byRace||[], 'By Race')
+            +_demoTable(d.byEthnicity||[], 'By Ethnicity')
+            +_demoTable(d.byEconStatus||[], 'By Economic Status')
+            +'</div>';
+        }
+        if (_activeTab==='district') {
+          return '<div class="ecdi-modal-body">'+_distTable()+'</div>';
+        }
+        return '';
+      }
+
+      function _switchTab(t) {
+        _activeTab = t;
+        var mc = document.getElementById('ecdi-modal-content');
+        if (mc) mc.innerHTML = _tabBody();
+        _tabs.forEach(function(tb){
+          var btn = document.getElementById('ecdi-tab-'+tb.id);
+          if (btn) btn.className = 'ecdi-tab'+(tb.id===t?' active':'');
+        });
+        if (t==='growth') { window._ecdiApplyFilters(); }
+      }
+      window._ecdiSwitchTab = _switchTab;
+
+      var modalHTML = '<div id="ecdiModal" class="ecdi-overlay">'
+        +'<div class="ecdi-modal">'
+        +'<div class="ecdi-modal-hdr">'
+        +'<div><div class="ecdi-modal-title">Academic Insight Drilldown</div>'
+        +'<div class="ecdi-modal-sub">iReady diagnostic outcomes · '
+        +(d.allYears&&d.allYears.length ? d.allYears.join(', ') : 'All Years')
+        +' · '+d.n+' records with growth data</div></div>'
+        +'<button class="ecdi-modal-close" onclick="window._ecdiClose()">✕</button>'
+        +'</div>'
+        +'<div class="ecdi-modal-tabs">'
+        +_tabs.map(function(t){
+          return '<button id="ecdi-tab-'+t.id+'" class="ecdi-tab'+(t.id===_activeTab?' active':'')+'" onclick="window._ecdiSwitchTab(\''+t.id+'\')">'+t.label+'</button>';
+        }).join('')
+        +'</div>'
+        +'<div id="ecdi-modal-content">'+_tabBody()+'</div>'
+        +'</div></div>';
+
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+      requestAnimationFrame(function(){
+        var o = document.getElementById('ecdiModal');
+        if (o) { o.classList.add('open'); if (tab==='growth') window._ecdiApplyFilters(); }
+      });
+    };
+
+    window._ecdiClose = function() {
+      var o = document.getElementById('ecdiModal');
+      if (o) { o.classList.remove('open'); setTimeout(function(){ if(o.parentNode) o.remove(); }, 250); }
+    };
+    // Close on backdrop click
+    document.addEventListener('click', function(e) {
+      if (e.target && e.target.id === 'ecdiModal') window._ecdiClose();
+    });
+
+    // ── Build insight panel HTML ───────────────────────────────────────────────
+    var _imLoaded  = im && im.hasData;
+    var _imN       = im ? im.n : 0;
+    var _imSY      = im ? (im.allYears && im.allYears.length ? 'SY: ' + im.allYears.join(', ') : '') : '';
+
+    function _ecdiVal(v, unit, prefix) {
+      if (v == null) return '<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>';
+      return '<div class="ecdi-val">'+(prefix||'')+v+(unit?'<span class="ecdi-val-unit">'+unit+'</span>':'')+'</div>';
+    }
+
+    var _insightPanelHTML = '<div class="ecd-insight-panel">'
+
+      // Panel header
+      +'<div class="ecdi-panel-hdr">'
+      +'<span>Academic Insights</span>'
+      +'<span style="font-size:.55rem;color:#94a3b8;font-weight:500">iReady diagnostic</span>'
+      +'</div>'
+
+      // ── Card A: Median Scale Score Gain ──
+      +'<div class="ecdi-card cci-teal">'
+      +'<div class="ecdi-eyebrow">Scale Gain'
+      +'<span class="ecdi-tip" title="Median Scale Score Gain&#10;&#10;Formula: median(springScore &minus; baselineScore)&#10;Source: Spring Diagnostic Gain column (iReady CSV).&#10;Positive values indicate forward progress.&#10;Median used to reduce outlier distortion.">ⓘ</span>'
+      +'</div>'
+      +_ecdiVal(_imLoaded ? im.medianScaleGain : null, ' pts', (_imLoaded && im.medianScaleGain > 0 ? '+' : ''))
+      +'<div class="ecdi-card-title">Median Scale Score Gain</div>'
+      +'<div class="ecdi-card-desc">Median improvement in iReady scale score between baseline and most recent diagnostic.</div>'
+      +'<div class="ecdi-card-foot">'
+      +'<span class="ecdi-n">'+((_imLoaded&&_imN>0)?'n='+_imN.toLocaleString():'Loading&hellip;')+'</span>'
+      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'growth\')">Drilldown &rarr;</button>':'')
+      +'</div>'
+      +'</div>'
+
+      // ── Card B: Months of Learning Gained ──
+      +'<div class="ecdi-card cci-blue">'
+      +'<div class="ecdi-eyebrow">Learning Progress'
+      +'<span class="ecdi-tip" title="Months of Learning Gained&#10;&#10;Formula: Scale Score Gain &divide; (Differentiated Typical Growth &divide; 10)&#10;= pctTypical &times; 10&#10;&#10;10 = school months in a year per iReady norms.&#10;1.0 = one month of expected growth.&#10;Source: Spring_pct_progress_typical_growth column.">ⓘ</span>'
+      +'</div>'
+      +_ecdiVal(_imLoaded ? im.medianMonthsGrowth : null, ' mo')
+      +'<div class="ecdi-card-title">Months of Learning Gained</div>'
+      +'<div class="ecdi-card-desc">Estimated months of academic progress based on scale score change relative to expected yearly growth.</div>'
+      +'<div class="ecdi-card-foot">'
+      +'<span class="ecdi-n">'+(_imSY||'&mdash;')+'</span>'
+      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'demo\')">Drilldown &rarr;</button>':'')
+      +'</div>'
+      +'</div>'
+
+      // ── Card C: Growth Toward Target ──
+      +'<div class="ecdi-card cci-gold">'
+      +'<div class="ecdi-eyebrow">Target Progress'
+      +'<span class="ecdi-tip" title="Growth Toward Target&#10;&#10;Formula: Scale Score Gain &divide; Differentiated Typical Growth &times; 100&#10;= pctTypical &times; 100&#10;&#10;100% = exactly on-pace with iReady typical growth norms.&#10;&gt;100% = exceeding expected annual growth.&#10;Source: Spring_pct_progress_typical_growth (pre-computed by iReady per scholar).">ⓘ</span>'
+      +'</div>'
+      +_ecdiVal(_imLoaded && im.medianPctExpected != null ? Math.round(im.medianPctExpected) : null, '%')
+      +'<div class="ecdi-card-title">Growth Toward Target</div>'
+      +'<div class="ecdi-card-desc">Median scholar progress toward expected yearly academic growth. 100% = on pace with iReady norms.</div>'
+      +'<div class="ecdi-card-foot">'
+      +'<span class="ecdi-n">'+(_imLoaded&&im.medianPctExpected!=null?(im.medianPctExpected>=100?'✅ At/above typical':'⚠️ Below typical'):'&mdash;')+'</span>'
+      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
+      +'</div>'
+      +'</div>'
+
+      // ── Card D: Learning Velocity (Placeholder until SY 2025-2026 academic data exists) ──
+      +'<div class="ecdi-card cci-purple'+((!im||!im.syAligned)?' ecdi-ph':'')+'">'
+      +'<div class="ecdi-eyebrow">Learning Velocity'
+      +'<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span>'
+      +'</div>'
+      +'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
+      +'<div class="ecdi-card-title">Learning Velocity</div>'
+      +((!im||!im.syAligned)
+        ?'<div class="ecdi-ph-msg">Learning Velocity will activate once 2025&ndash;2026 academic diagnostic data becomes available.</div>'
+        :'<div class="ecdi-card-desc">Scale score points gained per tutoring hour (requires matching SY data).</div>'
+      )
+      +'</div>'
+
+      // ── Card E: Tutor Impact Leaders (Placeholder until SY alignment) ──
+      +'<div class="ecdi-card cci-green'+((!im||!im.syAligned)?' ecdi-ph':'')+'">'
+      +'<div class="ecdi-eyebrow">Tutor Impact'
+      +'<span class="ecdi-tip" title="Tutor Impact Leaders&#10;&#10;Identifies tutors whose scholars demonstrate the strongest average scale score gains.&#10;Requires academic and operational data from the same school year (min 2 scholars per tutor).&#10;Activates automatically when 2025&ndash;2026 iReady data is added.">ⓘ</span>'
+      +'</div>'
+      +((im&&im.syAligned&&im.tutorImpactLeaders&&im.tutorImpactLeaders.length)
+        ? ('<div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem">'
+            +im.tutorImpactLeaders.slice(0,3).map(function(t,i){
+              return '<div style="display:flex;align-items:center;gap:.375rem;font-size:.7rem">'
+                +'<span style="font-weight:800;color:#059669;width:20px">'+['🥇','🥈','🥉'][i]+'</span>'
+                +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+t.tutor+'</span>'
+                +'<span style="font-weight:700;color:#059669">+'+(t.avgGain).toFixed(1)+'pts</span>'
+                +'</div>';
+            }).join('')
+          +'</div>')
+        : '<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
+      )
+      +'<div class="ecdi-card-title" style="margin-top:.4rem">Tutor Impact Leaders</div>'
+      +((!im||!im.syAligned)
+        ?'<div class="ecdi-ph-msg">When 2025&ndash;2026 academic results are added, tutor impact analytics will automatically populate.</div>'
+        :'<div class="ecdi-card-desc">Average scale score growth by tutor (min 2 scholars).</div>'
+      )
+      +'</div>'
+
+      +'</div>'; // end .ecd-insight-panel
+
+    el.innerHTML = `<div class="ecd-outer-grid"><div class="ecd-main-col">
       <!-- ═══ HEADER ═══ -->
       <div class="ecd-header">
         <div>
@@ -5894,6 +6427,7 @@
           View Talent Analytics &rarr;
         </button>
       </div>
+    </div>${_insightPanelHTML}</div>
     `;
   } // end _buildExecDashboardInner
 
@@ -18494,11 +19028,140 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       } catch(e) { return null; }
     }
 
+    // ── Executive Insight Panel data ─────────────────────────────────────────
+    // getInsightMetrics(syFilter) — compute Cards A–E metrics + drilldown data.
+    // Use IRLAB_DATA main sheets only (math + ela); repeat sheets excluded to prevent
+    // double-counting scholars who appear in both main and repeat datasets.
+    // syFilter: specific SY string (e.g. '2024-2025'), '' or 'ALL' for program-wide.
+    function getInsightMetrics(syFilter) {
+      if (!IRLAB_DATA.loaded) loadData();
+      var rows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
+      if (syFilter && syFilter !== 'ALL') {
+        rows = rows.filter(function(r){ return r && r.year === syFilter; });
+      }
+      // All available years from main sheets (for SY-alignment check with Pearl)
+      var allSrcRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
+      var allYears = [];
+      allSrcRows.forEach(function(r){ if(r && r.year && allYears.indexOf(r.year)<0) allYears.push(r.year); });
+      allYears.sort();
+
+      function _med(arr) {
+        if (!arr.length) return null;
+        var s = arr.slice().sort(function(a,b){ return a-b; });
+        var m = Math.floor(s.length/2);
+        return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
+      }
+
+      var scaleGains=[], monthsArr=[], pctExpArr=[];
+      var drillRows=[];
+      var byRace={}, byEthnicity={}, byEconStatus={}, byDistrict={}, byTutor={};
+
+      rows.forEach(function(r) {
+        if (!r) return;
+        // Scale score gain: use iReady's pre-computed springGain (diagnostic gain) as primary.
+        // Fall back to springScore - baseScore when springGain not present (live-fetched data).
+        var gain = (r.springGain != null && !isNaN(parseFloat(r.springGain)))
+          ? parseFloat(r.springGain)
+          : (r.springScore != null && r.baseScore != null ? r.springScore - r.baseScore : NaN);
+        // pctTypical: Spring_pct_progress_typical_growth — ratio where 1.0 = 100% of typical growth.
+        var pct    = (r.pctTypical != null) ? parseFloat(r.pctTypical) : NaN;
+        // Months of growth = scale gain ÷ (annualTypical ÷ 10) = pctTypical × 10.
+        var months = !isNaN(pct) ? pct * 10 : NaN;
+        var pctExp = !isNaN(pct) ? pct * 100 : NaN;
+
+        if (!isNaN(gain)) scaleGains.push(gain);
+        if (!isNaN(months)) monthsArr.push(months);
+        if (!isNaN(pctExp)) pctExpArr.push(pctExp);
+
+        var raceKey = (r.race||'').trim() || 'Not Specified';
+        var ethKey  = /yes/i.test(r.hispanic||'') ? 'Hispanic/Latino'
+                    : /no/i.test(r.hispanic||'')  ? 'Non-Hispanic' : 'Not Specified';
+        var econKey = /yes/i.test(r.ecodis||'')   ? 'Eco. Disadvantaged'
+                    : /no/i.test(r.ecodis||'')    ? 'Not Disadvantaged' : 'Not Specified';
+        var distKey = (r.district||'Unknown').trim();
+        var tutorArr = (r.tutors && r.tutors.length) ? r.tutors : (r.instructor ? [r.instructor] : []);
+
+        if (!isNaN(gain)) {
+          function _push(map, key, obj) { if (!map[key]) map[key]=[]; map[key].push(obj); }
+          var gobj = { gain:gain, months:isNaN(months)?null:months, pctExp:isNaN(pctExp)?null:pctExp };
+          _push(byRace, raceKey, gobj);
+          _push(byEthnicity, ethKey, gobj);
+          _push(byEconStatus, econKey, gobj);
+          _push(byDistrict, distKey, gobj);
+          tutorArr.forEach(function(t){ if(t){ if(!byTutor[t]) byTutor[t]=[]; byTutor[t].push(gain); } });
+        }
+        if (!isNaN(gain) || !isNaN(pct)) {
+          drillRows.push({
+            scholarId:   r.scholarId   || '',
+            district:    r.district    || '',
+            school:      r.school      || '',
+            grade:       r.grade       || '',
+            subject:     r.subject     || '',
+            year:        r.year        || '',
+            tutor:       r.instructor  || '',
+            race:        raceKey,
+            ethnicity:   ethKey,
+            econ:        econKey,
+            baseScore:   r.baseScore   != null ? Math.round(r.baseScore)   : null,
+            springScore: r.springScore != null ? Math.round(r.springScore) : null,
+            scaleGain:   isNaN(gain)   ? null : parseFloat(gain.toFixed(1)),
+            monthsGrowth:isNaN(months) ? null : parseFloat(months.toFixed(1)),
+            pctExpected: isNaN(pctExp) ? null : parseFloat(pctExp.toFixed(1))
+          });
+        }
+      });
+
+      function _groupMeds(obj) {
+        return Object.keys(obj).map(function(k) {
+          var arr  = obj[k];
+          var g    = arr.map(function(x){return x.gain;}).filter(function(x){return x!=null&&!isNaN(x);});
+          var mo   = arr.map(function(x){return x.months;}).filter(function(x){return x!=null&&!isNaN(x);});
+          var pe   = arr.map(function(x){return x.pctExp;}).filter(function(x){return x!=null&&!isNaN(x);});
+          return { label:k, n:g.length, medGain:_med(g), medMonths:_med(mo), medPct:_med(pe) };
+        }).filter(function(x){ return x.n>=1; }).sort(function(a,b){ return b.n-a.n; });
+      }
+
+      // Card D/E SY-alignment: Pearl operational data is SY 2025–2026.
+      // These cards activate automatically once iReady corpus includes that same year.
+      var PEARL_SY   = '2025-2026';
+      var syAligned  = allYears.indexOf(PEARL_SY) >= 0;
+
+      // Card E: tutor impact leaders (only when SY-aligned; require ≥2 scholars per tutor)
+      var tutorImpactLeaders = null;
+      if (syAligned) {
+        tutorImpactLeaders = Object.keys(byTutor).map(function(t) {
+          var arr = byTutor[t];
+          var sum = arr.reduce(function(s,v){return s+v;},0);
+          return { tutor:t, avgGain:parseFloat((sum/arr.length).toFixed(1)), n:arr.length };
+        }).filter(function(x){return x.n>=2;}).sort(function(a,b){return b.avgGain-a.avgGain;}).slice(0,5);
+      }
+
+      var medGain   = _med(scaleGains);
+      var medMonths = _med(monthsArr);
+      var medPct    = _med(pctExpArr);
+
+      return {
+        hasData:            rows.length > 0,
+        n:                  scaleGains.length,
+        allYears:           allYears,
+        medianScaleGain:    medGain   != null ? parseFloat(medGain.toFixed(1))   : null,
+        medianMonthsGrowth: medMonths != null ? parseFloat(medMonths.toFixed(1)) : null,
+        medianPctExpected:  medPct    != null ? parseFloat(medPct.toFixed(1))    : null,
+        syAligned:          syAligned,
+        tutorImpactLeaders: tutorImpactLeaders,
+        drillRows:          drillRows,
+        byRace:             _groupMeds(byRace),
+        byEthnicity:        _groupMeds(byEthnicity),
+        byEconStatus:       _groupMeds(byEconStatus),
+        byDistrict:         _groupMeds(byDistrict)
+      };
+    }
+
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setDept, setBreakdownTab, setDeepTab,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
-             getTutorAcademicData, getSummary, getSnapshot,
+             getTutorAcademicData, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
   })();
 
