@@ -5479,11 +5479,13 @@
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
     const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
-    // Scholar counts: use Pearl Ops _personMap count (scholars with ≥1 attended session) as primary source
-    // so exec and Pearl Operations panel always show the same number.
+    // Scholar counts sourced from Pearl Operations _personMap — the single authoritative Pearl roster.
+    // Active scholars:  unique students with ≥1 attended session (poStats.activeScholars).
+    // Rostered scholars: ALL unique students in Pearl regardless of attendance (poStats.rosteredScholars).
+    //   These are DIFFERENT counts — rostered is the superset. Do NOT use activeScholars for rostered.
     const _pearlScholars = poStats ? poStats.activeScholars : null;
     const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
-    const rosteredScholars = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.rosteredScholars) : null);
+    const rosteredScholars = poStats ? poStats.rosteredScholars : (ldData ? ldData.rosteredScholars : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
     // Schools: sourced from SY Analytics total sites (syStatSites DOM element — authoritative site count).
     // Falls back to Pearl schoolCount only if SY Analytics hasn't loaded yet.
@@ -5492,7 +5494,10 @@
     const schools   = _syaSitesVal != null ? _syaSitesVal : (poStats ? poStats.schoolCount : null);
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
-    const totalMins = poStats ? poStats.totalMins     : null;
+    const totalMins       = poStats ? poStats.totalMins       : null;
+    // Aggregate scholar tutored minutes: sum of each scholar's individual session minutes (all time).
+    // Differs from totalMins — each session's duration is counted once per scholar present in that session.
+    const totalScholarMins = poStats ? (poStats.totalScholarMins || null) : null;
     const survAvg   = ldData  ? ldData.scholarSurvey  : (poStats ? poStats.surveyAvg : null);
 
     // ── 2. Operational Health ─────────────────────────────────────────
@@ -5616,7 +5621,7 @@
           <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Attended ≥1 session</div>
         </div>
-        <div class="ecd-kpi ck-blue" title="Rostered Scholars: All unique students appearing in Pearl Operations (attended or absent). Total enrollment on the Pearl roster.">
+        <div class="ecd-kpi ck-blue" title="Rostered Scholars: ALL unique students in Pearl Operations — includes both active (attended ≥1 session) and absent-only scholars. This is the authoritative total Pearl enrollment count. Source: Pearl _personMap (role=Student), unfiltered.">
           <div class="ecd-kpi-lbl">Rostered Scholars</div>
           <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total Pearl enrollment</div>
@@ -5630,6 +5635,11 @@
           <div class="ecd-kpi-lbl">Total Minutes</div>
           <div class="ecd-kpi-val sm">${fmins(totalMins)}</div>
           <div class="ecd-kpi-foot">Instructional time</div>
+        </div>
+        <div class="ecd-kpi ck-green" title="Scholar Tutored Minutes: Aggregate total instructional minutes across all scholars — each scholar's individual session minutes summed program-wide. Differs from Total Minutes: a session with multiple scholars is counted once per scholar, so this reflects total scholar contact-time (not total session time). Source: Pearl Sessions, all time.">
+          <div class="ecd-kpi-lbl">Scholar Tutored Min</div>
+          <div class="ecd-kpi-val sm">${totalScholarMins != null ? fmins(totalScholarMins) : '\u2014'}</div>
+          <div class="ecd-kpi-foot">Aggregate contact-time</div>
         </div>
       </div>
 
@@ -15942,6 +15952,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             var _tm = 0;
             Object.values(_sessMap).forEach(function(sess){ if(sess&&sess.isDelivered&&sess.durMins>0) _tm+=sess.durMins; });
             if (_tm > 0) stats.totalMins = _tm;
+          } catch(e){}
+          // Total scholar tutored minutes: aggregate of each scholar's individual session minutes.
+          // Each session's duration is multiplied by the number of scholars in that session, so
+          // this counts total instructional contact-minutes — distinct from totalMins (once per session).
+          try {
+            var _tsm = 0;
+            if (_sessMap) {
+              Object.values(_sessMap).forEach(function(sess){
+                if (sess && sess.isDelivered && sess.durMins > 0 && sess.studentIds && sess.studentIds.length > 0) {
+                  _tsm += sess.durMins * sess.studentIds.length;
+                }
+              });
+            }
+            if (_tsm > 0) stats.totalScholarMins = _tsm;
           } catch(e){}
           stats.loaded = stats.scholAttPct !== null;
         } catch(e) { console.warn('[po.getStats] error:', e.message); }
