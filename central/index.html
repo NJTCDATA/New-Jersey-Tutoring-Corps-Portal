@@ -5525,9 +5525,11 @@
     const _dataSource = irlView ? (irlView.dataSource || 'iReady Longitudinal CSV') : 'iReady Longitudinal CSV';
     const mathGain  = irlView ? irlView.mathAvgGain  : null;
     const elaGain   = irlView ? irlView.elaAvgGain   : null;
-    // Row counts: use SY-specific counts from filtered view when a year is selected
-    const mathN     = irlView ? (irlView.mathGainN != null ? irlView.mathGainN : irlView.mathRows) : null;
-    const elaN      = irlView ? (irlView.elaGainN  != null ? irlView.elaGainN  : irlView.elaRows)  : null;
+    // Row counts: use mathRows/elaRows (main sheet only = "All Scholar: Diagnostic Count").
+    // mathGainN/elaGainN are inflated because they come from the combined main+repeat loop;
+    // mathRows is now correctly set to IRLAB_DATA.math.length (main sheet only).
+    const mathN     = irlView ? irlView.mathRows : null;
+    const elaN      = irlView ? irlView.elaRows  : null;
     const irlSY     = irlView ? (irlView.activeSY || null) : null;
     const mathBar   = mathPct != null ? Math.min(100, Math.round(mathPct/150*100)) : 0;
     const elaBar    = elaPct  != null ? Math.min(100, Math.round(elaPct /150*100)) : 0;
@@ -18228,6 +18230,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var allRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || [],
                               IRLAB_DATA.mathRepeat || [], IRLAB_DATA.elaRepeat || []);
       if (!allRows.length) return null;
+      // Sets for main-sheet membership — used to exclude repeat-sheet rows from "All Scholar" medians.
+      // Repeat scholars already appear in the main sheets; including the repeat sheet again
+      // would double-weight them and pull the median away from the true "All Scholar" value.
+      var _mathMainSet = new Set(IRLAB_DATA.math || []);
+      var _elaMainSet  = new Set(IRLAB_DATA.ela  || []);
 
       // SY filter: if syFilter passed, restrict to that year. Otherwise use most recent.
       var allYears = [];
@@ -18295,10 +18302,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var _mt=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_mt)&&_mt>0){mathTypicalSum+=_mt;mathTypicalN++;}
           // Read BW col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // pctTypical (spring_pct_progress_typical_growth) is pre-computed by iReady and is valid
-          // whether springScore is stored or not (embedded rows have springScore=null but valid pctTypical)
-          var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
-          if(!isNaN(_mp)){mathPctTypArr.push(_mp);}
+          // Only collect from main-sheet rows (_mathMainSet) — repeat scholars are already present
+          // in the main sheet; pulling from mathRepeat again would double-weight them.
+          if(_mathMainSet.has(r)){var _mp=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;if(!isNaN(_mp)){mathPctTypArr.push(_mp);}}
         } else if (subj.indexOf('ela')>=0) {
           elaTotal++;
           if(hasGrowth) elaGrowth++;
@@ -18308,10 +18314,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           if(!isNaN(_eg)){elaGainSum+=_eg;elaGainN++;}
           var _et=r.annualTypical!=null?parseFloat(r.annualTypical):NaN;
           if(!isNaN(_et)&&_et>0){elaTypicalSum+=_et;elaTypicalN++;}
-          // Read CP col directly: r.pctTypical is the stored ratio (1.0=100%)
-          // pctTypical is pre-computed by iReady and valid regardless of springScore storage
-          var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
-          if(!isNaN(_ep)){elaPctTypArr.push(_ep);}
+          // Only collect from main-sheet rows (_elaMainSet) — same double-count fix as Math above
+          if(_elaMainSet.has(r)){var _ep=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;if(!isNaN(_ep)){elaPctTypArr.push(_ep);}}
         }
         // Race — count unique scholars
         if (sid && !seenScholars[sid]) {
@@ -18350,8 +18354,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         totalRows: totalRows,
         totalWithGrowth: totalWithGrowth,
         growthPct: growthPct,
-        mathRows: (IRLAB_DATA.math||[]).length + (IRLAB_DATA.mathRepeat||[]).length,
-        elaRows: (IRLAB_DATA.ela||[]).length + (IRLAB_DATA.elaRepeat||[]).length,
+        mathRows: (IRLAB_DATA.math||[]).length,      // main sheet only — "All Scholar: Diagnostic Count"
+        elaRows:  (IRLAB_DATA.ela||[]).length,       // main sheet only — repeat scholars already included
         mathGrowthPct: mathTotal>0 ? parseFloat((mathGrowth/mathTotal*100).toFixed(1)) : null,
         elaGrowthPct:  elaTotal>0  ? parseFloat((elaGrowth/elaTotal*100).toFixed(1)) : null,
         grades: Array.from(gradeSet).sort(),
@@ -18377,11 +18381,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         mathGainN:      mathGainN,
         elaGainN:       elaGainN,
         // All-years program-wide medians (for exec dashboard — full embedded corpus regardless of SY filter)
-        // Gated on springScore: only scholars with completed spring diagnostic (iReady-correct methodology)
+        // Use MAIN sheet only — repeat scholars are already included in the main "All Scholar" sheet.
+        // Combining main+repeat would double-count repeats and skew the median downward.
         mathMedianPctAllYears: (function(){
           var arr=[];
-          [].concat(IRLAB_DATA.math||[],IRLAB_DATA.mathRepeat||[]).forEach(function(r){
-            if(!r) return;  // pctTypical valid without springScore (pre-computed by iReady)
+          (IRLAB_DATA.math||[]).forEach(function(r){
+            if(!r) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
@@ -18391,8 +18396,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }()),
         elaMedianPctAllYears: (function(){
           var arr=[];
-          [].concat(IRLAB_DATA.ela||[],IRLAB_DATA.elaRepeat||[]).forEach(function(r){
-            if(!r) return;  // pctTypical valid without springScore (pre-computed by iReady)
+          (IRLAB_DATA.ela||[]).forEach(function(r){
+            if(!r) return;
             var p=r.pctTypical!=null?parseFloat(r.pctTypical):NaN;
             if(!isNaN(p)) arr.push(p);
           });
