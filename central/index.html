@@ -3720,10 +3720,6 @@
         <div class="stat-tile" style="--accent-color:var(--partial)"><div class="st-icon">📋</div><div class="st-value" id="syStatEst">—</div><div class="st-label">Est. Scholars</div><div class="st-sub">Quoted capacity</div></div>
         <div class="stat-tile" style="--accent-color:var(--notmet)"><div class="st-icon">👥</div><div class="st-value" id="syStatStaff">—</div><div class="st-label">Total Staff</div><div class="st-sub">Across all sites</div></div>
       </div>
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem 1rem;margin-bottom:.75rem;font-size:.7rem;color:#1e40af;display:flex;align-items:flex-start;gap:.4rem">
-        <span style="font-weight:700;flex-shrink:0">ⓘ</span>
-        <span><strong>Why does the site count include more locations than expected?</strong> The total reflects <strong>all sites listed in the SY Database</strong>, including <strong>pilot program sites</strong>. Pilot schools operate under a separate program structure and are tracked independently from the main school program in Pearl — they are not included in Pearl session or scholar totals. The <strong>SY Database is the authoritative source</strong> for site counts; Pearl only reflects schools in the regular program roster.</span>
-      </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.875rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--shadow-sm)">
         <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
           <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">Filter:</span>
@@ -3794,6 +3790,12 @@
             🔍 <span id="poCriticalN">0</span> Needs Review
           </button>
         </div>
+      </div>
+
+      <!-- Pearl site count note -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem 1rem;margin-bottom:.75rem;font-size:.7rem;color:#1e40af;display:flex;align-items:flex-start;gap:.4rem">
+        <span style="font-weight:700;flex-shrink:0">ⓘ</span>
+        <span><strong>Why does the site count in Pearl differ from the SY site total?</strong> The total reflects <strong>all sites listed in the SY Database</strong>, including <strong>pilot program sites</strong>. Pilot schools operate under a separate program structure and are tracked independently from the main school program in Pearl — they are not included in Pearl session or scholar totals. The <strong>SY Database is the authoritative source</strong> for site counts; Pearl only reflects schools in the regular program roster.</span>
       </div>
 
       <!-- Breadcrumb nav for drill-down -->
@@ -5483,7 +5485,11 @@
     const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
     const rosteredScholars = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.rosteredScholars) : null);
     const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
-    const schools   = poStats ? poStats.schoolCount   : null;
+    // Schools: sourced from SY Analytics total sites (syStatSites DOM element — authoritative site count).
+    // Falls back to Pearl schoolCount only if SY Analytics hasn't loaded yet.
+    const _syaSitesEl = document.getElementById('syStatSites');
+    const _syaSitesVal = _syaSitesEl ? parseInt((_syaSitesEl.textContent||'').replace(/[^0-9]/g,'')) || null : null;
+    const schools   = _syaSitesVal != null ? _syaSitesVal : (poStats ? poStats.schoolCount : null);
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
     const totalMins = poStats ? poStats.totalMins     : null;
@@ -5593,10 +5599,10 @@
           <div class="ecd-kpi-val">${fv(districts)}</div>
           <div class="ecd-kpi-foot">Partner districts</div>
         </div>
-        <div class="ecd-kpi ck-blue" title="Schools: Count of unique active school sites with at least one attendance record in Pearl.">
+        <div class="ecd-kpi ck-blue" title="Schools: Total active sites listed in the SY Database — the authoritative source for site counts. Includes all program sites (including pilot schools). Live from SY Analytics.">
           <div class="ecd-kpi-lbl">Schools</div>
           <div class="ecd-kpi-val">${fv(schools)}</div>
-          <div class="ecd-kpi-foot">Active sites</div>
+          <div class="ecd-kpi-foot">Active sites · SY Database</div>
         </div>
         <div class="ecd-kpi ck-green" title="Sessions Delivered: Total session records from Pearl Sessions tab. Counts all completed sessions (full and partial).">
           <div class="ecd-kpi-lbl">Sessions</div>
@@ -11378,6 +11384,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       setText('syStatActual',    s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
       setText('syStatStaff',     stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
+      // Notify exec dashboard — Home Schools KPI reads from syStatSites
+      try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
 
     // ── DISTRICT LIST ─────────────────────────────────────────────────────
