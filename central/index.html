@@ -5572,6 +5572,10 @@
     const partial = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
     const notmet = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
     const pipe = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
+    // iReady Academic Insight KPI tiles
+    const _irlKpiIM = (window.irlab && typeof window.irlab.getInsightMetrics === 'function') ? window.irlab.getInsightMetrics('') : null;
+    const _irlKpiGain = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianScaleGain != null ? (_irlKpiIM.medianScaleGain > 0 ? '+' : '') + _irlKpiIM.medianScaleGain + ' pts' : '—';
+    const _irlKpiPct  = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianPctExpected != null ? Math.round(_irlKpiIM.medianPctExpected) + '%' : '—';
     document.getElementById('homeStatsStrip').innerHTML = `
       <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
         <div class="st-icon">✅</div>
@@ -5602,6 +5606,18 @@
         <div class="st-value">${notmet}</div>
         <div class="st-label">Not Met</div>
         <div class="st-sub">Area of focus</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:#0891b2" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
+        <div class="st-icon">📈</div>
+        <div class="st-value" style="font-size:1.5rem">${_irlKpiGain}</div>
+        <div class="st-label">iReady Scale Gain</div>
+        <div class="st-sub">Median · all scholars</div>
+      </div>
+      <div class="stat-tile" style="--accent-color:#7c3aed" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
+        <div class="st-icon">🎯</div>
+        <div class="st-value" style="font-size:1.5rem">${_irlKpiPct}</div>
+        <div class="st-label">Growth vs Target</div>
+        <div class="st-sub">% of typical norms · iReady Lab</div>
       </div>
     `;
 
@@ -6047,106 +6063,7 @@
       if (e.target && e.target.id === 'ecdiModal') window._ecdiClose();
     });
 
-    // ── Build insight panel HTML ───────────────────────────────────────────────
-    var _imLoaded  = im && im.hasData;
-    var _imN       = im ? im.n : 0;
-    var _imSY      = im ? (im.allYears && im.allYears.length ? 'SY: ' + im.allYears.join(', ') : '') : '';
-
-    function _ecdiVal(v, unit, prefix) {
-      if (v == null) return '<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>';
-      return '<div class="ecdi-val">'+(prefix||'')+v+(unit?'<span class="ecdi-val-unit">'+unit+'</span>':'')+'</div>';
-    }
-
-    var _insightPanelHTML = '<div class="ecd-insight-panel">'
-
-      // Panel header
-      +'<div class="ecdi-panel-hdr">'
-      +'<span>Academic Insights</span>'
-      +'<span style="font-size:.55rem;color:#94a3b8;font-weight:500">iReady diagnostic</span>'
-      +'</div>'
-
-      // ── Card A: Median Scale Score Gain ──
-      +'<div class="ecdi-card cci-teal">'
-      +'<div class="ecdi-eyebrow">Scale Gain'
-      +'<span class="ecdi-tip" title="Median Scale Score Gain&#10;&#10;Formula: median(springScore &minus; baselineScore)&#10;Source: Spring Diagnostic Gain column (iReady CSV).&#10;Positive values indicate forward progress.&#10;Median used to reduce outlier distortion.">ⓘ</span>'
-      +'</div>'
-      +_ecdiVal(_imLoaded ? im.medianScaleGain : null, ' pts', (_imLoaded && im.medianScaleGain > 0 ? '+' : ''))
-      +'<div class="ecdi-card-title">Median Scale Score Gain</div>'
-      +'<div class="ecdi-card-desc">Median improvement in iReady scale score between baseline and most recent diagnostic.</div>'
-      +'<div class="ecdi-card-foot">'
-      +'<span class="ecdi-n">'+((_imLoaded&&_imN>0)?'n='+_imN.toLocaleString():'Loading&hellip;')+'</span>'
-      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'growth\')">Drilldown &rarr;</button>':'')
-      +'</div>'
-      +'</div>'
-
-      // ── Card B: Months of Learning Gained ──
-      +'<div class="ecdi-card cci-blue">'
-      +'<div class="ecdi-eyebrow">Learning Progress'
-      +'<span class="ecdi-tip" title="Months of Learning Gained&#10;&#10;Formula: Scale Score Gain &divide; (Differentiated Typical Growth &divide; 10)&#10;= pctTypical &times; 10&#10;&#10;10 = school months in a year per iReady norms.&#10;1.0 = one month of expected growth.&#10;Source: Spring_pct_progress_typical_growth column.">ⓘ</span>'
-      +'</div>'
-      +_ecdiVal(_imLoaded ? im.medianMonthsGrowth : null, ' mo')
-      +'<div class="ecdi-card-title">Months of Learning Gained</div>'
-      +'<div class="ecdi-card-desc">Estimated months of academic progress based on scale score change relative to expected yearly growth.</div>'
-      +'<div class="ecdi-card-foot">'
-      +'<span class="ecdi-n">'+(_imSY||'&mdash;')+'</span>'
-      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'demo\')">Drilldown &rarr;</button>':'')
-      +'</div>'
-      +'</div>'
-
-      // ── Card C: Growth Toward Target ──
-      +'<div class="ecdi-card cci-gold">'
-      +'<div class="ecdi-eyebrow">Target Progress'
-      +'<span class="ecdi-tip" title="Growth Toward Target&#10;&#10;Formula: Scale Score Gain &divide; Differentiated Typical Growth &times; 100&#10;= pctTypical &times; 100&#10;&#10;100% = exactly on-pace with iReady typical growth norms.&#10;&gt;100% = exceeding expected annual growth.&#10;Source: Spring_pct_progress_typical_growth (pre-computed by iReady per scholar).">ⓘ</span>'
-      +'</div>'
-      +_ecdiVal(_imLoaded && im.medianPctExpected != null ? Math.round(im.medianPctExpected) : null, '%')
-      +'<div class="ecdi-card-title">Growth Toward Target</div>'
-      +'<div class="ecdi-card-desc">Median scholar progress toward expected yearly academic growth. 100% = on pace with iReady norms.</div>'
-      +'<div class="ecdi-card-foot">'
-      +'<span class="ecdi-n">'+(_imLoaded&&im.medianPctExpected!=null?(im.medianPctExpected>=100?'✅ At/above typical':'⚠️ Below typical'):'&mdash;')+'</span>'
-      +(_imLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
-      +'</div>'
-      +'</div>'
-
-      // ── Card D: Learning Velocity (Placeholder until SY 2025-2026 academic data exists) ──
-      +'<div class="ecdi-card cci-purple'+((!im||!im.syAligned)?' ecdi-ph':'')+'">'
-      +'<div class="ecdi-eyebrow">Learning Velocity'
-      +'<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span>'
-      +'</div>'
-      +'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
-      +'<div class="ecdi-card-title">Learning Velocity</div>'
-      +((!im||!im.syAligned)
-        ?'<div class="ecdi-ph-msg">Learning Velocity will activate once 2025&ndash;2026 academic diagnostic data becomes available.</div>'
-        :'<div class="ecdi-card-desc">Scale score points gained per tutoring hour (requires matching SY data).</div>'
-      )
-      +'</div>'
-
-      // ── Card E: Tutor Impact Leaders (Placeholder until SY alignment) ──
-      +'<div class="ecdi-card cci-green'+((!im||!im.syAligned)?' ecdi-ph':'')+'">'
-      +'<div class="ecdi-eyebrow">Tutor Impact'
-      +'<span class="ecdi-tip" title="Tutor Impact Leaders&#10;&#10;Identifies tutors whose scholars demonstrate the strongest average scale score gains.&#10;Requires academic and operational data from the same school year (min 2 scholars per tutor).&#10;Activates automatically when 2025&ndash;2026 iReady data is added.">ⓘ</span>'
-      +'</div>'
-      +((im&&im.syAligned&&im.tutorImpactLeaders&&im.tutorImpactLeaders.length)
-        ? ('<div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem">'
-            +im.tutorImpactLeaders.slice(0,3).map(function(t,i){
-              return '<div style="display:flex;align-items:center;gap:.375rem;font-size:.7rem">'
-                +'<span style="font-weight:800;color:#059669;width:20px">'+['🥇','🥈','🥉'][i]+'</span>'
-                +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+t.tutor+'</span>'
-                +'<span style="font-weight:700;color:#059669">+'+(t.avgGain).toFixed(1)+'pts</span>'
-                +'</div>';
-            }).join('')
-          +'</div>')
-        : '<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
-      )
-      +'<div class="ecdi-card-title" style="margin-top:.4rem">Tutor Impact Leaders</div>'
-      +((!im||!im.syAligned)
-        ?'<div class="ecdi-ph-msg">When 2025&ndash;2026 academic results are added, tutor impact analytics will automatically populate.</div>'
-        :'<div class="ecdi-card-desc">Average scale score growth by tutor (min 2 scholars).</div>'
-      )
-      +'</div>'
-
-      +'</div>'; // end .ecd-insight-panel
-
-    el.innerHTML = `<div class="ecd-outer-grid"><div class="ecd-main-col">
+    el.innerHTML = `<div class="ecd-main-col">
       <!-- ═══ HEADER ═══ -->
       <div class="ecd-header">
         <div>
@@ -6427,7 +6344,7 @@
           View Talent Analytics &rarr;
         </button>
       </div>
-    </div>${_insightPanelHTML}</div>
+    </div>
     `;
   } // end _buildExecDashboardInner
 
@@ -18383,6 +18300,66 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         ? `<span style="font-size:.6875rem;background:#ede9fe;color:#6d28d9;padding:.2rem .625rem;border-radius:20px;font-weight:600">📤 Updated ${new Date(IRLAB_DATA.ts).toLocaleDateString()}</span>`
         : liveStatus;
 
+      // ── Academic Insight Panel (moved from Exec Dashboard) ──────────────────
+      const _irlIm = (typeof getInsightMetrics === 'function') ? getInsightMetrics(_irlYear !== 'all' ? _irlYear : '') : null;
+      window._njtcIM = _irlIm; // keep drilldown modal working
+      const _irlIMLoaded = _irlIm && _irlIm.hasData;
+      const _irlIMN      = _irlIm ? _irlIm.n : 0;
+      const _irlIMSY     = _irlIm ? (_irlIm.allYears && _irlIm.allYears.length ? 'SY: ' + _irlIm.allYears.join(', ') : '') : '';
+      function _irlEcdiVal(v, unit, prefix) {
+        if (v == null) return '<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>';
+        return '<div class="ecdi-val">'+(prefix||'')+v+(unit?'<span class="ecdi-val-unit">'+unit+'</span>':'')+'</div>';
+      }
+      const _irlInsightHTML = '<div class="ecd-insight-panel">'
+        +'<div class="ecdi-panel-hdr"><span>Academic Insights</span><span style="font-size:.55rem;color:#94a3b8;font-weight:500">iReady diagnostic</span></div>'
+        // Card A: Scale Gain
+        +'<div class="ecdi-card cci-teal">'
+        +'<div class="ecdi-eyebrow">Scale Gain<span class="ecdi-tip" title="Median Scale Score Gain&#10;&#10;Formula: median(springScore &minus; baselineScore)&#10;Source: Spring Diagnostic Gain column (iReady CSV).&#10;Positive values indicate forward progress.&#10;Median used to reduce outlier distortion.">ⓘ</span></div>'
+        +_irlEcdiVal(_irlIMLoaded ? _irlIm.medianScaleGain : null, ' pts', (_irlIMLoaded && _irlIm.medianScaleGain > 0 ? '+' : ''))
+        +'<div class="ecdi-card-title">Median Scale Score Gain</div>'
+        +'<div class="ecdi-card-desc">Median improvement in iReady scale score between baseline and most recent diagnostic.</div>'
+        +'<div class="ecdi-card-foot">'
+        +'<span class="ecdi-n">'+((_irlIMLoaded&&_irlIMN>0)?'n='+_irlIMN.toLocaleString():'Loading&hellip;')+'</span>'
+        +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'growth\')">Drilldown &rarr;</button>':'')
+        +'</div></div>'
+        // Card B: Learning Progress
+        +'<div class="ecdi-card cci-blue">'
+        +'<div class="ecdi-eyebrow">Learning Progress<span class="ecdi-tip" title="Months of Learning Gained&#10;&#10;Formula: Scale Score Gain &divide; (Differentiated Typical Growth &divide; 10)&#10;= pctTypical &times; 10&#10;&#10;10 = school months in a year per iReady norms.&#10;1.0 = one month of expected growth.&#10;Source: Spring_pct_progress_typical_growth column.">ⓘ</span></div>'
+        +_irlEcdiVal(_irlIMLoaded ? _irlIm.medianMonthsGrowth : null, ' mo')
+        +'<div class="ecdi-card-title">Months of Learning Gained</div>'
+        +'<div class="ecdi-card-desc">Estimated months of academic progress based on scale score change relative to expected yearly growth.</div>'
+        +'<div class="ecdi-card-foot">'
+        +'<span class="ecdi-n">'+(_irlIMSY||'&mdash;')+'</span>'
+        +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'demo\')">Drilldown &rarr;</button>':'')
+        +'</div></div>'
+        // Card C: Target Progress
+        +'<div class="ecdi-card cci-gold">'
+        +'<div class="ecdi-eyebrow">Target Progress<span class="ecdi-tip" title="Growth Toward Target&#10;&#10;Formula: Scale Score Gain &divide; Differentiated Typical Growth &times; 100&#10;= pctTypical &times; 100&#10;&#10;100% = exactly on-pace with iReady typical growth norms.&#10;&gt;100% = exceeding expected annual growth.&#10;Source: Spring_pct_progress_typical_growth (pre-computed by iReady per scholar).">ⓘ</span></div>'
+        +_irlEcdiVal(_irlIMLoaded && _irlIm.medianPctExpected != null ? Math.round(_irlIm.medianPctExpected) : null, '%')
+        +'<div class="ecdi-card-title">Growth Toward Target</div>'
+        +'<div class="ecdi-card-desc">Median scholar progress toward expected yearly academic growth. 100% = on pace with iReady norms.</div>'
+        +'<div class="ecdi-card-foot">'
+        +'<span class="ecdi-n">'+(_irlIMLoaded&&_irlIm.medianPctExpected!=null?(_irlIm.medianPctExpected>=100?'✅ At/above typical':'⚠️ Below typical'):'&mdash;')+'</span>'
+        +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
+        +'</div></div>'
+        // Card D: Learning Velocity
+        +'<div class="ecdi-card cci-purple'+((!_irlIm||!_irlIm.syAligned)?' ecdi-ph':'')+'">'
+        +'<div class="ecdi-eyebrow">Learning Velocity<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span></div>'
+        +'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
+        +'<div class="ecdi-card-title">Learning Velocity</div>'
+        +((!_irlIm||!_irlIm.syAligned)?'<div class="ecdi-ph-msg">Learning Velocity will activate once 2025&ndash;2026 academic diagnostic data becomes available.</div>':'<div class="ecdi-card-desc">Scale score points gained per tutoring hour (requires matching SY data).</div>')
+        +'</div>'
+        // Card E: Tutor Impact
+        +'<div class="ecdi-card cci-green'+((!_irlIm||!_irlIm.syAligned)?' ecdi-ph':'')+'">'
+        +'<div class="ecdi-eyebrow">Tutor Impact<span class="ecdi-tip" title="Tutor Impact Leaders&#10;&#10;Identifies tutors whose scholars demonstrate the strongest average scale score gains.&#10;Requires academic and operational data from the same school year (min 2 scholars per tutor).&#10;Activates automatically when 2025&ndash;2026 iReady data is added.">ⓘ</span></div>'
+        +((_irlIm&&_irlIm.syAligned&&_irlIm.tutorImpactLeaders&&_irlIm.tutorImpactLeaders.length)
+          ?('<div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem">'+_irlIm.tutorImpactLeaders.slice(0,3).map(function(t,i){return '<div style="display:flex;align-items:center;gap:.375rem;font-size:.7rem"><span style="font-weight:800;color:#059669;width:20px">'+['🥇','🥈','🥉'][i]+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+t.tutor+'</span><span style="font-weight:700;color:#059669">+'+(t.avgGain).toFixed(1)+'pts</span></div>';}).join('')+'</div>')
+          :'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>')
+        +'<div class="ecdi-card-title" style="margin-top:.4rem">Tutor Impact Leaders</div>'
+        +((!_irlIm||!_irlIm.syAligned)?'<div class="ecdi-ph-msg">When 2025&ndash;2026 academic results are added, tutor impact analytics will automatically populate.</div>':'<div class="ecdi-card-desc">Average scale score growth by tutor (min 2 scholars).</div>')
+        +'</div>'
+        +'</div>'; // end .ecd-insight-panel
+
       el.innerHTML = `<div class="irlab-wrap">
         <div class="irlab-header">
           <div>
@@ -18404,7 +18381,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           </div>
         </div>
 
-        ${_irlMode==='quickcsv' ? renderQuickCSVMode() : renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}
+        ${_irlMode==='quickcsv'
+          ? renderQuickCSVMode()
+          : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}</div>${_irlInsightHTML}</div>`
+        }
       </div>`;
 
       // Initialize Chart.js charts after HTML is set
