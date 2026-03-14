@@ -22740,8 +22740,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       }).join('') +
       '<div id="ap-hr-active-filter" style="margin-left:auto;font-size:11px;color:#9CA3AF;"></div>';
 
-    if (tableTarget) {
-      hrContent.insertBefore(filterBar, tableTarget);
+    if (tableTarget && tableTarget.parentNode) {
+      tableTarget.parentNode.insertBefore(filterBar, tableTarget);
     } else {
       hrContent.prepend(filterBar);
     }
@@ -23106,21 +23106,20 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       });
   };
 
-  // ── Safe fetch with timeout + redirect:manual + 403 detection ───────────
-  // redirect:'manual' prevents browser from following cross-origin redirects
-  // (e.g. Google login 302) which would cause CORS errors in the console.
-  // An opaqueredirect response is treated the same as 403 (not publicly published).
+  // ── Safe fetch with timeout + 403 detection ──────────────────────────────
+  // Uses default redirect:'follow' — Google Sheets published CSV endpoints
+  // do legitimate redirects internally and must be followed.
+  // Sheets that are not published redirect to Google login (cross-origin),
+  // which the browser reports as a CORS error; the catch block handles it.
   const njtc_fetch = async (url, timeoutMs) => {
     timeoutMs = timeoutMs || 15000;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: ctrl.signal, redirect: 'manual' });
+      const res = await fetch(url, { signal: ctrl.signal });
       clearTimeout(timer);
-      // opaqueredirect = 302 to a different origin (e.g. Google login) — treat as 403
-      if (res.type === 'opaqueredirect') return { ok: false, status: 302, text: null };
-      if (res.status === 403)            return { ok: false, status: 403, text: null };
-      if (!res.ok)                       return { ok: false, status: res.status, text: null };
+      if (res.status === 403) return { ok: false, status: 403, text: null };
+      if (!res.ok)            return { ok: false, status: res.status, text: null };
       return { ok: true, status: res.status, text: await res.text() };
     } catch (e) {
       clearTimeout(timer);
