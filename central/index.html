@@ -22425,6 +22425,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     const s = ((site || '') + ' ' + (district || '')).toLowerCase();
     if (s.includes('ilearn') || s.includes('i-learn')) return 'iLearn Charter Network';
     if (s.includes('kipp'))                             return 'KIPP NJ';
+    if (s.includes('hoboken') || s.includes('hola'))   return 'Hoboken Dual Charter';
+    if (s.includes('global') || s.includes('glaw'))    return 'Global Leadership Academy';
     if (s.includes('hamilton'))                         return 'Hamilton Township';
     if (s.includes('gloucester'))                       return 'Gloucester Township';
     if (s.includes('haddon'))                           return 'Haddon Township';
@@ -22434,11 +22436,12 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     if (s.includes('penns grove') || s.includes('carneys')) return 'Penns Grove';
     return 'Other';
   };
+  const ap_inferNetwork = ap_deriveNetwork; // alias
 
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
-    if (['iLearn Charter Network','KIPP NJ','Roseville','Middlesex Charter','Somerset'].includes(net)) return 'NE';
-    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove'].includes(net))       return 'SW';
+    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset'].includes(net)) return 'NE';
+    if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove'].includes(net)) return 'SW';
     return 'Unassigned';
   };
 
@@ -22514,15 +22517,6 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     }
   };
 
-  // ── OTJ flags (from OTJ Tracker — no live URL configured yet) ────────────
-  window.AP_OTJ_FLAGS = {
-    'Keisha Lopez':    { beginning:'Not Started', middle:'',           siteLeader:'Nicole Odigie', notes:'Started Jan 29' },
-    'Mushana Dunham':  { beginning:'In Progress', middle:'',           siteLeader:'Nicole Odigie', notes:'Started Jan 5th' },
-    'Jasmine Ramsey':  { beginning:'Completed',   middle:'Completed',  siteLeader:'',              notes:'Site Leader Started 11/3' },
-    'Jessica Flores':  { beginning:'Completed',   middle:'Completed',  siteLeader:'',              notes:'Site Leader Started 11/3' },
-    'Monica Brown':    { beginning:'In Progress', middle:'In Progress',siteLeader:'Nicole Odigie', notes:'Started Nov 17th' },
-  };
-
   // ── Utility functions — all derived from live AP_DATA (zero hardcodes) ───
   const ap_enrolled    = () => AP_DATA.filter(r => r.apprentice === 'Yes');
   const ap_eligible    = () => AP_DATA.filter(r => r.apprentice === 'No');
@@ -22544,35 +22538,50 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     Unassigned: ap_enrolled().filter(r => r.region === 'Unassigned'),
   });
 
+  // ap_getOTJ — looks up from live window.njtcOTJ (Apprentice DB); no static fallback.
+  // Keys: 'Master List Name' (preferred) or 'Tracker Name' if former is blank.
   const ap_getOTJ = (name) => {
-    if (window.otjData) {
-      const norm = s => s.toLowerCase().replace(/\s+/g,' ').trim();
-      return window.otjData.find(r => norm(r.masterName||r.trackerName||'') === norm(name));
-    }
-    return window.AP_OTJ_FLAGS[name] || null;
+    const rows = window.njtcOTJ;
+    if (!rows || !rows.length) return null;
+    const norm = x => (x || '').toLowerCase().replace(/\s+/g,' ').trim();
+    const n = norm(name);
+    return rows.find(r =>
+      norm(r['Master List Name'] || r['Tracker Name'] || '') === n
+    ) || null;
   };
 
+  // ap_otjStatus — uses exact OTJ column names from OTJ_COLS (verified CSV headers)
   const ap_otjStatus = (name) => {
     const otj = ap_getOTJ(name);
-    if (!otj) return { beginning:'—', middle:'—', end:'—', siteLeader:'—' };
+    if (!otj) return { beginning:'—', middle:'—', end:'—', siteLeader:'—', pmNotes:'' };
     return {
-      beginning:  otj.otjBeginning  || otj.beginning  || '—',
-      middle:     otj.otjMiddle     || otj.middle      || '—',
-      end:        otj.otjEnd        || otj.end         || '—',
-      siteLeader: otj.siteLeader    || otj.site_leader || '—',
-      pmNotes:    otj.otjPMNotes    || otj.pm_notes    || '',
+      beginning:  otj['OTJ Beginning']  || '—',
+      middle:     otj['OTJ Middle']     || '—',
+      end:        otj['OTJ End']        || '—',
+      siteLeader: otj['Site Leader']    || '—',
+      pmNotes:    otj['OTJ PM Notes']   || '',
     };
   };
 
-  const ap_hasFlag = (name) => {
-    const s = ap_otjStatus(name);
+  // ap_hasOTJFlag — detects attention-needed conditions from live OTJ row
+  const ap_hasOTJFlag = (row) => {
+    if (!row) return false;
+    const b = (row['OTJ Beginning'] || '').trim();
+    const m = (row['OTJ Middle']    || '').trim();
+    const sl = (row['Site Leader']  || '').trim();
+    const OBS_MONTHS = ['Tutor Obs - October','Tutor Obs - November','Tutor Obs - December',
+                        'Tutor Obs - January','Tutor Obs - February','Tutor Obs - March','Tutor Obs - April'];
+    const hasMissingObs = OBS_MONTHS.some(col => (row[col] || '').trim() === '');
     return (
-      s.beginning === 'Not Started - PM Following Up' ||
-      s.beginning === 'Not Started' ||
-      s.siteLeader === '' || s.siteLeader === '—' ||
-      (s.beginning !== 'Completed' && s.middle !== '' && s.middle !== '—')
+      b === 'Not Started - PM Following Up' ||
+      b === 'Not Started' ||
+      sl === '' ||
+      (b !== 'Completed' && m !== '' && m !== '—') ||
+      hasMissingObs
     );
   };
+
+  const ap_hasFlag = (name) => ap_hasOTJFlag(ap_getOTJ(name));
 
   const ap_badge = (text, size) => {
     text = text || 'APPRENTICE';
@@ -22995,9 +23004,227 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     });
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NJTC DATA LOADER v3.0 — 5 live sources fetched in parallel
+  // All AP renders run only after njtc_onDataReady() confirms all fetches done.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── Data source registry ─────────────────────────────────────────────────
+  const NJTC_SOURCES = {
+    APPRENTICE_DB:    'https://docs.google.com/spreadsheets/d/1aZUtbVxo6NF8xoTuiV9lXAH_FNOmLF-O/pub?gid=1079819399&single=true&output=csv',
+    TRAINING_DETAILS: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=453811755&single=true&output=csv',
+    PD_FEEDBACK:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g/pub?output=csv',
+    TRAINING_INTAKE:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv',
+    PD_SESSIONS_ALL:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JF09EMSXhIhhBIweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?gid=471085177&single=true&output=csv',
+  };
+
+  // ── Verified OTJ column names (exact CSV headers from Apprentice DB) ──────
+  const OTJ_COLS = {
+    region: 'Region', trackerName: 'Tracker Name', masterName: 'Master List Name',
+    matchStatus: 'Name Match Status', email: 'Email Address', role: 'Position / Role',
+    activeStatus: 'Active / Terminated Status', resignedFlag: 'Resigned (Flag)',
+    apprentice: 'Apprentice Program', race: 'Race', ethnicity: 'Ethnicity',
+    district: 'District', school: 'School', siteLeader: 'Site Leader',
+    otjLink: 'OTJ Checklist Link', otjBeginning: 'OTJ Beginning',
+    otjMiddle: 'OTJ Middle', otjEnd: 'OTJ End', otjPMNotes: 'OTJ PM Notes',
+    obsOctober: 'Tutor Obs - October', obsNovember: 'Tutor Obs - November',
+    obsDecember: 'Tutor Obs - December', obsJanuary: 'Tutor Obs - January',
+    obsFebruary: 'Tutor Obs - February', obsMarch: 'Tutor Obs - March',
+    obsApril: 'Tutor Obs - April', slObsMonths: 'SL Obs Months',
+    slObsFolder: 'SL Obs Folder Link', slObsNotes: 'SL Obs Notes',
+  };
+
+  // ── Universal CSV parser ─────────────────────────────────────────────────
+  // Handles quoted fields, embedded commas, trailing spaces on headers.
+  // Returns array of objects keyed by trimmed header names.
+  const njtc_parseCSV = (text) => {
+    const lines = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') {
+        if (inQ && text[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === '\n' && !inQ) {
+        lines.push(cur); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur) lines.push(cur);
+
+    const splitRow = row => {
+      const cells = []; let cell = '', inq = false;
+      for (let i = 0; i < row.length; i++) {
+        const c = row[i];
+        if (c === '"') {
+          if (inq && row[i+1] === '"') { cell += '"'; i++; }
+          else inq = !inq;
+        } else if (c === ',' && !inq) { cells.push(cell); cell = ''; }
+        else cell += c;
+      }
+      cells.push(cell);
+      return cells;
+    };
+
+    if (!lines.length) return [];
+    const headers = splitRow(lines[0]).map(h => h.trim());
+    return lines.slice(1)
+      .filter(l => l.trim())
+      .map(l => {
+        const cells = splitRow(l);
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = (cells[i] || '').trim(); });
+        return obj;
+      });
+  };
+
+  // ── Safe fetch with timeout + 403 detection ──────────────────────────────
+  const njtc_fetch = async (url, timeoutMs) => {
+    timeoutMs = timeoutMs || 15000;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.status === 403) return { ok: false, status: 403, text: null };
+      if (!res.ok)            return { ok: false, status: res.status, text: null };
+      return { ok: true, status: res.status, text: await res.text() };
+    } catch (e) {
+      clearTimeout(timer);
+      return { ok: false, status: 0, text: null, error: e.message };
+    }
+  };
+
+  // ── Per-source row parsers ────────────────────────────────────────────────
+  const td_parseTrainingRow = (row) => ({
+    timestamp:      row['Timestamp']                                  || '',
+    name:           row['Full Name']                                  || '',
+    email:          row['Email Address']                              || '',
+    role:           row['Position / Role']                            || '',
+    site:           row['School / Site']                              || '',
+    district:       row['District']                                   || '',
+    startDate:      row['Start Date']                                 || '',
+    cohort:         row['Cohort']                                     || '',
+    sessionDate:    row['Training Session Date']                      || '',
+    sessionTopic:   row['Training Session Topic']                     || '',
+    priorExp:       row['Prior Tutoring Experience']                  || '',
+    comfort:        row['Comfort Level (1-5)']                        || '',
+    goals:          row['Goals for the Program']                      || '',
+    questions:      row['Questions / Concerns']                       || '',
+  });
+
+  const td_parsePDRow = (row) => {
+    // Column 1 raw header has trailing space: 'PD Session Number ' — trimmed by njtc_parseCSV
+    const isApp = (row['Position / Role'] || '').toLowerCase().includes('apprentice');
+    return {
+      sessionNum:   row['PD Session Number']                         || '',
+      sessionDate:  row['PD Session Date']                           || '',
+      topic:        row['PD Topic']                                  || '',
+      name:         row['Full Name']                                 || '',
+      email:        row['Email Address']                             || '',
+      role:         row['Position / Role']                           || '',
+      site:         row['School / Site']                             || '',
+      district:     row['District']                                  || '',
+      rating:       row['Overall Rating (1-5)']                      || '',
+      helpful:      row['Most Helpful']                              || '',
+      improve:      row['Suggestions for Improvement']               || '',
+      isApprentice: isApp,
+    };
+  };
+
+  const td_parseIntakeRow = (row) => {
+    // DISCOVER-mode: runtime column detection — return raw row as-is
+    return row;
+  };
+
+  const td_parsePDAllRow = (row) => {
+    // ASSUMED same structure as PD_FEEDBACK
+    return td_parsePDRow(row);
+  };
+
+  // ── Main parallel loader ─────────────────────────────────────────────────
+  const njtc_loadAll = async () => {
+    const [r_otj, r_td, r_pd, r_intake, r_pdAll] = await Promise.allSettled([
+      njtc_fetch(NJTC_SOURCES.APPRENTICE_DB),
+      njtc_fetch(NJTC_SOURCES.TRAINING_DETAILS),
+      njtc_fetch(NJTC_SOURCES.PD_FEEDBACK),
+      njtc_fetch(NJTC_SOURCES.TRAINING_INTAKE),
+      njtc_fetch(NJTC_SOURCES.PD_SESSIONS_ALL),
+    ]);
+
+    // — APPRENTICE_DB: Row 0 = merged title banner; headers on Row 1 ———————
+    if (r_otj.status === 'fulfilled' && r_otj.value.ok) {
+      let rows = njtc_parseCSV(r_otj.value.text);
+      // Detect title banner: if first parsed row has no 'Apprentice Program' key,
+      // the real headers are on row 1 — re-parse skipping the banner line.
+      if (rows.length && !Object.prototype.hasOwnProperty.call(rows[0], 'Apprentice Program')) {
+        // Split raw text by newlines, drop the first line, re-parse
+        const lines = r_otj.value.text.split('\n');
+        rows = njtc_parseCSV(lines.slice(1).join('\n'));
+      }
+      window.njtcOTJ = rows;
+      console.log('[NJTC] APPRENTICE_DB: ' + rows.length + ' rows loaded');
+    } else {
+      window.njtcOTJ = [];
+      const reason = r_otj.status === 'fulfilled'
+        ? 'HTTP ' + r_otj.value.status
+        : (r_otj.reason || {}).message || 'network error';
+      console.warn('[NJTC] APPRENTICE_DB unavailable:', reason);
+    }
+
+    // — TRAINING_DETAILS (KNOWN — 34 cols, n≈30) ──────────────────────────
+    if (r_td.status === 'fulfilled' && r_td.value.ok) {
+      window.njtcTraining = njtc_parseCSV(r_td.value.text).map(td_parseTrainingRow);
+      console.log('[NJTC] TRAINING_DETAILS: ' + window.njtcTraining.length + ' rows');
+    } else {
+      window.njtcTraining = [];
+      console.warn('[NJTC] TRAINING_DETAILS unavailable');
+    }
+
+    // — PD_FEEDBACK (KNOWN — 17 cols, n≈72, trailing space on col 1) ─────
+    if (r_pd.status === 'fulfilled' && r_pd.value.ok) {
+      window.njtcPD = njtc_parseCSV(r_pd.value.text).map(td_parsePDRow);
+      console.log('[NJTC] PD_FEEDBACK: ' + window.njtcPD.length + ' rows');
+    } else {
+      window.njtcPD = [];
+      console.warn('[NJTC] PD_FEEDBACK unavailable');
+    }
+
+    // — TRAINING_INTAKE (DISCOVER-mode — hide section on 403) ────────────
+    if (r_intake.status === 'fulfilled' && r_intake.value.ok) {
+      window.njtcIntake = njtc_parseCSV(r_intake.value.text).map(td_parseIntakeRow);
+      console.log('[NJTC] TRAINING_INTAKE: ' + window.njtcIntake.length + ' rows');
+    } else if (r_intake.status === 'fulfilled' && r_intake.value.status === 403) {
+      window.njtcIntake = null; // null = 403, hide section
+      console.info('[NJTC] TRAINING_INTAKE: 403 — section hidden');
+    } else {
+      window.njtcIntake = [];
+      console.warn('[NJTC] TRAINING_INTAKE unavailable');
+    }
+
+    // — PD_SESSIONS_ALL (ASSUMED — same structure as PD_FEEDBACK) ─────────
+    if (r_pdAll.status === 'fulfilled' && r_pdAll.value.ok) {
+      window.njtcPDAll = njtc_parseCSV(r_pdAll.value.text).map(td_parsePDAllRow);
+      console.log('[NJTC] PD_SESSIONS_ALL: ' + window.njtcPDAll.length + ' rows');
+    } else {
+      window.njtcPDAll = [];
+      console.warn('[NJTC] PD_SESSIONS_ALL unavailable');
+    }
+
+    njtc_onDataReady();
+  };
+
+  // ── Post-load trigger ────────────────────────────────────────────────────
+  // Called once all 5 sources have settled (success or failure).
+  // Sole entry point into ap_initAll — removes need for standalone DOMContentLoaded hook.
+  const njtc_onDataReady = () => {
+    ap_initAll();
+  };
+
   // ── PART 8: Init Hook ─────────────────────────────────────────────────────
   // ap_initAll: async — fetches live Master List FIRST, then renders.
-  // All counts (enrolled, eligible, total active) are computed from fresh data.
+  // Called exclusively by njtc_onDataReady after all 5 live sources are settled.
   const ap_initAll = async () => {
     await ap_buildFromLive();          // fetch Master List → populate AP_DATA
     ap_renderExecBadges();             // Executive: 2 live KPI tiles
@@ -23010,12 +23237,14 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     ap_tagTDSection();                 // Training: badge T&D cards
   };
 
+  // ── Single DOMContentLoaded entry point ──────────────────────────────────
+  // njtc_loadAll fetches all 5 sources in parallel, then calls njtc_onDataReady → ap_initAll.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(function() { ap_initAll(); }, 300);
+      setTimeout(function() { njtc_loadAll(); }, 100);
     });
   } else {
-    setTimeout(function() { ap_initAll(); }, 300);
+    setTimeout(function() { njtc_loadAll(); }, 100);
   }
 
   const _orig_td_renderAll = typeof td_renderAll === 'function' ? td_renderAll : null;
