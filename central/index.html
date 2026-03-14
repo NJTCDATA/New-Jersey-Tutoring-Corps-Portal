@@ -22445,21 +22445,69 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     return 'Unassigned';
   };
 
+  // ── HR Master List CSV parser (self-contained — mirrors _parseHRMaster logic) ─
+  // This script block is a separate IIFE from the HR module, so we replicate the
+  // parser here rather than referencing the inaccessible _parseHRMaster function.
+  const ap_parseHRMaster = (rawText) => {
+    const text = rawText.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    const splitRow = row => {
+      const cells = []; let cell = '', inq = false;
+      for (let i = 0; i < row.length; i++) {
+        const c = row[i];
+        if (c === '"') { if (inq && row[i+1] === '"') { cell += '"'; i++; } else inq = !inq; }
+        else if (c === ',' && !inq) { cells.push(cell); cell = ''; }
+        else cell += c;
+      }
+      cells.push(cell);
+      return cells;
+    };
+    const lines = text.split('\n').filter(l => l.trim());
+    // Header row: first column contains 'academic' (matches 'Academic Year')
+    const hIdx = lines.findIndex(l => /academic/i.test(splitRow(l)[0] || ''));
+    if (hIdx < 0) return [];
+    const headers = splitRow(lines[hIdx]).map(h => h.trim().toLowerCase());
+    const ci = s => headers.findIndex(h => h.includes(s.toLowerCase()));
+    const C = {
+      yr: ci('academic'), email: ci('email'), name: ci('full name'),
+      role: ci('position'), site: ci('site'), district: ci('district'),
+      rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
+      race: ci('race'), ethnicity: ci('ethnicity'), apprentice: ci('apprentice'),
+    };
+    return lines.slice(hIdx + 1).map(l => {
+      const r = splitRow(l);
+      return {
+        yr:         (r[C.yr]         || '').trim(),
+        name:       (r[C.name]       || '').trim(),
+        email:      (r[C.email]      || '').trim().toLowerCase(),
+        role:       (r[C.role]       || '').trim(),
+        site:       (r[C.site]       || '').trim(),
+        district:   (r[C.district]   || '').trim(),
+        status:     (r[C.status]     || '').trim(),
+        cycles:     (r[C.cycles]     || '').trim(),
+        rehire:     (r[C.rehire]     || '').trim(),
+        race:       C.race      >= 0 ? (r[C.race]      || '').trim() : '',
+        ethnicity:  C.ethnicity >= 0 ? (r[C.ethnicity] || '').trim() : '',
+        apprentice: C.apprentice >= 0 ? (r[C.apprentice] || '').trim()
+                                      : (r[10] ? (r[10] || '').trim() : ''),
+      };
+    }).filter(r => r.name && r.yr);
+  };
+
   // ── Live data fetch — HR Master List (published CSV) ─────────────────────
-  // Live URL: https://docs.google.com/spreadsheets/d/e/${HR_2PACX}/pub?output=csv&gid=${HR_GID_MASTER}
-  // HR_2PACX = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8'
-  // HR_GID_MASTER = '911694457'  (Master List tab — column K = apprentice status)
-  // _parseHRMaster() is already defined in this IIFE scope — reused here.
-  // Apprentice column K values: 'Yes' | 'No' | 'Not eligible' | '' (unset)
+  // URL is hardcoded here because this script block is a separate IIFE and
+  // cannot access HR_2PACX / HR_GID_MASTER from the HR module's IIFE scope.
+  const AP_HR_MASTER_URL = 'https://docs.google.com/spreadsheets/d/e/' +
+    '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8' +
+    '/pub?output=csv&gid=911694457';
+
   window.AP_DATA = []; // Populated by ap_buildFromLive() before any render
 
   const ap_buildFromLive = async () => {
     try {
-      const url = 'https://docs.google.com/spreadsheets/d/e/' + HR_2PACX +
-                  '/pub?output=csv&gid=' + HR_GID_MASTER;
-      const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const raw  = _parseHRMaster(await res.text());
+      // Use njtc_fetch (defined below) for consistent redirect + error handling
+      const result = await njtc_fetch(AP_HR_MASTER_URL, 15000);
+      if (!result.ok) throw new Error('HTTP ' + result.status);
+      const raw = ap_parseHRMaster(result.text);
       // Current SY only · non-terminated · deduplicated by normalized name
       const seen = new Set();
       window.AP_DATA = raw
@@ -22470,11 +22518,11 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           seen.add(k); return true;
         })
         .map(r => {
-          const raw = (r.apprentice || '').trim();
-          const ap  = /not eligible/i.test(raw)              ? 'Not eligible'
-                    : /^(yes|y|true|1)$/i.test(raw)          ? 'Yes'
-                    : /^no$/i.test(raw)                       ? 'No'
-                    : raw; // preserve original value; '' = unset
+          const apRaw = (r.apprentice || '').trim();
+          const ap    = /not eligible/i.test(apRaw)     ? 'Not eligible'
+                      : /^(yes|y|true|1)$/i.test(apRaw) ? 'Yes'
+                      : /^no$/i.test(apRaw)              ? 'No'
+                      : apRaw;
           return {
             name:       r.name,
             role:       r.role       || '',
@@ -22489,31 +22537,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           };
         });
       console.log('[AP] Live build: ' + window.AP_DATA.length + ' active staff · '
-                  + ap_enrolled().length + ' enrolled · source: Master List GID ' + HR_GID_MASTER);
+                  + ap_enrolled().length + ' enrolled · source: HR Master List');
     } catch (err) {
-      // Fallback: build from HR_EMPS embedded snapshot + any live overlay already applied
-      console.warn('[AP] Master List fetch failed — falling back to HR_EMPS:', err.message);
-      const seen = new Set();
-      window.AP_DATA = (typeof HR_EMPS !== 'undefined' ? HR_EMPS : [])
-        .filter(e => e.s === 'Active')
-        .filter(e => {
-          const k = (e.n || '').toLowerCase().replace(/\s+/g,' ').trim();
-          if (!k || seen.has(k)) return false;
-          seen.add(k); return true;
-        })
-        .map(e => ({
-          name:       e.n  || '',
-          role:       e.r  || '',
-          site:       e.si || '',
-          district:   e.di || '',
-          network:    ap_deriveNetwork(e.si, e.di),
-          region:     ap_deriveRegion(e.si, e.di),
-          apprentice: e._apprentice || '',
-          rehire:     e.rh          || '',
-          cycles:     String(e.c    || 1),
-          email:      e.e           || '',
-        }));
-      console.log('[AP] Fallback build: ' + window.AP_DATA.length + ' from HR_EMPS');
+      console.warn('[AP] Master List fetch failed — AP_DATA empty:', err.message);
+      window.AP_DATA = [];
     }
   };
 
@@ -23079,16 +23106,21 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       });
   };
 
-  // ── Safe fetch with timeout + 403 detection ──────────────────────────────
+  // ── Safe fetch with timeout + redirect:manual + 403 detection ───────────
+  // redirect:'manual' prevents browser from following cross-origin redirects
+  // (e.g. Google login 302) which would cause CORS errors in the console.
+  // An opaqueredirect response is treated the same as 403 (not publicly published).
   const njtc_fetch = async (url, timeoutMs) => {
     timeoutMs = timeoutMs || 15000;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { signal: ctrl.signal });
+      const res = await fetch(url, { signal: ctrl.signal, redirect: 'manual' });
       clearTimeout(timer);
-      if (res.status === 403) return { ok: false, status: 403, text: null };
-      if (!res.ok)            return { ok: false, status: res.status, text: null };
+      // opaqueredirect = 302 to a different origin (e.g. Google login) — treat as 403
+      if (res.type === 'opaqueredirect') return { ok: false, status: 302, text: null };
+      if (res.status === 403)            return { ok: false, status: 403, text: null };
+      if (!res.ok)                       return { ok: false, status: res.status, text: null };
       return { ok: true, status: res.status, text: await res.text() };
     } catch (e) {
       clearTimeout(timer);
