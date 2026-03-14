@@ -22410,6 +22410,554 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') window.advCloseChipDetail();
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // NJTC APPRENTICE DATA LAYER — SY 2025-2026
+  // Single source of truth for all apprentice logic across all departments
+  // Source: HR Master List (updated 2025-2026, active employees only)
+  // ap_ namespace — no collisions with existing portal functions
+  // ═══════════════════════════════════════════════════════════════════════
+
+  window.AP_DATA = [
+    {name:'Shahzeeb Ahmad',     role:'Non-cert Tutor',    district:'LEA - iLearn Bergen ES',           site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'shahzaebatiq@gmail.com',          rehire:'Yes', cycles:'2'},
+    {name:'Naima Boutira',      role:'Non-cert Tutor',    district:'N/A',                              site:'N/A',                                               network:'Other',                  region:'Unassigned', apprentice:'Yes', email:'nk.boutira@gmail.com',   rehire:'Yes', cycles:'3'},
+    {name:'Jessica Flores',     role:'Non-cert Tutor',    district:'LEA - iLearn Passaic MS',          site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'jessicaflor9911@gmail.com',       rehire:'Yes', cycles:'3'},
+    {name:'Aliviyah Goodson',   role:'Non-cert Tutor',    district:'LEA - iLearn Bergen MS',           site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'Galiviyah@gmail.com',             rehire:'Yes', cycles:'2'},
+    {name:'Carlos Jacho',       role:'Non-cert Tutor',    district:'LEA - KIPP Newark- SEEK',          site:'KIPP NJ/TEAM schools',                              network:'KIPP NJ',                region:'NE', apprentice:'Yes', email:'Carlos.jacho@gmail.com',          rehire:'Yes', cycles:'3'},
+    {name:'Sharon K Kessel',    role:'Non-cert Tutor',    district:'LEA- Roseville CS',                site:'Roseville Community Charter School',                network:'Roseville',               region:'NE', apprentice:'Yes', email:'Sharonkessel64@gmail.com',        rehire:'Yes', cycles:'4'},
+    {name:'Jacob Leebron',      role:'Non-cert Tutor',    district:'Blackwood Elementary School',      site:'Gloucester Township School District',               network:'Gloucester Township',     region:'SW', apprentice:'Yes', email:'jacobleebron@gmail.com',          rehire:'Yes', cycles:'3'},
+    {name:'Norelis Ramirez',    role:'Non-cert Tutor',    district:'LEA - iLearn Paterson ES',         site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'norelisram@gmail.com',            rehire:'Yes', cycles:'2'},
+    {name:'Jasmine Ramsey',     role:'Non-cert Tutor',    district:'LEA - iLearn Passaic MS',          site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'Jasmine.ramsey8325@gmail.com',    rehire:'Yes', cycles:'2'},
+    {name:'Pooja Tyagi',        role:'Non-cert Tutor',    district:'Round Valley School, Crockett MS', site:'Clinton Township, Hamilton Township',               network:'Hamilton Township',       region:'SW', apprentice:'Yes', email:'poojatyagijob2023@gmail.com',     rehire:'Yes', cycles:'2'},
+    {name:'Micaela Wilkerson',  role:'Non-cert Tutor',    district:'Haddon Twp',                       site:'Haddon Township',                                   network:'Haddon Township',         region:'SW', apprentice:'Yes', email:'caelawilkerson28@gmail.com',      rehire:'Yes', cycles:'3'},
+    {name:'Ian Anderson',       role:'Non-cert Tutor',    district:'LEA - iLearn Hudson MS',           site:'iLearn CMO',                                        network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'iannoel94@gmail.com',             rehire:'No',  cycles:'1'},
+    {name:'Theodore Mills',     role:'Non-cert Tutor',    district:'Middlesex County STEM Charter',    site:'Middlesex Charter',                                 network:'Middlesex Charter',       region:'NE', apprentice:'Yes', email:'millslearninglink@gmail.com',     rehire:'No',  cycles:'1'},
+    {name:'Nicholas Hoover',    role:'Non-cert Tutor',    district:'Haddon Twp',                       site:'Haddon Township',                                   network:'Haddon Township',         region:'SW', apprentice:'Yes', email:'nhoover190@gmail.com',            rehire:'No',  cycles:'1'},
+    {name:'Katie Rose Davis',   role:'Non-cert Tutor',    district:'LEA - Hamilton Twp',               site:'Hamilton Township School District',                 network:'Hamilton Township',       region:'SW', apprentice:'Yes', email:'katheriner.davis7@gmail.com',     rehire:'Yes', cycles:'3'},
+    {name:'Arelis Rodriguez',   role:'Non-cert Tutor',    district:'LEA - iLearn Bergen MS',           site:'iLearn Science & Arts Charter MS-Bergen',          network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'arelisrod8601@gmail.com',         rehire:'Yes', cycles:'4'},
+    {name:'Monica Brown',       role:'Non-cert Sub Tutor',district:'LEA - iLearn Clifton ES',          site:'iLearn Science & Art Charter ES-Clifton',          network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'esseyamonica@gmail.com',          rehire:'No',  cycles:'1'},
+    {name:'Caitlin Evgeniadis', role:'Non-cert Tutor',    district:'Hamilton Twp',                     site:'Hamilton Township School District',                 network:'Hamilton Township',       region:'SW', apprentice:'Yes', email:'caitlinevgeniadis@gmail.com',     rehire:'No',  cycles:'1'},
+    {name:'Apollo Monroy-Polanco',role:'Non-cert Sub Tutor',district:'Somerset',                       site:'Somerset',                                          network:'Somerset',                region:'SW', apprentice:'Yes', email:'amonroypolanco@gmail.com',        rehire:'No',  cycles:'1'},
+    {name:'Alexandra Cristescu',role:'Non-cert Tutor',    district:'',                                 site:'Penns Grove - Carneys Point Regional SD',          network:'Penns Grove',             region:'SW', apprentice:'Yes', email:'arc444love@gmail.com',            rehire:'Yes', cycles:'2'},
+    {name:'Katrina Valentin',   role:'Non-cert Tutor',    district:'',                                 site:'Gloucester Township',                               network:'Gloucester Township',     region:'SW', apprentice:'Yes', email:'kvalentin2185@gmail.com',         rehire:'Yes', cycles:'3'},
+    {name:'Mushana Dunham',     role:'Non-cert Tutor',    district:'LEA - iLearn Clifton MS',          site:'iLearn Science & Arts Charter MS-Clifton',         network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'mushdunn@gmail.com',              rehire:'No',  cycles:'1'},
+    {name:'Maria Gutierrez',    role:'Non-cert Tutor',    district:'LEA - iLearn Passaic ES',          site:'iLearn Science & Arts Charter ES-Passaic',         network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'marycarmengutierrezcolin@gmail.com',rehire:'No',cycles:'1'},
+    {name:'Subul Sadiq',        role:'Non-cert Tutor',    district:'LEA - iLearn Hudson ES',           site:'iLearn Science & Arts Charter ES-Hudson',          network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'subulsadiq@gmail.com',            rehire:'No',  cycles:'1'},
+    {name:'Jasmine Ramsey',     role:'Certified Tutor',   district:'LEA - iLearn Passaic ES',          site:'iLearn Science & Arts Charter ES-Passaic',         network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'Jasmine.ramsey8325@gmail.com',    rehire:'No',  cycles:'2'},
+    {name:'Lilia Quintero',     role:'Non-cert Tutor',    district:'Hamilton',                         site:'Hamilton Township School District',                 network:'Hamilton Township',       region:'SW', apprentice:'Yes', email:'quinterolilia995@gmail.com',      rehire:'No',  cycles:'1'},
+    {name:'Keisha Lopez',       role:'Non-cert Tutor',    district:'iLearn CMO',                       site:'iLearn Science & Arts Charter ES-Clifton',         network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'keishalopezm@gmail.com',          rehire:'No',  cycles:'1'},
+    {name:'Renee Davis',        role:'Non-cert Tutor',    district:'iLearn CMO',                       site:'iLearn Science & Arts Charter MS-Clifton',         network:'iLearn Charter Network', region:'NE', apprentice:'Yes', email:'leonasangels2021@gmail.com',      rehire:'No',  cycles:'1'},
+  ];
+
+  // ── OTJ flags for apprentices (from OTJ Tracker database) ────────────────
+  window.AP_OTJ_FLAGS = {
+    'Keisha Lopez':    { beginning:'Not Started', middle:'',           siteLeader:'Nicole Odigie', notes:'Started Jan 29' },
+    'Mushana Dunham':  { beginning:'In Progress', middle:'',           siteLeader:'Nicole Odigie', notes:'Started Jan 5th' },
+    'Jasmine Ramsey':  { beginning:'Completed',   middle:'Completed',  siteLeader:'',              notes:'Site Leader Started 11/3' },
+    'Jessica Flores':  { beginning:'Completed',   middle:'Completed',  siteLeader:'',              notes:'Site Leader Started 11/3' },
+    'Monica Brown':    { beginning:'In Progress', middle:'In Progress',siteLeader:'Nicole Odigie', notes:'Started Nov 17th' },
+  };
+
+  // ── Shared utility functions ──────────────────────────────────────────────
+  const ap_enrolled    = () => AP_DATA.filter(r => r.apprentice === 'Yes');
+  const ap_eligible    = () => AP_DATA.filter(r => r.apprentice === 'No');
+  const ap_notEligible = () => AP_DATA.filter(r => r.apprentice === 'Not eligible');
+  const ap_totalActive = () => window.ta && window.ta.totalActive ? window.ta.totalActive : 107;
+
+  const ap_byNetwork = () => {
+    const map = {};
+    ap_enrolled().forEach(r => {
+      if (!map[r.network]) map[r.network] = [];
+      map[r.network].push(r);
+    });
+    return map;
+  };
+
+  const ap_byRegion = () => ({
+    NE: ap_enrolled().filter(r => r.region === 'NE'),
+    SW: ap_enrolled().filter(r => r.region === 'SW'),
+    Unassigned: ap_enrolled().filter(r => r.region === 'Unassigned'),
+  });
+
+  const ap_getOTJ = (name) => {
+    if (window.otjData) {
+      const norm = s => s.toLowerCase().replace(/\s+/g,' ').trim();
+      return window.otjData.find(r => norm(r.masterName||r.trackerName||'') === norm(name));
+    }
+    return window.AP_OTJ_FLAGS[name] || null;
+  };
+
+  const ap_otjStatus = (name) => {
+    const otj = ap_getOTJ(name);
+    if (!otj) return { beginning:'—', middle:'—', end:'—', siteLeader:'—' };
+    return {
+      beginning:  otj.otjBeginning  || otj.beginning  || '—',
+      middle:     otj.otjMiddle     || otj.middle      || '—',
+      end:        otj.otjEnd        || otj.end         || '—',
+      siteLeader: otj.siteLeader    || otj.site_leader || '—',
+      pmNotes:    otj.otjPMNotes    || otj.pm_notes    || '',
+    };
+  };
+
+  const ap_hasFlag = (name) => {
+    const s = ap_otjStatus(name);
+    return (
+      s.beginning === 'Not Started - PM Following Up' ||
+      s.beginning === 'Not Started' ||
+      s.siteLeader === '' || s.siteLeader === '—' ||
+      (s.beginning !== 'Completed' && s.middle !== '' && s.middle !== '—')
+    );
+  };
+
+  const ap_badge = (text, size) => {
+    text = text || 'APPRENTICE';
+    size = size || '9px';
+    return '<span style="display:inline-block;background:#B8960C;color:white;font-size:' + size + ';font-weight:800;text-transform:uppercase;letter-spacing:0.07em;padding:2px 7px;border-radius:10px;vertical-align:middle;margin-left:5px;line-height:1.6;">' + text + '</span>';
+  };
+
+  const ap_flagBadge = (text) => {
+    text = text || 'NEEDS ATTENTION';
+    return '<span style="display:inline-block;background:#DC2626;color:white;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.06em;padding:2px 7px;border-radius:10px;vertical-align:middle;margin-left:5px;">' + text + '</span>';
+  };
+
+  const ap_dotStatus = (status) => {
+    const map = {
+      'Completed':                    '#16A34A',
+      'In Progress':                  '#D97706',
+      'Not Started - PM Following Up':'#DC2626',
+      'Not Started':                  '#DC2626',
+      '—': '#9CA3AF', '': '#9CA3AF', 'N/A': '#9CA3AF',
+    };
+    return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (map[status]||'#9CA3AF') + ';margin-right:4px;" title="' + status + '"></span>';
+  };
+
+  const ap_openModal = (titleText, bodyHTML) => {
+    let overlay = document.getElementById('ap-modal-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ap-modal-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:99999;display:flex;align-items:center;justify-content:center;';
+      overlay.onclick = function(e) { if(e.target===overlay) overlay.remove(); };
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = '<div style="background:white;border-radius:16px;padding:32px;max-width:640px;width:92%;max-height:82vh;overflow-y:auto;position:relative;box-shadow:0 20px 60px rgba(0,0,0,0.3);border-top:4px solid #B8960C;"><button onclick="document.getElementById(\'ap-modal-overlay\').remove()" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;line-height:1;">✕</button><h2 style="color:#002855;font-size:1.1rem;font-weight:800;margin:0 0 20px;padding-bottom:12px;border-bottom:2px solid #f3f4f6;">' + titleText + '</h2>' + bodyHTML + '</div>';
+    overlay.style.display = 'flex';
+  };
+  window.ap_openModal = ap_openModal;
+
+  // ── PART 2: Executive Department Badges ──────────────────────────────────
+  const ap_renderExecBadges = () => {
+    const strip = document.getElementById('exec-kpi-strip')
+      || document.querySelector('[data-dept="executive"] .kpi-strip')
+      || document.querySelector('[data-dept="executive"] .kpi-row')
+      || document.querySelector('#tab-executive .kpi-strip')
+      || document.querySelector('#tab-kb .kpi-strip')
+      || document.getElementById('homeStatsStrip')
+      || document.querySelector('.stats-strip');
+    if (!strip) return;
+
+    const enrolled    = ap_enrolled();
+    const networkMap  = ap_byNetwork();
+    const regionData  = ap_byRegion();
+    const networkCount = Object.keys(networkMap).length;
+
+    const badge1 = document.createElement('div');
+    badge1.className = 'stat-tile';
+    badge1.style.cssText = 'background:#002855;color:white;border-radius:12px;padding:18px 20px;text-align:center;cursor:pointer;min-width:140px;box-shadow:0 2px 8px rgba(0,40,85,0.15);transition:all 0.2s;border:2px solid transparent;--accent-color:#B8960C;';
+    badge1.onmouseenter = function() { badge1.style.transform='translateY(-3px)'; badge1.style.borderColor='#B8960C'; badge1.style.boxShadow='0 6px 20px rgba(184,150,12,0.35)'; };
+    badge1.onmouseleave = function() { badge1.style.transform=''; badge1.style.borderColor='transparent'; badge1.style.boxShadow='0 2px 8px rgba(0,40,85,0.15)'; };
+    badge1.innerHTML = '<div style="font-size:2rem;font-weight:800;color:#B8960C;line-height:1;">' + enrolled.length + '</div><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.85);margin-top:5px;">Active Apprentices</div><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:3px;">' + networkCount + ' locations · Click for details</div>';
+    badge1.onclick = function() {
+      const netHTML = Object.entries(networkMap)
+        .sort(function(a,b){ return b[1].length - a[1].length; })
+        .map(function(entry) {
+          const net = entry[0]; const members = entry[1];
+          return '<div style="margin-bottom:14px;"><div style="font-weight:700;color:#002855;font-size:13px;margin-bottom:4px;">' + net + ' <span style="color:#B8960C;font-weight:800;">(' + members.length + ')</span></div>' +
+            members.map(function(m) {
+              return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6;"><div style="width:6px;height:6px;border-radius:50%;background:#B8960C;flex-shrink:0;"></div><span style="font-size:12px;color:#374151;flex:1;">' + m.name + '</span><span style="font-size:10px;color:#9CA3AF;">' + m.site.replace('iLearn Science & Arts Charter ','').replace('iLearn CMO','CMO') + '</span></div>';
+            }).join('') + '</div>';
+        }).join('');
+      ap_openModal('Active Apprentices — ' + enrolled.length + ' Enrolled · SY 2025-2026',
+        '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap;">' +
+        '<div style="background:#EFF6FF;border-radius:10px;padding:12px 16px;text-align:center;flex:1;"><div style="font-size:1.4rem;font-weight:800;color:#002855;">' + regionData.NE.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">NE Region</div></div>' +
+        '<div style="background:#FFF9E6;border-radius:10px;padding:12px 16px;text-align:center;flex:1;"><div style="font-size:1.4rem;font-weight:800;color:#B8960C;">' + regionData.SW.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">SW Region</div></div>' +
+        '<div style="background:#F0FDF4;border-radius:10px;padding:12px 16px;text-align:center;flex:1;"><div style="font-size:1.4rem;font-weight:800;color:#16A34A;">' + networkCount + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">Networks</div></div>' +
+        '</div><div style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">By Location</div>' +
+        netHTML +
+        '<div style="margin-top:16px;padding:10px 14px;background:#FFF9E6;border-radius:8px;font-size:11px;color:#92400E;">💡 ' + ap_eligible().length + ' additional tutors are eligible but not yet enrolled in the apprenticeship program.</div>'
+      );
+    };
+
+    const badge2 = document.createElement('div');
+    badge2.className = 'stat-tile';
+    badge2.style.cssText = badge1.style.cssText;
+    badge2.onmouseenter = badge1.onmouseenter;
+    badge2.onmouseleave = badge1.onmouseleave;
+    badge2.innerHTML = '<div style="font-size:1.5rem;font-weight:800;color:#B8960C;line-height:1;">' + ap_eligible().length + '</div><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.85);margin-top:5px;">Eligible · Not Enrolled</div><div style="font-size:10px;color:rgba(255,255,255,0.5);margin-top:3px;">' + ap_notEligible().length + ' not eligible · Click for breakdown</div>';
+    badge2.onclick = function() {
+      const eligibleList = ap_eligible().map(function(r) {
+        return '<div style="padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:12px;color:#374151;display:flex;justify-content:space-between;"><span>' + r.name + '</span><span style="color:#9CA3AF;font-size:11px;">' + r.network + '</span></div>';
+      }).join('');
+      ap_openModal('Apprentice Eligibility Breakdown',
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">' +
+        '<div style="background:#F0FDF4;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:#16A34A;">' + ap_enrolled().length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Enrolled (Yes)</div></div>' +
+        '<div style="background:#FFF9E6;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:#B8960C;">' + ap_eligible().length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Eligible — Not Enrolled</div></div>' +
+        '<div style="background:#F9FAFB;border-radius:10px;padding:14px;text-align:center;"><div style="font-size:1.6rem;font-weight:800;color:#6B7280;">' + ap_notEligible().length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">Not Eligible</div></div>' +
+        '</div><div style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Eligible but not yet enrolled (' + ap_eligible().length + ')</div>' +
+        eligibleList +
+        '<div style="margin-top:14px;padding:10px 14px;background:#EFF6FF;border-radius:8px;font-size:11px;color:#1E40AF;">📌 "Not eligible" includes Dual Role staff, ICs, SCs, PMs, and multi-site sub tutors in administrative capacities.</div>'
+      );
+    };
+
+    strip.appendChild(badge1);
+    strip.appendChild(badge2);
+  };
+
+  // ── PART 3A: HR Filter Bar ────────────────────────────────────────────────
+  const ap_renderHRFilterBar = () => {
+    const hrContent = document.getElementById('tab-hr')
+      || document.getElementById('tab-talent')
+      || document.querySelector('[data-dept="hr"]')
+      || document.querySelector('[data-dept="talent"]')
+      || document.getElementById('panel-talent');
+    if (!hrContent) return;
+
+    if (document.getElementById('ap-hr-filter-bar')) return;
+
+    const tableTarget = hrContent.querySelector('table, .roster, .staff-list, .talent-table');
+
+    const filterBar = document.createElement('div');
+    filterBar.id = 'ap-hr-filter-bar';
+    filterBar.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;padding:14px 18px;background:#F8FAFC;border-radius:10px;border:1px solid #E5E7EB;';
+    filterBar.innerHTML = '<div style="font-size:11px;font-weight:700;color:#002855;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">🎓 Filter by Apprentice Status</div>' +
+      ['All','Yes','No','Not eligible'].map(function(val) {
+        var label = val === 'Yes' ? '🟡 Enrolled' : val === 'No' ? '⚪ Eligible' : val === 'Not eligible' ? '🔘 Not Eligible' : '🔵 All Staff';
+        var count = val === 'All' ? ap_totalActive() : val === 'Yes' ? ap_enrolled().length : val === 'No' ? ap_eligible().length : ap_notEligible().length;
+        var active = val === 'All';
+        var btnStyle = active ? 'background:#002855;color:white;border-color:#002855;' : 'background:white;color:#6B7280;border-color:#E5E7EB;';
+        return '<button onclick="ap_hrFilter(\'' + val.replace("'","\\'") + '\')" id="ap-hr-btn-' + val.replace(' ','_') + '" style="padding:6px 16px;border-radius:20px;border:2px solid;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;' + btnStyle + '">' + label + ' (' + count + ')</button>';
+      }).join('') +
+      '<div id="ap-hr-active-filter" style="margin-left:auto;font-size:11px;color:#9CA3AF;"></div>';
+
+    if (tableTarget) {
+      hrContent.insertBefore(filterBar, tableTarget);
+    } else {
+      hrContent.prepend(filterBar);
+    }
+  };
+
+  window.ap_hrFilter = function(val) {
+    ['All','Yes','No','Not_eligible'].forEach(function(v) {
+      var btn = document.getElementById('ap-hr-btn-' + v);
+      if (!btn) return;
+      var isActive = v.replace('_',' ') === val || (v === 'All' && val === 'All');
+      btn.style.background = isActive ? '#002855' : 'white';
+      btn.style.color = isActive ? 'white' : '#6B7280';
+      btn.style.borderColor = isActive ? '#002855' : '#E5E7EB';
+    });
+
+    var rows = document.querySelectorAll('#tab-hr tr[data-name], #tab-talent tr[data-name], [data-dept="hr"] tr, [data-dept="talent"] tr, #panel-talent tr[data-name]');
+    var shown = 0;
+    rows.forEach(function(row) {
+      var nameCell = row.querySelector('td:first-child, [data-col="name"]');
+      if (!nameCell) return;
+      var rowName = nameCell.textContent.trim().toLowerCase();
+      var record  = AP_DATA.find(function(r) { return r.name.toLowerCase() === rowName; });
+      var matchesFilter = val === 'All' || (record && record.apprentice === val);
+      row.style.display = matchesFilter ? '' : 'none';
+      var badge = nameCell.querySelector('.ap-inline-badge');
+      if (!badge && record && record.apprentice === 'Yes') {
+        nameCell.insertAdjacentHTML('beforeend', ap_badge());
+        badge = nameCell.querySelector('.ap-inline-badge');
+      }
+      if (badge) badge.style.display = record && record.apprentice === 'Yes' ? '' : 'none';
+      if (matchesFilter) shown++;
+    });
+
+    if (shown === 0) {
+      var allRows = document.querySelectorAll('#tab-hr tbody tr, #tab-talent tbody tr, [data-dept="hr"] tbody tr, #panel-talent tbody tr');
+      allRows.forEach(function(row) {
+        var cells = row.querySelectorAll('td');
+        if (!cells.length) return;
+        var rowText = Array.from(cells).map(function(c){return c.textContent;}).join(' ');
+        var record = AP_DATA.find(function(r) { return rowText.toLowerCase().includes(r.name.toLowerCase()); });
+        var matchesFilter = val === 'All' || (record && record.apprentice === val);
+        row.style.display = matchesFilter ? '' : 'none';
+        if (record && record.apprentice === 'Yes' && !row.querySelector('.ap-inline-badge')) {
+          if (cells[0]) cells[0].insertAdjacentHTML('beforeend', ap_badge());
+        }
+      });
+    }
+
+    var label = document.getElementById('ap-hr-active-filter');
+    if (label) label.textContent = val === 'All' ? 'Showing all staff' : 'Filtered: Apprentice = "' + val + '"';
+  };
+
+  // ── PART 3B: HR Apprentice Roster Panel ──────────────────────────────────
+  const ap_renderHRApprenticePanel = () => {
+    const hrContent = document.getElementById('tab-hr')
+      || document.getElementById('tab-talent')
+      || document.querySelector('[data-dept="hr"]')
+      || document.getElementById('panel-talent');
+    if (!hrContent) return;
+    if (document.getElementById('ap-hr-roster-panel')) return;
+
+    const enrolled = ap_enrolled();
+
+    const rows = enrolled.map(function(r) {
+      const otj = ap_otjStatus(r.name);
+      const flagged = ap_hasFlag(r.name);
+      return '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:10px 12px;font-size:12px;font-weight:600;color:#002855;">' + r.name + (flagged ? ap_flagBadge('FLAG') : '') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.role + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.network + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.site.length > 30 ? r.site.substring(0,30)+'…' : r.site) + '</td><td style="padding:10px 12px;text-align:center;">' + ap_dotStatus(otj.beginning) + '<span style="font-size:10px;color:#6B7280;">' + (otj.beginning||'—') + '</span></td><td style="padding:10px 12px;text-align:center;">' + ap_dotStatus(otj.middle) + '<span style="font-size:10px;color:#6B7280;">' + (otj.middle||'—') + '</span></td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.rehire === 'Yes' ? '✅' : '—') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.cycles + ' cycle' + (r.cycles==='1'?'':'s') + '</td></tr>';
+    }).join('');
+
+    const flagCount = enrolled.filter(function(r) { return ap_hasFlag(r.name); }).length;
+
+    const panel = document.createElement('div');
+    panel.id = 'ap-hr-roster-panel';
+    panel.style.cssText = 'margin-top:28px;';
+    panel.innerHTML = '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      '<div style="background:#002855;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">' +
+      '<div><div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Program Roster</div><div style="color:rgba(255,255,255,0.6);font-size:11px;margin-top:2px;">' + enrolled.length + ' enrolled · SY 2025-2026</div></div>' +
+      (flagCount > 0 ? '<div style="background:#DC2626;color:white;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">⚠ ' + flagCount + ' Flagged</div>' : '') +
+      '</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr style="background:#F8FAFC;border-bottom:2px solid #E5E7EB;">' +
+      ['Name','Role','Network','School/Site','OTJ Begin','OTJ Middle','Re-hire','Cycles'].map(function(h) {
+        return '<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">' + h + '</th>';
+      }).join('') +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div style="padding:12px 20px;background:#FFF9E6;border-top:1px solid #E5E7EB;font-size:11px;color:#92400E;">💡 Wage increases are tied to OTJ hours completed: 1,100 / 2,200 / 3,300 / 3,800 / 4,000 hours. District cost-sharing agreements are tracked separately in the Wage Reimbursement sheet.</div>' +
+      '</div>';
+    hrContent.appendChild(panel);
+  };
+
+  // ── PART 4A: Tag Programming Cards ───────────────────────────────────────
+  const ap_tagProgrammingCards = () => {
+    const progTab = document.getElementById('tab-programming')
+      || document.querySelector('[data-dept="programming"]')
+      || document.getElementById('panel-talent');
+    if (!progTab) return;
+
+    const cards = progTab.querySelectorAll('.tutor-card, .staff-card, .program-card, [data-staff], tr[data-tutor], tr[data-name]');
+    cards.forEach(function(card) {
+      const nameEl = card.querySelector('[data-name], .card-name, .staff-name, td:first-child, h3, h4');
+      if (!nameEl) return;
+      const cardName = nameEl.textContent.trim().toLowerCase();
+      const record = AP_DATA.find(function(r) { return r.name.toLowerCase() === cardName; });
+      if (!record || record.apprentice !== 'Yes') return;
+      if (card.querySelector('.ap-prog-tag')) return;
+      nameEl.insertAdjacentHTML('beforeend', '<span class="ap-prog-tag">' + ap_badge('APPRENTICE', '9px') + '</span>');
+      if (ap_hasFlag(record.name)) {
+        nameEl.insertAdjacentHTML('beforeend', ap_flagBadge('OTJ FLAG'));
+      }
+      const otj = ap_otjStatus(record.name);
+      const statusStrip = document.createElement('div');
+      statusStrip.className = 'ap-prog-status-strip';
+      statusStrip.style.cssText = 'margin-top:8px;padding:8px 10px;background:#FFF9E6;border-radius:6px;border-left:3px solid #B8960C;font-size:10px;';
+      statusStrip.innerHTML = '<div style="font-weight:700;color:#92400E;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">OTJ Status</div><div style="display:flex;gap:12px;flex-wrap:wrap;"><span>' + ap_dotStatus(otj.beginning) + 'Begin: <b>' + (otj.beginning||'—') + '</b></span><span>' + ap_dotStatus(otj.middle) + 'Mid: <b>' + (otj.middle||'—') + '</b></span><span>' + ap_dotStatus(otj.end) + 'End: <b>' + (otj.end||'—') + '</b></span></div>' + (otj.pmNotes ? '<div style="margin-top:4px;color:#6B7280;font-style:italic;">' + otj.pmNotes + '</div>' : '');
+      card.appendChild(statusStrip);
+    });
+  };
+
+  // ── PART 4B: Programming Alert Panel ─────────────────────────────────────
+  const ap_renderProgrammingPanel = () => {
+    const progTab = document.getElementById('tab-programming')
+      || document.querySelector('[data-dept="programming"]')
+      || document.getElementById('panel-talent');
+    if (!progTab || document.getElementById('ap-prog-panel')) return;
+
+    const enrolled = ap_enrolled();
+    const flagged  = enrolled.filter(function(r) { return ap_hasFlag(r.name); });
+
+    const flagRows = flagged.map(function(r) {
+      const otj = ap_otjStatus(r.name);
+      const issues = [];
+      if (otj.beginning === 'Not Started' || otj.beginning === 'Not Started - PM Following Up') issues.push('OTJ Beginning not started');
+      if (!otj.siteLeader || otj.siteLeader === '—') issues.push('No site leader assigned');
+      if (otj.middle === '' || otj.middle === '—') issues.push('OTJ Middle not logged');
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #FEE2E2;"><div style="width:7px;height:7px;border-radius:50%;background:#DC2626;margin-top:5px;flex-shrink:0;"></div><div style="flex:1;"><div style="font-weight:700;font-size:12px;color:#002855;">' + r.name + ' ' + ap_badge() + '</div><div style="font-size:11px;color:#6B7280;margin-top:2px;">' + r.network + ' · ' + r.site.substring(0,40) + '</div><div style="margin-top:4px;">' + issues.map(function(i) { return '<span style="font-size:10px;background:#FEE2E2;color:#DC2626;padding:2px 7px;border-radius:8px;margin-right:4px;font-weight:600;">' + i + '</span>'; }).join('') + '</div>' + (otj.pmNotes ? '<div style="font-size:10px;color:#9CA3AF;margin-top:3px;font-style:italic;">Note: ' + otj.pmNotes + '</div>' : '') + '</div></div>';
+    }).join('');
+
+    const netMap = ap_byNetwork();
+    const netBars = Object.entries(netMap)
+      .sort(function(a,b){ return b[1].length - a[1].length; })
+      .map(function(entry) {
+        const net = entry[0]; const members = entry[1];
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-size:11px;color:#374151;min-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + net + '</div><div style="flex:1;height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden;"><div style="height:100%;background:#002855;border-radius:4px;width:' + Math.round(members.length/enrolled.length*100) + '%;"></div></div><div style="font-size:11px;font-weight:700;color:#002855;min-width:24px;text-align:right;">' + members.length + '</div></div>';
+      }).join('');
+
+    const panel = document.createElement('div');
+    panel.id = 'ap-prog-panel';
+    panel.style.cssText = 'margin-bottom:24px;';
+    panel.innerHTML = '<div style="border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      '<div style="background:#002855;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;"><div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Programming Overview</div><div style="display:flex;gap:8px;"><div style="background:rgba(255,255,255,0.15);color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:600;">' + enrolled.length + ' enrolled</div>' +
+      (flagged.length > 0 ? '<div style="background:#DC2626;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">⚠ ' + flagged.length + ' need attention</div>' : '<div style="background:#16A34A;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">✅ No flags</div>') +
+      '</div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;background:white;">' +
+      '<div style="padding:20px;border-right:1px solid #F3F4F6;"><div style="font-size:11px;font-weight:700;color:#DC2626;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">⚠ Action Required (' + flagged.length + ')</div>' +
+      (flagged.length > 0 ? flagRows : '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:12px;">✅ All apprentices have no active OTJ flags</div>') +
+      '<div style="margin-top:14px;padding:10px;background:#FFF9E6;border-radius:8px;font-size:11px;color:#92400E;"><strong>Programming requirements for apprentices:</strong><br>① OTJ Beginning must be completed by Month 4<br>② Formal IC observation required (not informal)<br>③ Site leader must be formally assigned<br>④ Hours milestones: 1,100 · 2,200 · 3,300 · 3,800 · 4,000 hrs</div></div>' +
+      '<div style="padding:20px;"><div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Apprentices by Network</div>' + netBars +
+      '<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;"><div style="background:#EFF6FF;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.2rem;font-weight:800;color:#002855;">' + ap_byRegion().NE.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">NE Region</div></div><div style="background:#FFF9E6;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.2rem;font-weight:800;color:#B8960C;">' + ap_byRegion().SW.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">SW Region</div></div></div></div>' +
+      '</div></div>';
+
+    progTab.prepend(panel);
+  };
+
+  // ── PART 5: Leadership Section ────────────────────────────────────────────
+  const ap_renderLeadershipSection = () => {
+    const leaderTab = document.getElementById('tab-leadership')
+      || document.querySelector('[data-dept="leadership"]')
+      || document.getElementById('panel-home');
+    if (!leaderTab || document.getElementById('ap-leadership-section')) return;
+
+    const enrolled = ap_enrolled();
+    const netMap   = ap_byNetwork();
+    const regionData = ap_byRegion();
+
+    const beginComplete = enrolled.filter(function(r) {
+      return ap_otjStatus(r.name).beginning === 'Completed';
+    }).length;
+    const midComplete = enrolled.filter(function(r) {
+      return ap_otjStatus(r.name).middle === 'Completed';
+    }).length;
+
+    const networkCards = Object.entries(netMap)
+      .sort(function(a,b){ return b[1].length - a[1].length; })
+      .map(function(entry) {
+        const net = entry[0]; const members = entry[1];
+        const membersHTML = members.map(function(m) {
+          return '<div style="padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:13px;">' + m.name + ' <span style="color:#9CA3AF;font-size:11px;">' + m.role + '</span></div>';
+        }).join('');
+        return '<div style="background:white;border:1px solid #E5E7EB;border-radius:10px;padding:14px;cursor:pointer;transition:box-shadow 0.2s;" onmouseenter="this.style.boxShadow=\'0 4px 12px rgba(0,40,85,0.12)\'" onmouseleave="this.style.boxShadow=\'none\'" onclick="ap_openModal(\'' + net.replace(/'/g,"\\'") + ' — Apprentices\',\'' + membersHTML.replace(/'/g,"\\'") + '\')"><div style="font-size:1.3rem;font-weight:800;color:#002855;">' + members.length + '</div><div style="font-size:11px;font-weight:700;color:#374151;margin-top:2px;">' + net + '</div><div style="font-size:10px;color:#9CA3AF;margin-top:2px;">Click to see names</div></div>';
+      }).join('');
+
+    const section = document.createElement('div');
+    section.id = 'ap-leadership-section';
+    section.style.cssText = 'margin-bottom:28px;';
+    section.innerHTML = '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      '<div style="background:#002855;padding:16px 24px;"><div style="color:white;font-size:15px;font-weight:800;">🎓 Apprenticeship Program — Leadership View</div><div style="color:rgba(255,255,255,0.6);font-size:11px;margin-top:3px;">SY 2025-2026 · All regions · ' + enrolled.length + ' active apprentices</div></div>' +
+      '<div style="padding:20px 24px;">' +
+      '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px;">' +
+      '<div style="text-align:center;padding:14px;background:#EFF6FF;border-radius:10px;"><div style="font-size:1.8rem;font-weight:800;color:#002855;">' + enrolled.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">Total Enrolled</div></div>' +
+      '<div style="text-align:center;padding:14px;background:#FFF9E6;border-radius:10px;"><div style="font-size:1.8rem;font-weight:800;color:#B8960C;">' + regionData.NE.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">NE Region</div></div>' +
+      '<div style="text-align:center;padding:14px;background:#FFF9E6;border-radius:10px;"><div style="font-size:1.8rem;font-weight:800;color:#B8960C;">' + regionData.SW.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">SW Region</div></div>' +
+      '<div style="text-align:center;padding:14px;background:#F0FDF4;border-radius:10px;"><div style="font-size:1.8rem;font-weight:800;color:#16A34A;">' + beginComplete + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">OTJ Begin ✓</div></div>' +
+      '<div style="text-align:center;padding:14px;background:#F0FDF4;border-radius:10px;"><div style="font-size:1.8rem;font-weight:800;color:#16A34A;">' + midComplete + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em;">OTJ Mid ✓</div></div>' +
+      '</div>' +
+      '<div style="font-size:11px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">By Network / Location</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px;">' + networkCards + '</div>' +
+      '<div style="padding:14px 18px;background:#FFF9E6;border-radius:10px;border-left:4px solid #B8960C;font-size:12px;color:#374151;"><strong style="color:#002855;">Pipeline Insight:</strong> ' + ap_eligible().length + ' active tutors are eligible for the apprenticeship program but not yet enrolled. This represents an opportunity to grow the program by ' + Math.round(ap_eligible().length / enrolled.length * 100) + '% without adding headcount.</div>' +
+      '</div></div>';
+
+    leaderTab.prepend(section);
+  };
+
+  // ── PART 6: Data Section ──────────────────────────────────────────────────
+  const ap_renderDataSection = () => {
+    const dataTab = document.getElementById('tab-data')
+      || document.querySelector('[data-dept="data"]')
+      || document.getElementById('panel-kpi-analytics')
+      || document.getElementById('panel-pearl-ops');
+    if (!dataTab || document.getElementById('ap-data-section')) return;
+
+    const enrolled    = ap_enrolled();
+    const nonEnrolled = ap_eligible().concat(ap_notEligible());
+
+    const ap_avgPearl = function(roster, field) {
+      if (!window.po) return null;
+      const poArr = Array.isArray(window.po) ? window.po : (typeof window.po === 'object' && window.po.getStats ? null : Object.values(window.po));
+      if (!poArr) return null;
+      const norm = function(s) { return s.toLowerCase().replace(/\s+/g,' ').trim(); };
+      const vals = roster.map(function(r) {
+        const match = poArr.find(function(p) { return norm(p.staffName||p.name||'') === norm(r.name); });
+        const v = match ? parseFloat(match[field]) : NaN;
+        return isNaN(v) ? null : v;
+      }).filter(function(v) { return v !== null; });
+      return vals.length ? (vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(2) : 'N/A';
+    };
+
+    const apScholarRating    = ap_avgPearl(enrolled, 'scholarRating');
+    const nonApScholarRating = ap_avgPearl(nonEnrolled, 'scholarRating');
+    const apAttendance       = ap_avgPearl(enrolled, 'attendance');
+    const nonApAttendance    = ap_avgPearl(nonEnrolled, 'attendance');
+
+    const metricRow = function(label, apVal, nonApVal, higherIsBetter) {
+      if (higherIsBetter === undefined) higherIsBetter = true;
+      const apN  = parseFloat(apVal);
+      const nonN = parseFloat(nonApVal);
+      const apWins = !isNaN(apN) && !isNaN(nonN) && (higherIsBetter ? apN >= nonN : apN <= nonN);
+      return '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:10px 14px;font-size:12px;color:#374151;font-weight:600;">' + label + '</td><td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:800;color:' + (apWins ? '#16A34A' : '#374151') + ';">' + (apVal || 'N/A') + (apWins && apVal !== 'N/A' ? ' ⬆' : '') + '</td><td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:800;color:' + (!apWins && apVal !== 'N/A' ? '#16A34A' : '#374151') + ';">' + (nonApVal || 'N/A') + (!apWins && nonApVal !== 'N/A' ? ' ⬆' : '') + '</td></tr>';
+    };
+
+    const section = document.createElement('div');
+    section.id = 'ap-data-section';
+    section.style.cssText = 'margin-bottom:28px;';
+    section.innerHTML = '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      '<div style="background:#002855;padding:14px 20px;"><div style="color:white;font-size:14px;font-weight:800;">📊 Apprentice vs Non-Apprentice — Data Comparison</div><div style="color:rgba(255,255,255,0.6);font-size:11px;margin-top:2px;">Live from Pearl Operations · ' + enrolled.length + ' apprentices vs ' + nonEnrolled.length + ' non-apprentices</div></div>' +
+      '<div style="padding:0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#F8FAFC;"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;">Metric</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#B8960C;text-transform:uppercase;letter-spacing:0.06em;">🎓 Apprentices (' + enrolled.length + ')</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">Non-Apprentices (' + nonEnrolled.length + ')</th></tr></thead><tbody>' +
+      metricRow('Avg Scholar Rating (Pearl)', apScholarRating, nonApScholarRating) +
+      metricRow('Avg Attendance Rate', apAttendance, nonApAttendance) +
+      metricRow('OTJ Beginning Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).beginning==='Completed';}).length + ' / ' + enrolled.length, '—') +
+      metricRow('OTJ Middle Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).middle==='Completed';}).length + ' / ' + enrolled.length, '—') +
+      metricRow('Returning (Re-hire = Yes)', enrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + enrolled.length, nonEnrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + nonEnrolled.length) +
+      '</tbody></table></div>' +
+      '<div style="padding:12px 20px;background:#F8FAFC;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF;">Scholar rating and attendance pulled from Pearl Operations (window.po). If Pearl data is unavailable for a tutor, cell shows N/A. ⬆ indicates the higher-performing group for that metric.</div>' +
+      '</div>';
+    dataTab.prepend(section);
+  };
+
+  // ── PART 7: Tag T&D Section ───────────────────────────────────────────────
+  const ap_tagTDSection = () => {
+    const tdTab = document.getElementById('tab-training')
+      || document.querySelector('[data-dept="training"]')
+      || document.getElementById('panel-training-analytics');
+    if (!tdTab) return;
+
+    const cards = tdTab.querySelectorAll('.td-tutor-card, [data-tutor-name]');
+    cards.forEach(function(card) {
+      const nameEl = card.querySelector('.card-name, [data-tutor-name]');
+      if (!nameEl) return;
+      const cardName = (nameEl.dataset.tutorName || nameEl.textContent).trim().toLowerCase();
+      const record = AP_DATA.find(function(r) { return r.name.toLowerCase() === cardName; });
+      if (!record) return;
+      if (record.apprentice === 'Yes' && !card.querySelector('.ap-td-badge')) {
+        nameEl.insertAdjacentHTML('afterend', '<div class="ap-td-badge" style="margin-bottom:8px;">' + ap_badge('TAP APPRENTICE','9px') + '</div>');
+      }
+      if (ap_hasFlag(record.name) && !card.querySelector('.ap-td-flag')) {
+        const tdBadge = card.querySelector('.ap-td-badge');
+        if (tdBadge) tdBadge.insertAdjacentHTML('afterend', '<div class="ap-td-flag">' + ap_flagBadge('OTJ NEEDS ATTENTION') + '</div>');
+      }
+    });
+  };
+
+  // ── PART 8: Init Hook ─────────────────────────────────────────────────────
+  const ap_initAll = () => {
+    ap_renderExecBadges();
+    ap_renderHRFilterBar();
+    ap_renderHRApprenticePanel();
+    ap_renderProgrammingPanel();
+    ap_tagProgrammingCards();
+    ap_renderLeadershipSection();
+    ap_renderDataSection();
+    ap_tagTDSection();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(ap_initAll, 100);
+    });
+  } else {
+    setTimeout(ap_initAll, 100);
+  }
+
+  const _orig_td_renderAll = typeof td_renderAll === 'function' ? td_renderAll : null;
+  if (_orig_td_renderAll) {
+    window.td_renderAll = function() {
+      _orig_td_renderAll();
+      setTimeout(ap_tagTDSection, 50);
+    };
+  }
+
 })();
 </script>
 </body>
