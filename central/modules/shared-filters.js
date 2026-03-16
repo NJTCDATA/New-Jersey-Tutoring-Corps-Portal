@@ -21,7 +21,7 @@
         b.onclick = () => showPanel('finance-analytics', b);
       });
     } else if (dept === 'training') {
-      if (label) label.textContent = 'Skills Gap Analysis';
+      if (label) label.textContent = 'T&D Analytics';
       talentBtns.forEach(b => {
         b.setAttribute('data-panel', 'training-analytics');
         b.onclick = () => showPanel('training-analytics', b);
@@ -33,6 +33,16 @@
         b.onclick = () => showPanel('talent', b);
       });
     }
+
+    // Training & Development dept: show Checklist Mgmt tab
+    const mgmtTabs = document.querySelectorAll('.td-mgmt-tab');
+    mgmtTabs.forEach(b => b.style.display = (dept === 'training') ? '' : 'none');
+
+    // Data dept: show T&D Analytics sidebar link + Executive PDF button
+    const dataTDBtns = document.querySelectorAll('.dept-nav-td-data');
+    dataTDBtns.forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
+    const execPDFBtn = document.getElementById('tdExecPDFBtn');
+    if (execPDFBtn) execPDFBtn.style.display = (dept === 'data') ? '' : 'none';
 
     // Show export button only for leadership and kb
     const expBtn = document.getElementById('sidebarExportBtn');

@@ -3729,6 +3729,51 @@
     .irlab-wrap { box-sizing:border-box; }
     .irlab-card { box-sizing:border-box; }
 
+    /* ── Training & Development Season Badges ──────────────────── */
+    .badge-fall   { display:inline-flex;align-items:center;gap:.25rem;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a; }
+    .badge-winter { display:inline-flex;align-items:center;gap:.25rem;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe; }
+    .badge-spring { display:inline-flex;align-items:center;gap:.25rem;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;background:#dcfce7;color:#166534;border:1px solid #bbf7d0; }
+    .badge-summer { display:inline-flex;align-items:center;gap:.25rem;padding:.15rem .55rem;border-radius:20px;font-size:.7rem;font-weight:700;background:#fef9c3;color:#854d0e;border:1px solid #fef08a; }
+    /* ── T&D chart containers ───────────────────────────────────── */
+    .td-chart-wrap { position:relative; height:280px; }
+    .td-chart-wrap-sm { position:relative; height:200px; }
+    .td-chart-wrap-lg { position:relative; height:360px; }
+    /* ── T&D loading/error states ───────────────────────────────── */
+    .td-loading { display:flex;align-items:center;justify-content:center;gap:.75rem;padding:3rem 1rem;color:var(--muted);font-size:.9rem; }
+    .td-spinner { width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--blue-mid);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0; }
+    .td-error { padding:2rem;text-align:center;background:#fff0f0;border:1px solid #fecaca;border-radius:10px;color:#b91c1c; }
+    /* ── T&D OTJ Checklist Mgmt ─────────────────────────────────── */
+    .td-phase-hdr { padding:.75rem 1rem;font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;border-radius:8px;margin-bottom:.75rem;margin-top:1.25rem; }
+    .td-phase-beginning { background:#dbeafe;color:#1e40af; }
+    .td-phase-middle     { background:#fef3c7;color:#92400e; }
+    .td-phase-end        { background:#dcfce7;color:#166534; }
+    .td-domain-hdr { font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.5rem 0 .25rem;border-bottom:1px solid var(--border);margin-bottom:.5rem; }
+    .td-otj-row { display:grid;grid-template-columns:1fr 2fr 2fr 60px 110px 1fr;gap:.5rem;padding:.5rem .25rem;border-bottom:1px solid var(--border-2);font-size:.8125rem;align-items:start; }
+    .td-otj-hdr { font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;background:var(--surface-2);padding:.4rem .25rem;border-radius:4px;margin-bottom:.375rem; }
+    .td-check-row { display:flex;align-items:flex-start;gap:.625rem;padding:.5rem .5rem;border-bottom:1px solid var(--border-2);font-size:.8125rem; }
+    .td-check-row:last-child { border-bottom:none; }
+    .td-check-row input[type=checkbox] { margin-top:2px;accent-color:var(--blue-mid);flex-shrink:0;width:16px;height:16px; }
+    .td-check-done { text-decoration:line-through;opacity:.55; }
+    .td-progress-bar { height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin:.25rem 0; }
+    .td-progress-fill { height:100%;border-radius:3px;background:linear-gradient(90deg,var(--blue-mid),var(--blue-lite));transition:width .4s; }
+    /* ── T&D Observation heatmap ─────────────────────────────────── */
+    .td-heat-cell { display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:4px;font-size:.65rem;font-weight:700;cursor:default; }
+    .td-heat-yes  { background:#dcfce7;color:#166534; }
+    .td-heat-no   { background:#fee2e2;color:#b91c1c; }
+    .td-heat-na   { background:#f3f4f6;color:#9ca3af; }
+    /* ── Responsive ─────────────────────────────────────────────── */
+    @media(max-width:900px) { .td-otj-row { grid-template-columns:1fr 2fr 2fr; } }
+    @media(max-width:600px) { .td-otj-row { grid-template-columns:1fr 1fr; } }
+    /* ── Print styles for OTJ Checklist ─────────────────────────── */
+    @media print {
+      .ct-nav, .ct-sidebar, #tdTabNav, .ph-actions, .btn, .td-mgmt-tab,
+      .sidebar-link, .dept-connections, .change-notif { display:none !important; }
+      .ct-layout { grid-template-columns:1fr !important; }
+      .ct-main { padding:.5in !important; max-width:none !important; }
+      .panel { display:block !important; }
+      .panel:not(.td-print-active) { display:none !important; }
+    }
+
     </style>
 
 
@@ -3820,6 +3865,9 @@
       </button>
       <button class="sidebar-link dept-nav-talent" data-panel="talent" onclick="showPanel('talent',this)" style="display:none">
         <span class="sl-icon">📊</span> <span id="talentNavLabel">Talent Analytics</span>
+      </button>
+      <button class="sidebar-link dept-nav-td-data" data-panel="training-analytics" onclick="showPanel('training-analytics',this)" style="display:none">
+        <span class="sl-icon">🎓</span> T&amp;D Analytics
       </button>
     </div>
 
@@ -4335,13 +4383,37 @@
     <div class="panel" id="panel-training-analytics">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">Training &amp; Development Intelligence</div>
-          <h2 class="ph-title">Skills Gap &amp; PD Needs Analysis</h2>
-          <p class="ph-subtitle">Aggregated concern categories mapped to professional development needs — no individual employee data shown.</p>
+          <div class="ph-eyebrow">Training &amp; Development</div>
+          <h2 class="ph-title">PD, Training &amp; Apprenticeship Analytics</h2>
+          <p class="ph-subtitle">Live data from PD feedback, new hire training intake, tutor observations, site leader observations, and the OTJ apprenticeship checklist.</p>
         </div>
-        <div class="ph-actions"><span class="live-badge" style="font-size:.7rem">LIVE DATA</span></div>
+        <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap">
+          <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
+          <button class="btn btn-secondary btn-sm" onclick="tdRefresh()" title="Reload all Training &amp; Development data from Google Sheets">↺ Refresh</button>
+          <button class="btn btn-primary btn-sm" id="tdExecPDFBtn" style="display:none" onclick="tdGenerateExecPDF()">📄 Executive PDF</button>
+        </div>
       </div>
-      <div id="trainingAnalyticsContent"><!-- filled by JS --></div>
+
+      <!-- Sub-tab navigation -->
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tdTabNav">
+        <button class="pst-tab active" id="tdTab-pd"        onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
+        <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
+        <button class="pst-tab"        id="tdTab-tutor-obs" onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
+        <button class="pst-tab"        id="tdTab-sl-obs"    onclick="tdShowTab('sl-obs',this)">👤 Site Leader Obs</button>
+        <button class="pst-tab"        id="tdTab-otj"       onclick="tdShowTab('otj',this)">📝 OTJ Checklist</button>
+        <button class="pst-tab td-mgmt-tab" id="tdTab-mgmt" onclick="tdShowTab('mgmt',this)" style="display:none">🛠️ Checklist Mgmt</button>
+      </div>
+
+      <!-- Sub-tab content panels -->
+      <div id="td-content-pd"        class="td-tab-content"></div>
+      <div id="td-content-intake"    class="td-tab-content" style="display:none"></div>
+      <div id="td-content-tutor-obs" class="td-tab-content" style="display:none"></div>
+      <div id="td-content-sl-obs"    class="td-tab-content" style="display:none"></div>
+      <div id="td-content-otj"       class="td-tab-content" style="display:none"></div>
+      <div id="td-content-mgmt"      class="td-tab-content" style="display:none"></div>
+
+      <!-- Legacy target for backward-compat (hidden) -->
+      <div id="trainingAnalyticsContent" style="display:none"></div>
     </div>
 
     <!-- ══ UPLOAD / DRIVE PANEL ══════════════════════════════ -->
