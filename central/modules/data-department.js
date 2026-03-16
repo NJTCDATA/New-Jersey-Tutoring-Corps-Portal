@@ -302,21 +302,24 @@
             var _pv=r[17]; if(_pv==null) return null;
             var _pf=parseFloat(_pv); if(isNaN(_pf)) return null;
             if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;}
-            else if(_pf>15){
-              // ELA compact encoding: r[17]>15 stores annualTypical (scale score points).
-              // pctTypical = springGain / annualTypical.
-              // Math never has r[17]>15 (stored as ratio), so this branch is ELA-only in practice.
-              if(r[16]==null||_pf===0) return null;
-              _pf=parseFloat(r[16])/_pf;
-            }
+            else if(_pf===0) { return null; }  // zero = no data
+            else if(subject==='ELA'&&_pf===Math.floor(_pf)){
+              // ELA integer r[17] = annualTypical (scale score points); pctTypical = springGain / annualTypical
+              if(r[16]==null) return null;
+              var _pct=parseFloat(r[16])/_pf;
+              if(_pct>15) return null;  // cap extreme outliers
+              _pf=_pct;
+            } else if(_pf>15) { _pf=_pf/100; }  // legacy percentage encoding fallback
             return _pf;
           }()),
           annualTypical:      (function(){
             var _pv=r[17]; if(_pv==null||r[16]==null) return null;
             var _pf=parseFloat(_pv); if(isNaN(_pf)||_pf<=0) return null;
-            // ELA compact: r[17]>15 is directly the annualTypical (scale score points).
-            // For r[17]<=15 (ratio), derive annualTypical = springGain / ratio.
-            if(_pf>15) return _pf;
+            if(subject==='ELA'&&_pf===Math.floor(_pf)){
+              return _pf;  // ELA integer r[17] = annualTypical directly (scale score points)
+            }
+            if(_pf>15) _pf=_pf/100;
+            if(_pf<=0) return null;
             return parseFloat((parseFloat(r[16])/_pf).toFixed(1));
           }()),
           baseRushFlag:       r[18] ? '1' : '',
