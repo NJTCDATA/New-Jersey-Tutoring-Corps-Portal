@@ -1387,9 +1387,20 @@
       if (!result.ok) throw new Error('HTTP ' + result.status);
       const raw = ap_parseHRMaster(result.text);
       // ── Step 1: filter to 2025-2026, non-terminated rows ──────────────────
+      // Also accept short-form "25-26" year values used by some HR data entry.
+      const isCurYr = yr => /2025.*(2026|26)/.test(yr) || /^(SY\s*)?25[-\/]26$/i.test(yr);
       const curYrRows = raw.filter(r =>
-        /2025.*(2026|26)/.test(r.yr) && !/terminated/i.test(r.status || '')
+        isCurYr(r.yr) && !/terminated/i.test(r.status || '')
       );
+      // ── Diagnostic: log any "Yes" apprentice rows that were filtered OUT ───
+      // This catches the missing-2 case where year format or status excluded them.
+      const excludedYes = raw.filter(r =>
+        /^yes$/i.test(r.apprentice) && !(isCurYr(r.yr) && !/terminated/i.test(r.status || ''))
+      );
+      if (excludedYes.length) {
+        console.warn('[AP] Excluded "Yes" apprentice rows:', excludedYes.map(r =>
+          `${r.name} | yr=${r.yr} | status=${r.status}`));
+      }
       // ── Step 2: group by normalized name so multi-row staff count once ────
       // A person can have 2+ rows in the same SY (e.g. site change).
       // We OR all apprentice flags across every row for that person — this is
@@ -2070,7 +2081,7 @@
     TRAINING_DETAILS: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv',
     PD_FEEDBACK:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g/pub?output=csv',
     TRAINING_INTAKE:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv',
-    PD_SESSIONS_ALL:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?gid=471085177&single=true&output=csv',
+    PD_SESSIONS_ALL:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?output=csv&gid=471085177',
   };
 
   // ── Verified OTJ column names (exact CSV headers from Apprentice DB) ──────
