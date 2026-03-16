@@ -7,10 +7,10 @@
   'use strict';
 
   // ── DATA SOURCES ─────────────────────────────────────────────────────────
-  var PD_URL = 'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177';
-  var INTAKE_URL = 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082';
+  var PD_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?gid=471085177&single=true&output=csv';
+  var INTAKE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv';
   var APPRENT_2PACX = '2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g';
-  var APPRENT_PUBHTML = 'https://docs.google.com/spreadsheets/d/e/' + APPRENT_2PACX + '/pubhtml';
+  var APPRENT_PUBHTML = 'https://docs.google.com/spreadsheets/d/e/' + APPRENT_2PACX + '/pubhtml?widget=true&headers=false';
   var APPRENT_CSV_BASE = 'https://docs.google.com/spreadsheets/d/e/' + APPRENT_2PACX + '/pub?output=csv';
   var APPRENT_TAB_NAMES = {
     tutorObs: 'Tutor Observations',
@@ -171,7 +171,7 @@
         // Probe each GID and identify by header content
         var results = await Promise.all(uniqueGids.slice(0, 10).map(async function (gid) {
           try {
-            var r = await fetch(APPRENT_CSV_BASE + '&gid=' + gid, { signal: AbortSignal.timeout(10000) });
+            var r = await fetch(APPRENT_CSV_BASE + '&gid=' + gid + '&single=true', { signal: AbortSignal.timeout(10000) });
             if (!r.ok) return null;
             var t = await r.text();
             var rows = parseCSVFull(t);
@@ -630,10 +630,10 @@
     try {
       var gids = await discoverGIDs();
       if (!gids.tutorObs && gids.tutorObs !== 0) {
-        // Try default gid=0
-        gids.tutorObs = 0;
+        showError(el, 'Tutor Observations tab not yet found in Apprenticeship DB. Ensure the sheet is published to web (File → Share → Publish to web).', loadTutorObs);
+        return;
       }
-      var url = APPRENT_CSV_BASE + '&gid=' + gids.tutorObs;
+      var url = APPRENT_CSV_BASE + '&gid=' + gids.tutorObs + '&single=true';
       var result = await fetchCSV(url, 1); // row 0 = title, row 1 = header
       _state.tutorObs = result.objects;
       _loaded['tutor-obs'] = true;
@@ -787,8 +787,11 @@
     showLoading(el, 'Loading Site Leader Observation data…');
     try {
       var gids = await discoverGIDs();
-      if (!gids.slObs && gids.slObs !== 0) gids.slObs = 1;
-      var url = APPRENT_CSV_BASE + '&gid=' + gids.slObs;
+      if (!gids.slObs && gids.slObs !== 0) {
+        showError(el, 'Site Leader Obs tab not yet found in Apprenticeship DB. Ensure the sheet is published to web (File → Share → Publish to web).', loadSLObs);
+        return;
+      }
+      var url = APPRENT_CSV_BASE + '&gid=' + gids.slObs + '&single=true';
       var result = await fetchCSV(url, 1);
       _state.slObs = result.objects;
       _loaded['sl-obs'] = true;
@@ -933,8 +936,11 @@
     showLoading(el, 'Loading OTJ Checklist & Skill Gap data…');
     try {
       var gids = await discoverGIDs();
-      if (!gids.otj && gids.otj !== 0) gids.otj = 2;
-      var url = APPRENT_CSV_BASE + '&gid=' + gids.otj;
+      if (!gids.otj && gids.otj !== 0) {
+        showError(el, 'OTJ Checklist tab not yet found in Apprenticeship DB. Ensure the sheet is published to web (File → Share → Publish to web).', loadOTJ);
+        return;
+      }
+      var url = APPRENT_CSV_BASE + '&gid=' + gids.otj + '&single=true';
       // OTJ: rows 0+1 = title/instruction, row 2 = header → headerRowIndex = 2
       var result = await fetchCSV(url, 2);
       _state.otj = result.objects;
@@ -1216,8 +1222,11 @@
     } else {
       showLoading(el, 'Loading OTJ Checklist for management…');
       discoverGIDs().then(function (gids) {
-        var g = (gids.otj !== undefined) ? gids.otj : 2;
-        return fetchCSV(APPRENT_CSV_BASE + '&gid=' + g, 2);
+        if (!gids.otj && gids.otj !== 0) {
+          showError(el, 'OTJ Checklist tab not yet found in Apprenticeship DB. Ensure the sheet is published to web (File → Share → Publish to web).', loadMgmt);
+          return Promise.reject(new Error('OTJ GID not discovered'));
+        }
+        return fetchCSV(APPRENT_CSV_BASE + '&gid=' + gids.otj + '&single=true', 2);
       }).then(function (result) {
         _state.otj = result.objects;
         _loaded.mgmt = true;
