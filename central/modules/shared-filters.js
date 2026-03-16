@@ -1,0 +1,132 @@
+(function() {
+
+  function initDeptNav(dept) {
+    // Show/hide perf + talent nav based on dept
+    const perfBtns   = document.querySelectorAll('.dept-nav-perf');
+    const talentBtns = document.querySelectorAll('.dept-nav-talent');
+    const label      = document.getElementById('talentNavLabel');
+
+    const showPerf   = TALENT_FULL_DEPTS.includes(dept);
+    const showTalent = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept) || TALENT_TRAINING_DEPT.includes(dept);
+
+    perfBtns.forEach(b   => b.style.display = showPerf   ? '' : 'none');
+    talentBtns.forEach(b => b.style.display = showTalent ? '' : 'none');
+
+    // Rename the talent nav link and panel for finance/training
+    if (dept === 'finance') {
+      if (label) label.textContent = 'Partnership Risk';
+      talentBtns.forEach(b => {
+        b.setAttribute('data-panel', 'finance-analytics');
+        b.setAttribute('onclick', "showPanel('finance-analytics',this)");
+        b.onclick = () => showPanel('finance-analytics', b);
+      });
+    } else if (dept === 'training') {
+      if (label) label.textContent = 'Skills Gap Analysis';
+      talentBtns.forEach(b => {
+        b.setAttribute('data-panel', 'training-analytics');
+        b.onclick = () => showPanel('training-analytics', b);
+      });
+    } else {
+      if (label) label.textContent = 'Talent Analytics';
+      talentBtns.forEach(b => {
+        b.setAttribute('data-panel', 'talent');
+        b.onclick = () => showPanel('talent', b);
+      });
+    }
+
+    // Show export button only for leadership and kb
+    const expBtn = document.getElementById('sidebarExportBtn');
+    if (expBtn) {
+      if (dept === 'leadership' || dept === 'kb') {
+        expBtn.classList.add('visible');
+      } else {
+        expBtn.classList.remove('visible');
+      }
+    }
+
+    // Show advocacy nav for leadership and kb only — Data dept has i-Ready Lab (upload access), not Advocacy
+    const ADV_DEPTS = ['leadership','kb'];
+    const advBtns = document.querySelectorAll('.dept-nav-advocacy');
+    advBtns.forEach(b => b.style.display = ADV_DEPTS.includes(dept) ? '' : 'none');
+  }
+
+  // ── Year extraction helpers ────────────────────────────────────
+  function getAvailableYears() {
+    const years = [...new Set(CONCERNS.map(c => c.yr))].sort((a,b) => b-a);
+    if (!years.length) years.push(new Date().getFullYear());
+    return years;
+  }
+
+  function getSchoolYear(yr) {
+    // School year: SY25-26 means Jul 2025 – Jun 2026
+    return `SY${String(yr-1).slice(2)}-${String(yr).slice(2)}`;
+  }
+
+  function addYearFilter(containerId, filterFn, defaultAll) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const years = getAvailableYears();
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap';
+    wrap.innerHTML = `<span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Year</span>
+      <button class="pst-tab active" data-yr="all" onclick="__setYr(this,'all','${containerId}')">All Years</button>
+      ${years.map(y => `<button class="pst-tab" data-yr="${y}" onclick="__setYr(this,${y},'${containerId}')">${y} <span style="font-size:.65rem;opacity:.6">${getSchoolYear(y)}</span></button>`).join('')}
+      <span id="${containerId}_yrcount" style="font-size:.75rem;color:var(--muted);margin-left:.5rem"></span>`;
+    el.prepend(wrap);
+    window[`__yrFilter_${containerId}`] = defaultAll ? 'all' : (years[0] || 'all');
+    window[`__yrFilterFn_${containerId}`] = filterFn;
+  }
+
+  window.__setYr = function(btn, yr, containerId) {
+    document.querySelectorAll(`#${containerId} .pst-tab[data-yr]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    window[`__yrFilter_${containerId}`] = yr;
+    const fn = window[`__yrFilterFn_${containerId}`];
+    if (fn) fn(yr === 'all' ? null : Number(yr));
+  };
+
+  function filterByYear(data, yr) {
+    if (!yr || yr === 'all') return data;
+    return data.filter(c => c.yr === Number(yr));
+  }
+
+  // ── Shared render utilities ────────────────────────────────────
+  // (countBy, groupBy, barRows, hrActionClass, etc. are already defined above)
+
+  function goalAlignmentBadges(dept) {
+    const goals = GOAL_DEPT_MAP[dept] || [];
+    if (!goals.length) return '';
+    return `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      ${goals.map(g => `<span style="font-size:.7rem;font-weight:700;padding:.3rem .7rem;border-radius:20px;background:rgba(240,165,0,.12);color:#92400e;border:1px solid rgba(240,165,0,.3)">🎯 ${g}</span>`).join('')}
+    </div>`;
+  }
+
+  function retentionRing(label, current, target, color) {
+    const pct = Math.min(100, Math.round(current / target * 100));
+    const r = 30, circ = 2 * Math.PI * r;
+    const dash = (pct / 100) * circ;
+    const status = pct >= 100 ? 'ok' : pct >= 75 ? 'warning' : 'alert';
+    return `<div class="ta-card" style="text-align:center;padding:1.25rem .875rem">
+      <svg width="80" height="80" style="transform:rotate(-90deg)">
+        <circle cx="40" cy="40" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+        <circle cx="40" cy="40" r="${r}" fill="none" stroke="${color}" stroke-width="6"
+          stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
+      </svg>
+      <div style="font-size:1.375rem;font-weight:800;color:${color};margin-top:-.25rem">${pct}%</div>
+      <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-top:.2rem">${label}</div>
+      <div style="font-size:.7rem;color:var(--muted)">Goal: ${target}%</div>
+    </div>`;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  HR ANALYTICS — Escalation pipeline, risk, action queue
+
+  // ── Expose to global scope ───────────────────────────────────────────────
+  window.initDeptNav           = initDeptNav;
+  window.addYearFilter         = addYearFilter;
+  window.getAvailableYears     = getAvailableYears;
+  window.filterByYear          = filterByYear;
+  window.goalAlignmentBadges   = goalAlignmentBadges;
+  window.retentionRing         = retentionRing;
+
+})();
