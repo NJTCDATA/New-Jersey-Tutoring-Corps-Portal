@@ -618,7 +618,7 @@
   async function buildTalentDashboard(forceRefresh) {
     const el = document.getElementById('talentContent');
     if (!el) return;
-    if (_talentLoaded && !forceRefresh) {
+    if (window._talentLoaded && !forceRefresh) {
       const _er_dept=(window.NJTC_SESSION||{}).dept||'hr';
       console.log('[Talent] Early-return path, dept:', _er_dept);
       if (['hr','data','leadership','kb','finance'].includes(_er_dept)) {
@@ -633,8 +633,8 @@
     window._talentForceRefresh = !!forceRefresh;
     try { await fetchLiveConcerns(); } catch(e) { _talentLiveStatus = 'fallback'; }
     window._talentForceRefresh = false;
-    _talentLoaded = true;
-    _filteredConcerns = CONCERNS;
+    window._talentLoaded = true;
+    window._filteredConcerns = CONCERNS;
     _updateTalentBadge(_talentLiveStatus);
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
     fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
@@ -653,7 +653,7 @@
       }
     } catch(e) { console.warn('[Talent] Central team race card error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
-    console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', _talentLoaded);
+    console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', window._talentLoaded);
     if (['hr','data','leadership','kb','finance'].includes(_td)) {
       console.log('[Talent] Calling setTalentTab profiles...');
       setTalentTab('profiles');
@@ -2870,7 +2870,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     console.log('[Manual] _showProfiles called, dept:', dept);
     setTalentTab('profiles');
   };
-  window.buildPolicies        = buildPolicies;
+  // buildPolicies is defined in shared-utils.js and exported from there
   window.clearTalentFilters   = clearTalentFilters;
   window.closeConnectionsModal= closeConnectionsModal;
   window.openConnectionsModal = openConnectionsModal;
@@ -2926,5 +2926,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.buildTalentDashboard    = buildTalentDashboard;
   window.fetchLiveHRData         = fetchLiveHRData;
   window._updateTalentBadge      = _updateTalentBadge;
+  window._hrBuildProfiles        = _hrBuildProfiles;  // called from shared-utils.js
 
 })();
