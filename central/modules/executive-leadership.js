@@ -1386,34 +1386,50 @@
       const result = await njtc_fetch(AP_HR_MASTER_URL, 15000);
       if (!result.ok) throw new Error('HTTP ' + result.status);
       const raw = ap_parseHRMaster(result.text);
-      // Current SY only · non-terminated · deduplicated by normalized name
-      const seen = new Set();
-      window.AP_DATA = raw
-        .filter(r => /2025.*(2026|26)/.test(r.yr) && !/terminated/i.test(r.status || ''))
-        .filter(r => {
-          const k = (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
-          if (!k || seen.has(k)) return false;
-          seen.add(k); return true;
-        })
-        .map(r => {
-          const apRaw = (r.apprentice || '').trim();
-          const ap    = /not eligible/i.test(apRaw)     ? 'Not eligible'
-                      : /^(yes|y|true|1)$/i.test(apRaw) ? 'Yes'
-                      : /^no$/i.test(apRaw)              ? 'No'
-                      : apRaw;
-          return {
-            name:       r.name,
-            role:       r.role       || '',
-            site:       r.site       || '',
-            district:   r.district   || '',
-            network:    ap_deriveNetwork(r.site, r.district),
-            region:     ap_deriveRegion(r.site, r.district),
-            apprentice: ap,
-            rehire:     r.rehire     || '',
-            cycles:     r.cycles     || '1',
-            email:      r.email      || '',
-          };
-        });
+      // ── Step 1: filter to 2025-2026, non-terminated rows ──────────────────
+      const curYrRows = raw.filter(r =>
+        /2025.*(2026|26)/.test(r.yr) && !/terminated/i.test(r.status || '')
+      );
+      // ── Step 2: group by normalized name so multi-row staff count once ────
+      // A person can have 2+ rows in the same SY (e.g. site change).
+      // We OR all apprentice flags across every row for that person — this is
+      // what caused the 27 vs 29 discrepancy: the first-seen row's apprentice
+      // cell was blank while a later row had "Yes", and the old simple-dedup
+      // kept only the first row.
+      const byName = {};
+      curYrRows.forEach(r => {
+        const k = (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        if (!k) return;
+        if (!byName[k]) byName[k] = { rows: [], apYes: false };
+        byName[k].rows.push(r);
+        // Non-anchored regex matches "Yes", "YES", "Y", "yes - enrolled", "TRUE", "1"
+        // Matches shared-charts.js logic (/yes|y|true|1/i) to avoid regex drift.
+        if (/yes|true|enrolled/i.test(r.apprentice || '') || (r.apprentice || '').trim() === '1') {
+          byName[k].apYes = true;
+        }
+      });
+      // ── Step 3: map each person to a single AP_DATA entry ─────────────────
+      window.AP_DATA = Object.values(byName).map(group => {
+        // Use the latest row for contact / assignment fields
+        const r = group.rows[group.rows.length - 1];
+        const apRaw = (r.apprentice || '').trim();
+        const ap    = /not eligible/i.test(apRaw) ? 'Not eligible'
+                    : group.apYes                  ? 'Yes'
+                    : /^no$/i.test(apRaw)           ? 'No'
+                    : apRaw;
+        return {
+          name:       r.name,
+          role:       r.role       || '',
+          site:       r.site       || '',
+          district:   r.district   || '',
+          network:    ap_deriveNetwork(r.site, r.district),
+          region:     ap_deriveRegion(r.site, r.district),
+          apprentice: ap,
+          rehire:     r.rehire     || '',
+          cycles:     r.cycles     || '1',
+          email:      r.email      || '',
+        };
+      });
       console.log('[AP] Live build: ' + window.AP_DATA.length + ' active staff · '
                   + ap_enrolled().length + ' enrolled · source: HR Master List');
     } catch (err) {

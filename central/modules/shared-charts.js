@@ -2167,8 +2167,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const retired = merged.filter(e => e.s === 'Retired');
     const tot     = pool.length;
 
-    const withRace = pool.filter(e => e._race && e._race !== '');
-    const withEth  = pool.filter(e => e._ethnicity && e._ethnicity !== '');
+    // Consistent with _buildStaffDiversityHtml — exclude "not listed / prefer not" responses
+    const withRace = pool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
+    const withEth  = pool.filter(e => e._ethnicity && e._ethnicity !== '' && !/not listed|prefer not/i.test(e._ethnicity||''));
     const raceMap  = {};
     withRace.forEach(e => { const r = e._race; raceMap[r] = (raceMap[r]||0)+1; });
     const ethMap   = {};
@@ -2178,7 +2179,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const hispCount     = withEth.filter(e => /hispanic|latino/i.test(e._ethnicity)).length;
     const hispPct       = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
     const diverseCount  = pool.filter(e =>
-      ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '') ||
+      ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
       (/hispanic|latino/i.test(e._ethnicity||''))
     ).length;
     const diversePct   = tot ? Math.round(diverseCount/tot*100) : 0;
