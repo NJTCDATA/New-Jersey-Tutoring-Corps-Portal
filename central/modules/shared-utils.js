@@ -777,7 +777,7 @@
   // ══════════════════════════════════════════════════════════
   //  CONNECTIONS MODAL
   // ══════════════════════════════════════════════════════════
-  let _currentDept = null;
+  window._currentDept = null; // shared with shared-charts.js (cross-module state)
   function openConnectionsModal(dept) {
     dept = dept || _currentDept;
     const cfg = DEPT_CONFIG[dept] || {};
@@ -3072,6 +3072,9 @@
   window.barRows               = barRows;
   window.hrActionClass         = hrActionClass;
   window.buildPolicies         = buildPolicies;
+  window.closePolicyModal      = closePolicyModal;
+  window.goStep                = goStep;
+  window._HR_BASE_LEN          = _HR_BASE_LEN;
 
   // Allow KPI_DATA reassignment to propagate to window
   // (fetchSheetKPI reassigns KPI_DATA via var; modules reading window.KPI_DATA

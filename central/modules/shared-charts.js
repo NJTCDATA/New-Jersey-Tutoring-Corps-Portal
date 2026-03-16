@@ -644,7 +644,7 @@
       irlab.fetchLive(!!forceRefresh).catch(e=>console.warn('[irlab live]',e.message));
     }
     try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
-    try { initTalentTabsForDept(_currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
+    try { initTalentTabsForDept(window._currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
     // Render Central Team race/ethnicity card at top of Talent Analytics
     try {
       const _ctCard = document.getElementById('centralTeamRaceCard');
@@ -838,8 +838,8 @@
 
   function _hrOverlayLive(liveRows) {
     // ── Reset HR_EMPS to clean base (removes prior-session push()-added entries) ──
-    if (HR_EMPS.length > _HR_BASE_LEN) {
-      HR_EMPS.splice(_HR_BASE_LEN);  // truncate back to embedded snapshot
+    if (HR_EMPS.length > window._HR_BASE_LEN) {
+      HR_EMPS.splice(window._HR_BASE_LEN);  // truncate back to embedded snapshot
     }
     _hrLiveAddedKeys.clear();  // allow re-evaluation of new hires
 
@@ -2875,8 +2875,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.closeConnectionsModal= closeConnectionsModal;
   window.openConnectionsModal = openConnectionsModal;
   window.closeKPIInquiry      = closeKPIInquiry;
-  window.closePolicyModal     = closePolicyModal;
-  window.goStep               = goStep;
+  // closePolicyModal and goStep are defined + exported in shared-utils.js
 
 
   const KPI_Q_GID       = '880469';
