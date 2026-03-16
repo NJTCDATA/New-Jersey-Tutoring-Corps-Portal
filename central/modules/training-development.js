@@ -32,15 +32,60 @@
   //  HELPER UTILITIES
   // ══════════════════════════════════════════════════════════════════
 
+  // RFC-4180-compliant CSV line parser — handles quoted fields with embedded commas/newlines
+  function parseCSVLine(line) {
+    const fields = [];
+    let i = 0;
+    while (i <= line.length) {
+      if (line[i] === '"') {
+        // Quoted field
+        let field = '';
+        i++; // skip opening quote
+        while (i < line.length) {
+          if (line[i] === '"') {
+            if (line[i + 1] === '"') { field += '"'; i += 2; } // escaped quote
+            else { i++; break; } // closing quote
+          } else {
+            field += line[i++];
+          }
+        }
+        fields.push(field);
+        if (line[i] === ',') i++; // skip comma after closing quote
+      } else {
+        // Unquoted field — read until comma or end
+        let start = i;
+        while (i < line.length && line[i] !== ',') i++;
+        fields.push(line.slice(start, i));
+        if (line[i] === ',') i++;
+      }
+    }
+    return fields;
+  }
+
+  // Parse CSV text: skip `skipRows` rows, treat next row as headers, rest as data objects.
+  // Empty trailing rows (all cells blank) are automatically excluded.
   function parseCsvText(text, skipRows) {
-    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
-    const dataLines = lines.slice(skipRows || 0);
+    // Split on newlines, but respect quoted fields that span lines
+    const rawText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Reassemble lines while respecting quoted fields containing newlines
+    const allLines = [];
+    let current = '';
+    let inQuote = false;
+    for (let ci = 0; ci < rawText.length; ci++) {
+      const ch = rawText[ci];
+      if (ch === '"') { inQuote = !inQuote; current += ch; }
+      else if (ch === '\n' && !inQuote) { allLines.push(current); current = ''; }
+      else { current += ch; }
+    }
+    if (current) allLines.push(current);
+
+    const dataLines = allLines.slice(skipRows || 0);
     if (!dataLines.length) return { headers: [], rows: [] };
     const headers = parseCSVLine(dataLines[0]);
     const rows = [];
     for (let i = 1; i < dataLines.length; i++) {
       const cols = parseCSVLine(dataLines[i]);
-      if (cols.every(c => !c.trim())) continue;
+      if (cols.every(c => !c.trim())) continue; // skip blank trailing rows
       const obj = {};
       headers.forEach((h, idx) => { obj[h] = (cols[idx] || '').trim(); });
       rows.push(obj);
@@ -157,6 +202,46 @@
 
   function getDept() {
     return (window.NJTC_SESSION && window.NJTC_SESSION.dept) || '';
+  }
+
+  // ── Row validity guard ─────────────────────────────────────────────
+  // Returns true only if the row has at least one meaningful anchor field.
+  // Rows with none of the anchor fields (phantom/blank rows) are excluded.
+  function isValidRow(r, tab) {
+    switch (tab) {
+      case 'pd':
+        // Must have a Role, a session number, OR any non-blank open-text response
+        return !!(
+          (r['Role'] && r['Role'].trim()) ||
+          (r['PD Session Number'] && r['PD Session Number'].trim()) ||
+          (r['What is one key takeaway or strategy you plan to apply at your site?'] || '').trim() ||
+          (r['Any additional comments, feedback, or shoutouts?'] || '').trim()
+        );
+      case 'intake':
+        // Must have a role OR a district
+        return !!(
+          (r['What is your role within NJTC? (Select one)'] || '').trim() ||
+          (r['What District are you assigned to?'] || '').trim()
+        );
+      case 'tutor-obs':
+        // Must have a tutor name
+        return !!(
+          (r['Tutor Name'] || '').trim() ||
+          (r['Master List Name'] || '').trim()
+        );
+      case 'sl-obs':
+        // Must have a site leader
+        return !!(r['Site Leader'] && r['Site Leader'].trim());
+      case 'otj':
+      case 'mgmt':
+        // Must have a task or competency code
+        return !!(
+          (r['Activity / Task'] || '').trim() ||
+          (r['Competency Code'] || '').trim()
+        );
+      default:
+        return true;
+    }
   }
 
 
@@ -310,7 +395,7 @@
       if (!_pdData) {
         const text = await fetchCSV(PD_URL);
         const parsed = parseCsvText(text, 0);
-        _pdData = parsed.rows;
+        _pdData = parsed.rows.filter(r => isValidRow(r, 'pd'));
       }
       el.innerHTML = buildPDHTML(_pdData);
       renderPDContent(_pdData);
@@ -621,6 +706,7 @@
     const seasonVal  = ((document.getElementById('tdPdSeasonFilter') || {}).value || '').toLowerCase();
 
     const filtered = _pdData.filter(r => {
+      if (!isValidRow(r, 'pd')) return false;
       if (sessionVal && (r['PD Session Number'] || '') !== sessionVal) return false;
       if (roleVal && (r['Role'] || '') !== roleVal) return false;
       if (seasonVal) {
@@ -666,7 +752,7 @@
         const text = await fetchCSV(TRAINING_INTAKE_URL);
         // Row 1 is blank, Row 2 is header — skip index 0
         const parsed = parseCsvText(text, 1);
-        _intakeData = parsed.rows;
+        _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
       }
       el.innerHTML = buildIntakeHTML(_intakeData);
       renderIntakeContent(_intakeData);
@@ -930,6 +1016,7 @@
     const districtVal = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
 
     const filtered = _intakeData.filter(r => {
+      if (!isValidRow(r, 'intake')) return false;
       if (roleVal && (r['What is your role within NJTC? (Select one)'] || '') !== roleVal) return false;
       if (hireVal) {
         const hireStr = (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase();
@@ -970,7 +1057,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Row 1 title, Row 2 header → skip index 0
         const parsed = parseCsvText(text, 1);
-        _tutorObsData = parsed.rows;
+        _tutorObsData = parsed.rows.filter(r => isValidRow(r, 'tutor-obs'));
       }
       el.innerHTML = buildTutorObsHTML(_tutorObsData);
       setTimeout(() => renderTutorObsCharts(_tutorObsData), 50);
@@ -994,8 +1081,8 @@
     let html = `<div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
       ${kpiCard(active.length, 'Active Tutors', '#059669')}
       ${kpiCard(terminated.length, 'Terminated', terminated.length > 0 ? '#b91c1c' : '#6b7280')}
-      ${kpiCard(pct(withObs, total) + '%', '≥1 Observation', withObs/total >= 0.8 ? '#059669' : '#d97706')}
-      ${kpiCard(pct(with3Plus, total) + '%', '3+ Months Observed', with3Plus/total >= 0.5 ? '#059669' : '#d97706')}
+      ${kpiCard(pct(withObs, total) + '%', '≥1 Observation', total && withObs/total >= 0.8 ? '#059669' : '#d97706')}
+      ${kpiCard(pct(with3Plus, total) + '%', '3+ Months Observed', total && with3Plus/total >= 0.5 ? '#059669' : '#d97706')}
     </div>
     <div class="ta-grid ta-grid-2" style="margin-bottom:1.25rem">
       ${kpiCard(totalObsEvents, 'Total Obs Events', '#0050c8')}
@@ -1156,6 +1243,7 @@
     // Re-render district chart with only the filtered data
     if (_tutorObsData) {
       const filtered = _tutorObsData.filter(r => {
+        if (!isValidRow(r, 'tutor-obs')) return false;
         const rRegion = (r['Region'] || '').toLowerCase();
         const rDist   = (r['District'] || '').toLowerCase();
         const rRole   = (r['Role'] || '').toLowerCase();
@@ -1211,7 +1299,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Row 1 title, Row 2 header → skip index 0
         const parsed = parseCsvText(text, 1);
-        _slObsData = parsed.rows;
+        _slObsData = parsed.rows.filter(r => isValidRow(r, 'sl-obs'));
       }
       el.innerHTML = buildSLObsHTML(_slObsData);
     } catch (e) {
@@ -1379,6 +1467,7 @@
     // Rebuild timeline heatmap with filtered data
     if (_slObsData) {
       const filtered = _slObsData.filter(r => {
+        if (!isValidRow(r, 'sl-obs')) return false;
         const rDist  = (r['District'] || '').toLowerCase();
         const rMonth = (r['Observation Month'] || '').trim().toLowerCase();
         return (!dist || rDist.includes(dist)) && (!month || rMonth.includes(month));
@@ -1420,7 +1509,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Rows 1+2 are title/instruction, row 3 is header → skip indices 0 and 1
         const parsed = parseCsvText(text, 2);
-        _otjData = parsed.rows;
+        _otjData = parsed.rows.filter(r => isValidRow(r, 'otj'));
       }
       el.innerHTML = buildOTJHTML(_otjData);
     } catch (e) {
@@ -1634,7 +1723,7 @@
       <div class="ta-card-title">Asset-Based Mindset Tracker</div>
       <div class="ta-grid ta-grid-3" style="margin-bottom:.875rem">
         ${kpiCard(intakeTotal ? pct(helpedByTraining, intakeTotal) + '%' : 'N/A', 'Training Helped — Asset Mindset', '#059669')}
-        ${kpiCard(intakeTotal ? pct(wantMore, intakeTotal) + '%' : 'N/A', 'Want More Asset-Based Training', wantMore/intakeTotal >= 0.5 ? '#d97706' : '#059669')}
+        ${kpiCard(intakeTotal ? pct(wantMore, intakeTotal) + '%' : 'N/A', 'Want More Asset-Based Training', intakeTotal && wantMore/intakeTotal >= 0.5 ? '#d97706' : '#059669')}
         ${kpiCard(instructionMLCodes.length, 'Related OTJ Items Found', '#0050c8')}
       </div>
       ${instructionMLCodes.length ? `<div style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Relevant OTJ Instruction/M/L Competency Codes:</div>
@@ -1671,6 +1760,7 @@
     const progressEl = document.getElementById('tdOTJPhaseProgress');
     if (progressEl && _otjData) {
       const visibleRows = _otjData.filter(r => {
+        if (!isValidRow(r, 'otj')) return false;
         const rPhase  = (r['Phase'] || '').trim().toLowerCase();
         const rDomain = (r['Competency Code'] || '').split('.')[0].trim().toLowerCase();
         const rTask   = (r['Activity / Task'] || '').toLowerCase();
@@ -1741,7 +1831,7 @@
         if (!gid) throw new Error('Could not find "OTJ Checklist Template" tab. GIDs: ' + JSON.stringify(gids));
         const text = await fetchCSV(apprentUrl(gid));
         const parsed = parseCsvText(text, 2);
-        _otjData = parsed.rows;
+        _otjData = parsed.rows.filter(r => isValidRow(r, 'mgmt'));
       }
       el.innerHTML = buildMgmtHTML(_otjData);
       attachMgmtListeners();
@@ -2010,9 +2100,9 @@
         </div>
         <div style="margin-bottom:1.5rem">
           ${stat(tutorTotal !== null ? tutorTotal : '–', 'Tutors Tracked', '#7b2d8b')}
-          ${stat(tutorWithObs !== null && tutorTotal ? pct(tutorWithObs, tutorTotal)+'%' : '–', '% With ≥1 Observation', tutorWithObs/tutorTotal >= 0.8 ? '#059669' : '#d97706')}
+          ${stat(tutorWithObs !== null && tutorTotal ? pct(tutorWithObs, tutorTotal)+'%' : '–', '% With ≥1 Observation', tutorTotal && tutorWithObs/tutorTotal >= 0.8 ? '#059669' : '#d97706')}
           ${stat(otjTotal !== null ? otjTotal : '–', 'OTJ Checklist Items', '#0050c8')}
-          ${stat(otjComplete !== null && otjTotal ? pct(otjComplete, otjTotal)+'%' : '–', 'OTJ Completion', otjComplete/otjTotal >= 0.5 ? '#059669' : '#d97706')}
+          ${stat(otjComplete !== null && otjTotal ? pct(otjComplete, otjTotal)+'%' : '–', 'OTJ Completion', otjTotal && otjComplete/otjTotal >= 0.5 ? '#059669' : '#d97706')}
         </div>
 
         <div class="pg-break"></div>
