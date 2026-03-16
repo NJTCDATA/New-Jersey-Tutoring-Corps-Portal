@@ -32,15 +32,60 @@
   //  HELPER UTILITIES
   // ══════════════════════════════════════════════════════════════════
 
+  // RFC-4180-compliant CSV line parser — handles quoted fields with embedded commas/newlines
+  function parseCSVLine(line) {
+    const fields = [];
+    let i = 0;
+    while (i <= line.length) {
+      if (line[i] === '"') {
+        // Quoted field
+        let field = '';
+        i++; // skip opening quote
+        while (i < line.length) {
+          if (line[i] === '"') {
+            if (line[i + 1] === '"') { field += '"'; i += 2; } // escaped quote
+            else { i++; break; } // closing quote
+          } else {
+            field += line[i++];
+          }
+        }
+        fields.push(field);
+        if (line[i] === ',') i++; // skip comma after closing quote
+      } else {
+        // Unquoted field — read until comma or end
+        let start = i;
+        while (i < line.length && line[i] !== ',') i++;
+        fields.push(line.slice(start, i));
+        if (line[i] === ',') i++;
+      }
+    }
+    return fields;
+  }
+
+  // Parse CSV text: skip `skipRows` rows, treat next row as headers, rest as data objects.
+  // Empty trailing rows (all cells blank) are automatically excluded.
   function parseCsvText(text, skipRows) {
-    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
-    const dataLines = lines.slice(skipRows || 0);
+    // Split on newlines, but respect quoted fields that span lines
+    const rawText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Reassemble lines while respecting quoted fields containing newlines
+    const allLines = [];
+    let current = '';
+    let inQuote = false;
+    for (let ci = 0; ci < rawText.length; ci++) {
+      const ch = rawText[ci];
+      if (ch === '"') { inQuote = !inQuote; current += ch; }
+      else if (ch === '\n' && !inQuote) { allLines.push(current); current = ''; }
+      else { current += ch; }
+    }
+    if (current) allLines.push(current);
+
+    const dataLines = allLines.slice(skipRows || 0);
     if (!dataLines.length) return { headers: [], rows: [] };
     const headers = parseCSVLine(dataLines[0]);
     const rows = [];
     for (let i = 1; i < dataLines.length; i++) {
       const cols = parseCSVLine(dataLines[i]);
-      if (cols.every(c => !c.trim())) continue;
+      if (cols.every(c => !c.trim())) continue; // skip blank trailing rows
       const obj = {};
       headers.forEach((h, idx) => { obj[h] = (cols[idx] || '').trim(); });
       rows.push(obj);
@@ -157,6 +202,46 @@
 
   function getDept() {
     return (window.NJTC_SESSION && window.NJTC_SESSION.dept) || '';
+  }
+
+  // ── Row validity guard ─────────────────────────────────────────────
+  // Returns true only if the row has at least one meaningful anchor field.
+  // Rows with none of the anchor fields (phantom/blank rows) are excluded.
+  function isValidRow(r, tab) {
+    switch (tab) {
+      case 'pd':
+        // Must have a Role, a session number, OR any non-blank open-text response
+        return !!(
+          (r['Role'] && r['Role'].trim()) ||
+          (r['PD Session Number'] && r['PD Session Number'].trim()) ||
+          (r['What is one key takeaway or strategy you plan to apply at your site?'] || '').trim() ||
+          (r['Any additional comments, feedback, or shoutouts?'] || '').trim()
+        );
+      case 'intake':
+        // Must have a role OR a district
+        return !!(
+          (r['What is your role within NJTC? (Select one)'] || '').trim() ||
+          (r['What District are you assigned to?'] || '').trim()
+        );
+      case 'tutor-obs':
+        // Must have a tutor name
+        return !!(
+          (r['Tutor Name'] || '').trim() ||
+          (r['Master List Name'] || '').trim()
+        );
+      case 'sl-obs':
+        // Must have a site leader
+        return !!(r['Site Leader'] && r['Site Leader'].trim());
+      case 'otj':
+      case 'mgmt':
+        // Must have a task or competency code
+        return !!(
+          (r['Activity / Task'] || '').trim() ||
+          (r['Competency Code'] || '').trim()
+        );
+      default:
+        return true;
+    }
   }
 
 
@@ -310,11 +395,10 @@
       if (!_pdData) {
         const text = await fetchCSV(PD_URL);
         const parsed = parseCsvText(text, 0);
-        _pdData = parsed.rows;
+        _pdData = parsed.rows.filter(r => isValidRow(r, 'pd'));
       }
       el.innerHTML = buildPDHTML(_pdData);
-      // Render charts after DOM update
-      setTimeout(() => renderPDCharts(_pdData), 50);
+      renderPDContent(_pdData);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["pd"]=false;renderPDTab();}');
     }
@@ -323,14 +407,53 @@
   function buildPDHTML(rows) {
     if (!rows.length) return '<div class="td-error">No PD session data found.</div>';
 
-    const totalResponses = rows.length;
-    const sessions = groupSessions(rows);
+    // Build filter options from FULL dataset
+    const allSessions = groupSessions(rows);
+    const allRoles = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+
+    let html = `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
+      <select class="filter-select" id="tdPdSessionFilter" onchange="applyPDFilter()">
+        <option value="">All Sessions</option>
+        ${allSessions.map(s=>`<option value="${s.sessionNum}">Session ${s.sessionNum} · ${fmtDate(s.date)}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdPdRoleFilter" onchange="applyPDFilter()">
+        <option value="">All Roles</option>
+        ${allRoles.map(r=>`<option>${r}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdPdSeasonFilter" onchange="applyPDFilter()">
+        <option value="">All Seasons</option>
+        <option>Fall</option><option>Winter</option><option>Spring</option><option>Summer</option>
+      </select>
+      <span id="tdPdFilterCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
+    </div>
+    <div id="tdPdContent"></div>`;
+
+    // Immediately render content with full rows
+    // (We must do this synchronously so the DOM is populated)
+    // renderPDContent will be called after innerHTML is set
+    return html;
+  }
+
+  function renderPDContent(filteredRows) {
+    const container = document.getElementById('tdPdContent');
+    if (!container) return;
+
+    if (!filteredRows.length) {
+      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
+      const countEl = document.getElementById('tdPdFilterCount');
+      if (countEl) countEl.textContent = '0 of ' + (_pdData ? _pdData.length : 0) + ' responses';
+      return;
+    }
+
+    const totalResponses = filteredRows.length;
+    const sessions = groupSessions(filteredRows);
     const totalSessions = sessions.length;
 
     // KPI calculations
-    const overallRatings = rows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
+    const overallRatings = filteredRows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
     const avgOverall = overallRatings.length ? (overallRatings.reduce((s, n) => s + n, 0) / overallRatings.length) : 0;
-    const recommendYes = rows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
+    const recommendYes = filteredRows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
     const pctRecommend = pct(recommendYes, totalResponses);
 
     // Latest session avg
@@ -357,13 +480,10 @@
       </div>`;
     }
 
-    // Session filter for open responses
-    const sessionNums = sessions.map(s => s.sessionNum);
-
     // Session cards
     html += `<div style="margin-bottom:1.5rem">
       <div class="ta-card-title" style="margin-bottom:.75rem">Session Summaries (newest first)</div>`;
-    sessions.forEach((s, idx) => {
+    sessions.forEach((s) => {
       const focusAreas = [];
       s.rows.forEach(r => {
         const raw = r['What focus areas need additional support?'] || '';
@@ -435,9 +555,17 @@
     </div>`;
 
     // Open responses feed
-    html += buildPDOpenResponses(rows, sessionNums);
+    const sessionNums = sessions.map(s => s.sessionNum);
+    html += buildPDOpenResponses(filteredRows, sessionNums);
 
-    return html;
+    container.innerHTML = html;
+
+    // Update filter count badge
+    const countEl = document.getElementById('tdPdFilterCount');
+    if (countEl) countEl.textContent = totalResponses + ' of ' + (_pdData ? _pdData.length : totalResponses) + ' responses';
+
+    // Render charts after DOM update
+    setTimeout(() => renderPDCharts(filteredRows), 50);
   }
 
   function groupSessions(rows) {
@@ -456,16 +584,6 @@
   function buildPDOpenResponses(rows, sessionNums) {
     let html = `<div class="ta-card">
       <div class="ta-card-title">Open Response Feed</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-        <select class="filter-select" id="tdPdResponseFilter" onchange="filterPDResponses()">
-          <option value="">All Sessions</option>
-          ${sessionNums.map(s => `<option value="${s}">Session ${s}</option>`).join('')}
-        </select>
-        <select class="filter-select" id="tdPdRoleFilter" onchange="filterPDResponses()">
-          <option value="">All Roles</option>
-          ${[...new Set(rows.map(r => r['Role']).filter(Boolean))].map(r => `<option value="${r}">${r}</option>`).join('')}
-        </select>
-      </div>
       <div id="tdPdResponsesList">`;
 
     rows.slice(0, 30).forEach(r => {
@@ -581,15 +699,30 @@
     });
   }
 
-  window.filterPDResponses = function() {
-    const sessionVal = (document.getElementById('tdPdResponseFilter') || {}).value || '';
+  window.applyPDFilter = function() {
+    if (!_pdData) return;
+    const sessionVal = (document.getElementById('tdPdSessionFilter') || {}).value || '';
     const roleVal    = (document.getElementById('tdPdRoleFilter') || {}).value || '';
-    document.querySelectorAll('#tdPdResponsesList .td-check-row').forEach(row => {
-      const s = row.dataset.session || '';
-      const r = row.dataset.role || '';
-      const show = (!sessionVal || s === sessionVal) && (!roleVal || r === roleVal);
-      row.style.display = show ? '' : 'none';
+    const seasonVal  = ((document.getElementById('tdPdSeasonFilter') || {}).value || '').toLowerCase();
+
+    const filtered = _pdData.filter(r => {
+      if (!isValidRow(r, 'pd')) return false;
+      if (sessionVal && (r['PD Session Number'] || '') !== sessionVal) return false;
+      if (roleVal && (r['Role'] || '') !== roleVal) return false;
+      if (seasonVal) {
+        const m = (() => { const d = new Date(r['Date of PD Session']); return isNaN(d) ? 0 : d.getMonth() + 1; })();
+        const s = m >= 9 && m <= 11 ? 'fall' : (m === 12 || m === 1 || m === 2) ? 'winter' : m >= 3 && m <= 5 ? 'spring' : 'summer';
+        if (s !== seasonVal) return false;
+      }
+      return true;
     });
+
+    renderPDContent(filtered);
+  };
+
+  window.filterPDResponses = function() {
+    // Legacy backward compat — delegate to applyPDFilter
+    window.applyPDFilter();
   };
 
 
@@ -619,10 +752,10 @@
         const text = await fetchCSV(TRAINING_INTAKE_URL);
         // Row 1 is blank, Row 2 is header — skip index 0
         const parsed = parseCsvText(text, 1);
-        _intakeData = parsed.rows;
+        _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
       }
       el.innerHTML = buildIntakeHTML(_intakeData);
-      setTimeout(() => renderIntakeCharts(_intakeData), 50);
+      renderIntakeContent(_intakeData);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["intake"]=false;renderIntakeTab();}');
     }
@@ -631,6 +764,38 @@
   function buildIntakeHTML(rows) {
     if (!rows.length) return '<div class="td-error">No training intake data found.</div>';
 
+    // Build filter options from FULL dataset
+    const allRoles = [...new Set(rows.map(r => r['What is your role within NJTC? (Select one)']).filter(Boolean))].sort();
+
+    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
+      <select class="filter-select" id="tdIntakeRoleFilter" onchange="applyIntakeFilter()">
+        <option value="">All Roles</option>
+        ${allRoles.map(r => `<option>${r}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdIntakeHireFilter" onchange="applyIntakeFilter()">
+        <option value="">New &amp; Returning</option>
+        <option value="new">New Hires</option>
+        <option value="returning">Returning</option>
+      </select>
+      <input type="text" class="filter-input" id="tdIntakeDistrictFilter" placeholder="Filter district…" oninput="applyIntakeFilter()" style="max-width:200px">
+      <span id="tdIntakeFilterCount" style="font-size:.75rem;color:var(--muted)"></span>
+    </div>
+    <div id="tdIntakeContent"></div>`;
+  }
+
+  function renderIntakeContent(filteredRows) {
+    const container = document.getElementById('tdIntakeContent');
+    if (!container) return;
+
+    if (!filteredRows.length) {
+      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
+      const countEl = document.getElementById('tdIntakeFilterCount');
+      if (countEl) countEl.textContent = '0 of ' + (_intakeData ? _intakeData.length : 0) + ' responses';
+      return;
+    }
+
+    const rows = filteredRows;
     const total = rows.length;
     const newHires = rows.filter(r => (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase().includes('new')).length;
     const certified = rows.filter(r => {
@@ -679,9 +844,6 @@
     // District distribution
     html += `<div class="ta-card" style="margin-bottom:1.25rem">
       <div class="ta-card-title">District Distribution</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-        <input type="text" class="filter-input" placeholder="Filter by district or school…" id="tdIntakeDistrictFilter" oninput="filterIntakeTable()" style="max-width:280px">
-      </div>
       <div style="overflow-x:auto" id="tdIntakeDistrictTable">${buildIntakeDistrictTable(rows)}</div>
     </div>`;
 
@@ -697,7 +859,14 @@
     // Open feedback
     html += buildIntakeFeedback(rows);
 
-    return html;
+    container.innerHTML = html;
+
+    // Update filter count badge
+    const countEl = document.getElementById('tdIntakeFilterCount');
+    if (countEl) countEl.textContent = total + ' of ' + (_intakeData ? _intakeData.length : total) + ' responses';
+
+    // Render charts after DOM update
+    setTimeout(() => renderIntakeCharts(rows), 50);
   }
 
   function buildIntakeDistrictTable(rows) {
@@ -840,11 +1009,33 @@
     });
   }
 
-  window.filterIntakeTable = function() {
-    const val = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
-    document.querySelectorAll('#tdIntakeDistrictTable tr[data-district]').forEach(row => {
-      row.style.display = row.dataset.district.includes(val) ? '' : 'none';
+  window.applyIntakeFilter = function() {
+    if (!_intakeData) return;
+    const roleVal     = (document.getElementById('tdIntakeRoleFilter') || {}).value || '';
+    const hireVal     = ((document.getElementById('tdIntakeHireFilter') || {}).value || '').toLowerCase();
+    const districtVal = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
+
+    const filtered = _intakeData.filter(r => {
+      if (!isValidRow(r, 'intake')) return false;
+      if (roleVal && (r['What is your role within NJTC? (Select one)'] || '') !== roleVal) return false;
+      if (hireVal) {
+        const hireStr = (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase();
+        if (hireVal === 'new' && !hireStr.includes('new')) return false;
+        if (hireVal === 'returning' && !hireStr.includes('returning')) return false;
+      }
+      if (districtVal) {
+        const distStr = (r['What District are you assigned to?'] || '').toLowerCase();
+        if (!distStr.includes(districtVal)) return false;
+      }
+      return true;
     });
+
+    renderIntakeContent(filtered);
+  };
+
+  window.filterIntakeTable = function() {
+    // Legacy backward compat — delegate to applyIntakeFilter
+    window.applyIntakeFilter();
   };
 
 
@@ -866,7 +1057,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Row 1 title, Row 2 header → skip index 0
         const parsed = parseCsvText(text, 1);
-        _tutorObsData = parsed.rows;
+        _tutorObsData = parsed.rows.filter(r => isValidRow(r, 'tutor-obs'));
       }
       el.innerHTML = buildTutorObsHTML(_tutorObsData);
       setTimeout(() => renderTutorObsCharts(_tutorObsData), 50);
@@ -890,8 +1081,8 @@
     let html = `<div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
       ${kpiCard(active.length, 'Active Tutors', '#059669')}
       ${kpiCard(terminated.length, 'Terminated', terminated.length > 0 ? '#b91c1c' : '#6b7280')}
-      ${kpiCard(pct(withObs, total) + '%', '≥1 Observation', withObs/total >= 0.8 ? '#059669' : '#d97706')}
-      ${kpiCard(pct(with3Plus, total) + '%', '3+ Months Observed', with3Plus/total >= 0.5 ? '#059669' : '#d97706')}
+      ${kpiCard(pct(withObs, total) + '%', '≥1 Observation', total && withObs/total >= 0.8 ? '#059669' : '#d97706')}
+      ${kpiCard(pct(with3Plus, total) + '%', '3+ Months Observed', total && with3Plus/total >= 0.5 ? '#059669' : '#d97706')}
     </div>
     <div class="ta-grid ta-grid-2" style="margin-bottom:1.25rem">
       ${kpiCard(totalObsEvents, 'Total Obs Events', '#0050c8')}
@@ -1038,6 +1229,9 @@
     const dist   = ((document.getElementById('tdTutorDistFilter')||{}).value||'').toLowerCase();
     const role   = ((document.getElementById('tdTutorRoleFilter')||{}).value||'').toLowerCase();
     const status = ((document.getElementById('tdTutorStatusFilter')||{}).value||'').toLowerCase();
+
+    // Show/hide table rows and collect visible data rows
+    const visibleRows = [];
     document.querySelectorAll('#tdTutorObsTable tbody tr').forEach(tr => {
       const match = (!region || tr.dataset.region.includes(region))
         && (!dist || tr.dataset.district.includes(dist))
@@ -1045,6 +1239,45 @@
         && (!status || tr.dataset.status.includes(status));
       tr.style.display = match ? '' : 'none';
     });
+
+    // Re-render district chart with only the filtered data
+    if (_tutorObsData) {
+      const filtered = _tutorObsData.filter(r => {
+        if (!isValidRow(r, 'tutor-obs')) return false;
+        const rRegion = (r['Region'] || '').toLowerCase();
+        const rDist   = (r['District'] || '').toLowerCase();
+        const rRole   = (r['Role'] || '').toLowerCase();
+        const rStatus = (r['Active Status'] || '').toLowerCase();
+        return (!region || rRegion.includes(region))
+          && (!dist || rDist.includes(dist))
+          && (!role || rRole.includes(role))
+          && (!status || rStatus.includes(status));
+      });
+
+      // Re-render district chart with filtered rows
+      const districts = [...new Set(filtered.map(r => r['District']).filter(Boolean))].sort();
+      const distRates = districts.map(d => {
+        const dRows = filtered.filter(r => r['District'] === d);
+        const obs = dRows.filter(r => OBS_MONTHS.some(m => isObserved(r[m]))).length;
+        return pct(obs, dRows.length);
+      });
+      makeChart('tdTutorObsDistrictChart', {
+        type: 'bar',
+        data: {
+          labels: districts,
+          datasets: [
+            { label: 'Obs Rate %', data: distRates, backgroundColor: distRates.map(r => r >= 80 ? '#10b981' : '#f59e0b'), borderRadius: 4 },
+            { label: '80% Benchmark', data: districts.map(() => 80), type: 'line', borderColor: '#ef4444', borderDash: [5, 3], borderWidth: 1.5, pointRadius: 0, fill: false }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } }, tooltip: { enabled: true } },
+          scales: { x: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+        }
+      });
+    }
   };
 
 
@@ -1066,7 +1299,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Row 1 title, Row 2 header → skip index 0
         const parsed = parseCsvText(text, 1);
-        _slObsData = parsed.rows;
+        _slObsData = parsed.rows.filter(r => isValidRow(r, 'sl-obs'));
       }
       el.innerHTML = buildSLObsHTML(_slObsData);
     } catch (e) {
@@ -1107,7 +1340,7 @@
 
     html += `<div class="ta-card" style="margin-bottom:1.25rem">
       <div class="ta-card-title">Observation Log</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem;align-items:center">
         <select class="filter-select" id="tdSLDistFilter" onchange="filterSLObsTable()">
           <option value="">All Districts</option>
           ${districts.map(d => `<option>${d}</option>`).join('')}
@@ -1116,6 +1349,7 @@
           <option value="">All Months</option>
           ${SL_OBS_MONTHS.map(m => `<option>${m}</option>`).join('')}
         </select>
+        <span id="tdSLKpiCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
       </div>
       <div style="overflow-x:auto"><table class="ta-table" id="tdSLObsTable">
         <thead><tr><th>District</th><th>School</th><th>Site Leader</th><th>Obs Month</th><th>Added to Folder</th><th>Notes</th></tr></thead>
@@ -1140,8 +1374,8 @@
       </table></div>
     </div>`;
 
-    // Timeline heatmap: rows = site leaders, cols = months
-    html += buildSLTimeline(rows, uniqueSLs);
+    // Timeline heatmap: rows = site leaders, cols = months (wrapped for reactive re-render)
+    html += `<div id="tdSLTimeline">${buildSLTimeline(rows, uniqueSLs)}</div>`;
 
     // Notes feed
     const withNotes = rows.filter(r => (r['Notes'] || '').trim() !== '');
@@ -1215,10 +1449,35 @@
   window.filterSLObsTable = function() {
     const dist  = ((document.getElementById('tdSLDistFilter')||{}).value||'').toLowerCase();
     const month = ((document.getElementById('tdSLMonthFilter')||{}).value||'').toLowerCase();
+
+    // Show/hide table rows
+    let visibleCount = 0;
     document.querySelectorAll('#tdSLObsTable tbody tr').forEach(tr => {
       const show = (!dist || tr.dataset.district.includes(dist)) && (!month || tr.dataset.month.includes(month));
       tr.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
     });
+
+    // Update KPI count badge
+    const countEl = document.getElementById('tdSLKpiCount');
+    if (countEl && _slObsData) {
+      countEl.textContent = visibleCount + ' of ' + _slObsData.length + ' observations';
+    }
+
+    // Rebuild timeline heatmap with filtered data
+    if (_slObsData) {
+      const filtered = _slObsData.filter(r => {
+        if (!isValidRow(r, 'sl-obs')) return false;
+        const rDist  = (r['District'] || '').toLowerCase();
+        const rMonth = (r['Observation Month'] || '').trim().toLowerCase();
+        return (!dist || rDist.includes(dist)) && (!month || rMonth.includes(month));
+      });
+      const filteredSLs = [...new Set(filtered.map(r => (r['Site Leader'] || '').trim()).filter(Boolean))];
+      const timelineEl = document.getElementById('tdSLTimeline');
+      if (timelineEl) {
+        timelineEl.innerHTML = buildSLTimeline(filtered, filteredSLs);
+      }
+    }
   };
 
 
@@ -1250,7 +1509,7 @@
         const text = await fetchCSV(apprentUrl(gid));
         // Rows 1+2 are title/instruction, row 3 is header → skip indices 0 and 1
         const parsed = parseCsvText(text, 2);
-        _otjData = parsed.rows;
+        _otjData = parsed.rows.filter(r => isValidRow(r, 'otj'));
       }
       el.innerHTML = buildOTJHTML(_otjData);
     } catch (e) {
@@ -1273,7 +1532,7 @@
     </div>`;
 
     // Phase progress summary
-    html += `<div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">`;
+    html += `<div class="ta-grid ta-grid-3" id="tdOTJPhaseProgress" style="margin-bottom:1.25rem">`;
     phases.forEach(phase => {
       const phaseRows = rows.filter(r => (r['Phase']||'').trim() === phase);
       const done = phaseRows.filter(r => (r['Mark Y']||'').trim().toUpperCase() === 'Y').length;
@@ -1464,7 +1723,7 @@
       <div class="ta-card-title">Asset-Based Mindset Tracker</div>
       <div class="ta-grid ta-grid-3" style="margin-bottom:.875rem">
         ${kpiCard(intakeTotal ? pct(helpedByTraining, intakeTotal) + '%' : 'N/A', 'Training Helped — Asset Mindset', '#059669')}
-        ${kpiCard(intakeTotal ? pct(wantMore, intakeTotal) + '%' : 'N/A', 'Want More Asset-Based Training', wantMore/intakeTotal >= 0.5 ? '#d97706' : '#059669')}
+        ${kpiCard(intakeTotal ? pct(wantMore, intakeTotal) + '%' : 'N/A', 'Want More Asset-Based Training', intakeTotal && wantMore/intakeTotal >= 0.5 ? '#d97706' : '#059669')}
         ${kpiCard(instructionMLCodes.length, 'Related OTJ Items Found', '#0050c8')}
       </div>
       ${instructionMLCodes.length ? `<div style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Relevant OTJ Instruction/M/L Competency Codes:</div>
@@ -1481,7 +1740,8 @@
     const domain = ((document.getElementById('tdOTJDomainFilter')||{}).value||'').toLowerCase();
     const search = ((document.getElementById('tdOTJSearchFilter')||{}).value||'').toLowerCase();
 
-    // Toggle phase headers
+    // Toggle phase headers and collect visible rows
+    const visibleItems = [];
     document.querySelectorAll('#tdOTJTableWrap [data-phase]').forEach(el => {
       const elPhase  = (el.dataset.phase||'').toLowerCase();
       const elDomain = (el.dataset.domain||'').toLowerCase();
@@ -1492,8 +1752,43 @@
           && (!domain || elDomain === domain)
           && (!search || elTask.includes(search));
         el.style.display = show ? '' : 'none';
+        if (show) visibleItems.push({ phase: el.dataset.phase, domain: elDomain });
       }
     });
+
+    // Re-render phase progress cards using only visible rows from _otjData
+    const progressEl = document.getElementById('tdOTJPhaseProgress');
+    if (progressEl && _otjData) {
+      const visibleRows = _otjData.filter(r => {
+        if (!isValidRow(r, 'otj')) return false;
+        const rPhase  = (r['Phase'] || '').trim().toLowerCase();
+        const rDomain = (r['Competency Code'] || '').split('.')[0].trim().toLowerCase();
+        const rTask   = (r['Activity / Task'] || '').toLowerCase();
+        return (!phase || rPhase === phase)
+          && (!domain || rDomain === domain)
+          && (!search || rTask.includes(search));
+      });
+
+      const visiblePhases = [...new Set(visibleRows.map(r => (r['Phase']||'').trim()).filter(Boolean))];
+      let progressHTML = '';
+      visiblePhases.forEach(ph => {
+        const phaseRows = visibleRows.filter(r => (r['Phase']||'').trim() === ph);
+        const done = phaseRows.filter(r => (r['Mark Y']||'').trim().toUpperCase() === 'Y').length;
+        const p = pct(done, phaseRows.length);
+        const isOverdue = phaseIsOverdue(ph);
+        const showWarning = isOverdue && p < 50;
+        progressHTML += `<div class="ta-card">
+          ${showWarning ? `<div style="padding:.4rem .75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:.72rem;font-weight:700;color:#92400e;margin-bottom:.625rem">⚠️ Phase is overdue — less than 50% complete</div>` : ''}
+          <div class="td-phase-hdr ${phaseClass(ph)}" style="margin-top:0">${ph}</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+            <span style="font-size:.75rem;color:var(--muted)">${done}/${phaseRows.length} items</span>
+            <span style="font-size:.75rem;font-weight:700;color:${p>=75?'#059669':p>=50?'#d97706':'#b91c1c'}">${p}%</span>
+          </div>
+          <div class="td-progress-bar"><div class="td-progress-fill" style="width:${p}%;background:${p>=75?'#10b981':p>=50?'#f59e0b':'#ef4444'}"></div></div>
+        </div>`;
+      });
+      progressEl.innerHTML = progressHTML || '<div style="font-size:.8rem;color:var(--muted)">No phases match the current filters.</div>';
+    }
   };
 
   window.tdPrintOTJ = function() {
@@ -1536,7 +1831,7 @@
         if (!gid) throw new Error('Could not find "OTJ Checklist Template" tab. GIDs: ' + JSON.stringify(gids));
         const text = await fetchCSV(apprentUrl(gid));
         const parsed = parseCsvText(text, 2);
-        _otjData = parsed.rows;
+        _otjData = parsed.rows.filter(r => isValidRow(r, 'mgmt'));
       }
       el.innerHTML = buildMgmtHTML(_otjData);
       attachMgmtListeners();
@@ -1805,9 +2100,9 @@
         </div>
         <div style="margin-bottom:1.5rem">
           ${stat(tutorTotal !== null ? tutorTotal : '–', 'Tutors Tracked', '#7b2d8b')}
-          ${stat(tutorWithObs !== null && tutorTotal ? pct(tutorWithObs, tutorTotal)+'%' : '–', '% With ≥1 Observation', tutorWithObs/tutorTotal >= 0.8 ? '#059669' : '#d97706')}
+          ${stat(tutorWithObs !== null && tutorTotal ? pct(tutorWithObs, tutorTotal)+'%' : '–', '% With ≥1 Observation', tutorTotal && tutorWithObs/tutorTotal >= 0.8 ? '#059669' : '#d97706')}
           ${stat(otjTotal !== null ? otjTotal : '–', 'OTJ Checklist Items', '#0050c8')}
-          ${stat(otjComplete !== null && otjTotal ? pct(otjComplete, otjTotal)+'%' : '–', 'OTJ Completion', otjComplete/otjTotal >= 0.5 ? '#059669' : '#d97706')}
+          ${stat(otjComplete !== null && otjTotal ? pct(otjComplete, otjTotal)+'%' : '–', 'OTJ Completion', otjTotal && otjComplete/otjTotal >= 0.5 ? '#059669' : '#d97706')}
         </div>
 
         <div class="pg-break"></div>
