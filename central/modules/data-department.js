@@ -298,8 +298,30 @@
           baseRelPlacement:   L['14'][r[14]],
           springRelPlacement: L['15'][r[15]],
           springGain:         r[16],
-          pctTypical:         (function(){ var _pv=r[17]; if(_pv==null) return null; var _pf=parseFloat(_pv); if(isNaN(_pf)) return null; if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;} else if(_pf>15){_pf=_pf/100;} return _pf; }()),
-          annualTypical:      (r[17]>0&&r[16]!=null) ? parseFloat((r[16]/r[17]).toFixed(1)) : null,
+          pctTypical:         (function(){
+            var _pv=r[17]; if(_pv==null) return null;
+            var _pf=parseFloat(_pv); if(isNaN(_pf)) return null;
+            if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;}
+            else if(_pf===0) { return null; }  // zero = no data
+            else if(subject==='ELA'&&_pf===Math.floor(_pf)){
+              // ELA integer r[17] = annualTypical (scale score points); pctTypical = springGain / annualTypical
+              if(r[16]==null) return null;
+              var _pct=parseFloat(r[16])/_pf;
+              if(_pct>15) return null;  // cap extreme outliers
+              _pf=_pct;
+            } else if(_pf>15) { _pf=_pf/100; }  // legacy percentage encoding fallback
+            return _pf;
+          }()),
+          annualTypical:      (function(){
+            var _pv=r[17]; if(_pv==null||r[16]==null) return null;
+            var _pf=parseFloat(_pv); if(isNaN(_pf)||_pf<=0) return null;
+            if(subject==='ELA'&&_pf===Math.floor(_pf)){
+              return _pf;  // ELA integer r[17] = annualTypical directly (scale score points)
+            }
+            if(_pf>15) _pf=_pf/100;
+            if(_pf<=0) return null;
+            return parseFloat((parseFloat(r[16])/_pf).toFixed(1));
+          }()),
           baseRushFlag:       r[18] ? '1' : '',
           springRushFlag:     '',
           baseScore:          null,
