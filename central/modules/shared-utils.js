@@ -2996,14 +2996,7 @@
   window.govClose  = govClose;
   window.govTab    = govTab;
 
-  // ══════════════════════════════════════════════════════════════════
-  //  PATCH renderKPIAnalyticsTab — Add Quarterly tab
-  // ══════════════════════════════════════════════════════════════════
-
-  ;
-
-  window.renderKPIAnalytics    = renderKPIAnalytics;
-  window.renderKPIAnalyticsTab = renderKPIAnalyticsTab;
+  // renderKPIAnalytics / renderKPIAnalyticsTab exposed by shared-charts.js
 
 
 
