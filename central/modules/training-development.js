@@ -313,8 +313,6 @@
         _pdData = parsed.rows;
       }
       el.innerHTML = buildPDHTML(_pdData);
-      // Render charts after DOM update
-      setTimeout(() => renderPDCharts(_pdData), 50);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["pd"]=false;renderPDTab();}');
     }
@@ -323,14 +321,53 @@
   function buildPDHTML(rows) {
     if (!rows.length) return '<div class="td-error">No PD session data found.</div>';
 
-    const totalResponses = rows.length;
-    const sessions = groupSessions(rows);
+    // Build filter options from FULL dataset
+    const allSessions = groupSessions(rows);
+    const allRoles = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+
+    let html = `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
+      <select class="filter-select" id="tdPdSessionFilter" onchange="applyPDFilter()">
+        <option value="">All Sessions</option>
+        ${allSessions.map(s=>`<option value="${s.sessionNum}">Session ${s.sessionNum} · ${fmtDate(s.date)}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdPdRoleFilter" onchange="applyPDFilter()">
+        <option value="">All Roles</option>
+        ${allRoles.map(r=>`<option>${r}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdPdSeasonFilter" onchange="applyPDFilter()">
+        <option value="">All Seasons</option>
+        <option>Fall</option><option>Winter</option><option>Spring</option><option>Summer</option>
+      </select>
+      <span id="tdPdFilterCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
+    </div>
+    <div id="tdPdContent"></div>`;
+
+    // Immediately render content with full rows
+    // (We must do this synchronously so the DOM is populated)
+    // renderPDContent will be called after innerHTML is set
+    return html;
+  }
+
+  function renderPDContent(filteredRows) {
+    const container = document.getElementById('tdPdContent');
+    if (!container) return;
+
+    if (!filteredRows.length) {
+      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
+      const countEl = document.getElementById('tdPdFilterCount');
+      if (countEl) countEl.textContent = '0 of ' + (_pdData ? _pdData.length : 0) + ' responses';
+      return;
+    }
+
+    const totalResponses = filteredRows.length;
+    const sessions = groupSessions(filteredRows);
     const totalSessions = sessions.length;
 
     // KPI calculations
-    const overallRatings = rows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
+    const overallRatings = filteredRows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
     const avgOverall = overallRatings.length ? (overallRatings.reduce((s, n) => s + n, 0) / overallRatings.length) : 0;
-    const recommendYes = rows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
+    const recommendYes = filteredRows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
     const pctRecommend = pct(recommendYes, totalResponses);
 
     // Latest session avg
@@ -357,13 +394,10 @@
       </div>`;
     }
 
-    // Session filter for open responses
-    const sessionNums = sessions.map(s => s.sessionNum);
-
     // Session cards
     html += `<div style="margin-bottom:1.5rem">
       <div class="ta-card-title" style="margin-bottom:.75rem">Session Summaries (newest first)</div>`;
-    sessions.forEach((s, idx) => {
+    sessions.forEach((s) => {
       const focusAreas = [];
       s.rows.forEach(r => {
         const raw = r['What focus areas need additional support?'] || '';
@@ -435,9 +469,17 @@
     </div>`;
 
     // Open responses feed
-    html += buildPDOpenResponses(rows, sessionNums);
+    const sessionNums = sessions.map(s => s.sessionNum);
+    html += buildPDOpenResponses(filteredRows, sessionNums);
 
-    return html;
+    container.innerHTML = html;
+
+    // Update filter count badge
+    const countEl = document.getElementById('tdPdFilterCount');
+    if (countEl) countEl.textContent = totalResponses + ' of ' + (_pdData ? _pdData.length : totalResponses) + ' responses';
+
+    // Render charts after DOM update
+    setTimeout(() => renderPDCharts(filteredRows), 50);
   }
 
   function groupSessions(rows) {
