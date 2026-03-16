@@ -313,6 +313,7 @@
         _pdData = parsed.rows;
       }
       el.innerHTML = buildPDHTML(_pdData);
+      renderPDContent(_pdData);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["pd"]=false;renderPDTab();}');
     }
@@ -498,16 +499,6 @@
   function buildPDOpenResponses(rows, sessionNums) {
     let html = `<div class="ta-card">
       <div class="ta-card-title">Open Response Feed</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
-        <select class="filter-select" id="tdPdResponseFilter" onchange="filterPDResponses()">
-          <option value="">All Sessions</option>
-          ${sessionNums.map(s => `<option value="${s}">Session ${s}</option>`).join('')}
-        </select>
-        <select class="filter-select" id="tdPdRoleFilter" onchange="filterPDResponses()">
-          <option value="">All Roles</option>
-          ${[...new Set(rows.map(r => r['Role']).filter(Boolean))].map(r => `<option value="${r}">${r}</option>`).join('')}
-        </select>
-      </div>
       <div id="tdPdResponsesList">`;
 
     rows.slice(0, 30).forEach(r => {
@@ -623,15 +614,29 @@
     });
   }
 
-  window.filterPDResponses = function() {
-    const sessionVal = (document.getElementById('tdPdResponseFilter') || {}).value || '';
+  window.applyPDFilter = function() {
+    if (!_pdData) return;
+    const sessionVal = (document.getElementById('tdPdSessionFilter') || {}).value || '';
     const roleVal    = (document.getElementById('tdPdRoleFilter') || {}).value || '';
-    document.querySelectorAll('#tdPdResponsesList .td-check-row').forEach(row => {
-      const s = row.dataset.session || '';
-      const r = row.dataset.role || '';
-      const show = (!sessionVal || s === sessionVal) && (!roleVal || r === roleVal);
-      row.style.display = show ? '' : 'none';
+    const seasonVal  = ((document.getElementById('tdPdSeasonFilter') || {}).value || '').toLowerCase();
+
+    const filtered = _pdData.filter(r => {
+      if (sessionVal && (r['PD Session Number'] || '') !== sessionVal) return false;
+      if (roleVal && (r['Role'] || '') !== roleVal) return false;
+      if (seasonVal) {
+        const m = (() => { const d = new Date(r['Date of PD Session']); return isNaN(d) ? 0 : d.getMonth() + 1; })();
+        const s = m >= 9 && m <= 11 ? 'fall' : (m === 12 || m === 1 || m === 2) ? 'winter' : m >= 3 && m <= 5 ? 'spring' : 'summer';
+        if (s !== seasonVal) return false;
+      }
+      return true;
     });
+
+    renderPDContent(filtered);
+  };
+
+  window.filterPDResponses = function() {
+    // Legacy backward compat — delegate to applyPDFilter
+    window.applyPDFilter();
   };
 
 
@@ -664,7 +669,7 @@
         _intakeData = parsed.rows;
       }
       el.innerHTML = buildIntakeHTML(_intakeData);
-      setTimeout(() => renderIntakeCharts(_intakeData), 50);
+      renderIntakeContent(_intakeData);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["intake"]=false;renderIntakeTab();}');
     }
@@ -673,6 +678,38 @@
   function buildIntakeHTML(rows) {
     if (!rows.length) return '<div class="td-error">No training intake data found.</div>';
 
+    // Build filter options from FULL dataset
+    const allRoles = [...new Set(rows.map(r => r['What is your role within NJTC? (Select one)']).filter(Boolean))].sort();
+
+    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
+      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
+      <select class="filter-select" id="tdIntakeRoleFilter" onchange="applyIntakeFilter()">
+        <option value="">All Roles</option>
+        ${allRoles.map(r => `<option>${r}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdIntakeHireFilter" onchange="applyIntakeFilter()">
+        <option value="">New &amp; Returning</option>
+        <option value="new">New Hires</option>
+        <option value="returning">Returning</option>
+      </select>
+      <input type="text" class="filter-input" id="tdIntakeDistrictFilter" placeholder="Filter district…" oninput="applyIntakeFilter()" style="max-width:200px">
+      <span id="tdIntakeFilterCount" style="font-size:.75rem;color:var(--muted)"></span>
+    </div>
+    <div id="tdIntakeContent"></div>`;
+  }
+
+  function renderIntakeContent(filteredRows) {
+    const container = document.getElementById('tdIntakeContent');
+    if (!container) return;
+
+    if (!filteredRows.length) {
+      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
+      const countEl = document.getElementById('tdIntakeFilterCount');
+      if (countEl) countEl.textContent = '0 of ' + (_intakeData ? _intakeData.length : 0) + ' responses';
+      return;
+    }
+
+    const rows = filteredRows;
     const total = rows.length;
     const newHires = rows.filter(r => (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase().includes('new')).length;
     const certified = rows.filter(r => {
@@ -721,9 +758,6 @@
     // District distribution
     html += `<div class="ta-card" style="margin-bottom:1.25rem">
       <div class="ta-card-title">District Distribution</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem">
-        <input type="text" class="filter-input" placeholder="Filter by district or school…" id="tdIntakeDistrictFilter" oninput="filterIntakeTable()" style="max-width:280px">
-      </div>
       <div style="overflow-x:auto" id="tdIntakeDistrictTable">${buildIntakeDistrictTable(rows)}</div>
     </div>`;
 
@@ -739,7 +773,14 @@
     // Open feedback
     html += buildIntakeFeedback(rows);
 
-    return html;
+    container.innerHTML = html;
+
+    // Update filter count badge
+    const countEl = document.getElementById('tdIntakeFilterCount');
+    if (countEl) countEl.textContent = total + ' of ' + (_intakeData ? _intakeData.length : total) + ' responses';
+
+    // Render charts after DOM update
+    setTimeout(() => renderIntakeCharts(rows), 50);
   }
 
   function buildIntakeDistrictTable(rows) {
@@ -882,11 +923,32 @@
     });
   }
 
-  window.filterIntakeTable = function() {
-    const val = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
-    document.querySelectorAll('#tdIntakeDistrictTable tr[data-district]').forEach(row => {
-      row.style.display = row.dataset.district.includes(val) ? '' : 'none';
+  window.applyIntakeFilter = function() {
+    if (!_intakeData) return;
+    const roleVal     = (document.getElementById('tdIntakeRoleFilter') || {}).value || '';
+    const hireVal     = ((document.getElementById('tdIntakeHireFilter') || {}).value || '').toLowerCase();
+    const districtVal = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
+
+    const filtered = _intakeData.filter(r => {
+      if (roleVal && (r['What is your role within NJTC? (Select one)'] || '') !== roleVal) return false;
+      if (hireVal) {
+        const hireStr = (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase();
+        if (hireVal === 'new' && !hireStr.includes('new')) return false;
+        if (hireVal === 'returning' && !hireStr.includes('returning')) return false;
+      }
+      if (districtVal) {
+        const distStr = (r['What District are you assigned to?'] || '').toLowerCase();
+        if (!distStr.includes(districtVal)) return false;
+      }
+      return true;
     });
+
+    renderIntakeContent(filtered);
+  };
+
+  window.filterIntakeTable = function() {
+    // Legacy backward compat — delegate to applyIntakeFilter
+    window.applyIntakeFilter();
   };
 
 
@@ -1080,6 +1142,9 @@
     const dist   = ((document.getElementById('tdTutorDistFilter')||{}).value||'').toLowerCase();
     const role   = ((document.getElementById('tdTutorRoleFilter')||{}).value||'').toLowerCase();
     const status = ((document.getElementById('tdTutorStatusFilter')||{}).value||'').toLowerCase();
+
+    // Show/hide table rows and collect visible data rows
+    const visibleRows = [];
     document.querySelectorAll('#tdTutorObsTable tbody tr').forEach(tr => {
       const match = (!region || tr.dataset.region.includes(region))
         && (!dist || tr.dataset.district.includes(dist))
@@ -1087,6 +1152,44 @@
         && (!status || tr.dataset.status.includes(status));
       tr.style.display = match ? '' : 'none';
     });
+
+    // Re-render district chart with only the filtered data
+    if (_tutorObsData) {
+      const filtered = _tutorObsData.filter(r => {
+        const rRegion = (r['Region'] || '').toLowerCase();
+        const rDist   = (r['District'] || '').toLowerCase();
+        const rRole   = (r['Role'] || '').toLowerCase();
+        const rStatus = (r['Active Status'] || '').toLowerCase();
+        return (!region || rRegion.includes(region))
+          && (!dist || rDist.includes(dist))
+          && (!role || rRole.includes(role))
+          && (!status || rStatus.includes(status));
+      });
+
+      // Re-render district chart with filtered rows
+      const districts = [...new Set(filtered.map(r => r['District']).filter(Boolean))].sort();
+      const distRates = districts.map(d => {
+        const dRows = filtered.filter(r => r['District'] === d);
+        const obs = dRows.filter(r => OBS_MONTHS.some(m => isObserved(r[m]))).length;
+        return pct(obs, dRows.length);
+      });
+      makeChart('tdTutorObsDistrictChart', {
+        type: 'bar',
+        data: {
+          labels: districts,
+          datasets: [
+            { label: 'Obs Rate %', data: distRates, backgroundColor: distRates.map(r => r >= 80 ? '#10b981' : '#f59e0b'), borderRadius: 4 },
+            { label: '80% Benchmark', data: districts.map(() => 80), type: 'line', borderColor: '#ef4444', borderDash: [5, 3], borderWidth: 1.5, pointRadius: 0, fill: false }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } }, tooltip: { enabled: true } },
+          scales: { x: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+        }
+      });
+    }
   };
 
 
@@ -1149,7 +1252,7 @@
 
     html += `<div class="ta-card" style="margin-bottom:1.25rem">
       <div class="ta-card-title">Observation Log</div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem;align-items:center">
         <select class="filter-select" id="tdSLDistFilter" onchange="filterSLObsTable()">
           <option value="">All Districts</option>
           ${districts.map(d => `<option>${d}</option>`).join('')}
@@ -1158,6 +1261,7 @@
           <option value="">All Months</option>
           ${SL_OBS_MONTHS.map(m => `<option>${m}</option>`).join('')}
         </select>
+        <span id="tdSLKpiCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
       </div>
       <div style="overflow-x:auto"><table class="ta-table" id="tdSLObsTable">
         <thead><tr><th>District</th><th>School</th><th>Site Leader</th><th>Obs Month</th><th>Added to Folder</th><th>Notes</th></tr></thead>
@@ -1182,8 +1286,8 @@
       </table></div>
     </div>`;
 
-    // Timeline heatmap: rows = site leaders, cols = months
-    html += buildSLTimeline(rows, uniqueSLs);
+    // Timeline heatmap: rows = site leaders, cols = months (wrapped for reactive re-render)
+    html += `<div id="tdSLTimeline">${buildSLTimeline(rows, uniqueSLs)}</div>`;
 
     // Notes feed
     const withNotes = rows.filter(r => (r['Notes'] || '').trim() !== '');
@@ -1257,10 +1361,34 @@
   window.filterSLObsTable = function() {
     const dist  = ((document.getElementById('tdSLDistFilter')||{}).value||'').toLowerCase();
     const month = ((document.getElementById('tdSLMonthFilter')||{}).value||'').toLowerCase();
+
+    // Show/hide table rows
+    let visibleCount = 0;
     document.querySelectorAll('#tdSLObsTable tbody tr').forEach(tr => {
       const show = (!dist || tr.dataset.district.includes(dist)) && (!month || tr.dataset.month.includes(month));
       tr.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
     });
+
+    // Update KPI count badge
+    const countEl = document.getElementById('tdSLKpiCount');
+    if (countEl && _slObsData) {
+      countEl.textContent = visibleCount + ' of ' + _slObsData.length + ' observations';
+    }
+
+    // Rebuild timeline heatmap with filtered data
+    if (_slObsData) {
+      const filtered = _slObsData.filter(r => {
+        const rDist  = (r['District'] || '').toLowerCase();
+        const rMonth = (r['Observation Month'] || '').trim().toLowerCase();
+        return (!dist || rDist.includes(dist)) && (!month || rMonth.includes(month));
+      });
+      const filteredSLs = [...new Set(filtered.map(r => (r['Site Leader'] || '').trim()).filter(Boolean))];
+      const timelineEl = document.getElementById('tdSLTimeline');
+      if (timelineEl) {
+        timelineEl.innerHTML = buildSLTimeline(filtered, filteredSLs);
+      }
+    }
   };
 
 
@@ -1315,7 +1443,7 @@
     </div>`;
 
     // Phase progress summary
-    html += `<div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">`;
+    html += `<div class="ta-grid ta-grid-3" id="tdOTJPhaseProgress" style="margin-bottom:1.25rem">`;
     phases.forEach(phase => {
       const phaseRows = rows.filter(r => (r['Phase']||'').trim() === phase);
       const done = phaseRows.filter(r => (r['Mark Y']||'').trim().toUpperCase() === 'Y').length;
@@ -1523,7 +1651,8 @@
     const domain = ((document.getElementById('tdOTJDomainFilter')||{}).value||'').toLowerCase();
     const search = ((document.getElementById('tdOTJSearchFilter')||{}).value||'').toLowerCase();
 
-    // Toggle phase headers
+    // Toggle phase headers and collect visible rows
+    const visibleItems = [];
     document.querySelectorAll('#tdOTJTableWrap [data-phase]').forEach(el => {
       const elPhase  = (el.dataset.phase||'').toLowerCase();
       const elDomain = (el.dataset.domain||'').toLowerCase();
@@ -1534,8 +1663,42 @@
           && (!domain || elDomain === domain)
           && (!search || elTask.includes(search));
         el.style.display = show ? '' : 'none';
+        if (show) visibleItems.push({ phase: el.dataset.phase, domain: elDomain });
       }
     });
+
+    // Re-render phase progress cards using only visible rows from _otjData
+    const progressEl = document.getElementById('tdOTJPhaseProgress');
+    if (progressEl && _otjData) {
+      const visibleRows = _otjData.filter(r => {
+        const rPhase  = (r['Phase'] || '').trim().toLowerCase();
+        const rDomain = (r['Competency Code'] || '').split('.')[0].trim().toLowerCase();
+        const rTask   = (r['Activity / Task'] || '').toLowerCase();
+        return (!phase || rPhase === phase)
+          && (!domain || rDomain === domain)
+          && (!search || rTask.includes(search));
+      });
+
+      const visiblePhases = [...new Set(visibleRows.map(r => (r['Phase']||'').trim()).filter(Boolean))];
+      let progressHTML = '';
+      visiblePhases.forEach(ph => {
+        const phaseRows = visibleRows.filter(r => (r['Phase']||'').trim() === ph);
+        const done = phaseRows.filter(r => (r['Mark Y']||'').trim().toUpperCase() === 'Y').length;
+        const p = pct(done, phaseRows.length);
+        const isOverdue = phaseIsOverdue(ph);
+        const showWarning = isOverdue && p < 50;
+        progressHTML += `<div class="ta-card">
+          ${showWarning ? `<div style="padding:.4rem .75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:.72rem;font-weight:700;color:#92400e;margin-bottom:.625rem">⚠️ Phase is overdue — less than 50% complete</div>` : ''}
+          <div class="td-phase-hdr ${phaseClass(ph)}" style="margin-top:0">${ph}</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+            <span style="font-size:.75rem;color:var(--muted)">${done}/${phaseRows.length} items</span>
+            <span style="font-size:.75rem;font-weight:700;color:${p>=75?'#059669':p>=50?'#d97706':'#b91c1c'}">${p}%</span>
+          </div>
+          <div class="td-progress-bar"><div class="td-progress-fill" style="width:${p}%;background:${p>=75?'#10b981':p>=50?'#f59e0b':'#ef4444'}"></div></div>
+        </div>`;
+      });
+      progressEl.innerHTML = progressHTML || '<div style="font-size:.8rem;color:var(--muted)">No phases match the current filters.</div>';
+    }
   };
 
   window.tdPrintOTJ = function() {
