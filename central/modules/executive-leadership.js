@@ -1402,20 +1402,33 @@
         if (!k) return;
         if (!byName[k]) byName[k] = { rows: [], apYes: false };
         byName[k].rows.push(r);
-        // Non-anchored regex matches "Yes", "YES", "Y", "yes - enrolled", "TRUE", "1"
-        // Matches shared-charts.js logic (/yes|y|true|1/i) to avoid regex drift.
-        if (/yes|true|enrolled/i.test(r.apprentice || '') || (r.apprentice || '').trim() === '1') {
-          byName[k].apYes = true;
-        }
+        // ── Apprentice detection — multiple signal sources ─────────────────
+        // Signal 1: dedicated apprentice column (broadened to match any affirmative value)
+        const apVal  = (r.apprentice || '').trim();
+        const roleVal = (r.role || '').trim();
+        const apFromCol = apVal !== '' && !/^no$|not eligible|not enrolled/i.test(apVal)
+          && !/^false$/i.test(apVal) && apVal !== '0';
+        // Signal 2: position/role field contains "apprentice"
+        // Seen in PD data as "Tutor - Apprentice"; may appear in HR Master too.
+        const apFromRole = /apprentice/i.test(roleVal);
+        if (apFromCol || apFromRole) byName[k].apYes = true;
       });
+      // ── Diagnostic: log unique apprentice column values (helps debug counts) ──
+      const apValMap = {};
+      curYrRows.forEach(r => {
+        const v = (r.apprentice || '').trim() || '(blank)';
+        apValMap[v] = (apValMap[v] || 0) + 1;
+      });
+      console.log('[AP] Apprentice col values:', JSON.stringify(apValMap));
       // ── Step 3: map each person to a single AP_DATA entry ─────────────────
       window.AP_DATA = Object.values(byName).map(group => {
         // Use the latest row for contact / assignment fields
         const r = group.rows[group.rows.length - 1];
         const apRaw = (r.apprentice || '').trim();
-        const ap    = /not eligible/i.test(apRaw) ? 'Not eligible'
-                    : group.apYes                  ? 'Yes'
-                    : /^no$/i.test(apRaw)           ? 'No'
+        const ap    = /not eligible/i.test(apRaw)  ? 'Not eligible'
+                    : group.apYes                   ? 'Yes'
+                    : /^no$|^false$|^0$/i.test(apRaw) ? 'No'
+                    : apRaw === ''                  ? 'No'
                     : apRaw;
         return {
           name:       r.name,
