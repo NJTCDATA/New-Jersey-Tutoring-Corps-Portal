@@ -6,9 +6,19 @@
   //  6 sub-tabs: PD Sessions · Training Intake · Tutor Obs · SL Obs · OTJ · Mgmt
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── Data source URLs ───────────────────────────────────────────────
-  const PD_URL = 'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177';
-  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082';
+  // ── Data source URLs (published CSV — 2PACX format, no auth required) ─
+  // PD Sessions feedback: spreadsheet 18LyHoN…/gid=471085177
+  // Published 2PACX key mirrors NJTC_SOURCES.PD_SESSIONS_ALL in executive-leadership.js.
+  // If this returns a redirect, re-publish the sheet via File → Share → Publish to web
+  // and update the 2PACX key below.
+  const PD_URL = 'https://docs.google.com/spreadsheets/d/e/' +
+    '2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx' +
+    '/pub?output=csv&gid=471085177';
+  // Training Intake: spreadsheet 11OH4pBp…/gid=1298105082
+  // Same 2PACX key used by NJTC_SOURCES.TRAINING_DETAILS (confirmed working — 73 rows).
+  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/e/' +
+    '2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym' +
+    '/pub?output=csv&gid=1298105082';
   // Apprenticeship DB — published to web (entire document)
   const APPRENT_2PACX = '2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g';
 
