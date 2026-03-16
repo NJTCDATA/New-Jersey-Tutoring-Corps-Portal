@@ -1389,7 +1389,7 @@
       // Current SY only · non-terminated · deduplicated by normalized name
       const seen = new Set();
       window.AP_DATA = raw
-        .filter(r => r.yr === '2025-2026' && !/terminated/i.test(r.status || ''))
+        .filter(r => /2025.*(2026|26)/.test(r.yr) && !/terminated/i.test(r.status || ''))
         .filter(r => {
           const k = (r.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
           if (!k || seen.has(k)) return false;
