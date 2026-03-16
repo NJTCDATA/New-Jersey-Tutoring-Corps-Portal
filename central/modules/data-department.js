@@ -302,7 +302,7 @@
             var _pv=r[17]; if(_pv==null) return null;
             var _pf=parseFloat(_pv); if(isNaN(_pf)) return null;
             if(typeof _pv==='string'&&_pv.trim().slice(-1)==='%'){_pf=_pf/100;}
-            else if(_pf===0) { return null; }  // zero = no data
+            else if(_pf===0) { if(subject==='ELA') return null; }  // ELA zero = no data; Math zero = valid 0%
             else if(subject==='ELA'&&_pf===Math.floor(_pf)){
               // ELA integer r[17] = annualTypical (scale score points); pctTypical = springGain / annualTypical
               if(r[16]==null) return null;
