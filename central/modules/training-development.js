@@ -7,10 +7,8 @@
   // ═══════════════════════════════════════════════════════════════════
 
   // ── Data source URLs ───────────────────────────────────────────────
-  // PD Feedback — published to web (File → Share → Publish to web → CSV)
-  const PD_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JF09EMSXhIhhBIweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?output=csv';
-  // Training Intake — published to web
-  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv';
+  const PD_URL = 'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177';
+  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082';
   // Apprenticeship DB — published to web (entire document)
   const APPRENT_2PACX = '2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g';
 
@@ -21,12 +19,13 @@
   const _tdLoaded = {};
 
   // ── Cached CSV data ────────────────────────────────────────────────
-  let _pdData      = null;
-  let _intakeData  = null;
-  let _tutorObsData = null;
-  let _slObsData   = null;
-  let _otjData     = null;
-  let _apprentGids = null;
+  let _pdData        = null;
+  let _intakeData    = null;
+  let _tutorObsData  = null;
+  let _slObsData     = null;
+  let _otjData       = null;   // OTJ Checklist Template (Mgmt tab)
+  let _otjStatusData = null;   // OTJ Status per-tutor (OTJ tab)
+  let _apprentGids   = null;
 
   // ══════════════════════════════════════════════════════════════════
   //  HELPER UTILITIES
@@ -117,6 +116,72 @@
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
+  // Rule 3 — clean date display
+  const cleanDate = fmtDate;
+
+  function dateToSeason(raw) {
+    const d = new Date(raw);
+    if (isNaN(d)) return '';
+    const m = d.getMonth() + 1;
+    if (m >= 9 && m <= 11) return 'Fall';
+    if (m === 12 || m <= 2) return 'Winter';
+    if (m >= 3 && m <= 5)  return 'Spring';
+    return 'Summer';
+  }
+
+  function dateLabel(raw) {
+    if (!raw) return '';
+    const season = dateToSeason(raw);
+    const date   = cleanDate(raw);
+    return season ? `${season} · ${date}` : date;
+  }
+
+  // Rule 9.1 — flag data-entry dates before 2020
+  function isSuspectDate(dateStr) {
+    const d = new Date(dateStr);
+    return !isNaN(d) && d.getFullYear() < 2020;
+  }
+
+  // Rule 4 — multi-select field helpers
+  function parseMultiSelect(cellValue) {
+    if (!cellValue || cellValue.trim() === '') return [];
+    return cellValue.split(',').map(v => v.trim()).filter(v => v.length > 0);
+  }
+
+  function countTags(rows, columnName) {
+    const counts = {};
+    rows.forEach(row => {
+      parseMultiSelect(row[columnName]).forEach(tag => {
+        counts[tag] = (counts[tag] || 0) + 1;
+      });
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }
+
+  // Rule 10 — human-readable display labels
+  const DISPLAY_LABELS = {
+    'The PD objectives were clearly communicated.': 'Objectives Clarity',
+    'The content was directly relevant to my site responsibilities.': 'Content Relevance',
+    'The facilitator(s) provided clear, actionable strategies I can use immediately.': 'Actionable Strategies',
+    'The session allowed for meaningful discussion and participation.': 'Discussion & Participation',
+    'Overall satisfaction with this PD session': 'Overall Satisfaction',
+    'Would you recommend this PD session to other sites?': 'Would Recommend',
+    'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)': 'Training Effectiveness',
+    'The training itinerary/setup was clear and well-structured. (1 = Strongly disagree, 5 = Strongly agree)': 'Structure & Clarity',
+    'The training materials (slides and videos) were useful in preparing me for my role. (1 = Strongly disagree, 5 = Strongly agree)': 'Materials Usefulness',
+    'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)': 'Trainer Quality',
+    'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)': 'Scholar Preparedness',
+    'The asynchronous videos allowed for a more individualized training experience. (1 = Strongly disagree, 5 = Strongly agree)': 'Async Video Experience',
+    'How easy was it to access and navigate Google Classroom?': 'GC Navigation',
+    'How well-organized were the training modules, assessments, and resources in Google Classroom?': 'GC Organization',
+    'To what extent did the Google Classroom layout support your understanding of the training material?': 'GC Learning Support',
+    'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?': 'GC Communication',
+    'OTJ Beginning': 'Phase 1: Beginning (Months 1–4)',
+    'OTJ Middle':    'Phase 2: Middle (Months 5–8)',
+    'OTJ End':       'Phase 3: End (Months 9–12)',
+  };
+  function getDisplayLabel(raw) { return DISPLAY_LABELS[raw] || raw; }
+
   function avg(arr) {
     const nums = arr.filter(n => !isNaN(n) && n !== '');
     if (!nums.length) return 0;
@@ -134,8 +199,46 @@
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }
 
-  function isObserved(cell) {
-    return cell && cell.trim() !== '' && cell.trim().toUpperCase() !== 'N/A';
+  // Rule 5 — observation cell logic
+  function isObserved(cellValue) {
+    if (!cellValue) return false;
+    const v = cellValue.trim().toLowerCase();
+    if (v === '' || v === 'n/a') return false;
+    return v.includes('observation');
+  }
+
+  function obsStatus(cellValue) {
+    if (!cellValue || cellValue.trim() === '') return 'none';
+    const v = cellValue.trim().toLowerCase();
+    if (v === 'n/a') return 'na';
+    if (v.includes('observation')) return 'complete';
+    if (v.includes('start')) return 'pending';
+    return 'note';
+  }
+
+  function obsStatusStyle(status) {
+    switch (status) {
+      case 'complete': return 'background:#dcfce7;color:#166534';
+      case 'pending':  return 'background:#fef9c3;color:#854d0e';
+      case 'na':       return 'background:repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6 5px,#e5e7eb 5px,#e5e7eb 10px);color:#6b7280';
+      case 'note':     return 'background:#dbeafe;color:#1e40af';
+      default:         return 'background:#f3f4f6;color:#9ca3af';
+    }
+  }
+
+  // Rule 6 — OTJ phase status badges
+  function otjBadge(value) {
+    const v = (value || '').trim();
+    if (v === 'Completed')           return { label: 'Completed',       color: '#059669', bg: '#dcfce7' };
+    if (v === 'In Progress')         return { label: 'In Progress',     color: '#854d0e', bg: '#fef9c3' };
+    if (v.startsWith('Not Started')) return { label: 'PM Following Up', color: '#b91c1c', bg: '#fee2e2' };
+    if (v === 'N/A')                 return { label: 'N/A',             color: '#6b7280', bg: '#f3f4f6' };
+    return                                  { label: 'Not Started',     color: '#6b7280', bg: '#f3f4f6' };
+  }
+
+  function otjBadgeHTML(value) {
+    const b = otjBadge(value);
+    return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:700;background:${b.bg};color:${b.color}">${b.label}</span>`;
   }
 
   function destroyChart(id) {
@@ -258,7 +361,7 @@
   async function discoverApprentGids() {
     if (_apprentGids) return _apprentGids;
     const pubhtmlUrl = `https://docs.google.com/spreadsheets/d/e/${APPRENT_2PACX}/pubhtml`;
-    const TAB_NAMES = ['Tutor Observations', 'Site Leader Obs', 'OTJ Checklist Template'];
+    const TAB_NAMES = ['Tutor Observations', 'Site Leader Obs', 'OTJ Status', 'OTJ Checklist Template'];
     const gids = {};
     try {
       const resp = await fetch(pubhtmlUrl, { signal: AbortSignal.timeout(15000) });
@@ -298,6 +401,9 @@
             if (missing.includes('Site Leader Obs') && !gids['Site Leader Obs'] &&
                 hdr.includes('site leader') && hdr.includes('observation month') && !hdr.includes('tutor name'))
               gids['Site Leader Obs'] = g;
+            if (missing.includes('OTJ Status') && !gids['OTJ Status'] &&
+                (hdr.includes('otj beginning') || hdr.includes('otj middle')))
+              gids['OTJ Status'] = g;
             if (missing.includes('OTJ Checklist Template') && !gids['OTJ Checklist Template'] &&
                 (hdr.includes('competency code') || hdr.includes('activity / task') || hdr.includes('mark y')))
               gids['OTJ Checklist Template'] = g;
@@ -347,7 +453,7 @@
   function tdRefresh() {
     // Bust all caches and reload current visible tab
     _pdData = null; _intakeData = null; _tutorObsData = null;
-    _slObsData = null; _otjData = null; _apprentGids = null;
+    _slObsData = null; _otjData = null; _otjStatusData = null; _apprentGids = null;
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
@@ -407,32 +513,37 @@
   function buildPDHTML(rows) {
     if (!rows.length) return '<div class="td-error">No PD session data found.</div>';
 
-    // Build filter options from FULL dataset
     const allSessions = groupSessions(rows);
-    const allRoles = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+    const allRoles    = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+    const allExp      = [...new Set(rows.map(r => r['Years of Experience in Tutoring / Education']).filter(Boolean))].sort();
+    // Rule 4/7 — Focus Area filter populated via countTags
+    const focusTags   = countTags(rows, 'What focus areas need additional support?').slice(0, 20);
 
-    let html = `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
+    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
       <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
       <select class="filter-select" id="tdPdSessionFilter" onchange="applyPDFilter()">
         <option value="">All Sessions</option>
-        ${allSessions.map(s=>`<option value="${s.sessionNum}">Session ${s.sessionNum} · ${fmtDate(s.date)}</option>`).join('')}
+        ${allSessions.map(s => `<option value="${s.sessionNum}">Session ${s.sessionNum} · ${cleanDate(s.date)}</option>`).join('')}
       </select>
       <select class="filter-select" id="tdPdRoleFilter" onchange="applyPDFilter()">
         <option value="">All Roles</option>
-        ${allRoles.map(r=>`<option>${r}</option>`).join('')}
+        ${allRoles.map(r => `<option>${r}</option>`).join('')}
       </select>
       <select class="filter-select" id="tdPdSeasonFilter" onchange="applyPDFilter()">
         <option value="">All Seasons</option>
         <option>Fall</option><option>Winter</option><option>Spring</option><option>Summer</option>
       </select>
+      <select class="filter-select" id="tdPdExpFilter" onchange="applyPDFilter()">
+        <option value="">All Experience Levels</option>
+        ${allExp.map(e => `<option>${e}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdPdFocusFilter" onchange="applyPDFilter()">
+        <option value="">All Focus Areas</option>
+        ${focusTags.map(([tag]) => `<option>${tag}</option>`).join('')}
+      </select>
       <span id="tdPdFilterCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
     </div>
     <div id="tdPdContent"></div>`;
-
-    // Immediately render content with full rows
-    // (We must do this synchronously so the DOM is populated)
-    // renderPDContent will be called after innerHTML is set
-    return html;
   }
 
   function renderPDContent(filteredRows) {
@@ -497,7 +608,10 @@
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
           <div>
             <div style="font-size:1rem;font-weight:700">Session ${s.sessionNum}</div>
-            <div style="font-size:.85rem;color:var(--muted);margin-top:.1rem">${seasonBadge(s.date)} ${fmtDate(s.date)}</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-top:.1rem">
+            ${seasonBadge(s.date)} ${cleanDate(s.date)}
+            ${isSuspectDate(s.date) ? `<span title="Date may be incorrect — recorded as ${new Date(s.date).getFullYear()}" style="cursor:help;margin-left:.25rem">⚠️</span>` : ''}
+          </div>
           </div>
           <div style="font-size:.8rem;color:var(--muted)">
             Facilitator(s): <strong>${s.facilitators}</strong>
@@ -571,12 +685,16 @@
   function groupSessions(rows) {
     const map = {};
     rows.forEach(r => {
-      const num = r['PD Session Number'] || 'Unknown';
+      // Rule 9.3 — PD Session Number has a trailing space in some raw headers
+      const num  = ((r['PD Session Number '] || r['PD Session Number'] || 'Unknown')).trim();
       const date = r['Date of PD Session'] || '';
-      const key = num + '||' + date;
+      const key  = num + '||' + date;
       if (!map[key]) map[key] = { sessionNum: num, date: date, facilitators: '', rows: [] };
       map[key].rows.push(r);
-      if (!map[key].facilitators && r['Facilitator(s)']) map[key].facilitators = r['Facilitator(s)'];
+      // Rule 9.2 — Facilitators is a comma-separated string inside quotes; parse with parseMultiSelect
+      if (!map[key].facilitators && r['Facilitator(s)']) {
+        map[key].facilitators = parseMultiSelect(r['Facilitator(s)']).join(', ');
+      }
     });
     return Object.values(map).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
@@ -594,7 +712,7 @@
         <div style="flex:1">
           ${takeaway ? `<div style="margin-bottom:.25rem"><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e76f51">Takeaway</span><div style="font-size:.83rem;margin-top:.15rem">${takeaway}</div></div>` : ''}
           ${comment  ? `<div><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Comment</span><div style="font-size:.83rem;color:var(--muted);margin-top:.15rem">${comment}</div></div>` : ''}
-          <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Session ${r['PD Session Number']} · ${r['Role'] || 'Unknown role'} · ${fmtDate(r['Date of PD Session'])}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Session ${(r['PD Session Number '] || r['PD Session Number'] || '?').trim()} · ${r['Role'] || 'Unknown role'} · ${dateLabel(r['Date of PD Session'])}</div>
         </div>
       </div>`;
     });
@@ -628,43 +746,39 @@
       });
     }
 
-    // Rating trends line chart
+    // Rule 8 — Rating trends: grouped bar chart (one group per session, 5 bars per group)
+    // Line charts fail when values cluster between 3.5–5.0; use grouped bar instead
     const sessions = groupSessions(rows);
-    const sessionLabels = sessions.map(s => `S${s.sessionNum}`).reverse();
     const sessionsSorted = sessions.slice().reverse();
-    const colors = ['#e76f51','#457b9d','#2a9d8f','#e9c46a','#264653'];
+    const sessionLabels  = sessionsSorted.map(s => `S${s.sessionNum}`);
+    const barColors      = ['#e76f51', '#457b9d', '#2a9d8f', '#e9c46a', '#264653'];
 
-    const datasets = PD_RATING_FIELDS.map((field, fi) => ({
+    const ratingDatasets = PD_RATING_FIELDS.map((field, fi) => ({
       label: PD_RATING_SHORT[fi],
       data: sessionsSorted.map(s => {
         const vals = s.rows.map(r => parseFloat(r[field])).filter(n => !isNaN(n));
         return vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
       }),
-      borderColor: colors[fi],
-      backgroundColor: colors[fi] + '22',
-      tension: 0.3,
-      fill: false,
-      pointRadius: 4
+      backgroundColor: barColors[fi],
+      borderRadius: 3,
     }));
 
-    // Goal line at 4.0
-    datasets.push({
-      label: 'Goal (4.0)',
-      data: sessionLabels.map(() => 4.0),
-      borderColor: '#10b981',
-      borderDash: [6, 3],
-      borderWidth: 1.5,
-      pointRadius: 0,
-      fill: false
-    });
-
     makeChart('tdPdTrendsChart', {
-      type: 'line',
-      data: { labels: sessionLabels, datasets },
+      type: 'bar',
+      data: { labels: sessionLabels, datasets: ratingDatasets },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } }, tooltip: { enabled: true } },
-        scales: { y: { min: 1, max: 5, ticks: { stepSize: 1 } } }
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 } } },
+          tooltip: { enabled: true },
+          datalabels: {
+            anchor: 'end', align: 'top',
+            font: { size: 9 },
+            formatter: v => v != null ? v.toFixed(1) : ''
+          }
+        },
+        // Rule 8 — y-axis min 2.5, max 5.5 so differences are visible
+        scales: { y: { min: 2.5, max: 5.5, ticks: { stepSize: 0.5 } } }
       }
     });
 
@@ -704,15 +818,25 @@
     const sessionVal = (document.getElementById('tdPdSessionFilter') || {}).value || '';
     const roleVal    = (document.getElementById('tdPdRoleFilter') || {}).value || '';
     const seasonVal  = ((document.getElementById('tdPdSeasonFilter') || {}).value || '').toLowerCase();
+    const expVal     = (document.getElementById('tdPdExpFilter') || {}).value || '';
+    const focusVal   = (document.getElementById('tdPdFocusFilter') || {}).value || '';
 
     const filtered = _pdData.filter(r => {
       if (!isValidRow(r, 'pd')) return false;
-      if (sessionVal && (r['PD Session Number'] || '') !== sessionVal) return false;
+      // Rule 9.3 — trailing space fallback
+      const sessionNum = ((r['PD Session Number '] || r['PD Session Number'] || '')).trim();
+      if (sessionVal && sessionNum !== sessionVal) return false;
       if (roleVal && (r['Role'] || '') !== roleVal) return false;
       if (seasonVal) {
         const m = (() => { const d = new Date(r['Date of PD Session']); return isNaN(d) ? 0 : d.getMonth() + 1; })();
         const s = m >= 9 && m <= 11 ? 'fall' : (m === 12 || m === 1 || m === 2) ? 'winter' : m >= 3 && m <= 5 ? 'spring' : 'summer';
         if (s !== seasonVal) return false;
+      }
+      if (expVal && (r['Years of Experience in Tutoring / Education'] || '') !== expVal) return false;
+      if (focusVal) {
+        // Rule 4 — multi-select: any of the parsed tags must match
+        const tags = parseMultiSelect(r['What focus areas need additional support?']);
+        if (!tags.some(t => t === focusVal)) return false;
       }
       return true;
     });
@@ -750,8 +874,14 @@
     try {
       if (!_intakeData) {
         const text = await fetchCSV(TRAINING_INTAKE_URL);
-        // Row 1 is blank, Row 2 is header — skip index 0
-        const parsed = parseCsvText(text, 1);
+        // Rule 9.6 — detect whether row 0 or row 1 is the real header (Timestamp check)
+        let parsed = parseCsvText(text, 0);
+        if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
+          parsed = parseCsvText(text, 1); // row 0 is blank; row 1 is the header
+          if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
+            throw new Error('Intake CSV header not found. Expected "Timestamp" in column A.');
+          }
+        }
         _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
       }
       el.innerHTML = buildIntakeHTML(_intakeData);
@@ -764,8 +894,12 @@
   function buildIntakeHTML(rows) {
     if (!rows.length) return '<div class="td-error">No training intake data found.</div>';
 
-    // Build filter options from FULL dataset
-    const allRoles = [...new Set(rows.map(r => r['What is your role within NJTC? (Select one)']).filter(Boolean))].sort();
+    const allRoles    = [...new Set(rows.map(r => r['What is your role within NJTC? (Select one)']).filter(Boolean))].sort();
+    const allCerts    = [...new Set(rows.map(r => r['What is your current certification status? (Select one)']).filter(Boolean))].sort();
+    const allDistricts = [...new Set(rows.map(r => r['What District are you assigned to?']).filter(Boolean))].sort();
+    const allSchools  = [...new Set(rows.map(r => r['What School Location are you assigned to?']).filter(Boolean))].sort();
+    // Rule 4/7 — Grade Level is multi-select; get distinct tags
+    const gradeTags   = countTags(rows, 'Which grade level(s) do you work with? (Select all that apply)').map(([tag]) => tag);
 
     return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
       <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
@@ -778,7 +912,22 @@
         <option value="new">New Hires</option>
         <option value="returning">Returning</option>
       </select>
-      <input type="text" class="filter-input" id="tdIntakeDistrictFilter" placeholder="Filter district…" oninput="applyIntakeFilter()" style="max-width:200px">
+      <select class="filter-select" id="tdIntakeCertFilter" onchange="applyIntakeFilter()">
+        <option value="">All Certifications</option>
+        ${allCerts.map(c => `<option>${c}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdIntakeDistrictFilter" onchange="applyIntakeFilter()">
+        <option value="">All Districts</option>
+        ${allDistricts.map(d => `<option>${d}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdIntakeSchoolFilter" onchange="applyIntakeFilter()">
+        <option value="">All Schools</option>
+        ${allSchools.map(s => `<option>${s}</option>`).join('')}
+      </select>
+      <select class="filter-select" id="tdIntakeGradeFilter" onchange="applyIntakeFilter()">
+        <option value="">All Grade Levels</option>
+        ${gradeTags.map(g => `<option>${g}</option>`).join('')}
+      </select>
       <span id="tdIntakeFilterCount" style="font-size:.75rem;color:var(--muted)"></span>
     </div>
     <div id="tdIntakeContent"></div>`;
@@ -955,13 +1104,18 @@
     makeChart('tdIntakeRatingsChart', {
       type: 'bar',
       data: {
-        labels: INTAKE_RATING_FIELDS.map(f => f.short),
+        labels: INTAKE_RATING_FIELDS.map(f => getDisplayLabel(f.field) || f.short),
         datasets: [{ label: 'Avg Score', data: avgRatings, backgroundColor: barColors, borderRadius: 4 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true } },
-        scales: { y: { min: 0, max: 5, ticks: { stepSize: 1 } } }
+        plugins: {
+          legend: { display: false }, tooltip: { enabled: true },
+          // Rule 8 — data labels on every bar
+          datalabels: { anchor: 'end', align: 'top', font: { size: 10 }, formatter: v => v.toFixed(1) }
+        },
+        // Rule 8 — y-min 2.5 so differences are visible on 1-5 scale
+        scales: { y: { min: 2.5, max: 5.5, ticks: { stepSize: 0.5 } } }
       }
     });
 
@@ -1013,7 +1167,24 @@
     if (!_intakeData) return;
     const roleVal     = (document.getElementById('tdIntakeRoleFilter') || {}).value || '';
     const hireVal     = ((document.getElementById('tdIntakeHireFilter') || {}).value || '').toLowerCase();
-    const districtVal = ((document.getElementById('tdIntakeDistrictFilter') || {}).value || '').toLowerCase();
+    const certVal     = (document.getElementById('tdIntakeCertFilter') || {}).value || '';
+    const districtVal = (document.getElementById('tdIntakeDistrictFilter') || {}).value || '';
+    const schoolVal   = (document.getElementById('tdIntakeSchoolFilter') || {}).value || '';
+    const gradeVal    = (document.getElementById('tdIntakeGradeFilter') || {}).value || '';
+
+    // Cascade: when district changes, rebuild school options
+    const schoolSel = document.getElementById('tdIntakeSchoolFilter');
+    if (schoolSel && districtVal) {
+      const schoolsInDist = [...new Set(
+        _intakeData
+          .filter(r => (r['What District are you assigned to?'] || '') === districtVal)
+          .map(r => r['What School Location are you assigned to?'])
+          .filter(Boolean)
+      )].sort();
+      const curSchool = schoolSel.value;
+      schoolSel.innerHTML = `<option value="">All Schools</option>` +
+        schoolsInDist.map(s => `<option ${s === curSchool ? 'selected' : ''}>${s}</option>`).join('');
+    }
 
     const filtered = _intakeData.filter(r => {
       if (!isValidRow(r, 'intake')) return false;
@@ -1023,9 +1194,13 @@
         if (hireVal === 'new' && !hireStr.includes('new')) return false;
         if (hireVal === 'returning' && !hireStr.includes('returning')) return false;
       }
-      if (districtVal) {
-        const distStr = (r['What District are you assigned to?'] || '').toLowerCase();
-        if (!distStr.includes(districtVal)) return false;
+      if (certVal && (r['What is your current certification status? (Select one)'] || '') !== certVal) return false;
+      if (districtVal && (r['What District are you assigned to?'] || '') !== districtVal) return false;
+      if (schoolVal && (r['What School Location are you assigned to?'] || '') !== schoolVal) return false;
+      if (gradeVal) {
+        // Rule 4 — multi-select field
+        const tags = parseMultiSelect(r['Which grade level(s) do you work with? (Select all that apply)']);
+        if (!tags.some(t => t === gradeVal)) return false;
       }
       return true;
     });
@@ -1060,7 +1235,11 @@
         _tutorObsData = parsed.rows.filter(r => isValidRow(r, 'tutor-obs'));
       }
       el.innerHTML = buildTutorObsHTML(_tutorObsData);
-      setTimeout(() => renderTutorObsCharts(_tutorObsData), 50);
+      // Rule 7 — Active Status defaults to "Active" on load
+      setTimeout(() => {
+        renderTutorObsCharts(_tutorObsData);
+        filterTutorObsTable();
+      }, 50);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["tutor-obs"]=false;renderTutorObsTab();}');
     }
@@ -1101,11 +1280,13 @@
       <div class="td-chart-wrap"><canvas id="tdTutorObsDistrictChart"></canvas></div>
     </div>`;
 
-    // Filters
-    const regions   = [...new Set(rows.map(r => r['Region']).filter(Boolean))].sort();
-    const districts = [...new Set(rows.map(r => r['District']).filter(Boolean))].sort();
-    const roles     = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
-    const statuses  = [...new Set(rows.map(r => r['Active Status']).filter(Boolean))].sort();
+    // Rule 7 — all filters dynamically populated from live data
+    const regions     = [...new Set(rows.map(r => r['Region']).filter(Boolean))].sort();
+    const districts   = [...new Set(rows.map(r => r['District']).filter(Boolean))].sort();
+    const schools     = [...new Set(rows.map(r => r['School']).filter(Boolean))].sort();
+    const siteLeaders = [...new Set(rows.map(r => r['Site Leader']).filter(Boolean))].sort();
+    const roles       = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+    const statuses    = [...new Set(rows.map(r => r['Active Status']).filter(Boolean))].sort();
 
     html += `<div class="ta-card" style="margin-bottom:1.25rem">
       <div class="ta-card-title">Observation Status Table</div>
@@ -1118,34 +1299,59 @@
           <option value="">All Districts</option>
           ${districts.map(d => `<option>${d}</option>`).join('')}
         </select>
+        <select class="filter-select" id="tdTutorSchoolFilter" onchange="filterTutorObsTable()">
+          <option value="">All Schools</option>
+          ${schools.map(s => `<option>${s}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdTutorSLFilter" onchange="filterTutorObsTable()">
+          <option value="">All Site Leaders</option>
+          ${siteLeaders.map(s => `<option>${s}</option>`).join('')}
+        </select>
         <select class="filter-select" id="tdTutorRoleFilter" onchange="filterTutorObsTable()">
           <option value="">All Roles</option>
           ${roles.map(r => `<option>${r}</option>`).join('')}
         </select>
         <select class="filter-select" id="tdTutorStatusFilter" onchange="filterTutorObsTable()">
           <option value="">All Statuses</option>
-          ${statuses.map(s => `<option>${s}</option>`).join('')}
+          ${statuses.map(s => `<option ${s === 'Active' ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdTutorMonthFilter" onchange="filterTutorObsTable()">
+          <option value="">All Months</option>
+          ${OBS_MONTHS.map(m => `<option>${m}</option>`).join('')}
         </select>
       </div>
       <div style="overflow-x:auto"><table class="ta-table" id="tdTutorObsTable">
         <thead><tr>
-          <th>Tutor</th><th>Role</th><th>District</th><th>School</th><th>Site Leader</th><th>Status</th>
+          <th>Tutor (Master List)</th><th>Role</th><th>District</th><th>School</th><th>Site Leader</th><th>Status</th>
           ${OBS_MONTHS.map(m => `<th>${m}</th>`).join('')}
           <th>Total</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => {
-            const obs = OBS_MONTHS.map(m => isObserved(r[m]));
-            const totalObs = obs.filter(Boolean).length;
-            const isActive = !(r['Active Status'] || '').toLowerCase().includes('terminat');
-            return `<tr data-region="${(r['Region']||'').toLowerCase()}" data-district="${(r['District']||'').toLowerCase()}" data-role="${(r['Role']||'').toLowerCase()}" data-status="${(r['Active Status']||'').toLowerCase()}">
-              <td><strong>${r['Tutor Name'] || r['Master List Name'] || '—'}</strong></td>
+            // Rule 9.4 — Master List Name as canonical identifier
+            const canonicalName = (r['Master List Name'] || r['Tutor Name'] || '—').trim();
+            const totalObs = OBS_MONTHS.filter(m => isObserved(r[m])).length;
+            const statusRaw = (r['Active Status'] || '').trim();
+            const isActive  = !statusRaw.toLowerCase().includes('terminat');
+            return `<tr data-region="${(r['Region']||'').toLowerCase()}"
+                        data-district="${(r['District']||'').toLowerCase()}"
+                        data-school="${(r['School']||'').toLowerCase()}"
+                        data-sl="${(r['Site Leader']||'').toLowerCase()}"
+                        data-role="${(r['Role']||'').toLowerCase()}"
+                        data-status="${statusRaw.toLowerCase()}">
+              <td><strong>${canonicalName}</strong>${r['Tutor Name'] && r['Tutor Name'] !== canonicalName ? `<div style="font-size:.68rem;color:var(--muted)">${r['Tutor Name']}</div>` : ''}</td>
               <td style="font-size:.75rem">${r['Role'] || '—'}</td>
               <td style="font-size:.75rem">${r['District'] || '—'}</td>
               <td style="font-size:.75rem">${r['School'] || '—'}</td>
               <td style="font-size:.75rem">${r['Site Leader'] || '—'}</td>
-              <td><span style="padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:700;background:${isActive?'#dcfce7':'#fee2e2'};color:${isActive?'#166534':'#b91c1c'}">${r['Active Status'] || 'Active'}</span></td>
-              ${OBS_MONTHS.map((m, i) => `<td><span class="td-heat-cell ${obs[i]?'td-heat-yes':'td-heat-no'}">${obs[i]?'✓':'—'}</span></td>`).join('')}
+              <td><span style="padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:700;background:${isActive?'#dcfce7':'#fee2e2'};color:${isActive?'#166534':'#b91c1c'}">${statusRaw || 'Active'}</span></td>
+              ${OBS_MONTHS.map(m => {
+                const st  = obsStatus(r[m]);
+                const sty = obsStatusStyle(st);
+                const sym = st === 'complete' ? '✓' : st === 'pending' ? '⏳' : st === 'na' ? 'N/A' : '—';
+                const tip = (r[m] && st === 'note') ? ` title="${(r[m]||'').replace(/"/g,'&quot;')}"` : '';
+                return `<td><span${tip} style="${sty};padding:.15rem .35rem;border-radius:4px;font-size:.7rem;cursor:${tip?'help':'default'}">${sym}</span></td>`;
+              }).join('')}
               <td><strong style="color:${totalObs>=3?'#059669':totalObs>=1?'#d97706':'#b91c1c'}">${totalObs}</strong></td>
             </tr>`;
           }).join('')}
@@ -1227,31 +1433,49 @@
   window.filterTutorObsTable = function() {
     const region = ((document.getElementById('tdTutorRegionFilter')||{}).value||'').toLowerCase();
     const dist   = ((document.getElementById('tdTutorDistFilter')||{}).value||'').toLowerCase();
+    const school = ((document.getElementById('tdTutorSchoolFilter')||{}).value||'').toLowerCase();
+    const sl     = ((document.getElementById('tdTutorSLFilter')||{}).value||'').toLowerCase();
     const role   = ((document.getElementById('tdTutorRoleFilter')||{}).value||'').toLowerCase();
     const status = ((document.getElementById('tdTutorStatusFilter')||{}).value||'').toLowerCase();
+    const month  = ((document.getElementById('tdTutorMonthFilter')||{}).value||'').trim();
 
-    // Show/hide table rows and collect visible data rows
-    const visibleRows = [];
     document.querySelectorAll('#tdTutorObsTable tbody tr').forEach(tr => {
-      const match = (!region || tr.dataset.region.includes(region))
-        && (!dist || tr.dataset.district.includes(dist))
-        && (!role || tr.dataset.role.includes(role))
+      let match = (!region || tr.dataset.region.includes(region))
+        && (!dist   || tr.dataset.district.includes(dist))
+        && (!school || tr.dataset.school.includes(school))
+        && (!sl     || tr.dataset.sl.includes(sl))
+        && (!role   || tr.dataset.role.includes(role))
         && (!status || tr.dataset.status.includes(status));
+      // Rule 7 — Observation Month: only show tutors with an obs in that month
+      if (match && month) {
+        const monthIdx = OBS_MONTHS.indexOf(month);
+        const cells = tr.querySelectorAll('td');
+        // obs months start at column index 6
+        if (monthIdx >= 0 && cells[6 + monthIdx]) {
+          const sym = cells[6 + monthIdx].textContent.trim();
+          match = sym === '✓';
+        }
+      }
       tr.style.display = match ? '' : 'none';
     });
 
-    // Re-render district chart with only the filtered data
     if (_tutorObsData) {
       const filtered = _tutorObsData.filter(r => {
         if (!isValidRow(r, 'tutor-obs')) return false;
         const rRegion = (r['Region'] || '').toLowerCase();
         const rDist   = (r['District'] || '').toLowerCase();
+        const rSchool = (r['School'] || '').toLowerCase();
+        const rSL     = (r['Site Leader'] || '').toLowerCase();
         const rRole   = (r['Role'] || '').toLowerCase();
         const rStatus = (r['Active Status'] || '').toLowerCase();
-        return (!region || rRegion.includes(region))
-          && (!dist || rDist.includes(dist))
-          && (!role || rRole.includes(role))
+        let ok = (!region || rRegion.includes(region))
+          && (!dist   || rDist.includes(dist))
+          && (!school || rSchool.includes(school))
+          && (!sl     || rSL.includes(sl))
+          && (!role   || rRole.includes(role))
           && (!status || rStatus.includes(status));
+        if (ok && month) ok = isObserved(r[month]);
+        return ok;
       });
 
       // Re-render district chart with filtered rows
@@ -1500,22 +1724,155 @@
   async function renderOTJTab() {
     const el = document.getElementById('td-content-otj');
     if (!el) return;
-    el.innerHTML = loadingHTML('Loading OTJ checklist data…');
+    el.innerHTML = loadingHTML('Loading OTJ status data…');
     try {
-      if (!_otjData) {
+      if (!_otjStatusData) {
         const gids = await discoverApprentGids();
-        const gid = gids['OTJ Checklist Template'];
-        if (!gid) throw new Error('Could not find "OTJ Checklist Template" tab. GIDs: ' + JSON.stringify(gids));
-        const text = await fetchCSV(apprentUrl(gid));
-        // Rows 1+2 are title/instruction, row 3 is header → skip indices 0 and 1
-        const parsed = parseCsvText(text, 2);
-        _otjData = parsed.rows.filter(r => isValidRow(r, 'otj'));
+        const gid  = gids['OTJ Status'];
+        if (!gid) throw new Error('Could not find "OTJ Status" tab in apprenticeship workbook. GIDs: ' + JSON.stringify(gids));
+        const text   = await fetchCSV(apprentUrl(gid));
+        // Row 1 = title, Row 2 = real header → skip row 0
+        const parsed = parseCsvText(text, 1);
+        // Rule 9.5 — skip rows where Active Status is not "Active" or "Terminated" (parse error)
+        _otjStatusData = parsed.rows.filter(r => {
+          if (!(r['Master List Name'] || r['Tutor Name'] || '').trim()) return false;
+          const as = (r['Active Status'] || '').trim();
+          return as === '' || as === 'Active' || as === 'Terminated';
+        });
       }
-      el.innerHTML = buildOTJHTML(_otjData);
+      el.innerHTML = buildOTJStatusHTML(_otjStatusData);
+      setTimeout(() => filterOTJStatusTable(), 50);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["otj"]=false;renderOTJTab();}');
     }
   }
+
+  function buildOTJStatusHTML(rows) {
+    if (!rows.length) return '<div class="td-error">No OTJ status data found.</div>';
+
+    const OTJ_PHASE_COLS = ['OTJ Beginning', 'OTJ Middle', 'OTJ End'];
+
+    // KPIs
+    const total      = rows.length;
+    const active     = rows.filter(r => !(r['Active Status'] || '').toLowerCase().includes('terminat'));
+    const terminated = rows.filter(r => (r['Active Status'] || '').toLowerCase().includes('terminat'));
+
+    const phaseKPIs = OTJ_PHASE_COLS.map(col => ({
+      label: getDisplayLabel(col),
+      col,
+      completed: rows.filter(r => (r[col] || '').trim() === 'Completed').length,
+      inProgress: rows.filter(r => (r[col] || '').trim() === 'In Progress').length,
+    }));
+
+    let html = `<div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">
+      ${kpiCard(active.length, 'Active Tutors', '#059669')}
+      ${kpiCard(terminated.length, 'Terminated', terminated.length > 0 ? '#b91c1c' : '#6b7280')}
+      ${kpiCard(total, 'Total Tutors Tracked', '#0050c8')}
+    </div>
+    <div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">
+      ${phaseKPIs.map(p => kpiCard(
+        p.completed + ' / ' + total,
+        p.label + ' Complete',
+        p.completed / total >= 0.5 ? '#059669' : '#d97706'
+      )).join('')}
+    </div>`;
+
+    // Filters
+    const districts = [...new Set(rows.map(r => r['District']).filter(Boolean))].sort();
+    const statuses  = [...new Set(rows.map(r => r['Active Status']).filter(Boolean))].sort();
+    const phaseVals = ['Completed', 'In Progress', 'Not Started', 'N/A'];
+
+    html += `<div class="ta-card" style="margin-bottom:1.25rem">
+      <div class="ta-card-title">OTJ Status by Tutor</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem">
+        <select class="filter-select" id="tdOTJStatusDistFilter" onchange="filterOTJStatusTable()">
+          <option value="">All Districts</option>
+          ${districts.map(d => `<option>${d}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdOTJStatusStatusFilter" onchange="filterOTJStatusTable()">
+          <option value="">All Statuses</option>
+          ${statuses.map(s => `<option ${s === 'Active' ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdOTJStatusBeginFilter" onchange="filterOTJStatusTable()">
+          <option value="">Phase 1 — All</option>
+          ${phaseVals.map(v => `<option>${v}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdOTJStatusMidFilter" onchange="filterOTJStatusTable()">
+          <option value="">Phase 2 — All</option>
+          ${phaseVals.map(v => `<option>${v}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="tdOTJStatusEndFilter" onchange="filterOTJStatusTable()">
+          <option value="">Phase 3 — All</option>
+          ${phaseVals.map(v => `<option>${v}</option>`).join('')}
+        </select>
+        <span id="tdOTJStatusCount" style="font-size:.75rem;color:var(--muted)"></span>
+      </div>
+      <div style="overflow-x:auto"><table class="ta-table" id="tdOTJStatusTable">
+        <thead><tr>
+          <th>Tutor (Master List)</th><th>District</th><th>School</th><th>Site Leader</th><th>Status</th>
+          ${OTJ_PHASE_COLS.map(c => `<th>${getDisplayLabel(c)}</th>`).join('')}
+          <th>PM Notes</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            // Rule 9.4 — Master List Name as canonical
+            const name      = (r['Master List Name'] || r['Tutor Name'] || '—').trim();
+            const statusRaw = (r['Active Status'] || '').trim();
+            const isAct     = !statusRaw.toLowerCase().includes('terminat');
+            const bVal = (r['OTJ Beginning'] || '').trim();
+            const mVal = (r['OTJ Middle'] || '').trim();
+            const eVal = (r['OTJ End'] || '').trim();
+            return `<tr data-district="${(r['District']||'').toLowerCase()}"
+                        data-status="${statusRaw.toLowerCase()}"
+                        data-begin="${bVal}" data-mid="${mVal}" data-end="${eVal}">
+              <td><strong>${name}</strong></td>
+              <td style="font-size:.75rem">${r['District']||'—'}</td>
+              <td style="font-size:.75rem">${r['School']||'—'}</td>
+              <td style="font-size:.75rem">${r['Site Leader']||'—'}</td>
+              <td><span style="padding:.15rem .5rem;border-radius:4px;font-size:.7rem;font-weight:700;background:${isAct?'#dcfce7':'#fee2e2'};color:${isAct?'#166534':'#b91c1c'}">${statusRaw||'Active'}</span></td>
+              <td>${otjBadgeHTML(bVal)}</td>
+              <td>${otjBadgeHTML(mVal)}</td>
+              <td>${otjBadgeHTML(eVal)}</td>
+              <td style="font-size:.72rem;color:var(--muted);max-width:180px">${(r['OTJ PM Notes']||'').slice(0,80)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+
+    // Also keep the Skill Gap analysis panel (cross-references PD + OTJ)
+    if (_pdData && _otjData) {
+      html += buildOTJSkillGapPanel(_otjData);
+    }
+
+    return html;
+  }
+
+  window.filterOTJStatusTable = function() {
+    const dist  = ((document.getElementById('tdOTJStatusDistFilter')||{}).value||'').toLowerCase();
+    const stat  = ((document.getElementById('tdOTJStatusStatusFilter')||{}).value||'').toLowerCase();
+    const begin = ((document.getElementById('tdOTJStatusBeginFilter')||{}).value||'').trim();
+    const mid   = ((document.getElementById('tdOTJStatusMidFilter')||{}).value||'').trim();
+    const end   = ((document.getElementById('tdOTJStatusEndFilter')||{}).value||'').trim();
+
+    let count = 0;
+    document.querySelectorAll('#tdOTJStatusTable tbody tr').forEach(tr => {
+      const matchPhase = (filterVal, dataVal) => {
+        if (!filterVal) return true;
+        if (filterVal === 'Not Started') return dataVal === '' || dataVal.startsWith('Not Started');
+        return dataVal === filterVal;
+      };
+      const show = (!dist  || tr.dataset.district.includes(dist))
+        && (!stat  || tr.dataset.status.includes(stat))
+        && matchPhase(begin, tr.dataset.begin)
+        && matchPhase(mid,   tr.dataset.mid)
+        && matchPhase(end,   tr.dataset.end);
+      tr.style.display = show ? '' : 'none';
+      if (show) count++;
+    });
+    const countEl = document.getElementById('tdOTJStatusCount');
+    if (countEl) countEl.textContent = count + ' tutors shown';
+  };
 
   function buildOTJHTML(rows) {
     if (!rows.length) return '<div class="td-error">No OTJ checklist data found.</div>';
