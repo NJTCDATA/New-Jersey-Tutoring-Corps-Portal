@@ -2611,9 +2611,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ══════════════════════════════════════════════════════════════════════════
 
 
-    });
-  });
-
   function _mergeKPIMeta(dataRows) {
     if (!KPI_DATA || !dataRows) return;
     var lookup = {};

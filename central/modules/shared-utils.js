@@ -2380,7 +2380,6 @@
     })();
 
   })();
-  window.fetchKPIMetadata      = fetchKPIMetadata;
 
   // ── showPanel KPI hook: show/hide QR section ───────────────
   (function() {
