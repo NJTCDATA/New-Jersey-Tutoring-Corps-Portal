@@ -1594,7 +1594,7 @@
       GIDS.sess = 625567780;
 
       // ── Try localStorage GID cache (v2 — v1 busted to clear stale entries) ──
-      const _GID_CACHE_KEY = 'njtc_pearl_gids_v2';
+      const _GID_CACHE_KEY = 'njtc_pearl_gids_v3';
       try {
         const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
         if (_gc && _gc.inst != null && _gc.stu != null) {
@@ -1627,6 +1627,7 @@
       // common Google Sheets gid patterns. Includes known gid from edit URL.
       if (!probedGids.length) {
         probedGids = [0, 1, 2, 3,
+                      1245403832,          // Student Surveys tab (confirmed from edit URL)
                       1748668439,          // known gid from edit URL provided
                       628127573, 274671201, 1372188422, 1640135663,
                       1303503567, 1649760609, 1978724299, 1784717262,
@@ -1735,7 +1736,7 @@
 
       // Persist inst/stu to localStorage v2 cache (att/sess always hardcoded)
       try {
-        localStorage.setItem('njtc_pearl_gids_v2', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
+        localStorage.setItem('njtc_pearl_gids_v3', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
         console.log('[Pearl Ops] GIDs persisted to localStorage v2');
       } catch(e) {}
 
@@ -2065,20 +2066,20 @@
       } catch(e) {
         console.warn('[Pearl Ops] STU stream failed:', e.message);
         // If primary gid failed and we have an alternate gid, try it once
-        if (!_stuRows.length && GIDS.stu !== KNOWN_GIDS_STU_ALT) {
-          console.log('[Pearl Ops] STU retrying with alt gid:', KNOWN_GIDS_STU_ALT);
-          var altUrl = 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + KNOWN_GIDS_STU_ALT;
+        if (!_stuRows.length && GIDS.stu !== STU_GID_FALLBACK) {
+          console.log('[Pearl Ops] STU retrying with fallback gid:', STU_GID_FALLBACK);
+          var altUrl = 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + STU_GID_FALLBACK;
           try {
             var altRes = await fetch(altUrl);
             if (altRes.ok) {
               var altText = await altRes.text();
               if (altText.length > 500) {
-                GIDS.stu = KNOWN_GIDS_STU_ALT; // persist corrected gid
+                GIDS.stu = STU_GID_FALLBACK; // persist corrected gid
                 _processStuText(altText, '');
                 return; // _processStuText sets state
               }
             }
-          } catch(e2) { console.warn('[Pearl Ops] STU alt gid also failed:', e2.message); }
+          } catch(e2) { console.warn('[Pearl Ops] STU fallback gid also failed:', e2.message); }
         }
         if (!_stuRows.length) setSyncState('error');
       } finally {
