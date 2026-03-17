@@ -2352,7 +2352,6 @@
         return nc === nt || _fl2(nc) === nt || nc === _fl2(nt) || _fl2(nc) === _fl2(nt);
       };
       var crossRefAdded = 0;
-      var hrCrossRefAdded = 0;
       // Use the same column names discovered when building njtcOTJMap
       var _mc = window.njtcOTJ.length > 0 ? (function() {
         var k = Object.keys(window.njtcOTJ[0]);
@@ -2372,17 +2371,12 @@
             entry.apprentice = 'Yes';
             crossRefAdded++;
           }
-          // Also stamp HR_EMPS so profile cards and filter show correct badge (exact + fuzzy)
-          (window.HR_EMPS || []).forEach(function(e) {
-            if (e._apprentice !== 'Yes' && _matchName(e.n, rawName)) {
-              e._apprentice = 'Yes';
-              hrCrossRefAdded++;
-            }
-          });
+          // NOTE: do NOT stamp HR_EMPS from OTJ data — OTJ tracks completion, not enrollment.
+          // Apprentice enrollment comes exclusively from HR Master List col K.
         });
       });
-      if (crossRefAdded > 0 || hrCrossRefAdded > 0) {
-        console.log('[AP] APPRENTICE_DB cross-ref: AP_DATA +' + crossRefAdded + ', HR_EMPS +' + hrCrossRefAdded + ' → total enrolled now ' + ap_enrolled().length);
+      if (crossRefAdded > 0) {
+        console.log('[AP] APPRENTICE_DB cross-ref: AP_DATA +' + crossRefAdded + ' — HR_EMPS unchanged (source of truth: HR Master List col K)');
         // Trigger HR profile re-render if profiles tab is active
         try {
           var profRoot = document.getElementById('hrProfilesRoot');
