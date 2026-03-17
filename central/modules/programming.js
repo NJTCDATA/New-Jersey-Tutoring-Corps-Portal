@@ -2065,20 +2065,20 @@
       } catch(e) {
         console.warn('[Pearl Ops] STU stream failed:', e.message);
         // If primary gid failed and we have an alternate gid, try it once
-        if (!_stuRows.length && GIDS.stu !== KNOWN_GIDS_STU_ALT) {
-          console.log('[Pearl Ops] STU retrying with alt gid:', KNOWN_GIDS_STU_ALT);
-          var altUrl = 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + KNOWN_GIDS_STU_ALT;
+        if (!_stuRows.length && GIDS.stu !== STU_GID_FALLBACK) {
+          console.log('[Pearl Ops] STU retrying with fallback gid:', STU_GID_FALLBACK);
+          var altUrl = 'https://docs.google.com/spreadsheets/d/e/' + BASE_ID + '/pub?output=csv&gid=' + STU_GID_FALLBACK;
           try {
             var altRes = await fetch(altUrl);
             if (altRes.ok) {
               var altText = await altRes.text();
               if (altText.length > 500) {
-                GIDS.stu = KNOWN_GIDS_STU_ALT; // persist corrected gid
+                GIDS.stu = STU_GID_FALLBACK; // persist corrected gid
                 _processStuText(altText, '');
                 return; // _processStuText sets state
               }
             }
-          } catch(e2) { console.warn('[Pearl Ops] STU alt gid also failed:', e2.message); }
+          } catch(e2) { console.warn('[Pearl Ops] STU fallback gid also failed:', e2.message); }
         }
         if (!_stuRows.length) setSyncState('error');
       } finally {
