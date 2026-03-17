@@ -2234,16 +2234,39 @@
         rows = njtc_parseCSV(lines.slice(1).join('\n'));
       }
       window.njtcOTJ = rows;
-      // Build O(1) name lookup map — avoids linear .find() on every ap_getOTJ call
+      // Build O(1) name lookup map — exact + first/last fuzzy variant (strips middle names/initials)
       var _nm = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+      var _fl = function(n) {
+        // Returns "firstname lastname" only, stripping middle names and single-letter initials
+        var parts = n.split(/\s+/).filter(function(p) { return p.length > 1 && !/^[a-z]\.?$/i.test(p); });
+        return parts.length > 1 ? (parts[0] + ' ' + parts[parts.length - 1]) : n;
+      };
       window.njtcOTJMap = {};
       rows.forEach(function(r) {
         var mn = _nm(r['Master List Name'] || '');
         var tn = _nm(r['Tracker Name'] || '');
-        if (mn) window.njtcOTJMap[mn] = r;
-        if (tn && !window.njtcOTJMap[tn]) window.njtcOTJMap[tn] = r;
+        if (mn) {
+          window.njtcOTJMap[mn] = r;
+          var flmn = _fl(mn); if (flmn !== mn && !window.njtcOTJMap[flmn]) window.njtcOTJMap[flmn] = r;
+        }
+        if (tn) {
+          if (!window.njtcOTJMap[tn]) window.njtcOTJMap[tn] = r;
+          var fltn = _fl(tn); if (fltn !== tn && !window.njtcOTJMap[fltn]) window.njtcOTJMap[fltn] = r;
+        }
       });
-      console.log('[NJTC] APPRENTICE_DB: ' + rows.length + ' rows loaded');
+      // Diagnostic: log APPRENTICE_DB entries that don't match any HR_EMPS name (helps identify missing apprentices)
+      var _hrSet = new Set((window.HR_EMPS || []).map(function(e) { return _nm(e.n || ''); }));
+      var _hrSetFL = new Set((window.HR_EMPS || []).map(function(e) { return _fl(_nm(e.n || '')); }));
+      var _unmatched = rows.filter(function(r) {
+        var mn = _nm(r['Master List Name'] || ''), tn = _nm(r['Tracker Name'] || '');
+        return !( (mn && (_hrSet.has(mn) || _hrSetFL.has(_fl(mn)))) ||
+                  (tn && (_hrSet.has(tn) || _hrSetFL.has(_fl(tn)))) );
+      });
+      if (_unmatched.length > 0) {
+        console.warn('[AP] APPRENTICE_DB entries with NO HR_EMPS match (' + _unmatched.length + ') — these may be the missing apprentices:',
+          _unmatched.map(function(r) { return '"' + (r['Master List Name']||'') + '" / "' + (r['Tracker Name']||'') + '"'; }));
+      }
+      console.log('[NJTC] APPRENTICE_DB: ' + rows.length + ' rows loaded, njtcOTJMap keys: ' + Object.keys(window.njtcOTJMap).length);
     } else {
       window.njtcOTJ = [];
       const reason = r_otj.status === 'fulfilled'
@@ -2307,28 +2330,39 @@
     // accurate from both authoritative sources.
     if (window.njtcOTJ && window.njtcOTJ.length && window.AP_DATA) {
       var _nm2 = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
-      var apNames = new Set(window.AP_DATA.map(function(r) { return _nm2(r.name); }));
+      // first+last fuzzy: strips middle names/initials for looser matching
+      var _fl2 = function(n) {
+        var parts = n.split(/\s+/).filter(function(p) { return p.length > 1 && !/^[a-z]\.?$/i.test(p); });
+        return parts.length > 1 ? (parts[0] + ' ' + parts[parts.length - 1]) : n;
+      };
+      var _matchName = function(candidate, target) {
+        var nc = _nm2(candidate), nt = _nm2(target);
+        return nc === nt || _fl2(nc) === nt || nc === _fl2(nt) || _fl2(nc) === _fl2(nt);
+      };
       var crossRefAdded = 0;
+      var hrCrossRefAdded = 0;
       window.njtcOTJ.forEach(function(row) {
         var candidates = [row['Master List Name'], row['Tracker Name']].filter(Boolean);
         candidates.forEach(function(rawName) {
           var n = _nm2(rawName);
           if (!n) return;
-          // Find matching AP_DATA entry — mark as enrolled if not already
-          var entry = window.AP_DATA.find(function(r) { return _nm2(r.name) === n; });
+          // Find matching AP_DATA entry — mark as enrolled if not already (exact + fuzzy)
+          var entry = window.AP_DATA.find(function(r) { return _matchName(r.name, rawName); });
           if (entry && entry.apprentice !== 'Yes') {
             entry.apprentice = 'Yes';
             crossRefAdded++;
           }
-          // Also stamp HR_EMPS so profile cards and filter show correct badge
-          var hrEntry = (window.HR_EMPS || []).find(function(e) { return _nm2(e.n) === n; });
-          if (hrEntry && hrEntry._apprentice !== 'Yes') {
-            hrEntry._apprentice = 'Yes';
-          }
+          // Also stamp HR_EMPS so profile cards and filter show correct badge (exact + fuzzy)
+          (window.HR_EMPS || []).forEach(function(e) {
+            if (e._apprentice !== 'Yes' && _matchName(e.n, rawName)) {
+              e._apprentice = 'Yes';
+              hrCrossRefAdded++;
+            }
+          });
         });
       });
-      if (crossRefAdded > 0) {
-        console.log('[AP] APPRENTICE_DB cross-ref: +' + crossRefAdded + ' added → total enrolled now ' + ap_enrolled().length);
+      if (crossRefAdded > 0 || hrCrossRefAdded > 0) {
+        console.log('[AP] APPRENTICE_DB cross-ref: AP_DATA +' + crossRefAdded + ', HR_EMPS +' + hrCrossRefAdded + ' → total enrolled now ' + ap_enrolled().length);
         // Trigger HR profile re-render if profiles tab is active
         try {
           var profRoot = document.getElementById('hrProfilesRoot');
