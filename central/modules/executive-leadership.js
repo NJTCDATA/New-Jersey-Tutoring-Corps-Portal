@@ -2234,6 +2234,16 @@
         rows = njtc_parseCSV(lines.slice(1).join('\n'));
       }
       window.njtcOTJ = rows;
+      // Discover actual column names from first row (CSV headers may differ from expected)
+      var _otjKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
+      console.log('[AP] APPRENTICE_DB column names:', _otjKeys.join(' | '));
+      // Find the columns containing 'name' (case-insensitive) — primary key for lookup
+      var _masterCol = _otjKeys.find(function(k) { return /master.?list.?name/i.test(k); }) ||
+                       _otjKeys.find(function(k) { return /master/i.test(k) && /name/i.test(k); }) ||
+                       _otjKeys.find(function(k) { return /name/i.test(k); }) || 'Master List Name';
+      var _trackerCol = _otjKeys.find(function(k) { return /tracker.?name/i.test(k); }) ||
+                        _otjKeys.find(function(k) { return /tracker/i.test(k); }) || 'Tracker Name';
+      console.log('[AP] Using columns: masterCol="' + _masterCol + '", trackerCol="' + _trackerCol + '"');
       // Build O(1) name lookup map — exact + first/last fuzzy variant (strips middle names/initials)
       var _nm = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
       var _fl = function(n) {
@@ -2243,8 +2253,8 @@
       };
       window.njtcOTJMap = {};
       rows.forEach(function(r) {
-        var mn = _nm(r['Master List Name'] || '');
-        var tn = _nm(r['Tracker Name'] || '');
+        var mn = _nm(r[_masterCol] || '');
+        var tn = _nm(r[_trackerCol] || '');
         if (mn) {
           window.njtcOTJMap[mn] = r;
           var flmn = _fl(mn); if (flmn !== mn && !window.njtcOTJMap[flmn]) window.njtcOTJMap[flmn] = r;
@@ -2258,13 +2268,15 @@
       var _hrSet = new Set((window.HR_EMPS || []).map(function(e) { return _nm(e.n || ''); }));
       var _hrSetFL = new Set((window.HR_EMPS || []).map(function(e) { return _fl(_nm(e.n || '')); }));
       var _unmatched = rows.filter(function(r) {
-        var mn = _nm(r['Master List Name'] || ''), tn = _nm(r['Tracker Name'] || '');
+        var mn = _nm(r[_masterCol] || ''), tn = _nm(r[_trackerCol] || '');
         return !( (mn && (_hrSet.has(mn) || _hrSetFL.has(_fl(mn)))) ||
                   (tn && (_hrSet.has(tn) || _hrSetFL.has(_fl(tn)))) );
       });
       if (_unmatched.length > 0) {
         console.warn('[AP] APPRENTICE_DB entries with NO HR_EMPS match (' + _unmatched.length + ') — these may be the missing apprentices:',
-          _unmatched.map(function(r) { return '"' + (r['Master List Name']||'') + '" / "' + (r['Tracker Name']||'') + '"'; }));
+          _unmatched.map(function(r) { return '"' + (r[_masterCol]||'') + '" / "' + (r[_trackerCol]||'') + '"'; }));
+      } else {
+        console.log('[AP] All APPRENTICE_DB entries matched to HR_EMPS');
       }
       console.log('[NJTC] APPRENTICE_DB: ' + rows.length + ' rows loaded, njtcOTJMap keys: ' + Object.keys(window.njtcOTJMap).length);
     } else {
@@ -2341,8 +2353,16 @@
       };
       var crossRefAdded = 0;
       var hrCrossRefAdded = 0;
+      // Use the same column names discovered when building njtcOTJMap
+      var _mc = window.njtcOTJ.length > 0 ? (function() {
+        var k = Object.keys(window.njtcOTJ[0]);
+        return {
+          master:  k.find(function(c) { return /master.?list.?name/i.test(c); }) || k.find(function(c) { return /master/i.test(c) && /name/i.test(c); }) || k.find(function(c) { return /name/i.test(c); }) || 'Master List Name',
+          tracker: k.find(function(c) { return /tracker.?name/i.test(c); }) || k.find(function(c) { return /tracker/i.test(c); }) || 'Tracker Name'
+        };
+      })() : { master: 'Master List Name', tracker: 'Tracker Name' };
       window.njtcOTJ.forEach(function(row) {
-        var candidates = [row['Master List Name'], row['Tracker Name']].filter(Boolean);
+        var candidates = [row[_mc.master], row[_mc.tracker]].filter(Boolean);
         candidates.forEach(function(rawName) {
           var n = _nm2(rawName);
           if (!n) return;
