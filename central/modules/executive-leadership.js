@@ -2409,57 +2409,35 @@
   const ap_initAll = async () => {
     await ap_buildFromLive();  // fetch Master List → populate AP_DATA
 
-    // ── APPRENTICE_DB cross-reference ──────────────────────────────────────
-    // ap_buildFromLive() only reads HR Master List apprentice column. Some
-    // enrolled apprentices may have blank/incorrect entries there but appear
-    // in APPRENTICE_DB (njtcOTJ). Cross-reference here so the count is 100%
-    // accurate from both authoritative sources.
+    // ── APPRENTICE_DB diagnostic only ─────────────────────────────────────
+    // Enrollment is determined solely by HR Master List col K ("Yes").
+    // APPRENTICE_DB (njtcOTJ) is OTJ-tracking data only — do NOT use it
+    // to add or promote anyone to enrolled status.
     if (window.njtcOTJ && window.njtcOTJ.length && window.AP_DATA) {
       var _nm2 = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
-      // first+last fuzzy: strips middle names/initials for looser matching
       var _fl2 = function(n) {
         var parts = n.split(/\s+/).filter(function(p) { return p.length > 1 && !/^[a-z]\.?$/i.test(p); });
         return parts.length > 1 ? (parts[0] + ' ' + parts[parts.length - 1]) : n;
       };
-      var _matchName = function(candidate, target) {
-        var nc = _nm2(candidate), nt = _nm2(target);
-        return nc === nt || _fl2(nc) === nt || nc === _fl2(nt) || _fl2(nc) === _fl2(nt);
-      };
-      var crossRefAdded = 0;
-      // Use the same column names discovered when building njtcOTJMap
-      var _mc = window.njtcOTJ.length > 0 ? (function() {
+      var _mc2 = window.njtcOTJ.length > 0 ? (function() {
         var k = Object.keys(window.njtcOTJ[0]);
         return {
-          master:  k.find(function(c) { return /master.?list.?name/i.test(c); }) || k.find(function(c) { return /master/i.test(c) && /name/i.test(c); }) || k.find(function(c) { return /name/i.test(c); }) || 'Master List Name',
-          tracker: k.find(function(c) { return /tracker.?name/i.test(c); }) || k.find(function(c) { return /tracker/i.test(c); }) || 'Tracker Name'
+          master:  k.find(function(c) { return /master.?list.?name/i.test(c); }) || 'Master List Name',
+          tracker: k.find(function(c) { return /tracker.?name/i.test(c); }) || 'Tracker Name'
         };
       })() : { master: 'Master List Name', tracker: 'Tracker Name' };
-      window.njtcOTJ.forEach(function(row) {
-        var candidates = [row[_mc.master], row[_mc.tracker]].filter(Boolean);
-        candidates.forEach(function(rawName) {
-          var n = _nm2(rawName);
-          if (!n) return;
-          // Find matching AP_DATA entry — mark as enrolled if not already (exact + fuzzy)
-          var entry = window.AP_DATA.find(function(r) { return _matchName(r.name, rawName); });
-          if (entry && entry.apprentice !== 'Yes') {
-            entry.apprentice = 'Yes';
-            crossRefAdded++;
-          }
-          // NOTE: do NOT stamp HR_EMPS from OTJ data — OTJ tracks completion, not enrollment.
-          // Apprentice enrollment comes exclusively from HR Master List col K.
-        });
+      // Diagnostic: count OTJ rows that have no enrolled match in HR list
+      var _apEnrolledNames = new Set(AP_DATA.filter(function(r){ return r.apprentice === 'Yes'; }).map(function(r){ return _nm2(r.name); }));
+      var _otjNotInHR = window.njtcOTJ.filter(function(row) {
+        var mn = _nm2(row[_mc2.master] || ''), tn = _nm2(row[_mc2.tracker] || '');
+        var fl = function(n){ var p=n.split(/\s+/).filter(function(x){return x.length>1;});return p.length>1?(p[0]+' '+p[p.length-1]):n; };
+        return !(_apEnrolledNames.has(mn)||_apEnrolledNames.has(fl(mn))||_apEnrolledNames.has(tn)||_apEnrolledNames.has(fl(tn)));
       });
-      if (crossRefAdded > 0) {
-        console.log('[AP] APPRENTICE_DB cross-ref: AP_DATA +' + crossRefAdded + ' — HR_EMPS unchanged (source of truth: HR Master List col K)');
-        // Trigger HR profile re-render if profiles tab is active
-        try {
-          var profRoot = document.getElementById('hrProfilesRoot');
-          if (profRoot && typeof window._hrBuildProfiles === 'function') {
-            var dept = (window.NJTC_SESSION || {}).dept || 'hr';
-            profRoot.innerHTML = window._hrBuildProfiles(dept);
-          }
-        } catch(_e) {}
+      if (_otjNotInHR.length > 0) {
+        console.warn('[AP] OTJ rows with no HR-enrolled match (' + _otjNotInHR.length + ') — update col K in HR Master List to enroll them:',
+          _otjNotInHR.map(function(r){ return '"'+(r[_mc2.master]||'')+'"/'+'"'+(r[_mc2.tracker]||'')+'"'; }));
       }
+      console.log('[AP] Enrollment count (HR Master List col K only): ' + AP_DATA.filter(function(r){ return r.apprentice === 'Yes'; }).length);
     }
 
     // Pre-compute per-person OTJ status + flag into a cache map.
