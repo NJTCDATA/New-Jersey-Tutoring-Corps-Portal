@@ -5311,9 +5311,15 @@
         }
         tutorList.sort((a, b) => b.hours - a.hours);
 
-        const activeScholarIds = new Set(
-          stuRows.filter(r => classifyRecord(r) === 'attended').map(r => r[ATT.USER_ID]).filter(Boolean)
-        );
+        // ── Active scholars: unique student IDs from delivered sessions ────
+        // Matches the dashboard filter pill approach: unique studentIds across
+        // (isFullAtt || isPartial) sessions in region — same denominator as totalSessions
+        const activeScholarIds = new Set();
+        sessions.forEach(sess => {
+          if (sess.durMins > 0 && sess.studentIds) {
+            sess.studentIds.forEach(id => { if (id) activeScholarIds.add(id); });
+          }
+        });
 
         console.log('[NJTC PDF] Export computed', {
           region: regionFilter, totalSessions, hitRate, ratioViolations,
