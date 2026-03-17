@@ -749,6 +749,18 @@
         <div class="ql-arrow">Go → </div>
       </div>
     `).join('');
+
+    // Department-specific widget (HR & Data: Termination Analytics; Programming: Retention Rate)
+    const _deptWidget = document.getElementById('homeDeptWidget');
+    if (_deptWidget) {
+      if (['hr','data'].includes(dept) && typeof window._buildTermAnalyticsWidget === 'function') {
+        _deptWidget.innerHTML = window._buildTermAnalyticsWidget();
+      } else if (dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
+        _deptWidget.innerHTML = window._buildRetentionWidget();
+      } else {
+        _deptWidget.innerHTML = '';
+      }
+    }
   }
 
   // ── Executive Analytics Dashboard ─────────────────────────────────────────
