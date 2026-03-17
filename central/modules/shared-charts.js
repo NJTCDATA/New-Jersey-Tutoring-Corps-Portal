@@ -1243,7 +1243,7 @@
   }
 
   // ── Filter state ──────────────────────────────────────────────────────────
-  let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active', _pSY='2025-2026'; // SY drill-down
+  let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active', _pSY='2025-2026', _pApprentice=false, _pPage=0;
 
   function _filtered() {
     let list = HR_EMPS;
@@ -1257,6 +1257,12 @@
     // Additional tier and role filters
     if (_pTier !== 'all') list = list.filter(e => (e._liveT||e.t) === _pTier);
     if (_pRole !== 'all') list = list.filter(e => (e.r||'').toLowerCase().includes(_pRole.toLowerCase()));
+    // Apprentice filter — checks HR Master List flag AND APPRENTICE_DB cross-reference
+    if (_pApprentice) {
+      const _nm = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
+      list = list.filter(e => e._apprentice === 'Yes' ||
+        (window.njtcOTJMap && !!window.njtcOTJMap[_nm(e.n)]));
+    }
     // Search
     if (_pQ) {
       const q = _pQ.toLowerCase();
@@ -1672,7 +1678,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
     <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
       <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
-      ${(e._apprentice==='Yes')?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: This employee is enrolled in the NJTC DOL-registered apprenticeship program (col K · HR Master List)">🎓 Apprentice</span>`:''}
+      ${(e._apprentice==='Yes'||(window.njtcOTJMap&&!!window.njtcOTJMap[(e.n||'').toLowerCase().replace(/\s+/g,' ').trim()]))?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: Enrolled in the NJTC DOL-registered apprenticeship program">🎓 Apprentice</span>`:''}
     </div>
     <div style="display:flex;gap:.3rem;align-items:center">${rhBadge} <span style="font-size:.6rem;padding:.1rem .35rem;border-radius:4px;font-weight:700;background:${isActive?'#d1fae5':'#f1f5f9'};color:${isActive?'#065f46':'#64748b'}">${isActive?'Active':'Inactive'}</span></div>
   </div>
@@ -1687,9 +1693,12 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
 </div>`;
     };
 
-    // Render max 60 cards per view — prevents DOM overload with large datasets
+    // Pagination — 60 cards per page, state in _pPage (reset by filter changes)
     const PAGE_SIZE = 60;
-    const _pageStart = 0;  // future: support pagination; for now show first 60
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    // Clamp page index in case filter narrowed the result set
+    if (_pPage >= totalPages) _pPage = totalPages - 1;
+    const _pageStart = _pPage * PAGE_SIZE;
     const displayCards = filtered.slice(_pageStart, _pageStart + PAGE_SIZE);
     const cards = displayCards.map(buildCard).join('');
     const hasMore = filtered.length > PAGE_SIZE;
@@ -1745,6 +1754,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     <input type="text" placeholder="🔍 Search name, site, role…" oninput="_hrDoSearch(this.value)" value="${esc(_pQ)}"
       style="width:100%;padding:.3rem .625rem;border:1.5px solid var(--border);border-radius:6px;font-size:.72rem;background:var(--surface-2);color:var(--navy);box-sizing:border-box">
   </div>
+  <button onclick="_hrSetApprentice()" style="padding:.3rem .65rem;border-radius:6px;border:1.5px solid ${_pApprentice?'#854d0e':'var(--border)'};background:${_pApprentice?'#fef9c3':'var(--surface-2)'};color:${_pApprentice?'#854d0e':'var(--navy)'};font-size:.7rem;font-weight:${_pApprentice?'800':'600'};cursor:pointer;white-space:nowrap">🎓 Apprentice${_pApprentice?' ✓':''}</button>
   <div style="font-size:.68rem;color:var(--muted);white-space:nowrap">${filtered.length} shown</div>
 </div>
 <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.75rem">${allPill} ${tierPills}</div>`;
@@ -1774,9 +1784,12 @@ ${filtersRow}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.75rem;margin-bottom:.5rem">
   ${cards || `<div style="grid-column:1/-1;text-align:center;padding:2.5rem;color:var(--muted);font-size:.8rem">No employees match your filters.</div>`}
 </div>
-${hasMore ? `<div style="text-align:center;font-size:.72rem;padding:.75rem;background:var(--surface-2);border-radius:6px;margin-top:.5rem">
-  <span style="color:var(--muted)">Showing ${displayCards.length} of ${filtered.length} — </span>
-  <button onclick="_hrSetTier('all');_hrDoSearch('')" style="font-size:.72rem;color:var(--navy);font-weight:700;background:none;border:none;cursor:pointer;text-decoration:underline">refine filters to see more</button>
+${hasMore ? `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;padding:.75rem;background:var(--surface-2);border-radius:6px;margin-top:.5rem">
+  <span style="font-size:.72rem;color:var(--muted)">Page ${_pPage+1} of ${totalPages} · Showing ${_pageStart+1}–${Math.min(_pageStart+PAGE_SIZE,filtered.length)} of ${filtered.length}</span>
+  <div style="display:flex;gap:.4rem">
+    ${_pPage > 0 ? `<button onclick="_hrSetPage(${_pPage-1})" style="padding:.3rem .75rem;font-size:.72rem;font-weight:700;border:1.5px solid var(--navy);border-radius:6px;background:var(--surface);color:var(--navy);cursor:pointer">← Prev</button>` : ''}
+    ${_pPage < totalPages-1 ? `<button onclick="_hrSetPage(${_pPage+1})" style="padding:.3rem .75rem;font-size:.72rem;font-weight:700;border:1.5px solid var(--navy);border-radius:6px;background:var(--navy);color:#fff;cursor:pointer">Next →</button>` : ''}
+  </div>
 </div>` : ''}
 ${gridClose}
 `; }
@@ -2576,18 +2589,21 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   // ── Global handlers (onclick= safe) ──────────────────────────────────────
-  window._hrSetTier    = t  => { _pTier=t;   _hrRebuildProfiles(); };
+  window._hrSetTier    = t  => { _pTier=t;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetViewTab = tab => {
     _pViewTab = tab;
     _pStatus  = tab === 'active' ? 'active' : tab === 'inactive' ? 'terminated' : 'all';
     _pTier    = 'all';
     _pQ       = '';
+    _pPage    = 0;
     _hrRebuildProfiles();
   };
-  window._hrSetSY = sy => { _pSY = sy; _pViewTab='active'; _pTier='all'; _pQ=''; _hrRebuildProfiles(); };
-  window._hrSetRole    = r  => { _pRole=r;   _hrRebuildProfiles(); };
-  window._hrSetStatus  = s  => { _pStatus=s; _hrRebuildProfiles(); };
-  window._hrDoSearch   = q  => { _pQ=q;      _hrRebuildProfiles(); };
+  window._hrSetSY = sy => { _pSY = sy; _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetRole    = r  => { _pRole=r;   _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
+  window._hrDoSearch   = q  => { _pQ=q;      _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetPage    = p  => { _pPage=p;             _hrRebuildProfiles(); };
+  window._hrSetApprentice = () => { _pApprentice=!_pApprentice; _pPage=0; _hrRebuildProfiles(); };
   // Toggle collapsible section in profiles
   window._hrToggle = (id) => {
     const el = document.getElementById(id);
