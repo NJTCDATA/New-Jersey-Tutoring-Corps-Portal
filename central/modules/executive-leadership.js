@@ -1733,20 +1733,42 @@
 
     const flagCount = enrolled.filter(function(r) { return ap_hasFlag(r.name); }).length;
 
+    var hrStorageKey = 'njtc_ap_hr_open';
+    var hrOpen = localStorage.getItem(hrStorageKey) === '1'; // collapsed by default
+
     const panel = document.createElement('div');
     panel.id = 'ap-hr-roster-panel';
     panel.style.cssText = 'margin-top:28px;';
-    panel.innerHTML = '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
-      '<div style="background:#002855;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">' +
-      '<div><div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Program Roster</div><div style="color:rgba(255,255,255,0.6);font-size:11px;margin-top:2px;">' + enrolled.length + ' enrolled · SY 2025-2026</div></div>' +
-      (flagCount > 0 ? '<div style="background:#DC2626;color:white;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">⚠ ' + flagCount + ' Flagged</div>' : '') +
-      '</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
-      '<thead><tr style="background:#F8FAFC;border-bottom:2px solid #E5E7EB;">' +
-      ['Name','Role','Network','School/Site','OTJ Begin','OTJ Middle','Re-hire','Cycles'].map(function(h) {
-        return '<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">' + h + '</th>';
-      }).join('') +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<div style="padding:12px 20px;background:#FFF9E6;border-top:1px solid #E5E7EB;font-size:11px;color:#92400E;">💡 Wage increases are tied to OTJ hours completed: 1,100 / 2,200 / 3,300 / 3,800 / 4,000 hours. District cost-sharing agreements are tracked separately in the Wage Reimbursement sheet.</div>' +
+    panel.innerHTML =
+      '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      // ── Accordion header ────────────────────────────────────────────────
+      '<div onclick="(function(){' +
+          'var b=document.getElementById(\'ap-hr-roster-body\');' +
+          'var i=document.getElementById(\'ap-hr-roster-icon\');' +
+          'var open=b.style.display===\'none\';' +
+          'b.style.display=open?\'\':\'none\';' +
+          'i.textContent=open?\'▾\':\'▸\';' +
+          'try{localStorage.setItem(\'njtc_ap_hr_open\',open?\'1\':\'0\');}catch(e){}' +
+        '})()" style="background:#002855;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span id="ap-hr-roster-icon" style="color:rgba(255,255,255,0.7);font-size:14px;">' + (hrOpen ? '▾' : '▸') + '</span>' +
+          '<div>' +
+            '<div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Program Roster</div>' +
+            '<div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px;">' + enrolled.length + ' enrolled · SY 2025–2026 · click to expand</div>' +
+          '</div>' +
+        '</div>' +
+        (flagCount > 0 ? '<div style="background:#DC2626;color:white;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">⚠ ' + flagCount + ' Flagged</div>' : '<div style="background:rgba(22,163,74,0.25);color:#86efac;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;">✅ No Flags</div>') +
+      '</div>' +
+      // ── Accordion body ──────────────────────────────────────────────────
+      '<div id="ap-hr-roster-body" style="display:' + (hrOpen ? '' : 'none') + ';">' +
+        '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
+        '<thead><tr style="background:#F8FAFC;border-bottom:2px solid #E5E7EB;">' +
+        ['Name','Role','Network','School/Site','OTJ Begin','OTJ Middle','Re-hire','Cycles'].map(function(h) {
+          return '<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">' + h + '</th>';
+        }).join('') +
+        '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<div style="padding:12px 20px;background:#FFF9E6;border-top:1px solid #E5E7EB;font-size:11px;color:#92400E;">💡 Wage increases are tied to OTJ hours completed: 1,100 / 2,200 / 3,300 / 3,800 / 4,000 hours. District cost-sharing agreements are tracked separately in the Wage Reimbursement sheet.</div>' +
+      '</div>' +
       '</div>';
     hrContent.appendChild(panel);
   };
@@ -1806,20 +1828,47 @@
         return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><div style="font-size:11px;color:#374151;min-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + net + '</div><div style="flex:1;height:8px;background:#E5E7EB;border-radius:4px;overflow:hidden;"><div style="height:100%;background:#002855;border-radius:4px;width:' + Math.round(members.length/enrolled.length*100) + '%;"></div></div><div style="font-size:11px;font-weight:700;color:#002855;min-width:24px;text-align:right;">' + members.length + '</div></div>';
       }).join('');
 
-    const panel = document.createElement('div');
-    panel.id = 'ap-prog-panel';
-    panel.style.cssText = 'margin-bottom:24px;';
-    panel.innerHTML = '<div style="border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
-      '<div style="background:#002855;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;"><div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Programming Overview</div><div style="display:flex;gap:8px;"><div style="background:rgba(255,255,255,0.15);color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:600;">' + enrolled.length + ' enrolled</div>' +
-      (flagged.length > 0 ? '<div style="background:#DC2626;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">⚠ ' + flagged.length + ' need attention</div>' : '<div style="background:#16A34A;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">✅ No flags</div>') +
-      '</div></div>' +
+    var progStorageKey = 'njtc_ap_prog_open';
+    var progOpen = localStorage.getItem(progStorageKey) === '1'; // collapsed by default
+
+    const bodyContent =
       '<div style="display:grid;grid-template-columns:1fr 1fr;background:white;">' +
       '<div style="padding:20px;border-right:1px solid #F3F4F6;"><div style="font-size:11px;font-weight:700;color:#DC2626;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">⚠ Action Required (' + flagged.length + ')</div>' +
       (flagged.length > 0 ? flagRows : '<div style="text-align:center;padding:20px;color:#9CA3AF;font-size:12px;">✅ All apprentices have no active OTJ flags</div>') +
       '<div style="margin-top:14px;padding:10px;background:#FFF9E6;border-radius:8px;font-size:11px;color:#92400E;"><strong>Programming requirements for apprentices:</strong><br>① OTJ Beginning must be completed by Month 4<br>② Formal IC observation required (not informal)<br>③ Site leader must be formally assigned<br>④ Hours milestones: 1,100 · 2,200 · 3,300 · 3,800 · 4,000 hrs</div></div>' +
       '<div style="padding:20px;"><div style="font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">Apprentices by Network</div>' + netBars +
       '<div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px;"><div style="background:#EFF6FF;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.2rem;font-weight:800;color:#002855;">' + ap_byRegion().NE.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">NE Region</div></div><div style="background:#FFF9E6;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:1.2rem;font-weight:800;color:#B8960C;">' + ap_byRegion().SW.length + '</div><div style="font-size:10px;color:#6B7280;text-transform:uppercase;">SW Region</div></div></div></div>' +
-      '</div></div>';
+      '</div>';
+
+    const panel = document.createElement('div');
+    panel.id = 'ap-prog-panel';
+    panel.style.cssText = 'margin-bottom:24px;';
+    panel.innerHTML =
+      '<div style="border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      // ── Accordion header ────────────────────────────────────────────────
+      '<div onclick="(function(){' +
+          'var b=document.getElementById(\'ap-prog-body\');' +
+          'var i=document.getElementById(\'ap-prog-icon\');' +
+          'var open=b.style.display===\'none\';' +
+          'b.style.display=open?\'\':\'none\';' +
+          'i.textContent=open?\'▾\':\'▸\';' +
+          'try{localStorage.setItem(\'njtc_ap_prog_open\',open?\'1\':\'0\');}catch(e){}' +
+        '})()" style="background:#002855;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span id="ap-prog-icon" style="color:rgba(255,255,255,0.7);font-size:14px;">' + (progOpen ? '▾' : '▸') + '</span>' +
+          '<div>' +
+            '<div style="color:white;font-size:14px;font-weight:800;">🎓 Apprentice Programming Overview</div>' +
+            '<div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px;">click to expand · ' + enrolled.length + ' enrolled</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<div style="background:rgba(255,255,255,0.15);color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:600;">' + enrolled.length + ' enrolled</div>' +
+          (flagged.length > 0 ? '<div style="background:#DC2626;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">⚠ ' + flagged.length + ' need attention</div>' : '<div style="background:#16A34A;color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:700;">✅ No flags</div>') +
+        '</div>' +
+      '</div>' +
+      // ── Accordion body ──────────────────────────────────────────────────
+      '<div id="ap-prog-body" style="display:' + (progOpen ? '' : 'none') + ';">' + bodyContent + '</div>' +
+      '</div>';
 
     progTab.prepend(panel);
   };
@@ -2029,11 +2078,10 @@
       return '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:10px 14px;font-size:12px;color:#374151;font-weight:600;">' + label + '</td><td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:800;color:' + (apWins ? '#16A34A' : '#374151') + ';">' + (apVal || 'N/A') + (apWins && apVal !== 'N/A' ? ' ⬆' : '') + '</td><td style="padding:10px 14px;text-align:center;font-size:13px;font-weight:800;color:' + (!apWins && apVal !== 'N/A' ? '#16A34A' : '#374151') + ';">' + (nonApVal || 'N/A') + (!apWins && nonApVal !== 'N/A' ? ' ⬆' : '') + '</td></tr>';
     };
 
-    const section = document.createElement('div');
-    section.id = 'ap-data-section';
-    section.style.cssText = 'margin-bottom:28px;';
-    section.innerHTML = '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
-      '<div style="background:#002855;padding:14px 20px;"><div style="color:white;font-size:14px;font-weight:800;">📊 Apprentice vs Non-Apprentice — Data Comparison</div><div style="color:rgba(255,255,255,0.6);font-size:11px;margin-top:2px;">Live from Pearl Operations · ' + enrolled.length + ' apprentices vs ' + nonEnrolled.length + ' non-apprentices</div></div>' +
+    var dataStorageKey = 'njtc_ap_data_open';
+    var dataOpen = localStorage.getItem(dataStorageKey) === '1'; // collapsed by default
+
+    const dataBody =
       '<div style="padding:0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#F8FAFC;"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;">Metric</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#B8960C;text-transform:uppercase;letter-spacing:0.06em;">🎓 Apprentices (' + enrolled.length + ')</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">Non-Apprentices (' + nonEnrolled.length + ')</th></tr></thead><tbody>' +
       metricRow('Avg Scholar Rating (Pearl)', apScholarRating, nonApScholarRating) +
       metricRow('Avg Attendance Rate', apAttendance, nonApAttendance) +
@@ -2041,7 +2089,33 @@
       metricRow('OTJ Middle Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).middle==='Completed';}).length + ' / ' + enrolled.length, '—') +
       metricRow('Returning (Re-hire = Yes)', enrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + enrolled.length, nonEnrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + nonEnrolled.length) +
       '</tbody></table></div>' +
-      '<div style="padding:12px 20px;background:#F8FAFC;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF;">Scholar rating and attendance pulled from Pearl Operations (window.po). If Pearl data is unavailable for a tutor, cell shows N/A. ⬆ indicates the higher-performing group for that metric.</div>' +
+      '<div style="padding:12px 20px;background:#F8FAFC;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF;">Scholar rating and attendance pulled from Pearl Operations (window.po). If Pearl data is unavailable for a tutor, cell shows N/A. ⬆ indicates the higher-performing group for that metric.</div>';
+
+    const section = document.createElement('div');
+    section.id = 'ap-data-section';
+    section.style.cssText = 'margin-bottom:28px;';
+    section.innerHTML =
+      '<div style="background:white;border-radius:12px;border:1px solid #E5E7EB;overflow:hidden;box-shadow:0 2px 8px rgba(0,40,85,0.07);">' +
+      // ── Accordion header ────────────────────────────────────────────────
+      '<div onclick="(function(){' +
+          'var b=document.getElementById(\'ap-data-body\');' +
+          'var i=document.getElementById(\'ap-data-icon\');' +
+          'var open=b.style.display===\'none\';' +
+          'b.style.display=open?\'\':\'none\';' +
+          'i.textContent=open?\'▾\':\'▸\';' +
+          'try{localStorage.setItem(\'njtc_ap_data_open\',open?\'1\':\'0\');}catch(e){}' +
+        '})()" style="background:#002855;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span id="ap-data-icon" style="color:rgba(255,255,255,0.7);font-size:14px;">' + (dataOpen ? '▾' : '▸') + '</span>' +
+          '<div>' +
+            '<div style="color:white;font-size:14px;font-weight:800;">📊 Apprentice vs Non-Apprentice — Data Comparison</div>' +
+            '<div style="color:rgba(255,255,255,0.5);font-size:11px;margin-top:2px;">Live from Pearl Operations · click to expand</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="background:rgba(255,255,255,0.15);color:white;padding:4px 12px;border-radius:16px;font-size:11px;font-weight:600;">' + enrolled.length + ' vs ' + nonEnrolled.length + '</div>' +
+      '</div>' +
+      // ── Accordion body ──────────────────────────────────────────────────
+      '<div id="ap-data-body" style="display:' + (dataOpen ? '' : 'none') + ';">' + dataBody + '</div>' +
       '</div>';
     dataTab.prepend(section);
   };
