@@ -1586,7 +1586,13 @@
       // irlab: no prefetch needed — embedded data, loads instantly on panel open
     }, 100);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
-    initDeptNav(dept);
+    // Guard: shared-filters.js may not be available in all environments
+    if (typeof window.initDeptNav === 'function') {
+      window.initDeptNav(dept);
+    } else {
+      // Retry once after a brief delay in case of script-load timing edge case
+      setTimeout(() => { if (typeof window.initDeptNav === 'function') window.initDeptNav(dept); }, 300);
+    }
     setTimeout(() => initPolicyAdmin(), 500);
 
     // Auto-fill today's date
