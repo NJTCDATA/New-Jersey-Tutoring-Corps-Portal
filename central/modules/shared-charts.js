@@ -1257,11 +1257,18 @@
     // Additional tier and role filters
     if (_pTier !== 'all') list = list.filter(e => (e._liveT||e.t) === _pTier);
     if (_pRole !== 'all') list = list.filter(e => (e.r||'').toLowerCase().includes(_pRole.toLowerCase()));
-    // Apprentice filter — checks HR Master List flag AND APPRENTICE_DB cross-reference
+    // Apprentice filter — checks HR Master List flag AND APPRENTICE_DB cross-reference (exact + first/last fuzzy)
     if (_pApprentice) {
       const _nm = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
-      list = list.filter(e => e._apprentice === 'Yes' ||
-        (window.njtcOTJMap && !!window.njtcOTJMap[_nm(e.n)]));
+      const _fl = n => { const p = n.split(/\s+/).filter(s => s.length > 1 && !/^[a-z]\.?$/i.test(s)); return p.length > 1 ? (p[0] + ' ' + p[p.length-1]) : n; };
+      const before = list.length;
+      list = list.filter(e => {
+        if (e._apprentice === 'Yes') return true;
+        if (!window.njtcOTJMap) return false;
+        const nm = _nm(e.n);
+        return !!window.njtcOTJMap[nm] || !!window.njtcOTJMap[_fl(nm)];
+      });
+      console.log('[HR Filter] Apprentice filter: ' + before + ' → ' + list.length + ' (njtcOTJMap keys: ' + (window.njtcOTJMap ? Object.keys(window.njtcOTJMap).length : 'none') + ')');
     }
     // Search
     if (_pQ) {
@@ -2583,7 +2590,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   function _hrRebuildProfiles() {
     const root = document.getElementById('hrProfilesRoot');
-    if (!root) return;
+    if (!root) { console.warn('[HR] _hrRebuildProfiles: hrProfilesRoot not found'); return; }
     const dept = (window.NJTC_SESSION||{}).dept || 'hr';
     root.innerHTML = _hrBuildProfiles(dept);
   }
@@ -2603,7 +2610,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
   window._hrDoSearch   = q  => { _pQ=q;      _pPage=0; _hrRebuildProfiles(); };
   window._hrSetPage    = p  => { _pPage=p;             _hrRebuildProfiles(); };
-  window._hrSetApprentice = () => { _pApprentice=!_pApprentice; _pPage=0; _hrRebuildProfiles(); };
+  window._hrSetApprentice = () => { _pApprentice=!_pApprentice; _pPage=0; console.log('[HR] Apprentice filter toggled:', _pApprentice); _hrRebuildProfiles(); };
   // Toggle collapsible section in profiles
   window._hrToggle = (id) => {
     const el = document.getElementById(id);
@@ -2700,6 +2707,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function fetchKPIMetadata(force) {
+    // Skip if this URL is known to 404 (prevents repeated 404 console errors)
+    try {
+      if (!force && localStorage.getItem('njtc_kpi_meta_404') === '1') return;
+    } catch(e) {}
     if (!force) {
       try {
         var cached = localStorage.getItem(KPI_META_CACHE_KEY);
@@ -2712,7 +2723,18 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       } catch(e) {}
     }
     fetch(KPI_META_URL)
-      .then(function(r){ return r.ok ? r.text() : ''; })
+      .then(function(r){
+        if (!r.ok) {
+          if (r.status === 404) {
+            try { localStorage.setItem('njtc_kpi_meta_404', '1'); } catch(e) {}
+            console.warn('[KPI] Metadata URL returned 404 — suppressing future requests. Clear localStorage to retry.');
+          }
+          return '';
+        }
+        // URL is valid — clear any stale 404 flag
+        try { localStorage.removeItem('njtc_kpi_meta_404'); } catch(e) {}
+        return r.text();
+      })
       .then(function(csv){
         if (!csv) return;
         var rows = _parseKPIcsv(csv);
