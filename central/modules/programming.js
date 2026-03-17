@@ -5028,6 +5028,247 @@
       getLeadershipData,
       getTutorAttendanceMap,
       exportData, showExportModal,
+
+      // ── PDF export data accessor ─────────────────────────────────────────
+      // regionFilter: 'NE' | 'SW' | 'ALL'
+      // Returns a snapshot of Pearl data scoped to the requested region.
+      getExportData: function(regionFilter) {
+        regionFilter = (regionFilter || 'ALL').toUpperCase();
+
+        // ── Region membership helpers ──────────────────────────────────────
+        // Each region owns specific districts / school name patterns.
+        // We match against district first (preferred), then school name.
+        // Prefix 'zzz' → excluded from all regions.
+        const NE_DISTRICTS = [
+          'ilearn', 'i-learn',
+          'paterson', 'pcsst', 'paterson charter',
+          'hoboken',
+          'middlesex',
+          'central jersey',
+        ];
+        const SW_DISTRICTS = [
+          'american paradigm', 'first philadelphia', 'first philly', 'philadelphia charter', 'string theory',
+          'global leadership', 'gla',
+          'penns grove', 'carneys point', 'salem',
+          'haddon',
+          'hamilton township',
+          'gloucester township',
+        ];
+        const SW_SCHOOLS = [
+          'erial', 'loring flemming', 'field street', 'penns grove middle',
+          'van sciver', 'strawbridge',
+          'first philadelphia prep', 'first philly prep',
+          'the philadelphia charter', 'philadelphia charter school',
+          'global leadership',
+        ];
+
+        function isExcluded(school) {
+          return school && school.toLowerCase().startsWith('zzz');
+        }
+
+        function schoolRegion(school, district) {
+          const s = (school  || '').toLowerCase().trim();
+          const d = (district|| '').toLowerCase().trim();
+          if (isExcluded(s)) return null;
+          // District-first matching
+          for (const kw of NE_DISTRICTS) { if (d.includes(kw)) return 'NE'; }
+          for (const kw of SW_DISTRICTS) { if (d.includes(kw)) return 'SW'; }
+          // School-name fallback
+          for (const kw of SW_SCHOOLS)  { if (s.includes(kw)) return 'SW'; }
+          // iLearn sub-sites often have no district; match school name
+          if (s.includes('ilearn') || s.includes('i-learn') || s.includes('ilearn'))    return 'NE';
+          if (s.includes('hoboken'))   return 'NE';
+          if (s.includes('middlesex')) return 'NE';
+          return null; // unassigned → appears in ALL but not NE/SW
+        }
+
+        function inRegion(school, district) {
+          if (regionFilter === 'ALL') return !isExcluded(school);
+          return schoolRegion(school, district) === regionFilter;
+        }
+
+        // ── Filter sessions ────────────────────────────────────────────────
+        const allSessions = Object.values(_sessMap || {});
+        const sessions = allSessions.filter(s =>
+          s.isDelivered && inRegion(s.school, s.district)
+        );
+        const totalSessions    = sessions.length;
+        const hitSessions      = sessions.filter(s => !s.ratioFlag).length;
+        const hitRate          = totalSessions > 0 ? Math.round(hitSessions / totalSessions * 100) : 0;
+        const ratioViolations  = totalSessions - hitSessions;
+
+        // Highest HIT category = session with highest ratio among delivered sessions
+        let maxRatio = 0;
+        sessions.forEach(s => { if (s.ratio > maxRatio) maxRatio = s.ratio; });
+
+        // ── Filter attendance rows ─────────────────────────────────────────
+        const attRows = (_attRows || []).filter(r => inRegion(r[ATT.SCHOOL], r[ATT.DISTRICT]));
+        const stuRows  = attRows.filter(r => r[ATT.ROLE] === 'Student');
+        const instRows = attRows.filter(r => r[ATT.ROLE] === 'Instructor');
+
+        const stuAtt  = stuRows.filter(r => classifyRecord(r) === 'attended').length;
+        const stuAbs  = stuRows.filter(r => classifyRecord(r) === 'absent').length;
+        const stuSI   = stuRows.filter(r => classifyRecord(r) === 'service_interruption').length;
+        const stuTotal = stuAtt + stuAbs;
+        const scholarAttRate = stuTotal > 0 ? parseFloat((stuAtt / stuTotal * 100).toFixed(1)) : 0;
+
+        const instAtt  = instRows.filter(r => classifyRecord(r) === 'attended').length;
+        const instAbs  = instRows.filter(r => classifyRecord(r) === 'absent').length;
+        const instTotal = instAtt + instAbs;
+        const tutorAttRate = instTotal > 0 ? parseFloat((instAtt / instTotal * 100).toFixed(1)) : 0;
+
+        // ── Missed reason breakdown ────────────────────────────────────────
+        const missedReasonCounts = {};
+        stuRows.filter(r => classifyRecord(r) === 'absent' || classifyRecord(r) === 'service_interruption')
+          .forEach(r => {
+            const reason = r[ATT.MISS_REASON] || 'Unknown';
+            missedReasonCounts[reason] = (missedReasonCounts[reason] || 0) + 1;
+          });
+
+        // ── Per-school stats ───────────────────────────────────────────────
+        const schools = [];
+        for (const [name, sc] of Object.entries(_schoolMap || {})) {
+          if (!name || !name.trim()) continue;
+          if (!inRegion(name, sc.district)) continue;
+          const scSessions = (sc.sessions || []).filter(s => s.isDelivered);
+          const scTotal    = scSessions.length;
+          const scHit      = scSessions.filter(s => !s.ratioFlag).length;
+          schools.push({
+            name:           sc.school || name,
+            district:       sc.district || '',
+            region:         schoolRegion(name, sc.district) || regionFilter,
+            attRate:        sc.attRate || 0,
+            sessions:       scTotal,
+            hitRate:        scTotal > 0 ? Math.round(scHit / scTotal * 100) : 0,
+            ratioViolations: sc.ratioViolations || 0,
+            stuSurveyAvg:   parseFloat((sc.stuSurveyAvg || 0).toFixed(2)),
+            instSurveyAvg:  parseFloat((sc.instSurveyAvg || 0).toFixed(2)),
+            stuAttended:    sc.stuAttended || 0,
+            stuAbsent:      sc.stuAbsent   || 0,
+            siCount:        sc.stuInterruptions || 0,
+          });
+        }
+        schools.sort((a, b) => b.sessions - a.sessions);
+
+        // ── Per-district rollup ────────────────────────────────────────────
+        const districtMap = {};
+        schools.forEach(sc => {
+          const d = sc.district || 'Unknown';
+          if (!districtMap[d]) districtMap[d] = { name: d, schools: [], sessions: 0, attRateSum: 0, attRateCnt: 0, siCount: 0 };
+          districtMap[d].schools.push(sc.name);
+          districtMap[d].sessions     += sc.sessions;
+          districtMap[d].siCount      += sc.siCount;
+          if (sc.attRate > 0) { districtMap[d].attRateSum += sc.attRate; districtMap[d].attRateCnt++; }
+        });
+        const districts = Object.values(districtMap).map(d => ({
+          ...d,
+          attRate: d.attRateCnt > 0 ? parseFloat((d.attRateSum / d.attRateCnt).toFixed(1)) : 0,
+        })).sort((a, b) => b.sessions - a.sessions);
+
+        // ── Survey scores ──────────────────────────────────────────────────
+        // Student surveys
+        const stuSurveyRows = (_stuRows || []).filter(r => inRegion(r[STU_S.SCHOOL], r[STU_S.DISTRICT]));
+        let stuSurveyScores = { confidence: [], enjoyment: [], learning: [], overall: [] };
+        stuSurveyRows.forEach(r => {
+          const c = parseFloat(r[STU_S.CONFIDENCE]); if (!isNaN(c) && c > 0) stuSurveyScores.confidence.push(c);
+          const e = parseFloat(r[STU_S.ENJOYMENT]);  if (!isNaN(e) && e > 0) stuSurveyScores.enjoyment.push(e);
+          const l = parseFloat(r[STU_S.LEARNING]);   if (!isNaN(l) && l > 0) stuSurveyScores.learning.push(l);
+          const o = parseFloat(r[STU_S.OVERALL]);    if (!isNaN(o) && o > 0) stuSurveyScores.overall.push(o);
+        });
+        function avgArr(arr) { return arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : 0; }
+        const stuSurveyAvg = {
+          confidence: avgArr(stuSurveyScores.confidence),
+          enjoyment:  avgArr(stuSurveyScores.enjoyment),
+          learning:   avgArr(stuSurveyScores.learning),
+          overall:    avgArr(stuSurveyScores.overall),
+          count:      stuSurveyRows.length,
+        };
+
+        // Instructor surveys
+        const instSurveyRows = (_instRows || []).filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]));
+        let instSurveyScores = { engagement: [], enjoyment: [], learning: [], overall: [] };
+        instSurveyRows.forEach(r => {
+          const eg = parseFloat(r[INST_S.ENGAGEMENT]); if (!isNaN(eg) && eg > 0) instSurveyScores.engagement.push(eg);
+          const ej = parseFloat(r[INST_S.ENJOYMENT]);  if (!isNaN(ej) && ej > 0) instSurveyScores.enjoyment.push(ej);
+          const l  = parseFloat(r[INST_S.LEARNING]);   if (!isNaN(l)  && l > 0)  instSurveyScores.learning.push(l);
+          const o  = parseFloat(r[INST_S.OVERALL]);    if (!isNaN(o)  && o > 0)  instSurveyScores.overall.push(o);
+        });
+        const instSurveyAvg = {
+          engagement: avgArr(instSurveyScores.engagement),
+          enjoyment:  avgArr(instSurveyScores.enjoyment),
+          learning:   avgArr(instSurveyScores.learning),
+          overall:    avgArr(instSurveyScores.overall),
+          count:      instSurveyRows.length,
+        };
+
+        // Comment category breakdown (instructor surveys)
+        const commentCounts = {};
+        instSurveyRows.forEach(r => {
+          [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]].forEach(text => {
+            if (!text || !text.trim()) return;
+            const bucket = categorizeComment(text) || 'other';
+            commentCounts[bucket] = (commentCounts[bucket] || 0) + 1;
+          });
+        });
+
+        // ── Top tutors by session hours ────────────────────────────────────
+        const tutorList = [];
+        for (const [uid, p] of Object.entries(_personMap || {})) {
+          if (p.role !== 'Instructor') continue;
+          if (!inRegion(p.school, p.district)) continue;
+          const totalMins = Object.values(p.subjectMinutes || {}).reduce((a, b) => a + b, 0);
+          tutorList.push({
+            name:     p.name || uid,
+            school:   p.school   || '',
+            district: p.district || '',
+            attended: p.attended || 0,
+            absent:   p.absent   || 0,
+            attRate:  (p.attended + p.absent) > 0 ? parseFloat((p.attended / (p.attended + p.absent) * 100).toFixed(1)) : 0,
+            hours:    parseFloat((totalMins / 60).toFixed(1)),
+          });
+        }
+        tutorList.sort((a, b) => b.hours - a.hours);
+
+        // ── Active scholars count ──────────────────────────────────────────
+        const activeScholarIds = new Set(
+          stuRows.filter(r => classifyRecord(r) === 'attended').map(r => r[ATT.USER_ID]).filter(Boolean)
+        );
+
+        // ── Unique schools / districts ─────────────────────────────────────
+        const uniqueSchools    = schools.length;
+        const uniqueDistricts  = districts.length;
+
+        return {
+          region:          regionFilter,
+          generatedAt:     new Date().toISOString(),
+          // Network totals
+          totalSessions,
+          hitRate,
+          hitSessions,
+          ratioViolations,
+          maxRatio,
+          scholarAttRate,
+          tutorAttRate,
+          stuAttended:     stuAtt,
+          stuAbsent:       stuAbs,
+          stuSI,
+          instAttended:    instAtt,
+          instAbsent:      instAbs,
+          uniqueSchools,
+          uniqueDistricts,
+          activeScholars:  activeScholarIds.size,
+          activeTutors:    tutorList.length,
+          // Breakdowns
+          schools,
+          districts,
+          missedReasonCounts,
+          stuSurveyAvg,
+          instSurveyAvg,
+          commentCounts,
+          topTutors:       tutorList.slice(0, 20),
+        };
+      },
+
       getStats: function() {
         // Compute directly from the internal data arrays
         var stats = { loaded: false, scholAttPct: null, instAttPct: null, sessions: null,
