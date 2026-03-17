@@ -1594,7 +1594,7 @@
       GIDS.sess = 625567780;
 
       // ── Try localStorage GID cache (v2 — v1 busted to clear stale entries) ──
-      const _GID_CACHE_KEY = 'njtc_pearl_gids_v2';
+      const _GID_CACHE_KEY = 'njtc_pearl_gids_v3';
       try {
         const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
         if (_gc && _gc.inst != null && _gc.stu != null) {
@@ -1627,6 +1627,7 @@
       // common Google Sheets gid patterns. Includes known gid from edit URL.
       if (!probedGids.length) {
         probedGids = [0, 1, 2, 3,
+                      1245403832,          // Student Surveys tab (confirmed from edit URL)
                       1748668439,          // known gid from edit URL provided
                       628127573, 274671201, 1372188422, 1640135663,
                       1303503567, 1649760609, 1978724299, 1784717262,
@@ -1735,7 +1736,7 @@
 
       // Persist inst/stu to localStorage v2 cache (att/sess always hardcoded)
       try {
-        localStorage.setItem('njtc_pearl_gids_v2', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
+        localStorage.setItem('njtc_pearl_gids_v3', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
         console.log('[Pearl Ops] GIDs persisted to localStorage v2');
       } catch(e) {}
 
