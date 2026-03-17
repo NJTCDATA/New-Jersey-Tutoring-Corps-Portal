@@ -1257,18 +1257,11 @@
     // Additional tier and role filters
     if (_pTier !== 'all') list = list.filter(e => (e._liveT||e.t) === _pTier);
     if (_pRole !== 'all') list = list.filter(e => (e.r||'').toLowerCase().includes(_pRole.toLowerCase()));
-    // Apprentice filter — checks HR Master List flag AND APPRENTICE_DB cross-reference (exact + first/last fuzzy)
+    // Apprentice filter — source of truth is HR Master List col K (_apprentice field, set by live overlay)
     if (_pApprentice) {
-      const _nm = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
-      const _fl = n => { const p = n.split(/\s+/).filter(s => s.length > 1 && !/^[a-z]\.?$/i.test(s)); return p.length > 1 ? (p[0] + ' ' + p[p.length-1]) : n; };
       const before = list.length;
-      list = list.filter(e => {
-        if (e._apprentice === 'Yes') return true;
-        if (!window.njtcOTJMap) return false;
-        const nm = _nm(e.n);
-        return !!window.njtcOTJMap[nm] || !!window.njtcOTJMap[_fl(nm)];
-      });
-      console.log('[HR Filter] Apprentice filter: ' + before + ' → ' + list.length + ' (njtcOTJMap keys: ' + (window.njtcOTJMap ? Object.keys(window.njtcOTJMap).length : 'none') + ')');
+      list = list.filter(e => e._apprentice === 'Yes');
+      console.log('[HR Filter] Apprentice filter: ' + before + ' → ' + list.length);
     }
     // Search
     if (_pQ) {
@@ -1685,7 +1678,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
     <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
       <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
-      ${(e._apprentice==='Yes'||(window.njtcOTJMap&&!!window.njtcOTJMap[(e.n||'').toLowerCase().replace(/\s+/g,' ').trim()]))?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: Enrolled in the NJTC DOL-registered apprenticeship program">🎓 Apprentice</span>`:''}
+      ${e._apprentice==='Yes'?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: Enrolled in the NJTC DOL-registered apprenticeship program">🎓 Apprentice</span>`:''}
     </div>
     <div style="display:flex;gap:.3rem;align-items:center">${rhBadge} <span style="font-size:.6rem;padding:.1rem .35rem;border-radius:4px;font-weight:700;background:${isActive?'#d1fae5':'#f1f5f9'};color:${isActive?'#065f46':'#64748b'}">${isActive?'Active':'Inactive'}</span></div>
   </div>
@@ -2707,10 +2700,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function fetchKPIMetadata(force) {
-    // Skip if this URL is known to 404 (prevents repeated 404 console errors)
-    try {
-      if (!force && localStorage.getItem('njtc_kpi_meta_404') === '1') return;
-    } catch(e) {}
     if (!force) {
       try {
         var cached = localStorage.getItem(KPI_META_CACHE_KEY);
@@ -2722,23 +2711,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         }
       } catch(e) {}
     }
+    // Also clear any stale 404 suppression flag from previous code version
+    try { localStorage.removeItem('njtc_kpi_meta_404'); } catch(e) {}
     fetch(KPI_META_URL)
-      .then(function(r){
-        if (!r.ok) {
-          if (r.status === 404) {
-            try { localStorage.setItem('njtc_kpi_meta_404', '1'); } catch(e) {}
-            console.warn('[KPI] Metadata URL returned 404 — suppressing future requests. Clear localStorage to retry.');
-          }
-          return '';
-        }
-        // URL is valid — clear any stale 404 flag
-        try { localStorage.removeItem('njtc_kpi_meta_404'); } catch(e) {}
-        return r.text();
-      })
+      .then(function(r){ return r.ok ? r.text() : ''; })
       .then(function(csv){
         if (!csv) return;
         var rows = _parseKPIcsv(csv);
         if (!rows || rows.length < 2) return;
+        // Row 0 = legend/description, Row 1 = headers → data starts at row 2
         var dataRows = rows.slice(2).filter(function(r2){ return r2[0] && r2[1]; });
         try { localStorage.setItem(KPI_META_CACHE_KEY, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
         _mergeKPIMeta(dataRows);
