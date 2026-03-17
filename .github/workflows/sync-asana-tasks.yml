@@ -41,6 +41,8 @@ jobs:
   sync:
     name: Fetch tasks from Asana and write tasks.json
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     # Only the minimum permissions needed
     permissions:
