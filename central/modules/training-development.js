@@ -423,6 +423,9 @@
     } catch (e) {
       console.warn('[TD] discoverApprentGids failed:', e.message);
     }
+    // Hardcoded fallbacks for confirmed GIDs — used when pubhtml probe fails
+    const KNOWN_GIDS = { 'OTJ Status': '213666097' };
+    Object.entries(KNOWN_GIDS).forEach(([tab, gid]) => { if (!gids[tab]) gids[tab] = gid; });
     _apprentGids = gids;
     return gids;
   }
