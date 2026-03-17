@@ -23,7 +23,7 @@
       try { localStorage.removeItem(key); } catch(e) {}
     },
     bustAll() {
-      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v1','njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2'];
+      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2','njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2'];
       keys.forEach(k => this.bust(k));
     }
   };
@@ -286,7 +286,7 @@
     if (_docFetchPromise && !forceRefresh) return _docFetchPromise;
 
     // ── Check localStorage cache before fetching ───────────────────
-    const _oc = NJTC_CACHE.get('njtc_ops_v1');
+    const _oc = NJTC_CACHE.get('njtc_ops_v2');
     if (_oc && _oc.data && !forceRefresh) {
       _docCache = _oc.data;
       _docFetchPromise = null;
@@ -303,7 +303,7 @@
         const html = await resp.text();
         const sections = parseDocHTML(html);
         _docCache = { fetchedAt: Date.now(), sections, raw: html };
-        NJTC_CACHE.set('njtc_ops_v1', _docCache);
+        NJTC_CACHE.set('njtc_ops_v2', _docCache);
         _docFetchPromise = null;
         return _docCache;
       } catch(e) {
@@ -315,14 +315,18 @@
   }
 
   // ── Parse published Google Doc HTML into sections ─────────────────
+  // Google Docs /pub HTML wraps content in <div id="contents"> nested
+  // inside body — direct body.childNodes misses all headings. We use
+  // a TreeWalker to traverse every element in DOM order regardless of
+  // nesting depth, then group by heading level into sections.
   function parseDocHTML(rawHTML) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(rawHTML, 'text/html');
     // Remove nav/header/footer noise
     doc.querySelectorAll('header,footer,nav,.kix-appview-editor,.docs-title-input').forEach(el => el.remove());
 
-    // Get all headings and content
-    const body = doc.querySelector('.doc-content') || doc.querySelector('body');
+    // Find the best content root — Google Docs uses #contents; fall back to body
+    const body = doc.querySelector('#contents') || doc.querySelector('.doc-content') || doc.querySelector('body');
     if (!body) return [];
 
     const sections = [];
@@ -342,23 +346,24 @@
       sectionBuffer = [];
     };
 
-    const allNodes = Array.from(body.childNodes);
-    for (const node of allNodes) {
-      if (node.nodeType !== 1) continue; // skip text nodes
+    // Walk every element in DOM order — handles Google's nested div structure
+    const HEADING_TAGS = new Set(['H1','H2','H3','H4']);
+    const CONTENT_TAGS = new Set(['P','UL','OL','TABLE','BLOCKQUOTE','PRE','DL']);
+    const walker = doc.createTreeWalker(body, NodeFilter.SHOW_ELEMENT, null);
+    let node;
+    while ((node = walker.nextNode())) {
       const tag = node.tagName;
       const text = node.textContent.trim();
       if (!text) continue;
 
-      if (tag === 'H1') {
+      if (HEADING_TAGS.has(tag)) {
         flushSection();
-        currentSection = { id: slugify(text), heading: text, level: 1 };
-      } else if (tag === 'H2') {
-        flushSection();
-        currentSection = { id: slugify(text), heading: text, level: 2 };
-      } else if (tag === 'H3') {
-        flushSection();
-        currentSection = { id: slugify(text), heading: text, level: 3 };
-      } else {
+        const level = parseInt(tag[1], 10);
+        currentSection = { id: slugify(text), heading: text, level };
+      } else if (CONTENT_TAGS.has(tag)) {
+        // Skip if this element is a descendant of an already-buffered element
+        const alreadyBuffered = sectionBuffer.some(b => b.contains && b.contains(node));
+        if (alreadyBuffered) continue;
         if (!currentSection) {
           currentSection = { id: 'overview', heading: 'Overview', level: 1 };
         }
