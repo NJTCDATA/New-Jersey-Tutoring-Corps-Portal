@@ -13,7 +13,10 @@
 # REQUIRED GITHUB SECRET (set once, never changes the code):
 #   Go to: GitHub Repo → Settings → Secrets and variables → Actions
 #   Add secret named:  ASANA_PAT
-#   Value:             2/1208833157453193/1213578412856693:4c47aa1a3dbcfe7166b94178c4f358ff
+#   Value:             Your Asana Personal Access Token
+#                      (generate at: https://app.asana.com/0/my-apps)
+#
+# ⚠️  NEVER paste the PAT value into this file — use GitHub Secrets only.
 #
 # TO CHANGE THE SCHEDULE:
 #   Edit the cron line below. Format is standard Unix cron.
@@ -38,6 +41,8 @@ jobs:
   sync:
     name: Fetch tasks from Asana and write tasks.json
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     # Only the minimum permissions needed
     permissions:
@@ -49,7 +54,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Fetch tasks from Asana API ─────────────────────────
+      # ── 2. Set up Node.js 24 ───────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # ── 3. Fetch tasks from Asana API ─────────────────────────
       #
       # We use Node.js inline so no external dependencies are needed.
       # The PAT comes from the GitHub Secret — never hardcoded here.
@@ -151,7 +162,7 @@ jobs:
           })();
           EOF
 
-      # ── 3. Commit tasks.json back to the repo ─────────────────
+      # ── 4. Commit tasks.json back to the repo ─────────────────
       #
       # Only commits if the file actually changed.
       # The [skip ci] tag prevents this commit from triggering
