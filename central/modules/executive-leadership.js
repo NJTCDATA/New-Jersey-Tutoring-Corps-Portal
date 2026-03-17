@@ -2215,12 +2215,12 @@
 
   // ── Main parallel loader ─────────────────────────────────────────────────
   const njtc_loadAll = async () => {
-    const [r_otj, r_td, r_pd, r_intake, r_pdAll] = await Promise.allSettled([
+    const [r_otj, r_td, r_pd, r_intake] = await Promise.allSettled([
       njtc_fetch(NJTC_SOURCES.APPRENTICE_DB),
       njtc_fetch(NJTC_SOURCES.TRAINING_DETAILS),
       njtc_fetch(NJTC_SOURCES.PD_FEEDBACK),
       njtc_fetch(NJTC_SOURCES.TRAINING_INTAKE),
-      njtc_fetch(NJTC_SOURCES.PD_SESSIONS_ALL),
+      // PD_SESSIONS_ALL removed — URL returned 404 and data was never consumed
     ]);
 
     // — APPRENTICE_DB: Row 0 = merged title banner; headers on Row 1 ———————
@@ -2282,14 +2282,7 @@
       console.warn('[NJTC] TRAINING_INTAKE unavailable');
     }
 
-    // — PD_SESSIONS_ALL (ASSUMED — same structure as PD_FEEDBACK) ─────────
-    if (r_pdAll.status === 'fulfilled' && r_pdAll.value.ok) {
-      window.njtcPDAll = njtc_parseCSV(r_pdAll.value.text).map(td_parsePDAllRow);
-      console.log('[NJTC] PD_SESSIONS_ALL: ' + window.njtcPDAll.length + ' rows');
-    } else {
-      window.njtcPDAll = [];
-      console.warn('[NJTC] PD_SESSIONS_ALL unavailable');
-    }
+    window.njtcPDAll = [];  // kept for compatibility; PD_SESSIONS_ALL fetch removed
 
     njtc_onDataReady();
   };
@@ -2306,6 +2299,46 @@
   // Called exclusively by njtc_onDataReady after all 5 live sources are settled.
   const ap_initAll = async () => {
     await ap_buildFromLive();  // fetch Master List → populate AP_DATA
+
+    // ── APPRENTICE_DB cross-reference ──────────────────────────────────────
+    // ap_buildFromLive() only reads HR Master List apprentice column. Some
+    // enrolled apprentices may have blank/incorrect entries there but appear
+    // in APPRENTICE_DB (njtcOTJ). Cross-reference here so the count is 100%
+    // accurate from both authoritative sources.
+    if (window.njtcOTJ && window.njtcOTJ.length && window.AP_DATA) {
+      var _nm2 = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
+      var apNames = new Set(window.AP_DATA.map(function(r) { return _nm2(r.name); }));
+      var crossRefAdded = 0;
+      window.njtcOTJ.forEach(function(row) {
+        var candidates = [row['Master List Name'], row['Tracker Name']].filter(Boolean);
+        candidates.forEach(function(rawName) {
+          var n = _nm2(rawName);
+          if (!n) return;
+          // Find matching AP_DATA entry — mark as enrolled if not already
+          var entry = window.AP_DATA.find(function(r) { return _nm2(r.name) === n; });
+          if (entry && entry.apprentice !== 'Yes') {
+            entry.apprentice = 'Yes';
+            crossRefAdded++;
+          }
+          // Also stamp HR_EMPS so profile cards and filter show correct badge
+          var hrEntry = (window.HR_EMPS || []).find(function(e) { return _nm2(e.n) === n; });
+          if (hrEntry && hrEntry._apprentice !== 'Yes') {
+            hrEntry._apprentice = 'Yes';
+          }
+        });
+      });
+      if (crossRefAdded > 0) {
+        console.log('[AP] APPRENTICE_DB cross-ref: +' + crossRefAdded + ' added → total enrolled now ' + ap_enrolled().length);
+        // Trigger HR profile re-render if profiles tab is active
+        try {
+          var profRoot = document.getElementById('hrProfilesRoot');
+          if (profRoot && typeof window._hrBuildProfiles === 'function') {
+            var dept = (window.NJTC_SESSION || {}).dept || 'hr';
+            profRoot.innerHTML = window._hrBuildProfiles(dept);
+          }
+        } catch(_e) {}
+      }
+    }
 
     // Pre-compute per-person OTJ status + flag into a cache map.
     // All render functions use this instead of calling ap_getOTJ per row.
