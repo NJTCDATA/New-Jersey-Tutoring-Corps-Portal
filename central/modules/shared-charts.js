@@ -812,6 +812,10 @@
       race: ci('race'), ethnicity: ci('ethnicity'),
       // Column K in HR Master List — apprentice designation (matches header containing "apprentice")
       apprentice: ci('apprentice'),
+      // Columns N, O, P — termination detail fields
+      termDate:   ci('termination date'),
+      termReason: ci('reason category'),
+      termType:   ci('termination type'),
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
@@ -828,6 +832,10 @@
         ethnicity:  C.ethnicity  >= 0 ? (r[C.ethnicity]  ||'').trim() : '',
         // Apprentice indicator from Master List (col K) — "Yes"/"Y"/non-empty = is apprentice
         apprentice: C.apprentice >= 0 ? (r[C.apprentice] ||'').trim() : (r[10] ? (r[10]||'').trim() : ''),
+        // Termination detail columns N, O, P
+        termDate:   C.termDate   >= 0 ? (r[C.termDate]   ||'').trim() : '',
+        termReason: C.termReason >= 0 ? (r[C.termReason] ||'').trim() : '',
+        termType:   C.termType   >= 0 ? (r[C.termType]   ||'').trim() : '',
       }))
       .filter(r => r.name && r.yr);
   }
@@ -880,6 +888,10 @@
       if (latest.email)     emp.e          = latest.email;
       if (latest.race)        emp._race        = latest.race;
       if (latest.ethnicity)   emp._ethnicity   = latest.ethnicity;
+      // Termination detail fields (cols N, O, P) — always write so empty clears stale values
+      emp._termDate   = latest.termDate   || '';
+      emp._termReason = latest.termReason || '';
+      emp._termType   = latest.termType   || '';
       // Apprentice indicator from col K — flag if any current SY row is marked
       const anyApprent = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice));
       emp._apprentice = anyApprent ? 'Yes' : (emp._apprentice || '');
@@ -933,6 +945,7 @@
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
         _race: latest.race||null, _ethnicity: latest.ethnicity||null,
         _apprentice: (latest.apprentice && /yes|y|true|1/i.test(latest.apprentice)) ? 'Yes' : '',
+        _termDate: latest.termDate||'', _termReason: latest.termReason||'', _termType: latest.termType||'',
         _live:true, _liveYears:['2025-2026'],
       });
       _hrLiveAddedKeys.add(k);
@@ -1630,8 +1643,21 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
       // Academic mini badge (if iReady data available)
       const acadBadge = e._acadPctMoved != null ? `<div style="margin-top:.35rem;font-size:.6rem;color:#7c3aed;font-weight:600">📊 ${e._acadPctMoved}% scholars advanced placement</div>` : '';
       // Pearl data gap flag — active staff with no Pearl attendance record
-      const noPearlFlag = (e.s==='Active' && e._liveAtt===undefined && e.att===null) 
+      const noPearlFlag = (e.s==='Active' && e._liveAtt===undefined && e.att===null)
         ? `<div style="margin-top:.35rem;font-size:.6rem;color:#64748b;font-weight:600">⬜ Not yet in Pearl this SY</div>` : '';
+
+      // Termination detail — cols N, O, P (shown on inactive cards only; "—" suppressed on active)
+      const _td = (e._termDate||'').trim(), _tr2 = (e._termReason||'').trim(), _tt = (e._termType||'').trim();
+      const _fmtTD = raw => { if (!raw||raw==='#VALUE!') return '—'; const d=new Date(raw); return isNaN(d)?raw:((d.getMonth()+1)+'/'+(d.getDate())+'/'+d.getFullYear()); };
+      const _termTypeBadge = t => {
+        if (!t||t==='#VALUE!') return '—';
+        const bg = /involuntary/i.test(t)?'#fee2e2':/voluntary/i.test(t)?'#ccfbf1':'#f1f5f9';
+        const co = /involuntary/i.test(t)?'#b91c1c':/voluntary/i.test(t)?'#0f766e':'#64748b';
+        return `<span style="background:${bg};color:${co};padding:.08rem .35rem;border-radius:4px;font-size:.6rem;font-weight:700">${esc(t)}</span>`;
+      };
+      const termDetailHtml = !isActive && (_td||_tr2||_tt) ? `<div style="margin-top:.35rem;padding:.3rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;font-size:.65rem">
+  <span style="color:#94a3b8;font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-right:.35rem">Term:</span><span style="color:#64748b;margin-right:.4rem">${_fmtTD(_td)}</span>${_tr2&&_tr2!=='#VALUE!'?`<span style="color:#475569;margin-right:.4rem">${esc(_tr2)}</span>`:''}${_termTypeBadge(_tt)}
+</div>` : '';
 
       // Concern badge
       const concernBadge = hasConcern ? `<div style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}</div>` : '';
@@ -1656,7 +1682,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     <div style="font-size:.62rem;color:var(--muted);margin-top:.06rem">${esc((e.si||'—').slice(0,34))}${e.di?' · '+esc(e.di.slice(0,22)):''}</div>
   </div>
   <div style="padding:0 .75rem .4rem;display:flex;gap:.2rem">${kpiTiles}</div>
-  <div style="padding:0 .75rem .5rem">${metricRow}${acadBadge}${concernBadge}${noPearlFlag}</div>
+  <div style="padding:0 .75rem .5rem">${metricRow}${acadBadge}${concernBadge}${noPearlFlag}${termDetailHtml}</div>
   <div style="margin-top:auto;padding:.3rem .75rem;border-top:1px solid var(--border);font-size:.58rem;color:var(--muted);text-align:right">View full profile →</div>
 </div>`;
     };
@@ -2490,6 +2516,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   </td>
   <td style="padding:.5rem .4rem;font-size:.75rem;color:${obsColor}">${esc(obsTxt)}</td>
   <td style="padding:.5rem .4rem;font-size:.72rem;color:#94a3b8;font-style:italic">Placeholder</td>
+  <td style="padding:.5rem .4rem;font-size:.75rem;color:#94a3b8">—</td>
+  <td style="padding:.5rem .4rem;font-size:.75rem;color:#94a3b8">—</td>
+  <td style="padding:.5rem .4rem;font-size:.75rem;color:#94a3b8">—</td>
 </tr>`;
     });
 
@@ -2526,6 +2555,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Engagement</th>
         <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Observations</th>
         <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Training</th>
+        <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Term Date</th>
+        <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Term Reason</th>
+        <th style="text-align:left;padding:.5rem .4rem;font-size:.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Term Type</th>
       </tr>
     </thead>
     <tbody>
@@ -2909,6 +2941,225 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Fetch quarterly sheet (called after main KPI fetch succeeds)
       
 
+  // ── HR & Data — Termination Analytics home widget ───────────────────────
+  function _buildTermAnalyticsWidget() {
+    const CY = '2025-2026';
+    const yearEmps = HR_EMPS.filter(e => (e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY));
+    const activeEmps = yearEmps.filter(e => e.s === 'Active');
+    const termEmps   = yearEmps.filter(e => e.s !== 'Active');
+    const total      = yearEmps.length || 1;  // avoid div/0
+
+    // Quarter helper (academic year quarters: Q1=Sep-Nov, Q2=Dec-Feb, Q3=Mar-May, Q4=Jun-Aug)
+    const _qtr = raw => {
+      if (!raw || raw === '#VALUE!') return null;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return null;
+      const m = d.getMonth() + 1;
+      if (m >= 9  && m <= 11) return 'Q1';
+      if (m === 12 || m <= 2) return 'Q2';
+      if (m >= 3  && m <= 5)  return 'Q3';
+      return 'Q4';
+    };
+    const today = new Date();
+    const _cm = today.getMonth() + 1;
+    const curQ   = _cm >= 9 && _cm <= 11 ? 'Q1' : (_cm === 12 || _cm <= 2) ? 'Q2' : _cm >= 3 && _cm <= 5 ? 'Q3' : 'Q4';
+    const priorQ = curQ === 'Q1' ? 'Q4' : curQ === 'Q2' ? 'Q1' : curQ === 'Q3' ? 'Q2' : 'Q3';
+    const qtrCounts = { Q1:0, Q2:0, Q3:0, Q4:0 };
+    termEmps.forEach(e => { const q = _qtr((e._termDate||'').trim()); if (q) qtrCounts[q]++; });
+
+    // Retention rates (approximate — active / total headcount)
+    const retainCur   = Math.round((total - qtrCounts[curQ])   / total * 100);
+    const retainPrior = Math.round((total - qtrCounts[priorQ]) / total * 100);
+    const direction   = retainCur >= retainPrior ? 'up' : 'down';
+    const dirIcon     = direction === 'up' ? '↑' : '↓';
+    const dirColor    = direction === 'up' ? '#059669' : '#dc2626';
+
+    // Reason breakdown
+    const reasonMap = {};
+    termEmps.forEach(e => {
+      const r = (e._termReason||'').trim() || 'Unknown';
+      reasonMap[r] = (reasonMap[r] || 0) + 1;
+    });
+    const reasonEntries = Object.entries(reasonMap).sort((a,b) => b[1]-a[1]);
+    const maxReason = reasonEntries.length ? reasonEntries[0][1] : 1;
+    const reasonBarsHtml = reasonEntries.map(([label, count]) => {
+      const pct = Math.round(count / (termEmps.length || 1) * 100);
+      const barPct = Math.round(count / maxReason * 100);
+      const isVol = /voluntary/i.test(label);
+      const barColor = isVol ? '#0891b2' : /involuntary/i.test(label) ? '#dc2626' : '#94a3b8';
+      return `<div style="margin-bottom:.45rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">
+    <span style="font-size:.7rem;color:#475569;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(label)}">${esc(label)}</span>
+    <span style="font-size:.7rem;font-weight:700;color:${barColor}">${count} <span style="font-weight:400;color:#94a3b8">(${pct}%)</span></span>
+  </div>
+  <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+    <div style="height:100%;width:${barPct}%;background:${barColor};border-radius:4px;transition:width .4s"></div>
+  </div>
+</div>`;
+    }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No termination reason data available yet.</div>';
+
+    // Type split
+    const volCount  = termEmps.filter(e => /voluntary/i.test(e._termType||'')).length;
+    const invCount  = termEmps.filter(e => /involuntary/i.test(e._termType||'')).length;
+    const unkCount  = termEmps.length - volCount - invCount;
+    const volPct    = termEmps.length ? Math.round(volCount / termEmps.length * 100) : 0;
+
+    const src = _hrStatus === 'live' ? '🟢 Live' : '📋 Snapshot';
+
+    return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+    <div>
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:.2rem">HR &amp; Data · Termination Analytics · ${CY}</div>
+      <div style="font-size:1rem;font-weight:800;color:#0a1628">Staff Attrition Overview</div>
+    </div>
+    <span style="font-size:.62rem;color:#94a3b8;font-style:italic">${src}</span>
+  </div>
+
+  <!-- KPI tiles row -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.125rem">
+    ${[
+      { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
+      { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
+      { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
+      { v: dirIcon + ' ' + retainCur + '%', l: curQ + ' Retention', c: dirColor },
+      { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
+    ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
+      <div style="font-size:.62rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:2px">${t.l}</div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Reason breakdown -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Termination Reason Breakdown</div>
+      ${reasonBarsHtml}
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Type Split</div>
+      ${[
+        { label:'Voluntary',   count: volCount, color:'#0891b2', bg:'#e0f2fe' },
+        { label:'Involuntary', count: invCount, color:'#dc2626', bg:'#fee2e2' },
+        { label:'Unknown',     count: unkCount, color:'#94a3b8', bg:'#f1f5f9' },
+      ].filter(x => x.count > 0).map(x => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.35rem .6rem;background:${x.bg};border-radius:6px;margin-bottom:.35rem">
+        <span style="font-size:.75rem;font-weight:600;color:${x.color}">${x.label}</span>
+        <span style="font-size:.75rem;font-weight:800;color:${x.color}">${x.count}</span>
+      </div>`).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No type data yet.</div>'}
+      <div style="margin-top:.75rem">
+        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.45rem">By Quarter (Sep–Aug)</div>
+        ${['Q1','Q2','Q3','Q4'].map(q => {
+          const cnt = qtrCounts[q];
+          const isCur = q === curQ;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}">
+            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''}</span>
+            <span style="font-size:.72rem;font-weight:700;color:${cnt>0?'#dc2626':'#94a3b8'}">${cnt} sep.</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>
+</div>`;
+  }
+
+  // ── Programming — Staff Retention Rate home widget ───────────────────────
+  function _buildRetentionWidget() {
+    const CY = '2025-2026';
+    const PY = '2024-2025';
+    const activeEmps  = HR_EMPS.filter(e => e.s === 'Active' && ((e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY)));
+    const cyEmps      = HR_EMPS.filter(e => (e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY));
+    const pyEmps      = HR_EMPS.filter(e => (e.y||[]).includes(PY));
+    // Multi-cycle staff = active staff who also appear in a prior year
+    const returning   = activeEmps.filter(e => e.c != null && e.c >= 2).length;
+    const cyTotal     = cyEmps.length || 1;
+    const retentionPct = Math.round(returning / cyTotal * 100);
+
+    // Year-over-year headcount
+    const cyActive    = cyEmps.filter(e => e.s === 'Active').length;
+    const pyActive    = pyEmps.filter(e => e.s === 'Active').length;
+    const yoyDelta    = cyActive - pyActive;
+    const yoyColor    = yoyDelta >= 0 ? '#059669' : '#dc2626';
+    const yoyIcon     = yoyDelta >= 0 ? '↑' : '↓';
+
+    // Rehire-eligible pipeline (active, eligible, 2+ cycles)
+    const rehireEligible = HR_EMPS.filter(e => (e.rh==='Yes'||e.rh===true) && e.c >= 2 && e.s === 'Active').length;
+    const noRehire       = HR_EMPS.filter(e => (e.rh==='No'||e.rh===false) && e.s === 'Active').length;
+
+    // Avg cycles of active staff
+    const withCycles = activeEmps.filter(e => e.c != null && e.c > 0);
+    const avgCycles  = withCycles.length ? (withCycles.reduce((s,e) => s + e.c, 0) / withCycles.length).toFixed(1) : '—';
+
+    // Cycle distribution
+    const cycleDist = {};
+    activeEmps.forEach(e => { const c = e.c||1; cycleDist[c] = (cycleDist[c]||0)+1; });
+    const cycleEntries = Object.entries(cycleDist).sort((a,b) => Number(a[0])-Number(b[0]));
+    const maxCycleCt = cycleEntries.length ? Math.max(...cycleEntries.map(([,v])=>v)) : 1;
+
+    const src = _hrStatus === 'live' ? '🟢 Live' : '📋 Snapshot';
+
+    return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+    <div>
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:.2rem">Programming · Staff Retention Rate · ${CY}</div>
+      <div style="font-size:1rem;font-weight:800;color:#0a1628">Tutor Retention &amp; Loyalty</div>
+    </div>
+    <span style="font-size:.62rem;color:#94a3b8;font-style:italic">${src}</span>
+  </div>
+
+  <!-- KPI tiles -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.125rem">
+    ${[
+      { v: cyActive,           l: 'Active ' + CY,    c: '#1d4ed8' },
+      { v: returning,          l: 'Returning Staff',  c: '#7c3aed' },
+      { v: retentionPct + '%', l: 'Retention Rate',  c: retentionPct >= 70 ? '#059669' : retentionPct >= 50 ? '#d97706' : '#dc2626' },
+      { v: yoyIcon + Math.abs(yoyDelta), l: 'YoY Headcount',  c: yoyColor },
+      { v: avgCycles,          l: 'Avg Cycles',       c: '#0891b2' },
+    ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
+      <div style="font-size:.62rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:2px">${t.l}</div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Cycle distribution + rehire pipeline -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Cycle Distribution (Active Staff)</div>
+      ${cycleEntries.map(([c, n]) => {
+        const pct = Math.round(n / (activeEmps.length||1) * 100);
+        const barPct = Math.round(n / maxCycleCt * 100);
+        const color = Number(c) >= 3 ? '#7c3aed' : Number(c) === 2 ? '#1d4ed8' : '#94a3b8';
+        return `<div style="margin-bottom:.4rem">
+  <div style="display:flex;justify-content:space-between;margin-bottom:.18rem">
+    <span style="font-size:.7rem;color:#475569">${c} Cycle${Number(c)!==1?'s':''}</span>
+    <span style="font-size:.7rem;font-weight:700;color:${color}">${n} <span style="font-weight:400;color:#94a3b8">(${pct}%)</span></span>
+  </div>
+  <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+    <div style="height:100%;width:${barPct}%;background:${color};border-radius:4px;transition:width .4s"></div>
+  </div>
+</div>`;
+      }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No cycle data available.</div>'}
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Rehire Pipeline</div>
+      ${[
+        { label: '✅ Eligible (2+ cycles)', count: rehireEligible, bg: '#f0fdf4', color: '#059669' },
+        { label: '⛔ Not Eligible',         count: noRehire,       bg: '#fef2f2', color: '#dc2626' },
+      ].map(x => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .65rem;background:${x.bg};border-radius:6px;margin-bottom:.35rem">
+        <span style="font-size:.75rem;font-weight:600;color:${x.color}">${x.label}</span>
+        <span style="font-size:.75rem;font-weight:800;color:${x.color}">${x.count}</span>
+      </div>`).join('')}
+      <div style="margin-top:.75rem;padding:.5rem .65rem;background:#eff6ff;border-radius:6px">
+        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.3rem">Year-over-Year</div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem">
+          <span><strong style="color:#1d4ed8">${cyActive}</strong> <span style="color:#64748b">active ${CY}</span></span>
+          <span><strong style="color:#64748b">${pyActive}</strong> <span style="color:#94a3b8">active ${PY}</span></span>
+          <span style="font-weight:700;color:${yoyColor}">${yoyDelta >= 0 ? '+' : ''}${yoyDelta} YoY</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+  }
+
   // ── Expose to global scope ───────────────────────────────────────────────
   window.buildKPIAnalytics       = buildKPIAnalytics;
   window.renderKPIAnalytics      = renderKPIAnalytics;
@@ -2927,5 +3178,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.fetchLiveHRData         = fetchLiveHRData;
   window._updateTalentBadge      = _updateTalentBadge;
   window._hrBuildProfiles        = _hrBuildProfiles;  // called from shared-utils.js
+  window._buildTermAnalyticsWidget = _buildTermAnalyticsWidget;  // HR & Data home widget
+  window._buildRetentionWidget     = _buildRetentionWidget;      // Programming home widget
 
 })();
