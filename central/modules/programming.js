@@ -5088,16 +5088,19 @@
         });
 
         // ── Tutor hours from _sessMap (subjectMinutes = students only) ─────
+        // Use isFullAtt||isPartial to match dashboard "Sessions Delivered" calculation
         const tutorMinsByUid = {};
         Object.values(_sessMap || {}).forEach(sess => {
-          if (!sess.instId || !sess.isDelivered || !sess.durMins) return;
+          if (!sess.instId || !(sess.isFullAtt || sess.isPartial) || !sess.durMins) return;
           if (!inRegion(sess.school, sess.district)) return;
           tutorMinsByUid[sess.instId] = (tutorMinsByUid[sess.instId] || 0) + sess.durMins;
         });
 
         // ── Delivered sessions in region ───────────────────────────────────
+        // Dashboard: delivered = isFullAtt + isPartial (line 2667-2669 in programming.js)
+        // Must use same logic here to match dashboard "Sessions Delivered" display
         const sessions = Object.values(_sessMap || {}).filter(s =>
-          s.isDelivered && inRegion(s.school, s.district)
+          (s.isFullAtt || s.isPartial) && inRegion(s.school, s.district)
         );
         const totalSessions   = sessions.length;
         const hitSessions     = sessions.filter(s => !s.ratioFlag).length;
@@ -5165,8 +5168,12 @@
         });
 
         const totalScholElig = Object.values(scholEligBySchool).reduce((a,b)=>a+b, 0);
-        const totalScholSubm = Object.values(scholSubmBySchool).reduce((a,b)=>a+b, 0);
-        const scholCaptureRate = totalScholElig > 0 ? Math.round(totalScholSubm / totalScholElig * 100) : 0;
+        // Cap submitted at eligible — a scholar cannot submit more surveys than sessions attended
+        const totalScholSubm = Math.min(
+          Object.values(scholSubmBySchool).reduce((a,b)=>a+b, 0),
+          totalScholElig
+        );
+        const scholCaptureRate = totalScholElig > 0 ? Math.min(100, Math.round(totalScholSubm / totalScholElig * 100)) : 0;
         const totalTutorElig = Object.values(tutorEligByUid).reduce((a,b)=>a+b, 0);
         const totalTutorSubm = Object.values(tutorSubmByUid).reduce((a,b)=>a+b, 0);
         const tutorCaptureRate = totalTutorElig > 0 ? Math.round(totalTutorSubm / totalTutorElig * 100) : 0;
@@ -5177,12 +5184,13 @@
         for (const [name, sc] of Object.entries(_schoolMap || {})) {
           if (!name || !name.trim()) continue;
           if (!inRegion(name, sc.district)) continue;
-          const scSess       = (sc.sessions || []).filter(s => s.isDelivered);
+          const scSess       = (sc.sessions || []).filter(s => s.isFullAtt || s.isPartial);
           const scTotal      = scSess.length;
           const scViolations = scSess.filter(s => s.ratioFlag).length;
           const scHit        = scTotal - scViolations;
           const scElig       = scholEligBySchool[name] || 0;
-          const scSubm       = scholSubmBySchool[name]  || 0;
+          // Cap per-school submissions at eligible count — cannot submit more than attended
+          const scSubm       = Math.min(scholSubmBySchool[name] || 0, scElig);
           schools.push({
             name:             sc.school || name,
             district:         sc.district || '',
@@ -5198,7 +5206,7 @@
             siCount:          sc.stuInterruptions || 0,
             scholCaptureElig: scElig,
             scholCaptureSubm: scSubm,
-            scholCaptureRate: scElig >= 5 ? Math.round(scSubm / scElig * 100) : null,
+            scholCaptureRate: scElig >= 5 ? Math.min(100, Math.round(scSubm / scElig * 100)) : null,
           });
         }
         schools.sort((a, b) => b.sessions - a.sessions);
@@ -5253,7 +5261,7 @@
         const stuSurveyAvg = {
           confidence: avgArr(ssc.confidence), enjoyment: avgArr(ssc.enjoyment),
           learning:   avgArr(ssc.learning),   overall:   avgArr(ssc.overall),
-          count: stuSurveyRows.length, eligible: totalScholElig, captureRate: scholCaptureRate,
+          count: Math.min(stuSurveyRows.length, totalScholElig), eligible: totalScholElig, captureRate: scholCaptureRate,
         };
 
         const instSurveyRows = (_instRows || []).filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]));
