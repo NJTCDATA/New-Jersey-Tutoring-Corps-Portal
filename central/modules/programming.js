@@ -516,7 +516,11 @@
       const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatSites',     s.length);
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
-      setText('syStatActual',    s.reduce((a,r) => a + r.act, 0).toLocaleString());
+      // Active scholars: pull directly from Pearl live data (unique scholars with ≥1 Attended/Late session).
+      // Falls back to SY database enrollment sum only if Pearl hasn't loaded yet.
+      const _poStats = (window.po && typeof window.po.getStats === 'function') ? window.po.getStats() : null;
+      const _pearlActive = (_poStats && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
+      setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
       setText('syStatStaff',     stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
       // Notify exec dashboard — Home Schools KPI reads from syStatSites
