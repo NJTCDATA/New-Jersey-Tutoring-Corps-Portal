@@ -5134,48 +5134,103 @@
             missedReasonCounts[reason] = (missedReasonCounts[reason] || 0) + 1;
           });
 
-        // ── Survey capture rate ────────────────────────────────────────────
-        // Scholar: eligible = rows where ATT_STATUS ∈ {Attended, Late, Partially Attended}
-        // Tutor:   eligible = delivered sessions where sess.attendance ∈ {Attended, Partially Attended}
-        //          (at least 1 scholar showed up → tutor submits 1 survey per session)
-        const SCHL_ELIG = new Set(['Attended', 'Late', 'Partially Attended']);
+        // ── Survey capture rate — date-matched per session ─────────────────
+        // Scholar eligible: 1 survey expected per student per delivered session
+        //   (sessions already filtered to isFullAtt||isPartial in region)
+        // Scholar submitted: survey where FILLED_BY_ID appears in sess.studentIds
+        //   AND survey DATE (STU_S.DATE col 7) matches session start date
+        // Tutor eligible: 1 survey per delivered session where attendance ∈ TUTR_ELIG
+        // Tutor submitted: survey where FILLED_BY_ID == sess.instId
+        //   AND survey DATE (INST_S.DATE col 8) matches session start date
+        // Date mismatch: survey submitted but date does not match any session date
         const TUTR_ELIG = new Set(['Attended', 'Partially Attended']);
 
+        // Normalize any date to 'YYYY-MM-DD' string (handles MM/DD/YYYY, ISO, YYYY-MM-DD)
+        function toYMD(val) {
+          if (!val) return '';
+          const s = String(val).trim();
+          const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (mdy) return mdy[3] + '-' + mdy[1].padStart(2, '0') + '-' + mdy[2].padStart(2, '0');
+          const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+          return iso ? iso[1] : '';
+        }
+
+        // ── Scholar capture ────────────────────────────────────────────────
+        // Build eligible map: (studentId|YYYY-MM-DD) → school
+        // Count: 1 eligible per student per session (not deduplicated by date)
         const scholEligBySchool = {};
-        stuRows.forEach(r => {
-          if (!SCHL_ELIG.has(r[ATT.ATT_STATUS])) return;
-          const sch = r[ATT.SCHOOL] || '__unknown__';
-          scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
-        });
-        const scholSubmBySchool = {};
-        (_stuRows || []).filter(r => inRegion(r[STU_S.SCHOOL], r[STU_S.DISTRICT])).forEach(r => {
-          const sch = r[STU_S.SCHOOL] || '__unknown__';
-          scholSubmBySchool[sch] = (scholSubmBySchool[sch] || 0) + 1;
+        const scholEligMap      = {};   // key → school (first session wins per key)
+        sessions.forEach(sess => {
+          const sessYMD = toYMD(sess.start);
+          if (!sessYMD) return;
+          const sch = sess.school || '__unknown__';
+          (sess.studentIds || []).forEach(stuId => {
+            if (!stuId) return;
+            scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
+            const k = stuId + '|' + sessYMD;
+            if (!scholEligMap[k]) scholEligMap[k] = sch;
+          });
         });
 
+        // Match student surveys: FILLED_BY_ID + DATE must match a delivered session
+        const scholMatchedBySchool  = {};   // date-matched surveys per school
+        const scholMismatchBySchool = {};   // surveys with no matching session date
+        (_stuRows || [])
+          .filter(r => inRegion(r[STU_S.SCHOOL], r[STU_S.DISTRICT]))
+          .forEach(r => {
+            const stuId   = r[STU_S.FILLED_BY_ID];
+            const survYMD = toYMD(r[STU_S.DATE]);
+            if (!stuId || !survYMD) return;
+            const k = stuId + '|' + survYMD;
+            if (scholEligMap[k]) {
+              const sch = scholEligMap[k];
+              scholMatchedBySchool[sch] = (scholMatchedBySchool[sch] || 0) + 1;
+            } else {
+              const sch = r[STU_S.SCHOOL] || '__unknown__';
+              scholMismatchBySchool[sch] = (scholMismatchBySchool[sch] || 0) + 1;
+            }
+          });
+        const scholSubmBySchool = scholMatchedBySchool;
+
+        // ── Tutor capture ──────────────────────────────────────────────────
+        // Eligible: delivered sessions where attendance ∈ TUTR_ELIG (sessions already filters this)
         const tutorEligByUid = {};
-        Object.values(_sessMap || {}).forEach(sess => {
-          if (!sess.isDelivered || !sess.instId) return;
-          if (!TUTR_ELIG.has(sess.attendance)) return;
-          if (!inRegion(sess.school, sess.district)) return;
+        const tutorEligMap   = {};   // instId|YYYY-MM-DD → count (allows multiple per day)
+        sessions.filter(s => TUTR_ELIG.has(s.attendance)).forEach(sess => {
+          if (!sess.instId) return;
+          const sessYMD = toYMD(sess.start);
+          if (!sessYMD) return;
           tutorEligByUid[sess.instId] = (tutorEligByUid[sess.instId] || 0) + 1;
-        });
-        const tutorSubmByUid = {};
-        (_instRows || []).filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT])).forEach(r => {
-          const uid = r[INST_S.FILLED_BY_ID];
-          if (!uid) return;
-          tutorSubmByUid[uid] = (tutorSubmByUid[uid] || 0) + 1;
+          const k = sess.instId + '|' + sessYMD;
+          tutorEligMap[k] = (tutorEligMap[k] || 0) + 1;
         });
 
-        const totalScholElig = Object.values(scholEligBySchool).reduce((a,b)=>a+b, 0);
-        // Cap submitted at eligible — a scholar cannot submit more surveys than sessions attended
-        const totalScholSubm = Math.min(
-          Object.values(scholSubmBySchool).reduce((a,b)=>a+b, 0),
-          totalScholElig
-        );
-        const scholCaptureRate = totalScholElig > 0 ? Math.min(100, Math.round(totalScholSubm / totalScholElig * 100)) : 0;
-        const totalTutorElig = Object.values(tutorEligByUid).reduce((a,b)=>a+b, 0);
-        const totalTutorSubm = Object.values(tutorSubmByUid).reduce((a,b)=>a+b, 0);
+        const tutorMatchedByUid  = {};
+        const tutorMismatchByUid = {};
+        (_instRows || [])
+          .filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]))
+          .forEach(r => {
+            const uid     = r[INST_S.FILLED_BY_ID];
+            const survYMD = toYMD(r[INST_S.DATE]);
+            if (!uid || !survYMD) return;
+            const k = uid + '|' + survYMD;
+            if (tutorEligMap[k]) {
+              tutorMatchedByUid[uid] = (tutorMatchedByUid[uid] || 0) + 1;
+            } else {
+              tutorMismatchByUid[uid] = (tutorMismatchByUid[uid] || 0) + 1;
+            }
+          });
+        const tutorSubmByUid = tutorMatchedByUid;
+
+        const totalScholElig     = Object.values(scholEligBySchool).reduce((a,b)=>a+b, 0);
+        const totalScholSubm     = Object.values(scholMatchedBySchool).reduce((a,b)=>a+b, 0);
+        const totalScholMismatch = Object.values(scholMismatchBySchool).reduce((a,b)=>a+b, 0);
+        const scholCaptureRate   = totalScholElig > 0 ? Math.min(100, Math.round(totalScholSubm / totalScholElig * 100)) : 0;
+        const scholMismatchRate  = (totalScholSubm + totalScholMismatch) > 0
+          ? Math.round(totalScholMismatch / (totalScholSubm + totalScholMismatch) * 100) : 0;
+
+        const totalTutorElig  = Object.values(tutorEligByUid).reduce((a,b)=>a+b, 0);
+        const totalTutorSubm  = Object.values(tutorMatchedByUid).reduce((a,b)=>a+b, 0);
         const tutorCaptureRate = totalTutorElig > 0 ? Math.round(totalTutorSubm / totalTutorElig * 100) : 0;
 
         // ── Per-school stats ───────────────────────────────────────────────
@@ -5189,8 +5244,9 @@
           const scViolations = scSess.filter(s => s.ratioFlag).length;
           const scHit        = scTotal - scViolations;
           const scElig       = scholEligBySchool[name] || 0;
-          // Cap per-school submissions at eligible count — cannot submit more than attended
-          const scSubm       = Math.min(scholSubmBySchool[name] || 0, scElig);
+          const scSubm       = Math.min(scholMatchedBySchool[name] || 0, scElig);
+          const scMismatch   = scholMismatchBySchool[name] || 0;
+          const scTotalSurv  = scSubm + scMismatch;
           schools.push({
             name:             sc.school || name,
             district:         sc.district || '',
@@ -5207,6 +5263,9 @@
             scholCaptureElig: scElig,
             scholCaptureSubm: scSubm,
             scholCaptureRate: scElig >= 5 ? Math.min(100, Math.round(scSubm / scElig * 100)) : null,
+            scholMismatchCnt: scMismatch,
+            // % of submitted surveys that had a mismatched date (only shown when meaningful)
+            scholMismatchRate: scTotalSurv >= 5 ? Math.round(scMismatch / scTotalSurv * 100) : 0,
           });
         }
         schools.sort((a, b) => b.sessions - a.sessions);
@@ -5223,10 +5282,13 @@
           if (!inRegion(p.school, p.district)) continue;
           const elig = tutorEligByUid[uid] || 0;
           if (elig === 0) continue;
-          const subm = tutorSubmByUid[uid] || 0;
+          const subm     = tutorMatchedByUid[uid] || 0;
+          const mismatch = tutorMismatchByUid[uid] || 0;
           tutorCaptureList.push({
             name: p.name || uid, school: p.school || '', district: p.district || '',
-            eligible: elig, submitted: subm, captureRate: Math.round(subm / elig * 100),
+            eligible: elig, submitted: subm, mismatch,
+            captureRate:   Math.round(subm / elig * 100),
+            mismatchRate:  (subm + mismatch) > 0 ? Math.round(mismatch / (subm + mismatch) * 100) : 0,
           });
         }
         const tutorCaptureTop    = [...tutorCaptureList].sort((a,b) => b.captureRate - a.captureRate).slice(0, 3);
@@ -5261,7 +5323,7 @@
         const stuSurveyAvg = {
           confidence: avgArr(ssc.confidence), enjoyment: avgArr(ssc.enjoyment),
           learning:   avgArr(ssc.learning),   overall:   avgArr(ssc.overall),
-          count: Math.min(stuSurveyRows.length, totalScholElig), eligible: totalScholElig, captureRate: scholCaptureRate,
+          count: stuSurveyRows.length, eligible: totalScholElig, captureRate: scholCaptureRate,
         };
 
         const instSurveyRows = (_instRows || []).filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]));
@@ -5336,7 +5398,7 @@
           instAttended: instAtt, instAbsent: instAbs,
           uniqueSchools: schools.length, uniqueDistricts: districts.length,
           activeScholars: activeScholarIds.size, activeTutors: tutorList.length,
-          scholCaptureRate, tutorCaptureRate,
+          scholCaptureRate, tutorCaptureRate, scholMismatchRate, totalScholMismatch,
           totalScholElig, totalScholSubm, totalTutorElig, totalTutorSubm,
           scholCaptureTopN, scholCaptureBottomN,
           tutorCaptureTop, tutorCaptureBottom,

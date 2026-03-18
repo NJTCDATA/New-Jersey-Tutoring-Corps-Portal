@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// NJTC Pearl Ops — PDF Export  (v4)
+// NJTC Pearl Ops — PDF Export  (v5)
 // 4-section executive report: Cover/Aggregates → Positives → Growing Pains → Summary
 // jsPDF 2.5.1 + jsPDF-AutoTable 3.8.2 loaded on demand from unpkg.com
 // PC/Mac safe: revokeObjectURL delayed 2 s to avoid Windows AV freeze
@@ -399,8 +399,9 @@
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...C.muted);
+    const mismatchNote = data.scholMismatchRate > 0 ? '  |  ' + pct(data.scholMismatchRate, 0) + ' date mismatch' : '';
     doc.text(
-      'Scholar: ' + pct(data.scholCaptureRate, 0) + ' capture  (' + num(data.totalScholSubm) + ' of ' + num(data.totalScholElig) + ' eligible)' +
+      'Scholar: ' + pct(data.scholCaptureRate, 0) + ' capture  (' + num(data.totalScholSubm) + ' of ' + num(data.totalScholElig) + ' eligible)' + mismatchNote +
       '     Tutor: ' + pct(data.tutorCaptureRate, 0) + ' capture  (' + num(data.totalTutorSubm) + ' of ' + num(data.totalTutorElig) + ' eligible)',
       ML + 6, capY + 12
     );
@@ -689,6 +690,9 @@
           value: pct(sc.scholCaptureRate, 0),
           valueColor: statusColor(sc.scholCaptureRate, BM.capture),
         });
+        if (sc.scholMismatchRate > 0) {
+          capGapLines.push({ type: 'subtitle', text: '   \u25ba ' + sc.scholMismatchRate + '% of submitted surveys have date mismatch' });
+        }
       });
     } else {
       capGapLines.push({ type: 'subtitle', text: 'Insufficient data for capture rate rankings' });
@@ -696,6 +700,9 @@
     }
     capGapLines.push({ type: 'divider' });
     capGapLines.push({ label: 'Network scholar capture', value: pct(data.scholCaptureRate, 0), valueColor: statusColor(data.scholCaptureRate, BM.capture) });
+    if (data.scholMismatchRate > 0) {
+      capGapLines.push({ label: 'Network date mismatch', value: pct(data.scholMismatchRate, 0), valueColor: C.amber });
+    }
     capGapLines.push({ label: 'Network tutor capture',   value: pct(data.tutorCaptureRate, 0),  valueColor: statusColor(data.tutorCaptureRate, BM.capture) });
 
     const siLines = [];
@@ -920,7 +927,7 @@
 
     // ── District performance snapshot ─────────────────────────────────────
     if (data.districts && data.districts.length > 0) {
-      y += 8;
+      y += boxH + 8;
       if (y > BOTTOM_LIMIT - 28) { doc.addPage(); y = TOP_START; }
       y = secHeader(y, 'District Performance Snapshot');
       const showDist = data.districts.slice(0, 5);
