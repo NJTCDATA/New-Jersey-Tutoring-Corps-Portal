@@ -2811,6 +2811,8 @@
     // "Late" = survey DATE is strictly after the session date (date-only comparison).
     // A tutor is "flagged" if ≥50% of their submitted surveys are late.
     // Uses Session ID as the primary link between survey row and session.
+    // School/district are derived from the SESSION record, not _personMap, so the
+    // alert is always attributed to the location where the sessions/surveys live.
     function computeTutorLateFilersStats() {
       const TUTR_ELIG_SET = new Set(['Attended', 'Partially Attended']);
       function _toYMD(val) {
@@ -2821,15 +2823,24 @@
         const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
         return iso ? iso[1] : '';
       }
-      const eligMap   = {};  // instId|sessId → { sessYMD }
-      const submByUid = {};
-      const lateByUid = {};
+      // eligMap carries school/district from the session — the authoritative location
+      const eligMap        = {};  // instId|sessId → { sessYMD, school, district }
+      const submByUid      = {};
+      const lateByUid      = {};
+      // Track session-school votes per uid so the displayed school reflects where the
+      // sessions/surveys are assigned, not where the person appeared in attendance data.
+      const schoolVoteByUid = {};  // uid → { 'school|district' → { school, district, count } }
+
       for (const sess of Object.values(_sessMap || {})) {
         if (!(sess.isFullAtt || sess.isPartial)) continue;
         if (!TUTR_ELIG_SET.has(sess.attendance)) continue;
         if (!sess.instId || !sess.id) continue;
         if (!matchesSchoolFilter(sess.school, sess.district)) continue;
-        eligMap[sess.instId + '|' + sess.id] = { sessYMD: _toYMD(sess.start) };
+        eligMap[sess.instId + '|' + sess.id] = {
+          sessYMD:  _toYMD(sess.start),
+          school:   sess.school   || '',
+          district: sess.district || '',
+        };
       }
       for (const r of (_instRows || [])) {
         if (!matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT])) continue;
@@ -2839,6 +2850,11 @@
         const slot = eligMap[uid + '|' + sessId];
         if (!slot) continue;
         submByUid[uid] = (submByUid[uid] || 0) + 1;
+        // Vote for the session's school/district (not the survey row's school)
+        if (!schoolVoteByUid[uid]) schoolVoteByUid[uid] = {};
+        const vk = slot.school + '|' + slot.district;
+        if (!schoolVoteByUid[uid][vk]) schoolVoteByUid[uid][vk] = { school: slot.school, district: slot.district, count: 0 };
+        schoolVoteByUid[uid][vk].count++;
         const survYMD = _toYMD(r[INST_S.DATE]);
         if (survYMD && slot.sessYMD && survYMD > slot.sessYMD) {
           lateByUid[uid] = (lateByUid[uid] || 0) + 1;
@@ -2851,7 +2867,11 @@
         if (lateRate < 50) continue;
         const p = (_personMap || {})[uid];
         if (!p || p.role !== 'Instructor') continue;
-        flagged.push({ uid, name: p.name || uid, school: p.school || '', district: p.district || '', submitted: subm, late, lateRate });
+        // Resolve school/district from session-vote majority, NOT from personMap
+        const votes    = Object.values(schoolVoteByUid[uid] || {}).sort((a, b) => b.count - a.count);
+        const school   = votes.length ? votes[0].school   : (p.school   || '');
+        const district = votes.length ? votes[0].district : (p.district || '');
+        flagged.push({ uid, name: p.name || uid, school, district, submitted: subm, late, lateRate });
       }
       flagged.sort((a, b) => b.lateRate - a.lateRate);
       const totalLate = Object.values(lateByUid).reduce((a, b) => a + b, 0);
@@ -5301,21 +5321,23 @@
         // Primary key: instId|sessId — Session ID is the authoritative link.
         // A survey counts as submitted if session ID + instructor ID match a delivered session.
         // Late flag: survey DATE is strictly after the session date (date-only comparison).
-        const tutorEligByUid = {};
-        const tutorEligMap   = {};   // key: instId|sessId → { sessYMD }
+        // school/district stored in eligMap from session so display always reflects the
+        // location the session was assigned to, not where the person appeared in attendance.
+        const tutorEligByUid    = {};
+        const tutorEligMap      = {};   // key: instId|sessId → { sessYMD, school, district }
+        const tutorSchoolByUid  = {};  // uid → { 'school|district' → { school, district, count } }
         sessions.filter(s => TUTR_ELIG.has(s.attendance)).forEach(sess => {
           if (!sess.instId || !sess.id) return;
           const sessYMD = toYMD(sess.start);
           tutorEligByUid[sess.instId] = (tutorEligByUid[sess.instId] || 0) + 1;
           const k = sess.instId + '|' + sess.id;
-          tutorEligMap[k] = { sessYMD: sessYMD || '' };
+          tutorEligMap[k] = { sessYMD: sessYMD || '', school: sess.school || '', district: sess.district || '' };
         });
 
         const tutorMatchedByUid  = {};
         const tutorMismatchByUid = {};
         const tutorLateByUid     = {};  // surveys submitted after the session date
         (_instRows || [])
-          .filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]))
           .forEach(r => {
             const uid    = r[INST_S.FILLED_BY_ID];
             const sessId = r[INST_S.SESS_ID];
@@ -5324,6 +5346,11 @@
             const slot = tutorEligMap[k];
             if (slot) {
               tutorMatchedByUid[uid] = (tutorMatchedByUid[uid] || 0) + 1;
+              // Vote for session school so tutorCaptureList uses the correct location
+              if (!tutorSchoolByUid[uid]) tutorSchoolByUid[uid] = {};
+              const vk = slot.school + '|' + slot.district;
+              if (!tutorSchoolByUid[uid][vk]) tutorSchoolByUid[uid][vk] = { school: slot.school, district: slot.district, count: 0 };
+              tutorSchoolByUid[uid][vk].count++;
               // Late: survey date is strictly after the session date (discard time)
               const survYMD = toYMD(r[INST_S.DATE]);
               if (survYMD && slot.sessYMD && survYMD > slot.sessYMD) {
@@ -5388,19 +5415,28 @@
         const scholCaptureTopN    = [...scholWithCap].sort((a,b) => b.scholCaptureRate - a.scholCaptureRate).slice(0, 3);
         const scholCaptureBottomN = [...scholWithCap].sort((a,b) => a.scholCaptureRate - b.scholCaptureRate).slice(0, 5);
 
-        // Tutor capture per instructor
+        // Tutor capture per instructor.
+        // School/district resolved from session-school vote majority so the entry
+        // reflects the location the sessions are assigned to, not where the tutor
+        // appeared in attendance rows (a tutor can appear in multiple schools there).
+        // Guard: elig > 0 already implies at least one in-region session exists — we
+        // do NOT re-check inRegion(p.school) which would drop tutors whose attendance
+        // row school differs from their session school (e.g. Global Leadership vs String Theory).
         const tutorCaptureList = [];
         for (const [uid, p] of Object.entries(_personMap || {})) {
           if (p.role !== 'Instructor') continue;
-          if (!inRegion(p.school, p.district)) continue;
           const elig = tutorEligByUid[uid] || 0;
-          if (elig === 0) continue;
+          if (elig === 0) continue;  // no in-region eligible sessions → skip
           const subm     = tutorMatchedByUid[uid] || 0;
           const late     = tutorLateByUid[uid]    || 0;
           const mismatch = tutorMismatchByUid[uid] || 0;
           const lateRate = subm > 0 ? Math.round(late / subm * 100) : 0;
+          // Resolve display school from the sessions (majority vote across matched surveys)
+          const votes    = Object.values(tutorSchoolByUid[uid] || {}).sort((a, b) => b.count - a.count);
+          const school   = votes.length ? votes[0].school   : (p.school   || '');
+          const district = votes.length ? votes[0].district : (p.district || '');
           tutorCaptureList.push({
-            name: p.name || uid, school: p.school || '', district: p.district || '',
+            name: p.name || uid, school, district,
             eligible: elig, submitted: subm, late, lateRate, mismatch,
             captureRate:   Math.round(subm / elig * 100),
             mismatchRate:  (subm + mismatch) > 0 ? Math.round(mismatch / (subm + mismatch) * 100) : 0,
