@@ -736,9 +736,32 @@
       data.tutorCaptureBottom.forEach((t, i) => {
         if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
         doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
-        doc.text((i + 1) + '. ' + trunc(t.name, 40) + '  ' + trunc(t.school, 24), ML + 3, y + 4.5);
+        // Add late flag indicator if this tutor files ≥50% of surveys late
+        const lateTag = t.lateFlagged ? '  🕐 ' + t.lateRate + '% late' : '';
+        doc.text((i + 1) + '. ' + trunc(t.name, 36) + '  ' + trunc(t.school, 22) + lateTag, ML + 3, y + 4.5);
         doc.setFont('helvetica', 'bold'); doc.setTextColor(...statusColor(t.captureRate, BM.capture));
         doc.text(pct(t.captureRate, 0) + '  (' + t.submitted + '/' + t.eligible + ')', MR - 3, y + 4.5, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
+        y += 6.5;
+      });
+      y += 4;
+    }
+
+    // ── Late survey filers (≥50% of submitted surveys filed after session date) ──
+    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) {
+      if (y > BOTTOM_LIMIT - 16) { doc.addPage(); y = TOP_START; }
+      y = secHeader(y, 'Tutors Filing Surveys Late — ≥50% After Session Date (' + data.tutorLateSurveyList.length + ' flagged)', C.amber);
+      // Brief explanation sub-line
+      doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
+      doc.text('A survey is "late" when its date is after the session date. Tutors with ≥50% late rate are listed below.', ML + 3, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      data.tutorLateSurveyList.forEach((t, i) => {
+        if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
+        doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
+        doc.text((i + 1) + '. ' + trunc(t.name, 36) + '  ' + trunc(t.school, 22), ML + 3, y + 4.5);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.amber);
+        doc.text(t.lateRate + '% late  (' + t.late + '/' + t.submitted + ' surveys)', MR - 3, y + 4.5, { align: 'right' });
         doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
         y += 6.5;
       });
@@ -858,6 +881,12 @@
     if (data.tutorCaptureRate < BM.capture) {
       growingText += 'Tutor survey capture (' + pct(data.tutorCaptureRate, 0) + ') also needs improvement. ';
     }
+    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) {
+      growingText += data.tutorLateSurveyList.length + ' tutor' + (data.tutorLateSurveyList.length > 1 ? 's are' : ' is') +
+        ' filing surveys 50%+ of the time after the session date — ' +
+        num(data.totalTutorLate) + ' late submission' + (data.totalTutorLate !== 1 ? 's' : '') +
+        ' total. See Late Survey Filers list on the Growing Pains page. ';
+    }
     if (totalSI > 0 && siReasons.length > 0) {
       growingText += 'Service interruptions (' + num(totalSI) + ' events) are most frequently caused by: ' +
         siReasons.slice(0, 3).map(([r, c]) => '"' + trunc(r, 20) + '" (' + num(c) + ')').join(', ') + '. ';
@@ -872,6 +901,7 @@
     if (hitSchools.length > 0) actions.push('Review staffing plans at schools with HIT violations to ensure 4:1 ratios are maintained before each session.');
     if (data.scholCaptureRate < BM.capture) actions.push('Implement scholar survey reminders at session end; target ' + (BM.capture - data.scholCaptureRate) + '+ percentage point improvement in capture rate.');
     if (data.tutorCaptureRate < BM.capture) actions.push('Send tutor survey completion nudges to instructors below 80% capture. See bottom-5 list on Growing Pains page.');
+    if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) actions.push('Follow up with ' + data.tutorLateSurveyList.length + ' tutor' + (data.tutorLateSurveyList.length > 1 ? 's' : '') + ' filing surveys predominantly after session dates. Encourage same-day completion. See Late Survey Filers on Growing Pains page.');
     if (totalSI > 5) actions.push('Investigate top SI causes (' + (siReasons[0] || ['Unknown'])[0] + ') with district coordinators to reduce preventable interruptions.');
     if (actions.length === 0) actions.push('Continue current practices — all key benchmarks are being met.');
 

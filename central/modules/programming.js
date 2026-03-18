@@ -2806,6 +2806,58 @@
       return true;
     }
 
+    // ── Late survey filers helper ─────────────────────────────────────────
+    // Returns per-tutor late survey stats for the current school/district filter.
+    // "Late" = survey DATE is strictly after the session date (date-only comparison).
+    // A tutor is "flagged" if ≥50% of their submitted surveys are late.
+    // Uses Session ID as the primary link between survey row and session.
+    function computeTutorLateFilersStats() {
+      const TUTR_ELIG_SET = new Set(['Attended', 'Partially Attended']);
+      function _toYMD(val) {
+        if (!val) return '';
+        const s = String(val).trim();
+        const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (mdy) return mdy[3] + '-' + mdy[1].padStart(2,'0') + '-' + mdy[2].padStart(2,'0');
+        const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+        return iso ? iso[1] : '';
+      }
+      const eligMap   = {};  // instId|sessId → { sessYMD }
+      const submByUid = {};
+      const lateByUid = {};
+      for (const sess of Object.values(_sessMap || {})) {
+        if (!(sess.isFullAtt || sess.isPartial)) continue;
+        if (!TUTR_ELIG_SET.has(sess.attendance)) continue;
+        if (!sess.instId || !sess.id) continue;
+        if (!matchesSchoolFilter(sess.school, sess.district)) continue;
+        eligMap[sess.instId + '|' + sess.id] = { sessYMD: _toYMD(sess.start) };
+      }
+      for (const r of (_instRows || [])) {
+        if (!matchesSchoolFilter(r[INST_S.SCHOOL], r[INST_S.DISTRICT])) continue;
+        const uid    = r[INST_S.FILLED_BY_ID];
+        const sessId = r[INST_S.SESS_ID];
+        if (!uid || !sessId) continue;
+        const slot = eligMap[uid + '|' + sessId];
+        if (!slot) continue;
+        submByUid[uid] = (submByUid[uid] || 0) + 1;
+        const survYMD = _toYMD(r[INST_S.DATE]);
+        if (survYMD && slot.sessYMD && survYMD > slot.sessYMD) {
+          lateByUid[uid] = (lateByUid[uid] || 0) + 1;
+        }
+      }
+      const flagged = [];
+      for (const [uid, subm] of Object.entries(submByUid)) {
+        const late     = lateByUid[uid] || 0;
+        const lateRate = Math.round(late / subm * 100);
+        if (lateRate < 50) continue;
+        const p = (_personMap || {})[uid];
+        if (!p || p.role !== 'Instructor') continue;
+        flagged.push({ uid, name: p.name || uid, school: p.school || '', district: p.district || '', submitted: subm, late, lateRate });
+      }
+      flagged.sort((a, b) => b.lateRate - a.lateRate);
+      const totalLate = Object.values(lateByUid).reduce((a, b) => a + b, 0);
+      return { flagged, totalLate, totalFlagged: flagged.length };
+    }
+
     function filteredAttRows() {
       return _attRows.filter(r => {
         if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) return false;
@@ -3311,6 +3363,9 @@
           <div class="po-ops-kpi-sub">${k.sub}</div>
         </div>`).join('');
 
+      // Late survey filers
+      const _lateFilerStats = computeTutorLateFilersStats();
+
       // Alert feed
       const alerts = [];
       if (d.scholarNeedsAction > 0) alerts.push({ cls:'crit', icon:'🤝', title:`${d.scholarNeedsAction} scholars below 70% attendance`, sub:'Recommend outreach and support' });
@@ -3318,8 +3373,29 @@
       if (critSchools > 0) alerts.push({ cls:'crit', icon:'🏫', title:`${critSchools} school${critSchools>1?'s':''} below 75% attendance`, sub:'Warrants further investigation' });
       schools.filter(sc => sc.flags.some(f => f.severity === 'critical')).slice(0,3).forEach(sc => alerts.push({ cls:'crit', icon:'⚑', title:`HIT Critical Flag: ${sc.school}`, sub:`${sc.flags.filter(f=>f.severity==='critical').length} critical compliance flag(s)` }));
       schools.filter(sc => sc.stuInterruptions > 5).slice(0,3).forEach(sc => alerts.push({ cls:'warn', icon:'⚡', title:`High Service Interruptions: ${sc.school}`, sub:`${sc.stuInterruptions} disruptions this period` }));
+      if (_lateFilerStats.totalFlagged > 0) alerts.push({ cls:'warn', icon:'🕐', title:`${_lateFilerStats.totalFlagged} tutor${_lateFilerStats.totalFlagged>1?'s':''} filing surveys 50%+ after session date`, sub:`${_lateFilerStats.totalLate} late submission${_lateFilerStats.totalLate>1?'s':''} total — see Late Survey Filers panel` });
       if (!alerts.length) alerts.push({ cls:'ok', icon:'✅', title:'All systems nominal', sub:'No critical alerts at this time' });
       const alertHTML = alerts.slice(0,8).map(a => `<div class="po-ops-alert ${a.cls}"><div class="po-ops-alert-icon">${a.icon}</div><div class="po-ops-alert-body"><div class="po-ops-alert-title">${a.title}</div><div class="po-ops-alert-sub">${a.sub}</div></div></div>`).join('');
+
+      // Late survey filers panel HTML
+      const lateFilerRows = _lateFilerStats.flagged.slice(0, 10).map(t => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;border-bottom:1px solid var(--border-2);font-size:.75rem">
+          <div>
+            <div style="font-weight:600;color:var(--navy)">${t.name}</div>
+            <div style="font-size:.68rem;color:var(--muted)">${t.school}</div>
+          </div>
+          <div style="text-align:right">
+            <span style="font-weight:700;color:#d97706">${t.lateRate}% late</span>
+            <div style="font-size:.68rem;color:var(--muted)">${t.late} of ${t.submitted} surveys</div>
+          </div>
+        </div>`).join('');
+      const lateFilerPanelHTML = _lateFilerStats.totalFlagged > 0 ? `
+        <div class="po-ops-panel" style="border-left:3px solid #d97706">
+          <div class="po-ops-panel-hd" style="color:#92400e">🕐 Late Survey Filers (≥50% after session date)
+            <span style="font-weight:400;font-size:.7rem">${_lateFilerStats.totalFlagged} tutor${_lateFilerStats.totalFlagged>1?'s':''} · ${_lateFilerStats.totalLate} late submissions</span>
+          </div>
+          <div class="po-ops-panel-body" style="padding:0">${lateFilerRows}</div>
+        </div>` : '';
 
       // School ops table rows
       const topSchools = schools.slice(0, 20);
@@ -3488,6 +3564,9 @@
               <div class="po-ops-panel-body">${donutHTML}</div>
             </div>
 
+            <!-- Late Survey Filers (shown only when flagged tutors exist) -->
+            ${lateFilerPanelHTML}
+
           </div>
         </div>
 
@@ -3548,7 +3627,32 @@
               <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--muted)">Loading school data…</td></tr>'}</tbody>
             </table>
           </div>
-        </div>`;
+        </div>
+        ${(() => {
+          const lf = computeTutorLateFilersStats();
+          if (!lf.totalFlagged) return '';
+          const lfRows = lf.flagged.slice(0, 10).map((t, i) => `
+            <tr>
+              <td style="padding:.4rem .75rem;font-size:.78rem;color:var(--navy);font-weight:600">${i+1}. ${t.name}</td>
+              <td style="padding:.4rem .75rem;font-size:.75rem;color:var(--muted)">${t.school}</td>
+              <td style="padding:.4rem .75rem;text-align:center;font-weight:700;color:#d97706">${t.lateRate}%</td>
+              <td style="padding:.4rem .75rem;text-align:center;font-size:.75rem;color:var(--muted)">${t.late} / ${t.submitted}</td>
+            </tr>`).join('');
+          return `<div class="po-detail-card" style="margin-top:.75rem;border-left:3px solid #d97706">
+            <div class="po-section-hd" style="color:#92400e">
+              🕐 Tutors Filing Surveys Late (≥50% after session date)
+              <span style="font-weight:400;font-size:.75rem;color:var(--muted)">${lf.totalFlagged} tutor${lf.totalFlagged>1?'s':''} · ${lf.totalLate} late submission${lf.totalLate>1?'s':''}</span>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:var(--surface-2)">
+                  ${['Tutor','School','Late Rate','Late / Submitted'].map(h=>`<th style="padding:.35rem .75rem;text-align:${h==='Tutor'||h==='School'?'left':'center'};font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border)">${h}</th>`).join('')}
+                </tr></thead>
+                <tbody>${lfRows}</tbody>
+              </table>
+            </div>
+          </div>`;
+        })()}`;
     }
 
     // ── SCHOOL DETAIL VIEW ────────────────────────────────────────────────
@@ -5134,15 +5238,15 @@
             missedReasonCounts[reason] = (missedReasonCounts[reason] || 0) + 1;
           });
 
-        // ── Survey capture rate — date-matched per session ─────────────────
-        // Scholar eligible: 1 survey expected per student per delivered session
-        //   (sessions already filtered to isFullAtt||isPartial in region)
-        // Scholar submitted: survey where FILLED_BY_ID appears in sess.studentIds
-        //   AND survey DATE (STU_S.DATE col 7) matches session start date
-        // Tutor eligible: 1 survey per delivered session where attendance ∈ TUTR_ELIG
-        // Tutor submitted: survey where FILLED_BY_ID == sess.instId
-        //   AND survey DATE (INST_S.DATE col 8) matches session start date
-        // Date mismatch: survey submitted but date does not match any session date
+        // ── Survey capture rate — Session-ID validated ─────────────────────
+        // Primary key: SESS_ID from survey row matched to sess.id from session details.
+        // Scholar eligible: 1 survey per (studentId, sessId) across delivered sessions.
+        // Scholar submitted: survey where FILLED_BY_ID + SESS_ID match a delivered session.
+        // Tutor eligible: 1 survey per delivered session where attendance ∈ TUTR_ELIG.
+        // Tutor submitted: survey where FILLED_BY_ID + SESS_ID match a delivered session.
+        // Late (tutor): submitted survey whose DATE is strictly after the session date.
+        //   A tutor is flagged if ≥50% of their submitted surveys are late.
+        // Mismatch: survey SESS_ID has no matching delivered session for that user.
         const TUTR_ELIG = new Set(['Attended', 'Partially Attended']);
 
         // Normalize any date to 'YYYY-MM-DD' string (handles MM/DD/YYYY, ISO, YYYY-MM-DD)
@@ -5156,35 +5260,36 @@
         }
 
         // ── Scholar capture ────────────────────────────────────────────────
-        // Build eligible map: (studentId|YYYY-MM-DD) → school
-        // Count: 1 eligible per student per session (not deduplicated by date)
+        // Primary key: studentId|sessId — Session ID is the authoritative link.
+        // Count: 1 eligible per (student, session) pair.
         const scholEligBySchool = {};
-        const scholEligMap      = {};   // key → school (first session wins per key)
+        const scholEligMap      = {};   // key: stuId|sessId → { school, sessYMD }
         sessions.forEach(sess => {
+          if (!sess.id) return;
           const sessYMD = toYMD(sess.start);
-          if (!sessYMD) return;
           const sch = sess.school || '__unknown__';
           (sess.studentIds || []).forEach(stuId => {
             if (!stuId) return;
             scholEligBySchool[sch] = (scholEligBySchool[sch] || 0) + 1;
-            const k = stuId + '|' + sessYMD;
-            if (!scholEligMap[k]) scholEligMap[k] = sch;
+            const k = stuId + '|' + sess.id;
+            if (!scholEligMap[k]) scholEligMap[k] = { school: sch, sessYMD: sessYMD || '' };
           });
         });
 
-        // Match student surveys: FILLED_BY_ID + DATE must match a delivered session
-        const scholMatchedBySchool  = {};   // date-matched surveys per school
-        const scholMismatchBySchool = {};   // surveys with no matching session date
+        // Match student surveys: FILLED_BY_ID + SESS_ID must match a delivered session.
+        // Session ID is the primary validation key (date no longer gates the count).
+        const scholMatchedBySchool  = {};   // session-ID-matched surveys per school
+        const scholMismatchBySchool = {};   // surveys with no matching session ID
         (_stuRows || [])
           .filter(r => inRegion(r[STU_S.SCHOOL], r[STU_S.DISTRICT]))
           .forEach(r => {
-            const stuId   = r[STU_S.FILLED_BY_ID];
-            const survYMD = toYMD(r[STU_S.DATE]);
-            if (!stuId || !survYMD) return;
-            const k = stuId + '|' + survYMD;
-            if (scholEligMap[k]) {
-              const sch = scholEligMap[k];
-              scholMatchedBySchool[sch] = (scholMatchedBySchool[sch] || 0) + 1;
+            const stuId  = r[STU_S.FILLED_BY_ID];
+            const sessId = r[STU_S.SESS_ID];
+            if (!stuId || !sessId) return;
+            const k    = stuId + '|' + sessId;
+            const slot = scholEligMap[k];
+            if (slot) {
+              scholMatchedBySchool[slot.school] = (scholMatchedBySchool[slot.school] || 0) + 1;
             } else {
               const sch = r[STU_S.SCHOOL] || '__unknown__';
               scholMismatchBySchool[sch] = (scholMismatchBySchool[sch] || 0) + 1;
@@ -5193,29 +5298,37 @@
         const scholSubmBySchool = scholMatchedBySchool;
 
         // ── Tutor capture ──────────────────────────────────────────────────
-        // Eligible: delivered sessions where attendance ∈ TUTR_ELIG (sessions already filters this)
+        // Primary key: instId|sessId — Session ID is the authoritative link.
+        // A survey counts as submitted if session ID + instructor ID match a delivered session.
+        // Late flag: survey DATE is strictly after the session date (date-only comparison).
         const tutorEligByUid = {};
-        const tutorEligMap   = {};   // instId|YYYY-MM-DD → count (allows multiple per day)
+        const tutorEligMap   = {};   // key: instId|sessId → { sessYMD }
         sessions.filter(s => TUTR_ELIG.has(s.attendance)).forEach(sess => {
-          if (!sess.instId) return;
+          if (!sess.instId || !sess.id) return;
           const sessYMD = toYMD(sess.start);
-          if (!sessYMD) return;
           tutorEligByUid[sess.instId] = (tutorEligByUid[sess.instId] || 0) + 1;
-          const k = sess.instId + '|' + sessYMD;
-          tutorEligMap[k] = (tutorEligMap[k] || 0) + 1;
+          const k = sess.instId + '|' + sess.id;
+          tutorEligMap[k] = { sessYMD: sessYMD || '' };
         });
 
         const tutorMatchedByUid  = {};
         const tutorMismatchByUid = {};
+        const tutorLateByUid     = {};  // surveys submitted after the session date
         (_instRows || [])
           .filter(r => inRegion(r[INST_S.SCHOOL], r[INST_S.DISTRICT]))
           .forEach(r => {
-            const uid     = r[INST_S.FILLED_BY_ID];
-            const survYMD = toYMD(r[INST_S.DATE]);
-            if (!uid || !survYMD) return;
-            const k = uid + '|' + survYMD;
-            if (tutorEligMap[k]) {
+            const uid    = r[INST_S.FILLED_BY_ID];
+            const sessId = r[INST_S.SESS_ID];
+            if (!uid || !sessId) return;
+            const k    = uid + '|' + sessId;
+            const slot = tutorEligMap[k];
+            if (slot) {
               tutorMatchedByUid[uid] = (tutorMatchedByUid[uid] || 0) + 1;
+              // Late: survey date is strictly after the session date (discard time)
+              const survYMD = toYMD(r[INST_S.DATE]);
+              if (survYMD && slot.sessYMD && survYMD > slot.sessYMD) {
+                tutorLateByUid[uid] = (tutorLateByUid[uid] || 0) + 1;
+              }
             } else {
               tutorMismatchByUid[uid] = (tutorMismatchByUid[uid] || 0) + 1;
             }
@@ -5283,16 +5396,21 @@
           const elig = tutorEligByUid[uid] || 0;
           if (elig === 0) continue;
           const subm     = tutorMatchedByUid[uid] || 0;
+          const late     = tutorLateByUid[uid]    || 0;
           const mismatch = tutorMismatchByUid[uid] || 0;
+          const lateRate = subm > 0 ? Math.round(late / subm * 100) : 0;
           tutorCaptureList.push({
             name: p.name || uid, school: p.school || '', district: p.district || '',
-            eligible: elig, submitted: subm, mismatch,
+            eligible: elig, submitted: subm, late, lateRate, mismatch,
             captureRate:   Math.round(subm / elig * 100),
             mismatchRate:  (subm + mismatch) > 0 ? Math.round(mismatch / (subm + mismatch) * 100) : 0,
+            lateFlagged:   lateRate >= 50,
           });
         }
-        const tutorCaptureTop    = [...tutorCaptureList].sort((a,b) => b.captureRate - a.captureRate).slice(0, 3);
-        const tutorCaptureBottom = [...tutorCaptureList].sort((a,b) => a.captureRate - b.captureRate).slice(0, 5);
+        const tutorCaptureTop      = [...tutorCaptureList].sort((a,b) => b.captureRate - a.captureRate).slice(0, 3);
+        const tutorCaptureBottom   = [...tutorCaptureList].sort((a,b) => a.captureRate - b.captureRate).slice(0, 5);
+        const tutorLateSurveyList  = [...tutorCaptureList].filter(t => t.lateFlagged).sort((a,b) => b.lateRate - a.lateRate);
+        const totalTutorLate       = Object.values(tutorLateByUid).reduce((a,b) => a + b, 0);
 
         // ── Per-district rollup ────────────────────────────────────────────
         const districtMap = {};
@@ -5400,8 +5518,9 @@
           activeScholars: activeScholarIds.size, activeTutors: tutorList.length,
           scholCaptureRate, tutorCaptureRate, scholMismatchRate, totalScholMismatch,
           totalScholElig, totalScholSubm, totalTutorElig, totalTutorSubm,
+          totalTutorLate,
           scholCaptureTopN, scholCaptureBottomN,
-          tutorCaptureTop, tutorCaptureBottom,
+          tutorCaptureTop, tutorCaptureBottom, tutorLateSurveyList,
           schools, districts, missedReasonCounts,
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
