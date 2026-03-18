@@ -1510,21 +1510,19 @@
     };
   };
 
-  // ap_hasOTJFlag — detects attention-needed conditions from live OTJ row
+  // ap_hasOTJFlag — detects attention-needed conditions from Program DB OTJ row.
+  // Observation month columns (October–April) live in separate obs sheets not loaded
+  // by this module — those are excluded to avoid false-positive flags.
   const ap_hasOTJFlag = (row) => {
     if (!row) return false;
-    const b = (row['OTJ Beginning'] || '').trim();
-    const m = (row['OTJ Middle']    || '').trim();
-    const sl = (row['Site Leader']  || '').trim();
-    const OBS_MONTHS = ['Tutor Obs - October','Tutor Obs - November','Tutor Obs - December',
-                        'Tutor Obs - January','Tutor Obs - February','Tutor Obs - March','Tutor Obs - April'];
-    const hasMissingObs = OBS_MONTHS.some(col => (row[col] || '').trim() === '');
+    const b  = (row['OTJ Beginning'] || '').trim();
+    const m  = (row['OTJ Middle']    || '').trim();
+    const sl = (row['Site Leader']   || '').trim();
     return (
       b === 'Not Started - PM Following Up' ||
       b === 'Not Started' ||
       sl === '' ||
-      (b !== 'Completed' && m !== '' && m !== '—') ||
-      hasMissingObs
+      (b !== 'Completed' && m !== '' && m !== '—')
     );
   };
 
@@ -2149,29 +2147,66 @@
   // All AP renders run only after njtc_onDataReady() confirms all fetches done.
   // ═══════════════════════════════════════════════════════════════════════════
 
+  // ── Apprenticeship Program Team Database (single source of truth for OTJ) ─
+  // Sheet ID confirmed working — fetched as direct CSV export (no 2PACX key needed).
+  // NE OTJ tab (gid=2085207682) + SW OTJ tab (gid=1510819560) are fetched in parallel
+  // and combined into a single normalized njtcOTJ array / njtcOTJMap lookup.
+  // Active apprentice ENROLLMENT stays exclusively from the HR Master List (col K).
+  const APPR_PROG_DB_ID   = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
+  const APPR_NE_OTJ_URL   = 'https://docs.google.com/spreadsheets/d/' + APPR_PROG_DB_ID + '/export?format=csv&gid=2085207682';
+  const APPR_SW_OTJ_URL   = 'https://docs.google.com/spreadsheets/d/' + APPR_PROG_DB_ID + '/export?format=csv&gid=1510819560';
+
   // ── Data source registry ─────────────────────────────────────────────────
   const NJTC_SOURCES = {
-    APPRENTICE_DB:    'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g/pub?output=csv&gid=213666097&single=true',
-    TRAINING_DETAILS: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv',
-    PD_FEEDBACK:      'https://docs.google.com/spreadsheets/d/e/2PACX-1vT9gdaAh2P3wunk3s3drqByMKsiViTGiT7MON_7K8MKyGkdg2jqDGCgOoFwpSPZ8g/pub?output=csv',
-    TRAINING_INTAKE:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym/pub?gid=1298105082&single=true&output=csv',
-    PD_SESSIONS_ALL:  'https://docs.google.com/spreadsheets/d/e/2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx/pub?output=csv&gid=471085177',
+    TRAINING_DETAILS: 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082',
+    PD_FEEDBACK:      'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177',
+    TRAINING_INTAKE:  'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082',
+    PD_SESSIONS_ALL:  'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177',
   };
 
-  // ── Verified OTJ column names (exact CSV headers from Apprentice DB) ──────
+  // ── OTJ column names — normalized form used in njtcOTJMap after combining NE+SW ─
+  // Program DB raw columns → normalized key used by ap_otjStatus / ap_hasOTJFlag:
+  //   'Tutor First' + 'Tutor Last (ADP)' → 'Master List Name' (full name, primary lookup key)
+  //   'Beginning'  → 'OTJ Beginning'
+  //   'Middle'     → 'OTJ Middle'
+  //   'End'        → 'OTJ End'
+  //   'PM Notes'   → 'OTJ PM Notes'
+  //   'Site Leader', 'District', 'School', 'OTJ Checklist Link', 'ADP Status' — kept as-is
   const OTJ_COLS = {
-    region: 'Region', trackerName: 'Tracker Name', masterName: 'Master List Name',
-    matchStatus: 'Name Match Status', email: 'Email Address', role: 'Position / Role',
-    activeStatus: 'Active / Terminated Status', resignedFlag: 'Resigned (Flag)',
-    apprentice: 'Apprentice Program', race: 'Race', ethnicity: 'Ethnicity',
+    region: 'Region', masterName: 'Master List Name',
+    email: 'Email Address', role: 'Position / Role',
+    activeStatus: 'ADP Status',
+    apprentice: 'Apprentice Program',
     district: 'District', school: 'School', siteLeader: 'Site Leader',
     otjLink: 'OTJ Checklist Link', otjBeginning: 'OTJ Beginning',
     otjMiddle: 'OTJ Middle', otjEnd: 'OTJ End', otjPMNotes: 'OTJ PM Notes',
-    obsOctober: 'Tutor Obs - October', obsNovember: 'Tutor Obs - November',
-    obsDecember: 'Tutor Obs - December', obsJanuary: 'Tutor Obs - January',
-    obsFebruary: 'Tutor Obs - February', obsMarch: 'Tutor Obs - March',
-    obsApril: 'Tutor Obs - April', slObsMonths: 'SL Obs Months',
-    slObsFolder: 'SL Obs Folder Link', slObsNotes: 'SL Obs Notes',
+  };
+
+  // ── Normalize a raw Program DB OTJ row into the standard format ───────────
+  // Handles NE OTJ and SW OTJ sheets from 1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U.
+  // Both sheets use 'Tutor First' + 'Tutor Last (ADP)' for the name and
+  // 'Beginning'/'Middle'/'End' for phase columns.
+  const normalizeOTJRow = (r, region) => {
+    const first = (r['Tutor First'] || '').trim();
+    const last  = (r['Tutor Last (ADP)'] || r['Tutor Last'] || '').trim();
+    const fullName = first && last ? first + ' ' + last
+                   : first || last || (r['Master List Name'] || r['Name'] || '').trim();
+    return {
+      'Master List Name': fullName,
+      'Region':           region,
+      'District':         r['District']             || '',
+      'School':           r['School']               || '',
+      'Site Leader':      r['Site Leader']           || '',
+      'OTJ Beginning':    r['Beginning']             || r['OTJ Beginning'] || '',
+      'OTJ Middle':       r['Middle']                || r['OTJ Middle']    || '',
+      'OTJ End':          r['End']                   || r['OTJ End']       || '',
+      'OTJ Checklist Link': r['OTJ Checklist Link']  || '',
+      'OTJ PM Notes':     r['PM Notes']              || r['OTJ PM Notes']  || '',
+      'ADP Status':       r['ADP Status']            || '',
+      'Apprentice Program': r['Apprentice Program']  || '',
+      'Position / Role':  r['Position / Role']       || '',
+      'Email Address':    r['Email Address']         || '',
+    };
   };
 
   // ── Universal CSV parser ─────────────────────────────────────────────────
@@ -2289,76 +2324,54 @@
 
   // ── Main parallel loader ─────────────────────────────────────────────────
   const njtc_loadAll = async () => {
-    const [r_otj, r_td, r_pd, r_intake] = await Promise.allSettled([
-      njtc_fetch(NJTC_SOURCES.APPRENTICE_DB),
+    const [r_neOtj, r_swOtj, r_td, r_pd, r_intake] = await Promise.allSettled([
+      njtc_fetch(APPR_NE_OTJ_URL),   // Program DB — NE OTJ tab
+      njtc_fetch(APPR_SW_OTJ_URL),   // Program DB — SW OTJ tab
       njtc_fetch(NJTC_SOURCES.TRAINING_DETAILS),
       njtc_fetch(NJTC_SOURCES.PD_FEEDBACK),
       njtc_fetch(NJTC_SOURCES.TRAINING_INTAKE),
-      // PD_SESSIONS_ALL removed — URL returned 404 and data was never consumed
     ]);
 
-    // — APPRENTICE_DB: Row 0 = merged title banner; headers on Row 1 ———————
-    if (r_otj.status === 'fulfilled' && r_otj.value.ok) {
-      let rows = njtc_parseCSV(r_otj.value.text);
-      // Detect title banner: if first parsed row has no 'Apprentice Program' key,
-      // the real headers are on row 1 — re-parse skipping the banner line.
-      if (rows.length && !Object.prototype.hasOwnProperty.call(rows[0], 'Apprentice Program')) {
-        // Split raw text by newlines, drop the first line, re-parse
-        const lines = r_otj.value.text.split('\n');
-        rows = njtc_parseCSV(lines.slice(1).join('\n'));
-      }
-      window.njtcOTJ = rows;
-      // Discover actual column names from first row (CSV headers may differ from expected)
-      var _otjKeys = rows.length > 0 ? Object.keys(rows[0]) : [];
-      console.log('[AP] APPRENTICE_DB column names:', _otjKeys.join(' | '));
-      // Find the columns containing 'name' (case-insensitive) — primary key for lookup
-      var _masterCol = _otjKeys.find(function(k) { return /master.?list.?name/i.test(k); }) ||
-                       _otjKeys.find(function(k) { return /master/i.test(k) && /name/i.test(k); }) ||
-                       _otjKeys.find(function(k) { return /name/i.test(k); }) || 'Master List Name';
-      var _trackerCol = _otjKeys.find(function(k) { return /tracker.?name/i.test(k); }) ||
-                        _otjKeys.find(function(k) { return /tracker/i.test(k); }) || 'Tracker Name';
-      console.log('[AP] Using columns: masterCol="' + _masterCol + '", trackerCol="' + _trackerCol + '"');
-      // Build O(1) name lookup map — exact + first/last fuzzy variant (strips middle names/initials)
+    // — PROGRAM TEAM DATABASE: NE + SW OTJ combined ———————————————————————
+    {
       var _nm = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
       var _fl = function(n) {
-        // Returns "firstname lastname" only, stripping middle names and single-letter initials
         var parts = n.split(/\s+/).filter(function(p) { return p.length > 1 && !/^[a-z]\.?$/i.test(p); });
         return parts.length > 1 ? (parts[0] + ' ' + parts[parts.length - 1]) : n;
       };
-      window.njtcOTJMap = {};
-      rows.forEach(function(r) {
-        var mn = _nm(r[_masterCol] || '');
-        var tn = _nm(r[_trackerCol] || '');
-        if (mn) {
-          window.njtcOTJMap[mn] = r;
-          var flmn = _fl(mn); if (flmn !== mn && !window.njtcOTJMap[flmn]) window.njtcOTJMap[flmn] = r;
-        }
-        if (tn) {
-          if (!window.njtcOTJMap[tn]) window.njtcOTJMap[tn] = r;
-          var fltn = _fl(tn); if (fltn !== tn && !window.njtcOTJMap[fltn]) window.njtcOTJMap[fltn] = r;
-        }
-      });
-      // Diagnostic: log APPRENTICE_DB entries that don't match any HR_EMPS name (helps identify missing apprentices)
-      var _hrSet = new Set((window.HR_EMPS || []).map(function(e) { return _nm(e.n || ''); }));
-      var _hrSetFL = new Set((window.HR_EMPS || []).map(function(e) { return _fl(_nm(e.n || '')); }));
-      var _unmatched = rows.filter(function(r) {
-        var mn = _nm(r[_masterCol] || ''), tn = _nm(r[_trackerCol] || '');
-        return !( (mn && (_hrSet.has(mn) || _hrSetFL.has(_fl(mn)))) ||
-                  (tn && (_hrSet.has(tn) || _hrSetFL.has(_fl(tn)))) );
-      });
-      if (_unmatched.length > 0) {
-        console.warn('[AP] APPRENTICE_DB entries with NO HR_EMPS match (' + _unmatched.length + ') — these may be the missing apprentices:',
-          _unmatched.map(function(r) { return '"' + (r[_masterCol]||'') + '" / "' + (r[_trackerCol]||'') + '"'; }));
-      } else {
-        console.log('[AP] All APPRENTICE_DB entries matched to HR_EMPS');
+
+      const neRows = (r_neOtj.status === 'fulfilled' && r_neOtj.value.ok)
+        ? njtc_parseCSV(r_neOtj.value.text).map(function(r) { return normalizeOTJRow(r, 'NE'); })
+        : [];
+      const swRows = (r_swOtj.status === 'fulfilled' && r_swOtj.value.ok)
+        ? njtc_parseCSV(r_swOtj.value.text).map(function(r) { return normalizeOTJRow(r, 'SW'); })
+        : [];
+
+      if (!neRows.length) {
+        const neReason = r_neOtj.status === 'fulfilled' ? 'HTTP ' + r_neOtj.value.status : (r_neOtj.reason||{}).message || 'network error';
+        console.warn('[NJTC] Program DB NE OTJ unavailable:', neReason);
       }
-      console.log('[NJTC] APPRENTICE_DB: ' + rows.length + ' rows loaded, njtcOTJMap keys: ' + Object.keys(window.njtcOTJMap).length);
-    } else {
-      window.njtcOTJ = [];
-      const reason = r_otj.status === 'fulfilled'
-        ? 'HTTP ' + r_otj.value.status
-        : (r_otj.reason || {}).message || 'network error';
-      console.warn('[NJTC] APPRENTICE_DB unavailable:', reason);
+      if (!swRows.length) {
+        const swReason = r_swOtj.status === 'fulfilled' ? 'HTTP ' + r_swOtj.value.status : (r_swOtj.reason||{}).message || 'network error';
+        console.warn('[NJTC] Program DB SW OTJ unavailable:', swReason);
+      }
+
+      // Filter out rows with no name (blank/header rows)
+      const combined = neRows.concat(swRows).filter(function(r) { return r['Master List Name']; });
+      window.njtcOTJ = combined;
+
+      // Build O(1) name lookup map — exact + first/last fuzzy variant
+      window.njtcOTJMap = {};
+      combined.forEach(function(r) {
+        var mn = _nm(r['Master List Name']);
+        if (!mn) return;
+        window.njtcOTJMap[mn] = r;
+        var flmn = _fl(mn);
+        if (flmn !== mn && !window.njtcOTJMap[flmn]) window.njtcOTJMap[flmn] = r;
+      });
+
+      console.log('[NJTC] Program DB OTJ: NE=' + neRows.length + ' SW=' + swRows.length +
+        ' combined=' + combined.length + ' map keys=' + Object.keys(window.njtcOTJMap).length);
     }
 
     // — TRAINING_DETAILS (KNOWN — 34 cols, n≈30) ──────────────────────────
@@ -2409,9 +2422,9 @@
   const ap_initAll = async () => {
     await ap_buildFromLive();  // fetch Master List → populate AP_DATA
 
-    // ── APPRENTICE_DB diagnostic only ─────────────────────────────────────
+    // ── Program DB OTJ diagnostic ─────────────────────────────────────────
     // Enrollment is determined solely by HR Master List col K ("Yes").
-    // APPRENTICE_DB (njtcOTJ) is OTJ-tracking data only — do NOT use it
+    // njtcOTJ (Program DB) is OTJ-tracking data only — do NOT use it
     // to add or promote anyone to enrolled status.
     if (window.njtcOTJ && window.njtcOTJ.length && window.AP_DATA) {
       var _nm2 = function(x) { return (x||'').toLowerCase().replace(/\s+/g,' ').trim(); };
@@ -2419,23 +2432,15 @@
         var parts = n.split(/\s+/).filter(function(p) { return p.length > 1 && !/^[a-z]\.?$/i.test(p); });
         return parts.length > 1 ? (parts[0] + ' ' + parts[parts.length - 1]) : n;
       };
-      var _mc2 = window.njtcOTJ.length > 0 ? (function() {
-        var k = Object.keys(window.njtcOTJ[0]);
-        return {
-          master:  k.find(function(c) { return /master.?list.?name/i.test(c); }) || 'Master List Name',
-          tracker: k.find(function(c) { return /tracker.?name/i.test(c); }) || 'Tracker Name'
-        };
-      })() : { master: 'Master List Name', tracker: 'Tracker Name' };
-      // Diagnostic: count OTJ rows that have no enrolled match in HR list
+      // Rows are normalized — 'Master List Name' is always the key
       var _apEnrolledNames = new Set(AP_DATA.filter(function(r){ return r.apprentice === 'Yes'; }).map(function(r){ return _nm2(r.name); }));
       var _otjNotInHR = window.njtcOTJ.filter(function(row) {
-        var mn = _nm2(row[_mc2.master] || ''), tn = _nm2(row[_mc2.tracker] || '');
-        var fl = function(n){ var p=n.split(/\s+/).filter(function(x){return x.length>1;});return p.length>1?(p[0]+' '+p[p.length-1]):n; };
-        return !(_apEnrolledNames.has(mn)||_apEnrolledNames.has(fl(mn))||_apEnrolledNames.has(tn)||_apEnrolledNames.has(fl(tn)));
+        var mn = _nm2(row['Master List Name'] || '');
+        return mn && !(_apEnrolledNames.has(mn) || _apEnrolledNames.has(_fl2(mn)));
       });
       if (_otjNotInHR.length > 0) {
-        console.warn('[AP] OTJ rows with no HR-enrolled match (' + _otjNotInHR.length + ') — update col K in HR Master List to enroll them:',
-          _otjNotInHR.map(function(r){ return '"'+(r[_mc2.master]||'')+'"/'+'"'+(r[_mc2.tracker]||'')+'"'; }));
+        console.warn('[AP] Program DB OTJ rows with no HR-enrolled match (' + _otjNotInHR.length + ') — update col K in HR Master List:',
+          _otjNotInHR.map(function(r){ return '"'+(r['Master List Name']||'')+'"'; }));
       }
       console.log('[AP] Enrollment count (HR Master List col K only): ' + AP_DATA.filter(function(r){ return r.apprentice === 'Yes'; }).length);
     }
