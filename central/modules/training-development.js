@@ -6,11 +6,15 @@
   //  6 sub-tabs: PD Sessions · Training Intake · Tutor Obs · SL Obs · OTJ · Mgmt
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── Data source URLs (direct export — works for any publicly-shared sheet) ─
-  // PD Sessions feedback: spreadsheet 18LyHoN…/gid=471085177
+  // ── Data source URLs ──────────────────────────────────────────────────────
+  // PD Sessions: direct export (sheet shared "Anyone with the link")
   const PD_URL = 'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177';
-  // Training Intake: spreadsheet 11OH4pBp…/gid=1298105082
-  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082';
+  // Training Intake: published-to-web 2PACX URL (confirmed working — 73 rows)
+  // This sheet uses "Publish to web" rather than "Anyone with link", so the
+  // direct export URL fails with a CORS redirect. Keep the 2PACX key.
+  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/e/' +
+    '2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym' +
+    '/pub?output=csv&gid=1298105082';
   // ── Apprenticeship Program Database ───────────────────────────────
   const APPR_SHEET_ID = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
   const APPR_GIDS = {
