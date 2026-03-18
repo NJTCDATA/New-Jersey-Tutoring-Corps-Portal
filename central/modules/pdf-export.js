@@ -9,17 +9,18 @@
 
   // ── Brand palette (RGB arrays for jsPDF) ──────────────────────────────────
   const C = {
-    navy:    [26,  46,  74],
-    teal:    [42, 157, 143],
-    amber:   [233,196, 106],
-    red:     [231,111,  81],
-    green:   [ 82,183,136],
-    white:   [255,255,255],
-    light:   [247,249,252],
-    mid:     [180,190,200],
-    body:    [ 45, 45, 45],
-    muted:   [107,114,128],
-    amberBg: [255,251,235],
+    navy:    [27,  42,  74],   // #1B2A4A
+    teal:    [42, 157, 143],   // #2A9D8F
+    amber:   [232,168,  56],   // #E8A838
+    red:     [192,  57,  43],  // #C0392B
+    green:   [ 82, 183, 136],
+    white:   [255, 255, 255],
+    light:   [247, 249, 252],
+    mid:     [180, 190, 200],
+    body:    [ 45,  45,  45],
+    muted:   [107, 114, 128],
+    amberBg: [255, 251, 235],
+    rowAlt:  [250, 251, 253],  // subtle alternating row tint
   };
 
   // ── Benchmarks ────────────────────────────────────────────────────────────
@@ -52,6 +53,24 @@
   function trunc(s, max) {
     s = String(s || '');
     return s.length > max ? s.slice(0, max - 2) + '..' : s;
+  }
+  // Strip characters outside the Windows-1252 / Latin-1 range that jsPDF's
+  // built-in Helvetica cannot encode. An unencodable character triggers a silent
+  // fallback to Courier for the entire text node — that is what causes the
+  // monospace sections visible in the rendered output.
+  // Also normalise common Unicode punctuation to ASCII equivalents.
+  function safeStr(s) {
+    return String(s || '')
+      .replace(/\u2014/g, '-')    // em dash  →  hyphen
+      .replace(/\u2013/g, '-')    // en dash  →  hyphen
+      .replace(/\u2265/g, '>=')   // ≥        →  >=
+      .replace(/\u2264/g, '<=')   // ≤        →  <=
+      .replace(/\u2019/g, "'")    // right single quote
+      .replace(/\u201C/g, '"')    // left double quote
+      .replace(/\u201D/g, '"')    // right double quote
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '') // strip everything else
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   // ── Library loader ─────────────────────────────────────────────────────────
@@ -94,9 +113,9 @@
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
 
     const PW = 215.9, PH = 279.4;
-    const ML = 14;
-    const MR = PW - 14;
-    const SAFE = MR - ML;          // ~188 mm
+    const ML = 19;                 // 0.75-inch left margin
+    const MR = PW - 19;           // 0.75-inch right margin
+    const SAFE = MR - ML;         // ~178 mm usable width
     const FOOTER_H = 10;
     const TOP_START = 16;
     const BOTTOM_LIMIT = PH - FOOTER_H - 8;
@@ -125,19 +144,19 @@
 
     // ── Drawing helpers ────────────────────────────────────────────────────
 
-    /** Full-width navy section header. Returns y after. */
+    /** Full-bleed section header bar. Returns y after. */
     function secHeader(y, title, accent) {
       if (y > BOTTOM_LIMIT - 30) { doc.addPage(); y = TOP_START; }
       const bg = accent || C.navy;
       doc.setFillColor(...bg);
-      doc.rect(ML, y, SAFE, 9, 'F');
-      doc.setFontSize(10);
+      doc.rect(0, y, PW, 10, 'F');
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...C.white);
-      doc.text(title, ML + 4, y + 6.2);
+      doc.text(safeStr(title), ML + 4, y + 7);
       doc.setTextColor(...C.body);
       doc.setFont('helvetica', 'normal');
-      return y + 11;
+      return y + 13;
     }
 
     /** KPI card. */
@@ -734,60 +753,50 @@
     if (data.tutorCaptureBottom && data.tutorCaptureBottom.length > 0) {
       y = secHeader(y, 'Tutors Needing Survey Capture Support (Bottom 5)', C.amber);
       data.tutorCaptureBottom.forEach((t, i) => {
-        if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
-        doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
-        // Add late flag indicator if this tutor files ≥50% of surveys late
-        const lateTag = t.lateFlagged ? '  🕐 ' + t.lateRate + '% late' : '';
-        doc.text((i + 1) + '. ' + trunc(t.name, 36) + '  ' + trunc(t.school, 22) + lateTag, ML + 3, y + 4.5);
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(...statusColor(t.captureRate, BM.capture));
-        doc.text(pct(t.captureRate, 0) + '  (' + t.submitted + '/' + t.eligible + ')', MR - 3, y + 4.5, { align: 'right' });
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
-        y += 6.5;
+        const lateNote = t.lateFlagged ? '  [' + t.lateRate + '% late]' : '';
+        const stat = pct(t.captureRate, 0) + '  (' + t.submitted + '/' + t.eligible + ')' + lateNote;
+        y = listRow(y, {
+          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          detail:    trunc(t.school, 50),
+          stat:      stat,
+          statColor: statusColor(t.captureRate, BM.capture),
+        }, i % 2 === 1);
       });
-      y += 4;
+      y += 6;
     }
 
-    // ── Late survey filers (≥50% of submitted surveys filed after session date) ──
+    // ── Late survey filers (>=50% of submitted surveys filed after session date) ──
     if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) {
       if (y > BOTTOM_LIMIT - 16) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'Tutors Filing Surveys Late — ≥50% After Session Date (' + data.tutorLateSurveyList.length + ' flagged)', C.amber);
+      y = secHeader(y, 'Tutors Filing Surveys Late - >=50% After Session Date (' + data.tutorLateSurveyList.length + ' flagged)', C.amber);
       // Brief explanation sub-line
-      doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
-      doc.text('A survey is "late" when its date is after the session date. Tutors with ≥50% late rate are listed below.', ML + 3, y);
-      y += 6;
+      doc.setFontSize(8); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
+      doc.text('A survey is "late" when its date is after the session date. Tutors with >=50% late rate are listed below.', ML + 3, y);
+      y += 7;
       doc.setFont('helvetica', 'normal');
       data.tutorLateSurveyList.forEach((t, i) => {
-        if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
-        doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
-        doc.text((i + 1) + '. ' + trunc(t.name, 36) + '  ' + trunc(t.school, 22), ML + 3, y + 4.5);
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(...C.amber);
-        doc.text(t.lateRate + '% late  (' + t.late + '/' + t.submitted + ' surveys)', MR - 3, y + 4.5, { align: 'right' });
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
-        y += 6.5;
+        y = listRow(y, {
+          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          detail:    trunc(t.school, 50),
+          stat:      t.lateRate + '% late  (' + t.late + '/' + t.submitted + ' surveys)',
+          statColor: C.amber,
+        }, i % 2 === 1);
       });
-      y += 4;
+      y += 6;
     }
 
     // ── Tutor Attendance Concerns ─────────────────────────────────────────
     if (tutorConcerns.length > 0) {
       y = secHeader(y, 'Tutors Below 90% Attendance Threshold', C.amber);
       tutorConcerns.forEach((t, i) => {
-        if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
-        doc.setFontSize(7.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.muted);
-        doc.text(
-          (i + 1) + '. ' + trunc(t.name, 36) + '  (' + trunc(t.school, 22) + ')',
-          ML + 3, y + 4.5
-        );
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...statusColor(t.attRate, BM.tutorAtt));
-        doc.text(
-          pct(t.attRate, 1) + '  (' + t.attended + ' of ' + (t.attended + t.absent) + ' sessions)',
-          MR - 3, y + 4.5, { align: 'right' }
-        );
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
-        y += 6.5;
+        y = listRow(y, {
+          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          detail:    trunc(t.school, 50),
+          stat:      pct(t.attRate, 1) + '  (' + t.attended + '/' + (t.attended + t.absent) + ' sess)',
+          statColor: statusColor(t.attRate, BM.tutorAtt),
+        }, i % 2 === 1);
       });
-      y += 4;
+      y += 6;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -799,28 +808,73 @@
     // ── Helper to write wrapped paragraph text ────────────────────────────
     function para(text, startY, opts) {
       opts = opts || {};
-      doc.setFontSize(opts.size || 8.5);
+      doc.setFontSize(opts.size || 10);
       doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
       doc.setTextColor(...(opts.color || C.body));
-      const lines = doc.splitTextToSize(text, SAFE - 4);
+      const lines = doc.splitTextToSize(safeStr(text), SAFE - 4);
       lines.forEach(line => {
         if (startY > BOTTOM_LIMIT - 6) { doc.addPage(); startY = TOP_START; }
         doc.text(line, ML + 2, startY);
-        startY += opts.lineH || 5.5;
+        startY += opts.lineH || 5.8;
       });
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      return startY + (opts.gap || 4);
+      return startY + (opts.gap || 6);
     }
 
     function paraLabel(label, startY) {
-      doc.setFontSize(8.5);
+      if (startY > BOTTOM_LIMIT - 12) { doc.addPage(); startY = TOP_START; }
+      const bgH = 8;
+      // Subtle fill
+      doc.setFillColor(237, 241, 248);
+      doc.rect(ML, startY - 1, SAFE, bgH, 'F');
+      // Left border rule (3 mm wide, navy)
+      doc.setFillColor(...C.navy);
+      doc.rect(ML, startY - 1, 3, bgH, 'F');
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...C.navy);
-      doc.text(label, ML + 2, startY);
+      doc.text(safeStr(label), ML + 6, startY + 5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      return startY + 6;
+      return startY + bgH + 3;
+    }
+
+    /**
+     * Two-line list row for Growing Pains lists.
+     * Line 1: 9pt bold name (navy) LEFT  |  stat (accent) RIGHT
+     * Line 2: 8pt italic muted school/detail
+     * Alternating row tint; thin separator between rows.
+     * @param {object} opts  { name, detail, stat, statColor, isAlt }
+     * Returns y after row.
+     */
+    function listRow(y, opts, isAlt) {
+      if (y > BOTTOM_LIMIT - 14) { doc.addPage(); y = TOP_START; }
+      const ROW_H = 12;
+      if (isAlt) {
+        doc.setFillColor(...C.rowAlt);
+        doc.rect(ML, y, SAFE, ROW_H, 'F');
+      }
+      // Separator
+      doc.setDrawColor(...C.mid);
+      doc.setLineWidth(0.15);
+      doc.line(ML, y, MR, y);
+      // Name line
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...C.navy);
+      doc.text(safeStr(opts.name || ''), ML + 4, y + 5);
+      // Stat right-aligned on name line
+      doc.setTextColor(...(opts.statColor || C.amber));
+      doc.text(safeStr(opts.stat || ''), MR - 4, y + 5, { align: 'right' });
+      // School/detail line
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...C.muted);
+      doc.text(safeStr(opts.detail || ''), ML + 4, y + 9.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C.body);
+      return y + ROW_H;
     }
 
     // ── Build narrative ───────────────────────────────────────────────────
@@ -906,16 +960,17 @@
     if (actions.length === 0) actions.push('Continue current practices — all key benchmarks are being met.');
 
     actions.forEach((action, i) => {
-      if (y > BOTTOM_LIMIT - 8) { doc.addPage(); y = TOP_START; }
-      doc.setFontSize(8.5);
+      if (y > BOTTOM_LIMIT - 10) { doc.addPage(); y = TOP_START; }
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...C.body);
-      const lines = doc.splitTextToSize((i + 1) + '. ' + action, SAFE - 10);
+      const lines = doc.splitTextToSize(safeStr((i + 1) + '. ' + action), SAFE - 10);
       lines.forEach(line => {
+        if (y > BOTTOM_LIMIT - 6) { doc.addPage(); y = TOP_START; }
         doc.text(line, ML + 4, y);
-        y += 5.5;
+        y += 5.8;
       });
-      y += 2;
+      y += 5;
     });
 
     y += 6;
