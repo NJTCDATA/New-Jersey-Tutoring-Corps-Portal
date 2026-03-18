@@ -280,6 +280,25 @@
   }
 
   function errorHTML(msg, retryFn) {
+    const isAccess = msg && msg.startsWith('ACCESS_DENIED');
+    if (isAccess) {
+      const sheetUrl = `https://docs.google.com/spreadsheets/d/${APPR_SHEET_ID}/`;
+      return `<div class="td-error" style="max-width:560px;margin:2rem auto;text-align:left">
+        <div style="font-size:1.5rem;margin-bottom:.5rem;text-align:center">🔒</div>
+        <div style="font-weight:700;font-size:1rem;margin-bottom:.5rem;text-align:center">Google Sheet Not Publicly Accessible</div>
+        <p style="font-size:.875rem;margin-bottom:1rem">
+          The apprenticeship data sheet is set to private, so the portal cannot fetch it.
+          A sheet owner needs to make it viewable by anyone with the link.
+        </p>
+        <ol style="font-size:.875rem;margin:.5rem 0 1rem 1.25rem;line-height:1.7">
+          <li>Open the sheet: <a href="${sheetUrl}" target="_blank" rel="noopener" style="color:#1d4ed8;text-decoration:underline">Apprenticeship Tracker ↗</a></li>
+          <li>Click <strong>Share</strong> (top-right)</li>
+          <li>Under <em>General access</em>, change to <strong>"Anyone with the link"</strong></li>
+          <li>Set role to <strong>Viewer</strong> and click <strong>Done</strong></li>
+        </ol>
+        ${retryFn ? `<div style="text-align:center"><button class="btn btn-secondary btn-sm" onclick="(${retryFn})()">↺ Retry after sharing</button></div>` : ''}
+      </div>`;
+    }
     return `<div class="td-error">
       <div style="font-size:1.5rem;margin-bottom:.5rem">⚠️</div>
       <div style="font-weight:700;margin-bottom:.25rem">Failed to load data</div>
@@ -438,7 +457,28 @@
     if (_apprCache[key] && (now - _apprCache[key].ts) < 5 * 60 * 1000) {
       return _apprCache[key].text;
     }
-    const text = await fetchCSV(apprCSVUrl(gid));
+    let text;
+    try {
+      text = await fetchCSV(apprCSVUrl(gid));
+    } catch (e) {
+      const msg = (e && e.message) || '';
+      const isAccessError = msg.includes('Failed to fetch') || msg.includes('NetworkError') ||
+                            msg.includes('CORS') || msg.includes('HTTP 302') || msg.includes('HTTP 403');
+      if (isAccessError) {
+        throw new Error(
+          'ACCESS_DENIED: The apprenticeship Google Sheet is not publicly accessible. ' +
+          'To fix: open the sheet → Share → change to "Anyone with the link" → Viewer.'
+        );
+      }
+      throw e;
+    }
+    // Detect auth redirect: Google returns an HTML login page instead of CSV
+    if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
+      throw new Error(
+        'ACCESS_DENIED: The apprenticeship Google Sheet is not publicly accessible. ' +
+        'To fix: open the sheet → Share → change to "Anyone with the link" → Viewer.'
+      );
+    }
     _apprCache[key] = { text, ts: now };
     return text;
   }
