@@ -3761,6 +3761,26 @@
     .td-heat-yes  { background:#dcfce7;color:#166534; }
     .td-heat-no   { background:#fee2e2;color:#b91c1c; }
     .td-heat-na   { background:#f3f4f6;color:#9ca3af; }
+    /* ── T&D Inner Sub-tab navigation ───────────────────────────── */
+    .td-subtab-nav { display:flex; gap:.375rem; flex-wrap:wrap; margin-bottom:1.25rem; padding-bottom:.75rem; border-bottom:2px solid var(--border); }
+    .td-subtab { font-size:.75rem; font-weight:600; padding:.3rem .75rem; border-radius:20px; border:1.5px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .td-subtab:hover { border-color:var(--blue-mid); color:var(--blue-mid); }
+    .td-subtab.active { background:var(--navy); border-color:var(--navy); color:#fff; }
+    /* ── T&D Summary / Narrative Cards ──────────────────────────── */
+    .card-glow    { border-left:4px solid #2A7D4F; background:#F0FBF4; border-radius:6px; padding:.75rem 1rem; margin-bottom:.5rem; font-size:.85rem; line-height:1.6; }
+    .card-grow    { border-left:4px solid #C9A84C; background:#FFFBEB; border-radius:6px; padding:.75rem 1rem; margin-bottom:.5rem; font-size:.85rem; line-height:1.6; }
+    .card-standout{ border-left:4px solid #1B2A4A; background:#EEF2FB; border-radius:6px; padding:.75rem 1rem; margin-bottom:.5rem; font-size:.85rem; line-height:1.6; }
+    .card-action  { border-left:4px solid #C0392B; background:#FEF2F2; border-radius:6px; padding:.75rem 1rem; margin-bottom:.5rem; font-size:.85rem; line-height:1.6; }
+    .quote-card   { background:#F8FAFC; border-radius:6px; padding:10px 14px; font-style:italic; border-left:3px solid #C9A84C; margin-bottom:.4rem; font-size:.82rem; line-height:1.5; }
+    .role-badge   { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:1px 7px; border-radius:12px; background:#dbeafe; color:#1e40af; font-style:normal; }
+    /* ── T&D PDF print styles ────────────────────────────────────── */
+    @media print {
+      body > *:not(#td-summary-print) { display:none !important; }
+      #td-summary-print { display:block !important; width:100%; font-family:Arial,sans-serif; color:#1B2A4A; margin:0; padding:1.5cm 2cm; }
+      .no-print { display:none !important; }
+      .td-print-section { page-break-inside:avoid; margin-bottom:1.25rem; }
+      canvas { max-width:380px !important; }
+    }
     /* ── Responsive ─────────────────────────────────────────────── */
     @media(max-width:900px) { .td-otj-row { grid-template-columns:1fr 2fr 2fr; } }
     @media(max-width:600px) { .td-otj-row { grid-template-columns:1fr 1fr; } }

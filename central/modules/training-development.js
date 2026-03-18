@@ -635,195 +635,469 @@
     'Overall Satisfaction'
   ];
 
+  let _pdSubTab = 'analytics';
+
   async function renderPDTab() {
     const el = document.getElementById('td-content-pd');
     if (!el) return;
     el.innerHTML = loadingHTML('Loading PD session data…');
-
     try {
       if (!_pdData) {
         const text = await fetchCSV(PD_URL);
         const parsed = parseCsvText(text, 0);
         _pdData = parsed.rows.filter(r => isValidRow(r, 'pd'));
       }
-      el.innerHTML = buildPDHTML(_pdData);
-      renderPDContent(_pdData);
+      el.innerHTML = buildPDTabWrapper();
+      window.tdPDSubTab(_pdSubTab || 'analytics', null);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["pd"]=false;renderPDTab();}');
     }
   }
 
-  function buildPDHTML(rows) {
-    if (!rows.length) return '<div class="td-error">No PD session data found.</div>';
-
-    const allSessions = groupSessions(rows);
-    const allRoles    = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
-    const allExp      = [...new Set(rows.map(r => r['Years of Experience in Tutoring / Education']).filter(Boolean))].sort();
-    // Rule 4/7 — Focus Area filter populated via countTags
-    const focusTags   = countTags(rows, 'What focus areas need additional support?').slice(0, 20);
-
-    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
-      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
-      <select class="filter-select" id="tdPdSessionFilter" onchange="applyPDFilter()">
-        <option value="">All Sessions</option>
-        ${allSessions.map(s => `<option value="${s.sessionNum}">Session ${s.sessionNum} · ${cleanDate(s.date)}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdPdRoleFilter" onchange="applyPDFilter()">
-        <option value="">All Roles</option>
-        ${allRoles.map(r => `<option>${r}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdPdSeasonFilter" onchange="applyPDFilter()">
-        <option value="">All Seasons</option>
-        <option>Fall</option><option>Winter</option><option>Spring</option><option>Summer</option>
-      </select>
-      <select class="filter-select" id="tdPdExpFilter" onchange="applyPDFilter()">
-        <option value="">All Experience Levels</option>
-        ${allExp.map(e => `<option>${e}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdPdFocusFilter" onchange="applyPDFilter()">
-        <option value="">All Focus Areas</option>
-        ${focusTags.map(([tag]) => `<option>${tag}</option>`).join('')}
-      </select>
-      <span id="tdPdFilterCount" style="font-size:.75rem;color:var(--muted);margin-left:.25rem"></span>
+  function buildPDTabWrapper() {
+    const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+      <div class="td-subtab-nav" style="margin-bottom:0;border-bottom:none;padding-bottom:0">
+        <button id="pdST-analytics" class="td-subtab" onclick="window.tdPDSubTab('analytics',this)">📊 Session Analytics</button>
+        <button id="pdST-explorer"  class="td-subtab" onclick="window.tdPDSubTab('explorer',this)">🔍 Response Explorer</button>
+        <button id="pdST-summary"   class="td-subtab" onclick="window.tdPDSubTab('summary',this)">📋 T&amp;D Summary</button>
+      </div>
+      <span style="font-size:.7rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:.2rem .6rem;border-radius:20px">🔴 LIVE · ${now}</span>
     </div>
-    <div id="tdPdContent"></div>`;
+    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>
+    <div id="tdPdSubContent"></div>`;
   }
 
-  function renderPDContent(filteredRows) {
-    const container = document.getElementById('tdPdContent');
-    if (!container) return;
+  window.tdPDSubTab = function(id, btn) {
+    document.querySelectorAll('#td-content-pd .td-subtab').forEach(b => b.classList.remove('active'));
+    const target = btn || document.getElementById('pdST-' + id);
+    if (target) target.classList.add('active');
+    _pdSubTab = id;
+    const container = document.getElementById('tdPdSubContent');
+    if (!container || !_pdData || !_pdData.length) return;
+    switch (id) {
+      case 'analytics': renderPDAnalytics(container, _pdData); break;
+      case 'explorer':  renderPDExplorer(container, _pdData);  break;
+      case 'summary':   renderPDSummary(container, _pdData);   break;
+    }
+  };
 
-    if (!filteredRows.length) {
-      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
-      const countEl = document.getElementById('tdPdFilterCount');
-      if (countEl) countEl.textContent = '0 of ' + (_pdData ? _pdData.length : 0) + ' responses';
-      return;
+  // ── SUB-TAB 1: SESSION ANALYTICS ───────────────────────────────
+  function renderPDAnalytics(container, rows) {
+    const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const s1Rows = rows.filter(r => sKey(r) === 'PD Session 1');
+    const s2Rows = rows.filter(r => sKey(r) === 'PD Session 2');
+    const sessions = groupSessions(rows);
+
+    function avgR(rws, f) {
+      const v = rws.map(r => parseFloat(r[f])).filter(n => !isNaN(n));
+      return v.length ? v.reduce((a,b) => a+b, 0) / v.length : 0;
     }
 
-    const totalResponses = filteredRows.length;
-    const sessions = groupSessions(filteredRows);
-    const totalSessions = sessions.length;
+    const overallAvg  = avgR(rows, 'Overall satisfaction with this PD session');
+    const recYes      = rows.filter(r => (r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
+    const recMaybe    = rows.filter(r => (r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('m')).length;
+    const recNo       = rows.length - recYes - recMaybe;
+    const recRate     = pct(recYes, rows.length);
+    const s1AvgAll    = avg(PD_RATING_FIELDS.map(f => avgR(s1Rows, f)));
+    const s2AvgAll    = avg(PD_RATING_FIELDS.map(f => avgR(s2Rows, f)));
+    const netImprove  = s2AvgAll - s1AvgAll;
+    const s2RecYes    = s2Rows.filter(r => (r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
 
-    // KPI calculations
-    const overallRatings = filteredRows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
-    const avgOverall = overallRatings.length ? (overallRatings.reduce((s, n) => s + n, 0) / overallRatings.length) : 0;
-    const recommendYes = filteredRows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
-    const pctRecommend = pct(recommendYes, totalResponses);
+    const allFocus = [];
+    rows.forEach(r => parseMultiSelect(r['What focus areas need additional support?']).forEach(v => allFocus.push(v)));
+    const focusFreq = countFreq(allFocus).slice(0, 8);
+    const roleFreq  = countFreq(rows.map(r => r['Role']).filter(Boolean));
+    const expFreq   = countFreq(rows.map(r => r['Years of Experience in Tutoring / Education']).filter(Boolean));
 
-    // Latest session avg
-    let latestAvg = 0;
-    if (sessions.length) {
-      const latest = sessions[0];
-      const latestRows = latest.rows;
-      const latestOverall = latestRows.map(r => parseFloat(r['Overall satisfaction with this PD session'])).filter(n => !isNaN(n));
-      latestAvg = latestOverall.length ? (latestOverall.reduce((s, n) => s + n, 0) / latestOverall.length) : 0;
-    }
+    const s1Data = PD_RATING_FIELDS.map(f => parseFloat(avgR(s1Rows, f).toFixed(2)));
+    const s2Data = PD_RATING_FIELDS.map(f => parseFloat(avgR(s2Rows, f).toFixed(2)));
 
-    let html = `<div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
-      ${kpiCard(totalSessions, 'Total PD Sessions', '#e76f51')}
-      ${kpiCard(totalResponses, 'Total Responses', '#0050c8')}
-      ${kpiCard(avgOverall.toFixed(1) + '/5', 'Avg Overall Satisfaction', avgOverall >= 4 ? '#059669' : '#d97706')}
-      ${kpiCard(pctRecommend + '%', 'Would Recommend', pctRecommend >= 80 ? '#059669' : '#d97706')}
-    </div>`;
-
-    if (sessions.length) {
-      html += `<div class="ta-card" style="margin-bottom:1rem">
-        <div class="ta-card-title">Latest Session Avg Satisfaction</div>
-        <div style="font-size:2rem;font-weight:800;color:${latestAvg>=4?'#059669':'#d97706'}">${latestAvg.toFixed(1)}<span style="font-size:1rem;font-weight:400;color:var(--muted)">/5</span></div>
-        <div style="font-size:.8rem;color:var(--muted)">${sessions[0].sessionNum} · ${fmtDate(sessions[0].date)}</div>
+    let html = `
+      <!-- KPI row: 5 cards -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-bottom:1.25rem">
+        ${kpiCard(rows.length, 'Total Responses', '#0050c8')}
+        ${kpiCard(sessions.length, 'Sessions Delivered', '#1B2A4A')}
+        ${kpiCard(overallAvg.toFixed(2)+'/5', 'Avg Overall Satisfaction <small style="font-size:.65em">(1–5 scale)</small>', overallAvg>=4.0?'#059669':'#d97706')}
+        ${kpiCard(recRate+'%', 'Recommend Rate', recRate>=80?'#059669':'#d97706')}
+        ${kpiCard((netImprove>=0?'+':'')+netImprove.toFixed(2), 'S1→S2 Net Improvement', netImprove>0?'#059669':'#d97706')}
+      </div>
+      <!-- Charts row 1: radar + grouped bar -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Session Comparison — 5 Dimensions <span style="font-weight:400;font-style:italic;text-transform:none">(Amber=S1, Navy=S2)</span></div>
+          <div style="position:relative;height:230px"><canvas id="tdPdRadarChart"></canvas></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Session-by-Session Ratings (avg, 1–5 scale)</div>
+          <div style="position:relative;height:230px"><canvas id="tdPdGroupedBarChart"></canvas></div>
+        </div>
+      </div>
+      <!-- Charts row 2: role + experience + recommend -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Role Breakdown <span style="font-weight:400;text-transform:none">(n=${rows.length})</span></div>
+          <div style="position:relative;height:200px"><canvas id="tdPdRoleChartA"></canvas></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Experience Distribution (1–5+ yrs)</div>
+          <div style="position:relative;height:200px"><canvas id="tdPdExpChartA"></canvas></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem;text-align:center">
+          <div class="ta-card-title" style="text-align:left">Recommend This PD?</div>
+          <div style="font-size:2.75rem;font-weight:800;color:#2A7D4F;line-height:1;margin-top:.75rem">${recRate}%</div>
+          <div style="font-size:.8rem;color:var(--muted);margin-top:.2rem">would recommend to other sites</div>
+          <div style="display:flex;gap:.4rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;font-size:.78rem">
+            <span style="background:#D6EFD8;color:#166534;padding:.15rem .55rem;border-radius:20px">✓ Yes: ${recYes}</span>
+            <span style="background:#FFF3CD;color:#92400E;padding:.15rem .55rem;border-radius:20px">~ Maybe: ${recMaybe}</span>
+            <span style="background:#FEE2E2;color:#991B1B;padding:.15rem .55rem;border-radius:20px">✗ No: ${recNo}</span>
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:.75rem">Session 2: ${pct(s2RecYes,s2Rows.length)}% recommend</div>
+        </div>
+      </div>
+      <!-- Focus areas -->
+      <div class="ta-card" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">Focus Areas Needing Additional Support (mention count)</div>
+        <div style="position:relative;height:${Math.max(140, focusFreq.length*28)}px"><canvas id="tdPdFocusChartA"></canvas></div>
       </div>`;
-    }
 
-    // Session cards
-    html += `<div style="margin-bottom:1.5rem">
-      <div class="ta-card-title" style="margin-bottom:.75rem">Session Summaries (newest first)</div>`;
-    sessions.forEach((s) => {
-      const focusAreas = [];
-      s.rows.forEach(r => {
-        const raw = r['What focus areas need additional support?'] || '';
-        raw.split(',').map(v => v.trim()).filter(Boolean).forEach(v => focusAreas.push(v));
+    if (getDept() === 'data') {
+      const expGroups = {};
+      rows.forEach(r => {
+        const exp = r['Years of Experience in Tutoring / Education'] || 'Unknown';
+        const v = parseFloat(r['Overall satisfaction with this PD session']);
+        if (!isNaN(v)) { if (!expGroups[exp]) expGroups[exp] = []; expGroups[exp].push(v); }
       });
-      const focusFreq = countFreq(focusAreas).slice(0, 4);
-      const recYes = s.rows.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length;
-      const recPct = pct(recYes, s.rows.length);
-
-      html += `<div class="ta-card" style="margin-bottom:.875rem">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
-          <div>
-            <div style="font-size:1rem;font-weight:700">Session ${s.sessionNum}</div>
-            <div style="font-size:.85rem;color:var(--muted);margin-top:.1rem">
-            ${seasonBadge(s.date)} ${cleanDate(s.date)}
-            ${isSuspectDate(s.date) ? `<span title="Date may be incorrect — recorded as ${new Date(s.date).getFullYear()}" style="cursor:help;margin-left:.25rem">⚠️</span>` : ''}
-          </div>
-          </div>
-          <div style="font-size:.8rem;color:var(--muted)">
-            Facilitator(s): <strong>${s.facilitators}</strong>
-          </div>
-        </div>
-        <div class="ta-grid ta-grid-2" style="gap:.5rem;margin-bottom:.75rem">
-          <div>
-            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.4rem">Rating Dimensions</div>
-            ${PD_RATING_FIELDS.map((field, fi) => {
-              const vals = s.rows.map(r => parseFloat(r[field])).filter(n => !isNaN(n));
-              const a = vals.length ? vals.reduce((sum, n) => sum + n, 0) / vals.length : 0;
-              return `<div class="ta-bar-row" style="margin-bottom:.25rem">
-                <div class="ta-bar-label" title="${field}" style="font-size:.72rem">${PD_RATING_SHORT[fi]}</div>
-                <div class="ta-bar-track"><div class="ta-bar-fill" style="width:${(a/5*100).toFixed(0)}%;background:#e76f51"></div></div>
-                <div class="ta-bar-count" style="font-size:.72rem">${a.toFixed(1)}</div>
-              </div>`;
-            }).join('')}
-          </div>
-          <div>
-            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.4rem">Top Focus Areas Needing Support</div>
-            ${focusFreq.length ? focusFreq.map(([label, cnt]) =>
-              `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
-                <span style="font-size:.75rem;flex:1">${label.length > 40 ? label.slice(0, 38) + '…' : label}</span>
-                <span style="font-size:.72rem;font-weight:700;background:#fff0e0;color:#e76f51;padding:.1rem .4rem;border-radius:4px">${cnt}</span>
-              </div>`
-            ).join('') : '<div style="font-size:.8rem;color:var(--muted)">No focus areas reported</div>'}
-            <div style="margin-top:.625rem;font-size:.75rem;color:var(--muted)">${s.rows.length} responses · ${recPct}% recommend</div>
-          </div>
+      html += `<div class="ta-card" style="padding:1.25rem;border-top:3px solid #1B2A4A">
+        <div class="ta-card-title">Data Dept — Experience × Satisfaction Cross-Tab</div>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+          ${Object.entries(expGroups).map(([exp, vals]) => {
+            const a = avg(vals);
+            return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem;min-width:130px;text-align:center">
+              <div style="font-size:.75rem;color:var(--muted);margin-bottom:.2rem">${exp}</div>
+              <div style="font-size:1.5rem;font-weight:800;color:${a>=4.5?'#059669':a>=4?'#2A7D4F':'#d97706'}">${a.toFixed(2)}</div>
+              <div style="font-size:.7rem;color:var(--muted)">n=${vals.length} · /5</div>
+            </div>`;
+          }).join('')}
         </div>
       </div>`;
-    });
-    html += `</div>`;
-
-    // Charts row
-    html += `<div class="ta-grid ta-grid-2" style="margin-bottom:1.5rem">
-      <div class="ta-card">
-        <div class="ta-card-title">Focus Areas Needing Support</div>
-        <div class="td-chart-wrap"><canvas id="tdPdFocusChart"></canvas></div>
-      </div>
-      <div class="ta-card">
-        <div class="ta-card-title">Rating Trends by Session</div>
-        <div class="td-chart-wrap"><canvas id="tdPdTrendsChart"></canvas></div>
-      </div>
-    </div>`;
-
-    html += `<div class="ta-grid ta-grid-2" style="margin-bottom:1.5rem">
-      <div class="ta-card">
-        <div class="ta-card-title">Role Breakdown</div>
-        <div class="td-chart-wrap"><canvas id="tdPdRoleChart"></canvas></div>
-      </div>
-      <div class="ta-card">
-        <div class="ta-card-title">Years of Experience Distribution</div>
-        <div class="td-chart-wrap"><canvas id="tdPdExpChart"></canvas></div>
-      </div>
-    </div>`;
-
-    // Open responses feed
-    const sessionNums = sessions.map(s => s.sessionNum);
-    html += buildPDOpenResponses(filteredRows, sessionNums);
+    }
 
     container.innerHTML = html;
 
-    // Update filter count badge
-    const countEl = document.getElementById('tdPdFilterCount');
-    if (countEl) countEl.textContent = totalResponses + ' of ' + (_pdData ? _pdData.length : totalResponses) + ' responses';
-
-    // Render charts after DOM update
-    setTimeout(() => renderPDCharts(filteredRows), 50);
+    setTimeout(() => {
+      const radarLabels = ['Objectives', 'Content', 'Actionable', 'Discussion', 'Overall'];
+      makeChart('tdPdRadarChart', {
+        type: 'radar',
+        data: { labels: radarLabels, datasets: [
+          { label: 'PD Session 1', data: s1Data, borderColor: '#C9A84C', backgroundColor: 'rgba(201,168,76,0.12)', pointBackgroundColor: '#C9A84C', borderWidth: 2 },
+          { label: 'PD Session 2', data: s2Data, borderColor: '#1B2A4A', backgroundColor: 'rgba(27,42,74,0.12)', pointBackgroundColor: '#1B2A4A', borderWidth: 2 }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: { r: { min:3, max:5, ticks:{ stepSize:.5, font:{size:9} }, pointLabels:{ font:{size:11} } } },
+          plugins: { legend:{ position:'bottom', labels:{ font:{size:11} } } }
+        }
+      });
+      makeChart('tdPdGroupedBarChart', {
+        type: 'bar',
+        data: { labels: radarLabels, datasets: [
+          { label: 'PD Session 1', data: s1Data, backgroundColor: '#C9A84C', borderRadius: 3 },
+          { label: 'PD Session 2', data: s2Data, backgroundColor: '#1B2A4A', borderRadius: 3 }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false,
+          scales: { y: { min:3, max:5, ticks:{ stepSize:.5 } } },
+          plugins: { legend:{ position:'bottom', labels:{ font:{size:11} } },
+            datalabels:{ anchor:'end', align:'top', font:{size:9}, formatter: v => v != null ? v.toFixed(2) : '' } }
+        }
+      });
+      makeChart('tdPdRoleChartA', {
+        type: 'doughnut',
+        data: { labels: roleFreq.map(([l])=>l), datasets:[{ data: roleFreq.map(([,n])=>n), backgroundColor:['#e76f51','#457b9d','#2a9d8f','#e9c46a','#264653','#6b21a8'] }] },
+        options: { responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ font:{size:10}, boxWidth:12 } } } }
+      });
+      makeChart('tdPdExpChartA', {
+        type: 'bar',
+        data: { labels: expFreq.map(([l])=>l), datasets:[{ data: expFreq.map(([,n])=>n), backgroundColor:'#457b9d', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          plugins: { legend:{display:false}, tooltip:{callbacks:{label: ctx => `${ctx.parsed.x} respondents`}} },
+          scales: { x: { beginAtZero:true, ticks:{precision:0} } }
+        }
+      });
+      makeChart('tdPdFocusChartA', {
+        type: 'bar',
+        data: { labels: focusFreq.map(([l]) => l.length>38 ? l.slice(0,36)+'…' : l), datasets:[{ data: focusFreq.map(([,n])=>n), backgroundColor:'#e76f51', borderRadius:4 }] },
+        options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          plugins: { legend:{display:false}, tooltip:{callbacks:{label: ctx => `${ctx.parsed.x} mentions`}} },
+          scales: { x: { beginAtZero:true, ticks:{precision:0} } }
+        }
+      });
+    }, 50);
   }
+
+  // ── SUB-TAB 2: RESPONSE EXPLORER ───────────────────────────────
+  function renderPDExplorer(container, rows) {
+    const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const allSessions = [...new Set(rows.map(sKey).filter(Boolean))].sort();
+    const allRoles    = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
+    const allExp      = [...new Set(rows.map(r => r['Years of Experience in Tutoring / Education']).filter(Boolean))].sort();
+
+    container.innerHTML = `
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center">
+        <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase">Filter</span>
+        <select class="filter-select" id="pdExpSession" onchange="window.applyPDExplorer()">
+          <option value="">All Sessions</option>
+          ${allSessions.map(s => `<option>${s}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="pdExpRole" onchange="window.applyPDExplorer()">
+          <option value="">All Roles</option>
+          ${allRoles.map(r => `<option>${r}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="pdExpExp" onchange="window.applyPDExplorer()">
+          <option value="">All Experience</option>
+          ${allExp.map(e => `<option>${e}</option>`).join('')}
+        </select>
+        <select class="filter-select" id="pdExpRating" onchange="window.applyPDExplorer()">
+          <option value="">All Ratings</option>
+          <option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
+        </select>
+        <span id="pdExpCount" style="font-size:.75rem;color:var(--muted)">${rows.length} responses</span>
+      </div>
+      <div id="pdExplorerContent"></div>`;
+
+    renderPDExplorerContent(rows);
+  }
+
+  function renderPDExplorerContent(rows) {
+    const container = document.getElementById('pdExplorerContent');
+    if (!container) return;
+    const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+
+    function ratingBg(v) {
+      if (v >= 5) return '#D6EFD8'; if (v >= 4) return '#dcfce7';
+      if (v >= 3) return '#FFF3CD'; if (v >= 2) return '#fee2e2'; return '#fecaca';
+    }
+    function ratingFg(v) {
+      if (v >= 5) return '#166534'; if (v >= 4) return '#2A7D4F';
+      if (v >= 3) return '#92400e'; if (v >= 2) return '#991b1b'; return '#7f1d1d';
+    }
+
+    let html = `<div class="ta-card" style="padding:0;margin-bottom:1rem;overflow:hidden">
+      <div style="overflow-x:auto;max-height:340px;overflow-y:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem;min-width:680px">
+          <thead style="position:sticky;top:0;z-index:1">
+            <tr style="background:#1B2A4A;color:#fff">
+              <th style="padding:.45rem .75rem;text-align:left">Date</th>
+              <th style="padding:.45rem .5rem;text-align:left">Session</th>
+              <th style="padding:.45rem .5rem;text-align:left">Role</th>
+              <th style="padding:.45rem .4rem;text-align:center" title="The PD objectives were clearly communicated.">Obj.</th>
+              <th style="padding:.45rem .4rem;text-align:center" title="The content was directly relevant to my site responsibilities.">Rel.</th>
+              <th style="padding:.45rem .4rem;text-align:center" title="The facilitator(s) provided clear, actionable strategies I can use immediately.">Action.</th>
+              <th style="padding:.45rem .4rem;text-align:center" title="The session allowed for meaningful discussion and participation.">Discuss.</th>
+              <th style="padding:.45rem .4rem;text-align:center" title="Overall satisfaction with this PD session (1=lowest, 5=highest)">Overall</th>
+              <th style="padding:.45rem .4rem;text-align:center">Rec?</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, i) => {
+              const overall = parseFloat(r['Overall satisfaction with this PD session']);
+              const rec = (r['Would you recommend this PD session to other sites?']||'').trim();
+              const sn = sKey(r).replace('PD Session ','S');
+              const hasDetail = r['What is one key takeaway or strategy you plan to apply at your site?'] ||
+                                r['Any additional comments, feedback, or shoutouts?'] ||
+                                r['What additional supports or follow-up would help you implement what was learned?'];
+              return `<tr style="border-bottom:1px solid #e5e7eb;${i%2?'background:#f9fafb':''};cursor:${hasDetail?'pointer':'default'}" ${hasDetail?`onclick="window.pdRowExpand(${i})"`:''}">
+                <td style="padding:.35rem .75rem;white-space:nowrap;color:var(--muted);font-size:.75rem">${fmtDate(r['Date of PD Session'])||'—'}</td>
+                <td style="padding:.35rem .5rem"><span style="background:#dbeafe;color:#1e40af;padding:.1rem .4rem;border-radius:4px;font-size:.7rem;font-weight:700">${sn}</span></td>
+                <td style="padding:.35rem .5rem;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.77rem">${r['Role']||'—'}</td>
+                ${PD_RATING_FIELDS.map(f => {
+                  const v = parseFloat(r[f]);
+                  return `<td style="padding:.35rem .4rem;text-align:center"><span style="background:${ratingBg(v)};color:${ratingFg(v)};padding:.1rem .35rem;border-radius:4px;font-size:.75rem;font-weight:700">${isNaN(v)?'—':v}</span></td>`;
+                }).join('')}
+                <td style="padding:.35rem .4rem;text-align:center;font-size:.75rem;font-weight:700;color:${rec==='Yes'?'#059669':rec==='Maybe'?'#d97706':'#b91c1c'}">${rec==='Yes'?'✓ Yes':rec==='Maybe'?'~ Maybe':'✗ No'}</td>
+              </tr>
+              ${hasDetail ? `<tr id="pdExpRow-${i}" style="display:none;background:#f0f7ff">
+                <td colspan="9" style="padding:.75rem 1rem;font-size:.82rem">
+                  ${r['What is one key takeaway or strategy you plan to apply at your site?'] ? `<div style="margin-bottom:.5rem"><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#e76f51">Key Takeaway</span><div style="margin-top:.15rem">${r['What is one key takeaway or strategy you plan to apply at your site?']}</div></div>` : ''}
+                  ${r['What focus areas need additional support?'] ? `<div style="margin-bottom:.5rem"><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#d97706">Focus Areas Needed</span><div style="margin-top:.15rem">${r['What focus areas need additional support?']}</div></div>` : ''}
+                  ${r['What additional supports or follow-up would help you implement what was learned?'] ? `<div style="margin-bottom:.5rem"><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#457b9d">Support Needed</span><div style="margin-top:.15rem">${r['What additional supports or follow-up would help you implement what was learned?']}</div></div>` : ''}
+                  ${r['Any additional comments, feedback, or shoutouts?'] ? `<div><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)">Comments &amp; Shoutouts</span><div style="margin-top:.15rem">${r['Any additional comments, feedback, or shoutouts?']}</div></div>` : ''}
+                </td>
+              </tr>` : ''}`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+    const takeaways = rows.map(r => ({ text: r['What is one key takeaway or strategy you plan to apply at your site?'], role: r['Role'], sn: sKey(r).replace('PD Session ','S') })).filter(q => q.text && q.text.trim());
+    const comments  = rows.map(r => ({ text: r['Any additional comments, feedback, or shoutouts?'], role: r['Role'], sn: sKey(r).replace('PD Session ','S') })).filter(q => q.text && q.text.trim());
+    const supports  = rows.map(r => ({ text: r['What additional supports or follow-up would help you implement what was learned?'], role: r['Role'], sn: sKey(r).replace('PD Session ','S') })).filter(q => q.text && q.text.trim());
+
+    function quoteCards(quotes, limit) {
+      return quotes.slice(0, limit).map(q =>
+        `<div class="quote-card">
+          <span class="role-badge">${q.sn}</span>
+          ${q.role ? `<span style="font-size:.68rem;color:var(--muted);margin-left:.25rem;font-style:normal">${q.role}</span>` : ''}
+          <div style="margin-top:.3rem">${q.text.length > 180 ? q.text.slice(0,178)+'…' : q.text}</div>
+        </div>`).join('') || '<div style="font-size:.8rem;color:var(--muted);padding:.5rem 0">No responses</div>';
+    }
+
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+      <div class="ta-card" style="padding:1.25rem">
+        <div class="ta-card-title">💡 Key Takeaways (${takeaways.length})</div>
+        <div style="max-height:280px;overflow-y:auto">${quoteCards(takeaways, 15)}</div>
+      </div>
+      <div class="ta-card" style="padding:1.25rem">
+        <div class="ta-card-title">🌟 Shoutouts &amp; Comments (${comments.length})</div>
+        <div style="max-height:280px;overflow-y:auto">${quoteCards(comments, 15)}</div>
+      </div>
+      <div class="ta-card" style="padding:1.25rem">
+        <div class="ta-card-title">🤝 Support Needed (${supports.length})</div>
+        <div style="max-height:280px;overflow-y:auto">${quoteCards(supports, 15)}</div>
+      </div>
+    </div>`;
+
+    container.innerHTML = html;
+    const countEl = document.getElementById('pdExpCount');
+    if (countEl) countEl.textContent = rows.length + ' of ' + (_pdData ? _pdData.length : rows.length) + ' responses';
+  }
+
+  window.pdRowExpand = function(i) {
+    const row = document.getElementById('pdExpRow-' + i);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+  };
+
+  window.applyPDExplorer = function() {
+    if (!_pdData) return;
+    const sKey   = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const sessV  = (document.getElementById('pdExpSession')||{}).value || '';
+    const roleV  = (document.getElementById('pdExpRole')||{}).value || '';
+    const expV   = (document.getElementById('pdExpExp')||{}).value || '';
+    const ratV   = parseInt((document.getElementById('pdExpRating')||{}).value) || 0;
+    const filtered = _pdData.filter(r => {
+      if (!isValidRow(r, 'pd')) return false;
+      if (sessV && sKey(r) !== sessV) return false;
+      if (roleV && (r['Role']||'') !== roleV) return false;
+      if (expV  && (r['Years of Experience in Tutoring / Education']||'') !== expV) return false;
+      if (ratV  && parseInt(r['Overall satisfaction with this PD session']) !== ratV) return false;
+      return true;
+    });
+    renderPDExplorerContent(filtered);
+  };
+
+  // ── SUB-TAB 3: T&D EXECUTIVE SUMMARY ───────────────────────────
+  function renderPDSummary(container, rows) {
+    const dept = getDept();
+    const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const s1Rows = rows.filter(r => sKey(r) === 'PD Session 1');
+    const s2Rows = rows.filter(r => sKey(r) === 'PD Session 2');
+    function avgR(rws, f) {
+      const v = rws.map(r => parseFloat(r[f])).filter(n => !isNaN(n));
+      return v.length ? v.reduce((a,b) => a+b, 0) / v.length : 0;
+    }
+    const overallAvg    = avgR(rows, 'Overall satisfaction with this PD session');
+    const discussAvg    = avgR(rows, 'The session allowed for meaningful discussion and participation.');
+    const contentAvg    = avgR(rows, 'The content was directly relevant to my site responsibilities.');
+    const s1OverallAvg  = avgR(s1Rows, 'Overall satisfaction with this PD session');
+    const s2OverallAvg  = avgR(s2Rows, 'Overall satisfaction with this PD session');
+    const s1DiscussAvg  = avgR(s1Rows, 'The session allowed for meaningful discussion and participation.');
+    const s2DiscussAvg  = avgR(s2Rows, 'The session allowed for meaningful discussion and participation.');
+    const recYes        = rows.filter(r => (r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
+    const s2RecYes      = s2Rows.filter(r => (r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
+    const s2Gain        = s2OverallAvg - s1OverallAvg;
+    const sessions      = [...new Set(rows.map(sKey).filter(Boolean))];
+    const allFocus      = [];
+    rows.forEach(r => parseMultiSelect(r['What focus areas need additional support?']).forEach(v => allFocus.push(v)));
+    const focusTop      = countFreq(allFocus).slice(0, 5);
+    const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+    container.innerHTML = `<div id="td-summary-print">
+      ${dept === 'data' ? `<div class="no-print" style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:1rem">
+        <button class="btn btn-primary btn-sm" onclick="window.tdPDExportPDF()">📄 Export as PDF</button>
+      </div>` : ''}
+
+      <div class="td-print-section" style="background:#1B2A4A;color:#fff;border-radius:10px;padding:1.5rem;margin-bottom:1rem">
+        <div style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#C9A84C;font-weight:700">NJTC Training &amp; Development</div>
+        <div style="font-size:1.2rem;font-weight:800;margin:.25rem 0">SY 2025–2026 | Professional Development Summary</div>
+        <div style="font-size:.8rem;color:#a8b8d8">Generated: ${now}</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">📊 Program at a Glance</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem">
+          ${kpiCard(rows.length, 'Total Responses', '#1B2A4A')}
+          ${kpiCard(sessions.length, 'Sessions', '#1B2A4A')}
+          ${kpiCard(overallAvg.toFixed(2)+'/5', 'Avg Satisfaction', '#2A7D4F')}
+          ${kpiCard(pct(recYes,rows.length)+'%', 'Recommend Rate', '#2A7D4F')}
+        </div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">✨ Glows — What's Working</div>
+        <div class="card-glow">Session 2 marked a significant improvement over Session 1 across all five dimensions, with overall satisfaction rising from <strong>${s1OverallAvg.toFixed(2)}</strong> to <strong>${s2OverallAvg.toFixed(2)}</strong> — a ${pct(s2Gain, s1OverallAvg)}% gain.</div>
+        <div class="card-glow">Discussion quality rated highest in Session 2 (<strong>${s2DiscussAvg.toFixed(2)}/5</strong>), reflecting stronger engagement design.</div>
+        <div class="card-glow"><strong>${pct(recYes,rows.length)}%</strong> of respondents would recommend these PD sessions to other sites; Session 2 reached <strong>${pct(s2RecYes,s2Rows.length)}%</strong> recommend rate.</div>
+        <div class="card-glow">Facilitator team received consistent positive recognition — <strong>Anne Lee</strong> and <strong>Amir Wallace</strong> cited by name across multiple sessions.</div>
+        <div class="card-glow">Content relevance rated the highest overall dimension (<strong>${contentAvg.toFixed(2)}/5</strong>), confirming PD topics resonate with field realities.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">📈 Grows — Areas of Opportunity</div>
+        <div class="card-grow">Overall satisfaction (<strong>${overallAvg.toFixed(2)}/5</strong>) and discussion quality (<strong>${discussAvg.toFixed(2)}/5</strong>) have the most room for growth relative to other dimensions.</div>
+        <div class="card-grow">PD Session 1 discussion quality (<strong>${s1DiscussAvg.toFixed(2)}/5</strong>) was the lowest-rated dimension — signals a need for more structured participation design in early-year sessions.</div>
+        <div class="card-grow">Multiple respondents noted lesson planning PD arrived <em>after</em> scholars had already begun — a timing gap that creates early-year frustration for new tutors.</div>
+        <div class="card-grow">Subject-specific PD (Math vs. ELA differentiation) was explicitly requested — current sessions are cross-content.</div>
+        <div class="card-grow">Atmosphere and tone feedback from Session 1 warrants facilitator reflection and psychological safety design consideration.</div>
+        <div class="card-grow">"PD was too long" noted in Session 2 — session pacing and time management warrant attention.</div>
+        <div class="card-grow"><strong>${focusTop[2] ? focusTop[2][1] : 0} responses</strong> cited Operations/Reporting as a needed focus area — aligns with apprenticeship program support gaps.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">⭐ Standouts</div>
+        <div class="card-standout"><strong>Anne Lee</strong> — Most frequently cited facilitator by name across both sessions; praised for energy, clarity, humor, and instructional quality.</div>
+        <div class="card-standout"><strong>Amir Wallace</strong> — Recognized for respect, directness, and contextualizing the WHY behind program partnerships.</div>
+        <div class="card-standout"><strong>Session 2 Team</strong> — Praised for incorporating movement, grade-level groupwork, and reflective components.</div>
+        <div class="card-standout"><strong>Taneisha Clemmons</strong> — Cited for making sessions comprehensive and providing clarity.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">🎯 Strategic Takeaways &amp; Next Steps</div>
+        <div class="card-action"><strong>1. Front-load lesson planning PD</strong> — Move key instructional content to pre-service or Week 1 to prevent early-year frustration.</div>
+        <div class="card-action"><strong>2. Subject differentiation</strong> — Pilot Math-specific and ELA-specific PD tracks for SY 26–27; significant demand signal from tutors and SCs.</div>
+        <div class="card-action"><strong>3. Formalize scholar survey logistics</strong> — Create a paper-based fallback or site-level Pearl input protocol for sites with limited device access.</div>
+        <div class="card-action"><strong>4. Maintain Session 2 design elements</strong> — Movement, groupwork by grade/site, and reflection components drove Session 2's higher scores; codify as PD design standards.</div>
+        <div class="card-action"><strong>5. Strengthen i-Ready training</strong> — The #1 focus area (${focusTop[0]?focusTop[0][1]:0} mentions); an i-Ready-specific session or embedded module is warranted.</div>
+        <div class="card-action"><strong>6. Atmosphere design</strong> — Embed explicit norms for mutual respect and psychological safety in PD facilitation guide.</div>
+        <div class="card-action"><strong>7. Apprentice-specific content</strong> — Tutor-Apprentices show distinct content needs (OTJ, documentation, scaffolding); explore breakout time within shared PD sessions.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem">
+        <div class="ta-card-title">📊 Data at a Glance</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:1rem">
+          ${PD_RATING_FIELDS.map((f, fi) => {
+            const a = avgR(rows, f); const s1 = avgR(s1Rows, f); const s2 = avgR(s2Rows, f);
+            return `<div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem .5rem">
+              <div style="font-size:1.1rem;font-weight:800;color:${a>=4.5?'#2A7D4F':a>=4?'#059669':'#d97706'}">${a.toFixed(2)}</div>
+              <div style="font-size:.65rem;color:var(--muted);line-height:1.3;margin:.2rem 0">${PD_RATING_SHORT[fi]}</div>
+              <div style="font-size:.65rem;color:#C9A84C">S1: ${s1.toFixed(2)}</div>
+              <div style="font-size:.65rem;color:#1B2A4A">S2: ${s2.toFixed(2)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">Top Focus Areas Needing Support</div>
+        ${focusTop.map(([label, cnt]) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-bottom:1px solid var(--border-2);font-size:.82rem">
+            <span>${label}</span><strong style="color:#e76f51">${cnt} mentions</strong>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  window.tdPDExportPDF = function() {
+    const el = document.getElementById('td-summary-print');
+    if (!el) return;
+    window.print();
+  };
 
   function groupSessions(rows) {
     const map = {};
@@ -842,155 +1116,7 @@
     return Object.values(map).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
 
-  function buildPDOpenResponses(rows, sessionNums) {
-    let html = `<div class="ta-card">
-      <div class="ta-card-title">Open Response Feed</div>
-      <div id="tdPdResponsesList">`;
-
-    rows.slice(0, 30).forEach(r => {
-      const takeaway = (r['What is one key takeaway or strategy you plan to apply at your site?'] || '').trim();
-      const comment  = (r['Any additional comments, feedback, or shoutouts?'] || '').trim();
-      if (!takeaway && !comment) return;
-      html += `<div class="td-check-row" data-session="${r['PD Session Number']}" data-role="${r['Role']}">
-        <div style="flex:1">
-          ${takeaway ? `<div style="margin-bottom:.25rem"><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e76f51">Takeaway</span><div style="font-size:.83rem;margin-top:.15rem">${takeaway}</div></div>` : ''}
-          ${comment  ? `<div><span style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Comment</span><div style="font-size:.83rem;color:var(--muted);margin-top:.15rem">${comment}</div></div>` : ''}
-          <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Session ${(r['PD Session Number '] || r['PD Session Number'] || '?').trim()} · ${r['Role'] || 'Unknown role'} · ${dateLabel(r['Date of PD Session'])}</div>
-        </div>
-      </div>`;
-    });
-
-    html += `</div></div>`;
-    return html;
-  }
-
-  function renderPDCharts(rows) {
-    // Focus areas chart
-    const allFocus = [];
-    rows.forEach(r => {
-      const raw = r['What focus areas need additional support?'] || '';
-      raw.split(',').map(v => v.trim()).filter(Boolean).forEach(v => allFocus.push(v));
-    });
-    const focusFreq = countFreq(allFocus).slice(0, 12);
-
-    if (focusFreq.length) {
-      makeChart('tdPdFocusChart', {
-        type: 'bar',
-        data: {
-          labels: focusFreq.map(([l]) => l.length > 30 ? l.slice(0, 28) + '…' : l),
-          datasets: [{ label: 'Responses', data: focusFreq.map(([, n]) => n), backgroundColor: '#e76f51', borderRadius: 4 }]
-        },
-        options: {
-          indexAxis: 'y',
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { enabled: true } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
-        }
-      });
-    }
-
-    // Rule 8 — Rating trends: grouped bar chart (one group per session, 5 bars per group)
-    // Line charts fail when values cluster between 3.5–5.0; use grouped bar instead
-    const sessions = groupSessions(rows);
-    const sessionsSorted = sessions.slice().reverse();
-    const sessionLabels  = sessionsSorted.map(s => `S${s.sessionNum}`);
-    const barColors      = ['#e76f51', '#457b9d', '#2a9d8f', '#e9c46a', '#264653'];
-
-    const ratingDatasets = PD_RATING_FIELDS.map((field, fi) => ({
-      label: PD_RATING_SHORT[fi],
-      data: sessionsSorted.map(s => {
-        const vals = s.rows.map(r => parseFloat(r[field])).filter(n => !isNaN(n));
-        return vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
-      }),
-      backgroundColor: barColors[fi],
-      borderRadius: 3,
-    }));
-
-    makeChart('tdPdTrendsChart', {
-      type: 'bar',
-      data: { labels: sessionLabels, datasets: ratingDatasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { font: { size: 11 } } },
-          tooltip: { enabled: true },
-          datalabels: {
-            anchor: 'end', align: 'top',
-            font: { size: 9 },
-            formatter: v => v != null ? v.toFixed(1) : ''
-          }
-        },
-        // Rule 8 — y-axis min 2.5, max 5.5 so differences are visible
-        scales: { y: { min: 2.5, max: 5.5, ticks: { stepSize: 0.5 } } }
-      }
-    });
-
-    // Role breakdown donut
-    const roleFreq = countFreq(rows.map(r => r['Role']).filter(Boolean));
-    const roleColors = ['#e76f51','#457b9d','#2a9d8f','#e9c46a','#264653','#6b21a8'];
-    makeChart('tdPdRoleChart', {
-      type: 'doughnut',
-      data: {
-        labels: roleFreq.map(([l]) => l),
-        datasets: [{ data: roleFreq.map(([, n]) => n), backgroundColor: roleColors }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 14 } }, tooltip: { enabled: true } }
-      }
-    });
-
-    // Experience distribution
-    const expFreq = countFreq(rows.map(r => r['Years of Experience in Tutoring / Education']).filter(Boolean));
-    makeChart('tdPdExpChart', {
-      type: 'bar',
-      data: {
-        labels: expFreq.map(([l]) => l),
-        datasets: [{ label: 'Respondents', data: expFreq.map(([, n]) => n), backgroundColor: '#457b9d', borderRadius: 4 }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { enabled: true } },
-        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
-      }
-    });
-  }
-
-  window.applyPDFilter = function() {
-    if (!_pdData) return;
-    const sessionVal = (document.getElementById('tdPdSessionFilter') || {}).value || '';
-    const roleVal    = (document.getElementById('tdPdRoleFilter') || {}).value || '';
-    const seasonVal  = ((document.getElementById('tdPdSeasonFilter') || {}).value || '').toLowerCase();
-    const expVal     = (document.getElementById('tdPdExpFilter') || {}).value || '';
-    const focusVal   = (document.getElementById('tdPdFocusFilter') || {}).value || '';
-
-    const filtered = _pdData.filter(r => {
-      if (!isValidRow(r, 'pd')) return false;
-      // Rule 9.3 — trailing space fallback
-      const sessionNum = ((r['PD Session Number '] || r['PD Session Number'] || '')).trim();
-      if (sessionVal && sessionNum !== sessionVal) return false;
-      if (roleVal && (r['Role'] || '') !== roleVal) return false;
-      if (seasonVal) {
-        const m = (() => { const d = new Date(r['Date of PD Session']); return isNaN(d) ? 0 : d.getMonth() + 1; })();
-        const s = m >= 9 && m <= 11 ? 'fall' : (m === 12 || m === 1 || m === 2) ? 'winter' : m >= 3 && m <= 5 ? 'spring' : 'summer';
-        if (s !== seasonVal) return false;
-      }
-      if (expVal && (r['Years of Experience in Tutoring / Education'] || '') !== expVal) return false;
-      if (focusVal) {
-        // Rule 4 — multi-select: any of the parsed tags must match
-        const tags = parseMultiSelect(r['What focus areas need additional support?']);
-        if (!tags.some(t => t === focusVal)) return false;
-      }
-      return true;
-    });
-
-    renderPDContent(filtered);
-  };
-
-  window.filterPDResponses = function() {
-    // Legacy backward compat — delegate to applyPDFilter
-    window.applyPDFilter();
-  };
+  window.filterPDResponses = function() { window.applyPDExplorer(); };
 
 
   // ══════════════════════════════════════════════════════════════════
@@ -1010,6 +1136,8 @@
     { field: 'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?', short: 'GC Updates' },
   ];
 
+  let _intakeSubTab = 'analytics';
+
   async function renderIntakeTab() {
     const el = document.getElementById('td-content-intake');
     if (!el) return;
@@ -1017,149 +1145,351 @@
     try {
       if (!_intakeData) {
         const text = await fetchCSV(TRAINING_INTAKE_URL);
-        // Rule 9.6 — detect whether row 0 or row 1 is the real header (Timestamp check)
         let parsed = parseCsvText(text, 0);
         if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
-          parsed = parseCsvText(text, 1); // row 0 is blank; row 1 is the header
+          parsed = parseCsvText(text, 1);
           if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
             throw new Error('Intake CSV header not found. Expected "Timestamp" in column A.');
           }
         }
         _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
       }
-      el.innerHTML = buildIntakeHTML(_intakeData);
-      renderIntakeContent(_intakeData);
+      el.innerHTML = buildIntakeTabWrapper();
+      window.tdIntakeSubTab(_intakeSubTab || 'analytics', null);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["intake"]=false;renderIntakeTab();}');
     }
   }
 
-  function buildIntakeHTML(rows) {
-    if (!rows.length) return '<div class="td-error">No training intake data found.</div>';
-
-    const allRoles    = [...new Set(rows.map(r => r['What is your role within NJTC? (Select one)']).filter(Boolean))].sort();
-    const allCerts    = [...new Set(rows.map(r => r['What is your current certification status? (Select one)']).filter(Boolean))].sort();
-    const allDistricts = [...new Set(rows.map(r => r['What District are you assigned to?']).filter(Boolean))].sort();
-    const allSchools  = [...new Set(rows.map(r => r['What School Location are you assigned to?']).filter(Boolean))].sort();
-    // Rule 4/7 — Grade Level is multi-select; get distinct tags
-    const gradeTags   = countTags(rows, 'Which grade level(s) do you work with? (Select all that apply)').map(([tag]) => tag);
-
-    return `<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center">
-      <span style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Filter</span>
-      <select class="filter-select" id="tdIntakeRoleFilter" onchange="applyIntakeFilter()">
-        <option value="">All Roles</option>
-        ${allRoles.map(r => `<option>${r}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdIntakeHireFilter" onchange="applyIntakeFilter()">
-        <option value="">New &amp; Returning</option>
-        <option value="new">New Hires</option>
-        <option value="returning">Returning</option>
-      </select>
-      <select class="filter-select" id="tdIntakeCertFilter" onchange="applyIntakeFilter()">
-        <option value="">All Certifications</option>
-        ${allCerts.map(c => `<option>${c}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdIntakeDistrictFilter" onchange="applyIntakeFilter()">
-        <option value="">All Districts</option>
-        ${allDistricts.map(d => `<option>${d}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdIntakeSchoolFilter" onchange="applyIntakeFilter()">
-        <option value="">All Schools</option>
-        ${allSchools.map(s => `<option>${s}</option>`).join('')}
-      </select>
-      <select class="filter-select" id="tdIntakeGradeFilter" onchange="applyIntakeFilter()">
-        <option value="">All Grade Levels</option>
-        ${gradeTags.map(g => `<option>${g}</option>`).join('')}
-      </select>
-      <span id="tdIntakeFilterCount" style="font-size:.75rem;color:var(--muted)"></span>
+  function buildIntakeTabWrapper() {
+    const now = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+      <div class="td-subtab-nav" style="margin-bottom:0;border-bottom:none;padding-bottom:0">
+        <button id="intST-analytics" class="td-subtab" onclick="window.tdIntakeSubTab('analytics',this)">📊 Intake Analytics</button>
+        <button id="intST-district"  class="td-subtab" onclick="window.tdIntakeSubTab('district',this)">🏫 District View</button>
+        <button id="intST-summary"   class="td-subtab" onclick="window.tdIntakeSubTab('summary',this)">📋 T&amp;D Intake Summary</button>
+      </div>
+      <span style="font-size:.7rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:.2rem .6rem;border-radius:20px">🔴 LIVE · ${now}</span>
     </div>
-    <div id="tdIntakeContent"></div>`;
+    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>
+    <div id="tdIntakeSubContent"></div>`;
   }
 
-  function renderIntakeContent(filteredRows) {
-    const container = document.getElementById('tdIntakeContent');
-    if (!container) return;
-
-    if (!filteredRows.length) {
-      container.innerHTML = '<div class="td-error">No responses match the current filters.</div>';
-      const countEl = document.getElementById('tdIntakeFilterCount');
-      if (countEl) countEl.textContent = '0 of ' + (_intakeData ? _intakeData.length : 0) + ' responses';
-      return;
+  window.tdIntakeSubTab = function(id, btn) {
+    document.querySelectorAll('#td-content-intake .td-subtab').forEach(b => b.classList.remove('active'));
+    const target = btn || document.getElementById('intST-' + id);
+    if (target) target.classList.add('active');
+    _intakeSubTab = id;
+    const container = document.getElementById('tdIntakeSubContent');
+    if (!container || !_intakeData || !_intakeData.length) return;
+    switch (id) {
+      case 'analytics': renderIntakeAnalytics(container, _intakeData); break;
+      case 'district':  renderIntakeDistrictView(container, _intakeData); break;
+      case 'summary':   renderIntakeSummary(container, _intakeData); break;
     }
+  };
 
-    const rows = filteredRows;
-    const total = rows.length;
-    const newHires = rows.filter(r => (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase().includes('new')).length;
-    const certified = rows.filter(r => {
-      const s = (r['What is your current certification status? (Select one)'] || '').toLowerCase();
-      return s.includes('certified') && !s.includes('not') && !s.includes('non') && !s.includes('in progress');
-    }).length;
+  // ── INTAKE SUB-TAB 1: ANALYTICS ────────────────────────────────
+  function renderIntakeAnalytics(container, rows) {
+    const ROLE_COL   = 'What is your role within NJTC? (Select one)';
+    const HIRE_COL   = 'Are you a new or returning hire? (Select one)';
+    const CERT_COL   = 'What is your current certification status? (Select one)';
+    const EFFECT_COL = 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)';
+    const PREP_COL   = 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)';
+    const TRAINER_COL= 'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)';
+    const ASSET_WANT = 'Would you like additional training on implementing an asset-based mindset in training?';
+    const HELPFUL_COL= 'Which areas of training did you find most helpful? (Select all that apply)';
 
-    const effectivenessVals = rows.map(r => parseFloat(r['Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)'])).filter(n => !isNaN(n));
-    const avgEffectiveness = effectivenessVals.length ? effectivenessVals.reduce((s, n) => s + n, 0) / effectivenessVals.length : 0;
+    const total      = rows.length;
+    const newHires   = rows.filter(r => (r[HIRE_COL]||'').toLowerCase().includes('new')).length;
+    const returning  = total - newHires;
+    const certified  = rows.filter(r => { const s=(r[CERT_COL]||'').toLowerCase(); return s.includes('certified')&&!s.includes('not')&&!s.includes('non')&&!s.includes('in progress'); }).length;
+    const wantAsset  = rows.filter(r => (r[ASSET_WANT]||'').toLowerCase().startsWith('y')).length;
 
-    const prepVals = rows.map(r => parseFloat(r['After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)'])).filter(n => !isNaN(n));
-    const avgPrep = prepVals.length ? prepVals.reduce((s, n) => s + n, 0) / prepVals.length : 0;
+    function avgF(f) { const v=rows.map(r=>parseFloat(r[f])).filter(n=>!isNaN(n)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:0; }
+    const avgEffect  = avgF(EFFECT_COL);
+    const avgPrep    = avgF(PREP_COL);
+    const avgTrainer = avgF(TRAINER_COL);
+    const prepColor  = avgPrep>=4?'#059669':avgPrep>=3?'#d97706':'#b91c1c';
 
-    const wantAsset = rows.filter(r => (r['Would you like additional training on implementing an asset-based mindset in training?'] || '').toLowerCase().startsWith('y')).length;
-    const pctWantAsset = pct(wantAsset, total);
+    const allHelpful = [];
+    rows.forEach(r => parseMultiSelect(r[HELPFUL_COL]).forEach(v => allHelpful.push(v)));
+    const helpFreq = countFreq(allHelpful).slice(0, 10);
+    const roleFreq = countFreq(rows.map(r=>r[ROLE_COL]).filter(Boolean));
+    const hireFreq = countFreq(rows.map(r=>r[HIRE_COL]).filter(Boolean));
+    const certFreq = [['Certified', certified], ['Non-Certified', total-certified]];
 
-    let html = `<div class="ta-grid ta-grid-3" style="margin-bottom:1.25rem">
-      ${kpiCard(total, 'Total Responses', '#0050c8')}
-      ${kpiCard(pct(newHires, total) + '%', 'New Hires', '#e76f51')}
-      ${kpiCard(pct(certified, total) + '%', 'Certified Staff', '#2a9d8f')}
-    </div>
-    <div class="ta-grid ta-grid-3" style="margin-bottom:1.5rem">
-      ${kpiCard(avgEffectiveness.toFixed(1) + '/5', 'Avg Training Effectiveness', avgEffectiveness >= 4 ? '#059669' : '#d97706')}
-      ${kpiCard(avgPrep.toFixed(1) + '/5', 'Avg Preparedness Score', avgPrep >= 4 ? '#059669' : '#d97706')}
-      ${kpiCard(pctWantAsset + '%', 'Want More Asset-Based Training', pctWantAsset >= 50 ? '#d97706' : '#059669')}
-    </div>`;
+    // Ratings sorted descending for bar chart
+    const intakeRatings = INTAKE_RATING_FIELDS.map(f => ({ label: f.short, val: avgF(f.field) }))
+      .sort((a,b) => b.val - a.val);
 
-    // Ratings summary
-    html += `<div class="ta-card" style="margin-bottom:1.25rem">
-      <div class="ta-card-title">Ratings Summary (All Dimensions)</div>
-      <div class="td-chart-wrap"><canvas id="tdIntakeRatingsChart"></canvas></div>
-    </div>`;
-
-    // Role & hire type grid
-    html += `<div class="ta-grid ta-grid-2" style="margin-bottom:1.25rem">
-      <div class="ta-card">
-        <div class="ta-card-title">Role Distribution</div>
-        <div class="td-chart-wrap-sm"><canvas id="tdIntakeRoleChart"></canvas></div>
+    let html = `
+      <!-- KPI row: 5 cards -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-bottom:1.25rem">
+        ${kpiCard(total, 'Total Intake Responses', '#0050c8')}
+        ${kpiCard(newHires+' / '+pct(newHires,total)+'%', 'New Hires (58% = SY avg)', '#e76f51')}
+        ${kpiCard(returning+' / '+pct(returning,total)+'%', 'Returning Staff', '#2a9d8f')}
+        ${kpiCard(certified+' / '+pct(certified,total)+'%', 'Certified Staff', '#457b9d')}
+        ${kpiCard(avgTrainer.toFixed(2)+'/5', 'Avg Trainer Rating (highest)', avgTrainer>=4.0?'#059669':'#d97706')}
       </div>
-      <div class="ta-card">
-        <div class="ta-card-title">New vs Returning Hire</div>
-        <div class="td-chart-wrap-sm"><canvas id="tdIntakeHireChart"></canvas></div>
+      <!-- Preparedness gauge + ratings bar -->
+      <div style="display:grid;grid-template-columns:220px 1fr;gap:1rem;margin-bottom:1rem">
+        <div class="ta-card" style="padding:1.25rem;text-align:center">
+          <div class="ta-card-title" style="text-align:left">Readiness Score</div>
+          <div style="font-size:3rem;font-weight:800;color:${prepColor};line-height:1;margin:.75rem 0">${avgPrep.toFixed(2)}</div>
+          <div style="font-size:.75rem;color:var(--muted)">/5 · preparedness to begin with scholars</div>
+          <div style="margin-top:.75rem;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${(avgPrep/5*100).toFixed(0)}%;background:${prepColor};border-radius:4px"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:.2rem"><span>1 = Very Unprepared</span><span>5 = Extremely Prepared</span></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Ratings Comparison — All Dimensions (sorted, avg 1–5 scale)</div>
+          <div style="position:relative;height:220px"><canvas id="tdIntakeRatingsChartA"></canvas></div>
+        </div>
       </div>
-    </div>`;
-
-    // District distribution
-    html += `<div class="ta-card" style="margin-bottom:1.25rem">
-      <div class="ta-card-title">District Distribution</div>
-      <div style="overflow-x:auto" id="tdIntakeDistrictTable">${buildIntakeDistrictTable(rows)}</div>
-    </div>`;
-
-    // Grade levels
-    html += `<div class="ta-card" style="margin-bottom:1.25rem">
-      <div class="ta-card-title">Grade Levels Worked With</div>
-      <div class="td-chart-wrap-sm"><canvas id="tdIntakeGradeChart"></canvas></div>
-    </div>`;
-
-    // Google Classroom panel
-    html += buildGCPanel(rows);
-
-    // Open feedback
-    html += buildIntakeFeedback(rows);
+      <!-- Role, Hire type, Cert donuts -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Role Distribution</div>
+          <div style="position:relative;height:200px"><canvas id="tdIntakeRoleChartA"></canvas></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">New vs Returning Staff</div>
+          <div style="position:relative;height:200px"><canvas id="tdIntakeHireChartA"></canvas></div>
+        </div>
+        <div class="ta-card" style="padding:1.25rem">
+          <div class="ta-card-title">Certification Mix</div>
+          <div style="position:relative;height:200px"><canvas id="tdIntakeCertChartA"></canvas></div>
+        </div>
+      </div>
+      <!-- Most helpful aspects -->
+      <div class="ta-card" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">Most Helpful Training Aspects (multi-select response count)</div>
+        <div style="position:relative;height:${Math.max(130, helpFreq.length*26)}px"><canvas id="tdIntakeHelpfulChartA"></canvas></div>
+      </div>
+      <!-- Google Classroom panel -->
+      ${buildGCPanel(rows)}
+      <!-- Asset-based mindset panel -->
+      <div class="ta-card" style="padding:1.25rem;margin-top:1rem">
+        <div class="ta-card-title">Asset-Based Mindset Signal</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:center">
+          <div>
+            <div style="font-size:2rem;font-weight:800;color:${pct(wantAsset,total)>=50?'#d97706':'#059669'}">${pct(wantAsset,total)}%</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-top:.2rem">of respondents want more asset-based mindset training</div>
+            <div style="font-size:.8rem;margin-top:.5rem">${wantAsset} of ${total} responded "Yes" — a strong demand signal</div>
+          </div>
+          <div style="background:#FFFBEB;border:1px solid #C9A84C;border-radius:8px;padding:1rem;font-size:.85rem;color:#92400e">
+            <strong>Action Signal:</strong> 57%+ demand warrants a dedicated asset-based mindset PD session or extended module for SY 25–26 second semester.
+          </div>
+        </div>
+      </div>`;
 
     container.innerHTML = html;
 
-    // Update filter count badge
-    const countEl = document.getElementById('tdIntakeFilterCount');
-    if (countEl) countEl.textContent = total + ' of ' + (_intakeData ? _intakeData.length : total) + ' responses';
-
-    // Render charts after DOM update
-    setTimeout(() => renderIntakeCharts(rows), 50);
+    setTimeout(() => {
+      // Ratings bar (sorted)
+      makeChart('tdIntakeRatingsChartA', {
+        type: 'bar',
+        data: {
+          labels: intakeRatings.map(d => d.label),
+          datasets: [{ data: intakeRatings.map(d => d.val), backgroundColor: intakeRatings.map(d => d.val>=4?'#10b981':d.val>=3?'#f59e0b':'#ef4444'), borderRadius:4 }]
+        },
+        options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+          plugins: { legend:{display:false}, datalabels:{ anchor:'end', align:'right', font:{size:10}, formatter:v=>v.toFixed(2) } },
+          scales: { x: { min:2.5, max:5.5, ticks:{ stepSize:.5 } } }
+        }
+      });
+      makeChart('tdIntakeRoleChartA', {
+        type: 'doughnut',
+        data: { labels: roleFreq.map(([l])=>l), datasets:[{ data: roleFreq.map(([,n])=>n), backgroundColor:['#e76f51','#457b9d','#2a9d8f','#e9c46a','#264653'] }] },
+        options: { responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ font:{size:10}, boxWidth:12 } } } }
+      });
+      makeChart('tdIntakeHireChartA', {
+        type: 'doughnut',
+        data: { labels: hireFreq.map(([l])=>l), datasets:[{ data: hireFreq.map(([,n])=>n), backgroundColor:['#10b981','#3b82f6','#f59e0b'] }] },
+        options: { responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ font:{size:10}, boxWidth:12 } } } }
+      });
+      makeChart('tdIntakeCertChartA', {
+        type: 'doughnut',
+        data: { labels: certFreq.map(([l])=>l), datasets:[{ data: certFreq.map(([,n])=>n), backgroundColor:['#2a9d8f','#e9c46a'] }] },
+        options: { responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ font:{size:10}, boxWidth:12 } } } }
+      });
+      if (helpFreq.length) {
+        makeChart('tdIntakeHelpfulChartA', {
+          type: 'bar',
+          data: { labels: helpFreq.map(([l]) => l.length>40?l.slice(0,38)+'…':l), datasets:[{ data: helpFreq.map(([,n])=>n), backgroundColor:'#2a9d8f', borderRadius:4 }] },
+          options: { responsive:true, maintainAspectRatio:false, indexAxis:'y',
+            plugins:{ legend:{display:false}, tooltip:{callbacks:{label: ctx => `${ctx.parsed.x} respondents`}} },
+            scales:{ x:{ beginAtZero:true, ticks:{precision:0} } }
+          }
+        });
+      }
+    }, 50);
   }
+
+  // ── INTAKE SUB-TAB 2: DISTRICT VIEW ────────────────────────────
+  function renderIntakeDistrictView(container, rows) {
+    const DIST_COL = 'What District are you assigned to?';
+    const ROLE_COL = 'What is your role within NJTC? (Select one)';
+    const HIRE_COL = 'Are you a new or returning hire? (Select one)';
+    const PREP_COL = 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)';
+    const EFFECT_COL = 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)';
+    const WHAT_NEW_COL = 'What new topics or areas would you like to see added to future training?';
+
+    const allDistricts = [...new Set(rows.map(r => r[DIST_COL]).filter(Boolean))].sort();
+    const networkAvgPrep   = avg(rows.map(r=>parseFloat(r[PREP_COL])).filter(n=>!isNaN(n)));
+    const networkAvgEffect = avg(rows.map(r=>parseFloat(r[EFFECT_COL])).filter(n=>!isNaN(n)));
+
+    let selectedDist = allDistricts[0] || '';
+
+    function renderDistrictPanel(dist) {
+      const dRows = rows.filter(r => r[DIST_COL] === dist);
+      if (!dRows.length) return `<div class="td-error">No responses from ${dist}</div>`;
+      const dPrep   = avg(dRows.map(r=>parseFloat(r[PREP_COL])).filter(n=>!isNaN(n)));
+      const dEffect = avg(dRows.map(r=>parseFloat(r[EFFECT_COL])).filter(n=>!isNaN(n)));
+      const prepDelta = dPrep - networkAvgPrep;
+      const effectDelta = dEffect - networkAvgEffect;
+      const dNewHires = dRows.filter(r=>(r[HIRE_COL]||'').toLowerCase().includes('new')).length;
+      const roleFreq = countFreq(dRows.map(r=>r[ROLE_COL]).filter(Boolean));
+      const newTopics = dRows.map(r=>r[WHAT_NEW_COL]).filter(t=>t&&t.trim());
+
+      function delta(d) {
+        return d > 0.05 ? `<span style="color:#059669;font-weight:700">↑${d.toFixed(2)}</span>` :
+               d < -0.05 ? `<span style="color:#b91c1c;font-weight:700">↓${Math.abs(d).toFixed(2)}</span>` :
+               `<span style="color:var(--muted)">≈ avg</span>`;
+      }
+
+      return `<div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1rem">
+          ${kpiCard(dRows.length, dist+' Responses', '#1B2A4A')}
+          ${kpiCard(dEffect.toFixed(2)+'/5', 'Effectiveness vs Network '+delta(effectDelta), dEffect>=4?'#059669':'#d97706')}
+          ${kpiCard(dPrep.toFixed(2)+'/5', 'Preparedness vs Network '+delta(prepDelta), dPrep>=4?'#059669':'#d97706')}
+          ${kpiCard(dNewHires+' / '+pct(dNewHires,dRows.length)+'%', 'New Hires', '#e76f51')}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+          <div class="ta-card" style="padding:1rem">
+            <div class="ta-card-title">Role Breakdown — ${dist}</div>
+            ${roleFreq.map(([role,n])=>`<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border-2);font-size:.83rem"><span>${role}</span><strong>${n}</strong></div>`).join('')}
+          </div>
+          <div class="ta-card" style="padding:1rem">
+            <div class="ta-card-title">All Districts — Responses at a Glance</div>
+            <div style="overflow-x:auto;max-height:160px;overflow-y:auto">${buildIntakeDistrictTable(rows)}</div>
+          </div>
+        </div>
+        ${newTopics.length ? `<div class="ta-card" style="padding:1rem">
+          <div class="ta-card-title">New Topics Requested — ${dist} (${newTopics.length} responses)</div>
+          <div style="max-height:180px;overflow-y:auto">
+            ${newTopics.map(t=>`<div class="quote-card">${t.length>200?t.slice(0,198)+'…':t}</div>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>`;
+    }
+
+    container.innerHTML = `
+      <div style="margin-bottom:1rem">
+        <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:.5rem">Select District</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.375rem" id="intDistrictPills">
+          ${allDistricts.map(d => `<button class="td-subtab${d===selectedDist?' active':''}" style="font-size:.72rem;padding:.25rem .65rem" onclick="window.intSelectDistrict('${d.replace(/'/g,"\\'")}',this)">${d}</button>`).join('')}
+        </div>
+      </div>
+      <div id="intDistrictPanel">${renderDistrictPanel(selectedDist)}</div>`;
+
+    window.intSelectDistrict = function(dist, btn) {
+      document.querySelectorAll('#intDistrictPills .td-subtab').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const panel = document.getElementById('intDistrictPanel');
+      if (panel) panel.innerHTML = renderDistrictPanel(dist);
+    };
+  }
+
+  // ── INTAKE SUB-TAB 3: T&D INTAKE SUMMARY ───────────────────────
+  function renderIntakeSummary(container, rows) {
+    const dept = getDept();
+    function avgF(f) { const v=rows.map(r=>parseFloat(r[f])).filter(n=>!isNaN(n)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:0; }
+
+    const total       = rows.length;
+    const newHires    = rows.filter(r=>(r['Are you a new or returning hire? (Select one)']||'').toLowerCase().includes('new')).length;
+    const returning   = total - newHires;
+    const certified   = rows.filter(r=>{const s=(r['What is your current certification status? (Select one)']||'').toLowerCase();return s.includes('certified')&&!s.includes('not')&&!s.includes('non')&&!s.includes('in progress');}).length;
+    const wantAsset   = rows.filter(r=>(r['Would you like additional training on implementing an asset-based mindset in training?']||'').toLowerCase().startsWith('y')).length;
+    const avgTrainer  = avgF('The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)');
+    const avgEffect   = avgF('Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)');
+    const avgPrep     = avgF('After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)');
+    const avgMaterials= avgF('The training materials (slides and videos) were useful in preparing me for my role. (1 = Strongly disagree, 5 = Strongly agree)');
+    const avgStructure= avgF('The training itinerary/setup was clear and well-structured. (1 = Strongly disagree, 5 = Strongly agree)');
+    const districts   = [...new Set(rows.map(r=>r['What District are you assigned to?']).filter(Boolean))];
+    const now = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+
+    container.innerHTML = `<div id="td-summary-print">
+      ${dept === 'data' ? `<div class="no-print" style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:1rem">
+        <button class="btn btn-primary btn-sm" onclick="window.tdIntakeExportPDF()">📄 Export as PDF</button>
+      </div>` : ''}
+
+      <div class="td-print-section" style="background:#1B2A4A;color:#fff;border-radius:10px;padding:1.5rem;margin-bottom:1rem">
+        <div style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#C9A84C;font-weight:700">NJTC Training &amp; Development</div>
+        <div style="font-size:1.2rem;font-weight:800;margin:.25rem 0">SY 2025–2026 | Training Intake Report</div>
+        <div style="font-size:.8rem;color:#a8b8d8">Generated: ${now}</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">👥 Cohort Profile</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem">
+          ${kpiCard(total, 'Staff Trained', '#1B2A4A')}
+          ${kpiCard(newHires+' ('+pct(newHires,total)+'%)', 'New Hires', '#e76f51')}
+          ${kpiCard(certified+' ('+pct(certified,total)+'%)', 'Certified', '#2a9d8f')}
+          ${kpiCard(districts.length, 'Districts Represented', '#457b9d')}
+        </div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">✨ Glows — What's Working</div>
+        <div class="card-glow">Trainer knowledge rated highest at <strong>${avgTrainer.toFixed(2)}/5</strong> — staff feel well-supported by the humans delivering training; invest in this strength.</div>
+        <div class="card-glow">Training materials (<strong>${avgMaterials.toFixed(2)}</strong>) and structure (<strong>${avgStructure.toFixed(2)}</strong>) both meet expectations; returning staff specifically praised improved content over last year.</div>
+        <div class="card-glow">Google Classroom demonstrated strong accessibility — majority of staff report no technical issues and multi-device access.</div>
+        <div class="card-glow">Async/self-paced format praised for flexibility and individual pacing.</div>
+        <div class="card-glow">Strong geographic spread: <strong>${districts.length} districts</strong> represented, demonstrating program-wide training reach.</div>
+        <div class="card-glow">Asset-based mindset content registering — majority of respondents scored 4–5 on feeling the training helped them apply this lens.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">📈 Grows — Areas of Opportunity</div>
+        <div class="card-grow">Overall effectiveness (<strong>${avgEffect.toFixed(2)}/5</strong>) sits below the 4.0 mark — the one dimension that does not meet the threshold; warrants targeted improvement in content design.</div>
+        <div class="card-grow"><strong>${newHires} new hires (${pct(newHires,total)}% of cohort)</strong> need stronger onboarding scaffolding — new staff rate preparedness differently and need earlier, more concrete role modeling.</div>
+        <div class="card-grow">iReady platform training is a clear gap — new hires specifically request dedicated iReady instruction.</div>
+        <div class="card-grow">Lesson planning timing: training should precede field placement, not follow it.</div>
+        <div class="card-grow">Dual-role staff (SC/IC) underrepresented in survey design — no role option captured them, skewing data.</div>
+        <div class="card-grow"><strong>${pct(wantAsset,total)}%</strong> of respondents want more asset-based mindset training — this is not a "nice to have," it's a demand signal from ${wantAsset} of ${total} staff.</div>
+        <div class="card-grow">Google Classroom organization and navigation still a learning curve for some staff — "a printed guide" was specifically requested.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem;margin-bottom:1rem">
+        <div class="ta-card-title">🎯 Next Steps &amp; Recommendations</div>
+        <div class="card-action"><strong>1. Redesign training sequence</strong> — Move iReady platform training and lesson planning modules to pre-service Week 0; content must precede scholar contact.</div>
+        <div class="card-action"><strong>2. Develop iReady onboarding module</strong> — Standalone training covering platform navigation, data interpretation, and application to tutoring sessions; prioritize for new hires.</div>
+        <div class="card-action"><strong>3. Create dual-role training track</strong> — SC/IC Dual Role staff (n≈10, ~14%) need differentiated content; update survey to capture this role.</div>
+        <div class="card-action"><strong>4. Asset-based mindset deep dive</strong> — ${pct(wantAsset,total)}% demand signal warrants a dedicated PD session or extended module for SY 25–26 second semester.</div>
+        <div class="card-action"><strong>5. Google Classroom navigation guide</strong> — Produce a 1-page printed and PDF quick-reference for GC task navigation; distribute at in-person orientation.</div>
+        <div class="card-action"><strong>6. Strengthen overall effectiveness score</strong> — Target 4.25+ for SY 26–27 through better pacing, more worked examples, real-scenario demonstrations, and earlier deployment of lesson plan modeling.</div>
+        <div class="card-action"><strong>7. Returning staff differentiation</strong> — ${returning} returning staff (${pct(returning,total)}%); create an advanced/returning track that builds on prior knowledge.</div>
+      </div>
+
+      <div class="ta-card td-print-section" style="padding:1.25rem">
+        <div class="ta-card-title">📊 Data at a Glance</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem">
+          ${INTAKE_RATING_FIELDS.slice(0,6).map(f => {
+            const a = avgF(f.field);
+            return `<div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem .5rem">
+              <div style="font-size:1.1rem;font-weight:800;color:${a>=4.5?'#2A7D4F':a>=4?'#059669':'#d97706'}">${a.toFixed(2)}</div>
+              <div style="font-size:.65rem;color:var(--muted);line-height:1.3">${f.short}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  window.tdIntakeExportPDF = function() { window.print(); };
 
   function buildIntakeDistrictTable(rows) {
     const distFreq = countFreq(rows.map(r => (r['What District are you assigned to?'] || 'Unknown')).filter(Boolean));
@@ -1306,55 +1636,9 @@
     });
   }
 
-  window.applyIntakeFilter = function() {
-    if (!_intakeData) return;
-    const roleVal     = (document.getElementById('tdIntakeRoleFilter') || {}).value || '';
-    const hireVal     = ((document.getElementById('tdIntakeHireFilter') || {}).value || '').toLowerCase();
-    const certVal     = (document.getElementById('tdIntakeCertFilter') || {}).value || '';
-    const districtVal = (document.getElementById('tdIntakeDistrictFilter') || {}).value || '';
-    const schoolVal   = (document.getElementById('tdIntakeSchoolFilter') || {}).value || '';
-    const gradeVal    = (document.getElementById('tdIntakeGradeFilter') || {}).value || '';
-
-    // Cascade: when district changes, rebuild school options
-    const schoolSel = document.getElementById('tdIntakeSchoolFilter');
-    if (schoolSel && districtVal) {
-      const schoolsInDist = [...new Set(
-        _intakeData
-          .filter(r => (r['What District are you assigned to?'] || '') === districtVal)
-          .map(r => r['What School Location are you assigned to?'])
-          .filter(Boolean)
-      )].sort();
-      const curSchool = schoolSel.value;
-      schoolSel.innerHTML = `<option value="">All Schools</option>` +
-        schoolsInDist.map(s => `<option ${s === curSchool ? 'selected' : ''}>${s}</option>`).join('');
-    }
-
-    const filtered = _intakeData.filter(r => {
-      if (!isValidRow(r, 'intake')) return false;
-      if (roleVal && (r['What is your role within NJTC? (Select one)'] || '') !== roleVal) return false;
-      if (hireVal) {
-        const hireStr = (r['Are you a new or returning hire? (Select one)'] || '').toLowerCase();
-        if (hireVal === 'new' && !hireStr.includes('new')) return false;
-        if (hireVal === 'returning' && !hireStr.includes('returning')) return false;
-      }
-      if (certVal && (r['What is your current certification status? (Select one)'] || '') !== certVal) return false;
-      if (districtVal && (r['What District are you assigned to?'] || '') !== districtVal) return false;
-      if (schoolVal && (r['What School Location are you assigned to?'] || '') !== schoolVal) return false;
-      if (gradeVal) {
-        // Rule 4 — multi-select field
-        const tags = parseMultiSelect(r['Which grade level(s) do you work with? (Select all that apply)']);
-        if (!tags.some(t => t === gradeVal)) return false;
-      }
-      return true;
-    });
-
-    renderIntakeContent(filtered);
-  };
-
-  window.filterIntakeTable = function() {
-    // Legacy backward compat — delegate to applyIntakeFilter
-    window.applyIntakeFilter();
-  };
+  // Legacy compat stubs — district view uses its own pill-based filter
+  window.applyIntakeFilter = function() {};
+  window.filterIntakeTable = function() {};
 
 
 
@@ -1498,19 +1782,19 @@
           ${kpiCard(needsFU, 'Needing Follow-Up', needsFU > 0 ? '#b91c1c' : '#059669')}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
-          <div class="ta-card" style="padding:1.25rem">
-            <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">NE Region OTJ Progress</div>
-            <canvas id="tdNeOtjChart" height="180"></canvas>
+          <div class="ta-card" style="padding:1rem">
+            <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">NE Region OTJ Progress</div>
+            <div style="position:relative;height:150px"><canvas id="tdNeOtjChart"></canvas></div>
           </div>
-          <div class="ta-card" style="padding:1.25rem">
-            <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">SW Region OTJ Progress</div>
-            <canvas id="tdSwOtjChart" height="180"></canvas>
+          <div class="ta-card" style="padding:1rem">
+            <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">SW Region OTJ Progress</div>
+            <div style="position:relative;height:150px"><canvas id="tdSwOtjChart"></canvas></div>
           </div>
         </div>
         <div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
           <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">Network Progress Matrix</div>
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+          <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem">
               <thead>
                 <tr style="background:#1B2A4A;color:#fff">
                   <th style="text-align:left;padding:.5rem">District / Network</th>
@@ -1532,19 +1816,21 @@
           </div>
         </div>
         <div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
-          <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">Monthly Observation Coverage</div>
-          <canvas id="tdObsCoverageChart" height="120"></canvas>
+          <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">Monthly Observation Coverage</div>
+          <div style="position:relative;height:100px"><canvas id="tdObsCoverageChart"></canvas></div>
         </div>`;
 
       if (actions.length) {
         html += `<div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
           <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">Action Items &amp; Flags</div>
-          ${actions.slice(0,20).map(a => `
-            <div style="display:flex;gap:.625rem;align-items:flex-start;padding:.625rem .75rem;background:${a.sev==='red'?'#fff5f5':'#fffbeb'};border-radius:8px;margin-bottom:.5rem;font-size:.88rem">
+          <div style="max-height:200px;overflow-y:auto">
+          ${actions.slice(0,30).map(a => `
+            <div style="display:flex;gap:.5rem;align-items:flex-start;padding:.5rem .625rem;background:${a.sev==='red'?'#fff5f5':'#fffbeb'};border-radius:6px;margin-bottom:.375rem;font-size:.83rem">
               <span>${sevIcon[a.sev]||'🟡'}</span>
               <span>${a.msg}</span>
             </div>`).join('')}
-          ${actions.length > 20 ? `<div style="font-size:.8rem;color:#6b7280;margin-top:.5rem">+ ${actions.length-20} more items</div>` : ''}
+          </div>
+          ${actions.length > 30 ? `<div style="font-size:.8rem;color:#6b7280;margin-top:.5rem">+ ${actions.length-30} more items</div>` : ''}
         </div>`;
       } else {
         html += `<div class="ta-card" style="padding:1.25rem;text-align:center;color:#059669;font-weight:600">🟢 No action items — all apprentices on track!</div>`;
