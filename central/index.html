@@ -4403,19 +4403,21 @@
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tdTabNav">
         <button class="pst-tab active" id="tdTab-pd"        onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
         <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
-        <button class="pst-tab"        id="tdTab-tutor-obs" onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
-        <button class="pst-tab"        id="tdTab-sl-obs"    onclick="tdShowTab('sl-obs',this)">👤 Site Leader Obs</button>
-        <button class="pst-tab"        id="tdTab-otj"       onclick="tdShowTab('otj',this)">📝 OTJ Checklist</button>
-        <button class="pst-tab td-mgmt-tab" id="tdTab-mgmt" onclick="tdShowTab('mgmt',this)" style="display:none">🛠️ Checklist Mgmt</button>
+        <button class="pst-tab"        id="tdTab-otj-overview"  onclick="tdShowTab('otj-overview',this)">📋 OTJ Overview</button>
+        <button class="pst-tab"        id="tdTab-apprentice"    onclick="tdShowTab('apprentice',this)">🔍 Apprentice Tracker</button>
+        <button class="pst-tab"        id="tdTab-tutor-obs"     onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
+        <button class="pst-tab"        id="tdTab-sl-obs"        onclick="tdShowTab('sl-obs',this)">🏫 Site Leader Obs</button>
+        <button class="pst-tab"        id="tdTab-doc-vault"     onclick="tdShowTab('doc-vault',this)">📁 Document Vault</button>
       </div>
 
       <!-- Sub-tab content panels -->
-      <div id="td-content-pd"        class="td-tab-content"></div>
-      <div id="td-content-intake"    class="td-tab-content" style="display:none"></div>
-      <div id="td-content-tutor-obs" class="td-tab-content" style="display:none"></div>
-      <div id="td-content-sl-obs"    class="td-tab-content" style="display:none"></div>
-      <div id="td-content-otj"       class="td-tab-content" style="display:none"></div>
-      <div id="td-content-mgmt"      class="td-tab-content" style="display:none"></div>
+      <div id="td-content-pd"           class="td-tab-content"></div>
+      <div id="td-content-intake"       class="td-tab-content" style="display:none"></div>
+      <div id="td-content-otj-overview" class="td-tab-content" style="display:none"></div>
+      <div id="td-content-apprentice"   class="td-tab-content" style="display:none"></div>
+      <div id="td-content-tutor-obs"    class="td-tab-content" style="display:none"></div>
+      <div id="td-content-sl-obs"       class="td-tab-content" style="display:none"></div>
+      <div id="td-content-doc-vault"    class="td-tab-content" style="display:none"></div>
 
       <!-- Legacy target for backward-compat (hidden) -->
       <div id="trainingAnalyticsContent" style="display:none"></div>
