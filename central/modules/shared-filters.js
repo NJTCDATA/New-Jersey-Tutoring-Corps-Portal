@@ -44,6 +44,9 @@
     const execPDFBtn = document.getElementById('tdExecPDFBtn');
     if (execPDFBtn) execPDFBtn.style.display = (dept === 'data') ? '' : 'none';
 
+    // Pearl Operations PDF buttons — Data dept only
+    document.querySelectorAll('.po-pdf-data-only').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
+
     // Show export button only for leadership and kb
     const expBtn = document.getElementById('sidebarExportBtn');
     if (expBtn) {
