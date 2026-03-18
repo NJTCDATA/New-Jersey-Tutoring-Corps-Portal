@@ -6,19 +6,11 @@
   //  6 sub-tabs: PD Sessions · Training Intake · Tutor Obs · SL Obs · OTJ · Mgmt
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── Data source URLs (published CSV — 2PACX format, no auth required) ─
+  // ── Data source URLs (direct export — works for any publicly-shared sheet) ─
   // PD Sessions feedback: spreadsheet 18LyHoN…/gid=471085177
-  // Published 2PACX key mirrors NJTC_SOURCES.PD_SESSIONS_ALL in executive-leadership.js.
-  // If this returns a redirect, re-publish the sheet via File → Share → Publish to web
-  // and update the 2PACX key below.
-  const PD_URL = 'https://docs.google.com/spreadsheets/d/e/' +
-    '2PACX-1vR00JFO9EMSXhlhhBlweXCexxF6JSheT1aJH4-R7P8gWpVfWTqY18PgK5o4CoZxoNogmflERd9YsGkx' +
-    '/pub?output=csv&gid=471085177';
+  const PD_URL = 'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/export?format=csv&gid=471085177';
   // Training Intake: spreadsheet 11OH4pBp…/gid=1298105082
-  // Same 2PACX key used by NJTC_SOURCES.TRAINING_DETAILS (confirmed working — 73 rows).
-  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/e/' +
-    '2PACX-1vRdblJU86VLJWNs4ykc_3GJ9Mr7oe5SDPA0QeYbWQcPsPSqOpWAxGClTiXDH_M3CunJIl0kjA3JUdym' +
-    '/pub?output=csv&gid=1298105082';
+  const TRAINING_INTAKE_URL = 'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/export?format=csv&gid=1298105082';
   // ── Apprenticeship Program Database ───────────────────────────────
   const APPR_SHEET_ID = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
   const APPR_GIDS = {
@@ -163,7 +155,22 @@
   // Rule 4 — multi-select field helpers
   function parseMultiSelect(cellValue) {
     if (!cellValue || cellValue.trim() === '') return [];
-    return cellValue.split(',').map(v => v.trim()).filter(v => v.length > 0);
+    // Support both comma and semicolon delimiters
+    const sep = cellValue.includes(';') && !cellValue.includes(',') ? ';' : ',';
+    return cellValue.split(sep).map(v => v.trim()).filter(v => v.length > 0);
+  }
+
+  // Fuzzy column finder — returns the first key in the rows' header that contains any of the given
+  // lowercase substrings. Useful when sheet column names drift slightly from expected values.
+  function findCol(rows, ...keywords) {
+    if (!rows || !rows.length) return null;
+    const keys = Object.keys(rows[0]);
+    for (const kw of keywords) {
+      const kl = kw.toLowerCase();
+      const found = keys.find(k => k.toLowerCase().includes(kl));
+      if (found) return found;
+    }
+    return null;
   }
 
   function countTags(rows, columnName) {
@@ -1123,18 +1130,33 @@
   //  SUB-TAB 2: TRAINING INTAKE
   // ══════════════════════════════════════════════════════════════════
 
-  const INTAKE_RATING_FIELDS = [
-    { field: 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)', short: 'Overall Effectiveness' },
-    { field: 'The training itinerary/setup was clear and well-structured. (1 = Strongly disagree, 5 = Strongly agree)', short: 'Clear Structure' },
-    { field: 'The training materials (slides and videos) were useful in preparing me for my role. (1 = Strongly disagree, 5 = Strongly agree)', short: 'Materials Useful' },
-    { field: 'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)', short: 'Trainer Quality' },
-    { field: 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)', short: 'Preparedness' },
-    { field: 'The asynchronous videos allowed for a more individualized training experience. (1 = Strongly disagree, 5 = Strongly agree)', short: 'Async Videos' },
-    { field: 'How easy was it to access and navigate Google Classroom?', short: 'GC Navigation' },
-    { field: 'How well-organized were the training modules, assessments, and resources in Google Classroom?', short: 'GC Organization' },
-    { field: 'To what extent did the Google Classroom layout support your understanding of the training material?', short: 'GC Layout Support' },
-    { field: 'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?', short: 'GC Updates' },
+  // Base intake rating fields — field names are resolved against actual row keys via resolveIntakeFields(rows)
+  const INTAKE_RATING_FIELDS_BASE = [
+    { keywords: ['rate the effectiveness of the training', 'effectiveness of the training'], short: 'Overall Effectiveness', field: 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)' },
+    { keywords: ['training itinerary', 'clear and well-structured', 'clear and well structured'], short: 'Clear Structure', field: 'The training itinerary/setup was clear and well-structured. (1 = Strongly disagree, 5 = Strongly agree)' },
+    { keywords: ['training materials (slides and videos)', 'training materials', 'slides and videos'], short: 'Materials Useful', field: 'The training materials (slides and videos) were useful in preparing me for my role. (1 = Strongly disagree, 5 = Strongly agree)' },
+    { keywords: ['trainers were knowledgeable', 'knowledgeable and responsive'], short: 'Trainer Quality', field: 'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)' },
+    { keywords: ['how prepared do you feel', 'prepared to begin working'], short: 'Preparedness', field: 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)' },
+    { keywords: ['asynchronous videos', 'async videos', 'individualized training experience'], short: 'Async Videos', field: 'The asynchronous videos allowed for a more individualized training experience. (1 = Strongly disagree, 5 = Strongly agree)' },
+    { keywords: ['access and navigate google classroom', 'navigate google classroom'], short: 'GC Navigation', field: 'How easy was it to access and navigate Google Classroom?' },
+    { keywords: ['well-organized were the training modules', 'organized were the training'], short: 'GC Organization', field: 'How well-organized were the training modules, assessments, and resources in Google Classroom?' },
+    { keywords: ['layout support your understanding', 'classroom layout support'], short: 'GC Layout Support', field: 'To what extent did the Google Classroom layout support your understanding of the training material?' },
+    { keywords: ['timely updates, announcements', 'updates, announcements, or reminders'], short: 'GC Updates', field: 'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?' },
   ];
+
+  // Resolve INTAKE_RATING_FIELDS against actual row keys, filtering out columns with no data
+  function resolveIntakeFields(rows) {
+    return INTAKE_RATING_FIELDS_BASE.map(f => {
+      const resolved = findCol(rows, ...f.keywords) || f.field;
+      return { field: resolved, short: f.short };
+    }).filter(f => {
+      // Only include fields that actually have numeric data
+      return rows.some(r => !isNaN(parseFloat(r[f.field])));
+    });
+  }
+
+  // Fallback constant for code paths that don't have rows at call time
+  const INTAKE_RATING_FIELDS = INTAKE_RATING_FIELDS_BASE.map(f => ({ field: f.field, short: f.short }));
 
   let _intakeSubTab = 'analytics';
 
@@ -1191,14 +1213,15 @@
 
   // ── INTAKE SUB-TAB 1: ANALYTICS ────────────────────────────────
   function renderIntakeAnalytics(container, rows) {
-    const ROLE_COL   = 'What is your role within NJTC? (Select one)';
-    const HIRE_COL   = 'Are you a new or returning hire? (Select one)';
-    const CERT_COL   = 'What is your current certification status? (Select one)';
-    const EFFECT_COL = 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)';
-    const PREP_COL   = 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)';
-    const TRAINER_COL= 'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)';
-    const ASSET_WANT = 'Would you like additional training on implementing an asset-based mindset in training?';
-    const HELPFUL_COL= 'Which areas of training did you find most helpful? (Select all that apply)';
+    // Use findCol for resilient matching — sheet column names may differ slightly
+    const ROLE_COL   = findCol(rows, 'what is your role within njtc', 'your role within') || 'What is your role within NJTC? (Select one)';
+    const HIRE_COL   = findCol(rows, 'new or returning hire', 'returning hire') || 'Are you a new or returning hire? (Select one)';
+    const CERT_COL   = findCol(rows, 'certification status', 'currently certified') || 'What is your current certification status? (Select one)';
+    const EFFECT_COL = findCol(rows, 'rate the effectiveness of the training', 'effectiveness of the training') || 'Overall, how would you rate the effectiveness of the training? (1 = Did not meet expectations, 5 = Exceeded expectations)';
+    const PREP_COL   = findCol(rows, 'how prepared do you feel', 'prepared to begin working') || 'After completing training, how prepared do you feel to begin working with scholars? (1 = Very unprepared, 5 = Extremely prepared)';
+    const TRAINER_COL= findCol(rows, 'trainers were knowledgeable', 'knowledgeable and responsive') || 'The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)';
+    const ASSET_WANT = findCol(rows, 'additional training on implementing an asset', 'asset-based mindset in training') || 'Would you like additional training on implementing an asset-based mindset in training?';
+    const HELPFUL_COL= findCol(rows, 'most helpful', 'areas of training did you find', 'find most helpful') || 'Which areas of training did you find most helpful? (Select all that apply)';
 
     const total      = rows.length;
     const newHires   = rows.filter(r => (r[HIRE_COL]||'').toLowerCase().includes('new')).length;
@@ -1219,8 +1242,9 @@
     const hireFreq = countFreq(rows.map(r=>r[HIRE_COL]).filter(Boolean));
     const certFreq = [['Certified', certified], ['Non-Certified', total-certified]];
 
-    // Ratings sorted descending for bar chart
-    const intakeRatings = INTAKE_RATING_FIELDS.map(f => ({ label: f.short, val: avgF(f.field) }))
+    // Ratings sorted descending for bar chart — use resolved fields for accurate column matching
+    const resolvedFields = resolveIntakeFields(rows);
+    const intakeRatings = resolvedFields.map(f => ({ label: f.short, val: avgF(f.field) }))
       .sort((a,b) => b.val - a.val);
 
     let html = `
@@ -1266,7 +1290,10 @@
       <!-- Most helpful aspects -->
       <div class="ta-card" style="padding:1.25rem;margin-bottom:1rem">
         <div class="ta-card-title">Most Helpful Training Aspects (multi-select response count)</div>
-        <div style="position:relative;height:${Math.max(130, helpFreq.length*26)}px"><canvas id="tdIntakeHelpfulChartA"></canvas></div>
+        ${helpFreq.length
+          ? `<div style="position:relative;height:${Math.max(130, helpFreq.length * 26)}px"><canvas id="tdIntakeHelpfulChartA"></canvas></div>`
+          : `<div style="color:var(--muted);font-size:.85rem;padding:.75rem 0;text-align:center">No responses recorded for this question in the current dataset.</div>`
+        }
       </div>
       <!-- Google Classroom panel -->
       ${buildGCPanel(rows)}
@@ -1477,7 +1504,7 @@
       <div class="ta-card td-print-section" style="padding:1.25rem">
         <div class="ta-card-title">📊 Data at a Glance</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem">
-          ${INTAKE_RATING_FIELDS.slice(0,6).map(f => {
+          ${resolveIntakeFields(rows).slice(0,6).map(f => {
             const a = avgF(f.field);
             return `<div style="text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.75rem .5rem">
               <div style="font-size:1.1rem;font-weight:800;color:${a>=4.5?'#2A7D4F':a>=4?'#059669':'#d97706'}">${a.toFixed(2)}</div>
@@ -1511,18 +1538,21 @@
   }
 
   function buildGCPanel(rows) {
+    // Use fuzzy matching so minor column wording changes don't produce 0.0 values
     const gcFields = [
-      { field: 'How easy was it to access and navigate Google Classroom?', short: 'Navigation Ease' },
-      { field: 'How well-organized were the training modules, assessments, and resources in Google Classroom?', short: 'Organization' },
-      { field: 'To what extent did the Google Classroom layout support your understanding of the training material?', short: 'Layout Support' },
-      { field: 'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?', short: 'Updates/Reminders' },
+      { field: findCol(rows, 'access and navigate google classroom', 'navigate google classroom') || 'How easy was it to access and navigate Google Classroom?', short: 'Navigation Ease' },
+      { field: findCol(rows, 'well-organized were the training modules', 'organized were the training') || 'How well-organized were the training modules, assessments, and resources in Google Classroom?', short: 'Organization' },
+      { field: findCol(rows, 'layout support your understanding', 'classroom layout support') || 'To what extent did the Google Classroom layout support your understanding of the training material?', short: 'Layout Support' },
+      { field: findCol(rows, 'timely updates, announcements', 'updates, announcements, or reminders') || 'How effective was Google Classroom in providing timely updates, announcements, or reminders regarding course work?', short: 'Updates/Reminders' },
     ];
+    const techCol = findCol(rows, 'technical issues you experienced', 'technical issues') || 'Were there any technical issues you experienced while using Google Classroom?';
+    const gcUnderstandCol = findCol(rows, 'clearly understand how to use google classroom', 'understand how to use google') || 'Did you clearly understand how to use Google Classroom for all required tasks (e.g., submitting assignments, watching videos, completing assessments)?';
     const hasTechIssues = rows.filter(r => {
-      const v = (r['Were there any technical issues you experienced while using Google Classroom?'] || '').toLowerCase();
+      const v = (r[techCol] || '').toLowerCase();
       return v !== '' && v !== 'no' && v !== 'none' && v !== 'n/a';
     }).length;
     const understoodGC = rows.filter(r => {
-      const v = (r['Did you clearly understand how to use Google Classroom for all required tasks (e.g., submitting assignments, watching videos, completing assessments)?'] || '').toLowerCase();
+      const v = (r[gcUnderstandCol] || '').toLowerCase();
       return v.startsWith('y');
     }).length;
 
@@ -1532,9 +1562,11 @@
 
     gcFields.forEach(f => {
       const vals = rows.map(r => parseFloat(r[f.field])).filter(n => !isNaN(n));
-      const a = vals.length ? vals.reduce((s, n) => s + n, 0) / vals.length : 0;
+      const a = vals.length ? vals.reduce((s, n) => s + n, 0) / vals.length : null;
+      const display = a !== null ? a.toFixed(1) : 'N/A';
+      const color = a === null ? 'var(--muted)' : a >= 4 ? '#059669' : '#d97706';
       html += `<div class="ta-card" style="padding:.75rem">
-        <div style="font-size:1.4rem;font-weight:800;color:${a>=4?'#059669':'#d97706'}">${a.toFixed(1)}</div>
+        <div style="font-size:1.4rem;font-weight:800;color:${color}">${display}</div>
         <div style="font-size:.72rem;color:var(--muted)">${f.short}</div>
       </div>`;
     });
@@ -1567,8 +1599,9 @@
   }
 
   function renderIntakeCharts(rows) {
-    // Ratings bar chart
-    const avgRatings = INTAKE_RATING_FIELDS.map(f => {
+    // Ratings bar chart — use resolved fields to skip columns with no data
+    const resolvedFields = resolveIntakeFields(rows);
+    const avgRatings = resolvedFields.map(f => {
       const vals = rows.map(r => parseFloat(r[f.field])).filter(n => !isNaN(n));
       return vals.length ? parseFloat((vals.reduce((s, n) => s + n, 0) / vals.length).toFixed(2)) : 0;
     });
@@ -1577,7 +1610,7 @@
     makeChart('tdIntakeRatingsChart', {
       type: 'bar',
       data: {
-        labels: INTAKE_RATING_FIELDS.map(f => getDisplayLabel(f.field) || f.short),
+        labels: resolvedFields.map(f => getDisplayLabel(f.field) || f.short),
         datasets: [{ label: 'Avg Score', data: avgRatings, backgroundColor: barColors, borderRadius: 4 }]
       },
       options: {
