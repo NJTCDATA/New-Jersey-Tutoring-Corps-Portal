@@ -1,7 +1,7 @@
 {
-  "generated": "2026-04-02T08:33:54.880Z",
+  "generated": "2026-04-02T09:56:57.151Z",
   "project": "1211431518555737",
-  "count": 34,
+  "count": 33,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -496,32 +496,6 @@
       "name": "2025-2026 Program Evaluation completed by August 2026.",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212817919470310"
-    },
-    {
-      "gid": "1211431518555924",
-      "assignee": {
-        "gid": "1208833157453193",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-03-16",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Data governance is documented for external reporting by March 2026\n",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555924"
     },
     {
       "gid": "1211431518555926",
