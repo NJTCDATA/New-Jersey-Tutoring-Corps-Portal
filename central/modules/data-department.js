@@ -2212,6 +2212,7 @@
           ? renderQuickCSVMode()
           : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}</div>${_irlInsightHTML}</div>`
         }
+        ${(()=>{ try { return (typeof impactBuilder!=='undefined') ? impactBuilder.renderSection() : ''; } catch(e){ return ''; } })()}
       </div>`;
 
       // Initialize Chart.js charts after HTML is set
@@ -2222,6 +2223,8 @@
         _initGrowthDistChart(elaAllRows, mathAllRows);
         _initPlacementDistChart(pairRows);
       }
+      // Initialize Impact Report Builder charts (if report is generated)
+      try { if (typeof impactBuilder !== 'undefined') impactBuilder.postRender(); } catch(e) {}
     }
 
     function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {

@@ -1568,6 +1568,17 @@
       getLeadershipData: function() {
         if (!_attRows || !_attRows.length) return null;
         try { return getLeadershipData(); } catch(e) { return null; }
+      },
+
+      // getAttRows() — raw attendance rows for Impact Report Builder (Data dept)
+      // Returns a shallow copy so callers cannot mutate internal state.
+      getAttRows: function() {
+        return _attRows ? _attRows.slice() : [];
+      },
+
+      // isDataLoaded() — true once at least one successful fetch has completed
+      isDataLoaded: function() {
+        return _inited && _attRows.length > 0;
       }
     };
     }
