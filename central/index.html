@@ -4898,6 +4898,18 @@
             <label class="irb-radio"><input type="radio" name="irbRegion" value="SW"> SW</label>
           </div>
 
+          <!-- District Filter -->
+          <div class="irb-section-hdr" style="margin-top:1rem">District</div>
+          <select id="irbDistrictFilter" class="irb-select" style="width:100%;margin-bottom:.4rem" onchange="irb.onDistrictChange()">
+            <option value="">All Districts</option>
+          </select>
+
+          <!-- School Filter -->
+          <div class="irb-section-hdr" style="margin-top:.625rem">School</div>
+          <select id="irbSchoolFilter" class="irb-select" style="width:100%" onchange="irb.onFilterChange()">
+            <option value="">All Schools</option>
+          </select>
+
           <!-- Time Period -->
           <div class="irb-section-hdr" style="margin-top:1rem">Time Period</div>
           <div class="irb-period-row">
