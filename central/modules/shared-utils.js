@@ -634,6 +634,9 @@
     if (id === "iready-lab") {
       setTimeout(() => { if (window.irlab) irlab.onPanelOpen(); }, 50);
     }
+    if (id === "impact-report") {
+      setTimeout(() => { if (window.irb) irb.onPanelOpen(); }, 50);
+    }
     // Note: Knowtion render is handled exclusively by the IIFE override below (no double-render)
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
