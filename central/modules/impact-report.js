@@ -143,6 +143,9 @@ var _rankSort   = { col: 'scholars', dir: 'desc' };
 var _rankPage   = 0;
 var _lastReport = null;
 var _trendChart = null;
+// District / school filter state (empty string = all)
+var _filtDistrict = '';
+var _filtSchool   = '';
 
 var REASON_COLORS = [
   '#7b2d8b','#e63946','#f4845f','#ffd166','#06d6a0',
@@ -212,7 +215,7 @@ function getPriorRange(range) {
 // ── Core data processing ─────────────────────────────────────────────────
 var SESSION_MINS = 45;
 
-function processRows(attRows, selectedIds, region, dateRange) {
+function processRows(attRows, selectedIds, region, dateRange, districtFilter, schoolFilter) {
   var events = [];
   attRows.forEach(function(r) {
     var school = r[C.SCHOOL] || '';
@@ -230,6 +233,9 @@ function processRows(attRows, selectedIds, region, dateRange) {
     var dist = r[C.DISTRICT] || '';
     var reg  = getRegion(school, dist);
     if (region !== 'all' && reg !== region) return;
+    // District / school filters
+    if (districtFilter && dist !== districtFilter) return;
+    if (schoolFilter   && school !== schoolFilter)  return;
     events.push({
       date:d, dateStr:fmtMDY(d), school:school, district:dist, region:reg,
       userId: r[C.USER_ID] || r[C.USER] || '',
@@ -316,6 +322,79 @@ function getRegionFilter() {
   return radio ? radio.value : 'all';
 }
 
+function getDistrictFilterVal() {
+  var el = document.getElementById('irbDistrictFilter');
+  return el ? el.value : '';
+}
+
+function getSchoolFilterVal() {
+  var el = document.getElementById('irbSchoolFilter');
+  return el ? el.value : '';
+}
+
+// Populate district + school dropdowns from live Pearl data
+function populateDistrictSchool() {
+  if (!window.po || !window.po.getAttRows) return;
+  var rows = window.po.getAttRows();
+  var districtSet = {};
+  var schoolByDist = {};  // dist -> Set of schools
+
+  rows.forEach(function(r) {
+    var school = r[C.SCHOOL] || '';
+    var dist   = r[C.DISTRICT] || '';
+    if (!school || school.toLowerCase().startsWith('zzz')) return;
+    if (dist) districtSet[dist] = true;
+    if (!schoolByDist[dist]) schoolByDist[dist] = {};
+    schoolByDist[dist][school] = true;
+  });
+
+  // Stash for later use in onDistrictChange
+  _irbDistrictSchoolMap = schoolByDist;
+
+  var distEl = document.getElementById('irbDistrictFilter');
+  if (distEl) {
+    var cur = distEl.value;
+    distEl.innerHTML = '<option value="">All Districts</option>' +
+      Object.keys(districtSet).sort().map(function(d) {
+        return '<option value="'+esc(d)+'"'+(d===cur?' selected':'')+'>'+esc(d)+'</option>';
+      }).join('');
+  }
+  // Trigger school list refresh
+  onDistrictChange();
+}
+
+// Module-level map populated by populateDistrictSchool
+var _irbDistrictSchoolMap = {};
+
+function onDistrictChange() {
+  var distEl   = document.getElementById('irbDistrictFilter');
+  var schoolEl = document.getElementById('irbSchoolFilter');
+  if (!distEl || !schoolEl) return;
+  var selDist = distEl.value;
+  var curSchool = schoolEl.value;
+
+  // Build school list: if district selected, only that district's schools; else all
+  var schools = {};
+  if (selDist) {
+    schools = _irbDistrictSchoolMap[selDist] || {};
+  } else {
+    Object.values(_irbDistrictSchoolMap).forEach(function(sMap) {
+      Object.keys(sMap).forEach(function(s) { schools[s] = true; });
+    });
+  }
+
+  schoolEl.innerHTML = '<option value="">All Schools</option>' +
+    Object.keys(schools).sort().map(function(s) {
+      return '<option value="'+esc(s)+'"'+(s===curSchool?' selected':'')+'>'+esc(s)+'</option>';
+    }).join('');
+
+  onFilterChange();
+}
+
+function onFilterChange() {
+  updateLiveCount();
+}
+
 function updateWeekLabel() {
   var labelEl = document.getElementById('irbWeekLabel');
   if (!labelEl) return;
@@ -330,7 +409,7 @@ function updateLiveCount() {
   if (window.po && window.po.isDataLoaded && window.po.isDataLoaded()) {
     var range  = getDateRange();
     var rows   = window.po.getAttRows();
-    count = processRows(rows, selected, region, range).length;
+    count = processRows(rows, selected, region, range, getDistrictFilterVal(), getSchoolFilterVal()).length;
   }
   var el = document.getElementById('irbReasonCount');
   if (el) el.textContent = selected.length + ' reason(s) selected  \u2192  ' + count + ' total events in current period';
@@ -484,13 +563,16 @@ function _generateSync(selectedIds, region, range, label) {
   if (!selectedIds.length) {
     showError('No reasons selected. Please check at least one missed reason.'); return; }
 
+  var distF = getDistrictFilterVal();
+  var schF  = getSchoolFilterVal();
+
   var rows = window.po.getAttRows();
-  var events = processRows(rows, selectedIds, region, range);
+  var events = processRows(rows, selectedIds, region, range, distF, schF);
   var agg    = aggregateEvents(events);
 
   // Prior period
   var priorRange  = getPriorRange(range);
-  var priorEvents = processRows(rows, selectedIds, region, priorRange);
+  var priorEvents = processRows(rows, selectedIds, region, priorRange, distF, schF);
   var priorAgg    = aggregateEvents(priorEvents);
 
   // 8-week trend (always)
@@ -501,7 +583,7 @@ function _generateSync(selectedIds, region, range, label) {
     var wMon   = addDays(thisMon, -wi * 7);
     var wEnd   = addDays(wMon, 7);
     var wLabel = fmtDate(wMon, true);
-    var wRows  = processRows(rows, selectedIds, region, {start:wMon, end:wEnd});
+    var wRows  = processRows(rows, selectedIds, region, {start:wMon, end:wEnd}, distF, schF);
     var wAgg   = aggregateEvents(wRows);
     trend8.push({ label:wLabel, scholars:wAgg.scholars, sessions:wAgg.sessions, wMon:wMon,
                   byReason: wAgg.byReason });
@@ -510,6 +592,7 @@ function _generateSync(selectedIds, region, range, label) {
 
   // Cache last report for exports
   _lastReport = { selectedIds:selectedIds, region:region, range:range, label:label,
+                  districtFilter:distF, schoolFilter:schF,
                   events:events, agg:agg, priorAgg:priorAgg, trend8:trend8,
                   avg8Scholars:avg8Scholars, generatedAt: new Date() };
 
@@ -538,9 +621,12 @@ function buildReportHTML(r) {
   var reasonsShort = reasonsList.length <= 3 ? reasonsList.join(', ')
                    : reasonsList.slice(0,3).join(', ') + ' +' + (reasonsList.length-3) + ' more';
   var ts = r.generatedAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  var distPill  = r.districtFilter ? '<span class="irb-rh-pill">'+esc(r.districtFilter)+'</span>' : '';
+  var schoolPill = r.schoolFilter  ? '<span class="irb-rh-pill">'+esc(r.schoolFilter)+'</span>'  : '';
   html += '<div class="irb-report-header">' +
     '<div class="irb-rh-title">'+(r.label ? esc(r.label) : 'Impact Report')+'</div>' +
     '<span class="irb-rh-pill">'+regionLabel+'</span>' +
+    distPill + schoolPill +
     '<span class="irb-rh-pill">'+esc(r.range.label)+'</span>' +
     '<span class="irb-rh-pill" title="'+esc(reasonsList.join(', '))+'">'+esc(reasonsShort)+'</span>' +
     '<span class="irb-rh-ts">Generated '+ts+'</span>' +
@@ -568,7 +654,7 @@ function buildReportHTML(r) {
     '<div class="irb-chart-title">8-Week Scholar Impact Trend' +
     (r.avg8Scholars ? ' <span style="font-size:.7rem;font-weight:400;color:var(--muted)">(8-wk avg: '+r.avg8Scholars+' scholars/week)</span>' : '') +
     '</div>' +
-    '<canvas id="irbTrendCanvas" height="160"></canvas>' +
+    '<div style="position:relative;height:180px"><canvas id="irbTrendCanvas"></canvas></div>' +
     '</div>';
 
   // BLOCK 4: Ranking table
@@ -577,8 +663,8 @@ function buildReportHTML(r) {
   // BLOCK 5: Export controls
   html += '<div class="irb-export-bar">' +
     '<button class="irb-export-btn" onclick="irb.exportCSV()">\u2b07 CSV \u2014 Session Detail</button>' +
-    '<button class="irb-export-btn irb-btn-primary" onclick="irb.exportExecutive()">\u2b07 Executive Export</button>' +
-    '<button class="irb-export-btn" onclick="irb.printView()">\ud83d\udda8 Print / PDF View</button>' +
+    '<button class="irb-export-btn" onclick="irb.exportExecutive()">\u2b07 Executive Export</button>' +
+    '<button class="irb-export-btn irb-btn-primary" onclick="irb.exportPDF()">\ud83d\udcc4 Export PDF for Leadership</button>' +
     '</div>';
 
   return html;
@@ -982,6 +1068,7 @@ function renderTrendChart(r) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Parent div has height:180px — chart fills it exactly
         plugins: {
           legend: { display: multiR, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
           tooltip: { mode: 'index', intersect: false }
@@ -1212,6 +1299,12 @@ function downloadCSV(rows, filename) {
   setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
 }
 
+// ── PDF Export (leadership-ready clean print) ─────────────────────────────
+function exportPDF() {
+  // Same as printView but triggers print immediately — user saves as PDF
+  printView();
+}
+
 // ── Print / PDF View ──────────────────────────────────────────────────────
 function printView() {
   if (!_lastReport) return;
@@ -1303,7 +1396,7 @@ function init() {
     cb.addEventListener('change', updateLiveCount);
   });
   document.querySelectorAll('input[name="irbRegion"]').forEach(function(r) {
-    r.addEventListener('change', updateLiveCount);
+    r.addEventListener('change', function() { populateDistrictSchool(); });
   });
   var periodEl = document.getElementById('irbPeriodMode');
   if (periodEl) periodEl.addEventListener('change', function() { onPeriodModeChange(); });
@@ -1324,24 +1417,35 @@ function init() {
 function onPanelOpen() {
   if (!_inited) init();
   updateSyncStatus();
+  // Populate district/school dropdowns once Pearl data is ready
+  if (window.po && window.po.isDataLoaded && window.po.isDataLoaded()) {
+    populateDistrictSchool();
+  } else {
+    setTimeout(function() {
+      if (window.po && window.po.isDataLoaded && window.po.isDataLoaded()) populateDistrictSchool();
+    }, 2000);
+  }
   updateLiveCount();
 }
 
 // ── Public API ────────────────────────────────────────────────────────────
 window.irb = {
-  onPanelOpen:    onPanelOpen,
-  applyPreset:    applyPreset,
-  savePreset:     savePreset,
-  _loadPreset:    _loadPreset,
-  _deletePreset:  _deletePreset,
-  generate:       generate,
-  shiftWeek:      shiftWeek,
+  onPanelOpen:        onPanelOpen,
+  applyPreset:        applyPreset,
+  savePreset:         savePreset,
+  _loadPreset:        _loadPreset,
+  _deletePreset:      _deletePreset,
+  generate:           generate,
+  shiftWeek:          shiftWeek,
   onPeriodModeChange: onPeriodModeChange,
-  exportCSV:      exportCSV,
-  exportExecutive:exportExecutive,
-  printView:      printView,
-  _sortRanking:   _sortRanking,
-  _rankPage:      _rankPage,
+  onDistrictChange:   onDistrictChange,
+  onFilterChange:     onFilterChange,
+  exportCSV:          exportCSV,
+  exportExecutive:    exportExecutive,
+  printView:          printView,
+  exportPDF:          exportPDF,
+  _sortRanking:       _sortRanking,
+  _rankPage:          _rankPage,
 };
 
 })();
