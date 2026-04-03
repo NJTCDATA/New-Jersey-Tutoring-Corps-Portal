@@ -47,9 +47,8 @@
     // Pearl Operations PDF buttons — Data dept only
     document.querySelectorAll('.po-pdf-data-only').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
 
-    // Impact Report Builder — Data dept + leadership + kb
-    const IRB_DEPTS = ['data', 'leadership', 'kb'];
-    document.querySelectorAll('.dept-nav-irb').forEach(b => b.style.display = IRB_DEPTS.includes(dept) ? '' : 'none');
+    // Impact Report Builder — Data dept only
+    document.querySelectorAll('.dept-nav-irb').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
 
     // Show export button only for leadership and kb
     const expBtn = document.getElementById('sidebarExportBtn');
