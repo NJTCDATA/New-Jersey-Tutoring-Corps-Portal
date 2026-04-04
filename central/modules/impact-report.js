@@ -1783,7 +1783,7 @@ function exportPDFProgram() {
         '<td style="padding:4pt 8pt;font-size:7.5pt;color:#64748b">'+esc(grp)+'</td>' +
         '<td style="padding:4pt 8pt;text-align:center;font-weight:700;font-size:9pt">'+rd.scholarCount+'</td>' +
         '<td style="padding:4pt 8pt;text-align:center;font-size:8.5pt;font-weight:600">'+rd.sessions+'</td>' +
-        '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'++(rd.mins/60).toFixed(1)+'h</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+(+(rd.mins/60).toFixed(1))+'h</td>' +
         '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+pct+'%</td>' +
         '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+dStr+'</td>' +
         '</tr>';
