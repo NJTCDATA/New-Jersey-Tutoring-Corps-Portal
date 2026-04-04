@@ -6,7 +6,10 @@
 // ══════════════════════════════════════════════════════════════════════════
 
 // ── ATT column indices (mirrors programming.js ATT object) ────────────────
-var C = { USER:0, ROLE:1, ATT_STATUS:6, MISS_REASON:7, SCHOOL:11, DISTRICT:12, USER_ID:13, WEEK:26, SESS_DATE:5 };
+var C = { USER:0, ROLE:1, SESSION:2, ATT_STATUS:6, MISS_REASON:7, SCHOOL:11, DISTRICT:12, USER_ID:13, WEEK:26, SESS_DATE:5, GRADE:8 };
+
+// ── SESS column indices (mirrors programming.js SESS object) ─────────────
+var S = { TITLE:0, INSTRUCTOR:1, LOCATION:3, STATUS:4, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, SESS_ID:14, INST_ID:15, STU_IDS:16 };
 
 // ── Reason taxonomy ──────────────────────────────────────────────────────
 var TAXONOMY = {
@@ -68,23 +71,32 @@ function canonicalize(rawReason) {
   return null;
 }
 
-// ── Region definitions (mirrors po.getExportData region logic) ────────────
-var NE_KW_D = ['ilearn','i-learn','paterson','pcsst','hoboken','middlesex','central jersey','cjcp'];
-var SW_KW_D = ['american paradigm','global leadership academy','global leadership',
-               'string theory','penns grove','haddon township','haddon',
-               'hamilton township','carneys point','gloucester township'];
-var NE_KW_S = ['ilearn','i-learn','hoboken dual','middlesex county','cjcp','pcsst'];
-var SW_KW_S = ['american paradigm','global leadership','string theory',
-               'penns grove','haddon','hamilton'];
+// ── Region definitions — exact mirror of programming.js schoolRegion() ────
+// District-level keywords
+var NE_KW_D = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+var SW_KW_D = ['american paradigm','first philadelphia','first philly','philadelphia charter',
+               'string theory','global leadership academy','global leadership',
+               'penns grove','carneys point','haddon township','haddon',
+               'hamilton township','gloucester township'];
+// School-level: SW explicit list (mirrors programming.js SW_SCHOOLS)
+var SW_SCHOOLS_LIST = ['erial','loring flemming','field street','penns grove middle',
+                       'van sciver','strawbridge','first philadelphia prep','first philly prep',
+                       'the philadelphia charter','philadelphia charter school',
+                       'global leadership academy'];
 
 function getRegion(school, district) {
   var s = (school  || '').toLowerCase().trim();
   var d = (district|| '').toLowerCase().trim();
   if (s.startsWith('zzz')) return null;
+  // District match (highest priority)
   for (var i=0;i<NE_KW_D.length;i++) if (d.includes(NE_KW_D[i])) return 'NE';
   for (var i=0;i<SW_KW_D.length;i++) if (d.includes(SW_KW_D[i])) return 'SW';
-  for (var i=0;i<NE_KW_S.length;i++) if (s.includes(NE_KW_S[i])) return 'NE';
-  for (var i=0;i<SW_KW_S.length;i++) if (s.includes(SW_KW_S[i])) return 'SW';
+  // School match
+  for (var i=0;i<SW_SCHOOLS_LIST.length;i++) if (s.includes(SW_SCHOOLS_LIST[i])) return 'SW';
+  // NE school fallbacks
+  if (s.includes('ilearn') || s.includes('i-learn')) return 'NE';
+  if (s.includes('hoboken'))   return 'NE';
+  if (s.includes('middlesex')) return 'NE';
   return null;
 }
 
@@ -134,6 +146,44 @@ function fmtISO(d) {
   var mm = String(d.getMonth()+1).padStart(2,'0');
   var dd = String(d.getDate()).padStart(2,'0');
   return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+// ── Session join helpers ──────────────────────────────────────────────────
+// Normalize "MM/DD/YYYY" or "M/D/YYYY" or "3/14/2026 9:00:00 AM" → "3/14/2026"
+function normDateStr(s) {
+  if (!s) return '';
+  var parts = String(s).split(' ')[0];
+  var m = parts.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return parts;
+  return parseInt(m[1]) + '/' + parseInt(m[2]) + '/' + m[3];
+}
+
+// Build a lookup: "userId|dateStr" → [sessRow, ...]
+// Called once per export to avoid re-scanning all sess rows
+function buildSessIndex(sessRows) {
+  var idx = {};
+  (sessRows || []).forEach(function(r) {
+    var dateStr = normDateStr(r[S.START] || '');
+    if (!dateStr) return;
+    var stuIds = (r[S.STU_IDS] || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+    stuIds.forEach(function(uid) {
+      var key = uid + '|' + dateStr;
+      if (!idx[key]) idx[key] = [];
+      idx[key].push(r);
+    });
+  });
+  return idx;
+}
+
+// Find the best session match for an att event
+function findSess(sessIdx, userId, dateStr, sessTitle) {
+  var key = userId + '|' + normDateStr(dateStr);
+  var matches = sessIdx[key];
+  if (!matches || !matches.length) return null;
+  if (matches.length === 1) return matches[0];
+  // Disambiguate by session title (ATT col 2 = session name)
+  var exact = matches.filter(function(r) { return (r[S.TITLE]||'') === sessTitle; });
+  return exact.length ? exact[0] : matches[0];
 }
 
 // ── Module state ──────────────────────────────────────────────────────────
@@ -238,8 +288,11 @@ function processRows(attRows, selectedIds, region, dateRange, districtFilter, sc
     if (schoolFilter   && school !== schoolFilter)  return;
     events.push({
       date:d, dateStr:fmtMDY(d), school:school, district:dist, region:reg,
-      userId: r[C.USER_ID] || r[C.USER] || '',
-      userName: r[C.USER] || '',
+      userId:    r[C.USER_ID] || r[C.USER] || '',
+      userName:  r[C.USER] || '',
+      sessTitle: r[C.SESSION] || '',
+      grade:     r[C.GRADE]   || '',
+      rawReason: rawReason,
       canonId:canonId, week: r[C.WEEK] || '', mins:SESSION_MINS
     });
   });
@@ -660,11 +713,30 @@ function buildReportHTML(r) {
   // BLOCK 4: Ranking table
   html += buildRankingTable(r);
 
-  // BLOCK 5: Export controls
+  // BLOCK 5: Export controls — 4 distinct outputs
   html += '<div class="irb-export-bar">' +
-    '<button class="irb-export-btn" onclick="irb.exportCSV()">\u2b07 CSV \u2014 Session Detail</button>' +
-    '<button class="irb-export-btn" onclick="irb.exportExecutive()">\u2b07 Executive Export</button>' +
-    '<button class="irb-export-btn irb-btn-primary" onclick="irb.exportPDF()">\ud83d\udcc4 Export PDF for Leadership</button>' +
+    '<div class="irb-export-group">' +
+      '<div class="irb-export-group-label">Data Export</div>' +
+      '<button class="irb-export-btn irb-export-csv" onclick="irb.exportCSV()" title="26-column session-joined CSV with Pearl Session IDs — opens in Google Sheets">' +
+        '<span class="irb-export-icon">&#8659;</span> Session Detail CSV' +
+        '<span class="irb-export-sub">Pearl IDs · Google Sheets ready</span>' +
+      '</button>' +
+    '</div>' +
+    '<div class="irb-export-group">' +
+      '<div class="irb-export-group-label">PDF Reports</div>' +
+      '<button class="irb-export-btn irb-export-exec" onclick="irb.exportPDF()" title="Clean executive summary — scholars, trends, top schools">' +
+        '<span class="irb-export-icon">&#128196;</span> Executive Summary' +
+        '<span class="irb-export-sub">Leadership &amp; Board</span>' +
+      '</button>' +
+      '<button class="irb-export-btn irb-export-school" onclick="irb.exportPDFSchool()" title="School-by-school breakdown with impacted dates and reasons">' +
+        '<span class="irb-export-icon">&#127981;</span> School Partner Report' +
+        '<span class="irb-export-sub">Principals &amp; Site Coordinators</span>' +
+      '</button>' +
+      '<button class="irb-export-btn irb-export-program" onclick="irb.exportPDFProgram()" title="Full operational detail — all schools, reasons, daily log">' +
+        '<span class="irb-export-icon">&#9881;</span> Program Team Report' +
+        '<span class="irb-export-sub">Operational Drill-Down</span>' +
+      '</button>' +
+    '</div>' +
     '</div>';
 
   return html;
@@ -1179,24 +1251,81 @@ function attachCalendarTooltips(r) {
 function exportCSV() {
   if (!_lastReport) return;
   var r = _lastReport;
+
+  // Build session index from live sess rows for join
+  var sessRows = (window.po && window.po.getSessRows) ? window.po.getSessRows() : [];
+  var sessIdx  = buildSessIndex(sessRows);
+
   var labelPart  = r.label ? r.label.replace(/[^a-zA-Z0-9_\-]/g,'_') : 'Report';
   var regionPart = r.region === 'all' ? 'AllRegions' : r.region;
   var datePart   = (fmtISO(r.range.start) + '_' + fmtISO(addDays(r.range.end,-1))).replace(/-/g,'');
-  var filename   = 'NJTC_ImpactReport_' + labelPart + '_' + regionPart + '_' + datePart + '.csv';
+  var filename   = 'NJTC_SessionDetail_' + labelPart + '_' + regionPart + '_' + datePart + '.csv';
 
-  var rows = [['Date','Day of Week','Week Label','School','Region','Reason Category','Canonical Reason',
-               'Scholar Name','Sessions Lost','Minutes Lost','Hours Lost']];
+  // 26-column header — designed for direct Google Sheets import
+  var rows = [[
+    'Pearl Session ID',
+    'Session Title',
+    'Date',
+    'Day of Week',
+    'Week Label',
+    'School',
+    'District',
+    'Region',
+    'Subject',
+    'Location',
+    'Scheduled Start',
+    'Scheduled Duration (min)',
+    'Actual Duration (min)',
+    'Session Status',
+    'Instructor Name',
+    'Instructor Pearl ID',
+    'Scholar Name',
+    'Scholar Pearl ID',
+    'Scholar Grade',
+    'Attendance Status',
+    'Raw Missed Reason',
+    'Reason Category',
+    'Reason ID',
+    'Canonical Reason',
+    'Minutes Lost',
+    'Hours Lost'
+  ]];
+
   r.events.forEach(function(e) {
-    var taxonomy  = TAXONOMY[e.canonId] || {};
-    var group     = taxonomy.group === 'si' ? 'Service Interruption' : 'Scholar Missed';
-    var weekLabel = e.week || '';
-    var hrs       = +(e.mins/60).toFixed(2);
+    var taxonomy = TAXONOMY[e.canonId] || {};
+    var group    = taxonomy.group === 'si' ? 'Service Interruption' : 'Scholar Missed';
+    var sess     = findSess(sessIdx, e.userId, e.dateStr, e.sessTitle);
+
     rows.push([
-      fmtDate(e.date), DAY_NAMES[e.date.getDay()], weekLabel,
-      e.school, e.region||'', group, taxonomy.label||e.canonId,
-      e.userName, 1, e.mins, hrs
+      sess ? (sess[S.SESS_ID]    || '') : '',
+      sess ? (sess[S.TITLE]      || '') : (e.sessTitle || ''),
+      fmtDate(e.date),
+      DAY_NAMES[e.date.getDay()],
+      e.week || '',
+      e.school,
+      e.district || '',
+      e.region   || '',
+      sess ? (sess[S.SUBJECT]    || '') : '',
+      sess ? (sess[S.LOCATION]   || '') : '',
+      sess ? (sess[S.START]      || '') : '',
+      sess ? (sess[S.SCHED_DUR]  || '') : '',
+      sess ? (sess[S.ACTUAL_DUR] || '') : '',
+      sess ? (sess[S.STATUS]     || '') : '',
+      sess ? (sess[S.INSTRUCTOR] || '') : '',
+      sess ? (sess[S.INST_ID]    || '') : '',
+      e.userName,
+      e.userId   || '',
+      e.grade    || '',
+      'Missed',
+      e.rawReason || '',
+      group,
+      e.canonId,
+      taxonomy.label || e.canonId,
+      e.mins,
+      +(e.mins / 60).toFixed(2)
     ]);
   });
+
   downloadCSV(rows, filename);
 }
 
@@ -1299,70 +1428,470 @@ function downloadCSV(rows, filename) {
   setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
 }
 
-// ── PDF Export (leadership-ready clean print) ─────────────────────────────
-function exportPDF() {
-  // Same as printView but triggers print immediately — user saves as PDF
-  printView();
-}
-
-// ── Print / PDF View ──────────────────────────────────────────────────────
-function printView() {
-  if (!_lastReport) return;
-  var r  = _lastReport;
-  var contentEl = document.getElementById('irbReportContent');
-  var inner = contentEl ? contentEl.innerHTML : '';
-
-  // Strip export bar (don't want buttons in print)
-  inner = inner.replace(/<div class="irb-export-bar">[\s\S]*?<\/div>/, '');
-
-  var html = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
-    '<title>NJTC Impact Report' + (r.label ? ' — '+r.label : '') + '</title>' +
-    '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">' +
-    '<style>' +
-    '*, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }' +
-    'body { font-family: "DM Sans", sans-serif; color:#0a1628; background:#fff; padding: 0.5in; font-size: 10pt; }' +
-    'h1 { font-family: "DM Serif Display", serif; font-size: 18pt; margin-bottom: 4pt; }' +
-    '.irb-report-header { background:#1e1040; color:#fff; border-radius:8px; padding:10pt 14pt; margin-bottom:12pt; display:flex; flex-wrap:wrap; gap:6pt; align-items:center; }' +
-    '.irb-rh-title { font-size:13pt; flex:1; }' +
-    '.irb-rh-pill { font-size:8pt; background:rgba(255,255,255,.18); border-radius:20px; padding:2pt 6pt; }' +
-    '.irb-rh-ts { font-size:7pt; opacity:.6; }' +
-    '.irb-kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:8pt; margin-bottom:10pt; }' +
-    '.irb-kpi-card { border:1px solid #e2e8f0; border-radius:8px; padding:8pt; break-inside:avoid; }' +
-    '.irb-kpi-val { font-family:"DM Serif Display",serif; font-size:18pt; }' +
-    '.irb-kpi-label { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#64748b; }' +
-    '.irb-kpi-delta { font-size:8pt; margin-top:2pt; }' +
-    '.irb-delta-up { color:#b91c1c; }' +
-    '.irb-delta-down { color:#059669; }' +
-    '.irb-delta-flat { color:#94a3b8; }' +
-    '.irb-contrib-bar-wrap,.irb-cal-wrap,.irb-chart-wrap,.irb-rank-wrap { border:1px solid #e2e8f0; border-radius:8px; padding:8pt 10pt; margin-bottom:10pt; break-inside:avoid; }' +
-    '.irb-contrib-bar { display:flex; height:16px; border-radius:4px; overflow:hidden; margin:4pt 0; }' +
-    '.irb-contrib-seg { display:flex; align-items:center; justify-content:center; font-size:7pt; font-weight:700; color:#fff; overflow:hidden; padding:0 3px; }' +
-    '.irb-contrib-legend { display:flex; flex-wrap:wrap; gap:3pt 8pt; }' +
-    '.irb-contrib-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:3pt; }' +
-    '.irb-cal-table { width:100%; border-collapse:collapse; font-size:8pt; }' +
-    '.irb-cal-table th,.irb-cal-table td { border:1px solid #e2e8f0; padding:3pt 5pt; }' +
-    '.irb-cal-table th { background:#f8fafc; font-size:7pt; text-transform:uppercase; }' +
-    '.irb-school-cell { font-weight:600; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }' +
-    '.irb-heat-1 { background:#FFF3CD; }' +
-    '.irb-heat-2 { background:#FFD166; }' +
-    '.irb-heat-3 { background:#F4845F; color:#fff; }' +
-    '.irb-heat-4 { background:#E63946; color:#fff; }' +
-    '.irb-rank-table { width:100%; border-collapse:collapse; font-size:8pt; }' +
-    '.irb-rank-table th { background:#1e1040; color:#fff; padding:4pt 6pt; text-align:left; font-size:7pt; text-transform:uppercase; }' +
-    '.irb-rank-table td { padding:3pt 6pt; border-bottom:1px solid #e2e8f0; }' +
-    '.irb-region-row td { background:#1e1040; color:#fff; font-size:7pt; padding:3pt 5pt; }' +
-    '.irb-rank-pagination,.irb-export-bar { display:none; }' +
-    '@media print { @page { size:letter portrait; margin:.5in; } body { padding:0; } }' +
-    '</style></head><body>' +
-    inner +
-    '</body></html>';
-
+// ── PDF helpers ────────────────────────────────────────────────────────────
+function _openPrintWindow(html, title) {
   var win = window.open('', '_blank');
-  if (!win) { alert('Please allow popups for this page to open the print view.'); return; }
+  if (!win) { alert('Please allow popups for this page to use PDF export.'); return; }
   win.document.write(html);
   win.document.close();
-  setTimeout(function() { win.focus(); win.print(); }, 400);
+  setTimeout(function() { win.focus(); win.print(); }, 500);
 }
+
+var PDF_GOOGLE_FONT = '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">';
+
+// Shared base reset
+var PDF_BASE_CSS = [
+  '*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }',
+  'body { font-family:"Inter",system-ui,sans-serif; color:#0f172a; background:#fff; font-size:9.5pt; line-height:1.45; }',
+  '.page-break { page-break-before:always; }',
+  '@media print { @page { size:letter portrait; margin:.45in .5in; } body { padding:0; } }',
+].join('\n');
+
+// Build ranked school list from agg
+function _schoolRank(agg, priorAgg) {
+  return Object.keys(agg.bySchool).map(function(s) {
+    var sc = agg.bySchool[s];
+    var psc = (priorAgg.bySchool[s]) || { scholarCount:0 };
+    var topR = null; var maxN = 0;
+    Object.keys(sc.byReason||{}).forEach(function(id) { if(sc.byReason[id]>maxN){maxN=sc.byReason[id];topR=id;} });
+    return { school:s, region:sc.region||'', district:sc.district||'',
+             scholars:sc.scholarCount, sessions:sc.sessions,
+             hrs:+((sc.mins||0)/60).toFixed(1),
+             delta: sc.scholarCount - psc.scholarCount, topR:topR };
+  }).sort(function(a,b) { return b.scholars - a.scholars; });
+}
+
+// ── Lens 1: Executive Summary ─────────────────────────────────────────────
+// Audience: NJTC leadership, board, funders
+// Design: Clean, data-forward, white space, no clutter
+function exportPDF() {
+  if (!_lastReport) return;
+  var r  = _lastReport;
+  var a  = r.agg, pa = r.priorAgg;
+  var ts = r.generatedAt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  var regionLabel = r.region === 'NE' ? 'NE Region' : r.region === 'SW' ? 'SW Region' : 'All Regions';
+  var rankedSchools = _schoolRank(a, pa);
+
+  function kpi(val, lbl, up, prior) {
+    var diff = prior != null ? val - prior : null;
+    var arrow = diff === null ? '' : diff === 0 ? '<span style="color:#94a3b8">&#8596; No change</span>'
+              : diff > 0 ? '<span style="color:#dc2626">&#8593; +'+diff+' vs prior</span>'
+              : '<span style="color:#16a34a">&#8595; '+diff+' vs prior</span>';
+    return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14pt 12pt;text-align:center">' +
+      '<div style="font-family:Playfair Display,serif;font-size:28pt;font-weight:800;color:#0f172a;line-height:1">'+val.toLocaleString()+'</div>' +
+      '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-top:4pt">'+lbl+'</div>' +
+      (arrow ? '<div style="font-size:7.5pt;margin-top:5pt">'+arrow+'</div>' : '') +
+      '</div>';
+  }
+
+  // Top 8 schools
+  var top8 = rankedSchools.slice(0,8);
+  var topSchoolRows = top8.map(function(s,i) {
+    var barPct = rankedSchools[0].scholars > 0 ? Math.round(s.scholars/rankedSchools[0].scholars*100) : 0;
+    var regBg  = s.region==='NE' ? '#dbeafe' : s.region==='SW' ? '#fce7f3' : '#f1f5f9';
+    var regClr = s.region==='NE' ? '#1e40af' : s.region==='SW' ? '#9d174d' : '#64748b';
+    return '<tr style="border-bottom:1px solid #f1f5f9">' +
+      '<td style="padding:5pt 8pt;font-size:8pt;color:#94a3b8;width:22pt;font-weight:700">'+(i+1)+'</td>' +
+      '<td style="padding:5pt 8pt;font-weight:600;font-size:8.5pt">' +
+        esc(s.school) +
+        '<div style="margin-top:2pt;background:#f1f5f9;border-radius:3px;height:4px;width:100%;overflow:hidden">' +
+        '<div style="background:#e63946;height:4px;width:'+barPct+'%"></div></div>' +
+      '</td>' +
+      '<td style="padding:5pt 4pt;text-align:center"><span style="font-size:7pt;background:'+regBg+';color:'+regClr+';padding:1pt 5pt;border-radius:20px;font-weight:700">'+esc(s.region||'—')+'</span></td>' +
+      '<td style="padding:5pt 8pt;text-align:center;font-weight:700;font-size:9.5pt">'+s.scholars+'</td>' +
+      '<td style="padding:5pt 8pt;text-align:center;color:#64748b;font-size:8pt">'+s.sessions+'</td>' +
+      '<td style="padding:5pt 8pt;text-align:center;font-size:8pt">' +
+        (s.delta===0?'<span style="color:#94a3b8">—</span>' : s.delta>0 ? '<span style="color:#dc2626">&#8593;+'+s.delta+'</span>' : '<span style="color:#16a34a">&#8595;'+s.delta+'</span>') +
+      '</td>' +
+      '</tr>';
+  }).join('');
+
+  // Reason breakdown bars
+  var reasonBars = '';
+  if (r.selectedIds.length >= 2 && a.sessions > 0) {
+    reasonBars = '<div style="margin-top:10pt">' +
+      r.selectedIds.filter(function(id){return a.byReason[id]&&a.byReason[id].sessions>0;})
+       .sort(function(a2,b2){return (a.byReason[b2]||{sessions:0}).sessions-(a.byReason[a2]||{sessions:0}).sessions;})
+       .map(function(id) {
+         var rd  = a.byReason[id] || { sessions:0, scholarCount:0 };
+         var pct = Math.round(rd.sessions/a.sessions*100);
+         var clr = getColor(id);
+         return '<div style="margin-bottom:7pt">' +
+           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2pt">' +
+           '<span style="font-size:8pt;font-weight:600">'+esc(TAXONOMY[id]?TAXONOMY[id].label:id)+'</span>' +
+           '<span style="font-size:8pt;color:#64748b">'+rd.sessions+' sess · '+rd.scholarCount+' scholars · '+pct+'%</span>' +
+           '</div>' +
+           '<div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">' +
+           '<div style="background:'+clr+';height:8px;width:'+pct+'%;border-radius:4px"></div>' +
+           '</div></div>';
+       }).join('') + '</div>';
+  }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Executive Impact Report</title>' +
+    PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS + '</style></head><body>' +
+
+    // Cover bar
+    '<div style="background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 60%,#312e81 100%);color:#fff;padding:22pt 26pt 16pt;border-radius:0 0 14px 14px;margin-bottom:18pt">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between">' +
+        '<div>' +
+          '<div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.55);margin-bottom:4pt">New Jersey Tutoring Corps</div>' +
+          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:800;line-height:1.1">'+(r.label||'Executive Impact Report')+'</div>' +
+          '<div style="font-size:9pt;margin-top:6pt;color:rgba(255,255,255,.75)">'+esc(r.range.label)+' &nbsp;·&nbsp; '+esc(regionLabel)+'</div>' +
+        '</div>' +
+        '<div style="text-align:right;color:rgba(255,255,255,.5);font-size:7.5pt;line-height:1.7">' +
+          'Generated '+ts+'<br>Confidential — NJTC Internal' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // KPI grid
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:16pt">' +
+      kpi(a.scholars,'Scholars Impacted',a.scholars>pa.scholars,pa.scholars) +
+      kpi(a.sessions,'Sessions Lost',a.sessions>pa.sessions,pa.sessions) +
+      kpi(a.mins,'Minutes Lost',a.mins>pa.mins,pa.mins) +
+      kpi(a.hours,'Hours Lost',a.hours>pa.hours,pa.hours) +
+    '</div>' +
+
+    // 8-week context strip
+    (r.avg8Scholars ? '<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:10pt 14pt;margin-bottom:16pt;font-size:8.5pt;color:#475569">' +
+      '8-week average: <strong style="color:#0f172a">'+r.avg8Scholars+' scholars impacted per week</strong>. ' +
+      (a.scholars > r.avg8Scholars*1.1 ? '<span style="color:#dc2626;font-weight:600">This week is above average — attention required.</span>'
+      : a.scholars < r.avg8Scholars*0.9 ? '<span style="color:#16a34a;font-weight:600">This week is below average — positive trend.</span>'
+      : '<span style="color:#d97706;font-weight:600">This week is near the rolling average.</span>') +
+    '</div>' : '') +
+
+    // Reason breakdown
+    (r.selectedIds.length >= 2 && a.sessions > 0 ?
+    '<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12pt 14pt;margin-bottom:16pt;break-inside:avoid">' +
+      '<div style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#64748b;margin-bottom:8pt">Sessions Lost by Reason</div>' +
+      reasonBars +
+    '</div>' : '') +
+
+    // School ranking table
+    '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:16pt;break-inside:avoid">' +
+      '<div style="background:#0f172a;color:#fff;padding:9pt 14pt;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em">Top Schools by Scholar Impact</div>' +
+      '<table style="width:100%;border-collapse:collapse">' +
+        '<thead><tr style="background:#f8fafc">' +
+          '<th style="padding:6pt 8pt;text-align:left;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">#</th>' +
+          '<th style="padding:6pt 8pt;text-align:left;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">School</th>' +
+          '<th style="padding:6pt 4pt;text-align:center;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">Region</th>' +
+          '<th style="padding:6pt 8pt;text-align:center;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">Scholars</th>' +
+          '<th style="padding:6pt 8pt;text-align:center;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">Sessions</th>' +
+          '<th style="padding:6pt 8pt;text-align:center;font-size:7pt;text-transform:uppercase;color:#64748b;font-weight:700">vs. Prior</th>' +
+        '</tr></thead>' +
+        '<tbody>'+topSchoolRows+'</tbody>' +
+      '</table>' +
+    '</div>' +
+
+    // Footer
+    '<div style="border-top:1px solid #e2e8f0;padding-top:8pt;display:flex;justify-content:space-between;align-items:center;font-size:7pt;color:#94a3b8">' +
+      '<span>New Jersey Tutoring Corps &nbsp;·&nbsp; Pearl Operations Live Data</span>' +
+      '<span>Confidential — For Internal Use Only</span>' +
+    '</div>' +
+
+    '</body></html>';
+
+  _openPrintWindow(html, 'NJTC Executive Impact Report');
+}
+
+// ── Lens 2: School Partner Report ─────────────────────────────────────────
+// Audience: Principals, site coordinators, school partners
+// Design: Warm, school-centric, collaborative tone, focused on their data
+function exportPDFSchool() {
+  if (!_lastReport) return;
+  var r  = _lastReport;
+  var a  = r.agg, pa = r.priorAgg;
+  var ts = r.generatedAt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  var regionLabel = r.region === 'NE' ? 'NE Region' : r.region === 'SW' ? 'SW Region' : 'All Regions';
+  var rankedSchools = _schoolRank(a, pa);
+  var focusSchool = r.schoolFilter || null;
+
+  // Build school detail cards
+  var schoolCards = rankedSchools.map(function(s) {
+    var sc = a.bySchool[s.school];
+    var regBg = s.region==='NE' ? '#eff6ff' : s.region==='SW' ? '#fdf2f8' : '#f8fafc';
+    var regAccent = s.region==='NE' ? '#1e40af' : s.region==='SW' ? '#9d174d' : '#475569';
+    var regLabel  = s.region==='NE' ? 'NE Region' : s.region==='SW' ? 'SW Region' : (s.region||'');
+
+    // Dates with impact (sorted)
+    var dates = Object.keys(a.byDate).filter(function(dk) {
+      return a.byDate[dk].bySchool && a.byDate[dk].bySchool[s.school];
+    }).sort(function(a2,b2){return new Date(a2)-new Date(b2);});
+
+    var dateList = dates.map(function(dk) {
+      var dd = a.byDate[dk].bySchool[s.school];
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4pt 10pt;border-bottom:1px solid #f1f5f9;font-size:8pt">' +
+        '<span style="font-weight:500">'+esc(dk)+' ('+DAY_NAMES[(new Date(dk)).getDay()]+')</span>' +
+        '<span style="color:#64748b">'+dd.scholarCount+' scholars &nbsp;·&nbsp; '+dd.sessions+' missed sessions</span>' +
+        '</div>';
+    }).join('');
+
+    // Reason breakdown for this school
+    var scReasons = Object.keys(sc.byReason||{})
+      .sort(function(a2,b2){return sc.byReason[b2]-sc.byReason[a2];})
+      .map(function(id) {
+        var cnt = sc.byReason[id];
+        var lbl = TAXONOMY[id]?TAXONOMY[id].label:id;
+        var clr = getColor(id);
+        return '<div style="display:flex;align-items:center;gap:6pt;margin-bottom:4pt;font-size:8pt">' +
+          '<div style="width:10px;height:10px;border-radius:50%;background:'+clr+';flex-shrink:0"></div>' +
+          '<span style="flex:1">'+esc(lbl)+'</span>' +
+          '<span style="font-weight:700;color:#0f172a">'+cnt+'</span>' +
+          '</div>';
+      }).join('');
+
+    return '<div style="border:1.5px solid '+regAccent+'33;border-radius:10px;overflow:hidden;margin-bottom:14pt;break-inside:avoid">' +
+      // School header
+      '<div style="background:'+regBg+';border-bottom:1.5px solid '+regAccent+'22;padding:10pt 14pt;display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+          '<div style="font-size:11pt;font-weight:700;color:#0f172a">'+esc(s.school)+'</div>' +
+          '<div style="font-size:7.5pt;color:#475569;margin-top:2pt">'+esc(s.district||'')+'</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<span style="background:'+regAccent+';color:#fff;font-size:7pt;font-weight:700;padding:2pt 8pt;border-radius:20px">'+esc(regLabel)+'</span>' +
+        '</div>' +
+      '</div>' +
+      // Stats row
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0">' +
+        '<div style="padding:10pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#e63946">'+s.scholars+'</div>' +
+          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholars Impacted</div>' +
+        '</div>' +
+        '<div style="padding:10pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#f59e0b">'+s.sessions+'</div>' +
+          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Sessions Missed</div>' +
+        '</div>' +
+        '<div style="padding:10pt;text-align:center">' +
+          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#7c3aed">'+s.hrs+'</div>' +
+          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Hours Lost</div>' +
+        '</div>' +
+      '</div>' +
+      // Two-column: dates + reasons
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #f1f5f9">' +
+        '<div style="padding:10pt;border-right:1px solid #f1f5f9">' +
+          '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6pt">Impacted Dates</div>' +
+          (dateList||'<div style="font-size:8pt;color:#94a3b8;font-style:italic">No dates in range</div>') +
+        '</div>' +
+        '<div style="padding:10pt">' +
+          '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6pt">By Missed Reason</div>' +
+          (scReasons||'<div style="font-size:8pt;color:#94a3b8;font-style:italic">—</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC School Partner Report</title>' +
+    PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS + '</style></head><body>' +
+
+    // Header
+    '<div style="border-bottom:3px solid #10b981;padding-bottom:14pt;margin-bottom:18pt;display:flex;justify-content:space-between;align-items:flex-end">' +
+      '<div>' +
+        '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#10b981;margin-bottom:3pt">New Jersey Tutoring Corps</div>' +
+        '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:800;color:#0f172a">' +
+          'School Partner Impact Report' +
+        '</div>' +
+        '<div style="font-size:9pt;color:#475569;margin-top:4pt">'+esc(r.range.label)+' &nbsp;·&nbsp; '+esc(regionLabel)+'</div>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:7.5pt;color:#94a3b8;line-height:1.7">' +
+        'Prepared '+ts+'<br>'+esc(r.label||'Impact Analysis') +
+      '</div>' +
+    '</div>' +
+
+    // Intro note
+    '<div style="background:#ecfdf5;border-left:4px solid #10b981;padding:9pt 12pt;border-radius:0 8px 8px 0;margin-bottom:16pt;font-size:8.5pt;color:#064e3b">' +
+      'This report summarizes tutoring session impact for each school site during the reporting period. ' +
+      'Each card shows scholars affected, sessions missed, and the primary reasons — to support coordination and follow-up.' +
+    '</div>' +
+
+    // Summary strip
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:18pt">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#0f172a">'+rankedSchools.length+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Schools Affected</div>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#e63946">'+a.scholars+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Total Scholars</div>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#f59e0b">'+a.hours+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Total Hours Lost</div>' +
+      '</div>' +
+    '</div>' +
+
+    schoolCards +
+
+    // Footer
+    '<div style="border-top:1px solid #e2e8f0;padding-top:8pt;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8">' +
+      '<span>NJTC &nbsp;·&nbsp; Pearl Operations Live Data &nbsp;·&nbsp; '+ts+'</span>' +
+      '<span>Prepared by NJTC Data Team</span>' +
+    '</div>' +
+
+    '</body></html>';
+
+  _openPrintWindow(html, 'NJTC School Partner Impact Report');
+}
+
+// ── Lens 3: Program Team Operational Report ────────────────────────────────
+// Audience: NJTC program staff who need to diagnose and fix issues
+// Design: Dense, operational, full detail — action-oriented, tabular
+function exportPDFProgram() {
+  if (!_lastReport) return;
+  var r  = _lastReport;
+  var a  = r.agg, pa = r.priorAgg;
+  var ts = r.generatedAt.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  var regionLabel = r.region === 'NE' ? 'NE Region' : r.region === 'SW' ? 'SW Region' : 'All Regions';
+  var rankedSchools = _schoolRank(a, pa);
+
+  // Full school ranking table rows
+  var schoolRows = rankedSchools.map(function(s,i) {
+    var regBg  = s.region==='NE'?'#dbeafe':s.region==='SW'?'#fce7f3':'#f1f5f9';
+    var regClr = s.region==='NE'?'#1e40af':s.region==='SW'?'#9d174d':'#475569';
+    var topLbl = s.topR ? (TAXONOMY[s.topR]?TAXONOMY[s.topR].label:s.topR) : '—';
+    var topClr = s.topR ? getColor(s.topR) : '#94a3b8';
+    var dStr   = s.delta===0?'<span style="color:#94a3b8">&#8596;&nbsp;0</span>'
+               : s.delta>0?'<span style="color:#dc2626">&#8593; +'+s.delta+'</span>'
+               : '<span style="color:#16a34a">&#8595; '+s.delta+'</span>';
+    return '<tr style="border-bottom:1px solid #f1f5f9;'+(i%2===0?'background:#fff':'background:#fafafa')+'">' +
+      '<td style="padding:4pt 6pt;font-size:7.5pt;color:#94a3b8;text-align:center;font-weight:700">'+(i+1)+'</td>' +
+      '<td style="padding:4pt 8pt;font-weight:600;font-size:8pt">'+esc(s.school)+'<div style="font-size:7pt;color:#94a3b8;font-weight:400">'+esc(s.district)+'</div></td>' +
+      '<td style="padding:4pt 4pt;text-align:center"><span style="background:'+regBg+';color:'+regClr+';font-size:7pt;font-weight:700;padding:1pt 5pt;border-radius:20px">'+esc(s.region||'—')+'</span></td>' +
+      '<td style="padding:4pt 8pt;text-align:center;font-weight:800;font-size:10pt;color:#e63946">'+s.scholars+'</td>' +
+      '<td style="padding:4pt 8pt;text-align:center;font-size:8.5pt;font-weight:600">'+s.sessions+'</td>' +
+      '<td style="padding:4pt 8pt;text-align:center;font-size:8.5pt">'+s.hrs+'h</td>' +
+      '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+dStr+'</td>' +
+      '<td style="padding:4pt 8pt;font-size:7.5pt"><span style="background:'+topClr+'22;color:'+topClr+';padding:1pt 5pt;border-radius:4px;font-weight:600">'+esc(topLbl.length>30?topLbl.slice(0,28)+'…':topLbl)+'</span></td>' +
+      '</tr>';
+  }).join('');
+
+  // Reason breakdown table
+  var reasonRows = r.selectedIds
+    .filter(function(id){return a.byReason[id]&&a.byReason[id].sessions>0;})
+    .sort(function(a2,b2){return (a.byReason[b2]||{sessions:0}).sessions-(a.byReason[a2]||{sessions:0}).sessions;})
+    .map(function(id,i) {
+      var rd  = a.byReason[id] || { sessions:0, scholarCount:0, mins:0 };
+      var prd = pa.byReason    && pa.byReason[id] ? pa.byReason[id] : { sessions:0, scholarCount:0 };
+      var pct = a.sessions>0 ? Math.round(rd.sessions/a.sessions*100) : 0;
+      var clr = getColor(id);
+      var grp = TAXONOMY[id] ? (TAXONOMY[id].group==='si'?'Service Interruption':'Scholar Missed') : '';
+      var dStr = rd.sessions===prd.sessions ? '<span style="color:#94a3b8">&#8596;&nbsp;0</span>'
+               : rd.sessions>prd.sessions ? '<span style="color:#dc2626">&#8593; +'+(rd.sessions-prd.sessions)+'</span>'
+               : '<span style="color:#16a34a">&#8595; '+(rd.sessions-prd.sessions)+'</span>';
+      return '<tr style="border-bottom:1px solid #f1f5f9;'+(i%2===0?'background:#fff':'background:#fafafa')+'">' +
+        '<td style="padding:4pt 8pt"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:'+clr+';vertical-align:middle;margin-right:6pt"></span>' +
+        '<span style="font-size:8.5pt;font-weight:600">'+esc(TAXONOMY[id]?TAXONOMY[id].label:id)+'</span></td>' +
+        '<td style="padding:4pt 8pt;font-size:7.5pt;color:#64748b">'+esc(grp)+'</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-weight:700;font-size:9pt">'+rd.scholarCount+'</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8.5pt;font-weight:600">'+rd.sessions+'</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'++(rd.mins/60).toFixed(1)+'h</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+pct+'%</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8pt">'+dStr+'</td>' +
+        '</tr>';
+    }).join('');
+
+  // Daily log
+  var dailyRows = Object.keys(a.byDate)
+    .sort(function(a2,b2){return new Date(a2)-new Date(b2);})
+    .map(function(dk,i) {
+      var dd = a.byDate[dk];
+      var schoolList = Object.keys(dd.bySchool||{}).map(function(s){
+        return esc(s)+' ('+dd.bySchool[s].scholars+')';
+      }).join(', ');
+      return '<tr style="border-bottom:1px solid #f1f5f9;'+(i%2===0?'background:#fff':'background:#fafafa')+'">' +
+        '<td style="padding:4pt 8pt;font-size:8pt;font-weight:600">'+esc(dk)+'</td>' +
+        '<td style="padding:4pt 8pt;font-size:8pt;color:#64748b">'+DAY_NAMES[(dd.date||new Date()).getDay()]+'</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-weight:700;font-size:9pt;color:#e63946">'+dd.scholarCount+'</td>' +
+        '<td style="padding:4pt 8pt;text-align:center;font-size:8.5pt;font-weight:600">'+dd.sessions+'</td>' +
+        '<td style="padding:4pt 8pt;font-size:7.5pt;color:#64748b">'+schoolList+'</td>' +
+        '</tr>';
+    }).join('');
+
+  function sectionHeader(title, sub) {
+    return '<div style="background:#0f172a;color:#fff;padding:8pt 14pt;display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em">'+title+'</span>' +
+      (sub?'<span style="font-size:7.5pt;color:rgba(255,255,255,.55)">'+sub+'</span>':'') +
+    '</div>';
+  }
+
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Program Team Report</title>' +
+    PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS +
+    'table { width:100%;border-collapse:collapse; }' +
+    'th { background:#f8fafc;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:700;padding:5pt 8pt;text-align:left;border-bottom:2px solid #e2e8f0; }' +
+    '</style></head><body>' +
+
+    // Header
+    '<div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #e63946;padding-bottom:12pt;margin-bottom:16pt">' +
+      '<div>' +
+        '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#e63946;margin-bottom:3pt">New Jersey Tutoring Corps &nbsp;·&nbsp; Program Team</div>' +
+        '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:800;color:#0f172a">Operational Impact Report</div>' +
+        '<div style="font-size:8.5pt;color:#475569;margin-top:4pt">'+esc(r.range.label)+' &nbsp;·&nbsp; '+esc(regionLabel)+(r.districtFilter?' &nbsp;·&nbsp; '+esc(r.districtFilter):'')+(r.schoolFilter?' &nbsp;·&nbsp; '+esc(r.schoolFilter):'')+'</div>' +
+      '</div>' +
+      '<div style="text-align:right;font-size:7.5pt;color:#94a3b8;line-height:1.7">' +
+        'Generated '+ts+'<br>'+(r.label||'Full Operational Detail') +
+      '</div>' +
+    '</div>' +
+
+    // KPI row
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6pt;margin-bottom:14pt">' +
+      ['Scholars Impacted|'+a.scholars+'|vs prior: '+delta(a.scholars,pa.scholars),
+       'Sessions Lost|'+a.sessions+'|vs prior: '+delta(a.sessions,pa.sessions),
+       'Hours Lost|'+a.hours+'|vs prior: '+delta(a.hours,pa.hours),
+       'Schools Affected|'+rankedSchools.length+'|',
+       '8-wk Avg|'+r.avg8Scholars+' scholars|per week'].map(function(s) {
+         var p=s.split('|');
+         return '<div style="border:1px solid #e2e8f0;border-radius:6px;padding:7pt 10pt;text-align:center">' +
+           '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#0f172a">'+p[1]+'</div>' +
+           '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:2pt">'+p[0]+'</div>' +
+           (p[2]?'<div style="font-size:7pt;color:#94a3b8;margin-top:2pt">'+p[2]+'</div>':'') +
+         '</div>';
+       }).join('') +
+    '</div>' +
+
+    // Section 1: Reason breakdown
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12pt;break-inside:avoid">' +
+      sectionHeader('Session Loss by Missed Reason', r.selectedIds.length+' reasons analyzed') +
+      '<table><thead><tr>' +
+        '<th>Reason</th><th>Category</th>' +
+        '<th style="text-align:center">Scholars</th><th style="text-align:center">Sessions</th>' +
+        '<th style="text-align:center">Hrs Lost</th><th style="text-align:center">% Total</th>' +
+        '<th style="text-align:center">vs Prior</th>' +
+      '</tr></thead><tbody>'+reasonRows+'</tbody></table>' +
+    '</div>' +
+
+    // Section 2: School ranking
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12pt">' +
+      sectionHeader('School Impact Ranking', rankedSchools.length+' schools · sorted by scholar impact') +
+      '<table><thead><tr>' +
+        '<th style="text-align:center">#</th><th>School / District</th><th style="text-align:center">Region</th>' +
+        '<th style="text-align:center">Scholars</th><th style="text-align:center">Sessions</th>' +
+        '<th style="text-align:center">Hrs</th><th style="text-align:center">vs Prior</th>' +
+        '<th>Top Reason</th>' +
+      '</tr></thead><tbody>'+schoolRows+'</tbody></table>' +
+    '</div>' +
+
+    // Section 3: Daily log
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:12pt;break-inside:avoid" class="page-break">' +
+      sectionHeader('Daily Impact Log', 'All impact dates in reporting period') +
+      '<table><thead><tr>' +
+        '<th>Date</th><th>Day</th>' +
+        '<th style="text-align:center">Scholars</th><th style="text-align:center">Sessions</th>' +
+        '<th>Schools (scholars)</th>' +
+      '</tr></thead><tbody>'+dailyRows+'</tbody></table>' +
+    '</div>' +
+
+    // Footer
+    '<div style="border-top:1px solid #e2e8f0;padding-top:8pt;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8">' +
+      '<span>NJTC Program Team &nbsp;·&nbsp; Pearl Operations Live Data &nbsp;·&nbsp; '+ts+'</span>' +
+      '<span>For Internal Use — Data Dept</span>' +
+    '</div>' +
+
+    '</body></html>';
+
+  _openPrintWindow(html, 'NJTC Program Team Operational Report');
+}
+
+// Legacy alias
+function printView() { exportPDF(); }
 
 // ── Sync indicator ────────────────────────────────────────────────────────
 function updateSyncStatus() {
@@ -1444,6 +1973,8 @@ window.irb = {
   exportExecutive:    exportExecutive,
   printView:          printView,
   exportPDF:          exportPDF,
+  exportPDFSchool:    exportPDFSchool,
+  exportPDFProgram:   exportPDFProgram,
   _sortRanking:       _sortRanking,
   _rankPage:          _rankPage,
 };

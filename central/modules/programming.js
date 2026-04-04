@@ -5710,6 +5710,12 @@
       isDataLoaded: function() {
         return _inited && _attRows && _attRows.length > 0;
       },
+
+      // getSessRows() — raw session rows for session-joined CSV export (Impact Report Builder)
+      // Returns a shallow copy so callers cannot mutate internal state.
+      getSessRows: function() {
+        return _sessRows ? _sessRows.slice() : [];
+      },
     };
   })();
 
