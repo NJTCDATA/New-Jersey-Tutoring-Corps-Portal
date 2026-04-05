@@ -5716,6 +5716,12 @@
       getSessRows: function() {
         return _sessRows ? _sessRows.slice() : [];
       },
+
+      // getStuRows() — raw scholar survey rows for per-tutor median score computation
+      // Returns a shallow copy so callers cannot mutate internal state.
+      getStuRows: function() {
+        return _stuRows ? _stuRows.slice() : [];
+      },
     };
   })();
 
