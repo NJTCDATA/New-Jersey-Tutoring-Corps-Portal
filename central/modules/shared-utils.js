@@ -3299,8 +3299,38 @@
       lines.push(_otjIcon(beg)+' Beginning: '+beg+'  '+_otjIcon(mid)+' Middle: '+mid+'  '+_otjIcon(end)+' End: '+end);
       if (otj['Site Leader']) lines.push('Site Leader: '+otj['Site Leader']);
       if (otj['OTJ PM Notes'] && otj['OTJ PM Notes'].trim()) lines.push('PM Note: '+otj['OTJ PM Notes'].trim());
+      var otjLink = otj['OTJ Checklist Link'] || otj['OTJ Link'] || otj['Checklist Link'] || '';
+      if (otjLink && otjLink.trim() && /^https?:\/\//i.test(otjLink.trim())) {
+        lines.push('📎 [OTJ Checklist Link](' + otjLink.trim() + ')');
+      }
     } else if (_tdOTJ().length && (entity.hr && entity.hr._apprentice === 'Yes')) {
       lines.push('\n**OTJ**: Enrolled as TAP apprentice but no OTJ record found. Check T&D Analytics.');
+    }
+
+    // ── Observational Check-ins (Training Analytics) ──────────────────────
+    if (entity.hr) {
+      var eObs = entity.hr;
+      var obsCount = eObs._obsCount || 0;
+      if (obsCount > 0 || eObs._obsAvgRating != null) {
+        lines.push('\n**OBSERVATIONAL CHECK-INS**');
+        var obsIcon = obsCount >= 3 ? '✅' : obsCount >= 1 ? '⚠️' : '—';
+        var obsLine = obsIcon + ' ' + obsCount + ' observation' + (obsCount !== 1 ? 's' : '') + ' on record';
+        if (eObs._obsAvgRating != null) {
+          var ratingColor = eObs._obsAvgRating >= 4 ? 'Strong' : eObs._obsAvgRating >= 3 ? 'Developing' : 'Needs Support';
+          obsLine += ' · Avg rating: **' + eObs._obsAvgRating + '/5** (' + ratingColor + ')';
+        }
+        lines.push(obsLine);
+        if (eObs._obsLatest) {
+          var lo = eObs._obsLatest;
+          var loLine = 'Most recent: ' + (lo.date || '—');
+          if (lo.observer) loLine += ' · by ' + lo.observer;
+          if (lo.rating)   loLine += ' · rated ' + lo.rating + '/5';
+          lines.push(loLine);
+          if (lo.notes && lo.notes.trim()) lines.push('Note: "' + lo.notes.trim().slice(0, 160) + (lo.notes.trim().length > 160 ? '…' : '') + '"');
+        }
+      } else if (eObs._apprentice === 'Yes') {
+        lines.push('\n**OBSERVATIONAL CHECK-INS**: No observations logged yet. Open T&D Analytics for live view.');
+      }
     }
 
     if (lines.length <= 2) return 'No portal data found for "' + name + '". Check spelling or open HR/Pearl directly.';
@@ -3466,6 +3496,32 @@
     return 'Network (' + schoolNames.length + ' schools)';
   }
 
+  // ── Attendance classification helpers (mirror programming.js classifyRecord) ──
+  // r[6] = ATT_STATUS: 'Attended', 'Late', 'Missed', 'Not recorded'
+  // r[7] = MISS_REASON (free-text reason string)
+  var _SCHOL_MISS_REASONS = [
+    'Absent',
+    'Scholar declined attending tutoring session',
+    'Classroom Teacher Requested to Keep Scholar in Class',
+    'HADDON TWP ONLY -- Teacher requested whole group support',
+    'Scholar Left Early'
+  ];
+  var _TUTOR_MISS_REASONS = [
+    'Absent; Not Covered (Tutor not available)',
+    'Absent; Covered by Sub Tutor',
+    'Absent; Covered by Dual Role',
+    'Absent; Covered by the Site Leader',
+    'Absent; Covered by the Instructional Coach',
+    'Tutor Left Early (no sub)'
+  ];
+  function _isAttended(r)  { return r[6]==='Attended' || r[6]==='Late'; }
+  // Scholar absent: Missed + scholar reason OR blank reason (unknown = counts against att%)
+  function _isScholAbs(r)  { return r[6]==='Missed' && (_SCHOL_MISS_REASONS.indexOf(r[7]||'')>=0 || (r[7]||'')===''); }
+  // Scholar SI: Missed + non-scholar reason (school event, holiday, etc.)
+  function _isScholSI(r)   { return r[6]==='Missed' && _SCHOL_MISS_REASONS.indexOf(r[7]||'')<0 && (r[7]||'')!==''; }
+  // Tutor absent: Missed + tutor reason
+  function _isTutorAbs(r)  { return r[6]==='Missed' && _TUTOR_MISS_REASONS.indexOf(r[7]||'')>=0; }
+
   // Unified filtered attendance stats: apply a row-filter + optional temporal filter
   function _attStatsFiltered(rowFilter, opts) {
     if (!window.po || typeof window.po.getAttRows !== 'function') return null;
@@ -3476,11 +3532,9 @@
     // Temporal filter on top of location filter
     var _toYMD = function(d){ var p=function(n){return n<10?'0'+n:''+n;}; return d.getFullYear()+''+p(d.getMonth()+1)+''+p(d.getDate()); };
     if (opts && opts.weekNum) {
-      var rng = _schoolWeekRange(opts.weekNum);
-      if (rng) {
-        // Use YYYYMMDD string comparison — DST-safe, no ms drift
-        filtered = filtered.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&_toYMD(d)>=rng.startYMD&&_toYMD(d)<=rng.endYMD; });
-      }
+      // r[26] = 'Week N' label — direct comparison, no date math needed
+      var wkLabel = 'Week ' + opts.weekNum;
+      filtered = filtered.filter(function(r){ return r[26] === wkLabel; });
     } else if (opts && opts.rangeLabel) {
       var dr = _dateRange(opts.rangeLabel);
       if (dr) {
@@ -3496,12 +3550,12 @@
     var label = (opts&&opts.label) || 'Filter';
     if (!filtered.length) return { label:label, found:false };
     var stu  = filtered.filter(function(r){ return r[1]==='Student'; });
-    var stuA = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var stuB = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||''); }).length;
-    var stuSI= stu.filter(function(r){ return /service.?interrupt/i.test(r[6]||r[7]||''); }).length;
+    var stuA = stu.filter(_isAttended).length;
+    var stuB = stu.filter(_isScholAbs).length;
+    var stuSI= stu.filter(_isScholSI).length;
     var inst = filtered.filter(function(r){ return r[1]==='Instructor'; });
-    var instA= inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var instB= inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var instA= inst.filter(_isAttended).length;
+    var instB= inst.filter(_isTutorAbs).length;
     var sessSet=new Set(); filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
     var scholars=new Set(stu.map(function(r){return r[13]||r[0];}).filter(Boolean));
     return {
@@ -3818,8 +3872,8 @@
     rows.forEach(function(r){
       var id = r[13]||r[0]||''; if (!id) return;
       if (!scholars[id]) scholars[id] = { att:0, abs:0, si:0 };
-      if (/^attended$/i.test(r[6])) scholars[id].att++;
-      else if (/^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||'')) scholars[id].abs++;
+      if (_isAttended(r)) scholars[id].att++;
+      else if (_isScholAbs(r)) scholars[id].abs++;
       else scholars[id].si++;
     });
     var sArr = Object.values(scholars).map(function(s){
@@ -4111,12 +4165,12 @@
     var filtered = rows.filter(function(r) { return r[5] === target; });
     if (!filtered.length) return { date: target, found: false };
     var stu   = filtered.filter(function(r){ return r[1]==='Student'; });
-    var stuA  = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var stuB  = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||''); }).length;
-    var stuSI = stu.filter(function(r){ return /service.?interrupt/i.test(r[6]||r[7]||''); }).length;
+    var stuA  = stu.filter(_isAttended).length;
+    var stuB  = stu.filter(_isScholAbs).length;
+    var stuSI = stu.filter(_isScholSI).length;
     var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
-    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var instA = inst.filter(_isAttended).length;
+    var instB = inst.filter(_isTutorAbs).length;
     var sessSet = new Set();
     filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
     var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
@@ -4147,13 +4201,13 @@
     if (!filtered.length) return { label:rng.label, rows:0, scholAttPct:null, tutorAttPct:null, sessions:0, siCount:0 };
     // Scholar rows
     var stu  = filtered.filter(function(r){ return r[1]==='Student'; });
-    var stuA = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var stuB = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt|^si$/i.test(r[7]||''); }).length;
-    var stuSI= stu.filter(function(r){ return /service.?interrupt/i.test(r[6]) || /service.?interrupt/i.test(r[7]||''); }).length;
+    var stuA = stu.filter(_isAttended).length;
+    var stuB = stu.filter(_isScholAbs).length;
+    var stuSI= stu.filter(_isScholSI).length;
     // Tutor/Instructor rows
     var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
-    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var instA = inst.filter(_isAttended).length;
+    var instB = inst.filter(_isTutorAbs).length;
     // Unique sessions (approximate: unique session title+date combos)
     var sessSet = new Set();
     filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
@@ -4207,20 +4261,17 @@
     if (!window.po || typeof window.po.getAttRows !== 'function') return null;
     var rows = window.po.getAttRows();
     if (!rows || !rows.length) return null;
-    // DST-safe: compare YYYYMMDD strings, not timestamps
-    var toYMD2=function(d){var p=function(n){return n<10?'0'+n:''+n;};return d.getFullYear()+''+p(d.getMonth()+1)+''+p(d.getDate());};
-    var filtered = rows.filter(function(r) {
-      var d = _parseMMDDYYYY(r[5]);
-      return d && toYMD2(d) >= rng.startYMD && toYMD2(d) <= rng.endYMD;
-    });
+    // Use r[26]='Week N' label directly — most accurate, no date math or DST risk
+    var wkLabel = 'Week ' + weekNum;
+    var filtered = rows.filter(function(r) { return r[26] === wkLabel; });
     if (!filtered.length) return { label: rng.label, found: false };
     var stu   = filtered.filter(function(r){ return r[1]==='Student'; });
-    var stuA  = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var stuB  = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||''); }).length;
-    var stuSI = stu.filter(function(r){ return /service.?interrupt/i.test(r[6]||r[7]||''); }).length;
+    var stuA  = stu.filter(_isAttended).length;
+    var stuB  = stu.filter(_isScholAbs).length;
+    var stuSI = stu.filter(_isScholSI).length;
     var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
-    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
-    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var instA = inst.filter(_isAttended).length;
+    var instB = inst.filter(_isTutorAbs).length;
     var sessSet = new Set();
     filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
     var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
@@ -5634,23 +5685,78 @@
       }
     },
 
-    // Tutor observation status (from OTJ)
-    { match: /observation.*(status|check|complete|done|who|count|how many|miss)|obs.*(status|complete|tutor|check|count)|tutor.*obs|who.*observed|observation.*complet/i,
+    // OTJ checklist link for a specific person
+    { match: /otj.*(link|url|checklist link|form)|link.*(otj|checklist|on.?the.?job)|checklist.*(link|url|otj)|show.*otj.*link|get.*otj.*link/i,
       respond: function() {
-        var rows = _tdOTJ();
-        var active = _hrActive();
-        if (!rows.length && !active.length) return 'Observation data not yet loaded — open T&D Analytics first.';
-        var msg = '**Tutor Observation Status:**\n\n';
-        if (rows.length) {
-          // OTJ completions serve as proxy for observations in apprenticeship context
-          var allPhases = rows.filter(function(r){ return /completed/i.test(r['OTJ Beginning']||'') && /completed/i.test(r['OTJ Middle']||''); }).length;
-          msg += '📋 Apprentices with 2+ phases complete: **'+allPhases+'** of '+rows.length+'\n';
-          msg += '\nFor full month-by-month tutor observation logs (Oct–May), open:\n**T&D Analytics → Observations tab** (NE and SW regions tracked separately)\n';
-          msg += '\nObs data available: NE region (monthly Oct–Jun) and SW region (monthly Oct–Apr)';
-        } else {
-          msg += 'Observation records are in T&D Analytics → Apprentice Tracker. Open that panel to load and view monthly observation data by region.';
+        var q = _lastQ;
+        var entity = _extractPerson(q);
+        if (entity) {
+          var otjRecs = _otjForName(entity.name);
+          if (!otjRecs.length) return 'No OTJ record found for **' + entity.name + '**. They may not be an enrolled apprentice, or the T&D data may not be loaded yet.';
+          var otj = otjRecs[0];
+          var link = otj['OTJ Checklist Link'] || otj['OTJ Link'] || otj['Checklist Link'] || '';
+          if (!link || !/^https?:\/\//i.test(link.trim())) return '**' + entity.name + '** — OTJ record found but no checklist link on file. Check T&D Analytics → Apprentice Tracker.';
+          var beg = otj['OTJ Beginning']||'—', mid = otj['OTJ Middle']||'—', end = otj['OTJ End']||'—';
+          return '**' + entity.name + ' — OTJ Checklist**\n\n' +
+            '📎 [Open OTJ Checklist](' + link.trim() + ')\n\n' +
+            _otjIcon(beg)+' Beginning: '+beg+'\n'+
+            _otjIcon(mid)+' Middle: '+mid+'\n'+
+            _otjIcon(end)+' End: '+end +
+            (otj['Site Leader'] ? '\n\n📍 Site Leader: '+otj['Site Leader'] : '');
         }
+        // No person named — list apprentices with links
+        var rows = _tdOTJ();
+        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker first, then ask again.';
+        var withLinks = rows.filter(function(r){ var l=r['OTJ Checklist Link']||''; return /^https?:\/\//i.test(l); });
+        if (!withLinks.length) return 'OTJ records loaded but no checklist links found. Ask your T&D team to add links in the Apprentice Tracker sheet.';
+        var msg = '**OTJ Checklists with Links (' + withLinks.length + '):**\n\n';
+        msg += withLinks.slice(0,8).map(function(r){
+          var n = r['Master List Name']||'Unknown'; var l = r['OTJ Checklist Link']||'';
+          return '📎 ['+n+']('+l+')';
+        }).join('\n');
+        if (withLinks.length > 8) msg += '\n…and ' + (withLinks.length-8) + ' more. Open T&D Analytics for full list.';
         return msg;
+      }
+    },
+
+    // Tutor / site leader observation check-ins (from Training Analytics)
+    { match: /observation.*(status|check|complete|done|who|count|how many|miss|rating|score|average|avg)|obs.*(status|complete|tutor|check|count|rating|avg)|tutor.*obs|who.*observed|check.?in.*(tutor|site leader|staff)|observation.*check.?in|how.*many.*obs|obs.*frequ/i,
+      respond: function() {
+        var active = _hrActive();
+        // Use HR_EMPS overlay if available (loaded when Talent panel opens)
+        var withObs = active.filter(function(e){ return (e._obsCount||0) > 0; });
+        if (withObs.length) {
+          var total0 = active.filter(function(e){ return !e._obsCount; }).length;
+          var total1 = active.filter(function(e){ return e._obsCount===1; }).length;
+          var total2 = active.filter(function(e){ return e._obsCount===2; }).length;
+          var total3p= active.filter(function(e){ return (e._obsCount||0)>=3; }).length;
+          var allRatings = [];
+          withObs.forEach(function(e){ if (e._obsRatings) allRatings = allRatings.concat(e._obsRatings); });
+          var avgRating = allRatings.length ? (allRatings.reduce(function(a,b){return a+b;},0)/allRatings.length).toFixed(1) : null;
+          var msg = '**Tutor Observation Check-ins (Training Analytics)**\n\n';
+          msg += '📊 Staff observed: **'+withObs.length+'** of '+active.length+' active\n';
+          msg += '• 0 obs: **'+total0+'**\n';
+          msg += '• 1 obs: **'+total1+'**\n';
+          msg += '• 2 obs: **'+total2+'**\n';
+          msg += '• 3+ obs: **'+total3p+'**\n';
+          if (avgRating) msg += '\n⭐ Avg rating across all obs: **'+avgRating+'/5**';
+          msg += '\n\n📋 Observations are tracked monthly (Oct–Jun NE, Oct–Apr SW). Open **T&D Analytics → Apprentice Tracker** for tutor-by-tutor and month-by-month logs.';
+          return msg;
+        }
+        // Fallback: use OTJ obs count field if T&D data is loaded
+        var rows = _tdOTJ();
+        if (rows.length) {
+          var obsZero = rows.filter(function(r){ return !(r.obsCount||0); }).length;
+          var obs1p   = rows.filter(function(r){ return (r.obsCount||0)>=1; }).length;
+          var obs3p   = rows.filter(function(r){ return (r.obsCount||0)>=3; }).length;
+          var msg2 = '**Apprentice Observation Check-ins:**\n\n';
+          msg2 += '• No obs yet: **'+obsZero+'**\n';
+          msg2 += '• 1+ obs: **'+obs1p+'** of '+rows.length+'\n';
+          msg2 += '• 3+ obs (on track): **'+obs3p+'**\n';
+          msg2 += '\nFor full month-by-month logs (Oct–Jun), open **T&D Analytics → Apprentice Tracker**.';
+          return msg2;
+        }
+        return 'Observation data not yet loaded — open T&D Analytics first. Observations are logged monthly by region (NE: Oct–Jun, SW: Oct–Apr).';
       }
     },
 
