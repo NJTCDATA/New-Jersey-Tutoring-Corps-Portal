@@ -658,6 +658,34 @@
   }
 
   // ══════════════════════════════════════════════════════════
+  //  EXECUTIVE DASHBOARD
+  // ══════════════════════════════════════════════════════════
+  function buildExecDashboard(dept) {
+    const execEl = document.getElementById('execDashboard');
+    if (!execEl) return;
+    const kpi   = window.KPI_DATA || [];
+    const getS  = k => k.midStatus || k.status || '';
+    const SCORE_PTS = {'Met':1,'Partially Met':.5,'In Progress':.25,'Coming Down the Pipeline':.1,'Has Not Met':0};
+    const met   = kpi.filter(k=>getS(k)==='Met').length;
+    const total = kpi.length || 1;
+    const score = Math.round((kpi.reduce((a,k)=>a+(SCORE_PTS[getS(k)]||0),0)/total)*100);
+    const risk  = score>=85?{l:'Healthy',c:'#166534',bg:'#dcfce7'}:score>=65?{l:'Watch',c:'#92400e',bg:'#fef3c7'}:score>=40?{l:'Needs Focus',c:'#9a3412',bg:'#ffedd5'}:{l:'Area of Support',c:'#991b1b',bg:'#fee2e2'};
+    execEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,var(--navy-deep,#050d1a),#0d2847);border-radius:16px;padding:1.75rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap">
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-family:'DM Serif Display',serif;font-size:3.5rem;color:${risk.c};line-height:1;letter-spacing:-.04em">${score}%</div>
+          <div style="background:${risk.bg};color:${risk.c};font-size:.75rem;font-weight:700;padding:.25rem .75rem;border-radius:20px;margin-top:.5rem;display:inline-block">${risk.l}</div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-top:.375rem">Weighted Score · SY 25-26</div>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-family:'Syne',sans-serif;font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.5rem">Organizational Health</div>
+          <div style="font-size:.875rem;color:rgba(255,255,255,.6);line-height:1.6">${met} of ${total} targets fully achieved this cycle. ${score<65?'Several goal areas need attention before year-end.':'Progress is solid — keep driving forward.'}</div>
+          <button onclick="showPanel('kpi-analytics',document.querySelector('[data-panel=kpi-analytics]'))" style="margin-top:.875rem;background:rgba(240,165,0,.15);border:1px solid rgba(240,165,0,.3);color:#f0a500;padding:.4rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit">View Full Analytics →</button>
+        </div>
+      </div>`;
+  }
+
+  // ══════════════════════════════════════════════════════════
   //  HOME PAGE
   // ══════════════════════════════════════════════════════════
   function buildHome(dept) {
