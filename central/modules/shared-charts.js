@@ -24,14 +24,7 @@
 
   // Build full analytics object fresh from live KPI_DATA
   function calcKPI(){
-    const _allData = KPI_DATA || [];
-    // Dept filter support
-    const data = (function(){
-      if (!window._kpiDeptFilterActive) return _allData;
-      const dg = (window.GOAL_DEPT_MAP||{})[(window.NJTC_SESSION||{}).dept||'data'];
-      if (!dg) return _allData;
-      return _allData.filter(k => dg.includes(k.goal));
-    })();
+    const data = KPI_DATA || [];
     const getS = k => k.midStatus || k.status || 'Unknown';
     let totalPts=0, maxPts=0;
     const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
@@ -79,22 +72,12 @@
   }
 
   // ── Friendly plain-English headline ─────────────────────────────
-  function friendlyHeadline(risk, score, dept){
+  function friendlyHeadline(risk, score){
     const s = score.toFixed(0);
-    const prefixes = {
-      kb: 'CEO Overview —', leadership: 'Leadership Snapshot —',
-      finance: 'Finance & Funding —', hr: 'People & Culture —',
-      programming: 'Program Impact —', training: 'Training & Development —',
-      data: 'Full Organization —'
-    };
-    const prefix = prefixes[dept] || '';
-    const base = {
-      'Healthy':         `${s}% of our goals are on track.`,
-      'Watch':           `Solid progress at ${s}%, but a few areas need attention.`,
-      'Needs Focus':     `At ${s}% — several areas would benefit from team focus before year-end.`,
-      'Area of Support': `At ${s}%, significant gaps remain. Focused effort is needed now.`,
-    }[risk.label] || `At ${s}%.`;
-    return prefix ? `${prefix} ${base}` : base;
+    if(risk.label==='Healthy')  return `We're performing well overall — ${s}% of our goals are on track.`;
+    if(risk.label==='Watch')    return `Solid progress at ${s}%, but a few goal areas need closer attention.`;
+    if(risk.label==='Needs Focus')  return `We're at ${s}% — several areas would benefit from team attention before year-end.`;
+    return `At ${s}%, we have significant gaps to close. Immediate focus is needed.`;
   }
 
   // ── Plain-English goal summary ───────────────────────────────────
@@ -129,49 +112,21 @@
     const criticalGoals = Object.entries(goals).filter(([,g])=>g.risk.label==='Critical');
     const healthyGoals  = Object.entries(goals).filter(([,g])=>g.risk.label==='Healthy');
 
-    // ── Dept filter strip ──────────────────────────────────────────
-    const _fpDept   = (window.NJTC_SESSION||{}).dept || 'data';
-    const _fpGoals  = (window.GOAL_DEPT_MAP||{})[_fpDept] || null;
-    const filterHtml = _fpDept === 'data' ? `
-      <div style="margin-bottom:1.25rem;padding:.5rem .875rem;background:rgba(123,45,139,.07);border:1px solid rgba(123,45,139,.15);border-radius:10px;font-size:.8rem;color:#7b2d8b;font-weight:600">
-        📈 Full organization view — all goal areas visible
-      </div>` :
-      _fpGoals ? `
-      <div style="margin-bottom:1.25rem">
-        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem">View</div>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-          <button class="kpia-filter-pill ${!window._kpiDeptFilterActive?'active':''}" onclick="window._kpiDeptFilterActive=false;buildKPIAnalytics()">All Goals</button>
-          <button class="kpia-filter-pill ${window._kpiDeptFilterActive?'active':''}" onclick="window._kpiDeptFilterActive=true;buildKPIAnalytics()">My Focus Area</button>
-        </div>
-      </div>` : '';
-
-    let html = filterHtml;
+    let html = '';
 
     // ── Friendly Summary Banner ──────────────────────────────────
     html += `
     <div class="kpia-summary-banner" style="background:linear-gradient(135deg,${risk.bg},white);border:2px solid ${risk.color}22;border-radius:16px;padding:1.5rem 1.75rem;margin-bottom:1.5rem;display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
       <div style="font-size:2.75rem;line-height:1">${risk.icon}</div>
       <div style="flex:1;min-width:220px">
-        <div style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-bottom:.375rem;line-height:1.4">${friendlyHeadline(risk,score,(window.NJTC_SESSION||{}).dept)}</div>
+        <div style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-bottom:.375rem;line-height:1.4">${friendlyHeadline(risk,score)}</div>
         <div style="font-size:.875rem;color:var(--text-2);line-height:1.5">
           Out of <strong>${total} targets</strong> this cycle:
           ${counts['Met']>0?`<strong style="color:#166534">${counts['Met']} fully completed</strong>`:''}${counts['Met']>0&&counts['In Progress']>0?' · ':''}${counts['In Progress']>0?`<strong style="color:var(--progress)">${counts['In Progress']} in progress</strong>`:''}${(counts['Met']+counts['In Progress']>0)&&(counts['Partially Met']+counts['Has Not Met'])>0?' · ':''}${counts['Partially Met']>0?`<strong style="color:#92400e">${counts['Partially Met']} partially done</strong>`:''}${counts['Has Not Met']>0?` · <strong style="color:#991b1b">${counts['Has Not Met']} not yet met</strong>`:''}${counts['Coming Down the Pipeline']>0?` · <strong style="color:var(--pipeline)">${counts['Coming Down the Pipeline']} upcoming</strong>`:''}
         </div>
-        ${(()=>{
-          let statusBadge = '';
-          if (score >= 85) {
-            statusBadge = `<div style="margin-top:.625rem;font-size:.8125rem;background:#dcfce7;color:#166534;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">✅ Strong performance — keep momentum going!</div>`;
-          } else if (score >= 65) {
-            statusBadge = `<div style="margin-top:.625rem;font-size:.8125rem;background:#fef3c7;color:#92400e;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">🟡 Solid progress — a few goal areas need closer attention.</div>`;
-          } else if (score >= 40) {
-            const n = criticalGoals.length || Object.values(goals).filter(g=>g.risk.label==='Needs Focus').length;
-            statusBadge = `<div style="margin-top:.625rem;font-size:.8125rem;background:#ffedd5;color:#9a3412;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">🟠 ${n} goal area${n!==1?'s':''} need team attention before year-end.</div>`;
-          } else {
-            statusBadge = `<div style="margin-top:.625rem;font-size:.8125rem;background:#fee2e2;color:#991b1b;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">🔴 Significant gaps remain. Immediate focus needed.</div>`;
-          }
-          const critAlert = criticalGoals.length ? `<div style="margin-top:.5rem;font-size:.8125rem;background:#fff8e7;color:#92400e;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">🔍 ${criticalGoals.length} goal area${criticalGoals.length>1?'s warrant':'warrants'} investigation: ${criticalGoals.map(([n])=>n).join(', ')}</div>` : '';
-          return statusBadge + critAlert;
-        })()}
+        ${criticalGoals.length ? `<div style="margin-top:.625rem;font-size:.8125rem;background:#fff8e7;color:#92400e;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">
+          🔍 ${criticalGoals.length} goal area${criticalGoals.length>1?'s warrant':'warrants'} further investigation: ${criticalGoals.map(([name])=>name).join(', ')}
+        </div>` : `<div style="margin-top:.625rem;font-size:.8125rem;background:#dcfce7;color:#166534;padding:.375rem .75rem;border-radius:20px;display:inline-block;font-weight:600">✅ All goal areas are on track — great work!</div>`}
       </div>
       <div style="text-align:center;background:white;border-radius:12px;padding:1rem 1.25rem;border:1px solid ${risk.color}33;min-width:100px;flex-shrink:0">
         <div style="font-size:2.25rem;font-weight:800;color:${risk.color};font-family:'DM Serif Display',serif;line-height:1">${score.toFixed(0)}%</div>
@@ -368,23 +323,8 @@
                 const pts = kpiPts(s);
                 const stColor = s==='Met'?'#166534':s==='In Progress'?'var(--progress)':s==='Partially Met'?'#9a3412':s==='Coming Down the Pipeline'?'var(--pipeline)':'#991b1b';
                 const stBg    = s==='Met'?'#dcfce7':s==='In Progress'?'#eff6ff':s==='Partially Met'?'#ffedd5':s==='Coming Down the Pipeline'?'var(--pipe-bg)':'#fee2e2';
-                const qRow = (window.KPI_QUARTERLY||[]).find(q=>(q.target||'').trim()===k.target.trim());
-                const srcHtml = qRow ? `
-                  <div style="margin-top:.25rem;display:flex;gap:.3rem;flex-wrap:wrap">
-                    ${qRow.targetSource ? `<span class="kpi-chip">📊 ${qRow.targetSource.substring(0,30)}</span>` : ''}
-                    ${qRow.secondarySource ? `<span class="kpi-chip">📁 ${qRow.secondarySource.substring(0,28)}</span>` : ''}
-                    ${qRow.owner ? `<span class="kpi-chip">👤 ${qRow.owner.substring(0,35)}</span>` : ''}
-                  </div>` : '';
-                const qHtml = qRow ? `
-                  <div style="margin-top:.375rem;display:flex;gap:.5rem;flex-wrap:wrap;font-size:.7rem">
-                    ${['q1','q2','q3','q4'].filter(q=>qRow[q+'Status']).map(q=>`
-                      <span style="background:var(--surface-3);border:1px solid var(--border);border-radius:6px;padding:.15rem .45rem;font-weight:600">
-                        ${q.toUpperCase()}: <span style="color:${qRow[q+'Status']==='Met'?'#166534':qRow[q+'Status']==='Has Not Met'?'#991b1b':'#9a3412'}">${qRow[q+'Status']}</span>
-                        ${qRow[q]?' · '+qRow[q].substring(0,30):''}
-                      </span>`).join('')}
-                  </div>` : '';
                 return `<div style="display:flex;align-items:flex-start;gap:.625rem;padding:.5rem .625rem;border-radius:7px;border:1px solid var(--border);background:var(--surface-2)">
-                  <div style="flex:1;font-size:.8125rem;color:var(--navy);line-height:1.4">${k.target}${srcHtml}${qHtml}</div>
+                  <div style="flex:1;font-size:.8125rem;color:var(--navy);line-height:1.4">${k.target}</div>
                   <span style="background:${stBg};color:${stColor};font-size:.6875rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap;flex-shrink:0">${s}</span>
                 </div>`;
               }).join('')}
@@ -501,28 +441,19 @@
     // ── FULL SCORECARD ───────────────────────────────────────────
     } else if(tab === 'scorecard'){
       const sorted = Object.entries(goals).sort((a,b)=>b[1].score-a[1].score);
-      let html = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
-        <button class="btn btn-secondary" onclick="window.print()" style="font-size:.8rem">🖨️ Print / Export View</button>
-      </div>
-      <div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:.8125rem;color:#0c4a6e;line-height:1.5">
-        📋 <strong>Full Scorecard</strong> — All goal areas ranked from highest to lowest. Each score reflects how close we are to completing all targets in that area.
+      let html = `<div style="margin-bottom:1.25rem;padding:.875rem 1rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:.8125rem;color:#0c4a6e;line-height:1.5">
+        📋 <strong>Full Scorecard</strong> — All goal areas ranked from highest to lowest performance. Use this to present to leadership or compare across quarters.
       </div>`;
 
       html += `<div style="display:flex;flex-direction:column;gap:1rem">`;
       sorted.forEach(([name,g],rank)=>{
         const pct = g.score.toFixed(1);
-        const qRow = (window.KPI_QUARTERLY||[]).find(q => {
-          const n = (q.goal||'').trim().toLowerCase();
-          return n === name.toLowerCase();
-        });
         html += `<div class="kpia-card" style="border-left:4px solid ${g.risk.color}">
           <div style="display:flex;align-items:center;gap:.875rem;flex-wrap:wrap;margin-bottom:.75rem">
             <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--muted);width:28px;text-align:center;flex-shrink:0">#${rank+1}</div>
             <div style="flex:1;min-width:0">
               <div style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.25rem">${name}</div>
               <div style="font-size:.8125rem;color:var(--text-2)">${friendlyGoalLine(g,name)}</div>
-              ${qRow&&qRow.owner?`<div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">Owner: ${qRow.owner}</div>`:''}
             </div>
             <div style="text-align:right;flex-shrink:0">
               <div style="font-family:'DM Serif Display',serif;font-size:2rem;font-weight:700;color:${g.risk.color};line-height:1">${pct}%</div>
@@ -530,13 +461,27 @@
             </div>
           </div>
 
-          <!-- Clean single progress bar -->
-          <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden;margin-bottom:.625rem">
-            <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:5px;transition:width .5s ease"></div>
+          <!-- Score bar with threshold markers -->
+          <div style="position:relative;margin-bottom:.5rem">
+            <div style="height:10px;background:var(--border);border-radius:5px;overflow:hidden">
+              <div style="height:100%;width:${Math.min(g.score,100).toFixed(1)}%;background:${g.risk.color};border-radius:5px;transition:width .5s ease"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);margin-top:.25rem;padding:0 1px">
+              <span>0%</span><span>|40% Needs Focus</span><span>|65% Developing</span><span>|85% Strong</span><span>100%</span>
+            </div>
+          </div>
+
+          <!-- Target status bar -->
+          <div style="display:flex;gap:2px;height:6px;border-radius:3px;overflow:hidden;margin-bottom:.625rem">
+            ${g.counts['Met']?`<div style="flex:${g.counts['Met']};background:#22c55e" title="Met: ${g.counts['Met']}"></div>`:''}
+            ${g.counts['In Progress']?`<div style="flex:${g.counts['In Progress']};background:var(--progress)" title="In Progress: ${g.counts['In Progress']}"></div>`:''}
+            ${g.counts['Partially Met']?`<div style="flex:${g.counts['Partially Met']};background:#f97316" title="Partially Met: ${g.counts['Partially Met']}"></div>`:''}
+            ${g.counts['Coming Down the Pipeline']?`<div style="flex:${g.counts['Coming Down the Pipeline']};background:var(--pipeline)" title="Pipeline: ${g.counts['Coming Down the Pipeline']}"></div>`:''}
+            ${g.counts['Has Not Met']?`<div style="flex:${g.counts['Has Not Met']};background:#ef4444" title="Not Met: ${g.counts['Has Not Met']}"></div>`:''}
           </div>
 
           <div style="font-size:.75rem;color:var(--muted)">
-            ${g.pts.toFixed(2)} pts · ${g.max} targets · ${friendlyGoalLine(g,name)}
+            ${g.pts.toFixed(2)} pts earned of ${g.max} possible · ${g.max} targets
           </div>
         </div>`;
       });
@@ -2963,11 +2908,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function fetchKPIMetadata(force) {
-    // Restore quarterly cache on boot
-    try {
-      var qc = window.NJTC_CACHE && window.NJTC_CACHE.get('njtc_kpi_quarterly_v1');
-      if (qc && qc.data) window.KPI_QUARTERLY = qc.data;
-    } catch(e) {}
     if (!force) {
       try {
         var cached = localStorage.getItem(KPI_META_CACHE_KEY);
@@ -2991,29 +2931,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         var dataRows = rows.slice(2).filter(function(r2){ return r2[0] && r2[1]; });
         try { localStorage.setItem(KPI_META_CACHE_KEY, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
         _mergeKPIMeta(dataRows);
-        // ── Parse quarterly data into window.KPI_QUARTERLY ──────────────
-        // Columns (0-based): 0=goal, 1=target, 3=targetSource, 4=secondarySource, 5=owner
-        // Q1: col6=data, col7=status; Q2: 8,9; Q3: 10,11; Q4: 12,13
-        try {
-          var quarterly = dataRows.map(function(r) {
-            return {
-              goal:            (r[0]||'').trim(),
-              target:          (r[1]||'').trim(),
-              targetSource:    _cleanSource(r[3]||'', ''),
-              secondarySource: (r[4]||'').replace(/S?e?condary Validation\s*:/i,'').replace(/N\/A/gi,'').trim(),
-              owner:           _cleanOwner(r[5]||''),
-              q1:  (r[6]||'').trim(),  q1Status: (r[7]||'').trim(),
-              q2:  (r[8]||'').trim(),  q2Status: (r[9]||'').trim(),
-              q3:  (r[10]||'').trim(), q3Status: (r[11]||'').trim(),
-              q4:  (r[12]||'').trim(), q4Status: (r[13]||'').trim(),
-            };
-          }).filter(function(q){ return q.target; });
-          window.KPI_QUARTERLY = quarterly;
-          try {
-            var NJTC_CACHE = window.NJTC_CACHE;
-            if (NJTC_CACHE && NJTC_CACHE.set) NJTC_CACHE.set('njtc_kpi_quarterly_v1', quarterly, 24*60*60*1000);
-          } catch(e2) {}
-        } catch(qe) {}
       })
       .catch(function(){});
   }
