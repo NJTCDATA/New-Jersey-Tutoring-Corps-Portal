@@ -588,6 +588,45 @@
     _apprParsed = { neOtj, swOtj, neTutorObs, swTutorObs, neSLObs, swSLObs,
                     neTutorObsHeaders: neTutorObsParsed.headers,
                     swTutorObsHeaders: swTutorObsParsed.headers };
+
+    // ── Overlay obs counts onto HR_EMPS so PIE can surface them ────────────
+    // Runs once (cached). Triggers as soon as any T&D tab loads data.
+    try {
+      const NE_OBS_M = ['October','November','December','January','February','March','April','May','June'];
+      const SW_OBS_M = ['October Obs #1','November Obs #1','December Comments','January Comments','February Obs #1','March Obs #1','April Obs #1'];
+      const MONTH_LBL = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+      // Accumulate obs counts keyed by normalized tutor name
+      const obsByName = {};
+      function _addObs(name, months, row, lbls) {
+        if (!name) return;
+        const k = name.toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+        if (!k) return;
+        if (!obsByName[k]) obsByName[k] = { count:0, lastObs:'' };
+        months.forEach(function(m,i) { if ((row[m]||'').trim()) { obsByName[k].count++; obsByName[k].lastObs = lbls[i]; } });
+      }
+      neTutorObs.forEach(function(r) { _addObs(r['Tutor Name (ADP)']||'', NE_OBS_M, r, MONTH_LBL); });
+      swTutorObs.forEach(function(r) { _addObs(r['Tutor Name']||'', SW_OBS_M, r, MONTH_LBL); });
+      // Apply to HR_EMPS
+      const empList = window.HR_EMPS || [];
+      empList.forEach(function(emp) {
+        const en = (emp.n||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+        if (!en) return;
+        const parts = en.split(' ');
+        const last  = parts[parts.length-1];
+        const first = parts[0];
+        // Find best match: exact name or first+last match
+        const key = Object.keys(obsByName).find(function(k) {
+          if (k === en) return true;
+          const kp = k.split(' ');
+          return kp[kp.length-1] === last && kp[0] === first;
+        });
+        if (key && obsByName[key].count > 0) {
+          emp._obsCount = (emp._obsCount||0) + obsByName[key].count;
+          if (!emp._obsLatest && obsByName[key].lastObs) emp._obsLatest = { date: obsByName[key].lastObs };
+        }
+      });
+    } catch(e) { console.warn('[T&D] Obs overlay error:', e); }
+
     return _apprParsed;
   }
 
