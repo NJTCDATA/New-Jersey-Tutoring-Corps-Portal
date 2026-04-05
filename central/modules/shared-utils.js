@@ -3111,34 +3111,135 @@
 })();
 
 // ══════════════════════════════════════════════════════════════════════════
-//  PIE — Portal Intelligence Engine  v4.0
-//  100% rule-based. Zero API calls. Zero external deps.
-//  Reads live portal data at question time from window globals.
+//  PIE — Portal Intelligence Engine  v5.1
+//  Comprehensive rule-based assistant. Zero API calls. Zero external deps.
+//  Per-tutor lookup • Site/district breakdown • Apprentice demographics
+//  50+ intents • Category chips • PDF push • Entity extraction
+//  Reads: KPI_DATA, window.po, window.irlab, CONCERNS, HR_EMPS, GOV_DATA
 // ══════════════════════════════════════════════════════════════════════════
 (function() {
   'use strict';
 
-  var _open      = false;
-  var _history   = [];
-  var _panel     = 'home';
-  var _dept      = 'leadership';
+  // ════════════════════════════════════════════════════════════════════════════
+  //  PIE v5  –  Portal Intelligence Engine
+  //  All data reads at call time. Zero caching. Zero external deps.
+  //  50+ intents · Category chips · Entity extraction · PDF push
+  //  Reads: KPI_DATA, window.po, window.irlab, CONCERNS, HR_EMPS, GOV_DATA
+  // ════════════════════════════════════════════════════════════════════════════
 
-  // ── Context-aware chips per panel ────────────────────────────────────────
-  var PIE_SUGGESTIONS = {
-    'home':               ['How are we doing overall?', 'What goals need attention?', 'What should I know today?'],
-    'kpi':                ['What does Partially Met mean?', 'Which goals are most at risk?', 'How is the weighted score calculated?'],
-    'kpi-analytics':      ['What is our overall score?', 'Which goal area needs the most help?', 'What do the health bands mean?'],
-    'pearl-ops':          ['What is a service interruption?', 'How is attendance rate calculated?', 'How many active scholars?'],
-    'sy-analytics':       ['How many scholars are we serving?', 'What is a fee-for-service site?', 'How many active sites?'],
-    'talent':             ['How many concerns are active?', 'What does On Watch mean?', 'How are ADP decisions made?'],
-    'concern':            ['What happens after I submit a concern?', 'Difference between On Watch and Write-Up?', 'How many open concerns?'],
-    'iready-lab':         ['What is typical growth?', 'How do I read a scale score?', 'What does placement level mean?'],
-    'training-analytics': ['How are PD sessions rated?', 'What is the apprenticeship program?', 'How is trainer quality measured?'],
-    'policies':           ['Where is the data governance policy?', 'Who owns the KPI dashboard?', 'What is FERPA?'],
-    'impact-report':      ['What counts as a service interruption?', 'How is scholar impact measured?', 'What is total tutored minutes?'],
-    'finance-analytics':  ['What does partnership risk mean?', 'How is fee-for-service calculated?', 'What is our budget status?'],
-    'perf':               ['How many concerns are open?', 'What is a PGP?', 'How are concerns tracked?'],
+  var _open    = false;
+  var _history = [];
+  var _panel   = 'home';
+  var _dept    = 'leadership';
+  var _cat     = 'Overview';
+
+  // ── Category chip definitions ─────────────────────────────────────────────
+  var CATEGORIES = {
+    'Overview':   ['How are we doing overall?',               'What should I know today?',                  'Give me a flash summary PDF'],
+    'Attendance': ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',           'Which district has the lowest attendance?'],
+    'KPIs':       ['Which goals have not been met?',          'Which goal area is the weakest?',            'What does the weighted score mean?'],
+    'Workforce':  ['Who is currently on watch?',              'How many active concerns are there?',        'How many apprentices do we have?'],
+    'Academic':   ['What is our iReady math growth?',         'How does ELA compare to math growth?',       'What is typical growth?'],
+    'Program':    ['How many active scholars?',               'What is a service interruption?',            'How many districts are we in?'],
+    'Reports':    ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
   };
+  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Reports'];
+
+  var PANEL_CATS = {
+    'kpi':'KPIs', 'kpi-analytics':'KPIs', 'pearl-ops':'Attendance',
+    'sy-analytics':'Program', 'talent':'Workforce', 'concern':'Workforce',
+    'iready-lab':'Academic', 'training-analytics':'Workforce',
+    'policies':'Overview', 'impact-report':'Program', 'finance-analytics':'Program', 'perf':'Workforce',
+  };
+
+  // ── Name normalization for fuzzy person lookup ────────────────────────────
+  function _normName(s) {
+    return (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+  }
+  function _nameMatch(a, b) {
+    var na = _normName(a), nb = _normName(b);
+    if (!na || !nb) return false;
+    if (na === nb) return true;
+    var pa = na.split(' '), pb = nb.split(' ');
+    // Match if last name matches and at least one first/middle token matches
+    var lastA = pa[pa.length-1], lastB = pb[pb.length-1];
+    if (lastA !== lastB) return false;
+    return pa.some(function(t){ return t.length>1 && pb.indexOf(t)>=0; });
+  }
+
+  // ── Entity extraction: detect person name in query ───────────────────────
+  function _extractPerson(q) {
+    var lq = _normName(q);
+    // Remove common filler words to isolate potential names
+    var stripped = lq.replace(/\b(how is|look up|check on|tell me about|what about|any info on|show me|attendance for|concerns for|find|search|pull up|get me|info on)\b/g,'').trim();
+    if (stripped.length < 3) return null;
+    // Try HR_EMPS (field: e.n)
+    var hr = window.HR_EMPS || [];
+    for (var i = 0; i < hr.length; i++) {
+      var n = hr[i].n || '';
+      if (n && _normName(stripped).indexOf(_normName(n.split(' ').slice(-1)[0])) >= 0 && _normName(n).split(' ').some(function(t){ return stripped.indexOf(t)>=0; })) return { name: n, hr: hr[i] };
+    }
+    // Try CONCERNS employee names
+    var seen = {};
+    (window.CONCERNS||[]).forEach(function(r){ if(r.emp) seen[r.emp]=true; });
+    var names = Object.keys(seen);
+    for (var j = 0; j < names.length; j++) {
+      if (_nameMatch(stripped, names[j]) || stripped.indexOf(_normName(names[j].split(',')[0]))>=0) return { name: names[j], hr: null };
+    }
+    // Try Pearl tutor map
+    try {
+      var tm = window.po && typeof window.po.getTutorAttendanceMap === 'function' ? window.po.getTutorAttendanceMap() : {};
+      var keys = Object.keys(tm);
+      for (var k = 0; k < keys.length; k++) {
+        var tname = tm[keys[k]].name || '';
+        if (_nameMatch(stripped, tname)) return { name: tname, tutor: tm[keys[k]] };
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  // ── Person-specific response ──────────────────────────────────────────────
+  function _personResponse(entity, origQ) {
+    var name = entity.name;
+    var lines = ['**' + name + '**'];
+    // Attendance from Pearl
+    var tutor = entity.tutor;
+    if (!tutor) {
+      try {
+        var tm = window.po && typeof window.po.getTutorAttendanceMap === 'function' ? window.po.getTutorAttendanceMap() : {};
+        var keys = Object.keys(tm);
+        for (var k = 0; k < keys.length; k++) {
+          if (_nameMatch(tm[keys[k]].name, name)) { tutor = tm[keys[k]]; break; }
+        }
+      } catch(e) {}
+    }
+    if (tutor) {
+      var color = tutor.attRate >= 90 ? '✅' : tutor.attRate >= 80 ? '⚠️' : '🔴';
+      lines.push(color + ' Pearl attendance: **' + tutor.attRate + '%** (' + tutor.attended + ' attended / ' + tutor.absent + ' absent of ' + tutor.total + ' total)');
+      if (tutor.school) lines.push('📍 Site: ' + tutor.school + (tutor.district ? ' · ' + tutor.district : ''));
+    }
+    // HR profile
+    if (entity.hr) {
+      var e = entity.hr;
+      var role = e.r || '';
+      var status = e.s || '';
+      if (role) lines.push('👤 Role: ' + role);
+      if (status) lines.push('Status: ' + status);
+      if (e.si) lines.push('📍 Site: ' + e.si + (e.di ? ' · ' + e.di : ''));
+      if (e._apprentice === 'Yes') lines.push('🎓 TAP Apprentice: Yes');
+      if (e._liveHRAction) lines.push('⚠️ HR Action: **' + e._liveHRAction + '**');
+    }
+    // Concerns
+    var cRecs = (window.CONCERNS||[]).filter(function(r){ return _nameMatch(r.emp||'', name); });
+    if (cRecs.length) {
+      var latest = cRecs.sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); })[0];
+      lines.push('⚠️ **' + cRecs.length + ' concern record(s)** on file. Latest: ' + (latest.concern_label||latest.concern_type||'Concern') + ' — Action: ' + (latest.hr_action||'Documented'));
+    } else {
+      lines.push('✅ No concerns on file for this individual.');
+    }
+    if (lines.length === 1) return 'No portal data found for "' + name + '". Verify spelling or check HR and Pearl Operations directly.';
+    return lines.join('\n');
+  }
 
   // ── Live data readers — called fresh at question time ────────────────────
   function _kpi() {
@@ -3208,6 +3309,9 @@
   function _n(n)   { return n==null ? '—' : Number(n).toLocaleString('en-US'); }
 
   // ── Response rules ────────────────────────────────────────────────────────
+  // ── HR helper: active employees only ─────────────────────────────────────
+  function _hrActive() { return (window.HR_EMPS||[]).filter(function(e){ return e.s==='Active'; }); }
+
   var RULES = [
 
     // Greeting
@@ -3404,6 +3508,343 @@
         return parts.length ? parts.join('\n') : 'Pearl data available — open Pearl Operations for the full view.';
       }
     },
+
+    // Tutors below attendance threshold
+    { match: /tutor.? below|below.?80|low.? attendance|flagged tutor|attendance warn|who.?s struggling|poor attendance|tutor.? risk/i,
+      respond: function() {
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var low = Object.values(tm).filter(function(t){ return t.attRate!=null && t.attRate<80; }).sort(function(a,b){ return a.attRate-b.attRate; });
+          if (!low.length) return 'No tutors below 80% attendance in Pearl right now.';
+          var msg = '**' + low.length + ' tutor' + (low.length>1?'s':'') + ' below 80% attendance:**\n\n';
+          msg += low.slice(0,8).map(function(t){ return (t.attRate<60?'🔴':'⚠️') + ' ' + t.name + ' — **' + t.attRate + '%** (' + t.attended + '/' + t.total + ')' + (t.school?' · '+t.school:''); }).join('\n');
+          if (low.length > 8) msg += '\n…and ' + (low.length-8) + ' more. Open Pearl Operations for full list.';
+          return msg;
+        } catch(e) { return 'Pearl tutor data not yet loaded — open Pearl Operations and retry.'; }
+      }
+    },
+
+    // Who is on watch / write-up / HR action
+    { match: /who.?s? (is )?(on watch|on warning|write.?up|written up|pgp|pip|termination)|watch list|hr action|disciplinary/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns to load HR data.';
+        var actionPriority = ['Termination','Write Up','PGP','On Watch'];
+        var serious = c.filter(function(r){ return actionPriority.indexOf(r.hr_action)>=0; });
+        if (!serious.length) return 'No terminations, write-ups, PGPs, or watch designations currently on file.';
+        var byAction = {};
+        serious.forEach(function(r){ var a=r.hr_action||'Other'; if(!byAction[a]) byAction[a]=[]; byAction[a].push(r.emp); });
+        var msg = '**Active HR Actions (' + serious.length + ' records):**\n\n';
+        actionPriority.forEach(function(a) {
+          if (byAction[a] && byAction[a].length) {
+            var names = [...new Set(byAction[a])];
+            msg += '**' + a + '** (' + names.length + '): ' + names.slice(0,4).join(', ') + (names.length>4?', +more':'') + '\n';
+          }
+        });
+        return msg.trim();
+      }
+    },
+
+    // Apprentice count
+    { match: /apprentice|tap|tutor apprentice|apprenticeship|tap program|how many apprentice/i,
+      respond: function() {
+        var active = _hrActive();
+        var apps = active.filter(function(e){ return e._apprentice==='Yes'; });
+        if (!apps.length) return 'Apprentice data not yet loaded from HR Master List. Open the T&D Analytics → Apprentice Tracker to load it.';
+        var msg = '**' + apps.length + ' active TAP apprentices** (from HR Master List, col K).\n\n';
+        // Race breakdown if available
+        var rMap = {};
+        apps.forEach(function(e){ if(e._race && !/not listed|prefer not/i.test(e._race)){ rMap[e._race]=(rMap[e._race]||0)+1; } });
+        var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
+        if (rRows.length) {
+          msg += '**Race breakdown:**\n' + rRows.map(function(r){ return '• ' + r[0] + ': ' + r[1] + ' (' + Math.round(r[1]/apps.length*100) + '%)'; }).join('\n');
+        }
+        var hisp = apps.filter(function(e){ return /hispanic|latino/i.test(e._ethnicity||''); }).length;
+        if (hisp) msg += '\n• Hispanic/Latino ethnicity: ' + hisp;
+        return msg;
+      }
+    },
+
+    // Apprentice race/demographics specifically
+    { match: /apprentice (race|diversity|demographic|ethnic|identity)|race.?of.?apprentice|apprentice.?race/i,
+      respond: function() {
+        var active = _hrActive();
+        var apps = active.filter(function(e){ return e._apprentice==='Yes'; });
+        if (!apps.length) return 'Apprentice data not loaded from HR Master List.';
+        var rMap = {}, eMap = {};
+        apps.forEach(function(e){
+          if(e._race&&!/not listed|prefer not/i.test(e._race)) rMap[e._race]=(rMap[e._race]||0)+1;
+          if(/hispanic|latino/i.test(e._ethnicity||'')) eMap['Hispanic/Latino']=(eMap['Hispanic/Latino']||0)+1;
+        });
+        var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
+        var nw = rRows.filter(function(r){ return !/^white$/i.test(r[0]); }).reduce(function(a,r){ return a+r[1]; },0);
+        var msg = '**Apprentice Diversity (' + apps.length + ' total):**\n\n';
+        msg += rRows.map(function(r){ return '• ' + r[0] + ': **' + r[1] + '** (' + Math.round(r[1]/apps.length*100) + '%)'; }).join('\n');
+        if (eMap['Hispanic/Latino']) msg += '\n• Hispanic/Latino: **' + eMap['Hispanic/Latino'] + '**';
+        msg += '\n\n**' + Math.round(nw/apps.length*100) + '% non-white** among apprentices with reported race.';
+        return msg;
+      }
+    },
+
+    // Active staff count / headcount
+    { match: /how many (staff|employees|people|tutors|team|workforce)|active (staff|employee|headcount)|staff count|headcount|total staff|team size/i,
+      respond: function() {
+        var active = _hrActive();
+        var total = active.length;
+        if (!total) {
+          var p = _pearl();
+          return p ? '**' + _n(p.activeTutors) + '** active tutors per Pearl Operations. HR Master List data not yet overlaid.' : 'HR data not yet loaded. Check Talent Analytics.';
+        }
+        var apps = active.filter(function(e){ return e._apprentice==='Yes'; }).length;
+        var concerns = _concerns();
+        var withConcerns = [...new Set(concerns.map(function(r){ return r.emp; }))].length;
+        return '**' + total + ' active staff** on HR roster.\n\n' +
+          '🎓 TAP Apprentices: **' + apps + '**\n' +
+          '⚠️ Staff with concern records: **' + withConcerns + '** (may include resolved)';
+      }
+    },
+
+    // Staff diversity
+    { match: /staff (diversity|race|ethnicity|demographic|equity)|diversity (of staff|breakdown|data)|who is on.?staff|workforce diversity/i,
+      respond: function() {
+        var active = _hrActive();
+        if (!active.length) return 'HR data not yet overlaid. Open Talent Analytics to load.';
+        var rMap = {};
+        active.forEach(function(e){ if(e._race&&!/not listed|prefer not/i.test(e._race)) rMap[e._race]=(rMap[e._race]||0)+1; });
+        var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
+        var nw = rRows.filter(function(r){ return !/^white$/i.test(r[0]); }).reduce(function(a,r){ return a+r[1]; },0);
+        var hisp = active.filter(function(e){ return /hispanic|latino/i.test(e._ethnicity||''); }).length;
+        if (!rRows.length) return 'Race/ethnicity data not yet available for active staff.';
+        var msg = '**Active Staff — Race & Ethnicity (' + active.length + ' total):**\n\n';
+        msg += rRows.slice(0,7).map(function(r){ return '• ' + r[0] + ': **' + r[1] + '** (' + Math.round(r[1]/active.length*100) + '%)'; }).join('\n');
+        if (hisp) msg += '\n• Hispanic/Latino (ethnicity): **' + hisp + '**';
+        msg += '\n\n' + Math.round(nw/active.length*100) + '% non-white among staff with reported race.';
+        return msg;
+      }
+    },
+
+    // District attendance breakdown
+    { match: /district.?(attendance|breakdown|performance|rate|compare|which)|which district|district.?by.?district|by district/i,
+      respond: function() {
+        try {
+          var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
+          if (!ld || !ld.districts || !ld.districts.length) return 'District data not yet loaded — open Pearl Operations first.';
+          var sorted = ld.districts.slice().sort(function(a,b){ return a.scholarRate-b.scholarRate; });
+          var msg = '**Attendance by District** (' + sorted.length + ' districts):\n\n';
+          msg += sorted.map(function(d){
+            var icon = d.scholarRate>=85?'✅':d.scholarRate>=75?'⚠️':'🔴';
+            return icon + ' **' + d.name + '**: Scholar ' + _pct(d.scholarRate) + ' · Tutor ' + _pct(d.tutorRate) + ' · ' + _n(d.scholars) + ' scholars';
+          }).join('\n');
+          return msg;
+        } catch(e) { return 'District data not yet loaded — open Pearl Operations first.'; }
+      }
+    },
+
+    // Scholar tiers — on track / at risk / needs action
+    { match: /on track|at risk|needs action|scholar tier|scholar health|how.?many.?at risk|scholar.?status|scholar.?breakdown/i,
+      respond: function() {
+        try {
+          var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
+          if (!ld) return 'Scholar tier data not yet loaded — open Pearl Operations.';
+          var tot = (ld.scholarOnTrack||0)+(ld.scholarAtRisk||0)+(ld.scholarNeedsAction||0);
+          if (!tot) return 'Scholar tier data not yet computed — visit Pearl Operations.';
+          var msg = '**Scholar Attendance Tiers** (' + _n(tot) + ' scholars):\n\n';
+          msg += '✅ **On Track** (≥80%): **' + _n(ld.scholarOnTrack) + '** — ' + _pct(ld.scholarOnTrack/tot*100) + '\n';
+          msg += '⚠️ **At Risk** (70–79%): **' + _n(ld.scholarAtRisk) + '** — ' + _pct(ld.scholarAtRisk/tot*100) + '\n';
+          msg += '🔴 **Needs Action** (<70%): **' + _n(ld.scholarNeedsAction) + '** — ' + _pct(ld.scholarNeedsAction/tot*100);
+          return msg;
+        } catch(e) { return 'Scholar tier data not yet loaded.'; }
+      }
+    },
+
+    // Top performing tutors
+    { match: /top tutor|best (tutor|attendance|performing)|highest.?attendance|stellar tutor|tutor.?star|best (tutor|performing|attendance)/i,
+      respond: function() {
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var top = Object.values(tm).filter(function(t){ return t.attRate!=null && t.total>=5; }).sort(function(a,b){ return b.attRate-a.attRate; }).slice(0,6);
+          if (!top.length) return 'Tutor attendance data not yet loaded.';
+          return '**Top Tutors by Attendance:**\n\n' + top.map(function(t){ return '✅ ' + t.name + ' — **' + t.attRate + '%** (' + t.attended + '/' + t.total + ')' + (t.school?' · '+t.school:''); }).join('\n');
+        } catch(e) { return 'Tutor data not yet loaded.'; }
+      }
+    },
+
+    // iReady math growth specifically
+    { match: /iready math|math (growth|score|gain|typical|diagnostic)|math.?percent|math median/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady math data not yet loaded — open iReady Analysis Lab.';
+        var pct = irl.mathMedianPctAllYears!=null ? Math.round(irl.mathMedianPctAllYears)+'%' : '—';
+        var gain = irl.mathMedianGain!=null ? irl.mathMedianGain : null;
+        var msg = '**iReady Math:** Median **' + pct + ' of typical growth** across ' + _n(irl.mathRows) + ' scholar records.';
+        if (gain!=null) msg += '\n\nMedian scale score gain: **+' + gain + ' points**.';
+        msg += '\n\n≥100% = at or above grade-level trajectory. 50–99% = making progress. <50% = well below expected.';
+        return msg;
+      }
+    },
+
+    // iReady ELA growth
+    { match: /iready ela|ela (growth|score|gain|typical|diagnostic)|ela.?percent|reading growth|literacy/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady ELA data not yet loaded — open iReady Analysis Lab.';
+        var pct = irl.elaMedianPctAllYears!=null ? Math.round(irl.elaMedianPctAllYears)+'%' : '—';
+        var gain = irl.elaMedianGain!=null ? irl.elaMedianGain : null;
+        var msg = '**iReady ELA:** Median **' + pct + ' of typical growth** across ' + _n(irl.elaRows) + ' scholar records.';
+        if (gain!=null) msg += '\n\nMedian scale score gain: **+' + gain + ' points**.';
+        return msg;
+      }
+    },
+
+    // What is Pearl / Pearl Operations
+    { match: /what is pearl|what.?s pearl|pearl ops|pearl operations|pearl (platform|system|tool)|how does pearl work/i,
+      respond: function() {
+        return '**Pearl Operations** is NJTC\'s tutoring session data system. It tracks:\n\n• Scholar and tutor attendance per session\n• Service interruptions (SI) — sessions lost to non-scholar causes\n• Scholar survey scores (confidence, enjoyment, learning)\n• Site-level performance\n• District attendance rates\n\nData syncs from the Pearl Google Sheet. Scholar benchmark: ≥85% attendance. Tutor benchmark: ≥90%.';
+      }
+    },
+
+    // What is iReady
+    { match: /what is iready|what.?s iready|iready (platform|assessment|diagnostic|system)|how does iready work/i,
+      respond: function() {
+        return '**iReady** is a diagnostic assessment platform by Curriculum Associates. NJTC uses it to measure scholar academic growth.\n\n• Administered 3× per year (fall, winter, spring)\n• Reports scale scores by grade band\n• **% of typical growth** = actual gain ÷ expected gain × 100\n• Results inform tutor placement and progress monitoring';
+      }
+    },
+
+    // What is KPI / how KPIs work
+    { match: /what is (a |the )?kpi|how.?(do|are|does).?kpi|what.?s a kpi|what are kpis|kpi (meaning|definition|system|framework)/i,
+      respond: function() {
+        return '**KPI (Key Performance Indicator)** — a measurable target tied to NJTC\'s strategic goals.\n\nEach KPI has:\n• **Goal area** — the strategic pillar\n• **Target** — the specific measurable outcome\n• **Status** — Met, Partially Met, In Progress, Pipeline, or Not Met\n\nWeighted scoring: Met=100pts, Partial=50, In Progress=25, Pipeline=10, Not Met=0.\n\nOrg score = total points ÷ max possible × 100%.';
+      }
+    },
+
+    // What is TAP / apprenticeship
+    { match: /what is tap|what.?s tap|tutor apprenticeship program|tap program|apprenticeship program|what is an apprentice/i,
+      respond: function() {
+        return '**TAP (Tutor Apprenticeship Program)** — NJTC\'s registered apprenticeship program.\n\nApprentices are NJTC tutors enrolled in a structured pathway toward educator certification. They complete on-the-job training, professional development, and formal assessments. TAP is tracked via the HR Master List (col K) and the Apprentice Tracker (T&D Analytics).';
+      }
+    },
+
+    // How often is data synced
+    { match: /how often|data.?(sync|refresh|update|frequency)|when.?is.?data|data.?lag|how (current|fresh|up.?to.?date)|last (sync|update|refresh)/i,
+      respond: function() {
+        return '**Data sync cadence:**\n\n• **Pearl** — live fetch on panel open (Google Sheets)\n• **KPI Dashboard** — weekly updates by Data & Evaluation\n• **HR Master List** — live overlay on login (Google Sheets)\n• **iReady** — uploaded per assessment window (3× per year)\n• **Concerns** — live fetch from Google Sheets\n• **Training Intake / PD Feedback** — fetched when T&D panel opens\n\nAll data reads from live Google Sheets — no database lag.';
+      }
+    },
+
+    // What data sources does PIE read
+    { match: /what (data|sources|does pie|can you access|do you read)|pie (data|sources|reads|access|know)/i,
+      respond: function() {
+        var d = _kpi(), p = _pearl(), irl = _irl();
+        return '**PIE reads these live portal globals:**\n\n' +
+          '📊 **KPI_DATA** — ' + (d ? d.total + ' targets loaded' : 'not yet loaded') + '\n' +
+          '🎓 **Pearl Operations** — ' + (p&&p.loaded ? 'loaded: ' + _n(p.sessions) + ' sessions' : 'not yet loaded') + '\n' +
+          '📐 **iReady Lab** — ' + (irl ? irl.mathRows + ' math / ' + irl.elaRows + ' ELA records' : 'not yet loaded') + '\n' +
+          '⚠️ **CONCERNS** — ' + _concerns().length + ' records\n' +
+          '👥 **HR_EMPS** — ' + _hrActive().length + ' active employees\n' +
+          '📋 **GOV_DATA** — data governance policies\n\n' +
+          'All reads happen fresh at question time. Nothing is cached in PIE.';
+      }
+    },
+
+    // Generate PDF / flash report
+    { match: /generate.?(pdf|report|flash|summary)|pdf.?(report|summary|export|flash)|flash.?(report|summary)|executive.?(summary|report|snapshot)/i,
+      respond: function() {
+        window.piePDFSummary();
+        return 'Opening flash executive report in a new tab — allow pop-ups if prompted.';
+      }
+    },
+
+    // Who submitted the most concerns
+    { match: /who (submitted|filed|created|wrote|logged).?(the most|most|concern)|top.?submitter|who.?submits|concern submitter/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var sMap = {};
+        c.forEach(function(r){ var s=r.submitter||'Unknown'; sMap[s]=(sMap[s]||0)+1; });
+        var sorted = Object.entries(sMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
+        return '**Top concern submitters:**\n' + sorted.map(function(e){ return '• ' + e[0] + ': ' + e[1]; }).join('\n');
+      }
+    },
+
+    // What are the concern types
+    { match: /concern.?type|type.?of.?concern|what.?kind.?of.?concern|concern.?categor|concern.?breakdown/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var tMap = {};
+        c.forEach(function(r){ var t=r.concern_type||'Unspecified'; tMap[t]=(tMap[t]||0)+1; });
+        var sorted = Object.entries(tMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+        return '**Concern types on file:**\n' + sorted.map(function(e){ return '• ' + e[0] + ': **' + e[1] + '**'; }).join('\n');
+      }
+    },
+
+    // Scholar survey / satisfaction
+    { match: /scholar survey|survey (score|avg|average|rating)|scholar (satisfaction|feedback|sentiment|happiness)|how do scholars feel/i,
+      respond: function() {
+        var p = _pearl();
+        if (!p) return 'Pearl survey data not yet loaded.';
+        if (p.surveyAvg==null) return 'Scholar survey data not yet loaded — open Pearl Operations.';
+        var color = p.surveyAvg>=4?'✅':p.surveyAvg>=3?'⚠️':'🔴';
+        return color + ' **Scholar survey average: ' + p.surveyAvg.toFixed(2) + '/5.0**\n\nBenchmark: ≥4.0 is healthy. This reflects scholar-reported confidence, enjoyment, learning, and overall satisfaction across all sessions.';
+      }
+    },
+
+    // Total sessions / minutes delivered
+    { match: /total (minutes|min|session min|instructional)|minutes (delivered|served|total)|instructional time|how much time/i,
+      respond: function() {
+        var p = _pearl();
+        if (!p) return 'Pearl data not yet loaded.';
+        var msg = '';
+        if (p.sessions) msg += '**' + _n(p.sessions) + '** sessions delivered\n';
+        if (p.totalMins) msg += '**' + _n(Math.round(p.totalMins/60)) + '** instructional hours (' + _n(p.totalMins) + ' minutes)\n';
+        return msg || 'Session time data not yet available.';
+      }
+    },
+
+    // Who is my KPI owner / who owns X goal
+    { match: /kpi owner|who owns|who is responsible|goal owner|owner.?of.?(kpi|goal|target)/i,
+      respond: function() {
+        var d = _kpi();
+        if (!d) return 'KPI data not yet loaded.';
+        var withOwner = d.data.filter(function(k){ return k.owner && k.owner.trim(); });
+        if (!withOwner.length) return 'KPI owner field not populated in current data.';
+        var oMap = {};
+        withOwner.forEach(function(k){ var o=k.owner.trim(); oMap[o]=(oMap[o]||0)+1; });
+        return '**KPI goal owners:**\n' + Object.entries(oMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6).map(function(e){ return '• ' + e[0] + ': ' + e[1] + ' targets'; }).join('\n');
+      }
+    },
+
+    // Give me a flash summary
+    { match: /flash (summary|update|report)|give me (a |the )?(summary|overview|quick|update|rundown)|today.?s (summary|update|briefing)|what should (i|we) know/i,
+      respond: function() {
+        var d = _kpi(), p = _pearl(), irl = _irl(), c = _concerns();
+        var active = _hrActive();
+        var parts = [];
+        if (d) parts.push('**KPI Health: ' + d.score + '% (' + d.health + ')** · ' + d.met + ' Met / ' + d.nm + ' Not Met of ' + d.total + ' targets');
+        if (p&&p.loaded) {
+          parts.push('**Pearl:** Scholar att. ' + _pct(p.scholAttPct) + ' · ' + _n(p.activeScholars) + ' scholars · ' + _n(p.siCount) + ' SIs');
+        }
+        if (irl) parts.push('**iReady:** Math ' + Math.round(irl.mathMedianPctAllYears||0) + '% · ELA ' + Math.round(irl.elaMedianPctAllYears||0) + '% of typical growth');
+        if (c.length) {
+          var watch = c.filter(function(r){ return r.hr_action==='On Watch'||r.hr_action==='Write Up'; }).length;
+          parts.push('**Concerns:** ' + c.length + ' records · ' + watch + ' active Watch/Write-Up');
+        }
+        if (active.length) {
+          var apps = active.filter(function(e){ return e._apprentice==='Yes'; }).length;
+          parts.push('**Staff:** ' + active.length + ' active · ' + apps + ' TAP apprentices');
+        }
+        if (!parts.length) return 'Data still loading — open Pearl Operations, KPI Dashboard, and T&D Analytics to populate PIE.';
+        return parts.join('\n\n') + '\n\nAsk me to generate a flash PDF for a shareable report.';
+      }
+    },
+
+    // Specific tutor lookup (general "look up" query)
+    { match: /look up|check on|find (tutor|staff|employee)|search (for )?(tutor|staff|employee)|pull (up|info on)|attendance for|info on/i,
+      respond: function() {
+        return 'To look up a specific person, just type their name — for example: "Sarah Johnson" or "tell me about Marcus Williams". I\'ll pull Pearl attendance, HR profile, and any concern records.';
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -3411,14 +3852,28 @@
     return txt.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
   }
 
-  // ── Chips ─────────────────────────────────────────────────────────────────
+  // ── Chips — category tabs + question chips ─────────────────────────────
+  // Uses data-* attributes instead of inline onclick to avoid HTML quote escaping issues
   function _renderChips() {
     var el = document.getElementById('pieChips');
     if (!el) return;
-    var suggestions = PIE_SUGGESTIONS[_panel] || PIE_SUGGESTIONS['home'];
-    el.innerHTML = suggestions.map(function(s) {
-      return '<button class="pie-chip" onclick="pieAsk(' + JSON.stringify(s) + ')">' + s + '</button>';
+    var tabs = CAT_ORDER.map(function(cat) {
+      var active = cat === _cat ? ' pie-cat-active' : '';
+      var esc = cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<button class="pie-chip pie-cat' + active + '" data-pie-cat="' + esc + '">' + cat + '</button>';
     }).join('');
+    var chips = (CATEGORIES[_cat] || CATEGORIES['Overview']).map(function(s) {
+      var esc = s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<button class="pie-chip pie-q" data-pie-ask="' + esc + '">' + s + '</button>';
+    }).join('');
+    el.innerHTML = '<div class="pie-cat-row">' + tabs + '</div><div class="pie-q-row">' + chips + '</div>';
+    // Attach click handlers via event delegation (avoids inline onclick attribute issues)
+    el.onclick = function(ev) {
+      var btn = ev.target.closest('[data-pie-cat],[data-pie-ask]');
+      if (!btn) return;
+      if (btn.dataset.pieCat) window.pieCategory(btn.dataset.pieCat);
+      else if (btn.dataset.pieAsk) window.pieAsk(btn.dataset.pieAsk);
+    };
   }
 
   // ── Add message to thread ─────────────────────────────────────────────────
@@ -3449,8 +3904,59 @@
     }, delay);
   }
 
-  // ── Route question through rules ──────────────────────────────────────────
+  // ── piePDFSummary — flash executive HTML report ───────────────────────────
+  function piePDFSummary() {
+    var d = _kpi(), p = _pearl(), irl = _irl(), c = _concerns(), active = _hrActive();
+    var apps = active.filter(function(e){ return e._apprentice==='Yes'; }).length;
+    var now = new Date().toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+    var rows = '';
+    if (d) {
+      rows += '<tr><td>KPI Weighted Score</td><td><strong>' + d.score + '% — ' + d.health + '</strong></td><td>' + d.met + ' Met / ' + d.nm + ' Not Met of ' + d.total + '</td></tr>';
+    }
+    if (p&&p.loaded) {
+      rows += '<tr><td>Scholar Attendance</td><td><strong>' + _pct(p.scholAttPct) + '</strong></td><td>' + _n(p.activeScholars) + ' scholars · ' + _n(p.sessions) + ' sessions</td></tr>';
+      rows += '<tr><td>Tutor Attendance</td><td><strong>' + _pct(p.instAttPct) + '</strong></td><td>Benchmark ≥90%</td></tr>';
+      rows += '<tr><td>Service Interruptions</td><td><strong>' + _n(p.siCount) + '</strong></td><td>Non-scholar-caused disruptions</td></tr>';
+    }
+    if (irl) {
+      rows += '<tr><td>iReady Math Growth</td><td><strong>' + Math.round(irl.mathMedianPctAllYears||0) + '% of typical</strong></td><td>' + _n(irl.mathRows) + ' records</td></tr>';
+      rows += '<tr><td>iReady ELA Growth</td><td><strong>' + Math.round(irl.elaMedianPctAllYears||0) + '% of typical</strong></td><td>' + _n(irl.elaRows) + ' records</td></tr>';
+    }
+    if (c.length) {
+      var onWatch = c.filter(function(r){ return r.hr_action==='On Watch'; }).length;
+      var writeUp = c.filter(function(r){ return r.hr_action==='Write Up'; }).length;
+      rows += '<tr><td>Workforce Concerns</td><td><strong>' + c.length + ' records</strong></td><td>On Watch: ' + onWatch + ' · Write-Up: ' + writeUp + '</td></tr>';
+    }
+    if (active.length) {
+      rows += '<tr><td>Active Staff</td><td><strong>' + active.length + '</strong></td><td>TAP Apprentices: ' + apps + '</td></tr>';
+    }
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PIE Flash Report</title>' +
+      '<style>body{font-family:"Segoe UI",sans-serif;max-width:820px;margin:2rem auto;color:#111;padding:1.5rem}' +
+      '.hdr{background:#003087;color:#fff;border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:1.5rem}' +
+      'h1{margin:0;font-size:1.4rem;font-weight:900}' +
+      '.sub{font-size:.75rem;opacity:.65;margin-top:.2rem}' +
+      'table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}' +
+      'th{background:#f1f5f9;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;padding:.6rem .875rem;text-align:left;color:#374151}' +
+      'td{padding:.55rem .875rem;font-size:.85rem;border-bottom:1px solid #f1f5f9}' +
+      '.no-print{margin-bottom:1.25rem}button{background:#003087;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.875rem}' +
+      '.foot{margin-top:1.5rem;font-size:.7rem;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:.75rem}' +
+      '</style></head><body>' +
+      '<div class="hdr"><h1>PIE — Executive Flash Report</h1><div class="sub">New Jersey Tutoring Corps · ' + now + '</div></div>' +
+      '<button class="no-print" onclick="window.print()">⬇ Print / Save as PDF</button>' +
+      '<table><thead><tr><th>Metric</th><th>Value</th><th>Context</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="foot">Generated by PIE (Portal Intelligence Engine) from live NJTC portal data · ' + now + '</div>' +
+      '</body></html>';
+    var w = window.open('','_blank','width=900,height=650,scrollbars=yes');
+    if (w) { w.document.write(html); w.document.close(); }
+    else alert('Pop-ups blocked — please allow pop-ups and try again.');
+  }
+
+  // ── Route question through rules — entity first ───────────────────────────
   function _route(q) {
+    // Entity-first: detect a person name before matching rules
+    var entity = _extractPerson(q);
+    if (entity) return _personResponse(entity, q);
+    // Rule matching
     for (var i = 0; i < RULES.length; i++) {
       if (RULES[i].match.test(q)) return RULES[i].respond();
     }
@@ -3459,7 +3965,7 @@
     var hint = '';
     if (d) hint += ' KPI score: ' + d.score + '% (' + d.health + ').';
     if (p && p.siCount > 0) hint += ' ' + p.siCount + ' service interruptions in Pearl.';
-    return 'I read live NJTC portal data. Try asking about KPIs, Pearl Operations, iReady growth, concerns, or data governance.' + hint;
+    return 'I read live NJTC portal data. Try asking about KPIs, Pearl Operations, iReady growth, concerns, staff, or data governance.' + hint + ' Or type a tutor\'s name to pull their profile.';
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -3520,8 +4026,17 @@
 
   window.pieSetPanel = function(panelKey) {
     _panel = (panelKey || 'home').replace(/^panel-/,'');
+    var mapped = PANEL_CATS[_panel];
+    if (mapped) { _cat = mapped; }
     _renderChips();
   };
+
+  window.pieCategory = function(cat) {
+    _cat = cat || 'Overview';
+    _renderChips();
+  };
+
+  window.piePDFSummary = piePDFSummary;
 
   // Hook into showPanel to keep panel context current
   (function() {
