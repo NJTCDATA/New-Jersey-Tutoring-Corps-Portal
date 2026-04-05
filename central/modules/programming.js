@@ -5722,6 +5722,38 @@
       getStuRows: function() {
         return _stuRows ? _stuRows.slice() : [];
       },
+
+      // getLateFilerStats() — tutors with ≥50% late survey submission rate
+      // Exposed for PIE anomaly detection. Recomputes on each call (lightweight).
+      getLateFilerStats: function() {
+        try { return computeTutorLateFilersStats(); } catch(e) { return { flagged:[], totalLate:0, totalFlagged:0 }; }
+      },
+
+      // getSchoolFlags() — per-school HIT compliance flags for PIE anomaly surfacing
+      // Returns array of { school, district, siCount, flags[], attRate, surveyAvg }
+      getSchoolFlags: function() {
+        if (!_schoolMap) return [];
+        var results = [];
+        Object.entries(_schoolMap).forEach(function(entry) {
+          var name = entry[0], sc = entry[1];
+          if (!name || !name.trim()) return;
+          if ((sc.flags||[]).length === 0) return;
+          var total = sc.stuAttended + sc.stuAbsent;
+          results.push({
+            school:   name,
+            district: sc.district || '',
+            attRate:  total > 0 ? Math.round(sc.stuAttended/total*100) : null,
+            siCount:  sc.stuInterruptions || 0,
+            surveyAvg: sc.stuSurveyAvg ? parseFloat(sc.stuSurveyAvg.toFixed(2)) : null,
+            flags:    (sc.flags || []).map(function(f){ return { type:f.type, severity:f.severity, msg:f.msg }; }),
+          });
+        });
+        return results.sort(function(a,b){
+          var sa = (a.flags.some(function(f){return f.severity==='critical';})?2:a.flags.some(function(f){return f.severity==='high';})?1:0);
+          var sb = (b.flags.some(function(f){return f.severity==='critical';})?2:b.flags.some(function(f){return f.severity==='high';})?1:0);
+          return sb - sa;
+        });
+      },
     };
   })();
 

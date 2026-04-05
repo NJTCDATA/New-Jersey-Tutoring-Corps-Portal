@@ -5594,6 +5594,311 @@
       }
     },
 
+    // ── PROGRAM HEALTH & ANOMALY DETECTION ──────────────────────────────────
+
+    // "How is programming doing?" / program health check
+    { match: /how is (programming|the program|njtc|we|it) doing|program (health|status|overview|check|check.?in|going)|how are we doing.*(program|overall|right now)|programming (status|health|update|performance|summary)|is.*(program|everything|njtc).*(ok|good|fine|on track)|major (concern|issue|problem|flag)/i,
+      respond: function() {
+        var p = _pearl(), d = _kpi(), ld = null, sc = _schools(), c = _concerns(), active = _hrActive();
+        try { ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null; } catch(e) {}
+        var flags = [];
+        var lines = ['**Program Health Check — NJTC**\n'];
+
+        // ── Attendance ──────────────────────────────────────────────────────
+        if (p && p.scholAttPct != null) {
+          var sIcon = p.scholAttPct>=85?'✅':p.scholAttPct>=75?'⚠️':'🔴';
+          var tIcon = p.instAttPct!=null?(p.instAttPct>=90?'✅':p.instAttPct>=80?'⚠️':'🔴'):'—';
+          lines.push('**ATTENDANCE**');
+          lines.push(sIcon+' Scholar: **'+p.scholAttPct+'%** (benchmark ≥85%)'+( p.scholAttPct<85?' ← BELOW TARGET':''));
+          if (p.instAttPct!=null) lines.push(tIcon+' Tutor: **'+p.instAttPct+'%** (benchmark ≥90%)'+( p.instAttPct<90?' ← BELOW TARGET':''));
+          if (p.scholAttPct < 85) flags.push('Scholar attendance below 85% benchmark');
+          if (p.instAttPct != null && p.instAttPct < 90) flags.push('Tutor attendance below 90% benchmark');
+        }
+
+        // ── Service Interruptions ───────────────────────────────────────────
+        if (p && p.siCount != null) {
+          var siRate = (p.sessions && p.sessions>0) ? Math.round(p.siCount/p.sessions*100) : null;
+          lines.push('\n**SERVICE INTERRUPTIONS**');
+          var siIcon = siRate==null?'—':siRate<=5?'✅':siRate<=10?'⚠️':'🔴';
+          lines.push(siIcon+' **'+_n(p.siCount)+'** SIs · '+(siRate!=null?siRate+'% of sessions':'n/a')+' · '+(p.sessions?_n(p.sessions)+' sessions total':''));
+          if (siRate != null && siRate > 10) flags.push('High SI rate: '+siRate+'% of sessions interrupted');
+        }
+
+        // ── Scholar Survey ──────────────────────────────────────────────────
+        if (p && p.surveyAvg != null) {
+          var svIcon = p.surveyAvg>=4?'✅':p.surveyAvg>=3?'⚠️':'🔴';
+          lines.push('\n**SCHOLAR SURVEYS**');
+          lines.push(svIcon+' Avg: **'+p.surveyAvg+'/5** (benchmark ≥4.0)'+( p.surveyAvg<3.5?' ← LOW':''));
+          if (p.surveyAvg < 3.5) flags.push('Scholar survey avg below 3.5');
+          // Sites with missing surveys
+          var noSurvey = sc.filter(function(s){ return s.surveyAvg===null; });
+          if (noSurvey.length) { lines.push('⚠️ '+noSurvey.length+' site(s) with no surveys captured'); flags.push(noSurvey.length+' sites missing survey data'); }
+        }
+
+        // ── Late Survey Filers ──────────────────────────────────────────────
+        try {
+          var lf = window.po && typeof window.po.getLateFilerStats==='function' ? window.po.getLateFilerStats() : null;
+          if (lf && lf.totalFlagged > 0) {
+            lines.push('\n**LATE SURVEY FILERS**');
+            lines.push('🕐 **'+lf.totalFlagged+' tutor'+(lf.totalFlagged!==1?'s':'')+' filing 50%+ surveys after session date** ('+lf.totalLate+' late submissions total)');
+            lf.flagged.slice(0,4).forEach(function(t){ lines.push('  • '+t.name+' ('+t.lateRate+'% late · '+t.school+')'); });
+            flags.push(lf.totalFlagged+' tutors with chronic late survey submissions');
+          }
+        } catch(e) {}
+
+        // ── HIT Compliance Flags ────────────────────────────────────────────
+        try {
+          var schoolFlags = window.po && typeof window.po.getSchoolFlags==='function' ? window.po.getSchoolFlags() : [];
+          var critFlags = schoolFlags.filter(function(s){ return s.flags.some(function(f){ return f.severity==='critical'; }); });
+          var highFlags = schoolFlags.filter(function(s){ return s.flags.some(function(f){ return f.severity==='high'; }); });
+          if (critFlags.length || highFlags.length) {
+            lines.push('\n**HIT/COMPLIANCE FLAGS**');
+            if (critFlags.length) {
+              lines.push('🚨 **'+critFlags.length+' school(s) with CRITICAL flags:**');
+              critFlags.slice(0,3).forEach(function(s){ lines.push('  • **'+s.school+'** — '+s.flags.filter(function(f){return f.severity==='critical';}).map(function(f){return f.msg;}).join('; ')); });
+              flags.push(critFlags.length+' schools with critical compliance flags');
+            }
+            if (highFlags.length) {
+              lines.push('⚠️ **'+highFlags.length+' school(s) with high-priority flags:**');
+              highFlags.slice(0,3).forEach(function(s){ lines.push('  • **'+s.school+'** — '+s.flags.filter(function(f){return f.severity==='high';}).map(function(f){return f.msg;}).join('; ')); });
+            }
+          }
+        } catch(e) {}
+
+        // ── Concerns Pipeline ───────────────────────────────────────────────
+        if (c.length) {
+          var terminations = c.filter(function(r){ return r.hr_action==='Termination'; }).length;
+          var writeUps = c.filter(function(r){ return r.hr_action==='Write Up'; }).length;
+          var pgps = c.filter(function(r){ return r.hr_action==='PGP'; }).length;
+          var onWatch = c.filter(function(r){ return r.hr_action==='On Watch'; }).length;
+          lines.push('\n**CONCERNS PIPELINE** ('+c.length+' total)');
+          if (terminations) lines.push('🔴 Termination: **'+terminations+'**');
+          if (writeUps)     lines.push('⚠️ Write Up: **'+writeUps+'**');
+          if (pgps)         lines.push('⚠️ PGP: **'+pgps+'**');
+          if (onWatch)      lines.push('👁 On Watch: **'+onWatch+'**');
+          if (terminations||writeUps) flags.push((terminations+writeUps)+' employees in active escalation (Termination/Write Up)');
+        }
+
+        // ── KPI Health ──────────────────────────────────────────────────────
+        if (d) {
+          var kpiIcon = d.score>=85?'✅':d.score>=65?'⚠️':'🔴';
+          lines.push('\n**KPI HEALTH**');
+          lines.push(kpiIcon+' Org score: **'+d.score+'% ('+d.health+')**  · '+d.nm+' goal'+(d.nm!==1?'s':'')+' not met');
+          if (d.nm > 0) lines.push('Not met: '+d.nmGoals.slice(0,3).join(', ')+(d.nmGoals.length>3?'…':''));
+        }
+
+        // ── Summary ─────────────────────────────────────────────────────────
+        if (flags.length) {
+          lines.push('\n---\n🚨 **'+flags.length+' area'+(flags.length!==1?'s':'')+' need attention:**');
+          flags.forEach(function(f){ lines.push('• '+f); });
+        } else {
+          lines.push('\n---\n✅ No critical anomalies detected. All core metrics within benchmarks.');
+        }
+        return lines.join('\n');
+      }
+    },
+
+    // Red flags / anomaly surface / "what should I know"
+    { match: /red flag|anomal|what should (i|we) know|critical issue|major issue|anything wrong|risk report|what.?s wrong|flag.*report|flag.*summary|surface.*issue|issue.*surface|what.*alert|alert.*me|concern.*surface|data.*anomal/i,
+      respond: function() {
+        var flags = [], warnings = [];
+        var p = _pearl(), c = _concerns();
+
+        // Scholar/tutor attendance
+        if (p) {
+          if (p.scholAttPct != null && p.scholAttPct < 85) flags.push('🔴 Scholar attendance at **'+p.scholAttPct+'%** — below 85% benchmark');
+          if (p.instAttPct  != null && p.instAttPct  < 90) warnings.push('⚠️ Tutor attendance at **'+p.instAttPct+'%** — below 90% benchmark');
+          var siRate = p.sessions>0 ? Math.round(p.siCount/p.sessions*100) : null;
+          if (siRate != null && siRate > 10) flags.push('🔴 SI rate **'+siRate+'%** — more than 1 in 10 sessions interrupted');
+          if (p.surveyAvg != null && p.surveyAvg < 3.5) flags.push('🔴 Scholar survey avg **'+p.surveyAvg+'/5** — below acceptable threshold');
+        }
+
+        // HIT flags
+        try {
+          var sf = window.po && typeof window.po.getSchoolFlags==='function' ? window.po.getSchoolFlags() : [];
+          sf.forEach(function(s){
+            s.flags.forEach(function(f){
+              if (f.severity==='critical') flags.push('🚨 **'+s.school+'**: '+f.msg);
+              else if (f.severity==='high') warnings.push('⚠️ **'+s.school+'**: '+f.msg);
+            });
+          });
+        } catch(e) {}
+
+        // Late survey filers
+        try {
+          var lf = window.po && typeof window.po.getLateFilerStats==='function' ? window.po.getLateFilerStats() : null;
+          if (lf && lf.totalFlagged > 0) warnings.push('⚠️ **'+lf.totalFlagged+' tutor'+(lf.totalFlagged!==1?'s':'')+' filing surveys 50%+ after session date** ('+lf.totalLate+' late total)');
+        } catch(e) {}
+
+        // Sites with no survey data
+        var sc = _schools();
+        var noSurv = sc.filter(function(s){ return s.surveyAvg===null; });
+        if (noSurv.length >= 3) warnings.push('⚠️ **'+noSurv.length+' sites** have no scholar surveys captured');
+
+        // Concerns escalation
+        var termWU = c.filter(function(r){ return r.hr_action==='Termination'||r.hr_action==='Write Up'; });
+        if (termWU.length) flags.push('🔴 **'+termWU.length+' employee'+(termWU.length!==1?'s':'')+' in active escalation** (Termination / Write Up)');
+
+        // Tutors below threshold
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var critical = Object.values(tm).filter(function(t){ return t.attRate<70 && t.total>=5; });
+          if (critical.length >= 3) flags.push('🔴 **'+critical.length+' tutors below 70% attendance** — intervention needed');
+          else if (critical.length > 0) warnings.push('⚠️ '+critical.length+' tutor'+(critical.length!==1?'s':'')+' below 70% attendance');
+        } catch(e) {}
+
+        if (!flags.length && !warnings.length) return '✅ **No critical anomalies detected** across attendance, surveys, compliance, and concerns.\n\nAll core metrics are within benchmarks. Ask about a specific area for detail.';
+        var msg = '**Anomaly Report — Live NJTC Data**\n\n';
+        if (flags.length) { msg += '**🚨 Critical ('+ flags.length+'):**\n'+flags.join('\n')+'\n\n'; }
+        if (warnings.length) { msg += '**⚠️ Warnings ('+warnings.length+'):**\n'+warnings.join('\n')+'\n\n'; }
+        msg += '_Ask about any flag for details. Type "program health" for a full summary._';
+        return msg;
+      }
+    },
+
+    // Late survey filers — who filed after session date
+    { match: /late.?(survey|submission|filing|file)|survey.?(late|after|behind|delayed|overdue)|who.*(file|submit).*(late|after|slow)|behind.*(survey|submission)|late.?filer/i,
+      respond: function() {
+        try {
+          var lf = window.po && typeof window.po.getLateFilerStats==='function' ? window.po.getLateFilerStats() : null;
+          if (!lf) return 'Pearl data not loaded — open Pearl Operations first.';
+          if (!lf.totalFlagged) return '✅ No tutors flagged for chronic late survey submissions. All filed within expected window.';
+          var msg = '**Late Survey Filers — Tutors filing 50%+ surveys AFTER session date:**\n\n';
+          msg += '🕐 **'+lf.totalFlagged+' tutor'+(lf.totalFlagged!==1?'s')+' flagged** · '+lf.totalLate+' late submissions total\n\n';
+          lf.flagged.forEach(function(t){
+            msg += '• **'+t.name+'** — '+t.lateRate+'% late ('+t.late+'/'+t.submitted+' submissions) · '+t.school+'\n';
+          });
+          msg += '\nA survey filed after the session date may indicate backdating or disengagement from the session process.';
+          return msg;
+        } catch(e) { return 'Late filer data not available — Pearl Operations must be loaded first.'; }
+      }
+    },
+
+    // Weekly trend / week-over-week
+    { match: /week.?over.?week|wk.?over.?wk|trend.*(week|attend|scholar)|how.*(trend|trending|track|progress)|week.*vs.*week|compar.*(week|last|this)|improv.*(week|attend|trend)|declin.*(week|attend|trend)|attendance.*trend/i,
+      respond: function() {
+        try {
+          var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
+          if (!ld || !ld.weeklyTrend || !ld.weeklyTrend.length) return 'Weekly trend data not yet loaded — open Pearl Operations first.';
+          var trend = ld.weeklyTrend.slice(-8); // last 8 weeks
+          var msg = '**Scholar Attendance Trend — Last '+trend.length+' Weeks:**\n\n';
+          var prev = null;
+          trend.forEach(function(w){
+            var rate = w.rate != null ? Math.round(w.rate) : null;
+            var icon = rate==null?'—':rate>=85?'✅':rate>=75?'⚠️':'🔴';
+            var delta = (prev != null && rate != null) ? (rate - prev) : null;
+            var dStr = delta!=null ? (delta>0?'  ▲+'+delta+'%':delta<0?'  ▼'+delta+'%':'  →flat') : '';
+            msg += icon+' **'+w.week+'**: '+(rate!=null?rate+'%':'—')+' ('+_n(w.total)+' sessions)'+dStr+'\n';
+            if (rate != null) prev = rate;
+          });
+          // Trajectory call
+          var first = trend.find(function(w){ return w.rate!=null; });
+          var last  = trend.slice().reverse().find(function(w){ return w.rate!=null; });
+          if (first && last && first!==last) {
+            var diff = Math.round(last.rate - first.rate);
+            msg += '\n'+(diff>3?'📈 Improving trend: +'+diff+'% over this window':diff<-3?'📉 Declining trend: '+diff+'% over this window':'→ Relatively flat over this window');
+          }
+          return msg;
+        } catch(e) { return 'Weekly trend data not available — open Pearl Operations first.'; }
+      }
+    },
+
+    // HIT compliance flags by school
+    { match: /hit.?flag|compliance.?flag|flag.*(school|site|hit)|school.*(flag|compliance|hit)|pearl.?flag|compliance.?issue|flag.*report/i,
+      respond: function() {
+        try {
+          var sf = window.po && typeof window.po.getSchoolFlags==='function' ? window.po.getSchoolFlags() : [];
+          if (!sf.length) return '✅ No HIT compliance flags active across any school in Pearl.';
+          var critSchools = sf.filter(function(s){ return s.flags.some(function(f){ return f.severity==='critical'; }); });
+          var highSchools = sf.filter(function(s){ return s.flags.some(function(f){ return f.severity==='high'; }); });
+          var msg = '**HIT Compliance Flags — '+sf.length+' school'+(sf.length!==1?'s':'')+' flagged:**\n\n';
+          if (critSchools.length) {
+            msg += '🚨 **Critical ('+critSchools.length+'):**\n';
+            critSchools.forEach(function(s){
+              var cf = s.flags.filter(function(f){return f.severity==='critical';});
+              msg += '• **'+s.school+'** ('+s.district+')\n';
+              cf.forEach(function(f){ msg += '  → '+f.msg+'\n'; });
+            });
+          }
+          if (highSchools.length) {
+            msg += '\n⚠️ **High ('+highSchools.length+'):**\n';
+            highSchools.slice(0,6).forEach(function(s){
+              var hf = s.flags.filter(function(f){return f.severity==='high';});
+              msg += '• **'+s.school+'**: '+hf.map(function(f){return f.msg;}).join(' · ')+'\n';
+            });
+            if (highSchools.length>6) msg += '…and '+(highSchools.length-6)+' more.\n';
+          }
+          return msg;
+        } catch(e) { return 'Flags data not available — open Pearl Operations first.'; }
+      }
+    },
+
+    // Survey score anomalies — low scores, school-level breakdown
+    { match: /low survey|survey.?(low|below|poor|bad|worst|weak|problem|concern|issue|flag|alert)|below.*survey|survey.*below|survey.*anomal|anomal.*survey|survey.*problem|survey score.*(site|school)|site.*survey.?score/i,
+      respond: function() {
+        var sc = _schools();
+        var p = _pearl();
+        if (!sc.length) return 'Pearl site data not yet loaded — open Pearl Operations first.';
+        var threshold = 3.5;
+        var lowSites = sc.filter(function(s){ return s.surveyAvg != null && s.surveyAvg < threshold; });
+        var noSurvey = sc.filter(function(s){ return s.surveyAvg === null; });
+        var msg = '**Scholar Survey Score Anomalies:**\n\n';
+        if (p && p.surveyAvg != null) {
+          var svIcon = p.surveyAvg>=4?'✅':p.surveyAvg>=3.5?'⚠️':'🔴';
+          msg += svIcon+' Program avg: **'+p.surveyAvg+'/5** (benchmark ≥4.0)\n\n';
+        }
+        if (lowSites.length) {
+          msg += '🔴 **Sites below '+threshold+'/5 ('+lowSites.length+'):**\n';
+          lowSites.sort(function(a,b){return a.surveyAvg-b.surveyAvg;}).forEach(function(s){
+            msg += '• **'+s.school+'** ('+s.district+'): **'+s.surveyAvg+'/5** · '+s.sessions+' sessions\n';
+          });
+        } else {
+          msg += '✅ No sites below '+threshold+'/5.\n';
+        }
+        if (noSurvey.length) {
+          msg += '\n⚠️ **Sites with NO surveys captured ('+noSurvey.length+'):**\n';
+          noSurvey.slice(0,6).forEach(function(s){ msg += '• '+s.school+' ('+s.district+')\n'; });
+          if (noSurvey.length>6) msg += '…and '+(noSurvey.length-6)+' more.\n';
+        }
+        msg += '\nFor per-tutor scores, ask "survey score for [tutor name]".';
+        return msg;
+      }
+    },
+
+    // Observation coverage gaps — apprentices with no obs
+    { match: /obs.*gap|obs.*coverage|miss.*obs|no obs|who.*not.*observ|unobserv|observ.*coverag|observ.*miss|apprentice.*obs|obs.*apprentice|apprentice.*no obs/i,
+      respond: function() {
+        var tm = window._njtcTutorObs || {};
+        var slm = window._njtcSLObs || {};
+        var allObsKeys = new Set(Object.keys(tm).concat(Object.keys(slm)));
+        if (!allObsKeys.size) return 'Observation maps not yet loaded. Ask PIE about a specific tutor, or visit T&D Analytics to trigger the obs data load.';
+        var apprentices = (window.HR_EMPS||[]).filter(function(e){ return e.s==='Active' && e._apprentice==='Yes'; });
+        if (!apprentices.length) return 'No active TAP apprentices found in HR data.';
+        function normN(s){ return (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim(); }
+        var noObs = apprentices.filter(function(e){
+          var nm = normN(e.n);
+          if (!nm) return true;
+          if (allObsKeys.has(nm)) return false;
+          var parts = nm.split(' ');
+          for (var k of allObsKeys) {
+            var kp = k.split(' ');
+            if (parts[parts.length-1]===kp[kp.length-1] && parts.some(function(p){return p.length>1&&kp.indexOf(p)>=0;})) return false;
+          }
+          return true;
+        });
+        var hasObs = apprentices.length - noObs.length;
+        var pct = Math.round(hasObs/apprentices.length*100);
+        var msg = '**Observation Coverage — TAP Apprentices:**\n\n';
+        msg += '✅ **'+hasObs+' of '+apprentices.length+' apprentices** have at least one observation logged (**'+pct+'% coverage**)\n';
+        if (noObs.length) {
+          msg += '⚠️ **'+noObs.length+' apprentice'+(noObs.length!==1?'s':'')+' with no observations on record:**\n';
+          noObs.slice(0,10).forEach(function(e){ msg += '• '+e.n+(e.si?' · '+e.si:'')+(e.di?' ('+e.di+')':'')+'\n'; });
+          if (noObs.length>10) msg += '…and '+(noObs.length-10)+' more.\n';
+        }
+        return msg;
+      }
+    },
+
     // ── TEMPORAL DRILL-DOWN ──────────────────────────────────────────────────
 
     // Single period: "scholar attendance last week", "what happened this month", etc.
