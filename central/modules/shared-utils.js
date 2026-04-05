@@ -3517,6 +3517,71 @@
     return null;
   }
 
+  // Extract a specific calendar date from a query (e.g. "September 22nd", "Oct 5", "9/22")
+  var _MONTH_MAP = {january:1,february:2,march:3,april:4,may:5,june:6,july:7,august:8,september:9,october:10,november:11,december:12,jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  function _extractDate(q) {
+    var lq = (q||'').toLowerCase();
+    var m;
+    // "September 22nd" / "October 5" / "Sept. 3rd"
+    m = lq.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b(?:,?\s*(\d{4}))?/);
+    if (m) {
+      var mo = _MONTH_MAP[m[1].replace('.','')]; var day = parseInt(m[2]);
+      var yr = m[3] ? parseInt(m[3]) : _syYearForMonth(mo);
+      return { mo: mo, day: day, yr: yr, label: m[1].charAt(0).toUpperCase()+m[1].slice(1)+' '+m[2]+(m[3]?', '+m[3]:'') };
+    }
+    // "9/22" or "09/22/2025"
+    m = lq.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+    if (m) {
+      var mo2 = parseInt(m[1]); var day2 = parseInt(m[2]);
+      if (mo2 >= 1 && mo2 <= 12 && day2 >= 1 && day2 <= 31) {
+        var yr2 = m[3] ? (m[3].length===2 ? 2000+parseInt(m[3]) : parseInt(m[3])) : _syYearForMonth(mo2);
+        return { mo: mo2, day: day2, yr: yr2, label: (mo2<10?'0':'')+mo2+'/'+(day2<10?'0':'')+day2+'/'+yr2 };
+      }
+    }
+    return null;
+  }
+
+  // Given a month number (1-12), infer the school year calendar year
+  function _syYearForMonth(mo) {
+    var now = new Date();
+    var calYr = now.getFullYear();
+    var curMo = now.getMonth() + 1; // 1-12
+    // School year runs Aug-Jul. Aug-Dec = year of SY start; Jan-Jul = year+1
+    var syStart = (curMo >= 8) ? calYr : calYr - 1;
+    return (mo >= 8) ? syStart : syStart + 1;
+  }
+
+  // Get attendance stats for a specific date (MM/DD/YYYY)
+  function _attStatsForDate(mo, day, yr) {
+    if (!window.po || typeof window.po.getAttRows !== 'function') return null;
+    var rows = window.po.getAttRows();
+    if (!rows || !rows.length) return null;
+    var pad = function(n) { return n < 10 ? '0'+n : ''+n; };
+    var target = pad(mo)+'/'+pad(day)+'/'+yr;
+    var filtered = rows.filter(function(r) { return r[5] === target; });
+    if (!filtered.length) return { date: target, found: false };
+    var stu   = filtered.filter(function(r){ return r[1]==='Student'; });
+    var stuA  = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var stuB  = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||''); }).length;
+    var stuSI = stu.filter(function(r){ return /service.?interrupt/i.test(r[6]||r[7]||''); }).length;
+    var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
+    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var sessSet = new Set();
+    filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
+    var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
+    return {
+      date:       target,
+      found:      true,
+      scholPct:   (stuA+stuB)>0 ? parseFloat((stuA/(stuA+stuB)*100).toFixed(1)) : null,
+      tutorPct:   (instA+instB)>0 ? parseFloat((instA/(instA+instB)*100).toFixed(1)) : null,
+      scholAtt: stuA, scholAbs: stuB, siCount: stuSI,
+      tutorAtt: instA, tutorAbs: instB,
+      sessions:   sessSet.size,
+      schools:    schools.size,
+    };
+  }
+
   // Compute attendance stats from raw ATT rows filtered to a date range
   function _attStatsForRange(rangeLabel) {
     if (!window.po || typeof window.po.getAttRows !== 'function') return null;
@@ -3677,6 +3742,26 @@
         var base = '**Service interruption (SI):** A session disruption caused by something other than a scholar absence — tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences.';
         if (p && p.siCount != null) return base + '\n\nCurrent SI count: **' + _n(p.siCount) + '** logged this period.';
         return base + '\n\nPearl data is still loading — check the Pearl Operations panel for the live count.';
+      }
+    },
+
+    // Date-specific attendance ("attendance on September 22nd", "what happened on 9/22", "scholars and tutors on Oct 5")
+    { match: /attend.*(on|for)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/)|on\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d|(scholar|tutor).*(on|for)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d)|\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b.*attend|aggregate.*attend.*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/)/i,
+      respond: function() {
+        var dt = _extractDate(_lastQ);
+        if (!dt) return 'I couldn\'t parse a date from that — try "attendance on September 22nd" or "attendance on 9/22".';
+        var s = _attStatsForDate(dt.mo, dt.day, dt.yr);
+        if (!s) return 'Pearl data not loaded — open Pearl Operations first, then ask again.';
+        if (!s.found) return 'No attendance records found for **' + dt.label + '** (' + s.date + '). Sessions may not have run that day, or Pearl data may not include that date.';
+        var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+        var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
+        var msg = '**Attendance — ' + dt.label + '** (' + s.date + ')\n\n';
+        if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present / ' + s.scholAbs + ' absent' + (s.siCount ? ' · ' + s.siCount + ' SI' : '') + ')\n';
+        else msg += '— No scholar records for this date.\n';
+        if (s.tutorPct != null) msg += tutorIcon + ' **Tutors:** ' + s.tutorPct + '% (' + s.tutorAtt + ' present / ' + s.tutorAbs + ' absent)\n';
+        else msg += '— No tutor records for this date.\n';
+        msg += '\n📍 ' + s.schools + ' site(s) · ~' + s.sessions + ' session(s)';
+        return msg;
       }
     },
 
@@ -4152,8 +4237,8 @@
       }
     },
 
-    // Specific tutor lookup (general "look up" query)
-    { match: /look up|check on|find (tutor|staff|employee)|search (for )?(tutor|staff|employee)|pull (up|info on)|attendance for|info on/i,
+    // Specific tutor/staff lookup (general "look up" query)
+    { match: /look up|check on|find (tutor|staff|employee)|search (for )?(tutor|staff|employee)|pull (up|info on)\b|^info on\b/i,
       respond: function() {
         return 'To look up a specific person, just type their name — for example: "Sarah Johnson" or "tell me about Marcus Williams". I\'ll pull Pearl attendance, HR profile, and any concern records.';
       }
@@ -5136,8 +5221,14 @@
     }
 
     // 1. Entity-first: detect a person name before rule scan
-    var entity = _extractPerson(qt);
-    if (entity) return _personResponse(entity, qt);
+    //    Skip entity extraction when query is clearly about aggregate/program data
+    var _skipEntity = /\b(aggregate|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide)\b/i.test(qt) ||
+                      /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b.{0,10}\d{1,2}/i.test(qt) ||
+                      /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/.test(qt);
+    if (!_skipEntity) {
+      var entity = _extractPerson(qt);
+      if (entity) return _personResponse(entity, qt);
+    }
 
     // 2. Rule matching (try original then normalized)
     for (var i = 0; i < RULES.length; i++) {
