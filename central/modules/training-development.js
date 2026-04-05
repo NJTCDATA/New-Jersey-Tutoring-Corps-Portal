@@ -39,9 +39,10 @@
 
   // ── PDF season definitions (module-level to avoid const-redeclaration in async fn) ──
   const PDF_SEASONS = [
-    { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov' },
-    { key:'winter', label:'❄️ Winter', note:'Dec–Feb' },
-    { key:'spring', label:'🌱 Spring', note:'Mar–May' },
+    { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov', color:'#92400e', bg:'#fef3c7' },
+    { key:'winter', label:'❄️ Winter', note:'Dec–Feb', color:'#1e3a8a', bg:'#eff6ff' },
+    { key:'spring', label:'🌱 Spring', note:'Mar–May', color:'#065f46', bg:'#ecfdf5' },
+    { key:'summer', label:'☀️ Summer', note:'Jun–Aug', color:'#9a3412', bg:'#fff7ed' },
   ];
 
   // ── Season filter state ───────────────────────────────────────────
@@ -2833,13 +2834,7 @@
     const intNew     = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length;
     const intReturn  = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length;
 
-    // ── Season comparison helpers ──────────────────────────────────────────
-    const SEASONS = [
-      { key:'fall',   label:'Fall',   note:'Sep–Nov', color:'#92400e', bg:'#fef3c7' },
-      { key:'winter', label:'Winter', note:'Dec–Feb', color:'#1e3a8a', bg:'#eff6ff' },
-      { key:'spring', label:'Spring', note:'Mar–May', color:'#065f46', bg:'#ecfdf5' },
-      { key:'summer', label:'Summer', note:'Jun–Aug', color:'#9a3412', bg:'#fff7ed' },
-    ];
+    // ── Season comparison helpers (PDF_SEASONS defined at module level) ──
     function getSeasonLocal(dateStr) {
       if (!dateStr) return null;
       const d = new Date(dateStr);
@@ -2852,10 +2847,10 @@
     }
     // PD by season
     const pdBySeason = {};
-    SEASONS.forEach(s => { pdBySeason[s.key] = pdRows.filter(r => getSeasonLocal(r['Date of PD Session'] || r['Timestamp'] || '') === s.key); });
+    PDF_SEASONS.forEach(s => { pdBySeason[s.key] = pdRows.filter(r => getSeasonLocal(r['Date of PD Session'] || r['Timestamp'] || '') === s.key); });
     // Intake by season
     const intBySeason = {};
-    SEASONS.forEach(s => { intBySeason[s.key] = intRows.filter(r => getSeasonLocal(r['Timestamp'] || '') === s.key); });
+    PDF_SEASONS.forEach(s => { intBySeason[s.key] = intRows.filter(r => getSeasonLocal(r['Timestamp'] || '') === s.key); });
     // Helper: compute key PD metrics for a set of rows
     function pdSeasonMetrics(rows) {
       if (!rows.length) return null;
@@ -2873,8 +2868,10 @@
       const eff  = effField  ? avgField(rows, effField.field)  : null;
       return { n: rows.length, prep, eff };
     }
-    const hasPDSeasons  = SEASONS.some(s => pdBySeason[s.key].length > 0);
-    const hasIntSeasons = SEASONS.some(s => intBySeason[s.key].length > 0);
+    const hasPDSeasons      = PDF_SEASONS.some(s => pdBySeason[s.key].length > 0);
+    const hasIntSeasons     = PDF_SEASONS.some(s => intBySeason[s.key].length > 0);
+    const activePdSeasons   = PDF_SEASONS.filter(s => pdBySeason[s.key] && pdBySeason[s.key].length > 0);
+    const activeIntSeasons  = PDF_SEASONS.filter(s => intBySeason[s.key] && intBySeason[s.key].length > 0);
 
     // Apprentice data
     const apprPool = (function(){
@@ -2895,31 +2892,6 @@
     const getS = k => k.midStatus || k.status || '';
     const tdKPIs = kpiData.filter(k => /training|development|TAP|apprentice|PD|professional development/i.test(k.goal||k.kpi||''));
     const tdMet  = tdKPIs.filter(k=>getS(k)==='Met').length;
-
-    // ── Seasonal helpers (PDF_SEASONS defined at module level to avoid const-redeclaration) ──
-    function rowSeason(r, dateCol) {
-      const raw = r[dateCol] || r['Timestamp'] || '';
-      if (!raw) return 'fall';
-      const d = new Date(raw); if (isNaN(d)) return 'fall';
-      const m = d.getMonth()+1;
-      if (m>=9&&m<=11) return 'fall';
-      if (m===12||m===1||m===2) return 'winter';
-      if (m>=3&&m<=5) return 'spring';
-      return 'summer';
-    }
-    function seasonRows(rows, dateCol) {
-      const out = { fall:[], winter:[], spring:[], summer:[] };
-      (rows||[]).forEach(r => { const s = rowSeason(r, dateCol); if (out[s]) out[s].push(r); });
-      return out;
-    }
-
-    // PD seasonal split
-    const pdBySeason = seasonRows(pdRows, 'Date of PD Session');
-    const activePdSeasons = PDF_SEASONS.filter(s => pdBySeason[s.key] && pdBySeason[s.key].length > 0);
-
-    // Intake seasonal split
-    const intBySeason = seasonRows(intRows, 'Timestamp');
-    const activeIntSeasons = PDF_SEASONS.filter(s => intBySeason[s.key] && intBySeason[s.key].length > 0);
 
     // ── HTML report template ───────────────────────────────────────────────
     const logoHex = '#003087';
@@ -3076,7 +3048,7 @@
             </tr>
           </thead>
           <tbody>
-            ${SEASONS.map(s => {
+            ${PDF_SEASONS.map(s => {
               const m = pdSeasonMetrics(pdBySeason[s.key]);
               if (!m) return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.4rem .75rem;font-size:.78rem;color:#9ca3af" colspan="4">${s.label} (${s.note}) — no data</td></tr>`;
               const satColor = m.overall>=4?'#059669':m.overall>=3?'#d97706':'#dc2626';
@@ -3108,7 +3080,7 @@
             </tr>
           </thead>
           <tbody>
-            ${SEASONS.map(s => {
+            ${PDF_SEASONS.map(s => {
               const m = intSeasonMetrics(intBySeason[s.key]);
               if (!m) return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.4rem .75rem;font-size:.78rem;color:#9ca3af" colspan="4">${s.label} (${s.note}) — no data</td></tr>`;
               const prepColor = m.prep!=null?(m.prep>=4?'#059669':m.prep>=3?'#d97706':'#dc2626'):'#9ca3af';
