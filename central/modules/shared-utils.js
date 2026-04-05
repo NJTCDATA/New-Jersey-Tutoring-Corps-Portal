@@ -246,7 +246,7 @@
   // Paste the Google Drive File ID of your Operations Manual below.
   // Get it from the share URL: drive.google.com/file/d/FILE_ID_HERE/view
   // Once set, every policy card will link directly to the correct section.
-  const OPS_MANUAL_FILE_ID = 'PASTE_YOUR_OPERATIONS_MANUAL_FILE_ID_HERE';
+  const OPS_MANUAL_FILE_ID = '1RDGWYWngPhasxpZdBAJDvPjhEfwFrSOLMHUc-0qkeVk';
   const OPS_MANUAL_URL = OPS_MANUAL_FILE_ID.startsWith('PASTE')
     ? 'https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG'
     : `https://drive.google.com/file/d/${OPS_MANUAL_FILE_ID}/view`;
@@ -1076,97 +1076,28 @@
       // APPS_SCRIPT_URL: paste your deployed Web App URL here after setup
       // This is the primary source — reads your Drive folder live, zero CORS issues
       // ── INLINE MANIFEST (eliminates GitHub raw fetch + CORS errors) ──────
+      // Add real document entries here once you have Drive file IDs.
+      // Each entry: { title, dept, tag, effectiveDate, driveUrl, desc, annualGoals[] }
+      // Leave empty until real documents are ready — placeholder entries cause phantom cards.
       const INLINE_MANIFEST = [
-  {
-    "title": "Document Title Here",
-    "dept": "hr",
-    "tag": "Human Resources",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Maintain and continue to build on strong culture"
-    ]
-  },
-  {
-    "title": "Document Title Here",
-    "dept": "finance",
-    "tag": "Finance",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Maintain cash position"
-    ]
-  },
-  {
-    "title": "Document Title Here",
-    "dept": "data",
-    "tag": "Data & Eval",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Upgrade systems to support growth"
-    ]
-  },
-  {
-    "title": "Document Title Here",
-    "dept": "training",
-    "tag": "Training & Development",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Support Growth of New Jersey's Educator Pipeline"
-    ]
-  },
-  {
-    "title": "Document Title Here",
-    "dept": "programming",
-    "tag": "Programming",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Increase Impact on Scholars"
-    ]
-  },
-  {
-    "title": "Document Title Here",
-    "dept": "leadership",
-    "tag": "Leadership",
-    "effectiveDate": "Feb 2026",
-    "modifiedDate": null,
-    "sectionsModified": [],
-    "desc": "Brief description of what this document covers.",
-    "driveUrl": null,
-    "annualGoals": [
-      "Further Diversify board and leverage its support"
-    ]
-  }
-];
-      // Use inline manifest as primary source — no network request needed
-      docs = INLINE_MANIFEST.map(d => ({
-        ...d,
-        dept: d.dept || 'shared',
-        sectionsModified: d.sectionsModified || [],
-        annualGoals: d.annualGoals || [],
-        _isDriveUpload: true,
-        _driveManifest: true,
-      }));
-      fromDrive = true;
-      console.log('[Manifest] Loaded inline:', docs.length, 'documents');
+        // Example (uncomment and fill in when ready):
+        // { title: "Operations Manual SY25-26", dept: "shared", tag: "Organization-Wide",
+        //   effectiveDate: "Aug 2025", driveUrl: "https://drive.google.com/file/d/FILE_ID/view",
+        //   desc: "NJTC full operations manual.", annualGoals: [] },
+      ];
+      // Only mark fromDrive true if there are real entries — empty manifest = no Drive cards shown
+      if (INLINE_MANIFEST.length > 0) {
+        docs = INLINE_MANIFEST.map(d => ({
+          ...d,
+          dept: d.dept || 'shared',
+          sectionsModified: d.sectionsModified || [],
+          annualGoals: d.annualGoals || [],
+          _isDriveUpload: true,
+          _driveManifest: true,
+        }));
+        fromDrive = true;
+        console.log('[Manifest] Loaded inline:', docs.length, 'documents');
+      }
       // ── END INLINE MANIFEST ──────────────────────────────────────────────
       const APPS_SCRIPT_URL = typeof DRIVE_APPS_SCRIPT_URL !== 'undefined' ? DRIVE_APPS_SCRIPT_URL : '';
       const GITHUB_MANIFEST_URL = 'https://raw.githubusercontent.com/njtcdata/New-Jersey-Tutoring-Corps-Portal/main/central/manifest.json';
