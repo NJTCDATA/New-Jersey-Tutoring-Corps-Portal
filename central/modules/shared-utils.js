@@ -6349,6 +6349,33 @@
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
+  // ── Shift status helper ───────────────────────────────────────────────────
+  function _pieShiftStatus() {
+    var h = new Date().getHours();
+    var overnight = (h >= 20 || h < 6);  // 8pm – 6am
+    return {
+      overnight: overnight,
+      label:     overnight ? 'Overnight Coverage Active' : 'On Duty',
+      color:     overnight ? '#a78bfa' : '#22c55e',
+      duty:      overnight ? 'Overnight · PEI Office' : 'PEI Office · On Duty',
+    };
+  }
+  function _pieApplyShift() {
+    var s = _pieShiftStatus();
+    // Trigger duty line
+    var dl = document.getElementById('pieDutyLabel');
+    if (dl) dl.textContent = s.duty;
+    // Drawer shift label
+    var sl = document.getElementById('pieShiftLabel');
+    if (sl) {
+      sl.textContent = (s.overnight ? '◑' : '●') + ' ' + s.label + ' · Program Evaluation & Impact';
+      sl.className = 'pie-header-shift' + (s.overnight ? ' overnight' : '');
+    }
+    // Sidebar status
+    var ss = document.getElementById('pieSidebarStatus');
+    if (ss) { ss.textContent = s.label; ss.style.color = s.color; }
+  }
+
   window.pieToggle = function() {
     _open = !_open;
     var drawer  = document.getElementById('pieDrawer');
@@ -6356,19 +6383,31 @@
     if (!drawer) return;
     drawer.style.display  = _open ? 'flex' : 'none';
     if (trigger) trigger.classList.remove('pie-pulse');
+    // Dismiss peek if open
+    window.piePeekDismiss && window.piePeekDismiss();
     if (_open && !document.getElementById('pieMessages').children.length) {
-      // First open — show welcome
-      var welcomes = {
-        leadership: 'PIE here — assistant to the Director of Program Evaluation & Impact. I read live portal data and brief you in plain English. KPI scores, Pearl operations, iReady growth, concerns — ask anything.',
-        data:       'PIE here. Data & Evaluation view active. I\'m your PEI assistant — full live access to KPIs, Pearl, iReady diagnostics, and concerns. What do you need?',
-        hr:         'PIE here. HR view active. I can surface concern counts, workforce risk signals, attendance benchmarks, or KPI status on demand. What do you need?',
-        programming:'PIE here. Program view active — Pearl session counts, site performance, scholar attendance, and goal status all live. What do you need?',
-        training:   'PIE here. Training view loaded — PD satisfaction data, intake ratings, apprenticeship status, and KPI context available. What do you need?',
-        kb:         'PIE here. Executive view active. Live KPI scores, program stats, workforce signals, and impact metrics — ready when you are.',
+      // First open — persona-forward welcome establishing PIE as primary contact
+      var s = _pieShiftStatus();
+      var shiftLine = s.overnight
+        ? 'The Director is in overnight mode — I\'m your point of contact until morning. '
+        : '';
+      var deptLines = {
+        leadership: 'I\'m **PIE** — the PEI office\'s virtual team member. ' + shiftLine + 'KPIs, Pearl, iReady, concerns, program status — bring it to me first.',
+        data:       'I\'m **PIE**, Data & Evaluation\'s first stop. ' + shiftLine + 'Live KPIs, Pearl diagnostics, iReady growth, or a staff profile — what do you need?',
+        hr:         'I\'m **PIE**, your PEI contact. ' + shiftLine + 'Concern counts, workforce risk, attendance signals — I have it. What do you need?',
+        programming:'I\'m **PIE**, PEI office. ' + shiftLine + 'Pearl session data, site performance, scholar attendance, tutor profiles — ready. What do you need?',
+        training:   'I\'m **PIE**, PEI office. ' + shiftLine + 'PD data, apprenticeship status, OTJ progress, KPI context — I\'ve got it. What do you need?',
+        kb:         'I\'m **PIE** — executive-level intel, always live. ' + shiftLine + 'KPI scores, program footprint, workforce signals — ready when you are.',
+        finance:    'I\'m **PIE**, PEI office. ' + shiftLine + 'Concern pipeline, attendance risk, program cost signals — what do you need?',
       };
-      _addMsg('pie', welcomes[_dept] || welcomes.leadership);
+      _addMsg('pie', deptLines[_dept] || deptLines.leadership);
       _renderChips();
     }
+  };
+
+  // Open without toggle — for sidebar button
+  window.pieOpen = function() {
+    if (!_open) window.pieToggle();
   };
 
   window.pieSend = function() {
@@ -6395,19 +6434,47 @@
 
   window.pieInit = function(dept) {
     _dept = dept || 'leadership';
-    var sub = document.getElementById('pieHeaderSub');
-    var labels = {
-      leadership: 'Assistant to the Director of PEI · Leadership',
-      data:       'Assistant to the Director of PEI · Data & Evaluation',
-      hr:         'Assistant to the Director of PEI · HR',
-      programming:'Assistant to the Director of PEI · Programming',
-      training:   'Assistant to the Director of PEI · Training',
-      kb:         'Assistant to the Director of PEI · Executive',
-    };
-    if (sub) sub.textContent = labels[_dept] || 'Assistant to the Director of PEI';
+    // Apply shift-aware status to trigger, drawer, sidebar
+    _pieApplyShift();
+    // Show trigger pill + sidebar entry
     var trigger = document.getElementById('pieTrigger');
     if (trigger) trigger.style.display = '';
+    var sidebarBtn = document.getElementById('pieSidebarBtn');
+    if (sidebarBtn) sidebarBtn.style.display = '';
     _renderChips();
+    // Show peek bubble 4s after init (once per session)
+    if (!sessionStorage.getItem('pie_peeked')) {
+      sessionStorage.setItem('pie_peeked', '1');
+      setTimeout(function() {
+        // Only show if drawer is closed
+        if (_open) return;
+        var peek = document.getElementById('piePeek');
+        if (!peek) return;
+        // Customize peek text by dept
+        var peekMsgs = {
+          programming: 'Site performance, tutor obs, Pearl data — got a question? Ask PIE first.',
+          hr:          'Concerns, workforce signals, attendance — I handle it. Ask PIE.',
+          training:    'OTJ status, PD data, apprenticeship — I can pull it. Ask PIE.',
+          data:        'KPIs, iReady, Pearl, or a staff profile — start here.',
+          leadership:  'Program intel on demand — Ask PIE before reaching out.',
+          kb:          'Executive briefing, live KPIs, program status — I\'m ready.',
+          finance:     'Cost signals, attendance risk, concern pipeline — Ask PIE.',
+        };
+        var pt = document.getElementById('piePeekText');
+        if (pt) pt.textContent = peekMsgs[_dept] || peekMsgs.leadership;
+        peek.style.display = '';
+        // Auto-dismiss after 7s
+        setTimeout(function() { window.piePeekDismiss && window.piePeekDismiss(); }, 7000);
+      }, 4000);
+    }
+  };
+
+  // Peek dismiss
+  window.piePeekDismiss = function() {
+    var peek = document.getElementById('piePeek');
+    if (!peek || peek.style.display === 'none') return;
+    peek.classList.add('pie-peek-hiding');
+    setTimeout(function() { peek.style.display = 'none'; peek.classList.remove('pie-peek-hiding'); }, 300);
   };
 
   window.pieSetPanel = function(panelKey) {
