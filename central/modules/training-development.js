@@ -2780,9 +2780,212 @@
   //  GLOBAL EXPORTS
   // ══════════════════════════════════════════════════════════════════
 
-  // tdGenerateExecPDF — stub (exec PDF not applicable for T&D module)
+  // tdGenerateExecPDF — generates Executive + Programming T&D snapshot PDFs
   function tdGenerateExecPDF() {
-    alert('Apprenticeship PDF export coming soon.');
+    const dept = (window.NJTC_SESSION || {}).dept || 'data';
+    const isExec = ['leadership','kb'].includes(dept);
+    const now = new Date().toLocaleString('en-US', { month:'long', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+
+    // ── Compute metrics from cached data ──────────────────────────────────
+    function avgField(rows, field) {
+      const v = (rows||[]).map(r => parseFloat(r[field])).filter(n => !isNaN(n));
+      return v.length ? (v.reduce((a,b)=>a+b,0)/v.length) : null;
+    }
+    function fmtN(n, dec) { return n==null ? '—' : n.toFixed(dec===undefined?2:dec); }
+    function pctOf(n, d) { return (!d || d===0) ? '—' : Math.round((n/d)*100)+'%'; }
+
+    // PD data metrics
+    const pdRows  = _pdData || [];
+    const pdTotal = pdRows.length;
+    const pdSessions = (function(){
+      const seen={}; pdRows.forEach(r=>{const k=(r['PD Session Number ']||r['PD Session Number']||'').trim(); if(k)seen[k]=true;}); return Object.keys(seen).length;
+    })();
+    const pdOverallAvg = avgField(pdRows, 'Overall satisfaction with this PD session');
+    const pdRecYes  = pdRows.filter(r=>(r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
+    const pdRecRate = pdTotal ? Math.round((pdRecYes/pdTotal)*100) : null;
+    const s1Key = r => (r['PD Session Number ']||r['PD Session Number']||'').trim();
+    const s1Rows = pdRows.filter(r=>s1Key(r)==='PD Session 1');
+    const s2Rows = pdRows.filter(r=>s1Key(r)==='PD Session 2');
+    const s1Avg  = s1Rows.length ? (PD_RATING_FIELDS.reduce((a,f)=>{const v=avgField(s1Rows,f);return a+(v||0);},0)/PD_RATING_FIELDS.length) : null;
+    const s2Avg  = s2Rows.length ? (PD_RATING_FIELDS.reduce((a,f)=>{const v=avgField(s2Rows,f);return a+(v||0);},0)/PD_RATING_FIELDS.length) : null;
+    const netImprove = (s1Avg!=null && s2Avg!=null) ? (s2Avg - s1Avg) : null;
+
+    // Role breakdown from PD
+    const pdRoleMap = {};
+    pdRows.forEach(r=>{ const role=(r['Role']||'').trim(); if(role) pdRoleMap[role]=(pdRoleMap[role]||0)+1; });
+    const pdRoles = Object.entries(pdRoleMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+    // Training Intake metrics
+    const intRows = _intakeData || [];
+    const intTotal = intRows.length;
+    const resolvedFields = intTotal ? resolveIntakeFields(intRows) : INTAKE_RATING_FIELDS;
+    const intAvgs = resolvedFields.map(f => ({ short:f.short, avg: avgField(intRows, f.field) })).filter(f=>f.avg!=null);
+    const intOverall = intAvgs.find(f=>/effectiveness/i.test(f.short));
+    const intPrep    = intAvgs.find(f=>/prepared/i.test(f.short));
+    const intTrainer = intAvgs.find(f=>/trainer/i.test(f.short));
+    const intNew     = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length;
+    const intReturn  = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length;
+
+    // Apprentice data
+    const apprPool = (function(){
+      if(!_apprParsed) return null;
+      const all = [].concat(_apprParsed.active||[], _apprParsed.cohort1||[], _apprParsed.cohort2||[]);
+      return all.length ? { total: all.length, data: all } : null;
+    })();
+    // Also count from HR data if available
+    const hrApprCount = (function(){
+      const hr = window.HR_EMPS || [];
+      const c = hr.filter(e=>e.s==='Active' && e._apprentice==='Yes').length;
+      return c > 0 ? c : null;
+    })();
+    const apprCount = hrApprCount || (apprPool ? apprPool.total : null);
+
+    // KPI T&D-adjacent goals
+    const kpiData = window.KPI_DATA || [];
+    const getS = k => k.midStatus || k.status || '';
+    const tdKPIs = kpiData.filter(k => /training|development|TAP|apprentice|PD|professional development/i.test(k.goal||k.kpi||''));
+    const tdMet  = tdKPIs.filter(k=>getS(k)==='Met').length;
+
+    // ── HTML report template ───────────────────────────────────────────────
+    const logoHex = '#003087';
+    const goldHex = '#f0a500';
+
+    function statRow(label, value, note) {
+      return `<tr style="border-bottom:1px solid #eee">
+        <td style="padding:.5rem .75rem;font-size:.85rem;color:#374151;font-weight:500">${label}</td>
+        <td style="padding:.5rem .75rem;font-size:.9rem;font-weight:800;color:${logoHex};text-align:right">${value}</td>
+        ${note ? `<td style="padding:.5rem .75rem;font-size:.75rem;color:#6b7280">${note}</td>` : ''}
+      </tr>`;
+    }
+
+    function sectionHead(title) {
+      return `<div style="margin:1.5rem 0 .75rem;padding:.5rem .875rem;background:${logoHex};color:#fff;border-radius:6px;font-size:.875rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">${title}</div>`;
+    }
+
+    function ratingBar(label, val, max) {
+      if (val==null) return '';
+      const pct = Math.round((val/(max||5))*100);
+      const color = val>=4?'#059669':val>=3?'#d97706':'#dc2626';
+      return `<div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.4rem">
+        <div style="width:160px;font-size:.78rem;color:#374151;flex-shrink:0">${label}</div>
+        <div style="flex:1;height:10px;background:#f1f5f9;border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:99px"></div>
+        </div>
+        <div style="font-size:.8rem;font-weight:800;color:${color};width:35px;text-align:right">${fmtN(val)}</div>
+      </div>`;
+    }
+
+    // Executive summary section (leadership / kb view)
+    const execSection = isExec ? `
+      ${sectionHead('Executive Summary — T&D Program Health')}
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+        ${statRow('PD Sessions Delivered', pdSessions > 0 ? pdSessions : '—')}
+        ${statRow('Total Respondents', pdTotal || '—', 'PD feedback submissions')}
+        ${statRow('Avg Overall Satisfaction', pdOverallAvg!=null ? fmtN(pdOverallAvg)+'/5.0' : '—', pdOverallAvg>=4?'✅ On track':'⚠️ Needs attention')}
+        ${statRow('Recommend Rate', pdRecRate!=null ? pdRecRate+'%' : '—', pdRecRate>=80?'✅ Healthy':'⚠️ Below 80% target')}
+        ${statRow('S1→S2 Net Improvement', netImprove!=null ? (netImprove>=0?'+':'')+fmtN(netImprove) : 'N/A', netImprove!=null&&netImprove>0?'✅ Improving':netImprove!=null?'— Flat/decline':'')}
+        ${statRow('Training Intake Respondents', intTotal || '—', `${intNew} new hire, ${intReturn} returning`)}
+        ${statRow('Intake: Preparedness Rating', intPrep ? fmtN(intPrep.avg)+'/5.0' : '—')}
+        ${statRow('Active Apprentices (TAP)', apprCount!=null ? apprCount : '—', 'HR Master List · col K')}
+        ${tdKPIs.length ? statRow('T&D-Adjacent KPI Goals Met', `${tdMet}/${tdKPIs.length}`, '') : ''}
+      </table>
+      <p style="font-size:.75rem;color:#9ca3af;margin-top:.5rem">Satisfaction benchmarks: ≥4.0 on track. Recommend Rate: ≥80% healthy.</p>
+    ` : '';
+
+    // Programming detail section
+    const progSection = `
+      ${sectionHead('Programming View — PD Session Detail')}
+      ${pdRows.length ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Session Ratings (1–5)</div>
+            ${PD_RATING_FIELDS.map((f,i)=>ratingBar(PD_RATING_SHORT[i]||f.slice(0,30), avgField(pdRows,f))).join('')}
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Session 1 vs Session 2</div>
+            ${s1Rows.length ? PD_RATING_FIELDS.map((f,i) => {
+              const v1=avgField(s1Rows,f), v2=avgField(s2Rows,f);
+              const delta = (v1!=null&&v2!=null) ? (v2-v1) : null;
+              return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.25rem 0;border-bottom:1px solid #f1f5f9;font-size:.77rem">
+                <span style="color:#374151">${PD_RATING_SHORT[i]||'Dim '+(i+1)}</span>
+                <span style="font-weight:700;color:${delta!=null&&delta>0?'#059669':delta!=null&&delta<0?'#dc2626':'#6b7280'}">${v1!=null?fmtN(v1):'—'} → ${v2!=null?fmtN(v2):'—'} ${delta!=null?'('+(delta>=0?'+':'')+fmtN(delta)+')':''}</span>
+              </div>`;
+            }).join('') : '<div style="font-size:.8rem;color:#9ca3af">Session 2 data not yet available.</div>'}
+          </div>
+        </div>
+        ${pdRoles.length ? `<div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.375rem">Respondent Breakdown by Role</div>
+        <div style="display:flex;gap:.375rem;flex-wrap:wrap">${pdRoles.map(([role,n])=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:.2rem .6rem;font-size:.75rem;color:#1d4ed8;font-weight:600">${role}: ${n}</span>`).join('')}</div>` : ''}
+      ` : '<p style="color:#9ca3af;font-size:.85rem">PD session data not yet loaded. Open T&D Analytics to load data, then retry.</p>'}
+
+      ${sectionHead('Programming View — Training Intake')}
+      ${intRows.length ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Intake Ratings (1–5)</div>
+            ${intAvgs.slice(0,6).map(f=>ratingBar(f.short, f.avg)).join('')}
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Hire Type Split</div>
+            <div style="font-size:2rem;font-weight:900;color:${logoHex}">${intNew}</div>
+            <div style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">New Hire respondents of ${intTotal} total</div>
+            <div style="font-size:1.25rem;font-weight:800;color:#059669">${intReturn}</div>
+            <div style="font-size:.8rem;color:#6b7280">Returning hire respondents</div>
+          </div>
+        </div>
+      ` : '<p style="color:#9ca3af;font-size:.85rem">Training intake data not yet loaded.</p>'}
+
+      ${sectionHead('Apprenticeship Program')}
+      <div style="display:flex;gap:1rem;align-items:center;padding:.875rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+        <div style="text-align:center;min-width:80px">
+          <div style="font-size:2.25rem;font-weight:900;color:#92400e;line-height:1">${apprCount!=null ? apprCount : '—'}</div>
+          <div style="font-size:.7rem;color:#a16207;font-weight:700">Active Apprentices</div>
+        </div>
+        <div style="font-size:.8rem;color:#78350f;line-height:1.6">TAP (Tutor Apprenticeship Program) participants flagged active in the HR Master List (col K). For full apprentice tracker data, open T&D Analytics → Apprentice Tracker tab.</div>
+      </div>
+    `;
+
+    const reportTitle = isExec ? 'T&D Executive Snapshot' : 'T&D Programming Snapshot';
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    <title>NJTC — ${reportTitle}</title>
+    <style>
+      body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 2rem; color: #111; background: #fff; max-width: 900px; margin: 0 auto; }
+      @media print { body { padding: .5in; } .no-print { display: none !important; } }
+      h1 { font-size: 1.5rem; font-weight: 900; color: ${logoHex}; margin: 0; }
+      .cover-bar { background: ${logoHex}; color: #fff; padding: 1.25rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; display: flex; align-items: flex-end; justify-content: space-between; }
+      .cover-sub { font-size: .8rem; opacity: .75; margin-top: .25rem; }
+      .gold-badge { background: ${goldHex}; color: #fff; font-size: .7rem; font-weight: 800; padding: .25rem .75rem; border-radius: 20px; letter-spacing: .04em; }
+    </style>
+    </head><body>
+    <div class="cover-bar">
+      <div>
+        <div style="font-size:.75rem;opacity:.6;font-weight:700;letter-spacing:.08em;margin-bottom:.2rem">NEW JERSEY TUTORING CORPS</div>
+        <h1 style="color:#fff;margin:0">${reportTitle}</h1>
+        <div class="cover-sub">Training &amp; Development Analytics · SY 2025–26</div>
+      </div>
+      <div style="text-align:right">
+        <div class="gold-badge">${isExec ? 'EXECUTIVE' : 'PROGRAMMING'}</div>
+        <div style="font-size:.7rem;opacity:.6;margin-top:.375rem">${now}</div>
+      </div>
+    </div>
+
+    <button class="no-print" onclick="window.print()" style="margin-bottom:1.5rem;background:${logoHex};color:#fff;border:none;padding:.5rem 1.25rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.875rem">⬇ Print / Save as PDF</button>
+
+    ${execSection}
+    ${progSection}
+
+    <div style="margin-top:2rem;padding-top:1rem;border-top:2px solid #e5e7eb;font-size:.7rem;color:#9ca3af">
+      Generated from live NJTC Central Team Portal · ${now} · Data reflects current loaded state
+    </div>
+    </body></html>`;
+
+    const win = window.open('', '_blank', 'width=960,height=750,scrollbars=yes');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    } else {
+      alert('Pop-up blocked. Please allow pop-ups for this site to open the PDF report.');
+    }
   }
 
   window.buildTrainingAnalytics  = buildTrainingAnalytics;
