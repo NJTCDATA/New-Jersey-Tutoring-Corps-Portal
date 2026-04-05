@@ -3602,72 +3602,129 @@
     return msg.trim();
   }
 
-  // District profile response
-  function _districtProfileResponse(districtName) {
+  // District profile response — accepts optional temporal opts {weekNum, rangeLabel, date}
+  function _districtProfileResponse(districtName, opts) {
     var short = _locShortName(districtName);
-    var filter = _makeLocFilter(districtName, 'district');
-    var stats = _attStatsFiltered(filter, { label: short + ' — All-time Attendance' });
-    var msg = '**' + short + ' District — Profile**\n\n';
+    var loc = { type:'district', name: districtName, names: [districtName] };
+    var filter = _makeLocFilter(loc);
+
+    // Build label with temporal context
+    var label = short;
+    if (opts && opts.weekNum) {
+      var rng = _schoolWeekRange(opts.weekNum);
+      label = short + ' · Week ' + opts.weekNum + (rng ? ' (' + rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' : '');
+    } else if (opts && opts.rangeLabel) {
+      label = short + ' · ' + opts.rangeLabel;
+    } else if (opts && opts.date) {
+      label = short + ' · ' + opts.date.label;
+    }
+
+    var stats = _attStatsFiltered(filter, Object.assign({ label: label }, opts||{}));
+    var msg = '**' + label + ' — District**\n\n';
 
     if (stats && stats.found) {
-      var sI = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
-      var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
+      var sI2 = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
+      var tI2 = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
       msg += '**ATTENDANCE**\n';
-      if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent)\n';
-      if (stats.tutorPct!=null) msg += tI+' Tutors: **'+stats.tutorPct+'%**\n';
-      msg += '📍 ~'+stats.sessions+' sessions · '+stats.scholars+' scholars\n\n';
+      if (stats.scholPct!=null) {
+        var siNote2 = stats.siCount > 0 ? ' · ' + stats.siCount + ' SI' : '';
+        msg += sI2 + ' Scholars: **' + stats.scholPct + '%** (' + stats.scholAtt + ' present / ' + stats.scholAbs + ' absent' + siNote2 + ')';
+        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += ' ← check SI vs. absent coding in Pearl';
+        msg += '\n';
+      }
+      if (stats.tutorPct!=null) msg += tI2 + ' Tutors: **' + stats.tutorPct + '%** (' + stats.tutorAtt + ' present / ' + stats.tutorAbs + ' absent)\n';
+      msg += '📍 ~' + stats.sessions + ' session(s) · ' + stats.scholars + ' unique scholars\n\n';
+    } else if (stats && !stats.found) {
+      msg += '_No session records found for this filter._\n\n';
+    } else {
+      msg += '_Pearl data not loaded — open Pearl Operations._\n\n';
     }
 
-    // Schools in this district
-    var norm = _normLoc(districtName.split(/[-,]/)[0]);
-    var distSchools = {};
-    try {
-      (window.po.getAttRows()||[]).forEach(function(r){ if(r[12]&&_normLoc(r[12]).indexOf(norm)>=0&&r[11]) distSchools[r[11]]=true; });
-    } catch(e) {}
-    var schoolList = Object.keys(distSchools);
-    if (schoolList.length) {
-      msg += '**SCHOOLS IN DISTRICT (' + schoolList.length + '):**\n';
-      schoolList.slice(0,8).forEach(function(s){ msg += '• ' + _locShortName(s) + '\n'; });
-      if (schoolList.length > 8) msg += '…and ' + (schoolList.length-8) + ' more\n';
-      msg += '\n';
+    // Schools in this district (only shown for all-time / no temporal filter)
+    if (!opts || (!opts.weekNum && !opts.rangeLabel && !opts.date)) {
+      var norm = _normLoc(districtName.split(/[-,]/)[0]);
+      var distSchools = {};
+      try {
+        (window.po.getAttRows()||[]).forEach(function(r){ if(r[12]&&_normLoc(r[12]).indexOf(norm)>=0&&r[11]) distSchools[r[11]]=true; });
+      } catch(e) {}
+      var schoolList = Object.keys(distSchools).sort();
+      if (schoolList.length) {
+        msg += '**SCHOOLS IN DISTRICT (' + schoolList.length + '):**\n';
+        // Show full names to distinguish ES vs MS, truncated at 40 chars
+        schoolList.slice(0,10).forEach(function(s){
+          var display = s.length > 40 ? s.slice(0,38)+'..' : s;
+          msg += '• ' + display + '\n';
+        });
+        if (schoolList.length > 10) msg += '…and ' + (schoolList.length-10) + ' more\n';
+        msg += '\n';
+      }
     }
 
-    // Staff in district
-    var dStaff = (window.HR_EMPS||[]).filter(function(e){ return e.di && _normLoc(e.di).indexOf(norm) >= 0 && e.s==='Active'; });
-    if (dStaff.length) msg += '**STAFF:** ' + dStaff.length + ' active employees in this district\n\n';
+    // Staff in district — use e.si (site/CMO level) for accurate count
+    var norm2 = _normLoc(districtName.split(/[-,]/)[0]);
+    var dStaff = (window.HR_EMPS||[]).filter(function(e){
+      return e.s === 'Active' && (
+        (e.si && _normLoc(e.si).indexOf(norm2) >= 0) ||
+        (e.di && _normLoc(e.di).indexOf(norm2) >= 0)
+      );
+    });
+    if (dStaff.length) {
+      var apps2 = dStaff.filter(function(e){ return e._apprentice==='Yes'; }).length;
+      msg += '**STAFF:** ' + dStaff.length + ' active' + (apps2 ? ' · ' + apps2 + ' TAP apprentices' : '') + '\n\n';
+    }
 
     // Concerns in district
-    var dConcerns = (window.CONCERNS||[]).filter(function(c){ return c.site && _normLoc(c.site).indexOf(norm) >= 0; });
-    if (dConcerns.length) msg += '**CONCERNS:** ' + dConcerns.length + ' records across district sites\n';
+    var dConcerns = (window.CONCERNS||[]).filter(function(c){ return c.site && _normLoc(c.site).indexOf(norm2) >= 0; });
+    if (dConcerns.length) {
+      var priority2 = ['Termination','Write Up','PGP','On Watch'];
+      var highest2 = priority2.find(function(p){ return dConcerns.some(function(r){ return r.hr_action===p; }); });
+      msg += '**CONCERNS:** ' + dConcerns.length + ' records · Highest: **' + (highest2||dConcerns[0].hr_action||'Documented') + '**\n';
+    }
 
     return msg.trim();
   }
 
   // Network/CMO aggregate profile (multiple schools under one brand)
-  function _networkProfileResponse(loc) {
+  function _networkProfileResponse(loc, opts) {
     var label = loc.label || ('Network (' + (loc.names||[]).length + ' schools)');
     var filter = _makeLocFilter(loc);
-    var stats = _attStatsFiltered(filter, { label: label + ' — All-time' });
-    var msg = '**' + label + ' — Aggregate Profile**\n\n';
+    // Build temporal label and opts
+    var temporalLabel = '';
+    if (opts && opts.weekNum) {
+      var rng2 = _schoolWeekRange(opts.weekNum);
+      temporalLabel = ' · Week ' + opts.weekNum + (rng2 ? ' (' + rng2.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + rng2.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' : '');
+    } else if (opts && opts.rangeLabel) {
+      temporalLabel = ' · ' + opts.rangeLabel;
+    } else if (opts && opts.date) {
+      temporalLabel = ' · ' + opts.date.label;
+    }
+    var stats = _attStatsFiltered(filter, Object.assign({ label: label + (temporalLabel||' — All-time') }, opts||{}));
+    var msg = '**' + label + (temporalLabel||' — Aggregate Profile') + '**\n\n';
 
     // Attendance
     if (stats && stats.found) {
       var sI = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
       var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
-      msg += '**ATTENDANCE (all ' + (loc.names||[]).length + ' schools combined)**\n';
-      if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent'+(stats.siCount?' · '+stats.siCount+' SI':'')+') · '+stats.scholars+' unique scholars\n';
-      if (stats.tutorPct!=null) msg += tI+' Tutors: **'+stats.tutorPct+'%** ('+stats.tutorAtt+' present / '+stats.tutorAbs+' absent)\n';
-      msg += '📍 ~'+stats.sessions+' total sessions across '+((loc.names||[]).length)+' schools\n\n';
+      msg += '**ATTENDANCE (' + (loc.names||[]).length + ' schools combined)**\n';
+      if (stats.scholPct!=null) {
+        var siNote3 = stats.siCount > 0 ? ' · ' + stats.siCount + ' SI' : '';
+        msg += sI + ' Scholars: **' + stats.scholPct + '%** (' + stats.scholAtt + ' present / ' + stats.scholAbs + ' absent' + siNote3 + ') · ' + stats.scholars + ' unique scholars\n';
+        if (stats.scholPct === 100 && stats.scholAbs === 0) msg += '  ← check SI vs. absent coding in Pearl\n';
+      }
+      if (stats.tutorPct!=null) msg += tI + ' Tutors: **' + stats.tutorPct + '%** (' + stats.tutorAtt + ' present / ' + stats.tutorAbs + ' absent)\n';
+      msg += '📍 ~' + stats.sessions + ' session(s) across ' + (loc.names||[]).length + ' schools\n\n';
+    } else if (stats && !stats.found) {
+      msg += '_No session records found for this filter. Verify Pearl is loaded and the week/date is within the SY._\n\n';
     } else {
       msg += '_Pearl data not loaded — open Pearl Operations._\n\n';
     }
 
-    // Per-school breakdown
+    // Per-school breakdown — also filtered by temporal opts
     msg += '**BY SCHOOL:**\n';
     (loc.names||[]).forEach(function(sName) {
       var sf = _makeLocFilter({ type:'school', name:sName, names:[sName] });
-      var ss = _attStatsFiltered(sf, { label: sName });
-      var sShort = _locShortName(sName);
+      var ss = _attStatsFiltered(sf, Object.assign({ label: sName }, opts||{}));
+      var sShort = sName.length > 35 ? sName.slice(0,33)+'..' : sName; // full name to distinguish ES/MS
       if (ss && ss.found && ss.scholPct!=null) {
         var ic = ss.scholPct>=85?'✅':ss.scholPct>=75?'⚠️':'🔴';
         msg += ic+' **'+sShort+'**: '+ss.scholPct+'% scholar · '+ss.scholars+' scholars · ~'+ss.sessions+' sessions\n';
@@ -3796,7 +3853,18 @@
     var wantConcerns = /\b(concern|issue|watch|write.?up|flag|hr action)\b/i.test(ql);
     var wantProfile  = /profile|overview|summary|tell me about|how is .* doing|how.?s .* doing|everything about/i.test(ql);
 
-    if (type === 'district') return _districtProfileResponse(name);
+    if (type === 'district') {
+      // Build temporal opts so week/period/date queries work for districts too
+      var distOpts = null;
+      if (wn) {
+        distOpts = { weekNum: parseInt(wn[1]) };
+      } else if (period) {
+        distOpts = { rangeLabel: period };
+      } else if (dt) {
+        distOpts = { date: dt };
+      }
+      return _districtProfileResponse(name, distOpts);
+    }
     if (wantTutors)   return _tutorsAtSiteResponse(name, loc);
     if (wantLeader)   return _siteLeaderResponse(name, loc);
     if (wantScholars) return _scholarsAtSiteResponse(name, loc);
@@ -3820,25 +3888,34 @@
       if (cRecs.length>5) msg3+='…and '+(cRecs.length-5)+' more\n';
       return msg3;
     }
-    if (wantProfile || (!wn && !period && !dt)) {
-      // For a network, show aggregate attendance profile + school breakdown
-      if (type === 'network') return _networkProfileResponse(loc);
+    // Build temporal opts (shared by network, single-school, and now also profile)
+    var temporalOpts = null;
+    if (wn) {
+      temporalOpts = { weekNum: parseInt(wn[1]) };
+    } else if (period) {
+      temporalOpts = { rangeLabel: period };
+    } else if (dt) {
+      temporalOpts = { date: dt };
+    }
+
+    if (wantProfile || !temporalOpts) {
+      if (type === 'network') return _networkProfileResponse(loc, temporalOpts);
       return _siteProfileResponse(name);
     }
 
     // Temporal attendance drill-down
     var statOpts = { label: short };
-    if (wn) {
-      var weekN = parseInt(wn[1]);
+    if (temporalOpts && temporalOpts.weekNum) {
+      var weekN = temporalOpts.weekNum;
       var rng = _schoolWeekRange(weekN);
       statOpts.weekNum = weekN;
       statOpts.label = short + ' · Week ' + weekN + (rng?' ('+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+')':'');
-    } else if (period) {
-      statOpts.rangeLabel = period;
-      statOpts.label = short + ' · ' + period;
-    } else if (dt) {
-      statOpts.date = dt;
-      statOpts.label = short + ' · ' + dt.label;
+    } else if (temporalOpts && temporalOpts.rangeLabel) {
+      statOpts.rangeLabel = temporalOpts.rangeLabel;
+      statOpts.label = short + ' · ' + temporalOpts.rangeLabel;
+    } else if (temporalOpts && temporalOpts.date) {
+      statOpts.date = temporalOpts.date;
+      statOpts.label = short + ' · ' + temporalOpts.date.label;
     }
     return _fmtFilteredStats(_attStatsFiltered(filter, statOpts), short);
   }
