@@ -3625,6 +3625,58 @@
     };
   }
 
+  // Get date range for school week N (week 1 = first Mon on or after Sep 1 of SY start year)
+  function _schoolWeekRange(weekNum) {
+    if (!weekNum || weekNum < 1 || weekNum > 52) return null;
+    var now = new Date();
+    var syStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
+    // Find first Monday on or after Sep 1
+    var sep1 = new Date(syStart, 8, 1); // Sep = month 8 (0-indexed)
+    var dow = sep1.getDay(); // 0=Sun
+    var daysToMon = (dow === 0) ? 1 : (dow === 1) ? 0 : (8 - dow);
+    var week1Mon = new Date(syStart, 8, 1 + daysToMon);
+    // Week N starts (weekNum-1)*7 days after week1Mon
+    var wkStart = new Date(week1Mon.getTime() + (weekNum - 1) * 7 * 86400000);
+    var wkEnd   = new Date(wkStart.getTime() + 4 * 86400000); // Mon–Fri
+    var fmt = function(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
+    return { start: wkStart, end: wkEnd, label: 'Week ' + weekNum + ' (' + fmt(wkStart) + ' – ' + fmt(wkEnd) + ')' };
+  }
+
+  // Attendance stats for a school week number
+  function _attStatsForWeek(weekNum) {
+    var rng = _schoolWeekRange(weekNum);
+    if (!rng) return null;
+    if (!window.po || typeof window.po.getAttRows !== 'function') return null;
+    var rows = window.po.getAttRows();
+    if (!rows || !rows.length) return null;
+    var startMs = rng.start.getTime(), endMs = rng.end.getTime() + 86400000 - 1;
+    var filtered = rows.filter(function(r) {
+      var d = _parseMMDDYYYY(r[5]);
+      return d && d.getTime() >= startMs && d.getTime() <= endMs;
+    });
+    if (!filtered.length) return { label: rng.label, found: false };
+    var stu   = filtered.filter(function(r){ return r[1]==='Student'; });
+    var stuA  = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var stuB  = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt/i.test(r[7]||''); }).length;
+    var stuSI = stu.filter(function(r){ return /service.?interrupt/i.test(r[6]||r[7]||''); }).length;
+    var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
+    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    var sessSet = new Set();
+    filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
+    var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
+    return {
+      label:    rng.label,
+      found:    true,
+      scholPct: (stuA+stuB)>0 ? parseFloat((stuA/(stuA+stuB)*100).toFixed(1)) : null,
+      tutorPct: (instA+instB)>0 ? parseFloat((instA/(instA+instB)*100).toFixed(1)) : null,
+      scholAtt: stuA, scholAbs: stuB, siCount: stuSI,
+      tutorAtt: instA, tutorAbs: instB,
+      sessions: sessSet.size,
+      schools:  schools.size,
+    };
+  }
+
   // Format a period stats block
   function _fmtPeriodStats(s) {
     if (!s) return null;
@@ -3745,6 +3797,29 @@
       }
     },
 
+    // School week attendance ("wk 25", "week 25 attendance", "what happened in week 12")
+    { match: /\b(wk|week)\s*(\d{1,2})\b/i,
+      respond: function() {
+        var m = _lastQ.match(/\b(?:wk|week)\s*(\d{1,2})\b/i);
+        if (!m) return 'Please specify a week number — e.g. "attendance for week 25" or "wk 12".';
+        var wn = parseInt(m[1]);
+        var rng = _schoolWeekRange(wn);
+        if (!rng) return 'Week ' + wn + ' is out of range (1–52).';
+        var s = _attStatsForWeek(wn);
+        if (!s) return 'Pearl data not loaded — open Pearl Operations first, then try again.';
+        if (!s.found) return 'No attendance records found for **' + rng.label + '**. Sessions may not have run that week, or Pearl data may not cover that range.';
+        var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+        var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
+        var msg = '**Attendance — ' + s.label + '**\n\n';
+        if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present / ' + s.scholAbs + ' absent' + (s.siCount ? ' · ' + s.siCount + ' SI' : '') + ')\n';
+        else msg += '— No scholar records for this week.\n';
+        if (s.tutorPct != null) msg += tutorIcon + ' **Tutors:** ' + s.tutorPct + '% (' + s.tutorAtt + ' present / ' + s.tutorAbs + ' absent)\n';
+        else msg += '— No tutor records for this week.\n';
+        msg += '\n📍 ' + s.schools + ' site(s) · ~' + s.sessions + ' session(s)';
+        return msg;
+      }
+    },
+
     // Date-specific attendance ("attendance on September 22nd", "what happened on 9/22", "scholars and tutors on Oct 5")
     { match: /attend.*(on|for)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/)|on\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d|(scholar|tutor).*(on|for)\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d)|\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b.*attend|aggregate.*attend.*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}\/)/i,
       respond: function() {
@@ -3816,14 +3891,39 @@
     // iReady / typical growth
     { match: /typical growth|iready|scale score|placement level|percent.?of.?typical|academic growth/i,
       respond: function() {
-        var irl = _irl();
-        var base = '**% of typical growth** = actual scale score gain ÷ expected grade-level gain × 100. ≥100% = at or above typical. <50% = well below expected trajectory.';
-        if (irl) {
+        try {
+          if (!window.irlab || typeof window.irlab.getSummary !== 'function') {
+            return '**% of typical growth** = actual scale score gain ÷ expected grade-level gain × 100. ≥100% = at or above typical. <50% = well below expected trajectory.\n\niReady data not yet loaded — open the iReady Analysis Lab to load diagnostic data.';
+          }
+          var sy = _detectSY(_lastQ);
+          var allSY = window.irlab.getSummary('ALL');
+          var base = '**% of typical growth** = actual scale score gain ÷ expected grade-level gain × 100. ≥100% = at or above typical. <50% = well below expected trajectory.';
+          if (sy) {
+            var avail = allSY && allSY.schoolYears ? allSY.schoolYears : [];
+            // Try exact match, then partial match (e.g. "2022-2023")
+            var matchedSY = avail.find(function(y){ return y===sy; }) ||
+                            avail.find(function(y){ return y.replace(/-20/,'-').replace(/20/,'') === sy.replace(/-20/,'-').replace(/20/,''); });
+            if (matchedSY) {
+              var d = window.irlab.getSummary(matchedSY);
+              if (d) return base + '\n\n**' + matchedSY + '** — Math: **' + d.mathMedianPctTypical + '% of typical** · ELA: **' + d.elaMedianPctTypical + '% of typical**\n' + _n(d.totalScholars) + ' scholars · ' + _n(d.mathRows) + ' math / ' + _n(d.elaRows) + ' ELA records.';
+            }
+            return base + '\n\nSchool year **' + sy + '** not found in iReady data. Available: ' + (avail.join(', ')||'none loaded');
+          }
+          // No SY in query — return aggregate + year breakdown
+          var irl = _irl();
+          if (!irl) return base + '\n\niReady data not yet loaded — open the iReady Analysis Lab.';
           var mathPct = irl.mathMedianPctAllYears != null ? Math.round(irl.mathMedianPctAllYears)+'%' : '—';
           var elaPct  = irl.elaMedianPctAllYears  != null ? Math.round(irl.elaMedianPctAllYears)+'%'  : '—';
-          return base + '\n\nLive medians — Math: **' + mathPct + '**, ELA: **' + elaPct + '** of typical growth.';
-        }
-        return base + '\n\niReady data not yet loaded — open the iReady Analysis Lab to load diagnostic data.';
+          var msg = base + '\n\n**All-years median** — Math: **' + mathPct + '**, ELA: **' + elaPct + '** of typical growth.';
+          if (allSY && allSY.schoolYears && allSY.schoolYears.length > 1) {
+            msg += '\n\n**By school year:**\n';
+            allSY.schoolYears.forEach(function(yr){
+              var d2 = window.irlab.getSummary(yr);
+              if (d2) msg += '• **' + yr + '**: Math ' + d2.mathMedianPctTypical + '% · ELA ' + d2.elaMedianPctTypical + '% (' + _n(d2.totalScholars) + ' scholars)\n';
+            });
+          }
+          return msg.trim();
+        } catch(e) { return '**% of typical growth** — iReady data not yet loaded — open the iReady Analysis Lab.'; }
       }
     },
 
@@ -4071,27 +4171,63 @@
     // iReady math growth specifically
     { match: /iready math|math (growth|score|gain|typical|diagnostic)|math.?percent|math median/i,
       respond: function() {
-        var irl = _irl();
-        if (!irl) return 'iReady math data not yet loaded — open iReady Analysis Lab.';
-        var pct = irl.mathMedianPctAllYears!=null ? Math.round(irl.mathMedianPctAllYears)+'%' : '—';
-        var gain = irl.mathMedianGain!=null ? irl.mathMedianGain : null;
-        var msg = '**iReady Math:** Median **' + pct + ' of typical growth** across ' + _n(irl.mathRows) + ' scholar records.';
-        if (gain!=null) msg += '\n\nMedian scale score gain: **+' + gain + ' points**.';
-        msg += '\n\n≥100% = at or above grade-level trajectory. 50–99% = making progress. <50% = well below expected.';
-        return msg;
+        try {
+          if (!window.irlab || typeof window.irlab.getSummary !== 'function') return 'iReady math data not yet loaded — open iReady Analysis Lab.';
+          var sy = _detectSY(_lastQ);
+          var allSY = window.irlab.getSummary('ALL');
+          if (sy && allSY && allSY.schoolYears) {
+            var avail = allSY.schoolYears;
+            var matched = avail.find(function(y){ return y===sy; }) || avail.find(function(y){ return y.replace(/-20/,'-').replace(/^20/,'') === sy.replace(/-20/,'-').replace(/^20/,''); });
+            if (matched) {
+              var d = window.irlab.getSummary(matched);
+              if (d) return '**iReady Math — ' + matched + ':** Median **' + d.mathMedianPctTypical + '% of typical growth** · ' + _n(d.mathRows) + ' scholar records · Scale score gain: +' + (d.mathMedianGain||'—') + ' pts.';
+            }
+            return 'School year **' + sy + '** not found in iReady data. Available: ' + (avail.join(', ')||'none');
+          }
+          var irl = _irl();
+          if (!irl) return 'iReady math data not yet loaded — open iReady Analysis Lab.';
+          var pct = irl.mathMedianPctAllYears!=null ? Math.round(irl.mathMedianPctAllYears)+'%' : '—';
+          var gain = irl.mathMedianGain!=null ? irl.mathMedianGain : null;
+          var msg = '**iReady Math (all years):** Median **' + pct + ' of typical growth** across ' + _n(irl.mathRows) + ' scholar records.';
+          if (gain!=null) msg += '\nMedian scale score gain: **+' + gain + ' points**.';
+          if (allSY && allSY.schoolYears && allSY.schoolYears.length > 1) {
+            msg += '\n\n**By year:**\n';
+            allSY.schoolYears.forEach(function(yr){ var d2=window.irlab.getSummary(yr); if(d2) msg+='• **'+yr+'**: '+d2.mathMedianPctTypical+'% of typical ('+_n(d2.mathRows)+' records)\n'; });
+          }
+          msg += '\n≥100% = at/above trajectory · 50–99% = progress · <50% = well below.';
+          return msg.trim();
+        } catch(e) { return 'iReady math data not yet loaded — open iReady Analysis Lab.'; }
       }
     },
 
     // iReady ELA growth
     { match: /iready ela|ela (growth|score|gain|typical|diagnostic)|ela.?percent|reading growth|literacy/i,
       respond: function() {
-        var irl = _irl();
-        if (!irl) return 'iReady ELA data not yet loaded — open iReady Analysis Lab.';
-        var pct = irl.elaMedianPctAllYears!=null ? Math.round(irl.elaMedianPctAllYears)+'%' : '—';
-        var gain = irl.elaMedianGain!=null ? irl.elaMedianGain : null;
-        var msg = '**iReady ELA:** Median **' + pct + ' of typical growth** across ' + _n(irl.elaRows) + ' scholar records.';
-        if (gain!=null) msg += '\n\nMedian scale score gain: **+' + gain + ' points**.';
-        return msg;
+        try {
+          if (!window.irlab || typeof window.irlab.getSummary !== 'function') return 'iReady ELA data not yet loaded — open iReady Analysis Lab.';
+          var sy = _detectSY(_lastQ);
+          var allSY = window.irlab.getSummary('ALL');
+          if (sy && allSY && allSY.schoolYears) {
+            var avail = allSY.schoolYears;
+            var matched = avail.find(function(y){ return y===sy; }) || avail.find(function(y){ return y.replace(/-20/,'-').replace(/^20/,'') === sy.replace(/-20/,'-').replace(/^20/,''); });
+            if (matched) {
+              var d = window.irlab.getSummary(matched);
+              if (d) return '**iReady ELA — ' + matched + ':** Median **' + d.elaMedianPctTypical + '% of typical growth** · ' + _n(d.elaRows) + ' scholar records · Scale score gain: +' + (d.elaMedianGain||'—') + ' pts.';
+            }
+            return 'School year **' + sy + '** not found in iReady data. Available: ' + (avail.join(', ')||'none');
+          }
+          var irl = _irl();
+          if (!irl) return 'iReady ELA data not yet loaded — open iReady Analysis Lab.';
+          var pct = irl.elaMedianPctAllYears!=null ? Math.round(irl.elaMedianPctAllYears)+'%' : '—';
+          var gain = irl.elaMedianGain!=null ? irl.elaMedianGain : null;
+          var msg = '**iReady ELA (all years):** Median **' + pct + ' of typical growth** across ' + _n(irl.elaRows) + ' scholar records.';
+          if (gain!=null) msg += '\nMedian scale score gain: **+' + gain + ' points**.';
+          if (allSY && allSY.schoolYears && allSY.schoolYears.length > 1) {
+            msg += '\n\n**By year:**\n';
+            allSY.schoolYears.forEach(function(yr){ var d2=window.irlab.getSummary(yr); if(d2) msg+='• **'+yr+'**: '+d2.elaMedianPctTypical+'% of typical ('+_n(d2.elaRows)+' records)\n'; });
+          }
+          return msg.trim();
+        } catch(e) { return 'iReady ELA data not yet loaded — open iReady Analysis Lab.'; }
       }
     },
 
@@ -5224,7 +5360,11 @@
     //    Skip entity extraction when query is clearly about aggregate/program data
     var _skipEntity = /\b(aggregate|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide)\b/i.test(qt) ||
                       /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b.{0,10}\d{1,2}/i.test(qt) ||
-                      /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/.test(qt);
+                      /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/.test(qt) ||
+                      /\b(wk|week)\s*\d{1,2}\b/i.test(qt) ||
+                      /\bschool year\b|\bsy\s*20\d{2}/i.test(qt) ||
+                      /\b(math|ela|reading|literacy).{0,20}(growth|typical|diagnostic|score)\b/i.test(qt) ||
+                      /\b(growth|typical|diagnostic|iready).{0,20}(math|ela|reading)\b/i.test(qt);
     if (!_skipEntity) {
       var entity = _extractPerson(qt);
       if (entity) return _personResponse(entity, qt);
