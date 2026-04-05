@@ -3866,7 +3866,7 @@
       var esc = s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       return '<button class="pie-chip pie-q" data-pie-ask="' + esc + '">' + s + '</button>';
     }).join('');
-    el.innerHTML = '<div class="pie-cat-row">' + tabs + '</div><div class="pie-q-row">' + chips + '</div>';
+    el.innerHTML = '<div class="pie-chips-label">Suggested</div><div class="pie-cat-row">' + tabs + '</div><div class="pie-q-row">' + chips + '</div>';
     // Attach click handlers via event delegation (avoids inline onclick attribute issues)
     el.onclick = function(ev) {
       var btn = ev.target.closest('[data-pie-cat],[data-pie-ask]');
@@ -3880,10 +3880,19 @@
   function _addMsg(role, text) {
     var msgs = document.getElementById('pieMessages');
     if (!msgs) return;
-    var div = document.createElement('div');
-    div.className = 'pie-msg ' + role;
-    div.innerHTML = _fmt(text);
-    msgs.appendChild(div);
+    var wrap = document.createElement('div');
+    wrap.className = 'pie-msg-wrap ' + role;
+    if (role === 'pie') {
+      var av = document.createElement('div');
+      av.className = 'pie-mini-avatar';
+      av.textContent = 'PIE';
+      wrap.appendChild(av);
+    }
+    var bubble = document.createElement('div');
+    bubble.className = 'pie-msg ' + role;
+    bubble.innerHTML = _fmt(text);
+    wrap.appendChild(bubble);
+    msgs.appendChild(wrap);
     msgs.scrollTop = msgs.scrollHeight;
   }
 
@@ -3979,12 +3988,12 @@
     if (_open && !document.getElementById('pieMessages').children.length) {
       // First open — show welcome
       var welcomes = {
-        leadership: 'Good to see you. I\'m PIE — I can explain what you\'re looking at anywhere in the portal, pull context from live data, or help you find information quickly.',
-        data:       'Data & Evaluation view loaded. I have access to all live metrics — KPI, Pearl, iReady, concerns. What do you need?',
-        hr:         'HR view. I can pull workforce concern counts, attendance benchmarks, or KPI status. What would you like to know?',
-        programming:'Program view. I can pull Pearl session counts, site data, attendance, and goal status. Ask away.',
-        training:   'Training view. I can pull PD satisfaction context, KPI status, or Pearl program data. What\'s on your mind?',
-        kb:         'Hi — I\'m PIE. Live access to KPI scores, program stats, and workforce data. What would you like to know?',
+        leadership: 'Welcome. I\'m PIE — your Program Evaluation & Impact assistant in automation form. I read every live data source in this portal and answer in plain English. What do you need to know?',
+        data:       'Data & Evaluation view. I\'m PIE — I have live access to KPI scores, Pearl Operations, iReady diagnostics, HR data, and workforce concerns. What would you like to pull?',
+        hr:         'HR view. I\'m PIE. I can surface concern counts, HR actions, attendance benchmarks, apprentice data, and workforce KPI status. What do you need?',
+        programming:'Program view. I\'m PIE — live access to Pearl session counts, district attendance, scholar tiers, site data, and program health. Ask me anything.',
+        training:   'T&D view. I\'m PIE — I can pull PD satisfaction data, intake ratings, apprentice counts, and T&D-adjacent KPI status. What\'s on your mind?',
+        kb:         'Welcome. I\'m PIE — the portal\'s automated assistant for Program Evaluation & Impact. I have live access to KPI scores, Pearl data, iReady growth, HR, and more. Where would you like to start?',
       };
       _addMsg('pie', welcomes[_dept] || welcomes.leadership);
       _renderChips();
@@ -4016,9 +4025,9 @@
   window.pieInit = function(dept) {
     _dept = dept || 'leadership';
     var sub = document.getElementById('pieHeaderSub');
-    var labels = { leadership:'Leadership view', data:'Data & Evaluation', hr:'HR view',
-                   programming:'Program view', training:'Training view', kb:'Executive view' };
-    if (sub) sub.textContent = labels[_dept] || 'Portal Intelligence Engine';
+    var labels = { leadership:'Leadership', data:'Data & Evaluation', hr:'HR',
+                   programming:'Programming', training:'Training & Development', kb:'Executive' };
+    if (sub) sub.textContent = labels[_dept] || 'Automated';
     var trigger = document.getElementById('pieTrigger');
     if (trigger) trigger.style.display = '';
     _renderChips();

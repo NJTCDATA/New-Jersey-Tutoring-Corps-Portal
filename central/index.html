@@ -4462,158 +4462,197 @@
     /* ── END IRB ───────────────────────────────────────────────── */
 
     /* ══ PIE — Portal Intelligence Engine v5 ══════════════════ */
-    @keyframes pie-pulse {
-      0%,100% { box-shadow: 0 4px 20px rgba(240,165,0,.4); }
-      50%      { box-shadow: 0 4px 40px rgba(240,165,0,.9), 0 0 0 8px rgba(240,165,0,.12); }
+    @keyframes pie-pulse-ring {
+      0%   { box-shadow: 0 0 0 0   rgba(245,158,11,.55), 0 4px 20px rgba(245,158,11,.4); }
+      70%  { box-shadow: 0 0 0 10px rgba(245,158,11,0),  0 6px 28px rgba(245,158,11,.6); }
+      100% { box-shadow: 0 0 0 0   rgba(245,158,11,0),   0 4px 20px rgba(245,158,11,.4); }
+    }
+    @keyframes pie-liveblink {
+      0%,100% { opacity:1; } 50% { opacity:.2; }
     }
     @keyframes pie-bounce {
-      0%,80%,100% { transform: translateY(0); opacity:.6; }
+      0%,80%,100% { transform: translateY(0); opacity:.55; }
       40%          { transform: translateY(-6px); opacity:1; }
     }
-    @keyframes pie-fadein {
-      from { opacity:0; transform:translateY(6px); }
-      to   { opacity:1; transform:translateY(0); }
+    @keyframes pie-slidein {
+      from { opacity:0; transform: translateY(14px) scale(.97); }
+      to   { opacity:1; transform: translateY(0)   scale(1); }
     }
-    /* Trigger button — pill with PIE + icon */
+    @keyframes pie-msgin {
+      from { opacity:0; transform: translateY(5px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    /* ── Trigger: circular floating button ── */
     .pie-trigger {
-      position: fixed; bottom: 1.625rem; right: 1.625rem; z-index: 9000;
-      display: flex; align-items: center; gap: .5rem;
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      color: #fff; border: none; border-radius: 50px;
-      padding: .6rem 1.2rem .6rem 1rem;
-      font-size: .8125rem; font-weight: 800; letter-spacing: .06em;
-      cursor: pointer;
-      box-shadow: 0 4px 24px rgba(240,165,0,.45), 0 1px 3px rgba(0,0,0,.25);
-      transition: transform .15s, box-shadow .15s;
+      position: fixed; bottom: 1.75rem; right: 1.75rem; z-index: 9000;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: linear-gradient(145deg,#f59e0b 0%,#d97706 100%);
+      color: #fff; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 1px;
+      font-size: .6rem; font-weight: 900; letter-spacing: .08em;
+      box-shadow: 0 4px 20px rgba(245,158,11,.45), 0 2px 6px rgba(0,0,0,.3);
+      transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s;
     }
-    .pie-trigger::before {
-      content: '✦'; font-size: .65rem; opacity: .85;
+    .pie-trigger:hover { transform: scale(1.09); box-shadow: 0 6px 28px rgba(245,158,11,.65); }
+    .pie-trigger.pie-pulse { animation: pie-pulse-ring 1.8s ease-out 3; }
+    .pie-trigger-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #fff; opacity: .9;
+      animation: pie-liveblink 1.8s ease-in-out infinite;
+      margin-top: 1px;
     }
-    .pie-trigger:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(240,165,0,.65); }
-    .pie-trigger.pie-pulse { animation: pie-pulse 2s ease-in-out 3; }
-    /* Drawer */
+    /* ── Drawer ── */
     .pie-drawer {
-      position: fixed; bottom: 5.25rem; right: 1.625rem; z-index: 9001;
-      width: 380px; max-height: 560px;
-      background: linear-gradient(170deg, #0d1f3c 0%, #071225 100%);
-      border-radius: 20px;
-      box-shadow: 0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.09), inset 0 1px 0 rgba(255,255,255,.06);
+      position: fixed; bottom: 5.5rem; right: 1.75rem; z-index: 9001;
+      width: 420px; max-height: 620px;
+      background: linear-gradient(168deg,#0b1d38 0%,#060f20 100%);
+      border-radius: 22px;
+      box-shadow: 0 28px 70px rgba(0,0,0,.7),
+                  0 0 0 1px rgba(255,255,255,.095),
+                  inset 0 1px 0 rgba(255,255,255,.07);
       display: flex; flex-direction: column; overflow: hidden;
+      animation: pie-slidein .25s cubic-bezier(.22,1,.36,1) both;
     }
-    /* Header */
+    /* ── Header ── */
     .pie-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: .875rem 1.125rem;
-      background: rgba(255,255,255,.028);
+      padding: .9rem 1.125rem .8rem;
+      background: linear-gradient(90deg,rgba(245,158,11,.08),rgba(255,255,255,.02));
       border-bottom: 1px solid rgba(255,255,255,.07);
       flex-shrink: 0;
     }
-    .pie-header-left { display: flex; align-items: center; gap: .625rem; }
-    .pie-logo-dot {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: linear-gradient(135deg,#f59e0b,#d97706);
+    .pie-header-left { display: flex; align-items: center; gap: .75rem; }
+    /* Avatar */
+    .pie-avatar {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(145deg,#f59e0b,#d97706);
       display: flex; align-items: center; justify-content: center;
-      font-size: .65rem; font-weight: 900; color: #fff; letter-spacing: .02em;
-      box-shadow: 0 2px 8px rgba(240,165,0,.4);
-      flex-shrink: 0;
+      font-size: .65rem; font-weight: 900; color: #fff; letter-spacing: .04em;
+      box-shadow: 0 0 0 2px rgba(245,158,11,.3), 0 0 16px rgba(245,158,11,.25);
     }
-    .pie-wordmark { font-weight: 900; font-size: .9375rem; color: #fff; letter-spacing: .04em; }
-    .pie-wordmark span { color: #f59e0b; }
-    .pie-header-sub { font-size: .6rem; color: rgba(255,255,255,.32); margin-top: .1rem; letter-spacing: .03em; }
+    .pie-header-meta { display: flex; flex-direction: column; gap: .1rem; }
+    .pie-wordmark { font-weight: 900; font-size: .9375rem; color: #fff; letter-spacing: .05em; display: flex; align-items: center; gap: .5rem; }
+    .pie-live-badge {
+      font-size: .55rem; font-weight: 800; letter-spacing: .09em;
+      color: #4ade80; background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.25);
+      padding: .1rem .35rem; border-radius: 20px;
+    }
+    .pie-live-badge::before { content: '●'; margin-right: .2rem; animation: pie-liveblink 1.8s infinite; }
+    .pie-header-sub { font-size: .6rem; color: rgba(255,255,255,.3); letter-spacing: .02em; }
+    .pie-panel-badge {
+      font-size: .58rem; font-weight: 700; letter-spacing: .05em;
+      color: rgba(245,158,11,.75); background: rgba(245,158,11,.09);
+      border: 1px solid rgba(245,158,11,.18); padding: .08rem .35rem;
+      border-radius: 12px; margin-left: .4rem; display: none;
+    }
     .pie-close {
-      background: none; border: none; color: rgba(255,255,255,.28);
-      cursor: pointer; font-size: .875rem; padding: .3rem .4rem;
-      border-radius: 8px; transition: background .15s, color .15s;
-      line-height: 1;
+      background: none; border: none; color: rgba(255,255,255,.25);
+      cursor: pointer; font-size: .875rem; padding: .35rem .45rem;
+      border-radius: 8px; transition: background .15s, color .15s; line-height: 1;
     }
     .pie-close:hover { color: #fff; background: rgba(255,255,255,.09); }
-    /* Messages */
+    /* ── Messages ── */
     .pie-messages {
-      flex: 1; overflow-y: auto; padding: .875rem 1.125rem;
+      flex: 1; overflow-y: auto; padding: .875rem 1rem;
       display: flex; flex-direction: column; gap: .625rem; min-height: 0;
     }
     .pie-messages::-webkit-scrollbar { width: 3px; }
     .pie-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 4px; }
+    /* Message wrapper — row with optional avatar */
+    .pie-msg-wrap { display: flex; align-items: flex-end; gap: .5rem; }
+    .pie-msg-wrap.user { justify-content: flex-end; }
+    .pie-mini-avatar {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(145deg,#f59e0b,#d97706);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .45rem; font-weight: 900; color: #fff; letter-spacing: .03em;
+      box-shadow: 0 0 0 1px rgba(245,158,11,.3);
+      align-self: flex-end;
+    }
     .pie-msg {
-      max-width: 88%; padding: .55rem .875rem; border-radius: 14px;
-      font-size: .8125rem; line-height: 1.65;
-      animation: pie-fadein .2s ease both;
+      max-width: 84%; padding: .55rem .875rem; border-radius: 14px;
+      font-size: .8rem; line-height: 1.65;
+      animation: pie-msgin .18s ease both;
     }
     .pie-msg.pie {
       background: rgba(255,255,255,.065); color: rgba(255,255,255,.9);
-      align-self: flex-start; border-bottom-left-radius: 4px;
-      border: 1px solid rgba(255,255,255,.06);
+      border-bottom-left-radius: 4px;
+      border: 1px solid rgba(255,255,255,.07);
     }
     .pie-msg.user {
-      background: linear-gradient(135deg, rgba(245,158,11,.18), rgba(217,119,6,.12));
-      color: #fde68a; align-self: flex-end; border-bottom-right-radius: 4px;
-      border: 1px solid rgba(245,158,11,.2);
+      background: linear-gradient(135deg,rgba(245,158,11,.2),rgba(217,119,6,.14));
+      color: #fde68a; border-bottom-right-radius: 4px;
+      border: 1px solid rgba(245,158,11,.22);
     }
-    .pie-msg strong { font-weight: 800; }
-    /* Typing dots */
-    .pie-typing { padding: .25rem 1.125rem; display: flex; align-items: center; gap: .3rem; flex-shrink: 0; }
+    .pie-msg strong { font-weight: 800; color: #fff; }
+    .pie-msg.user strong { color: #fde68a; }
+    /* ── Typing dots ── */
+    .pie-typing { padding: .2rem 1rem; display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
+    .pie-typing-inner { display: flex; gap: .3rem; align-items: center; }
     .pie-typing span { width: 5px; height: 5px; background: #f59e0b; border-radius: 50%; animation: pie-bounce .9s ease-in-out infinite; }
     .pie-typing span:nth-child(2) { animation-delay: .15s; }
     .pie-typing span:nth-child(3) { animation-delay: .3s; }
-    /* Chips area — two rows: category tabs + question chips */
+    /* ── Chips area ── */
     .pie-chips {
-      padding: .375rem .875rem .25rem; border-top: 1px solid rgba(255,255,255,.055);
-      flex-shrink: 0; background: rgba(0,0,0,.12);
+      padding: .4rem 1rem .3rem;
+      border-top: 1px solid rgba(255,255,255,.055);
+      flex-shrink: 0; background: rgba(0,0,0,.15);
+    }
+    .pie-chips-label {
+      font-size: .55rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+      color: rgba(255,255,255,.22); margin-bottom: .35rem;
     }
     .pie-cat-row {
-      display: flex; gap: .3rem; overflow-x: auto; padding-bottom: .375rem;
+      display: flex; gap: .3rem; overflow-x: auto; padding-bottom: .35rem;
       scrollbar-width: none; -ms-overflow-style: none;
     }
     .pie-cat-row::-webkit-scrollbar { display: none; }
-    .pie-q-row {
-      display: flex; gap: .3rem; flex-wrap: wrap; padding-bottom: .375rem;
-    }
+    .pie-q-row { display: flex; gap: .3rem; flex-wrap: wrap; }
     .pie-chip {
-      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
-      color: rgba(255,255,255,.55); border-radius: 20px;
-      padding: .22rem .65rem; font-size: .67rem; font-weight: 600;
-      cursor: pointer; white-space: nowrap;
-      transition: background .12s, color .12s, border-color .12s;
-      flex-shrink: 0;
+      border-radius: 20px; padding: .22rem .65rem;
+      font-size: .67rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: transform .1s, background .12s, color .12s, border-color .12s;
+      flex-shrink: 0; border: 1px solid transparent;
     }
-    .pie-chip:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.9); }
-    /* Category tab — highlighted differently */
+    .pie-chip:hover { transform: translateY(-1px); }
     .pie-chip.pie-cat {
-      background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.2);
-      color: rgba(245,158,11,.65);
+      background: rgba(245,158,11,.09); border-color: rgba(245,158,11,.22);
+      color: rgba(245,158,11,.7);
     }
     .pie-chip.pie-cat:hover, .pie-chip.pie-cat.pie-cat-active {
-      background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.45);
-      color: #f59e0b;
+      background: rgba(245,158,11,.2); border-color: rgba(245,158,11,.5); color: #f59e0b;
     }
-    /* Question chip */
     .pie-chip.pie-q {
-      background: rgba(99,179,237,.07); border-color: rgba(99,179,237,.15);
-      color: rgba(147,210,255,.7);
+      background: rgba(99,179,237,.07); border-color: rgba(99,179,237,.18);
+      color: rgba(147,210,255,.72);
     }
-    .pie-chip.pie-q:hover { background: rgba(99,179,237,.14); color: #93c5fd; }
-    /* Input row */
+    .pie-chip.pie-q:hover { background: rgba(99,179,237,.16); color: #93c5fd; }
+    /* ── Input row ── */
     .pie-input-row {
       display: flex; align-items: flex-end; gap: .5rem;
-      padding: .5rem 1rem .875rem; border-top: 1px solid rgba(255,255,255,.06);
+      padding: .5rem .875rem .9rem;
+      border-top: 1px solid rgba(255,255,255,.06);
       flex-shrink: 0;
     }
     .pie-input {
-      flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.09);
+      flex: 1; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
       border-radius: 12px; color: #fff; font-size: .8125rem;
       padding: .5rem .8rem; resize: none; font-family: inherit;
       outline: none; max-height: 80px; line-height: 1.5;
     }
-    .pie-input::placeholder { color: rgba(255,255,255,.22); }
+    .pie-input::placeholder { color: rgba(255,255,255,.2); }
     .pie-input:focus { border-color: rgba(245,158,11,.5); background: rgba(255,255,255,.09); }
     .pie-send {
-      background: linear-gradient(135deg,#f59e0b,#d97706); border: none;
-      color: #fff; border-radius: 10px; padding: .46rem .75rem;
-      cursor: pointer; font-size: .9rem; font-weight: 900;
-      transition: opacity .12s; flex-shrink: 0; line-height: 1;
-      box-shadow: 0 2px 8px rgba(240,165,0,.3);
+      width: 36px; height: 36px; flex-shrink: 0; border: none;
+      background: linear-gradient(145deg,#f59e0b,#d97706);
+      color: #fff; border-radius: 50%; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .875rem; font-weight: 900;
+      box-shadow: 0 2px 10px rgba(245,158,11,.35);
+      transition: transform .15s, opacity .12s;
     }
-    .pie-send:hover { opacity: .88; }
+    .pie-send:hover { transform: scale(1.08); opacity: .92; }
     /* ── END PIE ─────────────────────────────────────────────── */
 
     </style>
@@ -5946,11 +5985,11 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=6"></script>
+<script src="modules/shared-utils.js?v=7"></script>
 <script src="modules/shared-charts.js?v=5"></script>
 <script src="modules/shared-filters.js?v=2"></script>
 <script src="modules/leadership.js?v=2"></script>
-<script src="modules/training-development.js?v=3"></script>
+<script src="modules/training-development.js?v=4"></script>
 <script src="modules/data-department.js?v=5"></script>
 <script src="modules/hr-department.js?v=2"></script>
 <script src="modules/programming.js?v=9"></script>
@@ -5965,25 +6004,30 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 <script src="modules/executive-leadership.js?v=6"></script>
 <script src="modules/impact-report.js?v=2"></script>
   <!-- ══ PIE — Portal Intelligence Engine v5 ════════════════════ -->
-  <button class="pie-trigger" id="pieTrigger" onclick="pieToggle()" title="Ask PIE — Portal Intelligence Engine" style="display:none">PIE</button>
+  <button class="pie-trigger" id="pieTrigger" onclick="pieToggle()" title="Ask PIE — Program Evaluation &amp; Impact Assistant" style="display:none">
+    PIE<div class="pie-trigger-dot"></div>
+  </button>
   <div class="pie-drawer" id="pieDrawer" style="display:none">
     <div class="pie-header">
       <div class="pie-header-left">
-        <div class="pie-logo-dot">PIE</div>
-        <div>
-          <div class="pie-wordmark">P<span>I</span>E</div>
-          <div class="pie-header-sub" id="pieHeaderSub">Portal Intelligence Engine</div>
+        <div class="pie-avatar">PIE</div>
+        <div class="pie-header-meta">
+          <div class="pie-wordmark">PIE <span class="pie-live-badge">LIVE</span></div>
+          <div class="pie-header-sub">Program Evaluation &amp; Impact · <span id="pieHeaderSub">Automated</span></div>
         </div>
       </div>
       <button class="pie-close" onclick="pieToggle()" title="Close">✕</button>
     </div>
     <div class="pie-messages" id="pieMessages"></div>
-    <div class="pie-typing" id="pieTyping" style="display:none"><span></span><span></span><span></span></div>
+    <div class="pie-typing" id="pieTyping" style="display:none">
+      <div class="pie-mini-avatar">PIE</div>
+      <div class="pie-typing-inner"><span></span><span></span><span></span></div>
+    </div>
     <div class="pie-chips" id="pieChips"></div>
     <div class="pie-input-row">
-      <textarea class="pie-input" id="pieInput" placeholder="Ask about KPIs, Pearl, staff, iReady…" rows="1"
+      <textarea class="pie-input" id="pieInput" placeholder="Ask about KPIs, Pearl, staff, iReady, concerns…" rows="1"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();pieSend()}"></textarea>
-      <button class="pie-send" onclick="pieSend()">➤</button>
+      <button class="pie-send" onclick="pieSend()">↑</button>
     </div>
   </div>
   <!-- ── END PIE ──────────────────────────────────────────────────── -->

@@ -37,6 +37,13 @@
   let _pdData     = null;
   let _intakeData = null;
 
+  // ── PDF season definitions (module-level to avoid const-redeclaration in async fn) ──
+  const PDF_SEASONS = [
+    { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov' },
+    { key:'winter', label:'❄️ Winter', note:'Dec–Feb' },
+    { key:'spring', label:'🌱 Spring', note:'Mar–May' },
+  ];
+
   // ── Season filter state ───────────────────────────────────────────
   let _tdActiveSeason = 'all'; // 'all'|'fall'|'winter'|'spring'|'summer'
 
@@ -2781,26 +2788,10 @@
   // ══════════════════════════════════════════════════════════════════
 
   // tdGenerateExecPDF — generates Executive + Programming T&D snapshot PDFs
-  // Async: fetches intake data on demand if not yet loaded
-  async function tdGenerateExecPDF() {
+  function tdGenerateExecPDF() {
     const dept = (window.NJTC_SESSION || {}).dept || 'data';
     const isExec = ['leadership','kb'].includes(dept);
     const now = new Date().toLocaleString('en-US', { month:'long', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
-
-    // Ensure intake data is loaded (user may not have visited the Intake tab)
-    if (!_intakeData) {
-      try {
-        const text = await fetchCSV(TRAINING_INTAKE_URL);
-        let parsed = parseCsvText(text, 0);
-        if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
-          parsed = parseCsvText(text, 1);
-        }
-        _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
-      } catch(e) {
-        // Non-fatal: continue without intake data
-        _intakeData = [];
-      }
-    }
 
     // ── Compute metrics from cached data ──────────────────────────────────
     function avgField(rows, field) {
@@ -2831,8 +2822,8 @@
     pdRows.forEach(r=>{ const role=(r['Role']||'').trim(); if(role) pdRoleMap[role]=(pdRoleMap[role]||0)+1; });
     const pdRoles = Object.entries(pdRoleMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
 
-    // Training Intake metrics
-    const intRows = _intakeData || [];
+    // Training Intake metrics — use lazy-loaded tab data, or pre-loaded window.njtcIntake from startup
+    const intRows = _intakeData || window.njtcIntake || [];
     const intTotal = intRows.length;
     const resolvedFields = intTotal ? resolveIntakeFields(intRows) : INTAKE_RATING_FIELDS;
     const intAvgs = resolvedFields.map(f => ({ short:f.short, avg: avgField(intRows, f.field) })).filter(f=>f.avg!=null);
@@ -2862,12 +2853,7 @@
     const tdKPIs = kpiData.filter(k => /training|development|TAP|apprentice|PD|professional development/i.test(k.goal||k.kpi||''));
     const tdMet  = tdKPIs.filter(k=>getS(k)==='Met').length;
 
-    // ── Seasonal helpers ──────────────────────────────────────────────────────
-    const SEASONS = [
-      { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov',  months:[9,10,11] },
-      { key:'winter', label:'❄️ Winter', note:'Dec–Feb',  months:[12,1,2] },
-      { key:'spring', label:'🌱 Spring', note:'Mar–May',  months:[3,4,5] },
-    ];
+    // ── Seasonal helpers (PDF_SEASONS defined at module level to avoid const-redeclaration) ──
     function rowSeason(r, dateCol) {
       const raw = r[dateCol] || r['Timestamp'] || '';
       if (!raw) return 'fall';
@@ -2886,11 +2872,11 @@
 
     // PD seasonal split
     const pdBySeason = seasonRows(pdRows, 'Date of PD Session');
-    const activePdSeasons = SEASONS.filter(s => pdBySeason[s.key] && pdBySeason[s.key].length > 0);
+    const activePdSeasons = PDF_SEASONS.filter(s => pdBySeason[s.key] && pdBySeason[s.key].length > 0);
 
     // Intake seasonal split
     const intBySeason = seasonRows(intRows, 'Timestamp');
-    const activeIntSeasons = SEASONS.filter(s => intBySeason[s.key] && intBySeason[s.key].length > 0);
+    const activeIntSeasons = PDF_SEASONS.filter(s => intBySeason[s.key] && intBySeason[s.key].length > 0);
 
     // ── HTML report template ───────────────────────────────────────────────
     const logoHex = '#003087';
