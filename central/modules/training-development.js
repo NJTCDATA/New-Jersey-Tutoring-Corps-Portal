@@ -2781,10 +2781,26 @@
   // ══════════════════════════════════════════════════════════════════
 
   // tdGenerateExecPDF — generates Executive + Programming T&D snapshot PDFs
-  function tdGenerateExecPDF() {
+  // Async: fetches intake data on demand if not yet loaded
+  async function tdGenerateExecPDF() {
     const dept = (window.NJTC_SESSION || {}).dept || 'data';
     const isExec = ['leadership','kb'].includes(dept);
     const now = new Date().toLocaleString('en-US', { month:'long', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+
+    // Ensure intake data is loaded (user may not have visited the Intake tab)
+    if (!_intakeData) {
+      try {
+        const text = await fetchCSV(TRAINING_INTAKE_URL);
+        let parsed = parseCsvText(text, 0);
+        if (!parsed.headers[0] || parsed.headers[0].trim() !== 'Timestamp') {
+          parsed = parseCsvText(text, 1);
+        }
+        _intakeData = parsed.rows.filter(r => isValidRow(r, 'intake'));
+      } catch(e) {
+        // Non-fatal: continue without intake data
+        _intakeData = [];
+      }
+    }
 
     // ── Compute metrics from cached data ──────────────────────────────────
     function avgField(rows, field) {
@@ -2889,6 +2905,36 @@
     const tdKPIs = kpiData.filter(k => /training|development|TAP|apprentice|PD|professional development/i.test(k.goal||k.kpi||''));
     const tdMet  = tdKPIs.filter(k=>getS(k)==='Met').length;
 
+    // ── Seasonal helpers ──────────────────────────────────────────────────────
+    const SEASONS = [
+      { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov',  months:[9,10,11] },
+      { key:'winter', label:'❄️ Winter', note:'Dec–Feb',  months:[12,1,2] },
+      { key:'spring', label:'🌱 Spring', note:'Mar–May',  months:[3,4,5] },
+    ];
+    function rowSeason(r, dateCol) {
+      const raw = r[dateCol] || r['Timestamp'] || '';
+      if (!raw) return 'fall';
+      const d = new Date(raw); if (isNaN(d)) return 'fall';
+      const m = d.getMonth()+1;
+      if (m>=9&&m<=11) return 'fall';
+      if (m===12||m===1||m===2) return 'winter';
+      if (m>=3&&m<=5) return 'spring';
+      return 'summer';
+    }
+    function seasonRows(rows, dateCol) {
+      const out = { fall:[], winter:[], spring:[], summer:[] };
+      (rows||[]).forEach(r => { const s = rowSeason(r, dateCol); if (out[s]) out[s].push(r); });
+      return out;
+    }
+
+    // PD seasonal split
+    const pdBySeason = seasonRows(pdRows, 'Date of PD Session');
+    const activePdSeasons = SEASONS.filter(s => pdBySeason[s.key] && pdBySeason[s.key].length > 0);
+
+    // Intake seasonal split
+    const intBySeason = seasonRows(intRows, 'Timestamp');
+    const activeIntSeasons = SEASONS.filter(s => intBySeason[s.key] && intBySeason[s.key].length > 0);
+
     // ── HTML report template ───────────────────────────────────────────────
     const logoHex = '#003087';
     const goldHex = '#f0a500';
@@ -2905,6 +2951,10 @@
       return `<div style="margin:1.5rem 0 .75rem;padding:.5rem .875rem;background:${logoHex};color:#fff;border-radius:6px;font-size:.875rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">${title}</div>`;
     }
 
+    function subHead(title) {
+      return `<div style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin:.875rem 0 .4rem;padding-left:.125rem">${title}</div>`;
+    }
+
     function ratingBar(label, val, max) {
       if (val==null) return '';
       const pct = Math.round((val/(max||5))*100);
@@ -2918,26 +2968,64 @@
       </div>`;
     }
 
+    // Seasonal comparison table for PD (executive)
+    function pdSeasonCompare() {
+      if (!activePdSeasons.length) return '<p style="color:#9ca3af;font-size:.8rem">No seasonal breakdown available (check PD date field).</p>';
+      const hdrs = activePdSeasons.map(s=>`<th style="padding:.45rem .75rem;font-size:.75rem;font-weight:800;text-align:right;color:#374151">${s.label}<br><span style="font-weight:500;color:#9ca3af">${s.note}</span></th>`).join('');
+      const metrics = [
+        { label:'Respondents', fn: rows => rows.length },
+        { label:'Avg Satisfaction', fn: rows => { const v=avgField(rows,'Overall satisfaction with this PD session'); return v!=null?fmtN(v)+'/5':'—'; } },
+        { label:'Recommend Rate', fn: rows => { const yes=rows.filter(r=>(r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length; return rows.length?Math.round(yes/rows.length*100)+'%':'—'; } },
+        ...PD_RATING_FIELDS.slice(0,4).map((f,i)=>({ label: PD_RATING_SHORT[i]||'Dim '+(i+1), fn: rows => { const v=avgField(rows,f); return v!=null?fmtN(v):'—'; } })),
+      ];
+      const dataRows = metrics.map(m=>{
+        const cells = activePdSeasons.map(s=>`<td style="padding:.45rem .75rem;font-size:.82rem;font-weight:700;text-align:right;color:${logoHex}">${m.fn(pdBySeason[s.key])}</td>`).join('');
+        return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.45rem .75rem;font-size:.8rem;color:#374151">${m.label}</td>${cells}</tr>`;
+      }).join('');
+      return `<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f8fafc"><th style="padding:.45rem .75rem;font-size:.75rem;text-align:left;color:#374151">Metric</th>${hdrs}</tr></thead><tbody>${dataRows}</tbody></table>`;
+    }
+
+    // Seasonal comparison table for Intake
+    function intSeasonCompare() {
+      if (!activeIntSeasons.length) return '<p style="color:#9ca3af;font-size:.8rem">No seasonal breakdown available — check Timestamp field in intake data.</p>';
+      const hdrs = activeIntSeasons.map(s=>`<th style="padding:.45rem .75rem;font-size:.75rem;font-weight:800;text-align:right;color:#374151">${s.label}<br><span style="font-weight:500;color:#9ca3af">${s.note}</span></th>`).join('');
+      const resolvedF = intRows.length ? resolveIntakeFields(intRows) : [];
+      const metrics = [
+        { label:'Respondents', fn: rows => rows.length },
+        { label:'New Hires', fn: rows => rows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length },
+        { label:'Returning Hires', fn: rows => rows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length },
+        ...resolvedF.slice(0,5).map(f=>({ label: f.short, fn: rows => { const v=avgField(rows,f.field); return v!=null?fmtN(v):'—'; } })),
+      ];
+      const dataRows = metrics.map(m=>{
+        const cells = activeIntSeasons.map(s=>`<td style="padding:.45rem .75rem;font-size:.82rem;font-weight:700;text-align:right;color:${logoHex}">${m.fn(intBySeason[s.key])}</td>`).join('');
+        return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.45rem .75rem;font-size:.8rem;color:#374151">${m.label}</td>${cells}</tr>`;
+      }).join('');
+      return `<table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0"><thead><tr style="background:#f8fafc"><th style="padding:.45rem .75rem;font-size:.75rem;text-align:left;color:#374151">Metric</th>${hdrs}</tr></thead><tbody>${dataRows}</tbody></table>`;
+    }
+
     // Executive summary section (leadership / kb view)
     const execSection = isExec ? `
       ${sectionHead('Executive Summary — T&D Program Health')}
       <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
         ${statRow('PD Sessions Delivered', pdSessions > 0 ? pdSessions : '—')}
-        ${statRow('Total Respondents', pdTotal || '—', 'PD feedback submissions')}
-        ${statRow('Avg Overall Satisfaction', pdOverallAvg!=null ? fmtN(pdOverallAvg)+'/5.0' : '—', pdOverallAvg>=4?'✅ On track':'⚠️ Needs attention')}
-        ${statRow('Recommend Rate', pdRecRate!=null ? pdRecRate+'%' : '—', pdRecRate>=80?'✅ Healthy':'⚠️ Below 80% target')}
-        ${statRow('S1→S2 Net Improvement', netImprove!=null ? (netImprove>=0?'+':'')+fmtN(netImprove) : 'N/A', netImprove!=null&&netImprove>0?'✅ Improving':netImprove!=null?'— Flat/decline':'')}
-        ${statRow('Training Intake Respondents', intTotal || '—', `${intNew} new hire, ${intReturn} returning`)}
+        ${statRow('Total PD Respondents', pdTotal || '—', 'PD feedback submissions')}
+        ${statRow('Avg Overall Satisfaction', pdOverallAvg!=null ? fmtN(pdOverallAvg)+'/5.0' : '—', pdOverallAvg!=null&&pdOverallAvg>=4?'✅ On track':'⚠️ Needs attention')}
+        ${statRow('Recommend Rate', pdRecRate!=null ? pdRecRate+'%' : '—', pdRecRate!=null&&pdRecRate>=80?'✅ Healthy':'⚠️ Below 80% target')}
+        ${statRow('S1→S2 Net Improvement', netImprove!=null ? (netImprove>=0?'+':'')+fmtN(netImprove) : (s2Rows.length?'N/A':'Awaiting S2'), netImprove!=null&&netImprove>0?'✅ Improving':'')}
+        ${statRow('Training Intake Respondents', intTotal || '—', `${intNew} new hire · ${intReturn} returning`)}
         ${statRow('Intake: Preparedness Rating', intPrep ? fmtN(intPrep.avg)+'/5.0' : '—')}
         ${statRow('Active Apprentices (TAP)', apprCount!=null ? apprCount : '—', 'HR Master List · col K')}
         ${tdKPIs.length ? statRow('T&D-Adjacent KPI Goals Met', `${tdMet}/${tdKPIs.length}`, '') : ''}
       </table>
       <p style="font-size:.75rem;color:#9ca3af;margin-top:.5rem">Satisfaction benchmarks: ≥4.0 on track. Recommend Rate: ≥80% healthy.</p>
+
+      ${activePdSeasons.length > 1 ? sectionHead('PD Satisfaction — Seasonal Comparison') + pdSeasonCompare() : ''}
+      ${activeIntSeasons.length > 1 ? sectionHead('Training Intake — Seasonal Comparison') + intSeasonCompare() : ''}
     ` : '';
 
     // Programming detail section
     const progSection = `
-      ${sectionHead('Programming View — PD Session Detail')}
+      ${sectionHead('PD Session Ratings — Overall')}
       ${pdRows.length ? `
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
@@ -2956,13 +3044,15 @@
             }).join('') : '<div style="font-size:.8rem;color:#9ca3af">Session 2 data not yet available.</div>'}
           </div>
         </div>
-        ${pdRoles.length ? `<div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.375rem">Respondent Breakdown by Role</div>
+        ${pdRoles.length ? `${subHead('Respondent Breakdown by Role')}
         <div style="display:flex;gap:.375rem;flex-wrap:wrap">${pdRoles.map(([role,n])=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:.2rem .6rem;font-size:.75rem;color:#1d4ed8;font-weight:600">${role}: ${n}</span>`).join('')}</div>` : ''}
+
+        ${activePdSeasons.length > 1 ? sectionHead('PD Ratings — Seasonal Comparison') + pdSeasonCompare() : ''}
       ` : '<p style="color:#9ca3af;font-size:.85rem">PD session data not yet loaded. Open T&D Analytics to load data, then retry.</p>'}
 
-      ${sectionHead('Programming View — Training Intake')}
+      ${sectionHead('Training Intake')}
       ${intRows.length ? `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
             <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Intake Ratings (1–5)</div>
             ${intAvgs.slice(0,6).map(f=>ratingBar(f.short, f.avg)).join('')}
@@ -2975,6 +3065,7 @@
             <div style="font-size:.8rem;color:#6b7280">Returning hire respondents</div>
           </div>
         </div>
+        ${activeIntSeasons.length > 1 ? subHead('Seasonal Comparison') + intSeasonCompare() : ''}
       ` : '<p style="color:#9ca3af;font-size:.85rem">Training intake data not yet loaded.</p>'}
 
       ${sectionHead('Apprenticeship Program')}
