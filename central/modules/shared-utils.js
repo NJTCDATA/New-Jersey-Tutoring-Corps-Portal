@@ -3127,12 +3127,13 @@
   //  Reads: KPI_DATA, window.po, window.irlab, CONCERNS, HR_EMPS, GOV_DATA
   // ════════════════════════════════════════════════════════════════════════════
 
-  var _open    = false;
-  var _history = [];
-  var _panel   = 'home';
-  var _dept    = 'leadership';
-  var _cat     = 'Overview';
-  var _lastQ   = ''; // last routed query — readable by RULES respond functions
+  var _open     = false;
+  var _history  = [];
+  var _panel    = 'home';
+  var _dept     = 'leadership';
+  var _cat      = 'Overview';
+  var _lastQ    = ''; // last routed query — readable by RULES respond functions
+  var _pendingQ = null; // {ctx, dir} — awaiting user clarification before answering
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
@@ -3316,12 +3317,19 @@
   // ── Detect school year in a query → '2024-2025' or null ──────────────────
   function _detectSY(q) {
     var lq = (q||'').toLowerCase();
-    var m = lq.match(/(?:school year|sy)?\s*20(\d{2})[- ](?:20)?(\d{2})/);
-    if (m) { var ya='20'+m[1],yb=m[2].length===4?m[2]:'20'+m[2]; return ya+'-'+yb; }
+    var m;
+    // Full: "2024-2025" or "2024-25" or "SY 2024-25"
+    m = lq.match(/(?:school year|sy)?\s*20(\d{2})[- ](?:20)?(\d{2})/);
+    if (m) return '20'+m[1]+'-20'+m[2];
     m = lq.match(/\b20(\d{2})[-\/](\d{2})\b/);
     if (m) return '20'+m[1]+'-20'+m[2];
+    // Short: "22-23", "23-24", "24-25"
+    m = lq.match(/\b([2][0-9])[-\/]([2][0-9])\b/);
+    if (m && parseInt(m[2]) === parseInt(m[1])+1) return '20'+m[1]+'-20'+m[2];
+    // Single year: "2024" → 2024-2025
     m = lq.match(/\b(202[0-9])\b/);
     if (m) { var yr=parseInt(m[1]); return yr+'-'+(yr+1); }
+    // Relative
     if (/\blast year\b/.test(lq)) { var n=new Date().getFullYear(); return (n-1)+'-'+n; }
     return null;
   }
@@ -3340,6 +3348,50 @@
   // ── Format helpers ────────────────────────────────────────────────────────
   function _pct(n) { return n==null ? '—' : Math.round(n)+'%'; }
   function _n(n)   { return n==null ? '—' : Number(n).toLocaleString('en-US'); }
+
+  // ── Resolve a pending clarification ──────────────────────────────────────
+  function _resolvePending(pq, q) {
+    var ql = (q||'').toLowerCase();
+    if (pq.ctx === 'tutor_metric') {
+      var dir = pq.dir; // 'top' or 'low'
+      if (/attend|show up|punctual|present/i.test(ql)) {
+        // Attendance-based
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var all = Object.values(tm).filter(function(t){ return t.attRate!=null && t.total>=5; });
+          if (!all.length) return 'Tutor attendance data not yet loaded — open Pearl Operations.';
+          if (dir === 'top') {
+            var top = all.sort(function(a,b){ return b.attRate-a.attRate; }).slice(0,6);
+            return '**Top Tutors by Attendance:**\n\n'+top.map(function(t,i){ return (i+1)+'. ✅ **'+t.name+'** — '+t.attRate+'% ('+t.attended+'/'+t.total+')' +(t.school?' · '+t.school:''); }).join('\n');
+          } else {
+            var bot = all.sort(function(a,b){ return a.attRate-b.attRate; }).slice(0,6);
+            return '**Tutors with Lowest Attendance:**\n\n'+bot.map(function(t,i){ var icon=t.attRate<70?'🔴':'⚠️'; return (i+1)+'. '+icon+' **'+t.name+'** — '+t.attRate+'% ('+t.attended+'/'+t.total+')' +(t.school?' · '+t.school:''); }).join('\n');
+          }
+        } catch(e) { return 'Tutor attendance data not yet loaded.'; }
+      }
+      if (/survey|satisf|rating|scholar.*feedback|feedback.*scholar/i.test(ql)) {
+        try {
+          var sc = _schools();
+          if (!sc.length) return 'Pearl site data not yet loaded — open Pearl Operations.';
+          var withSurvey = sc.filter(function(s){ return s.surveyAvg !== null; });
+          if (!withSurvey.length) return 'No survey data captured yet. Survey completion happens when scholars complete their session surveys.';
+          if (dir === 'top') {
+            var topS = withSurvey.sort(function(a,b){ return b.surveyAvg-a.surveyAvg; }).slice(0,6);
+            return '**Top Sites by Scholar Survey Score:**\n\n'+topS.map(function(s,i){ return (i+1)+'. ⭐ **'+s.school+'** — '+s.surveyAvg+'/5.0 · '+s.sessions+' sessions'; }).join('\n');
+          } else {
+            var botS = withSurvey.sort(function(a,b){ return a.surveyAvg-b.surveyAvg; }).slice(0,6);
+            return '**Sites with Lowest Survey Scores:**\n\n'+botS.map(function(s,i){ return (i+1)+'. ⚠️ **'+s.school+'** — '+s.surveyAvg+'/5.0 · '+s.sessions+' sessions'; }).join('\n');
+          }
+        } catch(e) { return 'Survey data not yet loaded.'; }
+      }
+      if (/academ|iready|growth|impact|scholar growth|math|ela/i.test(ql)) {
+        return 'Individual tutor iReady scores aren\'t broken out per tutor in the current data — iReady links scholars to schools, not individual tutors. To see academic impact by site:\n• Ask "which site has the best math growth?"\n• Or open iReady Analysis Lab → filter by school\n\nFor tutor-level academic data, open T&D Analytics → Observations.';
+      }
+      // Can't resolve — re-ask
+      return 'Just to confirm — are you asking about **attendance**, **survey satisfaction**, or **academic growth**? Reply with one of those and I\'ll pull the data.';
+    }
+    return null;
+  }
 
   // ── Response rules ────────────────────────────────────────────────────────
   // ── HR helper: active employees only ─────────────────────────────────────
@@ -3690,15 +3742,19 @@
       }
     },
 
-    // Top performing tutors
-    { match: /top tutor|best (tutor|attendance|performing)|highest.?attendance|stellar tutor|tutor.?star|best (tutor|performing|attendance)/i,
+    // Top performing tutors — ask what metric first
+    { match: /top tutor|best tutor|highest.*tutor|best performing tutor|top performing tutor|tutor.*star|stellar tutor/i,
       respond: function() {
-        try {
-          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
-          var top = Object.values(tm).filter(function(t){ return t.attRate!=null && t.total>=5; }).sort(function(a,b){ return b.attRate-a.attRate; }).slice(0,6);
-          if (!top.length) return 'Tutor attendance data not yet loaded.';
-          return '**Top Tutors by Attendance:**\n\n' + top.map(function(t){ return '✅ ' + t.name + ' — **' + t.attRate + '%** (' + t.attended + '/' + t.total + ')' + (t.school?' · '+t.school:''); }).join('\n');
-        } catch(e) { return 'Tutor data not yet loaded.'; }
+        _pendingQ = { ctx:'tutor_metric', dir:'top' };
+        return '**Top tutor by what measure?**\n\n• **Attendance** — who shows up most consistently (Pearl)\n• **Survey scores** — whose scholars rate sessions highest\n• **Academic growth** — which sites show best iReady gains (site-level, not per tutor)\n\nReply with **attendance**, **survey**, or **academic** — or type a tutor\'s name to pull their full profile.';
+      }
+    },
+
+    // Lowest/worst performing tutors — ask what metric first
+    { match: /lowest tutor|worst tutor|bottom tutor|low.*perform.*tutor|tutor.*low.*perform|struggling tutor|tutor.*problem|tutor.*concern|tutor.*worst/i,
+      respond: function() {
+        _pendingQ = { ctx:'tutor_metric', dir:'low' };
+        return '**Lowest performing tutors by what measure?**\n\n• **Attendance** — who is showing up least (below 80% threshold)\n• **Survey scores** — sites with lowest scholar satisfaction ratings\n• **Academic growth** — sites with weakest iReady gains (site-level)\n\nReply with **attendance**, **survey**, or **academic**.';
       }
     },
 
@@ -4307,6 +4363,47 @@
       }
     },
 
+    // iReady drill-down: specific school or grade
+    { match: /iready.*(school|site|grade|district|by school|filter|drill|specific|just|only)|(school|site|grade).*(iready|growth|math|ela)/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab first.';
+        var msg = '**iReady Drill-Down Options:**\n\n';
+        msg += 'From iReady Analysis Lab you can filter by:\n';
+        msg += '• **School year**: '+( irl.schoolYears && irl.schoolYears.length ? irl.schoolYears.join(', ') : 'open lab to see')+'\n';
+        msg += '• **Subject**: Math or ELA\n';
+        msg += '• **Grade level**: '+( irl.grades && irl.grades.length ? irl.grades.slice(0,6).join(', ')+(irl.grades.length>6?', …':'') : 'see lab')+'\n';
+        msg += '• **School / District**: '+irl.schools+' schools across '+irl.districts+' districts in current data\n\n';
+        msg += 'To get a specific year\'s data from PIE, try:\n"Show iReady math for 2023-2024" or "iReady ELA 23-24"';
+        return msg;
+      }
+    },
+
+    // iReady math by school year — show site or grade breakdown
+    { match: /iready.*(math|ela).*(by|per|school|grade|site|district|22|23|24|25)|show.*(math|ela).*(iready|growth)|(math|ela).*(22-23|23-24|24-25|2022|2023|2024)/i,
+      respond: function() {
+        try {
+          if (!window.irlab || typeof window.irlab.getSummary !== 'function') return 'iReady data not yet loaded — open iReady Analysis Lab.';
+          var sy = _detectSY(_lastQ);
+          var d = sy ? window.irlab.getSummary(sy) : _irl();
+          if (!d) return 'iReady data not yet loaded.';
+          var isELA  = /ela|reading|literacy/i.test(_lastQ);
+          var isMath = /math/i.test(_lastQ);
+          var label  = sy ? sy : 'All Years';
+          if (!isMath && !isELA) {
+            // Both subjects
+            return '**iReady — '+label+':**\n\nMath: **'+(d.mathMedianPctTypical||d.mathMedianPctAllYears||'—')+'% of typical** ('+_n(d.mathRows)+' records)\nELA: **'+(d.elaMedianPctTypical||d.elaMedianPctAllYears||'—')+'% of typical** ('+_n(d.elaRows)+' records)\n'+_n(d.totalScholars)+' scholars · '+d.schools+' schools';
+          }
+          if (isMath) {
+            var pct = d.mathMedianPctTypical || d.mathMedianPctAllYears;
+            return '**iReady Math — '+label+':**\n\nMedian **'+(pct||'—')+'% of typical growth** · '+_n(d.mathRows)+' records · avg gain: '+(d.mathAvgGain!=null?'+'+d.mathAvgGain+' pts':'—');
+          }
+          var pct2 = d.elaMedianPctTypical || d.elaMedianPctAllYears;
+          return '**iReady ELA — '+label+':**\n\nMedian **'+(pct2||'—')+'% of typical growth** · '+_n(d.elaRows)+' records · avg gain: '+(d.elaAvgGain!=null?'+'+d.elaAvgGain+' pts':'—');
+        } catch(e) { return 'iReady data not yet available for that filter.'; }
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -4426,6 +4523,15 @@
     var qt = (q||'').trim();
     _lastQ = qt;
     var qn = _norm(qt); // normalized version for fallback matching
+
+    // 0. Resolve pending clarification (e.g. user answered "attendance" after tutor metric question)
+    if (_pendingQ) {
+      var pq = _pendingQ;
+      _pendingQ = null; // clear before resolve in case resolve re-sets it
+      var resolved = _resolvePending(pq, qt);
+      if (resolved) return resolved;
+      // Couldn't resolve answer — fall through to normal routing (treat as new question)
+    }
 
     // 1. Entity-first: detect a person name before rule scan
     var entity = _extractPerson(qt);
