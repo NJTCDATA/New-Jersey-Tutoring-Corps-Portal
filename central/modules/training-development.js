@@ -630,6 +630,148 @@
     return _apprParsed;
   }
 
+  // ── Build global observation maps for programming profile view ─────────────
+  // Populates window._njtcTutorObs and window._njtcSLObs so that the
+  // programming dept Profiles section can render per-employee observation
+  // timelines and links without needing to re-fetch the sheets.
+  function _buildObsMaps(d) {
+    const SHEET_BASE  = `https://docs.google.com/spreadsheets/d/${APPR_SHEET_ID}/edit#gid=`;
+    const NE_MONTHS   = ['October','November','December','January','February','March','April','May','June'];
+    const SW_MONTH_MAP = {
+      'October Obs #1':'Oct', 'November Obs #1':'Nov', 'December Comments':'Dec',
+      'January Comments':'Jan', 'February Obs #1':'Feb', 'March Obs #1':'Mar', 'April Obs #1':'Apr'
+    };
+    const M_SHORT = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+
+    function normN(n) { return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+    function isObsCell(val) {
+      if (!val || !val.trim()) return false;
+      const vl = val.toLowerCase();
+      return vl.includes('observation') || !!vl.match(/obs\s*#?\d*/i);
+    }
+    // Resolve obs-sheet name to ADP canonical form, then normalize.
+    // This ensures "Caela Wilkerson" → "Micaela Wilkerson" → "micaela wilkerson"
+    // so the map key matches whatever HR_EMPS stores.
+    function obsKey(rawName) {
+      const canonical = normalizeApprenticeName(rawName);
+      const key = normN(canonical);
+      // Also store under the raw normalized key so direct matches still work
+      return { key, rawKey: normN(rawName) };
+    }
+    function addToMap(map, key, rawKey, entry) {
+      if (!map[key]) map[key] = [];
+      map[key].push(entry);
+      // If alias changed the key, also index under the raw key as a fallback
+      if (rawKey !== key) {
+        if (!map[rawKey]) map[rawKey] = map[key];  // point to same array
+      }
+    }
+
+    // ── Tutor obs map: keyed by normalized ADP canonical name ────────────────
+    const tutorMap = {};
+
+    // NE tutor obs (month columns: October … June; name col: "Tutor Name (ADP)")
+    d.neTutorObs.forEach(r => {
+      const name = (r['Tutor Name (ADP)'] || '').trim();
+      if (!name) return;
+      // Skip section-header rows (site leader group labels — no month data)
+      if (!NE_MONTHS.some(m => r[m] && r[m].trim())) return;
+      const { key, rawKey } = obsKey(name);
+      NE_MONTHS.forEach((month, i) => {
+        const val      = (r[month] || '').trim();
+        const observed = isObsCell(val);
+        const missed   = !observed && !!val;
+        addToMap(tutorMap, key, rawKey, {
+          month:    M_SHORT[i],
+          observed,
+          missed,
+          note:  (!observed && val) ? val : '',
+          link:  observed ? SHEET_BASE + APPR_GIDS.neTutorObs : '',
+          date:  '',
+        });
+      });
+    });
+
+    // SW tutor obs (staggered month column names; name col: "Tutor Name")
+    d.swTutorObs.forEach(r => {
+      const name = (r['Tutor Name'] || '').trim();
+      if (!name) return;
+      const { key, rawKey } = obsKey(name);
+      Object.entries(SW_MONTH_MAP).forEach(([col, short]) => {
+        const val      = (r[col] || '').trim();
+        const observed = isObsCell(val);
+        const missed   = !observed && !!val;
+        addToMap(tutorMap, key, rawKey, {
+          month:    short,
+          observed,
+          missed,
+          note:  (!observed && val) ? val : '',
+          link:  observed ? SHEET_BASE + APPR_GIDS.swTutorObs : '',
+          date:  '',
+        });
+      });
+    });
+
+    window._njtcTutorObs = tutorMap;
+
+    // ── Site leader obs map: keyed by normalized name ────────────────────────
+    const slMap = {};
+    const MONTH_ABBR = {
+      'october':'Oct','november':'Nov','december':'Dec','january':'Jan',
+      'february':'Feb','march':'Mar','april':'Apr','may':'May','june':'Jun'
+    };
+
+    // NE SL obs: one row per observed month (cols: Site Leader, Observation Month,
+    // Notes, Link to Observation Folder, Link to Google Form)
+    d.neSLObs.forEach(r => {
+      const sl = (r['Site Leader'] || '').trim();
+      if (!sl) return;
+      const { key, rawKey } = obsKey(sl);
+      const mo = (r['Observation Month'] || '').trim();
+      const shortEntry = Object.entries(MONTH_ABBR).find(([k]) => mo.toLowerCase().includes(k));
+      if (!shortEntry) return;  // row has no parseable month — skip
+      addToMap(slMap, key, rawKey, {
+        month:    shortEntry[1],
+        observed: true,
+        missed:   false,
+        note:     r['Notes'] || '',
+        link:     r['Link to Observation Folder'] || r['Link to Google Form'] || (SHEET_BASE + APPR_GIDS.neSiteLeaderObs),
+        date:     mo,
+      });
+    });
+
+    // SW SL obs: up to 3 obs per row (cols: Observation #1/2/3, Link to Folder)
+    // No dedicated month column — extract from cell text, fallback to sequential
+    const SW_OBS_FALLBACK = ['Oct','Nov','Dec'];
+    d.swSLObs.forEach(r => {
+      const sl = (r['Site Leader'] || '').trim();
+      if (!sl) return;
+      const { key, rawKey } = obsKey(sl);
+      ['Observation #1','Observation #2','Observation #3'].forEach((col, i) => {
+        const val = (r[col] || '').trim();
+        if (!val) return;
+        const monthMatch = Object.entries(MONTH_ABBR).find(([k]) => val.toLowerCase().includes(k));
+        addToMap(slMap, key, rawKey, {
+          month:    monthMatch ? monthMatch[1] : SW_OBS_FALLBACK[i],
+          observed: true,
+          missed:   false,
+          note:     r['Notes'] || '',
+          link:     r['Link to Folder'] || (SHEET_BASE + APPR_GIDS.swSiteLeaderObs),
+          date:     val,
+        });
+      });
+    });
+
+    window._njtcSLObs = slMap;
+
+    console.log(`[T&D] Obs maps built — tutors: ${Object.keys(tutorMap).length}, site leaders: ${Object.keys(slMap).length}`);
+
+    // Notify programming profiles module to re-render with live obs data
+    if (typeof window._njtcObsReady === 'function') {
+      try { window._njtcObsReady(); } catch(e) { /* no-op: profiles not yet mounted */ }
+    }
+  }
+
   // ── OTJ phase status helper ────────────────────────────────────────
   function getOTJStatus(val) {
     const v = (val || '').trim();
@@ -3191,6 +3333,16 @@
   window.tdShowTab               = tdShowTab;
   window.tdRefresh               = tdRefresh;
   window.tdGenerateExecPDF       = tdGenerateExecPDF;
+
+  // ── Pre-fetch obs maps for programming dept profiles view ──────────────────
+  // Called by shared-charts.js when programming dept opens the Profiles tab,
+  // before T&D module tabs have been visited. Idempotent: fetchAllSheets()
+  // caches results and _buildObsMaps is a no-op if maps already set.
+  window._njtcFetchObsData = async function() {
+    try { await fetchAllSheets(); } catch(e) {
+      console.warn('[T&D] Obs pre-fetch failed:', e.message);
+    }
+  };
 
   // ══════════════════════════════════════════════════════════════════
   //  AUTO-INIT: run when the training panel becomes visible

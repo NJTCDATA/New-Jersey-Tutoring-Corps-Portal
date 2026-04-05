@@ -2035,6 +2035,23 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   function _hrInvalidateOverlay() { _hrOverlayVersion++; }  // call when data changes
 
+  // ── Callback: fired by T&D module after obs maps are built ───────────────
+  // Re-renders the profiles tab (if active) so obs timelines appear immediately
+  // without the user needing to refresh.
+  window._njtcObsReady = function() {
+    _hrInvalidateOverlay();
+    const lb = document.getElementById('talentTab-profiles');
+    if (lb && lb.classList.contains('active')) {
+      const le = document.getElementById('talentContent');
+      if (le) {
+        try {
+          const dept = (window.NJTC_SESSION || {}).dept || 'hr';
+          le.innerHTML = '<div id="hrProfilesRoot">' + _hrBuildProfiles(dept) + '</div>';
+        } catch(e) { console.warn('[HR Profiles] Obs re-render failed:', e.message); }
+      }
+    }
+  };
+
   // ── Staff Diversity & Equity Analytics ────────────────────────────────────
   function _buildStaffDiversityHtml(pool, title) {
     if (!pool || !pool.length) return '';
@@ -2277,6 +2294,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function _hrBuildProfiles(dept) {
+    // Pre-fetch obs maps when programming dept opens Profiles (T&D tabs may not have been visited yet)
+    if (dept === 'programming' && !window._njtcTutorObs && !window._njtcSLObs) {
+      if (typeof window._njtcFetchObsData === 'function') {
+        window._njtcFetchObsData();  // async; re-renders via _njtcObsReady callback when done
+      }
+    }
     // Only re-apply overlays when data has actually changed (prevents cascade re-renders)
     if (_hrOverlayVersion !== _hrLastOverlayVersion) {
       _hrOverlayConcerns();
@@ -2509,10 +2532,37 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Observation timeline ────────────────────────────────────────────────
     const OBS_MONTHS = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
     function obsTimeline(emp) {
-      if (!window._njtcTutorObs)
+      const hasAnyMap = !!(window._njtcTutorObs || window._njtcSLObs);
+      if (!hasAnyMap)
         return '<span style="font-size:.72rem;color:#94a3b8;font-style:italic">Observation data not yet connected</span>';
+
       const nm = normName(emp.n);
-      const tutorObs = window._njtcTutorObs[nm] || window._njtcTutorObs[emp.n] || [];
+
+      // Fuzzy token-subset lookup — handles abbreviated/middle-initial name mismatches
+      function fuzzyLookup(map) {
+        if (!map) return null;
+        if (map[nm]) return map[nm];
+        // Fallback: every token in the shorter name must appear in the longer
+        const np = nm.split(' ').filter(t => t.length > 1);
+        if (np.length < 2) return null;
+        const npSet = new Set(np);
+        for (const [k, v] of Object.entries(map)) {
+          const kp = new Set(k.split(' ').filter(t => t.length > 1));
+          if ([...npSet].every(p => kp.has(p)) || [...kp].every(p => npSet.has(p))) return v;
+        }
+        return null;
+      }
+
+      // Site leaders use the SL obs map first; tutors use tutor obs map first.
+      const isSL = /site.?leader|instructional.?coach/i.test(emp.r || '');
+      const tutorObs = (isSL ? fuzzyLookup(window._njtcSLObs) : null)
+                    || fuzzyLookup(window._njtcTutorObs)
+                    || (isSL ? null : fuzzyLookup(window._njtcSLObs))
+                    || null;
+
+      if (!tutorObs || !tutorObs.length)
+        return '<span style="font-size:.72rem;color:#94a3b8;font-style:italic">No observations on file</span>';
+
       const pills = OBS_MONTHS.map(mo => {
         const entry = tutorObs.find(o=>(o.month||'').includes(mo));
         let bg='#f1f5f9', col='#94a3b8', title2=mo;
