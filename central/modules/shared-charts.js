@@ -599,9 +599,8 @@
   }
 
   // ── Wire KPI Analytics panel into showPanel ──────────────────────
-  const _kpiaOrigShowPanel = showPanel;
-  // showPanel is overridden later in the file, so we patch the one that matters
-  // via an event-style approach — when kpi-analytics panel opens, build it
+  // Uses MutationObserver — showPanel is defined in index.html and may not
+  // exist yet when this IIFE runs, so we watch for panel activation instead.
   const _kpiaPanelObserver = new MutationObserver(() => {
     const p = document.getElementById('panel-kpi-analytics');
     if (p && p.classList.contains('active')) {
