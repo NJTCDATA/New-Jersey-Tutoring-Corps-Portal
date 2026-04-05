@@ -3857,13 +3857,22 @@
   function _renderChips() {
     var el = document.getElementById('pieChips');
     if (!el) return;
-    var suggestions = PIE_SUGGESTIONS[_panel] || PIE_SUGGESTIONS['home'];
-    el.innerHTML = '<span class="pie-chips-label">Suggested</span>' +
-      suggestions.map(function(s) {
-        // Use single-quoted string in onclick to avoid double-quote breakage in HTML attributes
-        var safe = s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        return '<button class="pie-chip" onclick="pieAsk(\'' + safe + '\')">' + s + '</button>';
-      }).join('');
+    var tabs = CAT_ORDER.map(function(cat) {
+      var active = cat === _cat ? ' pie-cat-active' : '';
+      var esc = cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<button class="pie-chip pie-cat' + active + '" data-pie-cat="' + esc + '">' + cat + '</button>';
+    }).join('');
+    var chips = (CATEGORIES[_cat] || CATEGORIES['Overview']).map(function(s) {
+      var esc = s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      return '<button class="pie-chip pie-q" data-pie-ask="' + esc + '">' + s + '</button>';
+    }).join('');
+    el.innerHTML = '<div class="pie-chips-label">Suggested</div><div class="pie-cat-row">' + tabs + '</div><div class="pie-q-row">' + chips + '</div>';
+    el.onclick = function(ev) {
+      var btn = ev.target.closest('[data-pie-cat],[data-pie-ask]');
+      if (!btn) return;
+      if (btn.dataset.pieCat) window.pieCategory(btn.dataset.pieCat);
+      else if (btn.dataset.pieAsk) window.pieAsk(btn.dataset.pieAsk);
+    };
   }
 
   // ── Add message to thread ─────────────────────────────────────────────────
