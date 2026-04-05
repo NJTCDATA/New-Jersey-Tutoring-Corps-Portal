@@ -3485,12 +3485,12 @@
     if (_open && !document.getElementById('pieMessages').children.length) {
       // First open — show welcome
       var welcomes = {
-        leadership: 'I\'m PIE — your Program Evaluation & Impact director in automation form. I read live portal data and answer in plain English. KPI scores, Pearl operations, iReady growth, concerns — ask anything.',
-        data:       'PIE here. Data & Evaluation view active — full live access to KPIs, Pearl, iReady diagnostics, and concerns. What do you need me to pull?',
-        hr:         'PIE online. HR view active. I can surface concern counts, workforce risk signals, attendance benchmarks, or KPI status on demand. What\'s on your radar?',
-        programming:'PIE here. Program view active — Pearl session counts, site performance, scholar attendance, and goal status are all live. What do you need?',
-        training:   'PIE active. Training view loaded — PD satisfaction data, intake ratings, apprenticeship status, and KPI context are all available. Ask away.',
-        kb:         'PIE here. Executive access active. Live KPI scores, program stats, workforce signals, and impact metrics — I have it all. What do you want to know?',
+        leadership: 'PIE here — assistant to the Director of Program Evaluation & Impact. I read live portal data and brief you in plain English. KPI scores, Pearl operations, iReady growth, concerns — ask anything.',
+        data:       'PIE here. Data & Evaluation view active. I\'m your PEI assistant — full live access to KPIs, Pearl, iReady diagnostics, and concerns. What do you need?',
+        hr:         'PIE here. HR view active. I can surface concern counts, workforce risk signals, attendance benchmarks, or KPI status on demand. What do you need?',
+        programming:'PIE here. Program view active — Pearl session counts, site performance, scholar attendance, and goal status all live. What do you need?',
+        training:   'PIE here. Training view loaded — PD satisfaction data, intake ratings, apprenticeship status, and KPI context available. What do you need?',
+        kb:         'PIE here. Executive view active. Live KPI scores, program stats, workforce signals, and impact metrics — ready when you are.',
       };
       _addMsg('pie', welcomes[_dept] || welcomes.leadership);
       _renderChips();
@@ -3523,14 +3523,14 @@
     _dept = dept || 'leadership';
     var sub = document.getElementById('pieHeaderSub');
     var labels = {
-      leadership: 'Program Evaluation & Impact · Leadership',
-      data:       'Program Evaluation & Impact · Data & Evaluation',
-      hr:         'Program Evaluation & Impact · HR',
-      programming:'Program Evaluation & Impact · Programming',
-      training:   'Program Evaluation & Impact · Training',
-      kb:         'Program Evaluation & Impact · Executive',
+      leadership: 'Assistant to the Director of PEI · Leadership',
+      data:       'Assistant to the Director of PEI · Data & Evaluation',
+      hr:         'Assistant to the Director of PEI · HR',
+      programming:'Assistant to the Director of PEI · Programming',
+      training:   'Assistant to the Director of PEI · Training',
+      kb:         'Assistant to the Director of PEI · Executive',
     };
-    if (sub) sub.textContent = labels[_dept] || 'Program Evaluation & Impact · Automated';
+    if (sub) sub.textContent = labels[_dept] || 'Assistant to the Director of PEI';
     var trigger = document.getElementById('pieTrigger');
     if (trigger) trigger.style.display = '';
     _renderChips();
