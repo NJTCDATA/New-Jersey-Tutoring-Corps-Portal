@@ -3255,39 +3255,49 @@
       lines.push('✅ No concern records on file.');
     }
 
-    // ── Training Intake ───────────────────────────────────────────────────
-    var intRecs = _intakeForName(name);
-    if (intRecs.length) {
+    // ── Training Intake — district-level aggregate (data is anonymous) ────────
+    // Training intake forms are anonymous; individual lookup is not possible.
+    // Show district-level aggregate using entity.hr.di to filter by district.
+    var _intAll = _tdIntake();
+    if (_intAll && _intAll.length) {
+      var _empDist = entity.hr ? (entity.hr.di || '') : '';
       lines.push('\n**TRAINING INTAKE**');
-      var latest = intRecs[intRecs.length-1];
-      var cohort = latest['Cohort'] || latest['cohort'] || '';
-      var sessDate = latest['Training Session Date'] || latest['sessionDate'] || latest['Date'] || '';
-      var topic = latest['Training Session Topic'] || latest['sessionTopic'] || latest['Topic'] || '';
-      var comfort = latest['Comfort Level (1-5)'] || latest['comfort'] || '';
-      var role = latest['Position / Role'] || latest['role'] || '';
-      if (cohort) lines.push('📋 Cohort: ' + cohort);
-      if (role)   lines.push('Role at intake: ' + role);
-      if (sessDate) lines.push('Training date: ' + sessDate);
-      if (topic)  lines.push('Topic: ' + topic);
-      if (comfort) lines.push('Comfort level: **' + comfort + '/5**');
-      if (intRecs.length > 1) lines.push('Total intake records: ' + intRecs.length);
-    } else if (_tdIntake().length) {
-      lines.push('\n**TRAINING INTAKE**: No intake record found for this person.');
+      if (_empDist) {
+        var _distKey = _empDist.toLowerCase().split(/\s+/)[0];
+        var _distInt = _intAll.filter(function(r) {
+          var d = r['What District are you assigned to?'] || r['District'] || r.district || r['district'] || '';
+          return d && d.toLowerCase().indexOf(_distKey) >= 0;
+        });
+        if (_distInt.length) {
+          lines.push('📍 ' + _empDist + ': **' + _distInt.length + ' intake responses** on file');
+          var _comforts = _distInt.map(function(r){ return parseFloat(r['Comfort Level (1-5)'] || r.comfort || 0); }).filter(function(n){ return n > 0; });
+          if (_comforts.length) {
+            var _avgC = (_comforts.reduce(function(a,b){ return a+b; },0)/_comforts.length).toFixed(1);
+            lines.push('District avg comfort level: **' + _avgC + '/5**');
+          }
+        } else {
+          lines.push('Program-wide: **' + _intAll.length + ' intake responses** (no district match for ' + _empDist + ')');
+        }
+      } else {
+        lines.push('Program-wide: **' + _intAll.length + ' intake responses**');
+      }
+      lines.push('_Training data is anonymous — district aggregate only, not per-person_');
     }
 
-    // ── PD Feedback ───────────────────────────────────────────────────────
-    var pdRecs = _pdForName(name);
-    if (pdRecs.length) {
-      lines.push('\n**PD FEEDBACK (' + pdRecs.length + ' sessions)**');
-      var ratings = pdRecs.map(function(r){ return parseFloat(r.rating||0); }).filter(function(n){ return n>0; });
-      if (ratings.length) {
-        var avg = (ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(2);
-        lines.push('Avg rating: **' + avg + '/5** across ' + ratings.length + ' sessions rated');
+    // ── PD Feedback — program-level aggregate (anonymous, no district field) ──
+    // PD survey responses have no name or district — individual/district lookup
+    // is not possible. Show program-wide aggregate only.
+    var _pdAll = _tdPD();
+    if (_pdAll && _pdAll.length) {
+      lines.push('\n**PD FEEDBACK (Program-wide)**');
+      var _pdScores = _pdAll.map(function(r){ return parseFloat(r.overall_score||r.score||r.overall||r['Overall Satisfaction']||0); }).filter(function(n){ return n > 0; });
+      if (_pdScores.length) {
+        var _pdAvg = (_pdScores.reduce(function(a,b){ return a+b; },0)/_pdScores.length).toFixed(2);
+        lines.push('Avg session rating: **' + _pdAvg + '/5** across ' + _pdAll.length + ' responses');
+      } else {
+        lines.push('**' + _pdAll.length + ' PD responses** on file');
       }
-      var lastPD = pdRecs.sort(function(a,b){ return new Date(b.sessionDate||0)-new Date(a.sessionDate||0); })[0];
-      if (lastPD) lines.push('Most recent: ' + (lastPD.topic||lastPD.sessionDate||'Session') + (lastPD.sessionDate?' ('+lastPD.sessionDate+')':''));
-    } else if (_tdPD().length) {
-      lines.push('\n**PD FEEDBACK**: No PD responses found for this person.');
+      lines.push('_PD data is anonymous — per-person and district breakdowns are not available_');
     }
 
     // ── OTJ / Apprenticeship ──────────────────────────────────────────────
@@ -3307,29 +3317,58 @@
       lines.push('\n**OTJ**: Enrolled as TAP apprentice but no OTJ record found. Check T&D Analytics.');
     }
 
-    // ── Observational Check-ins (Training Analytics) ──────────────────────
-    if (entity.hr) {
-      var eObs = entity.hr;
-      var obsCount = eObs._obsCount || 0;
-      if (obsCount > 0 || eObs._obsAvgRating != null) {
+    // ── Observational Check-ins — live from T&D obs maps ─────────────────────
+    // window._njtcTutorObs (tutors) and window._njtcSLObs (site leaders) are
+    // built by training-development.js fetchAllSheets() → _buildObsMaps().
+    // They are keyed by normalized ADP canonical name (alias-resolved).
+    var _pieTutorMap = window._njtcTutorObs;
+    var _pieSLMap    = window._njtcSLObs;
+    if (_pieTutorMap || _pieSLMap) {
+      var _pieObsNm = _normName(name);
+      // Fuzzy lookup: strip hyphens from map keys so "ramsey-copeland" → "ramsey copeland"
+      var _pieObsLookup = function(map) {
+        if (!map) return null;
+        for (var _k in map) {
+          if (_normName(_k) === _pieObsNm) return map[_k];
+        }
+        // Token-subset fallback
+        var _np = _pieObsNm.split(' ').filter(function(t){ return t.length > 1; });
+        if (_np.length < 2) return null;
+        for (var _k2 in map) {
+          var _kn = _normName(_k2).split(' ').filter(function(t){ return t.length > 1; });
+          if (_np.every(function(p){ return _kn.indexOf(p) >= 0; }) ||
+              _kn.every(function(p){ return _np.indexOf(p) >= 0; })) return map[_k2];
+        }
+        return null;
+      };
+      var _pieIsSL = entity.hr && /site.?leader|instructional.?coach/i.test(entity.hr.r || '');
+      var _pieObs  = (_pieIsSL ? _pieObsLookup(_pieSLMap) : null)
+                  || _pieObsLookup(_pieTutorMap)
+                  || (_pieIsSL ? null : _pieObsLookup(_pieSLMap))
+                  || null;
+      if (_pieObs && _pieObs.length) {
+        var _pieGreen  = _pieObs.filter(function(o){ return o.observed; });
+        var _pieMissed = _pieObs.filter(function(o){ return o.missed && o.note; });
         lines.push('\n**OBSERVATIONAL CHECK-INS**');
-        var obsIcon = obsCount >= 3 ? '✅' : obsCount >= 1 ? '⚠️' : '—';
-        var obsLine = obsIcon + ' ' + obsCount + ' observation' + (obsCount !== 1 ? 's' : '') + ' on record';
-        if (eObs._obsAvgRating != null) {
-          var ratingColor = eObs._obsAvgRating >= 4 ? 'Strong' : eObs._obsAvgRating >= 3 ? 'Developing' : 'Needs Support';
-          obsLine += ' · Avg rating: **' + eObs._obsAvgRating + '/5** (' + ratingColor + ')';
+        var _pieIcon = _pieGreen.length >= 3 ? '✅' : _pieGreen.length >= 1 ? '⚠️' : '—';
+        lines.push(_pieIcon + ' **' + _pieGreen.length + ' observation' + (_pieGreen.length !== 1 ? 's' : '') + ' logged** across ' + _pieObs.length + ' tracked months');
+        if (_pieGreen.length) {
+          lines.push('Observed months: ' + _pieGreen.map(function(o){ return o.month; }).join(', '));
+          var _pieLink = _pieGreen.find(function(o){ return o.link && /^https?:\/\//i.test(o.link); });
+          if (_pieLink) lines.push('📎 [View Observation Sheet](' + _pieLink.link + ')');
         }
-        lines.push(obsLine);
-        if (eObs._obsLatest) {
-          var lo = eObs._obsLatest;
-          var loLine = 'Most recent: ' + (lo.date || '—');
-          if (lo.observer) loLine += ' · by ' + lo.observer;
-          if (lo.rating)   loLine += ' · rated ' + lo.rating + '/5';
-          lines.push(loLine);
-          if (lo.notes && lo.notes.trim()) lines.push('Note: "' + lo.notes.trim().slice(0, 160) + (lo.notes.trim().length > 160 ? '…' : '') + '"');
+        if (_pieMissed.length) {
+          lines.push('⚠️ Flagged months: ' + _pieMissed.map(function(o){ return o.month + ' (' + o.note + ')'; }).join(', '));
         }
-      } else if (eObs._apprentice === 'Yes') {
-        lines.push('\n**OBSERVATIONAL CHECK-INS**: No observations logged yet. Open T&D Analytics for live view.');
+      } else {
+        lines.push('\n**OBSERVATIONAL CHECK-INS**: ' + (entity.hr && entity.hr._apprentice === 'Yes'
+          ? 'No observations logged yet. Open T&D Analytics for live view.'
+          : 'No observations on file for this person.'));
+      }
+    } else {
+      // Obs maps not yet loaded (T&D Analytics hasn't been opened this session)
+      if (entity.hr && entity.hr._apprentice === 'Yes') {
+        lines.push('\n**OBSERVATIONAL CHECK-INS**: Visit T&D Analytics → Tutor Obs tab to load live data, then re-ask.');
       }
     }
 
