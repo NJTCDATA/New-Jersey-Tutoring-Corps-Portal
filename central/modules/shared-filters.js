@@ -60,6 +60,10 @@
       }
     }
 
+    // Show governance lock button only for data dept
+    const govLockBtn = document.getElementById('govLockSidebarBtn');
+    if (govLockBtn) govLockBtn.style.display = (dept === 'data') ? '' : 'none';
+
     // Show advocacy nav for leadership and kb only — Data dept has i-Ready Lab (upload access), not Advocacy
     const ADV_DEPTS = ['leadership','kb'];
     const advBtns = document.querySelectorAll('.dept-nav-advocacy');
