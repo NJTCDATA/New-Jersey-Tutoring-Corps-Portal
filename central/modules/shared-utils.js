@@ -1573,7 +1573,7 @@
     // Calling it here first would render stale static counts then visibly jump — race condition eliminated.
     buildSidebarDept(dept);
     buildPolicies(false);
-    if (typeof window.pieInit === 'function') window.pieInit(dept);
+    try { if (typeof window.pieInit === 'function') window.pieInit(dept); } catch(e) { console.error('[PIE] init error (non-fatal):', e); }
     // ── Parallel background prefetch — all data sources fired simultaneously ──
     // By the time the user opens any panel, data is either served from
     // this prefetch or from the localStorage cache loaded above.
