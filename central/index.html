@@ -235,7 +235,7 @@
       backdrop-filter: blur(8px);
     }
     .sdc-label { font-size: .625rem; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.35); margin-bottom: .375rem; }
-    .sdc-dept { font-family: 'Syne', sans-serif; font-size: 1.0625rem; font-weight: 700; color: #fff; }
+    .sdc-dept { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .9375rem; font-weight: 700; color: #fff; letter-spacing: -.008em; }
     .sdc-tagline { font-size: .75rem; color: rgba(255,255,255,.45); margin-top: .25rem; line-height: 1.4; }
     .sdc-bar { height: 2px; background: rgba(255,255,255,.1); border-radius: 1px; margin-top: .875rem; overflow: hidden; }
     .sdc-bar-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg, var(--blue-lite), var(--gold)); animation: barSlide .8s ease forwards; }
@@ -340,19 +340,19 @@
     }
     .ph-text {}
     .ph-eyebrow {
-      font-family: 'Syne', sans-serif;
-      font-size: .625rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .14em; color: var(--blue-mid);
-      margin-bottom: .375rem;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .15em; color: var(--blue-mid);
+      margin-bottom: .3rem;
     }
     .ph-title {
       font-family: 'Syne', sans-serif;
-      font-size: 1.625rem; font-weight: 800; color: var(--navy);
-      line-height: 1.2; letter-spacing: -.02em;
+      font-size: 1.25rem; font-weight: 700; color: var(--navy);
+      line-height: 1.25; letter-spacing: -.018em;
     }
     .ph-subtitle {
-      font-size: .9375rem; color: var(--text-2);
-      margin-top: .375rem; max-width: 600px;
+      font-size: .875rem; color: var(--text-2);
+      margin-top: .3rem; max-width: 560px; line-height: 1.55;
     }
     .ph-actions {
       display: flex; align-items: center; gap: .75rem; flex-shrink: 0;
@@ -423,16 +423,16 @@
       box-shadow: 0 12px 32px rgba(10,22,40,.12), 0 0 0 1px var(--accent-color, var(--blue-mid));
       border-color: var(--accent-color, var(--blue-mid));
     }
-    .st-icon { font-size: 1.25rem; margin-bottom: .625rem; }
+    .st-icon { font-size: 1.0625rem; margin-bottom: .5rem; opacity: .75; }
     .st-value {
-      font-family: 'Syne', sans-serif;
-      font-weight: 900;
-      font-size: 2.75rem; color: var(--navy);
-      line-height: 1; letter-spacing: -.04em;
+      font-family: 'DM Serif Display', serif;
+      font-weight: 400;
+      font-size: 2.125rem; color: var(--navy);
+      line-height: 1; letter-spacing: -.035em;
       display: block;
     }
-    .st-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .6875rem; font-weight: 700; color: var(--muted); margin-top: .375rem; text-transform: uppercase; letter-spacing: .06em; display: block; }
-    .st-sub { font-size: .75rem; color: var(--text-2); margin-top: .25rem; }
+    .st-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .6375rem; font-weight: 700; color: var(--muted); margin-top: .375rem; text-transform: uppercase; letter-spacing: .07em; display: block; }
+    .st-sub { font-size: .7rem; color: var(--text-2); margin-top: .2rem; line-height: 1.4; }
 
     /* ════════════════════════════════════════════════════
        QUICK LINK CARDS (Home)
@@ -458,14 +458,15 @@
       transform: translateY(-2px);
     }
     .ql-icon-wrap {
-      width: 42px; height: 42px; border-radius: 11px;
+      width: 38px; height: 38px; border-radius: 9px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.125rem; margin-bottom: .625rem;
+      font-size: 1rem; margin-bottom: .5rem;
     }
-    .ql-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .9375rem; font-weight: 700; color: var(--navy); }
-    .ql-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.5; }
+    .ql-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .875rem; font-weight: 700; color: var(--navy); letter-spacing: -.005em; }
+    .ql-desc { font-size: .775rem; color: var(--text-2); line-height: 1.5; margin-top: .125rem; }
     .ql-arrow {
-      font-size: .75rem; color: var(--dept-accent, var(--blue-mid)); margin-top: .25rem; font-weight: 700;
+      font-size: .7rem; color: var(--dept-accent, var(--blue-mid)); margin-top: .375rem; font-weight: 700;
+      letter-spacing: .02em; text-transform: uppercase;
     }
 
     /* ════════════════════════════════════════════════════
@@ -754,6 +755,66 @@
       border-radius: 6px; transition: var(--transition);
     }
     .sync-btn:hover { background: var(--prog-bg); }
+
+    /* ══ SOURCE CHIPS — data provenance badges ══════════════════════ */
+    .src-chip {
+      display: inline-flex; align-items: center; gap: .3rem;
+      font-size: .625rem; font-weight: 700; letter-spacing: .04em;
+      padding: .2rem .55rem; border-radius: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+    }
+    .src-chip-live {
+      background: rgba(5,150,105,.1); color: #059669;
+      border: 1px solid rgba(5,150,105,.22);
+    }
+    .src-chip-sheet {
+      background: rgba(0,80,200,.08); color: #0050c8;
+      border: 1px solid rgba(0,80,200,.18);
+    }
+    .src-chip-pearl {
+      background: rgba(8,145,178,.08); color: #0891b2;
+      border: 1px solid rgba(8,145,178,.2);
+    }
+    .src-chip-cache {
+      background: rgba(240,165,0,.1); color: #92400e;
+      border: 1px solid rgba(240,165,0,.22);
+    }
+    .src-row {
+      display: flex; align-items: center; gap: .375rem; flex-wrap: wrap;
+      margin-top: .375rem; padding-top: .375rem;
+      border-top: 1px solid var(--border-2);
+    }
+    /* ══ KPIA SCORECARD — full scorecard list rows ══════════════════ */
+    .kpia-sc-row {
+      display: flex; align-items: center; gap: .625rem;
+      padding: .625rem 0;
+      border-bottom: 1px solid var(--border-2);
+    }
+    .kpia-sc-row:last-child { border-bottom: none; }
+    .kpia-sc-rank {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .65rem; color: var(--muted); width: 20px; flex-shrink: 0; text-align: right;
+    }
+    .kpia-sc-goal {
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--blue-mid); flex: 0 0 110px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .kpia-sc-target {
+      flex: 1; font-size: .8rem; font-weight: 500; color: var(--navy);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .kpia-sc-score {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem; font-weight: 700; color: var(--navy);
+      flex-shrink: 0; width: 38px; text-align: right;
+    }
+    .kpia-sc-bar-wrap {
+      flex: 0 0 80px; height: 6px;
+      background: var(--surface-3); border-radius: 3px; overflow: hidden;
+    }
+    .kpia-sc-bar { height: 100%; border-radius: 3px; transition: width .6s ease; }
 
     /* Dept section header in policies */
     .dept-section-header {
@@ -1054,7 +1115,7 @@
       display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
       position: sticky; top: 0; background: var(--surface); z-index: 1;
     }
-    .modal-title { font-family: 'DM Serif Display', serif; font-size: 1.375rem; color: var(--navy); }
+    .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.0625rem; font-weight: 700; color: var(--navy); letter-spacing: -.01em; }
     .modal-sub { font-size: .875rem; color: var(--text-2); margin-top: .25rem; }
     .modal-close {
       width: 32px; height: 32px; border-radius: 8px;
@@ -1307,7 +1368,7 @@
     }
     .kpia-hero-title {
       font-family: 'DM Serif Display', serif;
-      font-size: 1.625rem; color: #fff; line-height: 1.2; letter-spacing: -.02em;
+      font-size: 1.25rem; color: #fff; line-height: 1.2; letter-spacing: -.02em;
       margin-bottom: .375rem;
     }
     .kpia-hero-sub { font-size: .875rem; color: rgba(255,255,255,.55); max-width: 520px; line-height: 1.5; }
@@ -1323,7 +1384,7 @@
     }
     .kpia-hstat-val {
       font-family: 'DM Serif Display', serif;
-      font-size: 2rem; line-height: 1; letter-spacing: -.03em;
+      font-size: 1.5rem; line-height: 1; letter-spacing: -.03em;
     }
     .kpia-hstat-label { font-size: .6875rem; font-weight: 600; color: rgba(255,255,255,.5); margin-top: .25rem; text-transform: uppercase; letter-spacing: .04em; }
 
@@ -1447,7 +1508,7 @@
     .kpia-meter-label { font-size: .8125rem; font-weight: 600; color: var(--text-2); }
     .kpia-meter-pct {
       font-family: 'DM Serif Display', serif;
-      font-size: 1.375rem; color: var(--navy); letter-spacing: -.02em;
+      font-size: 1.125rem; color: var(--navy); letter-spacing: -.02em;
     }
     .kpia-meter-track {
       height: 12px; background: var(--surface-3); border-radius: 6px; overflow: hidden;
@@ -1675,11 +1736,11 @@
     }
     .kpia-score-val {
       font-family: 'DM Serif Display', serif;
-      font-size: 2.25rem; color: var(--navy); line-height: 1; letter-spacing: -.03em;
+      font-size: 1.75rem; color: var(--navy); line-height: 1; letter-spacing: -.025em;
     }
     .kpia-score-label {
-      font-size: .6875rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .05em; color: var(--muted); margin-top: .375rem;
+      font-size: .625rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-top: .3rem;
     }
     .kpia-score-chip {
       display: inline-flex; align-items: center; gap: .25rem;
@@ -1699,8 +1760,8 @@
     }
     .kpia-focus-item:hover { border-color: var(--blue-mid); background: var(--surface); box-shadow: var(--shadow-sm); }
     .kpia-focus-rank {
-      font-family: 'DM Serif Display', serif;
-      font-size: 1.375rem; color: var(--muted); width: 28px; text-align: center; flex-shrink: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .8rem; font-weight: 800; color: var(--muted); width: 24px; text-align: center; flex-shrink: 0;
     }
     .kpia-focus-body { flex: 1; min-width: 0; }
     .kpia-focus-goal { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--blue-mid); margin-bottom: .2rem; }
@@ -3562,6 +3623,71 @@
     }
     .kn-prompt-cta:hover { background: var(--blue-lite); }
 
+    /* ══ HOME EXEC BAR — Command strip (leadership/data/kb) ══════════ */
+    #homeExecBar {
+      margin-bottom: 1.375rem;
+    }
+    .heb-wrap {
+      background: linear-gradient(135deg, #0a1628 0%, #0e2040 55%, #0a1628 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(240,165,0,.18);
+      padding: .875rem 1.375rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; flex-wrap: wrap;
+      position: relative; overflow: hidden;
+      box-shadow: 0 4px 20px rgba(10,22,40,.18);
+    }
+    .heb-glow {
+      position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse at 20% 0%, rgba(240,165,0,.07) 0%, transparent 60%);
+    }
+    .heb-left {
+      display: flex; align-items: center; gap: .75rem;
+      position: relative; z-index: 1;
+    }
+    .heb-mark {
+      width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
+      background: rgba(240,165,0,.1); border: 1px solid rgba(240,165,0,.22);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .heb-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .9375rem; font-weight: 700; color: #fff; line-height: 1.2;
+      letter-spacing: -.01em;
+    }
+    .heb-sub {
+      font-size: .6375rem; color: rgba(255,255,255,.38); margin-top: .15rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .heb-right {
+      display: flex; align-items: center; gap: .5rem;
+      position: relative; z-index: 1; flex-wrap: wrap;
+    }
+    .heb-chip {
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 8px; padding: .4rem .75rem; text-align: center; min-width: 72px;
+    }
+    .heb-chip.heb-chip-green {
+      border-color: rgba(42,157,143,.3); background: rgba(42,157,143,.08);
+    }
+    .heb-chip-n {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.25rem; color: #f0a500; line-height: 1; letter-spacing: -.02em;
+    }
+    .heb-chip.heb-chip-green .heb-chip-n { color: #2fd3be; }
+    .heb-chip-l {
+      font-size: .55rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: rgba(255,255,255,.35); margin-top: .15rem;
+    }
+    .heb-btn {
+      background: rgba(240,165,0,.14); border: 1px solid rgba(240,165,0,.32);
+      color: #f0a500; border-radius: 7px; padding: .4rem .875rem;
+      font-size: .75rem; font-weight: 700; font-family: 'Plus Jakarta Sans', sans-serif;
+      cursor: pointer; letter-spacing: .015em; white-space: nowrap;
+      transition: background .17s ease, transform .17s ease;
+    }
+    .heb-btn:hover { background: rgba(240,165,0,.26); transform: translateY(-1px); }
+
     /* ══ EXECUTIVE COMMAND CENTER — Premium Redesign ══════════════════ */
     @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
 
@@ -3578,7 +3704,8 @@
       border-bottom: 1px solid #e2e8f0;
     }
     .ecd-header-title {
-      font-size: .7rem; font-weight: 900; letter-spacing: .14em;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: .6875rem; font-weight: 700; letter-spacing: .12em;
       text-transform: uppercase; color: #0a1628;
     }
     .ecd-header-sub { font-size: .63rem; color: #94a3b8; margin-top: .1rem; }
@@ -3631,10 +3758,11 @@
 
     .ecd-kpi-lbl { font-size: .62rem; color: #94a3b8; font-weight: 700; letter-spacing: .04em; text-transform:uppercase; }
     .ecd-kpi-val {
-      font-size: 1.875rem; font-weight: 800; color: #0a1628;
-      line-height: 1; letter-spacing: -.05em; margin: .125rem 0;
+      font-size: 1.5rem; font-weight: 700; color: #0a1628;
+      line-height: 1; letter-spacing: -.04em; margin: .125rem 0;
+      font-family: 'DM Serif Display', serif;
     }
-    .ecd-kpi-val.sm { font-size: 1.35rem; letter-spacing: -.03em; }
+    .ecd-kpi-val.sm { font-size: 1.175rem; letter-spacing: -.025em; }
     .ecd-kpi-foot { font-size: .6rem; color: #cbd5e1; font-weight: 600; }
 
     /* ── Executive Insight Panel layout ── */
@@ -4889,137 +5017,8 @@
   <!-- Main -->
   <main class="ct-main">
 
-    <!-- ═══════════════════════════════════════════════════════════
-  NJTC PORTAL — HOME PANEL FULL REPLACEMENT
-  
-  STEP 1 — ADD FONT (if not already in <head>):
-  Add to your existing Google Fonts link, merge with current:
-  family=Syne:wght@700;800&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700
-  
-  STEP 2 — ADD CSS:
-  In the <style> block, find:  #execDashboard {
-  Paste the CSS below immediately BEFORE that rule.
-  
-  STEP 3 — REPLACE HTML:
-  Find the comment:  <!-- ══ HOME PANEL ══
-  Replace the entire  <div class="panel active" id="panel-home">...</div>
-  block with the HTML at the bottom of this file.
-═══════════════════════════════════════════════════════════ -->
-
-<!-- ─── CSS: paste into <style> BEFORE #execDashboard { ─── -->
-<style id="njtc-home-exec-bar-css">
-    /* ════════════════════════════════════════════════════
-       HOME EXEC BAR — Command strip (leadership/data/kb)
-    ════════════════════════════════════════════════════ */
-    #homeExecBar {
-      background: linear-gradient(135deg, #0a1628 0%, #0d2847 55%, #0a1628 100%);
-      border-radius: 14px;
-      border: 1px solid rgba(240,165,0,.22);
-      margin-bottom: 1.25rem;
-      box-shadow: 0 8px 32px rgba(10,22,40,.2), 0 0 0 1px rgba(240,165,0,.08);
-      overflow: hidden;
-      position: relative;
-    }
-    #homeExecBar::before {
-      content: '';
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at 25% 0%, rgba(240,165,0,.08) 0%, transparent 65%),
-                  radial-gradient(ellipse at 80% 100%, rgba(0,80,200,.06) 0%, transparent 55%);
-      pointer-events: none;
-    }
-    .heb-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 1.5rem; gap: 1.25rem; flex-wrap: wrap; position: relative; z-index: 1;
-    }
-    .heb-left { display: flex; align-items: center; gap: .875rem; }
-    .heb-njtc-mark {
-      width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0;
-      background: rgba(240,165,0,.12); border: 1px solid rgba(240,165,0,.28);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
-    }
-    .heb-text-block { display: flex; flex-direction: column; gap: .15rem; }
-    .heb-title {
-      font-family: 'Syne', 'DM Sans', sans-serif;
-      font-size: 1.0625rem; font-weight: 800; color: #fff;
-      letter-spacing: -.025em; line-height: 1.15;
-    }
-    .heb-sub { font-size: .6875rem; color: rgba(255,255,255,.42); font-weight: 500; }
-    .heb-stats { display: flex; align-items: center; gap: .625rem; flex-wrap: wrap; }
-    .heb-stat-chip {
-      display: flex; flex-direction: column; align-items: center;
-      background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.1);
-      border-radius: 10px; padding: .5rem .875rem; min-width: 80px; text-align: center;
-    }
-    .heb-chip-score { border-color: rgba(240,165,0,.35); background: rgba(240,165,0,.12); }
-    .heb-chip-met   { border-color: rgba(42,157,143,.35); background: rgba(42,157,143,.1); }
-    .heb-chip-val {
-      font-family: 'DM Serif Display', serif;
-      font-size: 1.4rem; font-weight: 400; color: #fff; line-height: 1; letter-spacing: -.02em;
-    }
-    .heb-chip-score .heb-chip-val { color: #f0a500; }
-    .heb-chip-met   .heb-chip-val { color: #2fd3be; }
-    .heb-chip-lbl {
-      font-size: .585rem; font-weight: 700; color: rgba(255,255,255,.38);
-      text-transform: uppercase; letter-spacing: .08em; margin-top: .2rem; white-space: nowrap;
-    }
-    .heb-cta {
-      background: rgba(240,165,0,.18); border: 1px solid rgba(240,165,0,.42);
-      color: #f0a500; border-radius: 9px; padding: .5rem 1.125rem;
-      font-size: .8125rem; font-weight: 700; font-family: inherit; cursor: pointer;
-      letter-spacing: .01em; white-space: nowrap;
-      transition: background .17s ease, transform .17s ease, box-shadow .17s ease;
-    }
-    .heb-cta:hover {
-      background: rgba(240,165,0,.3); transform: translateY(-1px);
-      box-shadow: 0 4px 14px rgba(240,165,0,.22);
-    }
-    .heb-cta:active { transform: translateY(0); }
-    @media (max-width: 640px) {
-      .heb-inner { padding: .875rem 1rem; gap: .875rem; }
-      .heb-stat-chip { min-width: 68px; padding: .4rem .625rem; }
-      .heb-chip-val { font-size: 1.2rem; }
-      .heb-title { font-size: .9375rem; }
-    }
-</style>
-<!-- ─── END CSS ─── -->
-
-
-<!-- ─── HTML: replace entire <div id="panel-home">...</div> ─── -->
     <!-- ══ HOME PANEL ══════════════════════════════════════ -->
     <div class="panel active" id="panel-home">
-
-      <!-- EXEC COMMAND BAR (leadership / data / kb only — shown/hidden by buildHome) -->
-      <div id="homeExecBar" style="display:none">
-        <div class="heb-inner">
-          <div class="heb-left">
-            <div class="heb-njtc-mark">
-              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 7h3.6L14.7 15.8V7H19.5v12H15.9L9.8 10.3V19H5V7z" fill="#f0a500"/>
-              </svg>
-            </div>
-            <div class="heb-text-block">
-              <div class="heb-title" id="homeExecTitle">Command Center</div>
-              <div class="heb-sub" id="homeExecSub">Live operational snapshot &middot; SY 2025&ndash;2026</div>
-            </div>
-          </div>
-          <div class="heb-stats">
-            <div class="heb-stat-chip heb-chip-score">
-              <div class="heb-chip-val" id="homeExecScore">&mdash;</div>
-              <div class="heb-chip-lbl">Weighted Score</div>
-            </div>
-            <div class="heb-stat-chip heb-chip-met">
-              <div class="heb-chip-val" id="homeExecMet">&mdash;</div>
-              <div class="heb-chip-lbl">Goals Met</div>
-            </div>
-            <button class="heb-cta" onclick="showPanel('kpi-analytics',document.querySelector('[data-panel=kpi-analytics]'))">
-              Full Analytics &rarr;
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- PAGE HEADER -->
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow" id="homeEyebrow">Department Overview</div>
@@ -5027,20 +5026,44 @@
           <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
         </div>
       </div>
-
-      <!-- EXECUTIVE ANALYTICS DASHBOARD (leadership/data/kb only — filled by leadership.js) -->
+      <!-- Exec dept welcome bar — leadership/data/kb only, shown by buildHome() -->
+      <div id="homeExecBar" style="display:none">
+        <div class="heb-wrap">
+          <div class="heb-glow"></div>
+          <div class="heb-left">
+            <div class="heb-mark">
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <path d="M3 6h3.2l5.1 7.1V6H15v10h-3.2L6.7 9V16H3V6z" fill="#f0a500"/>
+              </svg>
+            </div>
+            <div>
+              <div class="heb-title" id="homeExecTitle">Command Center</div>
+              <div class="heb-sub" id="homeExecSub">Live snapshot &middot; SY 2025&ndash;2026</div>
+            </div>
+          </div>
+          <div class="heb-right">
+            <div class="heb-chip">
+              <div class="heb-chip-n" id="homeExecScore">&mdash;</div>
+              <div class="heb-chip-l">Score</div>
+            </div>
+            <div class="heb-chip heb-chip-green">
+              <div class="heb-chip-n" id="homeExecMet">&mdash;</div>
+              <div class="heb-chip-l">Goals Met</div>
+            </div>
+            <button class="heb-btn" onclick="showPanel('kpi-analytics',document.querySelector('[data-panel=kpi-analytics]'))">Analytics &rarr;</button>
+          </div>
+        </div>
+      </div>
+      <!-- Executive Analytics Dashboard (leadership/data/kb only) -->
       <div id="execDashboard" style="display:none"></div>
-
-      <!-- KPI SUMMARY STRIP (non-exec depts — filled by shared-utils.js buildHome) -->
+      <!-- KPI summary strip -->
       <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
-
-      <!-- QUICK LINKS (dept-specific — filled by shared-utils.js buildHome) -->
+      <!-- Quick links -->
       <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
-
-      <!-- DEPT WIDGET (HR/Data: termination analytics; Programming: retention rate) -->
+      <!-- Department-specific widget (HR & Data: Termination Analytics; Programming: Retention Rate) -->
       <div id="homeDeptWidget"></div>
-
     </div>
+
 
     <!-- ══ SY ANALYTICS PANEL ════════════════════════════════════════ -->
     <div class="panel" id="panel-sy-analytics">
