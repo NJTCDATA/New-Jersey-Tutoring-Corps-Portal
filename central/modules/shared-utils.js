@@ -3362,13 +3362,13 @@
         }
       } else {
         lines.push('\n**OBSERVATIONAL CHECK-INS**: ' + (entity.hr && entity.hr._apprentice === 'Yes'
-          ? 'No observations logged yet. Open T&D Analytics for live view.'
+          ? 'No observations logged yet for this apprentice.'
           : 'No observations on file for this person.'));
       }
     } else {
-      // Obs maps not yet loaded (T&D Analytics hasn't been opened this session)
+      // Obs maps still loading in background — triggered at pieInit(), should resolve quickly
       if (entity.hr && entity.hr._apprentice === 'Yes') {
-        lines.push('\n**OBSERVATIONAL CHECK-INS**: Visit T&D Analytics → Tutor Obs tab to load live data, then re-ask.');
+        lines.push('\n**OBSERVATIONAL CHECK-INS**: Obs data is loading in the background — please ask again in a moment.');
       }
     }
 
@@ -6434,6 +6434,11 @@
 
   window.pieInit = function(dept) {
     _dept = dept || 'leadership';
+    // Pre-load obs maps in background — training-development.js is universal so this
+    // works for every department regardless of whether T&D Analytics is ever visited.
+    if (typeof window._njtcFetchObsData === 'function') {
+      window._njtcFetchObsData(); // async, idempotent — no-op if already loaded
+    }
     // Apply shift-aware status to trigger, drawer, sidebar
     _pieApplyShift();
     // Show trigger pill + sidebar entry

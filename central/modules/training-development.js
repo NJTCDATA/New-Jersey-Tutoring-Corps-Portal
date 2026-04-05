@@ -543,7 +543,11 @@
 
   // Fetch all 6 apprenticeship sheets in parallel
   async function fetchAllSheets() {
-    if (_apprParsed) return _apprParsed;
+    if (_apprParsed) {
+      // If sheets cached but obs maps not yet built (e.g. early-return before _buildObsMaps existed), build now
+      if (!window._njtcTutorObs || !window._njtcSLObs) _buildObsMaps(_apprParsed);
+      return _apprParsed;
+    }
     const keys = ['neOtj','swOtj','neTutorObs','swTutorObs','neSiteLeaderObs','swSiteLeaderObs'];
     const texts = await Promise.all(keys.map(k => fetchApprCSV(k)));
     const raw = {};
@@ -626,6 +630,9 @@
         }
       });
     } catch(e) { console.warn('[T&D] Obs overlay error:', e); }
+
+    // Build global obs maps for PIE + programming profiles
+    _buildObsMaps(_apprParsed);
 
     return _apprParsed;
   }
