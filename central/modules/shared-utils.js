@@ -3416,22 +3416,42 @@
     return { schools: Object.keys(schools), districts: Object.keys(districts) };
   }
 
-  // Extract the best-matching location from a query
+  // Extract the best-matching location from a query.
+  // Returns { type:'school'|'network'|'district', name, names[], label } or null.
+  // When multiple schools share a keyword (e.g. "iLearn" → 14 schools), returns network.
   function _extractLocation(q) {
     var qn = _normLoc(q);
     var locs = _knownLocs();
-    var best = null, bestScore = 0;
-    // Check schools first (more specific than districts)
-    locs.schools.forEach(function(s){
-      var sc = _locScore(qn, s);
-      if (sc > bestScore) { bestScore = sc; best = { type:'school', name:s }; }
-    });
-    // Check districts (need score ≥ 1 distinctive tokens)
-    locs.districts.forEach(function(d){
-      var sc = _locScore(qn, d);
-      if (sc > bestScore) { bestScore = sc; best = { type:'district', name:d }; }
-    });
-    return bestScore >= 1 ? best : null;
+
+    // Collect ALL schools with score >= 1
+    var matchedSchools = locs.schools.filter(function(s){ return _locScore(qn, s) >= 1; });
+
+    if (matchedSchools.length > 1) {
+      // Multiple schools share the keyword — treat as a network/CMO
+      var label = _networkLabel(qn, matchedSchools);
+      return { type:'network', names: matchedSchools, label: label, name: label };
+    }
+    if (matchedSchools.length === 1) {
+      return { type:'school', name: matchedSchools[0], names: [matchedSchools[0]] };
+    }
+
+    // Check districts
+    var matchedDistricts = locs.districts.filter(function(d){ return _locScore(qn, d) >= 1; });
+    if (matchedDistricts.length >= 1) {
+      return { type:'district', name: matchedDistricts[0], names: matchedDistricts };
+    }
+    return null;
+  }
+
+  // Find the distinctive keyword that matched a set of schools
+  function _networkLabel(queryNorm, schoolNames) {
+    var qtoks = queryNorm.split(' ').filter(function(t){ return t.length >= 4 && !_LOC_STOP.test(t); });
+    for (var i = 0; i < qtoks.length; i++) {
+      var tok = qtoks[i];
+      var hits = schoolNames.filter(function(s){ return _normLoc(s).indexOf(tok) >= 0; });
+      if (hits.length >= 2) return tok.charAt(0).toUpperCase() + tok.slice(1) + ' Network (' + hits.length + ' schools)';
+    }
+    return 'Network (' + schoolNames.length + ' schools)';
   }
 
   // Unified filtered attendance stats: apply a row-filter + optional temporal filter
@@ -3442,11 +3462,12 @@
     var filtered = rows.filter(rowFilter);
 
     // Temporal filter on top of location filter
+    var _toYMD = function(d){ var p=function(n){return n<10?'0'+n:''+n;}; return d.getFullYear()+''+p(d.getMonth()+1)+''+p(d.getDate()); };
     if (opts && opts.weekNum) {
       var rng = _schoolWeekRange(opts.weekNum);
       if (rng) {
-        var sm = rng.start.getTime(), em = rng.end.getTime() + 86400000 - 1;
-        filtered = filtered.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&d.getTime()>=sm&&d.getTime()<=em; });
+        // Use YYYYMMDD string comparison — DST-safe, no ms drift
+        filtered = filtered.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&_toYMD(d)>=rng.startYMD&&_toYMD(d)<=rng.endYMD; });
       }
     } else if (opts && opts.rangeLabel) {
       var dr = _dateRange(opts.rangeLabel);
@@ -3496,14 +3517,24 @@
     return msg;
   }
 
-  // Row filter factory: filter Pearl rows to a specific school or district
-  function _makeLocFilter(locName, type) {
-    var norm = _normLoc(locName.split(/[-,]/)[0]).trim(); // use first segment for partial matching
-    if (type === 'district') {
-      return function(r){ return r[12] && _normLoc(r[12]).indexOf(norm) >= 0; };
+  // Row filter factory — accepts full loc object OR legacy (name, type) string params
+  function _makeLocFilter(locOrName, typeArg) {
+    var loc = (locOrName && typeof locOrName === 'object' && locOrName.type)
+      ? locOrName
+      : { type: typeArg || 'school', name: locOrName, names: [locOrName] };
+
+    if (loc.type === 'network') {
+      // Match any of the exact school names
+      var normNames = (loc.names||[]).map(function(n){ return _normLoc(n); });
+      return function(r){ return r[11] && normNames.indexOf(_normLoc(r[11])) >= 0; };
     }
-    // For school, try to match against r[11]; also try HR_EMPS site field
-    return function(r){ return r[11] && (_normLoc(r[11]).indexOf(norm) >= 0 || _normLoc(norm).indexOf(_normLoc(r[11]).split(' ')[0]) >= 0); };
+    if (loc.type === 'district') {
+      var dnorm = _normLoc((loc.name||'').split(/[-,]/)[0]).trim();
+      return function(r){ return r[12] && _normLoc(r[12]).indexOf(dnorm) >= 0; };
+    }
+    // Single school — exact match by normalized name
+    var snorm = _normLoc(loc.name || locOrName);
+    return function(r){ return r[11] && _normLoc(r[11]) === snorm; };
   }
 
   // Full site profile response
@@ -3597,8 +3628,51 @@
     return msg.trim();
   }
 
+  // Network/CMO aggregate profile (multiple schools under one brand)
+  function _networkProfileResponse(loc) {
+    var label = loc.label || ('Network (' + (loc.names||[]).length + ' schools)');
+    var filter = _makeLocFilter(loc);
+    var stats = _attStatsFiltered(filter, { label: label + ' — All-time' });
+    var msg = '**' + label + ' — Aggregate Profile**\n\n';
+
+    // Attendance
+    if (stats && stats.found) {
+      var sI = stats.scholPct==null?'—':stats.scholPct>=85?'✅':stats.scholPct>=75?'⚠️':'🔴';
+      var tI = stats.tutorPct==null?'—':stats.tutorPct>=90?'✅':stats.tutorPct>=80?'⚠️':'🔴';
+      msg += '**ATTENDANCE (all ' + (loc.names||[]).length + ' schools combined)**\n';
+      if (stats.scholPct!=null) msg += sI+' Scholars: **'+stats.scholPct+'%** ('+stats.scholAtt+' present / '+stats.scholAbs+' absent'+(stats.siCount?' · '+stats.siCount+' SI':'')+') · '+stats.scholars+' unique scholars\n';
+      if (stats.tutorPct!=null) msg += tI+' Tutors: **'+stats.tutorPct+'%** ('+stats.tutorAtt+' present / '+stats.tutorAbs+' absent)\n';
+      msg += '📍 ~'+stats.sessions+' total sessions across '+((loc.names||[]).length)+' schools\n\n';
+    } else {
+      msg += '_Pearl data not loaded — open Pearl Operations._\n\n';
+    }
+
+    // Per-school breakdown
+    msg += '**BY SCHOOL:**\n';
+    (loc.names||[]).forEach(function(sName) {
+      var sf = _makeLocFilter({ type:'school', name:sName, names:[sName] });
+      var ss = _attStatsFiltered(sf, { label: sName });
+      var sShort = _locShortName(sName);
+      if (ss && ss.found && ss.scholPct!=null) {
+        var ic = ss.scholPct>=85?'✅':ss.scholPct>=75?'⚠️':'🔴';
+        msg += ic+' **'+sShort+'**: '+ss.scholPct+'% scholar · '+ss.scholars+' scholars · ~'+ss.sessions+' sessions\n';
+      } else {
+        msg += '— **'+sShort+'**: no data\n';
+      }
+    });
+
+    // Concerns across all sites
+    var normTok = _normLoc(loc.label||'').split(' ').filter(function(t){ return t.length>=4&&!_LOC_STOP.test(t); })[0]||'';
+    if (normTok) {
+      var cRecs = (window.CONCERNS||[]).filter(function(c){ return c.site && _normLoc(c.site).indexOf(normTok) >= 0; });
+      if (cRecs.length) msg += '\n**CONCERNS:** ' + cRecs.length + ' records across network sites\n';
+    }
+
+    return msg.trim();
+  }
+
   // Tutors at a site
-  function _tutorsAtSiteResponse(schoolName) {
+  function _tutorsAtSiteResponse(schoolName, loc) {
     var short = _locShortName(schoolName);
     var norm = _normLoc(schoolName.split(/[-,]/)[0]);
     // From HR_EMPS
@@ -3693,8 +3767,9 @@
   function _locationResponse(loc, q) {
     var name = loc.name, type = loc.type;
     var ql = (q||'').toLowerCase();
-    var short = _locShortName(name);
-    var filter = _makeLocFilter(name, type);
+    // Short display name: use network label for networks, locShortName for single school
+    var short = (type === 'network') ? loc.label : _locShortName(name);
+    var filter = _makeLocFilter(loc); // pass full loc object for accurate filtering
 
     // Sub-intent detection
     var wn  = q.match(/\b(?:wk|week)\s*(\d{1,2})\b/i);
@@ -3707,12 +3782,19 @@
     var wantProfile  = /profile|overview|summary|tell me about|how is .* doing|how.?s .* doing|everything about/i.test(ql);
 
     if (type === 'district') return _districtProfileResponse(name);
-    if (wantTutors)   return _tutorsAtSiteResponse(name);
-    if (wantLeader)   return _siteLeaderResponse(name);
-    if (wantScholars) return _scholarsAtSiteResponse(name);
+    if (wantTutors)   return _tutorsAtSiteResponse(name, loc);
+    if (wantLeader)   return _siteLeaderResponse(name, loc);
+    if (wantScholars) return _scholarsAtSiteResponse(name, loc);
     if (wantConcerns) {
-      var norm2 = _normLoc(name.split(/[-,]/)[0]);
-      var cRecs = (window.CONCERNS||[]).filter(function(c){ return c.site && _normLoc(c.site).indexOf(norm2) >= 0; });
+      // For networks, collect concerns across all matching schools
+      var cNorms = type === 'network'
+        ? (loc.names||[]).map(function(n){ return _normLoc(n); })
+        : [_normLoc(name.split(/[-,]/)[0])];
+      var cRecs = (window.CONCERNS||[]).filter(function(c){
+        if (!c.site) return false;
+        var csn = _normLoc(c.site);
+        return cNorms.some(function(n){ return csn.indexOf(n.split(' ')[0]) >= 0; });
+      });
       if (!cRecs.length) return 'No concern records found for **' + short + '**.';
       var sorted = cRecs.sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); });
       var msg3 = '**Concerns at ' + short + ' (' + cRecs.length + ' total):**\n\n';
@@ -3723,7 +3805,11 @@
       if (cRecs.length>5) msg3+='…and '+(cRecs.length-5)+' more\n';
       return msg3;
     }
-    if (wantProfile || (!wn && !period && !dt)) return _siteProfileResponse(name);
+    if (wantProfile || (!wn && !period && !dt)) {
+      // For a network, show aggregate attendance profile + school breakdown
+      if (type === 'network') return _networkProfileResponse(loc);
+      return _siteProfileResponse(name);
+    }
 
     // Temporal attendance drill-down
     var statOpts = { label: short };
@@ -4002,16 +4088,24 @@
     if (!weekNum || weekNum < 1 || weekNum > 52) return null;
     var now = new Date();
     var syStart = (now.getMonth() >= 7) ? now.getFullYear() : now.getFullYear() - 1;
-    // Find first Monday on or after Sep 1
-    var sep1 = new Date(syStart, 8, 1); // Sep = month 8 (0-indexed)
-    var dow = sep1.getDay(); // 0=Sun
+    // Find first Monday on or after Sep 1 using calendar arithmetic (no ms, avoids DST)
+    var sep1 = new Date(syStart, 8, 1); // Sep = month 8
+    var dow = sep1.getDay(); // 0=Sun, 1=Mon...
     var daysToMon = (dow === 0) ? 1 : (dow === 1) ? 0 : (8 - dow);
-    var week1Mon = new Date(syStart, 8, 1 + daysToMon);
-    // Week N starts (weekNum-1)*7 days after week1Mon
-    var wkStart = new Date(week1Mon.getTime() + (weekNum - 1) * 7 * 86400000);
-    var wkEnd   = new Date(wkStart.getTime() + 4 * 86400000); // Mon–Fri
-    var fmt = function(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
-    return { start: wkStart, end: wkEnd, label: 'Week ' + weekNum + ' (' + fmt(wkStart) + ' – ' + fmt(wkEnd) + ')' };
+    var week1DayOfSep = 1 + daysToMon;
+    // new Date(year, month, day) handles month overflow correctly — DST safe
+    var wkStartDay = week1DayOfSep + (weekNum - 1) * 7;
+    var wkStart = new Date(syStart, 8, wkStartDay);
+    var wkEnd   = new Date(syStart, 8, wkStartDay + 4); // Mon+4 = Fri
+    var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
+    // YYYYMMDD strings for DST-safe date comparison (avoids getTime() drift)
+    var toYMD = function(d){ return d.getFullYear()+''+pad(d.getMonth()+1)+''+pad(d.getDate()); };
+    var fmt = function(d){ return d.toLocaleDateString('en-US', { month:'short', day:'numeric' }); };
+    return {
+      start: wkStart, end: wkEnd,
+      startYMD: toYMD(wkStart), endYMD: toYMD(wkEnd),
+      label: 'Week ' + weekNum + ' (' + fmt(wkStart) + ' – ' + fmt(wkEnd) + ')'
+    };
   }
 
   // Attendance stats for a school week number
@@ -4021,10 +4115,11 @@
     if (!window.po || typeof window.po.getAttRows !== 'function') return null;
     var rows = window.po.getAttRows();
     if (!rows || !rows.length) return null;
-    var startMs = rng.start.getTime(), endMs = rng.end.getTime() + 86400000 - 1;
+    // DST-safe: compare YYYYMMDD strings, not timestamps
+    var toYMD2=function(d){var p=function(n){return n<10?'0'+n:''+n;};return d.getFullYear()+''+p(d.getMonth()+1)+''+p(d.getDate());};
     var filtered = rows.filter(function(r) {
       var d = _parseMMDDYYYY(r[5]);
-      return d && d.getTime() >= startMs && d.getTime() <= endMs;
+      return d && toYMD2(d) >= rng.startYMD && toYMD2(d) <= rng.endYMD;
     });
     if (!filtered.length) return { label: rng.label, found: false };
     var stu   = filtered.filter(function(r){ return r[1]==='Student'; });
