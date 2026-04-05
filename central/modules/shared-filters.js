@@ -38,11 +38,17 @@
     const mgmtTabs = document.querySelectorAll('.td-mgmt-tab');
     mgmtTabs.forEach(b => b.style.display = (dept === 'training') ? '' : 'none');
 
-    // Data dept: show T&D Analytics sidebar link + Executive PDF button
+    // Data dept: show T&D Analytics sidebar link
     const dataTDBtns = document.querySelectorAll('.dept-nav-td-data');
     dataTDBtns.forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
+    // T&D PDF button — visible for data, leadership, kb, and training depts
     const execPDFBtn = document.getElementById('tdExecPDFBtn');
-    if (execPDFBtn) execPDFBtn.style.display = (dept === 'data') ? '' : 'none';
+    if (execPDFBtn) {
+      const showPDF = ['data','leadership','kb','training'].includes(dept);
+      execPDFBtn.style.display = showPDF ? '' : 'none';
+      // Label varies by audience
+      if (showPDF) execPDFBtn.textContent = ['leadership','kb'].includes(dept) ? '📄 Executive PDF' : '📄 T&D Report PDF';
+    }
 
     // Pearl Operations PDF buttons — Data dept only
     document.querySelectorAll('.po-pdf-data-only').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');

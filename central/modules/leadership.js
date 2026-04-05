@@ -671,15 +671,11 @@
     </div>` : ''}
   </div>
   <div style="font-size:.6rem;color:#94a3b8;font-weight:600">Active on-site staff · Live HR sheet · ${_withR.length} of ${_tot} with race data on file</div>
-  ${_appPool.length ? `<div style="margin-top:.75rem;padding:.625rem .75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
-    <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.07em;margin-bottom:.4rem">🎓 Apprentice Cohort (${_appPool.length} active)
-      <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem" title="Apprentice flag comes from column K of the HR Master List. Updates with each live HR data sync.">ⓘ col K · HR Master List</span>
-    </div>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem">
-      ${_appNWPct!==null?`<div style="text-align:center;padding:.3rem .5rem;background:#fff;border-radius:6px;min-width:80px"><div style="font-size:.9rem;font-weight:900;color:#854d0e">${_appNWPct}%</div><div style="font-size:.53rem;color:#92400e;font-weight:700">Non-White</div><div style="font-size:.5rem;color:#94a3b8">${_appNW} of ${_appWithR.length}</div></div>`:''}
-      <div style="text-align:center;padding:.3rem .5rem;background:#fff;border-radius:6px;min-width:80px"><div style="font-size:.9rem;font-weight:900;color:#b45309">${_appHisp}</div><div style="font-size:.53rem;color:#92400e;font-weight:700">Hispanic/Latino</div></div>
-    </div>
-    ${_appRRows.length?`<div style="display:flex;flex-direction:column;gap:.25rem">${_appRRows.map(([r,n])=>{const p=_appWithR.length?Math.round(n/_appWithR.length*100):0;const isW=(r||'').toLowerCase()==='white';return `<div style="display:flex;align-items:center;gap:.3rem"><div style="font-size:.6rem;font-weight:600;color:#1e293b;width:100px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r}</div><div style="flex:1;height:4px;background:#fef9c3;border-radius:99px;overflow:hidden"><div style="height:100%;width:${p}%;background:${isW?'#cbd5e1':'#d97706'};border-radius:99px"></div></div><div style="font-size:.58rem;font-weight:700;color:${isW?'#94a3b8':'#d97706'};width:24px;text-align:right">${p}%</div></div>`;}).join('')}</div>`:'<div style="font-size:.6rem;color:#94a3b8;font-style:italic">Race data available after live HR sync</div>'}
+  ${_appPool.length ? `<div style="margin-top:.625rem;display:inline-flex;align-items:center;gap:.5rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.4rem .75rem">
+    <span style="font-size:1rem">🎓</span>
+    <span style="font-size:.8125rem;font-weight:800;color:#92400e">${_appPool.length}</span>
+    <span style="font-size:.7rem;color:#a16207;font-weight:600">Active Apprentices</span>
+    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="Apprentice flag from column K · HR Master List">ⓘ</span>
   </div>` : ''}
 </div>`;
       }())}
