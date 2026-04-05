@@ -3222,6 +3222,27 @@
       lines.push('\n**ATTENDANCE (Pearl)**');
       lines.push(attIcon + ' Rate: **' + tutor.attRate + '%** (' + tutor.attended + ' attended / ' + (tutor.absent||0) + ' absent · ' + tutor.total + ' total sessions)');
       if (tutor.school) lines.push('📍 Site: ' + tutor.school + (tutor.district ? ' · ' + tutor.district : ''));
+
+      // ── Scholar Survey Scores — per-tutor (r[1]=FILLED_FOR=tutor name) ──
+      try {
+        var stuRows = window.po && typeof window.po.getStuRows === 'function' ? window.po.getStuRows() : [];
+        if (stuRows.length) {
+          var tutorSurveys = stuRows.filter(function(r){ return r[1] && _nameMatch(r[1], name); });
+          if (tutorSurveys.length) {
+            function _survAvg(col) {
+              var vals = tutorSurveys.map(function(r){ return parseFloat(r[col]); }).filter(function(v){ return !isNaN(v) && v > 0; });
+              return vals.length ? parseFloat((vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(2)) : null;
+            }
+            var sConf = _survAvg(2), sEnjoy = _survAvg(3), sLearn = _survAvg(4), sOverall = _survAvg(5);
+            var sIcon = sOverall!=null ? (sOverall>=4?'✅':sOverall>=3?'⚠️':'🔴') : '';
+            lines.push('\n**SCHOLAR SURVEY SCORES** ' + sIcon + ' (' + tutorSurveys.length + ' responses)');
+            if (sConf    != null) lines.push('• Confidence: **' + sConf + '/5**');
+            if (sEnjoy   != null) lines.push('• Enjoyment:  **' + sEnjoy + '/5**');
+            if (sLearn   != null) lines.push('• Learning:   **' + sLearn + '/5**');
+            if (sOverall != null) lines.push('• Overall:    **' + sOverall + '/5**');
+          }
+        }
+      } catch(e2) {}
     }
 
     // ── HR Profile ────────────────────────────────────────────────────────
@@ -4340,6 +4361,43 @@
     return lines.join('\n');
   }
 
+  // Build SI school breakdown from raw ATT rows
+  function _siSchoolBreakdown(rows) {
+    var siRows = (rows||[]).filter(function(r){ return r[1]==='Student' && _isScholSI(r); });
+    if (!siRows.length) return '';
+    var bySchool = {};
+    siRows.forEach(function(r){
+      var school = r[11] || 'Unknown School';
+      var reason = r[7] || 'Unknown reason';
+      var date   = r[5] || '';
+      if (!bySchool[school]) bySchool[school] = { count:0, reasons:{}, dates:[] };
+      bySchool[school].count++;
+      bySchool[school].reasons[reason] = (bySchool[school].reasons[reason]||0)+1;
+      if (date && bySchool[school].dates.indexOf(date)<0) bySchool[school].dates.push(date);
+    });
+    var lines = ['\n**SI Breakdown by School:**'];
+    Object.keys(bySchool).sort(function(a,b){ return bySchool[b].count-bySchool[a].count; }).forEach(function(school){
+      var s = bySchool[school];
+      var topReason = Object.keys(s.reasons).sort(function(a,b){ return s.reasons[b]-s.reasons[a]; })[0];
+      var datesStr = s.dates.sort().slice(0,4).join(', ');
+      lines.push('• **'+school+'** — '+s.count+' SI'+(s.count!==1?'s':'')+
+        (topReason ? ' · _'+topReason+'_' : '')+
+        (datesStr ? ' ('+datesStr+')' : ''));
+    });
+    return lines.join('\n');
+  }
+
+  // Resolve the best temporal filter from a query string → returns {weekNum} | {rangeLabel} | {date} | null
+  function _detectTemporalCtx(q) {
+    var wn = (q||'').match(/\b(?:wk|week)\s*(\d{1,2})\b/i);
+    if (wn) return { weekNum: parseInt(wn[1]) };
+    var period = _detectPeriod(q);
+    if (period) return { rangeLabel: period };
+    var dt = _extractDate(q);
+    if (dt) return { date: dt };
+    return null;
+  }
+
   // ── Resolve a pending clarification ──────────────────────────────────────
   function _resolvePending(pq, q) {
     var ql = (q||'').toLowerCase();
@@ -4436,35 +4494,103 @@
       }
     },
 
-    // Service interruption
-    { match: /service interruption|what is (a|an) si\b|si count|si total|how many si/i,
+    // Service interruption — temporal-aware: handles week N, last/this week, specific dates, or definition-only
+    { match: /service.?interrupt|si.?(count|total|break|by.?school|by.?site|week|month|day|\bfor\b|\bin\b)|how many si|si rate|\bsi\b.*(last|this|week|wk|month|\d)|interruption.*(week|wk|last|this|month|day|when|how|how many|break)/i,
       respond: function() {
-        var p = _pearl();
-        var base = '**Service interruption (SI):** A session disruption caused by something other than a scholar absence — tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences.';
-        if (p && p.siCount != null) return base + '\n\nCurrent SI count: **' + _n(p.siCount) + '** logged this period.';
-        return base + '\n\nPearl data is still loading — check the Pearl Operations panel for the live count.';
+        var q = _lastQ || '';
+        var defOnly = /^what is (a|an) si\b|^what.?s a service interruption|^define.*(service interruption|si\b)/i.test(q.trim());
+        var base = '**Service interruption (SI):** A session disruption caused by something other than a scholar absence — school holidays, site closures, admin cancellations, tutor no-shows.';
+        if (defOnly) {
+          var p = _pearl();
+          if (p && p.siCount != null) return base + '\n\nAll-time SI count this program year: **' + _n(p.siCount) + '**';
+          return base;
+        }
+        if (!window.po || typeof window.po.getAttRows !== 'function')
+          return base + '\n\nPearl data not loaded — open Pearl Operations first, then ask again.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return base + '\n\nNo Pearl session records found yet.';
+
+        // Detect temporal context
+        var ctx = _detectTemporalCtx(q);
+        var filtered, periodLabel, dateRange;
+
+        if (ctx && ctx.weekNum) {
+          var wkLabel = 'Week ' + ctx.weekNum;
+          filtered = rows.filter(function(r){ return r[26] === wkLabel; });
+          var rng = _schoolWeekRange(ctx.weekNum);
+          periodLabel = rng ? wkLabel + ' (' + rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')' : wkLabel;
+        } else if (ctx && ctx.rangeLabel) {
+          var dr = _dateRange(ctx.rangeLabel);
+          if (dr) {
+            var sm = dr.start.getTime(), em = dr.end.getTime()+86400000-1;
+            filtered = rows.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&d.getTime()>=sm&&d.getTime()<=em; });
+            periodLabel = dr.label + ' (' + dr.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + dr.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ')';
+          }
+        } else if (ctx && ctx.date) {
+          var pad = function(n){ return n<10?'0'+n:''+n; };
+          var target = pad(ctx.date.mo)+'/'+pad(ctx.date.day)+'/'+ctx.date.yr;
+          filtered = rows.filter(function(r){ return r[5]===target; });
+          periodLabel = ctx.date.label;
+        }
+
+        if (!filtered) {
+          // No temporal context — show all-time + breakdown
+          filtered = rows;
+          var p2 = _pearl();
+          periodLabel = 'Program Year (all sessions)';
+          if (p2 && p2.siCount != null) {
+            var msg0 = base + '\n\n🚫 **' + _n(p2.siCount) + ' SIs** logged program-year to date.\n';
+            msg0 += _siSchoolBreakdown(rows);
+            msg0 += '\n\nAsk "service interruptions week 5" or "SIs last week" for period-specific detail.';
+            return msg0;
+          }
+        }
+
+        var siRows = filtered.filter(function(r){ return r[1]==='Student' && _isScholSI(r); });
+        var totalSess = new Set(); filtered.forEach(function(r){ if(r[2]&&r[5]) totalSess.add(r[2]+'|'+r[5]); });
+        var msg = '**Service Interruptions — ' + periodLabel + '**\n\n';
+        msg += '🚫 **' + siRows.length + ' SI' + (siRows.length!==1?'s':'') + '** across **' + totalSess.size + '** session(s)';
+        if (totalSess.size > 0) msg += ' (' + Math.round(siRows.length/totalSess.size*100) + '% SI rate)';
+        msg += '\n';
+        if (!siRows.length) {
+          msg += '\n✅ No service interruptions recorded for this period.';
+        } else {
+          msg += _siSchoolBreakdown(filtered);
+        }
+        return msg;
       }
     },
 
-    // School week attendance ("wk 25", "week 25 attendance", "what happened in week 12")
+    // School week summary ("wk 25", "week 25 attendance", "what happened week 12", "week 5 summary")
     { match: /\b(wk|week)\s*(\d{1,2})\b/i,
       respond: function() {
-        var m = _lastQ.match(/\b(?:wk|week)\s*(\d{1,2})\b/i);
+        var m = (_lastQ||'').match(/\b(?:wk|week)\s*(\d{1,2})\b/i);
         if (!m) return 'Please specify a week number — e.g. "attendance for week 25" or "wk 12".';
         var wn = parseInt(m[1]);
         var rng = _schoolWeekRange(wn);
         if (!rng) return 'Week ' + wn + ' is out of range (1–52).';
         var s = _attStatsForWeek(wn);
         if (!s) return 'Pearl data not loaded — open Pearl Operations first, then try again.';
-        if (!s.found) return 'No attendance records found for **' + rng.label + '**. Sessions may not have run that week, or Pearl data may not cover that range.';
+        if (!s.found) return 'No session records found for **' + rng.label + '**. Sessions may not have run that week, or Pearl data may not cover that range.';
         var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
         var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
-        var msg = '**Attendance — ' + s.label + '**\n\n';
-        if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present / ' + s.scholAbs + ' absent' + (s.siCount ? ' · ' + s.siCount + ' SI' : '') + ')\n';
+        var msg = '**Week ' + wn + ' — ' + rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' + rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '**\n\n';
+        if (s.scholPct != null) msg += scholIcon + ' **Scholars:** ' + s.scholPct + '% (' + s.scholAtt + ' present · ' + s.scholAbs + ' absent)\n';
         else msg += '— No scholar records for this week.\n';
-        if (s.tutorPct != null) msg += tutorIcon + ' **Tutors:** ' + s.tutorPct + '% (' + s.tutorAtt + ' present / ' + s.tutorAbs + ' absent)\n';
+        if (s.tutorPct != null) msg += tutorIcon + ' **Tutors:** ' + s.tutorPct + '% (' + s.tutorAtt + ' present · ' + s.tutorAbs + ' absent)\n';
         else msg += '— No tutor records for this week.\n';
-        msg += '\n📍 ' + s.schools + ' site(s) · ~' + s.sessions + ' session(s)';
+        msg += '📍 ' + s.schools + ' site(s) · ~' + s.sessions + ' session(s)';
+        // SI breakdown when there are interruptions
+        if (s.siCount > 0) {
+          msg += '\n🚫 **' + s.siCount + ' service interruption' + (s.siCount!==1?'s':'') + '** this week';
+          if (window.po && typeof window.po.getAttRows === 'function') {
+            var allRows = window.po.getAttRows() || [];
+            var wkRows = allRows.filter(function(r){ return r[26]==='Week '+wn; });
+            msg += _siSchoolBreakdown(wkRows);
+          }
+        } else {
+          msg += '\n✅ No service interruptions this week.';
+        }
         return msg;
       }
     },
@@ -4959,6 +5085,16 @@
         c.forEach(function(r){ var t=r.concern_type||'Unspecified'; tMap[t]=(tMap[t]||0)+1; });
         var sorted = Object.entries(tMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
         return '**Concern types on file:**\n' + sorted.map(function(e){ return '• ' + e[0] + ': **' + e[1] + '**'; }).join('\n');
+      }
+    },
+
+    // Per-tutor scholar survey scores ("enjoyment score for Micaela", "what do scholars say about X", "survey score for X")
+    { match: /(?:survey|enjoyment|confidence|learning|satisfaction|feedback|scholar.*feel|scholar.*think|overall score|what do scholars|scholar.*rate|rate.*scholar).{0,30}(?:for|of|about|from)\s+[A-Z]|[A-Z][a-z]+.{0,20}(?:survey|enjoyment|confidence|satisfaction|scholar.*score|scholar.*rating|scholar.*feedback|scholar.*think|scholar.*feel)/,
+      respond: function() {
+        var q = _lastQ || '';
+        var entity = _extractPerson(q);
+        if (entity) return _personResponse(entity, q);
+        return 'Type the tutor\'s full name — e.g. "survey score for Micaela Wilkerson" or "what do scholars say about [name]".';
       }
     },
 
@@ -5568,27 +5704,46 @@
       }
     },
 
-    // SIs for a period
-    { match: /\b(service interruption|si count|how many si).*(last week|this week|last month|this month|last 7|last 30)|(last|this).*(week|month).*(si|service interruption)/i,
+    // What happened / summary for a period or week number
+    { match: /what.*(happen|occur|go on|took place).*(last week|this week|last month|yesterday|week\s*\d)|((last|this) week|last month|week\s*\d+).*(summary|recap|update|rundown|overview)/i,
       respond: function() {
-        var period = _detectPeriod(_lastQ) || 'last_week';
-        var s = _attStatsForRange(period);
-        if (!s || !s.rows) return 'No data found for that period.';
-        var msg = '**Service Interruptions — '+s.label+' ('+s.start+' – '+s.end+'):**\n\n';
-        msg += '🚫 **'+s.siCount+'** service interruptions\n';
-        msg += '📋 '+s.sessions+' sessions total in this period\n';
-        if (s.sessions>0) msg += 'SI rate: **'+Math.round(s.siCount/s.sessions*100)+'%** of sessions interrupted';
-        return msg;
-      }
-    },
-
-    // What happened / summary for a period
-    { match: /what.*(happen|happen|occur|go on|took place).*(last week|this week|last month|yesterday)|(last week|this week|last month).*(summary|recap|update|rundown|overview)/i,
-      respond: function() {
-        var period = _detectPeriod(_lastQ) || 'last_week';
-        var s = _attStatsForRange(period);
-        if (!s || !s.rows) return 'No session data found for '+period.replace('_',' ')+'. Pearl may not have records that far back.';
-        return _fmtPeriodStats(s);
+        var ctx = _detectTemporalCtx(_lastQ||'');
+        if (ctx && ctx.weekNum) {
+          var wn = ctx.weekNum;
+          var rng = _schoolWeekRange(wn);
+          var s = _attStatsForWeek(wn);
+          if (!s) return 'Pearl data not loaded — open Pearl Operations first.';
+          if (!s.found) return 'No session records found for **Week ' + wn + '**. Sessions may not have run that week.';
+          var scholIcon = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
+          var tutorIcon = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
+          var msg = '**Week '+wn+' Summary — '+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'**\n\n';
+          msg += scholIcon+' Scholars: **'+(s.scholPct!=null?s.scholPct+'%':'—')+'** ('+s.scholAtt+' present · '+s.scholAbs+' absent)\n';
+          msg += tutorIcon+' Tutors: **'+(s.tutorPct!=null?s.tutorPct+'%':'—')+'** ('+s.tutorAtt+' present · '+s.tutorAbs+' absent)\n';
+          msg += '📍 '+s.schools+' site(s) · ~'+s.sessions+' session(s)';
+          if (s.siCount > 0) {
+            msg += '\n🚫 **'+s.siCount+' service interruption'+(s.siCount!==1?'s':'')+'** this week';
+            if (window.po && typeof window.po.getAttRows === 'function') {
+              var wkRows = (window.po.getAttRows()||[]).filter(function(r){ return r[26]==='Week '+wn; });
+              msg += _siSchoolBreakdown(wkRows);
+            }
+          } else {
+            msg += '\n✅ No service interruptions this week.';
+          }
+          return msg;
+        }
+        var period = _detectPeriod(_lastQ||'') || 'last_week';
+        var s2 = _attStatsForRange(period);
+        if (!s2 || !s2.rows) return 'No session data found for '+period.replace('_',' ')+'. Pearl may not have records that far back.';
+        var result = _fmtPeriodStats(s2);
+        if (s2.siCount > 0 && window.po && typeof window.po.getAttRows === 'function') {
+          var dr = _dateRange(period);
+          if (dr) {
+            var sm = dr.start.getTime(), em = dr.end.getTime()+86400000-1;
+            var pRows = (window.po.getAttRows()||[]).filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&d.getTime()>=sm&&d.getTime()<=em; });
+            result += _siSchoolBreakdown(pRows);
+          }
+        }
+        return result;
       }
     },
 
