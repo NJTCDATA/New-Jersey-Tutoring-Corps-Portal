@@ -4889,8 +4889,137 @@
   <!-- Main -->
   <main class="ct-main">
 
+    <!-- ═══════════════════════════════════════════════════════════
+  NJTC PORTAL — HOME PANEL FULL REPLACEMENT
+  
+  STEP 1 — ADD FONT (if not already in <head>):
+  Add to your existing Google Fonts link, merge with current:
+  family=Syne:wght@700;800&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600;700
+  
+  STEP 2 — ADD CSS:
+  In the <style> block, find:  #execDashboard {
+  Paste the CSS below immediately BEFORE that rule.
+  
+  STEP 3 — REPLACE HTML:
+  Find the comment:  <!-- ══ HOME PANEL ══
+  Replace the entire  <div class="panel active" id="panel-home">...</div>
+  block with the HTML at the bottom of this file.
+═══════════════════════════════════════════════════════════ -->
+
+<!-- ─── CSS: paste into <style> BEFORE #execDashboard { ─── -->
+<style id="njtc-home-exec-bar-css">
+    /* ════════════════════════════════════════════════════
+       HOME EXEC BAR — Command strip (leadership/data/kb)
+    ════════════════════════════════════════════════════ */
+    #homeExecBar {
+      background: linear-gradient(135deg, #0a1628 0%, #0d2847 55%, #0a1628 100%);
+      border-radius: 14px;
+      border: 1px solid rgba(240,165,0,.22);
+      margin-bottom: 1.25rem;
+      box-shadow: 0 8px 32px rgba(10,22,40,.2), 0 0 0 1px rgba(240,165,0,.08);
+      overflow: hidden;
+      position: relative;
+    }
+    #homeExecBar::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 25% 0%, rgba(240,165,0,.08) 0%, transparent 65%),
+                  radial-gradient(ellipse at 80% 100%, rgba(0,80,200,.06) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .heb-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 1.5rem; gap: 1.25rem; flex-wrap: wrap; position: relative; z-index: 1;
+    }
+    .heb-left { display: flex; align-items: center; gap: .875rem; }
+    .heb-njtc-mark {
+      width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0;
+      background: rgba(240,165,0,.12); border: 1px solid rgba(240,165,0,.28);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .heb-text-block { display: flex; flex-direction: column; gap: .15rem; }
+    .heb-title {
+      font-family: 'Syne', 'DM Sans', sans-serif;
+      font-size: 1.0625rem; font-weight: 800; color: #fff;
+      letter-spacing: -.025em; line-height: 1.15;
+    }
+    .heb-sub { font-size: .6875rem; color: rgba(255,255,255,.42); font-weight: 500; }
+    .heb-stats { display: flex; align-items: center; gap: .625rem; flex-wrap: wrap; }
+    .heb-stat-chip {
+      display: flex; flex-direction: column; align-items: center;
+      background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 10px; padding: .5rem .875rem; min-width: 80px; text-align: center;
+    }
+    .heb-chip-score { border-color: rgba(240,165,0,.35); background: rgba(240,165,0,.12); }
+    .heb-chip-met   { border-color: rgba(42,157,143,.35); background: rgba(42,157,143,.1); }
+    .heb-chip-val {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.4rem; font-weight: 400; color: #fff; line-height: 1; letter-spacing: -.02em;
+    }
+    .heb-chip-score .heb-chip-val { color: #f0a500; }
+    .heb-chip-met   .heb-chip-val { color: #2fd3be; }
+    .heb-chip-lbl {
+      font-size: .585rem; font-weight: 700; color: rgba(255,255,255,.38);
+      text-transform: uppercase; letter-spacing: .08em; margin-top: .2rem; white-space: nowrap;
+    }
+    .heb-cta {
+      background: rgba(240,165,0,.18); border: 1px solid rgba(240,165,0,.42);
+      color: #f0a500; border-radius: 9px; padding: .5rem 1.125rem;
+      font-size: .8125rem; font-weight: 700; font-family: inherit; cursor: pointer;
+      letter-spacing: .01em; white-space: nowrap;
+      transition: background .17s ease, transform .17s ease, box-shadow .17s ease;
+    }
+    .heb-cta:hover {
+      background: rgba(240,165,0,.3); transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(240,165,0,.22);
+    }
+    .heb-cta:active { transform: translateY(0); }
+    @media (max-width: 640px) {
+      .heb-inner { padding: .875rem 1rem; gap: .875rem; }
+      .heb-stat-chip { min-width: 68px; padding: .4rem .625rem; }
+      .heb-chip-val { font-size: 1.2rem; }
+      .heb-title { font-size: .9375rem; }
+    }
+</style>
+<!-- ─── END CSS ─── -->
+
+
+<!-- ─── HTML: replace entire <div id="panel-home">...</div> ─── -->
     <!-- ══ HOME PANEL ══════════════════════════════════════ -->
     <div class="panel active" id="panel-home">
+
+      <!-- EXEC COMMAND BAR (leadership / data / kb only — shown/hidden by buildHome) -->
+      <div id="homeExecBar" style="display:none">
+        <div class="heb-inner">
+          <div class="heb-left">
+            <div class="heb-njtc-mark">
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 7h3.6L14.7 15.8V7H19.5v12H15.9L9.8 10.3V19H5V7z" fill="#f0a500"/>
+              </svg>
+            </div>
+            <div class="heb-text-block">
+              <div class="heb-title" id="homeExecTitle">Command Center</div>
+              <div class="heb-sub" id="homeExecSub">Live operational snapshot &middot; SY 2025&ndash;2026</div>
+            </div>
+          </div>
+          <div class="heb-stats">
+            <div class="heb-stat-chip heb-chip-score">
+              <div class="heb-chip-val" id="homeExecScore">&mdash;</div>
+              <div class="heb-chip-lbl">Weighted Score</div>
+            </div>
+            <div class="heb-stat-chip heb-chip-met">
+              <div class="heb-chip-val" id="homeExecMet">&mdash;</div>
+              <div class="heb-chip-lbl">Goals Met</div>
+            </div>
+            <button class="heb-cta" onclick="showPanel('kpi-analytics',document.querySelector('[data-panel=kpi-analytics]'))">
+              Full Analytics &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE HEADER -->
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow" id="homeEyebrow">Department Overview</div>
@@ -4898,59 +5027,20 @@
           <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
         </div>
       </div>
-      <!-- Exec dept welcome bar — only shown for leadership/data/kb -->
-      <div id="homeExecBar" style="display:none;
-        background: linear-gradient(135deg, var(--navy-deep) 0%, #0d2847 100%);
-        border-radius: 16px;
-        padding: 1.5rem 2rem;
-        margin-bottom: 1.75rem;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1.5rem;
-        flex-wrap: wrap;
-        box-shadow: 0 4px 24px rgba(0,0,0,.2);
-        border: 1px solid rgba(255,255,255,.06);
-        position: relative;
-        overflow: hidden;">
-        <!-- Dept glow orb -->
-        <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;
-          background:radial-gradient(circle,var(--dept-glow),transparent 70%);
-          pointer-events:none"></div>
-        <div style="position:relative;z-index:1">
-          <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.625rem;
-            color:#fff;letter-spacing:-.02em;line-height:1.1" id="homeExecTitle">
-            Executive Command Center
-          </div>
-          <div style="font-size:.8125rem;color:rgba(255,255,255,.5);margin-top:.375rem"
-            id="homeExecSub">Live operational snapshot · Loading…</div>
-        </div>
-        <div style="display:flex;gap:.75rem;position:relative;z-index:1;flex-wrap:wrap">
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
-            border-radius:10px;padding:.75rem 1.25rem;text-align:center;min-width:90px">
-            <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.75rem;
-              color:var(--dept-accent);line-height:1" id="homeExecScore">—</div>
-            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;
-              letter-spacing:.06em;color:rgba(255,255,255,.4);margin-top:.25rem">KPI Score</div>
-          </div>
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
-            border-radius:10px;padding:.75rem 1.25rem;text-align:center;min-width:90px">
-            <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.75rem;
-              color:#fff;line-height:1" id="homeExecMet">—</div>
-            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;
-              letter-spacing:.06em;color:rgba(255,255,255,.4);margin-top:.25rem">Goals Met</div>
-          </div>
-        </div>
-      </div>
-      <!-- Executive Analytics Dashboard (leadership/data/kb only) -->
-      <div id="execDashboard" style="display:none"></div>
-      <!-- KPI summary strip -->
-      <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
-      <!-- Quick links -->
-      <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
-      <!-- Department-specific widget (HR & Data: Termination Analytics; Programming: Retention Rate) -->
-      <div id="homeDeptWidget"></div>
-    </div>
 
+      <!-- EXECUTIVE ANALYTICS DASHBOARD (leadership/data/kb only — filled by leadership.js) -->
+      <div id="execDashboard" style="display:none"></div>
+
+      <!-- KPI SUMMARY STRIP (non-exec depts — filled by shared-utils.js buildHome) -->
+      <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
+
+      <!-- QUICK LINKS (dept-specific — filled by shared-utils.js buildHome) -->
+      <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
+
+      <!-- DEPT WIDGET (HR/Data: termination analytics; Programming: retention rate) -->
+      <div id="homeDeptWidget"></div>
+
+    </div>
 
     <!-- ══ SY ANALYTICS PANEL ════════════════════════════════════════ -->
     <div class="panel" id="panel-sy-analytics">
