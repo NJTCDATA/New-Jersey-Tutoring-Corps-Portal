@@ -246,7 +246,7 @@
   // Paste the Google Drive File ID of your Operations Manual below.
   // Get it from the share URL: drive.google.com/file/d/FILE_ID_HERE/view
   // Once set, every policy card will link directly to the correct section.
-  const OPS_MANUAL_FILE_ID = 'PASTE_YOUR_OPERATIONS_MANUAL_FILE_ID_HERE';
+  const OPS_MANUAL_FILE_ID = '1RDGWYWngPhasxpZdBAJDvPjhEfwFrSOLMHUc-0qkeVk';
   const OPS_MANUAL_URL = OPS_MANUAL_FILE_ID.startsWith('PASTE')
     ? 'https://drive.google.com/drive/folders/1AflTMfemn1NuRK95PnBJk5a1b6QTPeiG'
     : `https://drive.google.com/file/d/${OPS_MANUAL_FILE_ID}/view`;
