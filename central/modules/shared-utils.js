@@ -3416,19 +3416,31 @@
     var el = document.getElementById('pieChips');
     if (!el) return;
     var suggestions = PIE_SUGGESTIONS[_panel] || PIE_SUGGESTIONS['home'];
-    el.innerHTML = suggestions.map(function(s) {
-      return '<button class="pie-chip" onclick="pieAsk(' + JSON.stringify(s) + ')">' + s + '</button>';
-    }).join('');
+    el.innerHTML = '<span class="pie-chips-label">Suggested</span>' +
+      suggestions.map(function(s) {
+        // Use single-quoted string in onclick to avoid double-quote breakage in HTML attributes
+        var safe = s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        return '<button class="pie-chip" onclick="pieAsk(\'' + safe + '\')">' + s + '</button>';
+      }).join('');
   }
 
   // ── Add message to thread ─────────────────────────────────────────────────
   function _addMsg(role, text) {
     var msgs = document.getElementById('pieMessages');
     if (!msgs) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'pie-msg-wrap ' + (role === 'user' ? 'user' : '');
+    if (role !== 'user') {
+      var av = document.createElement('div');
+      av.className = 'pie-msg-avatar';
+      av.textContent = 'PIE';
+      wrap.appendChild(av);
+    }
     var div = document.createElement('div');
     div.className = 'pie-msg ' + role;
     div.innerHTML = _fmt(text);
-    msgs.appendChild(div);
+    wrap.appendChild(div);
+    msgs.appendChild(wrap);
     msgs.scrollTop = msgs.scrollHeight;
   }
 
@@ -3473,12 +3485,12 @@
     if (_open && !document.getElementById('pieMessages').children.length) {
       // First open — show welcome
       var welcomes = {
-        leadership: 'Good to see you. I\'m PIE — I can explain what you\'re looking at anywhere in the portal, pull context from live data, or help you find information quickly.',
-        data:       'Data & Evaluation view loaded. I have access to all live metrics — KPI, Pearl, iReady, concerns. What do you need?',
-        hr:         'HR view. I can pull workforce concern counts, attendance benchmarks, or KPI status. What would you like to know?',
-        programming:'Program view. I can pull Pearl session counts, site data, attendance, and goal status. Ask away.',
-        training:   'Training view. I can pull PD satisfaction context, KPI status, or Pearl program data. What\'s on your mind?',
-        kb:         'Hi — I\'m PIE. Live access to KPI scores, program stats, and workforce data. What would you like to know?',
+        leadership: 'PIE here — assistant to the Director of Program Evaluation & Impact. I read live portal data and brief you in plain English. KPI scores, Pearl operations, iReady growth, concerns — ask anything.',
+        data:       'PIE here. Data & Evaluation view active. I\'m your PEI assistant — full live access to KPIs, Pearl, iReady diagnostics, and concerns. What do you need?',
+        hr:         'PIE here. HR view active. I can surface concern counts, workforce risk signals, attendance benchmarks, or KPI status on demand. What do you need?',
+        programming:'PIE here. Program view active — Pearl session counts, site performance, scholar attendance, and goal status all live. What do you need?',
+        training:   'PIE here. Training view loaded — PD satisfaction data, intake ratings, apprenticeship status, and KPI context available. What do you need?',
+        kb:         'PIE here. Executive view active. Live KPI scores, program stats, workforce signals, and impact metrics — ready when you are.',
       };
       _addMsg('pie', welcomes[_dept] || welcomes.leadership);
       _renderChips();
@@ -3510,9 +3522,15 @@
   window.pieInit = function(dept) {
     _dept = dept || 'leadership';
     var sub = document.getElementById('pieHeaderSub');
-    var labels = { leadership:'Leadership view', data:'Data & Evaluation', hr:'HR view',
-                   programming:'Program view', training:'Training view', kb:'Executive view' };
-    if (sub) sub.textContent = labels[_dept] || 'Portal Intelligence Engine';
+    var labels = {
+      leadership: 'Assistant to the Director of PEI · Leadership',
+      data:       'Assistant to the Director of PEI · Data & Evaluation',
+      hr:         'Assistant to the Director of PEI · HR',
+      programming:'Assistant to the Director of PEI · Programming',
+      training:   'Assistant to the Director of PEI · Training',
+      kb:         'Assistant to the Director of PEI · Executive',
+    };
+    if (sub) sub.textContent = labels[_dept] || 'Assistant to the Director of PEI';
     var trigger = document.getElementById('pieTrigger');
     if (trigger) trigger.style.display = '';
     _renderChips();
@@ -3520,6 +3538,20 @@
 
   window.pieSetPanel = function(panelKey) {
     _panel = (panelKey || 'home').replace(/^panel-/,'');
+    // Update context badge
+    var badge = document.getElementById('pieCtxBadge');
+    if (badge) {
+      var panelLabels = {
+        'home':'Home', 'kpi':'KPI', 'kpi-analytics':'KPI Analytics',
+        'pearl-ops':'Pearl Ops', 'sy-analytics':'Site Analytics',
+        'talent':'Talent', 'concern':'Concerns', 'iready-lab':'iReady',
+        'training-analytics':'T&D', 'policies':'Policies',
+        'impact-report':'Impact', 'finance-analytics':'Finance', 'perf':'Performance',
+      };
+      var lbl = panelLabels[_panel];
+      if (lbl) { badge.textContent = lbl; badge.style.display = ''; }
+      else       { badge.style.display = 'none'; }
+    }
     _renderChips();
   };
 
