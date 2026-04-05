@@ -665,8 +665,28 @@
 
     // Update header
     document.getElementById('homeEyebrow').textContent = cfg.label;
-    document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
-    document.getElementById('homeSubtitle').textContent = cfg.tagline;
+
+    // ── Dept-specific hero messaging ──────────────────────────────────────
+    const heroMessages = {
+      hr:          { headline: `${cfg.emoji} People Operations`,       sub: 'Workforce health, retention pipeline, and HR actions — all in one place.' },
+      finance:     { headline: `${cfg.emoji} Financial Intelligence`,  sub: 'Funding status, fee-for-service health, and cash position at a glance.' },
+      programming: { headline: `${cfg.emoji} Program Command Center`,  sub: 'Scholar impact, site health, and tutor performance — driving outcomes daily.' },
+      data:        { headline: `${cfg.emoji} Data & Evaluation`,       sub: 'Full analytical access across all NJTC data systems. You own the numbers.' },
+      training:    { headline: `${cfg.emoji} Training & Development`,  sub: 'Building the educator pipeline. PD design, apprenticeships, and skill gaps.' },
+      leadership:  { headline: `${cfg.emoji} Leadership Overview`,     sub: 'Org health, strategic goal tracking, and board-ready reporting.' },
+      kb:          { headline: `${cfg.emoji} Executive Dashboard`,     sub: 'Top-line organizational performance. What you need. When you need it.' },
+    };
+    const hm = heroMessages[dept] || heroMessages.leadership;
+    const homeTitleEl = document.getElementById('homeTitle');
+    const homeSubEl   = document.getElementById('homeSubtitle');
+    if (homeTitleEl) {
+      homeTitleEl.textContent = hm.headline;
+      homeTitleEl.style.fontFamily = "'Syne', sans-serif";
+      homeTitleEl.style.fontWeight = '800';
+      homeTitleEl.style.fontSize   = '1.75rem';
+      homeTitleEl.style.letterSpacing = '-.02em';
+    }
+    if (homeSubEl) homeSubEl.textContent = hm.sub;
 
     // ── Exec dashboard (leadership / data / kb only) ──
     const execDepts = ['leadership','data','kb'];
@@ -772,6 +792,30 @@
   }
 
   // ── Executive Analytics Dashboard ─────────────────────────────────────────
+  function buildExecDashboard(dept) {
+    const execEl = document.getElementById('execDashboard');
+    if (!execEl) return;
+    const kpi   = window.KPI_DATA || [];
+    const getS  = k => k.midStatus || k.status || '';
+    const SCORE_PTS = {'Met':1,'Partially Met':.5,'In Progress':.25,'Coming Down the Pipeline':.1,'Has Not Met':0};
+    const met   = kpi.filter(k=>getS(k)==='Met').length;
+    const total = kpi.length || 1;
+    const score = Math.round((kpi.reduce((a,k)=>a+(SCORE_PTS[getS(k)]||0),0)/total)*100);
+    const risk  = score>=85?{l:'Healthy',c:'#166534',bg:'#dcfce7'}:score>=65?{l:'Watch',c:'#92400e',bg:'#fef3c7'}:score>=40?{l:'Needs Focus',c:'#9a3412',bg:'#ffedd5'}:{l:'Area of Support',c:'#991b1b',bg:'#fee2e2'};
+    execEl.innerHTML = `
+      <div style="background:linear-gradient(135deg,var(--navy-deep,#050d1a),#0d2847);border-radius:16px;padding:1.75rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap">
+        <div style="text-align:center;flex-shrink:0">
+          <div style="font-family:'DM Serif Display',serif;font-size:3.5rem;color:${risk.c};line-height:1;letter-spacing:-.04em">${score}%</div>
+          <div style="background:${risk.bg};color:${risk.c};font-size:.75rem;font-weight:700;padding:.25rem .75rem;border-radius:20px;margin-top:.5rem;display:inline-block">${risk.l}</div>
+          <div style="font-size:.7rem;color:rgba(255,255,255,.4);margin-top:.375rem">Weighted Score · SY 25-26</div>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <div style="font-family:'Syne',sans-serif;font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.5rem">Organizational Health</div>
+          <div style="font-size:.875rem;color:rgba(255,255,255,.6);line-height:1.6">${met} of ${total} targets fully achieved this cycle. ${score<65?'Several goal areas need attention before year-end.':'Progress is solid — keep driving forward.'}</div>
+          <button onclick="showPanel('kpi-analytics',document.querySelector('[data-panel=kpi-analytics]'))" style="margin-top:.875rem;background:rgba(240,165,0,.15);border:1px solid rgba(240,165,0,.3);color:#f0a500;padding:.4rem 1rem;border-radius:8px;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit">View Full Analytics →</button>
+        </div>
+      </div>`;
+  }
 
   // ══════════════════════════════════════════════════════════
   //  SIDEBAR DEPT CARD + CONNECTIONS
@@ -1562,6 +1606,20 @@
     _currentDept = dept;
     const cfg = DEPT_CONFIG[dept] || {};
 
+    // ── Apply dept identity to CSS custom properties ──────────────────────
+    const deptAccents = {
+      hr: '#e63946', finance: '#2a9d8f', programming: '#457b9d',
+      data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500', kb: '#5b8dee'
+    };
+    const deptGlows = {
+      hr: 'rgba(230,57,70,.18)', finance: 'rgba(42,157,143,.18)',
+      programming: 'rgba(69,123,157,.18)', data: 'rgba(123,45,139,.18)',
+      training: 'rgba(231,111,81,.18)', leadership: 'rgba(240,165,0,.18)', kb: 'rgba(91,141,238,.18)'
+    };
+    const _r = document.documentElement;
+    _r.style.setProperty('--dept-accent', deptAccents[dept] || '#f0a500');
+    _r.style.setProperty('--dept-glow',   deptGlows[dept]   || 'rgba(240,165,0,.18)');
+
     // Nav badge
     document.getElementById('deptBadge').textContent = cfg.label || dept.toUpperCase();
 
@@ -1572,6 +1630,7 @@
     // buildHome is called from INSIDE fetchAndRebuildKPI after KPI_DATA is populated from the live sheet.
     // Calling it here first would render stale static counts then visibly jump — race condition eliminated.
     buildSidebarDept(dept);
+    if (typeof pieInit === 'function') pieInit(dept);
     buildPolicies(false);
     // ── Parallel background prefetch — all data sources fired simultaneously ──
     // By the time the user opens any panel, data is either served from
@@ -3106,5 +3165,363 @@
   // Allow KPI_DATA reassignment to propagate to window
   // (fetchSheetKPI reassigns KPI_DATA via var; modules reading window.KPI_DATA
   //  will always get the latest value since we update window.KPI_DATA after each fetch)
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  DATA GOVERNANCE LOCK SYSTEM
+  //  Amir's control layer. Works while he is away.
+  //  Only data dept can control locks. All depts see notices if active.
+  // ══════════════════════════════════════════════════════════════════════════
+  const GOV_LOCK_KEY = 'njtc_gov_lock_v1';
+  const GOV_LOCK_PANELS = [
+    { id:'kpi',            label:'KPI Targets' },
+    { id:'kpi-analytics',  label:'KPI Analytics' },
+    { id:'pearl-ops',      label:'Pearl Operations' },
+    { id:'sy-analytics',   label:'SY Site Analytics' },
+    { id:'talent',         label:'Talent Analytics' },
+    { id:'iready-lab',     label:'iReady Lab' },
+    { id:'impact-report',  label:'Impact Report Builder' },
+  ];
+
+  function govLockGetState() {
+    try {
+      return JSON.parse(localStorage.getItem(GOV_LOCK_KEY)||'null') ||
+             { enabled:false, message:'', lockedPanels:[], lockedAt:'', lockedBy:'' };
+    } catch(e) { return { enabled:false, message:'', lockedPanels:[] }; }
+  }
+
+  window.govLockOpen = function() {
+    const state = govLockGetState();
+    const msgEl = document.getElementById('govLockMessage');
+    if (msgEl) msgEl.value = state.message || '';
+    const togglesEl = document.getElementById('govLockPanelToggles');
+    if (togglesEl) {
+      togglesEl.innerHTML = GOV_LOCK_PANELS.map(p => `
+        <button class="gov-lock-panel-chip ${(state.lockedPanels||[]).includes(p.id)?'locked':''}"
+          onclick="govLockTogglePanel('${p.id}',this)" data-id="${p.id}">
+          ${(state.lockedPanels||[]).includes(p.id)?'🔒 ':'🔓 '}${p.label}
+        </button>`).join('');
+    }
+    const modal = document.getElementById('govLockModal');
+    if (modal) modal.style.display = 'flex';
+  };
+
+  window.govLockClose = function() {
+    const modal = document.getElementById('govLockModal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.govLockTogglePanel = function(id, btn) {
+    btn.classList.toggle('locked');
+    const isLocked = btn.classList.contains('locked');
+    btn.textContent = (isLocked ? '🔒 ' : '🔓 ') + GOV_LOCK_PANELS.find(p=>p.id===id)?.label;
+  };
+
+  window.govLockSave = function() {
+    const message = (document.getElementById('govLockMessage')||{}).value || '';
+    const locked  = [...document.querySelectorAll('.gov-lock-panel-chip.locked')].map(b => b.dataset.id);
+    const state   = {
+      enabled: message.trim() !== '' || locked.length > 0,
+      message, lockedPanels: locked,
+      lockedAt: new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' }),
+      lockedBy: 'Data & Evaluation'
+    };
+    localStorage.setItem(GOV_LOCK_KEY, JSON.stringify(state));
+    govLockClose();
+    govLockApplyState();
+  };
+
+  window.govLockClear = function() {
+    localStorage.removeItem(GOV_LOCK_KEY);
+    govLockClose();
+    govLockApplyState();
+  };
+
+  function govLockApplyState() {
+    const state = govLockGetState();
+    if (!state.enabled) {
+      document.querySelectorAll('.gov-lock-notice').forEach(el => el.remove());
+      return;
+    }
+    state.lockedPanels.forEach(panelId => {
+      const panel = document.getElementById('panel-'+panelId);
+      if (!panel) return;
+      let existing = panel.querySelector('.gov-lock-notice');
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.className = 'gov-lock-notice';
+        panel.insertBefore(existing, panel.firstChild);
+      }
+      existing.innerHTML = `
+        <div style="background:linear-gradient(135deg,#fff8e7,#fef3c7);border:1px solid #f59e0b;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;gap:.875rem;align-items:flex-start">
+          <span style="font-size:1.25rem;flex-shrink:0">🔒</span>
+          <div style="flex:1">
+            <div style="font-weight:700;color:#92400e;font-size:.9375rem;margin-bottom:.25rem">Data Governance Notice</div>
+            <div style="font-size:.8125rem;color:#78350f;line-height:1.5">${state.message || 'This section is currently under data governance review.'}</div>
+            <div style="font-size:.7rem;color:#92400e;margin-top:.375rem;opacity:.7">Locked by ${state.lockedBy} · ${state.lockedAt}</div>
+          </div>
+        </div>`;
+    });
+    const dept = (window.NJTC_SESSION||{}).dept||'';
+    if (dept !== 'data') {
+      state.lockedPanels.forEach(panelId => {
+        const panel = document.getElementById('panel-'+panelId);
+        if (panel) panel.querySelectorAll('[data-gov-lockable]').forEach(el => {
+          el.style.filter = 'blur(2px)';
+          el.style.pointerEvents = 'none';
+        });
+      });
+    }
+  }
+
+  // Wire governance lock into showPanel
+  (function(){
+    const _origGovLock = window.showPanel;
+    window.showPanel = function(id, btn) {
+      if (typeof _origGovLock === 'function') _origGovLock(id, btn);
+      govLockApplyState();
+    };
+  })();
+
+  // Apply on boot
+  setTimeout(govLockApplyState, 800);
+
+  window.govLockOpen        = window.govLockOpen;
+  window.govLockClose       = window.govLockClose;
+  window.govLockSave        = window.govLockSave;
+  window.govLockClear       = window.govLockClear;
+  window.govLockTogglePanel = window.govLockTogglePanel;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PIE — Portal Intelligence Engine
+  //  Contextual data assistant. Knows NJTC live data. Built for non-analysts.
+  //  Available in every panel. Powered by Anthropic claude-sonnet-4-20250514.
+  // ══════════════════════════════════════════════════════════════════════════
+  (function() {
+    let _pieOpen    = false;
+    let _pieHistory = [];
+    let _piePanel   = 'home';
+
+    const PIE_SUGGESTIONS = {
+      home:            ['What are our biggest goals this year?', 'Where are we falling short?', 'What should I know today?'],
+      'kpi':           ['What does "Partially Met" mean?', 'Which goals are most at risk?', 'Who owns this target?'],
+      'kpi-analytics': ['What is our overall score?', 'Which department needs the most help?', 'What does the weighted score mean?'],
+      'pearl-ops':     ['What is Pearl?', 'What does a service interruption mean?', 'How do I read attendance data?'],
+      'sy-analytics':  ['How many scholars are we serving?', 'What is a fee-for-service site?', 'Which sites need attention?'],
+      'talent':        ['What is a PGP?', 'What does On Watch mean?', 'How are concerns tracked?'],
+      'concern':       ['What happens after I submit a concern?', 'What is the difference between On Watch and a Write-Up?'],
+      'iready-lab':    ['What is a scale score?', 'What does typical growth mean?', 'How do I read placement levels?'],
+      'training-analytics': ['What is the TAP program?', 'How do I view apprentice progress?'],
+      'policies':      ['Where is the HR handbook?', 'What are the data governance rules?'],
+    };
+
+    function _buildContext() {
+      const dept   = (window.NJTC_SESSION||{}).dept || 'unknown';
+      const cfg    = (window.DEPT_CONFIG||{})[dept] || {};
+      const kpi    = window.KPI_DATA || [];
+      const getS   = k => k.midStatus || k.status || '';
+      const met    = kpi.filter(k=>getS(k)==='Met').length;
+      const prog   = kpi.filter(k=>getS(k)==='In Progress').length;
+      const partial= kpi.filter(k=>getS(k)==='Partially Met').length;
+      const notmet = kpi.filter(k=>getS(k)==='Has Not Met').length;
+      const pipe   = kpi.filter(k=>getS(k)==='Coming Down the Pipeline').length;
+      const total  = kpi.length || 1;
+      const score  = Math.round((met*1 + partial*.5 + prog*.25 + pipe*.1) / total * 100);
+      const concerns  = (window.CONCERNS||[]).length;
+      const onWatch   = (window.CONCERNS||[]).filter(r=>r.hr_action==='On Watch').length;
+      const pgp       = (window.CONCERNS||[]).filter(r=>r.hr_action==='PGP').length;
+      const term      = (window.CONCERNS||[]).filter(r=>r.hr_action&&r.hr_action.includes('Terminat')).length;
+      let scholarCount = '—', siteCount = '—', siCount = '—';
+      try {
+        if (window.po && window.po.getStats) {
+          const ps = window.po.getStats();
+          scholarCount = ps.scholars || '—';
+          siteCount    = ps.sites    || '—';
+          siCount      = ps.si       || '—';
+        }
+      } catch(e) {}
+      return `You are PIE — the Portal Intelligence Engine for New Jersey Tutoring Corps (NJTC).
+You are embedded inside the NJTC Central Team Portal. You are a concise, knowledgeable,
+friendly assistant who helps non-analytical staff understand what they are looking at.
+You never make up numbers. You always cite the source of data when it matters.
+You speak like a trusted colleague, not a chatbot. Short answers are usually better.
+
+CURRENT SESSION:
+- Department: ${dept} (${cfg.label || dept})
+- Active panel: ${_piePanel}
+- Today: April 2026 | SY 2025-2026
+
+LIVE KPI SNAPSHOT (from Google Sheets KPI Dashboard):
+- Total targets: ${total}
+- Met: ${met} | In Progress: ${prog} | Partially Met: ${partial} | Not Met: ${notmet} | Pipeline: ${pipe}
+- Weighted score: ${score}% (scoring: Met=1pt, Partial=.5pt, InProgress=.25pt, Pipeline=.1pt, NotMet=0)
+- Health: ${score>=85?'Healthy (85%+)':score>=65?'Watch (65-84%)':score>=40?'Needs Focus (40-64%)':'Area of Support (<40%)'}
+
+LIVE OPERATIONAL SNAPSHOT (Pearl / Program data):
+- Scholars served: ${scholarCount}
+- Active sites: ${siteCount}
+- Service interruptions: ${siCount}
+
+HR / WORKFORCE SNAPSHOT:
+- Total documented concerns: ${concerns}
+- On Watch: ${onWatch} | PGP: ${pgp} | Termination recommended: ${term}
+
+ORGANIZATION:
+NJTC is a New Jersey nonprofit that provides high-impact tutoring (HIT) across NJ school districts.
+Staff includes central team (program managers, HR, finance, data, training), site leaders,
+and tutors (certified and non-certified). Pearl is the operational platform for session tracking.
+iReady is the academic diagnostic tool for scholar growth measurement.
+
+RULES:
+1. Never hallucinate data. If you don't know, say so and point them to the right panel.
+2. Always be plain-English and brief. This person is not an analyst.
+3. If they ask about a specific metric, explain what it means, then give the current number.
+4. You are NOT a general AI assistant. Redirect off-topic questions back to NJTC work.
+5. If they ask a question you can't answer from portal data, say: "That's a great question
+   for Amir — submit a KPI Inquiry using the Ask a Question button in KPI Analytics."`;
+    }
+
+    window.pieInit = function(dept) {
+      const container = document.getElementById('pieContainer');
+      if (container) container.style.display = 'block';
+      const deptLabel = document.getElementById('pieDeptLabel');
+      const cfg = (window.DEPT_CONFIG||{})[dept] || {};
+      if (deptLabel) deptLabel.textContent = cfg.label || dept;
+      const welcomes = {
+        kb:          `Hi — I'm PIE, your portal assistant. I have access to live NJTC data including KPI scores, program stats, and workforce numbers. What would you like to know?`,
+        leadership:  `Good to see you. I'm PIE — I can explain what you're looking at anywhere in the portal, pull context from live data, or help you find information quickly.`,
+        hr:          `Hey — I'm PIE. I know the HR data, concern pipeline, retention numbers, and what everything in this portal means. What do you need?`,
+        programming: `I'm PIE, your portal guide. I can explain Pearl data, site metrics, tutor concerns — anything you're looking at. What's on your mind?`,
+        training:    `I'm PIE. I know the T&D analytics, apprenticeship data, and what our training metrics mean. Ask me anything.`,
+        data:        `PIE is live. You have full portal access — I'm here for quick context or to explain things for teammates. What do you need?`,
+        finance:     `I'm PIE. I can help interpret funding goals, fee-for-service status, and financial KPIs. What are you looking at?`,
+      };
+      _pieAddMessage('pie', welcomes[dept] || welcomes.leadership);
+      _pieSetSuggestions(_piePanel);
+    };
+
+    window.pieSetPanel = function(panelId) {
+      _piePanel = panelId;
+      _pieSetSuggestions(panelId);
+    };
+
+    window.pieToggle = function() {
+      _pieOpen = !_pieOpen;
+      const drawer = document.getElementById('pieDrawer');
+      if (drawer) drawer.classList.toggle('open', _pieOpen);
+      if (_pieOpen) {
+        const input = document.getElementById('pieInput');
+        if (input) setTimeout(() => input.focus(), 200);
+      }
+    };
+
+    function _pieAddMessage(role, content) {
+      const msgs = document.getElementById('pieMessages');
+      if (!msgs) return;
+      const div = document.createElement('div');
+      div.className = `pie-msg ${role}`;
+      div.innerHTML = role === 'pie'
+        ? `<div class="pie-msg-avatar">PIE</div><div class="pie-msg-bubble">${content.replace(/\n/g,'<br>')}</div>`
+        : `<div class="pie-msg-bubble">${content}</div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      _pieHistory.push({ role: role === 'user' ? 'user' : 'assistant', content });
+    }
+
+    function _pieShowTyping() {
+      const msgs = document.getElementById('pieMessages');
+      if (!msgs) return;
+      const div = document.createElement('div');
+      div.id = 'pieTyping';
+      div.className = 'pie-msg pie';
+      div.innerHTML = `<div class="pie-msg-avatar">PIE</div><div class="pie-typing"><span></span><span></span><span></span></div>`;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function _pieRemoveTyping() {
+      const t = document.getElementById('pieTyping');
+      if (t) t.remove();
+    }
+
+    function _pieSetSuggestions(panelId) {
+      const el = document.getElementById('pieSuggested');
+      if (!el) return;
+      const suggestions = PIE_SUGGESTIONS[panelId] || PIE_SUGGESTIONS.home;
+      el.innerHTML = suggestions.map(s =>
+        `<button class="pie-chip" onclick="pieAsk(${JSON.stringify(s)})">${s}</button>`
+      ).join('');
+    }
+
+    window.pieAsk = function(question) {
+      const input = document.getElementById('pieInput');
+      if (input) input.value = question;
+      pieSend();
+    };
+
+    window.pieSend = async function() {
+      const input   = document.getElementById('pieInput');
+      const sendBtn = document.getElementById('pieSendBtn');
+      if (!input || !input.value.trim()) return;
+      const userMsg = input.value.trim();
+      input.value = '';
+      input.style.height = 'auto';
+
+      _pieAddMessage('user', userMsg);
+      if (sendBtn) sendBtn.disabled = true;
+      _pieShowTyping();
+
+      const sugg = document.getElementById('pieSuggested');
+      if (sugg) sugg.innerHTML = '';
+
+      try {
+        const systemContext = _buildContext();
+        const historySlice  = _pieHistory.slice(-8);
+        const messages      = [...historySlice, { role: 'user', content: userMsg }];
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: systemContext,
+            messages
+          })
+        });
+        const data  = await response.json();
+        const reply = data.content?.find(b => b.type === 'text')?.text ||
+                      'I had trouble generating a response. Please try again.';
+        _pieRemoveTyping();
+        _pieAddMessage('pie', reply);
+      } catch(e) {
+        _pieRemoveTyping();
+        _pieAddMessage('pie', 'Something went wrong on my end. Try again in a moment, or use the KPI Inquiry form to log your question for Amir.');
+      }
+
+      if (sendBtn) sendBtn.disabled = false;
+      _pieSetSuggestions(_piePanel);
+    };
+
+    // Wire into showPanel to update PIE panel context
+    const _origSP_pie = window.showPanel;
+    window.showPanel = function(id, btn) {
+      if (typeof _origSP_pie === 'function') _origSP_pie(id, btn);
+      _piePanel = id;
+      _pieSetSuggestions(id);
+    };
+
+    // Close PIE drawer when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#pieContainer')) {
+        const d = document.getElementById('pieDrawer');
+        const trigger = document.getElementById('pieTrigger');
+        if (d && d.classList.contains('open') && trigger && !trigger.contains(e.target)) {
+          _pieOpen = false;
+          d.classList.remove('open');
+        }
+      }
+    });
+
+  })();
 
 })();
