@@ -1245,6 +1245,9 @@
   // ── Filter state ──────────────────────────────────────────────────────────
   let _pTier='all', _pRole='all', _pStatus='active', _pQ='', _pViewTab='active', _pSY='2025-2026', _pApprentice=false, _pPage=0;
 
+  // ── Programming Profile view filter state ────────────────────────────────
+  let _ppStatus='all', _ppRegion='all', _ppQ='';
+
   function _filtered() {
     let list = HR_EMPS;
     // SY filter: restrict to employees who have a record in the selected SY
@@ -2293,171 +2296,363 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     return '';
   }
 
-  // ── Programming Dept Profile View ────────────────────────────────────────
+  // ── Programming Dept Profile View — Onsite Performance Profile ───────────
   function _hrViewProgramming() {
     const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    // Active tutors only by default (exclude terminated)
-    const pool = HR_EMPS.filter(e => e.s === 'Active');
-
-    // Compute flags per tutor
-    function getFlags(emp) {
-      const flags = [];
-      const att = emp._liveAtt ?? emp.att;
-      if (att != null && att < 70)  flags.push({ label: 'Attendance Critical', sev: 'critical', icon: '⚠️' });
-      else if (att != null && att < 80) flags.push({ label: 'Attendance Low', sev: 'warn', icon: '📉' });
-      if (emp.je != null && emp.je < 3.5) flags.push({ label: 'Job Satisfaction — Critical', sev: 'critical', icon: '🔴' });
-      else if (emp.je != null && emp.je < 4.0) flags.push({ label: 'Job Satisfaction — Low', sev: 'warn', icon: '🟡' });
-      if (emp.jl != null && emp.jl < 3.5) flags.push({ label: 'Likelihood to Stay — Critical', sev: 'critical', icon: '🔴' });
-      else if (emp.jl != null && emp.jl < 4.0) flags.push({ label: 'Likelihood to Stay — Low', sev: 'warn', icon: '🟡' });
-      const liveCo = emp._liveConcerns ?? emp.co ?? 0;
-      if (liveCo > 0) flags.push({ label: `${liveCo} Concern Log${liveCo>1?'s':''}`, sev: liveCo >= 2 ? 'critical' : 'warn', icon: '📋' });
-      if (emp._obsCount > 0 && emp._obsAvgRating != null && emp._obsAvgRating < 2.5)
-        flags.push({ label: `Obs Rating Low (${emp._obsAvgRating})`, sev: 'warn', icon: '🔍' });
-      return flags;
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function median(arr) {
+      if (!arr || !arr.length) return null;
+      const s = arr.slice().sort((a,b)=>a-b);
+      const m = Math.floor(s.length/2);
+      return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
     }
 
-    // Summary stats
-    const withAtt  = pool.filter(e => (e._liveAtt ?? e.att) != null);
-    const lowAtt   = withAtt.filter(e => (e._liveAtt ?? e.att) < 80).length;
-    const withSurv = pool.filter(e => e.je != null && e.jl != null);
-    const lowSurv  = withSurv.filter(e => e.je < 4.0 || e.jl < 4.0).length;
-    const withCo   = pool.filter(e => (e._liveConcerns ?? e.co ?? 0) > 0).length;
-    const withObs  = pool.filter(e => e._obsCount > 0).length;
-    const needsFollowup = pool.filter(e => getFlags(e).length > 0).length;
+    const NE_KW_D   = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+    const SW_KW_D   = ['american paradigm','first philadelphia','first philly','philadelphia charter','string theory','global leadership academy','global leadership','penns grove','carneys point','haddon township','haddon','hamilton township','gloucester township'];
+    const SW_SCHOOLS= ['erial','loring flemming','field street','penns grove middle','van sciver','strawbridge','first philadelphia prep','first philly prep','the philadelphia charter','philadelphia charter school','global leadership academy'];
 
-    const attAvg = withAtt.length
-      ? Math.round(withAtt.reduce((s,e)=>s+(e._liveAtt??e.att),0)/withAtt.length*10)/10 : null;
-    const jeAvg = withSurv.length
-      ? Math.round(withSurv.reduce((s,e)=>s+e.je,0)/withSurv.length*10)/10 : null;
-    const jlAvg = withSurv.length
-      ? Math.round(withSurv.reduce((s,e)=>s+e.jl,0)/withSurv.length*10)/10 : null;
+    function tutorRegion(emp) {
+      const d  = (emp.di||'').toLowerCase();
+      const sc = (emp.si||'').toLowerCase();
+      if (NE_KW_D.some(k=>d.includes(k)))    return 'NE';
+      if (SW_KW_D.some(k=>d.includes(k)))    return 'SW';
+      if (SW_SCHOOLS.some(k=>sc.includes(k))) return 'SW';
+      return 'NE';
+    }
 
-    // Sort: flagged first, then alphabetically
-    const sorted = [...pool].sort((a,b) => {
-      const fa = getFlags(a).length, fb = getFlags(b).length;
-      if (fa !== fb) return fb - fa;
-      return a.n.localeCompare(b.n);
+    function normName(n) { return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+
+    // ── Pearl data ────────────────────────────────────────────────────────────
+    const sessRows = (window.po && window.po.getSessRows) ? window.po.getSessRows() : [];
+    const stuRows  = (window.po && window.po.getStuRows)  ? window.po.getStuRows()  : [];
+    const attMap   = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
+
+    const SS = { TITLE:0, INSTRUCTOR:1, STATUS:4, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, SESS_ID:14, INST_ID:15, STU_IDS:16 };
+    const SU = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, SESS_ID:11, WEEK:22 };
+
+    // Index sessions by ID; gather per-instructor score arrays
+    const sessById = {};
+    sessRows.forEach(r => { if (r[SS.SESS_ID]) sessById[r[SS.SESS_ID]] = r; });
+
+    const sessIdsWithSurveys = new Set(stuRows.map(r=>r[SU.SESS_ID]).filter(Boolean));
+    const instScores = {};   // instId → { enjoyment:[], overall:[] }
+    stuRows.forEach(r => {
+      const sess = sessById[r[SU.SESS_ID]];
+      if (!sess) return;
+      const id = sess[SS.INST_ID]; if (!id) return;
+      if (!instScores[id]) instScores[id] = { enjoyment:[], overall:[] };
+      const enj = parseFloat(r[SU.ENJOYMENT]);
+      const ov  = parseFloat(r[SU.OVERALL]);
+      if (!isNaN(enj)) instScores[id].enjoyment.push(enj);
+      if (!isNaN(ov))  instScores[id].overall.push(ov);
     });
 
-    const chipCls = sev => sev === 'critical'
-      ? 'background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;'
-      : 'background:#fffbeb;color:#92400e;border:1px solid #fde68a;';
+    const instSessStats = {};   // instId → { total, incomplete, withSurveys }
+    const sessByInst    = {};
+    sessRows.forEach(r => {
+      const id = r[SS.INST_ID]; if (!id) return;
+      if (!sessByInst[id]) sessByInst[id] = [];
+      sessByInst[id].push(r);
+    });
+    Object.entries(sessByInst).forEach(([id, rows]) => {
+      const total      = rows.length;
+      const incomplete = rows.filter(r=>{ const st=(r[SS.STATUS]||'').toLowerCase(); return st!=='completed'&&st!=='complete'; }).length;
+      const withSurveys= rows.filter(r=>sessIdsWithSurveys.has(r[SS.SESS_ID])).length;
+      instSessStats[id]= { total, incomplete, withSurveys };
+    });
 
-    const cards = sorted.map(emp => {
-      const flags  = getFlags(emp);
-      const att    = emp._liveAtt ?? emp.att;
-      const attTxt = att != null ? att.toFixed(1)+'%' : '—';
-      const attColor = att == null ? '#94a3b8' : att < 70 ? '#b91c1c' : att < 80 ? '#d97706' : '#059669';
-      const jeTxt  = emp.je != null ? emp.je.toFixed(1)+' / 5' : '—';
-      const jlTxt  = emp.jl != null ? emp.jl.toFixed(1)+' / 5' : '—';
-      const jeColor = emp.je == null ? '#94a3b8' : emp.je < 3.5 ? '#b91c1c' : emp.je < 4.0 ? '#d97706' : '#059669';
-      const jlColor = emp.jl == null ? '#94a3b8' : emp.jl < 3.5 ? '#b91c1c' : emp.jl < 4.0 ? '#d97706' : '#059669';
-      const hasSurvey = emp.je != null && emp.jl != null;
-      const obsTxt = emp._obsCount > 0
-        ? `${emp._obsCount} obs${emp._obsAvgRating!=null?' · avg '+emp._obsAvgRating:''}${emp._obsLatest?' · Last: '+esc(emp._obsLatest.date.substring(0,10)):''}`
-        : 'No observations on record';
-      const obsColor = emp._obsCount > 0 ? '#1d4ed8' : '#94a3b8';
-      const liveCo = emp._liveConcerns ?? emp.co ?? 0;
-      const hnTxt = emp._liveHRAction || emp.hn || '';
+    // Build per-tutor Pearl metrics
+    function buildMetrics(emp) {
+      const nm = normName(emp.n);
+      const attEntry = attMap[nm];
+      const att = attEntry ? attEntry.attRate : (emp._liveAtt != null ? emp._liveAtt : (emp.att != null ? emp.att : null));
+      let instId = null;
+      for (const r of sessRows) { if (normName(r[SS.INSTRUCTOR])===nm) { instId=r[SS.INST_ID]; break; } }
+      const scores = instId ? (instScores[instId]||null) : null;
+      const stats  = instId ? (instSessStats[instId]||null) : null;
+      const enjoyMed  = scores ? median(scores.enjoyment) : null;
+      const returnMed = scores ? median(scores.overall)   : null;
+      const survComp  = (stats&&stats.total>0) ? Math.round(stats.withSurveys/stats.total*100) : null;
+      const incompleteCount= stats ? stats.incomplete : null;
+      const incompleteRate = (stats&&stats.total>0) ? Math.round(stats.incomplete/stats.total*100) : null;
+      return { att, survComp, lateSurveys:null, incompleteCount, incompleteRate, returnMed, enjoyMed, instId };
+    }
 
-      // Site leader review — most recent review matching this tutor's site
-      const siteReviews = REVIEWS.filter(r => r.site && emp.si && r.site.toLowerCase().includes(emp.si.toLowerCase().split('-')[0].trim()) || (emp.si && r.site === emp.si));
-      const latestReview = siteReviews.sort((a,b) => new Date(b.ts)-new Date(a.ts))[0] || null;
-      let slrHtml = '';
-      if (latestReview) {
-        const domColor = d => d && d.includes('Partially') ? '#92400e' : d && d.includes('N/A') ? '#64748b' : '#166534';
-        const domBg   = d => d && d.includes('Partially') ? '#fffbeb' : d && d.includes('N/A') ? '#f8fafc' : '#f0fdf4';
-        const domShort = d => d ? d.replace('Expectations','').replace('Meets','✅ Meets').replace('Partially','⚠️ Partially').replace('N/A','—').trim() : '—';
-        slrHtml = `<div style="font-size:.78rem;grid-column:1/-1;margin-top:.25rem;padding:.6rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px">
-          <div style="color:#475569;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:.4rem">📋 Site Leader Review — ${esc(latestReview.leader)} · ${esc(latestReview.month)}</div>
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-            ${['d1','d23','d4'].map((dom,i)=>{
-              const label = ['Domain 1: Planning','Domain 2&3: Instruction','Domain 4: Professionalism'][i];
-              const val = latestReview[dom] || '—';
-              return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:600;background:${domBg(val)};color:${domColor(val)}">${label}: ${domShort(val)}</span>`;
-            }).join('')}
-          </div>
-          ${latestReview.notes ? `<div style="font-size:.7rem;color:#64748b;margin-top:.3rem;font-style:italic">${esc(latestReview.notes)}</div>` : ''}
-        </div>`;
-      } else {
-        slrHtml = `<div style="font-size:.72rem;color:#94a3b8;grid-column:1/-1;font-style:italic;margin-top:.25rem">No site leader review on record for this site.</div>`;
+    // Support Status: evaluates 6 signals, returns { level:'ok'|'warn'|'critical', reasons:[] }
+    function supportStatus(emp, m) {
+      const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
+      const reasons=[]; let level='ok';
+      const bump = (to) => { if (to==='critical') level='critical'; else if (to==='warn'&&level==='ok') level='warn'; };
+      if (m.att!=null&&m.att<70)  { reasons.push('Attendance critical (<70%)');          bump('critical'); }
+      else if (m.att!=null&&m.att<80) { reasons.push('Attendance low (<80%)');           bump('warn'); }
+      if (m.survComp!=null&&m.survComp<40) { reasons.push('Survey completion very low (<40%)'); bump('warn'); }
+      else if (m.survComp!=null&&m.survComp<60) { reasons.push('Survey completion low (<60%)'); bump('warn'); }
+      if (m.returnMed!=null&&m.returnMed<3.0) { reasons.push('Scholar return score critical (<3.0)'); bump('critical'); }
+      else if (m.returnMed!=null&&m.returnMed<3.5) { reasons.push('Scholar return score low (<3.5)');  bump('warn'); }
+      if (m.enjoyMed!=null&&m.enjoyMed<3.0) { reasons.push('Scholar enjoyment critical (<3.0)'); bump('critical'); }
+      else if (m.enjoyMed!=null&&m.enjoyMed<3.5) { reasons.push('Scholar enjoyment low (<3.5)');  bump('warn'); }
+      if (co>=2) { reasons.push(co+' concern logs on file'); bump('critical'); }
+      else if (co===1) { reasons.push('1 concern log on file'); bump('warn'); }
+      if (m.incompleteRate!=null&&m.incompleteRate>30) { reasons.push('High incomplete session rate ('+m.incompleteRate+'%)'); bump('warn'); }
+      return { level, reasons };
+    }
+
+    // Active pool (exclude Terminated)
+    const pool = HR_EMPS.filter(e => e.s !== 'Terminated');
+
+    // Pre-compute all tutor profiles
+    const profileData = pool.map(emp => {
+      const metrics = buildMetrics(emp);
+      const { level, reasons } = supportStatus(emp, metrics);
+      const region = tutorRegion(emp);
+      return { emp, metrics, level, reasons, region };
+    });
+
+    // KPI banner stats (median-based)
+    const activeCount  = profileData.length;
+    const needAttention= profileData.filter(p=>p.level!=='ok').length;
+    const allAtt    = profileData.map(p=>p.metrics.att).filter(v=>v!=null);
+    const allReturn = profileData.map(p=>p.metrics.returnMed).filter(v=>v!=null);
+    const medAtt    = median(allAtt);
+    const medReturn = median(allReturn);
+
+    // Filter
+    const levelOrder = { critical:0, warn:1, ok:2 };
+    let filtered = profileData.filter(p => {
+      if (_ppStatus === 'attention' && p.level === 'ok')       return false;
+      if (_ppStatus === 'escalate'  && p.level !== 'critical') return false;
+      if (_ppStatus === 'support'   && p.level !== 'warn')     return false;
+      if (_ppStatus === 'on_track'  && p.level !== 'ok')       return false;
+      if (_ppRegion !== 'all' && p.region !== _ppRegion)       return false;
+      if (_ppQ) {
+        const q = _ppQ.toLowerCase();
+        if (!p.emp.n.toLowerCase().includes(q) && !(p.emp.si||'').toLowerCase().includes(q)) return false;
       }
-
-      const borderLeft = flags.some(f=>f.sev==='critical') ? '#ef4444'
-        : flags.length > 0 ? '#f59e0b' : '#10b981';
-
-      return `<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid ${borderLeft};border-radius:10px;padding:1rem 1.1rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
-    <div>
-      <div style="font-weight:700;font-size:.95rem;color:#1e293b">${esc(emp.n)}</div>
-      <div style="font-size:.78rem;color:#64748b;margin-top:1px;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
-        <span>${esc(emp.r)} · ${esc(emp.si||emp.di||'—')}</span>
-        ${(emp._apprentice==='Yes')?`<span style="background:#fef9c3;color:#854d0e;padding:.1rem .35rem;border-radius:5px;font-size:.65rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice">🎓 Apprentice</span>`:''}
-      </div>
-    </div>
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-      ${flags.map(f=>`<span style="font-size:.72rem;padding:.15rem .5rem;border-radius:999px;font-weight:600;${chipCls(f.sev)}">${f.icon} ${esc(f.label)}</span>`).join('')}
-      ${flags.length===0?`<span style="font-size:.72rem;padding:.15rem .5rem;border-radius:999px;font-weight:600;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0">✅ On Track</span>`:''}
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem .75rem;margin-top:.75rem">
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Attendance</div>
-      <div style="font-weight:700;color:${attColor}">${attTxt}</div>
-    </div>
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Job Enjoyment</div>
-      <div style="font-weight:700;color:${jeColor}">${jeTxt}${!hasSurvey?'<span style="color:#94a3b8;font-size:.65rem;font-weight:400;margin-left:3px">no survey</span>':''}</div>
-    </div>
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Likely to Return</div>
-      <div style="font-weight:700;color:${jlColor}">${jlTxt}${!hasSurvey?'<span style="color:#94a3b8;font-size:.65rem;font-weight:400;margin-left:3px">no survey</span>':''}</div>
-    </div>
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Observations</div>
-      <div style="font-weight:600;color:${obsColor}">${esc(obsTxt)}</div>
-    </div>
-    ${liveCo > 0 ? `<div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Concern Log</div>
-      <div style="font-weight:600;color:#b91c1c">${liveCo} log${liveCo>1?'s':''}${hnTxt?' · '+esc(hnTxt.split(',')[0]):''}</div>
-    </div>` : ''}
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Training</div>
-      <div style="font-weight:400;color:#94a3b8;font-style:italic">Placeholder — coming soon</div>
-    </div>
-    <div style="font-size:.78rem">
-      <div style="color:#94a3b8;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Lesson Plans</div>
-      <div style="font-weight:400;color:#94a3b8;font-style:italic">Placeholder — coming soon</div>
-    </div>
-    ${slrHtml}
-  </div>
-</div>`;
+      return true;
+    });
+    filtered.sort((a,b) => {
+      const lo = (levelOrder[a.level]||2) - (levelOrder[b.level]||2);
+      return lo !== 0 ? lo : a.emp.n.localeCompare(b.emp.n);
     });
 
-    return `<div style="padding:.25rem 0">
-  <!-- Summary banner -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem;margin-bottom:1.25rem">
-    ${[
-      { label:'Active Staff',  val: pool.length, color:'#1d4ed8' },
-      { label:'Need Follow-Up',val: needsFollowup, color: needsFollowup>0?'#b91c1c':'#059669' },
-      { label:'Low Attendance',val: lowAtt, color: lowAtt>0?'#d97706':'#059669' },
-      { label:'Low Survey',    val: lowSurv, color: lowSurv>0?'#d97706':'#059669' },
-      { label:'Concern Logs',  val: withCo, color: withCo>0?'#b91c1c':'#059669' },
-      { label:'Observed',      val: withObs, color:'#7c3aed' },
-      { label:'Avg Attendance',val: attAvg!=null?(attAvg+'%'):'—', color: attAvg!=null&&attAvg<80?'#d97706':'#059669' },
-      { label:'Avg Enjoyment', val: jeAvg!=null?jeAvg:'—', color: jeAvg!=null&&jeAvg<4.0?'#d97706':'#059669' },
-    ].map(s=>`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;text-align:center">
-      <div style="font-size:1.2rem;font-weight:800;color:${s.color}">${s.val}</div>
-      <div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px">${s.label}</div>
-    </div>`).join('')}
-  </div>
-  <div style="font-size:.72rem;color:#94a3b8;margin-bottom:.75rem">
-    ⚠️ Survey scores require ≥1 scholar attending the session to deploy. Tutors without scores had no qualifying sessions yet.
-    Attendance from live Pearl data. Staff sorted: flagged first.
-  </div>
-  ${cards.length ? cards.join('') : '<div style="color:#94a3b8;font-style:italic;text-align:center;padding:2rem">No active staff found.</div>'}
-</div>`;
+    // ── Chip & badge helpers ────────────────────────────────────────────────
+    const CHIP_TIPS = {
+      att:      'Percentage of scheduled sessions the tutor attended. Live from Pearl. <80% = Support Needed; <70% = Escalate.',
+      survComp: 'Percentage of this tutor\'s sessions with at least one scholar survey submitted. Low rates may reflect session-log gaps.',
+      lateSurv: 'Surveys submitted after the expected weekly deadline. Late submissions reduce weekly reporting accuracy.',
+      incomplete:'Sessions marked Incomplete in Pearl (no actual duration logged). High rates signal reporting discipline issues.',
+      returnMed:'MEDIAN scholar response to "Overall, how was this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.',
+      enjoyMed: 'MEDIAN scholar response to "How much did you enjoy this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.'
+    };
+
+    function metricChip(label, val, color, tipKey) {
+      const tip = (CHIP_TIPS[tipKey]||'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+      return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:.45rem .6rem;min-width:100px">'
+        +'<div style="display:flex;align-items:center;gap:.2rem;margin-bottom:2px">'
+        +'<span style="font-size:.67rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">'+label+'</span>'
+        +'<span onclick="_ppShowTip(this.dataset.tip)" data-tip="'+tip+'" style="font-size:.62rem;color:#94a3b8;cursor:pointer;line-height:1;flex-shrink:0" title="More info">\u24d8</span>'
+        +'</div>'
+        +'<div style="font-size:.88rem;font-weight:800;color:'+color+'">'+val+'</div>'
+        +'</div>';
+    }
+
+    function statusBadge(level, reasons) {
+      const cfg = {
+        critical:{ label:'Escalate to HR', bg:'#fef2f2', col:'#b91c1c', border:'#fecaca', icon:'\uD83D\uDD34' },
+        warn:    { label:'Support Needed',  bg:'#fffbeb', col:'#92400e', border:'#fde68a', icon:'\uD83D\uDFE1' },
+        ok:      { label:'On Track',        bg:'#f0fdf4', col:'#166534', border:'#bbf7d0', icon:'\u2705'       }
+      };
+      const c   = cfg[level]||cfg.ok;
+      const tip = (reasons.length ? reasons.join(' \u00B7 ') : 'No flags detected across all monitored signals.').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+      return '<span onclick="_ppShowTip(this.dataset.tip)" data-tip="'+tip+'" style="display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;padding:.2rem .55rem;border-radius:999px;font-weight:700;background:'+c.bg+';color:'+c.col+';border:1px solid '+c.border+';cursor:pointer">'
+        +c.icon+' '+c.label+' \u24d8</span>';
+    }
+
+    // ── OTJ badges ──────────────────────────────────────────────────────────
+    function otjBadges(emp) {
+      const nm = normName(emp.n);
+      let otjRow = null;
+      if (window.njtcOTJMap && window.njtcOTJMap[nm]) {
+        otjRow = window.njtcOTJMap[nm];
+      } else if (window.njtcOTJ) {
+        const arr = Array.isArray(window.njtcOTJ)
+          ? window.njtcOTJ
+          : [...(window.njtcOTJ.NE||[]), ...(window.njtcOTJ.SW||[])];
+        const parts = nm.split(' ');
+        const first = arr.find(r => {
+          const rn = normName((r['Tutor First']||'')+' '+(r['Tutor Last (ADP)']||''));
+          return rn === nm || (parts[0] && rn.startsWith(parts[0]));
+        });
+        if (first) otjRow = first;
+      }
+      if (!otjRow) return '<span style="font-size:.72rem;color:#94a3b8;font-style:italic">OTJ data not found</span>';
+
+      const phases = ['Beginning','Middle','End'];
+      const badges = phases.map(ph => {
+        const val = ((otjRow[ph]||otjRow[ph+' Phase'])||'').toLowerCase();
+        const done = val.includes('complete')||val==='yes';
+        const ip   = val.includes('progress');
+        const bg   = done?'#f0fdf4':ip?'#fffbeb':'#f8fafc';
+        const col  = done?'#166534':ip?'#92400e':'#64748b';
+        const bdr  = done?'#bbf7d0':ip?'#fde68a':'#e2e8f0';
+        const icon = done?'\u2705':ip?'\uD83D\uDD04':'\u2B1C';
+        return '<span style="font-size:.7rem;padding:.15rem .45rem;border-radius:5px;font-weight:600;background:'+bg+';color:'+col+';border:1px solid '+bdr+'">'+icon+' '+ph+'</span>';
+      }).join('');
+      const link = otjRow['Link']||otjRow['OTJ Link']||otjRow['Checklist Link']||null;
+      const linkHtml = link
+        ? '<a href="'+esc(link)+'" target="_blank" rel="noopener" style="font-size:.7rem;color:#2563eb;text-decoration:underline;margin-left:.4rem">\uD83D\uDCCB View Checklist</a>'
+        : '<span style="font-size:.7rem;color:#94a3b8;margin-left:.4rem">No checklist link</span>';
+      return '<div style="display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">'+badges+linkHtml+'</div>';
+    }
+
+    // ── Observation timeline ────────────────────────────────────────────────
+    const OBS_MONTHS = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+    function obsTimeline(emp) {
+      if (!window._njtcTutorObs)
+        return '<span style="font-size:.72rem;color:#94a3b8;font-style:italic">Observation data not yet connected</span>';
+      const nm = normName(emp.n);
+      const tutorObs = window._njtcTutorObs[nm] || window._njtcTutorObs[emp.n] || [];
+      const pills = OBS_MONTHS.map(mo => {
+        const entry = tutorObs.find(o=>(o.month||'').includes(mo));
+        let bg='#f1f5f9', col='#94a3b8', title2=mo;
+        let inner = mo;
+        if (entry) {
+          if (entry.observed) {
+            bg='#dbeafe'; col='#1d4ed8'; title2='Observed '+(entry.date||'');
+            inner = entry.link ? '<a href="'+esc(entry.link)+'" target="_blank" rel="noopener" style="color:#1d4ed8;text-decoration:none">'+mo+'</a>' : mo;
+          } else if (entry.missed && entry.note) {
+            bg='#fef3c7'; col='#92400e'; title2='Missed \u2014 '+entry.note;
+          } else if (entry.missed) {
+            bg='#fee2e2'; col='#b91c1c'; title2='Missed';
+          }
+        }
+        return '<span title="'+esc(title2)+'" style="font-size:.65rem;font-weight:600;padding:.1rem .35rem;border-radius:4px;background:'+bg+';color:'+col+';white-space:nowrap">'+inner+'</span>';
+      }).join('');
+      return '<div style="display:flex;gap:.25rem;flex-wrap:wrap;align-items:center"><span style="font-size:.68rem;color:#94a3b8;margin-right:.1rem;white-space:nowrap">Obs:</span>'+pills+'</div>';
+    }
+
+    // ── Build cards ─────────────────────────────────────────────────────────
+    const borderColorMap = { critical:'#ef4444', warn:'#f59e0b', ok:'#10b981' };
+    const cards = filtered.map(({ emp, metrics, level, reasons, region }) => {
+      const { att, survComp, lateSurveys, incompleteCount, incompleteRate, returnMed, enjoyMed } = metrics;
+      const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
+
+      const attVal   = att!=null ? att.toFixed(1)+'%' : '\u2014';
+      const attColor = att==null?'#94a3b8':att<70?'#b91c1c':att<80?'#d97706':'#059669';
+      const survVal  = survComp!=null ? survComp+'%' : '\u2014';
+      const survColor= survComp==null?'#94a3b8':survComp<40?'#b91c1c':survComp<60?'#d97706':'#059669';
+      const lateVal  = lateSurveys!=null ? String(lateSurveys) : 'N/A';
+      const incVal   = incompleteCount!=null
+        ? incompleteCount+(incompleteRate!=null?' ('+incompleteRate+'%)':'') : '\u2014';
+      const incColor = incompleteCount==null?'#94a3b8':incompleteCount===0?'#059669':incompleteRate!=null&&incompleteRate>30?'#b91c1c':'#d97706';
+      const retVal   = returnMed!=null ? returnMed.toFixed(2)+' / 5' : '\u2014';
+      const retColor = returnMed==null?'#94a3b8':returnMed<3.0?'#b91c1c':returnMed<3.5?'#d97706':'#059669';
+      const enjVal   = enjoyMed!=null ? enjoyMed.toFixed(2)+' / 5' : '\u2014';
+      const enjColor = enjoyMed==null?'#94a3b8':enjoyMed<3.0?'#b91c1c':enjoyMed<3.5?'#d97706':'#059669';
+
+      // Concern log (expandable)
+      const coId = 'ppco_'+emp.n.replace(/\W/g,'_');
+      const concernRows = (typeof CONCERNS!=='undefined'?CONCERNS:[])
+        .filter(c=>c.emp===emp.n).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+      const concernHtml = concernRows.length>0
+        ? '<div style="margin-top:.5rem;border-top:1px solid #f1f5f9;padding-top:.4rem">'
+          +'<button id="'+coId+'_btn" onclick="_hrToggle(\''+coId+'\')" style="font-size:.7rem;background:none;border:none;color:#94a3b8;cursor:pointer;padding:0">'
+          +'\u25B6 Show '+concernRows.length+' concern log'+(concernRows.length>1?'s':'')+'</button>'
+          +'<div id="'+coId+'" style="display:none;margin-top:.4rem">'
+          +concernRows.map(c=>'<div style="font-size:.72rem;padding:.3rem .5rem;background:#fef2f2;border-radius:5px;margin-bottom:.25rem">'
+            +'<span style="font-weight:600;color:#b91c1c">'+esc(c.concern_type||'Concern')+'</span>'
+            +(c.hr_action?'<span style="margin-left:.4rem;font-size:.68rem;color:#92400e;background:#fffbeb;padding:.1rem .3rem;border-radius:3px">'+esc(c.hr_action)+'</span>':'')
+            +'<span style="float:right;color:#94a3b8">'+esc((c.ts||'').substring(0,10))+'</span>'
+            +(c.concern_detail?'<div style="margin-top:.2rem;color:#64748b">'+esc(c.concern_detail)+'</div>':'')
+            +'</div>').join('')
+          +'</div></div>'
+        : '';
+
+      const bl = borderColorMap[level]||'#10b981';
+      return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid '+bl+';border-radius:10px;padding:1rem 1.1rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
+        // Header
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.65rem">'
+          +'<div>'
+            +'<div style="font-weight:700;font-size:.95rem;color:#1e293b">'+esc(emp.n)+'</div>'
+            +'<div style="font-size:.78rem;color:#64748b;margin-top:2px;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
+              +'<span>'+esc(emp.r||'Tutor')+' \u00B7 '+esc(emp.si||emp.di||'\u2014')+'</span>'
+              +'<span style="background:#e0f2fe;color:#0369a1;padding:.1rem .35rem;border-radius:4px;font-size:.65rem;font-weight:700">'+region+'</span>'
+              +(emp._apprentice==='Yes'?'<span style="background:#fef9c3;color:#854d0e;padding:.1rem .35rem;border-radius:5px;font-size:.65rem;font-weight:700;border:1px solid #fde68a">\uD83C\uDF93 Apprentice</span>':'')
+            +'</div>'
+          +'</div>'
+          +'<div>'+statusBadge(level,reasons)+'</div>'
+        +'</div>'
+        // Pearl metric strip
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.65rem">'
+          +metricChip('Attendance',    attVal,  attColor,  'att')
+          +metricChip('Surv. Comp.',   survVal, survColor, 'survComp')
+          +metricChip('Late Surveys',  lateVal, '#94a3b8', 'lateSurv')
+          +metricChip('Incomplete',    incVal,  incColor,  'incomplete')
+          +metricChip('Return (med)',  retVal,  retColor,  'returnMed')
+          +metricChip('Enjoy (med)',   enjVal,  enjColor,  'enjoyMed')
+        +'</div>'
+        // Observation timeline
+        +'<div style="margin-bottom:.5rem">'+obsTimeline(emp)+'</div>'
+        // OTJ progress
+        +'<div style="margin-bottom:.3rem">'
+          +'<span style="font-size:.67rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-right:.4rem">OTJ:</span>'
+          +otjBadges(emp)
+        +'</div>'
+        +concernHtml
+        +'</div>';
+    });
+
+    // ── KPI banner ──────────────────────────────────────────────────────────
+    const kpiBanner = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem;margin-bottom:1.1rem">'
+      +[
+        { label:'Active Staff',      val:activeCount,   color:'#1d4ed8', sub:'', click:'' },
+        { label:'Need Attention',    val:needAttention, color:needAttention>0?'#b91c1c':'#059669', sub:'click to filter',
+          click:"_ppSetStatus(_ppStatus==='attention'?'all':'attention')" },
+        { label:'Median Attendance', val:medAtt!=null?(medAtt.toFixed(1)+'%'):'\u2014', color:medAtt!=null&&medAtt<80?'#d97706':'#059669', sub:'active staff', click:'' },
+        { label:'Median Return',     val:medReturn!=null?medReturn.toFixed(2):'\u2014', color:medReturn!=null&&medReturn<3.5?'#d97706':'#059669', sub:'scholar survey', click:'' }
+      ].map(s=>'<div '+(s.click?'onclick="'+s.click+'" ':'')+' style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem .8rem;text-align:center'+(s.click?';cursor:pointer':'')+'">'
+          +'<div style="font-size:1.35rem;font-weight:800;color:'+s.color+'">'+s.val+'</div>'
+          +'<div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px;font-weight:600">'+s.label+'</div>'
+          +(s.sub?'<div style="font-size:.6rem;color:#94a3b8;margin-top:1px">'+s.sub+'</div>':'')
+        +'</div>').join('')
+      +'</div>';
+
+    // ── Filter bar ──────────────────────────────────────────────────────────
+    const regions = ['all',...new Set(profileData.map(p=>p.region).filter(Boolean))].sort((a,b)=>a==='all'?-1:b==='all'?1:a.localeCompare(b));
+    const filterBar = '<div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;padding:.6rem .75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">'
+      +'<select onchange="_ppSetStatus(this.value)" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#374151;font-family:inherit">'
+        +'<option value="all"'+(_ppStatus==='all'?' selected':'')+'>All Statuses</option>'
+        +'<option value="attention"'+(_ppStatus==='attention'?' selected':'')+'>All Flagged</option>'
+        +'<option value="escalate"'+(_ppStatus==='escalate'?' selected':'')+'>&#128308; Escalate to HR</option>'
+        +'<option value="support"'+(_ppStatus==='support'?' selected':'')+'>&#128993; Support Needed</option>'
+        +'<option value="on_track"'+(_ppStatus==='on_track'?' selected':'')+'>&#9989; On Track</option>'
+      +'</select>'
+      +'<select onchange="_ppSetRegion(this.value)" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#374151;font-family:inherit">'
+        +regions.map(r=>'<option value="'+r+'"'+(_ppRegion===r?' selected':'')+'>'+( r==='all'?'All Regions':r)+'</option>').join('')
+      +'</select>'
+      +'<input type="text" placeholder="Search name or site\u2026" value="'+esc(_ppQ)+'" oninput="_ppSetQ(this.value)" style="font-size:.78rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;flex:1;min-width:140px;color:#374151;font-family:inherit">'
+      +(_ppStatus!=='all'||_ppRegion!=='all'||_ppQ ? '<button onclick="_ppClear()" style="font-size:.75rem;padding:.3rem .55rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#64748b;cursor:pointer">\u2715 Clear</button>' : '')
+      +'<span style="font-size:.72rem;color:#94a3b8;margin-left:auto">'+filtered.length+' of '+activeCount+' shown</span>'
+      +'</div>';
+
+    // ── Tooltip modal ────────────────────────────────────────────────────────
+    const tipModal = '<div id="ppTipModal" onclick="this.style.display=\'none\'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999">'
+      +'<div onclick="event.stopPropagation()" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:10px;padding:1.25rem 1.5rem;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">'
+        +'<button onclick="document.getElementById(\'ppTipModal\').style.display=\'none\'" style="position:absolute;top:.6rem;right:.8rem;background:none;border:none;font-size:1.1rem;cursor:pointer;color:#94a3b8">\u2715</button>'
+        +'<div id="ppTipText" style="font-size:.84rem;color:#1e293b;line-height:1.6"></div>'
+      +'</div>'
+      +'</div>';
+
+    return '<div style="padding:.25rem 0">'
+      +tipModal
+      +kpiBanner
+      +filterBar
+      +(cards.length ? cards.join('') : '<div style="color:#94a3b8;font-style:italic;text-align:center;padding:2rem">No staff match the current filters.</div>')
+      +'<div style="font-size:.68rem;color:#94a3b8;margin-top:.75rem;line-height:1.5">'
+        +'Attendance live from Pearl \u00B7 Scholar scores are MEDIAN values from session surveys \u00B7 Terminated staff excluded'
+      +'</div>'
+      +'</div>';
   }
 
   // ── Training & Development Dept Profile View ─────────────────────────────
@@ -2619,6 +2814,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const modal = document.getElementById('hrEmpModal');
     const inner = document.getElementById('hrEmpModalInner');
     if (modal && inner) { inner.innerHTML = _hrModal(emp); modal.style.display='block'; }
+  };
+
+  // ── Programming Profile (Onsite Performance) filter/tooltip handlers ──────
+  window._ppSetStatus = v  => { _ppStatus=v; _hrRebuildProfiles(); };
+  window._ppSetRegion = v  => { _ppRegion=v; _hrRebuildProfiles(); };
+  window._ppSetQ      = v  => { _ppQ=v;      _hrRebuildProfiles(); };
+  window._ppClear     = () => { _ppStatus='all'; _ppRegion='all'; _ppQ=''; _hrRebuildProfiles(); };
+  window._ppShowTip   = text => {
+    const m = document.getElementById('ppTipModal');
+    const t = document.getElementById('ppTipText');
+    if (!m || !t) return;
+    t.textContent = text;
+    m.style.display = 'block';
   };
 
 
