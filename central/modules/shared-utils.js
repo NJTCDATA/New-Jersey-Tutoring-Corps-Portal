@@ -3323,232 +3323,505 @@
   window.govLockTogglePanel = window.govLockTogglePanel;
 
   // ══════════════════════════════════════════════════════════════════════════
-  //  PIE — Portal Intelligence Engine
-  //  Contextual data assistant. Knows NJTC live data. Built for non-analysts.
-  //  Available in every panel. Powered by Anthropic claude-sonnet-4-20250514.
+  // ══════════════════════════════════════════════════════════════════════════
+  //  PIE — Portal Intelligence Engine  v3.0
+  //  100% rule-based intelligence. Zero API calls. Zero external deps.
+  //  Reads live portal data at question time: KPI_DATA, CONCERNS, po, irlab.
+  //  Incorporates full GOV_DATA governance knowledge base.
+  //  Dept-aware suggestions. Panel-context switching. Governance Q&A built in.
+  //  Responds like Amir wrote it — brief, grounded in real numbers, plain English.
   // ══════════════════════════════════════════════════════════════════════════
   (function() {
-    let _pieOpen    = false;
-    let _pieHistory = [];
-    let _piePanel   = 'home';
+    'use strict';
 
-    const PIE_SUGGESTIONS = {
-      home:            ['What are our biggest goals this year?', 'Where are we falling short?', 'What should I know today?'],
-      'kpi':           ['What does "Partially Met" mean?', 'Which goals are most at risk?', 'Who owns this target?'],
-      'kpi-analytics': ['What is our overall score?', 'Which department needs the most help?', 'What does the weighted score mean?'],
-      'pearl-ops':     ['What is Pearl?', 'What does a service interruption mean?', 'How do I read attendance data?'],
-      'sy-analytics':  ['How many scholars are we serving?', 'What is a fee-for-service site?', 'Which sites need attention?'],
-      'talent':        ['What is a PGP?', 'What does On Watch mean?', 'How are concerns tracked?'],
-      'concern':       ['What happens after I submit a concern?', 'What is the difference between On Watch and a Write-Up?'],
-      'iready-lab':    ['What is a scale score?', 'What does typical growth mean?', 'How do I read placement levels?'],
+    var _pieOpen    = false;
+    var _pieHistory = [];
+    var _piePanel   = 'home';
+    var _pieDept    = 'leadership';
+
+    // ── Context-aware suggestions per panel ──────────────────────────────
+    var PIE_SUGGESTIONS = {
+      'home':               ['What are our biggest goals this year?', 'Where are we falling short?', 'What should I know today?'],
+      'kpi':                ['What does "Partially Met" mean?', 'Which goals are most at risk?', 'How is the weighted score calculated?'],
+      'kpi-analytics':      ['What is our overall score?', 'Which goal area needs the most help?', 'What do the health bands mean?'],
+      'pearl-ops':          ['What is Pearl?', 'What does a service interruption mean?', 'How is attendance rate calculated?'],
+      'sy-analytics':       ['How many scholars are we serving?', 'What is a fee-for-service site?', 'What counts as an active site?'],
+      'talent':             ['What is a PGP?', 'What does On Watch mean?', 'How are ADP Suite decisions made?'],
+      'concern':            ['What happens after I submit a concern?', 'Difference between On Watch and Write-Up?'],
+      'iready-lab':         ['What is a scale score?', 'What does typical growth mean?', 'How do I read placement levels?'],
       'training-analytics': ['What is the TAP program?', 'How do I view apprentice progress?'],
-      'policies':      ['Where is the HR handbook?', 'What are the data governance rules?'],
+      'policies':           ['Where is the data governance policy?', 'Who owns the KPI dashboard?'],
+      'impact-report':      ['What is a service interruption?', 'How is impact measured?'],
+      'finance-analytics':  ['What does partnership risk mean?', 'How is fee-for-service health calculated?'],
+      'perf':               ['What is a PGP?', 'What does On Watch mean?', 'How are concerns tracked?'],
     };
 
-    function _buildContext() {
-      const dept   = (window.NJTC_SESSION||{}).dept || 'unknown';
-      const cfg    = (window.DEPT_CONFIG||{})[dept] || {};
-      const kpi    = window.KPI_DATA || [];
-      const getS   = k => k.midStatus || k.status || '';
-      const met    = kpi.filter(k=>getS(k)==='Met').length;
-      const prog   = kpi.filter(k=>getS(k)==='In Progress').length;
-      const partial= kpi.filter(k=>getS(k)==='Partially Met').length;
-      const notmet = kpi.filter(k=>getS(k)==='Has Not Met').length;
-      const pipe   = kpi.filter(k=>getS(k)==='Coming Down the Pipeline').length;
-      const total  = kpi.length || 1;
-      const score  = Math.round((met*1 + partial*.5 + prog*.25 + pipe*.1) / total * 100);
-      const concerns  = (window.CONCERNS||[]).length;
-      const onWatch   = (window.CONCERNS||[]).filter(r=>r.hr_action==='On Watch').length;
-      const pgp       = (window.CONCERNS||[]).filter(r=>r.hr_action==='PGP').length;
-      const term      = (window.CONCERNS||[]).filter(r=>r.hr_action&&r.hr_action.includes('Terminat')).length;
-      let scholarCount = '—', siteCount = '—', siCount = '—';
-      try {
-        if (window.po && window.po.getStats) {
-          const ps = window.po.getStats();
-          scholarCount = ps.scholars || '—';
-          siteCount    = ps.sites    || '—';
-          siCount      = ps.si       || '—';
-        }
-      } catch(e) {}
-      return `You are PIE — the Portal Intelligence Engine for New Jersey Tutoring Corps (NJTC).
-You are embedded inside the NJTC Central Team Portal. You are a concise, knowledgeable,
-friendly assistant who helps non-analytical staff understand what they are looking at.
-You never make up numbers. You always cite the source of data when it matters.
-You speak like a trusted colleague, not a chatbot. Short answers are usually better.
-
-CURRENT SESSION:
-- Department: ${dept} (${cfg.label || dept})
-- Active panel: ${_piePanel}
-- Today: April 2026 | SY 2025-2026
-
-LIVE KPI SNAPSHOT (from Google Sheets KPI Dashboard):
-- Total targets: ${total}
-- Met: ${met} | In Progress: ${prog} | Partially Met: ${partial} | Not Met: ${notmet} | Pipeline: ${pipe}
-- Weighted score: ${score}% (scoring: Met=1pt, Partial=.5pt, InProgress=.25pt, Pipeline=.1pt, NotMet=0)
-- Health: ${score>=85?'Healthy (85%+)':score>=65?'Watch (65-84%)':score>=40?'Needs Focus (40-64%)':'Area of Support (<40%)'}
-
-LIVE OPERATIONAL SNAPSHOT (Pearl / Program data):
-- Scholars served: ${scholarCount}
-- Active sites: ${siteCount}
-- Service interruptions: ${siCount}
-
-HR / WORKFORCE SNAPSHOT:
-- Total documented concerns: ${concerns}
-- On Watch: ${onWatch} | PGP: ${pgp} | Termination recommended: ${term}
-
-ORGANIZATION:
-NJTC is a New Jersey nonprofit that provides high-impact tutoring (HIT) across NJ school districts.
-Staff includes central team (program managers, HR, finance, data, training), site leaders,
-and tutors (certified and non-certified). Pearl is the operational platform for session tracking.
-iReady is the academic diagnostic tool for scholar growth measurement.
-
-RULES:
-1. Never hallucinate data. If you don't know, say so and point them to the right panel.
-2. Always be plain-English and brief. This person is not an analyst.
-3. If they ask about a specific metric, explain what it means, then give the current number.
-4. You are NOT a general AI assistant. Redirect off-topic questions back to NJTC work.
-5. If they ask a question you can't answer from portal data, say: "That's a great question
-   for Amir — submit a KPI Inquiry using the Ask a Question button in KPI Analytics."`;
+    // ── Live data readers (called fresh at question time) ─────────────────
+    function _kpi() {
+      var data  = window.KPI_DATA || [];
+      var getS  = function(k) { return k.midStatus || k.status || ''; };
+      var SCORE = { 'Met':1, 'Partially Met':.5, 'In Progress':.25, 'Coming Down the Pipeline':.1, 'Has Not Met':0 };
+      var met   = data.filter(function(k){ return getS(k)==='Met'; }).length;
+      var part  = data.filter(function(k){ return getS(k)==='Partially Met'; }).length;
+      var prog  = data.filter(function(k){ return getS(k)==='In Progress'; }).length;
+      var pipe  = data.filter(function(k){ return getS(k)==='Coming Down the Pipeline'; }).length;
+      var nm    = data.filter(function(k){ return getS(k)==='Has Not Met'; }).length;
+      var total = data.length || 1;
+      var pts   = data.reduce(function(a,k){ return a+(SCORE[getS(k)]||0); },0);
+      var score = Math.round(pts/total*100);
+      var health= score>=85?'Healthy':score>=65?'Watch':score>=40?'Needs Focus':'Area of Support';
+      var byGoal={};
+      data.forEach(function(k){
+        var g=k.goal||'Other';
+        if(!byGoal[g]) byGoal[g]={met:0,part:0,prog:0,pipe:0,nm:0,total:0};
+        byGoal[g].total++;
+        var s=getS(k);
+        if(s==='Met') byGoal[g].met++;
+        else if(s==='Partially Met') byGoal[g].part++;
+        else if(s==='In Progress') byGoal[g].prog++;
+        else if(s==='Coming Down the Pipeline') byGoal[g].pipe++;
+        else if(s==='Has Not Met') byGoal[g].nm++;
+      });
+      Object.values(byGoal).forEach(function(g){
+        g.score=Math.round((g.met*1+g.part*.5+g.prog*.25+g.pipe*.1)/Math.max(g.total,1)*100);
+      });
+      var sorted=Object.entries(byGoal).sort(function(a,b){return b[1].score-a[1].score;});
+      return { data:data, met:met, part:part, prog:prog, pipe:pipe, nm:nm,
+               total:data.length, score:score, health:health, byGoal:byGoal, sorted:sorted,
+               weakest: sorted.length ? sorted[sorted.length-1] : null,
+               strongest: sorted.length ? sorted[0] : null };
     }
 
+    function _pearl() {
+      try { if(window.po && window.po.getStats) { var s=window.po.getStats(); if(s&&s.loaded) return s; } } catch(e){}
+      return null;
+    }
+
+    function _irl() {
+      try { if(window.irlab && window.irlab.getSummary) return window.irlab.getSummary('ALL'); } catch(e){}
+      return null;
+    }
+
+    function _concerns() { return window.CONCERNS || []; }
+
+    // ── Governance answer from GOV_DATA ───────────────────────────────────
+    function _govAnswer(q) {
+      var govData = (typeof GOV_DATA !== 'undefined') ? GOV_DATA : {};
+      // Map current panel to GOV_DATA key
+      var panelKey = 'panel-' + _piePanel.replace(/^panel-/,'');
+      var pd = govData[panelKey];
+      if (!pd) pd = govData['panel-kpi']; // fallback
+      if (!pd) return null;
+      var ql = q.toLowerCase();
+      // Who owns / who updates
+      if (/who (owns|updates|manages|is responsible|maintains|controls|enters|edits)/.test(ql)) {
+        if (pd.cadence && pd.cadence.items) {
+          var oi = pd.cadence.items.find(function(i){ return /owner|data|primary/i.test(i.label||''); });
+          if (oi) return (oi.desc||'') + (oi.badge ? ' ['+oi.badge+']' : '');
+        }
+        if (pd.access && pd.access.rows) {
+          var ar = pd.access.rows.find(function(r){ return /admin/i.test(r.label||''); });
+          if (ar) return ar.role + ': ' + ar.scope;
+        }
+      }
+      // Cadence / how often
+      if (/how often|how frequent|cadence|sync|refresh|update|cache|how long/.test(ql)) {
+        if (pd.cadence && pd.cadence.items) {
+          var si = pd.cadence.items.find(function(i){ return /sync|refresh|cache|update|frequency/i.test(i.label||''); });
+          if (si) return (si.desc||'') + (si.badge ? ' ['+si.badge+']' : '');
+        }
+      }
+      // What is / definition
+      if (/what is|what does|explain|define|what.?s this|meaning of|how.+(calculated|measured|works?)/.test(ql)) {
+        if (pd.what && pd.what.desc) return pd.what.desc;
+      }
+      // Who can access
+      if (/who can|access|permission|who (see|view|has)|restricted/.test(ql)) {
+        if (pd.access && pd.access.rows && pd.access.rows.length) {
+          return 'Access levels:\n' + pd.access.rows.map(function(r){ return '• '+r.role+': '+r.scope; }).join('\n');
+        }
+      }
+      // Data source
+      if (/source|where.+(data|come|from|pulled)|which sheet|google sheet/.test(ql)) {
+        if (pd.what && pd.what.sources && pd.what.sources.length) {
+          return 'Data sources: ' + pd.what.sources.map(function(s){ return s.label; }).join(', ') + '.';
+        }
+      }
+      // PII / FERPA
+      if (/pii|ferpa|privacy|personal|confidential|sensitive/.test(ql)) {
+        if (pd.access && pd.access.pii) return pd.access.pii;
+      }
+      // Notification requirement
+      if (/notify|notification|who to (tell|contact|inform)|before (making|changing)|schema|column change/.test(ql)) {
+        if (pd.cadence && pd.cadence.notify) return pd.cadence.notify;
+      }
+      return null;
+    }
+
+    // ── RESPONSE RULES ────────────────────────────────────────────────────
+    var RULES = [
+
+      // Greeting
+      { match: function(q){ return /^(hi|hello|hey|good (morning|afternoon|evening)|howdy|what.?s up)/.test(q); },
+        respond: function(){
+          var d=_kpi(), p=_pearl();
+          var g=['Hey','Hi there','Hello'][Math.floor(Date.now()/3000)%3];
+          var m = g + '! I\'m PIE — I read live NJTC portal data and explain what you\'re looking at in plain English. ';
+          if (d.score<65) m += 'Quick heads-up: our weighted KPI score is **' + d.score + '%** (' + d.health + ') — a few goal areas need attention. ';
+          if (p && p.siCount>3) m += 'Pearl shows **' + p.siCount + ' service interruptions** this period. ';
+          return m + 'What would you like to know?';
+        }
+      },
+
+      // What can PIE do
+      { match: function(q){ return /what can you|what do you know|help me|how (can|do i use) pie|your (capabilities|abilities)|what.?s? available/.test(q); },
+        respond: function(){
+          var d=_kpi(), p=_pearl(), irl=_irl();
+          return 'Here\'s what I can answer from live portal data right now:\n\n' +
+            '**📊 KPI Dashboard** — ' + d.total + ' org targets, current statuses, weighted score breakdown, what each status means\n' +
+            '**📡 Pearl Operations** — ' + (p ? 'scholars, sites, sessions, attendance, service interruptions' : 'loading…') + '\n' +
+            '**📐 iReady Analytics** — ' + (irl ? 'academic placement, % of typical growth, scale score gains' : 'upload diagnostic data to unlock') + '\n' +
+            '**👥 Workforce** — ' + _concerns().length + ' documented concerns, HR pipeline, retention watchpoints\n' +
+            '**📋 Data Governance** — policies for KPI, Pearl, iReady, Talent, SY Analytics\n\n' +
+            'I\'m not a general AI — I\'m built specifically for NJTC portal data.';
+        }
+      },
+
+      // Overall org health / score
+      { match: function(q){ return /(overall|org(anizational)?) (score|health|kpi|status|performance)|(how are we doing|where.+(sit|stand)|how.?s njtc)/.test(q); },
+        respond: function(){
+          var d=_kpi();
+          return '**Organizational health: ' + d.score + '% — ' + d.health + '** (SY 2025–2026 mid-year).\n\n' +
+            'Out of ' + d.total + ' targets: ' + d.met + ' Met, ' + d.prog + ' In Progress, ' + d.part + ' Partially Met, ' + d.nm + ' Not Met, ' + d.pipe + ' Pipeline.\n\n' +
+            'Weighted scoring: Met=100pts, Partial=50pts, In Progress=25pts, Pipeline=10pts, Not Met=0pts.' +
+            (d.weakest ? '\n\nWeakest goal area: **' + d.weakest[0] + '** at ' + d.weakest[1].score + '%.' : '') +
+            (d.strongest ? '\nStrongest: **' + d.strongest[0] + '** at ' + d.strongest[1].score + '%.' : '');
+        }
+      },
+
+      // At risk / falling short
+      { match: function(q){ return /(at risk|fall(ing)? short|need(s)? attention|behind|not met|has not met|concern|which goal|weakest|problem area)/.test(q); },
+        respond: function(){
+          var d=_kpi(), getS=function(k){return k.midStatus||k.status||'';};
+          var nm=d.data.filter(function(k){return getS(k)==='Has Not Met';});
+          var pt=d.data.filter(function(k){return getS(k)==='Partially Met';});
+          if (!nm.length && !pt.length) return 'No targets at "Has Not Met" or "Partially Met" right now — or data may still be loading. Click ↺ Refresh in KPI Analytics to pull the latest.';
+          var lines = ['Here\'s where we\'re falling short:\n'];
+          if (nm.length) {
+            lines.push('**🔴 Has Not Met (' + nm.length + ')**');
+            nm.slice(0,5).forEach(function(k){ lines.push('• ' + k.target + ' (' + k.goal + ')'); });
+            if (nm.length>5) lines.push('• …and ' + (nm.length-5) + ' more');
+          }
+          if (pt.length) {
+            lines.push('\n**🟠 Partially Met (' + pt.length + ')**');
+            pt.slice(0,5).forEach(function(k){ lines.push('• ' + k.target + ' (' + k.goal + ')'); });
+            if (pt.length>5) lines.push('• …and ' + (pt.length-5) + ' more');
+          }
+          lines.push('\nOpen KPI Analytics → Needs Attention for the full list with owners and "Ask about this" buttons.');
+          return lines.join('\n');
+        }
+      },
+
+      // Daily briefing / what to know
+      { match: function(q){ return /what should i know|today.?s? (briefing|summary|update)|catch me up|morning|daily (status|update)/.test(q); },
+        respond: function(){
+          var d=_kpi(), p=_pearl(), c=_concerns();
+          var lines = ['**NJTC snapshot — ' + new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + '**\n'];
+          lines.push('📊 **KPI:** ' + d.score + '% weighted score (' + d.health + '). ' + d.met + ' Met, ' + d.nm + ' Not Met.');
+          if (p) {
+            lines.push('📡 **Pearl:** ' + p.scholars + ' active scholars, ' + p.sites + ' sites. Scholar att. ' + Math.round(p.scholAttPct||0) + '%, tutor att. ' + Math.round(p.instAttPct||0) + '%.');
+            if (p.siCount>0) lines.push('⚠️ **' + p.siCount + ' service interruption' + (p.siCount>1?'s':'') + '** on record.');
+          }
+          var ow=c.filter(function(r){return r.hr_action==='On Watch';}).length;
+          var fm=c.filter(function(r){return r.hr_action&&(r.hr_action.includes('Write Up')||r.hr_action==='PGP'||r.hr_action.includes('Terminat'));}).length;
+          if (c.length) lines.push('👥 **Workforce:** ' + c.length + ' concerns. ' + ow + ' on watch, ' + fm + ' formal HR actions.');
+          return lines.join('\n');
+        }
+      },
+
+      // Pearl / service interruptions
+      { match: function(q){ return /what is pearl|pearl platform|how does pearl|pearl data|service interruption|session interruption/.test(q); },
+        respond: function(){
+          var p=_pearl();
+          var m = '**Pearl** is the operational platform for all NJTC tutoring session data — attendance, scholar engagement, instructor surveys, and program delivery. It\'s the source of truth for session-level operations.\n\n';
+          if (p) m += 'Live Pearl data: **' + p.scholars + ' active scholars**, **' + p.sites + ' sites**, **' + (typeof p.sessions==='number'?p.sessions.toLocaleString():p.sessions||'—') + ' sessions delivered**.\n\n';
+          return m + 'A **service interruption** is a session where issues were NOT scholar-caused — tutor no-shows, site closures, admin cancellations. These are tracked separately because they represent NJTC\'s delivery failure, not scholar absence. Each SI directly affects fee-for-service partner trust and contract renewal risk.';
+        }
+      },
+
+      // iReady / academic impact
+      { match: function(q){ return /iready|i-ready|scale score|typical growth|placement level|academic (impact|data|growth|diagnostic)|pct.*typical|% of typical/.test(q); },
+        respond: function(){
+          var irl=_irl();
+          var m = '**iReady** is the academic diagnostic tool partner districts use to measure scholar progress. NJTC collects BOY, MOY, and EOY data to document impact.\n\n' +
+            '**Key metric: Median % of Typical Growth** — 100% means scholars made exactly the growth iReady\'s grade-level norms predict. NJTC targets ≥100% to demonstrate above-typical impact.\n\n' +
+            '**5-Level Placement:** Mid/Above Grade Level → Early On Grade → 1 Level Below → 2 Levels Below → 3+ Levels Below. Our primary population is scholars at 2+ levels below.\n\n';
+          if (irl && (irl.mathMedianPctAllYears||irl.elaMedianPctAllYears)) {
+            m += 'Current program-wide: Math **' + (irl.mathMedianPctAllYears||'—') + '%** of typical | ELA **' + (irl.elaMedianPctAllYears||'—') + '%** of typical.';
+          } else {
+            m += 'Upload iReady diagnostic data in the i-Ready Analysis Lab to see live growth metrics.';
+          }
+          return m;
+        }
+      },
+
+      // HR concerns / retention
+      { match: function(q){ return /retention|concern pipeline|hr (action|concern)|on watch|pgp|write.?up|termination|turnover|how many.*staff/.test(q); },
+        respond: function(){
+          var c=_concerns();
+          if (!c.length) return 'Concern records aren\'t loaded in this session. Navigate to Performance Concerns or Talent Analytics and refresh.';
+          var ow=c.filter(function(r){return r.hr_action==='On Watch';}).length;
+          var wu=c.filter(function(r){return r.hr_action&&r.hr_action.includes('Write Up');}).length;
+          var pgp=c.filter(function(r){return r.hr_action==='PGP';}).length;
+          var term=c.filter(function(r){return r.hr_action&&r.hr_action.includes('Terminat');}).length;
+          var rep=c.filter(function(r){return r.first_time==='No';}).length;
+          return '**Workforce concern pipeline — SY 2025–2026:**\n\n' +
+            '• Total concerns: **' + c.length + '**\n' +
+            '• Repeat occurrences: **' + rep + '** (' + Math.round(rep/Math.max(c.length,1)*100) + '%)\n' +
+            '• On Watch: **' + ow + '** — active monitoring, medium retention risk\n' +
+            '• Write-Up: **' + wu + '** — formal documentation required\n' +
+            '• PGP: **' + pgp + '** — biweekly check-ins per policy\n' +
+            '• Recommended Termination: **' + term + '**\n\n' +
+            'Retention goals: 80% core staff, 60% onsite. Any employee at Write-Up or above is a retention risk. Open Talent Analytics for the full HR exposure breakdown.';
+        }
+      },
+
+      // KPI status definitions
+      { match: function(q){ return /what does.*(met|partial|in progress|pipeline|not met|has not|coming down) mean|status (mean|definition)|kpi status|status guide/.test(q); },
+        respond: function(){
+          return '**KPI Status Definitions:**\n\n' +
+            '✅ **Met** (81–100%): Target fully achieved and validated by goal owner.\n' +
+            '🟠 **Partially Met** (51–80%): Progress made but target not fully achieved. Context note required.\n' +
+            '🔵 **In Progress**: Active work underway, insufficient data for final determination.\n' +
+            '🟣 **Coming Down the Pipeline**: Planned but not started. Earns 0.10 pts credit now.\n' +
+            '🔴 **Has Not Met** (0–50%): Target not achieved. Triggers leadership review and action planning.\n\n' +
+            'Health bands: 🟢 Healthy (≥85%) | 🟡 Watch (65–84%) | 🟠 Needs Focus (40–64%) | 🔴 Area of Support (<40%)';
+        }
+      },
+
+      // Weighted score / methodology
+      { match: function(q){ return /weighted score|how.*(score|calculated|work)|scoring method|health band|what.*(score mean|percent|%).*kpi/.test(q); },
+        respond: function(){
+          var d=_kpi();
+          return '**Weighted Score Methodology:**\n\n' +
+            'Each of ' + d.total + ' KPI targets earns points based on its status:\n' +
+            '• Met = 1.00 pt | Partially Met = 0.50 | In Progress = 0.25 | Pipeline = 0.10 | Not Met = 0.00\n\n' +
+            'Score = total points ÷ total targets × 100.\n\n' +
+            'Current: **' + d.score + '% — ' + d.health + '**\n\n' +
+            'Note: ' + d.score + '% is not the same as "' + d.score + '% of goals are met." It\'s a weighted composite across all ' + d.total + ' targets.';
+        }
+      },
+
+      // Attendance calculation
+      { match: function(q){ return /how.*(attendance|rate).*(calculat|work|measure)|attendance (formula|method|calculation)|scholar attendance|tutor attendance/.test(q); },
+        respond: function(){
+          return '**Attendance Rate Calculations:**\n\n' +
+            '**Scholar Attendance Rate** = Attended ÷ (Attended + Absent) × 100. Service interruption records are EXCLUDED.\n\n' +
+            '**Tutor Session Rate** (Pearl Ops) = session-weighted across ALL Pearl instructors including terminated staff.\n\n' +
+            '**Average Attendance Rate** (Talent Analytics) = mean of per-person rates for Active HR staff with Pearl name matches only.\n\n' +
+            'These are different numbers — don\'t mix them. Both are labeled explicitly in the portal.\n\n' +
+            'Thresholds: ≥80% 🟢 Meeting expectations | 60–79% 🟡 Below target | <60% 🔴 Escalation required.';
+        }
+      },
+
+      // Data governance — general
+      { match: function(q){ return /data governance|governance policy|data policy|data rule|data steward|integrity|quality standard/.test(q); },
+        respond: function(){
+          return '**NJTC Data Governance Principles:**\n\n' +
+            '📌 **Director of PEI** is primary data steward for all portal modules.\n' +
+            '📌 **Data is facts; program team provides context.** PEI reports numbers, program leadership explains the story.\n' +
+            '📌 **No schema changes without coordination.** Before restructuring any connected Google Sheet, contact PEI. Silent changes break the live feed.\n' +
+            '📌 **FERPA compliance.** Portal shows aggregate data only — no individual scholar records surfaced. Raw exports restricted to PEI and authorized staff.\n' +
+            '📌 **Monthly audits.** PEI cross-checks Pearl ↔ HR monthly to catch mismatches.\n\n' +
+            'Open the 🔵 governance beacon on any data panel for module-specific policies.';
+        }
+      },
+
+      // Notify / schema changes
+      { match: function(q){ return /notify|notification|who to (tell|contact|inform)|before (making|changing|modifying)|schema|column change|breaking/.test(q); },
+        respond: function(){
+          var govData=(typeof GOV_DATA!=='undefined')?GOV_DATA:{};
+          var panelKey='panel-'+_piePanel.replace(/^panel-/,'');
+          var pd=govData[panelKey];
+          if (pd && pd.cadence && pd.cadence.notify) return pd.cadence.notify + '\n\n**Director of PEI** is the notification contact for all data infrastructure changes.';
+          return 'Before ANY structural changes to data sources connected to the portal (sheet columns, tab names, Pearl GIDs, iReady export format), notify the **Director of PEI** first. The portal auto-syncs — silent schema changes break the live feed without warning.';
+        }
+      },
+
+      // Module-specific governance question
+      { match: function(q){ return /governance|data source|where.+(data|come|from)|how (often|frequent|is it updated|is data)|who (can|has|enters?|edits?) (access|this|the|data)|pii|ferpa|privacy/.test(q); },
+        respond: function(q){
+          var ans=_govAnswer(q);
+          if (ans) return ans;
+          return 'Open the **🔵 Data Governance beacon** on this panel for full documentation — data sources, update cadence, access levels, and PII policies for everything you\'re currently looking at.';
+        }
+      },
+
+      // Navigation help
+      { match: function(q){ return /where (is|are|can i find|do i go)|how (do i|to) (find|get|access|navigate|open|see)|which (tab|panel|section)/.test(q); },
+        respond: function(q){
+          var ql=q.toLowerCase();
+          var nav=[
+            [/kpi analytic/, 'KPI Analytics is in the left sidebar under Reporting. It has the health scores, goal breakdown, and scorecard.'],
+            [/kpi/, 'KPI Targets is in the sidebar under Reporting.'],
+            [/pearl/, 'Pearl Operations is in the sidebar under Reporting.'],
+            [/talent/, 'Talent Analytics is in the sidebar. HR and Data depts have full access.'],
+            [/concern|support log/, 'Performance Concerns / Support Log is in the sidebar under Reporting.'],
+            [/iready|i-ready/, 'i-Ready Analysis Lab is under Academic Intelligence in the sidebar.'],
+            [/impact report/, 'Impact Report Builder is under Academic Intelligence.'],
+            [/training|t&d|td analytic/, 'T&D Analytics is in the sidebar — accessible to Training and Data depts.'],
+            [/policy|policies/, 'Policies Library is under Documents in the sidebar.'],
+            [/drive/, 'Drive Center is under Documents in the sidebar.'],
+          ];
+          for (var i=0;i<nav.length;i++) { if(nav[i][0].test(ql)) return nav[i][1]; }
+          return 'Use the left sidebar to navigate. Available sections depend on your department access. If a panel is missing, contact Data & Evaluation.';
+        }
+      },
+
+      // Ask a question / escalate
+      { match: function(q){ return /ask (a )?question|kpi inquiry|submit.*question|escalate|flag (this|it)|contact amir/.test(q); },
+        respond: function(){
+          return 'Use the **"Ask a Question"** button inside KPI Analytics to submit a formal KPI Inquiry. It goes directly to Data & Evaluation and gets logged for follow-up. That\'s the right channel for questions about specific target statuses, data discrepancies, or strategic context.';
+        }
+      },
+
+      // Off-topic
+      { match: function(q){ return /weather|stock|sports|politics|recipe|movie|song|joke|unrelated/.test(q); },
+        respond: function(){ return 'I\'m built specifically for NJTC portal data — KPIs, Pearl, iReady, workforce, and governance. What can I help you with in the portal?'; }
+      },
+
+    ]; // end RULES
+
+    // ── Response engine ──────────────────────────────────────────────────
+    function _respond(raw) {
+      var q = raw.toLowerCase().trim()
+        .replace(/['']/g,"'").replace(/[""]/g,'"').replace(/[?!.,;]+$/,'');
+
+      // 1. Governance lookup for data questions
+      if (/what is|how (does|is|do)|where does|who (owns|updates|can)|cadence|source|pii|ferpa/.test(q)) {
+        var ga = _govAnswer(q);
+        if (ga) return ga;
+      }
+
+      // 2. Rules
+      for (var i=0;i<RULES.length;i++) {
+        try { if(RULES[i].match(q)) return RULES[i].respond(q); } catch(e){}
+      }
+
+      // 3. Fallback with live context
+      var d=_kpi(), p=_pearl();
+      return 'I don\'t have a specific answer for that yet.\n\n' +
+        'Quick context: **' + d.score + '%** KPI score (' + d.health + '), ' + d.met + '/' + d.total + ' targets Met. ' +
+        (p ? 'Pearl shows **' + p.scholars + ' scholars** across **' + p.sites + ' sites**.' : 'Pearl data is loading.') +
+        '\n\nTry rephrasing, or use **"Ask a Question"** in KPI Analytics to reach the Data & Evaluation team directly.';
+    }
+
+    // ── DOM helpers ────────────────────────────────────────────────────────
+    function _addMsg(role, content) {
+      var msgs = document.getElementById('pieMessages');
+      if (!msgs) return;
+      var div = document.createElement('div');
+      div.className = 'pie-msg ' + role;
+      var html = content.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+      div.innerHTML = role==='pie'
+        ? '<div class="pie-msg-avatar">PIE</div><div class="pie-msg-bubble">'+html+'</div>'
+        : '<div class="pie-msg-bubble">'+html+'</div>';
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+      _pieHistory.push({ role: role==='user'?'user':'assistant', content: content });
+    }
+
+    function _showTyping() {
+      var msgs = document.getElementById('pieMessages');
+      if (!msgs) return;
+      var div = document.createElement('div');
+      div.id = 'pieTyping'; div.className = 'pie-msg pie';
+      div.innerHTML = '<div class="pie-msg-avatar">PIE</div><div class="pie-typing"><span></span><span></span><span></span></div>';
+      msgs.appendChild(div); msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function _removeTyping() { var t=document.getElementById('pieTyping'); if(t) t.remove(); }
+
+    function _setSuggestions(panelId) {
+      var el = document.getElementById('pieSuggested');
+      if (!el) return;
+      var s = PIE_SUGGESTIONS[panelId] || PIE_SUGGESTIONS['home'];
+      el.innerHTML = s.map(function(q){ return '<button class="pie-chip" onclick="pieAsk('+JSON.stringify(q)+')">'+q+'</button>'; }).join('');
+    }
+
+    // ── Public API ─────────────────────────────────────────────────────────
     window.pieInit = function(dept) {
-      const container = document.getElementById('pieContainer');
+      _pieDept = dept || 'leadership';
+      var container = document.getElementById('pieContainer');
       if (container) container.style.display = 'block';
-      const deptLabel = document.getElementById('pieDeptLabel');
-      const cfg = (window.DEPT_CONFIG||{})[dept] || {};
+      var deptLabel = document.getElementById('pieDeptLabel');
+      var sub = document.getElementById('pieHeaderSub');
+      var cfg = (window.DEPT_CONFIG||{})[dept]||{};
       if (deptLabel) deptLabel.textContent = cfg.label || dept;
-      const welcomes = {
-        kb:          `Hi — I'm PIE, your portal assistant. I have access to live NJTC data including KPI scores, program stats, and workforce numbers. What would you like to know?`,
-        leadership:  `Good to see you. I'm PIE — I can explain what you're looking at anywhere in the portal, pull context from live data, or help you find information quickly.`,
-        hr:          `Hey — I'm PIE. I know the HR data, concern pipeline, retention numbers, and what everything in this portal means. What do you need?`,
-        programming: `I'm PIE, your portal guide. I can explain Pearl data, site metrics, tutor concerns — anything you're looking at. What's on your mind?`,
-        training:    `I'm PIE. I know the T&D analytics, apprenticeship data, and what our training metrics mean. Ask me anything.`,
-        data:        `PIE is live. You have full portal access — I'm here for quick context or to explain things for teammates. What do you need?`,
-        finance:     `I'm PIE. I can help interpret funding goals, fee-for-service status, and financial KPIs. What are you looking at?`,
+      if (sub) sub.textContent = 'Ready \u00b7 ' + (cfg.label || dept);
+      var welcomes = {
+        kb:          'Hi \u2014 I\u2019m PIE. I have live access to KPI scores, program stats, and workforce data. What would you like to know?',
+        leadership:  'Good to see you. I\u2019m PIE \u2014 I can explain what you\u2019re looking at anywhere in the portal, pull context from live data, or help you find information quickly.',
+        hr:          'Hey \u2014 I\u2019m PIE. I know the HR data, concern pipeline, retention numbers, and what everything in this portal means. What do you need?',
+        programming: 'I\u2019m PIE, your portal guide. I can explain Pearl data, site metrics, tutor concerns \u2014 anything you\u2019re seeing. What\u2019s on your mind?',
+        training:    'I\u2019m PIE. I know the T&D analytics, apprenticeship data, and what our training metrics mean. Ask me anything.',
+        data:        'PIE is live. Full portal access \u2014 I\u2019m here for quick context or to explain things for teammates. What do you need?',
+        finance:     'I\u2019m PIE. I can help interpret funding goals, fee-for-service status, and financial KPIs. What are you looking at?',
       };
-      _pieAddMessage('pie', welcomes[dept] || welcomes.leadership);
-      _pieSetSuggestions(_piePanel);
+      _addMsg('pie', welcomes[dept] || welcomes.leadership);
+      _setSuggestions(_piePanel);
     };
 
-    window.pieSetPanel = function(panelId) {
-      _piePanel = panelId;
-      _pieSetSuggestions(panelId);
-    };
+    window.pieSetPanel = function(panelId) { _piePanel = panelId; _setSuggestions(panelId); };
 
     window.pieToggle = function() {
       _pieOpen = !_pieOpen;
-      const drawer = document.getElementById('pieDrawer');
+      var drawer = document.getElementById('pieDrawer');
       if (drawer) drawer.classList.toggle('open', _pieOpen);
-      if (_pieOpen) {
-        const input = document.getElementById('pieInput');
-        if (input) setTimeout(() => input.focus(), 200);
-      }
+      if (_pieOpen) { var inp=document.getElementById('pieInput'); if(inp) setTimeout(function(){inp.focus();},200); }
     };
-
-    function _pieAddMessage(role, content) {
-      const msgs = document.getElementById('pieMessages');
-      if (!msgs) return;
-      const div = document.createElement('div');
-      div.className = `pie-msg ${role}`;
-      div.innerHTML = role === 'pie'
-        ? `<div class="pie-msg-avatar">PIE</div><div class="pie-msg-bubble">${content.replace(/\n/g,'<br>')}</div>`
-        : `<div class="pie-msg-bubble">${content}</div>`;
-      msgs.appendChild(div);
-      msgs.scrollTop = msgs.scrollHeight;
-      _pieHistory.push({ role: role === 'user' ? 'user' : 'assistant', content });
-    }
-
-    function _pieShowTyping() {
-      const msgs = document.getElementById('pieMessages');
-      if (!msgs) return;
-      const div = document.createElement('div');
-      div.id = 'pieTyping';
-      div.className = 'pie-msg pie';
-      div.innerHTML = `<div class="pie-msg-avatar">PIE</div><div class="pie-typing"><span></span><span></span><span></span></div>`;
-      msgs.appendChild(div);
-      msgs.scrollTop = msgs.scrollHeight;
-    }
-
-    function _pieRemoveTyping() {
-      const t = document.getElementById('pieTyping');
-      if (t) t.remove();
-    }
-
-    function _pieSetSuggestions(panelId) {
-      const el = document.getElementById('pieSuggested');
-      if (!el) return;
-      const suggestions = PIE_SUGGESTIONS[panelId] || PIE_SUGGESTIONS.home;
-      el.innerHTML = suggestions.map(s =>
-        `<button class="pie-chip" onclick="pieAsk(${JSON.stringify(s)})">${s}</button>`
-      ).join('');
-    }
 
     window.pieAsk = function(question) {
-      const input = document.getElementById('pieInput');
+      var input = document.getElementById('pieInput');
       if (input) input.value = question;
-      pieSend();
+      window.pieSend();
     };
 
-    window.pieSend = async function() {
-      const input   = document.getElementById('pieInput');
-      const sendBtn = document.getElementById('pieSendBtn');
+    window.pieSend = function() {
+      var input   = document.getElementById('pieInput');
+      var sendBtn = document.getElementById('pieSendBtn');
       if (!input || !input.value.trim()) return;
-      const userMsg = input.value.trim();
-      input.value = '';
-      input.style.height = 'auto';
-
-      _pieAddMessage('user', userMsg);
+      var userMsg = input.value.trim();
+      input.value = ''; if(input.style) input.style.height='auto';
+      _addMsg('user', userMsg);
       if (sendBtn) sendBtn.disabled = true;
-      _pieShowTyping();
-
-      const sugg = document.getElementById('pieSuggested');
+      _showTyping();
+      var sugg = document.getElementById('pieSuggested');
       if (sugg) sugg.innerHTML = '';
-
-      try {
-        const systemContext = _buildContext();
-        const historySlice  = _pieHistory.slice(-8);
-        const messages      = [...historySlice, { role: 'user', content: userMsg }];
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            system: systemContext,
-            messages
-          })
-        });
-        const data  = await response.json();
-        const reply = data.content?.find(b => b.type === 'text')?.text ||
-                      'I had trouble generating a response. Please try again.';
-        _pieRemoveTyping();
-        _pieAddMessage('pie', reply);
-      } catch(e) {
-        _pieRemoveTyping();
-        _pieAddMessage('pie', 'Something went wrong on my end. Try again in a moment, or use the KPI Inquiry form to log your question for Amir.');
-      }
-
-      if (sendBtn) sendBtn.disabled = false;
-      _pieSetSuggestions(_piePanel);
+      var delay = 280 + Math.floor(Math.random()*200);
+      setTimeout(function(){
+        _removeTyping();
+        try { _addMsg('pie', _respond(userMsg)); } catch(e) {
+          _addMsg('pie', 'Something went wrong. Try rephrasing, or use the Ask a Question button in KPI Analytics.');
+        }
+        if (sendBtn) sendBtn.disabled = false;
+        _setSuggestions(_piePanel);
+      }, delay);
     };
 
-    // Wire into showPanel to update PIE panel context
-    const _origSP_pie = window.showPanel;
+    // Wire into showPanel
+    var _origSP = window.showPanel;
     window.showPanel = function(id, btn) {
-      if (typeof _origSP_pie === 'function') _origSP_pie(id, btn);
-      _piePanel = id;
-      _pieSetSuggestions(id);
+      if (typeof _origSP === 'function') _origSP(id, btn);
+      _piePanel = id; _setSuggestions(id);
     };
 
-    // Close PIE drawer when clicking outside
+    // Close on outside click
     document.addEventListener('click', function(e) {
-      if (!e.target.closest('#pieContainer')) {
-        const d = document.getElementById('pieDrawer');
-        const trigger = document.getElementById('pieTrigger');
+      if (!e.target.closest || !e.target.closest('#pieContainer')) {
+        var d=document.getElementById('pieDrawer'), trigger=document.getElementById('pieTrigger');
         if (d && d.classList.contains('open') && trigger && !trigger.contains(e.target)) {
-          _pieOpen = false;
-          d.classList.remove('open');
+          _pieOpen=false; d.classList.remove('open');
         }
       }
     });
