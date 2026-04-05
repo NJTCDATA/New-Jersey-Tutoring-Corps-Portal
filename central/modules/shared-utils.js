@@ -3349,6 +3349,125 @@
   function _pct(n) { return n==null ? '—' : Math.round(n)+'%'; }
   function _n(n)   { return n==null ? '—' : Number(n).toLocaleString('en-US'); }
 
+  // ── Temporal helpers — date parsing + named ranges ────────────────────────
+  function _parseMMDDYYYY(s) {
+    if (!s || typeof s !== 'string') return null;
+    var p = s.trim().split('/');
+    if (p.length !== 3) return null;
+    var d = new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1]));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function _today() {
+    var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+
+  // Returns {start, end, label} for named periods
+  function _dateRange(label) {
+    var t = _today();
+    var dow = t.getDay(); // 0=Sun
+    var mon = function(base, offset) { var d=new Date(base); d.setDate(base.getDate()+offset); return d; };
+    switch(label) {
+      case 'today':
+        return { start:t, end:t, label:'Today' };
+      case 'this_week': {
+        var wStart = mon(t, -(dow===0?6:dow-1)); // Monday
+        return { start:wStart, end:t, label:'This Week' };
+      }
+      case 'last_week': {
+        var thisM = mon(t, -(dow===0?6:dow-1));
+        var lastM = mon(thisM,-7); var lastSun = mon(thisM,-1);
+        return { start:lastM, end:lastSun, label:'Last Week' };
+      }
+      case 'this_month': {
+        return { start:new Date(t.getFullYear(),t.getMonth(),1), end:t, label:'This Month' };
+      }
+      case 'last_month': {
+        var lmStart = new Date(t.getFullYear(),t.getMonth()-1,1);
+        var lmEnd   = new Date(t.getFullYear(),t.getMonth(),0);
+        return { start:lmStart, end:lmEnd, label:'Last Month' };
+      }
+      case 'last_7':
+        return { start:mon(t,-7), end:t, label:'Last 7 Days' };
+      case 'last_30':
+        return { start:mon(t,-30), end:t, label:'Last 30 Days' };
+      case 'last_90':
+        return { start:mon(t,-90), end:t, label:'Last 90 Days' };
+    }
+    return null;
+  }
+
+  // Detect temporal label from query
+  function _detectPeriod(q) {
+    var lq = (q||'').toLowerCase();
+    if (/last week|past week/.test(lq)) return 'last_week';
+    if (/this week|current week/.test(lq)) return 'this_week';
+    if (/last month|past month|previous month/.test(lq)) return 'last_month';
+    if (/this month|current month/.test(lq)) return 'this_month';
+    if (/last 7|past 7|7 days/.test(lq)) return 'last_7';
+    if (/last 30|past 30|30 days/.test(lq)) return 'last_30';
+    if (/last 90|past 90|90 days|quarter/.test(lq)) return 'last_90';
+    if (/today|today.?s/.test(lq)) return 'today';
+    return null;
+  }
+
+  // Compute attendance stats from raw ATT rows filtered to a date range
+  function _attStatsForRange(rangeLabel) {
+    if (!window.po || typeof window.po.getAttRows !== 'function') return null;
+    var rows = window.po.getAttRows();
+    if (!rows || !rows.length) return null;
+    var rng = _dateRange(rangeLabel);
+    if (!rng) return null;
+    var startMs = rng.start.getTime(), endMs = rng.end.getTime() + 86400000-1;
+    var filtered = rows.filter(function(r) {
+      var d = _parseMMDDYYYY(r[5]); // ATT.SESS_DATE = index 5
+      return d && d.getTime() >= startMs && d.getTime() <= endMs;
+    });
+    if (!filtered.length) return { label:rng.label, rows:0, scholAttPct:null, tutorAttPct:null, sessions:0, siCount:0 };
+    // Scholar rows
+    var stu  = filtered.filter(function(r){ return r[1]==='Student'; });
+    var stuA = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var stuB = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt|^si$/i.test(r[7]||''); }).length;
+    var stuSI= stu.filter(function(r){ return /service.?interrupt/i.test(r[6]) || /service.?interrupt/i.test(r[7]||''); }).length;
+    // Tutor/Instructor rows
+    var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
+    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    // Unique sessions (approximate: unique session title+date combos)
+    var sessSet = new Set();
+    filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
+    // Unique schools
+    var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
+    var scholars = new Set(stu.map(function(r){ return r[13]||r[0]; }).filter(Boolean));
+    return {
+      label:      rng.label,
+      start:      rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+      end:        rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+      rows:       filtered.length,
+      scholAttPct: (stuA+stuB)>0 ? parseFloat((stuA/(stuA+stuB)*100).toFixed(1)) : null,
+      tutorAttPct: (instA+instB)>0 ? parseFloat((instA/(instA+instB)*100).toFixed(1)) : null,
+      scholAtt:   stuA, scholAbs: stuB, siCount: stuSI,
+      tutorAtt:   instA, tutorAbs: instB,
+      sessions:   sessSet.size,
+      schools:    schools.size,
+      scholars:   scholars.size,
+    };
+  }
+
+  // Format a period stats block
+  function _fmtPeriodStats(s) {
+    if (!s) return null;
+    if (!s.rows) return '**'+s.label+'** ('+s.start+' – '+s.end+'): No session records found for this period.';
+    var scholIcon = s.scholAttPct==null?'—':s.scholAttPct>=85?'✅':s.scholAttPct>=75?'⚠️':'🔴';
+    var tutorIcon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
+    var lines = ['**'+s.label+'** ('+s.start+' – '+s.end+')'];
+    lines.push(scholIcon+' Scholar att: **'+(s.scholAttPct!=null?s.scholAttPct+'%':'—')+'** ('+s.scholAtt+' attended · '+s.scholAbs+' absent)');
+    lines.push(tutorIcon+' Tutor att: **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'—')+'** ('+s.tutorAtt+' attended · '+s.tutorAbs+' absent)');
+    if (s.siCount) lines.push('🚫 Service interruptions: **'+s.siCount+'**');
+    lines.push('📋 Sessions: **'+s.sessions+'** · Schools active: **'+s.schools+'** · Unique scholars: **'+s.scholars+'**');
+    return lines.join('\n');
+  }
+
   // ── Resolve a pending clarification ──────────────────────────────────────
   function _resolvePending(pq, q) {
     var ql = (q||'').toLowerCase();
@@ -4360,6 +4479,140 @@
         }
         msg += '\nAsk me to show data from a specific year, e.g. "Show iReady 2023-2024."';
         return msg;
+      }
+    },
+
+    // ── TEMPORAL DRILL-DOWN ──────────────────────────────────────────────────
+
+    // Single period: "scholar attendance last week", "what happened this month", etc.
+    { match: /\b(last week|this week|last month|this month|last 7|last 30|last 90|today|past week|past month|current week|current month|7 days|30 days|90 days)\b/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ);
+        if (!period) return 'I detected a time reference but couldn\'t parse it. Try: "last week", "this month", "last 30 days", or "last 7 days".';
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl session data not yet loaded — open Pearl Operations first.';
+        var s = _attStatsForRange(period);
+        if (!s) return 'No data found for that period.';
+        if (!s.rows) return '**'+s.label+'** ('+s.start+' – '+s.end+'): No sessions recorded for this period. Pearl may not have data that far back, or this period hasn\'t started yet.';
+        var msg = '**Pearl Attendance — '+_fmtPeriodStats(s)+'\n\n';
+        // Benchmark comparison
+        var bench = [];
+        if (s.scholAttPct!=null) bench.push('Scholar benchmark: ≥85%'+(s.scholAttPct>=85?' ✅':' — currently below'));
+        if (s.tutorAttPct!=null)  bench.push('Tutor benchmark: ≥90%'+(s.tutorAttPct>=90?' ✅':' — currently below'));
+        if (bench.length) msg += bench.join(' · ');
+        return msg.replace('**Pearl Attendance — ','').trim();
+      }
+    },
+
+    // Compare two periods: "last week vs last month", "this week compared to last week"
+    { match: /\b(compare|vs\.?|versus|vs last|vs this|this.*vs|last.*vs|week.*(vs|compare|compar).*month|month.*(vs|compare|compar).*week|this week.*last week|last week.*this week|this month.*last month|last month.*this month)\b/i,
+      respond: function() {
+        var lq = (_lastQ||'').toLowerCase();
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl data not yet loaded — open Pearl Operations first.';
+        // Detect which two periods
+        var periods = [];
+        if (/this week/.test(lq)) periods.push('this_week');
+        if (/last week/.test(lq)) periods.push('last_week');
+        if (/this month/.test(lq)) periods.push('this_month');
+        if (/last month/.test(lq)) periods.push('last_month');
+        if (/last 7|7 day/.test(lq)) periods.push('last_7');
+        if (/last 30|30 day/.test(lq)) periods.push('last_30');
+        // Default to this_week vs last_week if none detected
+        if (periods.length < 2) periods = ['this_week','last_week'];
+        var a = _attStatsForRange(periods[0]);
+        var b = _attStatsForRange(periods[1]);
+        if (!a && !b) return 'No Pearl data found for either period.';
+        var msg = '**Period Comparison:**\n\n';
+        if (a) msg += _fmtPeriodStats(a) + '\n\n';
+        if (b) msg += _fmtPeriodStats(b);
+        // Trend
+        if (a && b && a.scholAttPct!=null && b.scholAttPct!=null) {
+          var diff = parseFloat((a.scholAttPct - b.scholAttPct).toFixed(1));
+          msg += '\n\n**Trend:** Scholar att '+( diff>0?'⬆ +'+diff+'% vs '+b.label : diff<0?'⬇ '+diff+'% vs '+b.label : 'flat vs '+b.label)+'.';
+        }
+        return msg;
+      }
+    },
+
+    // Site-level drill-down for a period: "which schools had low attendance last week"
+    { match: /which (school|site).*(last week|this week|last month|this month|last 7|last 30)|school.*(attend|absent|si|interrupt).*(last|this|past|week|month)|(last|this).*(week|month).*(school|site)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl data not yet loaded.';
+        var rng = _dateRange(period);
+        if (!rng) return 'Could not determine date range.';
+        var startMs = rng.start.getTime(), endMs = rng.end.getTime()+86400000-1;
+        var filtered = rows.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&d.getTime()>=startMs&&d.getTime()<=endMs; });
+        if (!filtered.length) return 'No Pearl sessions found for '+rng.label+'.';
+        // Group by school
+        var bySchool = {};
+        filtered.filter(function(r){ return r[1]==='Student'; }).forEach(function(r){
+          var s=r[11]||'Unknown'; if(!bySchool[s]) bySchool[s]={att:0,abs:0,si:0,district:r[12]||''};
+          if(/^attended$/i.test(r[6])) bySchool[s].att++;
+          else if(/^absent$/i.test(r[6])&&!/service.?interrupt/i.test(r[7]||'')) bySchool[s].abs++;
+          else if(/service.?interrupt/i.test(r[6])||/service.?interrupt/i.test(r[7]||'')) bySchool[s].si++;
+        });
+        var sites = Object.entries(bySchool).map(function(e){
+          var tot=e[1].att+e[1].abs;
+          return {name:e[0], district:e[1].district, att:e[1].att, abs:e[1].abs, si:e[1].si, rate:tot>0?Math.round(e[1].att/tot*100):null};
+        }).filter(function(s){ return s.rate!==null; }).sort(function(a,b){ return a.rate-b.rate; });
+        if (!sites.length) return 'No school-level data for '+rng.label+'.';
+        var low = sites.filter(function(s){ return s.rate<85; }).slice(0,6);
+        var msg = '**School Attendance — '+rng.label+' ('+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'):**\n\n';
+        if (low.length) {
+          msg += '**Below 85% benchmark:**\n';
+          msg += low.map(function(s){ var icon=s.rate<70?'🔴':'⚠️'; return icon+' **'+s.name+'** — '+s.rate+'% ('+s.att+' att / '+s.abs+' abs)'+(s.si?' · '+s.si+' SIs':''); }).join('\n');
+        } else {
+          msg += '✅ All schools above 85% this period.';
+        }
+        msg += '\n\nTotal sites active this period: **'+sites.length+'**';
+        return msg;
+      }
+    },
+
+    // Tutor-specific drill-down for a period: "tutor attendance last week"
+    { match: /tutor.*(last week|this week|last month|this month|last 7|last 30)|(last|this).*(week|month).*tutor/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No tutor attendance data found for that period.';
+        var rng = _dateRange(period);
+        var msg = '**Tutor Attendance — '+s.label+' ('+s.start+' – '+s.end+'):**\n\n';
+        var icon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
+        msg += icon+' **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'No data')+'** tutor attendance rate\n';
+        msg += s.tutorAtt+' sessions with tutor present · '+s.tutorAbs+' absences';
+        if (s.siCount) msg += '\n🚫 '+s.siCount+' service interruptions this period';
+        msg += '\n\nBenchmark: ≥90%. For a per-tutor breakdown this period, open Pearl Operations → filter by date.';
+        return msg;
+      }
+    },
+
+    // SIs for a period
+    { match: /\b(service interruption|si count|how many si).*(last week|this week|last month|this month|last 7|last 30)|(last|this).*(week|month).*(si|service interruption)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No data found for that period.';
+        var msg = '**Service Interruptions — '+s.label+' ('+s.start+' – '+s.end+'):**\n\n';
+        msg += '🚫 **'+s.siCount+'** service interruptions\n';
+        msg += '📋 '+s.sessions+' sessions total in this period\n';
+        if (s.sessions>0) msg += 'SI rate: **'+Math.round(s.siCount/s.sessions*100)+'%** of sessions interrupted';
+        return msg;
+      }
+    },
+
+    // What happened / summary for a period
+    { match: /what.*(happen|happen|occur|go on|took place).*(last week|this week|last month|yesterday)|(last week|this week|last month).*(summary|recap|update|rundown|overview)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No session data found for '+period.replace('_',' ')+'. Pearl may not have records that far back.';
+        return _fmtPeriodStats(s);
       }
     },
 
