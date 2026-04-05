@@ -3397,13 +3397,15 @@
     return tokens.filter(function(t){ return queryNorm.indexOf(t) >= 0; }).length;
   }
 
-  // Build unique school/district name lists from live data
+  // Build location name lists — Pearl r[11]/r[12] are authoritative (match actual filter keys)
   function _knownLocs() {
     var schools = {}, districts = {};
+    // Pearl ATT rows: r[11]=school, r[12]=district — most accurate for filter matching
     try {
       var rows = window.po && typeof window.po.getAttRows==='function' ? window.po.getAttRows() : [];
       rows.forEach(function(r){ if(r[11]) schools[r[11]]=true; if(r[12]) districts[r[12]]=true; });
     } catch(e) {}
+    // Supplement from leadership/stellar data
     try {
       var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
       if (ld) {
@@ -3412,8 +3414,11 @@
       }
     } catch(e) {}
     try { (window.po.getStellarSchools()||[]).forEach(function(s){ if(s.school) schools[s.school]=true; if(s.district) districts[s.district]=true; }); } catch(e) {}
-    try { (window.HR_EMPS||[]).forEach(function(e){ if(e.si) schools[e.si]=true; if(e.di) districts[e.di]=true; }); } catch(e) {}
-    return { schools: Object.keys(schools), districts: Object.keys(districts) };
+    // HR fallback only if Pearl hasn't loaded yet (e.si = site/CMO, NOT district)
+    if (!Object.keys(schools).length) {
+      try { (window.HR_EMPS||[]).forEach(function(e){ if(e.si) schools[e.si]=true; }); } catch(e) {}
+    }
+    return { schools: Object.keys(schools).filter(Boolean), districts: Object.keys(districts).filter(Boolean) };
   }
 
   // Extract the best-matching location from a query.
@@ -3423,11 +3428,18 @@
     var qn = _normLoc(q);
     var locs = _knownLocs();
 
+    // If user explicitly says "district", check districts FIRST
+    var wantDistrict = /\bdistrict\b/i.test(q);
+    if (wantDistrict) {
+      var matchedD = locs.districts.filter(function(d){ return _locScore(qn, d) >= 1; });
+      if (matchedD.length >= 1) return { type:'district', name: matchedD[0], names: matchedD };
+    }
+
     // Collect ALL schools with score >= 1
     var matchedSchools = locs.schools.filter(function(s){ return _locScore(qn, s) >= 1; });
 
     if (matchedSchools.length > 1) {
-      // Multiple schools share the keyword — treat as a network/CMO
+      // Multiple schools share the keyword — treat as a CMO/network
       var label = _networkLabel(qn, matchedSchools);
       return { type:'network', names: matchedSchools, label: label, name: label };
     }
@@ -3435,7 +3447,7 @@
       return { type:'school', name: matchedSchools[0], names: [matchedSchools[0]] };
     }
 
-    // Check districts
+    // Fall through to districts
     var matchedDistricts = locs.districts.filter(function(d){ return _locScore(qn, d) >= 1; });
     if (matchedDistricts.length >= 1) {
       return { type:'district', name: matchedDistricts[0], names: matchedDistricts };
@@ -3508,8 +3520,11 @@
     var sI = s.scholPct==null?'—':s.scholPct>=85?'✅':s.scholPct>=75?'⚠️':'🔴';
     var tI = s.tutorPct==null?'—':s.tutorPct>=90?'✅':s.tutorPct>=80?'⚠️':'🔴';
     var msg = '**' + s.label + '**\n\n';
-    if (s.scholPct!=null) msg += sI+' **Scholars:** '+s.scholPct+'% ('+s.scholAtt+' present / '+s.scholAbs+' absent'+(s.siCount?' · '+s.siCount+' SI':'')+')';
-    else msg += '— No scholar records.\n';
+    if (s.scholPct!=null) {
+      var siNote = s.siCount > 0 ? ' · '+s.siCount+' SI (not counted against att%)' : '';
+      msg += sI+' **Scholars:** '+s.scholPct+'% ('+s.scholAtt+' present / '+s.scholAbs+' absent'+siNote+')';
+      if (s.scholPct === 100 && s.siCount === 0 && s.scholAbs === 0) msg += ' ← verify SI vs. absent coding';
+    } else { msg += '— No scholar records.\n'; }
     if (s.tutorPct!=null) msg += '\n'+tI+' **Tutors:** '+s.tutorPct+'% ('+s.tutorAtt+' present / '+s.tutorAbs+' absent)';
     else msg += '\n— No tutor records.';
     msg += '\n\n📍 ~'+s.sessions+' session(s)';
@@ -6044,13 +6059,14 @@
 
     // 1. Entity-first: detect a person name before rule scan
     //    Skip entity extraction when query is clearly about aggregate/program data
-    var _skipEntity = /\b(aggregate|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide)\b/i.test(qt) ||
+    var _skipEntity = /\b(aggregate|average|avg|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide|cmo|network)\b/i.test(qt) ||
                       /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b.{0,10}\d{1,2}/i.test(qt) ||
                       /\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/.test(qt) ||
                       /\b(wk|week)\s*\d{1,2}\b/i.test(qt) ||
                       /\bschool year\b|\bsy\s*20\d{2}/i.test(qt) ||
                       /\b(math|ela|reading|literacy).{0,20}(growth|typical|diagnostic|score)\b/i.test(qt) ||
-                      /\b(growth|typical|diagnostic|iready).{0,20}(math|ela|reading)\b/i.test(qt);
+                      /\b(growth|typical|diagnostic|iready).{0,20}(math|ela|reading)\b/i.test(qt) ||
+                      /\b(attendance|absent|absence).{0,20}(site|school|district|cmo|network|for)\b/i.test(qt);
     if (!_skipEntity) {
       var entity = _extractPerson(qt);
       if (entity) return _personResponse(entity, qt);
