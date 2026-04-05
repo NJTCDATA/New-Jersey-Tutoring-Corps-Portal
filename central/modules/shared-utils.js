@@ -3127,12 +3127,13 @@
   //  Reads: KPI_DATA, window.po, window.irlab, CONCERNS, HR_EMPS, GOV_DATA
   // ════════════════════════════════════════════════════════════════════════════
 
-  var _open    = false;
-  var _history = [];
-  var _panel   = 'home';
-  var _dept    = 'leadership';
-  var _cat     = 'Overview';
-  var _lastQ   = ''; // last routed query — readable by RULES respond functions
+  var _open     = false;
+  var _history  = [];
+  var _panel    = 'home';
+  var _dept     = 'leadership';
+  var _cat      = 'Overview';
+  var _lastQ    = ''; // last routed query — readable by RULES respond functions
+  var _pendingQ = null; // {ctx, dir} — awaiting user clarification before answering
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
@@ -3202,8 +3203,10 @@
   // ── Person-specific response ──────────────────────────────────────────────
   function _personResponse(entity, origQ) {
     var name = entity.name;
-    var lines = ['**' + name + '**'];
-    // Attendance from Pearl
+    var lines = ['**' + name + '** — Full Profile'];
+    var ql = (origQ||'').toLowerCase();
+
+    // ── Pearl Attendance ──────────────────────────────────────────────────
     var tutor = entity.tutor;
     if (!tutor) {
       try {
@@ -3215,30 +3218,92 @@
       } catch(e) {}
     }
     if (tutor) {
-      var color = tutor.attRate >= 90 ? '✅' : tutor.attRate >= 80 ? '⚠️' : '🔴';
-      lines.push(color + ' Pearl attendance: **' + tutor.attRate + '%** (' + tutor.attended + ' attended / ' + tutor.absent + ' absent of ' + tutor.total + ' total)');
+      var attIcon = tutor.attRate >= 90 ? '✅' : tutor.attRate >= 80 ? '⚠️' : '🔴';
+      lines.push('\n**ATTENDANCE (Pearl)**');
+      lines.push(attIcon + ' Rate: **' + tutor.attRate + '%** (' + tutor.attended + ' attended / ' + (tutor.absent||0) + ' absent · ' + tutor.total + ' total sessions)');
       if (tutor.school) lines.push('📍 Site: ' + tutor.school + (tutor.district ? ' · ' + tutor.district : ''));
     }
-    // HR profile
+
+    // ── HR Profile ────────────────────────────────────────────────────────
     if (entity.hr) {
       var e = entity.hr;
-      var role = e.r || '';
-      var status = e.s || '';
-      if (role) lines.push('👤 Role: ' + role);
-      if (status) lines.push('Status: ' + status);
+      lines.push('\n**HR PROFILE**');
+      if (e.r)  lines.push('👤 Role: ' + e.r);
+      if (e.s)  lines.push('Status: ' + e.s);
       if (e.si) lines.push('📍 Site: ' + e.si + (e.di ? ' · ' + e.di : ''));
-      if (e._apprentice === 'Yes') lines.push('🎓 TAP Apprentice: Yes');
-      if (e._liveHRAction) lines.push('⚠️ HR Action: **' + e._liveHRAction + '**');
+      if (e._apprentice === 'Yes') lines.push('🎓 TAP Apprentice: Enrolled');
+      if (e._race)      lines.push('Race: ' + e._race);
+      if (e._ethnicity && !/prefer not|not listed/i.test(e._ethnicity)) lines.push('Ethnicity: ' + e._ethnicity);
+      if (e._liveHRAction) lines.push('🚨 Active HR Action: **' + e._liveHRAction + '**');
+      if (e.t === 'stellar') lines.push('⭐ Designated: Stellar Performer');
     }
-    // Concerns
+
+    // ── Concerns ──────────────────────────────────────────────────────────
     var cRecs = (window.CONCERNS||[]).filter(function(r){ return _nameMatch(r.emp||'', name); });
+    lines.push('\n**PERFORMANCE CONCERNS**');
     if (cRecs.length) {
-      var latest = cRecs.sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); })[0];
-      lines.push('⚠️ **' + cRecs.length + ' concern record(s)** on file. Latest: ' + (latest.concern_label||latest.concern_type||'Concern') + ' — Action: ' + (latest.hr_action||'Documented'));
+      var sorted = cRecs.sort(function(a,b){ return new Date(b.ts||0)-new Date(a.ts||0); });
+      var priority = ['Termination','Write Up','PGP','On Watch'];
+      var highest = priority.find(function(p){ return sorted.some(function(r){ return r.hr_action===p; }); });
+      lines.push('⚠️ **' + cRecs.length + ' concern record(s)** · Highest action: **' + (highest||sorted[0].hr_action||'Documented') + '**');
+      sorted.slice(0,3).forEach(function(r){
+        var dt = r.ts ? new Date(r.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+        lines.push('• ' + (r.concern_label||r.concern_type||'Concern') + (r.hr_action?' — '+r.hr_action:'') + (dt?' ('+dt+')':'') + (r.submitter?' · by '+r.submitter:''));
+      });
+      if (cRecs.length > 3) lines.push('  …and ' + (cRecs.length-3) + ' more records. Open Performance Concerns for full history.');
     } else {
-      lines.push('✅ No concerns on file for this individual.');
+      lines.push('✅ No concern records on file.');
     }
-    if (lines.length === 1) return 'No portal data found for "' + name + '". Verify spelling or check HR and Pearl Operations directly.';
+
+    // ── Training Intake ───────────────────────────────────────────────────
+    var intRecs = _intakeForName(name);
+    if (intRecs.length) {
+      lines.push('\n**TRAINING INTAKE**');
+      var latest = intRecs[intRecs.length-1];
+      var cohort = latest['Cohort'] || latest['cohort'] || '';
+      var sessDate = latest['Training Session Date'] || latest['sessionDate'] || latest['Date'] || '';
+      var topic = latest['Training Session Topic'] || latest['sessionTopic'] || latest['Topic'] || '';
+      var comfort = latest['Comfort Level (1-5)'] || latest['comfort'] || '';
+      var role = latest['Position / Role'] || latest['role'] || '';
+      if (cohort) lines.push('📋 Cohort: ' + cohort);
+      if (role)   lines.push('Role at intake: ' + role);
+      if (sessDate) lines.push('Training date: ' + sessDate);
+      if (topic)  lines.push('Topic: ' + topic);
+      if (comfort) lines.push('Comfort level: **' + comfort + '/5**');
+      if (intRecs.length > 1) lines.push('Total intake records: ' + intRecs.length);
+    } else if (_tdIntake().length) {
+      lines.push('\n**TRAINING INTAKE**: No intake record found for this person.');
+    }
+
+    // ── PD Feedback ───────────────────────────────────────────────────────
+    var pdRecs = _pdForName(name);
+    if (pdRecs.length) {
+      lines.push('\n**PD FEEDBACK (' + pdRecs.length + ' sessions)**');
+      var ratings = pdRecs.map(function(r){ return parseFloat(r.rating||0); }).filter(function(n){ return n>0; });
+      if (ratings.length) {
+        var avg = (ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(2);
+        lines.push('Avg rating: **' + avg + '/5** across ' + ratings.length + ' sessions rated');
+      }
+      var lastPD = pdRecs.sort(function(a,b){ return new Date(b.sessionDate||0)-new Date(a.sessionDate||0); })[0];
+      if (lastPD) lines.push('Most recent: ' + (lastPD.topic||lastPD.sessionDate||'Session') + (lastPD.sessionDate?' ('+lastPD.sessionDate+')':''));
+    } else if (_tdPD().length) {
+      lines.push('\n**PD FEEDBACK**: No PD responses found for this person.');
+    }
+
+    // ── OTJ / Apprenticeship ──────────────────────────────────────────────
+    var otjRecs = _otjForName(name);
+    if (otjRecs.length) {
+      var otj = otjRecs[0];
+      lines.push('\n**OTJ / APPRENTICESHIP**');
+      var beg = otj['OTJ Beginning']||'—', mid = otj['OTJ Middle']||'—', end = otj['OTJ End']||'—';
+      lines.push(_otjIcon(beg)+' Beginning: '+beg+'  '+_otjIcon(mid)+' Middle: '+mid+'  '+_otjIcon(end)+' End: '+end);
+      if (otj['Site Leader']) lines.push('Site Leader: '+otj['Site Leader']);
+      if (otj['OTJ PM Notes'] && otj['OTJ PM Notes'].trim()) lines.push('PM Note: '+otj['OTJ PM Notes'].trim());
+    } else if (_tdOTJ().length && (entity.hr && entity.hr._apprentice === 'Yes')) {
+      lines.push('\n**OTJ**: Enrolled as TAP apprentice but no OTJ record found. Check T&D Analytics.');
+    }
+
+    if (lines.length <= 2) return 'No portal data found for "' + name + '". Check spelling or open HR/Pearl directly.';
     return lines.join('\n');
   }
 
@@ -3305,7 +3370,49 @@
     return window.CONCERNS || [];
   }
 
-  // ── School summaries from Pearl ───────────────────────────────────────────
+  // ── Training data helpers ─────────────────────────────────────────────────
+  function _tdIntake() { return window.njtcIntake || []; }
+  function _tdPD()     { return window.njtcPD     || []; }
+  function _tdOTJ()    { return window.njtcOTJ    || []; }
+
+  // Find training intake record by name
+  function _intakeForName(name) {
+    var rows = _tdIntake();
+    return rows.filter(function(r) {
+      var n = r['Full Name'] || r['Name'] || r['Tutor Name'] || r['Participant Name'] || '';
+      return _nameMatch(n, name);
+    });
+  }
+
+  // Find PD feedback records by name
+  function _pdForName(name) {
+    return _tdPD().filter(function(r){ return _nameMatch(r.name||'', name); });
+  }
+
+  // Find OTJ record by name
+  function _otjForName(name) {
+    var rows = _tdOTJ();
+    var nm = (name||'').toLowerCase().replace(/\s+/g,' ').trim();
+    if (window.njtcOTJMap) return window.njtcOTJMap[nm] ? [window.njtcOTJMap[nm]] : [];
+    return rows.filter(function(r){
+      var mn = (r['Master List Name']||'').toLowerCase().replace(/\s+/g,' ').trim();
+      var tn = (r['Tracker Name']||'').toLowerCase().replace(/\s+/g,' ').trim();
+      return _nameMatch(mn, nm) || _nameMatch(tn, nm);
+    });
+  }
+
+  // OTJ phase status icon
+  function _otjIcon(v) {
+    if (!v||v==='—') return '⬜';
+    var vl=(v||'').toLowerCase();
+    if (/completed/i.test(vl)) return '✅';
+    if (/in progress/i.test(vl)) return '🔄';
+    if (/not started/i.test(vl)) return '🔴';
+    if (/n\/a/i.test(vl)) return '—';
+    return '📝';
+  }
+
+  // School summaries from Pearl ───────────────────────────────────────────
   function _schools() {
     try {
       if (window.po && typeof window.po.getStellarSchools === 'function') return window.po.getStellarSchools() || [];
@@ -3316,12 +3423,19 @@
   // ── Detect school year in a query → '2024-2025' or null ──────────────────
   function _detectSY(q) {
     var lq = (q||'').toLowerCase();
-    var m = lq.match(/(?:school year|sy)?\s*20(\d{2})[- ](?:20)?(\d{2})/);
-    if (m) { var ya='20'+m[1],yb=m[2].length===4?m[2]:'20'+m[2]; return ya+'-'+yb; }
+    var m;
+    // Full: "2024-2025" or "2024-25" or "SY 2024-25"
+    m = lq.match(/(?:school year|sy)?\s*20(\d{2})[- ](?:20)?(\d{2})/);
+    if (m) return '20'+m[1]+'-20'+m[2];
     m = lq.match(/\b20(\d{2})[-\/](\d{2})\b/);
     if (m) return '20'+m[1]+'-20'+m[2];
+    // Short: "22-23", "23-24", "24-25"
+    m = lq.match(/\b([2][0-9])[-\/]([2][0-9])\b/);
+    if (m && parseInt(m[2]) === parseInt(m[1])+1) return '20'+m[1]+'-20'+m[2];
+    // Single year: "2024" → 2024-2025
     m = lq.match(/\b(202[0-9])\b/);
     if (m) { var yr=parseInt(m[1]); return yr+'-'+(yr+1); }
+    // Relative
     if (/\blast year\b/.test(lq)) { var n=new Date().getFullYear(); return (n-1)+'-'+n; }
     return null;
   }
@@ -3340,6 +3454,169 @@
   // ── Format helpers ────────────────────────────────────────────────────────
   function _pct(n) { return n==null ? '—' : Math.round(n)+'%'; }
   function _n(n)   { return n==null ? '—' : Number(n).toLocaleString('en-US'); }
+
+  // ── Temporal helpers — date parsing + named ranges ────────────────────────
+  function _parseMMDDYYYY(s) {
+    if (!s || typeof s !== 'string') return null;
+    var p = s.trim().split('/');
+    if (p.length !== 3) return null;
+    var d = new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1]));
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function _today() {
+    var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  }
+
+  // Returns {start, end, label} for named periods
+  function _dateRange(label) {
+    var t = _today();
+    var dow = t.getDay(); // 0=Sun
+    var mon = function(base, offset) { var d=new Date(base); d.setDate(base.getDate()+offset); return d; };
+    switch(label) {
+      case 'today':
+        return { start:t, end:t, label:'Today' };
+      case 'this_week': {
+        var wStart = mon(t, -(dow===0?6:dow-1)); // Monday
+        return { start:wStart, end:t, label:'This Week' };
+      }
+      case 'last_week': {
+        var thisM = mon(t, -(dow===0?6:dow-1));
+        var lastM = mon(thisM,-7); var lastSun = mon(thisM,-1);
+        return { start:lastM, end:lastSun, label:'Last Week' };
+      }
+      case 'this_month': {
+        return { start:new Date(t.getFullYear(),t.getMonth(),1), end:t, label:'This Month' };
+      }
+      case 'last_month': {
+        var lmStart = new Date(t.getFullYear(),t.getMonth()-1,1);
+        var lmEnd   = new Date(t.getFullYear(),t.getMonth(),0);
+        return { start:lmStart, end:lmEnd, label:'Last Month' };
+      }
+      case 'last_7':
+        return { start:mon(t,-7), end:t, label:'Last 7 Days' };
+      case 'last_30':
+        return { start:mon(t,-30), end:t, label:'Last 30 Days' };
+      case 'last_90':
+        return { start:mon(t,-90), end:t, label:'Last 90 Days' };
+    }
+    return null;
+  }
+
+  // Detect temporal label from query
+  function _detectPeriod(q) {
+    var lq = (q||'').toLowerCase();
+    if (/last week|past week/.test(lq)) return 'last_week';
+    if (/this week|current week/.test(lq)) return 'this_week';
+    if (/last month|past month|previous month/.test(lq)) return 'last_month';
+    if (/this month|current month/.test(lq)) return 'this_month';
+    if (/last 7|past 7|7 days/.test(lq)) return 'last_7';
+    if (/last 30|past 30|30 days/.test(lq)) return 'last_30';
+    if (/last 90|past 90|90 days|quarter/.test(lq)) return 'last_90';
+    if (/today|today.?s/.test(lq)) return 'today';
+    return null;
+  }
+
+  // Compute attendance stats from raw ATT rows filtered to a date range
+  function _attStatsForRange(rangeLabel) {
+    if (!window.po || typeof window.po.getAttRows !== 'function') return null;
+    var rows = window.po.getAttRows();
+    if (!rows || !rows.length) return null;
+    var rng = _dateRange(rangeLabel);
+    if (!rng) return null;
+    var startMs = rng.start.getTime(), endMs = rng.end.getTime() + 86400000-1;
+    var filtered = rows.filter(function(r) {
+      var d = _parseMMDDYYYY(r[5]); // ATT.SESS_DATE = index 5
+      return d && d.getTime() >= startMs && d.getTime() <= endMs;
+    });
+    if (!filtered.length) return { label:rng.label, rows:0, scholAttPct:null, tutorAttPct:null, sessions:0, siCount:0 };
+    // Scholar rows
+    var stu  = filtered.filter(function(r){ return r[1]==='Student'; });
+    var stuA = stu.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var stuB = stu.filter(function(r){ return /^absent$/i.test(r[6]) && !/service.?interrupt|^si$/i.test(r[7]||''); }).length;
+    var stuSI= stu.filter(function(r){ return /service.?interrupt/i.test(r[6]) || /service.?interrupt/i.test(r[7]||''); }).length;
+    // Tutor/Instructor rows
+    var inst  = filtered.filter(function(r){ return r[1]==='Instructor'; });
+    var instA = inst.filter(function(r){ return /^attended$/i.test(r[6]); }).length;
+    var instB = inst.filter(function(r){ return /^absent$/i.test(r[6]); }).length;
+    // Unique sessions (approximate: unique session title+date combos)
+    var sessSet = new Set();
+    filtered.forEach(function(r){ if(r[2]&&r[5]) sessSet.add(r[2]+'|'+r[5]); });
+    // Unique schools
+    var schools = new Set(filtered.map(function(r){ return r[11]; }).filter(Boolean));
+    var scholars = new Set(stu.map(function(r){ return r[13]||r[0]; }).filter(Boolean));
+    return {
+      label:      rng.label,
+      start:      rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+      end:        rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'}),
+      rows:       filtered.length,
+      scholAttPct: (stuA+stuB)>0 ? parseFloat((stuA/(stuA+stuB)*100).toFixed(1)) : null,
+      tutorAttPct: (instA+instB)>0 ? parseFloat((instA/(instA+instB)*100).toFixed(1)) : null,
+      scholAtt:   stuA, scholAbs: stuB, siCount: stuSI,
+      tutorAtt:   instA, tutorAbs: instB,
+      sessions:   sessSet.size,
+      schools:    schools.size,
+      scholars:   scholars.size,
+    };
+  }
+
+  // Format a period stats block
+  function _fmtPeriodStats(s) {
+    if (!s) return null;
+    if (!s.rows) return '**'+s.label+'** ('+s.start+' – '+s.end+'): No session records found for this period.';
+    var scholIcon = s.scholAttPct==null?'—':s.scholAttPct>=85?'✅':s.scholAttPct>=75?'⚠️':'🔴';
+    var tutorIcon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
+    var lines = ['**'+s.label+'** ('+s.start+' – '+s.end+')'];
+    lines.push(scholIcon+' Scholar att: **'+(s.scholAttPct!=null?s.scholAttPct+'%':'—')+'** ('+s.scholAtt+' attended · '+s.scholAbs+' absent)');
+    lines.push(tutorIcon+' Tutor att: **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'—')+'** ('+s.tutorAtt+' attended · '+s.tutorAbs+' absent)');
+    if (s.siCount) lines.push('🚫 Service interruptions: **'+s.siCount+'**');
+    lines.push('📋 Sessions: **'+s.sessions+'** · Schools active: **'+s.schools+'** · Unique scholars: **'+s.scholars+'**');
+    return lines.join('\n');
+  }
+
+  // ── Resolve a pending clarification ──────────────────────────────────────
+  function _resolvePending(pq, q) {
+    var ql = (q||'').toLowerCase();
+    if (pq.ctx === 'tutor_metric') {
+      var dir = pq.dir; // 'top' or 'low'
+      if (/attend|show up|punctual|present/i.test(ql)) {
+        // Attendance-based
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var all = Object.values(tm).filter(function(t){ return t.attRate!=null && t.total>=5; });
+          if (!all.length) return 'Tutor attendance data not yet loaded — open Pearl Operations.';
+          if (dir === 'top') {
+            var top = all.sort(function(a,b){ return b.attRate-a.attRate; }).slice(0,6);
+            return '**Top Tutors by Attendance:**\n\n'+top.map(function(t,i){ return (i+1)+'. ✅ **'+t.name+'** — '+t.attRate+'% ('+t.attended+'/'+t.total+')' +(t.school?' · '+t.school:''); }).join('\n');
+          } else {
+            var bot = all.sort(function(a,b){ return a.attRate-b.attRate; }).slice(0,6);
+            return '**Tutors with Lowest Attendance:**\n\n'+bot.map(function(t,i){ var icon=t.attRate<70?'🔴':'⚠️'; return (i+1)+'. '+icon+' **'+t.name+'** — '+t.attRate+'% ('+t.attended+'/'+t.total+')' +(t.school?' · '+t.school:''); }).join('\n');
+          }
+        } catch(e) { return 'Tutor attendance data not yet loaded.'; }
+      }
+      if (/survey|satisf|rating|scholar.*feedback|feedback.*scholar/i.test(ql)) {
+        try {
+          var sc = _schools();
+          if (!sc.length) return 'Pearl site data not yet loaded — open Pearl Operations.';
+          var withSurvey = sc.filter(function(s){ return s.surveyAvg !== null; });
+          if (!withSurvey.length) return 'No survey data captured yet. Survey completion happens when scholars complete their session surveys.';
+          if (dir === 'top') {
+            var topS = withSurvey.sort(function(a,b){ return b.surveyAvg-a.surveyAvg; }).slice(0,6);
+            return '**Top Sites by Scholar Survey Score:**\n\n'+topS.map(function(s,i){ return (i+1)+'. ⭐ **'+s.school+'** — '+s.surveyAvg+'/5.0 · '+s.sessions+' sessions'; }).join('\n');
+          } else {
+            var botS = withSurvey.sort(function(a,b){ return a.surveyAvg-b.surveyAvg; }).slice(0,6);
+            return '**Sites with Lowest Survey Scores:**\n\n'+botS.map(function(s,i){ return (i+1)+'. ⚠️ **'+s.school+'** — '+s.surveyAvg+'/5.0 · '+s.sessions+' sessions'; }).join('\n');
+          }
+        } catch(e) { return 'Survey data not yet loaded.'; }
+      }
+      if (/academ|iready|growth|impact|scholar growth|math|ela/i.test(ql)) {
+        return 'Individual tutor iReady scores aren\'t broken out per tutor in the current data — iReady links scholars to schools, not individual tutors. To see academic impact by site:\n• Ask "which site has the best math growth?"\n• Or open iReady Analysis Lab → filter by school\n\nFor tutor-level academic data, open T&D Analytics → Observations.';
+      }
+      // Can't resolve — re-ask
+      return 'Just to confirm — are you asking about **attendance**, **survey satisfaction**, or **academic growth**? Reply with one of those and I\'ll pull the data.';
+    }
+    return null;
+  }
 
   // ── Response rules ────────────────────────────────────────────────────────
   // ── HR helper: active employees only ─────────────────────────────────────
@@ -3690,15 +3967,19 @@
       }
     },
 
-    // Top performing tutors
-    { match: /top tutor|best (tutor|attendance|performing)|highest.?attendance|stellar tutor|tutor.?star|best (tutor|performing|attendance)/i,
+    // Top performing tutors — ask what metric first
+    { match: /top tutor|best tutor|highest.*tutor|best performing tutor|top performing tutor|tutor.*star|stellar tutor/i,
       respond: function() {
-        try {
-          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
-          var top = Object.values(tm).filter(function(t){ return t.attRate!=null && t.total>=5; }).sort(function(a,b){ return b.attRate-a.attRate; }).slice(0,6);
-          if (!top.length) return 'Tutor attendance data not yet loaded.';
-          return '**Top Tutors by Attendance:**\n\n' + top.map(function(t){ return '✅ ' + t.name + ' — **' + t.attRate + '%** (' + t.attended + '/' + t.total + ')' + (t.school?' · '+t.school:''); }).join('\n');
-        } catch(e) { return 'Tutor data not yet loaded.'; }
+        _pendingQ = { ctx:'tutor_metric', dir:'top' };
+        return '**Top tutor by what measure?**\n\n• **Attendance** — who shows up most consistently (Pearl)\n• **Survey scores** — whose scholars rate sessions highest\n• **Academic growth** — which sites show best iReady gains (site-level, not per tutor)\n\nReply with **attendance**, **survey**, or **academic** — or type a tutor\'s name to pull their full profile.';
+      }
+    },
+
+    // Lowest/worst performing tutors — ask what metric first
+    { match: /lowest tutor|worst tutor|bottom tutor|low.*perform.*tutor|tutor.*low.*perform|struggling tutor|tutor.*problem|tutor.*concern|tutor.*worst/i,
+      respond: function() {
+        _pendingQ = { ctx:'tutor_metric', dir:'low' };
+        return '**Lowest performing tutors by what measure?**\n\n• **Attendance** — who is showing up least (below 80% threshold)\n• **Survey scores** — sites with lowest scholar satisfaction ratings\n• **Academic growth** — sites with weakest iReady gains (site-level)\n\nReply with **attendance**, **survey**, or **academic**.';
       }
     },
 
@@ -4307,6 +4588,424 @@
       }
     },
 
+    // ── TEMPORAL DRILL-DOWN ──────────────────────────────────────────────────
+
+    // Single period: "scholar attendance last week", "what happened this month", etc.
+    { match: /\b(last week|this week|last month|this month|last 7|last 30|last 90|today|past week|past month|current week|current month|7 days|30 days|90 days)\b/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ);
+        if (!period) return 'I detected a time reference but couldn\'t parse it. Try: "last week", "this month", "last 30 days", or "last 7 days".';
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl session data not yet loaded — open Pearl Operations first.';
+        var s = _attStatsForRange(period);
+        if (!s) return 'No data found for that period.';
+        if (!s.rows) return '**'+s.label+'** ('+s.start+' – '+s.end+'): No sessions recorded for this period. Pearl may not have data that far back, or this period hasn\'t started yet.';
+        var msg = '**Pearl Attendance — '+_fmtPeriodStats(s)+'\n\n';
+        // Benchmark comparison
+        var bench = [];
+        if (s.scholAttPct!=null) bench.push('Scholar benchmark: ≥85%'+(s.scholAttPct>=85?' ✅':' — currently below'));
+        if (s.tutorAttPct!=null)  bench.push('Tutor benchmark: ≥90%'+(s.tutorAttPct>=90?' ✅':' — currently below'));
+        if (bench.length) msg += bench.join(' · ');
+        return msg.replace('**Pearl Attendance — ','').trim();
+      }
+    },
+
+    // Compare two periods: "last week vs last month", "this week compared to last week"
+    { match: /\b(compare|vs\.?|versus|vs last|vs this|this.*vs|last.*vs|week.*(vs|compare|compar).*month|month.*(vs|compare|compar).*week|this week.*last week|last week.*this week|this month.*last month|last month.*this month)\b/i,
+      respond: function() {
+        var lq = (_lastQ||'').toLowerCase();
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl data not yet loaded — open Pearl Operations first.';
+        // Detect which two periods
+        var periods = [];
+        if (/this week/.test(lq)) periods.push('this_week');
+        if (/last week/.test(lq)) periods.push('last_week');
+        if (/this month/.test(lq)) periods.push('this_month');
+        if (/last month/.test(lq)) periods.push('last_month');
+        if (/last 7|7 day/.test(lq)) periods.push('last_7');
+        if (/last 30|30 day/.test(lq)) periods.push('last_30');
+        // Default to this_week vs last_week if none detected
+        if (periods.length < 2) periods = ['this_week','last_week'];
+        var a = _attStatsForRange(periods[0]);
+        var b = _attStatsForRange(periods[1]);
+        if (!a && !b) return 'No Pearl data found for either period.';
+        var msg = '**Period Comparison:**\n\n';
+        if (a) msg += _fmtPeriodStats(a) + '\n\n';
+        if (b) msg += _fmtPeriodStats(b);
+        // Trend
+        if (a && b && a.scholAttPct!=null && b.scholAttPct!=null) {
+          var diff = parseFloat((a.scholAttPct - b.scholAttPct).toFixed(1));
+          msg += '\n\n**Trend:** Scholar att '+( diff>0?'⬆ +'+diff+'% vs '+b.label : diff<0?'⬇ '+diff+'% vs '+b.label : 'flat vs '+b.label)+'.';
+        }
+        return msg;
+      }
+    },
+
+    // Site-level drill-down for a period: "which schools had low attendance last week"
+    { match: /which (school|site).*(last week|this week|last month|this month|last 7|last 30)|school.*(attend|absent|si|interrupt).*(last|this|past|week|month)|(last|this).*(week|month).*(school|site)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        if (!window.po || typeof window.po.getAttRows !== 'function') return 'Pearl raw data not yet loaded — open Pearl Operations first.';
+        var rows = window.po.getAttRows();
+        if (!rows || !rows.length) return 'Pearl data not yet loaded.';
+        var rng = _dateRange(period);
+        if (!rng) return 'Could not determine date range.';
+        var startMs = rng.start.getTime(), endMs = rng.end.getTime()+86400000-1;
+        var filtered = rows.filter(function(r){ var d=_parseMMDDYYYY(r[5]); return d&&d.getTime()>=startMs&&d.getTime()<=endMs; });
+        if (!filtered.length) return 'No Pearl sessions found for '+rng.label+'.';
+        // Group by school
+        var bySchool = {};
+        filtered.filter(function(r){ return r[1]==='Student'; }).forEach(function(r){
+          var s=r[11]||'Unknown'; if(!bySchool[s]) bySchool[s]={att:0,abs:0,si:0,district:r[12]||''};
+          if(/^attended$/i.test(r[6])) bySchool[s].att++;
+          else if(/^absent$/i.test(r[6])&&!/service.?interrupt/i.test(r[7]||'')) bySchool[s].abs++;
+          else if(/service.?interrupt/i.test(r[6])||/service.?interrupt/i.test(r[7]||'')) bySchool[s].si++;
+        });
+        var sites = Object.entries(bySchool).map(function(e){
+          var tot=e[1].att+e[1].abs;
+          return {name:e[0], district:e[1].district, att:e[1].att, abs:e[1].abs, si:e[1].si, rate:tot>0?Math.round(e[1].att/tot*100):null};
+        }).filter(function(s){ return s.rate!==null; }).sort(function(a,b){ return a.rate-b.rate; });
+        if (!sites.length) return 'No school-level data for '+rng.label+'.';
+        var low = sites.filter(function(s){ return s.rate<85; }).slice(0,6);
+        var msg = '**School Attendance — '+rng.label+' ('+rng.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' – '+rng.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})+'):**\n\n';
+        if (low.length) {
+          msg += '**Below 85% benchmark:**\n';
+          msg += low.map(function(s){ var icon=s.rate<70?'🔴':'⚠️'; return icon+' **'+s.name+'** — '+s.rate+'% ('+s.att+' att / '+s.abs+' abs)'+(s.si?' · '+s.si+' SIs':''); }).join('\n');
+        } else {
+          msg += '✅ All schools above 85% this period.';
+        }
+        msg += '\n\nTotal sites active this period: **'+sites.length+'**';
+        return msg;
+      }
+    },
+
+    // Tutor-specific drill-down for a period: "tutor attendance last week"
+    { match: /tutor.*(last week|this week|last month|this month|last 7|last 30)|(last|this).*(week|month).*tutor/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No tutor attendance data found for that period.';
+        var rng = _dateRange(period);
+        var msg = '**Tutor Attendance — '+s.label+' ('+s.start+' – '+s.end+'):**\n\n';
+        var icon = s.tutorAttPct==null?'—':s.tutorAttPct>=90?'✅':s.tutorAttPct>=80?'⚠️':'🔴';
+        msg += icon+' **'+(s.tutorAttPct!=null?s.tutorAttPct+'%':'No data')+'** tutor attendance rate\n';
+        msg += s.tutorAtt+' sessions with tutor present · '+s.tutorAbs+' absences';
+        if (s.siCount) msg += '\n🚫 '+s.siCount+' service interruptions this period';
+        msg += '\n\nBenchmark: ≥90%. For a per-tutor breakdown this period, open Pearl Operations → filter by date.';
+        return msg;
+      }
+    },
+
+    // SIs for a period
+    { match: /\b(service interruption|si count|how many si).*(last week|this week|last month|this month|last 7|last 30)|(last|this).*(week|month).*(si|service interruption)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No data found for that period.';
+        var msg = '**Service Interruptions — '+s.label+' ('+s.start+' – '+s.end+'):**\n\n';
+        msg += '🚫 **'+s.siCount+'** service interruptions\n';
+        msg += '📋 '+s.sessions+' sessions total in this period\n';
+        if (s.sessions>0) msg += 'SI rate: **'+Math.round(s.siCount/s.sessions*100)+'%** of sessions interrupted';
+        return msg;
+      }
+    },
+
+    // What happened / summary for a period
+    { match: /what.*(happen|happen|occur|go on|took place).*(last week|this week|last month|yesterday)|(last week|this week|last month).*(summary|recap|update|rundown|overview)/i,
+      respond: function() {
+        var period = _detectPeriod(_lastQ) || 'last_week';
+        var s = _attStatsForRange(period);
+        if (!s || !s.rows) return 'No session data found for '+period.replace('_',' ')+'. Pearl may not have records that far back.';
+        return _fmtPeriodStats(s);
+      }
+    },
+
+    // ── TRAINING & DEVELOPMENT ───────────────────────────────────────────────
+
+    // Training intake overview
+    { match: /training.*(intake|complet|who.*complet|register|enroll|sign.*up|onboard)|intake.*(train|data|record|complet)|who.*completed.*training|training.*record|new.*tutor.*train/i,
+      respond: function() {
+        var rows = _tdIntake();
+        if (!rows.length) return 'Training intake data not yet loaded — open T&D Analytics.';
+        var total = rows.length;
+        // Try to get unique names
+        var names = new Set();
+        rows.forEach(function(r){ var n=r['Full Name']||r['Name']||r['Tutor Name']||''; if(n.trim()) names.add(n.trim().toLowerCase()); });
+        // Cohort breakdown
+        var cohortMap = {};
+        rows.forEach(function(r){ var c=r['Cohort']||'Unknown'; cohortMap[c]=(cohortMap[c]||0)+1; });
+        var cohorts = Object.entries(cohortMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        // Comfort level avg
+        var comforts = rows.map(function(r){ return parseFloat(r['Comfort Level (1-5)']||0); }).filter(function(n){return n>0;});
+        var comfAvg = comforts.length ? (comforts.reduce(function(a,b){return a+b;},0)/comforts.length).toFixed(2) : null;
+        // District breakdown
+        var distMap = {};
+        rows.forEach(function(r){ var d=r['District']||'Unknown'; distMap[d]=(distMap[d]||0)+1; });
+        var dists = Object.entries(distMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        var msg = '**Training Intake Summary ('+total+' records · '+names.size+' unique tutors):**\n\n';
+        if (comfAvg) msg += '📊 Avg comfort level: **'+comfAvg+'/5**\n';
+        if (cohorts.length) msg += '\n**By Cohort:**\n'+cohorts.map(function(c){ return '• '+c[0]+': '+c[1]; }).join('\n');
+        if (dists.length>1) msg += '\n\n**By District:**\n'+dists.map(function(d){ return '• '+d[0]+': '+d[1]; }).join('\n');
+        msg += '\n\nFor individual training records, type a tutor\'s name. For full details, open T&D Analytics.';
+        return msg;
+      }
+    },
+
+    // PD feedback overview
+    { match: /pd.*(feedback|session|data|overview|summary|average|score|rating)|professional development.*(feedback|session|score|summary)|how.*(pd|professional development).*(went|rated|scored)/i,
+      respond: function() {
+        var rows = _tdPD();
+        if (!rows.length) return 'PD feedback data not yet loaded — open T&D Analytics.';
+        var ratings = rows.map(function(r){ return parseFloat(r.rating||0); }).filter(function(n){return n>0;});
+        var avg = ratings.length ? (ratings.reduce(function(a,b){return a+b;},0)/ratings.length).toFixed(2) : null;
+        // By topic
+        var topicMap = {};
+        rows.forEach(function(r){ var t=r.topic||'Unknown'; topicMap[t]=(topicMap[t]||0)+1; });
+        var topics = Object.entries(topicMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        // By session number
+        var sessions = new Set(rows.map(function(r){ return r.sessionNum; }).filter(Boolean));
+        // Apprentice vs non-apprentice
+        var apps = rows.filter(function(r){ return r.isApprentice; }).length;
+        var msg = '**PD Feedback Summary:**\n\n';
+        msg += '📋 '+rows.length+' responses across **'+sessions.size+' sessions**\n';
+        if (avg) msg += '⭐ Avg overall rating: **'+avg+'/5**\n';
+        if (apps) msg += '🎓 Apprentice responses: '+apps+' ('+Math.round(apps/rows.length*100)+'%)\n';
+        if (topics.length) msg += '\n**Top PD Topics:**\n'+topics.map(function(t){ return '• '+t[0]+': '+t[1]+' responses'; }).join('\n');
+        return msg;
+      }
+    },
+
+    // Specific PD session or topic feedback
+    { match: /pd.*(session|topic|specific|which|best|worst)|(session|topic).*(pd|feedback|rating|score)|which pd|pd.*topic|how was.*(session|pd|training)/i,
+      respond: function() {
+        var rows = _tdPD();
+        if (!rows.length) return 'PD feedback data not loaded — open T&D Analytics.';
+        // Group by session + topic
+        var sessMap = {};
+        rows.forEach(function(r){
+          var key = (r.sessionNum||'?')+' — '+(r.topic||'Unknown');
+          if (!sessMap[key]) sessMap[key] = { topic:r.topic, date:r.sessionDate, ratings:[], count:0 };
+          sessMap[key].count++;
+          var rating = parseFloat(r.rating||0);
+          if (rating>0) sessMap[key].ratings.push(rating);
+        });
+        var sessions = Object.entries(sessMap).map(function(e){
+          var avg = e[1].ratings.length ? (e[1].ratings.reduce(function(a,b){return a+b;},0)/e[1].ratings.length) : null;
+          return { name:e[0], topic:e[1].topic, date:e[1].date, count:e[1].count, avg:avg };
+        }).sort(function(a,b){ return (b.avg||0)-(a.avg||0); });
+        var msg = '**PD Sessions by Rating:**\n\n';
+        sessions.slice(0,6).forEach(function(s){
+          var icon = s.avg>=4?'✅':s.avg>=3?'⚠️':'🔴';
+          msg += icon+' **'+s.name+'**'+(s.date?' ('+s.date+')':'')+': **'+(s.avg?s.avg.toFixed(2):'no ratings')+'**/5 · '+s.count+' responses\n';
+        });
+        return msg;
+      }
+    },
+
+    // OTJ / apprenticeship on-the-job training status
+    { match: /otj|on.?the.?job|apprentice.*(status|progress|phase|complete|finish|done)|tap.*(status|progress|complete|otj|phase)|(beginning|middle|end).*(otj|phase|complet)|who.*completed.*otj|otj.*status/i,
+      respond: function() {
+        var rows = _tdOTJ();
+        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker.';
+        var beg = rows.filter(function(r){ return /completed/i.test(r['OTJ Beginning']||''); }).length;
+        var mid = rows.filter(function(r){ return /completed/i.test(r['OTJ Middle']||''); }).length;
+        var end = rows.filter(function(r){ return /completed/i.test(r['OTJ End']||''); }).length;
+        var needsBeg = rows.filter(function(r){ return /not started/i.test(r['OTJ Beginning']||''); }).length;
+        var needsMid = rows.filter(function(r){ return /not started/i.test(r['OTJ Middle']||''); }).length;
+        var needsEnd = rows.filter(function(r){ return /not started/i.test(r['OTJ End']||''); }).length;
+        var withNotes = rows.filter(function(r){ return (r['OTJ PM Notes']||'').trim(); }).length;
+        var msg = '**OTJ Phase Completion ('+rows.length+' TAP apprentices):**\n\n';
+        msg += '✅ Beginning completed: **'+beg+'** ('+Math.round(beg/rows.length*100)+'%)\n';
+        msg += '✅ Middle completed: **'+mid+'** ('+Math.round(mid/rows.length*100)+'%)\n';
+        msg += '✅ End completed: **'+end+'** ('+Math.round(end/rows.length*100)+'%)\n';
+        if (needsBeg||needsMid||needsEnd) {
+          msg += '\n**Needs Follow-Up:**\n';
+          if (needsBeg) msg += '🔴 Beginning not started: **'+needsBeg+'**\n';
+          if (needsMid) msg += '🔴 Middle not started: **'+needsMid+'**\n';
+          if (needsEnd) msg += '🔴 End not started: **'+needsEnd+'**\n';
+        }
+        if (withNotes) msg += '\n📝 '+withNotes+' apprentices have PM notes on file.';
+        return msg;
+      }
+    },
+
+    // Who hasn't completed OTJ / needs follow-up
+    { match: /who.*(not|hasn.?t|haven.?t|missing|need).*(otj|on.?the.?job|phase|training|complete|done)|otj.*(not|missing|incomplete|behind|follow.?up)|follow.?up.*(otj|apprentice|tap)/i,
+      respond: function() {
+        var rows = _tdOTJ();
+        if (!rows.length) return 'OTJ data not yet loaded — open T&D Analytics → Apprentice Tracker.';
+        var needsFollowUp = rows.filter(function(r){
+          return /not started/i.test(r['OTJ Beginning']||'') ||
+                 /not started/i.test(r['OTJ Middle']||'') ||
+                 /not started/i.test(r['OTJ End']||'');
+        });
+        if (!needsFollowUp.length) return '✅ All apprentices have OTJ progress recorded in at least one phase.';
+        var msg = '**Apprentices Needing OTJ Follow-Up ('+needsFollowUp.length+'):**\n\n';
+        msg += needsFollowUp.slice(0,10).map(function(r){
+          var b=r['OTJ Beginning']||'—', m=r['OTJ Middle']||'—', en=r['OTJ End']||'—';
+          var name = r['Master List Name']||r['Tracker Name']||'Unknown';
+          var dist = r['District']||r['Region']||'';
+          return '🔴 **'+name+'**'+(dist?' ('+dist+')':'')+'\n   Beg:'+_otjIcon(b)+' Mid:'+_otjIcon(m)+' End:'+_otjIcon(en);
+        }).join('\n');
+        if (needsFollowUp.length>10) msg += '\n\n…and '+(needsFollowUp.length-10)+' more. Open T&D Analytics for full list.';
+        return msg;
+      }
+    },
+
+    // Tutor observation status (from OTJ)
+    { match: /observation.*(status|check|complete|done|who|count|how many|miss)|obs.*(status|complete|tutor|check|count)|tutor.*obs|who.*observed|observation.*complet/i,
+      respond: function() {
+        var rows = _tdOTJ();
+        var active = _hrActive();
+        if (!rows.length && !active.length) return 'Observation data not yet loaded — open T&D Analytics first.';
+        var msg = '**Tutor Observation Status:**\n\n';
+        if (rows.length) {
+          // OTJ completions serve as proxy for observations in apprenticeship context
+          var allPhases = rows.filter(function(r){ return /completed/i.test(r['OTJ Beginning']||'') && /completed/i.test(r['OTJ Middle']||''); }).length;
+          msg += '📋 Apprentices with 2+ phases complete: **'+allPhases+'** of '+rows.length+'\n';
+          msg += '\nFor full month-by-month tutor observation logs (Oct–May), open:\n**T&D Analytics → Observations tab** (NE and SW regions tracked separately)\n';
+          msg += '\nObs data available: NE region (monthly Oct–Jun) and SW region (monthly Oct–Apr)';
+        } else {
+          msg += 'Observation records are in T&D Analytics → Apprentice Tracker. Open that panel to load and view monthly observation data by region.';
+        }
+        return msg;
+      }
+    },
+
+    // Training data for a specific person (e.g. "show training for John Smith")
+    { match: /training.*(for|of|data|record|history|info).+[A-Z]|[A-Z].+.*(training|pd|otj|observation|intake|feedback)/i,
+      respond: function() {
+        // Try to extract a name from the query
+        var q = _lastQ;
+        var entity = _extractPerson(q);
+        if (entity) return _personResponse(entity, q);
+        return 'Type a tutor\'s name to pull their full profile — training intake, PD history, OTJ status, concerns, and Pearl attendance all in one view.';
+      }
+    },
+
+    // Concern details by type or severity
+    { match: /concern.*(detail|breakdown|type|all|list|full|highest|most serious|severity|rank|level|worst|escalat)|termination|write.?up.*(who|list|all|detail)|pgp.*(who|list|detail|all)/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var priority = ['Termination','Write Up','PGP','On Watch'];
+        var byAction = {};
+        priority.forEach(function(p){ byAction[p]=[]; });
+        c.forEach(function(r){ var a=r.hr_action||'Other'; if(!byAction[a]) byAction[a]=[]; byAction[a].push(r); });
+        var msg = '**Concern Records by Severity ('+c.length+' total):**\n\n';
+        priority.forEach(function(a){
+          var recs = byAction[a]||[];
+          if (!recs.length) return;
+          var names = [...new Set(recs.map(function(r){return r.emp;}))].filter(Boolean);
+          msg += '**'+a+'** ('+names.length+' employees · '+recs.length+' records):\n';
+          msg += names.slice(0,4).map(function(n){ return '• '+n; }).join('\n');
+          if (names.length>4) msg += '\n• …and '+(names.length-4)+' more';
+          msg += '\n\n';
+        });
+        var byType = {};
+        c.forEach(function(r){ var t=r.concern_type||'Unspecified'; byType[t]=(byType[t]||0)+1; });
+        var types = Object.entries(byType).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        if (types.length) {
+          msg += '**By Type:**\n'+types.map(function(t){ return '• '+t[0]+': '+t[1]; }).join('\n');
+        }
+        return msg.trim();
+      }
+    },
+
+    // Concerns at a specific site or district
+    { match: /concern.*(site|school|district|location|where|which site|which school)|which.*(site|school|district).*(concern|issue|watch|write)/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var sMap = {}, dMap = {};
+        c.forEach(function(r){
+          var s=r.site||'Unknown'; sMap[s]=(sMap[s]||0)+1;
+          // Try to find district from HR
+          var hr = (window.HR_EMPS||[]).find(function(e){ return _nameMatch(e.n||'',r.emp||''); });
+          var d = (hr&&hr.di)||'Unknown'; dMap[d]=(dMap[d]||0)+1;
+        });
+        var bySite = Object.entries(sMap).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+        var byDist = Object.entries(dMap).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+        var msg = '**Concerns by Location:**\n\n**By Site:**\n';
+        msg += bySite.map(function(e){ return '• **'+e[0]+'**: '+e[1]+' records'; }).join('\n');
+        if (byDist.length>1) {
+          msg += '\n\n**By District:**\n'+byDist.map(function(e){ return '• '+e[0]+': '+e[1]; }).join('\n');
+        }
+        return msg;
+      }
+    },
+
+    // Recent concerns (latest submitted)
+    { match: /recent.*(concern|hr action|write.?up|watch)|latest.*(concern|action|hr)|new.*(concern|hr action|write)|concern.*(recent|latest|new|this week|this month)/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var sorted = c.filter(function(r){ return r.ts; }).sort(function(a,b){ return new Date(b.ts)-new Date(a.ts); }).slice(0,6);
+        if (!sorted.length) return 'Concerns loaded but no timestamps on record.';
+        var msg = '**Most Recent Concerns:**\n\n';
+        msg += sorted.map(function(r){
+          var dt = new Date(r.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+          return '• **'+r.emp+'** — '+(r.concern_label||r.concern_type||'Concern')+' ('+r.hr_action+') · '+dt+(r.submitter?' · by '+r.submitter:'');
+        }).join('\n');
+        return msg;
+      }
+    },
+
+    // Who submitted concerns
+    { match: /who.*(submit|file|creat|wrote|log).*(concern|hr|write.?up)|concern.*(submit|file|creat|by)|top.*(submit|filer)|submitter/i,
+      respond: function() {
+        var c = _concerns();
+        if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
+        var sMap = {};
+        c.forEach(function(r){ var s=r.submitter||'Unknown'; sMap[s]=(sMap[s]||0)+1; });
+        var sorted = Object.entries(sMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+        return '**Concern Submitters:**\n\n'+sorted.map(function(e){ return '• **'+e[0]+'**: '+e[1]+' submission'+(e[1]>1?'s':''); }).join('\n');
+      }
+    },
+
+    // iReady drill-down: specific school or grade
+    { match: /iready.*(school|site|grade|district|by school|filter|drill|specific|just|only)|(school|site|grade).*(iready|growth|math|ela)/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab first.';
+        var msg = '**iReady Drill-Down Options:**\n\n';
+        msg += 'From iReady Analysis Lab you can filter by:\n';
+        msg += '• **School year**: '+( irl.schoolYears && irl.schoolYears.length ? irl.schoolYears.join(', ') : 'open lab to see')+'\n';
+        msg += '• **Subject**: Math or ELA\n';
+        msg += '• **Grade level**: '+( irl.grades && irl.grades.length ? irl.grades.slice(0,6).join(', ')+(irl.grades.length>6?', …':'') : 'see lab')+'\n';
+        msg += '• **School / District**: '+irl.schools+' schools across '+irl.districts+' districts in current data\n\n';
+        msg += 'To get a specific year\'s data from PIE, try:\n"Show iReady math for 2023-2024" or "iReady ELA 23-24"';
+        return msg;
+      }
+    },
+
+    // iReady math by school year — show site or grade breakdown
+    { match: /iready.*(math|ela).*(by|per|school|grade|site|district|22|23|24|25)|show.*(math|ela).*(iready|growth)|(math|ela).*(22-23|23-24|24-25|2022|2023|2024)/i,
+      respond: function() {
+        try {
+          if (!window.irlab || typeof window.irlab.getSummary !== 'function') return 'iReady data not yet loaded — open iReady Analysis Lab.';
+          var sy = _detectSY(_lastQ);
+          var d = sy ? window.irlab.getSummary(sy) : _irl();
+          if (!d) return 'iReady data not yet loaded.';
+          var isELA  = /ela|reading|literacy/i.test(_lastQ);
+          var isMath = /math/i.test(_lastQ);
+          var label  = sy ? sy : 'All Years';
+          if (!isMath && !isELA) {
+            // Both subjects
+            return '**iReady — '+label+':**\n\nMath: **'+(d.mathMedianPctTypical||d.mathMedianPctAllYears||'—')+'% of typical** ('+_n(d.mathRows)+' records)\nELA: **'+(d.elaMedianPctTypical||d.elaMedianPctAllYears||'—')+'% of typical** ('+_n(d.elaRows)+' records)\n'+_n(d.totalScholars)+' scholars · '+d.schools+' schools';
+          }
+          if (isMath) {
+            var pct = d.mathMedianPctTypical || d.mathMedianPctAllYears;
+            return '**iReady Math — '+label+':**\n\nMedian **'+(pct||'—')+'% of typical growth** · '+_n(d.mathRows)+' records · avg gain: '+(d.mathAvgGain!=null?'+'+d.mathAvgGain+' pts':'—');
+          }
+          var pct2 = d.elaMedianPctTypical || d.elaMedianPctAllYears;
+          return '**iReady ELA — '+label+':**\n\nMedian **'+(pct2||'—')+'% of typical growth** · '+_n(d.elaRows)+' records · avg gain: '+(d.elaAvgGain!=null?'+'+d.elaAvgGain+' pts':'—');
+        } catch(e) { return 'iReady data not yet available for that filter.'; }
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -4426,6 +5125,15 @@
     var qt = (q||'').trim();
     _lastQ = qt;
     var qn = _norm(qt); // normalized version for fallback matching
+
+    // 0. Resolve pending clarification (e.g. user answered "attendance" after tutor metric question)
+    if (_pendingQ) {
+      var pq = _pendingQ;
+      _pendingQ = null; // clear before resolve in case resolve re-sets it
+      var resolved = _resolvePending(pq, qt);
+      if (resolved) return resolved;
+      // Couldn't resolve answer — fall through to normal routing (treat as new question)
+    }
 
     // 1. Entity-first: detect a person name before rule scan
     var entity = _extractPerson(qt);
