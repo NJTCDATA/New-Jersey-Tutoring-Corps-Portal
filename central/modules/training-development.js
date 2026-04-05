@@ -2831,8 +2831,8 @@
     pdRows.forEach(r=>{ const role=(r['Role']||'').trim(); if(role) pdRoleMap[role]=(pdRoleMap[role]||0)+1; });
     const pdRoles = Object.entries(pdRoleMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
 
-    // Training Intake metrics
-    const intRows = _intakeData || [];
+    // Training Intake metrics — use module cache first, fall back to global loaded by exec dashboard
+    const intRows = _intakeData || window.njtcIntake || [];
     const intTotal = intRows.length;
     const resolvedFields = intTotal ? resolveIntakeFields(intRows) : INTAKE_RATING_FIELDS;
     const intAvgs = resolvedFields.map(f => ({ short:f.short, avg: avgField(intRows, f.field) })).filter(f=>f.avg!=null);
@@ -2841,6 +2841,49 @@
     const intTrainer = intAvgs.find(f=>/trainer/i.test(f.short));
     const intNew     = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length;
     const intReturn  = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length;
+
+    // ── Season comparison helpers ──────────────────────────────────────────
+    const SEASONS = [
+      { key:'fall',   label:'Fall',   note:'Sep–Nov', color:'#92400e', bg:'#fef3c7' },
+      { key:'winter', label:'Winter', note:'Dec–Feb', color:'#1e3a8a', bg:'#eff6ff' },
+      { key:'spring', label:'Spring', note:'Mar–May', color:'#065f46', bg:'#ecfdf5' },
+      { key:'summer', label:'Summer', note:'Jun–Aug', color:'#9a3412', bg:'#fff7ed' },
+    ];
+    function getSeasonLocal(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return null;
+      const m = d.getMonth() + 1;
+      if (m >= 9 && m <= 11) return 'fall';
+      if (m === 12 || m === 1 || m === 2) return 'winter';
+      if (m >= 3 && m <= 5) return 'spring';
+      return 'summer';
+    }
+    // PD by season
+    const pdBySeason = {};
+    SEASONS.forEach(s => { pdBySeason[s.key] = pdRows.filter(r => getSeasonLocal(r['Date of PD Session'] || r['Timestamp'] || '') === s.key); });
+    // Intake by season
+    const intBySeason = {};
+    SEASONS.forEach(s => { intBySeason[s.key] = intRows.filter(r => getSeasonLocal(r['Timestamp'] || '') === s.key); });
+    // Helper: compute key PD metrics for a set of rows
+    function pdSeasonMetrics(rows) {
+      if (!rows.length) return null;
+      const overall = avgField(rows, 'Overall satisfaction with this PD session');
+      const recYes  = rows.filter(r=>(r['Would you recommend this PD session to other sites?']||'').toLowerCase().startsWith('y')).length;
+      return { n: rows.length, overall, recRate: Math.round((recYes/rows.length)*100) };
+    }
+    // Helper: compute key Intake metrics for a set of rows
+    function intSeasonMetrics(rows) {
+      if (!rows.length) return null;
+      const rf = resolveIntakeFields(rows.length ? rows : intRows);
+      const prepField = rf.find(f=>/prepared/i.test(f.short));
+      const effField  = rf.find(f=>/effectiveness/i.test(f.short));
+      const prep = prepField ? avgField(rows, prepField.field) : null;
+      const eff  = effField  ? avgField(rows, effField.field)  : null;
+      return { n: rows.length, prep, eff };
+    }
+    const hasPDSeasons  = SEASONS.some(s => pdBySeason[s.key].length > 0);
+    const hasIntSeasons = SEASONS.some(s => intBySeason[s.key].length > 0);
 
     // Apprentice data
     const apprPool = (function(){
@@ -3033,6 +3076,72 @@
         </div>
         <div style="font-size:.8rem;color:#78350f;line-height:1.6">TAP (Tutor Apprenticeship Program) participants flagged active in the HR Master List (col K). For full apprentice tracker data, open T&D Analytics → Apprentice Tracker tab.</div>
       </div>
+
+      ${sectionHead('Season-by-Season Comparison')}
+      ${hasPDSeasons ? `
+        <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">PD Session Feedback — By Season</div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;margin-bottom:1.25rem">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:.45rem .75rem;text-align:left;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Season</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Respondents</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Avg Satisfaction</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Recommend Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${SEASONS.map(s => {
+              const m = pdSeasonMetrics(pdBySeason[s.key]);
+              if (!m) return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.4rem .75rem;font-size:.78rem;color:#9ca3af" colspan="4">${s.label} (${s.note}) — no data</td></tr>`;
+              const satColor = m.overall>=4?'#059669':m.overall>=3?'#d97706':'#dc2626';
+              const recColor = m.recRate>=80?'#059669':m.recRate>=60?'#d97706':'#dc2626';
+              return `<tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:.4rem .75rem">
+                  <span style="display:inline-block;width:8px;height:8px;background:${s.color};border-radius:50%;margin-right:.4rem"></span>
+                  <strong style="font-size:.8rem;color:#111">${s.label}</strong>
+                  <span style="font-size:.68rem;color:#9ca3af;margin-left:.3rem">${s.note}</span>
+                </td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:#374151">${m.n}</td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:${satColor}">${m.overall!=null?fmtN(m.overall)+'/5.0':'—'}</td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:${recColor}">${m.recRate}%</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      ` : '<p style="font-size:.8rem;color:#9ca3af;margin-bottom:1rem">PD data has no date column to compute season breakdown.</p>'}
+
+      ${hasIntSeasons ? `
+        <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem">Training Intake — By Season</div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:.45rem .75rem;text-align:left;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Season</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Respondents</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Preparedness</th>
+              <th style="padding:.45rem .75rem;text-align:center;font-size:.72rem;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb">Effectiveness</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${SEASONS.map(s => {
+              const m = intSeasonMetrics(intBySeason[s.key]);
+              if (!m) return `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:.4rem .75rem;font-size:.78rem;color:#9ca3af" colspan="4">${s.label} (${s.note}) — no data</td></tr>`;
+              const prepColor = m.prep!=null?(m.prep>=4?'#059669':m.prep>=3?'#d97706':'#dc2626'):'#9ca3af';
+              const effColor  = m.eff!=null?(m.eff>=4?'#059669':m.eff>=3?'#d97706':'#dc2626'):'#9ca3af';
+              return `<tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:.4rem .75rem">
+                  <span style="display:inline-block;width:8px;height:8px;background:${s.color};border-radius:50%;margin-right:.4rem"></span>
+                  <strong style="font-size:.8rem;color:#111">${s.label}</strong>
+                  <span style="font-size:.68rem;color:#9ca3af;margin-left:.3rem">${s.note}</span>
+                </td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:#374151">${m.n}</td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:${prepColor}">${m.prep!=null?fmtN(m.prep)+'/5.0':'—'}</td>
+                <td style="padding:.4rem .75rem;text-align:center;font-size:.83rem;font-weight:800;color:${effColor}">${m.eff!=null?fmtN(m.eff)+'/5.0':'—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:.7rem;color:#9ca3af;margin-top:.375rem">Season assigned from Timestamp column. Seasons with 0 responses are excluded from analysis.</p>
+      ` : '<p style="font-size:.8rem;color:#9ca3af">Intake data has no timestamp to compute season breakdown.</p>'}
     `;
 
     const reportTitle = isExec ? 'T&D Executive Snapshot' : 'T&D Programming Snapshot';
