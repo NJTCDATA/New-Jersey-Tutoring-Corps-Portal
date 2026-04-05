@@ -703,9 +703,40 @@
         </div>`;
       }
       document.getElementById('homeStatsStrip').style.display = 'none';
+
+      // ── Populate exec welcome bar ────────────────────────────────
+      const execBar   = document.getElementById('homeExecBar');
+      const execTitle = document.getElementById('homeExecTitle');
+      const execSub   = document.getElementById('homeExecSub');
+      const execScore = document.getElementById('homeExecScore');
+      const execMet   = document.getElementById('homeExecMet');
+      if (execBar) {
+        execBar.style.display = 'flex';
+        const deptTitles = {
+          leadership: 'Leadership Command Center',
+          data:       'Data & Evaluation Command Center',
+          kb:         'Executive Overview'
+        };
+        if (execTitle) execTitle.textContent = deptTitles[dept] || 'Command Center';
+        if (execSub) execSub.textContent =
+          `Live operational snapshot · SY 2025–2026 · ${new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}`;
+        // Compute score from live KPI_DATA
+        const _getS = k => k.midStatus || k.status || '';
+        const _met  = KPI_DATA.filter(k => _getS(k) === 'Met').length;
+        const _pts  = KPI_DATA.reduce((a,k) => {
+          const s = _getS(k);
+          return a + (s==='Met'?1 : s==='Partially Met'?.5 : s==='In Progress'?.25 : s==='Coming Down the Pipeline'?.1 : 0);
+        }, 0);
+        const _score = Math.round(_pts / (KPI_DATA.length || 1) * 100);
+        if (execScore) execScore.textContent = _score + '%';
+        if (execMet)   execMet.textContent   = _met + '/' + KPI_DATA.length;
+      }
     } else if (execEl) {
       execEl.style.display = 'none';
       document.getElementById('homeStatsStrip').style.display = '';
+      // Hide exec bar for non-exec depts
+      const execBar = document.getElementById('homeExecBar');
+      if (execBar) execBar.style.display = 'none';
     }
 
     // Stats strip — use midStatus as primary (falls back to status for legacy data)

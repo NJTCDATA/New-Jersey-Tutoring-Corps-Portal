@@ -37,6 +37,9 @@
   let _pdData     = null;
   let _intakeData = null;
 
+  // ── Season filter state ───────────────────────────────────────────
+  let _tdActiveSeason = 'all'; // 'all'|'fall'|'winter'|'spring'|'summer'
+
   // ── Apprenticeship sheet cache (TTL = 5 min) ───────────────────────
   const _apprCache  = {};   // key → { text, ts }
   let   _apprParsed = null; // parsed combined data from all 6 sheets
@@ -116,6 +119,42 @@
     if (m >= 3 && m <= 5) return 'spring';
     return 'summer';
   }
+
+  // ── Season filter helpers ─────────────────────────────────────────
+  function filterBySeason(rows, dateCol) {
+    if (_tdActiveSeason === 'all') return rows;
+    const col = dateCol || 'Timestamp';
+    return rows.filter(r => getSeason(r[col] || '') === _tdActiveSeason);
+  }
+
+  function buildSeasonFilterBar() {
+    const seasons = [
+      { key:'all',    label:'📅 All Seasons' },
+      { key:'fall',   label:'🍂 Fall',   note:'Sep–Nov' },
+      { key:'winter', label:'❄️ Winter', note:'Dec–Feb' },
+      { key:'spring', label:'🌱 Spring', note:'Mar–May' },
+      { key:'summer', label:'☀️ Summer', note:'Jun–Aug' },
+    ];
+    return '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.75rem 1rem;background:var(--surface-2);border:1px solid var(--border);border-radius:12px">' +
+      '<span style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);flex-shrink:0">Season</span>' +
+      seasons.map(s => {
+        const active = _tdActiveSeason === s.key;
+        return '<button style="padding:.3rem .875rem;border-radius:20px;border:1.5px solid ' +
+          (active ? 'var(--training)' : 'var(--border)') + ';background:' +
+          (active ? 'rgba(231,111,81,.1)' : 'var(--surface)') + ';color:' +
+          (active ? 'var(--training)' : 'var(--text-2)') +
+          ';font-size:.8rem;font-weight:600;cursor:pointer;font-family:\'Plus Jakarta Sans\',sans-serif" onclick="window.tdSetSeason(\'' + s.key + '\')">' +
+          s.label + (s.note ? '<span style="font-size:.65rem;opacity:.55;margin-left:.2rem">' + s.note + '</span>' : '') + '</button>';
+      }).join('') +
+      '<span id="tdSeasonCount" style="margin-left:auto;font-size:.7rem;color:var(--muted)"></span>' +
+    '</div>';
+  }
+
+  window.tdSetSeason = function(key) {
+    _tdActiveSeason = key;
+    if (_pdSubTab)     window.tdPDSubTab(_pdSubTab, null);
+    if (_intakeSubTab) window.tdIntakeSubTab(_intakeSubTab, null);
+  };
 
   function seasonBadge(dateStr) {
     const s = getSeason(dateStr);
@@ -675,8 +714,9 @@
       </div>
       <span style="font-size:.7rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:.2rem .6rem;border-radius:20px">🔴 LIVE · ${now}</span>
     </div>
-    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>
-    <div id="tdPdSubContent"></div>`;
+    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>` +
+    buildSeasonFilterBar() +
+    `<div id="tdPdSubContent"></div>`;
   }
 
   window.tdPDSubTab = function(id, btn) {
@@ -695,6 +735,7 @@
 
   // ── SUB-TAB 1: SESSION ANALYTICS ───────────────────────────────
   function renderPDAnalytics(container, rows) {
+    rows = filterBySeason(rows, 'Date of PD Session');
     const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
     const s1Rows = rows.filter(r => sKey(r) === 'PD Session 1');
     const s2Rows = rows.filter(r => sKey(r) === 'PD Session 2');
@@ -847,6 +888,7 @@
 
   // ── SUB-TAB 2: RESPONSE EXPLORER ───────────────────────────────
   function renderPDExplorer(container, rows) {
+    rows = filterBySeason(rows, 'Date of PD Session');
     const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
     const allSessions = [...new Set(rows.map(sKey).filter(Boolean))].sort();
     const allRoles    = [...new Set(rows.map(r => r['Role']).filter(Boolean))].sort();
@@ -879,6 +921,7 @@
   }
 
   function renderPDExplorerContent(rows) {
+    rows = filterBySeason(rows, 'Date of PD Session');
     const container = document.getElementById('pdExplorerContent');
     if (!container) return;
     const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
@@ -998,6 +1041,7 @@
 
   // ── SUB-TAB 3: T&D EXECUTIVE SUMMARY ───────────────────────────
   function renderPDSummary(container, rows) {
+    rows = filterBySeason(rows, 'Date of PD Session');
     const dept = getDept();
     const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
     const s1Rows = rows.filter(r => sKey(r) === 'PD Session 1');
@@ -1023,8 +1067,20 @@
     const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
     container.innerHTML = `<div id="td-summary-print">
-      ${dept === 'data' ? `<div class="no-print" style="display:flex;justify-content:flex-end;gap:.5rem;margin-bottom:1rem">
-        <button class="btn btn-primary btn-sm" onclick="window.tdPDExportPDF()">📄 Export as PDF</button>
+      ${getDept() === 'data' ? `<div class="no-print" style="display:flex;align-items:center;justify-content:flex-end;
+        gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.875rem 1rem;
+        background:var(--surface-2);border:1px solid var(--border);border-radius:12px">
+        <div style="display:flex;align-items:center;gap:.375rem;flex-wrap:wrap">
+          <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:.6875rem;font-weight:700;
+            text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:.25rem">Export CSV</span>
+          <button class="btn btn-secondary btn-sm" onclick="window.tdExportCSV_PD_Leadership()"
+            title="Session KPIs — no individual names">👑 Leadership</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.tdExportCSV_PD_Programming()"
+            title="Site-level breakdown">🎯 Programming</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.tdExportCSV_PD_Training()"
+            title="Full row-level detail">🎓 T&D Full</button>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="window.tdPDExportPDF()">📄 Export PDF</button>
       </div>` : ''}
 
       <div class="td-print-section" style="background:#1B2A4A;color:#fff;border-radius:10px;padding:1.5rem;margin-bottom:1rem">
@@ -1108,6 +1164,107 @@
     const el = document.getElementById('td-summary-print');
     if (!el) return;
     window.print();
+  };
+
+  // ── CSV Download utility (7G) ────────────────────────────────────
+  function _tdCSV(filename, rows, cols) {
+    function esc(v) {
+      const s = String(v == null ? '' : v).replace(/\r\n/g, ' ').replace(/\n/g, ' ');
+      return (s.includes(',') || s.includes('"')) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    const bom  = '\uFEFF';
+    const hdr  = cols.map(c => esc(c.h)).join(',');
+    const body = rows.map(r => cols.map(c => esc(r[c.k] || '')).join(',')).join('\r\n');
+    const blob = new Blob([bom + hdr + '\r\n' + body], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
+  // ── Leadership CSV export — PD Sessions (no individual names) (7H) ──
+  window.tdExportCSV_PD_Leadership = function() {
+    if (!_pdData || !_pdData.length) { alert('PD data not loaded.'); return; }
+    const rows   = filterBySeason(_pdData, 'Date of PD Session');
+    const season = _tdActiveSeason === 'all' ? 'All-Seasons' : _tdActiveSeason.charAt(0).toUpperCase() + _tdActiveSeason.slice(1);
+    const sKey   = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const sessions = Array.from(new Set(rows.map(sKey))).filter(Boolean).sort();
+    const avg = (rws, col) => {
+      const v = rws.map(r => parseFloat(r[col])).filter(n => !isNaN(n));
+      return v.length ? (v.reduce((a,b) => a+b, 0) / v.length).toFixed(2) : '';
+    };
+    const summaryRows = sessions.map(sess => {
+      const sr = rows.filter(r => sKey(r) === sess);
+      return {
+        session:        sess,
+        date:           (sr[0] && sr[0]['Date of PD Session']) || '',
+        season:         getSeason((sr[0] && sr[0]['Date of PD Session']) || ''),
+        responses:      sr.length,
+        avg_overall:    avg(sr, 'Overall satisfaction with this PD session'),
+        avg_discussion: avg(sr, 'The session allowed for meaningful discussion and participation.'),
+        avg_content:    avg(sr, 'The content was directly relevant to my site responsibilities.'),
+        avg_strategies: avg(sr, 'The facilitator(s) provided clear, actionable strategies I can use immediately.'),
+        pct_recommend:  sr.length ? Math.round(sr.filter(r => (r['Would you recommend this PD session to other sites?'] || '').toLowerCase().startsWith('y')).length / sr.length * 100) + '%' : ''
+      };
+    });
+    _tdCSV('NJTC-TD-PD-Leadership-' + season + '-' + new Date().toISOString().slice(0,10) + '.csv', summaryRows, [
+      {h:'PD Session', k:'session'}, {h:'Date', k:'date'}, {h:'Season', k:'season'},
+      {h:'Total Responses', k:'responses'}, {h:'Avg Overall Sat', k:'avg_overall'},
+      {h:'Avg Discussion', k:'avg_discussion'}, {h:'Avg Content Relevance', k:'avg_content'},
+      {h:'Avg Strategies', k:'avg_strategies'}, {h:'% Would Recommend', k:'pct_recommend'}
+    ]);
+  };
+
+  // ── Programming CSV export — site-level (7I) ─────────────────────
+  window.tdExportCSV_PD_Programming = function() {
+    if (!_pdData || !_pdData.length) { alert('PD data not loaded.'); return; }
+    const rows   = filterBySeason(_pdData, 'Date of PD Session');
+    const season = _tdActiveSeason === 'all' ? 'All-Seasons' : _tdActiveSeason.charAt(0).toUpperCase() + _tdActiveSeason.slice(1);
+    const SITE_COL = findCol(rows, 'site', 'school', 'district', 'location') || 'Site';
+    const sKey = r => (r['PD Session Number '] || r['PD Session Number'] || '').trim();
+    const grps = {};
+    rows.forEach(r => {
+      const s    = sKey(r);
+      const site = r[SITE_COL] || 'Unknown';
+      const k    = site + '|||' + s;
+      if (!grps[k]) grps[k] = { site, session: s, date: r['Date of PD Session'] || '', rows: [] };
+      grps[k].rows.push(r);
+    });
+    const avg = (rws, col) => {
+      const v = rws.map(r => parseFloat(r[col])).filter(n => !isNaN(n));
+      return v.length ? (v.reduce((a,b) => a+b, 0) / v.length).toFixed(2) : '';
+    };
+    const siteRows = Object.values(grps)
+      .sort((a,b) => a.site.localeCompare(b.site) || a.session.localeCompare(b.session))
+      .map(g => ({
+        site:          g.site,
+        session:       g.session,
+        date:          g.date,
+        season:        getSeason(g.date),
+        responses:     g.rows.length,
+        avg_overall:   avg(g.rows, 'Overall satisfaction with this PD session'),
+        avg_content:   avg(g.rows, 'The content was directly relevant to my site responsibilities.'),
+        avg_discussion:avg(g.rows, 'The session allowed for meaningful discussion and participation.')
+      }));
+    _tdCSV('NJTC-TD-PD-Programming-' + season + '-' + new Date().toISOString().slice(0,10) + '.csv', siteRows, [
+      {h:'Site', k:'site'}, {h:'PD Session', k:'session'}, {h:'Date', k:'date'},
+      {h:'Season', k:'season'}, {h:'Responses', k:'responses'},
+      {h:'Avg Overall', k:'avg_overall'}, {h:'Avg Content', k:'avg_content'},
+      {h:'Avg Discussion', k:'avg_discussion'}
+    ]);
+  };
+
+  // ── T&D Full CSV export (7J) ──────────────────────────────────────
+  window.tdExportCSV_PD_Training = function() {
+    if (!_pdData || !_pdData.length) { alert('PD data not loaded.'); return; }
+    const rows   = filterBySeason(_pdData, 'Date of PD Session');
+    const season = _tdActiveSeason === 'all' ? 'All-Seasons' : _tdActiveSeason.charAt(0).toUpperCase() + _tdActiveSeason.slice(1);
+    if (!rows.length) { alert('No records match the current season filter.'); return; }
+    const enriched = rows.map(r => { const o = Object.assign({}, r); o._Season = getSeason(r['Date of PD Session'] || ''); return o; });
+    const keys = ['_Season'].concat(Object.keys(enriched[0]).filter(k => k !== '_Season'));
+    _tdCSV('NJTC-TD-PD-Full-' + season + '-' + new Date().toISOString().slice(0,10) + '.csv',
+      enriched, keys.map(k => ({ h: k === '_Season' ? 'Season' : k, k })));
   };
 
   function groupSessions(rows) {
@@ -1197,8 +1354,9 @@
       </div>
       <span style="font-size:.7rem;color:var(--muted);background:var(--surface);border:1px solid var(--border);padding:.2rem .6rem;border-radius:20px">🔴 LIVE · ${now}</span>
     </div>
-    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>
-    <div id="tdIntakeSubContent"></div>`;
+    <div style="border-bottom:2px solid var(--border);margin-bottom:1.25rem"></div>` +
+    buildSeasonFilterBar() +
+    `<div id="tdIntakeSubContent"></div>`;
   }
 
   window.tdIntakeSubTab = function(id, btn) {
@@ -1217,6 +1375,7 @@
 
   // ── INTAKE SUB-TAB 1: ANALYTICS ────────────────────────────────
   function renderIntakeAnalytics(container, rows) {
+    rows = filterBySeason(rows, 'Timestamp');
     // Use findCol for resilient matching — sheet column names may differ slightly
     const ROLE_COL   = findCol(rows, 'what is your role within njtc', 'your role within') || 'What is your role within NJTC? (Select one)';
     const HIRE_COL   = findCol(rows, 'new or returning hire', 'returning hire') || 'Are you a new or returning hire? (Select one)';
@@ -1361,6 +1520,7 @@
 
   // ── INTAKE SUB-TAB 2: DISTRICT VIEW ────────────────────────────
   function renderIntakeDistrictView(container, rows) {
+    rows = filterBySeason(rows, 'Timestamp');
     const DIST_COL = 'What District are you assigned to?';
     const ROLE_COL = 'What is your role within NJTC? (Select one)';
     const HIRE_COL = 'Are you a new or returning hire? (Select one)';
@@ -1436,6 +1596,7 @@
 
   // ── INTAKE SUB-TAB 3: T&D INTAKE SUMMARY ───────────────────────
   function renderIntakeSummary(container, rows) {
+    rows = filterBySeason(rows, 'Timestamp');
     const dept = getDept();
     function avgF(f) { const v=rows.map(r=>parseFloat(r[f])).filter(n=>!isNaN(n)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:0; }
 

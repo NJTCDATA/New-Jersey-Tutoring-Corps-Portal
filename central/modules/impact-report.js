@@ -1431,10 +1431,22 @@ function downloadCSV(rows, filename) {
 // ── PDF helpers ────────────────────────────────────────────────────────────
 function _openPrintWindow(html, title) {
   var win = window.open('', '_blank');
-  if (!win) { alert('Please allow popups for this page to use PDF export.'); return; }
-  win.document.write(html);
-  win.document.close();
-  setTimeout(function() { win.focus(); win.print(); }, 500);
+  if (!win) { alert('Please allow popups for PDF export.'); return; }
+  var blob    = new Blob([html], { type: 'text/html;charset=utf-8' });
+  var blobUrl = URL.createObjectURL(blob);
+  win.location.href = blobUrl;
+  var check = setInterval(function() {
+    try {
+      if (win.document && win.document.readyState === 'complete') {
+        clearInterval(check);
+        setTimeout(function() {
+          win.focus(); win.print();
+          setTimeout(function() { try { URL.revokeObjectURL(blobUrl); } catch(e) {} }, 60000);
+        }, 400);
+      }
+    } catch(e) {}
+  }, 100);
+  setTimeout(function() { clearInterval(check); try { win.focus(); win.print(); } catch(e) {} }, 3500);
 }
 
 var PDF_GOOGLE_FONT = '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">';
@@ -1527,7 +1539,7 @@ function exportPDF() {
        }).join('') + '</div>';
   }
 
-  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Executive Impact Report</title>' +
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><title>NJTC Executive Impact Report</title>' +
     PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS + '</style></head><body>' +
 
     // Cover bar
@@ -1680,7 +1692,7 @@ function exportPDFSchool() {
     '</div>';
   }).join('');
 
-  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC School Partner Report</title>' +
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><title>NJTC School Partner Report</title>' +
     PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS + '</style></head><body>' +
 
     // Header
@@ -1813,7 +1825,7 @@ function exportPDFProgram() {
     '</div>';
   }
 
-  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Program Team Report</title>' +
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><title>NJTC Program Team Report</title>' +
     PDF_GOOGLE_FONT + '<style>' + PDF_BASE_CSS +
     'table { width:100%;border-collapse:collapse; }' +
     'th { background:#f8fafc;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#64748b;font-weight:700;padding:5pt 8pt;text-align:left;border-bottom:2px solid #e2e8f0; }' +

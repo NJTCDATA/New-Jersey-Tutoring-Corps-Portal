@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NJTC Central Team Portal</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -75,6 +75,28 @@
       /* Dept accent — set dynamically by JS after login */
       --dept-accent: #f0a500;
       --dept-glow:   rgba(240,165,0,.18);
+
+      /* ── Dept accent system — additional tokens ──────────────── */
+      --dept-accent-light: rgba(240,165,0,.08);
+
+      /* ── Premium surface tokens ───────────────────────────────── */
+      --surface-premium: #ffffff;
+      --shadow-premium:  0 2px 8px rgba(10,22,40,.06),
+                         0 8px 32px rgba(10,22,40,.08),
+                         0 0 0 1px rgba(10,22,40,.04);
+      --shadow-gold:     0 4px 20px rgba(240,165,0,.2);
+
+      /* ── Dept-specific accent colors (static refs) ───────────── */
+      --accent-hr:         #e63946;
+      --accent-finance:    #2a9d8f;
+      --accent-programming:#457b9d;
+      --accent-data:       #7b2d8b;
+      --accent-training:   #e76f51;
+      --accent-leadership: #f0a500;
+      --accent-kb:         #5b8dee;
+
+      /* ── Glass white alias ────────────────────────────────────── */
+      --glass-white:   rgba(255,255,255,.06);
     }
 
     body {
@@ -143,13 +165,15 @@
       display: flex; align-items: center; gap: .875rem;
     }
     .dept-pill {
-      background: linear-gradient(135deg, var(--blue-mid), var(--blue-lite));
+      background: var(--dept-accent);
       border-radius: 20px;
-      padding: .3rem 1rem;
+      padding: .3125rem 1.125rem;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: .6875rem; font-weight: 700;
-      letter-spacing: .06em; text-transform: uppercase;
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(0,80,200,.35);
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--navy);
+      box-shadow: 0 2px 10px var(--dept-glow);
+      transition: all .3s ease;
     }
     .session-badge {
       font-size: .6875rem; color: rgba(255,255,255,.4);
@@ -401,11 +425,13 @@
     }
     .st-icon { font-size: 1.25rem; margin-bottom: .625rem; }
     .st-value {
-      font-family: 'DM Serif Display', serif;
-      font-size: 2.625rem; color: var(--navy);
+      font-family: 'Syne', sans-serif;
+      font-weight: 900;
+      font-size: 2.75rem; color: var(--navy);
       line-height: 1; letter-spacing: -.04em;
+      display: block;
     }
-    .st-label { font-family: 'Syne', sans-serif; font-size: .8125rem; font-weight: 700; color: var(--muted); margin-top: .375rem; text-transform: uppercase; letter-spacing: .04em; }
+    .st-label { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .6875rem; font-weight: 700; color: var(--muted); margin-top: .375rem; text-transform: uppercase; letter-spacing: .06em; display: block; }
     .st-sub { font-size: .75rem; color: var(--text-2); margin-top: .25rem; }
 
     /* ════════════════════════════════════════════════════
@@ -436,7 +462,7 @@
       display: flex; align-items: center; justify-content: center;
       font-size: 1.125rem; margin-bottom: .625rem;
     }
-    .ql-title { font-family: 'Syne', sans-serif; font-size: .9375rem; font-weight: 700; color: var(--navy); }
+    .ql-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: .9375rem; font-weight: 700; color: var(--navy); }
     .ql-desc { font-size: .8125rem; color: var(--text-2); line-height: 1.5; }
     .ql-arrow {
       font-size: .75rem; color: var(--dept-accent, var(--blue-mid)); margin-top: .25rem; font-weight: 700;
@@ -4870,6 +4896,49 @@
           <div class="ph-eyebrow" id="homeEyebrow">Department Overview</div>
           <h2 class="ph-title" id="homeTitle">Welcome</h2>
           <p class="ph-subtitle" id="homeSubtitle">Your centralized hub for team operations, reporting, and goal alignment.</p>
+        </div>
+      </div>
+      <!-- Exec dept welcome bar — only shown for leadership/data/kb -->
+      <div id="homeExecBar" style="display:none;
+        background: linear-gradient(135deg, var(--navy-deep) 0%, #0d2847 100%);
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        margin-bottom: 1.75rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        box-shadow: 0 4px 24px rgba(0,0,0,.2);
+        border: 1px solid rgba(255,255,255,.06);
+        position: relative;
+        overflow: hidden;">
+        <!-- Dept glow orb -->
+        <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;
+          background:radial-gradient(circle,var(--dept-glow),transparent 70%);
+          pointer-events:none"></div>
+        <div style="position:relative;z-index:1">
+          <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.625rem;
+            color:#fff;letter-spacing:-.02em;line-height:1.1" id="homeExecTitle">
+            Executive Command Center
+          </div>
+          <div style="font-size:.8125rem;color:rgba(255,255,255,.5);margin-top:.375rem"
+            id="homeExecSub">Live operational snapshot · Loading…</div>
+        </div>
+        <div style="display:flex;gap:.75rem;position:relative;z-index:1;flex-wrap:wrap">
+          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+            border-radius:10px;padding:.75rem 1.25rem;text-align:center;min-width:90px">
+            <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.75rem;
+              color:var(--dept-accent);line-height:1" id="homeExecScore">—</div>
+            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;
+              letter-spacing:.06em;color:rgba(255,255,255,.4);margin-top:.25rem">KPI Score</div>
+          </div>
+          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+            border-radius:10px;padding:.75rem 1.25rem;text-align:center;min-width:90px">
+            <div style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.75rem;
+              color:#fff;line-height:1" id="homeExecMet">—</div>
+            <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;
+              letter-spacing:.06em;color:rgba(255,255,255,.4);margin-top:.25rem">Goals Met</div>
+          </div>
         </div>
       </div>
       <!-- Executive Analytics Dashboard (leadership/data/kb only) -->
