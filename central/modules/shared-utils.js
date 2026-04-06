@@ -2131,7 +2131,7 @@
     // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
     const TAB_MAP = {
       kb:          ['profiles'],                                        // KB: exec summary only
-      leadership:  ['profiles','all','program','hr','reviews','log'],   // leadership: full access
+      leadership:  ['all'],                                              // leadership: summary dashboard only
       data:        ['profiles','all','program','hr','reviews','log'],   // data: full access
       hr:          ['profiles','all','reviews','log'],                  // HR: profiles + concerns + site leader reviews + log
       programming: ['profiles','all','reviews'],                        // Programming: profiles + site overview + site leader reviews
@@ -2144,7 +2144,7 @@
     const labels = {
       hr:          '👔 HR Overview',
       programming: '🎯 Site Overview',
-      leadership:  '⭐ Exec Summary',
+      leadership:  '⭐ Leadership View',
       data:        '📈 Full Analytics',
       kb:          '🌟 Exec Summary',
       finance:     '💰 Finance View',
@@ -2193,11 +2193,16 @@
       if (id === 'talent') {
         buildTalentDashboard(false);
         if (!window._talentLoaded) setTimeout(() => initTalentFilters(), 800);
-        // Ensure profiles tab renders for relevant depts
+        // Ensure correct default tab renders per dept on open
         const _sp2Dept = (window.NJTC_SESSION||{}).dept||'hr';
-        if (['hr','data','leadership','kb','finance'].includes(_sp2Dept)) {
+        if (['hr','data','kb','finance'].includes(_sp2Dept)) {
           setTimeout(() => {
             if (typeof setTalentTab === 'function') setTalentTab('profiles');
+          }, 300);
+        } else if (_sp2Dept === 'leadership') {
+          // Leadership only has the summary dashboard — go straight to it
+          setTimeout(() => {
+            if (typeof setTalentTab === 'function') setTalentTab('all');
           }, 300);
         }
       }
