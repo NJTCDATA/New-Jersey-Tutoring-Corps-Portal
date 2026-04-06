@@ -1997,6 +1997,75 @@
     .po-survey-bar-fill{height:100%;border-radius:4px}
     .po-filter-strip{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.875rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.25rem;box-shadow:var(--shadow-sm)}
 
+    /* ═══════════════════════════════════════════════════════════════════
+       SCHOOL GRID DASHBOARD  —  Programming Landing View (sg-* namespace)
+       Card-based, status-first, plain-language — system-ui fonts (no blur)
+       ═══════════════════════════════════════════════════════════════════ */
+    .sg-wrap { display:flex; flex-direction:column; gap:1rem; }
+
+    /* Summary stat strip */
+    .sg-summary-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; }
+    @media(max-width:860px){ .sg-summary-strip { grid-template-columns:repeat(2,1fr); } }
+    .sg-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:1rem 1.25rem; position:relative; overflow:hidden; cursor:default; }
+    .sg-stat::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--sc,#0050c8); }
+    .sg-stat-val { font-size:2rem; font-weight:800; line-height:1; color:var(--sc,var(--navy)); font-family:system-ui,-apple-system,sans-serif; }
+    .sg-stat-lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin:.35rem 0 .15rem; }
+    .sg-stat-sub { font-size:.7rem; color:var(--text-2); }
+
+    /* Section wrapper */
+    .sg-section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+    .sg-section-hd { background:var(--surface-2); border-bottom:1px solid var(--border); padding:.625rem 1rem; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); display:flex; align-items:center; justify-content:space-between; }
+    .sg-section-hd-warn { color:#92400e; background:#fef3c7; border-bottom-color:#fde68a; }
+
+    /* Triage list (needs attention) */
+    .sg-triage-list { display:flex; flex-direction:column; }
+    .sg-triage-item { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.75rem 1rem; border-bottom:1px solid var(--border-2); cursor:pointer; transition:background .15s; }
+    .sg-triage-item:last-child { border-bottom:none; }
+    .sg-triage-item:hover { background:var(--surface-2); }
+    .sg-triage-crit { border-left:3px solid #b91c1c; }
+    .sg-triage-high { border-left:3px solid #d97706; }
+    .sg-triage-left { flex:1; min-width:0; }
+    .sg-triage-right { text-align:right; flex-shrink:0; }
+    .sg-triage-badge { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; padding:.15rem .4rem; border-radius:4px; display:inline-block; margin-bottom:.25rem; }
+    .sg-triage-crit .sg-triage-badge { background:#fee2e2; color:#991b1b; }
+    .sg-triage-high .sg-triage-badge { background:#fef3c7; color:#92400e; }
+    .sg-triage-school { font-size:.875rem; font-weight:700; color:var(--navy); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sg-triage-detail { font-size:.7rem; color:var(--text-2); margin-top:.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sg-drill-btn { margin-top:.375rem; font-size:.65rem; font-weight:700; background:var(--blue-mid); color:#fff; border:none; border-radius:6px; padding:.25rem .6rem; cursor:pointer; white-space:nowrap; }
+    .sg-drill-btn:hover { opacity:.85; }
+
+    /* School card grid */
+    .sg-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:.75rem; padding:.875rem; }
+    .sg-card { background:var(--bg); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:.875rem 1rem; cursor:pointer; transition:box-shadow .15s, border-color .15s; display:flex; flex-direction:column; gap:.5rem; }
+    .sg-card:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); border-color:var(--blue-mid); }
+    .sg-card-crit { border-color:#fca5a5; background:#fff8f8; }
+    .sg-card-crit:hover { border-color:#b91c1c; }
+    .sg-card-high { border-color:#fde68a; background:#fffbf0; }
+    .sg-card-high:hover { border-color:#d97706; }
+    .sg-card-ok { }
+    .sg-card-top { display:flex; align-items:flex-start; gap:.5rem; }
+    .sg-card-name { font-size:.875rem; font-weight:700; color:var(--navy); line-height:1.3; }
+    .sg-card-dist { font-size:.65rem; color:var(--muted); margin-top:.1rem; }
+    .sg-region-pill { font-size:.6rem; font-weight:700; padding:.15rem .45rem; border-radius:99px; background:var(--surface-2); color:var(--muted); border:1px solid var(--border); white-space:nowrap; flex-shrink:0; }
+    .sg-card-att { display:flex; align-items:center; gap:.75rem; }
+    .sg-card-att-val { font-size:1.625rem; font-weight:800; line-height:1; font-family:system-ui,-apple-system,sans-serif; flex-shrink:0; min-width:3.5rem; }
+    .sg-att-bar { flex:1; height:7px; background:var(--border-2); border-radius:4px; overflow:hidden; }
+    .sg-att-bar-fill { height:100%; border-radius:4px; transition:width .4s; }
+    .sg-card-meta { display:flex; gap:.875rem; font-size:.7rem; color:var(--text-2); font-weight:600; }
+    .sg-card-details { display:flex; flex-direction:column; gap:.2rem; }
+    .sg-card-detail { font-size:.7rem; padding:.15rem 0; }
+    .sg-card-detail-crit { color:#b91c1c; font-weight:700; }
+    .sg-card-detail-warn { color:#92400e; font-weight:600; }
+    .sg-card-detail-ok  { color:#065f46; }
+    .sg-card-footer { display:flex; align-items:center; justify-content:space-between; margin-top:.1rem; padding-top:.5rem; border-top:1px solid var(--border-2); }
+    .sg-status-badge { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; padding:.2rem .55rem; border-radius:4px; }
+    .sg-status-crit { background:#fee2e2; color:#991b1b; }
+    .sg-status-high { background:#fef3c7; color:#92400e; }
+    .sg-status-ok   { background:var(--met-bg); color:#065f46; }
+
+    /* Late filer chips */
+    .sg-late-chip { display:inline-flex; flex-direction:column; gap:.1rem; background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:.4rem .625rem; font-size:.72rem; min-width:140px; }
+
     /* ── Multi-Select Filter Widget ── */
     .ms-wrap{position:relative;display:inline-flex;align-items:center;}
     .ms-btn{display:flex;align-items:center;gap:.35rem;padding:.45rem .75rem;font-size:.8125rem;font-family:inherit;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);cursor:pointer;white-space:nowrap;transition:var(--transition);user-select:none;}
