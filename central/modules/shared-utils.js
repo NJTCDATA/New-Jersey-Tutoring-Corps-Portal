@@ -3182,6 +3182,48 @@
       } catch(e2) {}
     }
 
+    // ── iReady Academic Impact ────────────────────────────────────────────
+    // Joins tutor name against iReady records via getTutorAcademicImpact().
+    // Shows math/ELA median pctTypical across ALL school years in the dataset.
+    // Included as a strong footnote when present; skipped silently when absent.
+    try {
+      if (window.irlab && typeof window.irlab.getTutorAcademicImpact === 'function') {
+        var impact = window.irlab.getTutorAcademicImpact(name);
+        if (impact && impact.length) {
+          var imp = impact[0];
+          var hasMath = imp.mathMedianPctTypical !== null;
+          var hasELA  = imp.elaMedianPctTypical  !== null;
+          if (hasMath || hasELA) {
+            lines.push('\n**ACADEMIC IMPACT (iReady)**');
+            var yearStr = imp.yearSpan || (imp.years && imp.years[0]) || '';
+            lines.push('_' + imp.scholarCount + ' scholar' + (imp.scholarCount!==1?'s':'') + ' with iReady data' + (yearStr?' · '+yearStr:'') + '_');
+            if (hasMath) {
+              var mIcon = imp.mathMedianPctTypical>=80?'✅':imp.mathMedianPctTypical>=60?'⚠️':'🔴';
+              lines.push(mIcon + ' Math: **' + imp.mathMedianPctTypical + '% of typical growth** (' + imp.mathRecords + ' records)');
+            }
+            if (hasELA) {
+              var eIcon = imp.elaMedianPctTypical>=80?'✅':imp.elaMedianPctTypical>=60?'⚠️':'🔴';
+              lines.push(eIcon + ' ELA:  **' + imp.elaMedianPctTypical + '% of typical growth** (' + imp.elaRecords + ' records)');
+            }
+            if (imp.pctMoved !== null) lines.push('📈 ' + imp.pctMoved + '% of scholars moved up a placement level');
+            if (imp.pctGL    !== null) lines.push('🎯 ' + imp.pctGL    + '% at grade level by spring');
+            // Retention signal — average across available subjects
+            var typVals = [imp.mathMedianPctTypical, imp.elaMedianPctTypical].filter(function(v){ return v!==null; });
+            if (typVals.length) {
+              var avgTyp = Math.round(typVals.reduce(function(a,b){return a+b;},0)/typVals.length);
+              var retSignal = avgTyp >= 80
+                ? '🟢 **Return Priority** — scholars at or above typical academic growth'
+                : avgTyp >= 60
+                ? '🟡 **Return with Support** — moderate growth; consider targeted coaching or PD'
+                : '🔴 **Review Before Return** — scholars below expected growth trajectory';
+              lines.push('\n' + retSignal);
+            }
+            lines.push('\n_Benchmark: ≥80% of typical = on track · 60–79% = monitor · <60% = intervention. Not all scholars may have iReady records._');
+          }
+        }
+      }
+    } catch(eImpact) {}
+
     // ── HR Profile ────────────────────────────────────────────────────────
     if (entity.hr) {
       var e = entity.hr;
@@ -5101,6 +5143,77 @@
           msg += '\n\n_Ask "survey score for [Tutor Name]" for a full breakdown._';
           return msg;
         } catch(e) { return 'Survey data not available — open Pearl Operations first.'; }
+      }
+    },
+
+    // ── Performance tier definitions ─────────────────────────────────────
+    // "What does Stellar mean?", "define On Track", "what is Needs Action", etc.
+    // Applies across Programming, Data, and HR department profile views.
+    { match: /what (does|is|do you mean by).*\b(stellar|on track|at risk|needs action|performance tier|performance designation|performance stand)\b|define.*\b(stellar|on track|at risk|needs action)\b|\b(stellar|on track|at risk|needs action).*(mean|definition|defined|criteria|threshold|qualify|standard)/i,
+      respond: function() {
+        return '**NJTC Performance Tier Definitions**\n\nThese designations apply to individual tutor/staff profiles across Programming, Data, and HR department views.\n\n' +
+          '⭐ **Stellar**\n' +
+          'Consistently meets or exceeds ALL benchmarks — scholar attendance ≥85%, tutor attendance ≥90%, surveys submitted on time, no active HR concerns, scholar survey avg ≥4.0/5. ' +
+          'Sustained over 8+ consecutive weeks. iReady median pctTypical ≥80% (when data available). Identified as a program model and retention priority.\n\n' +
+          '✅ **On Track**\n' +
+          'Meeting core benchmarks with no critical flags. Minor operational gaps acceptable (e.g., one late survey, one absence). No active HR action. Strong baseline performer.\n\n' +
+          '⚠️ **At Risk**\n' +
+          'Below one or more benchmarks: scholar attendance 75–84%, tutor attendance 80–89%, two or more consecutive late surveys, or one active HR concern. Requires monitoring and proactive support.\n\n' +
+          '🔴 **Needs Action**\n' +
+          'Critically below benchmarks: scholar attendance <75%, tutor attendance <80%, multiple missed surveys, or an active HR action (Write Up, PGP, or Termination in progress). Requires immediate intervention.\n\n' +
+          '_Note: Operational flags (late survey, HIT ratio) are separate from performance designations. A Stellar-designated tutor may have minor operational flags — context matters._';
+      }
+    },
+
+    // ── Tutor academic impact — direct query ──────────────────────────────
+    // "What is Micaela's academic impact?", "iReady data for [name]", "how are [name]'s scholars doing"
+    { match: /\b(academic impact|iready (data|results?|scores?|growth)|scholar.*growth).{0,30}(for|of|about)\s+\w|\b(how are|how (is|has)).{0,20}\bscholars?\b.{0,20}(doing|perform|grow|progress)/i,
+      respond: function() {
+        var q = _lastQ || '';
+        var nameMatch = q.match(/(?:for|of|about)\s+([A-Za-z][A-Za-z '-]{1,30}?)(?:\s*[?.,]|$)/i) ||
+                        q.match(/\b(how (is|are|has))\s+([A-Za-z][A-Za-z '-]{1,30}?)\b.{0,20}scholar/i);
+        var entity = _extractPerson(nameMatch ? (nameMatch[1]||nameMatch[3]||'') : q);
+        if (!entity) {
+          var irl = _irl();
+          if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
+          return '**Program-wide iReady Outcomes:**\n' +
+            (irl.mathPctTypical   != null ? '📐 Math: **' + irl.mathPctTypical + '% of typical growth** (' + irl.mathRows + ' records)\n' : '') +
+            (irl.elaPctTypical    != null ? '📖 ELA: **'  + irl.elaPctTypical  + '% of typical growth** (' + irl.elaRows  + ' records)\n' : '') +
+            '\nTo see a specific tutor\'s academic impact, ask: "academic impact for [Tutor Name]"';
+        }
+        var name = entity.name;
+        try {
+          if (!window.irlab || typeof window.irlab.getTutorAcademicImpact !== 'function')
+            return '**' + name + '** — iReady data not loaded. Open iReady Analysis Lab first.';
+          var impact = window.irlab.getTutorAcademicImpact(name);
+          if (!impact || !impact.length)
+            return '**' + name + '** is not listed as an instructor in the iReady dataset. This tutor may not have been associated with scholars in the iReady diagnostic system, or the data has not been loaded yet.';
+          var imp = impact[0];
+          var lines = ['**' + imp.name + '** — iReady Academic Impact'];
+          if (imp.yearSpan) lines.push('_School years: ' + imp.yearSpan + '_');
+          lines.push('_' + imp.scholarCount + ' scholar' + (imp.scholarCount!==1?'s':'') + ' with iReady diagnostic data_');
+          lines.push('');
+          if (imp.mathMedianPctTypical !== null) {
+            var mIc = imp.mathMedianPctTypical>=80?'✅':imp.mathMedianPctTypical>=60?'⚠️':'🔴';
+            lines.push(mIc + ' Math: **' + imp.mathMedianPctTypical + '% of typical growth** (' + imp.mathRecords + ' records)');
+          }
+          if (imp.elaMedianPctTypical !== null) {
+            var eIc = imp.elaMedianPctTypical>=80?'✅':imp.elaMedianPctTypical>=60?'⚠️':'🔴';
+            lines.push(eIc + ' ELA:  **' + imp.elaMedianPctTypical + '% of typical growth** (' + imp.elaRecords + ' records)');
+          }
+          if (imp.pctMoved !== null) lines.push('📈 ' + imp.pctMoved + '% of scholars moved up a placement level');
+          if (imp.pctGL    !== null) lines.push('🎯 ' + imp.pctGL    + '% at grade level by spring');
+          if (imp.avgGain  !== null) lines.push('📊 Avg scale score gain: +' + imp.avgGain + ' pts');
+          var typVals = [imp.mathMedianPctTypical, imp.elaMedianPctTypical].filter(function(v){ return v!==null; });
+          if (typVals.length) {
+            var avgTyp = Math.round(typVals.reduce(function(a,b){return a+b;},0)/typVals.length);
+            lines.push('\n' + (avgTyp>=80 ? '🟢 **Return Priority** — scholars at or above typical growth' :
+                               avgTyp>=60 ? '🟡 **Return with Support** — moderate growth; consider targeted PD' :
+                               '🔴 **Review Before Return** — scholars below expected growth trajectory'));
+          }
+          lines.push('\n_Benchmark: ≥80% of typical = on track · 60–79% = monitor · <60% = intervention_');
+          return lines.join('\n');
+        } catch(e) { return 'iReady data not available — open iReady Analysis Lab.'; }
       }
     },
 
