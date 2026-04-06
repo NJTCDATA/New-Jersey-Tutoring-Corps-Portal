@@ -3101,22 +3101,30 @@
   }
 
   // ── Entity extraction: detect person name in query ───────────────────────
+  // Words that look like names but are actually query terms — never match as a person name token
+  var _NON_NAME_WORDS = /^(tutor|tutors|scholar|scholars|student|students|site|school|district|program|survey|attendance|session|sessions|best|top|worst|low|high|average|overall|general|with|for|about|from|the|and|or|not|can|you|tell|show|me|my|all|any|who|what|when|where|how|is|are|was|were|have|had|did|does|do|give|get|find|pull|check|look|ask|staff|employee|manager|director|principal)$/i;
+
   function _extractPerson(q) {
     var lq = _normName(q);
     // Remove common filler words to isolate potential names
-    var stripped = lq.replace(/\b(how is|look up|check on|tell me about|what about|any info on|show me|attendance for|concerns for|find|search|pull up|get me|info on)\b/g,'').trim();
+    var stripped = lq.replace(/\b(how is|look up|check on|tell me about|what about|any info on|show me|attendance for|concerns for|find|search|pull up|get me|info on|survey (rates?|scores?|data|results?) for|survey (rates?|scores?|data|results?) of)\b/g,'').trim();
     if (stripped.length < 3) return null;
     // Try HR_EMPS (field: e.n)
     var hr = window.HR_EMPS || [];
     for (var i = 0; i < hr.length; i++) {
       var n = hr[i].n || '';
-      if (n && _normName(stripped).indexOf(_normName(n.split(' ').slice(-1)[0])) >= 0 && _normName(n).split(' ').some(function(t){ return stripped.indexOf(t)>=0; })) return { name: n, hr: hr[i] };
+      var lastName = _normName(n.split(' ').slice(-1)[0]);
+      // Require last name ≥4 chars and not a common query term — prevents "tutor", "best", "with" etc. false matches
+      if (!lastName || lastName.length < 4 || _NON_NAME_WORDS.test(lastName)) continue;
+      if (n && _normName(stripped).indexOf(lastName) >= 0 && _normName(n).split(' ').some(function(t){ return t.length >= 4 && !_NON_NAME_WORDS.test(t) && stripped.indexOf(t)>=0; })) return { name: n, hr: hr[i] };
     }
     // Try CONCERNS employee names
     var seen = {};
     (window.CONCERNS||[]).forEach(function(r){ if(r.emp) seen[r.emp]=true; });
     var names = Object.keys(seen);
     for (var j = 0; j < names.length; j++) {
+      var cLast = _normName(names[j].split(',')[0]).split(' ').slice(-1)[0];
+      if (!cLast || cLast.length < 4 || _NON_NAME_WORDS.test(cLast)) continue;
       if (_nameMatch(stripped, names[j]) || stripped.indexOf(_normName(names[j].split(',')[0]))>=0) return { name: names[j], hr: null };
     }
     // Try Pearl tutor map
@@ -3125,6 +3133,8 @@
       var keys = Object.keys(tm);
       for (var k = 0; k < keys.length; k++) {
         var tname = tm[keys[k]].name || '';
+        var tLast = _normName(tname).split(' ').slice(-1)[0];
+        if (!tLast || tLast.length < 4 || _NON_NAME_WORDS.test(tLast)) continue;
         if (_nameMatch(stripped, tname)) return { name: tname, tutor: tm[keys[k]] };
       }
     } catch(e) {}
@@ -5019,13 +5029,93 @@
       }
     },
 
-    // Per-tutor scholar survey scores ("enjoyment score for Micaela", "what do scholars say about X", "survey score for X")
-    { match: /(?:survey|enjoyment|confidence|learning|satisfaction|feedback|scholar.*feel|scholar.*think|overall score|what do scholars|scholar.*rate|rate.*scholar).{0,30}(?:for|of|about|from)\s+[A-Z]|[A-Z][a-z]+.{0,20}(?:survey|enjoyment|confidence|satisfaction|scholar.*score|scholar.*rating|scholar.*feedback|scholar.*think|scholar.*feel)/,
+    // Per-tutor scholar survey scores — "enjoyment score for Micaela", "what do scholars say about X", "survey score for X"
+    // Case-insensitive; fires before entity detection so survey queries route here not to the full profile view
+    { match: /(?:survey|enjoyment|confidence|learning|satisfaction|feedback|scholar.*feel|scholar.*think|overall score|what do scholars|scholar.*rate|rate.*scholar).{0,40}(?:for|of|about|from)\s+\w|\w.{0,25}(?:survey score|enjoyment score|confidence score|learning score|scholar.*rating|scholar.*feedback|scholar.*think|scholar.*feel)/i,
       respond: function() {
         var q = _lastQ || '';
-        var entity = _extractPerson(q);
-        if (entity) return _personResponse(entity, q);
-        return 'Type the tutor\'s full name — e.g. "survey score for Micaela Wilkerson" or "what do scholars say about [name]".';
+        // Extract name from query: look for word(s) after "for/of/about/from"
+        var nameMatch = q.match(/(?:for|of|about|from)\s+([A-Za-z][A-Za-z '-]{1,30}?)(?:\s*[?.,]|$)/i);
+        var entity = _extractPerson(nameMatch ? nameMatch[1] : q);
+        if (!entity) {
+          // Fall through to program-wide survey stats
+          var p = _pearl();
+          if (!p) return 'Pearl survey data not yet loaded — open Pearl Operations first.';
+          if (p.surveyAvg == null) return 'Scholar survey data not yet available yet. Open Pearl Operations and let it finish loading.';
+          var color = p.surveyAvg>=4?'✅':p.surveyAvg>=3?'⚠️':'🔴';
+          return color + ' **Program-wide scholar survey avg: ' + p.surveyAvg.toFixed(2) + '/5.0**\n\nTo see scores for a specific tutor, ask: "survey score for [Tutor Name]"';
+        }
+        // Focused survey-only response — not the full profile
+        var name = entity.name;
+        try {
+          var stuRows = window.po && typeof window.po.getStuRows === 'function' ? window.po.getStuRows() : [];
+          var tutorSurveys = stuRows.filter(function(r){ return r[1] && _nameMatch(r[1], name); });
+          if (!tutorSurveys.length) {
+            // No survey rows found — check if tutor exists at all
+            var tutor = entity.tutor;
+            if (!tutor) { try { var tm2=window.po.getTutorAttendanceMap(); Object.keys(tm2).forEach(function(k){ if(_nameMatch(tm2[k].name,name)) tutor=tm2[k]; }); } catch(e2){} }
+            if (tutor) return '**' + name + '** (' + (tutor.school||'') + ')\n\nNo scholar survey responses recorded for this tutor yet. Surveys are submitted by scholars after each session via Pearl.';
+            return 'No survey data found for "' + name + '". Check the spelling or try the full name.';
+          }
+          function _sAvg(col) {
+            var vals = tutorSurveys.map(function(r){ return parseFloat(r[col]); }).filter(function(v){ return !isNaN(v)&&v>0; });
+            return vals.length ? parseFloat((vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(2)) : null;
+          }
+          var sConf=_sAvg(2), sEnjoy=_sAvg(3), sLearn=_sAvg(4), sOvr=_sAvg(5);
+          var icon = sOvr!=null?(sOvr>=4?'✅':sOvr>=3?'⚠️':'🔴'):'';
+          var tutor2 = entity.tutor;
+          if (!tutor2) { try { var tm3=window.po.getTutorAttendanceMap(); Object.keys(tm3).forEach(function(k){ if(_nameMatch(tm3[k].name,name)) tutor2=tm3[k]; }); } catch(e3){} }
+          var lines = ['**' + name + '** — Scholar Survey Scores ' + icon + ' (' + tutorSurveys.length + ' responses)'];
+          if (tutor2 && tutor2.school) lines.push('📍 ' + tutor2.school);
+          lines.push('');
+          if (sConf   != null) lines.push('• Confidence:  **' + sConf + '/5**');
+          if (sEnjoy  != null) lines.push('• Enjoyment:   **' + sEnjoy + '/5**');
+          if (sLearn  != null) lines.push('• Learning:    **' + sLearn + '/5**');
+          if (sOvr    != null) lines.push('• Overall:     **' + sOvr + '/5**');
+          var prog = _pearl();
+          if (prog && prog.surveyAvg) lines.push('\n_Program avg: ' + prog.surveyAvg.toFixed(2) + '/5.0_');
+          return lines.join('\n');
+        } catch(e) { return 'Survey data not available — open Pearl Operations first.'; }
+      }
+    },
+
+    // Scholar enjoyment / satisfaction by tutor — general ranking (no specific name)
+    { match: /\b(enjoyment|confidence|learning|satisfaction).{0,40}(tutor|tutors|site|school|program|ranking|rank)|best.{0,20}(enjoyment|confidence|learning|satisfaction)|scholar.{0,20}(enjoyment|confidence|learning|satisfaction)/i,
+      respond: function() {
+        try {
+          var stuRows = window.po && typeof window.po.getStuRows === 'function' ? window.po.getStuRows() : [];
+          if (!stuRows.length) {
+            var p2 = _pearl();
+            return p2 ? 'Scholar survey rows not yet loaded. Open Pearl Operations and wait for all tabs to load.' : 'Pearl data not yet loaded — open Pearl Operations first.';
+          }
+          // Group by tutor (r[1] = FILLED_FOR = tutor name)
+          var byTutor = {};
+          stuRows.forEach(function(r) {
+            var tname = (r[1]||'').trim(); if (!tname) return;
+            if (!byTutor[tname]) byTutor[tname] = { conf:[], enjoy:[], learn:[], ovr:[] };
+            var c=parseFloat(r[2]),e=parseFloat(r[3]),l=parseFloat(r[4]),o=parseFloat(r[5]);
+            if (!isNaN(c)&&c>0) byTutor[tname].conf.push(c);
+            if (!isNaN(e)&&e>0) byTutor[tname].enjoy.push(e);
+            if (!isNaN(l)&&l>0) byTutor[tname].learn.push(l);
+            if (!isNaN(o)&&o>0) byTutor[tname].ovr.push(o);
+          });
+          var q2 = (_lastQ||'').toLowerCase();
+          var col = /enjoym/i.test(q2)?'enjoy':/confid/i.test(q2)?'conf':/learn/i.test(q2)?'learn':'ovr';
+          function avg(arr){ return arr.length?parseFloat((arr.reduce(function(a,b){return a+b;},0)/arr.length).toFixed(2)):null; }
+          var ranked = Object.keys(byTutor).map(function(t){ return { name:t, score:avg(byTutor[t][col]), count:byTutor[t][col].length }; })
+            .filter(function(t){ return t.score!==null && t.count>=2; })
+            .sort(function(a,b){ return b.score-a.score; });
+          if (!ranked.length) return 'Not enough survey responses to rank tutors. Need at least 2 responses per tutor.';
+          var label = col==='enjoy'?'Enjoyment':col==='conf'?'Confidence':col==='learn'?'Learning':'Overall';
+          var msg = '**Top Tutors by Scholar ' + label + ':**\n\n';
+          msg += ranked.slice(0,8).map(function(t,i){
+            var icon = t.score>=4?'✅':t.score>=3?'⚠️':'🔴';
+            return (i+1)+'. '+icon+' **'+t.name+'** — '+t.score+'/5 ('+t.count+' responses)';
+          }).join('\n');
+          if (ranked.length>8) msg += '\n_…and '+(ranked.length-8)+' more tutors_';
+          msg += '\n\n_Ask "survey score for [Tutor Name]" for a full breakdown._';
+          return msg;
+        } catch(e) { return 'Survey data not available — open Pearl Operations first.'; }
       }
     },
 
@@ -6686,7 +6776,13 @@
                       /\bschool year\b|\bsy\s*20\d{2}/i.test(qt) ||
                       /\b(math|ela|reading|literacy).{0,20}(growth|typical|diagnostic|score)\b/i.test(qt) ||
                       /\b(growth|typical|diagnostic|iready).{0,20}(math|ela|reading)\b/i.test(qt) ||
-                      /\b(attendance|absent|absence).{0,20}(site|school|district|cmo|network|for)\b/i.test(qt);
+                      /\b(attendance|absent|absence).{0,20}(site|school|district|cmo|network|for)\b/i.test(qt) ||
+                      // Generic survey/enjoyment queries — skip entity; let survey rules handle them
+                      /\b(enjoyment|confidence|learning|satisfaction).{0,40}(with|by|from|across|per|all|tutor|scholar|program|site)\b/i.test(qt) ||
+                      /\b(with|by|from|across|per|all)\s+(a\s+)?(tutor|tutors|scholar|scholars|site|school|program)\b/i.test(qt) ||
+                      /^(best|top|highest|lowest|worst)\s+(tutor|tutors|scholar|scholars)\b/i.test(qt.trim()) ||
+                      /\bscholar.{0,20}(enjoyment|confidence|learning|satisfaction)\b/i.test(qt) ||
+                      /\b(enjoyment|confidence|learning|satisfaction)\s+(score|rate|avg|average|rating)s?\b/i.test(qt);
     if (!_skipEntity) {
       var entity = _extractPerson(qt);
       if (entity) return _personResponse(entity, qt);
