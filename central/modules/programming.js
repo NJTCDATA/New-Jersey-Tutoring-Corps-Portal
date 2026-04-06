@@ -5265,7 +5265,7 @@
             <div style="background:rgba(0,80,200,.05);border:1px solid rgba(0,80,200,.15);border-radius:10px;padding:.875rem;margin-bottom:1.25rem;font-size:.8rem;line-height:1.6;">
               <div style="font-weight:700;color:var(--blue-mid);margin-bottom:.4rem;">Report includes:</div>
               <div>⚠️ <strong>Incomplete Sessions</strong> — Scheduled sessions with no attendance logged, with Session ID for cleanup</div>
-              <div>📊 <strong>Survey Capture Rate</strong> — % of completed sessions where at least one scholar submitted a survey</div>
+              <div>📊 <strong>Survey Capture Rate</strong> — % of completed sessions where the tutor submitted their survey (deploys when ≥1 scholar attends)</div>
               <div>⭐ <strong>Low Scholar Ratings</strong> — tutors where scholar satisfaction avg is below 3.5 / 5.0</div>
               <div>🚩 <strong>Flagged Comments</strong> — scholar &amp; tutor comments with concern-category keywords requiring follow-up</div>
               <div>✨ <strong>Spotlight Comments</strong> — positive comments that are shoutout candidates for team meetings</div>
@@ -5353,7 +5353,8 @@
       const incompleteTutors = Object.values(incompleteByTutor).sort((a,b)=>b.sessions.length-a.sessions.length);
 
       // ── Section 2: Survey Capture Rate ────────────────────────────────────
-      // Per tutor: sessions delivered vs sessions with ≥1 scholar survey
+      // Per tutor: sessions delivered vs sessions where the tutor submitted their survey.
+      // Tutor survey deploys when ≥1 scholar attends; capture = tutor actually submitted.
       const sessWithSurvey = new Set();
       for (const r of (_stuRows || [])) { const sid = r[11]; if (sid) sessWithSurvey.add(sid); }
 
@@ -5573,7 +5574,7 @@
           </div>
           <div class="def-item">
             <span class="def-label">Survey Capture Rate</span>
-            <span class="def-text">% of <strong>delivered sessions</strong> (status = Completed) where at least one scholar submitted a feedback survey through the Pearl platform. A rate below 80% means most sessions are running without scholar voice data. Target: ≥80%.</span>
+            <span class="def-text">% of <strong>delivered sessions</strong> (status = Completed) where the <strong>tutor submitted their survey</strong>. The tutor survey deploys once at least one scholar is in attendance — so any completed session with a scholar present requires a tutor survey response. A rate below 80% means most sessions are running without tutor voice data. Target: ≥80%.</span>
           </div>
           <div class="def-item">
             <span class="def-label">Scholar Rating (Avg)</span>
