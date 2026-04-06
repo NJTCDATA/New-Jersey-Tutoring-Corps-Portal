@@ -2642,6 +2642,87 @@
       return buildTutorMap(allRows);
     }
 
+    // ── getTutorAcademicImpact(tutorName?) ─────────────────────────────────
+    // Returns per-tutor academic outcome metrics (median pctTypical for Math
+    // and ELA separately) across ALL school years in the dataset.
+    // pctTypical is stored as a ratio (1.0 = 100% typical growth) — output
+    // is rounded to integer percentage (e.g., 83 = 83% of typical growth).
+    // Tutor name matching: requires last-name token match + at least one
+    // other token, case-insensitive.
+    // Returns: array of impact objects, or null if no data/no match.
+    function getTutorAcademicImpact(tutorName) {
+      if (!IRLAB_DATA.loaded) loadData();
+      const allRows = [
+        ...(IRLAB_DATA.math      || []), ...(IRLAB_DATA.ela      || []),
+        ...(IRLAB_DATA.mathRepeat|| []), ...(IRLAB_DATA.elaRepeat|| [])
+      ];
+      if (!allRows.length) return null;
+
+      // Accumulate per-tutor data across all rows and years
+      const tutorData = {};
+      allRows.forEach(function(r) {
+        (r.tutors || []).forEach(function(t) {
+          if (!t || !t.trim()) return;
+          var tname = t.trim();
+          if (!tutorData[tname]) {
+            tutorData[tname] = {
+              name: tname, mathTyp: [], elaTyp: [],
+              scholars: new Set(), years: new Set(),
+              moved: 0, held: 0, regressed: 0, glCount: 0, total: 0, gains: []
+            };
+          }
+          var d = tutorData[tname];
+          d.scholars.add(r.scholarId || r.scholarName || '');
+          if (r.year) d.years.add(r.year);
+          if (r.pctTypical !== null && !isNaN(r.pctTypical) && isFinite(r.pctTypical)) {
+            if (r.subject === 'Math') d.mathTyp.push(r.pctTypical);
+            else                      d.elaTyp.push(r.pctTypical);
+          }
+          var mv = plIdx(r.springRelPlacement) - plIdx(r.baseRelPlacement);
+          if (mv > 0) d.moved++; else if (mv < 0) d.regressed++; else d.held++;
+          d.total++;
+          if (isOnGL(r.springRelPlacement)) d.glCount++;
+          if (r.springGain !== null && !isNaN(r.springGain)) d.gains.push(r.springGain);
+        });
+      });
+
+      // Summarise each tutor entry
+      var results = Object.values(tutorData).map(function(d) {
+        var mMed = medianArr(d.mathTyp), eMed = medianArr(d.elaTyp);
+        var sortedYears = [...d.years].sort();
+        return {
+          name:                  d.name,
+          scholarCount:          d.scholars.size,
+          years:                 sortedYears,
+          yearSpan:              sortedYears.length > 1 ? sortedYears[0] + ' – ' + sortedYears[sortedYears.length-1] : (sortedYears[0] || ''),
+          mathMedianPctTypical:  mMed !== null ? Math.round(mMed * 100) : null,
+          elaMedianPctTypical:   eMed !== null ? Math.round(eMed * 100) : null,
+          mathRecords:           d.mathTyp.length,
+          elaRecords:            d.elaTyp.length,
+          pctMoved:              d.total > 0 ? Math.round(d.moved   / d.total * 100) : null,
+          pctGL:                 d.total > 0 ? Math.round(d.glCount / d.total * 100) : null,
+          avgGain:               d.gains.length ? Math.round(d.gains.reduce(function(a,b){return a+b;},0)/d.gains.length) : null,
+          total:                 d.total
+        };
+      });
+
+      if (!tutorName) return results; // return all tutors
+
+      // Fuzzy name filter — require last-name token match + at least one other token
+      var normQ = tutorName.toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+      var qToks = normQ.split(' ').filter(function(t){ return t.length > 1; });
+      var qLast = qToks[qToks.length - 1] || '';
+      var matches = results.filter(function(r) {
+        var normN = r.name.toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+        if (normN === normQ) return true;
+        var nToks = normN.split(' ').filter(function(t){ return t.length > 1; });
+        var nLast = nToks[nToks.length - 1] || '';
+        if (nLast !== qLast) return false;
+        return qToks.some(function(t){ return nToks.indexOf(t) >= 0; });
+      });
+      return matches.length > 0 ? matches : null;
+    }
+
     // getSummary() — returns aggregate iReady outcomes using named row properties
     function getSummary(syFilter) {
       if (!IRLAB_DATA.loaded) loadData();
@@ -2971,7 +3052,7 @@
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
-             getTutorAcademicData, getSummary, getSnapshot, getInsightMetrics,
+             getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
   })();
 
