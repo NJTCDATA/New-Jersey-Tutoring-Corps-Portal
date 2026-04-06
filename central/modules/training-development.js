@@ -1622,8 +1622,8 @@
     const HELPFUL_COL= findCol(rows, 'most helpful', 'areas of training did you find', 'find most helpful') || 'Which areas of training did you find most helpful? (Select all that apply)';
 
     const total      = rows.length;
-    const newHires   = rows.filter(r => (r[HIRE_COL]||'').toLowerCase().includes('new')).length;
-    const returning  = total - newHires;
+    const newHires   = rows.filter(r => { const v=(r[HIRE_COL]||'').toLowerCase(); return v.includes('new')||v.includes('first'); }).length;
+    const returning  = rows.filter(r => (r[HIRE_COL]||'').toLowerCase().includes('return')).length;
     const certified  = rows.filter(r => { const s=(r[CERT_COL]||'').toLowerCase(); return s.includes('certified')&&!s.includes('not')&&!s.includes('non')&&!s.includes('in progress'); }).length;
     const wantAsset  = rows.filter(r => (r[ASSET_WANT]||'').toLowerCase().startsWith('y')).length;
 
@@ -1836,8 +1836,8 @@
     function avgF(f) { const v=rows.map(r=>parseFloat(r[f])).filter(n=>!isNaN(n)); return v.length?v.reduce((a,b)=>a+b,0)/v.length:0; }
 
     const total       = rows.length;
-    const newHires    = rows.filter(r=>(r['Are you a new or returning hire? (Select one)']||'').toLowerCase().includes('new')).length;
-    const returning   = total - newHires;
+    const newHires    = rows.filter(r=>{ const v=(r['Are you a new or returning hire? (Select one)']||'').toLowerCase(); return v.includes('new')||v.includes('first'); }).length;
+    const returning   = rows.filter(r=>(r['Are you a new or returning hire? (Select one)']||'').toLowerCase().includes('return')).length;
     const certified   = rows.filter(r=>{const s=(r['What is your current certification status? (Select one)']||'').toLowerCase();return s.includes('certified')&&!s.includes('not')&&!s.includes('non')&&!s.includes('in progress');}).length;
     const wantAsset   = rows.filter(r=>(r['Would you like additional training on implementing an asset-based mindset in training?']||'').toLowerCase().startsWith('y')).length;
     const avgTrainer  = avgF('The trainers were knowledgeable and responsive to questions. (1 = Strongly disagree, 5 = Strongly agree)');
@@ -3064,8 +3064,14 @@
     const INT_HIRE_COL = intTotal ? (findCol(intRows, 'new or returning hire', 'returning hire') || 'Are you a new or returning hire? (Select one)') : 'Are you a new or returning hire? (Select one)';
     const INT_ROLE_COL = intTotal ? (findCol(intRows, 'what is your role within njtc', 'your role within') || 'What is your role within NJTC? (Select one)') : 'What is your role within NJTC? (Select one)';
 
-    const intNew     = intRows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('new')).length;
-    const intReturn  = intRows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('return')).length;
+    // New hire detection: match 'new' OR 'first' (handles "New Hire", "First Time", "First-Time Hire")
+    // Returning detection: match 'return' (handles "Returning", "Returning Hire", "Returning Staff")
+    // If neither matches (unrecognised value), it falls into neither bucket — surfaced via debug below
+    function isNewHire(r)      { const v=(r[INT_HIRE_COL]||'').toLowerCase(); return v.includes('new')||v.includes('first'); }
+    function isReturning(r)    { const v=(r[INT_HIRE_COL]||'').toLowerCase(); return v.includes('return'); }
+    const intNew     = intRows.filter(isNewHire).length;
+    const intReturn  = intRows.filter(isReturning).length;
+    const intUnknown = intTotal - intNew - intReturn; // how many didn't match either bucket
     const intRoleFreq = countFreq(intRows.map(r=>r[INT_ROLE_COL]).filter(Boolean));
 
     // ── Season comparison helpers (PDF_SEASONS defined at module level) ──
@@ -3184,7 +3190,7 @@
       const resolvedF = intRows.length ? resolveIntakeFields(intRows) : [];
       const metrics = [
         { label:'Respondents', fn: rows => rows.length },
-        { label:'New Hires',      fn: rows => rows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('new')).length },
+        { label:'New Hires',       fn: rows => rows.filter(r=>{ const v=(r[INT_HIRE_COL]||'').toLowerCase(); return v.includes('new')||v.includes('first'); }).length },
         { label:'Returning Hires', fn: rows => rows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('return')).length },
         ...resolvedF.slice(0,5).map(f=>({ label: f.short, fn: rows => { const v=avgField(rows,f.field); return v!=null?fmtN(v):'—'; } })),
       ];
@@ -3251,7 +3257,7 @@
           </div>
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
             <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Hire Type Split</div>
-            <div style="display:flex;gap:1.5rem;margin-bottom:.875rem">
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.875rem">
               <div>
                 <div style="font-size:1.75rem;font-weight:900;color:${logoHex}">${intNew}</div>
                 <div style="font-size:.75rem;color:#6b7280">New Hire<br><span style="font-weight:600">${intTotal ? Math.round(intNew/intTotal*100) : 0}% of ${intTotal}</span></div>
@@ -3260,6 +3266,10 @@
                 <div style="font-size:1.75rem;font-weight:900;color:#059669">${intReturn}</div>
                 <div style="font-size:.75rem;color:#6b7280">Returning<br><span style="font-weight:600">${intTotal ? Math.round(intReturn/intTotal*100) : 0}% of ${intTotal}</span></div>
               </div>
+              ${intUnknown > 0 ? `<div>
+                <div style="font-size:1.75rem;font-weight:900;color:#9ca3af">${intUnknown}</div>
+                <div style="font-size:.75rem;color:#9ca3af">Unclassified<br><span style="font-size:.68rem">response not matched</span></div>
+              </div>` : ''}
             </div>
             ${intRoleFreq.length ? `
               <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem">Role Breakdown</div>
