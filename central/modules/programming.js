@@ -5192,6 +5192,355 @@
     }
 
 
+    // ── FIELD STAFF REPORT ────────────────────────────────────────────────
+    // Generates a print-ready summary of the 3 things programming asks about
+    // most: (1) incomplete sessions, (2) survey capture rate, (3) low ratings.
+    // Opens a print window (File → Print → Save as PDF) — no extra library needed.
+    // Filterable by region, tutor name search, school, district.
+
+    function showFieldReportModal() {
+      // Build filter options from live data
+      const allSchools   = [...new Set(Object.values(_schoolMap).map(sc=>sc.school))].sort();
+      const allDistricts = [...new Set(Object.values(_schoolMap).map(sc=>sc.district))].sort();
+
+      let modal = document.getElementById('poFieldReportModal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'poFieldReportModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10001;display:flex;align-items:center;justify-content:center;';
+        document.body.appendChild(modal);
+      }
+
+      modal.innerHTML = `
+        <div style="background:var(--surface);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.3);width:560px;max-width:96vw;max-height:90vh;overflow-y:auto;">
+          <div style="background:linear-gradient(135deg,#1a3a5c,#2563eb);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
+            <div>
+              <div style="color:#fff;font-weight:700;font-size:1.05rem;">📋 Field Staff Report</div>
+              <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.2rem;">Incompletes · Survey Capture · Low Ratings</div>
+            </div>
+            <button onclick="document.getElementById('poFieldReportModal').style.display='none'"
+              style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1rem;line-height:1;">✕</button>
+          </div>
+
+          <div style="padding:1.375rem 1.5rem;">
+            <div style="font-size:.8rem;color:var(--muted);margin-bottom:1.125rem;line-height:1.5;">
+              This report is what programming asks about most. Filter it, then open a print-ready summary you can share with field staff or save as a PDF.
+            </div>
+
+            <!-- Region toggle -->
+            <div style="margin-bottom:.875rem;">
+              <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.4rem;">Region</div>
+              <div style="display:flex;gap:.4rem;">
+                ${['ALL','NE','SW'].map(r=>`<button id="frRegion${r}" onclick="po._frSetRegion('${r}')"
+                  style="padding:.35rem .875rem;font-size:.8125rem;font-weight:600;border-radius:8px;cursor:pointer;border:1.5px solid ${r==='ALL'?'var(--blue-mid)':'var(--border)'};background:${r==='ALL'?'var(--blue-mid)':'var(--surface)'};color:${r==='ALL'?'#fff':'var(--text)'};">${r==='ALL'?'All Regions':r+' Region'}</button>`).join('')}
+              </div>
+            </div>
+
+            <!-- Tutor name search -->
+            <div style="margin-bottom:.875rem;">
+              <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.4rem;">Tutor Name (optional)</div>
+              <input id="frTutorSearch" type="text" placeholder="Search by name…"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;outline:none;">
+            </div>
+
+            <!-- School filter -->
+            <div style="margin-bottom:.875rem;">
+              <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.4rem;">School (optional)</div>
+              <select id="frSchool" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;">
+                <option value="">All Schools</option>
+                ${allSchools.map(s=>`<option value="${s.replace(/"/g,'&quot;')}">${s}</option>`).join('')}
+              </select>
+            </div>
+
+            <!-- District filter -->
+            <div style="margin-bottom:1.25rem;">
+              <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.4rem;">District (optional)</div>
+              <select id="frDistrict" style="width:100%;padding:.5rem .75rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem;font-family:inherit;background:var(--bg);color:var(--text);box-sizing:border-box;">
+                <option value="">All Districts</option>
+                ${allDistricts.map(d=>`<option value="${d.replace(/"/g,'&quot;')}">${d}</option>`).join('')}
+              </select>
+            </div>
+
+            <!-- What's included -->
+            <div style="background:rgba(0,80,200,.05);border:1px solid rgba(0,80,200,.15);border-radius:10px;padding:.875rem;margin-bottom:1.25rem;font-size:.8rem;line-height:1.6;">
+              <div style="font-weight:700;color:var(--blue-mid);margin-bottom:.4rem;">Report includes:</div>
+              <div>⚠️ <strong>Incomplete Sessions</strong> — tutors with sessions not yet marked complete</div>
+              <div>📊 <strong>Survey Capture Rate</strong> — % of sessions with at least one scholar survey</div>
+              <div>⭐ <strong>Low Scholar Ratings</strong> — tutors where scholar satisfaction avg is below 3.5</div>
+            </div>
+
+            <button onclick="po._generateFieldReport()"
+              style="width:100%;padding:.75rem;background:linear-gradient(135deg,#1a3a5c,#2563eb);color:#fff;border:none;border-radius:10px;font-size:.9375rem;font-weight:700;cursor:pointer;letter-spacing:.01em;">
+              📄 Open Field Report (Print / Save PDF)
+            </button>
+          </div>
+        </div>`;
+
+      modal.style.display = 'flex';
+    }
+
+    // Active region filter for field report modal
+    let _frRegion = 'ALL';
+    function _frSetRegion(r) {
+      _frRegion = r;
+      ['ALL','NE','SW'].forEach(x => {
+        const btn = document.getElementById('frRegion'+x);
+        if (!btn) return;
+        const active = x === r;
+        btn.style.borderColor  = active ? 'var(--blue-mid)' : 'var(--border)';
+        btn.style.background   = active ? 'var(--blue-mid)' : 'var(--surface)';
+        btn.style.color        = active ? '#fff' : 'var(--text)';
+      });
+    }
+
+    function _generateFieldReport() {
+      // Gather filter values from modal
+      const regionF  = _frRegion || 'ALL';
+      const tutorQ   = (document.getElementById('frTutorSearch')?.value||'').toLowerCase().trim();
+      const schoolF  = (document.getElementById('frSchool')?.value||'').trim();
+      const districtF= (document.getElementById('frDistrict')?.value||'').trim();
+
+      // Region keywords (same as in school grid and talent analytics)
+      const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+      const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
+                     'string theory','global leadership academy','global leadership','penns grove',
+                     'carneys point','haddon township','haddon','hamilton township','gloucester township'];
+      const SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
+                     'strawbridge','first philadelphia prep','first philly prep',
+                     'the philadelphia charter','philadelphia charter school','global leadership academy'];
+      function scRegion(school, district) {
+        const d = (district||'').toLowerCase(), s = (school||'').toLowerCase();
+        if (NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
+        if (SW_KW.some(k=>d.includes(k))) return 'SW';
+        if (SW_SC.some(k=>s.includes(k))) return 'SW';
+        return 'NE';
+      }
+      function matchesFR(school, district) {
+        if (regionF !== 'ALL' && scRegion(school, district) !== regionF) return false;
+        if (schoolF   && school   !== schoolF)   return false;
+        if (districtF && district !== districtF) return false;
+        return true;
+      }
+      function matchesTutor(name) {
+        if (!tutorQ) return true;
+        return (name||'').toLowerCase().includes(tutorQ);
+      }
+
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+      const scopeStr = [
+        regionF !== 'ALL' ? regionF + ' Region' : 'All Regions',
+        schoolF   || '',
+        districtF || '',
+        tutorQ    ? `Tutor: "${tutorQ}"` : '',
+      ].filter(Boolean).join(' · ');
+
+      // ── Section 1: Incomplete Sessions ─────────────────────────────────────
+      // Sessions with status !== 'Completed' and status !== 'Cancelled' (i.e., Scheduled = not done)
+      // Group by tutor, filter by our criteria
+      const incompleteByTutor = {};
+      for (const sess of Object.values(_sessMap || {})) {
+        if (!matchesFR(sess.school, sess.district)) continue;
+        if (sess.status === 'Completed' || sess.status === 'Cancelled') continue;
+        const tname = (sess.instructor || '').trim(); if (!tname) continue;
+        if (!matchesTutor(tname)) continue;
+        if (!incompleteByTutor[tname]) incompleteByTutor[tname] = { name: tname, school: sess.school, district: sess.district, sessions: [] };
+        incompleteByTutor[tname].sessions.push(sess);
+      }
+      const incompleteTutors = Object.values(incompleteByTutor).sort((a,b)=>b.sessions.length-a.sessions.length);
+
+      // ── Section 2: Survey Capture Rate ────────────────────────────────────
+      // Per tutor: sessions delivered vs sessions with ≥1 scholar survey
+      const sessWithSurvey = new Set();
+      for (const r of (_stuRows || [])) { const sid = r[11]; if (sid) sessWithSurvey.add(sid); }
+
+      const survCaptureByTutor = {};
+      for (const sess of Object.values(_sessMap || {})) {
+        if (!sess.isDelivered) continue;
+        if (!matchesFR(sess.school, sess.district)) continue;
+        const tname = (sess.instructor || '').trim(); if (!tname) continue;
+        if (!matchesTutor(tname)) continue;
+        if (!survCaptureByTutor[tname]) survCaptureByTutor[tname] = { name: tname, school: sess.school, district: sess.district, total: 0, withSurvey: 0 };
+        survCaptureByTutor[tname].total++;
+        if (sessWithSurvey.has(sess.id)) survCaptureByTutor[tname].withSurvey++;
+      }
+      const survCapture = Object.values(survCaptureByTutor).map(t => ({
+        ...t,
+        rate: t.total > 0 ? Math.round(t.withSurvey / t.total * 100) : 0
+      })).sort((a,b) => a.rate - b.rate); // worst first
+
+      // ── Section 3: Low Scholar Ratings ────────────────────────────────────
+      // Per tutor: average scholar survey rating across all their sessions
+      // Built from _stuRows joined through _sessMap for school/district/tutor
+      const ratingsByTutor = {};
+      for (const r of (_stuRows || [])) {
+        const sessId = r[11]; if (!sessId) continue;
+        const sess = _sessMap ? _sessMap[sessId] : null; if (!sess) continue;
+        if (!matchesFR(sess.school, sess.district)) continue;
+        const tname = (sess.instructor || '').trim(); if (!tname) continue;
+        if (!matchesTutor(tname)) continue;
+        // Survey columns: confidence=r[2], enjoyment=r[3], learning=r[4], overall=r[5]
+        const scores = [parseFloat(r[2]),parseFloat(r[3]),parseFloat(r[4]),parseFloat(r[5])].filter(v=>!isNaN(v)&&v>0);
+        if (!scores.length) continue;
+        const avg = scores.reduce((a,b)=>a+b,0)/scores.length;
+        if (!ratingsByTutor[tname]) ratingsByTutor[tname] = { name: tname, school: sess.school, district: sess.district, scores: [], responses: 0 };
+        ratingsByTutor[tname].scores.push(avg);
+        ratingsByTutor[tname].responses++;
+      }
+      const lowRatings = Object.values(ratingsByTutor).map(t => ({
+        ...t,
+        avg: t.scores.length ? parseFloat((t.scores.reduce((a,b)=>a+b,0)/t.scores.length).toFixed(2)) : null
+      })).filter(t => t.avg !== null && t.avg < 3.5).sort((a,b)=>a.avg-b.avg);
+
+      // ── Build print HTML ───────────────────────────────────────────────────
+      function statusDot(val, good, warn) {
+        // good = green threshold, warn = yellow threshold
+        const c = val >= good ? '#16a34a' : val >= warn ? '#d97706' : '#dc2626';
+        return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:5px;vertical-align:middle;"></span>`;
+      }
+
+      const incomplete_rows = incompleteTutors.length ? incompleteTutors.map(t => `
+        <tr>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.district}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:#dc2626">${t.sessions.length}</td>
+        </tr>`).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No incomplete sessions found for this filter</td></tr>`;
+
+      const survey_rows = survCapture.length ? survCapture.map(t => {
+        const col = t.rate >= 80 ? '#16a34a' : t.rate >= 50 ? '#d97706' : '#dc2626';
+        return `<tr>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
+          <td style="padding:6px 10px;text-align:center">${t.withSurvey} / ${t.total}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:${col}">${statusDot(t.rate,80,50)}${t.rate}%</td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">No session data available for this filter</td></tr>`;
+
+      const rating_rows = lowRatings.length ? lowRatings.map(t => {
+        const col = t.avg >= 4.0 ? '#16a34a' : t.avg >= 3.5 ? '#d97706' : '#dc2626';
+        return `<tr>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
+          <td style="padding:6px 10px;text-align:center;color:#4b5563">${t.responses} response${t.responses!==1?'s':''}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:${col}">${statusDot(t.avg,4.0,3.5)}${t.avg}</td>
+        </tr>`;
+      }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No tutors below 3.5 rating threshold for this filter</td></tr>`;
+
+      const sectionStyle = 'margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;';
+      const hdStyle = 'padding:10px 14px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;';
+      const thStyle = 'padding:7px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9fafb;text-align:center;';
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+        <title>NJTC Field Staff Report — ${dateStr}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 32px; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; }
+          tr:nth-child(even) td { background: #f9fafb; }
+          tr:hover td { background: #f0f9ff; }
+          @media print {
+            body { padding: 16px; }
+            button { display: none !important; }
+            tr:hover td { background: none; }
+          }
+        </style>
+      </head><body>
+
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #1e3a5f;">
+          <div>
+            <div style="font-size:1.5rem;font-weight:800;color:#1e3a5f;">NJTC Field Staff Report</div>
+            <div style="color:#6b7280;font-size:.9rem;margin-top:4px;">${dateStr}</div>
+            ${scopeStr ? `<div style="color:#2563eb;font-size:.85rem;font-weight:600;margin-top:4px;">Filters: ${scopeStr}</div>` : ''}
+          </div>
+          <button onclick="window.print()" style="padding:8px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;">🖨 Print / Save PDF</button>
+        </div>
+
+        <!-- Summary pills -->
+        <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
+          <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
+            <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${incompleteTutors.length}</span>
+            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Tutors with Incompletes</span>
+          </div>
+          <div style="background:#fef3c7;border-radius:8px;padding:8px 16px;">
+            <span style="font-size:1.3rem;font-weight:800;color:#d97706;">${survCapture.filter(t=>t.rate<80).length}</span>
+            <span style="font-size:.8rem;color:#92400e;font-weight:600;margin-left:6px;">Tutors Below 80% Survey Capture</span>
+          </div>
+          <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
+            <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${lowRatings.length}</span>
+            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Tutors with Low Scholar Ratings</span>
+          </div>
+        </div>
+
+        <!-- Section 1: Incompletes -->
+        <div style="${sectionStyle}">
+          <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
+            <span style="color:#991b1b;">⚠️ Incomplete Sessions — Tutor Has Not Completed Session Log</span>
+            <span style="color:#dc2626;font-weight:800;font-size:1rem;">${incompleteTutors.reduce((s,t)=>s+t.sessions.length,0)} total</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th style="${thStyle}text-align:left;">Tutor</th>
+              <th style="${thStyle}text-align:left;">School</th>
+              <th style="${thStyle}text-align:left;">District</th>
+              <th style="${thStyle}">Incomplete Sessions</th>
+            </tr></thead>
+            <tbody>${incomplete_rows}</tbody>
+          </table>
+        </div>
+
+        <!-- Section 2: Survey Capture -->
+        <div style="${sectionStyle}">
+          <div style="${hdStyle}background:#eff6ff;border-bottom:1px solid #bfdbfe;">
+            <span style="color:#1d4ed8;">📊 Survey Capture Rate — Sessions Where Scholars Submitted a Survey</span>
+            <span style="color:#1d4ed8;font-weight:800;font-size:1rem;">${survCapture.length} tutors</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th style="${thStyle}text-align:left;">Tutor</th>
+              <th style="${thStyle}text-align:left;">School</th>
+              <th style="${thStyle}">With Survey / Total Sessions</th>
+              <th style="${thStyle}">Capture Rate</th>
+            </tr></thead>
+            <tbody>${survey_rows}</tbody>
+          </table>
+        </div>
+
+        <!-- Section 3: Low Ratings -->
+        <div style="${sectionStyle}">
+          <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
+            <span style="color:#991b1b;">⭐ Low Scholar Ratings — Average Below 3.5 / 5.0</span>
+            <span style="color:#dc2626;font-weight:800;font-size:1rem;">${lowRatings.length} tutor${lowRatings.length!==1?'s':''}</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th style="${thStyle}text-align:left;">Tutor</th>
+              <th style="${thStyle}text-align:left;">School</th>
+              <th style="${thStyle}">Responses</th>
+              <th style="${thStyle}">Avg Rating</th>
+            </tr></thead>
+            <tbody>${rating_rows}</tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:.75rem;color:#9ca3af;text-align:center;">
+          Generated by NJTC Central Portal · Pearl Operations · ${dateStr}
+          ${scopeStr ? ' · ' + scopeStr : ''}
+        </div>
+      </body></html>`;
+
+      // Open in new window for print/save
+      const win = window.open('', '_blank', 'width=900,height=700');
+      if (!win) { alert('Pop-up blocked. Please allow pop-ups and try again.'); return; }
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+      // Close modal
+      const modal = document.getElementById('poFieldReportModal');
+      if (modal) modal.style.display = 'none';
+    }
+
     // ── EXPORT ENGINE ─────────────────────────────────────────────────────
     function exportData(format) {
       // Build the export using current filter state
@@ -5654,6 +6003,8 @@
       getLeadershipData,
       getTutorAttendanceMap,
       toggleSection,
+      showFieldReportModal,
+      _frSetRegion, _generateFieldReport,
       exportData, showExportModal,
 
       // ── PDF export data accessor ─────────────────────────────────────────
