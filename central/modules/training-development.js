@@ -3058,8 +3058,15 @@
     const intOverall = intAvgs.find(f=>/effectiveness/i.test(f.short));
     const intPrep    = intAvgs.find(f=>/prepared/i.test(f.short));
     const intTrainer = intAvgs.find(f=>/trainer/i.test(f.short));
-    const intNew     = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length;
-    const intReturn  = intRows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length;
+
+    // Resolve hire-type and role columns with the same fuzzy matching used in renderIntakeAnalytics
+    // so the PDF is not broken by small differences in the sheet's column header text
+    const INT_HIRE_COL = intTotal ? (findCol(intRows, 'new or returning hire', 'returning hire') || 'Are you a new or returning hire? (Select one)') : 'Are you a new or returning hire? (Select one)';
+    const INT_ROLE_COL = intTotal ? (findCol(intRows, 'what is your role within njtc', 'your role within') || 'What is your role within NJTC? (Select one)') : 'What is your role within NJTC? (Select one)';
+
+    const intNew     = intRows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('new')).length;
+    const intReturn  = intRows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('return')).length;
+    const intRoleFreq = countFreq(intRows.map(r=>r[INT_ROLE_COL]).filter(Boolean));
 
     // ── Season comparison helpers (PDF_SEASONS defined at module level) ──
     function getSeasonLocal(dateStr) {
@@ -3177,8 +3184,8 @@
       const resolvedF = intRows.length ? resolveIntakeFields(intRows) : [];
       const metrics = [
         { label:'Respondents', fn: rows => rows.length },
-        { label:'New Hires', fn: rows => rows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('new')).length },
-        { label:'Returning Hires', fn: rows => rows.filter(r=>(r['Are you a new or returning hire?']||'').toLowerCase().includes('return')).length },
+        { label:'New Hires',      fn: rows => rows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('new')).length },
+        { label:'Returning Hires', fn: rows => rows.filter(r=>(r[INT_HIRE_COL]||'').toLowerCase().includes('return')).length },
         ...resolvedF.slice(0,5).map(f=>({ label: f.short, fn: rows => { const v=avgField(rows,f.field); return v!=null?fmtN(v):'—'; } })),
       ];
       const dataRows = metrics.map(m=>{
@@ -3197,7 +3204,7 @@
         ${statRow('Avg Overall Satisfaction', pdOverallAvg!=null ? fmtN(pdOverallAvg)+'/5.0' : '—', pdOverallAvg!=null&&pdOverallAvg>=4?'✅ On track':'⚠️ Needs attention')}
         ${statRow('Recommend Rate', pdRecRate!=null ? pdRecRate+'%' : '—', pdRecRate!=null&&pdRecRate>=80?'✅ Healthy':'⚠️ Below 80% target')}
         ${statRow('S1→S2 Net Improvement', netImprove!=null ? (netImprove>=0?'+':'')+fmtN(netImprove) : (s2Rows.length?'N/A':'Awaiting S2'), netImprove!=null&&netImprove>0?'✅ Improving':'')}
-        ${statRow('Training Intake Respondents', intTotal || '—', `${intNew} new hire · ${intReturn} returning`)}
+        ${statRow('Training Intake Respondents', intTotal || '—', intTotal ? `${intNew} new hire · ${intReturn} returning` : 'load T&D Analytics to populate')}
         ${statRow('Intake: Preparedness Rating', intPrep ? fmtN(intPrep.avg)+'/5.0' : '—')}
         ${statRow('Active Apprentices (TAP)', apprCount!=null ? apprCount : '—', 'HR Master List · col K')}
         ${tdKPIs.length ? statRow('T&D-Adjacent KPI Goals Met', `${tdMet}/${tdKPIs.length}`, '') : ''}
@@ -3244,10 +3251,24 @@
           </div>
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.875rem">
             <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.5rem">Hire Type Split</div>
-            <div style="font-size:2rem;font-weight:900;color:${logoHex}">${intNew}</div>
-            <div style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem">New Hire respondents of ${intTotal} total</div>
-            <div style="font-size:1.25rem;font-weight:800;color:#059669">${intReturn}</div>
-            <div style="font-size:.8rem;color:#6b7280">Returning hire respondents</div>
+            <div style="display:flex;gap:1.5rem;margin-bottom:.875rem">
+              <div>
+                <div style="font-size:1.75rem;font-weight:900;color:${logoHex}">${intNew}</div>
+                <div style="font-size:.75rem;color:#6b7280">New Hire<br><span style="font-weight:600">${intTotal ? Math.round(intNew/intTotal*100) : 0}% of ${intTotal}</span></div>
+              </div>
+              <div>
+                <div style="font-size:1.75rem;font-weight:900;color:#059669">${intReturn}</div>
+                <div style="font-size:.75rem;color:#6b7280">Returning<br><span style="font-weight:600">${intTotal ? Math.round(intReturn/intTotal*100) : 0}% of ${intTotal}</span></div>
+              </div>
+            </div>
+            ${intRoleFreq.length ? `
+              <div style="font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:.35rem">Role Breakdown</div>
+              ${intRoleFreq.slice(0,6).map(([role,n])=>`
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">
+                  <span style="font-size:.75rem;color:#374151">${role}</span>
+                  <span style="font-size:.75rem;font-weight:700;color:${logoHex}">${n} <span style="color:#9ca3af;font-weight:400">(${intTotal?Math.round(n/intTotal*100):0}%)</span></span>
+                </div>`).join('')}
+            ` : ''}
           </div>
         </div>
         ${activeIntSeasons.length > 1 ? subHead('Seasonal Comparison') + intSeasonCompare() : ''}
