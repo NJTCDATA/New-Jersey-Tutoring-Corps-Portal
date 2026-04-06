@@ -2036,7 +2036,7 @@
       section.querySelector('#ap-leadership-hdr').style.borderRadius = '14px';
     }
 
-    leaderTab.prepend(section);
+    leaderTab.append(section);
   };
 
   // ── PART 6: Data Section ──────────────────────────────────────────────────
