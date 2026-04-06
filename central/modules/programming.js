@@ -5670,9 +5670,9 @@
             var sc = _schoolMap[name];
             if (!sc) return;
             var total = sc.stuAttended + sc.stuAbsent;
-            var attRate = total > 0 ? Math.round(sc.stuAttended / total * 100) : 0;
+            if (total === 0) return; // skip schools with zero attendance records
+            var attRate = Math.round(sc.stuAttended / total * 100);
             var sessCount = sc.sessions ? sc.sessions.length : 0;
-            if (sessCount < 5) return;
             schools.push({
               school: name, district: sc.district || '',
               attRate: attRate, sessions: sessCount,
