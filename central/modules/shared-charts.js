@@ -1476,11 +1476,16 @@ ${attRisk.length ? `
     const topPerformers = HR_EMPS.filter(e=>e.t==='stellar'&&e.s==='Active'&&e.c>=2)
       .sort((a,b)=>b.c-a.c).slice(0,8);
 
-    // Watch list: needs_support active OR high concerns
-    const watchList = HR_EMPS.filter(e=>
-      (e.t==='needs_support'&&e.s==='Active') ||
-      ((e._liveConcerns||0)>=2&&e.s==='Active')
-    ).sort((a,b)=>(b._liveConcerns||0)-(a._liveConcerns||0)).slice(0,8);
+    // Watch list: needs_support OR high concerns — but NEVER stellar performers
+    // (Stellar is a performance designation; watch list is for operational/HR risk.
+    // A stellar performer with old concern records should not appear here unless
+    // they have an active HR action — Termination, Write Up, or PGP.)
+    const watchList = HR_EMPS.filter(e=>{
+      if (e.s !== 'Active') return false;
+      const hasActiveAction = /termination|write.?up|pgp/i.test(e._liveHRAction||'');
+      if (e.t === 'stellar' && !hasActiveAction) return false; // exclude stellar unless active HR action
+      return e.t === 'needs_support' || (e._liveConcerns||0) >= 2;
+    }).sort((a,b)=>(b._liveConcerns||0)-(a._liveConcerns||0)).slice(0,8);
 
     // Tier bar
     const tierOrder=['stellar','strong','developing','needs_support','incomplete'];
@@ -1542,14 +1547,15 @@ ${attRisk.length ? `
 </div>
 
 <!-- Risk flags panel -->
-${(termRisk.length||pgpList.length||attRisk.length) ? `
+${(termRisk.length||pgpList.length||attRisk.length||multiConcerns.length) ? `
 <div style="padding:.875rem 1rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;margin-bottom:1.125rem">
-  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.625rem">🚨 HR Risk Flags Requiring Leadership Awareness</div>
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.5rem">🚨 HR Risk Flags Requiring Leadership Awareness</div>
+  <div style="font-size:.7rem;color:#b45309;margin-bottom:.625rem;font-style:italic">Individual details are confidential — full records available in Talent Analytics · HR view only.</div>
   <div style="display:flex;flex-direction:column;gap:.4rem">
     ${termRisk.length?`<div style="font-size:.8rem;color:#b91c1c"><strong>Termination Recommended (${termRisk.length}):</strong> ${termRisk.map(e=>esc(e.n)).join(' · ')}</div>`:''}
-    ${pgpList.length?`<div style="font-size:.8rem;color:#92400e"><strong>Active PGP (${pgpList.length}):</strong> ${pgpList.map(e=>esc(e.n)).join(' · ')}</div>`:''}
-    ${attRisk.length?`<div style="font-size:.8rem;color:#92400e"><strong>Attendance Below 80% - Active Staff (${attRisk.length}):</strong> ${attRisk.map(e=>esc(e.n)+' ('+getAtt(e)+'%)').join(' · ')}</div>`:''}
-    ${multiConcerns.length?`<div style="font-size:.8rem;color:#92400e"><strong>Multiple Active Concerns (${multiConcerns.length}):</strong> ${multiConcerns.map(e=>esc(e.n)+' ('+e._liveConcerns+'x)').join(' · ')}</div>`:''}
+    ${pgpList.length?`<div style="font-size:.8rem;color:#92400e"><strong>Active PGP:</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${pgpList.length} employee${pgpList.length!==1?'s':''}</span> — see HR dept for details</div>`:''}
+    ${attRisk.length?`<div style="font-size:.8rem;color:#92400e"><strong>Attendance Below 80% (Active Staff):</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${attRisk.length} employee${attRisk.length!==1?'s':''}</span> — see Talent Analytics for breakdown</div>`:''}
+    ${multiConcerns.length?`<div style="font-size:.8rem;color:#92400e"><strong>Multiple Active Concerns:</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${multiConcerns.length} employee${multiConcerns.length!==1?'s':''}</span> — see HR dept for details</div>`:''}
   </div>
 </div>` : `<div style="padding:.75rem 1rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.8125rem;color:#065f46;margin-bottom:1.125rem">✅ No critical HR risk flags at this time</div>`}
 
