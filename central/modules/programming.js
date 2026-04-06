@@ -5353,25 +5353,47 @@
       const incompleteTutors = Object.values(incompleteByTutor).sort((a,b)=>b.sessions.length-a.sessions.length);
 
       // ── Section 2: Survey Capture Rate ────────────────────────────────────
-      // Per tutor: sessions delivered vs sessions where the tutor submitted their survey.
-      // Tutor survey deploys when ≥1 scholar attends; capture = tutor actually submitted.
-      const sessWithSurvey = new Set();
-      for (const r of (_stuRows || [])) { const sid = r[11]; if (sid) sessWithSurvey.add(sid); }
+      // Tutor survey deploys when ≥1 scholar attends a delivered session.
+      // "Total Submitted"  = all _instRows rows for this tutor (what Pearl shows you).
+      // "Validated"        = submitted surveys whose Session ID matches a delivered session.
+      // "Capture Rate"     = validated / delivered sessions × 100.
+      // The gap (Total − Validated) = surveys submitted but not tied to a known delivered session.
 
-      const survCaptureByTutor = {};
+      // Step 1: count all tutor surveys submitted (directly from _instRows, no session join)
+      const tutorSurveyRaw = {};
+      for (const r of (_instRows || [])) {
+        const tname    = (r[INST_S.FILLED_BY] || '').trim(); if (!tname) continue;
+        const school   = (r[INST_S.SCHOOL]    || '').trim();
+        const district = (r[INST_S.DISTRICT]  || '').trim();
+        if (!matchesFR(school, district)) continue;
+        if (!matchesTutor(tname)) continue;
+        if (!tutorSurveyRaw[tname]) tutorSurveyRaw[tname] = { name: tname, school, district, totalSubmitted: 0, validatedSessIds: new Set() };
+        tutorSurveyRaw[tname].totalSubmitted++;
+        const sessId = r[INST_S.SESS_ID];
+        if (sessId && _sessMap && _sessMap[sessId] && _sessMap[sessId].isDelivered) {
+          tutorSurveyRaw[tname].validatedSessIds.add(sessId); // unique delivered sessions with a survey
+        }
+      }
+
+      // Step 2: count delivered sessions per tutor from _sessMap
+      const deliveredByTutor = {};
       for (const sess of Object.values(_sessMap || {})) {
         if (!sess.isDelivered) continue;
         if (!matchesFR(sess.school, sess.district)) continue;
         const tname = (sess.instructor || '').trim(); if (!tname) continue;
         if (!matchesTutor(tname)) continue;
-        if (!survCaptureByTutor[tname]) survCaptureByTutor[tname] = { name: tname, school: sess.school, district: sess.district, total: 0, withSurvey: 0 };
-        survCaptureByTutor[tname].total++;
-        if (sessWithSurvey.has(sess.id)) survCaptureByTutor[tname].withSurvey++;
+        if (!deliveredByTutor[tname]) deliveredByTutor[tname] = { name: tname, school: sess.school, district: sess.district, delivered: 0 };
+        deliveredByTutor[tname].delivered++;
       }
-      const survCapture = Object.values(survCaptureByTutor).map(t => ({
-        ...t,
-        rate: t.total > 0 ? Math.round(t.withSurvey / t.total * 100) : 0
-      })).sort((a,b) => a.rate - b.rate); // worst first
+
+      // Step 3: merge — every tutor with delivered sessions appears, even if 0 surveys
+      const survCapture = Object.values(deliveredByTutor).map(t => {
+        const raw       = tutorSurveyRaw[t.name] || { totalSubmitted: 0, validatedSessIds: new Set() };
+        const validated = raw.validatedSessIds.size;  // unique delivered sessions covered
+        const rate      = t.delivered > 0 ? Math.round(validated / t.delivered * 100) : 0;
+        return { name: t.name, school: t.school, district: t.district,
+                 totalSubmitted: raw.totalSubmitted, validated, delivered: t.delivered, rate };
+      }).sort((a,b) => a.rate - b.rate); // worst capture first
 
       // ── Section 3: Low Scholar Ratings ────────────────────────────────────
       // Per tutor: average scholar survey rating across all their sessions.
@@ -5423,14 +5445,18 @@
         </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No incomplete sessions found for this filter</td></tr>`;
 
       const survey_rows = survCapture.length ? survCapture.map(t => {
-        const col = t.rate >= 80 ? '#16a34a' : t.rate >= 50 ? '#d97706' : '#dc2626';
+        const col  = t.rate >= 80 ? '#16a34a' : t.rate >= 50 ? '#d97706' : '#dc2626';
+        const gap  = t.totalSubmitted - t.validated;
+        const gapNote = gap > 0
+          ? `<div style="font-size:.72em;color:#92400e;margin-top:2px">+${gap} unmatched</div>` : '';
         return `<tr>
           <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
-          <td style="padding:6px 10px;text-align:center">${t.withSurvey} / ${t.total}</td>
+          <td style="padding:6px 10px;text-align:center;font-weight:700;color:#1e3a5f">${t.totalSubmitted}${gapNote}</td>
+          <td style="padding:6px 10px;text-align:center;color:#4b5563">${t.validated} / ${t.delivered}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:700;color:${col}">${statusDot(t.rate,80,50)}${t.rate}%</td>
         </tr>`;
-      }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">No session data available for this filter</td></tr>`;
+      }).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">No session data available for this filter</td></tr>`;
 
       const rating_rows = lowRatings.length ? lowRatings.map(t => {
         const col = t.avg >= 4.0 ? '#16a34a' : t.avg >= 3.5 ? '#d97706' : '#dc2626';
@@ -5538,8 +5564,9 @@
         <title>NJTC Field Staff Report — ${dateStr}</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
-          body { font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 32px; font-size: 14px; }
-          table { width: 100%; border-collapse: collapse; }
+          body { font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 32px; font-size: 13px; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          td, th { word-wrap: break-word; overflow-wrap: break-word; }
           tr:nth-child(even) td { background: #f9fafb; }
           tr:hover td { background: #f0f9ff; }
           .def-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; margin-bottom:24px; }
@@ -5548,9 +5575,11 @@
           .def-label { font-weight:700; color:#1e3a5f; min-width:120px; flex-shrink:0; }
           .def-text { color:#4b5563; }
           @media print {
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { padding: 16px; }
             button { display: none !important; }
-            tr:hover td { background: none; }
+            tr:hover td { background: inherit; }
+            .no-break { page-break-inside: avoid; }
           }
         </style>
       </head><body>
@@ -5642,11 +5671,17 @@
             <thead><tr>
               <th style="${thStyle}text-align:left;">Tutor</th>
               <th style="${thStyle}text-align:left;">School</th>
-              <th style="${thStyle}">Sessions w/ Survey / Total</th>
+              <th style="${thStyle}">Total Submitted</th>
+              <th style="${thStyle}">Validated / Delivered Sessions</th>
               <th style="${thStyle}">Capture Rate</th>
             </tr></thead>
             <tbody>${survey_rows}</tbody>
           </table>
+          <div style="padding:8px 14px;background:#fefce8;border-top:1px solid #fef08a;font-size:.75rem;color:#713f12;">
+            <strong>Total Submitted</strong> = all tutor surveys in Pearl for this tutor (matches what you see in Pearl directly).
+            <strong>Validated</strong> = surveys whose Session ID maps to a known delivered session.
+            <strong>Unmatched</strong> = submitted surveys with no matching session — investigate in Pearl.
+          </div>
         </div>
 
         <!-- Section 3: Low Ratings -->
