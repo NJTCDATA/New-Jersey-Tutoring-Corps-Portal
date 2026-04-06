@@ -5100,13 +5100,20 @@
     { match: /top site|best site|site performance|highest.?school|which site|site.?attendance|school performance|best school/i,
       respond: function() {
         try {
-          var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
-          if (!ld || !ld.topSites || !ld.topSites.length) return 'Site data not yet loaded — open Pearl Operations first.';
+          var sc = _schools();
+          if (!sc || !sc.length) {
+            var p = _pearl();
+            if (!p) return 'Pearl data not yet loaded — open Pearl Operations first.';
+            return 'No site data available yet. Pearl is loaded with ' + _n(p.totalRows) + ' records but site-level summaries are still building. Try again in a moment.';
+          }
+          var sorted = sc.slice().sort(function(a,b){ return b.attRate - a.attRate; });
           var msg = '**Top Sites by Scholar Attendance:**\n\n';
-          msg += ld.topSites.slice(0,6).map(function(s,i){
-            var icon = s.scholarRate>=85?'✅':s.scholarRate>=75?'⚠️':'🔴';
-            return (i+1) + '. ' + icon + ' **' + s.name + '** — ' + _pct(s.scholarRate) + ' scholar · ' + _n(s.scholars) + ' scholars';
+          msg += sorted.slice(0,8).map(function(s,i){
+            var icon = s.attRate>=85?'✅':s.attRate>=75?'⚠️':'🔴';
+            var surv = s.surveyAvg ? ' · ⭐ '+s.surveyAvg+'/5' : '';
+            return (i+1) + '. ' + icon + ' **' + s.school + '** — ' + s.attRate + '% scholar att · ' + _n(s.sessions) + ' sessions' + surv;
           }).join('\n');
+          if (sorted.length > 8) msg += '\n_…and ' + (sorted.length - 8) + ' more sites_';
           return msg;
         } catch(e) { return 'Pearl site data not yet loaded — open Pearl Operations first.'; }
       }
