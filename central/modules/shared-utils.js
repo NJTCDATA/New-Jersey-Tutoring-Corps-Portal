@@ -6741,6 +6741,62 @@
       }
     },
 
+    // Flagged / concern comments — requires Pearl Operations loaded
+    { match: /flag(ged)?.{0,20}comment|concern.{0,20}comment|comment.{0,20}(flag|concern|follow.?up|escalat|review)|survey.{0,20}(concern|issue|problem|red.?flag)|who.{0,15}(flag|concern|issue).{0,15}comment/i,
+      respond: function() {
+        if (!window.po || typeof window.po.getCommentsByCategory !== 'function')
+          return 'Pearl Operations data not loaded yet — open the Pearl Operations section first, then ask again.';
+        var concerns = window.po.getCommentsByCategory('concern', { max: 20 });
+        if (!concerns.length) return '✅ No concern-flagged comments found in the current Pearl data set.';
+        var byTutor = {};
+        concerns.forEach(function(c) {
+          var k = c.tutor || '(Unknown Tutor)';
+          if (!byTutor[k]) byTutor[k] = [];
+          byTutor[k].push(c);
+        });
+        var lines = ['**' + concerns.length + ' comment' + (concerns.length !== 1 ? 's' : '') + ' flagged for follow-up** (concern keywords detected):\n'];
+        Object.entries(byTutor).slice(0, 8).forEach(function(entry) {
+          var tutor = entry[0], items = entry[1];
+          lines.push('**' + tutor + '** — ' + items[0].school + ' (' + items.length + ' comment' + (items.length !== 1 ? 's' : '') + ')');
+          items.slice(0, 2).forEach(function(c) {
+            var snippet = c.text.length > 100 ? c.text.slice(0, 100) + '…' : c.text;
+            lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
+          });
+        });
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Field Report (Pearl Ops → Field Report) for the full list._');
+        else lines.push('\n_Open Field Report → Section 4 to view all flagged comments with Session IDs._');
+        return lines.join('\n');
+      }
+    },
+
+    // Spotlight / positive comments — shoutout candidates
+    { match: /spotlight.{0,20}comment|positive.{0,20}comment|comment.{0,20}(positive|shoutout|spotlight|great|excellent|kudos|recogni)|shoutout|who.{0,15}(great|amazing|positive|excellent).{0,15}comment|best.{0,20}comment|stand.?out.{0,20}comment/i,
+      respond: function() {
+        if (!window.po || typeof window.po.getCommentsByCategory !== 'function')
+          return 'Pearl Operations data not loaded yet — open the Pearl Operations section first, then ask again.';
+        var positives = window.po.getCommentsByCategory('positive', { max: 20 });
+        if (!positives.length) return 'No positive spotlight comments found in the current Pearl data set.';
+        var byTutor = {};
+        positives.forEach(function(c) {
+          var k = c.tutor || '(Unknown Tutor)';
+          if (!byTutor[k]) byTutor[k] = [];
+          byTutor[k].push(c);
+        });
+        var lines = ['**' + positives.length + ' spotlight comment' + (positives.length !== 1 ? 's' : '') + '** — shoutout candidates for the team:\n'];
+        Object.entries(byTutor).slice(0, 8).forEach(function(entry) {
+          var tutor = entry[0], items = entry[1];
+          lines.push('⭐ **' + tutor + '** — ' + items[0].school);
+          items.slice(0, 2).forEach(function(c) {
+            var snippet = c.text.length > 120 ? c.text.slice(0, 120) + '…' : c.text;
+            lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
+          });
+        });
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Field Report → Section 5 for the full spotlight list._');
+        else lines.push('\n_Share these at your next team meeting! Full list in Field Report → Section 5._');
+        return lines.join('\n');
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -6914,7 +6970,9 @@
       [/iready|math|ela|growth|diagnostic|typical|grade level|profic/, 'iready math ela typical growth'],
       [/scholar.*race|student.*race|demograph.*scholar/,     'scholar race ethnic demographic'],
       [/race|ethnic|diversity|demograph/,                    'staff race ethnicity diversity'],
-      [/concern|watch|write.?up|pgp|termination|hr action/,  'who is on watch hr action'],
+      [/flag.{0,10}comment|concern.{0,10}comment|follow.?up.{0,10}comment/, 'flagged comment concern follow-up'],
+      [/spotlight|shoutout|positive.{0,10}comment/,           'spotlight comment positive shoutout'],
+      [/concern|watch|write.?up|pgp|termination|hr action/,   'who is on watch hr action'],
       [/staff|employee|workforce|headcount/,                  'how many staff employees headcount'],
       [/apprentice|tap/,                                     'how many apprentices tap'],
       [/session|deliver|volume|program/,                     'sessions delivered total program'],

@@ -5264,9 +5264,11 @@
             <!-- What's included -->
             <div style="background:rgba(0,80,200,.05);border:1px solid rgba(0,80,200,.15);border-radius:10px;padding:.875rem;margin-bottom:1.25rem;font-size:.8rem;line-height:1.6;">
               <div style="font-weight:700;color:var(--blue-mid);margin-bottom:.4rem;">Report includes:</div>
-              <div>⚠️ <strong>Incomplete Sessions</strong> — tutors with sessions not yet marked complete</div>
-              <div>📊 <strong>Survey Capture Rate</strong> — % of sessions with at least one scholar survey</div>
-              <div>⭐ <strong>Low Scholar Ratings</strong> — tutors where scholar satisfaction avg is below 3.5</div>
+              <div>⚠️ <strong>Incomplete Sessions</strong> — Scheduled sessions with no attendance logged, with Session ID for cleanup</div>
+              <div>📊 <strong>Survey Capture Rate</strong> — % of completed sessions where at least one scholar submitted a survey</div>
+              <div>⭐ <strong>Low Scholar Ratings</strong> — tutors where scholar satisfaction avg is below 3.5 / 5.0</div>
+              <div>🚩 <strong>Flagged Comments</strong> — scholar &amp; tutor comments with concern-category keywords requiring follow-up</div>
+              <div>✨ <strong>Spotlight Comments</strong> — positive comments that are shoutout candidates for team meetings</div>
             </div>
 
             <button onclick="po._generateFieldReport()"
@@ -5336,12 +5338,14 @@
       ].filter(Boolean).join(' · ');
 
       // ── Section 1: Incomplete Sessions ─────────────────────────────────────
-      // Sessions with status !== 'Completed' and status !== 'Cancelled' (i.e., Scheduled = not done)
-      // Group by tutor, filter by our criteria
+      // Definition: status === 'Scheduled' with no attendance detail logged.
+      // These are sessions that exist in Pearl but have not been completed or
+      // officially cancelled — staff need to locate them by Session ID and resolve.
       const incompleteByTutor = {};
       for (const sess of Object.values(_sessMap || {})) {
         if (!matchesFR(sess.school, sess.district)) continue;
-        if (sess.status === 'Completed' || sess.status === 'Cancelled') continue;
+        if (sess.status !== 'Scheduled') continue;      // only Scheduled = not yet completed
+        if (sess.attendance && sess.attendance.trim()) continue; // has attendance detail → skip
         const tname = (sess.instructor || '').trim(); if (!tname) continue;
         if (!matchesTutor(tname)) continue;
         if (!incompleteByTutor[tname]) incompleteByTutor[tname] = { name: tname, school: sess.school, district: sess.district, sessions: [] };
@@ -5399,13 +5403,22 @@
         return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:5px;vertical-align:middle;"></span>`;
       }
 
-      const incomplete_rows = incompleteTutors.length ? incompleteTutors.map(t => `
+      // Flatten incomplete sessions to individual rows for the Session ID table
+      const incompleteRows_flat = [];
+      for (const t of incompleteTutors) {
+        for (const sess of t.sessions) {
+          incompleteRows_flat.push({ tutor: t.name, school: t.school, district: t.district, sessId: sess.id || '—', start: sess.start || '', title: sess.title || '' });
+        }
+      }
+
+      const incomplete_rows = incompleteRows_flat.length ? incompleteRows_flat.map(r => `
         <tr>
-          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
-          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
-          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.district}</td>
-          <td style="padding:6px 10px;text-align:center;font-weight:700;color:#dc2626">${t.sessions.length}</td>
-        </tr>`).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No incomplete sessions found for this filter</td></tr>`;
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${r.tutor}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${r.school}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${r.district}</td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:.8em;color:#7c3aed">${r.sessId}</td>
+          <td style="padding:6px 10px;color:#6b7280;font-size:.8em;white-space:nowrap">${r.start ? new Date(r.start).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</td>
+        </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No incomplete sessions found for this filter</td></tr>`;
 
       const survey_rows = survCapture.length ? survCapture.map(t => {
         const col = t.rate >= 80 ? '#16a34a' : t.rate >= 50 ? '#d97706' : '#dc2626';
@@ -5427,6 +5440,85 @@
         </tr>`;
       }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No tutors below 3.5 rating threshold for this filter</td></tr>`;
 
+      // ── Section 4: Comments Requiring Follow-Up (concern bucket) ───────────
+      const flaggedComments = [];
+      for (const r of (_stuRows || [])) {
+        const text = (r[STU_S.COMMENT] || '').trim();
+        if (!text) continue;
+        if (categorizeComment(text) !== 'concern') continue;
+        const sessId = r[STU_S.SESS_ID] || '';
+        const sess   = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[STU_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[STU_S.DISTRICT] || '';
+        const tutor    = sess ? (sess.instructor || '') : '';
+        if (!matchesFR(school, district)) continue;
+        if (!matchesTutor(tutor)) continue;
+        flaggedComments.push({ source: 'Scholar', bucket: 'concern', text, tutor, school, district, sessId, week: r[STU_S.WEEK] || '' });
+      }
+      for (const r of (_instRows || [])) {
+        const adminTxt = (r[INST_S.COMMENT_ADMIN] || '').trim();
+        const selfTxt  = (r[INST_S.COMMENT_SELF]  || '').trim();
+        const tutor    = (r[INST_S.FILLED_BY] || '').trim();
+        const sessId   = r[INST_S.SESS_ID] || '';
+        const sess     = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[INST_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[INST_S.DISTRICT] || '';
+        if (!matchesFR(school, district)) continue;
+        if (!matchesTutor(tutor)) continue;
+        for (const text of [adminTxt, selfTxt].filter(Boolean)) {
+          if (categorizeComment(text) !== 'concern') continue;
+          flaggedComments.push({ source: 'Tutor', bucket: 'concern', text, tutor, school, district, sessId, week: r[INST_S.WEEK] || '' });
+        }
+      }
+
+      // ── Section 5: Spotlight Comments (positive bucket) ─────────────────
+      const spotlightComments = [];
+      for (const r of (_stuRows || [])) {
+        const text = (r[STU_S.COMMENT] || '').trim();
+        if (!text) continue;
+        if (categorizeComment(text) !== 'positive') continue;
+        const sessId = r[STU_S.SESS_ID] || '';
+        const sess   = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[STU_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[STU_S.DISTRICT] || '';
+        const tutor    = sess ? (sess.instructor || '') : '';
+        if (!matchesFR(school, district)) continue;
+        if (!matchesTutor(tutor)) continue;
+        spotlightComments.push({ source: 'Scholar', text, tutor, school, district, sessId, week: r[STU_S.WEEK] || '' });
+      }
+      for (const r of (_instRows || [])) {
+        const adminTxt = (r[INST_S.COMMENT_ADMIN] || '').trim();
+        const selfTxt  = (r[INST_S.COMMENT_SELF]  || '').trim();
+        const tutor    = (r[INST_S.FILLED_BY] || '').trim();
+        const sessId   = r[INST_S.SESS_ID] || '';
+        const sess     = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[INST_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[INST_S.DISTRICT] || '';
+        if (!matchesFR(school, district)) continue;
+        if (!matchesTutor(tutor)) continue;
+        for (const text of [adminTxt, selfTxt].filter(Boolean)) {
+          if (categorizeComment(text) !== 'positive') continue;
+          spotlightComments.push({ source: 'Tutor', text, tutor, school, district, sessId, week: r[INST_S.WEEK] || '' });
+        }
+      }
+
+      const flaggedCommentRows = flaggedComments.length ? flaggedComments.map(c => `
+        <tr>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${c.tutor || '—'}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${c.school}</td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:.75em;color:#7c3aed">${c.sessId || '—'}</td>
+          <td style="padding:6px 10px;font-size:.75em;color:#6b7280">${c.source} · ${c.week}</td>
+          <td style="padding:6px 10px;font-size:.85em;color:#991b1b">${c.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+        </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No concern-flagged comments found for this filter</td></tr>`;
+
+      const spotlightRows = spotlightComments.length ? spotlightComments.map(c => `
+        <tr>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${c.tutor || '—'}</td>
+          <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${c.school}</td>
+          <td style="padding:6px 10px;font-size:.75em;color:#6b7280">${c.source} · ${c.week}</td>
+          <td style="padding:6px 10px;font-size:.85em;color:#166534">${c.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
+        </tr>`).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">No spotlight comments found for this filter</td></tr>`;
+
       const sectionStyle = 'margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;';
       const hdStyle = 'padding:10px 14px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;';
       const thStyle = 'padding:7px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9fafb;text-align:center;';
@@ -5439,6 +5531,11 @@
           table { width: 100%; border-collapse: collapse; }
           tr:nth-child(even) td { background: #f9fafb; }
           tr:hover td { background: #f0f9ff; }
+          .def-box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 16px; margin-bottom:24px; }
+          .def-box h3 { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#64748b; margin-bottom:8px; }
+          .def-item { display:flex; gap:8px; margin-bottom:5px; font-size:.8rem; line-height:1.4; }
+          .def-label { font-weight:700; color:#1e3a5f; min-width:120px; flex-shrink:0; }
+          .def-text { color:#4b5563; }
           @media print {
             body { padding: 16px; }
             button { display: none !important; }
@@ -5448,7 +5545,7 @@
       </head><body>
 
         <!-- Header -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #1e3a5f;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #1e3a5f;">
           <div>
             <div style="font-size:1.5rem;font-weight:800;color:#1e3a5f;">NJTC Field Staff Report</div>
             <div style="color:#6b7280;font-size:.9rem;margin-top:4px;">${dateStr}</div>
@@ -5457,34 +5554,68 @@
           <button onclick="window.print()" style="padding:8px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;">🖨 Print / Save PDF</button>
         </div>
 
+        <!-- How to read this report -->
+        <div class="def-box">
+          <h3>📖 How to Read This Report — Metric Definitions</h3>
+          <div class="def-item">
+            <span class="def-label">Incomplete Session</span>
+            <span class="def-text">A session in Pearl with status <strong>Scheduled</strong> and no attendance detail logged. The tutor has not yet marked the session as completed or cancelled. Use the Session ID column to locate these in Pearl and follow up directly with the tutor.</span>
+          </div>
+          <div class="def-item">
+            <span class="def-label">Survey Capture Rate</span>
+            <span class="def-text">% of <strong>delivered sessions</strong> (status = Completed) where at least one scholar submitted a feedback survey through the Pearl platform. A rate below 80% means most sessions are running without scholar voice data. Target: ≥80%.</span>
+          </div>
+          <div class="def-item">
+            <span class="def-label">Scholar Rating (Avg)</span>
+            <span class="def-text">The average of four scholar survey questions — Confidence, Enjoyment, Learning, and Overall — each scored 1–5 by the scholar. Averaged across all submitted surveys linked to the tutor's sessions. Threshold for follow-up: below 3.5.</span>
+          </div>
+          <div class="def-item">
+            <span class="def-label">Flagged Comment</span>
+            <span class="def-text">A free-text survey comment (scholar or tutor) that matched concern-category keywords (e.g., struggling, behavior, confusion, difficult). These are auto-categorized and surfaced for team review — not a formal HR action, but a signal to follow up.</span>
+          </div>
+          <div class="def-item">
+            <span class="def-label">Spotlight Comment</span>
+            <span class="def-text">A free-text comment matching positive-category keywords (e.g., amazing, love, great, excited, engaged). Surfaced as candidates for shoutouts or recognition during team meetings.</span>
+          </div>
+        </div>
+
         <!-- Summary pills -->
         <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap;">
           <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
-            <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${incompleteTutors.length}</span>
-            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Tutors with Incompletes</span>
+            <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${incompleteRows_flat.length}</span>
+            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Incomplete Sessions</span>
           </div>
           <div style="background:#fef3c7;border-radius:8px;padding:8px 16px;">
             <span style="font-size:1.3rem;font-weight:800;color:#d97706;">${survCapture.filter(t=>t.rate<80).length}</span>
-            <span style="font-size:.8rem;color:#92400e;font-weight:600;margin-left:6px;">Tutors Below 80% Survey Capture</span>
+            <span style="font-size:.8rem;color:#92400e;font-weight:600;margin-left:6px;">Tutors Below 80% Capture</span>
           </div>
           <div style="background:#fee2e2;border-radius:8px;padding:8px 16px;">
             <span style="font-size:1.3rem;font-weight:800;color:#dc2626;">${lowRatings.length}</span>
-            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Tutors with Low Scholar Ratings</span>
+            <span style="font-size:.8rem;color:#991b1b;font-weight:600;margin-left:6px;">Tutors Low Ratings</span>
+          </div>
+          <div style="background:#fff7ed;border-radius:8px;padding:8px 16px;">
+            <span style="font-size:1.3rem;font-weight:800;color:#c2410c;">${flaggedComments.length}</span>
+            <span style="font-size:.8rem;color:#9a3412;font-weight:600;margin-left:6px;">Flagged Comments</span>
+          </div>
+          <div style="background:#f0fdf4;border-radius:8px;padding:8px 16px;">
+            <span style="font-size:1.3rem;font-weight:800;color:#15803d;">${spotlightComments.length}</span>
+            <span style="font-size:.8rem;color:#14532d;font-weight:600;margin-left:6px;">Spotlight Comments</span>
           </div>
         </div>
 
         <!-- Section 1: Incompletes -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
-            <span style="color:#991b1b;">⚠️ Incomplete Sessions — Tutor Has Not Completed Session Log</span>
-            <span style="color:#dc2626;font-weight:800;font-size:1rem;">${incompleteTutors.reduce((s,t)=>s+t.sessions.length,0)} total</span>
+            <span style="color:#991b1b;">⚠️ Section 1 — Incomplete Sessions (Scheduled · No Attendance Logged)</span>
+            <span style="color:#dc2626;font-weight:800;font-size:1rem;">${incompleteRows_flat.length} session${incompleteRows_flat.length!==1?'s':''}</span>
           </div>
           <table>
             <thead><tr>
               <th style="${thStyle}text-align:left;">Tutor</th>
               <th style="${thStyle}text-align:left;">School</th>
               <th style="${thStyle}text-align:left;">District</th>
-              <th style="${thStyle}">Incomplete Sessions</th>
+              <th style="${thStyle}text-align:left;">Session ID</th>
+              <th style="${thStyle}">Scheduled Date</th>
             </tr></thead>
             <tbody>${incomplete_rows}</tbody>
           </table>
@@ -5493,14 +5624,14 @@
         <!-- Section 2: Survey Capture -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#eff6ff;border-bottom:1px solid #bfdbfe;">
-            <span style="color:#1d4ed8;">📊 Survey Capture Rate — Sessions Where Scholars Submitted a Survey</span>
+            <span style="color:#1d4ed8;">📊 Section 2 — Survey Capture Rate</span>
             <span style="color:#1d4ed8;font-weight:800;font-size:1rem;">${survCapture.length} tutors</span>
           </div>
           <table>
             <thead><tr>
               <th style="${thStyle}text-align:left;">Tutor</th>
               <th style="${thStyle}text-align:left;">School</th>
-              <th style="${thStyle}">With Survey / Total Sessions</th>
+              <th style="${thStyle}">Sessions w/ Survey / Total</th>
               <th style="${thStyle}">Capture Rate</th>
             </tr></thead>
             <tbody>${survey_rows}</tbody>
@@ -5510,7 +5641,7 @@
         <!-- Section 3: Low Ratings -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fef2f2;border-bottom:1px solid #fecaca;">
-            <span style="color:#991b1b;">⭐ Low Scholar Ratings — Average Below 3.5 / 5.0</span>
+            <span style="color:#991b1b;">⭐ Section 3 — Low Scholar Ratings (Avg Below 3.5 / 5.0)</span>
             <span style="color:#dc2626;font-weight:800;font-size:1rem;">${lowRatings.length} tutor${lowRatings.length!==1?'s':''}</span>
           </div>
           <table>
@@ -5521,6 +5652,41 @@
               <th style="${thStyle}">Avg Rating</th>
             </tr></thead>
             <tbody>${rating_rows}</tbody>
+          </table>
+        </div>
+
+        <!-- Section 4: Flagged Comments -->
+        <div style="${sectionStyle}">
+          <div style="${hdStyle}background:#fff7ed;border-bottom:1px solid #fed7aa;">
+            <span style="color:#9a3412;">🚩 Section 4 — Comments Requiring Follow-Up (Concern Keywords Detected)</span>
+            <span style="color:#c2410c;font-weight:800;font-size:1rem;">${flaggedComments.length} comment${flaggedComments.length!==1?'s':''}</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th style="${thStyle}text-align:left;">Tutor</th>
+              <th style="${thStyle}text-align:left;">School</th>
+              <th style="${thStyle}text-align:left;">Session ID</th>
+              <th style="${thStyle}text-align:left;">Source · Week</th>
+              <th style="${thStyle}text-align:left;">Comment</th>
+            </tr></thead>
+            <tbody>${flaggedCommentRows}</tbody>
+          </table>
+        </div>
+
+        <!-- Section 5: Spotlight Comments -->
+        <div style="${sectionStyle}">
+          <div style="${hdStyle}background:#f0fdf4;border-bottom:1px solid #bbf7d0;">
+            <span style="color:#14532d;">⭐ Section 5 — Spotlight Comments (Positive · Shoutout Candidates)</span>
+            <span style="color:#15803d;font-weight:800;font-size:1rem;">${spotlightComments.length} comment${spotlightComments.length!==1?'s':''}</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th style="${thStyle}text-align:left;">Tutor</th>
+              <th style="${thStyle}text-align:left;">School</th>
+              <th style="${thStyle}text-align:left;">Source · Week</th>
+              <th style="${thStyle}text-align:left;">Comment</th>
+            </tr></thead>
+            <tbody>${spotlightRows}</tbody>
           </table>
         </div>
 
@@ -5539,6 +5705,71 @@
       // Close modal
       const modal = document.getElementById('poFieldReportModal');
       if (modal) modal.style.display = 'none';
+    }
+
+    // ── COMMENT ACCESSOR — for PIE and external callers ───────────────────
+    // Returns array of { source, bucket, text, tutor, school, district, sessId, week }
+    // category: 'concern' | 'positive' | 'engagement' | 'logistics' | 'curriculum' | 'relationship' | null (all)
+    // opts: { region:'NE'|'SW'|'ALL', school, district, tutor, max }
+    function getCommentsByCategory(category, opts) {
+      opts = opts || {};
+      const regionF   = (opts.region   || 'ALL').toUpperCase();
+      const schoolF   = (opts.school   || '').trim();
+      const districtF = (opts.district || '').trim();
+      const tutorQ    = (opts.tutor    || '').toLowerCase().trim();
+      const maxRows   = opts.max || 100;
+
+      const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+      const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter','string theory','global leadership academy','global leadership','penns grove','carneys point','haddon township','haddon','hamilton township','gloucester township'];
+      const SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver','strawbridge','first philadelphia prep','first philly prep','the philadelphia charter','philadelphia charter school','global leadership academy'];
+      function scReg(school, district) {
+        const d=(district||'').toLowerCase(), s=(school||'').toLowerCase();
+        if (NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
+        if (SW_KW.some(k=>d.includes(k))) return 'SW';
+        if (SW_SC.some(k=>s.includes(k))) return 'SW';
+        return 'NE';
+      }
+      function matchReg(school, district) {
+        if (regionF !== 'ALL' && scReg(school, district) !== regionF) return false;
+        if (schoolF   && school   !== schoolF)   return false;
+        if (districtF && district !== districtF) return false;
+        return true;
+      }
+
+      const results = [];
+      // Scholar comments
+      for (const r of (_stuRows || [])) {
+        if (results.length >= maxRows) break;
+        const text = (r[STU_S.COMMENT] || '').trim(); if (!text) continue;
+        const bucket = categorizeComment(text);
+        if (category && bucket !== category) continue;
+        const sessId   = r[STU_S.SESS_ID] || '';
+        const sess     = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[STU_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[STU_S.DISTRICT] || '';
+        const tutor    = sess ? (sess.instructor || '') : '';
+        if (!matchReg(school, district)) continue;
+        if (tutorQ && !tutor.toLowerCase().includes(tutorQ)) continue;
+        results.push({ source: 'scholar', bucket, text, tutor, school, district, sessId, week: r[STU_S.WEEK] || '' });
+      }
+      // Instructor comments
+      for (const r of (_instRows || [])) {
+        if (results.length >= maxRows) break;
+        const tutor    = (r[INST_S.FILLED_BY] || '').trim();
+        const sessId   = r[INST_S.SESS_ID] || '';
+        const sess     = sessId && _sessMap ? _sessMap[sessId] : null;
+        const school   = (sess ? sess.school   : '') || r[INST_S.SCHOOL]   || '';
+        const district = (sess ? sess.district : '') || r[INST_S.DISTRICT] || '';
+        if (!matchReg(school, district)) continue;
+        if (tutorQ && !tutor.toLowerCase().includes(tutorQ)) continue;
+        for (const text of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]].map(t=>(t||'').trim()).filter(Boolean)) {
+          if (results.length >= maxRows) break;
+          const bucket = categorizeComment(text);
+          if (category && bucket !== category) continue;
+          results.push({ source: 'instructor', bucket, text, tutor, school, district, sessId, week: r[INST_S.WEEK] || '' });
+        }
+      }
+      return results;
     }
 
     // ── EXPORT ENGINE ─────────────────────────────────────────────────────
@@ -6005,6 +6236,7 @@
       toggleSection,
       showFieldReportModal,
       _frSetRegion, _generateFieldReport,
+      getCommentsByCategory,
       exportData, showExportModal,
 
       // ── PDF export data accessor ─────────────────────────────────────────
