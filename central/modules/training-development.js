@@ -771,7 +771,46 @@
 
     window._njtcSLObs = slMap;
 
-    console.log(`[T&D] Obs maps built — tutors: ${Object.keys(tutorMap).length}, site leaders: ${Object.keys(slMap).length}`);
+    // ── School → SL obs index ────────────────────────────────────────────────
+    // Allows programming profile cards to show SL obs status for a tutor's school.
+    // NE SL obs has a "School" column; SW may have it too.
+    const schoolSLMap = {};  // normN(school) → { sl, region, obsEntries:[] }
+    function _addSchoolSLEntry(sl, school, region, obsEntry) {
+      const k = normN(school);
+      if (!k) return;
+      if (!schoolSLMap[k]) schoolSLMap[k] = { sl, region, obsEntries: [] };
+      if (obsEntry) schoolSLMap[k].obsEntries.push(obsEntry);
+    }
+    d.neSLObs.forEach(r => {
+      const sl     = (r['Site Leader'] || '').trim();
+      const school = (r['School'] || '').trim();
+      if (!sl) return;
+      const mo = (r['Observation Month'] || '').trim();
+      const shortEntry = Object.entries(MONTH_ABBR).find(([k]) => mo.toLowerCase().includes(k));
+      _addSchoolSLEntry(sl, school, 'NE', shortEntry ? {
+        month: shortEntry[1], date: mo,
+        link:  r['Link to Observation Folder'] || r['Link to Google Form'] || '',
+        notes: (r['Notes'] || '').slice(0, 120),
+      } : null);
+    });
+    d.swSLObs.forEach(r => {
+      const sl     = (r['Site Leader'] || '').trim();
+      const school = (r['School'] || '').trim();
+      if (!sl) return;
+      ['Observation #1','Observation #2','Observation #3'].forEach((col, i) => {
+        const val = (r[col] || '').trim();
+        if (!val) return;
+        const monthMatch = Object.entries(MONTH_ABBR).find(([k]) => val.toLowerCase().includes(k));
+        _addSchoolSLEntry(sl, school, 'SW', {
+          month: monthMatch ? monthMatch[1] : SW_OBS_FALLBACK[i],
+          date: val, link: r['Link to Folder'] || '',
+          notes: (r['Notes'] || '').slice(0, 120),
+        });
+      });
+    });
+    window._njtcSLObsBySchool = schoolSLMap;
+
+    console.log(`[T&D] Obs maps built — tutors: ${Object.keys(tutorMap).length}, site leaders: ${Object.keys(slMap).length}, schools w/ SL obs: ${Object.keys(schoolSLMap).length}`);
 
     // Notify programming profiles module to re-render with live obs data
     if (typeof window._njtcObsReady === 'function') {
