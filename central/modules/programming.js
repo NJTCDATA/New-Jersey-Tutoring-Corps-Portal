@@ -2931,6 +2931,8 @@
         if (role() === 'kb')              renderKBVanityView();
         else if (role() === 'leadership') renderLeadershipView();
         else if (role() === 'data')       renderDataOpsView();
+        else if (role() === 'hr')         renderHRView();
+        else if (role() === 'finance')    renderFinanceView();
         else                              renderSchoolGrid();
       }
       else if (_view === 'school')     renderSchoolDetail();
@@ -2949,6 +2951,19 @@
       const scholars = new Set(sess.flatMap(s => (s.studentIds || []))).size;
       pill.style.display = 'block';
       pill.textContent = `⏱ ${durStr} · ${sess.length} sessions · ${scholars} scholars`;
+    }
+
+    // ── Section toggle helper — used by sg-* dashboard collapse/expand ────
+    // id: the body element's id. btn: the header element that was clicked.
+    // labelCollapsed / labelExpanded: text to set on btn's first <span>.
+    function toggleSection(id, btn, labelCollapsed, labelExpanded) {
+      const el = document.getElementById(id); if (!el) return;
+      const isHidden = el.style.display === 'none';
+      el.style.display = isHidden ? '' : 'none';
+      if (btn) {
+        const span = btn.querySelector ? btn.querySelector('span') : null;
+        if (span) span.textContent = isHidden ? labelExpanded : labelCollapsed;
+      }
     }
 
     function drillSchool(school) {
@@ -3608,21 +3623,365 @@
       </div>`;
     }
 
+    // ── HR VIEW — Tutor attendance & payroll focus ───────────────────────
+    // HR is non-analytical. Their ONE job in Pearl Ops: verify tutor attendance
+    // is accurate for ADP/payroll and flag staffing gaps. No scholar analytics,
+    // no sessions tab clutter — just "who needs my attention today?"
+    function renderHRView() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+
+      // Build tutor list from _personMap (instructors only, across filtered schools)
+      const filteredSchoolNames = new Set(filteredSchools().map(sc => sc.school));
+      const tutors = Object.values(_personMap).filter(p =>
+        p.role === 'Instructor' && filteredSchoolNames.has(p.school)
+      );
+      const totalTutors   = tutors.length;
+      const needsReview   = tutors.filter(p => {
+        const tot = p.attended + p.absent;
+        return tot > 0 && (p.attended / tot * 100) < 80;
+      });
+      const critical      = needsReview.filter(p => {
+        const tot = p.attended + p.absent;
+        return tot > 0 && (p.attended / tot * 100) < 65;
+      });
+      // Weighted average — sum raw attended/absent (not avg of per-tutor rates)
+      const totalTutAtt = tutors.reduce((s,p)=>s+p.attended,0);
+      const totalTutAbs = tutors.reduce((s,p)=>s+p.absent,0);
+      const avgAtt = (totalTutAtt+totalTutAbs) > 0
+        ? Math.round(totalTutAtt/(totalTutAtt+totalTutAbs)*100) : 0;
+
+      // Schools with vacancy interruptions (staffing gaps)
+      const vacancySchools = filteredSchools().filter(sc =>
+        sc.siReasons && sc.siReasons.some(r => r === 'Tutor Vacancy')
+      ).map(sc => ({
+        name: sc.school,
+        district: sc.district,
+        vacancyCount: sc.siReasons.filter(r => r === 'Tutor Vacancy').length
+      })).sort((a,b) => b.vacancyCount - a.vacancyCount);
+
+      const attCol  = avgAtt>=80?'#0d6e3a':avgAtt>=65?'#d97706':'#b91c1c';
+      const revCol  = needsReview.length>0?'#b91c1c':'#0d6e3a';
+
+      // ── Summary strip ────────────────────────────────────────────────────
+      const summaryHTML = `
+        <div class="sg-summary-strip">
+          <div class="sg-stat" style="--sc:#0050c8">
+            <div class="sg-stat-val" style="color:#0050c8">${totalTutors}</div>
+            <div class="sg-stat-lbl">Active Tutors</div>
+            <div class="sg-stat-sub">On roster this period</div>
+          </div>
+          <div class="sg-stat" style="--sc:${revCol}">
+            <div class="sg-stat-val" style="color:${revCol}">${needsReview.length}</div>
+            <div class="sg-stat-lbl">Need ADP Review</div>
+            <div class="sg-stat-sub">${critical.length} below 65% · ${needsReview.length-critical.length} below 80%</div>
+          </div>
+          <div class="sg-stat" style="--sc:${attCol}">
+            <div class="sg-stat-val" style="color:${attCol}">${avgAtt}%</div>
+            <div class="sg-stat-lbl">Avg Tutor Attendance</div>
+            <div class="sg-stat-sub">${avgAtt>=80?'Meeting 80% target':'Below 80% payroll threshold'}</div>
+          </div>
+          <div class="sg-stat" style="--sc:${vacancySchools.length>0?'#d97706':'#0d6e3a'}">
+            <div class="sg-stat-val" style="color:${vacancySchools.length>0?'#d97706':'#0d6e3a'}">${vacancySchools.length}</div>
+            <div class="sg-stat-lbl">Staffing Gaps</div>
+            <div class="sg-stat-sub">${vacancySchools.length>0?'Sites with tutor vacancy interruptions':'All sites staffed'}</div>
+          </div>
+        </div>`;
+
+      // ── ADP review list (tutors below 80%) ───────────────────────────────
+      const reviewSorted = needsReview.slice().sort((a, b) => {
+        const rA = (a.attended+a.absent)>0 ? a.attended/(a.attended+a.absent) : 1;
+        const rB = (b.attended+b.absent)>0 ? b.attended/(b.attended+b.absent) : 1;
+        return rA - rB; // worst first
+      });
+
+      let adpHTML = '';
+      if (reviewSorted.length > 0) {
+        const rows = reviewSorted.slice(0, 20).map(p => {
+          const tot  = p.attended + p.absent;
+          const rate = tot > 0 ? Math.round(p.attended / tot * 100) : 0;
+          const col  = rate < 65 ? '#b91c1c' : '#d97706';
+          const lvl  = rate < 65 ? 'sg-triage-crit' : 'sg-triage-high';
+          const badge = rate < 65
+            ? '<span class="sg-triage-badge" style="background:#fee2e2;color:#991b1b">🔴 Critical — Below 65%</span>'
+            : '<span class="sg-triage-badge" style="background:#fef3c7;color:#92400e">🟡 Below 80% Threshold</span>';
+          const name = canSeeNames() ? p.name : 'Instructor';
+          return `<div class="sg-triage-item ${lvl}" onclick="po.drillPerson('${esc(p.uid)}')">
+            <div class="sg-triage-left">
+              ${badge}
+              <div class="sg-triage-school">${name}</div>
+              <div class="sg-triage-detail">${p.school} · ${p.district}</div>
+            </div>
+            <div class="sg-triage-right">
+              <div style="font-size:1.25rem;font-weight:800;color:${col};font-family:system-ui,-apple-system,sans-serif;line-height:1">${rate}%</div>
+              <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0">${p.attended} present · ${p.absent} absent</div>
+              <span style="font-size:.65rem;font-weight:700;background:#fee2e2;color:#991b1b;padding:.15rem .4rem;border-radius:4px">⚑ Verify ADP</span>
+            </div>
+          </div>`;
+        }).join('');
+        adpHTML = `
+          <div class="sg-section">
+            <div class="sg-section-hd sg-section-hd-warn">
+              <span>⚑ Tutors Requiring ADP Attendance Review</span>
+              <span style="font-weight:400;font-size:.7rem">${reviewSorted.length} tutor${reviewSorted.length!==1?'s':''} below 80% attendance threshold · click a tutor to see their full history</span>
+            </div>
+            <div class="sg-triage-list">${rows}</div>
+          </div>`;
+      } else {
+        adpHTML = `
+          <div class="sg-section">
+            <div class="sg-section-hd" style="background:var(--met-bg);color:#065f46;border-bottom-color:#6ee7b7">
+              <span>✓ All Tutors Meeting Attendance Threshold</span>
+              <span style="font-weight:400;font-size:.7rem">No ADP review items at this time</span>
+            </div>
+          </div>`;
+      }
+
+      // ── Staffing gap list (vacancy interruptions) ────────────────────────
+      let vacancyHTML = '';
+      if (vacancySchools.length > 0) {
+        const vRows = vacancySchools.map(v => `
+          <div class="sg-triage-item sg-triage-high" onclick="po.drillSchool('${esc(v.name)}')">
+            <div class="sg-triage-left">
+              <span class="sg-triage-badge" style="background:#fef3c7;color:#92400e">Staffing Gap</span>
+              <div class="sg-triage-school">${v.name}</div>
+              <div class="sg-triage-detail">${v.district}</div>
+            </div>
+            <div class="sg-triage-right">
+              <div style="font-size:1.25rem;font-weight:800;color:#d97706;font-family:system-ui,-apple-system,sans-serif;line-height:1">${v.vacancyCount}</div>
+              <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">vacancy sessions</div>
+              <button class="sg-drill-btn">View school →</button>
+            </div>
+          </div>`).join('');
+        vacancyHTML = `
+          <div class="sg-section">
+            <div class="sg-section-hd sg-section-hd-warn">
+              <span>🏫 Sites with Open Staffing Gaps</span>
+              <span style="font-weight:400;font-size:.7rem">Sessions flagged as Tutor Vacancy — coordinate with Programming to backfill</span>
+            </div>
+            <div class="sg-triage-list">${vRows}</div>
+          </div>`;
+      }
+
+      // ── All tutors — compact table (name, school, rate, counts) ─────────
+      const allTutorRows = tutors.slice().sort((a, b) => {
+        const rA = (a.attended+a.absent)>0 ? a.attended/(a.attended+a.absent) : 1;
+        const rB = (b.attended+b.absent)>0 ? b.attended/(b.attended+b.absent) : 1;
+        return rA - rB;
+      }).map(p => {
+        const tot  = p.attended + p.absent;
+        const rate = tot > 0 ? Math.round(p.attended / tot * 100) : 0;
+        const col  = rate>=80?'#0d6e3a':rate>=65?'#d97706':'#b91c1c';
+        const name = canSeeNames() ? p.name : 'Instructor';
+        const adpBadge = rate < 80
+          ? '<span style="font-size:.6rem;font-weight:700;background:#fee2e2;color:#991b1b;padding:.1rem .35rem;border-radius:3px;margin-left:.375rem">⚑ ADP</span>'
+          : '';
+        return `<tr class="po-person-row" onclick="po.drillPerson('${esc(p.uid)}')">
+          <td style="padding:.45rem .875rem;font-weight:600;color:var(--navy);font-size:.8125rem">${name}${adpBadge}</td>
+          <td style="padding:.45rem .875rem;font-size:.75rem;color:var(--muted)">${p.school}</td>
+          <td style="text-align:center;padding:.45rem .875rem">
+            <span style="font-size:.875rem;font-weight:800;color:${col};font-family:system-ui,-apple-system,sans-serif">${rate}%</span>
+            <div class="po-sparkbar" style="margin:.2rem auto 0"><div class="po-sparkbar-fill" style="width:${rate}%;background:${col}"></div></div>
+          </td>
+          <td style="text-align:center;padding:.45rem .875rem;font-size:.75rem;color:var(--text)">${p.attended}</td>
+          <td style="text-align:center;padding:.45rem .875rem;font-size:.75rem;color:var(--text)">${p.absent}</td>
+        </tr>`;
+      }).join('');
+
+      mc.innerHTML = `
+        <div class="sg-wrap">
+          ${summaryHTML}
+          ${adpHTML}
+          ${vacancyHTML}
+          <div class="sg-section">
+            <div class="sg-section-hd" style="cursor:pointer"
+                 onclick="po.toggleSection('sgHRAllTutors',this,'👥 All ${totalTutors} Tutors (collapsed) — click to expand','👥 All ${totalTutors} Tutors — click to collapse')">
+              <span>👥 All ${totalTutors} Tutors (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">sorted worst attendance first · click any row to see history</span>
+            </div>
+            <div id="sgHRAllTutors" style="display:none;overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:var(--surface-2)">
+                  ${['Tutor','School','Attendance','Present','Absent'].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h==='Tutor'||h==='School'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
+                </tr></thead>
+                <tbody>${allTutorRows||'<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No tutors match current filters.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ── FINANCE VIEW — Delivery hours & service completion focus ─────────
+    // Finance is slightly analytical but needs plain-language context.
+    // Their job in Pearl Ops: verify hours delivered match contracted scope,
+    // identify billing risks, flag service gaps. Not interested in individual
+    // tutor behavior — only aggregate delivery per school.
+    function renderFinanceView() {
+      const mc = document.getElementById('poMainContent'); if (!mc) return;
+
+      const schools = filteredSchools();
+      const allSess = filteredSessions();
+
+      // Hours & delivery math
+      const deliveredSess = allSess.filter(s => s.isDelivered && s.durMins > 0);
+      const scheduledSess = allSess.filter(s => s.status === 'Scheduled');
+      const totalMins     = deliveredSess.reduce((s,r) => s+r.durMins, 0);
+      const totalHrs      = Math.floor(totalMins/60);
+      const totalMinRem   = totalMins % 60;
+      const totalSessionsAll = allSess.filter(s => s.status !== 'Cancelled').length;
+      const completionPct = totalSessionsAll > 0
+        ? Math.round(deliveredSess.length / totalSessionsAll * 100) : 0;
+      const totalInterruptions = schools.reduce((s,sc) => s+sc.stuInterruptions, 0);
+
+      // Estimate hours at risk from service interruptions
+      // (interruption sessions not counted as delivered — rough estimate)
+      const avgSessionMins = deliveredSess.length > 0
+        ? Math.round(totalMins / deliveredSess.length) : 60;
+      const interruptionMins = totalInterruptions * avgSessionMins;
+      const interruptionHrs  = Math.round(interruptionMins / 60);
+
+      const compCol = completionPct>=90?'#0d6e3a':completionPct>=75?'#d97706':'#b91c1c';
+      const riskCol = interruptionHrs>50?'#b91c1c':interruptionHrs>10?'#d97706':'#0d6e3a';
+
+      // ── Summary strip ────────────────────────────────────────────────────
+      const summaryHTML = `
+        <div class="sg-summary-strip">
+          <div class="sg-stat" style="--sc:#0050c8">
+            <div class="sg-stat-val" style="color:#0050c8">${totalHrs}h ${totalMinRem}m</div>
+            <div class="sg-stat-lbl">Hours Delivered</div>
+            <div class="sg-stat-sub">${deliveredSess.length.toLocaleString()} completed sessions</div>
+          </div>
+          <div class="sg-stat" style="--sc:${compCol}">
+            <div class="sg-stat-val" style="color:${compCol}">${completionPct}%</div>
+            <div class="sg-stat-lbl">Completion Rate</div>
+            <div class="sg-stat-sub">${deliveredSess.length} of ${totalSessionsAll} non-cancelled sessions</div>
+          </div>
+          <div class="sg-stat" style="--sc:${riskCol}">
+            <div class="sg-stat-val" style="color:${riskCol}">~${interruptionHrs}h</div>
+            <div class="sg-stat-lbl">Hours at Risk</div>
+            <div class="sg-stat-sub">${totalInterruptions} service interruptions · review for billing</div>
+          </div>
+          <div class="sg-stat" style="--sc:#6366f1">
+            <div class="sg-stat-val" style="color:#6366f1">${schools.length}</div>
+            <div class="sg-stat-lbl">Active Sites</div>
+            <div class="sg-stat-sub">${scheduledSess.length} sessions still scheduled</div>
+          </div>
+        </div>`;
+
+      // ── Schools with delivery risk (high interruption rate) ──────────────
+      const riskSchools = schools.filter(sc => {
+        const scSess = sc.sessions.filter(s => s.status !== 'Cancelled').length;
+        return scSess > 0 && (sc.stuInterruptions / scSess) > 0.15; // >15% interruption rate
+      }).sort((a,b) => b.stuInterruptions - a.stuInterruptions);
+
+      let riskHTML = '';
+      if (riskSchools.length > 0) {
+        const rItems = riskSchools.slice(0,8).map(sc => {
+          const scSess = sc.sessions.filter(s => s.status !== 'Cancelled').length;
+          const intPct = scSess > 0 ? Math.round(sc.stuInterruptions/scSess*100) : 0;
+          const estLost = Math.round(sc.stuInterruptions * avgSessionMins / 60);
+          const hasCrit = sc.flags.some(f=>f.severity==='critical');
+          return `<div class="sg-triage-item sg-triage-${hasCrit?'crit':'high'}" onclick="po.drillSchool('${esc(sc.school)}')">
+            <div class="sg-triage-left">
+              <span class="sg-triage-badge" style="background:${hasCrit?'#fee2e2':'#fef3c7'};color:${hasCrit?'#991b1b':'#92400e'}">${hasCrit?'High Interruption Risk':'Elevated Interruptions'}</span>
+              <div class="sg-triage-school">${sc.school}</div>
+              <div class="sg-triage-detail">${sc.district} · ${intPct}% of sessions interrupted · est. ~${estLost}h affected</div>
+            </div>
+            <div class="sg-triage-right">
+              <div style="font-size:1.25rem;font-weight:800;color:${hasCrit?'#b91c1c':'#d97706'};font-family:system-ui,-apple-system,sans-serif;line-height:1">${sc.stuInterruptions}</div>
+              <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">interruptions</div>
+              <button class="sg-drill-btn">View details →</button>
+            </div>
+          </div>`;
+        }).join('');
+        riskHTML = `
+          <div class="sg-section">
+            <div class="sg-section-hd sg-section-hd-warn">
+              <span>⚠️ Sites with Elevated Interruption Risk</span>
+              <span style="font-weight:400;font-size:.7rem">${riskSchools.length} site${riskSchools.length!==1?'s':''} with &gt;15% session interruption rate · may affect billing or contract compliance</span>
+            </div>
+            <div class="sg-triage-list">${rItems}</div>
+          </div>`;
+      }
+
+      // ── Delivery table — pre-compute hours ONCE per school, then sort ────
+      // Performance fix: sorting with inline filter+reduce = O(n log n × sessions).
+      // Pre-compute into a plain array first, then sort O(n log n) on a number.
+      const schoolData = schools.map(sc => {
+        const scDelivered = sc.sessions.filter(s => s.isDelivered && s.durMins > 0);
+        const scMins      = scDelivered.reduce((s,r)=>s+r.durMins, 0);
+        const scTotal     = sc.sessions.filter(s=>s.status!=='Cancelled').length;
+        return { sc, scDelivered, scMins, scTotal };
+      }).sort((a,b) => b.scMins - a.scMins);
+
+      const schoolRows = schoolData.map(({ sc, scDelivered, scMins, scTotal }) => {
+        const scHrs       = Math.floor(scMins/60);
+        const scMinRem    = scMins % 60;
+        const scComp      = scTotal>0 ? Math.round(scDelivered.length/scTotal*100) : 0;
+        const compCol     = scComp>=90?'#0d6e3a':scComp>=75?'#d97706':'#b91c1c';
+        const intPct      = scTotal>0 ? Math.round(sc.stuInterruptions/scTotal*100) : 0;
+        const intCol      = intPct>20?'#b91c1c':intPct>10?'#d97706':'var(--muted)';
+        return `<tr class="po-school-row" onclick="po.drillSchool('${esc(sc.school)}')">
+          <td style="padding:.45rem .875rem">
+            <div style="font-weight:700;color:var(--navy);font-size:.8125rem">${sc.school}</div>
+            <div style="font-size:.65rem;color:var(--muted)">${sc.district}</div>
+          </td>
+          <td style="text-align:center;padding:.45rem .875rem">
+            <span style="font-size:.875rem;font-weight:800;color:#0050c8;font-family:system-ui,-apple-system,sans-serif">${scHrs}h ${scMinRem}m</span>
+          </td>
+          <td style="text-align:center;padding:.45rem .875rem;font-size:.8125rem;color:var(--navy)">${scDelivered.length}</td>
+          <td style="text-align:center;padding:.45rem .875rem">
+            <span style="font-weight:700;color:${compCol};font-size:.8125rem">${scComp}%</span>
+          </td>
+          <td style="text-align:center;padding:.45rem .875rem">
+            <span style="font-weight:700;color:${intCol};font-size:.8125rem">${sc.stuInterruptions}</span>
+            ${intPct>10?`<span style="font-size:.6rem;color:${intCol};display:block">${intPct}% of sessions</span>`:''}
+          </td>
+          <td style="text-align:center;padding:.45rem .875rem">
+            <span style="font-size:.75rem;color:var(--blue-mid);font-weight:600">View →</span>
+          </td>
+        </tr>`;
+      }).join('');
+
+      mc.innerHTML = `
+        <div class="sg-wrap">
+          ${summaryHTML}
+          ${riskHTML}
+          <div class="sg-section">
+            <div class="sg-section-hd" style="cursor:pointer"
+                 onclick="po.toggleSection('sgFinanceTable',this,'📊 Delivery by Site (collapsed) — click to expand','📊 Delivery by Site — click to collapse')">
+              <span>📊 Delivery by Site (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">${schools.length} sites · sorted by hours delivered · click any row to drill in</span>
+            </div>
+            <div id="sgFinanceTable" style="display:none;overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:var(--surface-2)">
+                  ${['School / District','Hours Delivered','Sessions Done','Completion %','Interruptions',''].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h===''||h==='School / District'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
+                </tr></thead>
+                <tbody>${schoolRows||'<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--muted)">No data yet.</td></tr>'}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }
+
     // ── SCHOOL GRID — Dashboard view for programming team ────────────────
     // Card-based, status-first, plain language. System-ui font (no blur).
-    // Sections: (1) summary stats strip, (2) needs-attention triage,
-    //           (3) all-schools card grid, (4) late survey filers.
+    // Fixed bugs vs v1:
+    //   - Scholar att% is now WEIGHTED (sum raw totals) not avg-of-averages
+    //   - Sessions = isDelivered only, not all sessions in _sessMap
+    //   - Triage capped at 5 visible + expandable overflow (no endless scroll)
+    //   - All Schools section collapsed by default (toggle to expand)
     function renderSchoolGrid() {
       const mc = document.getElementById('poMainContent'); if (!mc) return;
 
-      // Sort: critical first → high → then by attendance desc
+      // Sort: critical first → high → ok, then by attendance desc within each tier
       const schools = filteredSchools().sort((a, b) => {
         const sA = a.flags.some(f=>f.severity==='critical') ? 0 : a.flags.some(f=>f.severity==='high') ? 1 : 2;
         const sB = b.flags.some(f=>f.severity==='critical') ? 0 : b.flags.some(f=>f.severity==='high') ? 1 : 2;
         return sA !== sB ? sA - sB : b.attRate - a.attRate;
       });
 
-      // Region helper (inline — avoids cross-scope dependency)
+      // Region helper
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
       const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                      'string theory','global leadership academy','global leadership','penns grove',
@@ -3638,50 +3997,58 @@
         return 'NE';
       }
 
-      // ── 1. Summary stats ─────────────────────────────────────────────────
+      // ── 1. Summary stats — WEIGHTED averages from raw school totals ───────
+      // Bug fix: averaging sc.attRate per-school is unweighted (small schools
+      // pull the number down equally as large schools). Sum raw attended/absent
+      // for a true program-wide weighted rate matching the top stat bar.
       const critSchools = schools.filter(sc => sc.flags.some(f=>f.severity==='critical'));
       const highSchools = schools.filter(sc => !sc.flags.some(f=>f.severity==='critical') && sc.flags.some(f=>f.severity==='high'));
-      const allAtt  = schools.map(sc => sc.attRate).filter(v=>v!=null);
-      const avgAtt  = allAtt.length ? Math.round(allAtt.reduce((a,b)=>a+b,0)/allAtt.length) : 0;
-      const allSurv = schools.map(sc => sc.stuSurveyAvg).filter(v=>v>0);
+      const totalStudAtt = schools.reduce((s,sc)=>s+(sc.stuAttended||0),0);
+      const totalStudAbs = schools.reduce((s,sc)=>s+(sc.stuAbsent||0),0);
+      const avgAtt = (totalStudAtt+totalStudAbs) > 0
+        ? Math.round(totalStudAtt/(totalStudAtt+totalStudAbs)*100) : 0;
+      const allSurv = schools.map(sc=>sc.stuSurveyAvg).filter(v=>v>0);
       const avgSurv = allSurv.length ? (allSurv.reduce((a,b)=>a+b,0)/allSurv.length).toFixed(1) : '—';
-      const totalSessions = schools.reduce((s,sc)=>s+sc.sessions.length,0);
+      // Bug fix: count only delivered sessions (not all sessions in _sessMap)
+      const totalDelivered = schools.reduce((s,sc)=>s+sc.sessions.filter(x=>x.isDelivered).length,0);
       const needsAttn = critSchools.length + highSchools.length;
-      const attCol = avgAtt>=85?'#0d6e3a':avgAtt>=75?'#d97706':'#b91c1c';
-      const attnCol = needsAttn>0?'#b91c1c':'#0d6e3a';
-      const survColor = parseFloat(avgSurv)>=4.0?'#0d6e3a':parseFloat(avgSurv)>=3.5?'#d97706':'#b91c1c';
+      const attCol    = avgAtt>=85?'#0d6e3a':avgAtt>=75?'#d97706':'#b91c1c';
+      const attnCol   = needsAttn>0?'#b91c1c':'#0d6e3a';
+      const survColor = parseFloat(avgSurv)>=4.0?'#0d6e3a':parseFloat(avgSurv)>=3.5?'#d97706':'var(--muted)';
 
       const summaryHTML = `
         <div class="sg-summary-strip">
           <div class="sg-stat" style="--sc:${attCol}">
             <div class="sg-stat-val" style="color:${attCol}">${avgAtt}%</div>
             <div class="sg-stat-lbl">Scholar Attendance</div>
-            <div class="sg-stat-sub">${avgAtt>=85?'Program is on track':'Needs monitoring — below 85% target'}</div>
+            <div class="sg-stat-sub">${avgAtt>=85?'Program on track':'Below 85% target — monitor closely'}</div>
           </div>
           <div class="sg-stat" style="--sc:${attnCol}">
             <div class="sg-stat-val" style="color:${attnCol}">${needsAttn}</div>
             <div class="sg-stat-lbl">Sites Need Attention</div>
-            <div class="sg-stat-sub">${critSchools.length} critical · ${highSchools.length} on watch · ${schools.length-needsAttn} on track</div>
+            <div class="sg-stat-sub">${critSchools.length} critical · ${highSchools.length} watch · ${schools.length-needsAttn} on track</div>
           </div>
           <div class="sg-stat" style="--sc:#0050c8">
-            <div class="sg-stat-val" style="color:#0050c8">${totalSessions.toLocaleString()}</div>
+            <div class="sg-stat-val" style="color:#0050c8">${totalDelivered.toLocaleString()}</div>
             <div class="sg-stat-lbl">Sessions Delivered</div>
-            <div class="sg-stat-sub">Across ${schools.length} active sites</div>
+            <div class="sg-stat-sub">Completed across ${schools.length} sites</div>
           </div>
           <div class="sg-stat" style="--sc:${survColor}">
             <div class="sg-stat-val" style="color:${survColor}">${avgSurv}</div>
             <div class="sg-stat-lbl">Scholar Satisfaction</div>
-            <div class="sg-stat-sub">Average rating out of 5.0</div>
+            <div class="sg-stat-sub">${avgSurv!=='—'?'Average out of 5.0':'Survey data loading…'}</div>
           </div>
         </div>`;
 
-      // ── 2. Triage section: sites needing immediate attention ─────────────
+      // ── 2. Triage — show 5 visible, rest collapsed (no endless scroll) ───
       const triageAll = [...critSchools, ...highSchools];
       let triageHTML = '';
       if (triageAll.length > 0) {
-        const items = triageAll.slice(0, 10).map(sc => {
+        const TRIAGE_SHOW = 5;
+        const visible  = triageAll.slice(0, TRIAGE_SHOW);
+        const overflow = triageAll.slice(TRIAGE_SHOW);
+        function triageItem(sc) {
           const hasCrit = sc.flags.some(f=>f.severity==='critical');
-          // Find most actionable flag message
           const topFlag = sc.flags.find(f=>f.severity==='critical') || sc.flags.find(f=>f.severity==='high');
           const detail  = topFlag ? topFlag.msg
                         : sc.stuInterruptions > 0 ? `${sc.stuInterruptions} service interruptions this period`
@@ -3696,44 +4063,54 @@
             <div class="sg-triage-right">
               <div style="font-size:1.25rem;font-weight:800;color:${aC};font-family:system-ui,-apple-system,sans-serif;line-height:1">${sc.attRate}%</div>
               <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">attendance</div>
-              <button class="sg-drill-btn">View details →</button>
+              <button class="sg-drill-btn">View →</button>
             </div>
           </div>`;
-        }).join('');
+        }
+        const overflowBlock = overflow.length ? `
+          <div id="sgTriageOverflow" style="display:none">
+            ${overflow.map(triageItem).join('')}
+          </div>
+          <div style="text-align:center;padding:.5rem;border-top:1px solid var(--border-2)">
+            <button onclick="po.toggleSection('sgTriageOverflow',this,'▼ Show ${overflow.length} more sites','▲ Show fewer')"
+              style="font-size:.75rem;font-weight:700;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.25rem .75rem">
+              ▼ Show ${overflow.length} more sites
+            </button>
+          </div>` : '';
         triageHTML = `
           <div class="sg-section">
             <div class="sg-section-hd sg-section-hd-warn">
-              <span>⚡ Sites Needing Your Attention Right Now</span>
-              <span style="font-weight:400;font-size:.7rem">${triageAll.length} site${triageAll.length!==1?'s':''} · click to see what's happening</span>
+              <span>⚡ Sites Needing Your Attention</span>
+              <span style="font-weight:400;font-size:.7rem">${triageAll.length} site${triageAll.length!==1?'s':''} · click any to see what's happening</span>
             </div>
-            <div class="sg-triage-list">${items}</div>
+            <div class="sg-triage-list">
+              ${visible.map(triageItem).join('')}
+              ${overflowBlock}
+            </div>
           </div>`;
       }
 
-      // ── 3. School cards ──────────────────────────────────────────────────
+      // ── 3. School cards — collapsed by default, toggle to expand ─────────
       function buildCard(sc) {
         const hasCrit  = sc.flags.some(f=>f.severity==='critical');
         const hasHigh  = sc.flags.some(f=>f.severity==='high');
         const aC       = sc.attRate>=90?'#0d6e3a':sc.attRate>=80?'#d97706':'#b91c1c';
         const region   = scRegion(sc);
-        const survStr  = sc.stuSurveyAvg>0 ? `⭐ ${sc.stuSurveyAvg.toFixed(1)} rating` : '';
+        const survStr  = sc.stuSurveyAvg>0 ? `⭐ ${sc.stuSurveyAvg.toFixed(1)}` : '';
+        // Bug fix: delivered sessions only
+        const delivCnt = sc.sessions.filter(x=>x.isDelivered).length;
         const cardCls  = hasCrit ? 'sg-card-crit' : hasHigh ? 'sg-card-high' : 'sg-card-ok';
         const stLbl    = hasCrit ? 'CRITICAL' : hasHigh ? 'WATCH' : 'ON TRACK';
         const stCls    = hasCrit ? 'sg-status-crit' : hasHigh ? 'sg-status-high' : 'sg-status-ok';
-
         const details = [];
         if (sc.stuInterruptions > 0) {
           const cls = hasCrit ? 'sg-card-detail-crit' : 'sg-card-detail-warn';
-          const icon = hasCrit ? '🚨' : '⚠️';
-          details.push(`<div class="sg-card-detail ${cls}">${icon} ${sc.stuInterruptions} service interruption${sc.stuInterruptions!==1?'s':''}</div>`);
+          details.push(`<div class="sg-card-detail ${cls}">${hasCrit?'🚨':'⚠️'} ${sc.stuInterruptions} interruption${sc.stuInterruptions!==1?'s':''}</div>`);
         }
-        if (sc.ratioViolations > 0) {
-          details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} session${sc.ratioViolations!==1?'s':''} over scholar ratio</div>`);
-        }
-        if (survStr) {
-          details.push(`<div class="sg-card-detail">${survStr}</div>`);
-        }
-
+        if (sc.ratioViolations > 0)
+          details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} over-ratio</div>`);
+        if (survStr)
+          details.push(`<div class="sg-card-detail">${survStr} scholar rating</div>`);
         return `<div class="sg-card ${cardCls}" onclick="po.drillSchool('${esc(sc.school)}')">
           <div class="sg-card-top">
             <div style="flex:1;min-width:0">
@@ -3746,33 +4123,33 @@
             <span class="sg-card-att-val" style="color:${aC}">${sc.attRate}%</span>
             <div class="sg-att-bar"><div class="sg-att-bar-fill" style="width:${sc.attRate}%;background:${aC}"></div></div>
           </div>
-          <div class="sg-card-meta">
-            <span>${sc.sessions.length.toLocaleString()} sessions</span>
-          </div>
-          <div class="sg-card-details">${details.join('') || '<div class="sg-card-detail sg-card-detail-ok">✓ No issues flagged</div>'}</div>
+          <div class="sg-card-meta"><span>${delivCnt} sessions</span></div>
+          <div class="sg-card-details">${details.join('')||'<div class="sg-card-detail sg-card-detail-ok">✓ No issues</div>'}</div>
           <div class="sg-card-footer">
             <span class="sg-status-badge ${stCls}">${stLbl}</span>
-            <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View site →</span>
+            <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View →</span>
           </div>
         </div>`;
       }
-
       const cards = schools.map(buildCard).join('');
 
       // ── 4. Late survey filers ────────────────────────────────────────────
       const lf = computeTutorLateFilersStats();
       const lateFilerHTML = lf.totalFlagged ? `
         <div class="sg-section" style="border-left:3px solid #d97706">
-          <div class="sg-section-hd" style="color:#92400e;background:#fef3c7;border-bottom-color:#fde68a">
-            <span>🕐 Tutors Submitting Surveys Late</span>
-            <span style="font-weight:400;font-size:.7rem">${lf.totalFlagged} tutor${lf.totalFlagged!==1?'s':''} · surveys filed 50%+ after session date — affects weekly reporting</span>
+          <div class="sg-section-hd" style="color:#92400e;background:#fef3c7;border-bottom-color:#fde68a;cursor:pointer"
+               onclick="po.toggleSection('sgLateBody',this,'🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})','🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})')">
+            <span>🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})</span>
+            <span style="font-weight:400;font-size:.7rem">surveys filed 50%+ after session date · click to ${lf.totalFlagged>3?'expand':'collapse'}</span>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem">
-            ${lf.flagged.slice(0,12).map(t=>`<div class="sg-late-chip">
-              <span style="font-weight:700;color:var(--navy)">${t.name}</span>
-              <span style="color:#d97706;font-weight:700">${t.lateRate}% late</span>
-              <span style="color:var(--muted);font-size:.65rem">${t.school}</span>
-            </div>`).join('')}
+          <div id="sgLateBody" style="${lf.totalFlagged>3?'display:none':''}">
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem">
+              ${lf.flagged.slice(0,12).map(t=>`<div class="sg-late-chip">
+                <span style="font-weight:700;color:var(--navy)">${t.name}</span>
+                <span style="color:#d97706;font-weight:700">${t.lateRate}% late</span>
+                <span style="color:var(--muted);font-size:.65rem">${t.school}</span>
+              </div>`).join('')}
+            </div>
           </div>
         </div>` : '';
 
@@ -3781,11 +4158,13 @@
           ${summaryHTML}
           ${triageHTML}
           <div class="sg-section">
-            <div class="sg-section-hd">
-              <span>📋 All Sites — Click any card to see full detail</span>
-              <span style="font-weight:400;font-size:.7rem">${schools.length} school${schools.length!==1?'s':''} · critical first, then by attendance</span>
+            <div class="sg-section-hd" style="cursor:pointer" onclick="po.toggleSection('sgAllSchoolsBody',this,'📋 All ${schools.length} Sites (collapsed) — click to expand','📋 All ${schools.length} Sites — click to collapse')">
+              <span>📋 All ${schools.length} Sites (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">critical first · click any card to drill in</span>
             </div>
-            <div class="sg-card-grid">${cards||'<div style="padding:2rem;text-align:center;color:var(--muted)">No schools match current filters.</div>'}</div>
+            <div id="sgAllSchoolsBody" style="display:none">
+              <div class="sg-card-grid">${cards||'<div style="padding:2rem;text-align:center;color:var(--muted)">No schools match.</div>'}</div>
+            </div>
           </div>
           ${lateFilerHTML}
         </div>`;
@@ -3794,7 +4173,12 @@
     // ── SCHOOL DETAIL VIEW ────────────────────────────────────────────────
     function renderSchoolDetail() {
       const mc = document.getElementById('poMainContent'); if (!mc) return;
-      const sc = _schoolMap[_selSchool]; if (!sc) { renderSchoolGrid(); return; }
+      const sc = _schoolMap[_selSchool]; if (!sc) {
+        if (role()==='hr') renderHRView();
+        else if (role()==='finance') renderFinanceView();
+        else renderSchoolGrid();
+        return;
+      }
       const tabs = buildSchoolTabs();
       mc.innerHTML = `
         <div class="po-detail-card">
@@ -5269,6 +5653,7 @@
       openFlagsModal, onPanelOpen,
       getLeadershipData,
       getTutorAttendanceMap,
+      toggleSection,
       exportData, showExportModal,
 
       // ── PDF export data accessor ─────────────────────────────────────────
