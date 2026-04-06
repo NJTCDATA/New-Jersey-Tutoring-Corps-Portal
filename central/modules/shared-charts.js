@@ -620,7 +620,7 @@
     if (window._talentLoaded && !forceRefresh) {
       const _er_dept=(window.NJTC_SESSION||{}).dept||'hr';
       console.log('[Talent] Early-return path, dept:', _er_dept);
-      if (['hr','data','leadership','kb','finance'].includes(_er_dept)) {
+      if (['hr','data','leadership','kb','finance','programming','training'].includes(_er_dept)) {
         setTalentTab('profiles');
       } else { buildTalentContent(); }
       return;
@@ -653,7 +653,7 @@
     } catch(e) { console.warn('[Talent] Central team race card error:', e); }
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
     console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', window._talentLoaded);
-    if (['hr','data','leadership','kb','finance'].includes(_td)) {
+    if (['hr','data','leadership','kb','finance','programming','training'].includes(_td)) {
       console.log('[Talent] Calling setTalentTab profiles...');
       setTalentTab('profiles');
     } else {
@@ -2401,8 +2401,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // regardless of whether data came from the streaming path or cache.
     const attMap      = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
     const lateFilers  = (window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
-    const lateFilerMap = {}; // normName → lateSurveyCount
-    lateFilers.forEach(f => { lateFilerMap[normName(f.name)] = f.lateCount || 0; });
+    const lateFilerMap = {}; // normName → { late, lateRate }
+    lateFilers.forEach(f => { lateFilerMap[normName(f.name)] = { late: f.late || 0, lateRate: f.lateRate || 0 }; });
 
     // Build per-tutor Pearl metrics using name-based API calls
     // (avoids the instId-based lookup which fails when instId is missing or mismatched)
@@ -2431,8 +2431,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
                               ? Math.round(sessEntry.incomplete / sessEntry.total * 100) : null;
       const totalSessions   = sessEntry ? sessEntry.total : null;
 
-      // Late surveys — from precomputed lateFilerMap
-      const lateSurveys = lateFilerMap[nm] != null ? lateFilerMap[nm] : null;
+      // Late surveys — from precomputed lateFilerMap (only populated for ≥50% late rate)
+      const _lateEntry  = lateFilerMap[nm] || null;
+      const lateSurveys = _lateEntry ? _lateEntry.late     : null;
+      const lateRate    = _lateEntry ? _lateEntry.lateRate : null;
 
       // Academic impact — from irlab if available
       const acadImpact = (window.irlab && window.irlab.getTutorAcademicImpact)
@@ -2440,7 +2442,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const acadEntry  = acadImpact && acadImpact.length ? acadImpact[0] : null;
 
       return {
-        att, survComp, lateSurveys, incompleteCount, incompleteRate, totalSessions,
+        att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
         returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry
       };
     }
@@ -2462,7 +2464,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       else if (m.confMed!=null&&m.confMed<3.5) { reasons.push('Scholar confidence low (<3.5)');    bump('warn'); }
       if (m.learnMed!=null&&m.learnMed<3.0) { reasons.push('Scholar learning score critical (<3.0)'); bump('critical'); }
       else if (m.learnMed!=null&&m.learnMed<3.5) { reasons.push('Scholar learning score low (<3.5)');  bump('warn'); }
-      if (m.lateSurveys!=null&&m.lateSurveys>3) { reasons.push(m.lateSurveys+' late survey submissions'); bump('warn'); }
+      if (m.lateRate!=null&&m.lateRate>=75) { reasons.push(m.lateRate+'% of surveys submitted late'); bump('critical'); }
+      else if (m.lateRate!=null&&m.lateRate>=50) { reasons.push(m.lateRate+'% of surveys submitted late'); bump('warn'); }
       if (co>=2) { reasons.push(co+' concern logs on file'); bump('critical'); }
       else if (co===1) { reasons.push('1 concern log on file'); bump('warn'); }
       if (m.incompleteRate!=null&&m.incompleteRate>30) { reasons.push('High incomplete session rate ('+m.incompleteRate+'%)'); bump('warn'); }
@@ -2636,7 +2639,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Build cards ─────────────────────────────────────────────────────────
     const borderColorMap = { critical:'#ef4444', warn:'#f59e0b', ok:'#10b981' };
     const cards = filtered.map(({ emp, metrics, level, reasons, region }) => {
-      const { att, survComp, lateSurveys, incompleteCount, incompleteRate, totalSessions,
+      const { att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
               returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry } = metrics;
       const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
 
@@ -2644,8 +2647,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const attColor = att==null?'#94a3b8':att<70?'#b91c1c':att<80?'#d97706':'#059669';
       const survVal  = survComp!=null ? survComp+'%' : '\u2014';
       const survColor= survComp==null?'#94a3b8':survComp<40?'#b91c1c':survComp<60?'#d97706':'#059669';
-      const lateVal  = lateSurveys!=null ? String(lateSurveys) : '\u2014';
-      const lateColor= lateSurveys==null?'#94a3b8':lateSurveys===0?'#059669':lateSurveys>2?'#b91c1c':'#d97706';
+      // Late surveys: ≥50% late rate flags → show "N late (X%)", else "✓ On Time"
+      const lateVal  = lateRate!=null ? lateSurveys+' late ('+lateRate+'%)' : '\u2713 On Time';
+      const lateColor= lateRate==null?'#059669':lateRate>=75?'#b91c1c':'#d97706';
       const incVal   = incompleteCount!=null
         ? incompleteCount+(incompleteRate!=null?' ('+incompleteRate+'%)':'') : '\u2014';
       const incColor = incompleteCount==null?'#94a3b8':incompleteCount===0?'#059669':incompleteRate!=null&&incompleteRate>30?'#b91c1c':'#d97706';
@@ -2659,24 +2663,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const learnColor=learnMed==null?'#94a3b8':learnMed<3.0?'#b91c1c':learnMed<3.5?'#d97706':'#059669';
       const sessVal  = totalSessions!=null ? String(totalSessions) : '\u2014';
 
-      // Scholar survey count note (shows n below scores)
+      // Scholar survey count note (n = number of survey responses)
       const survCountNote = survCount > 0
-        ? '<div style="font-size:.62rem;color:#94a3b8;margin-top:.2rem;grid-column:1/-1">Survey scores based on '+survCount+' scholar response'+(survCount!==1?'s':'')+'</div>'
-        : '';
+        ? '<div style="font-size:.62rem;color:#94a3b8;margin-top:.15rem">Based on '+survCount+' scholar response'+(survCount!==1?'s':'')+' · avg scores (not median)</div>'
+        : '<div style="font-size:.62rem;color:#94a3b8;margin-top:.15rem">No scholar survey responses on file</div>';
 
-      // Academic impact row (from iReady)
+      // Academic impact row — pctTypical already in % units from getTutorAcademicImpact
+      // (mathMedianPctTypical = Math.round(ratio * 100), e.g. 55 = 55% of typical growth)
+      // N = mathRecords / elaRecords (scholars with valid pctTypical data, not total scholars)
       let acadRow = '';
       if (acadEntry) {
-        const mathPct = acadEntry.mathMedianPctTypical!=null ? Math.round(acadEntry.mathMedianPctTypical*100)+'%' : '\u2014';
-        const elaPct  = acadEntry.elaMedianPctTypical!=null  ? Math.round(acadEntry.elaMedianPctTypical*100)+'%'  : '\u2014';
-        const mathColor = acadEntry.mathMedianPctTypical==null?'#94a3b8':acadEntry.mathMedianPctTypical>=1?'#059669':acadEntry.mathMedianPctTypical>=0.6?'#d97706':'#b91c1c';
-        const elaColor  = acadEntry.elaMedianPctTypical==null?'#94a3b8':acadEntry.elaMedianPctTypical>=1?'#059669':acadEntry.elaMedianPctTypical>=0.6?'#d97706':'#b91c1c';
-        acadRow = '<div style="margin-top:.45rem;padding:.4rem .6rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">'
-          +'<div style="font-size:.63rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">📊 iReady Academic Impact ('+acadEntry.yearSpan+')</div>'
-          +'<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
-          +'<span style="font-size:.75rem;font-weight:700;color:'+mathColor+'">Math: '+mathPct+' typical</span>'
-          +'<span style="font-size:.75rem;font-weight:700;color:'+elaColor+'">ELA: '+elaPct+' typical</span>'
-          +'<span style="font-size:.72rem;color:#64748b">'+acadEntry.scholarCount+' scholars</span>'
+        const mathPct   = acadEntry.mathMedianPctTypical!=null ? acadEntry.mathMedianPctTypical+'%' : '\u2014';
+        const elaPct    = acadEntry.elaMedianPctTypical!=null  ? acadEntry.elaMedianPctTypical+'%'  : '\u2014';
+        const mPct      = acadEntry.mathMedianPctTypical;
+        const ePct      = acadEntry.elaMedianPctTypical;
+        const mathColor = mPct==null?'#94a3b8':mPct>=100?'#059669':mPct>=60?'#d97706':'#b91c1c';
+        const elaColor  = ePct==null?'#94a3b8':ePct>=100?'#059669':ePct>=60?'#d97706':'#b91c1c';
+        const mN        = acadEntry.mathRecords || 0;
+        const eN        = acadEntry.elaRecords  || 0;
+        acadRow = '<div style="margin-top:.4rem;padding:.35rem .6rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">'
+          +'<div style="font-size:.62rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">📊 iReady · Median % of Typical Growth ('+esc(acadEntry.yearSpan)+')</div>'
+          +'<div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:baseline">'
+          +(mN>0?'<span style="font-size:.8rem;font-weight:800;color:'+mathColor+'">Math '+mathPct+'</span><span style="font-size:.62rem;color:#64748b">n='+mN+'</span>':'')
+          +(eN>0?'<span style="font-size:.8rem;font-weight:800;color:'+elaColor+'">ELA '+elaPct+'</span><span style="font-size:.62rem;color:#64748b">n='+eN+'</span>':'')
+          +'<span style="font-size:.62rem;color:#94a3b8;font-style:italic">scholars may overlap across tutors</span>'
           +'</div>'
           +'</div>';
       }
@@ -2793,9 +2803,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       +tipModal
       +kpiBanner
       +filterBar
-      +(cards.length ? cards.join('') : '<div style="color:#94a3b8;font-style:italic;text-align:center;padding:2rem">No staff match the current filters.</div>')
-      +'<div style="font-size:.68rem;color:#94a3b8;margin-top:.75rem;line-height:1.5">'
-        +'Attendance live from Pearl \u00B7 Scholar scores are MEDIAN values from session surveys \u00B7 Terminated staff excluded'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:.65rem">'
+      +(cards.length ? cards.join('') : '<div style="grid-column:1/-1;color:#94a3b8;font-style:italic;text-align:center;padding:2rem">No staff match the current filters.</div>')
+      +'</div>'
+      +'<div style="font-size:.65rem;color:#94a3b8;margin-top:.75rem;line-height:1.5">'
+        +'Attendance: live from Pearl \u00B7 Scholar scores: avg of all survey responses for sessions led by this tutor \u00B7 Survey completion: % of sessions with \u22651 scholar survey submitted'
+        +' \u00B7 iReady: MEDIAN % of typical growth; n = scholars w/ valid spring data; same scholar may appear across tutors \u00B7 Late surveys: flagged if \u226550% of submissions are late'
+        +' \u00B7 Terminated staff excluded'
       +'</div>'
       +'</div>';
   }
