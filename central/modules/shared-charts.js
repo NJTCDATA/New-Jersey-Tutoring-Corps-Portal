@@ -630,18 +630,26 @@
     _updateTalentBadge('pending');
     // Signal whether this is a forced refresh (adds cache-bust param, same as KPI refresh)
     window._talentForceRefresh = !!forceRefresh;
-    try { await fetchLiveConcerns(); } catch(e) { _talentLiveStatus = 'fallback'; }
+
+    // ── Non-blocking concerns fetch ───────────────────────────────────────────
+    // fetchLiveConcerns synchronously loads cached data on first call, then fires
+    // a background network request. We do NOT await — render immediately with
+    // whatever is in CONCERNS (cached or seed), then refresh the concerns tab
+    // when the network response arrives.
+    const _concernsFetch = fetchLiveConcerns().catch(e => { _talentLiveStatus = 'fallback'; });
+
     window._talentForceRefresh = false;
     window._talentLoaded = true;
-    window._filteredConcerns = CONCERNS;
-    _updateTalentBadge(_talentLiveStatus);
+    window._filteredConcerns = CONCERNS; // cached or seed data — available immediately
+    _updateTalentBadge(_talentLiveStatus === 'live' ? 'live' : 'pending');
+
+    // Fire all background data fetches (non-blocking)
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
     fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
-    // Fire iReady live fetch so HR profiles get fresh academic data
-    // _irlFetchLive is inside irlab IIFE — call via public API
     if (typeof irlab !== 'undefined' && irlab && irlab.fetchLive) {
       irlab.fetchLive(!!forceRefresh).catch(e=>console.warn('[irlab live]',e.message));
     }
+
     try { initTalentFilters(); } catch(e) { console.error('[Talent] initFilters error:', e); }
     try { initTalentTabsForDept(window._currentDept || 'hr'); } catch(e) { console.error('[Talent] initTabs error:', e); }
     // Render Central Team race/ethnicity card at top of Talent Analytics
@@ -651,6 +659,7 @@
         _ctCard.innerHTML = _buildCentralTeamDiversityCard();
       }
     } catch(e) { console.warn('[Talent] Central team race card error:', e); }
+
     const _td=(window.NJTC_SESSION||{}).dept||'hr';
     console.log('[Talent] About to route, dept:', _td, '_talentLoaded:', window._talentLoaded);
     if (['hr','data','leadership','kb','finance','programming','training'].includes(_td)) {
@@ -659,6 +668,17 @@
     } else {
       buildTalentContent();
     }
+
+    // When concerns fetch completes, update badge and silently refresh concerns tab if active
+    _concernsFetch.then(() => {
+      _updateTalentBadge(_talentLiveStatus);
+      window._filteredConcerns = CONCERNS;
+      try {
+        const _activeTab = document.querySelector('[data-tab].talent-tab-btn.active, .talent-tab.active');
+        const _activeId  = _activeTab ? (_activeTab.dataset.tab || _activeTab.id || '') : '';
+        if (_activeId === 'all' || _activeId === 'talent-tab-all') buildTalentContent();
+      } catch(e) {}
+    });
   }
 
   function _updateTalentBadge(status) {
@@ -2396,35 +2416,60 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     function normName(n) { return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 
-    // ── Pearl data — loaded via name-based API to avoid instId mismatch ─────────
-    // All three methods join through _sessMap.instructor, which is always populated
-    // regardless of whether data came from the streaming path or cache.
+    // ── Pearl data — pre-computed ONCE for all tutors (O(n) not O(n×m)) ───────
+    // All three APIs iterate potentially thousands of rows. Calling per-employee
+    // would cost ~550k iterations for 50 employees. We build maps keyed by
+    // normName once, then do O(1) lookups in buildMetrics.
     const attMap      = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
     const lateFilers  = (window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
     const lateFilerMap = {}; // normName → { late, lateRate }
     lateFilers.forEach(f => { lateFilerMap[normName(f.name)] = { late: f.late || 0, lateRate: f.lateRate || 0 }; });
 
-    // Build per-tutor Pearl metrics using name-based API calls
-    // (avoids the instId-based lookup which fails when instId is missing or mismatched)
+    // Survey scores map — keyed by normName(result.name)
+    const _allSurveyMap = {};
+    try {
+      if (window.po && window.po.getTutorSurveyScores) {
+        window.po.getTutorSurveyScores().forEach(s => { _allSurveyMap[normName(s.name)] = s; });
+      }
+    } catch(e) { console.warn('[Talent] survey pre-compute error:', e); }
+
+    // Session stats map — keyed by normName(result.name)
+    const _allSessMap = {};
+    try {
+      if (window.po && window.po.getTutorSessionStats) {
+        window.po.getTutorSessionStats().forEach(s => { _allSessMap[normName(s.name)] = s; });
+      }
+    } catch(e) { console.warn('[Talent] session pre-compute error:', e); }
+
+    // Academic impact map — keyed by normName(result.name)
+    const _allAcadMap = {};
+    try {
+      if (window.irlab && window.irlab.getTutorAcademicImpact) {
+        const _allAcad = window.irlab.getTutorAcademicImpact(); // returns all tutors
+        if (Array.isArray(_allAcad)) {
+          _allAcad.forEach(a => { _allAcadMap[normName(a.name)] = a; });
+        }
+      }
+    } catch(e) { console.warn('[Talent] acad pre-compute error:', e); }
+
+    // Build per-tutor Pearl metrics — all lookups are now O(1)
     function buildMetrics(emp) {
-      // Attendance — live overlay first, then attMap keyed by sorted-token norm, then stored value
+      // Attendance — live overlay first, then stored value
       const att = emp._liveAtt != null ? emp._liveAtt
                 : (emp.att != null ? emp.att : null);
 
       const nm = normName(emp.n);
 
-      // Survey scores — getTutorSurveyScores joins through _sessMap.instructor (always works)
-      const survScores = (window.po && window.po.getTutorSurveyScores) ? window.po.getTutorSurveyScores(emp.n) : [];
-      const survEntry  = survScores.length ? survScores[0] : null;
+      // Survey scores — O(1) map lookup (pre-computed above)
+      const survEntry  = _allSurveyMap[nm] || null;
       const confMed    = survEntry ? survEntry.confidence : null;
       const enjoyMed   = survEntry ? survEntry.enjoyment  : null;
       const learnMed   = survEntry ? survEntry.learning   : null;
       const returnMed  = survEntry ? survEntry.overall    : null;
       const survCount  = survEntry ? survEntry.count       : 0;
 
-      // Session stats — getTutorSessionStats uses same name-based _sessMap join
-      const sessStats  = (window.po && window.po.getTutorSessionStats) ? window.po.getTutorSessionStats(emp.n) : [];
-      const sessEntry  = sessStats.length ? sessStats[0] : null;
+      // Session stats — O(1) map lookup (pre-computed above)
+      const sessEntry  = _allSessMap[nm] || null;
       const survComp      = sessEntry ? sessEntry.survComp    : null;
       const incompleteCount = sessEntry ? sessEntry.incomplete : null;
       const incompleteRate  = (sessEntry && sessEntry.total > 0)
@@ -2438,10 +2483,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const lateSurveys = _lateEntry ? _lateEntry.late     : null;
       const lateRate    = _lateEntry ? _lateEntry.lateRate : null;
 
-      // Academic impact — from irlab if available
-      const acadImpact = (window.irlab && window.irlab.getTutorAcademicImpact)
-                         ? window.irlab.getTutorAcademicImpact(emp.n) : null;
-      const acadEntry  = acadImpact && acadImpact.length ? acadImpact[0] : null;
+      // Academic impact — O(1) map lookup (pre-computed above)
+      const acadEntry  = _allAcadMap[nm] || null;
 
       return {
         att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
