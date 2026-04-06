@@ -2396,60 +2396,53 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     function normName(n) { return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 
-    // ── Pearl data ────────────────────────────────────────────────────────────
-    const sessRows = (window.po && window.po.getSessRows) ? window.po.getSessRows() : [];
-    const stuRows  = (window.po && window.po.getStuRows)  ? window.po.getStuRows()  : [];
-    const attMap   = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
+    // ── Pearl data — loaded via name-based API to avoid instId mismatch ─────────
+    // All three methods join through _sessMap.instructor, which is always populated
+    // regardless of whether data came from the streaming path or cache.
+    const attMap      = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
+    const lateFilers  = (window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
+    const lateFilerMap = {}; // normName → lateSurveyCount
+    lateFilers.forEach(f => { lateFilerMap[normName(f.name)] = f.lateCount || 0; });
 
-    const SS = { TITLE:0, INSTRUCTOR:1, STATUS:4, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, SESS_ID:14, INST_ID:15, STU_IDS:16 };
-    const SU = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, SESS_ID:11, WEEK:22 };
-
-    // Index sessions by ID; gather per-instructor score arrays
-    const sessById = {};
-    sessRows.forEach(r => { if (r[SS.SESS_ID]) sessById[r[SS.SESS_ID]] = r; });
-
-    const sessIdsWithSurveys = new Set(stuRows.map(r=>r[SU.SESS_ID]).filter(Boolean));
-    const instScores = {};   // instId → { enjoyment:[], overall:[] }
-    stuRows.forEach(r => {
-      const sess = sessById[r[SU.SESS_ID]];
-      if (!sess) return;
-      const id = sess[SS.INST_ID]; if (!id) return;
-      if (!instScores[id]) instScores[id] = { enjoyment:[], overall:[] };
-      const enj = parseFloat(r[SU.ENJOYMENT]);
-      const ov  = parseFloat(r[SU.OVERALL]);
-      if (!isNaN(enj)) instScores[id].enjoyment.push(enj);
-      if (!isNaN(ov))  instScores[id].overall.push(ov);
-    });
-
-    const instSessStats = {};   // instId → { total, incomplete, withSurveys }
-    const sessByInst    = {};
-    sessRows.forEach(r => {
-      const id = r[SS.INST_ID]; if (!id) return;
-      if (!sessByInst[id]) sessByInst[id] = [];
-      sessByInst[id].push(r);
-    });
-    Object.entries(sessByInst).forEach(([id, rows]) => {
-      const total      = rows.length;
-      const incomplete = rows.filter(r=>{ const st=(r[SS.STATUS]||'').toLowerCase(); return st!=='completed'&&st!=='complete'; }).length;
-      const withSurveys= rows.filter(r=>sessIdsWithSurveys.has(r[SS.SESS_ID])).length;
-      instSessStats[id]= { total, incomplete, withSurveys };
-    });
-
-    // Build per-tutor Pearl metrics
+    // Build per-tutor Pearl metrics using name-based API calls
+    // (avoids the instId-based lookup which fails when instId is missing or mismatched)
     function buildMetrics(emp) {
+      // Attendance — live overlay first, then attMap keyed by sorted-token norm, then stored value
+      const att = emp._liveAtt != null ? emp._liveAtt
+                : (emp.att != null ? emp.att : null);
+
       const nm = normName(emp.n);
-      const attEntry = attMap[nm];
-      const att = attEntry ? attEntry.attRate : (emp._liveAtt != null ? emp._liveAtt : (emp.att != null ? emp.att : null));
-      let instId = null;
-      for (const r of sessRows) { if (normName(r[SS.INSTRUCTOR])===nm) { instId=r[SS.INST_ID]; break; } }
-      const scores = instId ? (instScores[instId]||null) : null;
-      const stats  = instId ? (instSessStats[instId]||null) : null;
-      const enjoyMed  = scores ? median(scores.enjoyment) : null;
-      const returnMed = scores ? median(scores.overall)   : null;
-      const survComp  = (stats&&stats.total>0) ? Math.round(stats.withSurveys/stats.total*100) : null;
-      const incompleteCount= stats ? stats.incomplete : null;
-      const incompleteRate = (stats&&stats.total>0) ? Math.round(stats.incomplete/stats.total*100) : null;
-      return { att, survComp, lateSurveys:null, incompleteCount, incompleteRate, returnMed, enjoyMed, instId };
+
+      // Survey scores — getTutorSurveyScores joins through _sessMap.instructor (always works)
+      const survScores = (window.po && window.po.getTutorSurveyScores) ? window.po.getTutorSurveyScores(emp.n) : [];
+      const survEntry  = survScores.length ? survScores[0] : null;
+      const confMed    = survEntry ? survEntry.confidence : null;
+      const enjoyMed   = survEntry ? survEntry.enjoyment  : null;
+      const learnMed   = survEntry ? survEntry.learning   : null;
+      const returnMed  = survEntry ? survEntry.overall    : null;
+      const survCount  = survEntry ? survEntry.count       : 0;
+
+      // Session stats — getTutorSessionStats uses same name-based _sessMap join
+      const sessStats  = (window.po && window.po.getTutorSessionStats) ? window.po.getTutorSessionStats(emp.n) : [];
+      const sessEntry  = sessStats.length ? sessStats[0] : null;
+      const survComp   = sessEntry ? sessEntry.survComp    : null;
+      const incompleteCount = sessEntry ? sessEntry.incomplete : null;
+      const incompleteRate  = (sessEntry && sessEntry.total > 0)
+                              ? Math.round(sessEntry.incomplete / sessEntry.total * 100) : null;
+      const totalSessions   = sessEntry ? sessEntry.total : null;
+
+      // Late surveys — from precomputed lateFilerMap
+      const lateSurveys = lateFilerMap[nm] != null ? lateFilerMap[nm] : null;
+
+      // Academic impact — from irlab if available
+      const acadImpact = (window.irlab && window.irlab.getTutorAcademicImpact)
+                         ? window.irlab.getTutorAcademicImpact(emp.n) : null;
+      const acadEntry  = acadImpact && acadImpact.length ? acadImpact[0] : null;
+
+      return {
+        att, survComp, lateSurveys, incompleteCount, incompleteRate, totalSessions,
+        returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry
+      };
     }
 
     // Support Status: evaluates 6 signals, returns { level:'ok'|'warn'|'critical', reasons:[] }
@@ -2465,6 +2458,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       else if (m.returnMed!=null&&m.returnMed<3.5) { reasons.push('Scholar return score low (<3.5)');  bump('warn'); }
       if (m.enjoyMed!=null&&m.enjoyMed<3.0) { reasons.push('Scholar enjoyment critical (<3.0)'); bump('critical'); }
       else if (m.enjoyMed!=null&&m.enjoyMed<3.5) { reasons.push('Scholar enjoyment low (<3.5)');  bump('warn'); }
+      if (m.confMed!=null&&m.confMed<3.0)  { reasons.push('Scholar confidence critical (<3.0)');  bump('critical'); }
+      else if (m.confMed!=null&&m.confMed<3.5) { reasons.push('Scholar confidence low (<3.5)');    bump('warn'); }
+      if (m.learnMed!=null&&m.learnMed<3.0) { reasons.push('Scholar learning score critical (<3.0)'); bump('critical'); }
+      else if (m.learnMed!=null&&m.learnMed<3.5) { reasons.push('Scholar learning score low (<3.5)');  bump('warn'); }
+      if (m.lateSurveys!=null&&m.lateSurveys>3) { reasons.push(m.lateSurveys+' late survey submissions'); bump('warn'); }
       if (co>=2) { reasons.push(co+' concern logs on file'); bump('critical'); }
       else if (co===1) { reasons.push('1 concern log on file'); bump('warn'); }
       if (m.incompleteRate!=null&&m.incompleteRate>30) { reasons.push('High incomplete session rate ('+m.incompleteRate+'%)'); bump('warn'); }
@@ -2511,12 +2509,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     // ── Chip & badge helpers ────────────────────────────────────────────────
     const CHIP_TIPS = {
-      att:      'Percentage of scheduled sessions the tutor attended. Live from Pearl. <80% = Support Needed; <70% = Escalate.',
-      survComp: 'Percentage of this tutor\'s sessions with at least one scholar survey submitted. Low rates may reflect session-log gaps.',
-      lateSurv: 'Surveys submitted after the expected weekly deadline. Late submissions reduce weekly reporting accuracy.',
-      incomplete:'Sessions marked Incomplete in Pearl (no actual duration logged). High rates signal reporting discipline issues.',
-      returnMed:'MEDIAN scholar response to "Overall, how was this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.',
-      enjoyMed: 'MEDIAN scholar response to "How much did you enjoy this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.'
+      att:       'Percentage of scheduled sessions the tutor attended. Live from Pearl. <80% = Support Needed; <70% = Escalate.',
+      sessions:  'Total sessions on record for this tutor in Pearl.',
+      survComp:  'Percentage of this tutor\'s sessions with at least one scholar survey submitted. Computed via session-level matching. Low rates may reflect session-log gaps.',
+      lateSurv:  'Number of surveys this tutor submitted after the expected weekly deadline. Late submissions reduce weekly reporting accuracy.',
+      incomplete: 'Sessions marked Incomplete in Pearl (no actual duration logged). High rates signal reporting discipline issues.',
+      returnMed:  'AVERAGE scholar response to "Overall, how was this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.',
+      enjoyMed:   'AVERAGE scholar response to "How much did you enjoy this session?" (1-5). Computed from all scholar surveys for sessions led by this tutor.',
+      confMed:    'AVERAGE scholar response to "How confident did you feel?" (1-5). Higher scores indicate tutors build scholar self-efficacy.',
+      learnMed:   'AVERAGE scholar response to "How much did you learn?" (1-5). Directly reflects perceived instructional effectiveness.',
     };
 
     function metricChip(label, val, color, tipKey) {
@@ -2635,14 +2636,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Build cards ─────────────────────────────────────────────────────────
     const borderColorMap = { critical:'#ef4444', warn:'#f59e0b', ok:'#10b981' };
     const cards = filtered.map(({ emp, metrics, level, reasons, region }) => {
-      const { att, survComp, lateSurveys, incompleteCount, incompleteRate, returnMed, enjoyMed } = metrics;
+      const { att, survComp, lateSurveys, incompleteCount, incompleteRate, totalSessions,
+              returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry } = metrics;
       const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
 
       const attVal   = att!=null ? att.toFixed(1)+'%' : '\u2014';
       const attColor = att==null?'#94a3b8':att<70?'#b91c1c':att<80?'#d97706':'#059669';
       const survVal  = survComp!=null ? survComp+'%' : '\u2014';
       const survColor= survComp==null?'#94a3b8':survComp<40?'#b91c1c':survComp<60?'#d97706':'#059669';
-      const lateVal  = lateSurveys!=null ? String(lateSurveys) : 'N/A';
+      const lateVal  = lateSurveys!=null ? String(lateSurveys) : '\u2014';
+      const lateColor= lateSurveys==null?'#94a3b8':lateSurveys===0?'#059669':lateSurveys>2?'#b91c1c':'#d97706';
       const incVal   = incompleteCount!=null
         ? incompleteCount+(incompleteRate!=null?' ('+incompleteRate+'%)':'') : '\u2014';
       const incColor = incompleteCount==null?'#94a3b8':incompleteCount===0?'#059669':incompleteRate!=null&&incompleteRate>30?'#b91c1c':'#d97706';
@@ -2650,6 +2653,33 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       const retColor = returnMed==null?'#94a3b8':returnMed<3.0?'#b91c1c':returnMed<3.5?'#d97706':'#059669';
       const enjVal   = enjoyMed!=null ? enjoyMed.toFixed(2)+' / 5' : '\u2014';
       const enjColor = enjoyMed==null?'#94a3b8':enjoyMed<3.0?'#b91c1c':enjoyMed<3.5?'#d97706':'#059669';
+      const confVal  = confMed!=null ? confMed.toFixed(2)+' / 5' : '\u2014';
+      const confColor= confMed==null?'#94a3b8':confMed<3.0?'#b91c1c':confMed<3.5?'#d97706':'#059669';
+      const learnVal = learnMed!=null ? learnMed.toFixed(2)+' / 5' : '\u2014';
+      const learnColor=learnMed==null?'#94a3b8':learnMed<3.0?'#b91c1c':learnMed<3.5?'#d97706':'#059669';
+      const sessVal  = totalSessions!=null ? String(totalSessions) : '\u2014';
+
+      // Scholar survey count note (shows n below scores)
+      const survCountNote = survCount > 0
+        ? '<div style="font-size:.62rem;color:#94a3b8;margin-top:.2rem;grid-column:1/-1">Survey scores based on '+survCount+' scholar response'+(survCount!==1?'s':'')+'</div>'
+        : '';
+
+      // Academic impact row (from iReady)
+      let acadRow = '';
+      if (acadEntry) {
+        const mathPct = acadEntry.mathMedianPctTypical!=null ? Math.round(acadEntry.mathMedianPctTypical*100)+'%' : '\u2014';
+        const elaPct  = acadEntry.elaMedianPctTypical!=null  ? Math.round(acadEntry.elaMedianPctTypical*100)+'%'  : '\u2014';
+        const mathColor = acadEntry.mathMedianPctTypical==null?'#94a3b8':acadEntry.mathMedianPctTypical>=1?'#059669':acadEntry.mathMedianPctTypical>=0.6?'#d97706':'#b91c1c';
+        const elaColor  = acadEntry.elaMedianPctTypical==null?'#94a3b8':acadEntry.elaMedianPctTypical>=1?'#059669':acadEntry.elaMedianPctTypical>=0.6?'#d97706':'#b91c1c';
+        acadRow = '<div style="margin-top:.45rem;padding:.4rem .6rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px">'
+          +'<div style="font-size:.63rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">📊 iReady Academic Impact ('+acadEntry.yearSpan+')</div>'
+          +'<div style="display:flex;gap:.75rem;flex-wrap:wrap">'
+          +'<span style="font-size:.75rem;font-weight:700;color:'+mathColor+'">Math: '+mathPct+' typical</span>'
+          +'<span style="font-size:.75rem;font-weight:700;color:'+elaColor+'">ELA: '+elaPct+' typical</span>'
+          +'<span style="font-size:.72rem;color:#64748b">'+acadEntry.scholarCount+' scholars</span>'
+          +'</div>'
+          +'</div>';
+      }
 
       // Concern log (expandable)
       const coId = 'ppco_'+emp.n.replace(/\W/g,'_');
@@ -2683,17 +2713,26 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +'</div>'
           +'<div>'+statusBadge(level,reasons)+'</div>'
         +'</div>'
-        // Pearl metric strip
-        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.65rem">'
-          +metricChip('Attendance',    attVal,  attColor,  'att')
-          +metricChip('Surv. Comp.',   survVal, survColor, 'survComp')
-          +metricChip('Late Surveys',  lateVal, '#94a3b8', 'lateSurv')
-          +metricChip('Incomplete',    incVal,  incColor,  'incomplete')
-          +metricChip('Return (med)',  retVal,  retColor,  'returnMed')
-          +metricChip('Enjoy (med)',   enjVal,  enjColor,  'enjoyMed')
+        // Row 1 — attendance, session logistics
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.4rem">'
+          +metricChip('Attendance',   attVal,  attColor,  'att')
+          +metricChip('Sessions',     sessVal, '#64748b',  'sessions')
+          +metricChip('Incomplete',   incVal,  incColor,  'incomplete')
+          +metricChip('Late Surveys', lateVal, lateColor, 'lateSurv')
+          +metricChip('Surv. Comp.',  survVal, survColor, 'survComp')
         +'</div>'
+        // Row 2 — scholar survey scores
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.25rem">'
+          +metricChip('Return (med)',  retVal,   retColor,   'returnMed')
+          +metricChip('Enjoy (med)',   enjVal,   enjColor,   'enjoyMed')
+          +metricChip('Confidence',    confVal,  confColor,  'confMed')
+          +metricChip('Learning',      learnVal, learnColor, 'learnMed')
+        +'</div>'
+        +survCountNote
+        // Academic impact (iReady)
+        +acadRow
         // Observation timeline
-        +'<div style="margin-bottom:.5rem">'+obsTimeline(emp)+'</div>'
+        +'<div style="margin-bottom:.5rem;margin-top:.45rem">'+obsTimeline(emp)+'</div>'
         // OTJ progress
         +'<div style="margin-bottom:.3rem">'
           +'<span style="font-size:.67rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-right:.4rem">OTJ:</span>'
@@ -2704,13 +2743,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     });
 
     // ── KPI banner ──────────────────────────────────────────────────────────
+    const allEnjoy  = profileData.map(p=>p.metrics.enjoyMed).filter(v=>v!=null);
+    const allConf   = profileData.map(p=>p.metrics.confMed).filter(v=>v!=null);
+    const medEnjoy  = median(allEnjoy);
+    const medConf   = median(allConf);
     const kpiBanner = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem;margin-bottom:1.1rem">'
       +[
         { label:'Active Staff',      val:activeCount,   color:'#1d4ed8', sub:'', click:'' },
         { label:'Need Attention',    val:needAttention, color:needAttention>0?'#b91c1c':'#059669', sub:'click to filter',
           click:"_ppSetStatus(_ppStatus==='attention'?'all':'attention')" },
         { label:'Median Attendance', val:medAtt!=null?(medAtt.toFixed(1)+'%'):'\u2014', color:medAtt!=null&&medAtt<80?'#d97706':'#059669', sub:'active staff', click:'' },
-        { label:'Median Return',     val:medReturn!=null?medReturn.toFixed(2):'\u2014', color:medReturn!=null&&medReturn<3.5?'#d97706':'#059669', sub:'scholar survey', click:'' }
+        { label:'Median Return',     val:medReturn!=null?medReturn.toFixed(2):'\u2014', color:medReturn!=null&&medReturn<3.5?'#d97706':'#059669', sub:'scholar survey', click:'' },
+        { label:'Median Enjoyment',  val:medEnjoy!=null?medEnjoy.toFixed(2):'\u2014', color:medEnjoy!=null&&medEnjoy<3.5?'#d97706':'#059669', sub:'scholar survey', click:'' },
+        { label:'Median Confidence', val:medConf!=null?medConf.toFixed(2):'\u2014',  color:medConf!=null&&medConf<3.5?'#d97706':'#059669', sub:'scholar survey', click:'' },
       ].map(s=>'<div '+(s.click?'onclick="'+s.click+'" ':'')+' style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem .8rem;text-align:center'+(s.click?';cursor:pointer':'')+'">'
           +'<div style="font-size:1.35rem;font-weight:800;color:'+s.color+'">'+s.val+'</div>'
           +'<div style="font-size:.68rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:1px;font-weight:600">'+s.label+'</div>'

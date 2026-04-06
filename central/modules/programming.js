@@ -5770,6 +5770,53 @@
         } catch(e) { return []; }
       },
 
+      // getTutorSessionStats(tutorName?) — per-session counts for each tutor, name-joined via _sessMap.
+      // Returns array of { name, total, completed, incomplete, withSurveys, survComp }
+      // survComp = % of sessions with ≥1 scholar survey (0-100). Pass tutorName to filter to one person.
+      getTutorSessionStats: function(tutorName) {
+        try {
+          function normQ(s) { return (s||'').toLowerCase().replace(/[^a-z ]/g,''); }
+          var qNorm = tutorName ? normQ(tutorName) : null;
+          var qLast = qNorm ? qNorm.split(' ').filter(function(t){return t.length>0;}).slice(-1)[0] : null;
+
+          // Step 1: collect session IDs with at least one scholar survey
+          var sessWithSurvey = {};
+          (_stuRows || []).forEach(function(r) {
+            var sid = r[11]; if (sid) sessWithSurvey[sid] = true;
+          });
+
+          // Step 2: group sessions by instructor name via _sessMap (avoids instId mismatch)
+          var byTutor = {};
+          Object.values(_sessMap || {}).forEach(function(sess) {
+            var tname = (sess.instructor || '').trim();
+            if (!tname) return;
+            if (qNorm) {
+              var tNorm = normQ(tname);
+              var tLast = tNorm.split(' ').filter(function(t){return t.length>0;}).slice(-1)[0];
+              if (tLast !== qLast && tNorm.indexOf(qNorm) < 0 && qNorm.indexOf(tNorm) < 0) return;
+            }
+            if (!byTutor[tname]) byTutor[tname] = { name: tname, total: 0, completed: 0, incomplete: 0, withSurveys: 0 };
+            var t = byTutor[tname];
+            t.total++;
+            var st = (sess.status || '').toLowerCase();
+            if (st === 'completed' || st === 'complete') { t.completed++; } else { t.incomplete++; }
+            if (sess.id && sessWithSurvey[sess.id]) t.withSurveys++;
+          });
+
+          // Step 3: compute survComp % and return
+          return Object.values(byTutor).map(function(t) {
+            return {
+              name:        t.name,
+              total:       t.total,
+              completed:   t.completed,
+              incomplete:  t.incomplete,
+              withSurveys: t.withSurveys,
+              survComp:    t.total > 0 ? Math.round(t.withSurveys / t.total * 100) : null
+            };
+          });
+        } catch(e) { return []; }
+      },
+
       // getLateFilerStats() — tutors with ≥50% late survey submission rate
       // Exposed for PIE anomaly detection. Recomputes on each call (lightweight).
       getLateFilerStats: function() {

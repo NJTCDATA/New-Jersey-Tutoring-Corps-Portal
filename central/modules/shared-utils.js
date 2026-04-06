@@ -2195,7 +2195,7 @@
         if (!window._talentLoaded) setTimeout(() => initTalentFilters(), 800);
         // Ensure correct default tab renders per dept on open
         const _sp2Dept = (window.NJTC_SESSION||{}).dept||'hr';
-        if (['hr','data','kb','finance'].includes(_sp2Dept)) {
+        if (['hr','data','kb','finance','programming','training'].includes(_sp2Dept)) {
           setTimeout(() => {
             if (typeof setTalentTab === 'function') setTalentTab('profiles');
           }, 300);
