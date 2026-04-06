@@ -2953,6 +2953,19 @@
       pill.textContent = `⏱ ${durStr} · ${sess.length} sessions · ${scholars} scholars`;
     }
 
+    // ── Section toggle helper — used by sg-* dashboard collapse/expand ────
+    // id: the body element's id. btn: the header element that was clicked.
+    // labelCollapsed / labelExpanded: text to set on btn's first <span>.
+    function toggleSection(id, btn, labelCollapsed, labelExpanded) {
+      const el = document.getElementById(id); if (!el) return;
+      const isHidden = el.style.display === 'none';
+      el.style.display = isHidden ? '' : 'none';
+      if (btn) {
+        const span = btn.querySelector ? btn.querySelector('span') : null;
+        if (span) span.textContent = isHidden ? labelExpanded : labelCollapsed;
+      }
+    }
+
     function drillSchool(school) {
       _selSchool = school; _view = 'school'; _activeTab = 'attendance';
       const schoolObj = _schoolMap[school];
@@ -3631,11 +3644,11 @@
         const tot = p.attended + p.absent;
         return tot > 0 && (p.attended / tot * 100) < 65;
       });
-      const allAtt = tutors.map(p => {
-        const tot = p.attended + p.absent;
-        return tot > 0 ? Math.round(p.attended / tot * 100) : null;
-      }).filter(v => v !== null);
-      const avgAtt = allAtt.length ? Math.round(allAtt.reduce((a,b)=>a+b,0)/allAtt.length) : 0;
+      // Weighted average — sum raw attended/absent (not avg of per-tutor rates)
+      const totalTutAtt = tutors.reduce((s,p)=>s+p.attended,0);
+      const totalTutAbs = tutors.reduce((s,p)=>s+p.absent,0);
+      const avgAtt = (totalTutAtt+totalTutAbs) > 0
+        ? Math.round(totalTutAtt/(totalTutAtt+totalTutAbs)*100) : 0;
 
       // Schools with vacancy interruptions (staffing gaps)
       const vacancySchools = filteredSchools().filter(sc =>
@@ -3780,11 +3793,12 @@
           ${adpHTML}
           ${vacancyHTML}
           <div class="sg-section">
-            <div class="sg-section-hd">
-              <span>👥 All Tutors — Click any row to see full attendance history</span>
-              <span style="font-weight:400;font-size:.7rem">${totalTutors} tutor${totalTutors!==1?'s':''} · sorted worst attendance first</span>
+            <div class="sg-section-hd" style="cursor:pointer"
+                 onclick="po.toggleSection('sgHRAllTutors',this,'👥 All ${totalTutors} Tutors (collapsed) — click to expand','👥 All ${totalTutors} Tutors — click to collapse')">
+              <span>👥 All ${totalTutors} Tutors (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">sorted worst attendance first · click any row to see history</span>
             </div>
-            <div style="overflow-x:auto">
+            <div id="sgHRAllTutors" style="display:none;overflow-x:auto">
               <table style="width:100%;border-collapse:collapse">
                 <thead><tr style="background:var(--surface-2)">
                   ${['Tutor','School','Attendance','Present','Absent'].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h==='Tutor'||h==='School'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
@@ -3889,17 +3903,19 @@
           </div>`;
       }
 
-      // ── Delivery table — all schools by hours ────────────────────────────
-      const schoolRows = schools.slice().sort((a,b) => {
-        const mA = a.sessions.filter(s=>s.isDelivered&&s.durMins>0).reduce((s,r)=>s+r.durMins,0);
-        const mB = b.sessions.filter(s=>s.isDelivered&&s.durMins>0).reduce((s,r)=>s+r.durMins,0);
-        return mB - mA;
-      }).map(sc => {
+      // ── Delivery table — pre-compute hours ONCE per school, then sort ────
+      // Performance fix: sorting with inline filter+reduce = O(n log n × sessions).
+      // Pre-compute into a plain array first, then sort O(n log n) on a number.
+      const schoolData = schools.map(sc => {
         const scDelivered = sc.sessions.filter(s => s.isDelivered && s.durMins > 0);
         const scMins      = scDelivered.reduce((s,r)=>s+r.durMins, 0);
+        const scTotal     = sc.sessions.filter(s=>s.status!=='Cancelled').length;
+        return { sc, scDelivered, scMins, scTotal };
+      }).sort((a,b) => b.scMins - a.scMins);
+
+      const schoolRows = schoolData.map(({ sc, scDelivered, scMins, scTotal }) => {
         const scHrs       = Math.floor(scMins/60);
         const scMinRem    = scMins % 60;
-        const scTotal     = sc.sessions.filter(s=>s.status!=='Cancelled').length;
         const scComp      = scTotal>0 ? Math.round(scDelivered.length/scTotal*100) : 0;
         const compCol     = scComp>=90?'#0d6e3a':scComp>=75?'#d97706':'#b91c1c';
         const intPct      = scTotal>0 ? Math.round(sc.stuInterruptions/scTotal*100) : 0;
@@ -3931,11 +3947,12 @@
           ${summaryHTML}
           ${riskHTML}
           <div class="sg-section">
-            <div class="sg-section-hd">
-              <span>📊 Delivery by Site — Click any row to drill in</span>
-              <span style="font-weight:400;font-size:.7rem">${schools.length} sites · sorted by hours delivered</span>
+            <div class="sg-section-hd" style="cursor:pointer"
+                 onclick="po.toggleSection('sgFinanceTable',this,'📊 Delivery by Site (collapsed) — click to expand','📊 Delivery by Site — click to collapse')">
+              <span>📊 Delivery by Site (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">${schools.length} sites · sorted by hours delivered · click any row to drill in</span>
             </div>
-            <div style="overflow-x:auto">
+            <div id="sgFinanceTable" style="display:none;overflow-x:auto">
               <table style="width:100%;border-collapse:collapse">
                 <thead><tr style="background:var(--surface-2)">
                   ${['School / District','Hours Delivered','Sessions Done','Completion %','Interruptions',''].map(h=>`<th style="padding:.375rem .875rem;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border);text-align:${h===''||h==='School / District'?'left':'center'};white-space:nowrap">${h}</th>`).join('')}
@@ -3949,19 +3966,22 @@
 
     // ── SCHOOL GRID — Dashboard view for programming team ────────────────
     // Card-based, status-first, plain language. System-ui font (no blur).
-    // Sections: (1) summary stats strip, (2) needs-attention triage,
-    //           (3) all-schools card grid, (4) late survey filers.
+    // Fixed bugs vs v1:
+    //   - Scholar att% is now WEIGHTED (sum raw totals) not avg-of-averages
+    //   - Sessions = isDelivered only, not all sessions in _sessMap
+    //   - Triage capped at 5 visible + expandable overflow (no endless scroll)
+    //   - All Schools section collapsed by default (toggle to expand)
     function renderSchoolGrid() {
       const mc = document.getElementById('poMainContent'); if (!mc) return;
 
-      // Sort: critical first → high → then by attendance desc
+      // Sort: critical first → high → ok, then by attendance desc within each tier
       const schools = filteredSchools().sort((a, b) => {
         const sA = a.flags.some(f=>f.severity==='critical') ? 0 : a.flags.some(f=>f.severity==='high') ? 1 : 2;
         const sB = b.flags.some(f=>f.severity==='critical') ? 0 : b.flags.some(f=>f.severity==='high') ? 1 : 2;
         return sA !== sB ? sA - sB : b.attRate - a.attRate;
       });
 
-      // Region helper (inline — avoids cross-scope dependency)
+      // Region helper
       const NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
       const SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
                      'string theory','global leadership academy','global leadership','penns grove',
@@ -3977,50 +3997,58 @@
         return 'NE';
       }
 
-      // ── 1. Summary stats ─────────────────────────────────────────────────
+      // ── 1. Summary stats — WEIGHTED averages from raw school totals ───────
+      // Bug fix: averaging sc.attRate per-school is unweighted (small schools
+      // pull the number down equally as large schools). Sum raw attended/absent
+      // for a true program-wide weighted rate matching the top stat bar.
       const critSchools = schools.filter(sc => sc.flags.some(f=>f.severity==='critical'));
       const highSchools = schools.filter(sc => !sc.flags.some(f=>f.severity==='critical') && sc.flags.some(f=>f.severity==='high'));
-      const allAtt  = schools.map(sc => sc.attRate).filter(v=>v!=null);
-      const avgAtt  = allAtt.length ? Math.round(allAtt.reduce((a,b)=>a+b,0)/allAtt.length) : 0;
-      const allSurv = schools.map(sc => sc.stuSurveyAvg).filter(v=>v>0);
+      const totalStudAtt = schools.reduce((s,sc)=>s+(sc.stuAttended||0),0);
+      const totalStudAbs = schools.reduce((s,sc)=>s+(sc.stuAbsent||0),0);
+      const avgAtt = (totalStudAtt+totalStudAbs) > 0
+        ? Math.round(totalStudAtt/(totalStudAtt+totalStudAbs)*100) : 0;
+      const allSurv = schools.map(sc=>sc.stuSurveyAvg).filter(v=>v>0);
       const avgSurv = allSurv.length ? (allSurv.reduce((a,b)=>a+b,0)/allSurv.length).toFixed(1) : '—';
-      const totalSessions = schools.reduce((s,sc)=>s+sc.sessions.length,0);
+      // Bug fix: count only delivered sessions (not all sessions in _sessMap)
+      const totalDelivered = schools.reduce((s,sc)=>s+sc.sessions.filter(x=>x.isDelivered).length,0);
       const needsAttn = critSchools.length + highSchools.length;
-      const attCol = avgAtt>=85?'#0d6e3a':avgAtt>=75?'#d97706':'#b91c1c';
-      const attnCol = needsAttn>0?'#b91c1c':'#0d6e3a';
-      const survColor = parseFloat(avgSurv)>=4.0?'#0d6e3a':parseFloat(avgSurv)>=3.5?'#d97706':'#b91c1c';
+      const attCol    = avgAtt>=85?'#0d6e3a':avgAtt>=75?'#d97706':'#b91c1c';
+      const attnCol   = needsAttn>0?'#b91c1c':'#0d6e3a';
+      const survColor = parseFloat(avgSurv)>=4.0?'#0d6e3a':parseFloat(avgSurv)>=3.5?'#d97706':'var(--muted)';
 
       const summaryHTML = `
         <div class="sg-summary-strip">
           <div class="sg-stat" style="--sc:${attCol}">
             <div class="sg-stat-val" style="color:${attCol}">${avgAtt}%</div>
             <div class="sg-stat-lbl">Scholar Attendance</div>
-            <div class="sg-stat-sub">${avgAtt>=85?'Program is on track':'Needs monitoring — below 85% target'}</div>
+            <div class="sg-stat-sub">${avgAtt>=85?'Program on track':'Below 85% target — monitor closely'}</div>
           </div>
           <div class="sg-stat" style="--sc:${attnCol}">
             <div class="sg-stat-val" style="color:${attnCol}">${needsAttn}</div>
             <div class="sg-stat-lbl">Sites Need Attention</div>
-            <div class="sg-stat-sub">${critSchools.length} critical · ${highSchools.length} on watch · ${schools.length-needsAttn} on track</div>
+            <div class="sg-stat-sub">${critSchools.length} critical · ${highSchools.length} watch · ${schools.length-needsAttn} on track</div>
           </div>
           <div class="sg-stat" style="--sc:#0050c8">
-            <div class="sg-stat-val" style="color:#0050c8">${totalSessions.toLocaleString()}</div>
+            <div class="sg-stat-val" style="color:#0050c8">${totalDelivered.toLocaleString()}</div>
             <div class="sg-stat-lbl">Sessions Delivered</div>
-            <div class="sg-stat-sub">Across ${schools.length} active sites</div>
+            <div class="sg-stat-sub">Completed across ${schools.length} sites</div>
           </div>
           <div class="sg-stat" style="--sc:${survColor}">
             <div class="sg-stat-val" style="color:${survColor}">${avgSurv}</div>
             <div class="sg-stat-lbl">Scholar Satisfaction</div>
-            <div class="sg-stat-sub">Average rating out of 5.0</div>
+            <div class="sg-stat-sub">${avgSurv!=='—'?'Average out of 5.0':'Survey data loading…'}</div>
           </div>
         </div>`;
 
-      // ── 2. Triage section: sites needing immediate attention ─────────────
+      // ── 2. Triage — show 5 visible, rest collapsed (no endless scroll) ───
       const triageAll = [...critSchools, ...highSchools];
       let triageHTML = '';
       if (triageAll.length > 0) {
-        const items = triageAll.slice(0, 10).map(sc => {
+        const TRIAGE_SHOW = 5;
+        const visible  = triageAll.slice(0, TRIAGE_SHOW);
+        const overflow = triageAll.slice(TRIAGE_SHOW);
+        function triageItem(sc) {
           const hasCrit = sc.flags.some(f=>f.severity==='critical');
-          // Find most actionable flag message
           const topFlag = sc.flags.find(f=>f.severity==='critical') || sc.flags.find(f=>f.severity==='high');
           const detail  = topFlag ? topFlag.msg
                         : sc.stuInterruptions > 0 ? `${sc.stuInterruptions} service interruptions this period`
@@ -4035,44 +4063,54 @@
             <div class="sg-triage-right">
               <div style="font-size:1.25rem;font-weight:800;color:${aC};font-family:system-ui,-apple-system,sans-serif;line-height:1">${sc.attRate}%</div>
               <div style="font-size:.6rem;color:var(--muted);margin:.1rem 0 .4rem">attendance</div>
-              <button class="sg-drill-btn">View details →</button>
+              <button class="sg-drill-btn">View →</button>
             </div>
           </div>`;
-        }).join('');
+        }
+        const overflowBlock = overflow.length ? `
+          <div id="sgTriageOverflow" style="display:none">
+            ${overflow.map(triageItem).join('')}
+          </div>
+          <div style="text-align:center;padding:.5rem;border-top:1px solid var(--border-2)">
+            <button onclick="po.toggleSection('sgTriageOverflow',this,'▼ Show ${overflow.length} more sites','▲ Show fewer')"
+              style="font-size:.75rem;font-weight:700;color:var(--blue-mid);background:none;border:none;cursor:pointer;padding:.25rem .75rem">
+              ▼ Show ${overflow.length} more sites
+            </button>
+          </div>` : '';
         triageHTML = `
           <div class="sg-section">
             <div class="sg-section-hd sg-section-hd-warn">
-              <span>⚡ Sites Needing Your Attention Right Now</span>
-              <span style="font-weight:400;font-size:.7rem">${triageAll.length} site${triageAll.length!==1?'s':''} · click to see what's happening</span>
+              <span>⚡ Sites Needing Your Attention</span>
+              <span style="font-weight:400;font-size:.7rem">${triageAll.length} site${triageAll.length!==1?'s':''} · click any to see what's happening</span>
             </div>
-            <div class="sg-triage-list">${items}</div>
+            <div class="sg-triage-list">
+              ${visible.map(triageItem).join('')}
+              ${overflowBlock}
+            </div>
           </div>`;
       }
 
-      // ── 3. School cards ──────────────────────────────────────────────────
+      // ── 3. School cards — collapsed by default, toggle to expand ─────────
       function buildCard(sc) {
         const hasCrit  = sc.flags.some(f=>f.severity==='critical');
         const hasHigh  = sc.flags.some(f=>f.severity==='high');
         const aC       = sc.attRate>=90?'#0d6e3a':sc.attRate>=80?'#d97706':'#b91c1c';
         const region   = scRegion(sc);
-        const survStr  = sc.stuSurveyAvg>0 ? `⭐ ${sc.stuSurveyAvg.toFixed(1)} rating` : '';
+        const survStr  = sc.stuSurveyAvg>0 ? `⭐ ${sc.stuSurveyAvg.toFixed(1)}` : '';
+        // Bug fix: delivered sessions only
+        const delivCnt = sc.sessions.filter(x=>x.isDelivered).length;
         const cardCls  = hasCrit ? 'sg-card-crit' : hasHigh ? 'sg-card-high' : 'sg-card-ok';
         const stLbl    = hasCrit ? 'CRITICAL' : hasHigh ? 'WATCH' : 'ON TRACK';
         const stCls    = hasCrit ? 'sg-status-crit' : hasHigh ? 'sg-status-high' : 'sg-status-ok';
-
         const details = [];
         if (sc.stuInterruptions > 0) {
           const cls = hasCrit ? 'sg-card-detail-crit' : 'sg-card-detail-warn';
-          const icon = hasCrit ? '🚨' : '⚠️';
-          details.push(`<div class="sg-card-detail ${cls}">${icon} ${sc.stuInterruptions} service interruption${sc.stuInterruptions!==1?'s':''}</div>`);
+          details.push(`<div class="sg-card-detail ${cls}">${hasCrit?'🚨':'⚠️'} ${sc.stuInterruptions} interruption${sc.stuInterruptions!==1?'s':''}</div>`);
         }
-        if (sc.ratioViolations > 0) {
-          details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} session${sc.ratioViolations!==1?'s':''} over scholar ratio</div>`);
-        }
-        if (survStr) {
-          details.push(`<div class="sg-card-detail">${survStr}</div>`);
-        }
-
+        if (sc.ratioViolations > 0)
+          details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} over-ratio</div>`);
+        if (survStr)
+          details.push(`<div class="sg-card-detail">${survStr} scholar rating</div>`);
         return `<div class="sg-card ${cardCls}" onclick="po.drillSchool('${esc(sc.school)}')">
           <div class="sg-card-top">
             <div style="flex:1;min-width:0">
@@ -4085,33 +4123,33 @@
             <span class="sg-card-att-val" style="color:${aC}">${sc.attRate}%</span>
             <div class="sg-att-bar"><div class="sg-att-bar-fill" style="width:${sc.attRate}%;background:${aC}"></div></div>
           </div>
-          <div class="sg-card-meta">
-            <span>${sc.sessions.length.toLocaleString()} sessions</span>
-          </div>
-          <div class="sg-card-details">${details.join('') || '<div class="sg-card-detail sg-card-detail-ok">✓ No issues flagged</div>'}</div>
+          <div class="sg-card-meta"><span>${delivCnt} sessions</span></div>
+          <div class="sg-card-details">${details.join('')||'<div class="sg-card-detail sg-card-detail-ok">✓ No issues</div>'}</div>
           <div class="sg-card-footer">
             <span class="sg-status-badge ${stCls}">${stLbl}</span>
-            <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View site →</span>
+            <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View →</span>
           </div>
         </div>`;
       }
-
       const cards = schools.map(buildCard).join('');
 
       // ── 4. Late survey filers ────────────────────────────────────────────
       const lf = computeTutorLateFilersStats();
       const lateFilerHTML = lf.totalFlagged ? `
         <div class="sg-section" style="border-left:3px solid #d97706">
-          <div class="sg-section-hd" style="color:#92400e;background:#fef3c7;border-bottom-color:#fde68a">
-            <span>🕐 Tutors Submitting Surveys Late</span>
-            <span style="font-weight:400;font-size:.7rem">${lf.totalFlagged} tutor${lf.totalFlagged!==1?'s':''} · surveys filed 50%+ after session date — affects weekly reporting</span>
+          <div class="sg-section-hd" style="color:#92400e;background:#fef3c7;border-bottom-color:#fde68a;cursor:pointer"
+               onclick="po.toggleSection('sgLateBody',this,'🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})','🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})')">
+            <span>🕐 Tutors Submitting Surveys Late (${lf.totalFlagged})</span>
+            <span style="font-weight:400;font-size:.7rem">surveys filed 50%+ after session date · click to ${lf.totalFlagged>3?'expand':'collapse'}</span>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem">
-            ${lf.flagged.slice(0,12).map(t=>`<div class="sg-late-chip">
-              <span style="font-weight:700;color:var(--navy)">${t.name}</span>
-              <span style="color:#d97706;font-weight:700">${t.lateRate}% late</span>
-              <span style="color:var(--muted);font-size:.65rem">${t.school}</span>
-            </div>`).join('')}
+          <div id="sgLateBody" style="${lf.totalFlagged>3?'display:none':''}">
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem">
+              ${lf.flagged.slice(0,12).map(t=>`<div class="sg-late-chip">
+                <span style="font-weight:700;color:var(--navy)">${t.name}</span>
+                <span style="color:#d97706;font-weight:700">${t.lateRate}% late</span>
+                <span style="color:var(--muted);font-size:.65rem">${t.school}</span>
+              </div>`).join('')}
+            </div>
           </div>
         </div>` : '';
 
@@ -4120,11 +4158,13 @@
           ${summaryHTML}
           ${triageHTML}
           <div class="sg-section">
-            <div class="sg-section-hd">
-              <span>📋 All Sites — Click any card to see full detail</span>
-              <span style="font-weight:400;font-size:.7rem">${schools.length} school${schools.length!==1?'s':''} · critical first, then by attendance</span>
+            <div class="sg-section-hd" style="cursor:pointer" onclick="po.toggleSection('sgAllSchoolsBody',this,'📋 All ${schools.length} Sites (collapsed) — click to expand','📋 All ${schools.length} Sites — click to collapse')">
+              <span>📋 All ${schools.length} Sites (collapsed) — click to expand</span>
+              <span style="font-weight:400;font-size:.7rem">critical first · click any card to drill in</span>
             </div>
-            <div class="sg-card-grid">${cards||'<div style="padding:2rem;text-align:center;color:var(--muted)">No schools match current filters.</div>'}</div>
+            <div id="sgAllSchoolsBody" style="display:none">
+              <div class="sg-card-grid">${cards||'<div style="padding:2rem;text-align:center;color:var(--muted)">No schools match.</div>'}</div>
+            </div>
           </div>
           ${lateFilerHTML}
         </div>`;
@@ -5613,6 +5653,7 @@
       openFlagsModal, onPanelOpen,
       getLeadershipData,
       getTutorAttendanceMap,
+      toggleSection,
       exportData, showExportModal,
 
       // ── PDF export data accessor ─────────────────────────────────────────
