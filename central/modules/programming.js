@@ -5795,23 +5795,28 @@
               var tLast = tNorm.split(' ').filter(function(t){return t.length>0;}).slice(-1)[0];
               if (tLast !== qLast && tNorm.indexOf(qNorm) < 0 && qNorm.indexOf(tNorm) < 0) return;
             }
-            if (!byTutor[tname]) byTutor[tname] = { name: tname, total: 0, completed: 0, incomplete: 0, withSurveys: 0 };
+            if (!byTutor[tname]) byTutor[tname] = { name: tname, total: 0, completed: 0, incomplete: 0, withSurveys: 0, scholars: new Set(), schools: new Set() };
             var t = byTutor[tname];
             t.total++;
             var st = (sess.status || '').toLowerCase();
             if (st === 'completed' || st === 'complete') { t.completed++; } else { t.incomplete++; }
             if (sess.id && sessWithSurvey[sess.id]) t.withSurveys++;
+            // Track unique scholars and schools
+            (sess.studentIds || []).forEach(function(sid) { if (sid) t.scholars.add(sid); });
+            if (sess.school) t.schools.add(sess.school);
           });
 
           // Step 3: compute survComp % and return
           return Object.values(byTutor).map(function(t) {
             return {
-              name:        t.name,
-              total:       t.total,
-              completed:   t.completed,
-              incomplete:  t.incomplete,
-              withSurveys: t.withSurveys,
-              survComp:    t.total > 0 ? Math.round(t.withSurveys / t.total * 100) : null
+              name:          t.name,
+              total:         t.total,
+              completed:     t.completed,
+              incomplete:    t.incomplete,
+              withSurveys:   t.withSurveys,
+              survComp:      t.total > 0 ? Math.round(t.withSurveys / t.total * 100) : null,
+              scholarCount:  t.scholars.size,
+              schools:       [...t.schools]
             };
           });
         } catch(e) { return []; }

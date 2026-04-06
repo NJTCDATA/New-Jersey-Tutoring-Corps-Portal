@@ -2425,11 +2425,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Session stats — getTutorSessionStats uses same name-based _sessMap join
       const sessStats  = (window.po && window.po.getTutorSessionStats) ? window.po.getTutorSessionStats(emp.n) : [];
       const sessEntry  = sessStats.length ? sessStats[0] : null;
-      const survComp   = sessEntry ? sessEntry.survComp    : null;
+      const survComp      = sessEntry ? sessEntry.survComp    : null;
       const incompleteCount = sessEntry ? sessEntry.incomplete : null;
       const incompleteRate  = (sessEntry && sessEntry.total > 0)
                               ? Math.round(sessEntry.incomplete / sessEntry.total * 100) : null;
       const totalSessions   = sessEntry ? sessEntry.total : null;
+      const scholarCount    = sessEntry ? (sessEntry.scholarCount || 0) : null;
+      const tutorSchools    = sessEntry ? (sessEntry.schools || []) : [];
 
       // Late surveys — from precomputed lateFilerMap (only populated for ≥50% late rate)
       const _lateEntry  = lateFilerMap[nm] || null;
@@ -2443,7 +2445,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
       return {
         att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
-        returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry
+        returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry,
+        scholarCount, tutorSchools
       };
     }
 
@@ -2640,7 +2643,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const borderColorMap = { critical:'#ef4444', warn:'#f59e0b', ok:'#10b981' };
     const cards = filtered.map(({ emp, metrics, level, reasons, region }) => {
       const { att, survComp, lateSurveys, lateRate, incompleteCount, incompleteRate, totalSessions,
-              returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry } = metrics;
+              returnMed, enjoyMed, confMed, learnMed, survCount, acadEntry,
+              scholarCount, tutorSchools } = metrics;
       const co = emp._liveConcerns != null ? emp._liveConcerns : (emp.co||0);
 
       const attVal   = att!=null ? att.toFixed(1)+'%' : '\u2014';
@@ -2709,22 +2713,78 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +'</div></div>'
         : '';
 
+      // ── Site Leader Obs for this tutor's school ───────────────────────────────
+      // Looks up school in _njtcSLObsBySchool (keyed by normalized school name)
+      let slObsSection = '';
+      const schoolName = (emp.si || '').trim();
+      if (schoolName && window._njtcSLObsBySchool) {
+        const schoolKey = normName(schoolName);
+        // Fuzzy: try exact then token-subset
+        let slEntry = window._njtcSLObsBySchool[schoolKey] || null;
+        if (!slEntry) {
+          const kp = new Set(schoolKey.split(' ').filter(t=>t.length>2));
+          for (const [k2, v2] of Object.entries(window._njtcSLObsBySchool)) {
+            const k2p = new Set(k2.split(' ').filter(t=>t.length>2));
+            if ([...kp].every(p=>k2p.has(p)) || [...k2p].every(p=>kp.has(p))) { slEntry=v2; break; }
+          }
+        }
+        if (slEntry) {
+          const slN = slEntry.obsEntries.length;
+          const slLink = slN > 0 ? (slEntry.obsEntries.find(e=>e.link)||{}).link : null;
+          const slMonths = [...new Set(slEntry.obsEntries.map(e=>e.month))].join(' · ');
+          const slLatestNote = slN > 0 ? (slEntry.obsEntries[slN-1].notes||'').trim() : '';
+          slObsSection = '<div style="margin-top:.35rem;padding:.3rem .55rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;font-size:.68rem">'
+            +'<span style="font-weight:700;color:#1d4ed8">🏫 Site Leader: '+esc(slEntry.sl)+'</span>'
+            +'<span style="color:#64748b;margin-left:.4rem">'+slN+' obs'+( slMonths?' ('+slMonths+')':'')+' </span>'
+            +(slLink?'<a href="'+esc(slLink)+'" target="_blank" rel="noopener" style="color:#2563eb;text-decoration:underline;margin-left:.25rem">📁 View Folder</a>':'')
+            +(slLatestNote?'<div style="color:#475569;margin-top:.15rem;font-style:italic">'+esc(slLatestNote)+'</div>':'')
+            +'</div>';
+        } else {
+          slObsSection = '<div style="margin-top:.35rem;font-size:.67rem;color:#94a3b8;font-style:italic">No SL observation record found for this school</div>';
+        }
+      }
+
+      // ── Formal Obs summary (from live obs overlay sheet) ──────────────────────
+      let formalObsSection = '';
+      if (emp._obsCount > 0) {
+        const obsRatingBadge = emp._obsAvgRating!=null
+          ? '<span style="font-weight:800;color:'+(emp._obsAvgRating>=4?'#059669':emp._obsAvgRating>=3?'#d97706':'#b91c1c')+'"> '+emp._obsAvgRating+'/5</span>'
+          : '';
+        formalObsSection = '<div style="margin-top:.35rem;padding:.35rem .55rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;font-size:.68rem">'
+          +'<span style="font-weight:700;color:#7c3aed">👁 Formal Obs: '+emp._obsCount+'</span>'+obsRatingBadge
+          +(emp._obsLatest ? ' · <span style="color:#64748b">Last: '+esc(emp._obsLatest.date||'')+(emp._obsLatest.observer?' by '+esc(emp._obsLatest.observer):'')+'</span>' : '')
+          +(emp._obsLatest && emp._obsLatest.notes ? '<div style="color:#475569;margin-top:.15rem;font-style:italic">'+esc((emp._obsLatest.notes||'').slice(0,120))+(emp._obsLatest.notes.length>120?'…':'')+'</div>' : '')
+          +'</div>';
+      }
+
+      // ── Active HR flag (programming-visible, discrete) ────────────────────────
+      const hrFlagBanner = emp._liveHRAction
+        ? '<div style="margin-top:.35rem;padding:.25rem .55rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;font-size:.68rem;font-weight:700;color:#92400e">⚠️ Active HR Action on file — contact HR for details</div>'
+        : '';
+
+      // ── Scholar reach badge ────────────────────────────────────────────────────
+      const scholarBadge = (scholarCount != null && scholarCount > 0)
+        ? '<span style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">'+scholarCount+' scholars</span>'
+        : '';
+
       const bl = borderColorMap[level]||'#10b981';
       return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid '+bl+';border-radius:10px;padding:1rem 1.1rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
         // Header
-        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.65rem">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.55rem">'
           +'<div>'
             +'<div style="font-weight:700;font-size:.95rem;color:#1e293b">'+esc(emp.n)+'</div>'
-            +'<div style="font-size:.78rem;color:#64748b;margin-top:2px;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">'
+            +'<div style="font-size:.75rem;color:#64748b;margin-top:2px;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">'
               +'<span>'+esc(emp.r||'Tutor')+' \u00B7 '+esc(emp.si||emp.di||'\u2014')+'</span>'
               +'<span style="background:#e0f2fe;color:#0369a1;padding:.1rem .35rem;border-radius:4px;font-size:.65rem;font-weight:700">'+region+'</span>'
               +(emp._apprentice==='Yes'?'<span style="background:#fef9c3;color:#854d0e;padding:.1rem .35rem;border-radius:5px;font-size:.65rem;font-weight:700;border:1px solid #fde68a">\uD83C\uDF93 Apprentice</span>':'')
+              +scholarBadge
             +'</div>'
           +'</div>'
           +'<div>'+statusBadge(level,reasons)+'</div>'
         +'</div>'
+        +hrFlagBanner
         // Row 1 — attendance, session logistics
-        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.4rem">'
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.4rem;margin-top:.4rem">'
           +metricChip('Attendance',   attVal,  attColor,  'att')
           +metricChip('Sessions',     sessVal, '#64748b',  'sessions')
           +metricChip('Incomplete',   incVal,  incColor,  'incomplete')
@@ -2732,20 +2792,24 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +metricChip('Surv. Comp.',  survVal, survColor, 'survComp')
         +'</div>'
         // Row 2 — scholar survey scores
-        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.25rem">'
-          +metricChip('Return (med)',  retVal,   retColor,   'returnMed')
-          +metricChip('Enjoy (med)',   enjVal,   enjColor,   'enjoyMed')
+        +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.4rem;margin-bottom:.2rem">'
+          +metricChip('Return (avg)',  retVal,   retColor,   'returnMed')
+          +metricChip('Enjoy (avg)',   enjVal,   enjColor,   'enjoyMed')
           +metricChip('Confidence',    confVal,  confColor,  'confMed')
           +metricChip('Learning',      learnVal, learnColor, 'learnMed')
         +'</div>'
         +survCountNote
         // Academic impact (iReady)
         +acadRow
-        // Observation timeline
-        +'<div style="margin-bottom:.5rem;margin-top:.45rem">'+obsTimeline(emp)+'</div>'
+        // Observation timeline (Apprentice Tracker — month pills)
+        +'<div style="margin-top:.4rem;margin-bottom:.2rem">'+obsTimeline(emp)+'</div>'
+        // Formal obs summary (live obs sheet)
+        +formalObsSection
+        // Site leader obs at this school
+        +slObsSection
         // OTJ progress
-        +'<div style="margin-bottom:.3rem">'
-          +'<span style="font-size:.67rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-right:.4rem">OTJ:</span>'
+        +'<div style="margin-top:.4rem;margin-bottom:.25rem">'
+          +'<span style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-right:.4rem">OTJ:</span>'
           +otjBadges(emp)
         +'</div>'
         +concernHtml
