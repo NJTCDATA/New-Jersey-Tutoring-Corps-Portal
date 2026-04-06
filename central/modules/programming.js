@@ -5723,6 +5723,53 @@
         return _stuRows ? _stuRows.slice() : [];
       },
 
+      // getTutorSurveyScores() — per-tutor aggregated survey scores, joined through _sessMap
+      // The streaming/cache paths don't store FILLED_FOR (tutor name) in raw rows.
+      // This method resolves tutor names via _sessMap[sessId].instructor so it works
+      // regardless of how survey data was loaded.
+      // Returns array of { name, school, district, confidence, enjoyment, learning, overall, count }
+      // sorted by overall score desc. Pass tutorName to filter to one person.
+      getTutorSurveyScores: function(tutorName) {
+        try {
+          var byTutor = {};
+          (_stuRows || []).forEach(function(r) {
+            var sessId = r[11];
+            var sess   = sessId && _sessMap ? _sessMap[sessId] : null;
+            var tname  = (sess && sess.instructor) ? sess.instructor.trim() : (r[1] || '').trim();
+            if (!tname) return;
+            // Optional filter
+            if (tutorName) {
+              var normT = tname.toLowerCase().replace(/[^a-z ]/g,'');
+              var normQ = tutorName.toLowerCase().replace(/[^a-z ]/g,'');
+              // Must share last name token
+              var tLast = normT.split(' ').slice(-1)[0];
+              var qLast = normQ.split(' ').slice(-1)[0];
+              if (tLast !== qLast && normT.indexOf(normQ) < 0 && normQ.indexOf(normT) < 0) return;
+            }
+            if (!byTutor[tname]) byTutor[tname] = {
+              name: tname,
+              school:   (sess && sess.school)   || '',
+              district: (sess && sess.district) || '',
+              conf: [], enjoy: [], learn: [], ovr: []
+            };
+            var c=parseFloat(r[2]),e=parseFloat(r[3]),l=parseFloat(r[4]),o=parseFloat(r[5]);
+            if (!isNaN(c)&&c>0) byTutor[tname].conf.push(c);
+            if (!isNaN(e)&&e>0) byTutor[tname].enjoy.push(e);
+            if (!isNaN(l)&&l>0) byTutor[tname].learn.push(l);
+            if (!isNaN(o)&&o>0) byTutor[tname].ovr.push(o);
+          });
+          function avg(arr) { return arr.length ? parseFloat((arr.reduce(function(a,b){return a+b;},0)/arr.length).toFixed(2)) : null; }
+          return Object.values(byTutor).map(function(t) {
+            return {
+              name: t.name, school: t.school, district: t.district,
+              confidence: avg(t.conf), enjoyment: avg(t.enjoy),
+              learning:   avg(t.learn), overall:   avg(t.ovr),
+              count: Math.max(t.conf.length, t.enjoy.length, t.learn.length, t.ovr.length)
+            };
+          }).sort(function(a,b){ return (b.overall||0)-(a.overall||0); });
+        } catch(e) { return []; }
+      },
+
       // getLateFilerStats() — tutors with ≥50% late survey submission rate
       // Exposed for PIE anomaly detection. Recomputes on each call (lightweight).
       getLateFilerStats: function() {
