@@ -1508,6 +1508,11 @@ ${attRisk.length ? `
       </div>`;
     };
 
+    // Aggregate watch-list summary (no individual names — confidential)
+    const watchNeedsSupport = watchList.filter(e=>e.t==='needs_support').length;
+    const watchHighConcerns = watchList.filter(e=>(e._liveConcerns||0)>=2&&e.t!=='needs_support').length;
+    const watchActiveAction = watchList.filter(e=>/termination|write.?up|pgp/i.test(e._liveHRAction||'')).length;
+
     return `
 <!-- Header -->
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.125rem 1.5rem;border-radius:10px;color:#fff;margin-bottom:1.125rem">
@@ -1516,58 +1521,98 @@ ${attRisk.length ? `
   <div style="font-size:.8rem;color:rgba(255,255,255,.6)">${total} employees · ${active} active · SY 2022–2026</div>
 </div>
 
-<!-- Tier distribution -->
+<!-- Performance Tier Distribution + Definitions -->
 <div style="margin-bottom:1.125rem;padding:1rem 1.125rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
   <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.625rem">Performance Tier Distribution</div>
   <div style="display:flex;gap:3px;border-radius:6px;overflow:hidden;height:10px;margin-bottom:.625rem">${tierBar}</div>
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.375rem">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.375rem;margin-bottom:.75rem">
     ${tierOrder.map(t=>{const c=_tier(t); return`<div style="text-align:center;padding:.375rem .25rem;background:${c.bg+'33'};border-radius:6px">
       <div style="font-size:1.125rem;font-weight:800;color:${c.color}">${byTier[t]}</div>
       <div style="font-size:.6rem;color:var(--muted)">${c.label}</div>
     </div>`;}).join('')}
   </div>
+  <!-- Tier definitions — always visible per CEO direction -->
+  <details style="margin-top:.5rem">
+    <summary style="font-size:.7rem;font-weight:700;color:var(--blue-mid);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.3rem">
+      <span>▸</span> What do these tiers mean?
+    </summary>
+    <div style="margin-top:.625rem;display:flex;flex-direction:column;gap:.4rem;padding:.625rem;background:var(--surface-2);border-radius:8px;font-size:.75rem">
+      <div><span style="font-weight:700;color:#0d6e3a">⭐ Stellar</span> — Meets or exceeds ALL benchmarks consistently: scholar att ≥85%, tutor att ≥90%, surveys on time, no active HR concerns, scholar survey avg ≥4.0/5, sustained 8+ weeks. Identified as a program model and retention priority.</div>
+      <div><span style="font-weight:700;color:#2563eb">✅ Strong</span> — Meeting core benchmarks with no critical flags. Minor operational gaps acceptable. No active HR action. Solid, reliable performer.</div>
+      <div><span style="font-weight:700;color:#d97706">📈 Developing</span> — Below one or more benchmarks but progressing. Scholar att 75–84% or tutor att 80–89%, or ≥2 late surveys. Needs monitoring and proactive support.</div>
+      <div><span style="font-weight:700;color:#b91c1c">🔴 Needs Support</span> — Critically below benchmarks: scholar att &lt;75%, tutor att &lt;80%, multiple missed surveys, or active HR action (Write Up, PGP, or Termination). Requires immediate intervention.</div>
+      <div><span style="font-weight:700;color:var(--muted)">— No Score</span> — Insufficient data to compute a tier. New hire or missing Pearl/survey records.</div>
+      <div style="margin-top:.375rem;padding-top:.375rem;border-top:1px solid var(--border);color:var(--muted);font-style:italic">Note: Operational flags (late survey, HIT ratio) are separate from performance tiers. A Stellar employee may carry minor operational flags — review context before acting on a flag alone.</div>
+    </div>
+  </details>
 </div>
 
-<!-- 2-col: Top performers + Watch list -->
+<!-- 2-col: Stellar performers + Operational risk summary -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem;margin-bottom:1.125rem">
-  <!-- Top performers -->
-  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px">
+  <!-- Stellar performers — positive recognition, appropriate for exec visibility -->
+  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid #bbf7d0;border-radius:10px">
     <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#0d6e3a;letter-spacing:.07em;margin-bottom:.5rem">🌟 Stellar Performers (Active · 2+ Cycles)</div>
     ${topPerformers.length
       ? `<div style="display:flex;flex-direction:column;gap:.3rem">${topPerformers.map(e=>nameRow(e,false)).join('')}</div>`
       : '<div style="font-size:.75rem;color:var(--muted)">No records match criteria</div>'}
   </div>
-  <!-- Watch list -->
-  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid #fed7aa;border-radius:10px">
-    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.5rem">⚠️ Active Watch List</div>
-    ${watchList.length
-      ? `<div style="display:flex;flex-direction:column;gap:.3rem">${watchList.map(e=>nameRow(e,true,true)).join('')}</div>`
-      : '<div style="font-size:.75rem;color:#0d6e3a">No active watch items ✓</div>'}
+  <!-- Operational risk summary — aggregate only, no individual names -->
+  <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid ${watchList.length?'#fed7aa':'#bbf7d0'};border-radius:10px">
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:${watchList.length?'#92400e':'#0d6e3a'};letter-spacing:.07em;margin-bottom:.5rem">⚠️ Operational Risk Summary</div>
+    ${watchList.length ? `
+    <div style="display:flex;flex-direction:column;gap:.5rem">
+      <div style="font-size:.875rem;font-weight:700;color:#92400e">${watchList.length} employee${watchList.length!==1?'s':''} flagged for review</div>
+      <div style="display:flex;flex-direction:column;gap:.3rem;font-size:.775rem;color:var(--muted)">
+        ${watchActiveAction>0?`<div>🔴 <strong style="color:#b91c1c">${watchActiveAction}</strong> with active HR action (Termination/PGP/Write Up)</div>`:''}
+        ${watchNeedsSupport>0?`<div>🟠 <strong style="color:#92400e">${watchNeedsSupport}</strong> in Needs Support tier</div>`:''}
+        ${watchHighConcerns>0?`<div>⚠️ <strong style="color:#b45309">${watchHighConcerns}</strong> with multiple active concern records</div>`:''}
+      </div>
+      <div style="font-size:.7rem;color:var(--muted);border-top:1px solid var(--border);padding-top:.375rem;margin-top:.125rem;font-style:italic">Individual details are confidential. Open Talent Analytics → HR view for full records.</div>
+    </div>` : '<div style="font-size:.75rem;color:#0d6e3a">✅ No active operational risk flags</div>'}
   </div>
 </div>
 
-<!-- Risk flags panel -->
+<!-- HR Actions Panel — counts only, no individual names (confidential) -->
 ${(termRisk.length||pgpList.length||attRisk.length||multiConcerns.length) ? `
 <div style="padding:.875rem 1rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:10px;margin-bottom:1.125rem">
-  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em;margin-bottom:.5rem">🚨 HR Risk Flags Requiring Leadership Awareness</div>
-  <div style="font-size:.7rem;color:#b45309;margin-bottom:.625rem;font-style:italic">Individual details are confidential — full records available in Talent Analytics · HR view only.</div>
-  <div style="display:flex;flex-direction:column;gap:.4rem">
-    ${termRisk.length?`<div style="font-size:.8rem;color:#b91c1c"><strong>Termination Recommended (${termRisk.length}):</strong> ${termRisk.map(e=>esc(e.n)).join(' · ')}</div>`:''}
-    ${pgpList.length?`<div style="font-size:.8rem;color:#92400e"><strong>Active PGP:</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${pgpList.length} employee${pgpList.length!==1?'s':''}</span> — see HR dept for details</div>`:''}
-    ${attRisk.length?`<div style="font-size:.8rem;color:#92400e"><strong>Attendance Below 80% (Active Staff):</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${attRisk.length} employee${attRisk.length!==1?'s':''}</span> — see Talent Analytics for breakdown</div>`:''}
-    ${multiConcerns.length?`<div style="font-size:.8rem;color:#92400e"><strong>Multiple Active Concerns:</strong> <span style="background:#FEF3C7;border-radius:4px;padding:.05rem .4rem;font-weight:700">${multiConcerns.length} employee${multiConcerns.length!==1?'s':''}</span> — see HR dept for details</div>`:''}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+    <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.07em">🚨 Active HR Actions — Leadership Awareness</div>
+    <div style="font-size:.65rem;color:#b45309;font-style:italic;text-align:right;max-width:55%">Confidential — individual records restricted to HR dept view</div>
   </div>
-</div>` : `<div style="padding:.75rem 1rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.8125rem;color:#065f46;margin-bottom:1.125rem">✅ No critical HR risk flags at this time</div>`}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem">
+    ${termRisk.length?`<div style="padding:.5rem .75rem;background:#fee2e2;border-radius:8px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#b91c1c">${termRisk.length}</div>
+      <div style="font-size:.7rem;color:#b91c1c;font-weight:600">Termination Recommended</div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">Escalate to CEO + HR Director</div>
+    </div>`:''}
+    ${pgpList.length?`<div style="padding:.5rem .75rem;background:#FEF3C7;border-radius:8px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#92400e">${pgpList.length}</div>
+      <div style="font-size:.7rem;color:#92400e;font-weight:600">Active PGP</div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">Performance growth plans in progress</div>
+    </div>`:''}
+    ${attRisk.length?`<div style="padding:.5rem .75rem;background:#FEF3C7;border-radius:8px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#d97706">${attRisk.length}</div>
+      <div style="font-size:.7rem;color:#d97706;font-weight:600">Attendance Below 80%</div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">Active staff — see breakdown in HR view</div>
+    </div>`:''}
+    ${multiConcerns.length?`<div style="padding:.5rem .75rem;background:#FEF3C7;border-radius:8px;text-align:center">
+      <div style="font-size:1.5rem;font-weight:800;color:#b45309">${multiConcerns.length}</div>
+      <div style="font-size:.7rem;color:#b45309;font-weight:600">Multiple Active Concerns</div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">2+ concern records on file</div>
+    </div>`:''}
+  </div>
+</div>` : `<div style="padding:.75rem 1rem;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;font-size:.8125rem;color:#065f46;margin-bottom:1.125rem">✅ No active HR actions at this time</div>`}
 
 <!-- Academic summary -->
 ${hasAcad ? `
 <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:1.125rem">
-  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.625rem">📚 i-Ready Academic Outcomes (Tutor-Level)</div>
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.625rem">📚 i-Ready Academic Outcomes (Program-Level)</div>
   <div style="display:flex;gap:1.25rem;flex-wrap:wrap">
     <span style="font-size:.875rem"><strong style="color:#7c3aed">${totalScholars}</strong> <span style="color:var(--muted)">scholars in dataset</span></span>
-    <span style="font-size:.875rem"><strong style="color:${avgPctMoved>=40?'#0d6e3a':'#d97706'}">${avgPctMoved}%</strong> <span style="color:var(--muted)">avg tutors' scholars improved placement</span></span>
+    <span style="font-size:.875rem"><strong style="color:${avgPctMoved>=40?'#0d6e3a':'#d97706'}">${avgPctMoved}%</strong> <span style="color:var(--muted)">avg of scholars improved placement</span></span>
     <span style="font-size:.875rem"><strong>${acadMovers.length}</strong> <span style="color:var(--muted)">tutors with academic data</span></span>
   </div>
+  <div style="font-size:.7rem;color:var(--muted);margin-top:.375rem;font-style:italic">For tutor-level academic detail, open iReady Analysis Lab or T&D Analytics.</div>
 </div>` : ''}
 
 <!-- Rehire pipeline -->

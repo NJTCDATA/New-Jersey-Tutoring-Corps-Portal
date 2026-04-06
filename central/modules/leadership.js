@@ -227,7 +227,6 @@
         { id:'ecdi-f-race',    label:'Race',       field:'race',       vals:_uniq('race')       },
         { id:'ecdi-f-eth',     label:'Ethnicity',  field:'ethnicity',  vals:_uniq('ethnicity')  },
         { id:'ecdi-f-econ',    label:'Econ Status',field:'econ',       vals:_uniq('econ')       },
-        { id:'ecdi-f-tutor',   label:'Tutor',      field:'tutor',      vals:_uniq('tutor')      }
       ].filter(function(s){ return s.vals.length > 1; });
 
       function _sel(s) {
