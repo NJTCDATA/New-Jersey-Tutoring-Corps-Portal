@@ -3365,12 +3365,20 @@
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
     <title>NJTC — ${reportTitle}</title>
     <style>
+      * { box-sizing: border-box; }
       body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 2rem; color: #111; background: #fff; max-width: 900px; margin: 0 auto; }
-      @media print { body { padding: .5in; } .no-print { display: none !important; } }
+      @media print {
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body { padding: .5in; }
+        .no-print { display: none !important; }
+        tr:hover td { background: inherit !important; }
+      }
       h1 { font-size: 1.5rem; font-weight: 900; color: ${logoHex}; margin: 0; }
       .cover-bar { background: ${logoHex}; color: #fff; padding: 1.25rem 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; display: flex; align-items: flex-end; justify-content: space-between; }
       .cover-sub { font-size: .8rem; opacity: .75; margin-top: .25rem; }
       .gold-badge { background: ${goldHex}; color: #fff; font-size: .7rem; font-weight: 800; padding: .25rem .75rem; border-radius: 20px; letter-spacing: .04em; }
+      table { width: 100%; border-collapse: collapse; }
+      td, th { word-wrap: break-word; overflow-wrap: break-word; }
     </style>
     </head><body>
     <div class="cover-bar">
