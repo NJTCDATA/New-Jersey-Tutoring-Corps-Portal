@@ -5695,7 +5695,7 @@
           if (!lf) return 'Pearl data not loaded — open Pearl Operations first.';
           if (!lf.totalFlagged) return '✅ No tutors flagged for chronic late survey submissions. All filed within expected window.';
           var msg = '**Late Survey Filers — Tutors filing 50%+ surveys AFTER session date:**\n\n';
-          msg += '🕐 **'+lf.totalFlagged+' tutor'+(lf.totalFlagged!==1?'s')+' flagged** · '+lf.totalLate+' late submissions total\n\n';
+          msg += '🕐 **'+lf.totalFlagged+' tutor'+(lf.totalFlagged!==1?'s':'')+' flagged** · '+lf.totalLate+' late submissions total\n\n';
           lf.flagged.forEach(function(t){
             msg += '• **'+t.name+'** — '+t.lateRate+'% late ('+t.late+'/'+t.submitted+' submissions) · '+t.school+'\n';
           });
