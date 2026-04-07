@@ -73,8 +73,24 @@
       dissatisfactionCategory: raw['If applicable, which category describes the source...'] || '',
       improvementComment:      raw['How can we offer more support...'] || '',
       followUpNote:            raw['Program Team Follow Up'] || '',
-      quarter:                 raw['Quarter Status'] || '',
+      quarter:                 pickQuarter(raw),
     };
+  }
+
+  // Try every plausible name for the quarter column, then fall back to
+  // whichever key sits at column-N position (index 13, 0-based).
+  function pickQuarter(raw) {
+    const names = ['Quarter Status', 'Quarter Status:', 'Quarter', 'Quarter:', 'Q Status', 'Survey Quarter', 'Survey Q', 'Q'];
+    for (const n of names) {
+      if (raw[n] && raw[n].trim()) return raw[n].trim();
+    }
+    // Position-based fallback: column N is the 14th column (index 13)
+    const keys = Object.keys(raw);
+    if (keys.length >= 14) {
+      const val = (raw[keys[13]] || '').trim();
+      if (val) return val;
+    }
+    return '';
   }
 
   function normalizeDistrict(d) {
@@ -266,9 +282,14 @@
       const resp = await fetch(CSV_URL, { signal: AbortSignal.timeout(20000) });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
-      _allData = parseCSV(text)
+      const rawRows = parseCSV(text);
+      // Debug: log column headers so we can verify the quarter column name
+      if (rawRows.length) console.log('[SF] CSV column headers:', Object.keys(rawRows[0]));
+      _allData = rawRows
         .map(normalizeRow)
         .filter(r => r.npsScore >= 1 && r.npsScore <= 5);
+      const qSample = _allData.map(r => r.quarter).filter(Boolean);
+      console.log('[SF] Quarter values found (' + qSample.length + ' of ' + _allData.length + ' rows):', [...new Set(qSample)]);
       _loaded = true;
       detectView();
       renderShell();
