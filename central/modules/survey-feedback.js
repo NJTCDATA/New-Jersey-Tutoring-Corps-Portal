@@ -314,6 +314,7 @@
         </div>
         <div class="ph-actions">
           <button class="btn btn-secondary" onclick="sfRefresh()" title="Re-fetch data from Google Sheets">↻ Refresh</button>
+          <button class="btn btn-primary" id="sfPdfBtn" onclick="sfExportPDF()" style="margin-left:.5rem" title="Download PDF report">⬇ Export PDF</button>
         </div>
       </div>
       <div class="sf-view-tabs" role="tablist">
@@ -452,8 +453,12 @@
   // ── Filter handlers (program/leadership) ──────────────────────────
   window.sfQAll    = function () { _filters.quarters = []; renderCurrentView(); };
   window.sfQToggle = function (q) {
-    const i = _filters.quarters.indexOf(q);
-    if (i >= 0) _filters.quarters.splice(i, 1); else _filters.quarters.push(q);
+    // Single-select: clicking a quarter focuses on only that quarter; clicking again returns to All
+    if (_filters.quarters.length === 1 && _filters.quarters[0] === q) {
+      _filters.quarters = [];
+    } else {
+      _filters.quarters = [q];
+    }
     renderCurrentView();
   };
   window.sfFSet   = function (k, v) {
@@ -468,8 +473,12 @@
 
   // ── Data view filter handlers ──────────────────────────────────────
   window.sfDQToggle = function (q) {
-    const i = _dataFilters.quarters.indexOf(q);
-    if (i >= 0) _dataFilters.quarters.splice(i, 1); else _dataFilters.quarters.push(q);
+    // Single-select: clicking a quarter focuses on only that quarter; clicking again returns to All
+    if (_dataFilters.quarters.length === 1 && _dataFilters.quarters[0] === q) {
+      _dataFilters.quarters = [];
+    } else {
+      _dataFilters.quarters = [q];
+    }
     renderCurrentView();
   };
   window.sfDQAll  = function () { _dataFilters.quarters = []; renderCurrentView(); };
@@ -975,21 +984,29 @@
     if (!canvas) return;
     destroyChart(id);
 
+    if (!allQoQ.length) {
+      const wrap = canvas.closest('.sf-chart-card');
+      if (wrap) wrap.innerHTML += '<div class="sf-empty" style="margin-top:.5rem">Not enough quarterly data for projection.</div>';
+      return;
+    }
+
     const actLabels = allQoQ.map(q => q.quarter);
     const actVals   = allQoQ.map(q => q.nps);
     const projLabels = [...actLabels];
     const projVals   = [];
 
     if (actVals.length >= 2) {
-      const slope = actVals[actVals.length - 1] - actVals[actVals.length - 2];
+      const lastNPS = actVals[actVals.length - 1];
+      const prevNPS = actVals[actVals.length - 2];
+      const slope = (lastNPS !== null && prevNPS !== null) ? lastNPS - prevNPS : 0;
       for (let i = 1; i <= 2; i++) {
         projLabels.push('Q' + (actLabels.length + i) + ' (Proj.)');
-        projVals.push(Math.round((actVals[actVals.length - 1] + slope * i) * 10) / 10);
+        projVals.push(lastNPS !== null ? Math.round((lastNPS + slope * i) * 10) / 10 : null);
       }
     }
 
     const gap = projLabels.length - actLabels.length;
-    const projData = new Array(actLabels.length - 1).fill(null)
+    const projData = new Array(Math.max(0, actLabels.length - 1)).fill(null)
       .concat(actVals.slice(-1))
       .concat(projVals);
 
@@ -1502,6 +1519,445 @@
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  // ══════════════════════════════════════════════════════════════════
+  // PDF EXPORT
+  // ══════════════════════════════════════════════════════════════════
+
+  let _sfPdfLibLoaded = false;
+
+  function loadSFPdfLibs() {
+    return new Promise((resolve, reject) => {
+      if (_sfPdfLibLoaded && window.jspdf && window.jspdf.jsPDF) { resolve(); return; }
+      const s1 = document.createElement('script');
+      s1.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+      s1.onerror = () => reject(new Error('Failed to load jsPDF'));
+      s1.onload = () => {
+        const s2 = document.createElement('script');
+        s2.src = 'https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+        s2.onerror = () => reject(new Error('Failed to load autoTable'));
+        s2.onload = () => { _sfPdfLibLoaded = true; resolve(); };
+        document.head.appendChild(s2);
+      };
+      document.head.appendChild(s1);
+    });
+  }
+
+  window.sfExportPDF = async function () {
+    const btn = document.getElementById('sfPdfBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    try {
+      await loadSFPdfLibs();
+      buildSatisfactionPDF(window.jspdf.jsPDF);
+    } catch (err) {
+      alert('PDF export failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF'; }
+    }
+  };
+
+  function buildSatisfactionPDF(jsPDF) {
+    const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W     = 210;
+    const ML    = 14, MR = 14, MT = 14;
+
+    // ── Brand colours (RGB) ─────────────────────────────────────────
+    const C = {
+      navy:  [27,  42,  74],
+      teal:  [42, 157, 143],
+      green: [13, 110, 58],
+      amber: [192, 92,   0],
+      red:   [185, 28,  28],
+      white: [255, 255, 255],
+      light: [247, 249, 252],
+      muted: [107, 114, 128],
+      body:  [ 45,  45,  45],
+    };
+
+    // ── Helpers ─────────────────────────────────────────────────────
+    function ss(s) {
+      return String(s || '')
+        .replace(/\u2014/g, '-').replace(/\u2013/g, '-')
+        .replace(/\u2019/g, "'").replace(/\u201C/g, '"').replace(/\u201D/g, '"')
+        .replace(/[^\x20-\x7E\xA0-\xFF]/g, '')
+        .replace(/\s+/g, ' ').trim();
+    }
+    function fmtN(nps) {
+      if (nps === null || nps === undefined || isNaN(nps)) return 'N/A';
+      return (nps > 0 ? '+' : '') + nps;
+    }
+    function npsRgb(nps) {
+      if (nps === null || nps === undefined || isNaN(nps)) return C.muted;
+      return nps >= 50 ? C.green : nps >= 20 ? C.amber : C.red;
+    }
+    function riskOf(recent, prev) {
+      if (!recent.length) return 'healthy';
+      const hasDetractor = recent.some(r => r.npsScore <= 2);
+      const dissatCount  = recent.filter(r => ['Dissatisfied', 'Very Dissatisfied'].includes(r.satisfactionLevel)).length;
+      const { nps: currNPS } = calcNPS(recent);
+      const { nps: prevNPS } = calcNPS(prev);
+      const qoqDrop = (prevNPS !== null && currNPS !== null) ? prevNPS - currNPS : 0;
+      if (hasDetractor || qoqDrop >= 20 || dissatCount >= 2) return 'at-risk';
+      if ((currNPS !== null && currNPS < 20) || qoqDrop >= 10) return 'watch';
+      return 'healthy';
+    }
+
+    // ── Source data based on current view ───────────────────────────
+    const viewLabel = { program: 'Program Team', leadership: 'Leadership', data: 'Data Department' }[_view] || 'Report';
+    const rows      = _view === 'data' ? filteredRawData() : filteredPublicData();
+    const allRows   = _view === 'data' ? _allData : pubData(_allData);
+    const allQoQ    = qoqBreakdown(allRows);
+    const nd        = calcNPS(rows);
+    const qs        = getQuarters();
+    const recentQ   = qs[qs.length - 1] || null;
+    const prevQ     = qs[qs.length - 2] || null;
+
+    // Active filter summary
+    const f = _view === 'data' ? _dataFilters : _filters;
+    const fParts = [];
+    if (f.quarters && f.quarters.length) fParts.push('Quarter: ' + f.quarters.join(', '));
+    if (f.district)  fParts.push('District: ' + f.district);
+    if (f.school)    fParts.push('School: '   + f.school);
+    if (f.role)      fParts.push('Role: '     + f.role);
+    if (_view === 'data') {
+      if (_dataFilters.satisfaction) fParts.push('Satisfaction: ' + _dataFilters.satisfaction);
+      if (_dataFilters.npsMin) fParts.push('NPS: ' + _dataFilters.npsMin + '-' + _dataFilters.npsMax);
+    }
+    const filterLine = fParts.length ? 'Filters: ' + fParts.join('  |  ') : 'All data — no filters applied';
+    const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    let y = MT;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 1 — COVER HEADER
+    // ══════════════════════════════════════════════════════════════
+    doc.setFillColor(...C.navy);
+    doc.rect(0, 0, W, 26, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+    doc.text('NJTC — Partner Satisfaction Report', ML, 11);
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+    doc.text(viewLabel + ' View  ·  Generated ' + dateStr, ML, 18);
+    doc.text(ss(filterLine), ML, 24, { maxWidth: W - ML - MR });
+
+    y = 32;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 2 — NPS HERO
+    // ══════════════════════════════════════════════════════════════
+    doc.setFillColor(...C.light);
+    doc.roundedRect(ML, y, W - ML - MR, 30, 2, 2, 'F');
+
+    const scoreCol = npsRgb(nd.nps);
+    doc.setTextColor(...scoreCol);
+    doc.setFontSize(30); doc.setFont('helvetica', 'bold');
+    doc.text(fmtN(nd.nps), ML + 5, y + 20);
+
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text('Adapted NPS (1-5 Scale)', ML + 5, y + 26);
+    doc.text('n = ' + nd.total, ML + 5, y + 8);
+
+    const bx = ML + 55;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    doc.setTextColor(...C.green);
+    doc.text('Promoters (4-5): ' + nd.promoterPct + '%  (' + nd.promoters + ')', bx, y + 9);
+    doc.setTextColor(...C.amber);
+    doc.text('Passives   (3):  ' + nd.passivePct  + '%  (' + nd.passives  + ')', bx, y + 17);
+    doc.setTextColor(...C.red);
+    doc.text('Detractors (1-2): ' + nd.detractorPct + '%  (' + nd.detractors + ')', bx, y + 25);
+
+    y += 37;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 3 — SCORE DISTRIBUTION
+    // ══════════════════════════════════════════════════════════════
+    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text('Score Distribution (1-5)', ML, y);
+    y += 4;
+
+    const scoreDist = [1,2,3,4,5].map(s => {
+      const cnt = rows.filter(r => r.npsScore === s).length;
+      const pct = nd.total ? Math.round(cnt / nd.total * 100) : 0;
+      return [String(s), s <= 2 ? 'Detractor' : s === 3 ? 'Passive' : 'Promoter', String(cnt), pct + '%'];
+    });
+    doc.autoTable({
+      startY: y, head: [['Score','Category','Count','% of Total']],
+      body: scoreDist,
+      theme: 'striped',
+      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: C.body },
+      columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+      margin: { left: ML, right: MR },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 4 — QUARTER-OVER-QUARTER CHANGES
+    // ══════════════════════════════════════════════════════════════
+    if (allQoQ.length > 0) {
+      if (y > 240) { doc.addPage(); y = MT; }
+      doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('Quarter-over-Quarter NPS Changes', ML, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
+      doc.text('Green = improvement  |  Red = decline  |  — = first quarter on record', ML, y + 4);
+      y += 8;
+
+      const qoqBody = allQoQ.map((q, i) => {
+        const prev2  = i > 0 ? allQoQ[i - 1] : null;
+        const delta  = (prev2 && prev2.nps !== null && q.nps !== null) ? Math.round((q.nps - prev2.nps) * 10) / 10 : null;
+        const dStr   = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
+        const trend  = delta === null ? '—' : delta > 5 ? '↑ Improving' : delta < -5 ? '↓ Declining' : '→ Stable';
+        return [ss(q.quarter), String(q.total), fmtN(q.nps), dStr, trend];
+      });
+      doc.autoTable({
+        startY: y, head: [['Quarter','Respondents','NPS','Change (Δ)','Trend']],
+        body: qoqBody,
+        theme: 'striped',
+        headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 9, textColor: C.body },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+        didParseCell: (d) => {
+          if (d.section !== 'body') return;
+          if (d.column.index === 3) {
+            const v = parseFloat(d.cell.text[0]);
+            if (v > 0) d.cell.styles.textColor = C.green;
+            else if (v < 0) d.cell.styles.textColor = C.red;
+          }
+          if (d.column.index === 4) {
+            const t = d.cell.text[0];
+            if (t.includes('Improving')) d.cell.styles.textColor = C.green;
+            else if (t.includes('Declining')) d.cell.styles.textColor = C.red;
+          }
+        },
+        margin: { left: ML, right: MR },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 5 — DISTRICT ANALYSIS
+    // ══════════════════════════════════════════════════════════════
+    if (y > 230) { doc.addPage(); y = MT; }
+    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text('District Analysis', ML, y);
+    y += 4;
+
+    const dists2 = getDistricts(allRows);
+    const distBody = dists2.map(district => {
+      const all2    = allRows.filter(r => r.district === district);
+      const recent2 = recentQ ? all2.filter(r => r.quarter === recentQ) : all2;
+      const prev2   = prevQ   ? all2.filter(r => r.quarter === prevQ)   : [];
+      const { nps: cNPS } = calcNPS(recent2.length ? recent2 : all2);
+      const { nps: pNPS } = calcNPS(prev2);
+      const delta  = (pNPS !== null && cNPS !== null) ? Math.round((cNPS - pNPS) * 10) / 10 : null;
+      const dStr   = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
+      const trend  = delta === null ? '—' : delta > 5 ? '↑' : delta < -5 ? '↓' : '→';
+      const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[riskOf(recent2.length ? recent2 : all2, prev2)] || '—';
+      return { row: [ss(district), String(all2.length), fmtN(cNPS), dStr, trend, rLabel], delta };
+    });
+    doc.autoTable({
+      startY: y, head: [['District','Respondents','NPS','Change (Δ)','Trend','Risk']],
+      body: distBody.map(d => d.row),
+      theme: 'striped',
+      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8.5, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 8.5, textColor: C.body },
+      columnStyles: { 0: { cellWidth: 62 }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+      didParseCell: (d) => {
+        if (d.section !== 'body') return;
+        const delta = distBody[d.row.index]?.delta;
+        if (d.column.index === 3 && delta !== null) {
+          d.cell.styles.textColor = delta > 0 ? C.green : delta < 0 ? C.red : C.body;
+        }
+      },
+      margin: { left: ML, right: MR },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 6 — SCHOOL PERFORMANCE CHANGES (if 2+ quarters)
+    // ══════════════════════════════════════════════════════════════
+    if (recentQ && prevQ) {
+      if (y > 220) { doc.addPage(); y = MT; }
+      doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      doc.text('School Performance: ' + ss(prevQ) + ' → ' + ss(recentQ), ML, y);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
+      doc.text('Sorted by risk then by largest decline first.', ML, y + 4);
+      y += 8;
+
+      const allPubSch = pubData(_allData);
+      const schools2  = [...new Set(allPubSch.map(r => r.school).filter(Boolean))].sort();
+      const schRows = schools2.map(school => {
+        const all3 = allPubSch.filter(r => r.school === school);
+        const rec3 = all3.filter(r => r.quarter === recentQ);
+        const pre3 = all3.filter(r => r.quarter === prevQ);
+        if (!rec3.length) return null;
+        const { nps: cNPS } = calcNPS(rec3);
+        const { nps: pNPS } = calcNPS(pre3);
+        const delta = (pNPS !== null && cNPS !== null) ? Math.round((cNPS - pNPS) * 10) / 10 : null;
+        const dStr  = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
+        const trend = delta === null ? '—' : delta > 5 ? '↑ Improving' : delta < -5 ? '↓ Declining' : '→ Stable';
+        const risk  = riskOf(rec3, pre3);
+        const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[risk];
+        return { delta, risk, row: [ss(school), String(rec3.length), fmtN(cNPS), dStr, trend, rLabel] };
+      }).filter(Boolean);
+
+      const rOrder = { 'at-risk': 0, 'watch': 1, 'healthy': 2 };
+      schRows.sort((a, b) => {
+        const rd = rOrder[a.risk] - rOrder[b.risk];
+        return rd !== 0 ? rd : (a.delta || 0) - (b.delta || 0);
+      });
+
+      doc.autoTable({
+        startY: y, head: [['School', 'N', 'NPS', 'Δ vs ' + ss(prevQ), 'Trend', 'Risk']],
+        body: schRows.map(s => s.row),
+        theme: 'striped',
+        headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 8, textColor: C.body },
+        columnStyles: { 0: { cellWidth: 55 }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+        didParseCell: (d) => {
+          if (d.section !== 'body') return;
+          const delta = schRows[d.row.index]?.delta;
+          if (d.column.index === 3 && delta !== null) {
+            d.cell.styles.textColor = delta > 0 ? C.green : delta < 0 ? C.red : C.body;
+          }
+          if (d.column.index === 4) {
+            const t = d.cell.text[0];
+            if (t.includes('Improving')) d.cell.styles.textColor = C.green;
+            else if (t.includes('Declining')) d.cell.styles.textColor = C.red;
+          }
+        },
+        margin: { left: ML, right: MR },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 7 — ROLE NPS BREAKDOWN
+    // ══════════════════════════════════════════════════════════════
+    if (y > 230) { doc.addPage(); y = MT; }
+    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    doc.text('Role NPS Breakdown', ML, y);
+    y += 4;
+
+    const roleBody = getRoles().map(role => {
+      const rData = rows.filter(r => r.role === role);
+      const { nps, total: rn } = calcNPS(rData);
+      const cat = nps === null ? 'N/A' : nps >= 50 ? 'Strong' : nps >= 20 ? 'Moderate' : nps >= 0 ? 'Weak' : 'Negative';
+      return { nps, row: [ss(role), String(rn), fmtN(nps), cat] };
+    });
+    doc.autoTable({
+      startY: y, head: [['Role','Respondents','NPS','Category']],
+      body: roleBody.map(r => r.row),
+      theme: 'striped',
+      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 9, textColor: C.body },
+      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+      didParseCell: (d) => {
+        if (d.section !== 'body') return;
+        const nps = roleBody[d.row.index]?.nps;
+        if (d.column.index === 2 && nps !== null) {
+          d.cell.styles.textColor = nps >= 50 ? C.green : nps >= 20 ? C.amber : C.red;
+        }
+      },
+      margin: { left: ML, right: MR },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ══════════════════════════════════════════════════════════════
+    // SECTION 8 — DATA DEPT: INDIVIDUAL RESPONDENT CHANGES
+    // ══════════════════════════════════════════════════════════════
+    if (_view === 'data') {
+      const returning = getReturningRespondents(_allData);
+      if (returning.length) {
+        if (y > 210) { doc.addPage(); y = MT; }
+        doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text('Individual Respondent Changes (Longitudinal)', ML, y);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
+        doc.text('Matched by email across quarters. Sorted by largest decline first.', ML, y + 4);
+        y += 9;
+
+        const longRows = returning.map(group => {
+          group.sort((a, b) => a.quarter.localeCompare(b.quarter));
+          const latest = group[group.length - 1];
+          const qScores = {};
+          group.forEach(r => { qScores[r.quarter] = r.npsScore; });
+          const fQ = qs.find(q => qScores[q] !== undefined);
+          const lQ = [...qs].reverse().find(q => qScores[q] !== undefined);
+          const delta = fQ && lQ && fQ !== lQ ? qScores[lQ] - qScores[fQ] : null;
+          const catChg = fQ && lQ
+            ? (scoreCategory(qScores[fQ]) === scoreCategory(qScores[lQ])
+                ? scoreCategory(qScores[lQ])
+                : scoreCategory(qScores[fQ]) + ' -> ' + scoreCategory(qScores[lQ]))
+            : '';
+          const dStr = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
+          const trend = delta === null ? '—' : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+          return { delta, row: [ss(latest.email), ss(latest.role), ss(latest.school), dStr, trend, ss(catChg)] };
+        });
+        longRows.sort((a, b) => (a.delta || 0) - (b.delta || 0));
+
+        doc.autoTable({
+          startY: y, head: [['Email','Role','School','Delta','Trend','Category Change']],
+          body: longRows.map(r => r.row),
+          theme: 'striped',
+          headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 7.5, textColor: C.body },
+          columnStyles: { 0: { cellWidth: 52 }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+          didParseCell: (d) => {
+            if (d.section !== 'body') return;
+            if (d.column.index === 3) {
+              const v = parseFloat(d.cell.text[0]);
+              if (v > 0) d.cell.styles.textColor = C.green;
+              else if (v < 0) d.cell.styles.textColor = C.red;
+            }
+          },
+          margin: { left: ML, right: MR },
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      }
+
+      // ── Data Dept: Dissatisfaction Reasons ───────────────────────
+      const freq = {};
+      _allData.forEach(r => r.dissatisfactionReasons.forEach(reason => {
+        if (reason) freq[reason] = (freq[reason] || 0) + 1;
+      }));
+      const dissatSorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+      if (dissatSorted.length) {
+        if (y > 220) { doc.addPage(); y = MT; }
+        doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text('Dissatisfaction Reason Frequency', ML, y);
+        y += 4;
+        doc.autoTable({
+          startY: y, head: [['Reason','Count']],
+          body: dissatSorted.map(([k, v]) => [ss(k), String(v)]),
+          theme: 'striped',
+          headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8.5, textColor: C.body },
+          columnStyles: { 1: { halign: 'center', cellWidth: 24 } },
+          margin: { left: ML, right: MR },
+        });
+      }
+    }
+
+    // ── Page footers ────────────────────────────────────────────────
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7); doc.setTextColor(...C.muted);
+      doc.text(
+        'NJTC Partner Satisfaction  ·  ' + dateStr + '  ·  Page ' + p + ' of ' + pageCount,
+        ML, 292
+      );
+    }
+
+    // ── Trigger download ─────────────────────────────────────────
+    const filename = 'njtc-partner-satisfaction-' + new Date().toISOString().slice(0, 10) + '.pdf';
+    const blob = doc.output('blob');
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
 
   // ── Boot ─────────────────────────────────────────────────────────
   init();
