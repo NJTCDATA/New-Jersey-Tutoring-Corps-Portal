@@ -329,14 +329,16 @@ function aggregateEvents(events) {
     if (e.sessKey) bySchool[e.school].sessEvents[e.sessKey] = true;
 
     var dk = e.dateStr;
-    if (!byDate[dk]) byDate[dk] = { sessions:0, scholars:{}, bySchool:{}, byReason:{}, date:e.date };
+    if (!byDate[dk]) byDate[dk] = { sessions:0, scholars:{}, bySchool:{}, byReason:{}, sessEvents:{}, date:e.date };
     byDate[dk].sessions++;
     byDate[dk].scholars[uid] = true;
     byDate[dk].byReason[e.canonId] = (byDate[dk].byReason[e.canonId]||0)+1;
-    if (!byDate[dk].bySchool[e.school]) byDate[dk].bySchool[e.school] = { sessions:0, scholars:{}, byReason:{}, region:e.region };
+    if (e.sessKey) byDate[dk].sessEvents[e.sessKey] = true;
+    if (!byDate[dk].bySchool[e.school]) byDate[dk].bySchool[e.school] = { sessions:0, scholars:{}, byReason:{}, sessEvents:{}, region:e.region };
     byDate[dk].bySchool[e.school].sessions++;
     byDate[dk].bySchool[e.school].scholars[uid] = true;
     byDate[dk].bySchool[e.school].byReason[e.canonId] = (byDate[dk].bySchool[e.school].byReason[e.canonId]||0)+1;
+    if (e.sessKey) byDate[dk].bySchool[e.school].sessEvents[e.sessKey] = true;
   });
 
   Object.keys(byReason).forEach(function(id) {
@@ -348,9 +350,11 @@ function aggregateEvents(events) {
     bySchool[s].sessionsDisrupted = Object.keys(bySchool[s].sessEvents).length;
   });
   Object.keys(byDate).forEach(function(dk) {
-    byDate[dk].scholarCount = Object.keys(byDate[dk].scholars).length;
+    byDate[dk].scholarCount       = Object.keys(byDate[dk].scholars).length;
+    byDate[dk].sessionsDisrupted  = Object.keys(byDate[dk].sessEvents).length;
     Object.keys(byDate[dk].bySchool).forEach(function(s) {
-      byDate[dk].bySchool[s].scholarCount = Object.keys(byDate[dk].bySchool[s].scholars).length;
+      byDate[dk].bySchool[s].scholarCount      = Object.keys(byDate[dk].bySchool[s].scholars).length;
+      byDate[dk].bySchool[s].sessionsDisrupted = Object.keys(byDate[dk].bySchool[s].sessEvents).length;
     });
   });
 
@@ -1244,9 +1248,12 @@ function attachCalendarTooltips(r) {
       }
 
       var sc  = school ? (dayD.bySchool[school]||{}) : dayD;
+      var scDisr = sc.sessionsDisrupted || 0;
       var lines = '<div class="irb-tooltip-hdr">'+hdr+'</div>' +
-        'Scholars: <strong>'+((sc.scholarCount)||0)+'</strong><br>' +
-        'Sessions: <strong>'+((sc.sessions)||0)+'</strong><br>' +
+        'Scholars pulled: <strong>'+((sc.scholarCount)||0)+'</strong><br>' +
+        'Scholar-sess records: <strong>'+((sc.sessions)||0)+'</strong><br>' +
+        'Sessions disrupted: <strong>'+scDisr+'</strong>' +
+        (scDisr > 0 ? ' <span style="font-size:.7em;opacity:.7">(others may have attended)</span>' : '') + '<br>' +
         'Hrs Lost: <strong>'+(+((sc.sessions||0)*SESSION_MINS/60).toFixed(1))+'</strong>';
 
       if (multiR && sc.byReason) {
@@ -1676,9 +1683,28 @@ function exportPDFSchool() {
 
     var dateList = dates.map(function(dk) {
       var dd = a.byDate[dk].bySchool[s.school];
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4pt 10pt;border-bottom:1px solid #f1f5f9;font-size:8pt">' +
-        '<span style="font-weight:500">'+esc(dk)+' ('+DAY_NAMES[(new Date(dk)).getDay()]+')</span>' +
-        '<span style="color:#64748b">'+dd.scholarCount+' scholars &nbsp;·&nbsp; '+dd.sessions+' missed sessions</span>' +
+      var scholarsN = dd.scholarCount;
+      var recordsN  = dd.sessions;
+      var disrN     = dd.sessionsDisrupted || 0;
+      // Clarify whether scholars were spread across multiple sessions or all from the same one
+      var sessContext = disrN === 0 ? ''
+        : disrN === 1
+          ? '<span style="font-size:6.5pt;color:#7c3aed;font-weight:600"> · 1 session disrupted</span>'
+          : '<span style="font-size:6.5pt;color:#7c3aed;font-weight:600"> · '+disrN+' sessions disrupted</span>';
+      // If scholars === records, it means each scholar missed exactly 1 session
+      var recNote = recordsN !== scholarsN
+        ? '<span style="font-size:6.5pt;color:#f59e0b;font-weight:600"> ('+recordsN+' records)</span>'
+        : '';
+      return '<div style="padding:4pt 10pt;border-bottom:1px solid #f1f5f9;font-size:8pt">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="font-weight:500">'+esc(dk)+' ('+DAY_NAMES[(new Date(dk)).getDay()]+')</span>' +
+          '<span style="color:#475569;font-weight:600">'+scholarsN+' scholar'+(scholarsN!==1?'s':'')+' pulled'+recNote+sessContext+'</span>' +
+        '</div>' +
+        (disrN > 0 ? '<div style="font-size:6pt;color:#94a3b8;margin-top:1pt;padding-left:2pt">'+
+          (disrN === 1 && scholarsN === recordsN
+            ? 'All '+scholarsN+' pulled from the same session — others in that session may have attended.'
+            : 'Pulled across '+disrN+' distinct session event'+(disrN!==1?'s':'')+' — other scholars in those sessions may have attended.') +
+        '</div>' : '') +
         '</div>';
     }).join('');
 
@@ -1738,7 +1764,10 @@ function exportPDFSchool() {
       // Two-column: dates + reasons
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid #f1f5f9">' +
         '<div style="padding:10pt;border-right:1px solid #f1f5f9">' +
-          '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6pt">Impacted Dates</div>' +
+          '<div style="display:flex;align-items:baseline;gap:6pt;margin-bottom:5pt">' +
+            '<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Impacted Dates</div>' +
+            '<div style="font-size:6pt;color:#94a3b8;font-style:italic">scholars pulled ≠ sessions cancelled</div>' +
+          '</div>' +
           (dateList||'<div style="font-size:8pt;color:#94a3b8;font-style:italic">No dates in range</div>') +
         '</div>' +
         '<div style="padding:10pt">' +
