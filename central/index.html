@@ -4220,6 +4220,121 @@
     .irb-delta-down { color: #059669; }
     .irb-delta-flat { color: var(--muted); }
 
+    /* Dual-lens KPI group headers */
+    .irb-kpi-lens-hdrs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .75rem;
+      margin-bottom: .3rem;
+    }
+    .irb-kpi-lens-hdr {
+      font-size: .62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      padding: .22rem .55rem;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+    }
+    .irb-kpi-lens-hdr::before {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .irb-kpi-lens-hdr.scholar {
+      grid-column: span 3;
+      background: #f0f9ff;
+      color: #0369a1;
+    }
+    .irb-kpi-lens-hdr.scholar::before { background: #0369a1; }
+    .irb-kpi-lens-hdr.session {
+      grid-column: span 2;
+      background: #faf5ff;
+      color: #7c3aed;
+    }
+    .irb-kpi-lens-hdr.session::before { background: #7c3aed; }
+    @media (max-width: 1100px) {
+      .irb-kpi-lens-hdrs { grid-template-columns: repeat(3, 1fr); }
+      .irb-kpi-lens-hdr.scholar { grid-column: span 3; }
+      .irb-kpi-lens-hdr.session { grid-column: span 3; }
+    }
+    @media (max-width: 700px) {
+      .irb-kpi-lens-hdrs { grid-template-columns: repeat(2, 1fr); }
+      .irb-kpi-lens-hdr.scholar, .irb-kpi-lens-hdr.session { grid-column: span 2; }
+    }
+
+    /* Terminology key box */
+    .irb-term-key {
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: .75rem 1.125rem;
+      margin-bottom: .875rem;
+    }
+    .irb-term-key-hdr {
+      display: flex;
+      align-items: baseline;
+      gap: .75rem;
+      margin-bottom: .5rem;
+    }
+    .irb-term-key-title {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--navy);
+    }
+    .irb-term-key-note {
+      font-size: .65rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+    .irb-term-key-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem;
+    }
+    @media (max-width: 700px) {
+      .irb-term-key-body { grid-template-columns: 1fr; }
+    }
+    .irb-term-col {}
+    .irb-term-col-hdr {
+      font-size: .65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      padding: .2rem .5rem;
+      border-radius: 5px;
+      margin-bottom: .4rem;
+    }
+    .irb-term-col-hdr.scholar { background: #f0f9ff; color: #0369a1; }
+    .irb-term-col-hdr.session { background: #faf5ff; color: #7c3aed; }
+    .irb-term-row {
+      font-size: .68rem;
+      color: #475569;
+      line-height: 1.45;
+      padding: .18rem 0;
+    }
+    .irb-term-row strong { color: var(--navy); }
+
+    /* Report methodology footnote */
+    .irb-meth-footnote {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+      margin-top: .875rem;
+      font-size: .67rem;
+      color: #64748b;
+      line-height: 1.6;
+    }
+    .irb-meth-footnote strong { color: var(--navy); }
+
     /* Contribution bar */
     .irb-contrib-bar-wrap {
       background: #fff;
