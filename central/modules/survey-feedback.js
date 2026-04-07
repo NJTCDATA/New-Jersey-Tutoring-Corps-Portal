@@ -78,17 +78,30 @@
   }
 
   // Try every plausible name for the quarter column, then fall back to
-  // whichever key sits at column-N position (index 13, 0-based).
+  // position (column N = index 13), then scan all values for quarter-like text.
   function pickQuarter(raw) {
-    const names = ['Quarter Status', 'Quarter Status:', 'Quarter', 'Quarter:', 'Q Status', 'Survey Quarter', 'Survey Q', 'Q'];
+    // 1. Named lookup — try all common variants (with/without colon, capitalisation)
+    const names = [
+      'Quarter Status', 'Quarter Status:', 'quarter status',
+      'Quarter', 'Quarter:', 'Q Status', 'Q Status:',
+      'Survey Quarter', 'Survey Quarter:', 'Survey Q',
+    ];
     for (const n of names) {
-      if (raw[n] && raw[n].trim()) return raw[n].trim();
+      const v = (raw[n] || '').trim();
+      if (v) return v;
     }
-    // Position-based fallback: column N is the 14th column (index 13)
+    // 2. Position-based fallback — column N is the 14th column (0-based index 13)
     const keys = Object.keys(raw);
     if (keys.length >= 14) {
-      const val = (raw[keys[13]] || '').trim();
-      if (val) return val;
+      const v = (raw[keys[13]] || '').trim();
+      if (v) return v;
+    }
+    // 3. Content-scan fallback — find any column whose value looks like a quarter label
+    //    e.g. "Quarter 1", "Q1", "Q2 2025", "Quarter Two", "Fall 2025", etc.
+    const quarterPattern = /^(q\s*[1-4]|quarter\s*[0-9one two three four]+|[0-9]+\s*q|fall|spring|winter|summer)/i;
+    for (const k of keys) {
+      const v = (raw[k] || '').trim();
+      if (quarterPattern.test(v)) return v;
     }
     return '';
   }
