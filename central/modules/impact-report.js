@@ -293,32 +293,40 @@ function processRows(attRows, selectedIds, region, dateRange, districtFilter, sc
       sessTitle: r[C.SESSION] || '',
       grade:     r[C.GRADE]   || '',
       rawReason: rawReason,
-      canonId:canonId, week: r[C.WEEK] || '', mins:SESSION_MINS
+      canonId:canonId, week: r[C.WEEK] || '', mins:SESSION_MINS,
+      // Composite key that identifies a distinct tutoring session event.
+      // Using school + date + sessTitle because that's what ATT rows carry —
+      // a single session ID for the whole group, mapped from attendance detail.
+      sessKey: school + '|' + fmtMDY(d) + '|' + (r[C.SESSION] || '')
     });
   });
   return events;
 }
 
 function aggregateEvents(events) {
-  var scholars = {};
-  var byReason = {};
-  var bySchool = {};
-  var byDate   = {};
+  var scholars    = {};
+  var sessEvents  = {}; // distinct session events (school|date|title)
+  var byReason    = {};
+  var bySchool    = {};
+  var byDate      = {};
 
   events.forEach(function(e) {
     var uid = e.userId || e.userName;
     scholars[uid] = true;
+    if (e.sessKey) sessEvents[e.sessKey] = true;
 
-    if (!byReason[e.canonId]) byReason[e.canonId] = { sessions:0, scholars:{}, mins:0 };
+    if (!byReason[e.canonId]) byReason[e.canonId] = { sessions:0, scholars:{}, mins:0, sessEvents:{} };
     byReason[e.canonId].sessions++;
     byReason[e.canonId].scholars[uid] = true;
     byReason[e.canonId].mins += e.mins;
+    if (e.sessKey) byReason[e.canonId].sessEvents[e.sessKey] = true;
 
-    if (!bySchool[e.school]) bySchool[e.school] = { sessions:0, scholars:{}, mins:0, region:e.region, district:e.district, byReason:{} };
+    if (!bySchool[e.school]) bySchool[e.school] = { sessions:0, scholars:{}, mins:0, region:e.region, district:e.district, byReason:{}, sessEvents:{} };
     bySchool[e.school].sessions++;
     bySchool[e.school].scholars[uid] = true;
     bySchool[e.school].mins += e.mins;
     bySchool[e.school].byReason[e.canonId] = (bySchool[e.school].byReason[e.canonId]||0) + 1;
+    if (e.sessKey) bySchool[e.school].sessEvents[e.sessKey] = true;
 
     var dk = e.dateStr;
     if (!byDate[dk]) byDate[dk] = { sessions:0, scholars:{}, bySchool:{}, byReason:{}, date:e.date };
@@ -331,8 +339,14 @@ function aggregateEvents(events) {
     byDate[dk].bySchool[e.school].byReason[e.canonId] = (byDate[dk].bySchool[e.school].byReason[e.canonId]||0)+1;
   });
 
-  Object.keys(byReason).forEach(function(id) { byReason[id].scholarCount = Object.keys(byReason[id].scholars).length; });
-  Object.keys(bySchool).forEach(function(s)  { bySchool[s].scholarCount  = Object.keys(bySchool[s].scholars).length; });
+  Object.keys(byReason).forEach(function(id) {
+    byReason[id].scholarCount     = Object.keys(byReason[id].scholars).length;
+    byReason[id].sessionsDisrupted = Object.keys(byReason[id].sessEvents).length;
+  });
+  Object.keys(bySchool).forEach(function(s) {
+    bySchool[s].scholarCount      = Object.keys(bySchool[s].scholars).length;
+    bySchool[s].sessionsDisrupted = Object.keys(bySchool[s].sessEvents).length;
+  });
   Object.keys(byDate).forEach(function(dk) {
     byDate[dk].scholarCount = Object.keys(byDate[dk].scholars).length;
     Object.keys(byDate[dk].bySchool).forEach(function(s) {
@@ -340,9 +354,13 @@ function aggregateEvents(events) {
     });
   });
 
-  var total = events.length;
+  var total      = events.length;
+  var totalDisr  = Object.keys(sessEvents).length;
+  var avgPullRate = totalDisr > 0 ? +(total / totalDisr).toFixed(1) : 0;
   return { scholars:Object.keys(scholars).length, sessions:total,
            mins:total*SESSION_MINS, hours:+((total*SESSION_MINS)/60).toFixed(1),
+           sessionsDisrupted: totalDisr,
+           avgPullRate: avgPullRate,
            byReason:byReason, bySchool:bySchool, byDate:byDate };
 }
 
@@ -688,10 +706,11 @@ function buildReportHTML(r) {
   // BLOCK 1: KPI Strip
   var a = r.agg, pa = r.priorAgg;
   html += '<div class="irb-kpi-strip">' +
-    kpiCard('Scholars Impacted', a.scholars, fmtDelta(a.scholars, pa.scholars)) +
-    kpiCard('Sessions Lost',     a.sessions, fmtDelta(a.sessions, pa.sessions)) +
-    kpiCard('Minutes Lost',      a.mins,     fmtDelta(a.mins,     pa.mins)) +
-    kpiCard('Hours Lost',        a.hours,    fmtDelta(a.hours,    pa.hours)) +
+    kpiCard('Scholars Impacted',   a.scholars,           fmtDelta(a.scholars, pa.scholars),           'unique scholars') +
+    kpiCard('Scholar-Sess Records',a.sessions,           fmtDelta(a.sessions, pa.sessions),           'scholar × session records') +
+    kpiCard('Sessions Disrupted',  a.sessionsDisrupted,  null,                                        'distinct session events') +
+    kpiCard('Avg Pull Rate',       a.avgPullRate,        null,                                        'records ÷ events') +
+    kpiCard('Hours Lost',          a.hours,              fmtDelta(a.hours,    pa.hours),              'records × 45 min ÷ 60') +
     '</div>';
 
   // Contribution bar (multi-reason)
@@ -742,10 +761,11 @@ function buildReportHTML(r) {
   return html;
 }
 
-function kpiCard(label, val, delta) {
+function kpiCard(label, val, delta, formula) {
   return '<div class="irb-kpi-card">' +
     '<div class="irb-kpi-val">'+val.toLocaleString()+'</div>' +
     '<div class="irb-kpi-label">'+label+'</div>' +
+    (formula ? '<div class="irb-kpi-formula">'+formula+'</div>' : '') +
     (delta ? '<div class="irb-kpi-delta">'+delta+'</div>' : '') +
     '</div>';
 }
@@ -944,9 +964,12 @@ function buildRankingTable(r) {
         if (sc.byReason[id] > maxN) { maxN = sc.byReason[id]; topReason = id; }
       });
     }
+    var sessDisr = sc.sessionsDisrupted || 0;
     return { school:s, region:sc.region||'', district:sc.district||'',
              scholars:sc.scholarCount, sessions:sc.sessions,
              hrs:+((sc.mins||0)/60).toFixed(1),
+             sessDisr:sessDisr,
+             avgPull: sessDisr > 0 ? +((sc.sessions||0)/sessDisr).toFixed(1) : 0,
              priorScholars:priorSc.scholarCount||0,
              priorSessions:priorSc.sessions||0,
              topReason:topReason };
@@ -983,17 +1006,19 @@ function renderRankingHtml(schools, multiReason) {
   }
 
   var html = '<div class="irb-rank-wrap" id="irbRankWrap">' +
-    '<div class="irb-rank-title">School Impact Ranking</div>' +
+    '<div class="irb-rank-title">School Impact Ranking' +
+    '<span style="font-size:.7rem;font-weight:400;color:var(--muted);margin-left:.75rem">Scholar Impact · Session Impact</span>' +
+    '</div>' +
     '<div style="overflow-x:auto"><table class="irb-rank-table" id="irbRankTable">' +
     '<thead><tr>' +
     th('#','scholars')+ th('School','school')+ th('Region','region')+
-    th('Scholars Impacted','scholars')+ th('Sessions Lost','sessions')+ th('Hrs Lost','hrs')+
-    th('vs. Prior','priorScholars')+
+    th('Scholars','scholars')+ th('Records','sessions')+ th('Sess Disrupted','sessDisr')+ th('Avg Pull','avgPull')+
+    th('Hrs Lost','hrs')+ th('vs. Prior','priorScholars')+
     (multiReason ? th('Top Reason','topReason') : '') +
     '</tr></thead><tbody>';
 
   if (!page.length) {
-    html += '<tr><td colspan="'+(multiReason?8:7)+'" style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.875rem">No events recorded for the selected reasons and period.</td></tr>';
+    html += '<tr><td colspan="'+(multiReason?10:9)+'" style="text-align:center;padding:1.5rem;color:var(--muted);font-size:.875rem">No events recorded for the selected reasons and period.</td></tr>';
   }
 
   page.forEach(function(s, i) {
@@ -1012,8 +1037,10 @@ function renderRankingHtml(schools, multiReason) {
       '<td style="color:var(--muted);font-size:.8rem;width:28px">'+rank+'</td>' +
       '<td style="font-weight:600;font-size:.8rem">'+esc(s.school)+'</td>' +
       '<td><span style="font-size:.7rem;background:'+(s.region==='NE'?'#dbeafe':'#fce7f3')+';color:'+(s.region==='NE'?'#1e40af':'#9d174d')+';padding:.1rem .35rem;border-radius:4px;font-weight:700">'+esc(s.region||'\u2014')+'</span></td>' +
-      '<td style="font-weight:700;text-align:center">'+s.scholars+'</td>' +
-      '<td style="text-align:center">'+s.sessions+'</td>' +
+      '<td style="font-weight:700;text-align:center" title="Unique scholars impacted">'+s.scholars+'</td>' +
+      '<td style="text-align:center;color:var(--muted)" title="Scholar \xd7 session records">'+s.sessions+'</td>' +
+      '<td style="text-align:center;font-weight:600" title="Distinct session events disrupted">'+s.sessDisr+'</td>' +
+      '<td style="text-align:center;color:var(--muted)" title="Avg scholars pulled per disrupted session">'+s.avgPull+'</td>' +
       '<td style="text-align:center">'+s.hrs+'</td>' +
       '<td style="text-align:center">'+deltaHtml+'</td>' +
       (multiReason ? '<td>'+topRHtml+'</td>' : '') +
@@ -1064,9 +1091,12 @@ function _sortRanking(col) {
           if (sc.byReason[id] > maxN) { maxN = sc.byReason[id]; topReason = id; }
         });
       }
+      var sessDisr2 = sc.sessionsDisrupted || 0;
       return { school:s, region:sc.region||'', district:sc.district||'',
                scholars:sc.scholarCount, sessions:sc.sessions,
                hrs:+((sc.mins||0)/60).toFixed(1),
+               sessDisr:sessDisr2,
+               avgPull: sessDisr2 > 0 ? +((sc.sessions||0)/sessDisr2).toFixed(1) : 0,
                priorScholars:priorSc.scholarCount||0,
                priorSessions:priorSc.sessions||0,
                topReason:topReason };
@@ -1456,7 +1486,7 @@ var PDF_BASE_CSS = [
   '*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }',
   'body { font-family:"Inter",system-ui,sans-serif; color:#0f172a; background:#fff; font-size:9.5pt; line-height:1.45; }',
   '.page-break { page-break-before:always; }',
-  '@media print { @page { size:letter portrait; margin:.45in .5in; } body { padding:0; } }',
+  '@media print { @page { size:letter portrait; margin:.45in .5in; } body { padding:0; } * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; } }',
 ].join('\n');
 
 // Build ranked school list from agg
@@ -1466,9 +1496,12 @@ function _schoolRank(agg, priorAgg) {
     var psc = (priorAgg.bySchool[s]) || { scholarCount:0 };
     var topR = null; var maxN = 0;
     Object.keys(sc.byReason||{}).forEach(function(id) { if(sc.byReason[id]>maxN){maxN=sc.byReason[id];topR=id;} });
+    var sessDisr = sc.sessionsDisrupted || 0;
     return { school:s, region:sc.region||'', district:sc.district||'',
              scholars:sc.scholarCount, sessions:sc.sessions,
              hrs:+((sc.mins||0)/60).toFixed(1),
+             sessDisr:sessDisr,
+             avgPull: sessDisr > 0 ? +((sc.sessions||0)/sessDisr).toFixed(1) : 0,
              delta: sc.scholarCount - psc.scholarCount, topR:topR };
   }).sort(function(a,b) { return b.scholars - a.scholars; });
 }
@@ -1557,10 +1590,11 @@ function exportPDF() {
     '</div>' +
 
     // KPI grid
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:16pt">' +
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7pt;margin-bottom:16pt">' +
       kpi(a.scholars,'Scholars Impacted',a.scholars>pa.scholars,pa.scholars) +
-      kpi(a.sessions,'Sessions Lost',a.sessions>pa.sessions,pa.sessions) +
-      kpi(a.mins,'Minutes Lost',a.mins>pa.mins,pa.mins) +
+      kpi(a.sessions,'Scholar-Sess Records',a.sessions>pa.sessions,pa.sessions) +
+      kpi(a.sessionsDisrupted,'Sessions Disrupted',false,null) +
+      kpi(a.avgPullRate,'Avg Pull Rate',false,null) +
       kpi(a.hours,'Hours Lost',a.hours>pa.hours,pa.hours) +
     '</div>' +
 
@@ -1593,6 +1627,16 @@ function exportPDF() {
         '</tr></thead>' +
         '<tbody>'+topSchoolRows+'</tbody>' +
       '</table>' +
+    '</div>' +
+
+    // Methodology footnote
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
+      '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
+      '<strong>Scholars Impacted:</strong> count of distinct scholars with \u22651 missed-session record in the period. &nbsp;' +
+      '<strong>Scholar-Session Records:</strong> total rows where a scholar missed a session (one scholar missing two sessions = 2 records). &nbsp;' +
+      '<strong>Sessions Disrupted:</strong> count of distinct session events (school + date + session title) that had \u22651 scholar pulled from them. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> scholar-session records \xf7 sessions disrupted — average number of scholars pulled per disrupted session. &nbsp;' +
+      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
     '</div>' +
 
     // Footer
@@ -1663,19 +1707,32 @@ function exportPDFSchool() {
           '<span style="background:'+regAccent+';color:#fff;font-size:7pt;font-weight:700;padding:2pt 8pt;border-radius:20px">'+esc(regLabel)+'</span>' +
         '</div>' +
       '</div>' +
-      // Stats row
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0">' +
-        '<div style="padding:10pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#e63946">'+s.scholars+'</div>' +
-          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholars Impacted</div>' +
+      // Stats row — Scholar Impact lens + Session Impact lens
+      '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0">' +
+        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#e63946">'+s.scholars+'</div>' +
+          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholars</div>' +
+          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">unique</div>' +
         '</div>' +
-        '<div style="padding:10pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#f59e0b">'+s.sessions+'</div>' +
-          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Sessions Missed</div>' +
+        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#f59e0b">'+s.sessions+'</div>' +
+          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Records</div>' +
+          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">scholar \xd7 sess</div>' +
         '</div>' +
-        '<div style="padding:10pt;text-align:center">' +
-          '<div style="font-family:Playfair Display,serif;font-size:20pt;font-weight:700;color:#7c3aed">'+s.hrs+'</div>' +
-          '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Hours Lost</div>' +
+        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#7c3aed">'+s.sessDisr+'</div>' +
+          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Sess Disrupted</div>' +
+          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">distinct events</div>' +
+        '</div>' +
+        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
+          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#0ea5e9">'+s.avgPull+'</div>' +
+          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Avg Pull Rate</div>' +
+          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">records \xf7 events</div>' +
+        '</div>' +
+        '<div style="padding:8pt;text-align:center">' +
+          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#475569">'+s.hrs+'</div>' +
+          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Hours Lost</div>' +
+          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">rec \xd7 45 \xf7 60</div>' +
         '</div>' +
       '</div>' +
       // Two-column: dates + reasons
@@ -1716,22 +1773,36 @@ function exportPDFSchool() {
     '</div>' +
 
     // Summary strip
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:18pt">' +
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:18pt">' +
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#0f172a">'+rankedSchools.length+'</div>' +
         '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Schools Affected</div>' +
       '</div>' +
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#e63946">'+a.scholars+'</div>' +
-        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Total Scholars</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Scholars Impacted</div>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#7c3aed">'+a.sessionsDisrupted+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Sessions Disrupted</div>' +
       '</div>' +
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#f59e0b">'+a.hours+'</div>' +
-        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Total Hours Lost</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Hours Lost</div>' +
       '</div>' +
     '</div>' +
 
     schoolCards +
+
+    // Methodology footnote
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
+      '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
+      '<strong>Scholars:</strong> unique scholars with \u22651 missed-session record. &nbsp;' +
+      '<strong>Records:</strong> total scholar \xd7 session pairs missed. &nbsp;' +
+      '<strong>Sess Disrupted:</strong> distinct session events (school + date + title) with \u22651 scholar pulled. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events. &nbsp;' +
+      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
+    '</div>' +
 
     // Footer
     '<div style="border-top:1px solid #e2e8f0;padding-top:8pt;display:flex;justify-content:space-between;font-size:7pt;color:#94a3b8">' +
@@ -1844,9 +1915,11 @@ function exportPDFProgram() {
     '</div>' +
 
     // KPI row
-    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6pt;margin-bottom:14pt">' +
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5pt;margin-bottom:14pt">' +
       ['Scholars Impacted|'+a.scholars+'|vs prior: '+delta(a.scholars,pa.scholars),
-       'Sessions Lost|'+a.sessions+'|vs prior: '+delta(a.sessions,pa.sessions),
+       'Scholar-Sess Records|'+a.sessions+'|vs prior: '+delta(a.sessions,pa.sessions),
+       'Sessions Disrupted|'+a.sessionsDisrupted+'|distinct events',
+       'Avg Pull Rate|'+a.avgPullRate+'|records \xf7 events',
        'Hours Lost|'+a.hours+'|vs prior: '+delta(a.hours,pa.hours),
        'Schools Affected|'+rankedSchools.length+'|',
        '8-wk Avg|'+r.avg8Scholars+' scholars|per week'].map(function(s) {
@@ -1889,6 +1962,17 @@ function exportPDFProgram() {
         '<th style="text-align:center">Scholars</th><th style="text-align:center">Sessions</th>' +
         '<th>Schools (scholars)</th>' +
       '</tr></thead><tbody>'+dailyRows+'</tbody></table>' +
+    '</div>' +
+
+    // Methodology footnote
+    '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
+      '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
+      '<strong>Scholars Impacted:</strong> unique scholars with \u22651 missed-session record. &nbsp;' +
+      '<strong>Scholar-Session Records:</strong> total scholar \xd7 session pairs (1 scholar missing 2 sessions = 2 records). &nbsp;' +
+      '<strong>Sessions Disrupted:</strong> distinct session events (school + date + session title) that had \u22651 scholar pulled. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> records \xf7 sessions disrupted. &nbsp;' +
+      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60. &nbsp;' +
+      'Data sourced live from Pearl Operations attendance sheet.' +
     '</div>' +
 
     // Footer
