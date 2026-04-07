@@ -70,6 +70,12 @@
     const ADV_DEPTS = ['leadership','kb'];
     const advBtns = document.querySelectorAll('.dept-nav-advocacy');
     advBtns.forEach(b => b.style.display = ADV_DEPTS.includes(dept) ? '' : 'none');
+
+    // Survey Feedback — visible to programming, data, leadership, kb
+    const SURVEY_DEPTS = ['programming','data','leadership','kb'];
+    document.querySelectorAll('.dept-nav-survey').forEach(b =>
+      b.style.display = SURVEY_DEPTS.includes(dept) ? '' : 'none'
+    );
   }
 
   // ── Year extraction helpers ────────────────────────────────────
