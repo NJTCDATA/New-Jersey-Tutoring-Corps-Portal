@@ -9,11 +9,19 @@
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
 
   const DISTRICT_MAP = {
-    'Passaic Arts And Science Charter School': 'Passaic Arts and Science Charter School',
-    'Passaic Clifton Arts and Science Charter School': 'Passaic Arts and Science Charter School',
-    'Paterson Arts and Science(iLearn)': 'Paterson Arts and Science Charter School',
-    'Bergen / iLearn Schools': 'Bergen Arts and Science Charter',
-    'Haddon Township ': 'Haddon Township',
+    // iLearn CMO — Bergen, Paterson, Passaic schools all roll up under one CMO label
+    'Bergen / iLearn Schools':                          'iLearn CMO',
+    'Bergen Arts and Science Charter':                  'iLearn CMO',
+    'Bergen Arts & Science Charter':                    'iLearn CMO',
+    'Paterson Arts and Science(iLearn)':                'iLearn CMO',
+    'Paterson Arts and Science Charter School':         'iLearn CMO',
+    'Paterson Arts & Science Charter School':           'iLearn CMO',
+    'Passaic Arts And Science Charter School':          'iLearn CMO',
+    'Passaic Arts and Science Charter School':          'iLearn CMO',
+    'Passaic Clifton Arts and Science Charter School':  'iLearn CMO',
+    'Passaic Arts & Science Charter School':            'iLearn CMO',
+    // Other normalizations
+    'Haddon Township ':                                 'Haddon Township',
   };
 
   // ── State ──────────────────────────────────────────────────────────
@@ -489,7 +497,9 @@
               <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">REGIONAL SUMMARIES</div>
               <button onclick="sfExportRegionPDF('NE')"   class="sf-pdf-menu-item">🗺 NE Region Summary</button>
               <button onclick="sfExportRegionPDF('SW')"   class="sf-pdf-menu-item">🗺 SW Region Summary</button>
-              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">PARTNER REPORTS</div>
+              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">DISTRICT / CMO REPORTS</div>
+              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item">🏫 ${d}</button>`).join('')}
+              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">PARTNER REPORTS (by school)</div>
               ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item">📄 ${s}</button>`).join('')}
             </div>
           </div>
@@ -1787,6 +1797,21 @@
     }
   };
 
+  window.sfExportDistrictPDF = async function (districtName) {
+    const btn = document.getElementById('sfPdfBtn');
+    const menu = document.getElementById('sfPdfMenu');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    if (menu) menu.style.display = 'none';
+    try {
+      await loadSFPdfLibs();
+      buildDistrictPDF(window.jspdf.jsPDF, districtName);
+    } catch (err) {
+      alert('District PDF failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF ▾'; }
+    }
+  };
+
   function buildSatisfactionPDF(jsPDF, viewOverride) {
     const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W     = 210;
@@ -2198,11 +2223,9 @@
     NE: {
       label: 'Northeast Region',
       districts: [
-        'Bergen Arts and Science Charter',
+        'iLearn CMO',
         'Central Jersey College Prep Charter School',
         'Hudson Arts & Science Charter School',
-        'Passaic Arts and Science Charter School',
-        'Paterson Arts and Science Charter School',
       ],
     },
     SW: {
@@ -2444,6 +2467,190 @@
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════
+  // DISTRICT / CMO PDF — all schools under one district/CMO
+  // ══════════════════════════════════════════════════════════════════
+  function buildDistrictPDF(jsPDF, districtName) {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, ML = 14, MR = 14;
+    const C = {
+      navy: [27,42,74], teal: [42,157,143], green: [13,110,58],
+      amber: [192,92,0], red: [185,28,28], white: [255,255,255],
+      light: [247,249,252], muted: [107,114,128], body: [45,45,45],
+    };
+    function ss(s) {
+      return String(s||'').replace(/[\u2014\u2013]/g,'-').replace(/\u2019/g,"'")
+        .replace(/[\u201C\u201D]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,'')
+        .replace(/\s+/g,' ').trim();
+    }
+    function fmtN(n) { return n===null||n===undefined||isNaN(n)?'N/A':(n>0?'+':'')+n; }
+    function npsRgb(n) { return n===null||isNaN(n)?C.muted:n>=50?C.green:n>=20?C.amber:C.red; }
+    function dlPdf(doc, prefix) {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
+      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    const pub  = pubData(_allData);
+    const qs   = getQuarters();
+    const recentQ = qs[qs.length-1] || null;
+    const prevQ   = qs[qs.length-2] || null;
+    const dateStr = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+    const distRows = pub.filter(r => r.district === districtName);
+    if (!distRows.length) { alert('No data found for district: ' + districtName); return; }
+
+    const nd = calcNPS(distRows);
+    const allQoQ = qs.map(q => {
+      const qr = distRows.filter(r => r.quarter === q);
+      return { quarter: q, ...calcNPS(qr) };
+    });
+
+    let y = 14;
+    // Header
+    doc.setFillColor(...C.navy);
+    doc.rect(0, 0, W, 42, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(18); doc.setFont('helvetica','bold');
+    doc.text(ss(districtName) + ' — Partner Satisfaction', ML, 20);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text('District / CMO Summary  ·  All Schools Combined', ML, 29);
+    doc.setFontSize(8);
+    doc.text('NJTC Program Evaluation & Impact  ·  ' + dateStr + '  ·  Internal', ML, 37);
+    y = 52;
+
+    // Overall NPS hero
+    doc.setFillColor(...C.light);
+    doc.roundedRect(ML, y, W-ML-MR, 26, 3, 3, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(26); doc.setTextColor(...npsRgb(nd.nps));
+    doc.text(fmtN(nd.nps), ML+6, y+18);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...C.body);
+    doc.text(ss(districtName) + ' — Overall NPS', ML+30, y+9);
+    doc.text(nd.total + ' total respondents  ·  ' + qs.length + ' quarter(s)', ML+30, y+14);
+    doc.text('Promoters: ' + nd.promoterPct + '%  ·  Passives: ' + nd.passivePct + '%  ·  Detractors: ' + nd.detractorPct + '%', ML+30, y+20);
+    y += 32;
+
+    // QoQ trend
+    if (allQoQ.length >= 1) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Quarter-over-Quarter NPS', ML, y); y += 5;
+      doc.autoTable({
+        startY: y,
+        head: [['Quarter','NPS','Change','Respondents']],
+        body: allQoQ.map((q,i) => {
+          const prev = i>0 ? allQoQ[i-1].nps : null;
+          const delta = (prev!==null && q.nps!==null) ? Math.round((q.nps-prev)*10)/10 : null;
+          return [ss(q.quarter), fmtN(q.nps), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', String(q.total)];
+        }),
+        margin:{left:ML,right:MR},
+        styles:{fontSize:9,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+        didParseCell: function(d) {
+          if (d.section==='body' && d.column.index===1) {
+            const npsVal = parseFloat(d.cell.text[0]);
+            if (!isNaN(npsVal)) d.cell.styles.textColor = npsRgb(npsVal);
+          }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // School breakdown
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+    doc.text('School-by-School Breakdown', ML, y); y += 5;
+    const schools = [...new Set(distRows.map(r=>r.school).filter(Boolean))].sort();
+    const schoolBody = schools.map(s => {
+      const sr = distRows.filter(r=>r.school===s);
+      const curr = recentQ ? sr.filter(r=>r.quarter===recentQ) : sr;
+      const prev = prevQ   ? sr.filter(r=>r.quarter===prevQ)   : [];
+      const { nps: cNPS, total } = calcNPS(curr);
+      const { nps: pNPS }        = calcNPS(prev);
+      const delta = (cNPS!==null&&pNPS!==null) ? Math.round((cNPS-pNPS)*10)/10 : null;
+      const risk  = siteRisk(curr, prev);
+      const rIcon = risk==='at-risk'?'▲':risk==='watch'?'◆':'●';
+      const trend = delta===null?'—':delta>5?'↑ Improving':delta<-5?'↓ Declining':'→ Stable';
+      return { risk, row: [rIcon+' '+ss(s), String(total), fmtN(cNPS), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', trend] };
+    }).sort((a,b) => { const o={['at-risk']:0,watch:1,healthy:2}; return (o[a.risk]||2)-(o[b.risk]||2); });
+
+    if (schoolBody.length) {
+      doc.autoTable({
+        startY: y,
+        head: [['School','N',recentQ?ss(recentQ)+' NPS':'NPS',prevQ&&recentQ?'Δ '+ss(prevQ)+'→'+ss(recentQ):'Change','Trend']],
+        body: schoolBody.map(r=>r.row),
+        margin:{left:ML,right:MR},
+        styles:{fontSize:8.5,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+        didParseCell: function(d) {
+          if (d.section==='body' && d.column.index===2) {
+            const npsVal = parseFloat(d.cell.text[0]);
+            if (!isNaN(npsVal)) { d.cell.styles.textColor = npsRgb(npsVal); d.cell.styles.fontStyle='bold'; }
+          }
+          if (d.section==='body' && d.column.index===4) {
+            if (d.cell.text[0] && d.cell.text[0].includes('Improving')) d.cell.styles.textColor = C.green;
+            else if (d.cell.text[0] && d.cell.text[0].includes('Declining')) d.cell.styles.textColor = C.red;
+          }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Role breakdown
+    if (y < 240) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Sentiment by Role', ML, y); y += 5;
+      const roles = [...new Set(distRows.map(r=>r.role).filter(Boolean))].sort();
+      doc.autoTable({
+        startY: y,
+        head: [['Role','Respondents','NPS','Promoters','Detractors']],
+        body: roles.map(role => {
+          const rr = distRows.filter(r=>r.role===role);
+          const { nps, total, promoterPct, detractorPct } = calcNPS(rr);
+          return [ss(role), String(total), fmtN(nps), promoterPct+'%', detractorPct+'%'];
+        }),
+        margin:{left:ML,right:MR},
+        styles:{fontSize:9,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Quarter comparison by school (if 2+ quarters)
+    if (qs.length >= 2 && y < 230) {
+      doc.addPage(); y = 14;
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Quarter Detail by School', ML, y); y += 5;
+      const qColHeaders = ['School', ...qs.map(q => ss(q) + ' NPS'), 'Total'];
+      const qBody = schools.map(s => {
+        const sr = distRows.filter(r=>r.school===s);
+        const qCells = qs.map(q => fmtN(calcNPS(sr.filter(r=>r.quarter===q)).nps));
+        return [ss(s), ...qCells, String(sr.length)];
+      });
+      doc.autoTable({
+        startY: y, head: [qColHeaders], body: qBody,
+        margin:{left:ML,right:MR},
+        styles:{fontSize:8.5,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7); doc.setTextColor(...C.muted);
+      doc.text('NJTC · ' + ss(districtName) + ' · ' + dateStr + ' · Page ' + p + ' of ' + pageCount, ML, 292);
+    }
+    const slug = districtName.replace(/[^a-z0-9]/gi,'_').toLowerCase().slice(0,30);
+    dlPdf(doc, 'njtc-district-' + slug);
+  }
+
   // REGIONAL PDF — aggregate by NE / SW region
   // ══════════════════════════════════════════════════════════════════
   function buildRegionPDF(jsPDF, regionKey) {
