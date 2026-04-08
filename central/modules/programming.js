@@ -1268,6 +1268,7 @@
     let _personMap   = {};  // userId → person object
     let _sessMap     = {};  // sessionId → session object
     let _gidsResolved = false;
+    let _baseIdBad    = false;  // true when BASE_ID returns HTTP 400 (expired/revoked)
 
     let _lastFetch = null;
     let _loading   = false;
@@ -1621,8 +1622,11 @@
       } catch(e) {}
 
 
-      // Step 1: fetch the pubhtml index to discover real gid values
+      // Step 1: fetch the pubhtml index to discover real gid values.
+      // A 400 response means BASE_ID is expired/revoked — bail out immediately
+      // rather than firing 20+ parallel CSV probes that will all also return 400.
       let probedGids = [];
+      let pubhtmlBad = false;
       try {
         const pubhtmlUrl = `https://docs.google.com/spreadsheets/d/e/${BASE_ID}/pubhtml`;
         const res = await fetch(pubhtmlUrl, { signal: AbortSignal.timeout(12000) });
@@ -1633,9 +1637,28 @@
           const found = [...new Set(matches.map(m => parseInt(m[1], 10)))].filter(n => !isNaN(n));
           if (found.length) probedGids = found;
           console.log('[Pearl Ops] Discovered gids from pubhtml:', found);
+        } else if (res.status === 400 || res.status === 403 || res.status === 404) {
+          // Published URL is invalid — do not attempt further fetches against BASE_ID
+          pubhtmlBad = true;
+          _baseIdBad = true;
+          console.warn('[Pearl Ops] Published sheet URL returned HTTP', res.status,
+            '— BASE_ID may have expired. No further fetch attempts will be made. ' +
+            'Ask an admin to re-publish the Pearl data sheet and update BASE_ID.');
         }
       } catch(e) {
         console.warn('[Pearl Ops] pubhtml probe failed, will try fallback gids:', e.message);
+      }
+
+      // If the published URL itself is bad, stop here — every subsequent fetch
+      // will also fail and spam the console with 400 errors.
+      if (pubhtmlBad) {
+        // Apply hardcoded GIDs so they are non-null (used by setSyncState display)
+        GIDS.att  = 702726038;
+        GIDS.sess = 625567780;
+        if (!GIDS.inst) GIDS.inst = 1955492004;
+        if (!GIDS.stu)  GIDS.stu  = 1748668439;
+        _gidsResolved = true;
+        return false;  // signals refresh() to skip tab fetches
       }
 
       // Step 2: if pubhtml didn't yield gids, fall back to a broad sweep of
@@ -1799,7 +1822,18 @@
       const btn = document.getElementById('poRefreshBtn');
       if (btn) btn.disabled = true;
       try {
-        await resolveGids();
+        const gidsOk = await resolveGids();
+
+        // If the published sheet URL is invalid (HTTP 400/403/404), abort all
+        // tab fetches — every request would also return 400, flooding the console.
+        // Show a clear data-source warning and preserve any cached data on screen.
+        if (!gidsOk || _baseIdBad) {
+          setSyncState('datasource-error');
+          if (btn) btn.disabled = false;
+          _loading = false;
+          return;
+        }
+
         const bust = force ? '&t=' + Date.now() : '';
 
         // ── Per-tab fetch with independent timeouts ──────────────────────
@@ -4961,6 +4995,11 @@
         dot.style.background = '#f59e0b';
         const totalRec = _attRows.length + _sessRows.length + _stuRows.length + _instRows.length;
         if (txt) txt.innerHTML = `<strong>Cached · Pearl</strong> · ${totalRec.toLocaleString()} records · <em style="color:#92400e">Refreshing…</em>`;
+      } else if (state === 'datasource-error') {
+        dot.className = 'sync-dot error';
+        if (txt) txt.innerHTML =
+          '<strong>⚠️ Data source unavailable</strong> · Pearl sheet URL is expired or revoked · ' +
+          'Contact an admin to re-publish the sheet';
       } else {
         dot.className = 'sync-dot error';
         if (txt) txt.innerHTML = _lastFetch
