@@ -70,25 +70,95 @@
   }
 
   // ── Row normalization ──────────────────────────────────────────────
+  // Helper: try a list of exact names then fall back to partial key match.
+  // Handles Unicode ellipsis (…), smart quotes, and minor phrasing variants.
+  function pickField(raw, exactNames, partialRe) {
+    for (const n of exactNames) {
+      const v = (raw[n] || '').trim();
+      if (v) return v;
+    }
+    if (partialRe) {
+      for (const k of Object.keys(raw)) {
+        if (partialRe.test(k)) {
+          const v = (raw[k] || '').trim();
+          if (v) return v;
+        }
+      }
+    }
+    return '';
+  }
+
   function normalizeRow(raw) {
-    const district = normalizeDistrict(
-      raw['District Name:'] || raw['District Name'] || ''
-    );
-    const dissatRaw = raw['If dissatisfied or very dissatisfied, please select the potential reason...'] || '';
+    const district = normalizeDistrict(pickField(raw,
+      ['District Name:', 'District Name', 'District', 'district'],
+      /district/i));
+
+    // Satisfaction level — the exact column name varies (may use Unicode … vs ASCII ...)
+    const satisfactionLevel = pickField(raw,
+      ['Reflecting on all NJTC/PATC experiences to date...',
+       'Reflecting on all NJTC/PATC experiences to date\u2026',  // Unicode ellipsis
+       'How would you rate your overall satisfaction?',
+       'Overall Satisfaction', 'Satisfaction Level', 'Satisfaction'],
+      /experiences to date|overall satisfaction|satisfaction level/i);
+
+    // NPS question — try multiple phrasings
+    const npsRaw = pickField(raw,
+      ['Would you recommend NJTC to a friend or a colleague?',
+       'Would you recommend NJTC to a friend or colleague?',
+       'Likelihood to Recommend', 'NPS', 'NPS Score',
+       'How likely are you to recommend NJTC?'],
+      /recommend.*njtc|likelihood.*recommend|nps/i);
+
+    // Dissatisfaction reasons
+    const dissatRaw = pickField(raw,
+      ['If dissatisfied or very dissatisfied, please select the potential reason...',
+       'If dissatisfied or very dissatisfied, please select the potential reason\u2026',
+       'Dissatisfaction Reasons', 'Reason for Dissatisfaction'],
+      /dissatisfi.*reason|reason.*dissatisfi/i);
+
+    // Highlight / positive comment
+    const highlightComment = pickField(raw,
+      ["If you're satisfied... / If Neutral...",
+       "If you\u2019re satisfied... / If Neutral...",   // smart apostrophe
+       "If you're satisfied\u2026 / If Neutral\u2026",
+       'Highlight Comment', 'Positive Comment', 'Comments'],
+      /if you.?re satisfied|highlight comment|positive comment/i);
+
+    // School name
+    const school = (raw['School Name:'] || raw['School Name'] ||
+                    pickField(raw, [], /school name/i) || '').trim();
+
+    // Role
+    const role = (raw['Role:'] || raw['Role'] ||
+                  pickField(raw, [], /^role$/i) || '').trim();
+
+    // Name
+    const name = pickField(raw,
+      ['Feel free to leave your name below...',
+       'Feel free to leave your name below\u2026',
+       'Name', 'Full Name', 'Your Name'],
+      /leave your name|your name/i);
+
     return {
-      timestamp:               raw['Timestamp'] || '',
-      email:                   raw['Email Address'] || '',
+      timestamp:               raw['Timestamp'] || raw['timestamp'] || '',
+      email:                   raw['Email Address'] || raw['email'] || '',
       district,
-      school:                  (raw['School Name:'] || raw['School Name'] || '').trim(),
-      role:                    (raw['Role:'] || raw['Role'] || '').trim(),
-      name:                    raw['Feel free to leave your name below...'] || '',
-      npsScore:                parseInt(raw['Would you recommend NJTC to a friend or a colleague?']) || 0,
-      satisfactionLevel:       raw['Reflecting on all NJTC/PATC experiences to date...'] || '',
-      highlightComment:        raw["If you're satisfied... / If Neutral..."] || raw['If you\'re satisfied... / If Neutral...'] || '',
+      school,
+      role,
+      name,
+      npsScore:                parseInt(npsRaw) || 0,
+      satisfactionLevel,
+      highlightComment,
       dissatisfactionReasons:  dissatRaw.split(',').map(s => s.trim()).filter(Boolean),
-      dissatisfactionCategory: raw['If applicable, which category describes the source...'] || '',
-      improvementComment:      raw['How can we offer more support...'] || '',
-      followUpNote:            raw['Program Team Follow Up'] || '',
+      dissatisfactionCategory: pickField(raw,
+        ['If applicable, which category describes the source...',
+         'If applicable, which category describes the source\u2026',
+         'Dissatisfaction Category'], /which category describes/i),
+      improvementComment:      pickField(raw,
+        ['How can we offer more support...',
+         'How can we offer more support\u2026',
+         'Improvement Suggestions'], /more support|improvement/i),
+      followUpNote:            raw['Program Team Follow Up'] || raw['Follow Up Note'] || '',
       quarter:                 pickQuarter(raw),
     };
   }
@@ -292,6 +362,13 @@
   // ══════════════════════════════════════════════════════════════════
 
   function init() {
+    // Inject PDF menu item styles
+    if (!document.getElementById('sfPdfMenuStyle')) {
+      const st = document.createElement('style');
+      st.id = 'sfPdfMenuStyle';
+      st.textContent = '.sf-pdf-menu-item{display:block;width:100%;padding:.45rem .875rem;font-size:.82rem;text-align:left;background:none;border:none;cursor:pointer;color:#1b2a4a;white-space:nowrap}.sf-pdf-menu-item:hover{background:#f1f5fb}';
+      document.head.appendChild(st);
+    }
     const _orig = window.showPanel;
     window.showPanel = function (id, btn) {
       _orig(id, btn);
@@ -402,7 +479,20 @@
         </div>
         <div class="ph-actions">
           <button class="btn btn-secondary" onclick="sfRefresh()" title="Re-fetch data from Google Sheets">↻ Refresh</button>
-          <button class="btn btn-primary" id="sfPdfBtn" onclick="sfExportPDF()" style="margin-left:.5rem" title="Download PDF report">⬇ Export PDF</button>
+          <div id="sfPdfDropWrap" style="position:relative;display:inline-block;margin-left:.5rem">
+            <button class="btn btn-primary" id="sfPdfBtn" onclick="sfPdfMenuToggle()" title="Export PDF options">⬇ Export PDF ▾</button>
+            <div id="sfPdfMenu" style="display:none;position:absolute;right:0;top:110%;z-index:200;background:#fff;border:1px solid #dde3ec;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.13);min-width:220px;overflow:hidden">
+              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">INTERNAL REPORTS</div>
+              <button onclick="sfExportPDF('leadership')" class="sf-pdf-menu-item">🏛 Leadership Report</button>
+              <button onclick="sfExportPDF('program')"    class="sf-pdf-menu-item">📍 Program Team Report</button>
+              <button onclick="sfExportPDF('data')"       class="sf-pdf-menu-item">🔬 Data Department Report</button>
+              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">REGIONAL SUMMARIES</div>
+              <button onclick="sfExportRegionPDF('NE')"   class="sf-pdf-menu-item">🗺 NE Region Summary</button>
+              <button onclick="sfExportRegionPDF('SW')"   class="sf-pdf-menu-item">🗺 SW Region Summary</button>
+              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">PARTNER REPORTS</div>
+              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item">📄 ${s}</button>`).join('')}
+            </div>
+          </div>
         </div>
       </div>
       <div class="sf-view-tabs" role="tablist">
@@ -1633,20 +1723,71 @@
     });
   }
 
-  window.sfExportPDF = async function () {
-    const btn = document.getElementById('sfPdfBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
-    try {
-      await loadSFPdfLibs();
-      buildSatisfactionPDF(window.jspdf.jsPDF);
-    } catch (err) {
-      alert('PDF export failed: ' + err.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF'; }
+  // ── PDF Menu toggle ───────────────────────────────────────────────
+  function escSchool(s) { return s.replace(/'/g, '\u2019').replace(/"/g, '\u201C'); }
+  window.sfPdfMenuToggle = function () {
+    const m = document.getElementById('sfPdfMenu');
+    if (!m) return;
+    const open = m.style.display === 'block';
+    m.style.display = open ? 'none' : 'block';
+    if (!open) {
+      // Close on outside click
+      const close = function (e) {
+        if (!document.getElementById('sfPdfDropWrap').contains(e.target)) {
+          m.style.display = 'none';
+          document.removeEventListener('click', close);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', close), 10);
     }
   };
 
-  function buildSatisfactionPDF(jsPDF) {
+  window.sfExportPDF = async function (viewOverride) {
+    const btn = document.getElementById('sfPdfBtn');
+    const menu = document.getElementById('sfPdfMenu');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    if (menu) menu.style.display = 'none';
+    try {
+      await loadSFPdfLibs();
+      buildSatisfactionPDF(window.jspdf.jsPDF, viewOverride || _view);
+    } catch (err) {
+      alert('PDF export failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF ▾'; }
+    }
+  };
+
+  window.sfExportPartnerPDF = async function (schoolName, _unused) {
+    const btn = document.getElementById('sfPdfBtn');
+    const menu = document.getElementById('sfPdfMenu');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    if (menu) menu.style.display = 'none';
+    try {
+      await loadSFPdfLibs();
+      buildPartnerPDF(window.jspdf.jsPDF, schoolName);
+    } catch (err) {
+      alert('Partner PDF failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF ▾'; }
+    }
+  };
+
+  window.sfExportRegionPDF = async function (region) {
+    const btn = document.getElementById('sfPdfBtn');
+    const menu = document.getElementById('sfPdfMenu');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+    if (menu) menu.style.display = 'none';
+    try {
+      await loadSFPdfLibs();
+      buildRegionPDF(window.jspdf.jsPDF, region);
+    } catch (err) {
+      alert('Region PDF failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇ Export PDF ▾'; }
+    }
+  };
+
+  function buildSatisfactionPDF(jsPDF, viewOverride) {
     const doc   = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W     = 210;
     const ML    = 14, MR = 14, MT = 14;
@@ -1693,9 +1834,10 @@
     }
 
     // ── Source data based on current view ───────────────────────────
-    const viewLabel = { program: 'Program Team', leadership: 'Leadership', data: 'Data Department' }[_view] || 'Report';
-    const rows      = _view === 'data' ? filteredRawData() : filteredPublicData();
-    const allRows   = _view === 'data' ? _allData : pubData(_allData);
+    const activeView = viewOverride || _view;
+    const viewLabel  = { program: 'Program Team', leadership: 'Leadership', data: 'Data Department' }[activeView] || 'Report';
+    const rows       = activeView === 'data' ? filteredRawData() : filteredPublicData();
+    const allRows    = activeView === 'data' ? _allData : pubData(_allData);
     const allQoQ    = qoqBreakdown(allRows);
     const nd        = calcNPS(rows);
     const qs        = getQuarters();
@@ -2047,6 +2189,411 @@
     const a    = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // REGION DEFINITIONS
+  // ══════════════════════════════════════════════════════════════════
+  const SF_REGIONS = {
+    NE: {
+      label: 'Northeast Region',
+      districts: [
+        'Bergen Arts and Science Charter',
+        'Hudson Arts & Science Charter School',
+        'Passaic Arts and Science Charter School',
+        'Paterson Arts and Science Charter School',
+      ],
+    },
+    SW: {
+      label: 'Southwest Region',
+      districts: [
+        'Haddon Township',
+        'Central Jersey College Prep Charter School',
+        'Global Leadership Academy',
+      ],
+    },
+  };
+
+  // ══════════════════════════════════════════════════════════════════
+  // PARTNER PDF — school-specific, positive framing, matched QoQ only
+  // ══════════════════════════════════════════════════════════════════
+  function buildPartnerPDF(jsPDF, schoolName) {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, ML = 14, MR = 14;
+    const C = {
+      navy: [27,42,74], teal: [42,157,143], green: [13,110,58],
+      amber: [192,92,0], red: [185,28,28], white: [255,255,255],
+      light: [247,249,252], muted: [107,114,128], body: [45,45,45],
+    };
+    function ss(s) {
+      return String(s||'').replace(/[\u2014\u2013]/g,'-').replace(/\u2019/g,"'")
+        .replace(/[\u201C\u201D]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,'')
+        .replace(/\s+/g,' ').trim();
+    }
+    function fmtN(n) { return n===null||n===undefined||isNaN(n)?'N/A':(n>0?'+':'')+n; }
+    function npsRgb(n) { return n===null||isNaN(n)?C.muted:n>=50?C.green:n>=20?C.amber:C.red; }
+    function dlPdf(doc, prefix) {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
+      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    const pub = pubData(_allData);
+    const qs  = getQuarters();
+    const schoolRows = pub.filter(r => r.school === schoolName);
+    if (!schoolRows.length) {
+      alert('No survey data found for "' + schoolName + '".');
+      return;
+    }
+    const district = schoolRows[0].district || '';
+    const recentQ  = qs[qs.length-1] || null;
+    const prevQ    = qs[qs.length-2] || null;
+
+    // ── Outlier removal (IQR method on npsScore) ───────────────────
+    function removeOutliers(rows) {
+      if (rows.length < 5) return rows; // too few to remove
+      const scores = rows.map(r => r.npsScore).sort((a,b) => a-b);
+      const q1 = scores[Math.floor(scores.length * 0.25)];
+      const q3 = scores[Math.floor(scores.length * 0.75)];
+      const iqr = q3 - q1;
+      return rows.filter(r => r.npsScore >= q1 - 1.5*iqr && r.npsScore <= q3 + 1.5*iqr);
+    }
+
+    // ── Matched respondents: only users who responded in BOTH Q1 and Q2 ─
+    function matchedQoQ(rows, qA, qB) {
+      if (!qA || !qB) return { prev: [], curr: [], matched: [] };
+      const prevMap = {};
+      rows.filter(r => r.quarter === qA && r.email).forEach(r => { prevMap[r.email] = r; });
+      const currRows = rows.filter(r => r.quarter === qB && r.email && prevMap[r.email]);
+      const prevRows = currRows.map(r => prevMap[r.email]);
+      return { prev: prevRows, curr: currRows, matched: currRows };
+    }
+
+    const allClean  = removeOutliers(schoolRows);
+    const recentRows = recentQ ? allClean.filter(r => r.quarter === recentQ) : allClean;
+    const prevRows   = prevQ   ? allClean.filter(r => r.quarter === prevQ)   : [];
+    const matched    = matchedQoQ(_allData.filter(r => r.school === schoolName), prevQ, recentQ);
+    const matchedNPS = matched.curr.length >= 2 ? calcNPS(matched.curr) : null;
+    const matchedPrevNPS = matched.prev.length >= 2 ? calcNPS(matched.prev) : null;
+
+    const nd = calcNPS(recentRows);
+    const dateStr = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+    let y = 14;
+    // ── Cover header ──────────────────────────────────────────────
+    doc.setFillColor(...C.navy);
+    doc.rect(0, 0, W, 42, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(18); doc.setFont('helvetica','bold');
+    doc.text('Partner Satisfaction Summary', ML, 20);
+    doc.setFontSize(10); doc.setFont('helvetica','normal');
+    doc.text(ss(schoolName) + '  ·  ' + ss(district), ML, 29);
+    doc.setFontSize(8);
+    doc.text('Prepared by NJTC Program Evaluation & Impact  ·  ' + dateStr, ML, 37);
+    y = 52;
+
+    // ── Intro message (positive framing) ──────────────────────────
+    doc.setTextColor(...C.body);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    const intro = 'Thank you for your continued partnership with the New Jersey Tutoring Corps. ' +
+      'This report summarizes feedback from your school\'s staff about their NJTC experience ' + (recentQ ? 'in ' + recentQ : 'this quarter') + '. ' +
+      'Your voice helps us continuously improve the program to better serve your scholars.';
+    const introLines = doc.splitTextToSize(intro, W - ML - MR);
+    doc.text(introLines, ML, y);
+    y += introLines.length * 4.8 + 4;
+
+    // ── NPS Hero box ──────────────────────────────────────────────
+    doc.setFillColor(...C.light);
+    doc.roundedRect(ML, y, W - ML - MR, 28, 3, 3, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(28);
+    doc.setTextColor(...npsRgb(nd.nps));
+    doc.text(fmtN(nd.nps), ML+8, y+19);
+    doc.setFontSize(9); doc.setTextColor(...C.body);
+    doc.setFont('helvetica','normal');
+    doc.text('Partner NPS Score', ML+8, y+25);
+    // Promoter / passive / detractor
+    const qLabel = recentQ ? 'Most Recent: ' + recentQ : 'All Quarters';
+    doc.setFontSize(8);
+    const heroRight = ML + 60;
+    doc.text('Respondents: ' + nd.total, heroRight, y+9);
+    doc.text('Supportive (4–5): ' + nd.promoterPct + '%', heroRight, y+14);
+    doc.text('Neutral (3): ' + nd.passivePct + '%', heroRight, y+19);
+    doc.text('Concerns (1–2): ' + nd.detractorPct + '%', heroRight, y+24);
+    doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+    doc.text(qLabel + (allClean.length !== schoolRows.length ? ' (outliers removed)' : ''), ML+8, y+3);
+    y += 34;
+
+    // ── What Your Team Told Us ─────────────────────────────────────
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+    doc.text('What Your Team Told Us', ML, y);
+    y += 6;
+    const lvlMap = {
+      'Very Satisfied': 'Very Positive', 'Satisfied': 'Positive',
+      'Neutral': 'Neutral', 'Dissatisfied': 'Concerns Raised', 'Very Dissatisfied': 'Significant Concerns',
+    };
+    const lvlColors = {
+      'Very Satisfied': C.green, 'Satisfied': C.teal,
+      'Neutral': C.amber, 'Dissatisfied': C.red, 'Very Dissatisfied': C.red,
+    };
+    const lvlOrder = ['Very Satisfied','Satisfied','Neutral','Dissatisfied','Very Dissatisfied'];
+    const lvlRows = lvlOrder.map(l => {
+      const cnt = recentRows.filter(r => r.satisfactionLevel === l).length;
+      const pct = nd.total ? Math.round(cnt/nd.total*100) : 0;
+      return [ss(lvlMap[l]||l), cnt + ' responses', pct + '% of respondents'];
+    }).filter(r => parseInt(r[1]) > 0);
+    if (lvlRows.length) {
+      doc.autoTable({
+        startY: y,
+        head: [['Sentiment', 'Count', 'Share']],
+        body: lvlRows,
+        margin: { left: ML, right: MR },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: C.light },
+        didParseCell: function(d) {
+          if (d.section==='body' && d.column.index===0) {
+            const orig = lvlOrder[lvlRows.findIndex(r=>r[0]===d.cell.text[0])];
+            if (orig && lvlColors[orig]) d.cell.styles.textColor = lvlColors[orig];
+          }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // ── Quarter-over-Quarter: MATCHED USERS ONLY ───────────────────
+    if (matchedNPS && prevQ && recentQ) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Progress: ' + ss(prevQ) + ' → ' + ss(recentQ) + ' (Returning Staff)', ML, y);
+      y += 3;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
+      doc.text('Comparison includes only the ' + matched.curr.length + ' staff members who responded in both quarters.', ML, y);
+      y += 5;
+      const delta = (matchedNPS.nps !== null && matchedPrevNPS && matchedPrevNPS.nps !== null)
+        ? Math.round((matchedNPS.nps - matchedPrevNPS.nps)*10)/10 : null;
+      const trend = delta === null ? '—' : delta > 5 ? '↑ Improving' : delta < -5 ? '↓ Declined' : '→ Stable';
+      doc.autoTable({
+        startY: y,
+        head: [['Period', 'NPS', 'Trend', 'Respondents']],
+        body: [
+          [ss(prevQ),    fmtN(matchedPrevNPS ? matchedPrevNPS.nps : null), '—',   String(matched.prev.length)],
+          [ss(recentQ),  fmtN(matchedNPS.nps), delta!==null?(delta>=0?'↑ +'+delta+' pts':'↓ '+delta+' pts'):trend, String(matched.curr.length)],
+        ],
+        margin: { left: ML, right: MR },
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: C.navy, textColor: C.white, fontStyle: 'bold', fontSize: 8 },
+        alternateRowStyles: { fillColor: C.light },
+        didParseCell: function(d) {
+          if (d.section==='body' && d.row.index===1 && d.column.index===1 && matchedNPS) {
+            d.cell.styles.textColor = npsRgb(matchedNPS.nps);
+            d.cell.styles.fontStyle = 'bold';
+          }
+        },
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // ── Positive highlights (select up to 3, anonymised) ──────────
+    const highlights = recentRows.map(r => r.highlightComment).filter(Boolean);
+    if (highlights.length) {
+      if (y > 240) { doc.addPage(); y = 14; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Voices from Your School', ML, y);
+      y += 5;
+      highlights.slice(0,3).forEach(h => {
+        const lines = doc.splitTextToSize('"' + ss(h) + '"', W - ML - MR - 8);
+        if (y + lines.length*4.5 > 275) { doc.addPage(); y = 14; }
+        doc.setFont('helvetica','italic'); doc.setFontSize(8.5); doc.setTextColor(...C.body);
+        doc.text(lines, ML+4, y);
+        y += lines.length * 4.5 + 3;
+      });
+      y += 4;
+    }
+
+    // ── What Comes Next (partner-facing) ──────────────────────────
+    if (y > 240) { doc.addPage(); y = 14; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+    doc.text('What Comes Next', ML, y);
+    y += 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...C.body);
+    const nextSteps = [
+      'NJTC will review this feedback with your site leadership team.',
+      'Any areas for improvement will be reflected in our programming adjustments.',
+      'We will share updates on changes made in response to your team\'s feedback.',
+      'Our goal is to continuously improve the tutoring experience for every scholar.',
+    ];
+    nextSteps.forEach(s => {
+      doc.text('• ' + s, ML+3, y);
+      y += 5;
+    });
+    y += 4;
+
+    // ── Footer ────────────────────────────────────────────────────
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7); doc.setTextColor(...C.muted);
+      doc.text(
+        'NJTC Partner Report · ' + ss(schoolName) + ' · ' + dateStr + ' · Page ' + p + ' of ' + pageCount,
+        ML, 292
+      );
+    }
+    const slug = schoolName.replace(/[^a-z0-9]/gi,'_').toLowerCase().slice(0,30);
+    dlPdf(doc, 'njtc-partner-' + slug);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // REGIONAL PDF — aggregate by NE / SW region
+  // ══════════════════════════════════════════════════════════════════
+  function buildRegionPDF(jsPDF, regionKey) {
+    const region = SF_REGIONS[regionKey];
+    if (!region) { alert('Unknown region: ' + regionKey); return; }
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, ML = 14, MR = 14;
+    const C = {
+      navy: [27,42,74], teal: [42,157,143], green: [13,110,58],
+      amber: [192,92,0], red: [185,28,28], white: [255,255,255],
+      light: [247,249,252], muted: [107,114,128], body: [45,45,45],
+    };
+    function ss(s) {
+      return String(s||'').replace(/[\u2014\u2013]/g,'-').replace(/\u2019/g,"'")
+        .replace(/[\u201C\u201D]/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,'')
+        .replace(/\s+/g,' ').trim();
+    }
+    function fmtN(n) { return n===null||n===undefined||isNaN(n)?'N/A':(n>0?'+':'')+n; }
+    function npsRgb(n) { return n===null||isNaN(n)?C.muted:n>=50?C.green:n>=20?C.amber:C.red; }
+    function dlPdf(doc, prefix) {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
+      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
+    const pub     = pubData(_allData);
+    const qs      = getQuarters();
+    const recentQ = qs[qs.length-1] || null;
+    const prevQ   = qs[qs.length-2] || null;
+    const dateStr = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+    // Filter to region districts
+    const regionRows = pub.filter(r => region.districts.some(d => {
+      const nd = (r.district||'').toLowerCase();
+      return nd.includes(d.toLowerCase().split(' ')[0]);
+    }));
+
+    let y = 14;
+    // Cover
+    doc.setFillColor(...C.navy);
+    doc.rect(0, 0, W, 42, 'F');
+    doc.setTextColor(...C.white);
+    doc.setFontSize(18); doc.setFont('helvetica','bold');
+    doc.text(region.label + ' — Partner Satisfaction', ML, 20);
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text('NJTC Program Evaluation & Impact  ·  ' + dateStr, ML, 29);
+    doc.setFontSize(8);
+    doc.text('Internal Report — Not for External Distribution', ML, 37);
+    y = 52;
+
+    // Overall NPS hero
+    const nd  = calcNPS(regionRows);
+    const allQoQ = qs.map(q => {
+      const qRows = regionRows.filter(r => r.quarter === q);
+      return { quarter: q, ...calcNPS(qRows) };
+    });
+
+    doc.setFillColor(...C.light);
+    doc.roundedRect(ML, y, W-ML-MR, 24, 3, 3, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...npsRgb(nd.nps));
+    doc.text(fmtN(nd.nps), ML+6, y+17);
+    doc.setFontSize(9); doc.setTextColor(...C.body); doc.setFont('helvetica','normal');
+    doc.text(region.label + ' Overall NPS  ·  ' + nd.total + ' respondents', ML+30, y+10);
+    doc.text('Supportive: ' + nd.promoterPct + '%  ·  Neutral: ' + nd.passivePct + '%  ·  Concerns: ' + nd.detractorPct + '%', ML+30, y+16);
+    y += 30;
+
+    // QoQ table
+    if (allQoQ.length >= 2) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Quarter-over-Quarter Trend', ML, y); y += 5;
+      doc.autoTable({
+        startY: y,
+        head: [['Quarter','NPS','Change','Respondents']],
+        body: allQoQ.map((q,i) => {
+          const prev = i>0 ? allQoQ[i-1].nps : null;
+          const delta = (prev!==null && q.nps!==null) ? Math.round((q.nps-prev)*10)/10 : null;
+          return [ss(q.quarter), fmtN(q.nps), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', String(q.total)];
+        }),
+        margin:{left:ML,right:MR},
+        styles:{fontSize:9,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // School breakdown
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+    doc.text('School Breakdown', ML, y); y += 5;
+    const schools = [...new Set(regionRows.map(r=>r.school).filter(Boolean))].sort();
+    const schoolRows = schools.map(s => {
+      const sr = regionRows.filter(r=>r.school===s);
+      const curr = recentQ ? sr.filter(r=>r.quarter===recentQ) : sr;
+      const prev = prevQ  ? sr.filter(r=>r.quarter===prevQ)   : [];
+      const { nps: cNPS, total } = calcNPS(curr);
+      const { nps: pNPS } = calcNPS(prev);
+      const delta = (cNPS!==null&&pNPS!==null) ? Math.round((cNPS-pNPS)*10)/10 : null;
+      const risk  = siteRisk(curr, prev);
+      const rIcon = risk==='at-risk'?'🔴':risk==='watch'?'🟡':'✅';
+      return [rIcon+' '+ss(s), String(total), fmtN(cNPS), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', risk.toUpperCase()];
+    });
+    if (schoolRows.length) {
+      doc.autoTable({
+        startY: y,
+        head: [['School','N','NPS',recentQ&&prevQ?'Δ '+ss(prevQ)+'→'+ss(recentQ):'Trend','Status']],
+        body: schoolRows,
+        margin:{left:ML,right:MR},
+        styles:{fontSize:8.5,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+        columnStyles:{4:{fontStyle:'bold'}},
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Role breakdown
+    if (y < 240) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
+      doc.text('Sentiment by Role', ML, y); y += 5;
+      const roles = [...new Set(regionRows.map(r=>r.role).filter(Boolean))].sort();
+      const roleRows = roles.map(role => {
+        const rr = regionRows.filter(r=>r.role===role);
+        const { nps, total } = calcNPS(rr);
+        return [ss(role), String(total), fmtN(nps)];
+      });
+      doc.autoTable({
+        startY: y,
+        head: [['Role','Respondents','NPS']],
+        body: roleRows,
+        margin:{left:ML,right:MR},
+        styles:{fontSize:9,cellPadding:3},
+        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
+        alternateRowStyles:{fillColor:C.light},
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7); doc.setTextColor(...C.muted);
+      doc.text(
+        'NJTC ' + region.label + ' Summary  ·  ' + dateStr + '  ·  Page ' + p + ' of ' + pageCount,
+        ML, 292
+      );
+    }
+    dlPdf(doc, 'njtc-region-' + regionKey.toLowerCase());
   }
 
   // ── Public summary API (used by PIE) ──────────────────────────────
