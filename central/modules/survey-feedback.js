@@ -90,13 +90,20 @@
       const v = (raw[n] || '').trim();
       if (v) return v;
     }
-    // 2. Position-based fallback — column N is the 14th column (0-based index 13)
+    // 2. Partial-key match — any key that contains the word "quarter" (case-insensitive)
     const keys = Object.keys(raw);
+    for (const k of keys) {
+      if (/quarter/i.test(k)) {
+        const v = (raw[k] || '').trim();
+        if (v) return v;
+      }
+    }
+    // 3. Position-based fallback — column N is the 14th column (0-based index 13)
     if (keys.length >= 14) {
       const v = (raw[keys[13]] || '').trim();
       if (v) return v;
     }
-    // 3. Content-scan fallback — find any column whose value looks like a quarter label
+    // 4. Content-scan fallback — find any column whose value looks like a quarter label
     //    e.g. "Quarter 1", "Q1", "Q2 2025", "Quarter Two", "Fall 2025", etc.
     const quarterPattern = /^(q\s*[1-4]|quarter\s*[0-9one two three four]+|[0-9]+\s*q|fall|spring|winter|summer)/i;
     for (const k of keys) {
@@ -1992,6 +1999,101 @@
     a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
+
+  // ── Public summary API (used by PIE) ──────────────────────────────
+  window.sfGetSummary = function () {
+    if (!_allData || !_allData.length) return null;
+    const pub = pubData(_allData);
+    const qs  = getQuarters();
+    const qoq = qoqBreakdown(pub);
+    const overall = calcNPS(pub);
+
+    // Per-role breakdown
+    const byRole = {};
+    getRoles().forEach(role => {
+      const rows = pub.filter(r => r.role === role);
+      byRole[role] = Object.assign({ count: rows.length }, calcNPS(rows));
+    });
+
+    // Per-district breakdown
+    const byDistrict = {};
+    getDistricts().forEach(dist => {
+      const rows = pub.filter(r => r.district === dist);
+      byDistrict[dist] = Object.assign({ count: rows.length }, calcNPS(rows));
+    });
+
+    // Per-school breakdown with trajectory
+    const allSchools = getSchools();
+    const bySchool = {};
+    allSchools.forEach(school => {
+      const rows = pub.filter(r => r.school === school);
+      const district = rows[0] ? rows[0].district : '';
+      const { nps, total } = calcNPS(rows);
+      let prevNPS = null;
+      if (qs.length >= 2) {
+        const prev = pub.filter(r => r.school === school && r.quarter === qs[qs.length - 2]);
+        const curr = pub.filter(r => r.school === school && r.quarter === qs[qs.length - 1]);
+        if (prev.length) prevNPS = calcNPS(prev).nps;
+        const risk = siteRisk(curr, prev);
+        const traj = trajBadge(calcNPS(curr).nps, prevNPS);
+        bySchool[school] = { district, nps, total, risk, trajectory: traj.label, delta: traj.delta };
+      } else {
+        const curr = qs.length === 1 ? pub.filter(r => r.school === school && r.quarter === qs[0]) : rows;
+        const risk = siteRisk(curr, []);
+        bySchool[school] = { district, nps, total, risk, trajectory: '—', delta: 0 };
+      }
+    });
+
+    // Categorise schools
+    const atRisk    = Object.entries(bySchool).filter(([,v]) => v.risk === 'at-risk').map(([k]) => k);
+    const watch     = Object.entries(bySchool).filter(([,v]) => v.risk === 'watch').map(([k]) => k);
+    const improving = Object.entries(bySchool).filter(([,v]) => v.trajectory.includes('Improving')).map(([k]) => k);
+    const declining = Object.entries(bySchool).filter(([,v]) => v.trajectory.includes('Declining')).map(([k]) => k);
+
+    // Best / lowest school (by NPS, with ≥2 respondents)
+    const schoolList = Object.entries(bySchool).filter(([,v]) => v.total >= 2);
+    const bestSchool    = schoolList.length ? schoolList.reduce((a, b) => (b[1].nps || -999) > (a[1].nps || -999) ? b : a, schoolList[0]) : null;
+    const lowestSchool  = schoolList.length ? schoolList.reduce((a, b) => (b[1].nps || 999) < (a[1].nps || 999) ? b : a, schoolList[0]) : null;
+
+    // Dissatisfaction reasons frequency
+    const dissatFreq = {};
+    _allData.forEach(r => r.dissatisfactionReasons.forEach(reason => {
+      dissatFreq[reason] = (dissatFreq[reason] || 0) + 1;
+    }));
+    const topDissat = Object.entries(dissatFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([reason, count]) => ({ reason, count }));
+
+    // Quarter-specific NPS quick-lookup
+    const quarterNPS = {};
+    qoq.forEach(q => { quarterNPS[q.quarter] = { nps: q.nps, total: q.total, avgScore: q.avgScore }; });
+
+    return {
+      loaded: true,
+      totalRespondents: overall.total,
+      overallNPS: overall.nps,
+      promoters: overall.promoters,
+      passives: overall.passives,
+      detractors: overall.detractors,
+      promoterPct: overall.promoterPct,
+      passivePct: overall.passivePct,
+      detractorPct: overall.detractorPct,
+      quarters: qs,
+      quarterNPS,
+      qoq,
+      byRole,
+      byDistrict,
+      bySchool,
+      atRisk,
+      watch,
+      improving,
+      declining,
+      bestSchool:   bestSchool   ? { name: bestSchool[0],   ...bestSchool[1]   } : null,
+      lowestSchool: lowestSchool ? { name: lowestSchool[0], ...lowestSchool[1] } : null,
+      topDissat,
+    };
+  };
 
   // ── Boot ─────────────────────────────────────────────────────────
   init();

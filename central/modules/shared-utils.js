@@ -3079,15 +3079,17 @@
     'Workforce':  ['Who is currently on watch?',              'How many active concerns are there?',        'How many apprentices do we have?'],
     'Academic':   ['What is our iReady math growth?',         'How does ELA compare to math growth?',       'What is typical growth?'],
     'Program':    ['How many active scholars?',               'What is a service interruption?',            'How many districts are we in?'],
-    'Reports':    ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
+    'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
+    'Satisfaction': ['What is our partner NPS?',               'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
   };
-  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Reports'];
+  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Satisfaction','Reports'];
 
   var PANEL_CATS = {
     'kpi':'KPIs', 'kpi-analytics':'KPIs', 'pearl-ops':'Attendance',
     'sy-analytics':'Program', 'talent':'Workforce', 'concern':'Workforce',
     'iready-lab':'Academic', 'training-analytics':'Workforce',
     'policies':'Overview', 'impact-report':'Program', 'finance-analytics':'Program', 'perf':'Workforce',
+    'survey-feedback':'Satisfaction',
   };
 
   // ── Name normalization for fuzzy person lookup ────────────────────────────
@@ -3444,6 +3446,25 @@
     return window.CONCERNS || [];
   }
 
+  // ── Partner Satisfaction helper — reads sfGetSummary() live ──────────────
+  function _sf() {
+    try {
+      if (typeof window.sfGetSummary === 'function') {
+        var s = window.sfGetSummary();
+        if (s && s.loaded) return s;
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  // Format NPS value with color label
+  function _npsLabel(nps) {
+    if (nps === null || nps === undefined) return '—';
+    var n = Math.round(nps * 10) / 10;
+    var emoji = n >= 50 ? '🟢' : n >= 20 ? '🟡' : '🔴';
+    return emoji + ' **' + n + '**';
+  }
+
   // ── Location extraction & drill-down helpers ──────────────────────────────
 
   // Stopwords to ignore when matching location names
@@ -3691,11 +3712,25 @@
       msg += '**CONCERNS:** No open concern records at this site.\n\n';
     }
 
-    // Survey
+    // Survey (scholar-level)
     try {
       var ss = (window.po.getStellarSchools()||[]).find(function(s){ return _locScore(_normLoc(schoolName), s.school||'') >= 1; });
       if (ss && ss.surveyAvg) msg += '**SURVEY:** Avg **' + ss.surveyAvg.toFixed(1) + '/5.0** · ' + _n(ss.sessions) + ' sessions\n';
     } catch(e) {}
+
+    // Partner satisfaction NPS
+    var sfData = _sf();
+    if (sfData) {
+      var normSchool = _normLoc(schoolName.split(/[-,]/)[0]);
+      var sfKey = Object.keys(sfData.bySchool).find(function(k){ return _normLoc(k).indexOf(normSchool) >= 0 || normSchool.indexOf(_normLoc(k.split(/[-,]/)[0])) >= 0; });
+      if (sfKey) {
+        var sd = sfData.bySchool[sfKey];
+        var riskEmoji = sd.risk === 'at-risk' ? '🔴' : sd.risk === 'watch' ? '🟡' : '✅';
+        msg += '\n**PARTNER SATISFACTION:** NPS ' + _npsLabel(sd.nps) + ' · ' + sd.total + ' respondents · ' + riskEmoji + ' ' + sd.risk + ' · ' + (sd.trajectory||'—') + '\n';
+      } else if (sfData.totalRespondents > 0) {
+        msg += '\n**PARTNER SATISFACTION:** No survey data matched for this school. Overall org NPS: ' + _npsLabel(sfData.overallNPS) + '\n';
+      }
+    }
 
     return msg.trim();
   }
@@ -3777,6 +3812,22 @@
       var priority2 = ['Termination','Write Up','PGP','On Watch'];
       var highest2 = priority2.find(function(p){ return dConcerns.some(function(r){ return r.hr_action===p; }); });
       msg += '**CONCERNS:** ' + dConcerns.length + ' records · Highest: **' + (highest2||dConcerns[0].hr_action||'Documented') + '**\n';
+    }
+
+    // Partner satisfaction NPS for this district
+    var sfDist = _sf();
+    if (sfDist && sfDist.byDistrict) {
+      var distNormKey = _normLoc(districtName.split(/[-,]/)[0]);
+      var distKey = Object.keys(sfDist.byDistrict).find(function(k){ return _normLoc(k).indexOf(distNormKey) >= 0 || distNormKey.indexOf(_normLoc(k.split(/[-,]/)[0])) >= 0; });
+      if (distKey) {
+        var dd = sfDist.byDistrict[distKey];
+        msg += '\n**PARTNER SATISFACTION:** NPS ' + _npsLabel(dd.nps) + ' · ' + dd.count + ' respondents from this district\n';
+        // Show at-risk schools in this district
+        var distAtRisk = sfDist.atRisk.filter(function(s){ return sfDist.bySchool[s] && _normLoc(sfDist.bySchool[s].district||'').indexOf(distNormKey) >= 0; });
+        if (distAtRisk.length) msg += '🔴 At-risk in this district: ' + distAtRisk.join(', ') + '\n';
+      } else if (sfDist.totalRespondents > 0) {
+        msg += '\n**PARTNER SATISFACTION:** No survey data matched for this district. Overall org NPS: ' + _npsLabel(sfDist.overallNPS) + '\n';
+      }
     }
 
     return msg.trim();
@@ -6797,6 +6848,276 @@
       }
     },
 
+    // ── PARTNER SATISFACTION RULES ────────────────────────────────────────────
+
+    // Overall NPS / satisfaction score
+    { match: /\b(partner|school|site).{0,20}(nps|net promoter|satisfaction score|how.*feel|overall.*satisf|satisf.*score|rating)\b|\b(what|what.?s|show me|give me).{0,20}(nps|net promoter|partner satisf|overall satisf)|(nps score|partner nps|overall nps|satisfaction (rating|score|level)|how satisfied|how happy).{0,30}(partner|school|site|program)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data is not loaded yet. Open the **Partner Satisfaction** panel first, then ask again.';
+        var qStr = sf.quarters.length ? ' · ' + sf.quarters.length + ' quarter' + (sf.quarters.length>1?'s':'')+' (' + sf.quarters.join(', ') + ')' : '';
+        var msg = '**Partner NPS — Overall**\n\n';
+        msg += _npsLabel(sf.overallNPS) + ' NPS · **' + sf.totalRespondents + ' respondents**' + qStr + '\n\n';
+        msg += '📊 Promoters (4–5): **' + sf.promoterPct + '%** (' + sf.promoters + ') · Passives (3): **' + sf.passivePct + '%** (' + sf.passives + ') · Detractors (1–2): **' + sf.detractorPct + '%** (' + sf.detractors + ')\n\n';
+        msg += '_NPS scale: ≥50 Excellent · ≥20 Good · <20 Needs Attention_\n\n';
+        if (sf.atRisk.length) msg += '⚠️ **At-risk schools:** ' + sf.atRisk.slice(0,5).join(', ') + (sf.atRisk.length>5?' +'+(sf.atRisk.length-5)+' more':'')+'\n';
+        if (sf.watch.length) msg += '👁 **Watch:** ' + sf.watch.slice(0,5).join(', ') + '\n';
+        return msg.trim();
+      }
+    },
+
+    // Explain NPS
+    { match: /\bwhat is (an? )?nps\b|how is nps (calculated|scored|determined)|explain nps|nps.{0,15}(formula|scale|mean|work)|net promoter.*explain/i,
+      respond: function() {
+        return '**Net Promoter Score (NPS) — NJTC Adapted**\n\n' +
+          'NPS measures how strongly partners recommend the program. Respondents rate from **1–5**:\n\n' +
+          '• **Promoters (4–5)** — enthusiastic supporters\n' +
+          '• **Passives (3)** — satisfied but neutral\n' +
+          '• **Detractors (1–2)** — dissatisfied partners\n\n' +
+          '**Formula:** ((Promoters − Detractors) ÷ Total) × 100\n\n' +
+          '**Scale:** 🟢 ≥50 Excellent · 🟡 ≥20 Good · 🔴 <20 Needs Attention\n\n' +
+          'Traditional NPS uses a 0–10 scale; NJTC uses 1–5 (common for K–12 partner surveys). The relative meaning is the same.';
+      }
+    },
+
+    // Quarter-over-quarter trend / QoQ
+    { match: /\b(quarter.over.quarter|qoq|trend.{0,20}nps|nps.{0,20}trend|how.*changed|progress.*quarter|quarter.*progress|by quarter|each quarter|quarter.*nps|nps.*quarter|satisfaction.*quarter|quarter.*satisfaction|improvement.*quarter|decline.*quarter)\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        if (!sf.qoq || sf.qoq.length < 1) return 'No quarterly data available yet. At least one completed quarter is needed.';
+        var msg = '**Partner NPS — Quarter-over-Quarter**\n\n';
+        sf.qoq.forEach(function(q, i) {
+          var prev = i > 0 ? sf.qoq[i-1].nps : null;
+          var delta = (prev !== null && q.nps !== null) ? Math.round((q.nps - prev) * 10)/10 : null;
+          var arrow = delta === null ? '' : delta > 5 ? ' ↑+' + delta : delta < -5 ? ' ↓' + delta : ' →' + (delta >= 0 ? '+' : '') + delta;
+          msg += '**' + q.quarter + ':** ' + _npsLabel(q.nps) + arrow + ' · ' + q.total + ' respondents\n';
+        });
+        if (sf.improving.length) msg += '\n↑ **Improving schools:** ' + sf.improving.slice(0,5).join(', ') + '\n';
+        if (sf.declining.length) msg += '↓ **Declining schools:** ' + sf.declining.slice(0,5).join(', ') + '\n';
+        return msg.trim();
+      }
+    },
+
+    // Quarter-specific NPS ("Quarter 1 NPS", "Q2 satisfaction")
+    { match: /\b(q1|q2|q3|q4|quarter\s*1|quarter\s*2|quarter\s*3|quarter\s*4|quarter one|quarter two|quarter three|quarter four).{0,30}(nps|satisf|score|how|result|data)\b|\b(nps|satisf|score).{0,30}(q1|q2|q3|q4|quarter\s*[1-4])\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var q = _lastQ || '';
+        var m = q.match(/q(?:uarter)?\s*([1-4]|one|two|three|four)/i);
+        var num = m ? (m[1].match(/\d/) ? m[1] : ({one:'1',two:'2',three:'3',four:'4'}[m[1].toLowerCase()]||'?')) : null;
+        if (!num) return 'Which quarter? Try asking "Quarter 1 NPS" or "Quarter 2 satisfaction".';
+        var key = Object.keys(sf.quarterNPS).find(function(k){ return k.replace(/[^0-9]/g,'') === String(num); });
+        if (!key) {
+          var available = Object.keys(sf.quarterNPS).join(', ') || 'none yet';
+          return 'Quarter ' + num + ' data not found. Available quarters: **' + available + '**';
+        }
+        var qd = sf.quarterNPS[key];
+        return '**' + key + ' — Partner NPS**\n\n' +
+          _npsLabel(qd.nps) + ' NPS · **' + qd.total + ' respondents**\n' +
+          'Avg score: ' + (qd.avgScore !== null ? qd.avgScore.toFixed(2) + ' / 5.0' : '—');
+      }
+    },
+
+    // At-risk schools in partner survey
+    { match: /\b(at.?risk|highest.?risk|most.*concern|concern.*school|risk.*school|school.*risk).{0,30}(school|site|partner|satisf|nps)\b|\b(at.?risk|red.?flag).{0,20}(partner|school|site|survey)\b|(which schools? (are|is) (at.?risk|struggling|concerning|low))\b.{0,20}(survey|satisf|nps|partner)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var msg = '**At-Risk Partner Schools**\n\n';
+        if (!sf.atRisk.length && !sf.watch.length) {
+          msg += '✅ No schools are currently flagged as at-risk or on watch.\n_Overall NPS: ' + _npsLabel(sf.overallNPS) + ' · ' + sf.totalRespondents + ' respondents_';
+          return msg;
+        }
+        if (sf.atRisk.length) {
+          msg += '🔴 **AT-RISK (' + sf.atRisk.length + ')** — has detractor(s), NPS drop ≥20pts, or ≥2 dissatisfied:\n';
+          sf.atRisk.forEach(function(s) {
+            var d = sf.bySchool[s];
+            msg += '• **' + s + '** — NPS: ' + _npsLabel(d ? d.nps : null) + (d ? ' · ' + d.total + ' respondents · ' + d.district : '') + '\n';
+          });
+          msg += '\n';
+        }
+        if (sf.watch.length) {
+          msg += '🟡 **WATCH (' + sf.watch.length + ')** — NPS <20 or drop ≥10pts:\n';
+          sf.watch.forEach(function(s) {
+            var d = sf.bySchool[s];
+            msg += '• **' + s + '** — NPS: ' + _npsLabel(d ? d.nps : null) + (d ? ' · ' + d.total + ' respondents' : '') + '\n';
+          });
+        }
+        return msg.trim();
+      }
+    },
+
+    // Satisfaction by role type
+    { match: /\b(by role|per role|role.{0,15}(satisf|nps|breakdown|feel|think)|satisf.{0,15}(role|principal|teacher|staff|coordinator|director|type)|how.{0,15}(principal|teacher|coordinator|director|school staff|role).{0,20}(feel|satisf|nps|rate|view|think)|role.{0,20}breakdown.{0,15}(survey|satisf|nps|partner))\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var roles = Object.keys(sf.byRole);
+        if (!roles.length) return 'No role breakdown available in current partner survey data.';
+        var msg = '**Partner Satisfaction — By Role**\n\n';
+        roles.sort(function(a,b){ return (sf.byRole[b].nps||0)-(sf.byRole[a].nps||0); });
+        roles.forEach(function(role) {
+          var r = sf.byRole[role];
+          msg += '• **' + role + ':** ' + _npsLabel(r.nps) + ' NPS · ' + r.count + ' respondents (' + r.promoterPct + '% promoters)\n';
+        });
+        var lowest = roles[roles.length-1];
+        if (lowest && sf.byRole[lowest].nps !== null && sf.byRole[lowest].nps < 20) {
+          msg += '\n⚠️ **' + lowest + '** shows the lowest satisfaction — may warrant targeted engagement.';
+        }
+        return msg.trim();
+      }
+    },
+
+    // Satisfaction by district
+    { match: /\b(by district|per district|district.{0,15}(satisf|nps|breakdown|feel)|satisf.{0,15}district|nps.{0,15}district|how.*district.{0,20}(feel|satisf|nps|rate|view)|district.{0,20}breakdown.{0,15}(survey|satisf|nps))\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var dists = Object.keys(sf.byDistrict);
+        if (!dists.length) return 'No district breakdown available in current partner survey data.';
+        var msg = '**Partner Satisfaction — By District**\n\n';
+        dists.sort(function(a,b){ return (sf.byDistrict[b].nps||0)-(sf.byDistrict[a].nps||0); });
+        dists.forEach(function(d) {
+          var r = sf.byDistrict[d];
+          msg += '• **' + d + ':** ' + _npsLabel(r.nps) + ' NPS · ' + r.count + ' respondents\n';
+        });
+        return msg.trim();
+      }
+    },
+
+    // Best / highest-rated school in partner survey
+    { match: /\b(best|top|highest|strongest|most positive).{0,20}(school|site|partner).{0,20}(satisf|nps|survey|score|rating)\b|\b(school|site).{0,20}(best|top|highest).{0,20}(satisf|nps|score)\b|(which school.*highest nps|highest nps.*school|best school.*survey|survey.*best school)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        if (!sf.bestSchool) return 'No school data available (need ≥2 respondents per school).';
+        var b = sf.bestSchool;
+        var msg = '**Highest-Rated Partner School**\n\n';
+        msg += '🏆 **' + b.name + '**\nNPS: ' + _npsLabel(b.nps) + ' · ' + b.total + ' respondents · District: ' + (b.district||'—') + '\nTrajectory: ' + (b.trajectory||'—') + (b.delta ? ' (Δ'+(b.delta>0?'+':'')+b.delta+')':'') + '\n';
+        if (sf.improving.indexOf(b.name) >= 0) msg += '↑ This school is improving quarter-over-quarter.';
+        return msg.trim();
+      }
+    },
+
+    // Lowest / worst school in partner survey
+    { match: /\b(lowest|worst|weakest|most negative|least satisfied|bottom).{0,20}(school|site|partner).{0,20}(satisf|nps|survey|score)\b|(which school.*lowest nps|lowest nps.*school|worst school.*survey)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        if (!sf.lowestSchool) return 'No school data available (need ≥2 respondents per school).';
+        var lo = sf.lowestSchool;
+        return '**Lowest-Rated Partner School**\n\n⚠️ **' + lo.name + '**\nNPS: ' + _npsLabel(lo.nps) + ' · ' + lo.total + ' respondents · District: ' + (lo.district||'—') + '\nRisk level: **' + lo.risk + '** · Trajectory: ' + (lo.trajectory||'—') + '\n\nConsider a direct partner check-in at this site.';
+      }
+    },
+
+    // Dissatisfaction reasons
+    { match: /\b(dissatisf|why.{0,20}(low|unhappy|negative|concern|issues?|complaint)|top.{0,15}(concern|issue|complaint|reason).{0,20}(partner|survey|satisf)|most common.{0,15}(concern|issue|complaint).{0,20}(partner|survey)|reason.{0,15}(dissatisf|complaint|unhappy|low rating)|partner.{0,15}(concern|issue|complaint|unhappy))\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        if (!sf.topDissat || !sf.topDissat.length) return 'No dissatisfaction reasons logged in partner survey data yet.';
+        var msg = '**Top Dissatisfaction Reasons (Partner Survey)**\n\n';
+        sf.topDissat.forEach(function(d, i) {
+          msg += (i+1) + '. **' + d.reason + '** — ' + d.count + ' mention' + (d.count>1?'s':'') + '\n';
+        });
+        msg += '\n_These are tagged reasons from respondents who selected dissatisfied/very dissatisfied._';
+        if (sf.atRisk.length) msg += '\n\nSchools to prioritize: ' + sf.atRisk.slice(0,3).join(', ');
+        return msg.trim();
+      }
+    },
+
+    // Improving / declining schools
+    { match: /\b(improving|improved|getting better|trending up).{0,20}(school|site|partner|satisf|nps)\b|(which schools? (are|is) improving|satisfaction improvement|school.*improvement.*survey|decline.{0,20}(school|site|nps|satisf|partner)|declining.{0,20}school)\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var msg = '**Quarter-over-Quarter Trajectory**\n\n';
+        if (sf.improving.length) {
+          msg += '↑ **IMPROVING (' + sf.improving.length + '):**\n';
+          sf.improving.forEach(function(s){ var d=sf.bySchool[s]; msg += '• **'+s+'** — NPS: '+_npsLabel(d?d.nps:null)+' · Δ '+(d&&d.delta?'+'+d.delta:'?')+'\n'; });
+          msg += '\n';
+        } else { msg += '↑ No schools are currently trending upward.\n\n'; }
+        if (sf.declining.length) {
+          msg += '↓ **DECLINING (' + sf.declining.length + '):**\n';
+          sf.declining.forEach(function(s){ var d=sf.bySchool[s]; msg += '• **'+s+'** — NPS: '+_npsLabel(d?d.nps:null)+' · Δ '+(d&&d.delta?d.delta:'?')+'\n'; });
+        } else { msg += '↓ No schools are currently declining.'; }
+        return msg.trim();
+      }
+    },
+
+    // Promoters — who are they
+    { match: /\b(promoter|promoters|who.*promoter|promoter.*who|top.*promoter|most positive partner|advocate|strongest partner).{0,30}(partner|school|site|survey|nps)?\b|\b(partner|school).{0,20}(advocate|champion|promoter)\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var msg = '**Partner Promoters (NPS Score 4–5)**\n\n**' + sf.promoters + ' promoters** (' + sf.promoterPct + '%) out of ' + sf.totalRespondents + ' total respondents.\n\n';
+        var topSchools = Object.entries(sf.bySchool).filter(function(e){ return e[1].nps !== null && e[1].nps >= 50 && e[1].total >= 2; }).sort(function(a,b){ return b[1].nps-a[1].nps; }).slice(0,5);
+        if (topSchools.length) {
+          msg += '**Schools with Promoter-level NPS (≥50):**\n';
+          topSchools.forEach(function(e){ msg += '• **'+e[0]+'** — NPS: '+_npsLabel(e[1].nps)+' · '+e[1].total+' respondents\n'; });
+        }
+        return msg.trim();
+      }
+    },
+
+    // Satisfaction summary
+    { match: /\b(summary|overview|tell me about|summarize|brief me on|what.{0,10}know about).{0,20}(partner satisf|partner survey|nps|satisfaction survey|school satisf)\b|(partner satisfaction summary|satisfaction overview|survey summary|nps summary)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        var qStr = sf.quarters.length ? sf.quarters.join(' → ') : 'No quarters yet';
+        var msg = '**Partner Satisfaction — Summary**\n\n';
+        msg += '📊 **Overall NPS:** ' + _npsLabel(sf.overallNPS) + ' · **' + sf.totalRespondents + ' respondents**\n';
+        msg += '📅 **Quarters:** ' + qStr + '\n';
+        msg += '✅ **Promoters:** ' + sf.promoterPct + '% · 😐 **Passives:** ' + sf.passivePct + '% · ❌ **Detractors:** ' + sf.detractorPct + '%\n\n';
+        if (sf.qoq.length >= 2) {
+          var last = sf.qoq[sf.qoq.length-1], prev = sf.qoq[sf.qoq.length-2];
+          var delta = (last.nps !== null && prev.nps !== null) ? Math.round((last.nps - prev.nps)*10)/10 : null;
+          if (delta !== null) msg += '📈 **Latest trend (' + prev.quarter + ' → ' + last.quarter + '):** ' + (delta >= 0?'+':'') + delta + ' pts\n\n';
+        }
+        if (sf.atRisk.length) msg += '🔴 **At-risk:** ' + sf.atRisk.join(', ') + '\n';
+        if (sf.watch.length) msg += '🟡 **Watch:** ' + sf.watch.join(', ') + '\n';
+        if (sf.bestSchool) msg += '🏆 **Highest NPS:** ' + sf.bestSchool.name + ' (' + _npsLabel(sf.bestSchool.nps) + ')\n';
+        if (sf.topDissat.length) msg += '\n**Top concern:** ' + sf.topDissat[0].reason + ' (' + sf.topDissat[0].count + ' mentions)';
+        return msg.trim();
+      }
+    },
+
+    // Partner satisfaction PDF via PIE
+    { match: /\b(pdf|export|download|print|report|generate).{0,20}(partner satisf|satisfaction survey|nps report|partner survey|satisfaction pdf|survey pdf|nps pdf)\b|(partner satisf.{0,15}(pdf|report|export)|satisfaction.{0,15}(pdf|report|export)|nps.{0,15}(pdf|report|export))\b/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded. Open the **Partner Satisfaction** panel and click **⬇ Export PDF** in the header — or open the panel first and ask me again.';
+        if (typeof window.sfExportPDF === 'function') {
+          window.sfExportPDF();
+          return '📄 Generating **Partner Satisfaction PDF**...\n\nIncludes NPS hero, score distribution, QoQ trends, at-risk schools, role breakdown, and dissatisfaction analysis. The download should appear in a moment.';
+        }
+        return 'Open the **Partner Satisfaction** panel and use the **⬇ Export PDF** button in the header.';
+      }
+    },
+
+    // Partner satisfaction watch list
+    { match: /\b(watch.?list|on watch|watch schools?).{0,20}(partner|satisf|nps|survey)\b|(partner|satisf|nps|survey).{0,20}(watch.?list|on watch|watch schools?)\b|(schools? on (partner )?watch|partner watch|satisfaction watch)/i,
+      respond: function() {
+        var sf = _sf();
+        if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
+        if (!sf.watch.length && !sf.atRisk.length) return '✅ No schools are currently on watch or at-risk in the partner survey. NPS: ' + _npsLabel(sf.overallNPS);
+        var msg = '**Partner Survey — Watch & At-Risk**\n\n';
+        if (sf.atRisk.length) {
+          msg += '🔴 **AT-RISK (' + sf.atRisk.length + '):**\n';
+          sf.atRisk.forEach(function(s){ var d=sf.bySchool[s]; msg += '• **'+s+'** — NPS: '+_npsLabel(d?d.nps:null)+', Risk: at-risk\n'; });
+          msg += '\n';
+        }
+        if (sf.watch.length) {
+          msg += '🟡 **WATCH (' + sf.watch.length + '):**\n';
+          sf.watch.forEach(function(s){ var d=sf.bySchool[s]; msg += '• **'+s+'** — NPS: '+_npsLabel(d?d.nps:null)+'\n'; });
+        }
+        return msg.trim();
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -6890,6 +7211,12 @@
     if (active.length) {
       rows += '<tr><td>Active Staff</td><td><strong>' + active.length + '</strong></td><td>TAP Apprentices: ' + apps + '</td></tr>';
     }
+    var sfPdf = _sf();
+    if (sfPdf && sfPdf.totalRespondents > 0) {
+      var npsVal = sfPdf.overallNPS !== null ? Math.round(sfPdf.overallNPS * 10)/10 : '—';
+      var npsCtx = sfPdf.promoterPct + '% promoters · ' + sfPdf.detractorPct + '% detractors · ' + (sfPdf.atRisk.length ? sfPdf.atRisk.length + ' at-risk schools' : 'no at-risk schools');
+      rows += '<tr><td>Partner NPS</td><td><strong>' + npsVal + (npsVal !== '—' ? (npsVal >= 50 ? ' 🟢' : npsVal >= 20 ? ' 🟡' : ' 🔴') : '') + '</strong></td><td>' + npsCtx + ' · ' + sfPdf.totalRespondents + ' respondents</td></tr>';
+    }
     var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PIE Flash Report</title>' +
       '<style>body{font-family:"Segoe UI",sans-serif;max-width:820px;margin:2rem auto;color:#111;padding:1.5rem}' +
       '.hdr{background:#003087;color:#fff;border-radius:10px;padding:1.25rem 1.5rem;margin-bottom:1.5rem}' +
@@ -6941,7 +7268,11 @@
                       /\b(with|by|from|across|per|all)\s+(a\s+)?(tutor|tutors|scholar|scholars|site|school|program)\b/i.test(qt) ||
                       /^(best|top|highest|lowest|worst)\s+(tutor|tutors|scholar|scholars)\b/i.test(qt.trim()) ||
                       /\bscholar.{0,20}(enjoyment|confidence|learning|satisfaction)\b/i.test(qt) ||
-                      /\b(enjoyment|confidence|learning|satisfaction)\s+(score|rate|avg|average|rating)s?\b/i.test(qt);
+                      /\b(enjoyment|confidence|learning|satisfaction)\s+(score|rate|avg|average|rating)s?\b/i.test(qt) ||
+                      // Partner NPS / satisfaction queries — skip entity; let satisfaction rules handle them
+                      /\b(nps|net promoter|partner satisf|satisfaction score|overall satisf|partner nps|partner survey|satisfaction survey|satisfaction overview|satisfaction summary)\b/i.test(qt) ||
+                      /\b(at.?risk|watch).{0,20}(partner|school|satisf|nps|survey)\b/i.test(qt) ||
+                      /\b(dissatisf|promoter|detractor).{0,30}(partner|school|survey|nps)\b/i.test(qt);
     if (!_skipEntity) {
       var entity = _extractPerson(qt);
       if (entity) return _personResponse(entity, qt);
@@ -6982,6 +7313,11 @@
       [/pdf|report|flash|export/,                            'generate pdf report flash'],
       [/what.*you|pie.*do|help|capabilit/,                   'what can you do capabilities'],
       [/school year|sy\b|\d{4}/,                             'current school year available data'],
+      [/\bnps\b|net promoter|partner satisf|satisfaction score|partner survey/, 'partner nps satisfaction score'],
+      [/at.?risk.*partner|partner.*at.?risk|school.*at.?risk.*survey|satisf.*risk/, 'at-risk partner school survey'],
+      [/dissatisf|dissat|unhappy.*partner|partner.*unhappy/,  'dissatisfaction partner survey reason'],
+      [/by role.*satisf|satisf.*role|role.*nps|nps.*role/,   'by role partner satisfaction nps'],
+      [/improving.*school|school.*improving|declining.*school|school.*declining/, 'improving declining school trajectory'],
     ];
     for (var k = 0; k < kw.length; k++) {
       if (kw[k][0].test(qn)) {
@@ -7000,7 +7336,7 @@
     if (c.length) parts.push(c.length+' concerns');
     if (active.length) parts.push(active.length+' active staff');
     var snap = parts.length ? '\n\n**Live:** '+parts.join(' · ') : '';
-    return 'I didn\'t catch that — try rephrasing or ask about:\n• **Attendance** — best/worst sites, district, tutor rates\n• **Academic** — iReady math/ELA growth, grade level placement\n• **Workforce** — on watch, concerns, apprentices, staff diversity\n• **Program** — scholars, sessions, districts, survey completion\n• **KPIs** — scores, goals not met, weighted score\n• **Reports** — flash PDF, data sources, school year\n\nOr type a **tutor or staff name** to pull their profile.' + snap;
+    return 'I didn\'t catch that — try rephrasing or ask about:\n• **Attendance** — best/worst sites, district, tutor rates\n• **Academic** — iReady math/ELA growth, grade level placement\n• **Workforce** — on watch, concerns, apprentices, staff diversity\n• **Program** — scholars, sessions, districts, survey completion\n• **KPIs** — scores, goals not met, weighted score\n• **Satisfaction** — partner NPS, at-risk schools, by role, QoQ trends, dissatisfaction reasons\n• **Reports** — flash PDF, data sources, school year\n\nOr type a **tutor or staff name** to pull their profile.' + snap;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
