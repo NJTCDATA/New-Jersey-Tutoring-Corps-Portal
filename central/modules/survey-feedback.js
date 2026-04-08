@@ -376,7 +376,7 @@
     if (!document.getElementById('sfPdfMenuStyle')) {
       const st = document.createElement('style');
       st.id = 'sfPdfMenuStyle';
-      st.textContent = '.sf-pdf-menu-item{display:block;width:100%;padding:.45rem .875rem;font-size:.82rem;text-align:left;background:none;border:none;cursor:pointer;color:#1b2a4a;white-space:nowrap}.sf-pdf-menu-item:hover{background:#f1f5fb}';
+      st.textContent = '.sf-pdf-menu-item{display:block;width:100%;padding:.5rem 1rem;font-size:.8rem;text-align:left;background:none;border:none;cursor:pointer;color:#1b2a4a;white-space:nowrap;transition:background .12s ease}.sf-pdf-menu-item:hover{background:#eef3fb;color:#0f1e3d}.sf-pdf-menu-item:active{background:#dce7f7}';
       document.head.appendChild(st);
     }
     const _orig = window.showPanel;
@@ -491,18 +491,18 @@
           <button class="btn btn-secondary" onclick="sfRefresh()" title="Re-fetch data from Google Sheets">↻ Refresh</button>
           <div id="sfPdfDropWrap" style="position:relative;display:inline-block;margin-left:.5rem">
             <button class="btn btn-primary" id="sfPdfBtn" onclick="sfPdfMenuToggle()" title="Export PDF options">⬇ Export PDF ▾</button>
-            <div id="sfPdfMenu" style="display:none;position:absolute;right:0;top:110%;z-index:200;background:#fff;border:1px solid #dde3ec;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.13);min-width:220px;overflow:hidden">
-              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">INTERNAL REPORTS</div>
-              <button onclick="sfExportPDF('leadership')" class="sf-pdf-menu-item">🏛 Leadership Report</button>
-              <button onclick="sfExportPDF('program')"    class="sf-pdf-menu-item">📍 Program Team Report</button>
-              <button onclick="sfExportPDF('data')"       class="sf-pdf-menu-item">🔬 Data Department Report</button>
-              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">REGIONAL SUMMARIES</div>
-              <button onclick="sfExportRegionPDF('NE')"   class="sf-pdf-menu-item">🗺 NE Region Summary</button>
-              <button onclick="sfExportRegionPDF('SW')"   class="sf-pdf-menu-item">🗺 SW Region Summary</button>
-              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">DISTRICT / CMO REPORTS</div>
-              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item">🏫 ${d}</button>`).join('')}
-              <div style="padding:.4rem .75rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;color:#7d8fa1;text-transform:uppercase;background:#f8fafc">PARTNER REPORTS (by school)</div>
-              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item">📄 ${s}</button>`).join('')}
+            <div id="sfPdfMenu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:9999;background:#fff;border:1px solid #d1d9e6;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.18);min-width:252px;max-height:min(72vh,520px);overflow-y:auto;overflow-x:hidden">
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Internal Reports</div>
+              <button onclick="sfExportPDF('leadership')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#127963;</span>Leadership Report</button>
+              <button onclick="sfExportPDF('program')"    class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128205;</span>Program Team Report</button>
+              <button onclick="sfExportPDF('data')"       class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128300;</span>Data Department Report</button>
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Regional Summaries</div>
+              <button onclick="sfExportRegionPDF('NE')"   class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>NE Region Summary</button>
+              <button onclick="sfExportRegionPDF('SW')"   class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>SW Region Summary</button>
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">District / CMO Reports</div>
+              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#127979;</span>${d}</button>`).join('')}
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Partner Reports (by School)</div>
+              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#128196;</span>${s}</button>`).join('')}
             </div>
           </div>
         </div>
@@ -1885,99 +1885,217 @@
     const filterLine = fParts.length ? 'Filters: ' + fParts.join('  |  ') : 'All data — no filters applied';
     const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-    let y = MT;
+    // ── Shared table style ───────────────────────────────────────────
+    const T = {
+      headStyles:  { fillColor: C.navy, textColor: C.white, fontSize: 8.5, fontStyle: 'bold', cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+      bodyStyles:  { fontSize: 8.5, textColor: C.body, cellPadding: { top: 3.5, bottom: 3.5, left: 5, right: 5 } },
+      alternateRowStyles: { fillColor: [247, 250, 254] },
+      theme: 'plain',
+      tableLineColor: [213, 220, 232],
+      tableLineWidth: 0.25,
+      margin: { left: ML, right: MR },
+    };
+
+    // ── Section header helper ────────────────────────────────────────
+    let y = 0;
+    function secHdr(title, sub) {
+      if (y > 258) { doc.addPage(); y = MT; }
+      doc.setFillColor(...C.teal);
+      doc.rect(ML, y, 3, sub ? 14 : 9, 'F');
+      doc.setTextColor(...C.navy);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11.5);
+      doc.text(title, ML + 7, y + 6.5);
+      if (sub) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...C.muted);
+        doc.text(sub, ML + 7, y + 12);
+        y += 18;
+      } else {
+        y += 12;
+      }
+    }
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 1 — COVER HEADER
     // ══════════════════════════════════════════════════════════════
+    // Deep navy background
     doc.setFillColor(...C.navy);
-    doc.rect(0, 0, W, 26, 'F');
+    doc.rect(0, 0, W, 46, 'F');
+
+    // Teal accent stripe at bottom of header
+    doc.setFillColor(...C.teal);
+    doc.rect(0, 46, W, 2.5, 'F');
+
+    // Small org label
+    doc.setTextColor(97, 196, 183);  // lighter teal
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold');
+    doc.text('NEW JERSEY TUTORING CORPS', ML, 12);
+
+    // Report title
     doc.setTextColor(...C.white);
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-    doc.text('NJTC — Partner Satisfaction Report', ML, 11);
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-    doc.text(viewLabel + ' View  ·  Generated ' + dateStr, ML, 18);
-    doc.text(ss(filterLine), ML, 24, { maxWidth: W - ML - MR });
+    doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+    doc.text('Partner Satisfaction Report', ML, 26);
 
-    y = 32;
+    // View label
+    doc.setFontSize(9.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(190, 205, 225);
+    doc.text(viewLabel + ' View', ML, 36);
+
+    // Date — right-aligned
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(190, 205, 225);
+    doc.text(dateStr, W - MR, 12, { align: 'right' });
+
+    // Filter line
+    if (fParts.length) {
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(155, 175, 200);
+      doc.text(ss(filterLine), ML, 42, { maxWidth: W - ML - MR - 4 });
+    } else {
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'italic');
+      doc.setTextColor(155, 175, 200);
+      doc.text('All data — no filters applied', ML, 42);
+    }
+
+    y = MT + 42;   // start content below header + gap
 
     // ══════════════════════════════════════════════════════════════
-    // SECTION 2 — NPS HERO
+    // SECTION 2 — NPS HERO CARD
     // ══════════════════════════════════════════════════════════════
-    doc.setFillColor(...C.light);
-    doc.roundedRect(ML, y, W - ML - MR, 30, 2, 2, 'F');
-
+    const heroH = 44;
+    const CW    = W - ML - MR;
     const scoreCol = npsRgb(nd.nps);
+
+    // Card background
+    doc.setFillColor(245, 248, 252);
+    doc.roundedRect(ML, y, CW, heroH, 3, 3, 'F');
+
+    // Left color accent bar
+    doc.setFillColor(...scoreCol);
+    doc.rect(ML, y, 4, heroH, 'F');
+
+    // Large NPS score
     doc.setTextColor(...scoreCol);
-    doc.setFontSize(30); doc.setFont('helvetica', 'bold');
-    doc.text(fmtN(nd.nps), ML + 5, y + 20);
+    doc.setFontSize(42); doc.setFont('helvetica', 'bold');
+    doc.text(fmtN(nd.nps), ML + 9, y + 29);
 
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    // NPS label
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'bold');
     doc.setTextColor(...C.muted);
-    doc.text('Adapted NPS (1-5 Scale)', ML + 5, y + 26);
-    doc.text('n = ' + nd.total, ML + 5, y + 8);
+    doc.text('ADAPTED NPS', ML + 9, y + 36);
+    doc.text('(1-5 SCALE)', ML + 9, y + 40.5);
 
-    const bx = ML + 55;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+    // Sample size
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text('n = ' + nd.total, ML + 9, y + 7);
+
+    // Divider between score and bar section
+    doc.setDrawColor(...C.muted);
+    doc.setLineWidth(0.3);
+    doc.line(ML + 50, y + 4, ML + 50, y + heroH - 4);
+
+    // Breakdown bar
+    const barX = ML + 54;
+    const barW  = CW - 58;
+    const barY  = y + 8;
+    const barH2 = 8;
+
+    if (nd.total > 0) {
+      const pW = (nd.promoterPct / 100) * barW;
+      const aW = (nd.passivePct  / 100) * barW;
+      const dW = (nd.detractorPct / 100) * barW;
+      if (pW > 0) { doc.setFillColor(...C.green);  doc.rect(barX,         barY, pW, barH2, 'F'); }
+      if (aW > 0) { doc.setFillColor(200, 100, 10); doc.rect(barX + pW,   barY, aW, barH2, 'F'); }
+      if (dW > 0) { doc.setFillColor(...C.red);     doc.rect(barX + pW + aW, barY, dW, barH2, 'F'); }
+    }
+
+    // Breakdown labels
+    const lblY = barY + barH2 + 6;
+    const colW = barW / 3;
+
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
     doc.setTextColor(...C.green);
-    doc.text('Promoters (4-5): ' + nd.promoterPct + '%  (' + nd.promoters + ')', bx, y + 9);
-    doc.setTextColor(...C.amber);
-    doc.text('Passives   (3):  ' + nd.passivePct  + '%  (' + nd.passives  + ')', bx, y + 17);
-    doc.setTextColor(...C.red);
-    doc.text('Detractors (1-2): ' + nd.detractorPct + '%  (' + nd.detractors + ')', bx, y + 25);
+    doc.text('Promoters (4-5)', barX, lblY);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text(nd.promoterPct + '%', barX, lblY + 6);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text(nd.promoters + ' respondents', barX, lblY + 11.5);
 
-    y += 37;
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(192, 90, 10);
+    doc.text('Passives (3)', barX + colW, lblY);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text(nd.passivePct + '%', barX + colW, lblY + 6);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text(nd.passives + ' respondents', barX + colW, lblY + 11.5);
+
+    doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...C.red);
+    doc.text('Detractors (1-2)', barX + colW * 2, lblY);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text(nd.detractorPct + '%', barX + colW * 2, lblY + 6);
+    doc.setFontSize(7.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...C.muted);
+    doc.text(nd.detractors + ' respondents', barX + colW * 2, lblY + 11.5);
+
+    y += heroH + 12;
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 3 — SCORE DISTRIBUTION
     // ══════════════════════════════════════════════════════════════
-    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('Score Distribution (1-5)', ML, y);
-    y += 4;
+    secHdr('Score Distribution (1–5)');
 
     const scoreDist = [1,2,3,4,5].map(s => {
       const cnt = rows.filter(r => r.npsScore === s).length;
       const pct = nd.total ? Math.round(cnt / nd.total * 100) : 0;
       return [String(s), s <= 2 ? 'Detractor' : s === 3 ? 'Passive' : 'Promoter', String(cnt), pct + '%'];
     });
-    doc.autoTable({
-      startY: y, head: [['Score','Category','Count','% of Total']],
+    doc.autoTable(Object.assign({}, T, {
+      startY: y,
+      head: [['Score','Category','Count','% of Total']],
       body: scoreDist,
-      theme: 'striped',
-      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 9, textColor: C.body },
-      columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center' }, 3: { halign: 'center' } },
-      margin: { left: ML, right: MR },
-    });
-    y = doc.lastAutoTable.finalY + 8;
+      columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 2: { halign: 'center', cellWidth: 28 }, 3: { halign: 'center', cellWidth: 32 } },
+      didParseCell: (d) => {
+        if (d.section !== 'body') return;
+        const score = parseInt(d.row.raw[0]);
+        if (d.column.index === 1) {
+          d.cell.styles.fontStyle = 'bold';
+          d.cell.styles.textColor = score <= 2 ? C.red : score === 3 ? C.amber : C.green;
+        }
+      },
+    }));
+    y = doc.lastAutoTable.finalY + 10;
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 4 — QUARTER-OVER-QUARTER CHANGES
     // ══════════════════════════════════════════════════════════════
     if (allQoQ.length > 0) {
-      if (y > 240) { doc.addPage(); y = MT; }
-      doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-      doc.text('Quarter-over-Quarter NPS Changes', ML, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
-      doc.text('Green = improvement  |  Red = decline  |  — = first quarter on record', ML, y + 4);
-      y += 8;
+      if (y > 238) { doc.addPage(); y = MT; }
+      secHdr('Quarter-over-Quarter NPS Changes', 'Green = improvement  |  Red = decline  |  Dash = first quarter on record');
 
       const qoqBody = allQoQ.map((q, i) => {
         const prev2  = i > 0 ? allQoQ[i - 1] : null;
         const delta  = (prev2 && prev2.nps !== null && q.nps !== null) ? Math.round((q.nps - prev2.nps) * 10) / 10 : null;
         const dStr   = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
-        const trend  = delta === null ? '—' : delta > 5 ? '↑ Improving' : delta < -5 ? '↓ Declining' : '→ Stable';
+        const trend  = delta === null ? '—' : delta > 5 ? 'Improving' : delta < -5 ? 'Declining' : 'Stable';
         return [ss(q.quarter), String(q.total), fmtN(q.nps), dStr, trend];
       });
-      doc.autoTable({
-        startY: y, head: [['Quarter','Respondents','NPS','Change (Δ)','Trend']],
+      doc.autoTable(Object.assign({}, T, {
+        startY: y,
+        head: [['Quarter','Respondents','NPS','Change','Trend']],
         body: qoqBody,
-        theme: 'striped',
-        headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 9, textColor: C.body },
-        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+        columnStyles: { 1: { halign: 'center', cellWidth: 34 }, 2: { halign: 'center', cellWidth: 26 }, 3: { halign: 'center', cellWidth: 28 }, 4: { halign: 'center', cellWidth: 30 } },
         didParseCell: (d) => {
           if (d.section !== 'body') return;
+          if (d.column.index === 2) {
+            const v = parseFloat(d.cell.text[0]);
+            if (!isNaN(v)) { d.cell.styles.textColor = npsRgb(v); d.cell.styles.fontStyle = 'bold'; }
+          }
           if (d.column.index === 3) {
             const v = parseFloat(d.cell.text[0]);
             if (v > 0) d.cell.styles.textColor = C.green;
@@ -1985,22 +2103,19 @@
           }
           if (d.column.index === 4) {
             const t = d.cell.text[0];
-            if (t.includes('Improving')) d.cell.styles.textColor = C.green;
-            else if (t.includes('Declining')) d.cell.styles.textColor = C.red;
+            if (t === 'Improving') { d.cell.styles.textColor = C.green; d.cell.styles.fontStyle = 'bold'; }
+            else if (t === 'Declining') { d.cell.styles.textColor = C.red; d.cell.styles.fontStyle = 'bold'; }
           }
         },
-        margin: { left: ML, right: MR },
-      });
-      y = doc.lastAutoTable.finalY + 8;
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 5 — DISTRICT ANALYSIS
     // ══════════════════════════════════════════════════════════════
-    if (y > 230) { doc.addPage(); y = MT; }
-    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('District Analysis', ML, y);
-    y += 4;
+    if (y > 228) { doc.addPage(); y = MT; }
+    secHdr('District Analysis');
 
     const dists2 = getDistricts(allRows);
     const distBody = dists2.map(district => {
@@ -2011,38 +2126,49 @@
       const { nps: pNPS } = calcNPS(prev2);
       const delta  = (pNPS !== null && cNPS !== null) ? Math.round((cNPS - pNPS) * 10) / 10 : null;
       const dStr   = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
-      const trend  = delta === null ? '—' : delta > 5 ? '↑' : delta < -5 ? '↓' : '→';
-      const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[riskOf(recent2.length ? recent2 : all2, prev2)] || '—';
-      return { row: [ss(district), String(all2.length), fmtN(cNPS), dStr, trend, rLabel], delta };
+      const trend  = delta === null ? '—' : delta > 5 ? 'Improving' : delta < -5 ? 'Declining' : 'Stable';
+      const risk   = riskOf(recent2.length ? recent2 : all2, prev2);
+      const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[risk] || '—';
+      return { row: [ss(district), String(all2.length), fmtN(cNPS), dStr, trend, rLabel], delta, risk, nps: cNPS };
     });
-    doc.autoTable({
-      startY: y, head: [['District','Respondents','NPS','Change (Δ)','Trend','Risk']],
+    doc.autoTable(Object.assign({}, T, {
+      startY: y,
+      head: [['District','Respondents','NPS','Change','Trend','Risk']],
       body: distBody.map(d => d.row),
-      theme: 'striped',
-      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8.5, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 8.5, textColor: C.body },
-      columnStyles: { 0: { cellWidth: 62 }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+      columnStyles: { 0: { cellWidth: 60 }, 1: { halign: 'center', cellWidth: 30 }, 2: { halign: 'center', cellWidth: 24 }, 3: { halign: 'center', cellWidth: 24 }, 4: { halign: 'center', cellWidth: 28 } },
       didParseCell: (d) => {
         if (d.section !== 'body') return;
-        const delta = distBody[d.row.index]?.delta;
-        if (d.column.index === 3 && delta !== null) {
-          d.cell.styles.textColor = delta > 0 ? C.green : delta < 0 ? C.red : C.body;
+        const row = distBody[d.row.index];
+        if (d.column.index === 2) {
+          const v = parseFloat(d.cell.text[0]);
+          if (!isNaN(v)) { d.cell.styles.textColor = npsRgb(v); d.cell.styles.fontStyle = 'bold'; }
+        }
+        if (d.column.index === 3 && row?.delta !== null && row?.delta !== undefined) {
+          d.cell.styles.textColor = row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.body;
+          d.cell.styles.fontStyle = 'bold';
+        }
+        if (d.column.index === 4) {
+          const t = d.cell.text[0];
+          if (t === 'Improving') { d.cell.styles.textColor = C.green; d.cell.styles.fontStyle = 'bold'; }
+          else if (t === 'Declining') { d.cell.styles.textColor = C.red; d.cell.styles.fontStyle = 'bold'; }
+        }
+        if (d.column.index === 5) {
+          const t = d.cell.text[0];
+          d.cell.styles.fontStyle = 'bold';
+          if (t === 'At Risk') d.cell.styles.textColor = C.red;
+          else if (t === 'Watch') d.cell.styles.textColor = C.amber;
+          else d.cell.styles.textColor = C.green;
         }
       },
-      margin: { left: ML, right: MR },
-    });
-    y = doc.lastAutoTable.finalY + 8;
+    }));
+    y = doc.lastAutoTable.finalY + 10;
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 6 — SCHOOL PERFORMANCE CHANGES (if 2+ quarters)
     // ══════════════════════════════════════════════════════════════
     if (recentQ && prevQ) {
-      if (y > 220) { doc.addPage(); y = MT; }
-      doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-      doc.text('School Performance: ' + ss(prevQ) + ' → ' + ss(recentQ), ML, y);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
-      doc.text('Sorted by risk then by largest decline first.', ML, y + 4);
-      y += 8;
+      if (y > 218) { doc.addPage(); y = MT; }
+      secHdr('School Performance: ' + ss(prevQ) + ' vs ' + ss(recentQ), 'Sorted by risk then by largest decline first.');
 
       const allPubSch = pubData(_allData);
       const schools2  = [...new Set(allPubSch.map(r => r.school).filter(Boolean))].sort();
@@ -2055,10 +2181,10 @@
         const { nps: pNPS } = calcNPS(pre3);
         const delta = (pNPS !== null && cNPS !== null) ? Math.round((cNPS - pNPS) * 10) / 10 : null;
         const dStr  = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
-        const trend = delta === null ? '—' : delta > 5 ? '↑ Improving' : delta < -5 ? '↓ Declining' : '→ Stable';
+        const trend = delta === null ? '—' : delta > 5 ? 'Improving' : delta < -5 ? 'Declining' : 'Stable';
         const risk  = riskOf(rec3, pre3);
         const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[risk];
-        return { delta, risk, row: [ss(school), String(rec3.length), fmtN(cNPS), dStr, trend, rLabel] };
+        return { delta, risk, nps: cNPS, row: [ss(school), String(rec3.length), fmtN(cNPS), dStr, trend, rLabel] };
       }).filter(Boolean);
 
       const rOrder = { 'at-risk': 0, 'watch': 1, 'healthy': 2 };
@@ -2067,37 +2193,44 @@
         return rd !== 0 ? rd : (a.delta || 0) - (b.delta || 0);
       });
 
-      doc.autoTable({
-        startY: y, head: [['School', 'N', 'NPS', 'Δ vs ' + ss(prevQ), 'Trend', 'Risk']],
+      doc.autoTable(Object.assign({}, T, {
+        startY: y,
+        head: [['School', 'N', 'NPS', 'vs ' + ss(prevQ), 'Trend', 'Risk']],
         body: schRows.map(s => s.row),
-        theme: 'striped',
-        headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 8, textColor: C.body },
-        columnStyles: { 0: { cellWidth: 55 }, 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+        columnStyles: { 0: { cellWidth: 56 }, 1: { halign: 'center', cellWidth: 16 }, 2: { halign: 'center', cellWidth: 24 }, 3: { halign: 'center', cellWidth: 30 }, 4: { halign: 'center', cellWidth: 30 } },
         didParseCell: (d) => {
           if (d.section !== 'body') return;
-          const delta = schRows[d.row.index]?.delta;
-          if (d.column.index === 3 && delta !== null) {
-            d.cell.styles.textColor = delta > 0 ? C.green : delta < 0 ? C.red : C.body;
+          const row = schRows[d.row.index];
+          if (d.column.index === 2) {
+            const v = parseFloat(d.cell.text[0]);
+            if (!isNaN(v)) { d.cell.styles.textColor = npsRgb(v); d.cell.styles.fontStyle = 'bold'; }
+          }
+          if (d.column.index === 3 && row?.delta !== null && row?.delta !== undefined) {
+            d.cell.styles.textColor = row.delta > 0 ? C.green : row.delta < 0 ? C.red : C.body;
+            d.cell.styles.fontStyle = 'bold';
           }
           if (d.column.index === 4) {
             const t = d.cell.text[0];
-            if (t.includes('Improving')) d.cell.styles.textColor = C.green;
-            else if (t.includes('Declining')) d.cell.styles.textColor = C.red;
+            if (t === 'Improving') { d.cell.styles.textColor = C.green; d.cell.styles.fontStyle = 'bold'; }
+            else if (t === 'Declining') { d.cell.styles.textColor = C.red; d.cell.styles.fontStyle = 'bold'; }
+          }
+          if (d.column.index === 5) {
+            const t = d.cell.text[0];
+            d.cell.styles.fontStyle = 'bold';
+            if (t === 'At Risk') d.cell.styles.textColor = C.red;
+            else if (t === 'Watch') d.cell.styles.textColor = C.amber;
+            else d.cell.styles.textColor = C.green;
           }
         },
-        margin: { left: ML, right: MR },
-      });
-      y = doc.lastAutoTable.finalY + 8;
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 7 — ROLE NPS BREAKDOWN
     // ══════════════════════════════════════════════════════════════
-    if (y > 230) { doc.addPage(); y = MT; }
-    doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-    doc.text('Role NPS Breakdown', ML, y);
-    y += 4;
+    if (y > 228) { doc.addPage(); y = MT; }
+    secHdr('Role NPS Breakdown');
 
     const roleBody = getRoles().map(role => {
       const rData = rows.filter(r => r.role === role);
@@ -2105,23 +2238,28 @@
       const cat = nps === null ? 'N/A' : nps >= 50 ? 'Strong' : nps >= 20 ? 'Moderate' : nps >= 0 ? 'Weak' : 'Negative';
       return { nps, row: [ss(role), String(rn), fmtN(nps), cat] };
     });
-    doc.autoTable({
-      startY: y, head: [['Role','Respondents','NPS','Category']],
+    doc.autoTable(Object.assign({}, T, {
+      startY: y,
+      head: [['Role','Respondents','NPS','Category']],
       body: roleBody.map(r => r.row),
-      theme: 'striped',
-      headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 9, textColor: C.body },
-      columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' }, 3: { halign: 'center' } },
+      columnStyles: { 1: { halign: 'center', cellWidth: 34 }, 2: { halign: 'center', cellWidth: 28 }, 3: { halign: 'center', cellWidth: 34 } },
       didParseCell: (d) => {
         if (d.section !== 'body') return;
-        const nps = roleBody[d.row.index]?.nps;
-        if (d.column.index === 2 && nps !== null) {
-          d.cell.styles.textColor = nps >= 50 ? C.green : nps >= 20 ? C.amber : C.red;
+        const row = roleBody[d.row.index];
+        if (d.column.index === 2 && row?.nps !== null && row?.nps !== undefined) {
+          d.cell.styles.textColor = npsRgb(row.nps);
+          d.cell.styles.fontStyle = 'bold';
+        }
+        if (d.column.index === 3) {
+          const t = d.cell.text[0];
+          d.cell.styles.fontStyle = 'bold';
+          if (t === 'Strong') d.cell.styles.textColor = C.green;
+          else if (t === 'Moderate') d.cell.styles.textColor = C.amber;
+          else if (t === 'Weak' || t === 'Negative') d.cell.styles.textColor = C.red;
         }
       },
-      margin: { left: ML, right: MR },
-    });
-    y = doc.lastAutoTable.finalY + 8;
+    }));
+    y = doc.lastAutoTable.finalY + 10;
 
     // ══════════════════════════════════════════════════════════════
     // SECTION 8 — DATA DEPT: INDIVIDUAL RESPONDENT CHANGES
@@ -2129,12 +2267,8 @@
     if (_view === 'data') {
       const returning = getReturningRespondents(_allData);
       if (returning.length) {
-        if (y > 210) { doc.addPage(); y = MT; }
-        doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-        doc.text('Individual Respondent Changes (Longitudinal)', ML, y);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...C.muted);
-        doc.text('Matched by email across quarters. Sorted by largest decline first.', ML, y + 4);
-        y += 9;
+        if (y > 208) { doc.addPage(); y = MT; }
+        secHdr('Individual Respondent Changes (Longitudinal)', 'Matched by email across quarters. Sorted by largest decline first.');
 
         const longRows = returning.map(group => {
           group.sort((a, b) => a.quarter.localeCompare(b.quarter));
@@ -2150,29 +2284,34 @@
                 : scoreCategory(qScores[fQ]) + ' -> ' + scoreCategory(qScores[lQ]))
             : '';
           const dStr = delta === null ? '—' : (delta > 0 ? '+' : '') + delta;
-          const trend = delta === null ? '—' : delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
+          const trend = delta === null ? '—' : delta > 0 ? 'Up' : delta < 0 ? 'Down' : 'Same';
           return { delta, row: [ss(latest.email), ss(latest.role), ss(latest.school), dStr, trend, ss(catChg)] };
         });
         longRows.sort((a, b) => (a.delta || 0) - (b.delta || 0));
 
-        doc.autoTable({
-          startY: y, head: [['Email','Role','School','Delta','Trend','Category Change']],
+        doc.autoTable(Object.assign({}, T, {
+          startY: y,
+          head: [['Email','Role','School','Delta','Trend','Category Change']],
           body: longRows.map(r => r.row),
-          theme: 'striped',
-          headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 8, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 7.5, textColor: C.body },
-          columnStyles: { 0: { cellWidth: 52 }, 3: { halign: 'center' }, 4: { halign: 'center' } },
+          styles: { fontSize: 7.5 },
+          bodyStyles: Object.assign({}, T.bodyStyles, { fontSize: 7.5 }),
+          headStyles: Object.assign({}, T.headStyles, { fontSize: 8 }),
+          columnStyles: { 0: { cellWidth: 50 }, 1: { cellWidth: 22 }, 3: { halign: 'center', cellWidth: 18 }, 4: { halign: 'center', cellWidth: 18 } },
           didParseCell: (d) => {
             if (d.section !== 'body') return;
             if (d.column.index === 3) {
               const v = parseFloat(d.cell.text[0]);
-              if (v > 0) d.cell.styles.textColor = C.green;
-              else if (v < 0) d.cell.styles.textColor = C.red;
+              if (v > 0) { d.cell.styles.textColor = C.green; d.cell.styles.fontStyle = 'bold'; }
+              else if (v < 0) { d.cell.styles.textColor = C.red; d.cell.styles.fontStyle = 'bold'; }
+            }
+            if (d.column.index === 4) {
+              const t = d.cell.text[0];
+              if (t === 'Up') { d.cell.styles.textColor = C.green; d.cell.styles.fontStyle = 'bold'; }
+              else if (t === 'Down') { d.cell.styles.textColor = C.red; d.cell.styles.fontStyle = 'bold'; }
             }
           },
-          margin: { left: ML, right: MR },
-        });
-        y = doc.lastAutoTable.finalY + 8;
+        }));
+        y = doc.lastAutoTable.finalY + 10;
       }
 
       // ── Data Dept: Dissatisfaction Reasons ───────────────────────
@@ -2182,19 +2321,14 @@
       }));
       const dissatSorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
       if (dissatSorted.length) {
-        if (y > 220) { doc.addPage(); y = MT; }
-        doc.setTextColor(...C.navy); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-        doc.text('Dissatisfaction Reason Frequency', ML, y);
-        y += 4;
-        doc.autoTable({
-          startY: y, head: [['Reason','Count']],
+        if (y > 218) { doc.addPage(); y = MT; }
+        secHdr('Dissatisfaction Reason Frequency');
+        doc.autoTable(Object.assign({}, T, {
+          startY: y,
+          head: [['Reason','Count']],
           body: dissatSorted.map(([k, v]) => [ss(k), String(v)]),
-          theme: 'striped',
-          headStyles: { fillColor: C.navy, textColor: C.white, fontSize: 9, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8.5, textColor: C.body },
-          columnStyles: { 1: { halign: 'center', cellWidth: 24 } },
-          margin: { left: ML, right: MR },
-        });
+          columnStyles: { 1: { halign: 'center', cellWidth: 28 } },
+        }));
       }
     }
 
@@ -2202,11 +2336,16 @@
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) {
       doc.setPage(p);
-      doc.setFontSize(7); doc.setTextColor(...C.muted);
-      doc.text(
-        'NJTC Partner Satisfaction  ·  ' + dateStr + '  ·  Page ' + p + ' of ' + pageCount,
-        ML, 292
-      );
+      // Footer separator line
+      doc.setDrawColor(...C.muted);
+      doc.setLineWidth(0.3);
+      doc.line(ML, 287, W - MR, 287);
+      // Footer text
+      doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...C.muted);
+      doc.text('NJTC Partner Satisfaction', ML, 292);
+      doc.text(dateStr, W / 2, 292, { align: 'center' });
+      doc.text('Page ' + p + ' of ' + pageCount, W - MR, 292, { align: 'right' });
     }
 
     // ── Trigger download ─────────────────────────────────────────
@@ -2305,18 +2444,27 @@
     const nd = calcNPS(recentRows);
     const dateStr = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
-    let y = 14;
+    let y = 0;
+    const CW = W - ML - MR;
     // ── Cover header ──────────────────────────────────────────────
     doc.setFillColor(...C.navy);
-    doc.rect(0, 0, W, 42, 'F');
+    doc.rect(0, 0, W, 46, 'F');
+    doc.setFillColor(...C.teal);
+    doc.rect(0, 46, W, 2.5, 'F');
+    doc.setTextColor(97, 196, 183);
+    doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('NEW JERSEY TUTORING CORPS  —  PARTNER REPORT', ML, 12);
     doc.setTextColor(...C.white);
-    doc.setFontSize(18); doc.setFont('helvetica','bold');
-    doc.text('Partner Satisfaction Summary', ML, 20);
-    doc.setFontSize(10); doc.setFont('helvetica','normal');
-    doc.text(ss(schoolName) + '  ·  ' + ss(district), ML, 29);
-    doc.setFontSize(8);
-    doc.text('Prepared by NJTC Program Evaluation & Impact  ·  ' + dateStr, ML, 37);
-    y = 52;
+    doc.setFontSize(17); doc.setFont('helvetica','bold');
+    doc.text('Partner Satisfaction Summary', ML, 26);
+    doc.setFontSize(9.5); doc.setFont('helvetica','normal');
+    doc.setTextColor(190, 205, 225);
+    doc.text(ss(schoolName), ML, 36);
+    doc.setFontSize(8); doc.setTextColor(190, 205, 225);
+    doc.text(dateStr, W - MR, 12, { align: 'right' });
+    doc.setFontSize(7.5); doc.setTextColor(155, 175, 200);
+    doc.text('Prepared by NJTC Program Evaluation & Impact  ·  ' + ss(district), ML, 42);
+    y = 58;
 
     // ── Intro message (positive framing) ──────────────────────────
     doc.setTextColor(...C.body);
@@ -2457,11 +2605,12 @@
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) {
       doc.setPage(p);
-      doc.setFontSize(7); doc.setTextColor(...C.muted);
-      doc.text(
-        'NJTC Partner Report · ' + ss(schoolName) + ' · ' + dateStr + ' · Page ' + p + ' of ' + pageCount,
-        ML, 292
-      );
+      doc.setDrawColor(...C.muted); doc.setLineWidth(0.3);
+      doc.line(ML, 287, W-MR, 287);
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...C.muted);
+      doc.text('NJTC  ·  ' + ss(schoolName), ML, 292);
+      doc.text(dateStr, W/2, 292, { align: 'center' });
+      doc.text('Page ' + p + ' of ' + pageCount, W-MR, 292, { align: 'right' });
     }
     const slug = schoolName.replace(/[^a-z0-9]/gi,'_').toLowerCase().slice(0,30);
     dlPdf(doc, 'njtc-partner-' + slug);
@@ -2509,35 +2658,93 @@
       return { quarter: q, ...calcNPS(qr) };
     });
 
-    let y = 14;
+    let y = 0;
+    const CW = W - ML - MR;
+
+    // ── Shared table style ─────────────────────────────────────────
+    const T = {
+      headStyles:  { fillColor: C.navy, textColor: C.white, fontSize: 8.5, fontStyle: 'bold', cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+      bodyStyles:  { fontSize: 8.5, textColor: C.body, cellPadding: { top: 3.5, bottom: 3.5, left: 5, right: 5 } },
+      alternateRowStyles: { fillColor: [247, 250, 254] },
+      theme: 'plain',
+      tableLineColor: [213, 220, 232],
+      tableLineWidth: 0.25,
+      margin: { left: ML, right: MR },
+    };
+    function secHdr(title, sub) {
+      if (y > 258) { doc.addPage(); y = 14; }
+      doc.setFillColor(...C.teal);
+      doc.rect(ML, y, 3, sub ? 14 : 9, 'F');
+      doc.setTextColor(...C.navy);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5);
+      doc.text(title, ML + 7, y + 6.5);
+      if (sub) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+        doc.text(sub, ML + 7, y + 12);
+        y += 18;
+      } else { y += 12; }
+    }
+
     // Header
     doc.setFillColor(...C.navy);
-    doc.rect(0, 0, W, 42, 'F');
+    doc.rect(0, 0, W, 46, 'F');
+    doc.setFillColor(...C.teal);
+    doc.rect(0, 46, W, 2.5, 'F');
+    doc.setTextColor(97, 196, 183);
+    doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('NEW JERSEY TUTORING CORPS  —  DISTRICT REPORT', ML, 12);
     doc.setTextColor(...C.white);
-    doc.setFontSize(18); doc.setFont('helvetica','bold');
-    doc.text(ss(districtName) + ' — Partner Satisfaction', ML, 20);
+    doc.setFontSize(17); doc.setFont('helvetica','bold');
+    doc.text(ss(districtName), ML, 26);
     doc.setFontSize(9); doc.setFont('helvetica','normal');
-    doc.text('District / CMO Summary  ·  All Schools Combined', ML, 29);
-    doc.setFontSize(8);
-    doc.text('NJTC Program Evaluation & Impact  ·  ' + dateStr + '  ·  Internal', ML, 37);
-    y = 52;
+    doc.setTextColor(190, 205, 225);
+    doc.text('Partner Satisfaction  ·  All Schools Combined', ML, 36);
+    doc.setFontSize(8); doc.setTextColor(190, 205, 225);
+    doc.text(dateStr, W - MR, 12, { align: 'right' });
+    doc.setFontSize(7.5); doc.setTextColor(155, 175, 200);
+    doc.text('Internal Report — Not for External Distribution', ML, 42);
+    y = 58;
 
     // Overall NPS hero
-    doc.setFillColor(...C.light);
-    doc.roundedRect(ML, y, W-ML-MR, 26, 3, 3, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(26); doc.setTextColor(...npsRgb(nd.nps));
-    doc.text(fmtN(nd.nps), ML+6, y+18);
-    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(...C.body);
-    doc.text(ss(districtName) + ' — Overall NPS', ML+30, y+9);
-    doc.text(nd.total + ' total respondents  ·  ' + qs.length + ' quarter(s)', ML+30, y+14);
-    doc.text('Promoters: ' + nd.promoterPct + '%  ·  Passives: ' + nd.passivePct + '%  ·  Detractors: ' + nd.detractorPct + '%', ML+30, y+20);
-    y += 32;
+    const heroH = 38;
+    const scoreCol = npsRgb(nd.nps);
+    doc.setFillColor(245, 248, 252);
+    doc.roundedRect(ML, y, CW, heroH, 3, 3, 'F');
+    doc.setFillColor(...scoreCol);
+    doc.rect(ML, y, 4, heroH, 'F');
+    doc.setTextColor(...scoreCol);
+    doc.setFontSize(36); doc.setFont('helvetica','bold');
+    doc.text(fmtN(nd.nps), ML+9, y+26);
+    doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.muted);
+    doc.text('OVERALL NPS', ML+9, y+33);
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.muted);
+    doc.text('n = ' + nd.total + '  ·  ' + qs.length + ' quarter(s)', ML+9, y+7);
+    doc.setDrawColor(...C.muted); doc.setLineWidth(0.3);
+    doc.line(ML+48, y+4, ML+48, y+heroH-4);
+    const bx2 = ML+52;
+    const bW2 = CW-56;
+    const bY2 = y+7;
+    const bH2 = 7;
+    if (nd.total > 0) {
+      const pW = (nd.promoterPct/100)*bW2; const aW = (nd.passivePct/100)*bW2; const dW = (nd.detractorPct/100)*bW2;
+      if (pW>0) { doc.setFillColor(...C.green);  doc.rect(bx2,      bY2, pW, bH2, 'F'); }
+      if (aW>0) { doc.setFillColor(200,100,10);  doc.rect(bx2+pW,   bY2, aW, bH2, 'F'); }
+      if (dW>0) { doc.setFillColor(...C.red);    doc.rect(bx2+pW+aW,bY2, dW, bH2, 'F'); }
+    }
+    const lY2 = bY2 + bH2 + 5;
+    const cW2 = bW2/3;
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.green);
+    doc.text('Promoters  ' + nd.promoterPct + '%  (' + nd.promoters + ')', bx2, lY2+4);
+    doc.setTextColor(192,90,10);
+    doc.text('Passives  ' + nd.passivePct + '%  (' + nd.passives + ')', bx2+cW2, lY2+4);
+    doc.setTextColor(...C.red);
+    doc.text('Detractors  ' + nd.detractorPct + '%  (' + nd.detractors + ')', bx2+cW2*2, lY2+4);
+    y += heroH + 12;
 
     // QoQ trend
     if (allQoQ.length >= 1) {
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-      doc.text('Quarter-over-Quarter NPS', ML, y); y += 5;
-      doc.autoTable({
+      secHdr('Quarter-over-Quarter NPS');
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
         head: [['Quarter','NPS','Change','Respondents']],
         body: allQoQ.map((q,i) => {
@@ -2545,23 +2752,18 @@
           const delta = (prev!==null && q.nps!==null) ? Math.round((q.nps-prev)*10)/10 : null;
           return [ss(q.quarter), fmtN(q.nps), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', String(q.total)];
         }),
-        margin:{left:ML,right:MR},
-        styles:{fontSize:9,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
+        columnStyles: { 1: { halign:'center', cellWidth:30 }, 2: { halign:'center', cellWidth:30 }, 3: { halign:'center', cellWidth:30 } },
         didParseCell: function(d) {
-          if (d.section==='body' && d.column.index===1) {
-            const npsVal = parseFloat(d.cell.text[0]);
-            if (!isNaN(npsVal)) d.cell.styles.textColor = npsRgb(npsVal);
-          }
+          if (d.section!=='body') return;
+          if (d.column.index===1) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (v>0) d.cell.styles.textColor=C.green; else if (v<0) d.cell.styles.textColor=C.red; }
         },
-      });
-      y = doc.lastAutoTable.finalY + 8;
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // School breakdown
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-    doc.text('School-by-School Breakdown', ML, y); y += 5;
+    secHdr('School-by-School Breakdown');
     const schools = [...new Set(distRows.map(r=>r.school).filter(Boolean))].sort();
     const schoolBody = schools.map(s => {
       const sr = distRows.filter(r=>r.school===s);
@@ -2571,82 +2773,83 @@
       const { nps: pNPS }        = calcNPS(prev);
       const delta = (cNPS!==null&&pNPS!==null) ? Math.round((cNPS-pNPS)*10)/10 : null;
       const risk  = siteRisk(curr, prev);
-      const rIcon = risk==='at-risk'?'▲':risk==='watch'?'◆':'●';
-      const trend = delta===null?'—':delta>5?'↑ Improving':delta<-5?'↓ Declining':'→ Stable';
+      const rIcon = risk==='at-risk'?'[!]':risk==='watch'?'[~]':'[OK]';
+      const trend = delta===null?'—':delta>5?'Improving':delta<-5?'Declining':'Stable';
       return { risk, row: [rIcon+' '+ss(s), String(total), fmtN(cNPS), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', trend] };
     }).sort((a,b) => { const o={['at-risk']:0,watch:1,healthy:2}; return (o[a.risk]||2)-(o[b.risk]||2); });
 
     if (schoolBody.length) {
-      doc.autoTable({
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
-        head: [['School','N',recentQ?ss(recentQ)+' NPS':'NPS',prevQ&&recentQ?'Δ '+ss(prevQ)+'→'+ss(recentQ):'Change','Trend']],
+        head: [['School','N',recentQ?ss(recentQ)+' NPS':'NPS',prevQ&&recentQ?'vs '+ss(prevQ):'Change','Trend']],
         body: schoolBody.map(r=>r.row),
-        margin:{left:ML,right:MR},
-        styles:{fontSize:8.5,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
+        columnStyles: { 1: { halign:'center', cellWidth:16 }, 2: { halign:'center', cellWidth:28 }, 3: { halign:'center', cellWidth:32 }, 4: { halign:'center', cellWidth:30 } },
         didParseCell: function(d) {
-          if (d.section==='body' && d.column.index===2) {
-            const npsVal = parseFloat(d.cell.text[0]);
-            if (!isNaN(npsVal)) { d.cell.styles.textColor = npsRgb(npsVal); d.cell.styles.fontStyle='bold'; }
-          }
-          if (d.section==='body' && d.column.index===4) {
-            if (d.cell.text[0] && d.cell.text[0].includes('Improving')) d.cell.styles.textColor = C.green;
-            else if (d.cell.text[0] && d.cell.text[0].includes('Declining')) d.cell.styles.textColor = C.red;
+          if (d.section!=='body') return;
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+          if (d.column.index===4) {
+            const t = d.cell.text[0];
+            if (t==='Improving') { d.cell.styles.textColor=C.green; d.cell.styles.fontStyle='bold'; }
+            else if (t==='Declining') { d.cell.styles.textColor=C.red; d.cell.styles.fontStyle='bold'; }
           }
         },
-      });
-      y = doc.lastAutoTable.finalY + 8;
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // Role breakdown
-    if (y < 240) {
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-      doc.text('Sentiment by Role', ML, y); y += 5;
+    if (y < 248) {
+      secHdr('Sentiment by Role');
       const roles = [...new Set(distRows.map(r=>r.role).filter(Boolean))].sort();
-      doc.autoTable({
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
-        head: [['Role','Respondents','NPS','Promoters','Detractors']],
+        head: [['Role','Respondents','NPS','Promoters %','Detractors %']],
         body: roles.map(role => {
           const rr = distRows.filter(r=>r.role===role);
           const { nps, total, promoterPct, detractorPct } = calcNPS(rr);
           return [ss(role), String(total), fmtN(nps), promoterPct+'%', detractorPct+'%'];
         }),
-        margin:{left:ML,right:MR},
-        styles:{fontSize:9,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
-      });
-      y = doc.lastAutoTable.finalY + 8;
+        columnStyles: { 1: { halign:'center', cellWidth:30 }, 2: { halign:'center', cellWidth:26 }, 3: { halign:'center', cellWidth:32 }, 4: { halign:'center', cellWidth:32 } },
+        didParseCell: function(d) {
+          if (d.section!=='body') return;
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+        },
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // Quarter comparison by school (if 2+ quarters)
-    if (qs.length >= 2 && y < 230) {
+    if (qs.length >= 2) {
       doc.addPage(); y = 14;
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-      doc.text('Quarter Detail by School', ML, y); y += 5;
-      const qColHeaders = ['School', ...qs.map(q => ss(q) + ' NPS'), 'Total'];
+      secHdr('Quarter Detail by School');
+      const qColHeaders = ['School', ...qs.map(q => ss(q)), 'Total'];
       const qBody = schools.map(s => {
         const sr = distRows.filter(r=>r.school===s);
         const qCells = qs.map(q => fmtN(calcNPS(sr.filter(r=>r.quarter===q)).nps));
         return [ss(s), ...qCells, String(sr.length)];
       });
-      doc.autoTable({
+      doc.autoTable(Object.assign({}, T, {
         startY: y, head: [qColHeaders], body: qBody,
-        margin:{left:ML,right:MR},
-        styles:{fontSize:8.5,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
-      });
-      y = doc.lastAutoTable.finalY + 8;
+        didParseCell: function(d) {
+          if (d.section!=='body' || d.column.index===0 || d.column.index===qColHeaders.length-1) return;
+          const v = parseFloat(d.cell.text[0]);
+          if (!isNaN(v)) { d.cell.styles.textColor = npsRgb(v); d.cell.styles.fontStyle='bold'; d.cell.styles.halign='center'; }
+          else d.cell.styles.halign = 'center';
+        },
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) {
       doc.setPage(p);
-      doc.setFontSize(7); doc.setTextColor(...C.muted);
-      doc.text('NJTC · ' + ss(districtName) + ' · ' + dateStr + ' · Page ' + p + ' of ' + pageCount, ML, 292);
+      doc.setDrawColor(...C.muted); doc.setLineWidth(0.3);
+      doc.line(ML, 287, W-MR, 287);
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...C.muted);
+      doc.text('NJTC  ·  ' + ss(districtName), ML, 292);
+      doc.text(dateStr, W/2, 292, { align:'center' });
+      doc.text('Page ' + p + ' of ' + pageCount, W-MR, 292, { align:'right' });
     }
     const slug = districtName.replace(/[^a-z0-9]/gi,'_').toLowerCase().slice(0,30);
     dlPdf(doc, 'njtc-district-' + slug);
@@ -2691,18 +2894,47 @@
       return nd.includes(d.toLowerCase().split(' ')[0]);
     }));
 
-    let y = 14;
+    let y = 0;
+    const CW = W - ML - MR;
+    const T = {
+      headStyles:  { fillColor: C.navy, textColor: C.white, fontSize: 8.5, fontStyle: 'bold', cellPadding: { top: 4, bottom: 4, left: 5, right: 5 } },
+      bodyStyles:  { fontSize: 8.5, textColor: C.body, cellPadding: { top: 3.5, bottom: 3.5, left: 5, right: 5 } },
+      alternateRowStyles: { fillColor: [247, 250, 254] },
+      theme: 'plain',
+      tableLineColor: [213, 220, 232],
+      tableLineWidth: 0.25,
+      margin: { left: ML, right: MR },
+    };
+    function secHdr(title, sub) {
+      if (y > 258) { doc.addPage(); y = 14; }
+      doc.setFillColor(...C.teal);
+      doc.rect(ML, y, 3, sub ? 14 : 9, 'F');
+      doc.setTextColor(...C.navy); doc.setFont('helvetica','bold'); doc.setFontSize(11.5);
+      doc.text(title, ML+7, y+6.5);
+      if (sub) {
+        doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(...C.muted);
+        doc.text(sub, ML+7, y+12); y += 18;
+      } else { y += 12; }
+    }
+
     // Cover
     doc.setFillColor(...C.navy);
-    doc.rect(0, 0, W, 42, 'F');
+    doc.rect(0, 0, W, 46, 'F');
+    doc.setFillColor(...C.teal);
+    doc.rect(0, 46, W, 2.5, 'F');
+    doc.setTextColor(97, 196, 183);
+    doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('NEW JERSEY TUTORING CORPS  —  REGIONAL SUMMARY', ML, 12);
     doc.setTextColor(...C.white);
-    doc.setFontSize(18); doc.setFont('helvetica','bold');
-    doc.text(region.label + ' — Partner Satisfaction', ML, 20);
-    doc.setFontSize(9); doc.setFont('helvetica','normal');
-    doc.text('NJTC Program Evaluation & Impact  ·  ' + dateStr, ML, 29);
-    doc.setFontSize(8);
-    doc.text('Internal Report — Not for External Distribution', ML, 37);
-    y = 52;
+    doc.setFontSize(17); doc.setFont('helvetica','bold');
+    doc.text(region.label, ML, 26);
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(190, 205, 225);
+    doc.text('Partner Satisfaction', ML, 36);
+    doc.setFontSize(8); doc.setTextColor(190, 205, 225);
+    doc.text(dateStr, W-MR, 12, { align:'right' });
+    doc.setFontSize(7.5); doc.setTextColor(155, 175, 200);
+    doc.text('Internal Report — Not for External Distribution', ML, 42);
+    y = 58;
 
     // Overall NPS hero
     const nd  = calcNPS(regionRows);
@@ -2711,20 +2943,39 @@
       return { quarter: q, ...calcNPS(qRows) };
     });
 
-    doc.setFillColor(...C.light);
-    doc.roundedRect(ML, y, W-ML-MR, 24, 3, 3, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(24); doc.setTextColor(...npsRgb(nd.nps));
-    doc.text(fmtN(nd.nps), ML+6, y+17);
-    doc.setFontSize(9); doc.setTextColor(...C.body); doc.setFont('helvetica','normal');
-    doc.text(region.label + ' Overall NPS  ·  ' + nd.total + ' respondents', ML+30, y+10);
-    doc.text('Supportive: ' + nd.promoterPct + '%  ·  Neutral: ' + nd.passivePct + '%  ·  Concerns: ' + nd.detractorPct + '%', ML+30, y+16);
-    y += 30;
+    const heroH = 38;
+    const scoreCol = npsRgb(nd.nps);
+    doc.setFillColor(245, 248, 252);
+    doc.roundedRect(ML, y, CW, heroH, 3, 3, 'F');
+    doc.setFillColor(...scoreCol);
+    doc.rect(ML, y, 4, heroH, 'F');
+    doc.setTextColor(...scoreCol);
+    doc.setFontSize(36); doc.setFont('helvetica','bold');
+    doc.text(fmtN(nd.nps), ML+9, y+26);
+    doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...C.muted);
+    doc.text('REGIONAL NPS', ML+9, y+33);
+    doc.setFontSize(7.5); doc.setFont('helvetica','normal'); doc.setTextColor(...C.muted);
+    doc.text('n = ' + nd.total, ML+9, y+7);
+    doc.setDrawColor(...C.muted); doc.setLineWidth(0.3);
+    doc.line(ML+48, y+4, ML+48, y+heroH-4);
+    const bx2=ML+52, bW2=CW-56, bY2=y+7, bH2=7;
+    if (nd.total > 0) {
+      const pW=(nd.promoterPct/100)*bW2, aW=(nd.passivePct/100)*bW2, dW=(nd.detractorPct/100)*bW2;
+      if (pW>0) { doc.setFillColor(...C.green); doc.rect(bx2, bY2, pW, bH2, 'F'); }
+      if (aW>0) { doc.setFillColor(200,100,10); doc.rect(bx2+pW, bY2, aW, bH2, 'F'); }
+      if (dW>0) { doc.setFillColor(...C.red); doc.rect(bx2+pW+aW, bY2, dW, bH2, 'F'); }
+    }
+    const lY2=bY2+bH2+5, cW2=bW2/3;
+    doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+    doc.setTextColor(...C.green); doc.text('Promoters  ' + nd.promoterPct + '%  (' + nd.promoters + ')', bx2, lY2+4);
+    doc.setTextColor(192,90,10); doc.text('Passives  ' + nd.passivePct + '%  (' + nd.passives + ')', bx2+cW2, lY2+4);
+    doc.setTextColor(...C.red); doc.text('Detractors  ' + nd.detractorPct + '%  (' + nd.detractors + ')', bx2+cW2*2, lY2+4);
+    y += heroH + 12;
 
     // QoQ table
     if (allQoQ.length >= 2) {
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-      doc.text('Quarter-over-Quarter Trend', ML, y); y += 5;
-      doc.autoTable({
+      secHdr('Quarter-over-Quarter Trend');
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
         head: [['Quarter','NPS','Change','Respondents']],
         body: allQoQ.map((q,i) => {
@@ -2732,17 +2983,18 @@
           const delta = (prev!==null && q.nps!==null) ? Math.round((q.nps-prev)*10)/10 : null;
           return [ss(q.quarter), fmtN(q.nps), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', String(q.total)];
         }),
-        margin:{left:ML,right:MR},
-        styles:{fontSize:9,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
-      });
-      y = doc.lastAutoTable.finalY + 8;
+        columnStyles: { 1: { halign:'center', cellWidth:30 }, 2: { halign:'center', cellWidth:30 }, 3: { halign:'center', cellWidth:30 } },
+        didParseCell: function(d) {
+          if (d.section!=='body') return;
+          if (d.column.index===1) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (v>0) d.cell.styles.textColor=C.green; else if (v<0) d.cell.styles.textColor=C.red; }
+        },
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // School breakdown
-    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-    doc.text('School Breakdown', ML, y); y += 5;
+    secHdr('School Breakdown');
     const schools = [...new Set(regionRows.map(r=>r.school).filter(Boolean))].sort();
     const schoolRows = schools.map(s => {
       const sr = regionRows.filter(r=>r.school===s);
@@ -2752,54 +3004,63 @@
       const { nps: pNPS } = calcNPS(prev);
       const delta = (cNPS!==null&&pNPS!==null) ? Math.round((cNPS-pNPS)*10)/10 : null;
       const risk  = siteRisk(curr, prev);
-      const rIcon = risk==='at-risk'?'🔴':risk==='watch'?'🟡':'✅';
-      return [rIcon+' '+ss(s), String(total), fmtN(cNPS), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', risk.toUpperCase()];
+      const rLabel = { 'at-risk': 'At Risk', 'watch': 'Watch', 'healthy': 'Healthy' }[risk];
+      return { risk, delta, row: [ss(s), String(total), fmtN(cNPS), delta!==null?(delta>=0?'+'+delta:''+delta)+' pts':'—', rLabel] };
     });
     if (schoolRows.length) {
-      doc.autoTable({
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
-        head: [['School','N','NPS',recentQ&&prevQ?'Δ '+ss(prevQ)+'→'+ss(recentQ):'Trend','Status']],
-        body: schoolRows,
-        margin:{left:ML,right:MR},
-        styles:{fontSize:8.5,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
-        columnStyles:{4:{fontStyle:'bold'}},
-      });
-      y = doc.lastAutoTable.finalY + 8;
+        head: [['School','N','NPS',recentQ&&prevQ?'vs '+ss(prevQ):'Change','Risk']],
+        body: schoolRows.map(r=>r.row),
+        columnStyles: { 1: { halign:'center', cellWidth:16 }, 2: { halign:'center', cellWidth:26 }, 3: { halign:'center', cellWidth:30 }, 4: { halign:'center', cellWidth:30 } },
+        didParseCell: function(d) {
+          if (d.section!=='body') return;
+          const row = schoolRows[d.row.index];
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+          if (d.column.index===3 && row?.delta!==null&&row?.delta!==undefined) { d.cell.styles.textColor=row.delta>0?C.green:row.delta<0?C.red:C.body; d.cell.styles.fontStyle='bold'; }
+          if (d.column.index===4) {
+            const t=d.cell.text[0]; d.cell.styles.fontStyle='bold';
+            if (t==='At Risk') d.cell.styles.textColor=C.red;
+            else if (t==='Watch') d.cell.styles.textColor=C.amber;
+            else d.cell.styles.textColor=C.green;
+          }
+        },
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // Role breakdown
-    if (y < 240) {
-      doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...C.navy);
-      doc.text('Sentiment by Role', ML, y); y += 5;
+    if (y < 248) {
+      secHdr('Sentiment by Role');
       const roles = [...new Set(regionRows.map(r=>r.role).filter(Boolean))].sort();
       const roleRows = roles.map(role => {
         const rr = regionRows.filter(r=>r.role===role);
         const { nps, total } = calcNPS(rr);
-        return [ss(role), String(total), fmtN(nps)];
+        return { nps, row: [ss(role), String(total), fmtN(nps)] };
       });
-      doc.autoTable({
+      doc.autoTable(Object.assign({}, T, {
         startY: y,
         head: [['Role','Respondents','NPS']],
-        body: roleRows,
-        margin:{left:ML,right:MR},
-        styles:{fontSize:9,cellPadding:3},
-        headStyles:{fillColor:C.navy,textColor:C.white,fontStyle:'bold',fontSize:8},
-        alternateRowStyles:{fillColor:C.light},
-      });
-      y = doc.lastAutoTable.finalY + 8;
+        body: roleRows.map(r=>r.row),
+        columnStyles: { 1: { halign:'center', cellWidth:36 }, 2: { halign:'center', cellWidth:30 } },
+        didParseCell: function(d) {
+          if (d.section!=='body') return;
+          if (d.column.index===2) { const v=parseFloat(d.cell.text[0]); if (!isNaN(v)) { d.cell.styles.textColor=npsRgb(v); d.cell.styles.fontStyle='bold'; } }
+        },
+      }));
+      y = doc.lastAutoTable.finalY + 10;
     }
 
     // Footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let p = 1; p <= pageCount; p++) {
       doc.setPage(p);
-      doc.setFontSize(7); doc.setTextColor(...C.muted);
-      doc.text(
-        'NJTC ' + region.label + ' Summary  ·  ' + dateStr + '  ·  Page ' + p + ' of ' + pageCount,
-        ML, 292
-      );
+      doc.setDrawColor(...C.muted); doc.setLineWidth(0.3);
+      doc.line(ML, 287, W-MR, 287);
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...C.muted);
+      doc.text('NJTC  ·  ' + region.label + ' Summary', ML, 292);
+      doc.text(dateStr, W/2, 292, { align:'center' });
+      doc.text('Page ' + p + ' of ' + pageCount, W-MR, 292, { align:'right' });
     }
     dlPdf(doc, 'njtc-region-' + regionKey.toLowerCase());
   }
