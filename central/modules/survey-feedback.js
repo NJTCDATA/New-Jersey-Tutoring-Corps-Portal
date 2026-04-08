@@ -24,33 +24,49 @@
   let _dataFilters = { quarters: [], district: '', school: '', role: '', satisfaction: '', npsMin: '', npsMax: '', hasDissat: '', hasFollowUp: '' };
   let _charts = {};
   let _rawSortCol = 'timestamp', _rawSortDir = -1;
+  let _csvMeta = { headers: [], totalRaw: 0, quartersFound: [], rowsWithQuarter: 0 };
 
-  // ── CSV Parser (RFC 4180 compliant) ────────────────────────────────
+  // ── CSV Parser — RFC 4180 compliant ──────────────────────────────────────
+  // Handles quoted fields with embedded commas, newlines, and "" escape sequences.
+  // The previous line-split approach broke whenever a text-area response contained
+  // a newline, shifting all subsequent column positions and losing the Quarter column.
   function parseCSV(text) {
-    const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (!lines.length) return [];
-    const headers = parseCSVRow(lines[0]);
-    return lines.slice(1).map(line => {
-      const vals = parseCSVRow(line);
+    const rows = [];
+    let row = [], cell = '', inQ = false;
+    // Strip BOM if present
+    let src = text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (ch === '"') {
+        if (inQ && src[i + 1] === '"') {
+          // Escaped double-quote inside quoted field
+          cell += '"'; i++;
+        } else {
+          inQ = !inQ;
+        }
+      } else if (ch === ',' && !inQ) {
+        row.push(cell); cell = '';
+      } else if (!inQ && (ch === '\n' || ch === '\r')) {
+        // Record separator — push current cell and finalise row
+        row.push(cell); cell = '';
+        if (row.some(c => c.trim())) rows.push(row);
+        row = [];
+        if (ch === '\r' && src[i + 1] === '\n') i++; // CRLF — skip \n
+      } else {
+        cell += ch; // plain char (embedded newline inside quotes also lands here via else path above is skipped because !inQ is false)
+      }
+    }
+    // Trailing row (no final newline)
+    if (cell || row.length) { row.push(cell); if (row.some(c => c.trim())) rows.push(row); }
+
+    if (!rows.length) return [];
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1).map(vals => {
       const obj = {};
-      headers.forEach((h, i) => { obj[h.trim()] = (vals[i] || '').trim(); });
+      headers.forEach((h, idx) => { obj[h] = (vals[idx] !== undefined ? vals[idx].trim() : ''); });
       return obj;
     });
-  }
-
-  function parseCSVRow(row) {
-    const result = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < row.length; i++) {
-      const c = row[i];
-      if (c === '"') {
-        if (inQ && row[i + 1] === '"') { cur += '"'; i++; }
-        else inQ = !inQ;
-      } else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
-      else cur += c;
-    }
-    result.push(cur);
-    return result;
   }
 
   // ── Row normalization ──────────────────────────────────────────────
@@ -303,13 +319,17 @@
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
       const rawRows = parseCSV(text);
-      // Debug: log column headers so we can verify the quarter column name
-      if (rawRows.length) console.log('[SF] CSV column headers:', Object.keys(rawRows[0]));
+      // Capture column metadata for diagnostics (stored on module, shown in UI)
+      _csvMeta = { headers: rawRows.length ? Object.keys(rawRows[0]) : [], totalRaw: rawRows.length };
+      if (rawRows.length) console.log('[SF] CSV column headers (' + _csvMeta.headers.length + '):', _csvMeta.headers);
       _allData = rawRows
         .map(normalizeRow)
         .filter(r => r.npsScore >= 1 && r.npsScore <= 5);
       const qSample = _allData.map(r => r.quarter).filter(Boolean);
-      console.log('[SF] Quarter values found (' + qSample.length + ' of ' + _allData.length + ' rows):', [...new Set(qSample)]);
+      const qUnique = [...new Set(qSample)];
+      console.log('[SF] Quarter values found (' + qSample.length + ' of ' + _allData.length + ' rows):', qUnique);
+      _csvMeta.quartersFound = qUnique;
+      _csvMeta.rowsWithQuarter = qSample.length;
       _loaded = true;
       detectView();
       renderShell();
@@ -339,6 +359,33 @@
   // ══════════════════════════════════════════════════════════════════
   // SHELL / VIEW TABS
   // ══════════════════════════════════════════════════════════════════
+
+  // ── Diagnostic banner — shown below view tabs when quarter detection is uncertain ──
+  function _buildDiagBanner() {
+    const m = _csvMeta;
+    if (!m.headers.length) return '';
+    const qCol = m.headers.find(h => /quarter/i.test(h)) || null;
+    const ok = m.quartersFound.length > 0;
+    if (ok) return ''; // all good — hide banner
+    const colList = m.headers.map((h, i) => `<span title="Col ${i+1}" style="font-size:.7rem;background:#f1f5f9;border-radius:4px;padding:1px 5px;margin:2px">${h}</span>`).join(' ');
+    return `<details style="margin:1rem;border:1px solid ${qCol ? '#f59e0b' : '#ef4444'};border-radius:8px;padding:.75rem 1rem;background:${qCol ? '#fffbeb' : '#fef2f2'}">
+      <summary style="font-weight:700;cursor:pointer;color:${qCol ? '#b45309' : '#b91c1c'}">
+        ⚠ Quarter Detection Issue — ${m.rowsWithQuarter} of ${_allData.length} rows have a quarter value
+        ${qCol ? `(column "<strong>${qCol}</strong>" found but all values empty?)` : '(no column with "quarter" in the name was found)'}
+      </summary>
+      <div style="margin-top:.75rem;font-size:.82rem;line-height:1.8">
+        <strong>CSV columns detected (${m.headers.length} total):</strong><br>
+        <div style="margin-top:.4rem;display:flex;flex-wrap:wrap;gap:2px">${colList}</div>
+        <div style="margin-top:.75rem">
+          ${qCol
+            ? `Column <strong>"${qCol}"</strong> was found but all values are empty. The admin needs to fill in the quarter values in Google Sheets.`
+            : `No column containing "quarter" was found. In Google Sheets, the admin should ensure column N (or whatever column holds the quarter) is named something containing the word <strong>Quarter</strong> (e.g. "Quarter Status").`
+          }
+          <br>Quarter values should be exactly: <strong>Quarter 1</strong> / <strong>Quarter 2</strong> (or Q1 / Q2).
+        </div>
+      </div>
+    </details>`;
+  }
 
   function renderShell() {
     const el = document.getElementById('sfContainer');
@@ -372,7 +419,9 @@
           <span>🔬</span> Data Department
         </button>
       </div>
-      <div id="sfViewContent"></div>`;
+      <div id="sfViewContent"></div>
+      ${_buildDiagBanner()}`;
+
   }
 
   window.sfSetView = function (v, btn) {
