@@ -98,18 +98,36 @@
     return '';
   }
 
+  // ── Satisfaction level canonicalisation ─────────────────────────────
+  // Handles case variants and common alternate phrasings so that all
+  // comparisons against 'Very Satisfied' etc. always succeed.
+  const _SAT_LEVELS = ['Very Satisfied', 'Satisfied', 'Neutral', 'Dissatisfied', 'Very Dissatisfied'];
+  const _SAT_LEVEL_SET = new Set(_SAT_LEVELS);
+  function normalizeSatLevel(val) {
+    if (!val) return '';
+    const t = val.trim();
+    if (_SAT_LEVEL_SET.has(t)) return t;            // already canonical
+    const lower = t.toLowerCase();
+    if (lower === 'very satisfied'  || lower === 'highly satisfied'    || lower === 'extremely satisfied') return 'Very Satisfied';
+    if (lower === 'satisfied')                                                                              return 'Satisfied';
+    if (lower === 'neutral'         || lower === 'neither satisfied nor dissatisfied')                      return 'Neutral';
+    if (lower === 'dissatisfied')                                                                           return 'Dissatisfied';
+    if (lower === 'very dissatisfied'|| lower === 'highly dissatisfied'|| lower === 'extremely dissatisfied') return 'Very Dissatisfied';
+    return t; // unknown value — preserve as-is
+  }
+
   function normalizeRow(raw) {
     const district = normalizeDistrict(pickField(raw,
       ['District Name:', 'District Name', 'District', 'district'],
       /district/i));
 
     // Satisfaction level — the exact column name varies (may use Unicode … vs ASCII ...)
-    const satisfactionLevel = pickField(raw,
+    const satisfactionLevel = normalizeSatLevel(pickField(raw,
       ['Reflecting on all NJTC/PATC experiences to date...',
        'Reflecting on all NJTC/PATC experiences to date\u2026',  // Unicode ellipsis
        'How would you rate your overall satisfaction?',
        'Overall Satisfaction', 'Satisfaction Level', 'Satisfaction'],
-      /experiences to date|overall satisfaction|satisfaction level/i);
+      /experiences to date|overall satisfaction|satisfaction level/i));
 
     // NPS question — try multiple phrasings
     const npsRaw = pickField(raw,
@@ -409,9 +427,13 @@
       // Capture column metadata for diagnostics (stored on module, shown in UI)
       _csvMeta = { headers: rawRows.length ? Object.keys(rawRows[0]) : [], totalRaw: rawRows.length };
       if (rawRows.length) console.log('[SF] CSV column headers (' + _csvMeta.headers.length + '):', _csvMeta.headers);
+      // Keep any row that has a valid NPS score OR a recognised satisfaction level.
+      // Previously, requiring a valid npsScore dropped records where the respondent
+      // answered the satisfaction question (col H) but left the NPS question blank
+      // or where the NPS column name changed — silently hiding "Very Satisfied" rows.
       _allData = rawRows
         .map(normalizeRow)
-        .filter(r => r.npsScore >= 1 && r.npsScore <= 5);
+        .filter(r => (r.npsScore >= 1 && r.npsScore <= 5) || _SAT_LEVEL_SET.has(r.satisfactionLevel));
       const qSample = _allData.map(r => r.quarter).filter(Boolean);
       const qUnique = [...new Set(qSample)];
       console.log('[SF] Quarter values found (' + qSample.length + ' of ' + _allData.length + ' rows):', qUnique);
