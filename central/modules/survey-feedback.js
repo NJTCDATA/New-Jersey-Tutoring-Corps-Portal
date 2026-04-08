@@ -436,11 +436,15 @@
 
   window.sfRetry = function () { _loaded = false; destroyAll(); onPanelOpen(); };
 
+  // The view assigned by role — never changes after login
+  let _lockedView = null;
+
   function detectView() {
     const dept = (window.NJTC_SESSION || {}).dept || 'data';
     if (dept === 'programming') _view = 'program';
     else if (['leadership', 'kb'].includes(dept)) _view = 'leadership';
     else _view = 'data';
+    _lockedView = _view;  // lock permanently to role
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -477,6 +481,29 @@
   function renderShell() {
     const el = document.getElementById('sfContainer');
     if (!el) return;
+
+    // ── Role-based lens config ────────────────────────────────────────
+    const VIEW_META = {
+      program:    { icon: '&#128205;', label: 'Program Team',    pdfIcon: '&#128205;', pdfLabel: 'Program Team Report'    },
+      leadership: { icon: '&#127963;', label: 'Leadership',      pdfIcon: '&#127963;', pdfLabel: 'Leadership Report'      },
+      data:       { icon: '&#128300;', label: 'Data Department', pdfIcon: '&#128300;', pdfLabel: 'Data Department Report' },
+    };
+    const locked = _lockedView || _view;
+    const meta   = VIEW_META[locked] || VIEW_META.data;
+
+    // Only the user's own internal report appears in the PDF menu
+    const internalReportBtn = `<button onclick="sfExportPDF('${locked}')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">${meta.pdfIcon}</span>${meta.pdfLabel}</button>`;
+
+    // Regional/District/Partner reports are supplemental — visible to all roles
+    const supplementalReports = `
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Regional Summaries</div>
+              <button onclick="sfExportRegionPDF('NE')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>NE Region Summary</button>
+              <button onclick="sfExportRegionPDF('SW')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>SW Region Summary</button>
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">District / CMO Reports</div>
+              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#127979;</span>${d}</button>`).join('')}
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Partner Reports (by School)</div>
+              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#128196;</span>${s}</button>`).join('')}`;
+
     el.innerHTML = `
       <div class="page-header">
         <div class="ph-text">
@@ -484,42 +511,28 @@
           <div class="ph-title">Partner Satisfaction</div>
           <div class="ph-subtitle">
             Quarterly NPS-equivalent survey for partner schools, ADAs, Principals, and Teachers.
-            <span style="color:var(--muted);font-size:.8em"> · Adapted NPS (1–5 Scale)</span>
+            <span style="color:var(--muted);font-size:.8em"> &middot; Adapted NPS (1&ndash;5 Scale)</span>
           </div>
         </div>
         <div class="ph-actions">
-          <button class="btn btn-secondary" onclick="sfRefresh()" title="Re-fetch data from Google Sheets">↻ Refresh</button>
+          <button class="btn btn-secondary" onclick="sfRefresh()" title="Re-fetch data from Google Sheets">&#8635; Refresh</button>
           <div id="sfPdfDropWrap" style="position:relative;display:inline-block;margin-left:.5rem">
-            <button class="btn btn-primary" id="sfPdfBtn" onclick="sfPdfMenuToggle()" title="Export PDF options">⬇ Export PDF ▾</button>
+            <button class="btn btn-primary" id="sfPdfBtn" onclick="sfPdfMenuToggle()" title="Export PDF options">&#11015; Export PDF &#9662;</button>
             <div id="sfPdfMenu" style="display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:9999;background:#fff;border:1px solid #d1d9e6;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.18);min-width:252px;max-height:min(72vh,520px);overflow-y:auto;overflow-x:hidden">
-              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Internal Reports</div>
-              <button onclick="sfExportPDF('leadership')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#127963;</span>Leadership Report</button>
-              <button onclick="sfExportPDF('program')"    class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128205;</span>Program Team Report</button>
-              <button onclick="sfExportPDF('data')"       class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128300;</span>Data Department Report</button>
-              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Regional Summaries</div>
-              <button onclick="sfExportRegionPDF('NE')"   class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>NE Region Summary</button>
-              <button onclick="sfExportRegionPDF('SW')"   class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>SW Region Summary</button>
-              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">District / CMO Reports</div>
-              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#127979;</span>${d}</button>`).join('')}
-              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Partner Reports (by School)</div>
-              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#128196;</span>${s}</button>`).join('')}
+              <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Export Report</div>
+              ${internalReportBtn}
+              ${supplementalReports}
             </div>
           </div>
         </div>
       </div>
       <div class="sf-view-tabs" role="tablist">
-        <button class="sf-tab${_view === 'program' ? ' active' : ''}" data-view="program"
-          onclick="sfSetView('program',this)" role="tab">
-          <span>📍</span> Program Team
+        <button class="sf-tab active" data-view="${locked}" role="tab" aria-selected="true" style="cursor:default;pointer-events:none">
+          <span>${meta.icon}</span> ${meta.label}
         </button>
-        <button class="sf-tab${_view === 'leadership' ? ' active' : ''}" data-view="leadership"
-          onclick="sfSetView('leadership',this)" role="tab">
-          <span>🏛</span> Leadership
-        </button>
-        <button class="sf-tab${_view === 'data' ? ' active' : ''}" data-view="data"
-          onclick="sfSetView('data',this)" role="tab">
-          <span>🔬</span> Data Department
-        </button>
+        <span style="display:inline-flex;align-items:center;margin-left:.5rem;padding:.35rem .75rem;font-size:.72rem;font-weight:600;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:20px;gap:.3rem;letter-spacing:.01em" title="View access is determined by your department role">
+          &#128274; Role-locked view
+        </span>
       </div>
       <div id="sfViewContent"></div>
       ${_buildDiagBanner()}`;
@@ -527,6 +540,8 @@
   }
 
   window.sfSetView = function (v, btn) {
+    // Enforce role-based lens lock — silently ignore unauthorized view changes
+    if (_lockedView && v !== _lockedView) return;
     _view = v;
     document.querySelectorAll('.sf-tab').forEach(b => b.classList.toggle('active', b.dataset.view === v));
     renderCurrentView();
