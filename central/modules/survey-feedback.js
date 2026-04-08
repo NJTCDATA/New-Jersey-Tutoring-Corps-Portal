@@ -9,10 +9,12 @@
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
 
   const DISTRICT_MAP = {
-    // iLearn CMO — Bergen, Paterson, Passaic schools all roll up under one CMO label
+    // iLearn CMO — Bergen, Paterson, Passaic, AND Hudson schools all roll up under one CMO label
     'Bergen / iLearn Schools':                          'iLearn CMO',
     'Bergen Arts and Science Charter':                  'iLearn CMO',
     'Bergen Arts & Science Charter':                    'iLearn CMO',
+    'Hudson Arts & Science Charter School':             'iLearn CMO',
+    'Hudson Arts and Science Charter School':           'iLearn CMO',
     'Paterson Arts and Science(iLearn)':                'iLearn CMO',
     'Paterson Arts and Science Charter School':         'iLearn CMO',
     'Paterson Arts & Science Charter School':           'iLearn CMO',
@@ -2225,7 +2227,6 @@
       districts: [
         'iLearn CMO',
         'Central Jersey College Prep Charter School',
-        'Hudson Arts & Science Charter School',
       ],
     },
     SW: {
