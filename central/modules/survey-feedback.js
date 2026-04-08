@@ -2199,6 +2199,7 @@
       label: 'Northeast Region',
       districts: [
         'Bergen Arts and Science Charter',
+        'Central Jersey College Prep Charter School',
         'Hudson Arts & Science Charter School',
         'Passaic Arts and Science Charter School',
         'Paterson Arts and Science Charter School',
@@ -2207,9 +2208,8 @@
     SW: {
       label: 'Southwest Region',
       districts: [
-        'Haddon Township',
-        'Central Jersey College Prep Charter School',
         'Global Leadership Academy',
+        'Haddon Township',
       ],
     },
   };
