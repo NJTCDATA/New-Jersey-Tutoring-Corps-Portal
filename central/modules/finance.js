@@ -330,4 +330,17 @@
   window.renderFinanceAnalytics = renderFinanceAnalytics;
   window.buildFinanceAnalytics  = buildFinanceAnalytics;
 
+  // ── Hook into showPanel ──────────────────────────────────────────
+  // shared-utils.js re-exports the original showPanel at the bottom of its
+  // module, overwriting the analytics-trigger patch defined mid-module.
+  // Finance.js adds its own hook here (after shared-utils loads) so the
+  // call is always in the chain regardless of override ordering.
+  (function() {
+    var _prev = window.showPanel;
+    window.showPanel = function(id, btn) {
+      if (typeof _prev === 'function') _prev(id, btn);
+      if (id === 'finance-analytics') buildFinanceAnalytics();
+    };
+  })();
+
 })();
