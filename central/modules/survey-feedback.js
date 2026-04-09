@@ -522,9 +522,9 @@
               <button onclick="sfExportRegionPDF('NE')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>NE Region Summary</button>
               <button onclick="sfExportRegionPDF('SW')" class="sf-pdf-menu-item"><span style="opacity:.65;margin-right:.4rem">&#128506;</span>SW Region Summary</button>
               <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">District / CMO Reports</div>
-              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#127979;</span>${d}</button>`).join('')}
+              ${getDistricts().map(d => `<button onclick="sfExportDistrictPDF(${JSON.stringify(d).replace(/"/g,'&quot;')})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#127979;</span>${d}</button>`).join('')}
               <div style="padding:.5rem .875rem .35rem;font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#8a9ab5;text-transform:uppercase;background:#f6f8fb;border-top:1px solid #e8edf4;border-bottom:1px solid #e8edf4;position:sticky;top:0;z-index:1">Partner Reports (by School)</div>
-              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s)})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#128196;</span>${s}</button>`).join('')}`;
+              ${getSchools().map(s => `<button onclick="sfExportPartnerPDF(${JSON.stringify(s).replace(/"/g,'&quot;')})" class="sf-pdf-menu-item"><span style="opacity:.55;margin-right:.4rem">&#128196;</span>${s}</button>`).join('')}`;
 
     el.innerHTML = `
       <div class="page-header">
@@ -2390,7 +2390,8 @@
     const blob = doc.output('blob');
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
@@ -2437,7 +2438,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
-      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     }
 
     const pub = pubData(_allData);
@@ -2677,7 +2679,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
-      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     }
 
     const pub  = pubData(_allData);
@@ -2916,7 +2919,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = prefix + '-' + new Date().toISOString().slice(0,10) + '.pdf';
-      a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
     }
 
     const pub     = pubData(_allData);
