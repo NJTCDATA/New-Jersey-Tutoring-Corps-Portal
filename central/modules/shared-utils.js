@@ -1566,8 +1566,8 @@
   // ══════════════════════════════════════════════════════════════════
   //  CHANGE LOG + NOTIFICATION SYSTEM
   // ══════════════════════════════════════════════════════════════════
-  let _changeLog = JSON.parse(localStorage.getItem('njtc_change_log') || '[]');
-  let _pdfPolicies = JSON.parse(localStorage.getItem('njtc_pdf_policies') || '[]');
+  let _changeLog = (function(){ try { return JSON.parse(localStorage.getItem('njtc_change_log') || '[]'); } catch(e) { return []; } })();
+  let _pdfPolicies = (function(){ try { return JSON.parse(localStorage.getItem('njtc_pdf_policies') || '[]'); } catch(e) { return []; } })();
   let _liveDocEnabled = localStorage.getItem('njtc_live_doc') !== 'false';
 
   function logChange(type, action, who, detail) {
