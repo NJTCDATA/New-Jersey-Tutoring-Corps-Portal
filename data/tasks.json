@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-10T13:53:47.098Z",
+  "generated": "2026-04-10T14:43:06.782Z",
   "project": "1211431518555737",
   "count": 33,
   "tasks": [
@@ -756,6 +756,22 @@
       "followers": [
         {
           "gid": "1205203775091388",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202967483652746",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202953622354860",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1205799963499266",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1213327755449997",
           "resource_type": "user"
         }
       ],
