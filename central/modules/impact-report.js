@@ -1907,7 +1907,7 @@ function exportPDFProgram() {
     .map(function(dk,i) {
       var dd = a.byDate[dk];
       var schoolList = Object.keys(dd.bySchool||{}).map(function(s){
-        return esc(s)+' ('+dd.bySchool[s].scholars+')';
+        return esc(s)+' ('+(dd.bySchool[s].scholarCount||0)+')';
       }).join(', ');
       return '<tr style="border-bottom:1px solid #f1f5f9;'+(i%2===0?'background:#fff':'background:#fafafa')+'">' +
         '<td style="padding:4pt 8pt;font-size:8pt;font-weight:600">'+esc(dk)+'</td>' +
