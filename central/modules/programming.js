@@ -1606,11 +1606,11 @@
       // All four tabs are hardcoded — no discovery needed, no cache can override.
       // att  = Missed Reasons     702726038
       // sess = Session Details    625567780
-      // inst = Instructor Surveys 1748668439  (confirmed from edit URL)
+      // inst = Instructor Surveys 1955492004  (confirmed from edit URL)
       // stu  = Student Surveys    1245403832  (confirmed from edit URL)
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
-      GIDS.inst = 1748668439;       // tutor/instructor survey — hardcoded
+      GIDS.inst = 1955492004;       // tutor/instructor survey — confirmed from edit URL
       GIDS.stu  = STU_GID_FALLBACK; // 1245403832 — student survey — hardcoded
 
       // GIDs are hardcoded — skip cache and discovery entirely
