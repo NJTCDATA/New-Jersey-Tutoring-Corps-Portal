@@ -1967,7 +1967,7 @@
       var PARTIAL_THRESHOLD = 300;  // rows before first partial render (lowered from 800)
       var ROLLING_UPDATE_EVERY = 500; // re-render survey card every N additional rows after partial
       var url = stuCsvUrl() + (bust || '');
-      console.log('[Pearl Ops] Streaming scholar survey from:', url.slice(0, 80) + '...');
+      console.log('[Pearl Ops] Streaming scholar survey gid=' + (GIDS.stu || STU_GID_FALLBACK) + ' url=' + url);
       try {
         // Use no AbortSignal for streaming — we want it to run to completion
         var res = await fetch(url);
@@ -1982,6 +1982,7 @@
         var decoder = new TextDecoder('utf-8');
         var buffer = '';
         var headerSkipped = false;
+        var firstChunkLogged = false;
         var parsedRows = 0;
         var partialRendered = false;
         // Aggregation structures built during stream
@@ -1993,6 +1994,12 @@
           if (chunk.done) break;
           // Decode chunk (stream=true: handles multi-byte chars across chunk boundaries)
           buffer += decoder.decode(chunk.value, { stream: true });
+          // Log first chunk to diagnose wrong-tab or HTML-redirect issues
+          if (!firstChunkLogged) {
+            firstChunkLogged = true;
+            var peek = buffer.slice(0, 120).replace(/\n/g, '↵');
+            console.log('[Pearl Ops] STU first chunk (' + chunk.value.byteLength + 'B):', peek);
+          }
           // Process complete lines from buffer
           var lines = buffer.split('\n');
           buffer = lines.pop();  // last element may be incomplete line — keep for next chunk
@@ -2074,6 +2081,19 @@
           }
         }
         console.log('[Pearl Ops] STU stream complete:', _stuRows.length, 'rows,', Object.keys(streamAgg).length, 'schools');
+
+        // ── 0-rows fallback: stream succeeded (HTTP 200) but no rows parsed ──
+        // This happens when the resolved GID points to the wrong tab (e.g. tutor
+        // survey or a non-CSV tab).  Retry once with STU_GID_FALLBACK.
+        if (_stuRows.length === 0 && GIDS.stu !== STU_GID_FALLBACK) {
+          console.warn('[Pearl Ops] STU 0 rows from gid=' + GIDS.stu + ' — retrying with fallback gid=' + STU_GID_FALLBACK);
+          GIDS.stu = STU_GID_FALLBACK;
+          try { localStorage.setItem('njtc_pearl_gids_v4', JSON.stringify({inst: GIDS.inst, stu: GIDS.stu})); } catch(e2) {}
+          _stuStreamRunning = false;  // allow re-entry
+          _streamStuInBackground(bust);
+          return;
+        }
+
         // Compute final agg scores from the complete stream
         var finalScores = { globalSum: globalSum, globalCnt: globalCnt, bySchool: {} };
         for (var fs in streamAgg) {
