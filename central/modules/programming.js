@@ -1603,19 +1603,23 @@
       if (_gidsResolved) return true;
 
       // ── Known-good GIDs (authoritative — confirmed from published sheet) ──
-      // att = Missed Reasons tab (702726038), sess = Session Details (625567780)
-      // Always applied first — prevents stale-cache/bad-discovery 400 errors.
+      // att = Missed Reasons (702726038), sess = Session Details (625567780)
+      // stu = Student Surveys (1245403832) — confirmed from edit URL, never changes
+      // These are always applied; discovery can only override inst.
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
+      GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — hardcoded like att/sess
 
-      // ── Try localStorage GID cache (v2 — v1 busted to clear stale entries) ──
+      // ── Try localStorage GID cache (inst only — stu/att/sess are hardcoded) ──
       const _GID_CACHE_KEY = 'njtc_pearl_gids_v4';
       try {
         const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
-        if (_gc && _gc.inst != null && _gc.stu != null) {
-          GIDS.inst = _gc.inst; GIDS.stu = _gc.stu;
+        if (_gc && _gc.inst != null) {
+          GIDS.inst = _gc.inst;
+          // Guard: inst must never equal stu (would mean wrong tab assigned)
+          if (GIDS.inst === GIDS.stu) GIDS.inst = 1955492004;  // inst fallback
           _gidsResolved = true;
-          console.log('[Pearl Ops] GIDs loaded from localStorage cache (v2)');
+          console.log('[Pearl Ops] GIDs loaded from cache — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
           return true;
         }
       } catch(e) {}
@@ -1753,14 +1757,15 @@
         console.warn('[Pearl Ops] stu/inst GID collision — overriding stu to fallback:', STU_GID_FALLBACK);
         GIDS.stu = STU_GID_FALLBACK;
       }
-      // Always re-assert att/sess to confirmed values (discovery cannot override)
+      // Always re-assert att/sess/stu to confirmed values (discovery cannot override)
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
+      GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — locked in, like att/sess
 
-      // Persist inst/stu to localStorage cache (att/sess always hardcoded)
+      // Persist only inst to localStorage (other GIDs are always hardcoded)
       try {
         localStorage.setItem('njtc_pearl_gids_v4', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
-        console.log('[Pearl Ops] GIDs persisted to localStorage v2');
+        console.log('[Pearl Ops] GIDs resolved — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
       } catch(e) {}
 
       // Log what was resolved (helps with future debugging)
