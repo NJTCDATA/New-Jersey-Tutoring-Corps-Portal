@@ -1609,7 +1609,7 @@
       GIDS.sess = 625567780;
 
       // ── Try localStorage GID cache (v2 — v1 busted to clear stale entries) ──
-      const _GID_CACHE_KEY = 'njtc_pearl_gids_v3';
+      const _GID_CACHE_KEY = 'njtc_pearl_gids_v4';
       try {
         const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
         if (_gc && _gc.inst != null && _gc.stu != null) {
@@ -1631,7 +1631,9 @@
           // Extract all numeric gid values from href/data attributes in the HTML
           const matches = [...html.matchAll(/[?&]gid=(\d+)/g)];
           const found = [...new Set(matches.map(m => parseInt(m[1], 10)))].filter(n => !isNaN(n));
-          if (found.length) probedGids = found;
+          // Always include the known scholar survey GID — pubhtml may not list it
+          // if the tab is not in the sheet's published view.
+          if (found.length) probedGids = [...new Set([...found, STU_GID_FALLBACK])];
           console.log('[Pearl Ops] Discovered gids from pubhtml:', found);
         }
       } catch(e) {
@@ -1744,14 +1746,20 @@
       // ── Apply known-good fallbacks for any tab still unresolved ─────────
       // att + sess are already set above; inst/stu use discovery or these fallbacks.
       if (!GIDS.inst) GIDS.inst = 1955492004;
-      if (!GIDS.stu)  GIDS.stu  = 1748668439;
+      if (!GIDS.stu)  GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — confirmed scholar survey GID
+      // Guard: stu and inst must never share the same GID — if they do, discovery
+      // mis-assigned the scholar survey to the inst slot; override with known fallback.
+      if (GIDS.stu === GIDS.inst) {
+        console.warn('[Pearl Ops] stu/inst GID collision — overriding stu to fallback:', STU_GID_FALLBACK);
+        GIDS.stu = STU_GID_FALLBACK;
+      }
       // Always re-assert att/sess to confirmed values (discovery cannot override)
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
 
-      // Persist inst/stu to localStorage v2 cache (att/sess always hardcoded)
+      // Persist inst/stu to localStorage cache (att/sess always hardcoded)
       try {
-        localStorage.setItem('njtc_pearl_gids_v3', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
+        localStorage.setItem('njtc_pearl_gids_v4', JSON.stringify({inst:GIDS.inst,stu:GIDS.stu}));
         console.log('[Pearl Ops] GIDs persisted to localStorage v2');
       } catch(e) {}
 
