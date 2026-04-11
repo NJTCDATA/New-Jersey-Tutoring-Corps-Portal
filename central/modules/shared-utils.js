@@ -1038,6 +1038,7 @@
   //  POLICIES LIBRARY
   // ══════════════════════════════════════════════════════════
   let _allPolicies = POLICIES_INLINE;
+  window._njtcPolicies = _allPolicies;  // expose to PIE (separate IIFE) immediately
 
   async function buildPolicies(forceRefresh) {
     const syncDot = document.getElementById('syncDot');
@@ -1059,6 +1060,7 @@
       syncDot.className = 'sync-dot error';
       syncText.innerHTML = '<strong>Live sync OFF</strong> · Showing built-in documents + uploaded PDFs · <em>Toggle Live Doc to re-enable</em>';
       renderPolicies();
+      window._njtcPolicies = _allPolicies;
       return;
     }
 
@@ -1113,10 +1115,31 @@
         return JSON.parse(raw);
       };
 
-      // Apps Script removed from strategy chain — causes CORS errors on GitHub Pages.
-      // GitHub raw is the primary source; CORS proxy is fallback.
-      // Network fetch skipped — inline manifest already loaded above
-      const strategies = [];
+      // GitHub raw is the primary source — no CORS, works on GitHub Pages.
+      // Returns [] when manifest has no entries yet; non-empty = Drive additions.
+      const strategies = [
+        { url: GITHUB_MANIFEST_URL, label: 'GitHub raw' },
+      ];
+      for (const strat of strategies) {
+        try {
+          const fetched = await tryFetch(strat.url);
+          if (Array.isArray(fetched) && fetched.length > 0) {
+            docs = fetched.map(d => ({
+              ...d, dept: d.dept || 'shared',
+              sectionsModified: d.sectionsModified || [],
+              annualGoals: d.annualGoals || [],
+              _isDriveUpload: true, _driveManifest: true,
+            }));
+            fromDrive = true;
+            console.log('[Manifest]', strat.label, 'loaded:', docs.length, 'additions');
+          } else {
+            console.log('[Manifest]', strat.label, 'OK — no additions in manifest yet');
+          }
+          break;
+        } catch(e) {
+          console.warn('[Manifest]', strat.label, 'failed:', e.message);
+        }
+      }
     }
 
     // Merge in any locally-uploaded PDF additions
@@ -1138,12 +1161,12 @@
       syncDot.className = 'sync-dot';
       syncText.innerHTML = `<strong>Live from Google Drive</strong> · ${POLICIES_INLINE.length} core policies + ${driveAdditions.length} Drive additions${pdfAdditions.length ? ' + ' + pdfAdditions.length + ' uploads' : ''} · Last refreshed ${new Date().toLocaleTimeString()}`;
     } else {
-      syncDot.className = 'sync-dot error';
-      syncText.innerHTML = DRIVE_MANIFEST_ID.startsWith('REPLACE')
-        ? `<strong>${POLICIES_INLINE.length} built-in policies</strong> · Connect Google Drive to add supplemental documents automatically`
-        : `<strong>${POLICIES_INLINE.length} built-in policies</strong> · Drive unreachable — supplemental documents unavailable · <em>Click ↺ Refresh to retry</em>`;
+      syncDot.className = 'sync-dot';  // green — built-in policies loaded successfully
+      const pdfPart = pdfAdditions.length ? ' + ' + pdfAdditions.length + ' uploaded' : '';
+      syncText.innerHTML = `<strong>${POLICIES_INLINE.length} built-in policies loaded</strong>${pdfPart} · Last refreshed ${new Date().toLocaleTimeString()}`;
     }
     renderPolicies();
+    window._njtcPolicies = _allPolicies;
   }
 
   function renderPolicies() {
@@ -7193,7 +7216,7 @@
     // List / find governance policies
     { match: /\b(policy|policies|governance|handbook|protocol|procedure|guideline|doc(ument)?s?|manual|framework|escalation|sop|standard).{0,30}(list|show|find|what|which|available|do we have|njtc|current|all)\b|\b(what|show|list|find).{0,20}(policy|policies|governance|handbook|protocol|document)\b|(governance doc|policy doc|policy library|policy list|show me.*polic|what polic|which polic|org.*polic|our.*polic)/i,
       respond: function() {
-        var allPol = (typeof POLICIES_INLINE !== 'undefined' ? POLICIES_INLINE : []);
+        var allPol = (window._njtcPolicies || []);
         if (!allPol.length) return 'Policy library is loading — open the **Policies & Governance** panel for the full list.';
         // Filter to dept-relevant policies (leadership/data/kb see all)
         var visible = _deptCan('partner_nps') // full-access depts

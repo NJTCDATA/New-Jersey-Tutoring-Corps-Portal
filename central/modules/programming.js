@@ -1956,7 +1956,8 @@
       if (_stuStreamRunning) return;
       _stuStreamRunning = true;
       _stuStreamComplete = false;  // mark incomplete until stream finishes
-      var PARTIAL_THRESHOLD = 800;  // rows before first partial render
+      var PARTIAL_THRESHOLD = 300;  // rows before first partial render (lowered from 800)
+      var ROLLING_UPDATE_EVERY = 500; // re-render survey card every N additional rows after partial
       var url = stuCsvUrl() + (bust || '');
       console.log('[Pearl Ops] Streaming scholar survey from:', url.slice(0, 80) + '...');
       try {
@@ -2023,14 +2024,32 @@
               scAgg.entries.push([conf||'', enjoy||'', learn||'', overall||'', comment, userId, sessId, userId, week]);
               if (hasScore) { scAgg.sum += (conf||0)+(enjoy||0)+(learn||0)+(overall||0); scAgg.cnt += 4; }
             }
-            // Partial render after threshold
+            // Partial render after threshold — set _stuAggScores first so survey card shows real data
             if (!partialRendered && parsedRows >= PARTIAL_THRESHOLD) {
               partialRendered = true;
               try {
+                // Snapshot running totals into _stuAggScores so the survey KPI tile shows now
+                var partialAgg = { globalSum: globalSum, globalCnt: globalCnt, bySchool: {} };
+                for (var psk in streamAgg) {
+                  var psc2 = streamAgg[psk];
+                  partialAgg.bySchool[psk] = { avg: psc2.cnt > 0 ? psc2.sum / psc2.cnt : 0, cnt: psc2.cnt, district: psc2.district };
+                }
+                _stuAggScores = partialAgg;
                 buildIndexes();
                 renderView();
                 setSyncState('partial');
-                console.log('[Pearl Ops] STU partial render at', parsedRows, 'rows — card updated');
+                console.log('[Pearl Ops] STU partial render at', parsedRows, 'rows — survey avg set to', globalCnt > 0 ? (globalSum/globalCnt).toFixed(2) : '—');
+              } catch(e) {}
+            } else if (partialRendered && parsedRows % ROLLING_UPDATE_EVERY === 0) {
+              // Rolling update: refresh survey card every 500 more rows so number converges live
+              try {
+                var rollingAgg = { globalSum: globalSum, globalCnt: globalCnt, bySchool: {} };
+                for (var rsk in streamAgg) {
+                  var rsc2 = streamAgg[rsk];
+                  rollingAgg.bySchool[rsk] = { avg: rsc2.cnt > 0 ? rsc2.sum / rsc2.cnt : 0, cnt: rsc2.cnt, district: rsc2.district };
+                }
+                _stuAggScores = rollingAgg;
+                renderView();
               } catch(e) {}
             }
           }
