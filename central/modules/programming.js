@@ -1602,27 +1602,21 @@
     async function resolveGids() {
       if (_gidsResolved) return true;
 
-      // ── Known-good GIDs (authoritative — confirmed from published sheet) ──
-      // att = Missed Reasons (702726038), sess = Session Details (625567780)
-      // stu = Student Surveys (1245403832) — confirmed from edit URL, never changes
-      // These are always applied; discovery can only override inst.
+      // ── Known-good GIDs (authoritative — confirmed from edit URL, never change) ──
+      // All four tabs are hardcoded — no discovery needed, no cache can override.
+      // att  = Missed Reasons     702726038
+      // sess = Session Details    625567780
+      // inst = Instructor Surveys 1748668439  (confirmed from edit URL)
+      // stu  = Student Surveys    1245403832  (confirmed from edit URL)
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
-      GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — hardcoded like att/sess
+      GIDS.inst = 1748668439;       // tutor/instructor survey — hardcoded
+      GIDS.stu  = STU_GID_FALLBACK; // 1245403832 — student survey — hardcoded
 
-      // ── Try localStorage GID cache (inst only — stu/att/sess are hardcoded) ──
-      const _GID_CACHE_KEY = 'njtc_pearl_gids_v4';
-      try {
-        const _gc = JSON.parse(localStorage.getItem(_GID_CACHE_KEY) || 'null');
-        if (_gc && _gc.inst != null) {
-          GIDS.inst = _gc.inst;
-          // Guard: inst must never equal stu (would mean wrong tab assigned)
-          if (GIDS.inst === GIDS.stu) GIDS.inst = 1955492004;  // inst fallback
-          _gidsResolved = true;
-          console.log('[Pearl Ops] GIDs loaded from cache — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
-          return true;
-        }
-      } catch(e) {}
+      // GIDs are hardcoded — skip cache and discovery entirely
+      _gidsResolved = true;
+      console.log('[Pearl Ops] GIDs hardcoded — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
+      return true;
 
 
       // Step 1: fetch the pubhtml index to discover real gid values
