@@ -5058,7 +5058,7 @@
           if (!isNaN(v) && v > 0) { surveyTotal += v; surveyCount++; }
         }
       }
-      const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : 0;
+      const scholarSurvey = surveyCount > 0 ? Math.round(surveyTotal / surveyCount * 10) / 10 : null;
 
       // ── Scholar performance tiers — ACTIVE SCHOLARS ONLY ──────────────
       // Active = attended at least 1 session (attended or late).

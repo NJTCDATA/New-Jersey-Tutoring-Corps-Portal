@@ -3071,6 +3071,30 @@
   var _lastQ    = ''; // last routed query — readable by RULES respond functions
   var _pendingQ = null; // {ctx, dir} — awaiting user clarification before answering
 
+  // ── Department-based access control ──────────────────────────────────────
+  // Leadership, Data, and KB always see everything.
+  // Other departments have restricted access to sensitive data categories.
+  var DEPT_ACCESS = {
+    partner_nps:  ['leadership','data','kb'],
+    hr_concerns:  ['leadership','data','kb','hr'],
+    demographics: ['leadership','data','kb','hr'],
+    finance:      ['leadership','data','kb','finance'],
+  };
+  var DEPT_DENIED_MSGS = {
+    partner_nps:  '🔒 **Partner satisfaction and NPS data is restricted to Leadership and Data & Evaluation.**\n\nThis information contains confidential school-level feedback. Contact the **Data & Evaluation team** or **Leadership** for a summary relevant to your work.',
+    hr_concerns:  '🔒 **HR concern details are confidential** and accessible to HR, Leadership, and Data only.\n\nIf you need information about performance actions on your team, contact your **HR representative** or direct supervisor.',
+    demographics: '🔒 **Workforce demographic data is restricted** to HR, Leadership, and Data.\n\nContact **HR** directly for staff composition and diversity information.',
+    finance:      '🔒 **Financial details are accessible to Finance, Leadership, and Data only.**\n\nContact the **Finance team** for cost, budget, and reimbursement information.',
+  };
+  function _deptCan(category) {
+    var allowed = DEPT_ACCESS[category];
+    if (!allowed) return true;
+    return allowed.indexOf(_dept) >= 0;
+  }
+  function _deptDenied(category) {
+    return DEPT_DENIED_MSGS[category] || '🔒 **This information is restricted for your department.**\n\nContact Leadership or Data & Evaluation for access.';
+  }
+
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
     'Overview':   ['How are we doing overall?',               'What should I know today?',                  'Give me a flash summary PDF'],
@@ -3079,10 +3103,11 @@
     'Workforce':  ['Who is currently on watch?',              'How many active concerns are there?',        'How many apprentices do we have?'],
     'Academic':   ['What is our iReady math growth?',         'How does ELA compare to math growth?',       'What is typical growth?'],
     'Program':    ['How many active scholars?',               'What is a service interruption?',            'How many districts are we in?'],
-    'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
-    'Satisfaction': ['What is our partner NPS?',               'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
+    'Policies':   ['Show me all governance policies',         'Where is the employee handbook?',            'Show me the escalation protocol'],
+    'Reports':    ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
+    'Satisfaction': ['What is our partner NPS?',              'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
   };
-  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Satisfaction','Reports'];
+  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Policies','Satisfaction','Reports'];
 
   var PANEL_CATS = {
     'kpi':'KPIs', 'kpi-analytics':'KPIs', 'pearl-ops':'Attendance',
@@ -4140,14 +4165,41 @@
   }
 
   // ── Normalize query: fix typos, expand abbreviations ─────────────────────
+  // Handles common misspellings, shorthand, and alternate phrasings so PIE
+  // matches queries even when staff type quickly or use informal language.
   function _norm(q) {
     return (q||'').toLowerCase()
-      .replace(/\batend/g,'attend').replace(/\bscholr/g,'scholar')
-      .replace(/\btuter/g,'tutor').replace(/\bsurvey\b/g,'survey')
+      // Attendance typos
+      .replace(/\batend(ance|ed|ing)?\b/g,'attend$1').replace(/\battandance\b/g,'attendance')
+      .replace(/\babsense\b/g,'absence').replace(/\babsance\b/g,'absence')
+      // Scholar / student typos
+      .replace(/\bscholr\b/g,'scholar').replace(/\bscholars\b/g,'scholars')
+      .replace(/\bscolars?\b/g,'scholar').replace(/\bstudant\b/g,'student')
+      // Tutor / staff typos
+      .replace(/\btuter\b/g,'tutor').replace(/\btutors?\b/g,'tutor')
+      .replace(/\bstaf\b/g,'staff').replace(/\bstaff\b/g,'staff')
+      // Survey typos
       .replace(/\bsuvery\b/g,'survey').replace(/\bsurvy\b/g,'survey')
-      .replace(/\bdistrct\b/g,'district').replace(/\bpct\b/g,'percent')
-      .replace(/\b(ne|northeast)\b/g,'northeast region').replace(/\b(sw|southwest)\b/g,'southwest region')
-      .replace(/['']/g,"'").trim();
+      .replace(/\bsurvay\b/g,'survey').replace(/\bsurveys?\b/g,'survey')
+      // School / district typos
+      .replace(/\bdistrct\b/g,'district').replace(/\bdistirct\b/g,'district')
+      .replace(/\bscool\b/g,'school').replace(/\bschol\b/g,'school')
+      // KPI / goal shorthand
+      .replace(/\bkpis?\b/g,'kpi').replace(/\bgoals?\b/g,'goal')
+      .replace(/\bpct\b/g,'percent').replace(/\b%\b/g,'percent')
+      // Region abbreviations
+      .replace(/\b(ne|neast|n\.e\.)\b/g,'northeast region')
+      .replace(/\b(sw|swest|s\.w\.)\b/g,'southwest region')
+      // Common informal shorthand
+      .replace(/\bpearl ops?\b/g,'pearl operations')
+      .replace(/\biready\b/g,'iready').replace(/\bi-ready\b/g,'iready')
+      .replace(/\bhr\b/g,'hr').replace(/\bt&d\b/g,'training')
+      .replace(/\bpd\b/g,'professional development')
+      // Governance / policy shorthand
+      .replace(/\bhandbook\b/g,'employee handbook')
+      .replace(/\bescalation\b/g,'escalation protocol')
+      // Punctuation cleanup
+      .replace(/['']/g,"'").replace(/[""]/g,'"').trim();
   }
 
   // ── Format helpers ────────────────────────────────────────────────────────
@@ -4832,6 +4884,7 @@
     // Who is on watch / write-up / HR action
     { match: /on.?watch|watch.?list|write.?up|written.?up|\bpgp\b|\bpip\b|termination|hr action|disciplinary|who.*watch|how many.*watch/i,
       respond: function() {
+        if (!_deptCan('hr_concerns')) return _deptDenied('hr_concerns');
         var c = _concerns();
         if (!c.length) return 'Concern data not loaded — open Performance Concerns to load HR data.';
         var actionPriority = ['Termination','Write Up','PGP','On Watch'];
@@ -5399,6 +5452,7 @@
     // Who has a concern / employee name + concern
     { match: /who.*(concern|write.?up|pgp|watch|termination)|concern.*who|employees.*concern|staff.*concern/i,
       respond: function() {
+        if (!_deptCan('hr_concerns')) return _deptDenied('hr_concerns');
         var c = _concerns();
         if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
         var names = [...new Set(c.map(function(r){ return r.emp; }))].filter(Boolean);
@@ -5621,6 +5675,7 @@
     // Staff race/ethnicity (HR)
     { match: /staff.*(race|ethnic|demographic|diversity)|race.*(staff|employee|tutor|worker)|diversity.*(staff|employee|workforce)|workforce.*(race|ethnic|demograph)|who.*on.*staff.*race|staff.*(white|black|hispanic|latino|asian)/i,
       respond: function() {
+        if (!_deptCan('demographics')) return _deptDenied('demographics');
         var active = _hrActive();
         if (!active.length) return 'HR data not yet loaded. Open Talent Analytics.';
         var rMap = {}, eCount = 0;
@@ -6455,6 +6510,7 @@
     // Concern details by type or severity
     { match: /concern.*(detail|breakdown|type|all|list|full|highest|most serious|severity|rank|level|worst|escalat)|termination|write.?up.*(who|list|all|detail)|pgp.*(who|list|detail|all)/i,
       respond: function() {
+        if (!_deptCan('hr_concerns')) return _deptDenied('hr_concerns');
         var c = _concerns();
         if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
         var priority = ['Termination','Write Up','PGP','On Watch'];
@@ -6484,6 +6540,7 @@
     // Concerns at a specific site or district
     { match: /concern.*(site|school|district|location|where|which site|which school)|which.*(site|school|district).*(concern|issue|watch|write)/i,
       respond: function() {
+        if (!_deptCan('hr_concerns')) return _deptDenied('hr_concerns');
         var c = _concerns();
         if (!c.length) return 'Concern data not loaded — open Performance Concerns first.';
         var sMap = {}, dMap = {};
@@ -6853,6 +6910,7 @@
     // Overall NPS / satisfaction score
     { match: /\b(partner|school|site).{0,20}(nps|net promoter|satisfaction score|how.*feel|overall.*satisf|satisf.*score|rating)\b|\b(what|what.?s|show me|give me).{0,20}(nps|net promoter|partner satisf|overall satisf)|(nps score|partner nps|overall nps|satisfaction (rating|score|level)|how satisfied|how happy).{0,30}(partner|school|site|program)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data is not loaded yet. Open the **Partner Satisfaction** panel first, then ask again.';
         var qStr = sf.quarters.length ? ' · ' + sf.quarters.length + ' quarter' + (sf.quarters.length>1?'s':'')+' (' + sf.quarters.join(', ') + ')' : '';
@@ -6883,6 +6941,7 @@
     // Quarter-over-quarter trend / QoQ
     { match: /\b(quarter.over.quarter|qoq|trend.{0,20}nps|nps.{0,20}trend|how.*changed|progress.*quarter|quarter.*progress|by quarter|each quarter|quarter.*nps|nps.*quarter|satisfaction.*quarter|quarter.*satisfaction|improvement.*quarter|decline.*quarter)\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         if (!sf.qoq || sf.qoq.length < 1) return 'No quarterly data available yet. At least one completed quarter is needed.';
@@ -6902,6 +6961,7 @@
     // Quarter-specific NPS ("Quarter 1 NPS", "Q2 satisfaction")
     { match: /\b(q1|q2|q3|q4|quarter\s*1|quarter\s*2|quarter\s*3|quarter\s*4|quarter one|quarter two|quarter three|quarter four).{0,30}(nps|satisf|score|how|result|data)\b|\b(nps|satisf|score).{0,30}(q1|q2|q3|q4|quarter\s*[1-4])\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var q = _lastQ || '';
@@ -6923,6 +6983,7 @@
     // At-risk schools in partner survey
     { match: /\b(at.?risk|highest.?risk|most.*concern|concern.*school|risk.*school|school.*risk).{0,30}(school|site|partner|satisf|nps)\b|\b(at.?risk|red.?flag).{0,20}(partner|school|site|survey)\b|(which schools? (are|is) (at.?risk|struggling|concerning|low))\b.{0,20}(survey|satisf|nps|partner)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var msg = '**At-Risk Partner Schools**\n\n';
@@ -6952,6 +7013,7 @@
     // Satisfaction by role type
     { match: /\b(by role|per role|role.{0,15}(satisf|nps|breakdown|feel|think)|satisf.{0,15}(role|principal|teacher|staff|coordinator|director|type)|how.{0,15}(principal|teacher|coordinator|director|school staff|role).{0,20}(feel|satisf|nps|rate|view|think)|role.{0,20}breakdown.{0,15}(survey|satisf|nps|partner))\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var roles = Object.keys(sf.byRole);
@@ -6990,6 +7052,7 @@
     // Best / highest-rated school in partner survey
     { match: /\b(best|top|highest|strongest|most positive).{0,20}(school|site|partner).{0,20}(satisf|nps|survey|score|rating)\b|\b(school|site).{0,20}(best|top|highest).{0,20}(satisf|nps|score)\b|(which school.*highest nps|highest nps.*school|best school.*survey|survey.*best school)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         if (!sf.bestSchool) return 'No school data available (need ≥2 respondents per school).';
@@ -7004,6 +7067,7 @@
     // Lowest / worst school in partner survey
     { match: /\b(lowest|worst|weakest|most negative|least satisfied|bottom).{0,20}(school|site|partner).{0,20}(satisf|nps|survey|score)\b|(which school.*lowest nps|lowest nps.*school|worst school.*survey)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         if (!sf.lowestSchool) return 'No school data available (need ≥2 respondents per school).';
@@ -7015,6 +7079,7 @@
     // Dissatisfaction reasons
     { match: /\b(dissatisf|why.{0,20}(low|unhappy|negative|concern|issues?|complaint)|top.{0,15}(concern|issue|complaint|reason).{0,20}(partner|survey|satisf)|most common.{0,15}(concern|issue|complaint).{0,20}(partner|survey)|reason.{0,15}(dissatisf|complaint|unhappy|low rating)|partner.{0,15}(concern|issue|complaint|unhappy))\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         if (!sf.topDissat || !sf.topDissat.length) return 'No dissatisfaction reasons logged in partner survey data yet.';
@@ -7031,6 +7096,7 @@
     // Improving / declining schools
     { match: /\b(improving|improved|getting better|trending up).{0,20}(school|site|partner|satisf|nps)\b|(which schools? (are|is) improving|satisfaction improvement|school.*improvement.*survey|decline.{0,20}(school|site|nps|satisf|partner)|declining.{0,20}school)\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var msg = '**Quarter-over-Quarter Trajectory**\n\n';
@@ -7050,6 +7116,7 @@
     // Promoters — who are they
     { match: /\b(promoter|promoters|who.*promoter|promoter.*who|top.*promoter|most positive partner|advocate|strongest partner).{0,30}(partner|school|site|survey|nps)?\b|\b(partner|school).{0,20}(advocate|champion|promoter)\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var msg = '**Partner Promoters (NPS Score 4–5)**\n\n**' + sf.promoters + ' promoters** (' + sf.promoterPct + '%) out of ' + sf.totalRespondents + ' total respondents.\n\n';
@@ -7065,6 +7132,7 @@
     // Satisfaction summary
     { match: /\b(summary|overview|tell me about|summarize|brief me on|what.{0,10}know about).{0,20}(partner satisf|partner survey|nps|satisfaction survey|school satisf)\b|(partner satisfaction summary|satisfaction overview|survey summary|nps summary)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         var qStr = sf.quarters.length ? sf.quarters.join(' → ') : 'No quarters yet';
@@ -7088,6 +7156,7 @@
     // Partner satisfaction PDF via PIE
     { match: /\b(pdf|export|download|print|report|generate).{0,20}(partner satisf|satisfaction survey|nps report|partner survey|satisfaction pdf|survey pdf|nps pdf)\b|(partner satisf.{0,15}(pdf|report|export)|satisfaction.{0,15}(pdf|report|export)|nps.{0,15}(pdf|report|export))\b/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded. Open the **Partner Satisfaction** panel and click **⬇ Export PDF** in the header — or open the panel first and ask me again.';
         if (typeof window.sfExportPDF === 'function') {
@@ -7101,6 +7170,7 @@
     // Partner satisfaction watch list
     { match: /\b(watch.?list|on watch|watch schools?).{0,20}(partner|satisf|nps|survey)\b|(partner|satisf|nps|survey).{0,20}(watch.?list|on watch|watch schools?)\b|(schools? on (partner )?watch|partner watch|satisfaction watch)/i,
       respond: function() {
+        if (!_deptCan('partner_nps')) return _deptDenied('partner_nps');
         var sf = _sf();
         if (!sf) return 'Partner satisfaction data not loaded — open the **Partner Satisfaction** panel first.';
         if (!sf.watch.length && !sf.atRisk.length) return '✅ No schools are currently on watch or at-risk in the partner survey. NPS: ' + _npsLabel(sf.overallNPS);
@@ -7115,6 +7185,75 @@
           sf.watch.forEach(function(s){ var d=sf.bySchool[s]; msg += '• **'+s+'** — NPS: '+_npsLabel(d?d.nps:null)+'\n'; });
         }
         return msg.trim();
+      }
+    },
+
+    // ── GOVERNANCE POLICY RULES ───────────────────────────────────────────────
+
+    // List / find governance policies
+    { match: /\b(policy|policies|governance|handbook|protocol|procedure|guideline|doc(ument)?s?|manual|framework|escalation|sop|standard).{0,30}(list|show|find|what|which|available|do we have|njtc|current|all)\b|\b(what|show|list|find).{0,20}(policy|policies|governance|handbook|protocol|document)\b|(governance doc|policy doc|policy library|policy list|show me.*polic|what polic|which polic|org.*polic|our.*polic)/i,
+      respond: function() {
+        var allPol = (typeof POLICIES_INLINE !== 'undefined' ? POLICIES_INLINE : []);
+        if (!allPol.length) return 'Policy library is loading — open the **Policies & Governance** panel for the full list.';
+        // Filter to dept-relevant policies (leadership/data/kb see all)
+        var visible = _deptCan('partner_nps') // full-access depts
+          ? allPol
+          : allPol.filter(function(p) { return !p.dept || p.dept === _dept || p.dept === 'all'; });
+        if (!visible.length) visible = allPol; // fallback: show all
+        var msg = '**NJTC Governance Policies' + (visible.length < allPol.length ? ' — ' + (_dept.charAt(0).toUpperCase()+_dept.slice(1)) + ' View' : '') + '** (' + visible.length + ' document' + (visible.length!==1?'s':'') + ')\n\n';
+        visible.forEach(function(p) {
+          msg += '📋 **' + p.title + '**';
+          if (p.tag) msg += ' · _' + p.tag + '_';
+          if (p.effectiveDate) msg += ' · Effective: ' + p.effectiveDate;
+          if (p.modifiedDate) msg += ' · Updated: ' + p.modifiedDate;
+          msg += '\n' + (p.desc || '') + '\n\n';
+        });
+        msg += '_Open the **Policies & Governance** panel to read or download any document._';
+        return msg.trim();
+      }
+    },
+
+    // Find a specific policy by name / topic
+    { match: /\b(handbook|hr.*handbook|employee.*handbook|staff.*handbook)\b/i,
+      respond: function() {
+        return '**NJTC Employee Handbook** (HR · Effective Aug 2025)\n\nCovers policies, procedures, expectations, and code of conduct for all NJTC staff. Sections include leave policy (updated Jan 2026) and remote work guidelines.\n\n_Open the **Policies & Governance** panel → Employee Handbook to read the full document._';
+      }
+    },
+
+    { match: /\b(escalation|concern.*protocol|protocol.*concern|escalation.*protocol|program.*concern|concern.*escalat|how.*escalate|when.*escalate|escalat.*issue|escalat.*site)\b/i,
+      respond: function() {
+        return '**Program Concern Escalation Protocol** (Programming · Effective Sep 2025, Updated Dec 2025)\n\nStep-by-step guide for identifying, logging, and escalating site-level program concerns. Covers triggers, the communication chain, and required documentation.\n\n_Open the **Policies & Governance** panel → Program Concern Escalation Protocol to view._';
+      }
+    },
+
+    { match: /\b(data governance|data.*framework|governance.*framework|data.*policy|reporting.*standard|data.*owner|data.*standard)\b/i,
+      respond: function() {
+        return '**Data Governance Framework** (Data & Evaluation · Effective Dec 2025)\n\nDefines internal reporting standards, data ownership policies, and governance workflows across all NJTC systems.\n\n_Open the **Policies & Governance** panel → Data Governance Framework to view._';
+      }
+    },
+
+    { match: /\b(performance eval|perf.*eval|eval.*system|evaluation.*rubric|rubric|performance.*review|review.*process|evaluation.*process)\b/i,
+      respond: function() {
+        return '**Performance Evaluation System** (HR · Effective Nov 2025)\n\nRevised rubrics, observation forms, rating scales, and the full evaluation process for all staff roles.\n\n_Open the **Policies & Governance** panel → Performance Evaluation System to view._';
+      }
+    },
+
+    { match: /\b(budget.*policy|financial.*control|budget.*control|reimburs|fiscal.*policy|budget.*procedure|finance.*policy|budget.*guideline)\b/i,
+      respond: function() {
+        return '**Budget & Financial Controls** (Finance · Effective Aug 2025)\n\nCovers budget procedures, reimbursement policy, expenditure approval, and financial accountability guidelines.\n\n_Open the **Policies & Governance** panel → Budget & Financial Controls to view._';
+      }
+    },
+
+    { match: /\b(pd calendar|training calendar|professional development.*calendar|pd.*schedule|training.*schedule|pd.*sched|required.*pd|required.*training|compliance.*training)\b/i,
+      respond: function() {
+        return '**Training & PD Calendar SY 25-26** (Training & Development · Effective Sep 2025, Updated Jan 2026)\n\nRequired professional development schedule and compliance tracking for all staff. Includes session dates, facilitators, and completion requirements.\n\n_Open the **Policies & Governance** panel → Training & PD Calendar to view._';
+      }
+    },
+
+    // Can PIE push a policy PDF?
+    { match: /\b(send|push|download|export|get me|give me|pull up|share).{0,25}(policy|policies|governance|handbook|protocol|manual|framework).{0,20}(pdf|document|doc|file)\b|(policy pdf|governance pdf|pdf.*policy|pdf.*governance|policy.*download|governance.*download)/i,
+      respond: function() {
+        return '**Policy PDFs** are available directly in the **Policies & Governance** panel.\n\nOpen it via the sidebar → _Policies & Governance_ → click any document card to preview or download.\n\nFor a specific document ask me: "Show me the Employee Handbook" or "Where is the escalation protocol?" and I\'ll give you the details.';
       }
     },
 
@@ -7318,6 +7457,7 @@
       [/dissatisf|dissat|unhappy.*partner|partner.*unhappy/,  'dissatisfaction partner survey reason'],
       [/by role.*satisf|satisf.*role|role.*nps|nps.*role/,   'by role partner satisfaction nps'],
       [/improving.*school|school.*improving|declining.*school|school.*declining/, 'improving declining school trajectory'],
+      [/policy|policies|governance|handbook|protocol|escalation|procedure|guideline|manual/, 'policy policies governance list show'],
     ];
     for (var k = 0; k < kw.length; k++) {
       if (kw[k][0].test(qn)) {
@@ -7333,10 +7473,10 @@
     var parts = [];
     if (d) parts.push('KPI: **'+d.score+'% ('+d.health+')**');
     if (p && p.loaded) parts.push('Scholar att: **'+_pct(p.scholAttPct)+'**');
-    if (c.length) parts.push(c.length+' concerns');
+    if (_deptCan('hr_concerns') && c.length) parts.push(c.length+' concerns');
     if (active.length) parts.push(active.length+' active staff');
     var snap = parts.length ? '\n\n**Live:** '+parts.join(' · ') : '';
-    return 'I didn\'t catch that — try rephrasing or ask about:\n• **Attendance** — best/worst sites, district, tutor rates\n• **Academic** — iReady math/ELA growth, grade level placement\n• **Workforce** — on watch, concerns, apprentices, staff diversity\n• **Program** — scholars, sessions, districts, survey completion\n• **KPIs** — scores, goals not met, weighted score\n• **Satisfaction** — partner NPS, at-risk schools, by role, QoQ trends, dissatisfaction reasons\n• **Reports** — flash PDF, data sources, school year\n\nOr type a **tutor or staff name** to pull their profile.' + snap;
+    return 'I didn\'t quite catch that — try rephrasing or ask about:\n• **Attendance** — best/worst sites, tutor rates, district breakdown\n• **Academic** — iReady math/ELA growth, grade level placement\n• **Workforce** — staff headcount, apprentices' + (_deptCan('hr_concerns') ? ', concerns, on-watch list' : '') + '\n• **Program** — scholars, sessions, districts, survey completion\n• **KPIs** — scores, goals not met, weighted score\n' + (_deptCan('partner_nps') ? '• **Satisfaction** — partner NPS, at-risk schools, QoQ trends\n' : '') + '• **Policies** — employee handbook, escalation protocol, governance docs\n• **Reports** — flash PDF, data sources\n\nOr type a **tutor or staff name** to pull their profile.' + snap;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
