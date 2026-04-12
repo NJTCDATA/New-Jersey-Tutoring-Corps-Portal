@@ -209,6 +209,9 @@
       border-left-color: var(--blue-lite);
     }
     .sidebar-link.active .sl-icon { opacity: 1; }
+    /* Instant click feedback pulse — 600ms then fades out */
+    .sidebar-link.nav-loading { animation: navPulse .55s ease-out forwards; }
+    @keyframes navPulse { 0%{background:rgba(255,255,255,.22);border-left-color:#fff} 100%{background:rgba(255,255,255,.08);border-left-color:var(--blue-lite)} }
     .sl-icon { font-size: .9375rem; width: 18px; text-align: center; flex-shrink: 0; opacity: .6; }
     .sl-badge {
       margin-left: auto;

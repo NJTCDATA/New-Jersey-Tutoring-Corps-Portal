@@ -608,7 +608,10 @@
     const prevPanel = document.querySelector('.panel.active');
     if (prevPanel) prevPanel.classList.remove('active');
     const prevLink = document.querySelector('.sidebar-link.active');
-    if (prevLink) prevLink.classList.remove('active');
+    if (prevLink) { prevLink.classList.remove('active'); prevLink.classList.remove('nav-loading'); }
+    // Instant click feedback — sidebar link pulses briefly while panel content populates
+    const _eLink = btn || document.querySelector(`[data-panel="${id}"]`);
+    if (_eLink) { _eLink.classList.add('active'); _eLink.classList.add('nav-loading'); setTimeout(()=>_eLink.classList.remove('nav-loading'),600); }
 
     // Pre-warm the Operations Manual cache when policies panel is opened
     if (id === "policies" && typeof fetchOpsManual === "function") fetchOpsManual(false);
@@ -640,9 +643,6 @@
     // Note: Knowtion render is handled exclusively by the IIFE override below (no double-render)
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
-    // Find the sidebar button if not passed
-    const linkEl = btn || document.querySelector(`[data-panel="${id}"]`);
-    if (linkEl) linkEl.classList.add('active');
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
   window.showPanel = showPanel; // expose before patch IIFE captures _base
@@ -1532,21 +1532,19 @@
     // By the time the user opens any panel, data is either served from
     // this prefetch or from the localStorage cache loaded above.
     setTimeout(() => {
-      // Fire all 4 fetches in parallel — none block the UI
+      // Fire all fetches in parallel — none block the UI
       fetchAndRebuildKPI(false).catch(() => {});
       if (window.sya && window.sya.refresh) {
         try { window.sya.refresh(false); } catch(e) {}
       }
-      // Talent: trigger via buildTalentDashboard but non-blocking
-      // (it guards with _talentLoaded flag so safe to call early)
-      // Pearl: only prefetch if user has pearl panel access
-      const dept = window.NJTC_SESSION && window.NJTC_SESSION.dept;
-      if (dept && ['leadership','data','programming','kb'].includes(dept)) {
-        if (window.po && window.po.onPanelOpen) {
-          try { window.po.onPanelOpen(); } catch(e) {}
-        }
+      // Pearl: pre-warm for ALL depts so data is ready before user navigates
+      if (window.po && typeof window.po.onPanelOpen === 'function') {
+        try { window.po.onPanelOpen(); } catch(e) {}
       }
-      // irlab: no prefetch needed — embedded data, loads instantly on panel open
+      // HR & Concerns: pre-warm for all depts (home widget + talent panel)
+      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
+      // irlab: embedded data loads instantly on panel open — no prefetch needed
     }, 100);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
     // Guard: shared-filters.js may not be available in all environments
