@@ -1028,11 +1028,12 @@
   const HR_CACHE_KEY  = 'njtc_hr_live_v1';
   const HR_TTL_MS     = 60 * 60 * 1000;  // 1-hour cache
 
-  // ── Site Leader Observations live sheet ──────────────────────────────
-  // To enable: paste 2PACX key from File → Share → Publish to web → CSV
-  // and set the GID of the observations tab
-  const OBS_2PACX     = null;  // TODO: paste site leader observations 2PACX key
-  const OBS_GID       = null;  // TODO: GID for observations tab
+  // ── Site Leader Observations — Apprenticeship Program Database ───────────
+  // NE tab gid=1649286205 · SW tab gid=373912327
+  // Same sheet as apprenticeship OTJ — direct export URL (sheet shared with anyone)
+  const OBS_SHEET_ID  = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
+  const OBS_NE_GID    = '1649286205';   // Northeast Site Leader Observations
+  const OBS_SW_GID    = '373912327';    // Southwest Site Leader Observations
   const OBS_CACHE_KEY = 'njtc_obs_live_v1';
   const OBS_TTL_MS    = 60 * 60 * 1000;  // 1-hour cache
   let   _obsRows      = [];
@@ -1367,57 +1368,100 @@
   }
 
   // ── Async live HR fetch ───────────────────────────────────────────────────
-  // ── Fetch site leader observations ──────────────────────────────────
+  // ── Fetch site leader observations (NE + SW) in parallel ────────────────
   async function fetchLiveObsData(force=false) {
-    if (!OBS_2PACX || !OBS_GID) return;
     if (!force) {
       try {
         const c = JSON.parse(localStorage.getItem(OBS_CACHE_KEY)||'null');
-        if (c && c.ts && (Date.now()-c.ts) < OBS_TTL_MS && c.rows) {
+        if (c && c.ts && (Date.now()-c.ts) < OBS_TTL_MS && c.rows && c.rows.length) {
           _obsRows = c.rows;
           _obsFetched = true;
+          _hrOverlayObs();
           return;
         }
       } catch(e) {}
     }
-    const bust = force ? '&t='+Date.now() : '';
-    const url = `https://docs.google.com/spreadsheets/d/e/${OBS_2PACX}/pub?output=csv&gid=${OBS_GID}${bust}`;
+    const bust = force ? '?t='+Date.now() : '';
+    const neUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_NE_GID}${bust}`;
+    const swUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_SW_GID}${bust}`;
     try {
-      const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
-      if (!res.ok) return;
-      const rows = _parseObsSheet(await res.text());
-      _obsRows = rows;
+      const [neRes, swRes] = await Promise.allSettled([
+        fetch(neUrl, {signal: AbortSignal.timeout(10000)}),
+        fetch(swUrl, {signal: AbortSignal.timeout(10000)}),
+      ]);
+      const combined = [];
+      // NE headers at row 2 (skipRows=1), SW headers at row 3 (skipRows=2)
+      const skipMap = [1, 2];
+      for (const [i, result] of [neRes, swRes].entries()) {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          const rows = _parseObsSheet(await result.value.text(), skipMap[i]);
+          combined.push(...rows);
+        }
+      }
+      if (!combined.length) return;
+      _obsRows = combined;
       _obsFetched = true;
-      try { localStorage.setItem(OBS_CACHE_KEY, JSON.stringify({ts:Date.now(),rows})); } catch(e){}
-      console.log('[HR Profiles] Observations loaded:', rows.length, 'records');
+      try { localStorage.setItem(OBS_CACHE_KEY, JSON.stringify({ts:Date.now(),rows:combined})); } catch(e){}
+      console.log('[HR Profiles] Observations loaded:', combined.length, 'records (NE+SW)');
       _hrOverlayObs();
+      // Re-render talent profiles if currently visible
+      const _lb = document.getElementById('talentTab-profiles');
+      if (_lb && _lb.classList.contains('active')) {
+        const _le = document.getElementById('talentContent');
+        if (_le) {
+          try {
+            const _vr = (typeof _hrOverlayVersion !== 'undefined') ? String(_hrOverlayVersion) : '0';
+            _le.innerHTML = '<div id="hrProfilesRoot" data-overlay-version="'+_vr+'">' +
+              _hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr') + '</div>';
+          } catch(e) { /* non-critical */ }
+        }
+      }
     } catch(e) { console.warn('[HR Profiles] Obs fetch failed:', e.message); }
   }
 
-  // ── Parse observation sheet CSV ───────────────────────────────────
-  function _parseObsSheet(text) {
-    const lines = text.split('\n').filter(l=>l.trim());
-    if (!lines.length) return [];
-    const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+  // ── Proper quoted-CSV row parser ─────────────────────────────────────────
+  function _splitCsvRow(line) {
+    const cols = []; let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"' && !inQ) { inQ = true; continue; }
+      if (ch === '"' && inQ)  { if (line[i+1] === '"') { cur += '"'; i++; } else inQ = false; continue; }
+      if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    cols.push(cur.trim());
+    return cols;
+  }
+
+  // ── Parse observation sheet CSV ───────────────────────────────────────────
+  // skipRows: number of rows before the header row (NE=1, SW=2)
+  function _parseObsSheet(text, skipRows) {
+    const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(l=>l.trim());
+    const sr = skipRows || 0;
+    if (lines.length <= sr) return [];
+    const header = _splitCsvRow(lines[sr]).map(h=>h.toLowerCase());
+    // Flexible column getter — tries multiple aliases
     const g = (row, ...keys) => {
       for (const k of keys) {
-        const i = header.indexOf(k);
-        if (i>-1) { const v=(row[i]||'').replace(/"/g,'').trim(); if(v) return v; }
+        const i = header.findIndex(h => h.includes(k.toLowerCase()));
+        if (i > -1) { const v = (row[i]||'').trim(); if (v) return v; }
       }
       return '';
     };
-    return lines.slice(1).map(line => {
-      const row = line.split(',');
+    return lines.slice(sr + 1).map(line => {
+      const row = _splitCsvRow(line);
+      const name = g(row, 'tutor name','instructor name','staff name','tutor','name','site leader');
+      if (!name) return null;
       return {
-        name:     g(row,'tutor name','instructor name','staff name','name'),
-        date:     g(row,'date','observation date'),
-        rating:   g(row,'rating','score','overall','overall rating'),
-        type:     g(row,'type','observation type','visit type'),
-        notes:    g(row,'notes','comments','feedback'),
-        observer: g(row,'observer','submitted by','site leader'),
-        site:     g(row,'site','school','location'),
+        name,
+        date:     g(row, 'observation date','date','month','observation month'),
+        rating:   g(row, 'rating','score','overall rating','overall'),
+        type:     g(row, 'observation type','visit type','type'),
+        notes:    g(row, 'notes','comments','feedback'),
+        observer: g(row, 'observer','submitted by','site leader','sl name'),
+        site:     g(row, 'site','school','location'),
       };
-    }).filter(r=>r.name);
+    }).filter(Boolean);
   }
 
   // ── Academic data overlay from irlab tutorMap ─────────────────────
@@ -4459,6 +4503,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   window.buildTalentDashboard    = buildTalentDashboard;
   window.fetchLiveHRData         = fetchLiveHRData;
+  window.fetchLiveObsData        = fetchLiveObsData;   // NE+SW site leader observations
   window._updateTalentBadge      = _updateTalentBadge;
   window._hrBuildProfiles        = _hrBuildProfiles;  // called from shared-utils.js
   window._buildTermAnalyticsWidget = _buildTermAnalyticsWidget;  // HR & Data home widget
