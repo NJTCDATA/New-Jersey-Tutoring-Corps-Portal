@@ -4760,6 +4760,205 @@
       }
     },
 
+    // ── QUARTERLY GOAL SUMMARY ────────────────────────────────────────────────
+
+    // Quarterly summary overview — all depts, depth varies by role
+    { match: /\b(quarterly|quarter.{0,10}(summary|overview|update|status|report|goal|result|data|snapshot|progress)|(summary|overview|update|status|report|result|snapshot|progress).{0,10}quarter|(q1|q2|q3|q4).{0,20}(summary|status|result|update|goal)|how.{0,20}(q1|q2|q3|q4)|what.{0,20}quarter|goal.{0,20}quarter|this quarter|last quarter)\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.activeQs || !qd.activeQs.length) {
+          // Fall back to main KPI data — no panel navigation required
+          var d = _kpi();
+          if (!d) return 'KPI and quarterly data are still loading. Try again in a moment.';
+          return '**Quarterly Goal Data**\n\nQuarterly tracking data is loading from the live sheet. Current mid-year status across **' + d.total + '** targets:\n' + d.met + ' Met · ' + d.prog + ' In Progress · ' + d.part + ' Partial · ' + d.nm + ' Not Met · ' + d.pipe + ' Pipeline\n\n_Quarterly Q1–Q4 comparison will be available shortly — ask me again in a few seconds._';
+        }
+        var isDeep = (_dept === 'leadership' || _dept === 'kb' || _dept === 'data');
+        var latestQ  = qd.activeQs[qd.activeQs.length-1];
+        var latestSC = qd.scorecards[qd.scorecards.length-1];
+        var deltas   = qd.deltas;
+        var improved = deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='up'; });
+        var critical = deltas.filter(function(d2){ return d2.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+
+        var msg = '**NJTC Quarterly Goal Summary \u2014 Q' + latestQ + ' SY 2025\u20132026**\n\n';
+        msg += '\ud83c\udfe5 **Organizational Health:** ' + latestSC.score + '% \u2014 ' + latestSC.health.label + '\n\n';
+        msg += '\u2705 Met: **' + latestSC.counts.met + '**  \u00B7  \ud83d\udd35 In Progress: **' + latestSC.counts.prog + '**  \u00B7  \ud83d\udfe0 Partial: **' + latestSC.counts.partial + '**  \u00B7  \ud83d\udfe3 Pipeline: **' + latestSC.counts.pipe + '**  \u00B7  \ud83d\udd34 Not Met: **' + latestSC.counts.notmet + '**\n';
+
+        if (qd.scorecards.length >= 2) {
+          var prev = qd.scorecards[qd.scorecards.length-2];
+          var delta = latestSC.score - prev.score;
+          msg += '\n\ud83d\udcc8 **Trend:** ' + (delta >= 0 ? '\u2191 +' : '\u2193 ') + delta + ' pts from Q' + prev.q + ' (' + prev.score + '% \u2192 ' + latestSC.score + '%)\n';
+        }
+
+        if (improved.length) msg += '\n\ud83c\udfc6 **' + improved.length + ' target' + (improved.length>1?'s':'')+' improved** this cycle';
+        if (critical.length) msg += '\n\u26a0\ufe0f **' + critical.length + ' critical** \u2014 reached "Has Not Met" status';
+
+        if (isDeep) {
+          // Leadership/KB/Data: add goal-area breakdown
+          msg += '\n\n**Goal Area Health:**\n';
+          var goalOrder=[], goalGroups={};
+          qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder.indexOf(g)<0) goalOrder.push(g); if(!goalGroups[g]) goalGroups[g]=[]; goalGroups[g].push(r); });
+          var qCols=[[6,7],[8,9],[10,11],[12,13]];
+          var sc=qCols[latestQ-1][1];
+          goalOrder.forEach(function(goal){
+            var rs=goalGroups[goal]; var met=rs.filter(function(r){ return (r[sc]||'').trim()==='Met'; }).length;
+            var nm2=rs.filter(function(r){ return (r[sc]||'').trim()==='Has Not Met'; }).length;
+            var flag=nm2>0?'\ud83d\udd34':met===rs.length?'\u2705':'\ud83d\udd35';
+            msg += flag + ' **' + goal.split(' ').slice(0,6).join(' ') + (goal.split(' ').length>6?'\u2026':'') + '** \u2014 ' + met + '/' + rs.length + ' Met' + (nm2>0?' \u00B7 '+nm2+' Not Met':'') + '\n';
+          });
+          if (improved.length) {
+            msg += '\n**Top Improvements:**\n';
+            improved.slice(0,4).forEach(function(d2){ var lm=d2.moves[d2.moves.length-1]; msg += '\u2191 ' + d2.target.slice(0,70)+(d2.target.length>70?'\u2026':'')+' ('+lm.from+' \u2192 '+lm.to+')\n'; });
+          }
+          if (critical.length) {
+            msg += '\n**Critical \u2014 Has Not Met:**\n';
+            critical.forEach(function(d2){ msg += '\ud83d\udd34 ' + d2.target.slice(0,70)+(d2.target.length>70?'\u2026':'')+'\n'; });
+          }
+          if (_dept === 'data') msg += '\n_Full export: open KPI Analytics \u2192 Quarterly tab for PDF/PPTX download._';
+          else msg += '\n_For the full detail view, open **KPI Analytics \u2192 Quarterly tab**. Ask me "what targets improved" or "show me critical regressions" for targeted breakdowns._';
+        } else {
+          msg += '\n\n_Ask me "what changed this quarter," "which goals improved," or "quarterly health" for more detail._';
+        }
+        return msg.trim();
+      }
+    },
+
+    // Cross-quarter changes / status shifts — all depts
+    { match: /\b(what.{0,20}changed|status.{0,20}change|chang.{0,20}(status|quarter|goal)|shift.{0,20}(quarter|goal|status)|quarter.{0,20}(change|shift|move|transition|progress)|moved.{0,20}(quarter|status)|how.{0,20}(moved|changed|shifted).{0,20}(goal|target|status|quarter))\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.deltas || !qd.deltas.length) {
+          var d = _kpi(); if (!d) return 'KPI data still loading — try again in a moment.';
+          return 'Quarterly tracking data is loading. Current mid-year snapshot: **' + d.score + '% health** (' + d.met + ' Met, ' + d.nm + ' Not Met). Ask again in a few seconds for the full Q1\u2013Q' + (qd&&qd.activeQs?qd.activeQs[qd.activeQs.length-1]:'?') + ' comparison.';
+        }
+        var deltas = qd.deltas;
+        var improved = deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='up'; });
+        var regressed = deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='down'; });
+        var bigWins  = deltas.filter(function(d2){ return d2.moves.some(function(m){ return m.to==='Met'&&m.dir==='up'; }); });
+        var critical = deltas.filter(function(d2){ return d2.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+        var stable   = (qd.rows||[]).length - deltas.length;
+        var msg = '**Cross-Quarter Status Changes \u2014 Q' + qd.activeQs.join('\u2192Q') + '**\n\n';
+        msg += '\u2191 **' + improved.length + ' improved** · \u2193 **' + regressed.length + ' regressed** · \u2192 **' + stable + ' stable** (no change)\n';
+        msg += '\ud83c\udfc6 **' + bigWins.length + '** reached Met status · \u26a0\ufe0f **' + critical.length + '** dropped to Has Not Met\n';
+        if (bigWins.length) {
+          msg += '\n**Targets that reached Met:**\n';
+          bigWins.slice(0,5).forEach(function(d2){ var m2=d2.moves.filter(function(m){ return m.to==='Met'; })[0]; msg += '\u2705 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+' (Q'+m2.fromQ+'\u2192Q'+m2.toQ+')\n'; });
+          if (bigWins.length>5) msg += '_+' + (bigWins.length-5) + ' more_\n';
+        }
+        if (critical.length) {
+          msg += '\n**Dropped to Has Not Met:**\n';
+          critical.forEach(function(d2){ var cm=d2.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; msg += '\ud83d\udd34 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+(cm?' (Q'+cm.fromQ+'\u2192Q'+cm.toQ+')\n':'\n'); });
+        }
+        if (regressed.length && !critical.length) {
+          msg += '\n**Status Declines (non-critical):**\n';
+          regressed.slice(0,4).forEach(function(d2){ var lm=d2.moves[d2.moves.length-1]; msg += '\u2193 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+' ('+lm.from+'\u2192'+lm.to+')\n'; });
+        }
+        if (_dept==='leadership'||_dept==='kb'||_dept==='data') msg += '\n_Open **KPI Analytics \u2192 Quarterly** for the full cross-quarter breakdown table._';
+        return msg.trim();
+      }
+    },
+
+    // Quarterly improvements / wins — all depts
+    { match: /\b(improv|better|win|got better|positive.{0,15}shift|moved up|step up|progress.{0,10}quarter|quarter.{0,10}win|goal.*improv|target.*improv|which.*improv|what.*improv)\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.deltas) { var d=_kpi(); return d?'Current KPI health: **'+d.score+'%**. Quarterly improvement data loads automatically — ask again in a moment.':'Loading…'; }
+        var improved = qd.deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='up'; });
+        if (!improved.length) return 'No cross-quarter improvements detected yet for this cycle. All tracked targets have held or shifted down from their previous quarter.';
+        var msg = '**Quarterly Improvements \u2014 Q' + qd.activeQs.join('\u2192Q') + '**\n\n**' + improved.length + ' target' + (improved.length>1?'s':'')+' moved to a stronger status:**\n\n';
+        improved.slice(0,8).forEach(function(d2){
+          var lm=d2.moves[d2.moves.length-1];
+          msg += '\u2191 **' + d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+'**\n';
+          msg += '   _'+d2.goal+'_ \u00B7 '+lm.from+' \u2192 **'+lm.to+'** (Q'+lm.fromQ+'\u2192Q'+lm.toQ+')\n';
+          if(d2.owner) msg += '   Owner: '+d2.owner+'\n';
+          msg += '\n';
+        });
+        if (improved.length>8) msg += '_+' + (improved.length-8) + ' more improvements. Open KPI Analytics \u2192 Quarterly tab for the full list._';
+        return msg.trim();
+      }
+    },
+
+    // Quarterly regressions / concerns — all depts
+    { match: /\b(regress|declin|got worse|dropped|fell|went down|negative.{0,15}shift|moved down|step down|quarter.{0,10}concern|concern.{0,10}quarter|critical.{0,15}goal|which.*regress|what.*regress|fall.{0,10}behind|behind.{0,10}quarter)\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.deltas) { var d=_kpi(); return d?'Current KPI health: **'+d.score+'%**. Quarterly regression data loads automatically — ask again in a moment.':'Loading…'; }
+        var critical = qd.deltas.filter(function(d2){ return d2.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+        var other    = qd.deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='down'&&lm.to!=='Has Not Met'; });
+        if (!critical.length && !other.length) return '\u2705 No regressions detected this cycle. All quarterly status changes are stable or improving.';
+        var msg = '**Quarterly Regressions \u2014 Q' + qd.activeQs.join('\u2192Q') + '**\n\n';
+        if (critical.length) {
+          msg += '\ud83d\udd34 **CRITICAL (' + critical.length + ') \u2014 Reached Has Not Met:**\n';
+          critical.forEach(function(d2){ var cm=d2.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; msg += '\u2022 **'+d2.target.slice(0,70)+(d2.target.length>70?'\u2026':'')+'**'; if(cm) msg += ' (Q'+cm.fromQ+'\u2192Q'+cm.toQ+')'; if(d2.owner) msg += ' \u00B7 '+d2.owner; msg += '\n'; });
+          msg += '\n';
+        }
+        if (other.length) {
+          msg += '\ud83d\udfe0 **Status Declines (' + other.length + '):**\n';
+          other.slice(0,5).forEach(function(d2){ var lm=d2.moves[d2.moves.length-1]; msg += '\u2022 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+' ('+lm.from+' \u2192 '+lm.to+')\n'; });
+          if (other.length>5) msg += '_+' + (other.length-5) + ' more_\n';
+        }
+        if (_dept==='leadership'||_dept==='kb') msg += '\n_Use **KPI Analytics \u2192 Quarterly \u2192 Export PDF** (via Data dept) for the full board-ready report._';
+        return msg.trim();
+      }
+    },
+
+    // Quarterly health scores / score by quarter — all depts
+    { match: /\b(health.{0,15}(score|quarter|q1|q2|q3|q4)|quarter.{0,15}(health|score|metric|how|percent)|(q1|q2|q3|q4).{0,15}(health|score)|score.{0,15}quarter|progression.{0,15}(health|score|quarter)|how.*each.*quarter|quarter.*by.*quarter|trend.{0,15}(quarter|goal|kpi)|quarter.*trend)\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.scorecards || !qd.scorecards.length) {
+          var d=_kpi(); return d?'Current org health: **'+d.score+'%** ('+d.health+'). Quarter-by-quarter data loads automatically.':'Loading quarterly data…';
+        }
+        var msg = '**Quarterly Health Progression \u2014 SY 2025\u20132026**\n\n';
+        qd.scorecards.forEach(function(sc, i) {
+          var prev = i>0?qd.scorecards[i-1]:null;
+          var delta = prev?(sc.score-prev.score):null;
+          var arrow = delta===null?'': (delta>0?' \u2191+':delta<0?' \u2193':' \u2192') + delta + 'pts from Q'+prev.q;
+          var isCurrent = sc.q===qd.activeQs[qd.activeQs.length-1];
+          msg += (isCurrent?'\u25b6 ':'   ') + '**Q'+sc.q+':** ' + sc.score + '% \u2014 ' + sc.health.label + arrow + '\n';
+          msg += '   ' + sc.counts.met + ' Met · ' + sc.counts.prog + ' In Progress · ' + sc.counts.partial + ' Partial · ' + sc.counts.notmet + ' Not Met\n\n';
+        });
+        msg += 'Scoring: Met=100pts · Partial=50pts · In Progress=25pts · Pipeline=10pts · Not Met=0pts';
+        return msg.trim();
+      }
+    },
+
+    // Export quarterly PDF via PIE — all depts get a PDF, Data dept gets full version
+    { match: /\b(export|download|generate|create|make|send|pdf|report).{0,25}(quarterly|quarter.{0,10}(summary|report|goal|kpi)|quarterly.{0,10}(pdf|report|summary|kpi|goal))\b|(quarterly.{0,25}(export|download|generate|pdf|report|slide|pptx|deck))\b/i,
+      respond: function() {
+        var qd = window.KPI_Q_DATA;
+        if (!qd || !qd.activeQs || !qd.activeQs.length) return 'Quarterly data is still loading from the live sheet. Try again in a moment.';
+        var isDataDept = _dept === 'data';
+        var isPPTX = /pptx|slide|deck|powerpoint/i.test(_lastQ||'');
+        if (isDataDept) {
+          if (isPPTX) {
+            if (typeof window.exportKPIQuarterlySummaryPPTX === 'function') {
+              window.exportKPIQuarterlySummaryPPTX();
+              return '\ud83d\udcca Generating **Quarterly Summary PPTX**\u2026\n\nCreating ' + (qd.scorecards.length >= 2 ? '6':'5') + ' slides: Cover, Stats, Quarter Progression, Improvements, Regressions, and Goal Area Scorecard. Download will begin in a moment.';
+            }
+            return 'Open **KPI Analytics \u2192 Quarterly tab** to export the PPTX.';
+          }
+          if (typeof window.exportKPIQuarterlySummaryPDF === 'function') {
+            window.exportKPIQuarterlySummaryPDF();
+            return '\ud83d\udcc4 Generating **Quarterly Summary PDF**\u2026\n\nIncludes: cover page, Q' + qd.activeQs[qd.activeQs.length-1] + ' health stats, quarter-by-quarter progression, notable improvements, critical regressions, and full cross-quarter breakdown by goal area.\n\nDownload will begin in a moment.';
+          }
+          return 'Open **KPI Analytics \u2192 Quarterly tab** to export the PDF.';
+        }
+        // Non-data depts: give inline PIE summary as their "PDF equivalent"
+        var latestSC = qd.scorecards[qd.scorecards.length-1];
+        var latestQ  = qd.activeQs[qd.activeQs.length-1];
+        var improved = qd.deltas.filter(function(d2){ var lm=d2.moves[d2.moves.length-1]; return lm&&lm.dir==='up'; });
+        var critical = qd.deltas.filter(function(d2){ return d2.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+        var msg = '**NJTC Quarterly Summary \u2014 Q'+latestQ+' SY 2025\u20132026**\n\n';
+        msg += '\ud83c\udfe5 **Health:** '+latestSC.score+'% \u2014 '+latestSC.health.label+'\n';
+        msg += '\u2705 Met: **'+latestSC.counts.met+'**  \u00B7  \ud83d\udd35 In Progress: **'+latestSC.counts.prog+'**  \u00B7  \ud83d\udfe0 Partial: **'+latestSC.counts.partial+'**  \u00B7  \ud83d\udd34 Not Met: **'+latestSC.counts.notmet+'**\n';
+        if (qd.scorecards.length>=2){ var p2=qd.scorecards[qd.scorecards.length-2]; msg+='\ud83d\udcc8 Trend: '+(latestSC.score-p2.score>=0?'+':'')+(latestSC.score-p2.score)+'pts from Q'+p2.q+'\n'; }
+        msg += '\n\ud83c\udfc6 **'+improved.length+' improved** this cycle';
+        if (critical.length) msg += '  \u00B7  \u26a0\ufe0f **'+critical.length+' critical**';
+        msg += '\n\n_PDF/PPTX full export is available through the Data & Evaluation department. Ask "what changed this quarter" or "show improvements" for targeted detail._';
+        return msg.trim();
+      }
+    },
+
     // Concerns / workforce
     { match: /concern|workforce concern|how many.*(concern|active)|open concern|hr concern|active concern/i,
       respond: function() {
