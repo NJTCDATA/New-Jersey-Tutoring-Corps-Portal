@@ -1107,17 +1107,19 @@
     if (hIdx < 0) return [];
     const H = rows[hIdx].map(h => h.trim().toLowerCase());
     const ci = s => H.findIndex(h => h.includes(s.toLowerCase()));
+    // Multi-keyword column finder — tries each alias in order, returns first match
+    const ciAny = (...aliases) => { for (const a of aliases) { const i = H.findIndex(h => h.includes(a.toLowerCase())); if (i >= 0) return i; } return -1; };
     const C  = {
       yr: ci('academic'), email: ci('email'), name: ci('full name'),
       role: ci('position'), site: ci('site'), district: ci('district'),
       rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
       race: ci('race'), ethnicity: ci('ethnicity'),
-      // Column K in HR Master List — apprentice designation (matches header containing "apprentice")
+      // Column K in HR Master List — apprentice designation
       apprentice: ci('apprentice'),
-      // Columns N, O, P — termination detail fields
-      termDate:   ci('termination date'),
-      termReason: ci('reason category'),
-      termType:   ci('termination type'),
+      // Termination detail fields — try multiple header aliases, then positional fallback (N=13, O=14, P=15)
+      termDate:   ciAny('termination date', 'term date', 'date of term', 'separation date', 'end date'),
+      termReason: ciAny('reason category', 'term reason', 'reason for', 'separation reason', 'exit reason'),
+      termType:   ciAny('termination type', 'term type', 'separation type', 'exit type', 'voluntary'),
     };
     return rows.slice(hIdx + 1)
       .map(r => ({
@@ -1129,15 +1131,15 @@
         district:   (r[C.district]    ||'').trim(),
         status:     (r[C.status]      ||'').trim(),
         cycles:     (r[C.cycles]      ||'').trim(),
-        rehire:     (r[C.rehire]      ||'').trim(),  // live rehire status from Master List
+        rehire:     (r[C.rehire]      ||'').trim(),
         race:       C.race       >= 0 ? (r[C.race]       ||'').trim() : '',
         ethnicity:  C.ethnicity  >= 0 ? (r[C.ethnicity]  ||'').trim() : '',
-        // Apprentice indicator from Master List (col K) — "Yes"/"Y"/non-empty = is apprentice
+        // Apprentice indicator from col K — positional fallback at index 10
         apprentice: C.apprentice >= 0 ? (r[C.apprentice] ||'').trim() : (r[10] ? (r[10]||'').trim() : ''),
-        // Termination detail columns N, O, P
-        termDate:   C.termDate   >= 0 ? (r[C.termDate]   ||'').trim() : '',
-        termReason: C.termReason >= 0 ? (r[C.termReason] ||'').trim() : '',
-        termType:   C.termType   >= 0 ? (r[C.termType]   ||'').trim() : '',
+        // Termination detail: header lookup with positional fallback at cols N(13), O(14), P(15)
+        termDate:   C.termDate   >= 0 ? (r[C.termDate]   ||'').trim() : (r[13]||'').trim(),
+        termReason: C.termReason >= 0 ? (r[C.termReason] ||'').trim() : (r[14]||'').trim(),
+        termType:   C.termType   >= 0 ? (r[C.termType]   ||'').trim() : (r[15]||'').trim(),
       }))
       .filter(r => r.name && r.yr);
   }
@@ -1489,6 +1491,15 @@
           _hrFetched = true;
           window._hrDataFetched = true;
           window._njtcActiveEmployees = HR_EMPS.filter(e => e.s === 'Active').length;
+          // Re-render home widget from cache data immediately
+          try {
+            const _hw = document.getElementById('homeDeptWidget');
+            if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+              const _dept = (window.NJTC_SESSION||{}).dept||'';
+              if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget();
+              else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') _hw.innerHTML = window._buildRetentionWidget();
+            }
+          } catch(_we) {}
           // Trigger exec dashboard refresh so tutor count updates from correct live data
           try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
           return;
@@ -1516,10 +1527,21 @@
                 _le.innerHTML='<div id="hrProfilesRoot" data-overlay-version="'+_vr+'">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
               } catch(_re) {
                 console.warn('[HR Profiles] Re-render after live fetch failed:', _re.message);
-                // Don't blank the screen — leave existing content
               }
             }
           }
+          // Re-render home attrition/retention widget now that live HR data is available
+          try {
+            const _hw = document.getElementById('homeDeptWidget');
+            if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+              const _dept = (window.NJTC_SESSION||{}).dept||'';
+              if (['hr','data'].includes(_dept)) {
+                _hw.innerHTML = window._buildTermAnalyticsWidget();
+              } else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
+                _hw.innerHTML = window._buildRetentionWidget();
+              }
+            }
+          } catch(_we) { /* widget re-render non-critical */ }
         } else { _hrStatus = 'error'; }
       } else { _hrStatus = 'error'; }
     } catch(e) {
@@ -3814,6 +3836,34 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ── HR & Data — Termination Analytics home widget ───────────────────────
   function _buildTermAnalyticsWidget() {
     const CY = '2025-2026';
+    // If live HR fetch is still in flight, render a skeleton and auto-refresh when it lands
+    if (!window._hrDataFetched) {
+      // Poll until live data arrives, then swap in real widget
+      setTimeout(function _pollHR() {
+        const hw = document.getElementById('homeDeptWidget');
+        if (!hw) return;
+        if (window._hrDataFetched) {
+          try { hw.innerHTML = _buildTermAnalyticsWidget(); } catch(e) {}
+        } else {
+          setTimeout(_pollHR, 600);
+        }
+      }, 600);
+      return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+    <div style="width:12px;height:12px;border-radius:50%;border:2px solid #3b82f6;border-top-color:transparent;animation:njtcSpin .8s linear infinite"></div>
+    <div style="font-size:.75rem;color:#64748b;font-weight:600">Loading live HR data…</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:.9rem">
+    ${[1,2,3,4,5].map(()=>`<div style="height:64px;background:#f1f5f9;border-radius:8px;animation:njtcPulse 1.4s ease-in-out infinite"></div>`).join('')}
+  </div>
+  <div style="height:10px;background:#f1f5f9;border-radius:4px;margin-bottom:.4rem;animation:njtcPulse 1.4s ease-in-out infinite"></div>
+  <div style="height:10px;background:#f1f5f9;border-radius:4px;width:70%;animation:njtcPulse 1.4s ease-in-out infinite"></div>
+  <style>
+    @keyframes njtcSpin{to{transform:rotate(360deg)}}
+    @keyframes njtcPulse{0%,100%{opacity:1}50%{opacity:.4}}
+  </style>
+</div>`;
+    }
     const yearEmps = HR_EMPS.filter(e => (e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY));
     const activeEmps = yearEmps.filter(e => e.s === 'Active');
     const termEmps   = yearEmps.filter(e => e.s !== 'Active');
