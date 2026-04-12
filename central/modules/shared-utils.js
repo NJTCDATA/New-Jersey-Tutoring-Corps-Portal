@@ -1541,9 +1541,10 @@
       if (window.po && typeof window.po.onPanelOpen === 'function') {
         try { window.po.onPanelOpen(); } catch(e) {}
       }
-      // HR & Concerns: pre-warm for all depts (home widget + talent panel)
+      // HR, Concerns, Observations: pre-warm for all depts
       try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
       try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveObsData === 'function') fetchLiveObsData(false).catch(()=>{}); } catch(e) {}
       // irlab: embedded data loads instantly on panel open — no prefetch needed
     }, 100);
     // Init dept-aware nav (show/hide sidebar items) + policy admin bar
