@@ -3100,6 +3100,11 @@
   var _lastQ    = ''; // last routed query — readable by RULES respond functions
   var _pendingQ = null; // {ctx, dir} — awaiting user clarification before answering
 
+  // ── Lightweight conversational context stack (last 3 turns) ─────────────
+  // Enables follow-up questions: "those tutors", "break that down by district"
+  // No AI — pure rule-based pattern matching on last intent type.
+  var _ctxStack = [];
+
   // ── Department-based access control ──────────────────────────────────────
   // Leadership, Data, and KB always see everything.
   // Other departments have restricted access to sensitive data categories.
@@ -3126,17 +3131,49 @@
 
   // ── Category chip definitions ─────────────────────────────────────────────
   var CATEGORIES = {
-    'Overview':   ['How are we doing overall?',               'What should I know today?',                  'Give me a flash summary PDF'],
-    'Attendance': ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',           'Which district has the lowest attendance?'],
-    'KPIs':       ['Which goals have not been met?',          'Which goal area is the weakest?',            'What does the weighted score mean?'],
-    'Workforce':  ['Who is currently on watch?',              'How many active concerns are there?',        'How many apprentices do we have?'],
-    'Academic':   ['What is our iReady math growth?',         'How does ELA compare to math growth?',       'What is typical growth?'],
-    'Program':    ['How many active scholars?',               'What is a service interruption?',            'How many districts are we in?'],
-    'Policies':   ['Show me all governance policies',         'Where is the employee handbook?',            'Show me the escalation protocol'],
-    'Reports':    ['Generate an executive flash report',      'What data sources does PIE read?',           'How often is data synced?'],
-    'Satisfaction': ['What is our partner NPS?',              'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
+    'Overview':     ['How are we doing overall?',               'What should I know today?',                   'Give me a flash summary PDF'],
+    'Attendance':   ['What is the scholar attendance rate?',    'Show tutors below 80% attendance',            'Which district has the lowest attendance?'],
+    'KPIs':         ['Which goals have not been met?',          'Which goal area is the weakest?',             'What does the weighted score mean?'],
+    'Workforce':    ['Who is currently on watch?',              'How many active concerns are there?',         'How many apprentices do we have?'],
+    'Academic':     ['What is our iReady math growth?',         'How does ELA compare to math growth?',        'What is typical growth?'],
+    'Program':      ['How many active scholars?',               'What is a service interruption?',             'How many districts are we in?'],
+    'Policies':     ['Show me all governance policies',         'Where is the employee handbook?',             'Show me the escalation protocol'],
+    'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',            'How often is data synced?'],
+    'Satisfaction': ['What is our partner NPS?',                'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
+    // Context-specific categories — shown when relevant panel/dept is active
+    'My Sites':     ['Which of my sites is below attendance benchmark?', 'Which tutors at my sites need attention?', 'Show me my scholar count by district'],
+    'Finance':      ['What is the cost per scholar?',           'Show me budget policy',                       'What is the program cost by district?'],
+    'T&D':          ['Which apprentices have no observation?',  'What is OTJ?',                                'Show PD feedback scores'],
+    'Quarterly':    ['What is our quarterly health score?',     'Which goals improved this quarter?',          'Which goals regressed this quarter?'],
   };
   var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Policies','Satisfaction','Reports'];
+
+  // ── Panel-specific chip defaults — auto-select best category when panel opens ──
+  // order: which categories to show (trimmed list); def: default selected tab
+  var PANEL_CAT_DEFAULTS = {
+    'pearl-ops':          { order: ['Attendance','Program','Overview','Reports'],            def: 'Attendance' },
+    'kpi':                { order: ['KPIs','Quarterly','Overview','Reports'],                def: 'KPIs'       },
+    'kpi-analytics':      { order: ['KPIs','Quarterly','Reports','Overview'],               def: 'KPIs'       },
+    'talent':             { order: ['Workforce','Overview','Reports'],                       def: 'Workforce'  },
+    'concern':            { order: ['Workforce','Overview'],                                 def: 'Workforce'  },
+    'iready-lab':         { order: ['Academic','Program','Overview'],                        def: 'Academic'   },
+    'training-analytics': { order: ['T&D','Workforce','Academic','Overview'],               def: 'T&D'        },
+    'sy-analytics':       { order: ['Program','Attendance','My Sites','Overview'],          def: 'Program'    },
+    'survey-feedback':    { order: ['Satisfaction','Overview','Reports'],                    def: 'Satisfaction'},
+    'finance-analytics':  { order: ['Finance','Overview','Reports'],                         def: 'Finance'    },
+    'policies':           { order: ['Policies','Overview'],                                  def: 'Policies'   },
+    'impact-report':      { order: ['Program','Academic','Reports','Overview'],             def: 'Program'    },
+    'perf':               { order: ['Workforce','Attendance','Overview'],                    def: 'Workforce'  },
+  };
+
+  // ── Dept-specific extras — prepend these category tabs for specific roles ──
+  var DEPT_CAT_DEFAULTS = {
+    programming: { extra: ['My Sites'],  def: 'Program'    },
+    training:    { extra: ['T&D'],       def: 'T&D'        },
+    finance:     { extra: ['Finance'],   def: 'Finance'    },
+    hr:          { extra: ['Workforce'], def: 'Workforce'  },
+    data:        { extra: ['Reports'],   def: 'Overview'   },
+  };
 
   var PANEL_CATS = {
     'kpi':'KPIs', 'kpi-analytics':'KPIs', 'pearl-ops':'Attendance',
@@ -4562,6 +4599,93 @@
   // ── HR helper: active employees only ─────────────────────────────────────
   function _hrActive() { return (window.HR_EMPS||[]).filter(function(e){ return e.s==='Active'; }); }
 
+  // ── Context stack helpers (conversational follow-up) ──────────────────────
+  // Push a named intent to the stack so follow-up pronouns can be resolved.
+  // type: string key ('low_att_tutors', 'site_list', 'kpi_notmet', etc.)
+  // data: any payload needed to expand the follow-up answer
+  function _ctxPush(type, data) {
+    _ctxStack.unshift({ type: type, data: data });
+    if (_ctxStack.length > 3) _ctxStack.pop();
+  }
+  function _ctxTop() { return _ctxStack[0] || null; }
+
+  // Resolve a follow-up question against the last context by re-routing.
+  // Returns a string answer or null if no follow-up could be resolved.
+  function _resolveCtxFollowup(q, ctx) {
+    var ql = q.toLowerCase();
+    var t = ctx ? ctx.type : '';
+    // attendance follow-ups
+    if (/district/.test(ql) && (t==='low_att_tutors'||t==='site_list'||t==='att_summary'))
+      return _route('district attendance breakdown compare');
+    if (/worst|bottom|low/.test(ql) && t==='site_list')
+      return _route('worst schools attendance');
+    if (/best|top/.test(ql) && t==='site_list')
+      return _route('best site school attendance');
+    if (/name|list|them|show/.test(ql) && t==='low_att_tutors')
+      return _route('show tutors below 80 attendance');
+    // KPI follow-ups
+    if (/list|all|more|show|what/.test(ql) && t==='kpi_notmet')
+      return _route('which goals have not been met');
+    if (/improv|win|better/.test(ql) && t==='kpi_summary')
+      return _route('what targets improved this quarter');
+    // Concerns follow-ups
+    if (/who|name|list|them/.test(ql) && t==='concerns')
+      return _route('who has a concern');
+    if (/type|kind|breakdown|categ/.test(ql) && t==='concerns')
+      return _route('concern type breakdown');
+    // NPS / satisfaction follow-ups
+    if (/district/.test(ql) && t==='nps') return _route('satisfaction by district');
+    if (/role|principal|teacher/.test(ql) && t==='nps') return _route('satisfaction by role type');
+    if (/school|site|at.?risk/.test(ql) && t==='nps') return _route('at risk schools partner survey');
+    if (/improve|trend|quarter/.test(ql) && t==='nps') return _route('quarter over quarter nps trend');
+    // Site-specific follow-ups
+    if (/more|detail|profile/.test(ql) && t==='site_below') return _route('which site has worst attendance');
+    if (/tutor/.test(ql) && t==='site_below') return _route('show tutors below 80 attendance');
+    return null;
+  }
+
+  // Inline navigation button — renders a clickable pill inside a PIE message.
+  // Clicking calls showPanel(panelId) via data-pie-nav delegation.
+  function _navBtn(label, panelId) {
+    return ' <span class="pie-action-btn" data-pie-nav="' + panelId + '">→ ' + label + '</span>';
+  }
+
+  // "Did you mean?" — find up to 3 suggested questions matching query tokens.
+  function _findSuggestions(qn) {
+    var tokens = qn.split(/\s+/).filter(function(t){ return t.length > 3; });
+    if (!tokens.length) return [];
+    var allQ = [];
+    Object.values(CATEGORIES).forEach(function(qs){ allQ = allQ.concat(qs); });
+    return allQ
+      .map(function(q2) {
+        var hits = tokens.filter(function(t){ return q2.toLowerCase().indexOf(t) >= 0; }).length;
+        return { q: q2, score: hits };
+      })
+      .filter(function(x){ return x.score > 0; })
+      .sort(function(a,b){ return b.score - a.score; })
+      .slice(0, 3)
+      .map(function(x){ return x.q; });
+  }
+
+  // Proactive alert — runs when PIE opens and data is already loaded.
+  // Returns a short alert string if anything is critical, or null if all clear.
+  function _quickAlert() {
+    var flags = [];
+    var p = _pearl();
+    if (p && p.scholAttPct != null && p.scholAttPct < 80)
+      flags.push('🔴 Scholar attendance at **' + _pct(p.scholAttPct) + '** — below the 80% floor');
+    if (_deptCan('hr_concerns')) {
+      var esc = _concerns().filter(function(r){ return r.hr_action==='Termination'||r.hr_action==='Write Up'; });
+      if (esc.length)
+        flags.push('🔴 **' + esc.length + ' employee' + (esc.length>1?'s':'') + '** in active escalation (Write Up / Termination)');
+    }
+    var d = _kpi();
+    if (d && d.nm > 0)
+      flags.push('⚠️ **' + d.nm + ' KPI goal' + (d.nm>1?'s':'') + '** currently at "Has Not Met"');
+    if (!flags.length) return null;
+    return '**Active right now:**\n' + flags.join('\n') + '\n\nAsk me about any of these for details.';
+  }
+
   var RULES = [
 
     // Greeting
@@ -4762,6 +4886,7 @@
           msg += '\n\n**Partially Met (' + pt.length + '):** ' + pt.slice(0,4).map(function(k){ return k.goal||k.kpi||'Target'; }).join(', ');
           if (pt.length > 4) msg += ', +' + (pt.length-4) + ' more';
         }
+        _ctxPush('kpi_notmet', { nm: nm, pt: pt });
         return msg || 'All targets are at In Progress or better.';
       }
     },
@@ -4969,12 +5094,13 @@
     { match: /concern|workforce concern|how many.*(concern|active)|open concern|hr concern|active concern/i,
       respond: function() {
         var c = _concerns();
-        if (!c.length) return 'No concern records loaded yet. Open Performance Concerns or Talent Analytics to load data.';
+        if (!c.length) return 'No concern records loaded yet. Open Performance Concerns or Talent Analytics to load data.' + _navBtn('Open Talent Analytics', 'talent');
         var byAction = {};
         c.forEach(function(r){ var a=r.hr_action||'Unspecified'; byAction[a]=(byAction[a]||0)+1; });
         var breakdown = Object.entries(byAction).sort(function(a,b){return b[1]-a[1];})
           .slice(0,4).map(function(e){ return '• ' + e[0] + ': ' + e[1]; }).join('\n');
-        return '**' + c.length + ' documented concerns** in the current dataset.\n\n' + breakdown;
+        _ctxPush('concerns', { total: c.length, byAction: byAction });
+        return '**' + c.length + ' documented concerns** in the current dataset.\n\n' + breakdown + '\n\nAsk "who has a concern" for names, or "concern type breakdown" for detail.';
       }
     },
 
@@ -5104,6 +5230,7 @@
           var msg = '**' + low.length + ' tutor' + (low.length>1?'s':'') + ' below 80% attendance:**\n\n';
           msg += low.slice(0,8).map(function(t){ return (t.attRate<60?'🔴':'⚠️') + ' ' + t.name + ' — **' + t.attRate + '%** (' + t.attended + '/' + t.total + ')' + (t.school?' · '+t.school:''); }).join('\n');
           if (low.length > 8) msg += '\n…and ' + (low.length-8) + ' more. Open Pearl Operations for full list.';
+          _ctxPush('low_att_tutors', { tutors: low });
           return msg;
         } catch(e) { return 'Pearl tutor data not yet loaded — open Pearl Operations and retry.'; }
       }
@@ -5639,6 +5766,7 @@
             return (i+1) + '. ' + icon + ' **' + s.school + '** — ' + s.attRate + '% scholar att · ' + _n(s.sessions) + ' sessions' + surv;
           }).join('\n');
           if (sorted.length > 8) msg += '\n_…and ' + (sorted.length - 8) + ' more sites_';
+          _ctxPush('site_list', { sites: sorted });
           return msg;
         } catch(e) { return 'Pearl site data not yet loaded — open Pearl Operations first.'; }
       }
@@ -7148,6 +7276,8 @@
         msg += '_NPS scale: ≥50 Excellent · ≥20 Good · <20 Needs Attention_\n\n';
         if (sf.atRisk.length) msg += '⚠️ **At-risk schools:** ' + sf.atRisk.slice(0,5).join(', ') + (sf.atRisk.length>5?' +'+(sf.atRisk.length-5)+' more':'')+'\n';
         if (sf.watch.length) msg += '👁 **Watch:** ' + sf.watch.slice(0,5).join(', ') + '\n';
+        msg += '\nAsk "by district," "by role," or "at-risk schools" to drill in.';
+        _ctxPush('nps', { sf: sf });
         return msg.trim();
       }
     },
@@ -7481,7 +7611,136 @@
     // Can PIE push a policy PDF?
     { match: /\b(send|push|download|export|get me|give me|pull up|share).{0,25}(policy|policies|governance|handbook|protocol|manual|framework).{0,20}(pdf|document|doc|file)\b|(policy pdf|governance pdf|pdf.*policy|pdf.*governance|policy.*download|governance.*download)/i,
       respond: function() {
-        return '**Policy PDFs** are available directly in the **Policies & Governance** panel.\n\nOpen it via the sidebar → _Policies & Governance_ → click any document card to preview or download.\n\nFor a specific document ask me: "Show me the Employee Handbook" or "Where is the escalation protocol?" and I\'ll give you the details.';
+        return '**Policy PDFs** are available directly in the **Policies & Governance** panel.\n\nOpen it via the sidebar → _Policies & Governance_ → click any document card to preview or download.\n\nFor a specific document ask me: "Show me the Employee Handbook" or "Where is the escalation protocol?" and I\'ll give you the details.' + _navBtn('Open Policies', 'policies');
+      }
+    },
+
+    // ── FINANCE DEPARTMENT RULES ──────────────────────────────────────────────
+
+    // Program cost overview / cost per scholar
+    { match: /cost.{0,20}(per scholar|per student|scholar cost|per.?session cost|of program|per program)|program.?cost|cost.?breakdown|cost.?summar|financial.?overview|cost.?model|cost.?analysis/i,
+      respond: function() {
+        if (!_deptCan('finance')) return _deptDenied('finance');
+        var p = _pearl(), active = _hrActive();
+        var msg = '**Program Cost Overview**\n\nDetailed budget and cost-per-scholar figures are tracked in **Finance Analytics**.\n\n';
+        var vol = [];
+        if (p && p.sessions)       vol.push('**' + _n(p.sessions) + ' sessions** delivered this program year');
+        if (p && p.activeScholars) vol.push('**' + _n(p.activeScholars) + ' active scholars** served');
+        if (active.length)         vol.push('**' + active.length + ' active staff** on roster');
+        if (vol.length) msg += '**Program volume:**\n' + vol.join('\n') + '\n\n';
+        msg += '📋 For full financial detail — cost-per-scholar, budget variance, and district allocation — open Finance Analytics.' + _navBtn('Open Finance Analytics', 'finance-analytics');
+        _ctxPush('finance_cost', {});
+        return msg;
+      }
+    },
+
+    // Budget policy / reimbursement / expenditure approvals
+    { match: /reimburse|expenditure|approval.{0,15}budget|spend.{0,10}approva|purchase.{0,10}approva|budget.{0,15}(policy|guideline|rule|proced|control)|financial.{0,10}(control|policy|procedure)|who.{0,10}approves.{0,10}spend|approves.*budget|fiscal.*policy/i,
+      respond: function() {
+        if (!_deptCan('finance')) return _deptDenied('finance');
+        return '**Budget & Financial Controls**\n\nNJTC\'s budget policy covers:\n\n• Expenditure approval thresholds by role\n• Reimbursement submission process and timelines\n• Purchase order requirements\n• Fiscal accountability guidelines\n\n📋 Full document is in **Policies & Governance → Budget & Financial Controls**.' + _navBtn('View Policy', 'policies');
+      }
+    },
+
+    // Program cost by district / district allocation
+    { match: /cost.{0,20}district|district.{0,20}cost|spend.{0,20}district|budget.{0,20}district|financial.{0,20}district|district.{0,20}budget|allocat.{0,20}district/i,
+      respond: function() {
+        if (!_deptCan('finance')) return _deptDenied('finance');
+        var ld = null;
+        try { ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null; } catch(e){}
+        if (!ld || !ld.districts || !ld.districts.length)
+          return 'District session data not yet loaded — open Pearl Operations to see district program volume, then ask again.' + _navBtn('Open Pearl Ops', 'pearl-ops');
+        var sorted = ld.districts.slice().sort(function(a,b){ return (b.sessions||0)-(a.sessions||0); });
+        var msg = '**Program Volume by District** _(session count — cost allocation proxy)_\n\n';
+        msg += sorted.slice(0,8).map(function(d){
+          return '• **' + d.name + '**: ' + _n(d.sessions||0) + ' sessions · ' + _n(d.scholars) + ' scholars';
+        }).join('\n');
+        if (sorted.length > 8) msg += '\n_…and ' + (sorted.length-8) + ' more districts_';
+        msg += '\n\n_Full dollar cost allocation is available in Finance Analytics._' + _navBtn('Open Finance Analytics', 'finance-analytics');
+        _ctxPush('finance_district', { districts: sorted });
+        return msg;
+      }
+    },
+
+    // ── PROGRAMMING DEPARTMENT RULES ─────────────────────────────────────────
+
+    // Sites below attendance benchmark — programming-forward phrasing
+    { match: /my sites?.{0,20}(below|under|low|fail|benchmark|concern|problem|attention|flag|struggle)|below.{0,15}benchmark.{0,15}(my site|my school)|(which|what).{0,20}(my site|site|school).{0,20}(below|low|concern|need|flag|attention|benchmark)/i,
+      respond: function() {
+        var sc = _schools();
+        if (!sc.length)
+          return 'Pearl site data not yet loaded — open Pearl Operations first.' + _navBtn('Open Pearl Ops', 'pearl-ops');
+        var threshold = 80;
+        var below = sc.filter(function(s){ return s.attRate != null && s.attRate < threshold; });
+        if (!below.length) return '✅ All sites are currently at or above ' + threshold + '% scholar attendance. Program is on track.';
+        below.sort(function(a,b){ return a.attRate - b.attRate; });
+        var msg = '**Sites Below ' + threshold + '% Scholar Attendance (' + below.length + '):**\n\n';
+        msg += below.map(function(s){
+          var icon = s.attRate < 70 ? '🔴' : '⚠️';
+          return icon + ' **' + s.school + '** (' + s.district + ') — **' + s.attRate + '%** · ' + _n(s.sessions) + ' sessions' + (s.siCount ? ' · ' + s.siCount + ' SIs' : '');
+        }).join('\n');
+        msg += '\n\nAsk "service interruptions by site" for context, or type a school name for its full profile.' + _navBtn('Open SY Analytics', 'sy-analytics');
+        _ctxPush('site_below', { sites: below });
+        return msg;
+      }
+    },
+
+    // Flagged tutors in my program — programming-forward phrasing
+    { match: /my.{0,15}(flagged|flag|concern|low|below|at.?risk|watch).{0,15}tutor|tutor.{0,20}(my program|my site|my school|need attention|need support)|(which|who).{0,20}tutor.{0,20}(flag|concern|need|low|watch|below|attention|support)/i,
+      respond: function() {
+        try {
+          var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
+          var flagged = Object.values(tm)
+            .filter(function(t){ return t.attRate!=null && t.attRate<80 && t.total>=3; })
+            .sort(function(a,b){ return a.attRate-b.attRate; });
+          var c = _concerns();
+          var withAction = [];
+          if (_deptCan('hr_concerns')) {
+            var actionSet = new Set(c.filter(function(r){ return ['On Watch','Write Up','PGP','Termination'].indexOf(r.hr_action)>=0; }).map(function(r){ return r.emp; }));
+            withAction = Array.from(actionSet);
+          }
+          if (!flagged.length && !withAction.length)
+            return '✅ No tutors flagged in current data. All attendance rates are above 80% (with ≥3 sessions logged).';
+          var msg = '**Tutors Needing Attention**\n\n';
+          if (flagged.length) {
+            msg += '⚠️ **' + flagged.length + ' tutor' + (flagged.length>1?'s':'') + ' below 80% attendance:**\n';
+            msg += flagged.slice(0,7).map(function(t){
+              return (t.attRate<65?'🔴':'⚠️') + ' **' + t.name + '** — ' + t.attRate + '%' + (t.school?' · '+t.school:'');
+            }).join('\n');
+            if (flagged.length>7) msg += '\n_…and '+(flagged.length-7)+' more_';
+          }
+          if (withAction.length) {
+            msg += '\n\n🚨 **' + withAction.length + ' staff with active HR action:**\n';
+            msg += withAction.slice(0,5).map(function(n){ return '• ' + n; }).join('\n');
+            if (withAction.length>5) msg += '\n_…and '+(withAction.length-5)+' more_';
+          }
+          msg += '\n\nOpen Talent Analytics for full concern and performance detail.' + _navBtn('Open Talent Analytics', 'talent');
+          _ctxPush('low_att_tutors', { tutors: flagged });
+          return msg;
+        } catch(e) {
+          return 'Tutor data not yet loaded — open Pearl Operations first.' + _navBtn('Open Pearl Ops', 'pearl-ops');
+        }
+      }
+    },
+
+    // Scholar roster / program volume — programming-forward phrasing
+    { match: /my scholars|my program.{0,15}(scholar|student|count|total|volume)|scholar.{0,15}(my program|my site|roster)|how many scholars.{0,15}(my|in my program)|program.?volume|scholar.?roster/i,
+      respond: function() {
+        var p = _pearl();
+        if (!p) return 'Pearl data not yet loaded — open Pearl Operations.' + _navBtn('Open Pearl Ops', 'pearl-ops');
+        var msg = '**Scholar Program Overview**\n\n';
+        if (p.activeScholars  != null) msg += '✅ **' + _n(p.activeScholars)  + ' active scholars** (attended ≥1 session)\n';
+        if (p.rosteredScholars!= null) msg += '📋 **' + _n(p.rosteredScholars) + ' rostered** (placed, not all active yet)\n';
+        if (p.sessions        != null) msg += '📊 **' + _n(p.sessions)         + ' sessions** delivered\n';
+        if (p.schools         != null) msg += '📍 **' + _n(p.schools)          + ' sites** active\n';
+        if (p.districts       != null) msg += '🗺 **'  + _n(p.districts)        + ' districts** served\n';
+        if (p.scholAttPct     != null) {
+          var attI = p.scholAttPct>=85?'✅':p.scholAttPct>=75?'⚠️':'🔴';
+          msg += '\n' + attI + ' Scholar attendance: **' + _pct(p.scholAttPct) + '** (benchmark ≥85%)';
+        }
+        msg += '\n\nFor site-by-site breakdown open SY Analytics.' + _navBtn('Open SY Analytics', 'sy-analytics');
+        _ctxPush('att_summary', {});
+        return msg;
       }
     },
 
@@ -7492,12 +7751,31 @@
     return txt.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
   }
 
-  // ── Chips — category tabs + question chips ─────────────────────────────
+  // ── Chips — panel/dept-aware category tabs + question chips ────────────────
   // Uses data-* attributes instead of inline onclick to avoid HTML quote escaping issues
+  // Categories and default tab shift automatically based on active panel and dept.
   function _renderChips() {
     var el = document.getElementById('pieChips');
     if (!el) return;
-    var tabs = CAT_ORDER.map(function(cat) {
+
+    // Determine the ordered category list for the active panel + dept
+    var panelOvr = PANEL_CAT_DEFAULTS[_panel] || {};
+    var deptOvr  = DEPT_CAT_DEFAULTS[_dept]   || {};
+    var order    = (panelOvr.order || CAT_ORDER).slice();
+    // Prepend any dept-specific extra categories not already in the list
+    if (deptOvr.extra) {
+      deptOvr.extra.forEach(function(c) { if (order.indexOf(c) < 0) order.unshift(c); });
+    }
+    // Only show categories that exist in CATEGORIES
+    order = order.filter(function(c){ return !!CATEGORIES[c]; });
+    if (!order.length) order = CAT_ORDER.slice();
+
+    // If current _cat is not in this panel's list, reset to panel/dept default
+    if (order.indexOf(_cat) < 0) {
+      _cat = panelOvr.def || deptOvr.def || order[0] || 'Overview';
+    }
+
+    var tabs = order.map(function(cat) {
       var active = cat === _cat ? ' pie-cat-active' : '';
       var esc = cat.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       return '<button class="pie-chip pie-cat' + active + '" data-pie-cat="' + esc + '">' + cat + '</button>';
@@ -7620,6 +7898,14 @@
       // Couldn't resolve answer — fall through to normal routing (treat as new question)
     }
 
+    // 0.5. Follow-up context resolver — "those tutors", "break that down by district", etc.
+    // Intercepts short reference phrases and expands them using the last answer's context.
+    var _isFollowup = /^(more|tell me more|see more|show more|all of them|show (?:me )?them|who are they|those|break.{0,12}down|by district|by site|by school|list them|breakdown|show names?|names|just names|what are their names)\b/i.test(qt);
+    if (_isFollowup && _ctxTop()) {
+      var ctxAns = _resolveCtxFollowup(qt, _ctxTop());
+      if (ctxAns) return ctxAns;
+    }
+
     // 1. Entity-first: detect a person name before rule scan
     //    Skip entity extraction when query is clearly about aggregate/program data
     var _skipEntity = /\b(aggregate|average|avg|overall|all (scholar|tutor|staff|site|district)|scholars.{1,10}tutor|tutor.{1,10}scholar|everyone|all site|all district|how many|org.?wide|program.?wide|cmo|network)\b/i.test(qt) ||
@@ -7696,15 +7982,32 @@
       }
     }
 
-    // 4. Generic fallback with live data snapshot
-    var d = _kpi(), p = _pearl(), c = _concerns(), active = _hrActive();
-    var parts = [];
-    if (d) parts.push('KPI: **'+d.score+'% ('+d.health+')**');
-    if (p && p.loaded) parts.push('Scholar att: **'+_pct(p.scholAttPct)+'**');
-    if (_deptCan('hr_concerns') && c.length) parts.push(c.length+' concerns');
-    if (active.length) parts.push(active.length+' active staff');
-    var snap = parts.length ? '\n\n**Live:** '+parts.join(' · ') : '';
-    return 'I didn\'t quite catch that — try rephrasing or ask about:\n• **Attendance** — best/worst sites, tutor rates, district breakdown\n• **Academic** — iReady math/ELA growth, grade level placement\n• **Workforce** — staff headcount, apprentices' + (_deptCan('hr_concerns') ? ', concerns, on-watch list' : '') + '\n• **Program** — scholars, sessions, districts, survey completion\n• **KPIs** — scores, goals not met, weighted score\n' + (_deptCan('partner_nps') ? '• **Satisfaction** — partner NPS, at-risk schools, QoQ trends\n' : '') + '• **Policies** — employee handbook, escalation protocol, governance docs\n• **Reports** — flash PDF, data sources\n\nOr type a **tutor or staff name** to pull their profile.' + snap;
+    // 4. "Did you mean?" fallback — surface closest matching questions
+    var d4 = _kpi(), p4 = _pearl(), c4 = _concerns(), active4 = _hrActive();
+    var snapParts = [];
+    if (d4) snapParts.push('KPI: **'+d4.score+'% ('+d4.health+')**');
+    if (p4 && p4.loaded) snapParts.push('Scholar att: **'+_pct(p4.scholAttPct)+'**');
+    if (_deptCan('hr_concerns') && c4.length) snapParts.push(c4.length+' concerns');
+    if (active4.length) snapParts.push(active4.length+' active staff');
+    var snap4 = snapParts.length ? '\n\n**Live:** '+snapParts.join(' · ') : '';
+
+    var suggestions = _findSuggestions(qn);
+    if (suggestions.length) {
+      return 'I didn\'t quite catch that. Did you mean:\n\n' +
+        suggestions.map(function(s){ return '• **' + s + '**'; }).join('\n') +
+        '\n\nOr pick a category above and tap a suggestion — or type a **tutor or staff name** to pull their full profile.' + snap4;
+    }
+
+    return 'I didn\'t quite catch that — try rephrasing or tap a chip above.\n\n' +
+      '• **Attendance** — best/worst sites, tutor rates, district breakdown\n' +
+      '• **Academic** — iReady math/ELA growth, grade level placement\n' +
+      '• **Workforce** — staff headcount, apprentices' + (_deptCan('hr_concerns') ? ', concerns, watch list' : '') + '\n' +
+      '• **Program** — scholars, sessions, districts, survey completion\n' +
+      '• **KPIs** — scores, goals not met, weighted score\n' +
+      (_deptCan('partner_nps') ? '• **Satisfaction** — partner NPS, at-risk schools, QoQ trends\n' : '') +
+      '• **Policies** — handbook, escalation protocol, governance docs\n' +
+      '• **Reports** — flash PDF, data sources\n\n' +
+      'Or type a **tutor or staff name** to pull their profile.' + snap4;
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -7744,7 +8047,21 @@
     if (trigger) trigger.classList.remove('pie-pulse');
     // Dismiss peek if open
     window.piePeekDismiss && window.piePeekDismiss();
-    if (_open && !document.getElementById('pieMessages').children.length) {
+
+    // Wire nav-button delegation on the messages container (once per session)
+    var msgs = document.getElementById('pieMessages');
+    if (msgs && !msgs._pieNavBound) {
+      msgs._pieNavBound = true;
+      msgs.addEventListener('click', function(ev) {
+        var btn = ev.target.closest('[data-pie-nav]');
+        if (!btn) return;
+        var panel = btn.dataset.pieNav;
+        if (panel && typeof window.showPanel === 'function') window.showPanel(panel);
+        if (!_open) window.pieToggle();
+      });
+    }
+
+    if (_open && msgs && !msgs.children.length) {
       // First open — persona-forward welcome establishing PIE as primary contact
       var s = _pieShiftStatus();
       var shiftLine = s.overnight
@@ -7761,6 +8078,14 @@
       };
       _addMsg('pie', deptLines[_dept] || deptLines.leadership);
       _renderChips();
+
+      // Proactive alert — if data is already loaded, surface critical flags automatically
+      // after a short delay so welcome message reads first
+      setTimeout(function() {
+        if (!_open) return;
+        var alert = _quickAlert();
+        if (alert) _addMsg('pie', alert);
+      }, 900);
     }
   };
 
@@ -7842,7 +8167,17 @@
   };
 
   window.pieSetPanel = function(panelKey) {
+    var prevPanel = _panel;
     _panel = (panelKey || 'home').replace(/^panel-/,'');
+    // Auto-select the most relevant chip category for this panel
+    // (only reset if the panel actually changed, so manual tab picks are preserved while on the same panel)
+    if (_panel !== prevPanel) {
+      var pOvr = PANEL_CAT_DEFAULTS[_panel];
+      var dOvr = DEPT_CAT_DEFAULTS[_dept];
+      if (pOvr && pOvr.def) _cat = pOvr.def;
+      else if (dOvr && dOvr.def) _cat = dOvr.def;
+      else _cat = 'Overview';
+    }
     // Update context badge
     var badge = document.getElementById('pieCtxBadge');
     if (badge) {
