@@ -4859,6 +4859,30 @@
       color: #f0a500; transform: translateY(-1px);
     }
     .pie-chip:active { transform: translateY(0); }
+    /* ── Category row / question row layout ── */
+    .pie-cat-row { display: flex; flex-wrap: wrap; gap: .25rem; width: 100%; margin-bottom: .3rem; }
+    .pie-q-row   { display: flex; flex-wrap: wrap; gap: .25rem; width: 100%; }
+    .pie-cat     { font-size: .63rem !important; padding: .18rem .5rem !important; opacity: .7; }
+    .pie-cat-active {
+      background: rgba(240,165,0,.22) !important; border-color: rgba(240,165,0,.5) !important;
+      color: #f0a500 !important; opacity: 1 !important; font-weight: 800 !important;
+    }
+    /* ── Inline nav-action buttons inside PIE responses ── */
+    /* Clicking routes directly to the named portal panel — no AI needed, pure JS delegation */
+    .pie-action-btn {
+      display: inline-block; margin: 4px 0 2px 4px;
+      background: rgba(240,165,0,.12); border: 1px solid rgba(240,165,0,.3);
+      color: rgba(240,165,0,.92); border-radius: 20px;
+      padding: .2rem .65rem; font-size: .71rem; font-weight: 700;
+      cursor: pointer; user-select: none; white-space: nowrap;
+      transition: background .12s, border-color .12s, transform .1s;
+      vertical-align: middle;
+    }
+    .pie-action-btn:hover {
+      background: rgba(240,165,0,.26); border-color: rgba(240,165,0,.55);
+      transform: translateY(-1px);
+    }
+    .pie-action-btn:active { transform: translateY(0); }
     /* ── Input row ── */
     .pie-input-row {
       display: flex; align-items: flex-end; gap: .5rem;
