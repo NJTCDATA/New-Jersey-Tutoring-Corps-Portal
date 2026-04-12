@@ -2380,17 +2380,20 @@
     var _origSP2 = window.showPanel;
     window.showPanel = function(id, btn) {
       _origSP2(id, btn);
-      if (id === 'kpi') {
+      var qrs = document.getElementById('kpiQRSection');
+      if (!qrs) return;
+      if (id === 'kpi-analytics') {
         var dept = (window.NJTC_SESSION||{}).dept||'';
-        var qrs = document.getElementById('kpiQRSection');
-        if (qrs) {
-          if (dept === 'data') {
-            qrs.style.display = 'block';
-          } else {
-            qrs.style.display = 'none';
-            kqrRestoreSnapshot();
-          }
-        }
+        qrs.style.display = 'block';
+        // Data dept gets the full upload/override zone; all others see report-only
+        var dz = document.getElementById('kqrDropZone');
+        if (dz) dz.style.display = dept === 'data' ? 'block' : 'none';
+        // Refresh the badge label — non-data depts don't need the "Data Only" lock
+        var badge = qrs.querySelector('.kqr-hdr-badge');
+        if (badge) badge.style.display = dept === 'data' ? '' : 'none';
+        kqrRestoreSnapshot();
+      } else {
+        qrs.style.display = 'none';
       }
     };
   })();
