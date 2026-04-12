@@ -3834,12 +3834,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     var rptEl = document.getElementById('kpiQRReport');
     if (rptEl) { rptEl.innerHTML = html; rptEl.classList.add('visible'); }
-    var qrs = document.getElementById('kpiQRSection');
-    if (qrs && (window.NJTC_SESSION||{}).dept !== 'data') {
-      qrs.style.display = 'block';
-      var dz = document.getElementById('kqrDropZone');
-      if (dz) dz.style.display = 'none';
-    }
+    // Visibility is controlled by showPanel (kpi-analytics trigger) — no override needed here
   }
 
   function kqrClear() {

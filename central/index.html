@@ -5586,33 +5586,6 @@
     </div>
 
 
-    <!-- Quarterly Report — Data dept only, shown/hidden by JS -->
-    <div id="kpiQRSection" style="display:none">
-      <div class="kqr-hdr">
-        <div class="kqr-hdr-left">
-          <div class="kqr-hdr-icon">&#128197;</div>
-          <div>
-            <div class="kqr-hdr-title">Quarterly Report Out</div>
-            <div class="kqr-hdr-sub">Live from Google Sheet &mdash; auto-populates from the Quarterly Goal Tracking tab. Drop a CSV to override with a manual snapshot.</div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;flex-shrink:0">
-          <div class="kqr-hdr-badge">&#128274; Data Department Only</div>
-          <div class="kqr-hdr-badge" style="background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.4)">&#9679; Live Auto-Sync</div>
-        </div>
-      </div>
-      <div class="kqr-drop-zone" id="kqrDropZone">
-        <div class="kqr-dropbox" id="kqrDropbox" onclick="document.getElementById('kqrFileInput').click()">
-          <div class="kqr-dz-icon">&#128194;</div>
-          <div class="kqr-dz-title">Override with a manual CSV snapshot</div>
-          <div class="kqr-dz-sub">or click to browse &mdash; live data loads automatically; upload only to override</div>
-        </div>
-        <input type="file" id="kqrFileInput" accept=".csv" onchange="kqrHandleFile(this.files[0])">
-        <p class="kqr-drop-hint">Quarterly data auto-syncs from Google Sheet every 30 minutes. Upload a CSV only to manually override the live snapshot. Export (PDF &amp; PPTX) available in KPI Analytics &rarr; Quarterly tab.</p>
-      </div>
-      <div id="kpiQRReport"></div>
-    </div>
-
     <!-- ══ KPI ANALYTICS PANEL ══════════════════════════════ -->
     
 <div class="panel" id="panel-kpi-analytics">
@@ -5631,6 +5604,33 @@
       </div>
       <!-- Content area filled by JS -->
       <div id="kpiAnalyticsContent"></div>
+
+      <!-- Quarterly Report Out — shown for all depts in KPI Analytics -->
+      <div id="kpiQRSection" style="display:none">
+        <div class="kqr-hdr">
+          <div class="kqr-hdr-left">
+            <div class="kqr-hdr-icon">&#128197;</div>
+            <div>
+              <div class="kqr-hdr-title">Quarterly Report Out</div>
+              <div class="kqr-hdr-sub">Live from Google Sheet &mdash; auto-populates from the Quarterly Goal Tracking tab. Drop a CSV to override with a manual snapshot.</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.35rem;flex-shrink:0">
+            <div class="kqr-hdr-badge">&#128274; Data Department Only</div>
+            <div class="kqr-hdr-badge" style="background:rgba(74,222,128,.18);border-color:rgba(74,222,128,.4)">&#9679; Live Auto-Sync</div>
+          </div>
+        </div>
+        <div class="kqr-drop-zone" id="kqrDropZone">
+          <div class="kqr-dropbox" id="kqrDropbox" onclick="document.getElementById('kqrFileInput').click()">
+            <div class="kqr-dz-icon">&#128194;</div>
+            <div class="kqr-dz-title">Override with a manual CSV snapshot</div>
+            <div class="kqr-dz-sub">or click to browse &mdash; live data loads automatically; upload only to override</div>
+          </div>
+          <input type="file" id="kqrFileInput" accept=".csv" onchange="kqrHandleFile(this.files[0])">
+          <p class="kqr-drop-hint">Quarterly data auto-syncs from Google Sheet every 30 minutes. Upload a CSV only to manually override the live snapshot. Export (PDF &amp; PPTX) available in KPI Analytics &rarr; Quarterly tab.</p>
+        </div>
+        <div id="kpiQRReport"></div>
+      </div>
     </div>
 
     <!-- ══ IMPACT REPORT BUILDER PANEL ══════════════════════ -->
