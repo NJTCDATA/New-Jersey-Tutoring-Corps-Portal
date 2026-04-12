@@ -154,12 +154,15 @@
     </details>`;
 
     // ── Tab nav ──────────────────────────────────────────────────
+    const _hasQData = window.KPI_Q_DATA && window.KPI_Q_DATA.activeQs && window.KPI_Q_DATA.activeQs.length > 0;
+    const _qBadge   = _hasQData ? ` <span style="background:#1e3a5f;color:#93c5fd;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:middle;margin-left:.25rem">LIVE</span>` : '';
     html += `<div class="kpia-tabs">
       <button class="kpia-tab active" id="kpiaTab-overview"   onclick="setKPIAnalyticsTab('overview')">🏠 At a Glance</button>
       <button class="kpia-tab"        id="kpiaTab-breakdown"  onclick="setKPIAnalyticsTab('breakdown')">📊 By Goal Area</button>
       <button class="kpia-tab"        id="kpiaTab-atRisk"     onclick="setKPIAnalyticsTab('atRisk')">⚠️ Needs Attention</button>
       <button class="kpia-tab"        id="kpiaTab-pipeline"   onclick="setKPIAnalyticsTab('pipeline')">🟣 Coming Up</button>
       <button class="kpia-tab"        id="kpiaTab-scorecard"  onclick="setKPIAnalyticsTab('scorecard')">🏆 Full Scorecard</button>
+      <button class="kpia-tab"        id="kpiaTab-quarterly"  onclick="setKPIAnalyticsTab('quarterly')">📅 Quarterly${_qBadge}</button>
     </div>`;
 
     html += `<div id="kpiaTabContent">${renderKPIAnalyticsTab('overview')}</div>`;
@@ -487,8 +490,288 @@
       });
       html += `</div>`;
       return html;
+
+    // ── QUARTERLY SUMMARY ────────────────────────────────────────
+    } else if(tab === 'quarterly'){
+      return renderQuarterlyTab();
     }
     return '';
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  QUARTERLY ANALYTICS TAB
+  //  Cross-quarter comparison: health scores, status shifts, exports
+  // ════════════════════════════════════════════════════════════════
+
+  function renderQuarterlyTab() {
+    var qd = window.KPI_Q_DATA;
+
+    if (!qd || !qd.activeQs || !qd.activeQs.length) {
+      return `<div style="padding:3rem;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:.875rem">📅</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Quarterly data loading…</div>
+        <div style="font-size:.875rem;color:var(--muted);max-width:380px;margin:0 auto .5rem">
+          Pulling from the Quarterly Goal Tracking tab. This usually resolves within a few seconds.
+        </div>
+        <button class="btn btn-secondary" style="margin-top:.75rem" onclick="fetchKPIMetadata(true);setTimeout(()=>setKPIAnalyticsTab('quarterly'),1800)">↺ Reload quarterly data</button>
+      </div>`;
+    }
+
+    var activeQs   = qd.activeQs;
+    var scorecards = qd.scorecards;
+    var deltas     = qd.deltas;
+    var latestQ    = activeQs[activeQs.length - 1];
+    var latestSC   = scorecards[scorecards.length - 1];
+
+    // Improved: last move was 'up'
+    var improved  = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.dir==='up'; });
+    // Regressed: last move was 'down'
+    var regressed = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.dir==='down'; });
+    // Big wins: any move from ≤ In Progress → Met
+    var bigWins   = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Met' && _Q_RANK[m.from] <= 2; }); });
+    // Critical: any move to Has Not Met
+    var critical  = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+
+    var tsStr = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    var qLabel = 'Q' + latestQ + ' \u2014 SY 2025\u20132026';
+
+    var html = '';
+
+    // ── Header banner ─────────────────────────────────────────────
+    html += `<div style="background:linear-gradient(135deg,#0a1628 0%,#1a3060 100%);border-radius:14px;padding:1.5rem 1.75rem;margin-bottom:1.25rem;color:white">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:.4rem;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:.2rem .75rem;font-size:.8rem;font-weight:700;margin-bottom:.625rem">
+            📅 ${qLabel}
+          </div>
+          <div style="font-size:1.25rem;font-weight:900;line-height:1.2;margin-bottom:.375rem">NJTC Quarterly Goal Summary</div>
+          <div style="font-size:.8rem;opacity:.7;line-height:1.5">Live from Google Sheet · ${qd.rows.length} targets · Last synced ${tsStr}</div>
+        </div>
+        ${(window.NJTC_SESSION||{}).dept === 'data' ? `<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-start;padding-top:.25rem">
+          <button onclick="exportKPIQuarterlySummaryPDF()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📄 Export PDF</button>
+          <button onclick="exportKPIQuarterlySummaryPPTX()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📊 Export PPTX</button>
+        </div>` : ''}
+      </div>
+      <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:1.25rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.15)">
+        <div style="text-align:center;min-width:60px"><div style="font-size:1.75rem;font-weight:900;color:#4ade80">${latestSC.counts.met}</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">Met</div></div>
+        <div style="text-align:center;min-width:60px"><div style="font-size:1.75rem;font-weight:900;color:#60a5fa">${latestSC.counts.prog}</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">In Progress</div></div>
+        <div style="text-align:center;min-width:60px"><div style="font-size:1.75rem;font-weight:900;color:#fbbf24">${latestSC.counts.partial}</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">Partial</div></div>
+        <div style="text-align:center;min-width:60px"><div style="font-size:1.75rem;font-weight:900;color:#c084fc">${latestSC.counts.pipe}</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">Pipeline</div></div>
+        <div style="text-align:center;min-width:60px"><div style="font-size:1.75rem;font-weight:900;color:#f87171">${latestSC.counts.notmet}</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">Not Met</div></div>
+        <div style="text-align:center;min-width:60px;margin-left:auto"><div style="font-size:1.75rem;font-weight:900;color:${latestSC.health.color === '#166534' ? '#4ade80' : latestSC.score >= 65 ? '#fbbf24' : latestSC.score >= 40 ? '#fb923c' : '#f87171'}">${latestSC.score}%</div><div style="font-size:.58rem;text-transform:uppercase;letter-spacing:.08em;opacity:.6;margin-top:.1rem">Health Score</div></div>
+      </div>
+    </div>`;
+
+    // ── Quarter-by-quarter progression ────────────────────────────
+    if (scorecards.length >= 2) {
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem">
+        <div class="kpia-card-header" style="margin-bottom:1rem">
+          <div class="kpia-card-title">📈 Quarter-by-Quarter Progression</div>
+          <div class="kpia-card-meta">Health score trend across completed quarters · SY 2025–2026</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.875rem">`;
+      scorecards.forEach(function(sc, idx) {
+        var prev = idx > 0 ? scorecards[idx-1] : null;
+        var delta = prev ? sc.score - prev.score : null;
+        var arrow = delta === null ? '' : delta > 0 ? ' ↑+' + delta : delta < 0 ? ' ↓' + delta : ' →0';
+        var arrowColor = delta === null ? 'inherit' : delta > 0 ? '#16a34a' : delta < 0 ? '#dc2626' : '#6b7280';
+        var isCurrent = sc.q === latestQ;
+        html += `<div style="border-radius:12px;padding:1rem;border:${isCurrent?'2px solid '+sc.health.color:'1px solid var(--border)'};background:${isCurrent?sc.health.bg+'44':'var(--surface-2)'}">
+          <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.375rem">${sc.label}${isCurrent?' · Current':''}</div>
+          <div style="font-size:1.75rem;font-weight:800;color:${sc.health.color};line-height:1;font-family:'DM Serif Display',serif">${sc.score}%</div>
+          <div style="font-size:.7rem;font-weight:700;color:${sc.health.color};margin-top:.25rem">${sc.health.label}</div>
+          ${delta !== null ? `<div style="font-size:.75rem;font-weight:700;color:${arrowColor};margin-top:.375rem">${arrow} from ${prev.label}</div>` : ''}
+          <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:.5rem">
+            <div style="height:100%;width:${Math.min(sc.score,100)}%;background:${sc.health.color};border-radius:2px"></div>
+          </div>
+          <div style="font-size:.65rem;color:var(--muted);margin-top:.375rem">${sc.counts.met} Met · ${sc.counts.total} total</div>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    // ── Status shift summary ───────────────────────────────────────
+    if (deltas.length > 0) {
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.875rem;margin-bottom:1.25rem">
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem">
+          <div style="font-size:1.625rem;font-weight:800;color:#16a34a">${improved.length}</div>
+          <div style="font-size:.8125rem;font-weight:700;color:#15803d;margin:.2rem 0">↑ Improved</div>
+          <div style="font-size:.7rem;color:#166534">targets moved to a better status</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;padding:1rem">
+          <div style="font-size:1.625rem;font-weight:800;color:#dc2626">${regressed.length}</div>
+          <div style="font-size:.8125rem;font-weight:700;color:#b91c1c;margin:.2rem 0">↓ Regressed</div>
+          <div style="font-size:.7rem;color:#991b1b">targets moved to a worse status</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:1rem">
+          <div style="font-size:1.625rem;font-weight:800;color:#16a34a">${bigWins.length}</div>
+          <div style="font-size:.8125rem;font-weight:700;color:#15803d;margin:.2rem 0">🏆 Big Wins</div>
+          <div style="font-size:.7rem;color:#166534">targets reached Met status this cycle</div>
+        </div>
+        <div style="background:${critical.length?'#fef2f2':'var(--surface-2)'};border:1px solid ${critical.length?'#fca5a5':'var(--border)'};border-radius:12px;padding:1rem">
+          <div style="font-size:1.625rem;font-weight:800;color:${critical.length?'#dc2626':'var(--muted)'}">${critical.length}</div>
+          <div style="font-size:.8125rem;font-weight:700;color:${critical.length?'#b91c1c':'var(--muted)'};margin:.2rem 0">⚠️ Critical Shifts</div>
+          <div style="font-size:.7rem;color:${critical.length?'#991b1b':'var(--muted)'}">targets dropped to Has Not Met</div>
+        </div>
+      </div>`;
+    }
+
+    // ── Top improvements ──────────────────────────────────────────
+    if (improved.length) {
+      var topImprovements = improved.slice(0, 5);
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem;border-left:4px solid #16a34a">
+        <div class="kpia-card-header" style="margin-bottom:.875rem">
+          <div class="kpia-card-title">🏆 Notable Improvements This Cycle</div>
+          <div class="kpia-card-meta">Targets that moved to a stronger status between quarters</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.5rem">`;
+      topImprovements.forEach(function(d) {
+        var lm = d.moves[d.moves.length-1];
+        html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #bbf7d0;background:#f0fdf4">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.3rem">${d.target}</div>
+            <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.35rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+            <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.from}</span>
+            <span style="font-size:.8rem;color:#16a34a;font-weight:700">→</span>
+            <span style="background:#dcfce7;color:#15803d;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.to}</span>
+            <span style="font-size:.65rem;color:#6b7280;white-space:nowrap">Q${lm.fromQ}→Q${lm.toQ}</span>
+          </div>
+        </div>`;
+      });
+      if (improved.length > 5) html += `<div style="font-size:.75rem;color:var(--muted);text-align:center;padding:.5rem">+${improved.length - 5} more improvements</div>`;
+      html += `</div></div>`;
+    }
+
+    // ── Critical regressions ──────────────────────────────────────
+    if (critical.length) {
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem;border-left:4px solid #dc2626">
+        <div class="kpia-card-header" style="margin-bottom:.875rem">
+          <div class="kpia-card-title">🔴 Critical Regressions — Immediate Attention Required</div>
+          <div class="kpia-card-meta">Targets that reached "Has Not Met" status this cycle</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.5rem">`;
+      critical.forEach(function(d) {
+        var critMove = d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0];
+        html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #fca5a5;background:#fef2f2">
+          <div style="font-size:1.125rem;flex-shrink:0">🔴</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.3rem">${d.target}</div>
+            <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+          </div>
+          ${critMove?`<div style="flex-shrink:0;text-align:right">
+            <span style="background:#fef2f2;color:#991b1b;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${critMove.from} → Has Not Met</span>
+            <div style="font-size:.65rem;color:#6b7280;margin-top:.2rem">Q${critMove.fromQ}→Q${critMove.toQ}</div>
+          </div>`:''}
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    // ── Other regressions (non-critical) ─────────────────────────
+    var otherRegressed = regressed.filter(function(d){ return !critical.some(function(c){ return c.target===d.target; }); });
+    if (otherRegressed.length) {
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem;border-left:4px solid #d97706">
+        <div class="kpia-card-header" style="margin-bottom:.875rem">
+          <div class="kpia-card-title">🟠 Status Declines — Monitor Closely</div>
+          <div class="kpia-card-meta">${otherRegressed.length} target${otherRegressed.length>1?'s':''} moved to a weaker status between quarters</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.5rem">`;
+      otherRegressed.slice(0, 6).forEach(function(d) {
+        var lm = d.moves[d.moves.length-1];
+        html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .75rem;border-radius:9px;border:1px solid #fed7aa;background:#fff7ed">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.2rem">${d.target}</div>
+            <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+          </div>
+          <div style="flex-shrink:0;display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;justify-content:flex-end">
+            <span style="background:#dcfce7;color:#15803d;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.from}</span>
+            <span style="font-size:.8rem;color:#d97706;font-weight:700">→</span>
+            <span style="background:#fff7ed;color:#9a3412;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.to}</span>
+            <span style="font-size:.65rem;color:#6b7280;white-space:nowrap">Q${lm.fromQ}→Q${lm.toQ}</span>
+          </div>
+        </div>`;
+      });
+      if (otherRegressed.length > 6) html += `<div style="font-size:.75rem;color:var(--muted);text-align:center;padding:.5rem">+${otherRegressed.length - 6} more</div>`;
+      html += `</div></div>`;
+    }
+
+    // ── Full cross-quarter breakdown by goal area ─────────────────
+    var goalOrder = [], goalGroups = {};
+    qd.rows.forEach(function(r) {
+      var g = (r[0]||'').trim(), t = (r[1]||'').trim();
+      if (!g || !t) return;
+      if (goalOrder.indexOf(g) < 0) goalOrder.push(g);
+      if (!goalGroups[g]) goalGroups[g] = [];
+      goalGroups[g].push(r);
+    });
+
+    function _sBg(s){ return s==='Met'?'#dcfce7':s==='Partially Met'?'#fff7ed':s==='In Progress'?'#eff6ff':s==='Has Not Met'?'#fee2e2':s==='Coming Down the Pipeline'?'#f5f3ff':'#f3f4f6'; }
+    function _sClr(s){ return s==='Met'?'#166534':s==='Partially Met'?'#9a3412':s==='In Progress'?'#1e40af':s==='Has Not Met'?'#991b1b':s==='Coming Down the Pipeline'?'#6d28d9':'#6b7280'; }
+    function _sShort(s){ return (s||'').replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+
+    html += `<div class="kpia-card" style="margin-bottom:1.25rem">
+      <div class="kpia-card-header" style="margin-bottom:1rem">
+        <div class="kpia-card-title">📊 Full Cross-Quarter Breakdown by Goal Area</div>
+        <div class="kpia-card-meta">Every target with status across all completed quarters · SY 2025–2026</div>
+      </div>`;
+
+    goalOrder.forEach(function(goal) {
+      var rows2 = goalGroups[goal];
+      // Per-goal counts for latest quarter
+      var gMet = rows2.filter(function(r){ return (_Q_COLS[latestQ-1] && (r[_Q_COLS[latestQ-1][1]]||'').trim()==='Met'); }).length;
+      html += `<details style="margin-bottom:.75rem;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <summary style="padding:.75rem 1rem;cursor:pointer;background:var(--navy);color:white;font-size:.8125rem;font-weight:700;display:flex;justify-content:space-between;align-items:center;list-style:none">
+          <span>${goal}</span>
+          <span style="font-size:.7rem;opacity:.7;font-weight:400">${gMet}/${rows2.length} Met · Q${latestQ}</span>
+        </summary>
+        <div style="padding:.75rem 1rem;background:white">
+          <div style="display:grid;grid-template-columns:1fr${activeQs.map(function(){ return ' minmax(72px,80px)'; }).join('')};gap:.5rem .75rem;align-items:center;margin-bottom:.5rem;padding-bottom:.375rem;border-bottom:2px solid var(--border)">
+            <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Target</div>
+            ${activeQs.map(function(q){ var isCur=q===latestQ; return '<div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'+(isCur?'var(--navy)':'var(--muted)')+';text-align:center">Q'+q+(isCur?' ▾':'')+'</div>'; }).join('')}
+          </div>`;
+      rows2.forEach(function(r) {
+        var tText = (r[1]||'').trim();
+        var qPills = activeQs.map(function(q) {
+          var s = (r[_Q_COLS[q-1][1]]||'').trim();
+          if (!s) return '<div style="text-align:center;font-size:.65rem;color:var(--muted)">—</div>';
+          var isCur = q === latestQ;
+          return '<div style="text-align:center"><span style="background:'+_sBg(s)+';color:'+_sClr(s)+';font-size:.6rem;font-weight:700;padding:.1rem .3rem;border-radius:4px;white-space:nowrap;display:inline-block'+(isCur?';border:1px solid '+_sClr(s)+'44':'')+'">' + _sShort(s) + '</span></div>';
+        }).join('');
+        // Delta indicator for last transition
+        var deltaD = deltas.find(function(d){ return d.target === tText; });
+        var deltaStr = '';
+        if (deltaD) {
+          var lm2 = deltaD.moves[deltaD.moves.length-1];
+          deltaStr = ' <span style="font-size:.65rem;color:'+(lm2.dir==='up'?'#16a34a':'#dc2626')+';">'+(lm2.dir==='up'?'↑':'↓')+'</span>';
+        }
+        html += `<div style="display:grid;grid-template-columns:1fr${activeQs.map(function(){ return ' minmax(72px,80px)'; }).join('')};gap:.5rem .75rem;align-items:start;padding:.375rem 0;border-bottom:1px solid var(--border-2)">
+          <div style="font-size:.8rem;color:var(--navy);line-height:1.4">${tText}${deltaStr}</div>
+          ${qPills}
+        </div>`;
+      });
+      html += `</div></details>`;
+    });
+
+    html += `</div>`;
+
+    // ── Export footer ─────────────────────────────────────────────
+    var _dept = (window.NJTC_SESSION||{}).dept;
+    if (_dept === 'data') {
+      html += `<div style="display:flex;gap:.75rem;justify-content:center;padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);flex-wrap:wrap">
+        <div style="font-size:.8125rem;color:var(--muted);align-self:center;flex-basis:100%;text-align:center;margin-bottom:.25rem">Export this quarterly summary for presentations and reports:</div>
+        <button onclick="exportKPIQuarterlySummaryPDF()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📄 Download PDF Summary</button>
+        <button onclick="exportKPIQuarterlySummaryPPTX()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📊 Download PPTX Slides</button>
+      </div>`;
+    } else {
+      html += `<div style="padding:.875rem 1.125rem;border:1px solid #bae6fd;border-radius:12px;background:#f0f9ff;font-size:.8125rem;color:#0c4a6e;line-height:1.6;text-align:center">
+        💬 <strong>Ask PIE</strong> for a quarterly summary — type <em>"quarterly summary"</em> or <em>"what changed this quarter"</em> in the chat.<br>
+        <span style="font-size:.75rem;opacity:.8">PDF and PPTX exports are available to the Data &amp; Evaluation department.</span>
+      </div>`;
+    }
+
+    return html;
   }
 
   // ════════════════════════════════════════════════════════════════
@@ -3180,7 +3463,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         if (cached) {
           var obj = JSON.parse(cached);
           if (obj && obj.ts && (Date.now() - obj.ts < KPI_META_TTL) && obj.rows) {
-            _mergeKPIMeta(obj.rows); return;
+            _mergeKPIMeta(obj.rows);
+            _extractAndStoreQuarterlyData(obj.rows);
+            return;
           }
         }
       } catch(e) {}
@@ -3197,11 +3482,103 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         var dataRows = rows.slice(2).filter(function(r2){ return r2[0] && r2[1]; });
         try { localStorage.setItem(KPI_META_CACHE_KEY, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
         _mergeKPIMeta(dataRows);
+        _extractAndStoreQuarterlyData(dataRows);
       })
       .catch(function(){});
   }
 
-    function kqrHandleFile(file) {
+  // ══════════════════════════════════════════════════════════════════════════
+  //  QUARTERLY DATA ENGINE
+  //  Reads Q1–Q4 columns from the Quarterly Goal Tracking tab and builds:
+  //    - per-quarter scorecards (counts, weighted health score)
+  //    - cross-quarter deltas (which targets improved or regressed)
+  //  Stored globally as window.KPI_Q_DATA and auto-populates kpiQRReport.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  var KPI_Q_DATA = null;
+
+  // Column layout in the Quarterly Goal Tracking tab:
+  //  [0]=Goal  [1]=Target  [2]=Metric Type  [3]=Validation  [4]=SecondaryVal  [5]=Owner
+  //  [6]=Q1Data  [7]=Q1Status  [8]=Q2Data  [9]=Q2Status
+  //  [10]=Q3Data [11]=Q3Status [12]=Q4Data [13]=Q4Status
+  var _Q_COLS = [[6,7],[8,9],[10,11],[12,13]];
+
+  // Status rank for direction-of-change: higher = better
+  var _Q_RANK = {'Met':4,'Partially Met':3,'In Progress':2,'Coming Down the Pipeline':1,'Has Not Met':0};
+  var _Q_SCORE = {'Met':1,'Partially Met':0.5,'In Progress':0.25,'Coming Down the Pipeline':0.1,'Has Not Met':0};
+
+  function _extractAndStoreQuarterlyData(dataRows) {
+    if (!dataRows || !dataRows.length) { KPI_Q_DATA = null; window.KPI_Q_DATA = null; return; }
+
+    // ── Detect which quarters have any status data ────────────────
+    var activeQs = [];
+    for (var qi = 0; qi < 4; qi++) {
+      var sc = _Q_COLS[qi][1];
+      if (dataRows.some(function(r){ return r[sc] && r[sc].trim(); })) activeQs.push(qi + 1);
+    }
+
+    // ── Per-quarter scorecards ────────────────────────────────────
+    var scorecards = activeQs.map(function(q) {
+      var sc = _Q_COLS[q-1][1];
+      var counts = {met:0,partial:0,prog:0,notmet:0,pipe:0,total:0};
+      var scoreSum = 0;
+      dataRows.forEach(function(r) {
+        var s = (r[sc]||'').trim();
+        if (!s) return;
+        counts.total++;
+        if      (s==='Met')                     { counts.met++;     scoreSum += 1;    }
+        else if (s==='Partially Met')            { counts.partial++; scoreSum += 0.5;  }
+        else if (s==='In Progress')              { counts.prog++;    scoreSum += 0.25; }
+        else if (s==='Has Not Met')              { counts.notmet++;  scoreSum += 0;    }
+        else if (s==='Coming Down the Pipeline') { counts.pipe++;    scoreSum += 0.1;  }
+      });
+      var score = counts.total ? Math.round(scoreSum / counts.total * 100) : 0;
+      return { q: q, label: 'Q' + q, counts: counts, score: score, health: riskBucket(score) };
+    });
+
+    // ── Cross-quarter deltas ──────────────────────────────────────
+    var deltas = [];
+    dataRows.forEach(function(r) {
+      var goal   = (r[0]||'').trim();
+      var target = (r[1]||'').trim();
+      if (!goal || !target) return;
+      var statuses = {};
+      activeQs.forEach(function(q){ statuses['Q'+q] = (r[_Q_COLS[q-1][1]]||'').trim(); });
+      var moves = [];
+      for (var i = 1; i < activeQs.length; i++) {
+        var fromQ = activeQs[i-1], toQ = activeQs[i];
+        var fromS = statuses['Q'+fromQ], toS = statuses['Q'+toQ];
+        if (!fromS || !toS || fromS === toS) continue;
+        var fromRk = (_Q_RANK[fromS] !== undefined) ? _Q_RANK[fromS] : -1;
+        var toRk   = (_Q_RANK[toS]   !== undefined) ? _Q_RANK[toS]   : -1;
+        if (fromRk < 0 || toRk < 0) continue;
+        moves.push({ fromQ:fromQ, toQ:toQ, from:fromS, to:toS,
+                     dir: toRk > fromRk ? 'up' : 'down', mag: Math.abs(toRk - fromRk) });
+      }
+      if (moves.length) deltas.push({ goal:goal, target:target, statuses:statuses, moves:moves, owner:_cleanOwner(r[5]||'') });
+    });
+
+    KPI_Q_DATA = { rows:dataRows, activeQs:activeQs, scorecards:scorecards, deltas:deltas, lastUpdated:Date.now() };
+    window.KPI_Q_DATA = KPI_Q_DATA;
+
+    // Auto-populate the quarterly snapshot panel (kpiQRReport) if it exists
+    var rptEl = document.getElementById('kpiQRReport');
+    if (rptEl) { kqrRenderSnapshot(dataRows, 'live', true); }
+
+    // If the quarterly analytics tab is currently active, refresh it
+    if (typeof _kpiAnalyticsTab !== 'undefined' && _kpiAnalyticsTab === 'quarterly') {
+      var con = document.getElementById('kpiaTabContent');
+      if (con) con.innerHTML = renderKPIAnalyticsTab('quarterly');
+    }
+  }
+
+  // Cache-restore path: also extract quarterly data when restoring from localStorage
+  function _mergeKPIMetaWithQ(dataRows) {
+    _mergeKPIMeta(dataRows);
+    _extractAndStoreQuarterlyData(dataRows);
+  }
+
+  function kqrHandleFile(file) {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function(e) {
@@ -3653,10 +4030,369 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>`;
   }
 
+  // ════════════════════════════════════════════════════════════════
+  //  QUARTERLY PDF EXPORT  (Data dept only)
+  //  Uses jsPDF — loaded on demand same as Pearl Ops PDF
+  // ════════════════════════════════════════════════════════════════
+  function exportKPIQuarterlySummaryPDF() {
+    var qd = window.KPI_Q_DATA;
+    if (!qd || !qd.activeQs || !qd.activeQs.length) { alert('Quarterly data not yet loaded. Wait a moment and try again.'); return; }
+
+    function _loadJsPDF(cb) {
+      if (window.jspdf && window.jspdf.jsPDF) { cb(); return; }
+      var s1 = document.createElement('script');
+      s1.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+      s1.onload = function() {
+        var s2 = document.createElement('script');
+        s2.src = 'https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+        s2.onload = cb;
+        document.head.appendChild(s2);
+      };
+      document.head.appendChild(s1);
+    }
+
+    function _safe(s) {
+      return String(s||'').replace(/\u2014/g,'-').replace(/\u2013/g,'-').replace(/\u2019/g,"'")
+        .replace(/\u201C/g,'"').replace(/\u201D/g,'"').replace(/[^\x20-\x7E\xA0-\xFF]/g,'').replace(/\s+/g,' ').trim();
+    }
+
+    _loadJsPDF(function() {
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF({ orientation:'portrait', unit:'pt', format:'letter' });
+      var W = doc.internal.pageSize.getWidth();
+      var NAVY=[27,42,74], GOLD=[232,168,56], WHITE=[255,255,255], MUTED=[107,114,128];
+      var GREEN=[22,163,74], RED=[220,38,38], AMBER=[217,119,6], PURPLE=[109,40,217];
+
+      var activeQs   = qd.activeQs;
+      var scorecards = qd.scorecards;
+      var deltas     = qd.deltas;
+      var latestQ    = activeQs[activeQs.length-1];
+      var latestSC   = scorecards[scorecards.length-1];
+      var tsStr      = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+      function _statusColor(s) {
+        if (s==='Met')                     return GREEN;
+        if (s==='Partially Met')           return AMBER;
+        if (s==='In Progress')             return [37,99,235];
+        if (s==='Has Not Met')             return RED;
+        if (s==='Coming Down the Pipeline') return PURPLE;
+        return MUTED;
+      }
+      function _short(s){ return (s||'').replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+
+      // ── Cover page ────────────────────────────────────────────
+      doc.setFillColor(...NAVY); doc.rect(0,0,W,160,'F');
+      doc.setFillColor(...GOLD); doc.rect(0,160,W,4,'F');
+      doc.setTextColor(...WHITE);
+      doc.setFont('helvetica','bold'); doc.setFontSize(22);
+      doc.text('NJTC Quarterly Goal Summary', 40, 60);
+      doc.setFont('helvetica','normal'); doc.setFontSize(12);
+      doc.text('Q' + latestQ + '  \u2014  SY 2025\u20132026', 40, 82);
+      doc.setFontSize(9); doc.setTextColor(180,190,200);
+      doc.text('Generated ' + tsStr + '  \u00B7  New Jersey Tutoring Corps', 40, 100);
+      doc.text('Confidential \u2014 Internal Use Only', 40, 114);
+
+      // Health score pill
+      var hColor = latestSC.score>=85?GREEN:latestSC.score>=65?AMBER:latestSC.score>=40?[220,100,38]:RED;
+      doc.setFillColor(...hColor); doc.roundedRect(40, 128, 110, 22, 4, 4, 'F');
+      doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(latestSC.score + '%  ' + latestSC.health.label, 95, 142, {align:'center'});
+
+      // ── Stat tiles row ────────────────────────────────────────
+      var tiles = [
+        {label:'Met',      val:latestSC.counts.met,     color:GREEN},
+        {label:'Progress', val:latestSC.counts.prog,    color:[37,99,235]},
+        {label:'Partial',  val:latestSC.counts.partial, color:AMBER},
+        {label:'Pipeline', val:latestSC.counts.pipe,    color:PURPLE},
+        {label:'Not Met',  val:latestSC.counts.notmet,  color:RED},
+      ];
+      var tW = (W-80)/tiles.length, tY=172;
+      tiles.forEach(function(t,i){
+        doc.setFillColor(245,247,252); doc.roundedRect(40+i*tW, tY, tW-6, 46, 4, 4, 'F');
+        doc.setTextColor(...t.color); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+        doc.text(String(t.val), 40+i*tW+(tW-6)/2, tY+22, {align:'center'});
+        doc.setTextColor(...MUTED); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+        doc.text(t.label, 40+i*tW+(tW-6)/2, tY+36, {align:'center'});
+      });
+
+      var y = 240;
+
+      // ── Quarter progression table ─────────────────────────────
+      if (scorecards.length >= 2) {
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
+        doc.text('Quarter-by-Quarter Health Progression', 40, y); y += 14;
+        var qRows = scorecards.map(function(sc,i){
+          var prev = i>0?scorecards[i-1]:null;
+          var delta = prev ? (sc.score - prev.score) : null;
+          return [sc.label, sc.score+'%', sc.health.label,
+                  sc.counts.met+' Met', sc.counts.prog+' Prog',
+                  sc.counts.notmet+' Not Met',
+                  delta===null?'Baseline': (delta>=0?'+':'')+delta+'pts'];
+        });
+        doc.autoTable({
+          startY: y, head:[['Quarter','Score','Health','Met','In Progress','Not Met','Change']],
+          body: qRows, theme:'grid', headStyles:{fillColor:NAVY,textColor:WHITE,fontSize:8,fontStyle:'bold'},
+          bodyStyles:{fontSize:8,textColor:[45,45,45]}, margin:{left:40,right:40},
+          columnStyles:{0:{cellWidth:50},1:{cellWidth:46},2:{cellWidth:70},3:{cellWidth:46},4:{cellWidth:64},5:{cellWidth:54},6:{cellWidth:56}},
+          didParseCell: function(d){ if(d.section==='body'&&d.column.index===2){ var sc2=scorecards[d.row.index]; if(sc2){ d.cell.styles.textColor=_statusColor(sc2.score>=85?'Met':sc2.score>=65?'Partially Met':sc2.score>=40?'In Progress':'Has Not Met'); }}}
+        });
+        y = doc.lastAutoTable.finalY + 20;
+      }
+
+      // ── Notable improvements ──────────────────────────────────
+      var improved = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='up'; });
+      if (improved.length && y < 650) {
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
+        doc.text('Notable Improvements This Cycle  (' + improved.length + ')', 40, y); y += 14;
+        doc.autoTable({
+          startY:y, head:[['Target','Goal','From \u2192 To']],
+          body: improved.slice(0,8).map(function(d){ var lm=d.moves[d.moves.length-1]; return [_safe(d.target.slice(0,70)+(d.target.length>70?'..':'')), _safe(d.goal.split(' ').slice(0,5).join(' ')), _safe(_short(lm.from)+' \u2192 '+_short(lm.to)+' (Q'+lm.fromQ+'\u2192Q'+lm.toQ+')')]; }),
+          theme:'striped', headStyles:{fillColor:GREEN,textColor:WHITE,fontSize:8,fontStyle:'bold'},
+          bodyStyles:{fontSize:7.5,textColor:[45,45,45]}, margin:{left:40,right:40},
+          columnStyles:{0:{cellWidth:230},1:{cellWidth:140},2:{cellWidth:110}}
+        });
+        y = doc.lastAutoTable.finalY + 20;
+      }
+
+      // ── Critical regressions ──────────────────────────────────
+      var critical = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+      if (critical.length && y < 650) {
+        if (y > 650) { doc.addPage(); y = 60; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...RED);
+        doc.text('Critical Regressions  (' + critical.length + ')', 40, y); y += 14;
+        doc.autoTable({
+          startY:y, head:[['Target','Goal','Transition']],
+          body: critical.map(function(d){ var cm=d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; return [_safe(d.target.slice(0,70)+(d.target.length>70?'..':'')), _safe(d.goal.split(' ').slice(0,5).join(' ')), cm?_safe(_short(cm.from)+' \u2192 Not Met (Q'+cm.fromQ+'\u2192Q'+cm.toQ+')'):'—']; }),
+          theme:'striped', headStyles:{fillColor:RED,textColor:WHITE,fontSize:8,fontStyle:'bold'},
+          bodyStyles:{fontSize:7.5,textColor:[45,45,45]}, margin:{left:40,right:40},
+          columnStyles:{0:{cellWidth:230},1:{cellWidth:140},2:{cellWidth:110}}
+        });
+        y = doc.lastAutoTable.finalY + 20;
+      }
+
+      // ── Full cross-quarter table (new page) ───────────────────
+      doc.addPage();
+      doc.setFillColor(...NAVY); doc.rect(0,0,W,40,'F');
+      doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+      doc.text('Full Cross-Quarter Target Status  \u2014  All Goal Areas', 40, 26);
+      y = 60;
+
+      var goalOrder=[], goalGroups={};
+      qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder.indexOf(g)<0) goalOrder.push(g); if(!goalGroups[g]) goalGroups[g]=[]; goalGroups[g].push(r); });
+
+      var qHeaders = ['Target'].concat(activeQs.map(function(q){ return 'Q'+q; }));
+      var allBodyRows = [];
+      goalOrder.forEach(function(goal) {
+        allBodyRows.push([{content:goal, colSpan:qHeaders.length, styles:{fillColor:NAVY,textColor:WHITE,fontStyle:'bold',fontSize:8}}]);
+        goalGroups[goal].forEach(function(r){
+          var row = [_safe(r[1]||'').slice(0,80)];
+          activeQs.forEach(function(q){ row.push(_short((r[_Q_COLS[q-1][1]]||'').trim())||'—'); });
+          allBodyRows.push(row);
+        });
+      });
+
+      var colWidths = {0:{cellWidth:260}};
+      activeQs.forEach(function(q,i){ colWidths[i+1]={cellWidth:Math.floor((W-80-260)/activeQs.length)}; });
+
+      doc.autoTable({
+        startY:y, head:[qHeaders], body:allBodyRows, theme:'grid',
+        headStyles:{fillColor:NAVY,textColor:WHITE,fontSize:8,fontStyle:'bold'},
+        bodyStyles:{fontSize:7,textColor:[45,45,45]}, margin:{left:40,right:40},
+        columnStyles:colWidths,
+        didParseCell:function(d){
+          if(d.section==='body'&&!d.row.raw[0]?.styles){
+            var colIdx=d.column.index;
+            if(colIdx>0){ var s=d.cell.raw||''; d.cell.styles.textColor=_statusColor(activeQs[colIdx-1]&&(s==='Met'?'Met':s==='Partial'?'Partially Met':s==='Progress'?'In Progress':s==='Not Met'?'Has Not Met':s==='Pipeline'?'Coming Down the Pipeline':s)||''); }
+          }
+        }
+      });
+
+      // ── Footer on every page ──────────────────────────────────
+      var pageCount = doc.internal.getNumberOfPages();
+      for (var pg=1;pg<=pageCount;pg++) {
+        doc.setPage(pg);
+        doc.setFillColor(...NAVY); doc.rect(0,doc.internal.pageSize.getHeight()-28,W,28,'F');
+        doc.setTextColor(...WHITE); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+        doc.text('New Jersey Tutoring Corps  \u00B7  Quarterly Summary  \u00B7  SY 2025\u20132026  \u00B7  Confidential', 40, doc.internal.pageSize.getHeight()-12);
+        doc.text('Page '+pg+' of '+pageCount, W-40, doc.internal.pageSize.getHeight()-12, {align:'right'});
+      }
+
+      var blob = doc.output('blob');
+      var url  = URL.createObjectURL(blob);
+      var a    = document.createElement('a');
+      a.href   = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  //  QUARTERLY PPTX EXPORT  (Data dept only)
+  //  Uses PptxGenJS loaded on demand from CDN
+  // ════════════════════════════════════════════════════════════════
+  function exportKPIQuarterlySummaryPPTX() {
+    var qd = window.KPI_Q_DATA;
+    if (!qd || !qd.activeQs || !qd.activeQs.length) { alert('Quarterly data not yet loaded. Wait a moment and try again.'); return; }
+
+    function _loadPptxGen(cb) {
+      if (window.PptxGenJS) { cb(); return; }
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+      s.onload = cb;
+      s.onerror = function(){ alert('Could not load PPTX library. Check network connection.'); };
+      document.head.appendChild(s);
+    }
+
+    function _safe(s){ return String(s||'').replace(/[^\x20-\x7E]/g,'').replace(/\s+/g,' ').trim(); }
+    function _short(s){ return (s||'').replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+    function _statusHex(s){
+      if(s==='Met')return'166534'; if(s==='Partially Met')return'B45309';
+      if(s==='In Progress')return'1E40AF'; if(s==='Has Not Met')return'991B1B';
+      if(s==='Coming Down the Pipeline')return'6D28D9'; return'6B7280';
+    }
+
+    _loadPptxGen(function() {
+      var pptx = new window.PptxGenJS();
+      pptx.layout   = 'LAYOUT_WIDE';
+      pptx.author   = 'New Jersey Tutoring Corps';
+      pptx.subject  = 'Quarterly Goal Summary';
+      pptx.title    = 'NJTC Quarterly Summary Q' + qd.activeQs[qd.activeQs.length-1] + ' SY2025-26';
+      pptx.company  = 'NJTC';
+
+      var NAVY='1B2A4A', GOLD='E8A838', WHITE='FFFFFF', LIGHT='F7F9FC';
+      var GREEN='16A34A', RED='DC2626', AMBER='D97706', PURPLE='7C3AED', BLUE='1E40AF';
+      var latestQ  = qd.activeQs[qd.activeQs.length-1];
+      var latestSC = qd.scorecards[qd.scorecards.length-1];
+      var deltas   = qd.deltas;
+      var tsStr    = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+      var hHex     = latestSC.score>=85?GREEN:latestSC.score>=65?AMBER:latestSC.score>=40?'DC6502':RED;
+
+      // ── Slide 1: Cover ─────────────────────────────────────────
+      var s1 = pptx.addSlide();
+      s1.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:'100%',fill:{color:NAVY}});
+      s1.addShape(pptx.ShapeType.rect,{x:0,y:3.8,w:'100%',h:0.06,fill:{color:GOLD}});
+      s1.addText('NJTC',{x:0.5,y:0.4,w:9,h:0.5,fontSize:13,bold:true,color:GOLD,fontFace:'Arial'});
+      s1.addText('Quarterly Goal Summary',{x:0.5,y:1.0,w:9,h:1.0,fontSize:36,bold:true,color:WHITE,fontFace:'Arial'});
+      s1.addText('Q'+latestQ+' \u2014 School Year 2025\u20132026',{x:0.5,y:2.05,w:9,h:0.5,fontSize:18,color:GOLD,fontFace:'Arial'});
+      s1.addText('Generated '+tsStr+'   \u00B7   New Jersey Tutoring Corps   \u00B7   Confidential',{x:0.5,y:2.7,w:9,h:0.35,fontSize:10,color:'B0BAC8',fontFace:'Arial'});
+      // Health score box
+      s1.addShape(pptx.ShapeType.roundRect,{x:0.5,y:3.2,w:2.2,h:0.5,fill:{color:hHex},line:{color:hHex},rectRadius:0.06});
+      s1.addText(latestSC.score+'%  '+latestSC.health.label,{x:0.5,y:3.2,w:2.2,h:0.5,fontSize:13,bold:true,color:WHITE,align:'center',fontFace:'Arial'});
+
+      // ── Slide 2: Summary Stats ─────────────────────────────────
+      var s2 = pptx.addSlide();
+      s2.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
+      s2.addText('Q'+latestQ+' At a Glance \u2014 Organizational Target Status',{x:0.4,y:0.2,w:9,h:0.7,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+      var stats=[
+        {label:'Met',      val:latestSC.counts.met,     hex:GREEN},
+        {label:'In Progress',val:latestSC.counts.prog,  hex:BLUE},
+        {label:'Partial',  val:latestSC.counts.partial, hex:AMBER},
+        {label:'Pipeline', val:latestSC.counts.pipe,    hex:PURPLE},
+        {label:'Not Met',  val:latestSC.counts.notmet,  hex:RED},
+      ];
+      stats.forEach(function(st,i){
+        var cx=0.4+i*1.96, cy=1.4;
+        s2.addShape(pptx.ShapeType.roundRect,{x:cx,y:cy,w:1.8,h:1.6,fill:{color:'F7F9FC'},line:{color:'E2E8F0',pt:1},rectRadius:0.08});
+        s2.addText(String(st.val),{x:cx,y:cy+0.2,w:1.8,h:0.7,fontSize:32,bold:true,color:st.hex,align:'center',fontFace:'Arial'});
+        s2.addText(st.label,{x:cx,y:cy+0.95,w:1.8,h:0.35,fontSize:10,bold:true,color:'334155',align:'center',fontFace:'Arial'});
+      });
+      // Health bar
+      var barY=3.3;
+      s2.addText('Organizational Health Score: '+latestSC.score+'%  ('+latestSC.health.label+')',{x:0.4,y:barY,w:9,h:0.4,fontSize:13,bold:true,color:NAVY,fontFace:'Arial'});
+      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY+0.45,w:9,h:0.22,fill:{color:'E2E8F0'}});
+      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY+0.45,w:9*(latestSC.score/100),h:0.22,fill:{color:hHex}});
+      s2.addText('Scoring: Met=100pts  Partial=50pts  In Progress=25pts  Pipeline=10pts  Not Met=0pts',{x:0.4,y:barY+0.82,w:9,h:0.3,fontSize:8,color:'6B7280',fontFace:'Arial'});
+
+      // ── Slide 3: Quarter Progression (if 2+ quarters) ─────────
+      if (qd.scorecards.length >= 2) {
+        var s3 = pptx.addSlide();
+        s3.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
+        s3.addText('Quarter-by-Quarter Progression \u2014 SY 2025\u20132026',{x:0.4,y:0.2,w:9,h:0.7,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+        var rows3=[['Quarter','Health Score','Health Label','Met','In Progress','Partial','Not Met','Change']];
+        qd.scorecards.forEach(function(sc,i){
+          var prev=i>0?qd.scorecards[i-1]:null;
+          var delta=prev?(sc.score-prev.score):null;
+          rows3.push([sc.label, sc.score+'%', sc.health.label, String(sc.counts.met), String(sc.counts.prog), String(sc.counts.partial), String(sc.counts.notmet), delta===null?'Baseline':(delta>=0?'+':'')+delta+'pts']);
+        });
+        s3.addTable(rows3,{x:0.4,y:1.25,w:9,colW:[0.9,1.0,1.1,0.7,1.0,0.7,0.7,1.0],
+          border:{type:'solid',color:'E2E8F0',pt:0.5},
+          autoPage:false,
+          firstRowAsHeader:true,
+          headFontSize:9,headBold:true,headFill:{color:NAVY},headColor:WHITE,
+          bodyFontSize:9,bodyColor:'1E293B',
+          bodyFill:{color:LIGHT}
+        });
+      }
+
+      // ── Slide 4: Major Improvements ───────────────────────────
+      var improved=deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='up'; });
+      if (improved.length) {
+        var s4 = pptx.addSlide();
+        s4.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:GREEN}});
+        s4.addText('\uD83C\uDFC6  Notable Improvements This Cycle  ('+improved.length+' targets)',{x:0.4,y:0.25,w:9,h:0.65,fontSize:18,bold:true,color:WHITE,fontFace:'Arial'});
+        var rows4=[['Target','Goal Area','From','To','Quarters']];
+        improved.slice(0,10).forEach(function(d){
+          var lm=d.moves[d.moves.length-1];
+          rows4.push([_safe(d.target).slice(0,75),_safe(d.goal).slice(0,40),_short(lm.from),_short(lm.to),'Q'+lm.fromQ+'\u2192Q'+lm.toQ]);
+        });
+        s4.addTable(rows4,{x:0.4,y:1.2,w:9,colW:[3.0,2.0,1.2,1.2,0.9],
+          border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
+          headFontSize:9,headBold:true,headFill:{color:GREEN},headColor:WHITE,
+          bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
+        });
+      }
+
+      // ── Slide 5: Critical Regressions ─────────────────────────
+      var critical=deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+      var otherReg=deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='down'&&lm.to!=='Has Not Met'; });
+      if (critical.length || otherReg.length) {
+        var s5 = pptx.addSlide();
+        s5.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:RED}});
+        s5.addText('\u26A0\uFE0F  Status Regressions \u2014 Needs Leadership Attention',{x:0.4,y:0.25,w:9,h:0.65,fontSize:18,bold:true,color:WHITE,fontFace:'Arial'});
+        var rows5=[['Target','Goal Area','From','To','Type']];
+        critical.forEach(function(d){ var cm=d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; if(!cm) return; rows5.push([_safe(d.target).slice(0,65),_safe(d.goal).slice(0,35),_short(cm.from),'Not Met','Critical']); });
+        otherReg.slice(0,6).forEach(function(d){ var lm=d.moves[d.moves.length-1]; rows5.push([_safe(d.target).slice(0,65),_safe(d.goal).slice(0,35),_short(lm.from),_short(lm.to),'Watch']); });
+        s5.addTable(rows5,{x:0.4,y:1.2,w:9,colW:[2.9,1.9,1.2,1.2,0.9],
+          border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
+          headFontSize:9,headBold:true,headFill:{color:RED},headColor:WHITE,
+          bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
+        });
+      }
+
+      // ── Slide 6: Goal Area Scorecard ──────────────────────────
+      var goalOrder2=[], goalGroups2={};
+      qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder2.indexOf(g)<0) goalOrder2.push(g); if(!goalGroups2[g]) goalGroups2[g]=[]; goalGroups2[g].push(r); });
+
+      var s6 = pptx.addSlide();
+      s6.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
+      s6.addText('Goal Area Scorecard \u2014 Q'+latestQ,{x:0.4,y:0.25,w:9,h:0.65,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+      var rows6=[['Goal Area','Targets','Met','In Prog','Partial','Not Met','Score','Health']];
+      goalOrder2.forEach(function(goal){
+        var rs=goalGroups2[goal];
+        var sc=_Q_COLS[latestQ-1][1];
+        var cnt={met:0,prog:0,part:0,nm:0,pipe:0};
+        var sum=0;
+        rs.forEach(function(r){ var s=(r[sc]||'').trim(); if(s==='Met'){cnt.met++;sum+=1;} else if(s==='Partially Met'){cnt.part++;sum+=0.5;} else if(s==='In Progress'){cnt.prog++;sum+=0.25;} else if(s==='Has Not Met'){cnt.nm++;} else if(s==='Coming Down the Pipeline'){cnt.pipe++;sum+=0.1;} });
+        var pct=rs.length?Math.round(sum/rs.length*100):0;
+        var hl=pct>=85?'Healthy':pct>=65?'Watch':pct>=40?'Needs Focus':'Critical';
+        rows6.push([_safe(goal).slice(0,40),String(rs.length),String(cnt.met),String(cnt.prog),String(cnt.part),String(cnt.nm),pct+'%',hl]);
+      });
+      s6.addTable(rows6,{x:0.4,y:1.2,w:9,colW:[2.8,0.65,0.65,0.7,0.65,0.7,0.65,0.8],
+        border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
+        headFontSize:9,headBold:true,headFill:{color:NAVY},headColor:WHITE,
+        bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
+      });
+
+      pptx.writeFile({fileName:'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.pptx'})
+        .catch(function(e){ console.error('PPTX export error:',e); alert('PPTX generation failed — check console for details.'); });
+    });
+  }
+
   // ── Expose to global scope ───────────────────────────────────────────────
   window.buildKPIAnalytics       = buildKPIAnalytics;
   window.renderKPIAnalytics      = renderKPIAnalytics;
   window.renderKPIAnalyticsTab   = renderKPIAnalyticsTab;
+  window.renderQuarterlyTab      = renderQuarterlyTab;
   window.setKPIAnalyticsTab      = setKPIAnalyticsTab;
   window.fetchKPIMetadata        = fetchKPIMetadata;
   window.kqrRenderSnapshot       = kqrRenderSnapshot;
@@ -3666,6 +4402,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.openKPIInquiryWithMetric = openKPIInquiryWithMetric;
   window.resetKPIInquiry         = resetKPIInquiry;
   window.submitKPIInquiry        = submitKPIInquiry;
+
+  window.exportKPIQuarterlySummaryPDF  = exportKPIQuarterlySummaryPDF;
+  window.exportKPIQuarterlySummaryPPTX = exportKPIQuarterlySummaryPPTX;
+  window.KPI_Q_DATA                    = KPI_Q_DATA;
 
   window.buildTalentDashboard    = buildTalentDashboard;
   window.fetchLiveHRData         = fetchLiveHRData;
