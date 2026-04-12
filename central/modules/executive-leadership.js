@@ -1925,11 +1925,10 @@
 
     // KPI tiles — each has a definition tooltip in plain language
     const kpiTile = function(val, label, sub, bg, col, def) {
-      return '<div title="' + (def || '') + '" style="text-align:center;padding:18px 12px;background:' + bg + ';border-radius:12px;border:1px solid rgba(0,0,0,0.05);cursor:default;">' +
-        '<div style="font-size:2rem;font-weight:900;color:' + col + ';line-height:1;">' + val + '</div>' +
-        '<div style="font-size:10px;font-weight:700;color:#4B5563;text-transform:uppercase;letter-spacing:0.07em;margin-top:6px;">' + label + '</div>' +
-        (sub ? '<div style="font-size:10px;color:#9CA3AF;margin-top:3px;">' + sub + '</div>' : '') +
-        '<div style="font-size:9px;color:#C4B5A5;margin-top:4px;font-style:italic;">hover for definition</div>' +
+      return '<div title="' + (def || '') + '" style="text-align:center;padding:22px 14px 20px;background:' + bg + ';border-radius:14px;border:1px solid rgba(0,0,0,0.07);box-shadow:0 2px 6px rgba(0,0,0,0.04);cursor:default;">' +
+        '<div style="font-size:2.25rem;font-weight:900;color:' + col + ';line-height:1;letter-spacing:-0.02em;">' + val + '</div>' +
+        '<div style="font-size:10px;font-weight:800;color:#4B5563;text-transform:uppercase;letter-spacing:0.08em;margin-top:8px;">' + label + '</div>' +
+        (sub ? '<div style="font-size:10px;color:#9CA3AF;margin-top:4px;line-height:1.4;">' + sub + '</div>' : '') +
         '</div>';
     };
 
@@ -1941,15 +1940,15 @@
         const netFlags = members.filter(function(m){ return ap_hasFlag(m.name); }).length;
         const safeNet = net.replace(/"/g, '&quot;');
         return '<div data-ap-net="' + safeNet + '" role="button" tabindex="0"' +
-          ' style="background:white;border:1.5px solid #E5E7EB;border-radius:12px;padding:16px;cursor:pointer;transition:all 0.18s;min-height:80px;"' +
-          ' onmouseenter="this.style.borderColor=\'#B8960C\';this.style.boxShadow=\'0 4px 16px rgba(184,150,12,0.18)\'"' +
+          ' style="background:white;border:1.5px solid #E5E7EB;border-radius:14px;padding:18px 16px 16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;min-height:90px;"' +
+          ' onmouseenter="this.style.borderColor=\'#B8960C\';this.style.boxShadow=\'0 4px 18px rgba(184,150,12,0.16)\'"' +
           ' onmouseleave="this.style.borderColor=\'#E5E7EB\';this.style.boxShadow=\'none\'"' +
           ' onclick="ap_showNetworkModal(this.dataset.apNet)">' +
-          '<div style="font-size:1.6rem;font-weight:900;color:#002855;line-height:1;">' + members.length + '</div>' +
-          '<div style="font-size:11px;font-weight:700;color:#374151;margin-top:4px;line-height:1.3;">' + net + '</div>' +
+          '<div style="font-size:1.75rem;font-weight:900;color:#002855;line-height:1;letter-spacing:-0.02em;">' + members.length + '</div>' +
+          '<div style="font-size:11.5px;font-weight:700;color:#374151;margin-top:6px;line-height:1.35;">' + net + '</div>' +
           (netFlags
-            ? '<div style="margin-top:6px;font-size:9px;font-weight:700;color:#DC2626;background:#FEF2F2;display:inline-block;padding:2px 7px;border-radius:8px;">⚠ ' + netFlags + ' flagged</div>'
-            : '<div style="margin-top:6px;font-size:9px;color:#9CA3AF;">Click for roster</div>') +
+            ? '<div style="margin-top:8px;font-size:9.5px;font-weight:700;color:#DC2626;background:#FEF2F2;display:inline-block;padding:3px 8px;border-radius:8px;">⚠ ' + netFlags + ' flagged</div>'
+            : '<div style="margin-top:8px;font-size:9.5px;color:#9CA3AF;font-weight:600;">Click for roster</div>') +
           '</div>';
       }).join('');
 
@@ -1994,9 +1993,9 @@
       // ── Collapsible body ─────────────────────────────────────────────────
       '<div id="' + bodyId + '" style="display:' + (isOpen ? '' : 'none') + ';">' +
         // KPI Strip
-        '<div style="background:white;padding:18px 24px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB;">' +
-          '<div style="font-size:9px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Program Overview — hover each tile for definition</div>' +
-          '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;">' +
+        '<div style="background:white;padding:20px 24px 24px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB;">' +
+          '<div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">Program Overview — hover each tile for definition</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;">' +
             kpiTile(enrolled.length, 'Enrolled', networkCount + ' networks', '#EFF6FF', '#002855',
               'Tutors currently active in the TAP (Tutor Apprenticeship Program) for SY 2025-2026.') +
             kpiTile(eligible.length, 'Eligible', 'not yet enrolled', '#FFFBEB', '#B8960C',
@@ -2015,14 +2014,14 @@
           '</div>' +
         '</div>' +
         // Network Grid
-        '<div style="background:#FAFAFA;padding:18px 24px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB;">' +
-          '<div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">By Partner Network — click any card for full roster + OTJ status</div>' +
-          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">' + networkCards + '</div>' +
+        '<div style="background:#F8FAFC;padding:20px 24px 24px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB;border-top:1px solid #E5E7EB;">' +
+          '<div style="font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;">By Partner Network — click any card for full roster + OTJ status</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px;">' + networkCards + '</div>' +
         '</div>' +
         // Pipeline Insight
-        '<div style="background:white;border-radius:0 0 14px 14px;border:1px solid #E5E7EB;border-top:none;padding:14px 24px;display:flex;align-items:center;gap:14px;">' +
-          '<div style="width:36px;height:36px;background:#FFF9E6;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;">💡</div>' +
-          '<div style="font-size:12px;color:#374151;line-height:1.5;">' +
+        '<div style="background:white;border-radius:0 0 14px 14px;border:1px solid #E5E7EB;border-top:none;padding:16px 24px;display:flex;align-items:center;gap:16px;">' +
+          '<div style="width:40px;height:40px;flex-shrink:0;background:#FFF9E6;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;border:1px solid rgba(184,150,12,0.18);">💡</div>' +
+          '<div style="font-size:12.5px;color:#374151;line-height:1.6;">' +
             '<strong style="color:#002855;">Growth Opportunity:</strong> ' + eligible.length + ' active tutors qualify for TAP but are not yet enrolled — a <strong style="color:#B8960C;">' + growthPct + '% program increase</strong> without additional hiring. ' +
             (flagged
               ? '<span style="color:#DC2626;font-weight:600;">' + flagged + ' enrolled apprentice' + (flagged !== 1 ? 's require' : ' requires') + ' OTJ follow-up.</span>'
