@@ -1163,6 +1163,17 @@
       if (!byKey[k]) byKey[k] = [];
       byKey[k].push(r);
     }
+
+    // Pre-build inverted token index for O(1) fuzzy fallback lookup
+    // Maps each token → array of [lk, rows] so we only check keys sharing ≥1 token
+    const _tokenIdx = new Map();
+    for (const [lk, lr] of Object.entries(byKey)) {
+      for (const tok of lk.split(' ')) {
+        if (!_tokenIdx.has(tok)) _tokenIdx.set(tok, []);
+        _tokenIdx.get(tok).push([lk, lr]);
+      }
+    }
+
     let updated = 0, added = 0;
 
     // ── Update existing HR_EMPS entries from live sheet ─────────────────────
@@ -1170,12 +1181,19 @@
       const k = _hn(emp.n);
       const rows = byKey[k] || [];
       if (!rows.length) {
-        // Subset token match fallback
+        // Subset token match fallback — use pre-built index (O(tokens) vs O(n²))
         const ep = new Set(k.split(' '));
-        for (const [lk, lr] of Object.entries(byKey)) {
-          const lp = new Set(lk.split(' '));
-          if (ep.size >= 2 && ([...ep].every(p=>lp.has(p)) || [...lp].every(p=>ep.has(p)))) {
-            rows.push(...lr); break;
+        if (ep.size >= 2) {
+          const seen = new Set();
+          outer: for (const tok of ep) {
+            for (const [lk, lr] of (_tokenIdx.get(tok) || [])) {
+              if (seen.has(lk)) continue;
+              seen.add(lk);
+              const lp = new Set(lk.split(' '));
+              if ([...ep].every(p=>lp.has(p)) || [...lp].every(p=>ep.has(p))) {
+                rows.push(...lr); break outer;
+              }
+            }
           }
         }
       }
@@ -1535,15 +1553,17 @@
           _hrFetched = true;
           window._hrDataFetched = true;
           window._njtcActiveEmployees = HR_EMPS.filter(e => e.s === 'Active').length;
-          // Re-render home widget from cache data immediately
-          try {
-            const _hw = document.getElementById('homeDeptWidget');
-            if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
-              const _dept = (window.NJTC_SESSION||{}).dept||'';
-              if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget();
-              else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') _hw.innerHTML = window._buildRetentionWidget();
-            }
-          } catch(_we) {}
+          // Re-render home widget from cache data — defer to next frame so UI stays responsive
+          requestAnimationFrame(() => {
+            try {
+              const _hw = document.getElementById('homeDeptWidget');
+              if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+                const _dept = (window.NJTC_SESSION||{}).dept||'';
+                if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget();
+                else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') _hw.innerHTML = window._buildRetentionWidget();
+              }
+            } catch(_we) {}
+          });
           // Trigger exec dashboard refresh so tutor count updates from correct live data
           try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
           return;
@@ -1561,31 +1581,37 @@
           _hrOverlayLive(rows);
           _hrStatus = 'live';
           console.log('[HR Profiles] Live sheet loaded: '+rows.length+' rows');
-          // Re-render if profiles tab is active
-          const _lb=document.getElementById('talentTab-profiles');
-          if (_lb&&_lb.classList.contains('active')) {
-            const _le=document.getElementById('talentContent');
-            if (_le) {
+          // Defer all DOM updates to next animation frame so data processing
+          // never blocks user interaction mid-frame
+          requestAnimationFrame(() => {
+            // Re-render if profiles tab is active
+            const _lb=document.getElementById('talentTab-profiles');
+            if (_lb&&_lb.classList.contains('active')) {
+              const _le=document.getElementById('talentContent');
+              if (_le) {
+                try {
+                  const _vr = (typeof _hrOverlayVersion !== 'undefined') ? String(_hrOverlayVersion) : '0';
+                  _le.innerHTML='<div id="hrProfilesRoot" data-overlay-version="'+_vr+'">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
+                } catch(_re) {
+                  console.warn('[HR Profiles] Re-render after live fetch failed:', _re.message);
+                }
+              }
+            }
+            // Re-render home attrition/retention widget in its own frame after profiles
+            requestAnimationFrame(() => {
               try {
-                const _vr = (typeof _hrOverlayVersion !== 'undefined') ? String(_hrOverlayVersion) : '0';
-                _le.innerHTML='<div id="hrProfilesRoot" data-overlay-version="'+_vr+'">'+_hrBuildProfiles((window.NJTC_SESSION||{}).dept||'hr')+'</div>';
-              } catch(_re) {
-                console.warn('[HR Profiles] Re-render after live fetch failed:', _re.message);
-              }
-            }
-          }
-          // Re-render home attrition/retention widget now that live HR data is available
-          try {
-            const _hw = document.getElementById('homeDeptWidget');
-            if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
-              const _dept = (window.NJTC_SESSION||{}).dept||'';
-              if (['hr','data'].includes(_dept)) {
-                _hw.innerHTML = window._buildTermAnalyticsWidget();
-              } else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
-                _hw.innerHTML = window._buildRetentionWidget();
-              }
-            }
-          } catch(_we) { /* widget re-render non-critical */ }
+                const _hw = document.getElementById('homeDeptWidget');
+                if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+                  const _dept = (window.NJTC_SESSION||{}).dept||'';
+                  if (['hr','data'].includes(_dept)) {
+                    _hw.innerHTML = window._buildTermAnalyticsWidget();
+                  } else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
+                    _hw.innerHTML = window._buildRetentionWidget();
+                  }
+                }
+              } catch(_we) { /* widget re-render non-critical */ }
+            });
+          });
         } else { _hrStatus = 'error'; }
       } else { _hrStatus = 'error'; }
     } catch(e) {

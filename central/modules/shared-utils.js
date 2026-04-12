@@ -943,12 +943,19 @@
     }
     if (btn) btn.disabled = false;
 
-    buildKPISummary();
-    buildKPI();
-    // Always rebuild home stats after every data refresh — data is now guaranteed accurate
-    const session = window.NJTC_SESSION;
-    if (session) buildHome(session.dept);
-    fetchKPIMetadata(false);
+    // Stagger heavy DOM writes across animation frames so the browser event loop
+    // stays free for user input (clicks, hovers) between each render pass
+    requestAnimationFrame(() => {
+      buildKPISummary();
+      requestAnimationFrame(() => {
+        buildKPI();
+        requestAnimationFrame(() => {
+          const session = window.NJTC_SESSION;
+          if (session) buildHome(session.dept);
+          fetchKPIMetadata(false);
+        });
+      });
+    });
   }
 
   function buildKPISummary() {
