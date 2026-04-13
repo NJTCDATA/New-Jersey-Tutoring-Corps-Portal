@@ -553,10 +553,11 @@
     tutorLines.push({ type: 'divider' });
     if (topTutors5.length > 0) {
       topTutors5.forEach((t, i) => {
+        const sepTag = t.terminated ? ' [SEP]' : '';
         tutorLines.push({
-          label: (i + 1) + '. ' + trunc(t.name, 30) + '  (' + trunc(t.school, 14) + ')',
+          label: (i + 1) + '. ' + trunc(t.name, 27) + safeStr(sepTag) + '  (' + trunc(t.school, 14) + ')',
           value: hrs(t.hours),
-          valueColor: C.teal,
+          valueColor: t.terminated ? C.amber : C.teal,
         });
       });
     } else {
@@ -756,7 +757,7 @@
         const lateNote = t.lateFlagged ? '  [' + t.lateRate + '% late]' : '';
         const stat = pct(t.captureRate, 0) + '  (' + t.submitted + '/' + t.eligible + ')' + lateNote;
         y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
           detail:    trunc(t.school, 50),
           stat:      stat,
           statColor: statusColor(t.captureRate, BM.capture),
@@ -776,7 +777,7 @@
       doc.setFont('helvetica', 'normal');
       data.tutorLateSurveyList.forEach((t, i) => {
         y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
           detail:    trunc(t.school, 50),
           stat:      t.lateRate + '% late  (' + t.late + '/' + t.submitted + ' surveys)',
           statColor: C.amber,
@@ -790,13 +791,103 @@
       y = secHeader(y, 'Tutors Below 90% Attendance Threshold', C.amber);
       tutorConcerns.forEach((t, i) => {
         y = listRow(y, {
-          name:      (i + 1) + '. ' + trunc(t.name, 40),
+          name:      (i + 1) + '. ' + trunc(t.name, 36) + (t.terminated ? ' [SEP]' : ''),
           detail:    trunc(t.school, 50),
           stat:      pct(t.attRate, 1) + '  (' + t.attended + '/' + (t.attended + t.absent) + ' sess)',
           statColor: statusColor(t.attRate, BM.tutorAtt),
         }, i % 2 === 1);
       });
       y += 6;
+    }
+
+    // ── Separated Staff Impact ─────────────────────────────────────────────
+    // Only renders when >=1 SY 2025-2026 terminated tutor is found in Pearl data.
+    // Shows who they are, what their incomplete surveys contribute, and side-by-side
+    // KPIs: "As Reported" (all tutors) vs "Excl. Separated Staff".
+    // Future-proof: section silently skips when termTutors is empty or undefined.
+    const _termT = (data.termTutors || []);
+    if (_termT.length > 0) {
+      if (y > BOTTOM_LIMIT - 20) { doc.addPage(); y = TOP_START; }
+      y = secHeader(y, 'SEPARATED STAFF IN PEARL DATA  -  SY 2025-2026', [79, 70, 229]);  // indigo accent
+
+      // Context note
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
+      const _sepNoteLines = doc.splitTextToSize(safeStr(
+        _termT.length + ' tutor' + (_termT.length !== 1 ? 's' : '') +
+        ' in this report are no longer active with NJTC for SY 2025-2026 per the HR Master List.' +
+        ' Their Pearl session, attendance, and survey records still count in all aggregate metrics' +
+        ' shown throughout this report. [SEP] marks these staff wherever they appear.' +
+        ' The panel below shows adjusted KPIs with these staff excluded.'
+      ), SAFE - 4);
+      _sepNoteLines.forEach(line => {
+        if (y > BOTTOM_LIMIT - 6) { doc.addPage(); y = TOP_START; }
+        doc.text(line, ML + 2, y); y += 5;
+      });
+      y += 4;
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...C.body);
+
+      // Separated tutors detail table
+      y = table(y,
+        [['Separated Tutor', 'School', 'Att. Rate', 'Sessions', 'Missing Surveys']],
+        _termT.map(t => [
+          safeStr(trunc(t.name, 30)),
+          safeStr(trunc(t.school, 26)),
+          pct(t.attRate, 1),
+          num(t.attended + t.absent),
+          num(Math.max(0, (t.captureElig||0) - (t.captureSubm||0))),
+        ]),
+        { 0: { cellWidth: 54 }, 1: { cellWidth: 50 }, 2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 22, halign: 'center' }, 4: { cellWidth: 32, halign: 'center' } },
+        {
+          didParseCell: function(d) {
+            if (d.section !== 'body') return;
+            // Highlight missing survey count in amber when non-zero
+            if (d.column.index === 4 && d.cell.raw !== '0' && d.cell.raw !== '--') {
+              d.cell.styles.textColor = [180, 83, 9];
+              d.cell.styles.fontStyle = 'bold';
+            }
+          },
+        }
+      );
+      y += 3;
+
+      // Side-by-side KPI comparison panel
+      if (data.exTermTutorAttRate !== null || data.exTermTutorCaptureRate !== null) {
+        const _missTotal = Math.max(0, (data.totalTutorElig||0) - (data.totalTutorSubm||0));
+        const _missExTerm = Math.max(0, _missTotal - (data.termMissingSurveys||0));
+
+        const _cmpLeft = [
+          { type: 'subtitle', text: 'Includes all ' + num(data.activeTutors) + ' tutors in Pearl data' },
+          { type: 'divider' },
+          { label: 'Tutor Attendance Rate',
+            value: pct(data.tutorAttRate, 1),
+            valueColor: statusColor(data.tutorAttRate, BM.tutorAtt) },
+          { label: 'Tutor Survey Capture Rate',
+            value: pct(data.tutorCaptureRate, 0),
+            valueColor: statusColor(data.tutorCaptureRate, BM.capture) },
+          { label: 'Missing Tutor Surveys',
+            value: num(_missTotal),
+            valueColor: _missTotal > 0 ? C.amber : C.green },
+          { type: 'divider' },
+          { label: 'Tutors counted', value: num(data.activeTutors), bold: true, valueColor: C.navy },
+        ];
+        const _cmpRight = [
+          { type: 'subtitle', text: _termT.length + ' separated staff removed from calc.' },
+          { type: 'divider' },
+          { label: 'Tutor Attendance Rate',
+            value: data.exTermTutorAttRate !== null ? pct(data.exTermTutorAttRate, 1) : '--',
+            valueColor: data.exTermTutorAttRate !== null ? statusColor(data.exTermTutorAttRate, BM.tutorAtt) : C.muted },
+          { label: 'Tutor Survey Capture Rate',
+            value: data.exTermTutorCaptureRate !== null ? pct(data.exTermTutorCaptureRate, 0) : '--',
+            valueColor: data.exTermTutorCaptureRate !== null ? statusColor(data.exTermTutorCaptureRate, BM.capture) : C.muted },
+          { label: 'Missing Tutor Surveys',
+            value: num(_missExTerm),
+            valueColor: _missExTerm > 0 ? C.amber : C.green },
+          { type: 'divider' },
+          { label: 'Tutors counted', value: num(data.exTermActiveTutors||0), bold: true, valueColor: C.navy },
+        ];
+        y = twoColPanels(y, 'As Reported  (All Staff)', _cmpLeft, 'Excl. Separated Staff', _cmpRight);
+      }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -945,6 +1036,17 @@
       growingText += 'Service interruptions (' + num(totalSI) + ' events) are most frequently caused by: ' +
         siReasons.slice(0, 3).map(([r, c]) => '"' + trunc(r, 20) + '" (' + num(c) + ')').join(', ') + '. ';
     }
+    if ((data.termTutors||[]).length > 0) {
+      const _tl = data.termTutors.length;
+      const _tm = data.termMissingSurveys || 0;
+      growingText += _tl + ' separated staff member' + (_tl !== 1 ? 's' : '') +
+        ' [SEP] remain in Pearl data for this period. ' +
+        (_tm > 0
+          ? 'Their ' + num(_tm) + ' missing survey submission' + (_tm !== 1 ? 's' : '') +
+            ' are contributing to the network capture gap. '
+          : '') +
+        'See the Separated Staff Impact section for adjusted KPIs excluding these staff. ';
+    }
     if (!growingText.trim()) growingText = 'No critical areas of concern identified this period.';
     y = para(growingText, y);
 
@@ -957,6 +1059,15 @@
     if (data.tutorCaptureRate < BM.capture) actions.push('Send tutor survey completion nudges to instructors below 80% capture. See bottom-5 list on Growing Pains page.');
     if (data.tutorLateSurveyList && data.tutorLateSurveyList.length > 0) actions.push('Follow up with ' + data.tutorLateSurveyList.length + ' tutor' + (data.tutorLateSurveyList.length > 1 ? 's' : '') + ' filing surveys predominantly after session dates. Encourage same-day completion. See Late Survey Filers on Growing Pains page.');
     if (totalSI > 5) actions.push('Investigate top SI causes (' + (siReasons[0] || ['Unknown'])[0] + ') with district coordinators to reduce preventable interruptions.');
+    if ((data.termTutors||[]).length > 0) {
+      const _tl = data.termTutors.length;
+      const _tm = data.termMissingSurveys || 0;
+      actions.push(
+        'Review ' + _tl + ' separated staff member' + (_tl !== 1 ? 's' : '') + ' [SEP] still present in Pearl data.' +
+        (_tm > 0 ? ' Close or reassign their ' + num(_tm) + ' outstanding survey submission' + (_tm !== 1 ? 's' : '') + ' to avoid distorting the network capture rate.' : ' Confirm their Pearl records have been closed out properly.') +
+        ' See Separated Staff Impact section for adjusted KPIs.'
+      );
+    }
     if (actions.length === 0) actions.push('Continue current practices — all key benchmarks are being met.');
 
     actions.forEach((action, i) => {
