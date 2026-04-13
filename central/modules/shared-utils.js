@@ -750,35 +750,36 @@
       `).join('');
     }, 16);
 
-    // T+32: Dept widget (HR/programming specific analytics)
+    // T+32: Dept-specific analytics widget (HR/programming)
+    // NOTE: only runs for depts that have their OWN widget AND are NOT getting the leaderboard
+    // The leaderboard at T+48ms will overwrite this for all non-exec depts anyway,
+    // so only run for exec depts that don't get the leaderboard
     setTimeout(() => {
       const _deptWidget = document.getElementById('homeDeptWidget');
-      if (_deptWidget && !['leadership','data','kb'].includes(dept)) {
-        if (['hr','data'].includes(dept) && typeof window._buildTermAnalyticsWidget === 'function') {
+      if (_deptWidget && ['leadership','data','kb'].includes(dept)) {
+        // Exec depts: termination analytics widget goes in homeDeptWidget (leaderboard pill goes in stats strip)
+        if (typeof window._buildTermAnalyticsWidget === 'function') {
           _deptWidget.innerHTML = window._buildTermAnalyticsWidget();
-        } else if (dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
-          _deptWidget.innerHTML = window._buildRetentionWidget();
         }
       }
     }, 32);
 
     // ── Departmental Success Leaderboard ──────────────────────────────────
+    // T+48: runs AFTER all other writes so it wins the homeDeptWidget slot
     const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
     const _lbEl = document.getElementById('homeDeptWidget');
     if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
-      // Exec: inject pill — defer so stats strip renders first
       setTimeout(() => _lbInjectExecPill(dept), 50);
     } else {
-      if (_lbEl) {
-        // Build HTML string synchronously (no DOM access = fast)
-        // then write to DOM in next task so the page renders stats strip first
-        const _lbHTML = _lbRenderFullBoard(dept);
-        setTimeout(() => {
+      // Non-exec: leaderboard owns homeDeptWidget entirely
+      // Build HTML string first (pure string, no DOM), then write at T+48
+      const _lbHTML = _lbRenderFullBoard(dept);
+      setTimeout(() => {
+        if (_lbEl) {
           _lbEl.innerHTML = _lbHTML;
-          // Load board data after DOM is painted — user sees skeleton first
           _lbBindEvents(dept);
-        }, 0);
-      }
+        }
+      }, 48);
     }
   }
 
@@ -794,7 +795,7 @@
   // ══════════════════════════════════════════════════════════════════
 
   const LB_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pubhtml?gid=1827144938&single=true';
-  const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/1kCMKkIfN_2ONjvHooIk5xbyXlw5j-UGWNqRpttD5uaA/export?format=csv&gid=1827144938';
+  const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pub?output=csv&gid=1827144938';
 
   // Google Form entry IDs
   const LB_ENTRY = {
