@@ -704,64 +704,80 @@
     const _irlKpiIM = (window.irlab && typeof window.irlab.getInsightMetrics === 'function') ? window.irlab.getInsightMetrics('') : null;
     const _irlKpiGain = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianScaleGain != null ? (_irlKpiIM.medianScaleGain > 0 ? '+' : '') + _irlKpiIM.medianScaleGain + ' pts' : '—';
     const _irlKpiPct  = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianPctExpected != null ? Math.round(_irlKpiIM.medianPctExpected) + '%' : '—';
-    document.getElementById('homeStatsStrip').innerHTML = `
-      <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
-        <div class="st-icon">✅</div><div class="st-value">${met}</div><div class="st-label">Goals Met</div><div class="st-sub">SY 2025–26</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
-        <div class="st-icon">🔵</div><div class="st-value">${prog}</div><div class="st-label">In Progress</div><div class="st-sub">Active tracking</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:var(--partial)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'))">
-        <div class="st-icon">🟠</div><div class="st-value">${partial}</div><div class="st-label">Partially Met</div><div class="st-sub">In development</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:var(--pipeline)">
-        <div class="st-icon">🟣</div><div class="st-value">${pipe}</div><div class="st-label">Pipeline</div><div class="st-sub">In development</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
-        <div class="st-icon">🔴</div><div class="st-value">${notmet}</div><div class="st-label">Not Met</div><div class="st-sub">Area of focus</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:#0891b2" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
-        <div class="st-icon">📈</div><div class="st-value" style="font-size:1.5rem">${_irlKpiGain}</div><div class="st-label">iReady Scale Gain</div><div class="st-sub">Median · all scholars</div>
-      </div>
-      <div class="stat-tile" style="--accent-color:#7c3aed" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
-        <div class="st-icon">🎯</div><div class="st-value" style="font-size:1.5rem">${_irlKpiPct}</div><div class="st-label">Growth vs Target</div><div class="st-sub">% of typical norms · iReady Lab</div>
-      </div>
-    `;
 
     const metBadgeEl = document.getElementById('metBadge');
     if (metBadgeEl) metBadgeEl.textContent = met;
 
-    // ── Quick links ────────────────────────────────────────────────────────
-    document.getElementById('homeQuickLinks').innerHTML = cfg.quickLinks.map(ql => `
-      <div class="ql-card" onclick="showPanel('${ql.panel}',document.querySelector('[data-panel=${ql.panel}]'))">
-        <div class="ql-icon-wrap" style="background:${ql.bg}">${ql.icon}</div>
-        <div class="ql-title">${ql.label}</div>
-        <div class="ql-desc">${ql.desc}</div>
-        <div class="ql-arrow">Go → </div>
-      </div>
-    `).join('');
+    // ── Stagger all DOM writes — each in its own task ──────────────────────
+    // T+0: Stats strip (small, fast — user sees numbers first)
+    const _statsEl = document.getElementById('homeStatsStrip');
+    if (_statsEl) setTimeout(() => {
+      _statsEl.innerHTML = `
+        <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
+          <div class="st-icon">✅</div><div class="st-value">${met}</div><div class="st-label">Goals Met</div><div class="st-sub">SY 2025–26</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
+          <div class="st-icon">🔵</div><div class="st-value">${prog}</div><div class="st-label">In Progress</div><div class="st-sub">Active tracking</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:var(--partial)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'))">
+          <div class="st-icon">🟠</div><div class="st-value">${partial}</div><div class="st-label">Partially Met</div><div class="st-sub">In development</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:var(--pipeline)">
+          <div class="st-icon">🟣</div><div class="st-value">${pipe}</div><div class="st-label">Pipeline</div><div class="st-sub">In development</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
+          <div class="st-icon">🔴</div><div class="st-value">${notmet}</div><div class="st-label">Not Met</div><div class="st-sub">Area of focus</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:#0891b2" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
+          <div class="st-icon">📈</div><div class="st-value" style="font-size:1.5rem">${_irlKpiGain}</div><div class="st-label">iReady Scale Gain</div><div class="st-sub">Median · all scholars</div>
+        </div>
+        <div class="stat-tile" style="--accent-color:#7c3aed" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
+          <div class="st-icon">🎯</div><div class="st-value" style="font-size:1.5rem">${_irlKpiPct}</div><div class="st-label">Growth vs Target</div><div class="st-sub">% of typical norms · iReady Lab</div>
+        </div>
+      `;
+    }, 0);
 
-    // ── Dept widget (termination/retention analytics) ─────────────────────
-    const _deptWidget = document.getElementById('homeDeptWidget');
-    if (_deptWidget) {
-      if (['hr','data'].includes(dept) && typeof window._buildTermAnalyticsWidget === 'function') {
-        _deptWidget.innerHTML = window._buildTermAnalyticsWidget();
-      } else if (dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
-        _deptWidget.innerHTML = window._buildRetentionWidget();
-      } else {
-        _deptWidget.innerHTML = '';
+    // T+16: Quick links
+    const _qlEl = document.getElementById('homeQuickLinks');
+    if (_qlEl) setTimeout(() => {
+      _qlEl.innerHTML = cfg.quickLinks.map(ql => `
+        <div class="ql-card" onclick="showPanel('${ql.panel}',document.querySelector('[data-panel=${ql.panel}]'))">
+          <div class="ql-icon-wrap" style="background:${ql.bg}">${ql.icon}</div>
+          <div class="ql-title">${ql.label}</div>
+          <div class="ql-desc">${ql.desc}</div>
+          <div class="ql-arrow">Go → </div>
+        </div>
+      `).join('');
+    }, 16);
+
+    // T+32: Dept widget (HR/programming specific analytics)
+    setTimeout(() => {
+      const _deptWidget = document.getElementById('homeDeptWidget');
+      if (_deptWidget && !['leadership','data','kb'].includes(dept)) {
+        if (['hr','data'].includes(dept) && typeof window._buildTermAnalyticsWidget === 'function') {
+          _deptWidget.innerHTML = window._buildTermAnalyticsWidget();
+        } else if (dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
+          _deptWidget.innerHTML = window._buildRetentionWidget();
+        }
       }
-    }
+    }, 32);
 
     // ── Departmental Success Leaderboard ──────────────────────────────────
     const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
     const _lbEl = document.getElementById('homeDeptWidget');
     if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
-      _lbInjectExecPill(dept);
+      // Exec: inject pill — defer so stats strip renders first
+      setTimeout(() => _lbInjectExecPill(dept), 50);
     } else {
       if (_lbEl) {
-        _lbEl.innerHTML = _lbRenderFullBoard(dept);
-        _lbBindEvents(dept);
+        // Build HTML string synchronously (no DOM access = fast)
+        // then write to DOM in next task so the page renders stats strip first
+        const _lbHTML = _lbRenderFullBoard(dept);
+        setTimeout(() => {
+          _lbEl.innerHTML = _lbHTML;
+          // Load board data after DOM is painted — user sees skeleton first
+          _lbBindEvents(dept);
+        }, 0);
       }
     }
   }
@@ -1104,45 +1120,50 @@
     const total = LB_ALL_DEPTS.reduce((a, d) => a + stats[d].count, 0);
     const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
 
-    // ── Score pills in hero ────────────────────────────────────────────────
-    const strip = document.getElementById('lbDeptScoreStrip');
-    if (strip) {
-      strip.innerHTML = LB_ALL_DEPTS.map(d => {
-        const s = stats[d];
-        const c = LB_DEPT_CFG[d];
-        const isMe = d === dept;
-        const hasThis = s.count > 0;
-        return `<div style="display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:20px;background:${isMe ? c.color+'28' : 'rgba(255,255,255,.06)'};border:1px solid ${isMe ? c.color+'55' : 'rgba(255,255,255,.09)'}" title="${c.label}">
-          <span style="font-size:.75rem">${c.emoji}</span>
-          <span style="font-size:.6875rem;font-weight:${isMe?'800':'600'};color:${isMe?'#fff':'rgba(255,255,255,.55)'}">${c.label.split(' ')[0]}</span>
-          <span style="font-size:.6875rem;font-weight:800;color:${hasThis?'#4ade80':'rgba(255,255,255,.25)'}">${s.count}</span>
-        </div>`;
-      }).join('');
-    }
+    // ── Write each section in a separate task so clicks are never blocked ──
+    // Section 1: score pills (fast, small)
+    setTimeout(() => {
+      const strip = document.getElementById('lbDeptScoreStrip');
+      if (strip) {
+        strip.innerHTML = LB_ALL_DEPTS.map(d => {
+          const s = stats[d];
+          const c = LB_DEPT_CFG[d];
+          const isMe = d === dept;
+          const hasThis = s.count > 0;
+          return `<div style="display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:20px;background:${isMe ? c.color+'28' : 'rgba(255,255,255,.06)'};border:1px solid ${isMe ? c.color+'55' : 'rgba(255,255,255,.09)'}" title="${c.label}">
+            <span style="font-size:.75rem">${c.emoji}</span>
+            <span style="font-size:.6875rem;font-weight:${isMe?'800':'600'};color:${isMe?'#fff':'rgba(255,255,255,.55)'}">${c.label.split(' ')[0]}</span>
+            <span style="font-size:.6875rem;font-weight:800;color:${hasThis?'#4ade80':'rgba(255,255,255,.25)'}">${s.count}</span>
+          </div>`;
+        }).join('');
+      }
+    }, 0);
 
-    // ── Submission summary ─────────────────────────────────────────────────
-    const sumEl = document.getElementById('lbSubmissionSummary');
-    if (sumEl) {
-      const myCount = stats[dept].count;
-      const pct = Math.round(submitted / LB_ALL_DEPTS.length * 100);
-      sumEl.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
-          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
-            <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${myCount}</div>
-            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Mine</div>
+    // Section 2: submission summary (fast, small)
+    setTimeout(() => {
+      const sumEl = document.getElementById('lbSubmissionSummary');
+      if (sumEl) {
+        const myCount = stats[dept].count;
+        const pct = Math.round(submitted / LB_ALL_DEPTS.length * 100);
+        sumEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+            <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+              <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${myCount}</div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Mine</div>
+            </div>
+            <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+              <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Depts</div>
+            </div>
+            <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+              <div style="font-size:1.375rem;font-weight:800;color:${pct>=70?'#0d6e3a':pct>=40?'#d97706':'#b91c1c'}">${pct}%</div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Active</div>
+            </div>
           </div>
-          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
-            <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
-            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Depts</div>
-          </div>
-          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
-            <div style="font-size:1.375rem;font-weight:800;color:${pct>=70?'#0d6e3a':pct>=40?'#d97706':'#b91c1c'}">${pct}%</div>
-            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Active</div>
-          </div>
-        </div>
-        <div style="font-size:.75rem;color:var(--muted)">${total} total · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} not yet submitted</div>
-      `;
-    }
+          <div style="font-size:.75rem;color:var(--muted)">${total} total · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} not yet submitted</div>
+        `;
+      }
+    }, 16);
 
     // ── Main board — dept cards with expandable details ────────────────────
     const tableEl = document.getElementById('lbBoardTable');
@@ -1230,28 +1251,30 @@
         </div>`;
       });
 
-      // Table header
-      tableEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:.875rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
-          <div style="flex:1">Department</div>
-          <div style="width:32px;text-align:center">Total</div>
-          <div style="width:56px;text-align:center">On Time</div>
-          <div style="flex-shrink:0;min-width:90px;text-align:right">Status</div>
-          <div style="width:16px"></div>
-        </div>
-        ${boardHTML}
-        <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted)">
-          Click any submitted department to expand their weekly details.
-        </div>
-      `;
+      // Section 3: main board (largest write — given its own task slot at T+32ms)
+      setTimeout(() => {
+        tableEl.innerHTML = `
+          <div style="display:flex;align-items:center;gap:.875rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
+            <div style="flex:1">Department</div>
+            <div style="width:32px;text-align:center">Total</div>
+            <div style="width:56px;text-align:center">On Time</div>
+            <div style="flex-shrink:0;min-width:90px;text-align:right">Status</div>
+            <div style="width:16px"></div>
+          </div>
+          ${boardHTML}
+          <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted)">
+            Click any submitted department to expand their weekly details.
+          </div>
+        `;
+      }, 32);
     }
 
-    // Sync time
+    // Sync time — lightweight, safe to run immediately
     const syncEl = document.getElementById('lbLastSync');
     if (syncEl) syncEl.textContent = 'Synced ' + new Date().toLocaleTimeString();
 
-    // Org spotlight
-    _lbRenderSpotlight(rows, stats);
+    // Org spotlight — lowest priority, run last
+    setTimeout(() => _lbRenderSpotlight(rows, stats), 50);
   }
 
   // ── Render org spotlight section ──────────────────────────────────────────
@@ -1992,7 +2015,10 @@
       });
     });
     var tbody = document.getElementById('kpiBody');
-    if (tbody) tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
+    // Yield to browser before writing — lets any pending clicks register first
+    if (tbody) setTimeout(function() {
+      tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
+    }, 0);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -2199,7 +2225,9 @@
     } else {
       html = `<div class="policy-grid">${docs.map(d => policyCardHTML(d, d._pid)).join('')}</div>`;
     }
-    document.getElementById('policyContent').innerHTML = html;
+    // Yield before writing the policy grid — prevents freeze on large policy libraries
+    const _pcEl = document.getElementById('policyContent');
+    if (_pcEl) setTimeout(() => { _pcEl.innerHTML = html; }, 0);
   }
 
   function policyCardHTML(d, pid) {
@@ -3449,20 +3477,24 @@
     // Expose for external trigger (Pearl MutationObserver already wired above)
     window._execDashRefresh = function(force) { _render(force===true); };
 
-    // MutationObserver on Pearl panel — fire re-render when Pearl re-draws
+    // MutationObserver on Pearl panel — debounced so it doesn't fire on every cell update
     (function _watchPearl() {
       var panel = document.getElementById('poMainContent') || document.getElementById('panel-pearl-ops');
       if (!panel) { setTimeout(_watchPearl, 500); return; }
+      var _pearDebounce = null;
       new MutationObserver(function() {
         var hp = document.getElementById('panel-home');
         if (hp && hp.classList.contains('active')) {
           var dept=(window.NJTC_SESSION||{}).dept||'';
-          if (_isDept(dept)) setTimeout(function(){ _render(false); }, 200);
+          if (_isDept(dept)) {
+            clearTimeout(_pearDebounce);
+            _pearDebounce = setTimeout(function(){ _render(false); }, 600); // 600ms debounce
+          }
         }
-      }).observe(panel, { childList:true, subtree:true });
+      }).observe(panel, { childList:true, subtree:false }); // subtree:false — only direct children
     })();
 
-    // Patch irlab: watch for data arrival on slow network
+    // Patch irlab: watch for data arrival — run at idle
     (function _watchIrlab() {
       if (!window.irlab) { setTimeout(_watchIrlab, 600); return; }
       if (window.irlab._execWatched) return;
@@ -3471,9 +3503,14 @@
       (function _chk() {
         try {
           var irl = window.irlab.getSummary();
-          if (irl && (irl.mathRows>0 || irl.elaRows>0)) { _render(false); return; }
+          if (irl && (irl.mathRows>0 || irl.elaRows>0)) {
+            // Use idle callback — don't interrupt the user
+            if (typeof requestIdleCallback === 'function') requestIdleCallback(function(){ _render(false); }, { timeout: 3000 });
+            else setTimeout(function(){ _render(false); }, 200);
+            return;
+          }
         } catch(e) {}
-        if (_ic++ < 60) setTimeout(_chk, 1500);
+        if (_ic++ < 40) setTimeout(_chk, 2000); // slower polling — 40 checks over ~80s max
       })();
     })();
 
