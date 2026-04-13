@@ -3808,6 +3808,43 @@
           </div>`;
       }
 
+      // ── Terminated staff lookup for SEP badge (SY 2025-2026) ─────────────
+      const _normTNhr = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
+      const _termMapHR = {};
+      try {
+        (window.HR_EMPS||[]).forEach(e => {
+          if (e.s === 'Active') return;
+          if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
+          const nk = _normTNhr(e.n||'');
+          if (nk) _termMapHR[nk] = true;
+        });
+      } catch(ignore) {}
+      const _termKeysHR = Object.keys(_termMapHR);
+      const _isTermHR = name => {
+        const tk = _normTNhr(name);
+        if (_termMapHR[tk]) return true;
+        const tp = tk.split(' ');
+        return _termKeysHR.some(dk => {
+          const dp = dk.split(' ');
+          return (tp.length >= 2 && tp.every(p => dp.includes(p))) ||
+                 (dp.length >= 2 && dp.every(p => tp.includes(p)));
+        });
+      };
+      const termTutorUidsHR = new Set(tutors.filter(p => _isTermHR(p.name)).map(p => p.uid));
+      const termCountHR = termTutorUidsHR.size;
+
+      // ── Separated staff callout strip ─────────────────────────────────────
+      const separatedStaffHTML = termCountHR > 0 ? `
+          <div class="sg-section" style="border-color:#bfdbfe">
+            <div class="sg-section-hd" style="background:#eff6ff;color:#1e40af;border-bottom-color:#bfdbfe">
+              <span>👤 ${termCountHR} Separated Staff in Pearl Data &mdash; SY 2025-2026</span>
+              <span style="font-weight:400;font-size:.7rem">No longer active with NJTC &middot; their sessions still count in network totals &middot; export Pearl Ops PDF for adjusted KPIs</span>
+            </div>
+            <div style="padding:.75rem 1rem;font-size:.8rem;color:#1e3a8a;line-height:1.6;background:#f0f9ff;border-bottom:1px solid #bfdbfe">
+              ${termCountHR} tutor${termCountHR!==1?'s':''}  tagged <strong style="background:#eff6ff;color:#1d4ed8;padding:.1rem .35rem;border-radius:3px;border:1px solid #bfdbfe;font-size:.7rem">SEP</strong> in the table below have been separated from NJTC for SY 2025-2026 but remain in Pearl data. Their attendance and survey records still contribute to all network aggregate metrics. Export the Pearl Ops PDF for a full breakdown with KPIs adjusted to exclude these staff.
+            </div>
+          </div>` : '';
+
       // ── All tutors — compact table (name, school, rate, counts) ─────────
       const allTutorRows = tutors.slice().sort((a, b) => {
         const rA = (a.attended+a.absent)>0 ? a.attended/(a.attended+a.absent) : 1;
@@ -3821,8 +3858,11 @@
         const adpBadge = rate < 80
           ? '<span style="font-size:.6rem;font-weight:700;background:#fee2e2;color:#991b1b;padding:.1rem .35rem;border-radius:3px;margin-left:.375rem">⚑ ADP</span>'
           : '';
+        const sepBadge = termTutorUidsHR.has(p.uid)
+          ? '<span style="font-size:.6rem;font-weight:700;background:#eff6ff;color:#1d4ed8;padding:.1rem .35rem;border-radius:3px;margin-left:.375rem;border:1px solid #bfdbfe">SEP</span>'
+          : '';
         return `<tr class="po-person-row" onclick="po.drillPerson('${esc(p.uid)}')">
-          <td style="padding:.45rem .875rem;font-weight:600;color:var(--navy);font-size:.8125rem">${name}${adpBadge}</td>
+          <td style="padding:.45rem .875rem;font-weight:600;color:var(--navy);font-size:.8125rem">${name}${adpBadge}${sepBadge}</td>
           <td style="padding:.45rem .875rem;font-size:.75rem;color:var(--muted)">${p.school}</td>
           <td style="text-align:center;padding:.45rem .875rem">
             <span style="font-size:.875rem;font-weight:800;color:${col};font-family:system-ui,-apple-system,sans-serif">${rate}%</span>
@@ -3838,11 +3878,12 @@
           ${summaryHTML}
           ${adpHTML}
           ${vacancyHTML}
+          ${separatedStaffHTML}
           <div class="sg-section">
             <div class="sg-section-hd" style="cursor:pointer"
                  onclick="po.toggleSection('sgHRAllTutors',this,'👥 All ${totalTutors} Tutors (collapsed) — click to expand','👥 All ${totalTutors} Tutors — click to collapse')">
               <span>👥 All ${totalTutors} Tutors (collapsed) — click to expand</span>
-              <span style="font-weight:400;font-size:.7rem">sorted worst attendance first · click any row to see history</span>
+              <span style="font-weight:400;font-size:.7rem">sorted worst attendance first &middot; click any row to see history${termCountHR > 0 ? ' &nbsp;&middot;&nbsp; <span style="color:#1d4ed8;font-weight:600">' + termCountHR + ' SEP</span> tagged in blue' : ''}</span>
             </div>
             <div id="sgHRAllTutors" style="display:none;overflow-x:auto">
               <table style="width:100%;border-collapse:collapse">
@@ -6599,6 +6640,33 @@
         const scholCaptureTopN    = [...scholWithCap].sort((a,b) => b.scholCaptureRate - a.scholCaptureRate).slice(0, 3);
         const scholCaptureBottomN = [...scholWithCap].sort((a,b) => a.scholCaptureRate - b.scholCaptureRate).slice(0, 5);
 
+        // ── Terminated staff lookup — SY 2025-2026 from HR Master List ────────
+        // Normalise: lowercase, strip non-alpha, sort tokens (same algo as _hrOverlayPearl).
+        // Snapshot-safe: works identically against live HR_EMPS or a future frozen snapshot.
+        const _normTN = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
+        const _termNameMap = {};
+        try {
+          (window.HR_EMPS||[]).forEach(e => {
+            if (e.s === 'Active') return;
+            if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
+            const nk = _normTN(e.n||'');
+            if (nk) _termNameMap[nk] = { date: e._termDate||'', reason: e._termReason||'' };
+          });
+        } catch(ignore) {}
+        const _termKeys = Object.keys(_termNameMap);
+        // Returns the termination record for a tutor name, or null if not terminated
+        const _termEntry = name => {
+          const tk = _normTN(name);
+          if (_termNameMap[tk]) return _termNameMap[tk];
+          const tp = tk.split(' ');
+          const dk = _termKeys.find(k => {
+            const dp = k.split(' ');
+            return (tp.length >= 2 && tp.every(p => dp.includes(p))) ||
+                   (dp.length >= 2 && dp.every(p => tp.includes(p)));
+          });
+          return dk ? _termNameMap[dk] : null;
+        };
+
         // Tutor capture per instructor.
         // School/district resolved from session-school vote majority so the entry
         // reflects the location the sessions are assigned to, not where the tutor
@@ -6619,12 +6687,14 @@
           const votes    = Object.values(tutorSchoolByUid[uid] || {}).sort((a, b) => b.count - a.count);
           const school   = votes.length ? votes[0].school   : (p.school   || '');
           const district = votes.length ? votes[0].district : (p.district || '');
+          const _tcEntry = _termEntry(p.name || uid);
           tutorCaptureList.push({
             name: p.name || uid, school, district,
             eligible: elig, submitted: subm, late, lateRate, mismatch,
             captureRate:   Math.round(subm / elig * 100),
             mismatchRate:  (subm + mismatch) > 0 ? Math.round(mismatch / (subm + mismatch) * 100) : 0,
             lateFlagged:   lateRate >= 50,
+            terminated: !!_tcEntry, _termDate: _tcEntry ? _tcEntry.date : '',
           });
         }
         const tutorCaptureTop      = [...tutorCaptureList].sort((a,b) => b.captureRate - a.captureRate).slice(0, 3);
@@ -6695,6 +6765,7 @@
           const totalMins   = tutorMinsByUid[uid] || 0;
           const captureElig = tutorEligByUid[uid]  || 0;
           const captureSubm = tutorSubmByUid[uid]   || 0;
+          const _tlEntry = _termEntry(p.name || uid);
           tutorList.push({
             uid,
             name:        p.name || uid,
@@ -6707,9 +6778,27 @@
             hours:       parseFloat((totalMins / 60).toFixed(1)),
             captureElig, captureSubm,
             captureRate: captureElig > 0 ? Math.round(captureSubm / captureElig * 100) : null,
+            terminated: !!_tlEntry, _termDate: _tlEntry ? _tlEntry.date : '',
           });
         }
         tutorList.sort((a, b) => b.hours - a.hours);
+
+        // ── Ex-terminated aggregate metrics ───────────────────────────────────
+        // Splits tutorList into separated (SEP) vs still-active staff so the PDF
+        // can show side-by-side KPIs: "As Reported" vs "Excluding Separated Staff".
+        // Future-proof: works identically against live or snapshot HR_EMPS data.
+        const termTutors      = tutorList.filter(t => t.terminated);
+        const exTermTutorList = tutorList.filter(t => !t.terminated);
+        const _exTA = exTermTutorList.reduce((s,t) => s + t.attended, 0);
+        const _exTB = exTermTutorList.reduce((s,t) => s + t.absent,   0);
+        const exTermTutorAttRate = (_exTA + _exTB) > 0
+          ? parseFloat((_exTA / (_exTA + _exTB) * 100).toFixed(1)) : null;
+        const _exCE = exTermTutorList.reduce((s,t) => s + (t.captureElig||0), 0);
+        const _exCS = exTermTutorList.reduce((s,t) => s + (t.captureSubm||0), 0);
+        const exTermTutorCaptureRate = _exCE > 0 ? Math.round(_exCS / _exCE * 100) : null;
+        const exTermTotalHours   = parseFloat(exTermTutorList.reduce((s,t) => s + (t.hours||0), 0).toFixed(1));
+        const termMissingSurveys = termTutors.reduce((s,t) => s + Math.max(0,(t.captureElig||0)-(t.captureSubm||0)), 0);
+        const termSurveyElig     = termTutors.reduce((s,t) => s + (t.captureElig||0), 0);
 
         // ── Active scholars: unique student IDs from delivered sessions ────
         // Matches the dashboard filter pill approach: unique studentIds across
@@ -6744,6 +6833,12 @@
           schools, districts, missedReasonCounts,
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
+          // Terminated staff tagging (SY 2025-2026 only, from HR Master List)
+          termTutors,                                    // full array of SEP tutors in Pearl data
+          exTermTutorAttRate, exTermTutorCaptureRate,    // KPIs with SEP staff removed
+          exTermActiveTutors: exTermTutorList.length,    // non-SEP tutor count
+          exTermTotalHours,                              // hours from non-SEP tutors
+          termMissingSurveys, termSurveyElig,            // survey gap attributable to SEP staff
         };
       },
 
