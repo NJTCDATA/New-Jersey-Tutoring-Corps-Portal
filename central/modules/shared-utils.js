@@ -1469,6 +1469,8 @@
     _lbDismissWelcome();
     setTimeout(() => _lbOpenSubmitModal(dept), 200);
   }
+
+  function _lbOpenSubmitModal(dept) {
     const modal = document.getElementById('lbSubmitModal');
     if (!modal) return;
     // Reset form
