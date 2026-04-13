@@ -246,6 +246,23 @@
         basePlacement:    g(r,'Base overall placement','base_overall_placement'),
         springPlacement:  g(r,'Spring overall placement','spring_overall_placement'),
         springWeeks:      parseFloat(g(r,'Spring weeks between diagnostics','spring_weeks_between_diagnostics'))||null,
+        // Mid-Year (MOY) diagnostic fields
+        moyRelPlacement:  g(r,'Middle overall relative placement','middle_overall_relative_placement','Middle Overall Relative Placement'),
+        moyPlacement:     g(r,'Middle overall placement','middle_overall_placement','Middle Overall Placement'),
+        moyScore:         parseFloat(g(r,'Middle overall scale score','middle_overall_scale_score','Middle Overall Scale Score'))||null,
+        moyGain:          parseFloat(g(r,'Middle diagnostic gain','middle_diagnostic_gain','Middle Diagnostic Gain'))||null,
+        moyRushFlag:      g(r,'Middle rush flag','middle_rush_flag','Middle Rush Flag'),
+        moyPctTypical:    (function(){
+          var _raw=g(r,'Middle pct progress typical growth','middle_pct_progress_typical_growth',
+                       'Middle Pct Progress Typical Growth','middle_pct_toward_typical_growth',
+                       'Middle % Progress Typical Growth','middle_pct_typical');
+          var _v=parseFloat(_raw);
+          if(isNaN(_v)||_raw===''||_raw===null||_raw===undefined) return null;
+          if(typeof _raw==='string'&&_raw.trim().slice(-1)==='%') { _v=_v/100; }
+          else if(_v>15) { _v=_v/100; }
+          return _v;
+        }()),
+        moyWeeks:         parseFloat(g(r,'Middle weeks between diagnostics','middle_weeks_between_diagnostics','Middle Weeks Between Diagnostics'))||null,
         // ELA domain subscores
         elaPhonologicalScore:   parseFloat(g(r,'Base phonological awareness scale score','base_phonological_awareness_scale_score'))||null,
         elaPhonicsScore:        parseFloat(g(r,'Base phonics scale score','base_phonics_scale_score'))||null,
@@ -2045,6 +2062,250 @@
       </div>`;
     }
 
+    // ── SECTION H: MID-YEAR ACADEMIC ANALYSIS ─────────────────────────────────
+    function renderMidYearAnalysis() {
+      const allRows = getRows({});
+      const moyRows = allRows.filter(function(r) {
+        return r.moyRelPlacement && PLACEMENT_ORDER.includes(r.moyRelPlacement) && r.baseRelPlacement && PLACEMENT_ORDER.includes(r.baseRelPlacement);
+      });
+
+      // ── Empty state ──────────────────────────────────────────────────────────
+      if (!moyRows.length) {
+        return `<div style="padding:1.5rem;text-align:center">
+          <div style="font-size:2rem;margin-bottom:.75rem">📅</div>
+          <div style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.375rem">No Mid-Year Diagnostic Data</div>
+          <div style="font-size:.8125rem;color:var(--muted);max-width:360px;margin:0 auto;line-height:1.5">
+            Upload an iReady CSV that includes <strong>Middle Overall Relative Placement</strong> and
+            <strong>Middle Overall Scale Score</strong> columns to enable mid-year analysis.<br><br>
+            These columns appear in iReady's longitudinal diagnostic export when a mid-year
+            (January–February) diagnostic window has been completed.
+          </div>
+        </div>`;
+      }
+
+      // ── Metrics ──────────────────────────────────────────────────────────────
+      const plcIdx = function(p) { return PLACEMENT_ORDER.indexOf(p); };
+
+      // BOY → MOY movement
+      var moyMoved = 0, moyHeld = 0, moyRegressed = 0;
+      var moyGains = [];
+      var boyDist = {}, moyDist = {};
+      PLACEMENT_ORDER.forEach(function(p) { boyDist[p]=0; moyDist[p]=0; });
+
+      moyRows.forEach(function(r) {
+        boyDist[r.baseRelPlacement] = (boyDist[r.baseRelPlacement]||0)+1;
+        moyDist[r.moyRelPlacement]  = (moyDist[r.moyRelPlacement]||0)+1;
+        var bi = plcIdx(r.baseRelPlacement), mi = plcIdx(r.moyRelPlacement);
+        if (mi > bi)       moyMoved++;
+        else if (mi < bi)  moyRegressed++;
+        else               moyHeld++;
+        if (r.moyGain !== null && !isNaN(r.moyGain)) moyGains.push(r.moyGain);
+        else if (r.moyScore !== null && r.baseScore !== null) moyGains.push(r.moyScore - r.baseScore);
+      });
+
+      const n          = moyRows.length;
+      const pctMovedUp = Math.round(100*moyMoved/n);
+      const pctHeld    = Math.round(100*moyHeld/n);
+      const pctReg     = Math.round(100*moyRegressed/n);
+      const avgGainMOY = moyGains.length ? +(moyGains.reduce(function(a,b){return a+b;},0)/moyGains.length).toFixed(1) : null;
+
+      // MOY on-track: scholar whose moyPctTypical ≥ 0.50 is on pace for annual target
+      const typRows  = moyRows.filter(function(r){return r.moyPctTypical!==null&&!isNaN(r.moyPctTypical);});
+      const onTrack  = typRows.filter(function(r){return r.moyPctTypical>=0.5;});
+      const pctOnTrk = typRows.length ? Math.round(100*onTrack.length/typRows.length) : null;
+      const medMOYTyp= (function(){
+        var vs=typRows.map(function(r){return r.moyPctTypical;}).sort(function(a,b){return a-b;});
+        if(!vs.length) return null;
+        var mid=Math.floor(vs.length/2);
+        return vs.length%2?vs[mid]:(vs[mid-1]+vs[mid])/2;
+      }());
+
+      // MOY on-grade-level
+      const moyOnGL  = moyRows.filter(function(r){
+        var i=plcIdx(r.moyRelPlacement); return i>=3; // Early On GL or Mid/Above GL
+      });
+      const pctOnGL  = Math.round(100*moyOnGL.length/n);
+
+      // Comparison with spring (if available)
+      const springPairs = moyRows.filter(function(r){
+        return r.springRelPlacement && PLACEMENT_ORDER.includes(r.springRelPlacement);
+      });
+      const sMovedFromMOY = springPairs.filter(function(r){
+        return plcIdx(r.springRelPlacement) > plcIdx(r.moyRelPlacement);
+      });
+      const pctSpringFromMOY = springPairs.length ? Math.round(100*sMovedFromMOY.length/springPairs.length) : null;
+
+      // District-level MOY breakdown
+      var byDist = {};
+      moyRows.forEach(function(r){
+        if (!r.district) return;
+        if (!byDist[r.district]) byDist[r.district]={rows:[],gains:[],typ:[]};
+        byDist[r.district].rows.push(r);
+        if (r.moyGain!==null&&!isNaN(r.moyGain)) byDist[r.district].gains.push(r.moyGain);
+        if (r.moyPctTypical!==null&&!isNaN(r.moyPctTypical)) byDist[r.district].typ.push(r.moyPctTypical);
+      });
+
+      const distRows = Object.entries(byDist).map(function(_e){
+        var name=_e[0], d=_e[1];
+        var dn=d.rows.length;
+        var dm=d.rows.filter(function(r){return plcIdx(r.moyRelPlacement)>plcIdx(r.baseRelPlacement);}).length;
+        var dg=d.gains.length?(d.gains.reduce(function(a,b){return a+b;},0)/d.gains.length).toFixed(1):null;
+        var vs=d.typ.slice().sort(function(a,b){return a-b;});
+        var mid=Math.floor(vs.length/2);
+        var dTyp=vs.length?(vs.length%2?vs[mid]:(vs[mid-1]+vs[mid])/2):null;
+        var dGL=d.rows.filter(function(r){return plcIdx(r.moyRelPlacement)>=3;}).length;
+        return {name:name,n:dn,pctMov:Math.round(100*dm/dn),avgGain:dg,medTyp:dTyp,pctGL:Math.round(100*dGL/dn)};
+      }).sort(function(a,b){return b.pctMov-a.pctMov;});
+
+      // Rush-flag count
+      const rushCount = moyRows.filter(function(r){return r.moyRushFlag==='1'||r.moyRushFlag==='Yes'||r.moyRushFlag==='yes';}).length;
+
+      // ── Build HTML ───────────────────────────────────────────────────────────
+      var html = '';
+
+      // KPI strip
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.625rem;margin-bottom:1rem">
+        ${[
+          {v:n.toLocaleString(),   l:'Scholars w/ MOY Data', s:'valid BOY→MOY pairs',          c:'#7b2d8b'},
+          {v:pctMovedUp+'%',       l:'Moved Up (BOY→MOY)',   s:moyMoved+' scholars improved',   c:'#0d6e3a'},
+          {v:pctOnGL+'%',          l:'At/Near GL at MOY',    s:'Early On GL or above',           c:'#0050c8'},
+          {v:avgGainMOY!==null?(avgGainMOY>=0?'+':'')+avgGainMOY:'—', l:'Avg Scale Gain', s:'BOY → MOY', c:'#d97706'},
+          {v:pctOnTrk!==null?pctOnTrk+'%':'—', l:'On-Track at MOY', s:'≥50% of annual typical growth', c:pctOnTrk!==null&&pctOnTrk>=50?'#0d6e3a':'#b91c1c'},
+          {v:medMOYTyp!==null?(medMOYTyp*100).toFixed(1)+'%':'—', l:'Median Growth Progress', s:'toward annual typical target', c:medMOYTyp!==null&&medMOYTyp>=0.5?'#0d6e3a':'#b91c1c'},
+        ].map(function(k){return `<div class="irlab-stat" style="--irstat-color:${k.c}">
+          <div class="irlab-stat-val">${esc(k.v)}</div>
+          <div class="irlab-stat-lbl">${esc(k.l)}</div>
+          <div class="irlab-stat-sub">${esc(k.s)}</div>
+        </div>`;}).join('')}
+      </div>`;
+
+      // On-track callout banner
+      if (pctOnTrk !== null) {
+        const onTrkColor  = pctOnTrk >= 60 ? '#166534' : pctOnTrk >= 40 ? '#92400e' : '#991b1b';
+        const onTrkBg     = pctOnTrk >= 60 ? '#f0fdf4' : pctOnTrk >= 40 ? '#fffbeb' : '#fef2f2';
+        const onTrkBorder = pctOnTrk >= 60 ? '#bbf7d0' : pctOnTrk >= 40 ? '#fde68a' : '#fecaca';
+        const onTrkIcon   = pctOnTrk >= 60 ? '✅' : pctOnTrk >= 40 ? '⚠️' : '🔴';
+        html += `<div style="padding:.75rem 1rem;background:${onTrkBg};border:1px solid ${onTrkBorder};border-radius:10px;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.75rem">
+          <span style="font-size:1.25rem;line-height:1">${onTrkIcon}</span>
+          <div>
+            <div style="font-size:.875rem;font-weight:700;color:${onTrkColor}">
+              ${pctOnTrk}% of scholars are on-track for end-of-year growth targets at mid-year.
+            </div>
+            <div style="font-size:.75rem;color:${onTrkColor};margin-top:.2rem;opacity:.85">
+              "On-track" = ≥50% of annual typical growth achieved by mid-year (${typRows.length} scholars with MOY typical growth data).
+              ${rushCount > 0 ? ` · <strong>${rushCount} rushed diagnostic flag${rushCount>1?'s':''}</strong> — treat with caution.` : ''}
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // BOY → MOY → Spring trajectory (if spring data present)
+      if (springPairs.length > 0) {
+        const allM     = computeMetrics(allRows);
+        const sMovedBase = allM ? allM.pctMoved : null;
+        html += `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:.875rem 1rem;margin-bottom:1rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.625rem">📈 Three-Point Trajectory (${springPairs.length} scholars w/ all 3 checkpoints)</div>
+          <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
+            ${[
+              {label:'BOY Baseline',      pct:null,                    sub:'start of year',                                            c:'#64748b'},
+              {label:'↑ MOY',             pct:pctMovedUp+'%',          sub:'moved up BOY→MOY',                                         c:'#0d6e3a'},
+              {label:'↑ Spring (from MOY)',pct:pctSpringFromMOY+'%',   sub:'continued improving MOY→Spring ('+springPairs.length+')', c:'#0050c8'},
+              {label:'BOY→Spring Overall',pct:sMovedBase!==null?sMovedBase+'%':null, sub:'full-year placement gain',                  c:'#7b2d8b'},
+            ].map(function(pt,i){
+              return `<div style="flex:1;min-width:120px;text-align:center;padding:.5rem;${i>0?'border-left:1px solid var(--border)':''}">
+                <div style="font-family:'DM Serif Display',Georgia,serif;font-size:${pt.pct?'1.5rem':'.8125rem'};font-weight:${pt.pct?'400':'600'};color:${pt.c};line-height:1.2">${pt.pct||'—'}</div>
+                <div style="font-size:.6875rem;font-weight:700;color:var(--navy);margin-top:.2rem">${esc(pt.label)}</div>
+                <div style="font-size:.6rem;color:var(--muted)">${esc(pt.sub)}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }
+
+      // BOY → MOY placement shift
+      html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        <div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.5rem">Placement Shift: BOY → MOY</div>
+          ${PLACEMENT_ORDER.map(function(p){
+            var b=Math.round(100*(boyDist[p]||0)/n);
+            var m=Math.round(100*(moyDist[p]||0)/n);
+            var chg=(moyDist[p]||0)-(boyDist[p]||0);
+            return `<div style="margin-bottom:.5rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.15rem">
+                <span style="font-size:.7rem;font-weight:700;color:${PLC[p]}">${PLC_SHORT[p]}</span>
+                <span style="font-size:.65rem;color:${chg<0?'#0d6e3a':chg>0?'#b91c1c':'var(--muted)'};font-weight:600">${chg>0?'+':''}${chg}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem">
+                <div style="background:${PLC[p]}33;border-radius:3px;height:7px;overflow:hidden"><div style="width:${b}%;height:100%;background:${PLC[p]}88"></div></div>
+                <div style="background:${PLC[p]}55;border-radius:3px;height:7px;overflow:hidden"><div style="width:${m}%;height:100%;background:${PLC[p]}"></div></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.25rem;font-size:.6rem;color:var(--muted)">
+                <span>BOY ${b}%</span><span>MOY ${m}%</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.5rem">Movement Summary</div>
+          ${[
+            {label:'Moved Up',    n:moyMoved,    pct:pctMovedUp, c:'#0d6e3a', icon:'↑'},
+            {label:'Held Level',  n:moyHeld,     pct:pctHeld,    c:'#0050c8', icon:'→'},
+            {label:'Regressed',   n:moyRegressed,pct:pctReg,     c:'#b91c1c', icon:'↓'},
+          ].map(function(r){
+            return `<div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .75rem;background:${r.c}0d;border:1px solid ${r.c}33;border-radius:8px;margin-bottom:.375rem">
+              <div style="font-size:1.25rem;font-weight:700;color:${r.c};width:24px;text-align:center">${r.icon}</div>
+              <div style="flex:1">
+                <div style="font-size:.875rem;font-weight:700;color:${r.c}">${r.pct}% ${esc(r.label)}</div>
+                <div style="font-size:.7rem;color:var(--muted)">${r.n.toLocaleString()} scholars</div>
+              </div>
+              <div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                <div style="width:${r.pct}%;height:100%;background:${r.c};border-radius:3px"></div>
+              </div>
+            </div>`;
+          }).join('')}
+          <div style="margin-top:.75rem;padding:.625rem .75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font-size:.75rem;color:var(--muted)">
+            <strong>ⓘ MOY window:</strong> Mid-year diagnostics are typically administered Jan–Feb.
+            Scholars in this view have both a BOY baseline and a MOY diagnostic on record.
+            ${rushCount>0?`<br><strong style="color:#d97706">⚠️ ${rushCount} rushed diagnostic flag${rushCount>1?'s':''}</strong> in MOY data — rushed assessments may underrepresent ability.`:''}
+          </div>
+        </div>
+      </div>`;
+
+      // District breakdown table
+      if (distRows.length) {
+        html += `<div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.5rem">District Breakdown at Mid-Year</div>
+          <div style="overflow-x:auto">
+            <table class="irlab-rank-table" style="font-size:.78rem">
+              <thead><tr>
+                <th>District</th>
+                <th style="text-align:center">% Moved Up</th>
+                <th style="text-align:center">% At GL (MOY)</th>
+                <th style="text-align:center">Avg MOY Gain</th>
+                <th style="text-align:center">Median Growth %</th>
+                <th style="text-align:right">N</th>
+              </tr></thead>
+              <tbody>${distRows.map(function(d,i){
+                var medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+                var mC=d.pctMov>=50?'#0d6e3a':'#d97706';
+                var tC=d.medTyp!==null&&d.medTyp>=0.5?'#0d6e3a':d.medTyp!==null?'#b91c1c':'var(--muted)';
+                return `<tr>
+                  <td style="font-weight:600">${medal?medal+' ':''}${esc(d.name)}</td>
+                  <td style="text-align:center;font-weight:700;color:${mC}">${d.pctMov}%</td>
+                  <td style="text-align:center"><span style="background:${d.pctGL>=50?'#dcfce7':'#fef3c7'};color:${d.pctGL>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${d.pctGL}%</span></td>
+                  <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${d.avgGain!==null?(parseFloat(d.avgGain)>=0?'+':'')+d.avgGain:'—'}</td>
+                  <td style="text-align:center;font-weight:700;color:${tC}">${d.medTyp!==null?(d.medTyp*100).toFixed(1)+'%':'—'}</td>
+                  <td style="text-align:right;font-size:.7rem;color:var(--muted)">${d.n}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>`;
+      }
+
+      return html;
+    }
+
     // ── QUICK CSV MODE (session-only snapshots) ───────────────────────────────
     function renderQuickCSVMode() {
       const hasResult = _irlCsvData && _irlCsvData.rows;
@@ -2488,17 +2749,22 @@
         <!-- ── TUTOR LEADERBOARD ── -->
         ${_irlDept !== 'data' ? renderTutorLeaderboard(m, _irlDept) : ''}
 
-        <!-- ── SECTIONS E + F + G: LONGITUDINAL + DOMAINS (tabbed) ── -->
+        <!-- ── SECTIONS E + F + G + H: LONGITUDINAL + DOMAINS + MID-YEAR (tabbed) ── -->
         <div class="irlab-card" style="margin-bottom:.875rem">
           <div class="irlab-card-hd">
             <div class="irlab-card-title">🔬 Deep Dive</div>
-            <div style="display:flex;gap:.375rem;margin-left:auto">
-              ${['domains','repeat'].map(t=>`<button onclick="irlab.setDeepTab('${t}')" style="font-size:.7rem;padding:.2rem .6rem;border-radius:8px;border:1px solid var(--border);background:${_irlDeepTab===t?'var(--navy)':'var(--surface-2)'};color:${_irlDeepTab===t?'#fff':'var(--text)'};cursor:pointer;font-weight:${_irlDeepTab===t?'700':'500'}">${t==='domains'?'📊 Domain Subscores':'🔄 Repeat Scholars'}</button>`).join('')}
+            <div style="display:flex;gap:.375rem;margin-left:auto;flex-wrap:wrap">
+              ${[
+                {key:'domains', label:'📊 Domain Subscores'},
+                {key:'repeat',  label:'🔄 Repeat Scholars'},
+                {key:'midyear', label:'📅 Mid-Year Analysis'},
+              ].map(t=>`<button onclick="irlab.setDeepTab('${t.key}')" style="font-size:.7rem;padding:.2rem .6rem;border-radius:8px;border:1px solid var(--border);background:${_irlDeepTab===t.key?'var(--navy)':'var(--surface-2)'};color:${_irlDeepTab===t.key?'#fff':'var(--text)'};cursor:pointer;font-weight:${_irlDeepTab===t.key?'700':'500'}">${t.label}</button>`).join('')}
             </div>
           </div>
           <div class="irlab-card-body" style="padding:.875rem">
-            ${_irlDeepTab === 'repeat' ? renderRepeatLongitudinal() : `
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+            ${_irlDeepTab === 'repeat' ? renderRepeatLongitudinal()
+            : _irlDeepTab === 'midyear' ? renderMidYearAnalysis()
+            : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
               <div style="min-width:0">${renderELADomainSubscores(rows)}</div>
               <div style="min-width:0">${renderMathDomainSubscores(rows)}</div>
             </div>`}
