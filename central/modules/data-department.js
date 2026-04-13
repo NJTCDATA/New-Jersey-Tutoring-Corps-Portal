@@ -2570,15 +2570,499 @@
     const MOY_CACHE_KEY = 'njtc_moy_live_v2'; // v2 — bumped to clear stale pre-publish cache
     const MOY_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours — matches EOY cache
 
-    // MOY region map — derives from external_account_id prefix
-    const MOY_REGION_MAP = {
-      'nj-hamil': 'Hamilton',
-      'nj-ilear': 'iLearn',
-      'nj-theco': 'The Co',
-      'nj-penns': 'Pennsauken',
-      'nj-haddo': 'Haddonfield',
-      'pa-':      'Pennsylvania',
+    // ── Authoritative school → region map (built from actual MOY data, all 33 schools) ──
+    // School name is the most reliable signal — used first before keyword/prefix fallback.
+    // nj-theco spans BOTH regions (Hoboken/Central Jersey = NE; Penns Grove/Gloucester = SW)
+    // so prefix alone cannot determine region for those schools.
+    const MOY_SCHOOL_REGION = {
+      // NE — iLearn Charter Network (nj-ilear9963)
+      'bergen ascs elementary':                                 'NE',
+      'bergen middle school':                                   'NE',
+      'clifton high':                                           'NE',
+      'hudson ascs elementary':                                 'NE',
+      'hudson middle school':                                   'NE',
+      'passaic clifton elementary':                             'NE',
+      'passaic clifton middle':                                 'NE',
+      'passaic elementary':                                     'NE',
+      'passaic middle':                                         'NE',
+      'paterson arts and science charter school elementary':    'NE',
+      'paterson arts and science charter school middle':        'NE',
+      'paterson silk city primary':                             'NE',
+      // NE — The Co (nj-theco8038) Hoboken + Central Jersey sites
+      'hoboken dual language charter elementary school':        'NE',
+      'hoboken dual language charter middle school':            'NE',
+      'central jersey college prep':                            'NE',
+      // SW — The Co (nj-theco8038) Penns Grove + Gloucester sites
+      'gloucester-loring flemming elementary':                  'SW',
+      'penns grove field street elementary school':             'SW',
+      'penns grove middle school':                              'SW',
+      'penns grove paul w carleton elementary school':          'SW',
+      // SW — Hamilton Township (nj-hamil4497)
+      'greenwood elementary school':                            'SW',
+      'kuser elementary school':                                'SW',
+      'crockett middle school':                                 'SW',
+      'grice middle school':                                    'SW',
+      'klockner elementary school':                             'SW',
+      'wilson elementary school':                               'SW',
+      // SW — Pennsauken (nj-penns9072)
+      'field street elementary school':                         'SW',
+      'paul w carleton elem school':                            'SW',
+      // SW — Haddon Township (nj-haddo6593)
+      'clyde s jennings elem school':                           'SW',
+      'stoy elementary school':                                 'SW',
+      'strawbridge elementary school':                          'SW',
+      'thomas a edison elem school':                            'SW',
+      'van sciver elementary school':                           'SW',
+      // SW — First Philadelphia / American Paradigm (pa-newje1899)
+      'american paradigm first philadelphia preparatory charter school': 'SW',
+      'first philadelphia preparatory charter school':          'SW',
     };
+
+    // Broad keyword lists — fallback when school name is not in the lookup above
+    const MOY_NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey','bergen'];
+    const MOY_SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
+      'string theory','global leadership','penns grove','pennsauken','carneys point','haddon township','haddon',
+      'hamilton township','gloucester township','gloucester','loring flemming','salem','lawrence','slackwood'];
+    const MOY_SW_SC = ['erial','field street','penns grove middle','van sciver',
+      'strawbridge','first philadelphia prep','first philly prep','global leadership academy',
+      'kuser','mercerville','john fenwick','fenwick','salem middle','stoy','jennings'];
+
+    function _moySchoolRegion(school, extId) {
+      const s = (school  || '').toLowerCase().trim();
+      const e = (extId   || '').toLowerCase().trim();
+
+      // 1. Exact school name lookup (highest confidence — covers all 33 known schools)
+      if (MOY_SCHOOL_REGION[s]) return MOY_SCHOOL_REGION[s];
+
+      // 2. Partial match against the lookup table (handles minor name variations)
+      for (const [knownSchool, region] of Object.entries(MOY_SCHOOL_REGION)) {
+        if (s.length > 6 && knownSchool.length > 6) {
+          if (s.includes(knownSchool) || knownSchool.includes(s)) return region;
+        }
+      }
+
+      // 3. Keyword scan — school name then external_account_id
+      for (const kw of MOY_NE_KW) { if (s.includes(kw) || e.includes(kw)) return 'NE'; }
+      for (const kw of MOY_SW_KW) { if (s.includes(kw) || e.includes(kw)) return 'SW'; }
+      for (const kw of MOY_SW_SC) { if (s.includes(kw)) return 'SW'; }
+
+      // 4. Prefix fallback — nj-theco without a school match defaults NE
+      //    (Hoboken + Central Jersey are the majority of The Co scholars)
+      if (e.startsWith('nj-ilear')) return 'NE';
+      if (e.startsWith('nj-hamil') || e.startsWith('nj-penns') || e.startsWith('nj-haddo') || e.startsWith('pa-')) return 'SW';
+      return 'NE'; // default NE (iLearn, Paterson, Hoboken networks)
+    }
+
+    // ── Operational data join engine ──────────────────────────────────────────
+    // Joins MOY academic rows to Pearl _attRows + _sessRows via student_id (primary)
+    // or scholar name (fallback). Returns per-scholar operational context.
+    function _moyBuildOperationalMap(moyRows) {
+      const attRows  = (window.po && typeof window.po.getAttRows  === 'function') ? window.po.getAttRows()  : [];
+      const sessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
+      if (!attRows.length && !sessRows.length) return null;
+
+      const ATT_USER_ID = 13, ATT_USER = 0, ATT_ROLE = 1, ATT_ATT_STATUS = 6,
+            ATT_MISS_REASON = 7, ATT_SCHOOL = 11, ATT_SESS_DATE = 5;
+      const SESS_INSTRUCTOR = 1, SESS_STUDENTS = 2, SESS_STU_IDS = 16,
+            SESS_SUBJECT = 9, SESS_SCHOOL = 11, SESS_DISTRICT = 12,
+            SESS_ACTUAL_DUR = 8, SESS_STATUS = 4, SESS_INST_ID = 15;
+
+      // Build scholar operational profile indexed by Pearl user ID + name
+      const scholarMap = {};     // pearId/name → profile
+      const schoolIndex = {};    // schoolName(lower) → [scholarKeys] — used by school-scoped matching
+      const tutorScholarMap = {};
+
+      // From attendance rows — build per-scholar stats
+      attRows.forEach(r => {
+        if ((r[ATT_ROLE] || '') !== 'Student') return;
+        const uid = r[ATT_USER_ID] || '';
+        const name = (r[ATT_USER] || '').trim().toLowerCase();
+        const key = uid || name;
+        if (!key) return;
+        if (!scholarMap[key]) scholarMap[key] = { uid, name: r[ATT_USER]||'', attended:0, missed:0, siCount:0, missReasons:{}, tutors:new Set(), minutesBySubject:{Math:0,ELA:0} };
+        // Index by school for school-scoped name matching
+        const sc = (r[ATT_SCHOOL] || '').toLowerCase().trim();
+        if (sc) {
+          if (!schoolIndex[sc]) schoolIndex[sc] = new Set();
+          schoolIndex[sc].add(key);
+        }
+        const cls = (r[ATT_ATT_STATUS]||'').toLowerCase();
+        if (cls === 'attended' || cls === 'present') scholarMap[key].attended++;
+        else if (cls === 'missed' || cls === 'absent') {
+          scholarMap[key].missed++;
+          const mr = r[ATT_MISS_REASON] || 'Unknown';
+          scholarMap[key].missReasons[mr] = (scholarMap[key].missReasons[mr]||0)+1;
+          // Service interruption = tutor-caused missed
+          const TUTOR_SI = new Set(['Instructor no-show','Instructor cancelled','School closed','Site closed','Service Interruption','No Tutor Coverage']);
+          if (TUTOR_SI.has(mr)) scholarMap[key].siCount++;
+        }
+      });
+
+      // From session rows — link tutors to scholars + compute instructional minutes
+      sessRows.forEach(r => {
+        if (!r) return;
+        const status = (r[SESS_STATUS] || '').toLowerCase();
+        if (status !== 'attended' && status !== 'complete' && status !== 'success') return;
+        const durMins = parseFloat(r[SESS_ACTUAL_DUR]) || 45; // default 45 min
+        const subject = (r[SESS_SUBJECT] || '').toLowerCase().includes('ela') ? 'ELA' : 'Math';
+        const tutorId = r[SESS_INST_ID] || '';
+        const tutorName = (r[SESS_INSTRUCTOR] || '').trim();
+        const stuIds = (r[SESS_STU_IDS] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const stuNames = (r[SESS_STUDENTS] || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+
+        stuIds.forEach((sid, idx) => {
+          const key = sid || stuNames[idx] || '';
+          if (!key) return;
+          if (!scholarMap[key]) scholarMap[key] = { uid:sid, name:stuNames[idx]||sid, attended:0, missed:0, siCount:0, missReasons:{}, tutors:new Set(), minutesBySubject:{Math:0,ELA:0} };
+          scholarMap[key].tutors.add(tutorId || tutorName);
+          scholarMap[key].minutesBySubject[subject] = (scholarMap[key].minutesBySubject[subject]||0) + durMins;
+
+          // tutor → scholar map for impact ranking
+          const tKey = tutorId || tutorName;
+          if (tKey) {
+            if (!tutorScholarMap[tKey]) tutorScholarMap[tKey] = { name:tutorName, id:tutorId, scholars:new Set(), minutesBySubject:{Math:0,ELA:0}, siCount:0 };
+            tutorScholarMap[tKey].scholars.add(key);
+            tutorScholarMap[tKey].minutesBySubject[subject] = (tutorScholarMap[tKey].minutesBySubject[subject]||0) + durMins;
+          }
+        });
+      });
+
+      // Index by student_id and name for MOY join
+      return { scholarMap, tutorScholarMap, schoolIndex };
+    }
+
+    // ── Match a MOY row to its operational profile ────────────────────────────
+    // Join strategy (in order of confidence):
+    //   1. Pearl student_id → MOY student_id   (exact, most reliable)
+    //   2. Normalized full name                 (medium confidence)
+    //   3. Last-name + first-name token match   (fuzzy fallback)
+    //   4. Same school + last-name              (school-scoped fallback — handles The Co ambiguity)
+    function _moyMatchOps(moyRow, opsMap) {
+      if (!opsMap) return null;
+      const { scholarMap, schoolIndex } = opsMap;
+
+      // 1. Exact Pearl student_id
+      const sid = (moyRow.scholarId || '').trim();
+      if (sid && scholarMap[sid]) return scholarMap[sid];
+
+      // 2. Normalized full name
+      const fullName = (moyRow.scholarName || '').trim().toLowerCase();
+      if (fullName && scholarMap[fullName]) return scholarMap[fullName];
+
+      // 3. Fuzzy last-name + at least one other token
+      const nameParts = fullName.split(/\s+/);
+      const last = nameParts[nameParts.length - 1];
+      if (last && last.length > 2) {
+        const school = (moyRow.school || '').toLowerCase().trim();
+        // First try school-scoped match (reduces false positives in multi-school datasets like The Co)
+        if (school && schoolIndex && schoolIndex[school]) {
+          for (const key of schoolIndex[school]) {
+            const kn = (scholarMap[key] ? scholarMap[key].name : key).toLowerCase();
+            if (kn.includes(last) && nameParts.some(p => p.length > 2 && kn.includes(p))) {
+              return scholarMap[key];
+            }
+          }
+        }
+        // Global fallback (no school filter)
+        for (const key of Object.keys(scholarMap)) {
+          const kn = (scholarMap[key].name || key).toLowerCase();
+          if (kn.includes(last) && nameParts.some(p => p.length > 2 && kn.includes(p))) {
+            return scholarMap[key];
+          }
+        }
+      }
+      return null;
+    }
+
+    // ── Build tutor impact from MOY + ops join ────────────────────────────────
+    function _moyBuildTutorImpact(rows, subject, opsMap) {
+      const tutorData = {}; // tutorKey → { name, scholars, pcts, gains, movedUp, movedDown, held, minutesBySubject, siCount }
+      rows.forEach(r => {
+        if (!r.hasGrowth || r.pctTypical === null) return;
+        const ops = opsMap ? _moyMatchOps(r, opsMap) : null;
+        const tutors = ops ? [...ops.tutors] : (r.instructor ? [r.instructor] : []);
+        if (!tutors.length) {
+          // No tutor info — group under "Unassigned"
+          tutors.push('__unassigned__');
+        }
+        tutors.forEach(t => {
+          if (!tutorData[t]) tutorData[t] = { name: t === '__unassigned__' ? 'Unassigned' : t, scholars:new Set(), pcts:[], gains:[], movedUp:0, held:0, movedDown:0, minutes:0, siCount:0 };
+          const td = tutorData[t];
+          td.scholars.add(r.scholarId || r.scholarName);
+          td.pcts.push(r.pctTypical);
+          if (r.winterGain !== null) td.gains.push(r.winterGain);
+          const shift = _moyPlShift(r.baseRelPlacement, r.winterRelPlacement);
+          if (shift === 'up') td.movedUp++;
+          else if (shift === 'down') td.movedDown++;
+          else td.held++;
+          if (ops) {
+            td.minutes += (ops.minutesBySubject[subject] || 0);
+            td.siCount += ops.siCount;
+          }
+        });
+      });
+
+      return Object.values(tutorData)
+        .filter(t => t.scholars.size >= 3 && t.pcts.length >= 3 && t.name !== 'Unassigned')
+        .map(t => ({
+          name: t.name,
+          n: t.scholars.size,
+          medianPct: Math.round(_moyMedian(t.pcts) * 100),
+          medianGain: t.gains.length ? Math.round(_moyMedian(t.gains) * 10) / 10 : null,
+          movedUp: t.movedUp, held: t.held, movedDown: t.movedDown,
+          pctMovedUp: t.movedUp + t.held + t.movedDown > 0 ? Math.round(t.movedUp / (t.movedUp+t.held+t.movedDown)*100) : 0,
+          hours: Math.round(t.minutes / 60 * 10) / 10,
+          siCount: t.siCount,
+          tier: _moyMedian(t.pcts) >= 1.0 ? 'High Impact' : _moyMedian(t.pcts) >= 0.5 ? 'On Track' : 'Needs Support',
+        }))
+        .sort((a, b) => b.medianPct - a.medianPct);
+    }
+
+    // ── MOY PDF/PPTX generation ────────────────────────────────────────────────
+    async function _moyGeneratePDF(scope, subject) {
+      const metrics = _moyGetMetrics(subject);
+      if (!metrics) { alert('MOY data not loaded. Please load MOY data first.'); return; }
+      const rows = subject === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+      const opsMap = _moyBuildOperationalMap(rows);
+
+      // Load jsPDF from the existing portal infrastructure
+      try {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+          });
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';
+            s.onload = resolve; s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        const NET = metrics.network;
+        const dated = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+        const scopeLabel = scope === 'ALL' ? 'Network' : scope + ' Region';
+
+        const NAVY  = [10, 22, 40];
+        const BLUE  = [0, 48, 135];
+        const GOLD  = [240, 165, 0];
+        const GREEN = [13, 110, 58];
+        const RED   = [185, 28, 28];
+        const WHITE = [255,255,255];
+
+        function safe(s) { return (s||'').toString().replace(/[^\x00-\xFF]/g, c => ''); }
+
+        // ── PAGE 1: Cover + Narrative ────────────────────────────────────────
+        doc.setFillColor(...NAVY);
+        doc.rect(0, 0, 216, 279, 'F');
+        doc.setFillColor(...GOLD);
+        doc.rect(0, 0, 216, 3, 'F');
+
+        doc.setTextColor(...WHITE);
+        doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text('NEW JERSEY TUTORING CORPS', 20, 20);
+        doc.setFontSize(22); doc.setFont('helvetica','bold');
+        doc.text(safe('Mid-Year Academic Snapshot'), 20, 38);
+        doc.setFontSize(14); doc.setFont('helvetica','normal');
+        doc.text(safe('SY 2025\u20132026 \u00B7 ' + subject + ' \u00B7 ' + scopeLabel), 20, 48);
+        doc.setFontSize(9); doc.setTextColor(180,192,210);
+        doc.text('Generated ' + dated + '  \u00B7  Confidential \u00B7  NJTC Central Team Portal', 20, 58);
+
+        // KPI tiles
+        const tiles = [
+          { label:'Scholars', val: NET.total },
+          { label:'w/ Growth Data', val: NET.withGrowth },
+          { label:'Median % Typical', val: (NET.medianPctTypical||'—')+(NET.medianPctTypical?'%':'') },
+          { label:'Met Typical', val: (NET.pctMetTypical||'—')+(NET.pctMetTypical?'%':'') },
+          { label:'Median Gain', val: NET.medianGain !== null ? (NET.medianGain>0?'+':'')+NET.medianGain+' pts' : '—' },
+        ];
+        tiles.forEach((t,i) => {
+          const x = 20 + i*38, y = 72;
+          doc.setFillColor(20,36,60);
+          doc.roundedRect(x, y, 35, 22, 2, 2, 'F');
+          doc.setTextColor(...GOLD);
+          doc.setFontSize(14); doc.setFont('helvetica','bold');
+          doc.text(safe(String(t.val)), x+17.5, y+10, {align:'center'});
+          doc.setTextColor(160,175,195);
+          doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+          doc.text(safe(t.label.toUpperCase()), x+17.5, y+17, {align:'center'});
+        });
+
+        // Narrative
+        const pct = NET.medianPctTypical || 0;
+        const trend = pct >= 80 ? 'on a strong trajectory toward year-end targets' : pct >= 50 ? 'making measurable progress' : 'in need of intensified support before the spring window';
+        const narrative = `At the mid-year checkpoint, our ${subject} scholars across the ${scopeLabel} are achieving a median of ${pct}% of their expected annual growth \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement level, ${NET.held} held steady, and ${NET.movedDown} regressed. ${NET.rushFlags && NET.rushFlags.red > 0 ? NET.rushFlags.red+' scholars were excluded due to Red Rush Flags.' : ''}`;
+
+        doc.setFillColor(15,30,55);
+        doc.roundedRect(20, 100, 176, 28, 2, 2, 'F');
+        doc.setFillColor(...GOLD);
+        doc.rect(20, 100, 3, 28, 'F');
+        doc.setTextColor(...WHITE);
+        doc.setFontSize(8); doc.setFont('helvetica','italic');
+        const nLines = doc.splitTextToSize(safe(narrative), 166);
+        doc.text(nLines.slice(0,4), 28, 108);
+
+        // Placement shift
+        doc.setTextColor(...GOLD);
+        doc.setFontSize(7); doc.setFont('helvetica','bold');
+        doc.text('PLACEMENT MOVEMENT (FALL \u2192 WINTER)', 20, 136);
+        [['\u2191 Moved Up', NET.movedUp, GREEN],['\u2192 Held', NET.held, BLUE],['\u2193 Moved Down', NET.movedDown, RED]].forEach(([lbl,n,col],i) => {
+          const x = 20+i*60;
+          doc.setFillColor(15,30,55); doc.roundedRect(x,139,55,18,2,2,'F');
+          doc.setTextColor(...col); doc.setFontSize(16); doc.setFont('helvetica','bold');
+          doc.text(String(n), x+27.5, 150, {align:'center'});
+          doc.setTextColor(160,175,195); doc.setFontSize(7); doc.setFont('helvetica','normal');
+          doc.text(safe(lbl), x+27.5, 155.5, {align:'center'});
+        });
+
+        doc.setFontSize(7); doc.setTextColor(100,120,145);
+        doc.text('Data Source: iReady SY 2025\u20132026  \u00B7  NJTC Central Team Staff Portal  \u00B7  Confidential', 108, 272, {align:'center'});
+
+        // ── PAGE 2: Region & School breakdown ───────────────────────────────
+        doc.addPage();
+        doc.setFillColor(...NAVY); doc.rect(0,0,216,14,'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text('BY REGION \u00B7 ' + subject.toUpperCase() + ' \u00B7 ' + scopeLabel.toUpperCase(), 20, 9);
+
+        const regionEntries = Object.entries(metrics.byRegion).sort((a,b)=>(b[1].medianPctTypical||0)-(a[1].medianPctTypical||0));
+        doc.autoTable({
+          startY: 18,
+          head: [['Region','N','w/ Growth','Median Gain','Median % Typical','% Met Typical']],
+          body: regionEntries.map(([rg,m]) => [
+            rg, m.total, m.withGrowth,
+            m.medianGain !== null ? (m.medianGain>0?'+':'')+m.medianGain : '—',
+            m.medianPctTypical !== null ? m.medianPctTypical+'%' : '—',
+            m.pctMetTypical !== null ? m.pctMetTypical+'%' : '—',
+          ]),
+          headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:7, fontStyle:'bold' },
+          bodyStyles:{ fontSize:7 },
+          alternateRowStyles:{ fillColor:[245,248,255] },
+          styles:{ overflow:'linebreak', cellPadding:2.5 },
+          margin:{ left:20, right:20 },
+        });
+
+        const schoolEntries = Object.entries(metrics.bySchool)
+          .filter(([,m])=>m.withGrowth>=3)
+          .sort((a,b)=>(b[1].medianPctTypical||0)-(a[1].medianPctTypical||0))
+          .slice(0,20);
+        const nextY = doc.lastAutoTable.finalY + 10;
+        doc.setFontSize(7); doc.setFont('helvetica','bold');
+        doc.setTextColor(...NAVY);
+        doc.text('BY SCHOOL (TOP 20 \u00B7 MIN 3 SCHOLARS WITH GROWTH DATA)', 20, nextY-2);
+        doc.autoTable({
+          startY: nextY,
+          head: [['School','N','Median Gain','Median % Typical','% Met Typical']],
+          body: schoolEntries.map(([sc,m]) => [
+            sc.length>45?sc.slice(0,45)+'…':sc, m.withGrowth,
+            m.medianGain !== null ? (m.medianGain>0?'+':'')+m.medianGain : '—',
+            m.medianPctTypical !== null ? m.medianPctTypical+'%' : '—',
+            m.pctMetTypical !== null ? m.pctMetTypical+'%' : '—',
+          ]),
+          headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:7, fontStyle:'bold' },
+          bodyStyles:{ fontSize:6.5 },
+          alternateRowStyles:{ fillColor:[245,248,255] },
+          styles:{ overflow:'linebreak', cellPadding:2 },
+          margin:{ left:20, right:20 },
+        });
+        doc.setFontSize(7); doc.setTextColor(100,120,145);
+        doc.text('Data Source: iReady SY 2025\u20132026  \u00B7  NJTC Central Team Staff Portal  \u00B7  Confidential', 108, 272, {align:'center'});
+
+        // ── PAGE 3: Tutor Impact ─────────────────────────────────────────────
+        doc.addPage();
+        doc.setFillColor(...NAVY); doc.rect(0,0,216,14,'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text('TUTOR ACADEMIC IMPACT \u00B7 ' + subject.toUpperCase(), 20, 9);
+
+        const validRows = rows.filter(r=>r.hasGrowth && r.pctTypical!==null);
+        const tutorImpact = _moyBuildTutorImpact(validRows, subject, opsMap);
+
+        if (tutorImpact.length) {
+          doc.autoTable({
+            startY: 18,
+            head: [['Tutor','Scholars','Med % Typical','Med Gain','Moved Up','Hours','SIs','Tier']],
+            body: tutorImpact.slice(0,25).map(t => [
+              t.name.length>30?t.name.slice(0,30)+'…':t.name,
+              t.n, t.medianPct+'%',
+              t.medianGain !== null ? (t.medianGain>0?'+':'')+t.medianGain : '—',
+              t.movedUp+' ('+t.pctMovedUp+'%)',
+              t.hours || '—',
+              t.siCount || '0',
+              t.tier,
+            ]),
+            headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:7, fontStyle:'bold' },
+            bodyStyles:{ fontSize:6.5 },
+            alternateRowStyles:{ fillColor:[245,248,255] },
+            didParseCell: function(d) {
+              if (d.column.index === 7 && d.cell.raw === 'High Impact') { d.cell.styles.textColor = GREEN; d.cell.styles.fontStyle = 'bold'; }
+              if (d.column.index === 7 && d.cell.raw === 'Needs Support') { d.cell.styles.textColor = RED; }
+            },
+            styles:{ overflow:'linebreak', cellPadding:2 },
+            margin:{ left:20, right:20 },
+          });
+          const highImpact = tutorImpact.filter(t=>t.tier==='High Impact');
+          const needsSupport = tutorImpact.filter(t=>t.tier==='Needs Support');
+          const noteY = doc.lastAutoTable.finalY + 8;
+          if (highImpact.length) {
+            doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
+            doc.text('High Impact: ' + highImpact.slice(0,5).map(t=>t.name).join(', '), 20, noteY);
+          }
+          if (needsSupport.length) {
+            doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(...RED);
+            doc.text('May benefit from coaching support: ' + needsSupport.slice(0,5).map(t=>t.name).join(', '), 20, noteY+7);
+          }
+        } else {
+          doc.setFontSize(9); doc.setTextColor(100,120,145);
+          doc.text('Tutor impact data requires Pearl operational data to be loaded.', 108, 140, {align:'center'});
+        }
+        doc.setFontSize(7); doc.setTextColor(100,120,145);
+        doc.text('Data Source: iReady SY 2025\u20132026 + Pearl Operational Data  \u00B7  Confidential', 108, 272, {align:'center'});
+
+        // ── PAGE 4: Next Steps ───────────────────────────────────────────────
+        doc.addPage();
+        doc.setFillColor(...NAVY); doc.rect(0,0,216,14,'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica','bold');
+        doc.text('WHAT THIS MEANS \u00B7 NEXT STEPS FOR PROGRAM LEADERSHIP', 20, 9);
+
+        const pct2 = NET.medianPctTypical||0;
+        const steps = [
+          pct2 >= 80
+            ? 'Scholar growth is strong at mid-year. Prioritize maintaining intensity through the spring window to ensure full-year targets are met.'
+            : pct2 >= 50
+            ? 'Scholars are progressing but need additional support to reach year-end targets. Review tutors in "Needs Support" tier and schedule coaching conversations.'
+            : 'Immediate intervention is needed. Identify and contact the scholars who have regressed in placement. Review service interruption counts by school.',
+          `${NET.movedDown} scholars regressed in placement since Fall. Cross-reference with attendance data — scholars below 75% attendance show significantly lower growth rates.`,
+          opsMap
+            ? 'Connect with Program Managers at schools with the lowest median growth to discuss targeted session plans before the spring diagnostic window.'
+            : 'Load Pearl operational data and re-export to include tutor impact and instructional hours correlations.',
+        ];
+        steps.forEach((step, i) => {
+          const y = 25 + i*30;
+          doc.setFillColor(15,30,55); doc.roundedRect(20,y,176,25,2,2,'F');
+          doc.setFillColor(...GOLD); doc.circle(27,y+12.5,4,'F');
+          doc.setTextColor(...NAVY); doc.setFontSize(9); doc.setFont('helvetica','bold');
+          doc.text(String(i+1), 27, y+14.5, {align:'center'});
+          doc.setTextColor(...WHITE); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+          const sLines = doc.splitTextToSize(safe(step), 155);
+          doc.text(sLines.slice(0,3), 35, y+9);
+        });
+
+        doc.setFontSize(7); doc.setTextColor(100,120,145);
+        doc.text('Data Source: iReady SY 2025\u20132026  \u00B7  NJTC Central Team Staff Portal  \u00B7  Confidential', 108, 272, {align:'center'});
+
+        const regionSlug = scope === 'ALL' ? 'Network' : scope;
+        const dateStr = new Date().toISOString().slice(0,10);
+        const filename = `NJTC-MOY-${subject}-${regionSlug}-${dateStr}.pdf`;
+        doc.save(filename);
+
+      } catch(err) {
+        console.error('[MOY PDF]', err);
+        alert('PDF generation failed: ' + err.message);
+      }
+    }
 
     const MOY_DATA = { math: [], ela: [], loaded: false, ts: null };
     let _moySubject  = 'Math';   // 'Math' | 'ELA'
@@ -2602,12 +3086,10 @@
 
       const gv = (...keys) => { for (const k of keys) { if (r[k] !== undefined && r[k] !== '') return r[k]; } return ''; };
 
-      // Derive region from external_account_id
+      // Derive region using Pearl's canonical NE/SW logic (same as pdf-export.js)
       const extId = gv('external_account_id','external_account_id');
-      let region = 'Unknown';
-      for (const [prefix, label] of Object.entries(MOY_REGION_MAP)) {
-        if (extId.startsWith(prefix)) { region = label; break; }
-      }
+      const school = gv('school');
+      const region = _moySchoolRegion(school, extId);
 
       // winter_pct_progress_typical_growth: ratio where 1.0 = 100% of annual typical growth
       const _rawPct = gv('winter_pct_progress_typical_growth');
@@ -2833,6 +3315,7 @@
               <button onclick="irlab.moySetSubject('ELA')" class="irlab-mode-tab ${_moySubject==='ELA'?'active':''}" style="font-size:.75rem;padding:.3rem .875rem;border-radius:18px">ELA</button>
             </div>
             <button onclick="irlab.moyRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
+            <button onclick="irlab._moyExportPDF('ALL','${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .875rem;border-radius:8px;border:none;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;cursor:pointer;font-weight:600">⬇ PDF Report</button>
           </div>
         </div>`;
 
@@ -2879,7 +3362,7 @@
 
       // ── View pill toggles ──────────────────────────────────────────────────
       html += `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.25rem">
-        ${[['overview','📊 Overview'],['regions','🗺️ By Region & School'],['correlations','📈 Correlations']].map(([v,l]) =>
+        ${[['overview','📊 Overview'],['regions','🗺️ By Region & School'],['correlations','📈 Correlations'],['tutor','🏆 Tutor Impact']].map(([v,l]) =>
           `<button onclick="irlab.moySetView('${v}')" style="font-size:.8125rem;padding:.375rem .875rem;border-radius:20px;border:1.5px solid ${_moyView===v?'var(--navy)':'var(--border)'};background:${_moyView===v?'var(--navy)':'var(--surface)'};color:${_moyView===v?'#fff':'var(--text-2)'};cursor:pointer;font-weight:${_moyView===v?'700':'500'};transition:all .15s">${l}</button>`
         ).join('')}
       </div>`;
@@ -3044,6 +3527,75 @@
             <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.5rem">📣 What This Means</div>
             <div style="font-size:.9375rem;line-height:1.65;color:rgba(255,255,255,.9)">At the mid-year checkpoint, our ${_moySubject} scholars are achieving a median of <strong style="color:#f0a500">${pct}%</strong> of their expected annual growth — meaning they are <strong>${trend}</strong>. ${net.movedUp} scholars improved their relative placement level since Fall, while ${net.movedDown} regressed. The data tells us our overall trajectory is ${pct >= 80 ? 'strong' : pct >= 50 ? 'developing' : 'in need of urgent attention'}.</div>
           </div>`;
+        }
+      }
+
+      if (_moyView === 'tutor' && metrics) {
+        const allRows = _moySubject === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+        const validRows = allRows.filter(r => r.hasGrowth && r.pctTypical !== null);
+        const opsMap = _moyBuildOperationalMap(allRows);
+        const tutors = _moyBuildTutorImpact(validRows, _moySubject, opsMap);
+        const hasPearl = opsMap !== null;
+
+        // Service interruption summary by school
+        let siNote = '';
+        if (hasPearl) {
+          const siBySchool = {};
+          allRows.forEach(r => {
+            const ops = _moyMatchOps(r, opsMap);
+            if (ops && ops.siCount > 0) siBySchool[r.school] = (siBySchool[r.school]||0) + ops.siCount;
+          });
+          const topSI = Object.entries(siBySchool).sort((a,b)=>b[1]-a[1]).slice(0,4);
+          if (topSI.length) siNote = topSI.map(([sc,n])=>`${esc(sc)}: ${n}`).join(' · ');
+        }
+
+        if (!hasPearl) {
+          html += `<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:10px;padding:1rem 1.25rem;font-size:.875rem;color:#92400e;margin-bottom:1rem">
+            ⚠️ Pearl operational data not yet loaded. Tutor impact will populate once Pearl finishes syncing. Scholar–tutor matching uses Pearl session IDs (primary) and name matching (fallback).
+          </div>`;
+        }
+        if (siNote) {
+          html += `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem;display:flex;gap:.5rem;align-items:flex-start">
+            🚦 <div><strong>Service Interruptions by School (${_moySubject}):</strong> ${siNote}</div>
+          </div>`;
+        }
+
+        if (!tutors.length) {
+          html += `<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.875rem">
+            ${hasPearl ? 'Tutor impact requires at least 3 scholars per tutor with valid growth data.' : 'Waiting for Pearl operational data to load.'}
+          </div>`;
+        } else {
+          const tierColor = t => t === 'High Impact' ? '#0d6e3a' : t === 'On Track' ? '#0050c8' : '#b91c1c';
+          const tierBg    = t => t === 'High Impact' ? '#d1fae5' : t === 'On Track' ? '#dbeafe' : '#fee2e2';
+          html += `
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">
+            Tutor Academic Impact — ${_moySubject} · ${tutors.length} tutors · Ranked by Median % Typical Growth · Minimum 3 scholars
+          </div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead><tr style="background:var(--navy)">
+              <th style="padding:.625rem 1rem;text-align:left;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase">Tutor</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Scholars</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Med % Typical</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Med Gain</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↑ Up</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↓ Down</th>
+              ${hasPearl ? '<th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Hours</th><th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">SIs</th>' : ''}
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Tier</th>
+            </tr></thead>
+            <tbody>
+            ${tutors.map((t,i) => `<tr style="border-bottom:1px solid var(--border-2);${i%2===0?'background:var(--surface-2)':''}">
+              <td style="padding:.625rem 1rem;font-weight:700;color:var(--navy);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</td>
+              <td style="padding:.5rem;text-align:center">${t.n}</td>
+              <td style="padding:.5rem;text-align:center;font-weight:800;color:${t.medianPct>=80?'#0d6e3a':t.medianPct>=50?'#d97706':'#b91c1c'}">${t.medianPct}%</td>
+              <td style="padding:.5rem;text-align:center;color:var(--blue-mid);font-weight:600">${t.medianGain!==null?(t.medianGain>0?'+':'')+t.medianGain:'—'}</td>
+              <td style="padding:.5rem;text-align:center;color:#16a34a;font-weight:700">${t.movedUp}</td>
+              <td style="padding:.5rem;text-align:center;color:#dc2626">${t.movedDown}</td>
+              ${hasPearl ? `<td style="padding:.5rem;text-align:center;color:var(--muted)">${t.hours||'—'}</td><td style="padding:.5rem;text-align:center;color:${t.siCount>3?'#b91c1c':'var(--muted)'}">${t.siCount}</td>` : ''}
+              <td style="padding:.5rem;text-align:center"><span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${tierBg(t.tier)};color:${tierColor(t.tier)}">${t.tier}</span></td>
+            </tr>`).join('')}
+            </tbody>
+          </table></div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:.75rem">Scholar–tutor matching: Pearl session IDs (primary) · name matching (fallback). Tutors with fewer than 3 scholars are excluded from ranking.</div>`;
         }
       }
 
@@ -3581,6 +4133,7 @@
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
              computeMOY,
+             _moyExportPDF: _moyGeneratePDF,
            };  // exposed so Talent panel can trigger academic refresh
   })();
 
