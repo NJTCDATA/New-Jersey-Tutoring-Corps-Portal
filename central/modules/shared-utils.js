@@ -1894,19 +1894,20 @@
     }
     if (btn) btn.disabled = false;
 
-    // Stagger heavy DOM writes across animation frames so the browser event loop
-    // stays free for user input (clicks, hovers) between each render pass
-    requestAnimationFrame(() => {
+    // Yield to browser between each DOM write — keeps clicks/hovers responsive
+    // setTimeout(fn, 0) yields a full task boundary (unlike rAF which yields only a frame)
+    // This means the user can interact with the page between each write
+    setTimeout(() => {
       buildKPISummary();
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         buildKPI();
-        requestAnimationFrame(() => {
+        setTimeout(() => {
           const session = window.NJTC_SESSION;
           if (session) buildHome(session.dept);
           fetchKPIMetadata(false);
-        });
-      });
-    });
+        }, 16); // ~1 frame
+      }, 16);
+    }, 0);
   }
 
   function buildKPISummary() {
@@ -2454,11 +2455,25 @@
   function setupPerfSection() { /* no legacy elements */ }
 
   // ══════════════════════════════════════════════════════════
-  //  INIT
+  //  INIT — Performance-optimized: show UI instantly, load progressively
+  //  Strategy:
+  //    T+0ms   → show loading skeleton (user sees activity immediately)
+  //    T+0ms   → unhide layout (no more blank white screen)
+  //    T+50ms  → sidebar + nav (instant visible feedback)
+  //    T+100ms → KPI from cache if available (instant numbers)
+  //    T+200ms → policies (fast, usually cached)
+  //    T+500ms → PIE init (non-critical)
+  //    T+800ms → Pearl fetch (largest dataset — deferred)
+  //    T+1200ms → HR + Concerns (secondary data)
+  //    T+1800ms → iReady + SY analytics (background, non-blocking)
+  //    rAF      → all DOM writes scheduled via requestAnimationFrame
+  //              to never block click/interaction events
   // ══════════════════════════════════════════════════════════
   async function init() {
     updateNavDate();
 
+    // Show layout immediately with skeleton — never make user stare at a loading screen
+    // The loading screen hides as soon as session resolves, regardless of data state
     await new Promise(resolve => {
       if (window.NJTC_SESSION) { resolve(); return; }
       const t = setInterval(() => {
@@ -2474,55 +2489,188 @@
     _currentDept = dept;
     const cfg = DEPT_CONFIG[dept] || {};
 
-    // Nav badge
+    // ── T+0: Show UI shell immediately — user can interact right away ──────
     document.getElementById('deptBadge').textContent = cfg.label || dept.toUpperCase();
-
-    // Session timer
     startSessionTimer(session.exp);
 
-    // Build content
-    // buildHome is called from INSIDE fetchAndRebuildKPI after KPI_DATA is populated from the live sheet.
-    // Calling it here first would render stale static counts then visibly jump — race condition eliminated.
-    buildSidebarDept(dept);
-    buildPolicies(false);
-    try { if (typeof window.pieInit === 'function') window.pieInit(dept); } catch(e) { console.error('[PIE] init error (non-fatal):', e); }
-    // ── Parallel background prefetch — all data sources fired simultaneously ──
-    // By the time the user opens any panel, data is either served from
-    // this prefetch or from the localStorage cache loaded above.
-    setTimeout(() => {
-      // Fire all fetches in parallel — none block the UI
-      fetchAndRebuildKPI(false).catch(() => {});
-      if (window.sya && window.sya.refresh) {
-        try { window.sya.refresh(false); } catch(e) {}
-      }
-      // Pearl: pre-warm for ALL depts so data is ready before user navigates
-      if (window.po && typeof window.po.onPanelOpen === 'function') {
-        try { window.po.onPanelOpen(); } catch(e) {}
-      }
-      // HR, Concerns, Observations: pre-warm for all depts
-      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
-      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
-      try { if (typeof fetchLiveObsData === 'function') fetchLiveObsData(false).catch(()=>{}); } catch(e) {}
-      // irlab: embedded data loads instantly on panel open — no prefetch needed
-    }, 100);
-    // Init dept-aware nav (show/hide sidebar items) + policy admin bar
-    // Guard: shared-filters.js may not be available in all environments
-    if (typeof window.initDeptNav === 'function') {
-      window.initDeptNav(dept);
-    } else {
-      // Retry once after a brief delay in case of script-load timing edge case
-      setTimeout(() => { if (typeof window.initDeptNav === 'function') window.initDeptNav(dept); }, 300);
-    }
-    setTimeout(() => initPolicyAdmin(), 500);
-
-    // Auto-fill today's date
-    const today = new Date().toISOString().split('T')[0];
-    const todayField = document.getElementById('f_todayDate');
-    if (todayField) todayField.value = today;
-
-    // Show UI
+    // Unhide layout NOW — don't wait for data
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('ctLayout').style.display = 'grid';
+
+    // ── T+0: Inject instant skeleton into home panel ───────────────────────
+    // User sees a structured placeholder instead of blank/frozen content
+    _renderHomeSkeleton(dept);
+
+    // ── T+50ms: Sidebar — fast, synchronous, no network needed ────────────
+    setTimeout(() => {
+      try { buildSidebarDept(dept); } catch(e) {}
+      try { if (typeof window.initDeptNav === 'function') window.initDeptNav(dept); } catch(e) {}
+    }, 50);
+
+    // ── T+100ms: KPI from cache first (instant numbers if cached) ─────────
+    // If cached data exists, buildHome renders immediately with real numbers
+    // If not cached, it renders with static fallback and fetches in background
+    setTimeout(() => {
+      try { fetchAndRebuildKPI(false).catch(() => {}); } catch(e) {}
+    }, 100);
+
+    // ── T+200ms: Policies (small fetch, usually cached) ───────────────────
+    setTimeout(() => {
+      try { buildPolicies(false); } catch(e) {}
+    }, 200);
+
+    // ── T+500ms: PIE init (non-critical path) ─────────────────────────────
+    setTimeout(() => {
+      try { if (typeof window.pieInit === 'function') window.pieInit(dept); } catch(e) {}
+      try { initPolicyAdmin(); } catch(e) {}
+      const todayField = document.getElementById('f_todayDate');
+      if (todayField) todayField.value = new Date().toISOString().split('T')[0];
+    }, 500);
+
+    // ── T+800ms: Pearl operations (largest dataset — bandwidth priority) ──
+    // Staggered so KPI + policies get their fetch bandwidth first
+    setTimeout(() => {
+      try {
+        if (window.po && typeof window.po.onPanelOpen === 'function') window.po.onPanelOpen();
+      } catch(e) {}
+    }, 800);
+
+    // ── T+1200ms: HR + Concerns (secondary, deferred) ─────────────────────
+    setTimeout(() => {
+      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
+    }, 1200);
+
+    // ── T+1800ms: iReady + SY + Observations (background, lowest priority) ─
+    setTimeout(() => {
+      try { if (window.sya && window.sya.refresh) window.sya.refresh(false); } catch(e) {}
+      try { if (typeof fetchLiveObsData === 'function') fetchLiveObsData(false).catch(()=>{}); } catch(e) {}
+      // iReady panel data — only load if user is actually on that panel
+      // Otherwise wait until they navigate there (onPanelOpen handles it)
+      const irlPanel = document.getElementById('panel-iready-lab');
+      if (irlPanel && irlPanel.classList.contains('active')) {
+        try { if (window.irlab) window.irlab.onPanelOpen(); } catch(e) {}
+      }
+    }, 1800);
+  }
+
+  // ── Home skeleton — shown instantly while data loads ──────────────────────
+  // Gives the user immediate visual feedback: layout is correct, data is coming
+  function _renderHomeSkeleton(dept) {
+    const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
+    const execDepts = ['leadership','data','kb'];
+    const isExec = execDepts.includes(dept);
+
+    // Update header immediately — text is instant
+    document.getElementById('homeEyebrow').textContent = cfg.label;
+    document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
+    document.getElementById('homeSubtitle').textContent = cfg.tagline;
+
+    // Show/hide exec dashboard slot
+    const execEl = document.getElementById('execDashboard');
+    if (execEl) execEl.style.display = isExec ? '' : 'none';
+    const statsStrip = document.getElementById('homeStatsStrip');
+    if (statsStrip) statsStrip.style.display = isExec ? 'none' : '';
+
+    // Skeleton shimmer style (injected once)
+    if (!document.getElementById('njtcSkeletonStyle')) {
+      const s = document.createElement('style');
+      s.id = 'njtcSkeletonStyle';
+      s.textContent = `
+        @keyframes njtcShimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+        .njtc-skel{border-radius:8px;background:linear-gradient(90deg,#e8edf5 25%,#f4f7fb 50%,#e8edf5 75%);background-size:800px 100%;animation:njtcShimmer 1.4s ease-in-out infinite}
+        .njtc-skel-dark{border-radius:8px;background:linear-gradient(90deg,rgba(255,255,255,.06) 25%,rgba(255,255,255,.12) 50%,rgba(255,255,255,.06) 75%);background-size:800px 100%;animation:njtcShimmer 1.4s ease-in-out infinite}
+      `;
+      document.head.appendChild(s);
+    }
+
+    // Stats strip skeleton (non-exec depts)
+    if (!isExec && statsStrip) {
+      statsStrip.innerHTML = Array(7).fill(0).map(() =>
+        `<div class="stat-tile" style="--accent-color:#e8edf5">
+          <div class="njtc-skel" style="width:32px;height:32px;border-radius:50%;margin-bottom:.625rem"></div>
+          <div class="njtc-skel" style="width:64px;height:2rem;margin-bottom:.375rem"></div>
+          <div class="njtc-skel" style="width:80px;height:.75rem"></div>
+        </div>`
+      ).join('');
+    }
+
+    // Quick links skeleton
+    const qlGrid = document.getElementById('homeQuickLinks');
+    if (qlGrid) {
+      qlGrid.innerHTML = Array(4).fill(0).map(() =>
+        `<div class="ql-card" style="pointer-events:none">
+          <div class="njtc-skel" style="width:44px;height:44px;border-radius:12px;margin-bottom:1rem"></div>
+          <div class="njtc-skel" style="width:70%;height:1rem;margin-bottom:.375rem"></div>
+          <div class="njtc-skel" style="width:90%;height:.75rem;margin-bottom:.25rem"></div>
+          <div class="njtc-skel" style="width:60%;height:.75rem"></div>
+        </div>`
+      ).join('');
+    }
+
+    // Dept widget / leaderboard skeleton
+    const wEl = document.getElementById('homeDeptWidget');
+    if (wEl) {
+      if (['leadership','data','kb'].includes(dept)) {
+        wEl.innerHTML = ''; // exec depts fill this from exec dashboard
+      } else {
+        // Leaderboard hero skeleton
+        wEl.innerHTML = `
+          <div style="border-radius:18px;overflow:hidden;margin-bottom:1.5rem">
+            <div class="njtc-skel-dark" style="background:linear-gradient(135deg,#0e1e3a,#182d55);padding:2rem 2.25rem;display:flex;flex-direction:column;gap:1rem">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:.5rem">
+                  <div class="njtc-skel-dark" style="width:160px;height:.75rem;border-radius:4px"></div>
+                  <div class="njtc-skel-dark" style="width:220px;height:1.625rem;border-radius:6px"></div>
+                  <div class="njtc-skel-dark" style="width:300px;height:.8125rem;border-radius:4px"></div>
+                </div>
+                <div style="display:flex;gap:.625rem">
+                  <div class="njtc-skel-dark" style="width:110px;height:56px;border-radius:12px"></div>
+                  <div class="njtc-skel-dark" style="width:110px;height:56px;border-radius:12px"></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:.5rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.07)">
+                ${Array(7).fill(0).map(()=>`<div class="njtc-skel-dark" style="width:80px;height:28px;border-radius:20px"></div>`).join('')}
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+            <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;display:flex;flex-direction:column;gap:.75rem">
+              <div class="njtc-skel" style="width:100px;height:.75rem"></div>
+              <div class="njtc-skel" style="width:200px;height:1.125rem"></div>
+              <div class="njtc-skel" style="width:160px;height:.8125rem"></div>
+              <div style="display:flex;gap:.5rem">
+                <div class="njtc-skel" style="width:140px;height:38px;border-radius:10px"></div>
+                <div class="njtc-skel" style="width:90px;height:38px;border-radius:10px"></div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;display:flex;flex-direction:column;gap:.625rem">
+              <div class="njtc-skel" style="width:120px;height:.75rem"></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem">
+                ${Array(3).fill(0).map(()=>`<div class="njtc-skel" style="height:52px;border-radius:8px"></div>`).join('')}
+              </div>
+              <div class="njtc-skel" style="width:180px;height:.75rem"></div>
+            </div>
+          </div>
+          <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden">
+            <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1rem 1.375rem">
+              <div class="njtc-skel-dark" style="width:260px;height:.9375rem;border-radius:6px"></div>
+            </div>
+            ${Array(5).fill(0).map((_,i)=>`
+              <div style="display:flex;align-items:center;gap:.875rem;padding:.875rem 1.25rem;border-bottom:1px solid var(--border-2)">
+                <div class="njtc-skel" style="width:9px;height:9px;border-radius:50%;flex-shrink:0"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:.3rem">
+                  <div class="njtc-skel" style="width:${120+i*20}px;height:.875rem;border-radius:4px"></div>
+                  <div class="njtc-skel" style="width:80px;height:.75rem;border-radius:4px"></div>
+                </div>
+                <div class="njtc-skel" style="width:28px;height:1.5rem;border-radius:4px"></div>
+                <div class="njtc-skel" style="width:48px;height:1.5rem;border-radius:4px"></div>
+                <div class="njtc-skel" style="width:90px;height:1.5rem;border-radius:20px"></div>
+              </div>`).join('')}
+          </div>
+        `;
+      }
+    }
   }
 
   init();
@@ -3155,7 +3303,13 @@
   // ── Override showPanel to trigger dept analytics panels ─────────
   (function() {
     const _base = window.showPanel;
+    // Idle-safe wrapper: schedule non-critical work when browser is free
+    const _idle = (fn, timeout) => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: timeout || 1500 });
+      else setTimeout(fn, 0);
+    };
     window.showPanel = function(id, btn) {
+      // Panel switch itself is synchronous — must be instant for perceived responsiveness
       if (_base) _base(id, btn);
       else {
         document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -3167,56 +3321,44 @@
         if (linkEl) linkEl.classList.add('active');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+      // Heavy analytics panels — deferred to idle so panel transition feels instant
       if (id === 'advocacy') {
-        if (typeof advOnPanelOpen === 'function') advOnPanelOpen();
+        _idle(() => { if (typeof advOnPanelOpen === 'function') advOnPanelOpen(); });
       }
       if (id === 'talent') {
-        buildTalentDashboard(false);
-        if (!window._talentLoaded) setTimeout(() => initTalentFilters(), 800);
-        // Ensure correct default tab renders per dept on open
-        const _sp2Dept = (window.NJTC_SESSION||{}).dept||'hr';
-        if (['hr','data','kb','finance','programming','training'].includes(_sp2Dept)) {
-          setTimeout(() => {
-            if (typeof setTalentTab === 'function') setTalentTab('profiles');
-          }, 300);
-        } else if (_sp2Dept === 'leadership') {
-          // Leadership only has the summary dashboard — go straight to it
-          setTimeout(() => {
-            if (typeof setTalentTab === 'function') setTalentTab('all');
-          }, 300);
-        }
+        _idle(() => {
+          buildTalentDashboard(false);
+          if (!window._talentLoaded) setTimeout(() => initTalentFilters(), 400);
+          const _sp2Dept = (window.NJTC_SESSION||{}).dept||'hr';
+          if (['hr','data','kb','finance','programming','training'].includes(_sp2Dept)) {
+            setTimeout(() => { if (typeof setTalentTab === 'function') setTalentTab('profiles'); }, 200);
+          } else if (_sp2Dept === 'leadership') {
+            setTimeout(() => { if (typeof setTalentTab === 'function') setTalentTab('all'); }, 200);
+          }
+        });
       }
-      if (id === 'finance-analytics') buildFinanceAnalytics();
-      if (id === 'training-analytics') buildTrainingAnalytics();
-      if (id === 'kpi-analytics') buildKPIAnalytics();
-      if (id === 'sy-analytics')  { if (window.sya) window.sya.onPanelOpen(); }
-      if (id === 'pearl-ops')     { if (window.po)  window.po.onPanelOpen();  }
-      if (id === 'iready-lab')    { if (window.irlab) window.irlab.onPanelOpen(); }
-      if (id === 'knowtion')      { if (window.kn) window.kn.build((window.NJTC_SESSION||{}).dept || 'all'); }
+      if (id === 'finance-analytics')  _idle(() => buildFinanceAnalytics());
+      if (id === 'training-analytics') _idle(() => buildTrainingAnalytics());
+      if (id === 'kpi-analytics')      _idle(() => buildKPIAnalytics());
+      if (id === 'sy-analytics')  { if (window.sya) _idle(() => window.sya.onPanelOpen()); }
+      if (id === 'pearl-ops')     { if (window.po)  _idle(() => window.po.onPanelOpen(), 800); }
+      if (id === 'iready-lab')    { if (window.irlab) _idle(() => window.irlab.onPanelOpen(), 800); }
+      if (id === 'knowtion')      { _idle(() => { if (window.kn) window.kn.build((window.NJTC_SESSION||{}).dept || 'all'); }); }
     };
   })();
 
   // ════════════════════════════════════════════════════════════════
 
 
-  // ── Global data bootstrap — preloads all data sources on page load ─────────
-  // Ensures leadership numbers appear on first load without visiting sub-pages.
+  // ── Global data bootstrap ──────────────────────────────────────────────────
+  // NOTE: Bootstrap is handled by the staggered init() function above.
+  // All data sources are loaded with progressive timing to avoid bandwidth contention.
+  // Pearl: T+800ms | HR+Concerns: T+1200ms | iReady+SY: T+1800ms
+  // This IIFE intentionally left empty to avoid double-fetching.
   (function bootstrapData() {
-    function _doBootstrap() {
-      // 1. Pearl operations — starts GID discovery + data fetch
-      try { if (window.po && typeof window.po.onPanelOpen === 'function') window.po.onPanelOpen(); } catch(e) {}
-      // 2. iReady — loads embedded data + starts live fetch (GID discovery + CSV)
-      try { if (window.irlab && typeof window.irlab.onPanelOpen === 'function') window.irlab.onPanelOpen(); } catch(e) {}
-      // 3. HR profiles — fetch live HR data without requiring the panel to open
-      try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(function(){}); } catch(e) {}
-      // 4. Survey / concerns data
-      try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(function(){}); } catch(e) {}
-    }
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() { setTimeout(_doBootstrap, 300); });
-    } else {
-      setTimeout(_doBootstrap, 300);
-    }
+    // All data prefetching now managed by init() with staggered timing.
+    // Do not fire fetches here — they would contend with init() fetches
+    // and cause the main thread freeze we are eliminating.
   })();
 
   // ── Exec Dashboard: robust multi-signal render engine ─────────────────────
@@ -3270,7 +3412,16 @@
       var fp = _fingerprint();
       if (!force && fp && fp===_lastFP) return;
       _lastFP = fp;
-      try { if (typeof window.buildExecDashboard === 'function') window.buildExecDashboard(dept); } catch(e) { console.warn('[ExecDash] render err:',e.message); }
+      // Use requestIdleCallback if available — only paint when browser is idle
+      // Falls back to setTimeout(0) which still yields a task boundary
+      var _doRender = function() {
+        try { if (typeof window.buildExecDashboard === 'function') window.buildExecDashboard(dept); } catch(e) { console.warn('[ExecDash] render err:',e.message); }
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(_doRender, { timeout: 2000 });
+      } else {
+        setTimeout(_doRender, 0);
+      }
     }
 
     // Polling loop — escalating delays, min 5 polls, stops after 2 stable data-confirmed rounds
@@ -3980,6 +4131,7 @@
   window.groupBy              = groupBy;
   window.countBy              = countBy;
   window.buildHome            = buildHome;
+  window._renderHomeSkeleton  = _renderHomeSkeleton;
   window.buildSidebarDept     = buildSidebarDept;
   window.buildKPISummary      = buildKPISummary;
   window.buildKPI             = buildKPI;
