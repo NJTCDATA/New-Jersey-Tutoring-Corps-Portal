@@ -663,6 +663,13 @@
   function buildHome(dept) {
     const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
 
+    // ── First-login welcome modal (once per session per dept) ──────────────
+    const _welcomeKey = 'njtc_welcomed_' + dept + '_v1';
+    if (!sessionStorage.getItem(_welcomeKey)) {
+      sessionStorage.setItem(_welcomeKey, '1');
+      setTimeout(() => _lbShowWelcomeModal(dept), 600);
+    }
+
     // Update header
     document.getElementById('homeEyebrow').textContent = cfg.label;
     document.getElementById('homeTitle').textContent = `${cfg.emoji} ${cfg.label}`;
@@ -677,7 +684,6 @@
       if (poReady) {
         if (typeof window.buildExecDashboard === 'function') window.buildExecDashboard(dept);
       } else {
-        // Pearl not ready yet — show skeleton; polling boot will fill in shortly
         execEl.innerHTML = `<div style="padding:1.5rem 0;color:#94a3b8;font-size:.75rem;text-align:center">
           ⏳ Loading operational data… dashboard will appear shortly.
         </div>`;
@@ -688,67 +694,44 @@
       document.getElementById('homeStatsStrip').style.display = '';
     }
 
-    // Stats strip — use midStatus as primary (falls back to status for legacy data)
+    // ── Stats strip ────────────────────────────────────────────────────────
     const getS = k => k.midStatus || k.status || '';
     const met = KPI_DATA.filter(k=>getS(k)==='Met').length;
     const prog = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
     const partial = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
     const notmet = KPI_DATA.filter(k=>getS(k)==='Has Not Met').length;
     const pipe = KPI_DATA.filter(k=>getS(k)==='Coming Down the Pipeline').length;
-    // iReady Academic Insight KPI tiles
     const _irlKpiIM = (window.irlab && typeof window.irlab.getInsightMetrics === 'function') ? window.irlab.getInsightMetrics('') : null;
     const _irlKpiGain = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianScaleGain != null ? (_irlKpiIM.medianScaleGain > 0 ? '+' : '') + _irlKpiIM.medianScaleGain + ' pts' : '—';
     const _irlKpiPct  = _irlKpiIM && _irlKpiIM.hasData && _irlKpiIM.medianPctExpected != null ? Math.round(_irlKpiIM.medianPctExpected) + '%' : '—';
     document.getElementById('homeStatsStrip').innerHTML = `
       <div class="stat-tile" style="--accent-color:var(--met)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Met'),100)">
-        <div class="st-icon">✅</div>
-        <div class="st-value">${met}</div>
-        <div class="st-label">Goals Met</div>
-        <div class="st-sub">SY 2025–26</div>
+        <div class="st-icon">✅</div><div class="st-value">${met}</div><div class="st-label">Goals Met</div><div class="st-sub">SY 2025–26</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--progress)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('In Progress'),100)">
-        <div class="st-icon">🔵</div>
-        <div class="st-value">${prog}</div>
-        <div class="st-label">In Progress</div>
-        <div class="st-sub">Active tracking</div>
+        <div class="st-icon">🔵</div><div class="st-value">${prog}</div><div class="st-label">In Progress</div><div class="st-sub">Active tracking</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--partial)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'))">
-        <div class="st-icon">🟠</div>
-        <div class="st-value">${partial}</div>
-        <div class="st-label">Partially Met</div>
-        <div class="st-sub">In development</div>
+        <div class="st-icon">🟠</div><div class="st-value">${partial}</div><div class="st-label">Partially Met</div><div class="st-sub">In development</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--pipeline)">
-        <div class="st-icon">🟣</div>
-        <div class="st-value">${pipe}</div>
-        <div class="st-label">Pipeline</div>
-        <div class="st-sub">In development</div>
+        <div class="st-icon">🟣</div><div class="st-value">${pipe}</div><div class="st-label">Pipeline</div><div class="st-sub">In development</div>
       </div>
       <div class="stat-tile" style="--accent-color:var(--notmet)" onclick="showPanel('kpi',document.querySelector('[data-panel=kpi]'));setTimeout(()=>setKpiFilter('Has Not Met'),100)">
-        <div class="st-icon">🔴</div>
-        <div class="st-value">${notmet}</div>
-        <div class="st-label">Not Met</div>
-        <div class="st-sub">Area of focus</div>
+        <div class="st-icon">🔴</div><div class="st-value">${notmet}</div><div class="st-label">Not Met</div><div class="st-sub">Area of focus</div>
       </div>
       <div class="stat-tile" style="--accent-color:#0891b2" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
-        <div class="st-icon">📈</div>
-        <div class="st-value" style="font-size:1.5rem">${_irlKpiGain}</div>
-        <div class="st-label">iReady Scale Gain</div>
-        <div class="st-sub">Median · all scholars</div>
+        <div class="st-icon">📈</div><div class="st-value" style="font-size:1.5rem">${_irlKpiGain}</div><div class="st-label">iReady Scale Gain</div><div class="st-sub">Median · all scholars</div>
       </div>
       <div class="stat-tile" style="--accent-color:#7c3aed" onclick="showPanel('iready-lab',document.querySelector('[data-panel=iready-lab]'))">
-        <div class="st-icon">🎯</div>
-        <div class="st-value" style="font-size:1.5rem">${_irlKpiPct}</div>
-        <div class="st-label">Growth vs Target</div>
-        <div class="st-sub">% of typical norms · iReady Lab</div>
+        <div class="st-icon">🎯</div><div class="st-value" style="font-size:1.5rem">${_irlKpiPct}</div><div class="st-label">Growth vs Target</div><div class="st-sub">% of typical norms · iReady Lab</div>
       </div>
     `;
 
-    // metBadge in sidebar
     const metBadgeEl = document.getElementById('metBadge');
     if (metBadgeEl) metBadgeEl.textContent = met;
 
-    // Quick links
+    // ── Quick links ────────────────────────────────────────────────────────
     document.getElementById('homeQuickLinks').innerHTML = cfg.quickLinks.map(ql => `
       <div class="ql-card" onclick="showPanel('${ql.panel}',document.querySelector('[data-panel=${ql.panel}]'))">
         <div class="ql-icon-wrap" style="background:${ql.bg}">${ql.icon}</div>
@@ -758,7 +741,7 @@
       </div>
     `).join('');
 
-    // Department-specific widget (HR & Data: Termination Analytics; Programming: Retention Rate)
+    // ── Dept widget (termination/retention analytics) ─────────────────────
     const _deptWidget = document.getElementById('homeDeptWidget');
     if (_deptWidget) {
       if (['hr','data'].includes(dept) && typeof window._buildTermAnalyticsWidget === 'function') {
@@ -770,16 +753,12 @@
       }
     }
 
-    // ── Departmental Success Leaderboard ──────────────────────────────────────
-    // leadership, data, kb → show submission KPI pill + view-details pill on home dashboard
-    // all other depts → full leaderboard replaces home widget area
+    // ── Departmental Success Leaderboard ──────────────────────────────────
     const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
     const _lbEl = document.getElementById('homeDeptWidget');
     if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
-      // Inject a slim KPI pill into the stats strip for exec depts — does not alter exec dashboard
       _lbInjectExecPill(dept);
     } else {
-      // Full leaderboard for all other departments
       if (_lbEl) {
         _lbEl.innerHTML = _lbRenderFullBoard(dept);
         _lbBindEvents(dept);
@@ -952,142 +931,157 @@
   function _lbRenderFullBoard(dept) {
     const cfg = LB_DEPT_CFG[dept] || LB_DEPT_CFG.programming;
     const countdown = _lbCountdown();
-    const cdColor = countdown.urgent ? '#e63946' : countdown.days <= 2 ? '#e76f51' : '#0d6e3a';
+    const cdBg = countdown.urgent ? 'rgba(230,57,70,.15)' : 'rgba(13,110,58,.15)';
+    const cdBorder = countdown.urgent ? 'rgba(230,57,70,.4)' : 'rgba(13,110,58,.4)';
+    const cdText = countdown.urgent ? '#ff8a8a' : '#4ade80';
 
     return `
-    <div class="lb-wrap" id="lbWrap" style="margin-top:1.5rem">
+    <div id="lbWrap">
 
-      <!-- Header banner -->
-      <div class="lb-hero" style="background:linear-gradient(135deg,#0a1628 0%,#162347 60%,${cfg.color}22 100%);border-radius:16px;padding:1.75rem 2rem;color:#fff;margin-bottom:1.5rem;position:relative;overflow:hidden">
-        <div style="position:absolute;right:1.5rem;top:50%;transform:translateY(-50%);font-size:5rem;opacity:.05;pointer-events:none">${cfg.emoji}</div>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;position:relative;z-index:1">
+      <!-- ═══ HERO — Full-width leaderboard banner ═══ -->
+      <div style="background:linear-gradient(135deg,#0a1628 0%,#0d1e3d 55%,#111e40 100%);border-radius:18px;padding:2rem 2.25rem 1.75rem;color:#fff;margin-bottom:1.75rem;position:relative;overflow:hidden">
+        <!-- Decorative background watermark -->
+        <div style="position:absolute;right:-1rem;top:-1rem;font-size:9rem;opacity:.04;pointer-events:none;line-height:1;user-select:none">${cfg.emoji}</div>
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${cfg.color},${cfg.color}88,transparent)"></div>
+
+        <!-- Top row: title + meeting info -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1.25rem;margin-bottom:1.5rem">
           <div>
-            <div style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.375rem">Departmental Success Leaderboard</div>
-            <div style="font-size:1.375rem;font-weight:800;line-height:1.2">${cfg.emoji} ${cfg.label}</div>
-            <div style="font-size:.8125rem;color:rgba(255,255,255,.6);margin-top:.375rem">Weekly wins, cross-departmental impact, and goal tracking — all in one place.</div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
-            <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:.5rem .875rem;text-align:center">
-              <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:.2rem">Next Meeting</div>
-              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 14 · 2026</div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:${cfg.color};margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
+              <span style="display:inline-block;width:18px;height:2px;background:${cfg.color};border-radius:1px"></span>
+              Departmental Success · SY 2025–2026
             </div>
-            <div style="background:${countdown.urgent ? 'rgba(230,57,70,.18)' : 'rgba(13,110,58,.18)'};border:1px solid ${countdown.urgent ? 'rgba(230,57,70,.35)' : 'rgba(13,110,58,.3)'};border-radius:10px;padding:.5rem .875rem;text-align:center">
-              <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:.2rem">Submit by Friday</div>
-              <div style="font-size:.8rem;font-weight:700;color:${cdColor === '#e63946' ? '#ff8a8a' : '#4ade80'}">${countdown.label}</div>
+            <div style="font-size:1.625rem;font-weight:800;letter-spacing:-.02em;line-height:1.15">
+              ${cfg.emoji} ${cfg.label}
+            </div>
+            <div style="font-size:.8125rem;color:rgba(255,255,255,.5);margin-top:.375rem;max-width:400px;line-height:1.5">
+              Your team's wins, cross-departmental moments, and goals — visible to the whole organization.
+            </div>
+          </div>
+          <div style="display:flex;gap:.625rem;flex-wrap:wrap;align-items:flex-start">
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
+              <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Next Meeting</div>
+              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 14, 2026</div>
+            </div>
+            <div style="background:${cdBg};border:1px solid ${cdBorder};border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
+              <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Friday Deadline</div>
+              <div style="font-size:.8rem;font-weight:700;color:${cdText}">${countdown.label}</div>
             </div>
           </div>
         </div>
 
-        <!-- Dept score strip -->
-        <div id="lbDeptScoreStrip" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem;position:relative;z-index:1">
-          <div style="font-size:.75rem;color:rgba(255,255,255,.35);display:flex;align-items:center">Loading submissions…</div>
+        <!-- Dept score pills -->
+        <div id="lbDeptScoreStrip" style="display:flex;gap:.5rem;flex-wrap:wrap;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,.07)">
+          <div style="font-size:.75rem;color:rgba(255,255,255,.25);display:flex;align-items:center">Loading…</div>
         </div>
       </div>
 
-      <!-- Action row: submit + view details -->
-      <div style="display:flex;gap:.875rem;flex-wrap:wrap;margin-bottom:1.5rem;align-items:stretch">
-
-        <!-- Submit this week's update -->
-        <div style="flex:1;min-width:260px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.375rem 1.5rem;box-shadow:var(--shadow-sm)">
-          <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${cfg.color};margin-bottom:.5rem">📝 This Week's Update</div>
-          <div style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.75rem">Submit Your Department's Weekly Update</div>
-          <div style="font-size:.8125rem;color:var(--text-2);margin-bottom:1rem;line-height:1.55">Share your department's wins, cross-team moments, and weekly goal. Due by <strong>Friday before each biweekly meeting.</strong></div>
-          <div style="display:flex;gap:.625rem;flex-wrap:wrap">
-            <button class="btn btn-primary" style="background:linear-gradient(135deg,#0a1628,#003087);font-size:.8125rem;padding:.5rem 1.125rem" onclick="_lbOpenSubmitModal('${dept}')">
-              ✍️ Submit Weekly Update
+      <!-- ═══ ACTION ROW ═══ -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <!-- Submit CTA -->
+        <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:.875rem">
+          <div>
+            <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:${cfg.color};margin-bottom:.3rem">✍️ This Week</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.25rem">Submit Your Weekly Update</div>
+            <div style="font-size:.8125rem;color:var(--text-2);line-height:1.55">Share your wins, cross-team moments, and this week's goal. Required by <strong>Friday</strong> before each biweekly meeting.</div>
+          </div>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button onclick="_lbOpenSubmitModal('${dept}')" style="display:inline-flex;align-items:center;gap:.4rem;padding:.5625rem 1.25rem;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;border-radius:10px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,48,135,.3)">
+              ✍️ Submit Update
             </button>
-            <button class="btn btn-secondary" style="font-size:.8125rem;padding:.5rem 1rem" onclick="_lbRefresh('${dept}')">
-              ↺ Refresh Board
+            <button onclick="_lbRefresh('${dept}')" style="padding:.5rem .875rem;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:10px;font-size:.8125rem;font-family:inherit;cursor:pointer">
+              ↺ Refresh
             </button>
           </div>
         </div>
-
-        <!-- View all submissions pill -->
-        <div style="flex:1;min-width:260px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.375rem 1.5rem;box-shadow:var(--shadow-sm)">
-          <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.5rem">📊 Submission Tracker</div>
-          <div id="lbSubmissionSummary" style="font-size:.8125rem;color:var(--text-2);line-height:1.6;margin-bottom:.875rem">Loading…</div>
-          <button class="btn btn-secondary" style="font-size:.8125rem;padding:.5rem 1rem" onclick="_lbOpenViewModal('${dept}')">
-            🔍 View All Submissions
+        <!-- Submission tracker -->
+        <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.5rem;box-shadow:var(--shadow-sm)">
+          <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:.75rem">📊 Submission Tracker</div>
+          <div id="lbSubmissionSummary" style="font-size:.8125rem;color:var(--text-2)">Loading…</div>
+          <button onclick="_lbOpenViewModal('${dept}')" style="margin-top:.875rem;display:inline-flex;align-items:center;gap:.375rem;padding:.4375rem .875rem;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:8px;font-size:.8125rem;font-family:inherit;cursor:pointer">
+            🔍 View Full Details
           </button>
         </div>
-
       </div>
 
-      <!-- Leaderboard table: all departments -->
-      <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:1.5rem">
-        <div style="background:var(--navy);padding:.875rem 1.25rem;display:flex;align-items:center;justify-content:space-between">
+      <!-- ═══ CROSS-DEPT BOARD ═══ -->
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:1.5rem">
+        <!-- Board header -->
+        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1rem 1.375rem;display:flex;align-items:center;justify-content:space-between">
           <div>
-            <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45)">Network</div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.2rem">Network View</div>
             <div style="font-size:.9375rem;font-weight:700;color:#fff">Departmental Submission Board — SY 2025–2026</div>
           </div>
-          <div style="font-size:.6875rem;color:rgba(255,255,255,.35);font-family:var(--mono,'JetBrains Mono',monospace)" id="lbLastSync">Syncing…</div>
+          <div style="font-size:.6875rem;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace" id="lbLastSync">Syncing…</div>
         </div>
-        <div id="lbBoardTable" style="overflow-x:auto">
-          <div style="padding:2rem;text-align:center;color:var(--muted);font-size:.875rem">⏳ Loading leaderboard data…</div>
+        <div id="lbBoardTable">
+          <div style="padding:2.5rem;text-align:center;color:var(--muted);font-size:.875rem">⏳ Loading submissions…</div>
         </div>
       </div>
 
-      <!-- This week's spotlight: org share-outs (leadership) + dept wins -->
+      <!-- ═══ ORG SPOTLIGHT (leadership share-outs) ═══ -->
       <div id="lbSpotlight" style="display:none;margin-bottom:1.5rem"></div>
 
     </div>
 
-    <!-- Submit Modal -->
-    <div id="lbSubmitModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
-      <div style="background:#fff;border-radius:18px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
-        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
-          <div>
-            <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${cfg.color};margin-bottom:.25rem">Weekly Update</div>
-            <div style="font-size:1.125rem;font-weight:700;color:#fff">${cfg.emoji} ${cfg.label} — Submit This Week</div>
-            <div style="font-size:.75rem;color:rgba(255,255,255,.45);margin-top:.2rem">Due by Friday before the biweekly meeting</div>
-          </div>
-          <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
+    <!-- ═══ SUBMIT MODAL ═══ -->
+    <div id="lbSubmitModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(6px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:#fff;border-radius:20px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 28px 80px rgba(10,22,40,.3)">
+        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:20px 20px 0 0;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${cfg.color},${cfg.color}88,transparent)"></div>
+          <div style="font-size:.595rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.3rem">Weekly Update</div>
+          <div style="font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.2rem">${cfg.emoji} ${cfg.label}</div>
+          <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · Tue Apr 14, 2026</div>
+          <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
         </div>
-        <div style="padding:1.5rem 1.75rem" id="lbFormBody">
-          <div class="lb-field" style="margin-bottom:1.25rem">
+        <div style="padding:1.75rem" id="lbFormBody">
+          <div style="margin-bottom:1.25rem">
             <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 What successes has your department seen this week? <span style="color:#e63946">*</span></label>
-            <textarea id="lbF_success" rows="3" placeholder="Share your wins — specific achievements, milestones reached, problems solved…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="lbF_success" rows="3" placeholder="Share your wins — achievements, milestones, problems solved…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           </div>
-          <div class="lb-field" style="margin-bottom:1.25rem">
+          <div style="margin-bottom:1.25rem">
             <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🤝 Cross-departmental successes this week?</label>
-            <textarea id="lbF_cross" rows="2" placeholder="Collaborations, handoffs, joint wins across departments (optional)…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="lbF_cross" rows="2" placeholder="Collaborations, handoffs, joint wins — optional but encouraged…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           </div>
-          <div class="lb-field" style="margin-bottom:1.25rem">
+          <div style="margin-bottom:1.25rem">
             <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🎯 What is this week's goal for your department? <span style="color:#e63946">*</span></label>
-            <textarea id="lbF_goal" rows="2" placeholder="State one specific, achievable goal for this week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="lbF_goal" rows="2" placeholder="One specific, achievable goal for this week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           </div>
-          <div class="lb-field" style="margin-bottom:1.25rem" id="lbF_missWrap" style="display:none">
+          <div style="margin-bottom:1.25rem">
             <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">❓ If last week's goal wasn't met — what was the reason?</label>
-            <textarea id="lbF_miss" rows="2" placeholder="Optional — honest reflection helps us iterate and improve…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="lbF_miss" rows="2" placeholder="Optional — honest reflection helps us grow together…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           </div>
-          <div class="lb-field" id="lbF_orgWrap" style="margin-bottom:1.25rem;display:none">
+          <div id="lbF_orgWrap" style="margin-bottom:1.25rem;display:none">
             <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🌟 Organizational Share-Out (Leadership only)</label>
-            <textarea id="lbF_org" rows="2" placeholder="Add an org-level insight or success for the whole team to see…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <textarea id="lbF_org" rows="2" placeholder="An org-level insight or win for the whole team to see…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
           </div>
           <div id="lbFormError" style="display:none;background:rgba(185,28,28,.07);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:.75rem 1rem;font-size:.875rem;color:#b91c1c;margin-bottom:1rem"></div>
-          <div style="display:flex;justify-content:flex-end;gap:.75rem;padding-top:.5rem">
-            <button class="btn btn-secondary" style="font-size:.875rem" onclick="document.getElementById('lbSubmitModal').style.display='none'">Cancel</button>
-            <button class="btn btn-primary" style="font-size:.875rem;background:linear-gradient(135deg,#0a6e3a,#16a34a)" id="lbSubmitBtn" onclick="_lbSubmitForm('${dept}')">
+          <div style="display:flex;justify-content:flex-end;gap:.75rem;padding-top:.25rem">
+            <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="padding:.5625rem 1.125rem;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:10px;font-size:.875rem;font-family:inherit;cursor:pointer">Cancel</button>
+            <button id="lbSubmitBtn" onclick="_lbSubmitForm('${dept}')" style="display:inline-flex;align-items:center;gap:.5rem;padding:.5625rem 1.5rem;background:linear-gradient(135deg,#0a6e3a,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(13,110,58,.3)">
               <span id="lbSubmitBtnTxt">✅ Submit Update</span>
-              <span id="lbSubmitSpinner" style="display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-left:.5rem"></span>
+              <span id="lbSubmitSpinner" style="display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite"></span>
             </button>
           </div>
         </div>
-        <div id="lbFormSuccess" style="display:none;text-align:center;padding:3rem 2rem">
+        <div id="lbFormSuccess" style="display:none;text-align:center;padding:3.5rem 2rem">
           <div style="font-size:3.5rem;margin-bottom:1rem">🎉</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.75rem">Update Submitted!</div>
-          <div style="font-size:.9375rem;color:var(--text-2);max-width:380px;margin:0 auto 1.5rem;line-height:1.6">Your department's update is on the board. See you at the meeting — keep pushing! 💪</div>
-          <button class="btn btn-secondary" onclick="document.getElementById('lbSubmitModal').style.display='none';_lbRefresh('${dept}')">Close &amp; Refresh</button>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.625rem;color:var(--navy);margin-bottom:.75rem">Update Submitted!</div>
+          <div style="font-size:.9375rem;color:var(--text-2);max-width:360px;margin:0 auto 1.75rem;line-height:1.6">Your department's update is on the board. The team will see it before Tuesday's meeting.</div>
+          <button onclick="document.getElementById('lbSubmitModal').style.display='none';_lbRefresh('${dept}')" style="padding:.5625rem 1.5rem;background:var(--navy);color:#fff;border:none;border-radius:10px;font-size:.875rem;font-weight:600;font-family:inherit;cursor:pointer">Close &amp; Refresh Board</button>
         </div>
       </div>
     </div>
 
-    <!-- View All Submissions Modal -->
-    <div id="lbViewModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
-      <div style="background:#fff;border-radius:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(10,22,40,.25)">
-        <div style="background:var(--navy);padding:1.25rem 1.5rem;border-radius:18px 18px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-          <div style="font-size:.9375rem;font-weight:700;color:#fff">📋 All Submissions — SY 2025–2026</div>
-          <button onclick="document.getElementById('lbViewModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem">✕</button>
+    <!-- ═══ VIEW ALL SUBMISSIONS MODAL ═══ -->
+    <div id="lbViewModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(6px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:#fff;border-radius:20px;width:100%;max-width:820px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 28px 80px rgba(10,22,40,.3)">
+        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.25rem 1.5rem;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.2rem">Cross-Departmental</div>
+            <div style="font-size:.9375rem;font-weight:700;color:#fff">All Submissions — SY 2025–2026</div>
+          </div>
+          <button onclick="document.getElementById('lbViewModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
         </div>
         <div id="lbViewModalBody" style="flex:1;overflow-y:auto;padding:1.5rem">
           <div style="text-align:center;color:var(--muted);padding:2rem">Loading…</div>
@@ -1107,8 +1101,10 @@
   async function _lbLoadBoard(dept, force) {
     const rows = await _lbFetch(force);
     const stats = _lbStats(rows);
+    const total = LB_ALL_DEPTS.reduce((a, d) => a + stats[d].count, 0);
+    const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
 
-    // Score strip
+    // ── Score pills in hero ────────────────────────────────────────────────
     const strip = document.getElementById('lbDeptScoreStrip');
     if (strip) {
       strip.innerHTML = LB_ALL_DEPTS.map(d => {
@@ -1116,90 +1112,145 @@
         const c = LB_DEPT_CFG[d];
         const isMe = d === dept;
         const hasThis = s.count > 0;
-        return `<div style="display:flex;align-items:center;gap:.375rem;padding:.35rem .75rem;border-radius:20px;background:${isMe ? c.color+'33' : 'rgba(255,255,255,.07)'};border:1px solid ${isMe ? c.color+'66' : 'rgba(255,255,255,.1)'};cursor:default" title="${c.label}">
-          <span style="font-size:.8125rem">${c.emoji}</span>
-          <span style="font-size:.6875rem;font-weight:700;color:${isMe ? '#fff' : 'rgba(255,255,255,.6)'}">${c.label.split(' ')[0]}</span>
-          <span style="font-size:.6875rem;font-weight:800;color:${hasThis ? '#4ade80' : 'rgba(255,255,255,.3)'}">${s.count}</span>
+        return `<div style="display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:20px;background:${isMe ? c.color+'28' : 'rgba(255,255,255,.06)'};border:1px solid ${isMe ? c.color+'55' : 'rgba(255,255,255,.09)'}" title="${c.label}">
+          <span style="font-size:.75rem">${c.emoji}</span>
+          <span style="font-size:.6875rem;font-weight:${isMe?'800':'600'};color:${isMe?'#fff':'rgba(255,255,255,.55)'}">${c.label.split(' ')[0]}</span>
+          <span style="font-size:.6875rem;font-weight:800;color:${hasThis?'#4ade80':'rgba(255,255,255,.25)'}">${s.count}</span>
         </div>`;
       }).join('');
     }
 
-    // Submission summary
+    // ── Submission summary ─────────────────────────────────────────────────
     const sumEl = document.getElementById('lbSubmissionSummary');
     if (sumEl) {
-      const myStats = stats[dept];
-      const total = LB_ALL_DEPTS.reduce((a, d) => a + stats[d].count, 0);
-      const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
+      const myCount = stats[dept].count;
+      const pct = Math.round(submitted / LB_ALL_DEPTS.length * 100);
       sumEl.innerHTML = `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.625rem;margin-bottom:.75rem">
-          <div style="text-align:center;padding:.625rem;background:var(--surface-2);border-radius:8px">
-            <div style="font-size:1.5rem;font-weight:800;color:var(--navy)">${myStats.count}</div>
-            <div style="font-size:.6875rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Your Submissions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+            <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${myCount}</div>
+            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Mine</div>
           </div>
-          <div style="text-align:center;padding:.625rem;background:var(--surface-2);border-radius:8px">
-            <div style="font-size:1.5rem;font-weight:800;color:var(--navy)">${submitted}/7</div>
-            <div style="font-size:.6875rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Depts Submitted</div>
+          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+            <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
+            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Depts</div>
+          </div>
+          <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
+            <div style="font-size:1.375rem;font-weight:800;color:${pct>=70?'#0d6e3a':pct>=40?'#d97706':'#b91c1c'}">${pct}%</div>
+            <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Active</div>
           </div>
         </div>
-        <div style="font-size:.75rem;color:var(--muted)">${total} total submission${total!==1?'s':''} on record · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} have not submitted yet.</div>
+        <div style="font-size:.75rem;color:var(--muted)">${total} total · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} not yet submitted</div>
       `;
     }
 
-    // Main leaderboard table
+    // ── Main board — dept cards with expandable details ────────────────────
     const tableEl = document.getElementById('lbBoardTable');
     if (tableEl) {
       const sortedDepts = [...LB_ALL_DEPTS].sort((a,b) => stats[b].count - stats[a].count);
-      let tableHTML = `<table style="width:100%;border-collapse:collapse;font-size:.875rem">
-        <thead>
-          <tr style="background:var(--surface-2)">
-            <th style="padding:.75rem 1.125rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Dept</th>
-            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Submissions</th>
-            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Last Submitted</th>
-            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Met Deadline</th>
-            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Status</th>
-          </tr>
-        </thead>
-        <tbody>`;
-
+      let boardHTML = '';
       sortedDepts.forEach((d, idx) => {
         const s = stats[d];
         const c = LB_DEPT_CFG[d];
         const isMe = d === dept;
         const hasData = s.count > 0;
-        const lastDate = s.lastDate ? s.lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
-        const metPct = s.count > 0 ? Math.round(s.metDeadline/s.count*100) : 0;
+        const latest = s.entries[s.entries.length - 1];
+        const lastDate = s.lastDate ? s.lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : null;
+        const rankIcon = idx === 0 && hasData ? '🥇' : idx === 1 && hasData ? '🥈' : idx === 2 && hasData ? '🥉' : '';
         const statusBadge = !hasData
           ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not Submitted</span>`
           : s.metDeadline > 0
             ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">✓ On Time</span>`
             : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fef3c7;color:#92400e">Late</span>`;
-        const rankBadge = idx < 3 && hasData ? ['🥇','🥈','🥉'][idx] : '';
-        tableHTML += `<tr style="border-bottom:1px solid var(--border-2);${isMe ? `background:${c.color}08;` : ''}">
-          <td style="padding:.875rem 1.125rem">
-            <div style="display:flex;align-items:center;gap:.625rem">
-              <div style="width:8px;height:8px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
-              <div>
-                <div style="font-weight:700;font-size:.875rem;color:var(--navy)">${c.emoji} ${c.label}${isMe ? ' <span style="font-size:.6rem;background:'+c.color+'22;color:'+c.color+';padding:.1rem .4rem;border-radius:10px;font-weight:700">YOU</span>' : ''}</div>
-                ${rankBadge ? `<div style="font-size:.75rem;margin-top:1px">${rankBadge} Top submitter</div>` : ''}
+
+        // Latest submission content preview
+        const succ  = latest ? (latest['What successes has your department seen this week?'] || latest[Object.keys(latest||{}).find(k=>/success/i.test(k))||''] || '') : '';
+        const goal  = latest ? (latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest||{}).find(k=>/goal/i.test(k))||''] || '') : '';
+        const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
+        const miss  = latest ? (latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '') : '';
+        const org   = latest ? (latest['Please add the Organizational Share Outs (Leadership Only)'] || '') : '';
+        const ts    = latest && latest['Timestamp'] ? new Date(latest['Timestamp']).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+
+        const cardId = `lbCard_${d}`;
+        const detailId = `lbDetail_${d}`;
+        const hasDetails = hasData && (succ || goal || cross || miss || org);
+
+        boardHTML += `
+        <div id="${cardId}" style="border-bottom:1px solid var(--border-2);${isMe?`background:${c.color}05;`:''}" >
+          <!-- Summary row (always visible) -->
+          <div style="display:flex;align-items:center;gap:.875rem;padding:.875rem 1.25rem;cursor:${hasDetails?'pointer':'default'}"
+            ${hasDetails ? `onclick="document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'block':'none';this.querySelector('.lb-chevron').style.transform=document.getElementById('${detailId}').style.display==='block'?'rotate(180deg)':'rotate(0deg)'"` : ''}>
+            <!-- Color dot + dept -->
+            <div style="display:flex;align-items:center;gap:.625rem;flex:1;min-width:0">
+              <div style="width:9px;height:9px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+              <div style="min-width:0">
+                <div style="font-weight:700;font-size:.875rem;color:var(--navy);display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+                  ${c.emoji} ${c.label}
+                  ${isMe ? `<span style="font-size:.6rem;background:${c.color}22;color:${c.color};padding:.1rem .45rem;border-radius:10px;font-weight:800">YOU</span>` : ''}
+                  ${rankIcon ? `<span style="font-size:.8rem">${rankIcon}</span>` : ''}
+                </div>
+                ${lastDate ? `<div style="font-size:.75rem;color:var(--muted);margin-top:1px">Last submitted ${lastDate}</div>` : ''}
               </div>
             </div>
-          </td>
-          <td style="padding:.875rem;text-align:center;font-family:'DM Serif Display',serif;font-size:1.375rem;font-weight:400;color:${hasData ? 'var(--navy)' : 'var(--muted)'}">${s.count}</td>
-          <td style="padding:.875rem;text-align:center;font-size:.8125rem;color:var(--text-2)">${lastDate}</td>
-          <td style="padding:.875rem;text-align:center;font-size:.8125rem;color:var(--text-2)">${s.count > 0 ? s.metDeadline + ' / ' + s.count : '—'}</td>
-          <td style="padding:.875rem;text-align:center">${statusBadge}</td>
-        </tr>`;
+            <!-- Count -->
+            <div style="font-family:'DM Serif Display',serif;font-size:1.375rem;color:${hasData?'var(--navy)':'var(--muted)'};width:32px;text-align:center;flex-shrink:0">${s.count}</div>
+            <!-- Met deadline -->
+            <div style="font-size:.8125rem;color:var(--text-2);width:56px;text-align:center;flex-shrink:0">${s.count>0?s.metDeadline+'/'+s.count:'—'}</div>
+            <!-- Status -->
+            <div style="flex-shrink:0">${statusBadge}</div>
+            <!-- Chevron -->
+            ${hasDetails ? `<div class="lb-chevron" style="font-size:.75rem;color:var(--muted);flex-shrink:0;transition:transform .2s;margin-left:.25rem">▾</div>` : '<div style="width:16px"></div>'}
+          </div>
+
+          <!-- Expandable detail panel -->
+          <div id="${detailId}" style="display:none;border-top:1px dashed var(--border-2);margin:0 1.25rem;padding:.875rem 0 1rem">
+            ${succ ? `<div style="margin-bottom:.875rem">
+              <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color};margin-bottom:.3rem">🏆 Successes</div>
+              <div style="font-size:.875rem;color:var(--text);line-height:1.6;background:${c.color}08;border-left:3px solid ${c.color}55;padding:.625rem .875rem;border-radius:0 8px 8px 0">${succ}</div>
+            </div>` : ''}
+            ${cross ? `<div style="margin-bottom:.875rem">
+              <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0891b2;margin-bottom:.3rem">🤝 Cross-Departmental</div>
+              <div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#e0f7fa;border-left:3px solid #0891b2;padding:.625rem .875rem;border-radius:0 8px 8px 0">${cross}</div>
+            </div>` : ''}
+            ${goal ? `<div style="margin-bottom:.875rem">
+              <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0050c8;margin-bottom:.3rem">🎯 This Week's Goal</div>
+              <div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#eff6ff;border-left:3px solid #0050c8;padding:.625rem .875rem;border-radius:0 8px 8px 0">${goal}</div>
+            </div>` : ''}
+            ${miss ? `<div style="margin-bottom:.875rem">
+              <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#d97706;margin-bottom:.3rem">❓ Missed Goal Reason</div>
+              <div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#fffbeb;border-left:3px solid #d97706;padding:.625rem .875rem;border-radius:0 8px 8px 0">${miss}</div>
+            </div>` : ''}
+            ${org ? `<div style="margin-bottom:.25rem">
+              <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#f0a500;margin-bottom:.3rem">🌟 Org Share-Out</div>
+              <div style="font-size:.875rem;color:var(--navy);line-height:1.6;background:#fffbeb;border-left:3px solid #f0a500;padding:.625rem .875rem;border-radius:0 8px 8px 0;font-weight:500">${org}</div>
+            </div>` : ''}
+            ${ts ? `<div style="font-size:.6875rem;color:var(--muted);margin-top:.5rem">Submitted ${ts} · ${s.count} total submission${s.count!==1?'s':''} on record</div>` : ''}
+            ${s.count > 1 ? `<button onclick="_lbOpenViewModalDept('${d}')" style="margin-top:.625rem;font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline">View all ${s.count} submissions from ${c.label} →</button>` : ''}
+          </div>
+        </div>`;
       });
 
-      tableHTML += `</tbody></table>`;
-      tableEl.innerHTML = tableHTML;
+      // Table header
+      tableEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:.875rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
+          <div style="flex:1">Department</div>
+          <div style="width:32px;text-align:center">Total</div>
+          <div style="width:56px;text-align:center">On Time</div>
+          <div style="flex-shrink:0;min-width:90px;text-align:right">Status</div>
+          <div style="width:16px"></div>
+        </div>
+        ${boardHTML}
+        <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted)">
+          Click any submitted department to expand their weekly details.
+        </div>
+      `;
     }
 
     // Sync time
     const syncEl = document.getElementById('lbLastSync');
     if (syncEl) syncEl.textContent = 'Synced ' + new Date().toLocaleTimeString();
 
-    // Spotlight: org share-outs from leadership
+    // Org spotlight
     _lbRenderSpotlight(rows, stats);
   }
 
@@ -1277,8 +1328,147 @@
     }
   }
 
-  // ── Open modals ────────────────────────────────────────────────────────────
-  function _lbOpenSubmitModal(dept) {
+  // ── Open view modal filtered to one dept ──────────────────────────────────
+  async function _lbOpenViewModalDept(dept) {
+    const modal = document.getElementById('lbViewModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const body = document.getElementById('lbViewModalBody');
+    if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Loading…</div>';
+    const rows = await _lbFetch(false);
+    if (!body) return;
+    const c = LB_DEPT_CFG[dept] || {};
+    const dRows = rows.filter(r => _lbRowDept(r) === dept).slice().reverse();
+    if (!dRows.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions yet.</div>'; return; }
+    let html = `<div style="font-size:.8125rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:1rem">${c.emoji || ''} ${c.label || dept} — All Submissions</div>`;
+    dRows.forEach((r, i) => {
+      const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const succ  = r['What successes has your department seen this week?'] || '';
+      const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
+      const goal  = r['What is this week\'s goal for your department?'] || '';
+      const miss  = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+      html += `<div style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:1rem">
+        <div style="background:var(--surface-2);padding:.625rem 1rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+          <div style="font-size:.8125rem;font-weight:700;color:var(--navy)">Submission ${dRows.length - i}</div>
+          <div style="font-size:.75rem;color:var(--muted)">${ts}</div>
+        </div>
+        <div style="padding:1rem">
+          ${succ ? `<div style="margin-bottom:.75rem"><div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color||'#457b9d'};margin-bottom:.25rem">🏆 Successes</div><div style="font-size:.875rem;color:var(--text);line-height:1.6">${succ}</div></div>` : ''}
+          ${cross ? `<div style="margin-bottom:.75rem"><div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0891b2;margin-bottom:.25rem">🤝 Cross-Dept</div><div style="font-size:.875rem;color:var(--text);line-height:1.6">${cross}</div></div>` : ''}
+          ${goal ? `<div style="margin-bottom:.75rem"><div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0050c8;margin-bottom:.25rem">🎯 Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.6">${goal}</div></div>` : ''}
+          ${miss ? `<div><div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#d97706;margin-bottom:.25rem">❓ Missed Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.6">${miss}</div></div>` : ''}
+        </div>
+      </div>`;
+    });
+    body.innerHTML = html;
+  }
+
+  // ── Welcome modal — first login per dept, one-time per session ────────────
+  function _lbShowWelcomeModal(dept) {
+    const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
+    const lbCfg = LB_DEPT_CFG[dept] || {};
+    const countdown = _lbCountdown();
+    const isExec = ['leadership','data','kb'].includes(dept);
+
+    // Dept-specific starting point guidance
+    const startingPoints = {
+      hr:          ['📝 Log a Support Concern', 'Support Log'],
+      finance:     ['📊 Check KPI Targets', 'KPI Targets'],
+      programming: ['📊 Pearl Operations — live session data', 'Pearl Operations'],
+      training:    ['🎓 Training & Development Analytics', 'T&D Analytics'],
+      leadership:  ['📊 Executive Command Center — your full dashboard', 'Department Home'],
+      data:        ['🔬 i-Ready Analysis Lab — academic data', 'i-Ready Analysis Lab'],
+      kb:          ['📊 Executive Command Center — program overview', 'Department Home'],
+    };
+    const [startAction, startLabel] = startingPoints[dept] || ['🏠 Explore your department', 'Department Home'];
+
+    let modal = document.getElementById('lbWelcomeModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lbWelcomeModal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(10,22,40,.75);backdrop-filter:blur(8px);z-index:2000;display:flex;align-items:center;justify-content:center;padding:1rem';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) _lbDismissWelcome(); });
+    }
+
+    modal.innerHTML = `
+    <div style="background:#fff;border-radius:22px;width:100%;max-width:540px;overflow:hidden;box-shadow:0 32px 96px rgba(10,22,40,.4);animation:lbWelcomeIn .35s cubic-bezier(.34,1.56,.64,1)">
+      <style>@keyframes lbWelcomeIn{from{opacity:0;transform:scale(.92) translateY(16px)}to{opacity:1;transform:scale(1) translateY(0)}}</style>
+
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:2rem 2.25rem 1.75rem;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${lbCfg.color||cfg.color},${lbCfg.color||cfg.color}88,transparent)"></div>
+        <div style="position:absolute;right:-1rem;top:-1rem;font-size:8rem;opacity:.05;pointer-events:none;line-height:1">${cfg.emoji}</div>
+        <div style="font-size:.595rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:${lbCfg.color||cfg.color};margin-bottom:.5rem">Welcome Back</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.625rem;color:#fff;line-height:1.2;margin-bottom:.375rem">
+          Good ${new Date().getHours()<12?'morning':new Date().getHours()<17?'afternoon':'evening'}, ${cfg.label} Team 👋
+        </div>
+        <div style="font-size:.875rem;color:rgba(255,255,255,.55);">Central Team Staff Portal · SY 2025–2026 · ${new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</div>
+      </div>
+
+      <!-- Body -->
+      <div style="padding:1.75rem 2rem">
+
+        <!-- Meeting countdown -->
+        <div style="background:linear-gradient(135deg,#eff6ff,#f0f7ff);border:1.5px solid #dbeafe;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:.875rem">
+          <div style="font-size:1.75rem;flex-shrink:0">📅</div>
+          <div>
+            <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — Tue Apr 14, 2026</div>
+            <div style="font-size:.75rem;color:#1e40af;opacity:.75;margin-top:.2rem">
+              ${countdown.days > 0 ? `${countdown.days} day${countdown.days!==1?'s':''} away` : 'Today!'} · Submit your weekly update by <strong>this Friday</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- Where to start -->
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.625rem">Where to start today</div>
+          <div style="display:flex;flex-direction:column;gap:.5rem">
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:8px;background:${lbCfg.color||cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:.875rem;flex-shrink:0">1</div>
+              <div style="flex:1;font-size:.875rem;color:var(--navy)"><strong>Submit your weekly update</strong> — due by Friday. The board is live now.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:8px;background:${lbCfg.color||cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:.875rem;flex-shrink:0">2</div>
+              <div style="flex:1;font-size:.875rem;color:var(--navy)">${startAction}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)">
+              <div style="width:28px;height:28px;border-radius:8px;background:${lbCfg.color||cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:.875rem;flex-shrink:0">3</div>
+              <div style="flex:1;font-size:.875rem;color:var(--navy)">💬 Ask <strong>PIE</strong> — type any question in the gold button, bottom right. It reads all live data.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- What's new note (subtle) -->
+        <div style="font-size:.75rem;color:var(--muted);line-height:1.55;padding:.75rem 1rem;background:#f8faff;border-radius:8px;margin-bottom:1.25rem">
+          🆕 <strong>New this session:</strong> The Departmental Success Leaderboard is live — scroll down on your home page to see all team updates and submit your own.
+        </div>
+
+        <!-- CTA buttons -->
+        <div style="display:flex;gap:.625rem">
+          <button onclick="_lbDismissWelcome()" style="flex:1;padding:.625rem 1.25rem;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;border-radius:10px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,48,135,.3)">
+            Let's go 🚀
+          </button>
+          <button onclick="_lbDismissWelcomeAndSubmit('${dept}')" style="flex:1;padding:.625rem 1.25rem;background:linear-gradient(135deg,#0a6e3a,#16a34a);color:#fff;border:none;border-radius:10px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(13,110,58,.3)">
+            Submit Update Now ✍️
+          </button>
+        </div>
+
+      </div>
+    </div>`;
+
+    modal.style.display = 'flex';
+  }
+
+  function _lbDismissWelcome() {
+    const m = document.getElementById('lbWelcomeModal');
+    if (m) m.style.display = 'none';
+  }
+
+  function _lbDismissWelcomeAndSubmit(dept) {
+    _lbDismissWelcome();
+    setTimeout(() => _lbOpenSubmitModal(dept), 200);
+  }
     const modal = document.getElementById('lbSubmitModal');
     if (!modal) return;
     // Reset form
@@ -3836,6 +4026,7 @@
   // ── Leaderboard public API ────────────────────────────────────────────────
   window._lbOpenSubmitModal    = _lbOpenSubmitModal;
   window._lbOpenViewModal      = _lbOpenViewModal;
+  window._lbOpenViewModalDept  = _lbOpenViewModalDept;
   window._lbOpenExecViewModal  = _lbOpenExecViewModal;
   window._lbCreateExecSubmitModal = _lbCreateExecSubmitModal;
   window._lbSubmitForm         = _lbSubmitForm;
@@ -3843,6 +4034,9 @@
   window._lbRefresh            = _lbRefresh;
   window._lbDeptCfg            = LB_DEPT_CFG;
   window._lbCountdown          = _lbCountdown;
+  window._lbShowWelcomeModal   = _lbShowWelcomeModal;
+  window._lbDismissWelcome     = _lbDismissWelcome;
+  window._lbDismissWelcomeAndSubmit = _lbDismissWelcomeAndSubmit;
 
   // Allow KPI_DATA reassignment to propagate to window
   // (fetchSheetKPI reassigns KPI_DATA via var; modules reading window.KPI_DATA
