@@ -2564,9 +2564,10 @@
     const MOY_SHEET_ID  = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
     const MOY_MATH_GID  = '186448147';
     const MOY_ELA_GID   = '912997533';
-    const MOY_MATH_URL  = `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/export?format=csv&gid=${MOY_MATH_GID}`;
-    const MOY_ELA_URL   = `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/export?format=csv&gid=${MOY_ELA_GID}`;
-    const MOY_CACHE_KEY = 'njtc_moy_live_v1';
+    const MOY_2PACX     = '2PACX-1vQCMey9qbjXf7CFNbK-8Fq-qA0nn-DURIlOVjwQ-U1OwHxSo4PRVOy7eLs0w9JHGtBFwgQTzCqy_sMm';
+    const MOY_MATH_URL  = `https://docs.google.com/spreadsheets/d/e/${MOY_2PACX}/pub?output=csv&gid=${MOY_MATH_GID}`;
+    const MOY_ELA_URL   = `https://docs.google.com/spreadsheets/d/e/${MOY_2PACX}/pub?output=csv&gid=${MOY_ELA_GID}`;
+    const MOY_CACHE_KEY = 'njtc_moy_live_v2'; // v2 — bumped to clear stale pre-publish cache
     const MOY_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours — matches EOY cache
 
     // MOY region map — derives from external_account_id prefix
