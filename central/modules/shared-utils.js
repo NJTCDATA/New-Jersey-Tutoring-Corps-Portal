@@ -1238,7 +1238,7 @@
     const goal    = (document.getElementById('lbF_goal') || {}).value || '';
     if (!success.trim()) {
       const err = document.getElementById('lbFormError');
-      if (err) { err.textContent = 'Please fill in your department's successes before submitting.'; err.style.display = 'block'; }
+      if (err) { err.textContent = 'Please fill in your department\'s successes before submitting.'; err.style.display = 'block'; }
       return;
     }
     if (!goal.trim()) {
