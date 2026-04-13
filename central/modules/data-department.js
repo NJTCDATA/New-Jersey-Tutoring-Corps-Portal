@@ -3055,10 +3055,10 @@
     function moySetSubject(s) { _moySubject = s; renderLab(); }
     function moySetView(v)    { _moyView = v;    renderLab(); }
     async function moyRefresh() {
-      _moyLoading = true;
-      renderLab(); // show loading state
+      _moyLoading = false; // reset so _moyFetchLive doesn't skip due to stale loading flag
+      renderLab(); // show loading skeleton immediately
       await _moyFetchLive(true);
-      renderLab(); // re-render with data
+      renderLab(); // re-render with live data
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -3075,9 +3075,23 @@
           setTimeout(()=>_irlFetchLive(false).catch(()=>{}),800);
           setInterval(()=>{ const p=document.getElementById('panel-iready-lab'); if(p&&p.classList.contains('active')) _irlFetchLive(false).catch(()=>{}); },IRLAB_REFRESH_MS);
         }
+        // Auto-fetch MOY data on first open — no user action required
+        setTimeout(() => {
+          _moyFetchLive(false).then(() => {
+            if (MOY_DATA.loaded && (MOY_DATA.math.length > 0 || MOY_DATA.ela.length > 0)) {
+              renderLab(); // re-render now that MOY data is available
+            }
+          }).catch(() => {});
+        }, 1200); // after EOY fetch starts — staggered to avoid bandwidth contention
       } else {
         renderLab();  // re-render on every open so dept lock persists
         if (IRLAB_LIVE_2PACX) { _irlFetchLive(false).catch(()=>{}); }
+        // Re-fetch MOY if not yet loaded or cache is stale
+        if (!MOY_DATA.loaded) {
+          _moyFetchLive(false).then(() => {
+            if (MOY_DATA.loaded) renderLab();
+          }).catch(() => {});
+        }
       }
     }
 
