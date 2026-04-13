@@ -769,9 +769,770 @@
         _deptWidget.innerHTML = '';
       }
     }
+
+    // ── Departmental Success Leaderboard ──────────────────────────────────────
+    // leadership, data, kb → show submission KPI pill + view-details pill on home dashboard
+    // all other depts → full leaderboard replaces home widget area
+    const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
+    const _lbEl = document.getElementById('homeDeptWidget');
+    if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
+      // Inject a slim KPI pill into the stats strip for exec depts — does not alter exec dashboard
+      _lbInjectExecPill(dept);
+    } else {
+      // Full leaderboard for all other departments
+      if (_lbEl) {
+        _lbEl.innerHTML = _lbRenderFullBoard(dept);
+        _lbBindEvents(dept);
+      }
+    }
   }
 
   // ── Executive Analytics Dashboard ─────────────────────────────────────────
+
+  // ══════════════════════════════════════════════════════════════════
+  //  DEPARTMENTAL SUCCESS LEADERBOARD SYSTEM
+  //  - Non-exec depts (hr, finance, programming, training): full leaderboard on home
+  //  - Exec depts (leadership, data, kb): KPI submission pill + view modal
+  //  - Google Form: https://docs.google.com/forms/…
+  //  - Google Sheet: https://docs.google.com/spreadsheets/d/1kCMKkIfN_2ONjvHooIk5xbyXlw5j-UGWNqRpttD5uaA/
+  //  - Sheet GID: 1827144938
+  // ══════════════════════════════════════════════════════════════════
+
+  const LB_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pubhtml?gid=1827144938&single=true';
+  const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/1kCMKkIfN_2ONjvHooIk5xbyXlw5j-UGWNqRpttD5uaA/export?format=csv&gid=1827144938';
+
+  // Google Form entry IDs
+  const LB_ENTRY = {
+    deptSuccess:   'entry.2017090049',
+    crossDept:     'entry.1704046748',
+    weeklyGoal:    'entry.782352842',
+    goalMissReason:'entry.1791426684',
+    orgShareOut:   'entry.943721963',
+  };
+  const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
+
+  // Next biweekly meeting: Tuesday April 14, 2026. Update this as meetings roll.
+  // The leaderboard checks submissions relative to the Friday before this date.
+  const LB_NEXT_MEETING = new Date('2026-04-14T09:00:00');
+  const LB_SUBMIT_DEADLINE = new Date(LB_NEXT_MEETING);
+  LB_SUBMIT_DEADLINE.setDate(LB_SUBMIT_DEADLINE.getDate() - 4); // Friday before
+  LB_SUBMIT_DEADLINE.setHours(23, 59, 59, 0);
+
+  // Dept display config for leaderboard
+  const LB_DEPT_CFG = {
+    hr:         { label: 'Human Resources',        emoji: '👔', color: '#e63946' },
+    finance:    { label: 'Finance',                emoji: '💰', color: '#2a9d8f' },
+    programming:{ label: 'Programming',            emoji: '🎯', color: '#457b9d' },
+    training:   { label: 'Training & Development', emoji: '🎓', color: '#e76f51' },
+    leadership: { label: 'Leadership',             emoji: '⭐', color: '#f0a500' },
+    data:       { label: 'Data & Evaluation',      emoji: '📈', color: '#7b2d8b' },
+    kb:         { label: 'Executive Overview',     emoji: '🌟', color: '#5b8dee' },
+  };
+
+  // All departments that participate (includes exec for org share-outs)
+  const LB_ALL_DEPTS = ['hr','finance','programming','training','leadership','data','kb'];
+
+  // Cache for live sheet data
+  let _lbCache = null;
+  let _lbCacheTs = 0;
+  const LB_CACHE_TTL = 10 * 60 * 1000; // 10 min
+
+  // ── Fetch & parse leaderboard submissions ──────────────────────────────────
+  async function _lbFetch(force) {
+    if (!force && _lbCache && (Date.now() - _lbCacheTs) < LB_CACHE_TTL) return _lbCache;
+    try {
+      const res = await fetch(LB_CSV_URL + '&t=' + Date.now(), { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const rows = _lbParseCSV(text);
+      _lbCache = rows;
+      _lbCacheTs = Date.now();
+      return rows;
+    } catch(e) {
+      console.warn('[LB] Fetch failed:', e.message);
+      return _lbCache || [];
+    }
+  }
+
+  function _lbParseCSV(text) {
+    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const headers = _lbCSVLine(lines[0]);
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = _lbCSVLine(lines[i]);
+      if (!cols.length || !cols[0]) continue;
+      const row = {};
+      headers.forEach((h, idx) => { row[h.trim()] = (cols[idx] || '').trim(); });
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function _lbCSVLine(line) {
+    const cols = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { cols.push(cur); cur = ''; }
+      else { cur += c; }
+    }
+    cols.push(cur);
+    return cols;
+  }
+
+  // ── Derive dept from a submission row ─────────────────────────────────────
+  // The form collects dept via the URL parameter or a hidden field.
+  // We fall back to matching the submitter name against HR_EMPS if needed.
+  function _lbRowDept(row) {
+    const d = (row['Department'] || row['department'] || row['Dept'] || '').toLowerCase().trim();
+    if (LB_ALL_DEPTS.includes(d)) return d;
+    // Fuzzy match common labels
+    if (/human.?res|hr\b/.test(d)) return 'hr';
+    if (/financ/.test(d)) return 'finance';
+    if (/program/.test(d)) return 'programming';
+    if (/train/.test(d)) return 'training';
+    if (/lead/.test(d)) return 'leadership';
+    if (/data|eval/.test(d)) return 'data';
+    if (/kb|exec/.test(d)) return 'kb';
+    return d || 'unknown';
+  }
+
+  // ── Countdown to deadline ─────────────────────────────────────────────────
+  function _lbCountdown() {
+    const now = Date.now();
+    const diff = LB_SUBMIT_DEADLINE - now;
+    if (diff <= 0) return { label: 'Deadline passed', urgent: true, days: 0, hours: 0 };
+    const days  = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins  = Math.floor((diff % 3600000) / 60000);
+    const urgent = days === 0;
+    const label = days > 0
+      ? `${days}d ${hours}h until Friday deadline`
+      : `${hours}h ${mins}m remaining — submit today`;
+    return { label, urgent, days, hours, mins };
+  }
+
+  // ── Compute leaderboard stats from submissions ────────────────────────────
+  function _lbStats(rows) {
+    const byDept = {};
+    LB_ALL_DEPTS.forEach(d => {
+      byDept[d] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
+    });
+    rows.forEach(row => {
+      const dept = _lbRowDept(row);
+      if (!byDept[dept]) return;
+      const ts = new Date(row['Timestamp'] || row['timestamp'] || '');
+      byDept[dept].count++;
+      byDept[dept].entries.push(row);
+      if (!isNaN(ts)) {
+        if (!byDept[dept].lastDate || ts > byDept[dept].lastDate) byDept[dept].lastDate = ts;
+        if (ts <= LB_SUBMIT_DEADLINE) byDept[dept].metDeadline++;
+      }
+    });
+    return byDept;
+  }
+
+  // ── Generate this week's summary for a dept (for PIE / PDF) ──────────────
+  function _lbDeptSummary(dept, rows) {
+    const deptRows = rows.filter(r => _lbRowDept(r) === dept);
+    if (!deptRows.length) return null;
+    const latest = deptRows[deptRows.length - 1];
+    return {
+      success:    latest['What successes has your department seen this week?'] || latest[Object.keys(latest).find(k => /success/i.test(k))] || '',
+      crossDept:  latest['What cross-departmental successes, if any, have you seen?'] || latest[Object.keys(latest).find(k => /cross/i.test(k))] || '',
+      weekGoal:   latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest).find(k => /goal/i.test(k))] || '',
+      goalMiss:   latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '',
+      orgShareOut:latest['Please add the Organizational Share Outs (Leadership Only)'] || '',
+      timestamp:  latest['Timestamp'] || '',
+    };
+  }
+
+  // ── Render full leaderboard for non-exec depts ───────────────────────────
+  function _lbRenderFullBoard(dept) {
+    const cfg = LB_DEPT_CFG[dept] || LB_DEPT_CFG.programming;
+    const countdown = _lbCountdown();
+    const cdColor = countdown.urgent ? '#e63946' : countdown.days <= 2 ? '#e76f51' : '#0d6e3a';
+
+    return `
+    <div class="lb-wrap" id="lbWrap" style="margin-top:1.5rem">
+
+      <!-- Header banner -->
+      <div class="lb-hero" style="background:linear-gradient(135deg,#0a1628 0%,#162347 60%,${cfg.color}22 100%);border-radius:16px;padding:1.75rem 2rem;color:#fff;margin-bottom:1.5rem;position:relative;overflow:hidden">
+        <div style="position:absolute;right:1.5rem;top:50%;transform:translateY(-50%);font-size:5rem;opacity:.05;pointer-events:none">${cfg.emoji}</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;position:relative;z-index:1">
+          <div>
+            <div style="font-size:.62rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.375rem">Departmental Success Leaderboard</div>
+            <div style="font-size:1.375rem;font-weight:800;line-height:1.2">${cfg.emoji} ${cfg.label}</div>
+            <div style="font-size:.8125rem;color:rgba(255,255,255,.6);margin-top:.375rem">Weekly wins, cross-departmental impact, and goal tracking — all in one place.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+            <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:.5rem .875rem;text-align:center">
+              <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:.2rem">Next Meeting</div>
+              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 14 · 2026</div>
+            </div>
+            <div style="background:${countdown.urgent ? 'rgba(230,57,70,.18)' : 'rgba(13,110,58,.18)'};border:1px solid ${countdown.urgent ? 'rgba(230,57,70,.35)' : 'rgba(13,110,58,.3)'};border-radius:10px;padding:.5rem .875rem;text-align:center">
+              <div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.4);margin-bottom:.2rem">Submit by Friday</div>
+              <div style="font-size:.8rem;font-weight:700;color:${cdColor === '#e63946' ? '#ff8a8a' : '#4ade80'}">${countdown.label}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dept score strip -->
+        <div id="lbDeptScoreStrip" style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1.25rem;position:relative;z-index:1">
+          <div style="font-size:.75rem;color:rgba(255,255,255,.35);display:flex;align-items:center">Loading submissions…</div>
+        </div>
+      </div>
+
+      <!-- Action row: submit + view details -->
+      <div style="display:flex;gap:.875rem;flex-wrap:wrap;margin-bottom:1.5rem;align-items:stretch">
+
+        <!-- Submit this week's update -->
+        <div style="flex:1;min-width:260px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.375rem 1.5rem;box-shadow:var(--shadow-sm)">
+          <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${cfg.color};margin-bottom:.5rem">📝 This Week's Update</div>
+          <div style="font-size:.9375rem;font-weight:700;color:var(--navy);margin-bottom:.75rem">Submit Your Department's Weekly Update</div>
+          <div style="font-size:.8125rem;color:var(--text-2);margin-bottom:1rem;line-height:1.55">Share your department's wins, cross-team moments, and weekly goal. Due by <strong>Friday before each biweekly meeting.</strong></div>
+          <div style="display:flex;gap:.625rem;flex-wrap:wrap">
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,#0a1628,#003087);font-size:.8125rem;padding:.5rem 1.125rem" onclick="_lbOpenSubmitModal('${dept}')">
+              ✍️ Submit Weekly Update
+            </button>
+            <button class="btn btn-secondary" style="font-size:.8125rem;padding:.5rem 1rem" onclick="_lbRefresh('${dept}')">
+              ↺ Refresh Board
+            </button>
+          </div>
+        </div>
+
+        <!-- View all submissions pill -->
+        <div style="flex:1;min-width:260px;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:1.375rem 1.5rem;box-shadow:var(--shadow-sm)">
+          <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.5rem">📊 Submission Tracker</div>
+          <div id="lbSubmissionSummary" style="font-size:.8125rem;color:var(--text-2);line-height:1.6;margin-bottom:.875rem">Loading…</div>
+          <button class="btn btn-secondary" style="font-size:.8125rem;padding:.5rem 1rem" onclick="_lbOpenViewModal('${dept}')">
+            🔍 View All Submissions
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Leaderboard table: all departments -->
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:1.5rem">
+        <div style="background:var(--navy);padding:.875rem 1.25rem;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.45)">Network</div>
+            <div style="font-size:.9375rem;font-weight:700;color:#fff">Departmental Submission Board — SY 2025–2026</div>
+          </div>
+          <div style="font-size:.6875rem;color:rgba(255,255,255,.35);font-family:var(--mono,'JetBrains Mono',monospace)" id="lbLastSync">Syncing…</div>
+        </div>
+        <div id="lbBoardTable" style="overflow-x:auto">
+          <div style="padding:2rem;text-align:center;color:var(--muted);font-size:.875rem">⏳ Loading leaderboard data…</div>
+        </div>
+      </div>
+
+      <!-- This week's spotlight: org share-outs (leadership) + dept wins -->
+      <div id="lbSpotlight" style="display:none;margin-bottom:1.5rem"></div>
+
+    </div>
+
+    <!-- Submit Modal -->
+    <div id="lbSubmitModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:#fff;border-radius:18px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${cfg.color};margin-bottom:.25rem">Weekly Update</div>
+            <div style="font-size:1.125rem;font-weight:700;color:#fff">${cfg.emoji} ${cfg.label} — Submit This Week</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.45);margin-top:.2rem">Due by Friday before the biweekly meeting</div>
+          </div>
+          <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
+        </div>
+        <div style="padding:1.5rem 1.75rem" id="lbFormBody">
+          <div class="lb-field" style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 What successes has your department seen this week? <span style="color:#e63946">*</span></label>
+            <textarea id="lbF_success" rows="3" placeholder="Share your wins — specific achievements, milestones reached, problems solved…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+          <div class="lb-field" style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🤝 Cross-departmental successes this week?</label>
+            <textarea id="lbF_cross" rows="2" placeholder="Collaborations, handoffs, joint wins across departments (optional)…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+          <div class="lb-field" style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🎯 What is this week's goal for your department? <span style="color:#e63946">*</span></label>
+            <textarea id="lbF_goal" rows="2" placeholder="State one specific, achievable goal for this week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+          <div class="lb-field" style="margin-bottom:1.25rem" id="lbF_missWrap" style="display:none">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">❓ If last week's goal wasn't met — what was the reason?</label>
+            <textarea id="lbF_miss" rows="2" placeholder="Optional — honest reflection helps us iterate and improve…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+          <div class="lb-field" id="lbF_orgWrap" style="margin-bottom:1.25rem;display:none">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🌟 Organizational Share-Out (Leadership only)</label>
+            <textarea id="lbF_org" rows="2" placeholder="Add an org-level insight or success for the whole team to see…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--blue-mid)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+          </div>
+          <div id="lbFormError" style="display:none;background:rgba(185,28,28,.07);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:.75rem 1rem;font-size:.875rem;color:#b91c1c;margin-bottom:1rem"></div>
+          <div style="display:flex;justify-content:flex-end;gap:.75rem;padding-top:.5rem">
+            <button class="btn btn-secondary" style="font-size:.875rem" onclick="document.getElementById('lbSubmitModal').style.display='none'">Cancel</button>
+            <button class="btn btn-primary" style="font-size:.875rem;background:linear-gradient(135deg,#0a6e3a,#16a34a)" id="lbSubmitBtn" onclick="_lbSubmitForm('${dept}')">
+              <span id="lbSubmitBtnTxt">✅ Submit Update</span>
+              <span id="lbSubmitSpinner" style="display:none;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-left:.5rem"></span>
+            </button>
+          </div>
+        </div>
+        <div id="lbFormSuccess" style="display:none;text-align:center;padding:3rem 2rem">
+          <div style="font-size:3.5rem;margin-bottom:1rem">🎉</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.75rem">Update Submitted!</div>
+          <div style="font-size:.9375rem;color:var(--text-2);max-width:380px;margin:0 auto 1.5rem;line-height:1.6">Your department's update is on the board. See you at the meeting — keep pushing! 💪</div>
+          <button class="btn btn-secondary" onclick="document.getElementById('lbSubmitModal').style.display='none';_lbRefresh('${dept}')">Close &amp; Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- View All Submissions Modal -->
+    <div id="lbViewModal" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem">
+      <div style="background:#fff;border-radius:18px;width:100%;max-width:780px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+        <div style="background:var(--navy);padding:1.25rem 1.5rem;border-radius:18px 18px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-size:.9375rem;font-weight:700;color:#fff">📋 All Submissions — SY 2025–2026</div>
+          <button onclick="document.getElementById('lbViewModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem">✕</button>
+        </div>
+        <div id="lbViewModalBody" style="flex:1;overflow-y:auto;padding:1.5rem">
+          <div style="text-align:center;color:var(--muted);padding:2rem">Loading…</div>
+        </div>
+      </div>
+    </div>
+    `;
+  }
+
+  // ── Bind dynamic events after render ──────────────────────────────────────
+  function _lbBindEvents(dept) {
+    // Load data and render board immediately after HTML is in DOM
+    setTimeout(() => _lbLoadBoard(dept), 50);
+  }
+
+  // ── Load and render board data ─────────────────────────────────────────────
+  async function _lbLoadBoard(dept, force) {
+    const rows = await _lbFetch(force);
+    const stats = _lbStats(rows);
+
+    // Score strip
+    const strip = document.getElementById('lbDeptScoreStrip');
+    if (strip) {
+      strip.innerHTML = LB_ALL_DEPTS.map(d => {
+        const s = stats[d];
+        const c = LB_DEPT_CFG[d];
+        const isMe = d === dept;
+        const hasThis = s.count > 0;
+        return `<div style="display:flex;align-items:center;gap:.375rem;padding:.35rem .75rem;border-radius:20px;background:${isMe ? c.color+'33' : 'rgba(255,255,255,.07)'};border:1px solid ${isMe ? c.color+'66' : 'rgba(255,255,255,.1)'};cursor:default" title="${c.label}">
+          <span style="font-size:.8125rem">${c.emoji}</span>
+          <span style="font-size:.6875rem;font-weight:700;color:${isMe ? '#fff' : 'rgba(255,255,255,.6)'}">${c.label.split(' ')[0]}</span>
+          <span style="font-size:.6875rem;font-weight:800;color:${hasThis ? '#4ade80' : 'rgba(255,255,255,.3)'}">${s.count}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // Submission summary
+    const sumEl = document.getElementById('lbSubmissionSummary');
+    if (sumEl) {
+      const myStats = stats[dept];
+      const total = LB_ALL_DEPTS.reduce((a, d) => a + stats[d].count, 0);
+      const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
+      sumEl.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.625rem;margin-bottom:.75rem">
+          <div style="text-align:center;padding:.625rem;background:var(--surface-2);border-radius:8px">
+            <div style="font-size:1.5rem;font-weight:800;color:var(--navy)">${myStats.count}</div>
+            <div style="font-size:.6875rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Your Submissions</div>
+          </div>
+          <div style="text-align:center;padding:.625rem;background:var(--surface-2);border-radius:8px">
+            <div style="font-size:1.5rem;font-weight:800;color:var(--navy)">${submitted}/7</div>
+            <div style="font-size:.6875rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em">Depts Submitted</div>
+          </div>
+        </div>
+        <div style="font-size:.75rem;color:var(--muted)">${total} total submission${total!==1?'s':''} on record · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} have not submitted yet.</div>
+      `;
+    }
+
+    // Main leaderboard table
+    const tableEl = document.getElementById('lbBoardTable');
+    if (tableEl) {
+      const sortedDepts = [...LB_ALL_DEPTS].sort((a,b) => stats[b].count - stats[a].count);
+      let tableHTML = `<table style="width:100%;border-collapse:collapse;font-size:.875rem">
+        <thead>
+          <tr style="background:var(--surface-2)">
+            <th style="padding:.75rem 1.125rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Dept</th>
+            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Submissions</th>
+            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Last Submitted</th>
+            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Met Deadline</th>
+            <th style="padding:.75rem 1.125rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)">Status</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      sortedDepts.forEach((d, idx) => {
+        const s = stats[d];
+        const c = LB_DEPT_CFG[d];
+        const isMe = d === dept;
+        const hasData = s.count > 0;
+        const lastDate = s.lastDate ? s.lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '—';
+        const metPct = s.count > 0 ? Math.round(s.metDeadline/s.count*100) : 0;
+        const statusBadge = !hasData
+          ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not Submitted</span>`
+          : s.metDeadline > 0
+            ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">✓ On Time</span>`
+            : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fef3c7;color:#92400e">Late</span>`;
+        const rankBadge = idx < 3 && hasData ? ['🥇','🥈','🥉'][idx] : '';
+        tableHTML += `<tr style="border-bottom:1px solid var(--border-2);${isMe ? `background:${c.color}08;` : ''}">
+          <td style="padding:.875rem 1.125rem">
+            <div style="display:flex;align-items:center;gap:.625rem">
+              <div style="width:8px;height:8px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+              <div>
+                <div style="font-weight:700;font-size:.875rem;color:var(--navy)">${c.emoji} ${c.label}${isMe ? ' <span style="font-size:.6rem;background:'+c.color+'22;color:'+c.color+';padding:.1rem .4rem;border-radius:10px;font-weight:700">YOU</span>' : ''}</div>
+                ${rankBadge ? `<div style="font-size:.75rem;margin-top:1px">${rankBadge} Top submitter</div>` : ''}
+              </div>
+            </div>
+          </td>
+          <td style="padding:.875rem;text-align:center;font-family:'DM Serif Display',serif;font-size:1.375rem;font-weight:400;color:${hasData ? 'var(--navy)' : 'var(--muted)'}">${s.count}</td>
+          <td style="padding:.875rem;text-align:center;font-size:.8125rem;color:var(--text-2)">${lastDate}</td>
+          <td style="padding:.875rem;text-align:center;font-size:.8125rem;color:var(--text-2)">${s.count > 0 ? s.metDeadline + ' / ' + s.count : '—'}</td>
+          <td style="padding:.875rem;text-align:center">${statusBadge}</td>
+        </tr>`;
+      });
+
+      tableHTML += `</tbody></table>`;
+      tableEl.innerHTML = tableHTML;
+    }
+
+    // Sync time
+    const syncEl = document.getElementById('lbLastSync');
+    if (syncEl) syncEl.textContent = 'Synced ' + new Date().toLocaleTimeString();
+
+    // Spotlight: org share-outs from leadership
+    _lbRenderSpotlight(rows, stats);
+  }
+
+  // ── Render org spotlight section ──────────────────────────────────────────
+  function _lbRenderSpotlight(rows, stats) {
+    const spotEl = document.getElementById('lbSpotlight');
+    if (!spotEl) return;
+
+    // Pull leadership org share-outs and all dept successes (latest per dept)
+    const orgRows = rows.filter(r => {
+      const d = _lbRowDept(r);
+      return (d === 'leadership' || d === 'kb') && (r['Please add the Organizational Share Outs (Leadership Only)'] || '').trim();
+    });
+
+    if (!orgRows.length) { spotEl.style.display = 'none'; return; }
+    spotEl.style.display = '';
+
+    let html = `<div style="background:linear-gradient(135deg,#0a1628,#162347);border-radius:14px;padding:1.5rem 1.75rem;color:#fff">
+      <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.875rem">🌟 Organizational Share-Outs — From Leadership</div>
+      <div style="display:flex;flex-direction:column;gap:.75rem">`;
+    orgRows.slice(-3).reverse().forEach(r => {
+      const msg = r['Please add the Organizational Share Outs (Leadership Only)'] || '';
+      const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+      html += `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-left:3px solid #f0a500;border-radius:8px;padding:.875rem 1rem">
+        <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6">${msg}</div>
+        ${ts ? `<div style="font-size:.6875rem;color:rgba(255,255,255,.35);margin-top:.375rem">Leadership · ${ts}</div>` : ''}
+      </div>`;
+    });
+    html += `</div></div>`;
+    spotEl.innerHTML = html;
+  }
+
+  // ── Submit form via Google Forms no-cors ─────────────────────────────────
+  async function _lbSubmitForm(dept) {
+    const success = (document.getElementById('lbF_success') || {}).value || '';
+    const goal    = (document.getElementById('lbF_goal') || {}).value || '';
+    if (!success.trim()) {
+      const err = document.getElementById('lbFormError');
+      if (err) { err.textContent = 'Please fill in your department's successes before submitting.'; err.style.display = 'block'; }
+      return;
+    }
+    if (!goal.trim()) {
+      const err = document.getElementById('lbFormError');
+      if (err) { err.textContent = 'Please fill in this week\'s goal before submitting.'; err.style.display = 'block'; }
+      return;
+    }
+    const btn = document.getElementById('lbSubmitBtn');
+    const txt = document.getElementById('lbSubmitBtnTxt');
+    const spin = document.getElementById('lbSubmitSpinner');
+    if (btn) btn.disabled = true;
+    if (txt) txt.textContent = 'Submitting…';
+    if (spin) spin.style.display = 'inline-block';
+
+    const params = new URLSearchParams();
+    params.append(LB_ENTRY.deptSuccess,    success);
+    params.append(LB_ENTRY.crossDept,      (document.getElementById('lbF_cross') || {}).value || '');
+    params.append(LB_ENTRY.weeklyGoal,     goal);
+    params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbF_miss') || {}).value || '');
+    params.append(LB_ENTRY.orgShareOut,    (document.getElementById('lbF_org') || {}).value || '');
+
+    try {
+      await fetch(LB_FORM_ACTION, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
+      const formBody = document.getElementById('lbFormBody');
+      const formSucc = document.getElementById('lbFormSuccess');
+      if (formBody) formBody.style.display = 'none';
+      if (formSucc) formSucc.style.display = 'block';
+      // Invalidate cache so refresh shows new submission
+      _lbCache = null;
+    } catch(e) {
+      const err = document.getElementById('lbFormError');
+      if (err) { err.textContent = 'Submission failed. Please try again or contact your Program Manager.'; err.style.display = 'block'; }
+      if (btn) btn.disabled = false;
+      if (txt) txt.textContent = '✅ Submit Update';
+      if (spin) spin.style.display = 'none';
+    }
+  }
+
+  // ── Open modals ────────────────────────────────────────────────────────────
+  function _lbOpenSubmitModal(dept) {
+    const modal = document.getElementById('lbSubmitModal');
+    if (!modal) return;
+    // Reset form
+    ['lbF_success','lbF_cross','lbF_goal','lbF_miss','lbF_org'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const err = document.getElementById('lbFormError'); if (err) err.style.display = 'none';
+    const formBody = document.getElementById('lbFormBody'); if (formBody) formBody.style.display = 'block';
+    const formSucc = document.getElementById('lbFormSuccess'); if (formSucc) formSucc.style.display = 'none';
+    const btn = document.getElementById('lbSubmitBtn'); if (btn) btn.disabled = false;
+    const txt = document.getElementById('lbSubmitBtnTxt'); if (txt) txt.textContent = '✅ Submit Update';
+    const spin = document.getElementById('lbSubmitSpinner'); if (spin) spin.style.display = 'none';
+    // Show org share-out only for leadership/kb
+    const orgWrap = document.getElementById('lbF_orgWrap');
+    if (orgWrap) orgWrap.style.display = ['leadership','kb'].includes(dept) ? 'block' : 'none';
+    modal.style.display = 'flex';
+  }
+
+  async function _lbOpenViewModal(dept) {
+    const modal = document.getElementById('lbViewModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const body = document.getElementById('lbViewModalBody');
+    if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Loading submissions…</div>';
+    const rows = await _lbFetch(false);
+    if (!body) return;
+    if (!rows.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions on record yet.</div>'; return; }
+
+    // Group by dept
+    let html = '';
+    LB_ALL_DEPTS.forEach(d => {
+      const dRows = rows.filter(r => _lbRowDept(r) === d).reverse();
+      if (!dRows.length) return;
+      const c = LB_DEPT_CFG[d];
+      html += `<div style="margin-bottom:1.5rem">
+        <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color};margin-bottom:.75rem;display:flex;align-items:center;gap:.375rem">
+          ${c.emoji} ${c.label} <span style="font-weight:500;color:var(--muted);font-size:.6875rem">(${dRows.length} submission${dRows.length!==1?'s':''})</span>
+        </div>`;
+      dRows.slice(0, 5).forEach(r => {
+        const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        const succ = r['What successes has your department seen this week?'] || r[Object.keys(r).find(k=>/success/i.test(k))||''] || '';
+        const goal = r['What is this week\'s goal for your department?'] || r[Object.keys(r).find(k=>/goal/i.test(k))||''] || '';
+        const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
+        html += `<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.125rem;margin-bottom:.625rem">
+          ${ts ? `<div style="font-size:.6875rem;color:var(--muted);margin-bottom:.5rem">${ts}</div>` : ''}
+          ${succ ? `<div style="margin-bottom:.5rem"><span style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Successes</span><div style="font-size:.875rem;color:var(--text);margin-top:.2rem;line-height:1.5">${succ}</div></div>` : ''}
+          ${cross ? `<div style="margin-bottom:.5rem"><span style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Cross-Dept</span><div style="font-size:.875rem;color:var(--text);margin-top:.2rem;line-height:1.5">${cross}</div></div>` : ''}
+          ${goal ? `<div><span style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Goal</span><div style="font-size:.875rem;color:var(--text);margin-top:.2rem;line-height:1.5">${goal}</div></div>` : ''}
+        </div>`;
+      });
+      html += `</div>`;
+    });
+    body.innerHTML = html || '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions found.</div>';
+  }
+
+  // ── Refresh board ──────────────────────────────────────────────────────────
+  function _lbRefresh(dept) {
+    _lbCache = null;
+    _lbLoadBoard(dept, true);
+  }
+
+  // ── Exec depts: inject a slim KPI pill into stats strip ───────────────────
+  async function _lbInjectExecPill(dept) {
+    const rows = await _lbFetch(false);
+    const stats = _lbStats(rows);
+    const total = LB_ALL_DEPTS.reduce((a,d) => a + stats[d].count, 0);
+    const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
+    const countdown = _lbCountdown();
+
+    // Insert a KPI tile after the existing stats strip tiles
+    const strip = document.getElementById('homeStatsStrip');
+    if (!strip) return;
+
+    const tile = document.createElement('div');
+    tile.className = 'stat-tile';
+    tile.style.setProperty('--accent-color', '#f0a500');
+    tile.style.cursor = 'pointer';
+    tile.title = 'Click to view departmental success submissions';
+    tile.onclick = () => _lbOpenExecViewModal();
+    tile.innerHTML = `
+      <div class="st-icon">🏆</div>
+      <div class="st-value" style="font-size:1.5rem">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
+      <div class="st-label">Depts Submitted</div>
+      <div class="st-sub">${total} total · ${countdown.urgent ? '<span style="color:#e63946">'+countdown.label+'</span>' : countdown.label}</div>
+    `;
+    strip.appendChild(tile);
+
+    // Also inject submit pill in the quick links area so exec depts can submit too
+    const qlGrid = document.getElementById('homeQuickLinks');
+    if (qlGrid) {
+      const qlCard = document.createElement('div');
+      qlCard.className = 'ql-card';
+      qlCard.style.borderLeft = '3px solid #f0a500';
+      qlCard.onclick = () => {
+        // Create a temporary leaderboard modal for exec submission
+        _lbCreateExecSubmitModal(dept);
+      };
+      qlCard.innerHTML = `
+        <div class="ql-icon-wrap" style="background:#fff7e0">🏆</div>
+        <div class="ql-title">Weekly Success Update</div>
+        <div class="ql-desc">Submit your department's weekly wins, cross-team successes, and goal for the next meeting.</div>
+        <div class="ql-arrow" style="color:#f0a500">Submit now →</div>
+      `;
+      qlGrid.insertBefore(qlCard, qlGrid.firstChild);
+    }
+  }
+
+  // ── Exec: view modal (read-only summary of all submissions) ───────────────
+  async function _lbOpenExecViewModal() {
+    // Re-use the same view modal pattern but open it body-level
+    let modal = document.getElementById('lbExecViewModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lbExecViewModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem';
+      modal.innerHTML = `<div style="background:#fff;border-radius:18px;width:100%;max-width:800px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+        <div style="background:var(--navy);padding:1.25rem 1.5rem;border-radius:18px 18px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div style="font-size:.9375rem;font-weight:700;color:#fff">🏆 Departmental Success Board — All Submissions</div>
+          <button onclick="document.getElementById('lbExecViewModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem">✕</button>
+        </div>
+        <div id="lbExecViewBody" style="flex:1;overflow-y:auto;padding:1.5rem">
+          <div style="text-align:center;color:var(--muted);padding:2rem">Loading…</div>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+    modal.style.display = 'flex';
+    const body = document.getElementById('lbExecViewBody');
+
+    const rows = await _lbFetch(false);
+    const stats = _lbStats(rows);
+    if (!body) return;
+    if (!rows.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions on record yet.</div>'; return; }
+
+    let html = '';
+    LB_ALL_DEPTS.forEach(d => {
+      const s = stats[d];
+      const c = LB_DEPT_CFG[d];
+      const latest = s.entries[s.entries.length - 1];
+      const succ  = latest ? (latest['What successes has your department seen this week?'] || '') : '';
+      const goal  = latest ? (latest['What is this week\'s goal for your department?'] || '') : '';
+      const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
+      const org   = latest ? (latest['Please add the Organizational Share Outs (Leadership Only)'] || '') : '';
+      const badge = s.count > 0
+        ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">${s.count} submission${s.count!==1?'s':''}</span>`
+        : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not submitted</span>`;
+      html += `<div style="margin-bottom:1.5rem;border:1.5px solid ${c.color}33;border-radius:12px;overflow:hidden">
+        <div style="background:${c.color}11;padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${c.color}22">
+          <div style="font-weight:700;color:var(--navy)">${c.emoji} ${c.label}</div>
+          ${badge}
+        </div>
+        ${s.count > 0 ? `<div style="padding:1rem 1.125rem">
+          ${succ ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Successes</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${succ}</div></div>` : ''}
+          ${cross ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Cross-Dept</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${cross}</div></div>` : ''}
+          ${goal ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Weekly Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${goal}</div></div>` : ''}
+          ${org ? `<div style="background:#fff7e0;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-top:.5rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:.25rem">🌟 Org Share-Out</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${org}</div></div>` : ''}
+        </div>` : `<div style="padding:1rem 1.125rem;color:var(--muted);font-size:.875rem;font-style:italic">No submission recorded for this week yet.</div>`}
+      </div>`;
+    });
+    body.innerHTML = html;
+  }
+
+  // ── Exec: create temp submit modal for exec depts ─────────────────────────
+  function _lbCreateExecSubmitModal(dept) {
+    const cfg = LB_DEPT_CFG[dept] || LB_DEPT_CFG.leadership;
+    let modal = document.getElementById('lbExecSubmitModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lbExecSubmitModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+    const isLeadership = ['leadership','kb'].includes(dept);
+    modal.innerHTML = `<div style="background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+      <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${cfg.color};margin-bottom:.25rem">Weekly Update</div>
+          <div style="font-size:1.125rem;font-weight:700;color:#fff">${cfg.emoji} ${cfg.label} — Submit This Week</div>
+        </div>
+        <button onclick="document.getElementById('lbExecSubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
+      </div>
+      <div style="padding:1.5rem 1.75rem" id="lbExecFormBody">
+        <div style="margin-bottom:1.25rem">
+          <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 Departmental successes this week <span style="color:#e63946">*</span></label>
+          <textarea id="lbExF_success" rows="3" placeholder="Share your wins…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+        </div>
+        <div style="margin-bottom:1.25rem">
+          <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🤝 Cross-departmental successes</label>
+          <textarea id="lbExF_cross" rows="2" placeholder="Optional…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+        </div>
+        <div style="margin-bottom:1.25rem">
+          <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🎯 This week's goal <span style="color:#e63946">*</span></label>
+          <textarea id="lbExF_goal" rows="2" placeholder="One specific goal…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+        </div>
+        <div style="margin-bottom:1.25rem">
+          <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">❓ Last week's missed goal reason</label>
+          <textarea id="lbExF_miss" rows="2" placeholder="Optional…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+        </div>
+        ${isLeadership ? `<div style="margin-bottom:1.25rem">
+          <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🌟 Organizational Share-Out (Leadership only)</label>
+          <textarea id="lbExF_org" rows="2" placeholder="Org-level insight for the whole team…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none"></textarea>
+        </div>` : ''}
+        <div id="lbExFormError" style="display:none;background:rgba(185,28,28,.07);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:.75rem 1rem;font-size:.875rem;color:#b91c1c;margin-bottom:1rem"></div>
+        <div style="display:flex;justify-content:flex-end;gap:.75rem">
+          <button class="btn btn-secondary" onclick="document.getElementById('lbExecSubmitModal').style.display='none'">Cancel</button>
+          <button class="btn btn-primary" style="background:linear-gradient(135deg,#0a6e3a,#16a34a)" onclick="_lbSubmitExecForm('${dept}')">✅ Submit Update</button>
+        </div>
+      </div>
+      <div id="lbExecFormSuccess" style="display:none;text-align:center;padding:3rem 2rem">
+        <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.75rem">Submitted!</div>
+        <button class="btn btn-secondary" onclick="document.getElementById('lbExecSubmitModal').style.display='none'">Close</button>
+      </div>
+    </div>`;
+    modal.style.display = 'flex';
+  }
+
+  async function _lbSubmitExecForm(dept) {
+    const success = (document.getElementById('lbExF_success') || {}).value || '';
+    const goal    = (document.getElementById('lbExF_goal') || {}).value || '';
+    if (!success.trim() || !goal.trim()) {
+      const err = document.getElementById('lbExFormError');
+      if (err) { err.textContent = 'Please fill in the required fields.'; err.style.display = 'block'; }
+      return;
+    }
+    const params = new URLSearchParams();
+    params.append(LB_ENTRY.deptSuccess,    success);
+    params.append(LB_ENTRY.crossDept,      (document.getElementById('lbExF_cross') || {}).value || '');
+    params.append(LB_ENTRY.weeklyGoal,     goal);
+    params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbExF_miss') || {}).value || '');
+    params.append(LB_ENTRY.orgShareOut,    (document.getElementById('lbExF_org') || {}).value || '');
+    try {
+      await fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: params.toString() });
+      const fb = document.getElementById('lbExecFormBody'); if (fb) fb.style.display = 'none';
+      const fs = document.getElementById('lbExecFormSuccess'); if (fs) fs.style.display = 'block';
+      _lbCache = null;
+    } catch(e) {
+      const err = document.getElementById('lbExFormError');
+      if (err) { err.textContent = 'Submission failed. Please try again.'; err.style.display = 'block'; }
+    }
+  }
+
+  // ── PIE integration: expose summary for query responses ──────────────────
+  window._lbGetSummary = async function() {
+    const rows = await _lbFetch(false);
+    const stats = _lbStats(rows);
+    const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
+    const total = LB_ALL_DEPTS.reduce((a,d) => a + stats[d].count, 0);
+    return { submitted, total, depts: stats };
+  };
+
+
 
   // ══════════════════════════════════════════════════════════
   //  SIDEBAR DEPT CARD + CONNECTIONS
@@ -3071,6 +3832,17 @@
   window.closePolicyModal      = closePolicyModal;
   window.goStep                = goStep;
   window._HR_BASE_LEN          = _HR_BASE_LEN;
+
+  // ── Leaderboard public API ────────────────────────────────────────────────
+  window._lbOpenSubmitModal    = _lbOpenSubmitModal;
+  window._lbOpenViewModal      = _lbOpenViewModal;
+  window._lbOpenExecViewModal  = _lbOpenExecViewModal;
+  window._lbCreateExecSubmitModal = _lbCreateExecSubmitModal;
+  window._lbSubmitForm         = _lbSubmitForm;
+  window._lbSubmitExecForm     = _lbSubmitExecForm;
+  window._lbRefresh            = _lbRefresh;
+  window._lbDeptCfg            = LB_DEPT_CFG;
+  window._lbCountdown          = _lbCountdown;
 
   // Allow KPI_DATA reassignment to propagate to window
   // (fetchSheetKPI reassigns KPI_DATA via var; modules reading window.KPI_DATA
