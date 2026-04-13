@@ -5388,12 +5388,12 @@
       </div>
       <!-- Executive Analytics Dashboard (leadership/data/kb only) -->
       <div id="execDashboard" style="display:none"></div>
-      <!-- KPI summary strip -->
-      <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
-      <!-- Quick links -->
-      <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
-      <!-- Department-specific widget (HR & Data: Termination Analytics; Programming: Retention Rate) -->
+      <!-- Department widget: leaderboard (non-exec) or exec analytics — FIRST in DOM so it renders as hero -->
       <div id="homeDeptWidget"></div>
+      <!-- KPI summary strip — below leaderboard -->
+      <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
+      <!-- Quick links — navigation shortcuts, last -->
+      <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
     </div>
 
 
