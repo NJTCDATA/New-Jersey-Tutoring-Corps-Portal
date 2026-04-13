@@ -2213,6 +2213,7 @@
           : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}</div>${_irlInsightHTML}</div>`
         }
         ${(()=>{ try { return (typeof impactBuilder!=='undefined') ? impactBuilder.renderSection() : ''; } catch(e){ return ''; } })()}
+        ${renderMOYSection()}
       </div>`;
 
       // Initialize Chart.js charts after HTML is set
@@ -2550,6 +2551,513 @@
         <div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div>
         <div style="font-size:.875rem;line-height:1.5;color:var(--navy)">${pt}</div>
       </div>`).join('')}`;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  MOY (MID-YEAR) iREADY MODULE
+    //  Fetches Winter diagnostic CSVs from the live Google Sheet.
+    //  Each row contains BOTH a Fall (base_) and Winter diagnostic.
+    //  Uses same irlab infrastructure: parseCSV, normalizeRow patterns,
+    //  medianArr, pct, PLACEMENT_ORDER, PLC, esc helpers.
+    // ════════════════════════════════════════════════════════════════
+
+    const MOY_SHEET_ID  = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
+    const MOY_MATH_GID  = '186448147';
+    const MOY_ELA_GID   = '912997533';
+    const MOY_MATH_URL  = `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/export?format=csv&gid=${MOY_MATH_GID}`;
+    const MOY_ELA_URL   = `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/export?format=csv&gid=${MOY_ELA_GID}`;
+    const MOY_CACHE_KEY = 'njtc_moy_live_v1';
+    const MOY_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours — matches EOY cache
+
+    // MOY region map — derives from external_account_id prefix
+    const MOY_REGION_MAP = {
+      'nj-hamil': 'Hamilton',
+      'nj-ilear': 'iLearn',
+      'nj-theco': 'The Co',
+      'nj-penns': 'Pennsauken',
+      'nj-haddo': 'Haddonfield',
+      'pa-':      'Pennsylvania',
+    };
+
+    const MOY_DATA = { math: [], ela: [], loaded: false, ts: null };
+    let _moySubject  = 'Math';   // 'Math' | 'ELA'
+    let _moyView     = 'overview'; // 'overview' | 'regions' | 'tutor' | 'correlations'
+    let _moyLoading  = false;
+    let _moyError    = null;
+    let _moyComputed = null;
+
+    // ── MOY row normalizer — maps winter_ prefix fields ───────────────────────
+    function normalizeMOYRow(r, subject) {
+      // Full header normalization (same pattern as normalizeRow)
+      const _rn = {};
+      for (const k of Object.keys(r)) {
+        _rn[k] = r[k];
+        const lk = k.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+        if (_rn[lk] === undefined) _rn[lk] = r[k];
+        const lk2 = k.toLowerCase().replace(/ /g,'_');
+        if (_rn[lk2] === undefined) _rn[lk2] = r[k];
+      }
+      r = _rn;
+
+      const gv = (...keys) => { for (const k of keys) { if (r[k] !== undefined && r[k] !== '') return r[k]; } return ''; };
+
+      // Derive region from external_account_id
+      const extId = gv('external_account_id','external_account_id');
+      let region = 'Unknown';
+      for (const [prefix, label] of Object.entries(MOY_REGION_MAP)) {
+        if (extId.startsWith(prefix)) { region = label; break; }
+      }
+
+      // winter_pct_progress_typical_growth: ratio where 1.0 = 100% of annual typical growth
+      const _rawPct = gv('winter_pct_progress_typical_growth');
+      let pctTypical = parseFloat(_rawPct);
+      if (isNaN(pctTypical) || _rawPct === '') pctTypical = null;
+      else if (typeof _rawPct === 'string' && _rawPct.trim().slice(-1) === '%') pctTypical = pctTypical / 100;
+      else if (pctTypical > 15) pctTypical = pctTypical / 100;
+
+      const _rawStretch = gv('winter_pct_progress_stretch_growth');
+      let pctStretch = parseFloat(_rawStretch);
+      if (isNaN(pctStretch) || _rawStretch === '') pctStretch = null;
+      else if (typeof _rawStretch === 'string' && _rawStretch.trim().slice(-1) === '%') pctStretch = pctStretch / 100;
+      else if (pctStretch > 15) pctStretch = pctStretch / 100;
+
+      const winterWeeks = parseFloat(gv('winter_weeks_between_diagnostics')) || 0;
+      const winterRush  = gv('winter_rush_flag');
+      const baseRush    = gv('base_rush_flag');
+      const isRedRush   = /red/i.test(winterRush);
+      // Valid growth = has both Fall + Winter (weeks > 0) AND no red rush flag
+      const hasGrowth   = winterWeeks > 0 && !isRedRush;
+
+      return {
+        subject,
+        region,
+        school:               gv('school'),
+        grade:                gv('student_grade'),
+        scholarId:            gv('student_id'),
+        scholarName:          gv('full_name'),
+        extId,
+        // Fall (base) diagnostic
+        baseScore:            parseFloat(gv('base_overall_scale_score')) || null,
+        baseRelPlacement:     gv('base_overall_relative_placement'),
+        // Winter diagnostic
+        winterScore:          parseFloat(gv('winter_overall_scale_score')) || null,
+        winterRelPlacement:   gv('winter_overall_relative_placement'),
+        winterGain:           parseFloat(gv('winter_diagnostic_gain')) || null,
+        winterWeeks,
+        winterRush,
+        baseRush,
+        isRedRush,
+        hasGrowth,
+        pctTypical,
+        pctStretch,
+        annualTypical:        parseFloat(gv('annual_typical_growth_measure')) || null,
+        // Math domain scores (winter)
+        mathNumOpsWinter:     parseFloat(gv('winter_number_and_operations_scale_score')) || null,
+        mathAlgebraWinter:    parseFloat(gv('winter_algebra_and_algebraic_thinking_scale_score')) || null,
+        mathMeasDataWinter:   parseFloat(gv('winter_measurement_and_data_scale_score')) || null,
+        mathGeometryWinter:   parseFloat(gv('winter_geometry_scale_score')) || null,
+      };
+    }
+
+    // ── MOY fetch — parallel fetch of both CSVs, cache 2hr ───────────────────
+    async function _moyFetchLive(force = false) {
+      if (_moyLoading) return;
+      // Check cache
+      if (!force) {
+        try {
+          const c = JSON.parse(localStorage.getItem(MOY_CACHE_KEY) || 'null');
+          if (c && c.ts && (Date.now() - c.ts) < MOY_CACHE_TTL) {
+            MOY_DATA.math   = c.math   || [];
+            MOY_DATA.ela    = c.ela    || [];
+            MOY_DATA.loaded = true;
+            MOY_DATA.ts     = c.ts;
+            _moyComputed    = null; // reset so re-compute happens
+            return;
+          }
+        } catch(e) {}
+      }
+      _moyLoading = true;
+      _moyError   = null;
+      try {
+        const bust = force ? '&t=' + Date.now() : '';
+        const [mathRes, elaRes] = await Promise.all([
+          fetch(MOY_MATH_URL + bust, { signal: AbortSignal.timeout(15000) }),
+          fetch(MOY_ELA_URL  + bust, { signal: AbortSignal.timeout(15000) }),
+        ]);
+        const [mathText, elaText] = await Promise.all([mathRes.text(), elaRes.text()]);
+        MOY_DATA.math   = parseCSV(mathText).map(r => normalizeMOYRow(r, 'Math')).filter(r => r.scholarId || r.scholarName);
+        MOY_DATA.ela    = parseCSV(elaText).map(r => normalizeMOYRow(r, 'ELA')).filter(r => r.scholarId || r.scholarName);
+        MOY_DATA.loaded = true;
+        MOY_DATA.ts     = Date.now();
+        _moyComputed    = null; // invalidate computed cache
+        try { localStorage.setItem(MOY_CACHE_KEY, JSON.stringify({ ts: MOY_DATA.ts, math: MOY_DATA.math, ela: MOY_DATA.ela })); } catch(e) {}
+      } catch(e) {
+        _moyError = 'Could not load MOY data. Check your connection and try again.';
+        console.warn('[MOY] fetch failed:', e.message);
+      } finally {
+        _moyLoading = false;
+      }
+    }
+
+    // ── MOY median helper (same pattern as existing medianArr) ────────────────
+    function _moyMedian(arr) {
+      if (!arr.length) return null;
+      const s = arr.slice().sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2;
+    }
+
+    // ── Placement shift helper ────────────────────────────────────────────────
+    function _moyPlShift(base, winter) {
+      const bi = PLACEMENT_ORDER.indexOf(base);
+      const wi = PLACEMENT_ORDER.indexOf(winter);
+      if (bi < 0 || wi < 0) return 'held';
+      if (wi > bi) return 'up';
+      if (wi < bi) return 'down';
+      return 'held';
+    }
+
+    // ── MOY compute engine ────────────────────────────────────────────────────
+    // Returns { network, byRegion, bySchool } each a metricBlock
+    function computeMOY(rows) {
+      function metricBlock(subset) {
+        const total     = subset.length;
+        const valid     = subset.filter(r => r.hasGrowth); // Fall+Winter pair, no red rush
+        const withGrowth = valid.length;
+        const plShifts  = valid.filter(r => PLACEMENT_ORDER.includes(r.baseRelPlacement) && PLACEMENT_ORDER.includes(r.winterRelPlacement));
+        const movedUp   = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'up').length;
+        const held      = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'held').length;
+        const movedDown = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'down').length;
+        const gains     = valid.map(r => r.winterGain).filter(v => v !== null && !isNaN(v));
+        const pcts      = valid.map(r => r.pctTypical).filter(v => v !== null && !isNaN(v));
+        const metTyp    = pcts.filter(v => v >= 1.0);
+        const progressing = pcts.filter(v => v >= 0.5 && v < 1.0);
+        const needsAccel  = pcts.filter(v => v >= 0 && v < 0.5);
+        const regressed   = pcts.filter(v => v < 0);
+        const winterOnlyCount = subset.filter(r => r.winterWeeks === 0).length;
+        const redRushCount    = subset.filter(r => r.isRedRush).length;
+        const yellowRushCount = subset.filter(r => /yellow/i.test(r.winterRush)).length;
+
+        // Placement distribution (Winter snapshot — all scholars)
+        const placementDist = {};
+        PLACEMENT_ORDER.forEach(p => { placementDist[p] = 0; });
+        subset.forEach(r => { if (placementDist[r.winterRelPlacement] !== undefined) placementDist[r.winterRelPlacement]++; });
+
+        return {
+          total,
+          withGrowth,
+          winterOnly:     winterOnlyCount,
+          medianGain:     gains.length ? Math.round(_moyMedian(gains) * 10) / 10 : null,
+          medianPctTypical: pcts.length ? Math.round(_moyMedian(pcts) * 100) : null,
+          pctMetTypical:   pcts.length ? Math.round(metTyp.length / pcts.length * 100) : null,
+          pctProgressing:  pcts.length ? Math.round(progressing.length / pcts.length * 100) : null,
+          pctNeedsAccel:   pcts.length ? Math.round(needsAccel.length / pcts.length * 100) : null,
+          pctRegressed:    pcts.length ? Math.round(regressed.length / pcts.length * 100) : null,
+          movedUp, held, movedDown,
+          placementDist,
+          rushFlags: { red: redRushCount, yellow: yellowRushCount },
+        };
+      }
+
+      const network   = metricBlock(rows);
+      const byRegion  = {};
+      const bySchool  = {};
+
+      // Group by region
+      const regionGroups = {};
+      rows.forEach(r => {
+        const rg = r.region || 'Unknown';
+        if (!regionGroups[rg]) regionGroups[rg] = [];
+        regionGroups[rg].push(r);
+      });
+      Object.entries(regionGroups).forEach(([rg, rws]) => { byRegion[rg] = metricBlock(rws); });
+
+      // Group by school
+      const schoolGroups = {};
+      rows.forEach(r => {
+        const sc = r.school || 'Unknown';
+        if (!schoolGroups[sc]) schoolGroups[sc] = [];
+        schoolGroups[sc].push(r);
+      });
+      Object.entries(schoolGroups).forEach(([sc, rws]) => { bySchool[sc] = metricBlock(rws); });
+
+      return { network, byRegion, bySchool };
+    }
+
+    // ── Get or compute cached MOY metrics ─────────────────────────────────────
+    function _moyGetMetrics(subject) {
+      const subj = subject || _moySubject;
+      const rows = subj === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+      if (!rows.length) return null;
+      const key = subj + '_' + rows.length; // invalidate when row count changes
+      if (_moyComputed && _moyComputed._key === key) return _moyComputed[subj];
+      if (!_moyComputed) _moyComputed = { _key: key };
+      _moyComputed[subj] = computeMOY(rows);
+      _moyComputed._key  = key;
+      return _moyComputed[subj];
+    }
+
+    // ── Growth tier pill helper ───────────────────────────────────────────────
+    function _moyTierPill(medianPct) {
+      if (medianPct === null) return '';
+      if (medianPct >= 100) return `<span style="background:#d1fae5;color:#065f46;font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px">✅ Met or Exceeded</span>`;
+      if (medianPct >= 80)  return `<span style="background:#dbeafe;color:#1e40af;font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px">🔵 On Pace</span>`;
+      if (medianPct >= 50)  return `<span style="background:#fef3c7;color:#92400e;font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px">🟡 Making Progress</span>`;
+      return `<span style="background:#fee2e2;color:#991b1b;font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px">🔴 Needs Acceleration</span>`;
+    }
+
+    // ── Main MOY render function ──────────────────────────────────────────────
+    function renderMOYSection() {
+      const isLoading = _moyLoading;
+      const hasData   = MOY_DATA.loaded && (MOY_DATA.math.length > 0 || MOY_DATA.ela.length > 0);
+      const metrics   = hasData ? _moyGetMetrics(_moySubject) : null;
+      const net       = metrics ? metrics.network : null;
+
+      // Color logic for median
+      const medColor = (m) => m === null ? 'var(--muted)' : m >= 80 ? '#0d6e3a' : m >= 50 ? '#d97706' : '#b91c1c';
+
+      let html = `
+      <div class="irlab-card" id="moySection" style="margin-top:1.5rem">
+        <!-- MOY Header -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.875rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:2px solid var(--border)">
+          <div>
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#0891b2;margin-bottom:.25rem">Mid-Year Snapshot · SY 2025–2026</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:var(--navy)">Mid-Year (MOY) Academic Results</div>
+            <div style="font-size:.8125rem;color:var(--muted);margin-top:.25rem">Winter diagnostic data — Fall + Winter pairs · Live from Google Sheets</div>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <!-- Subject toggle -->
+            <div style="display:flex;gap:.25rem;background:var(--surface-3);border-radius:20px;padding:.2rem">
+              <button onclick="irlab.moySetSubject('Math')" class="irlab-mode-tab ${_moySubject==='Math'?'active':''}" style="font-size:.75rem;padding:.3rem .875rem;border-radius:18px">Math</button>
+              <button onclick="irlab.moySetSubject('ELA')" class="irlab-mode-tab ${_moySubject==='ELA'?'active':''}" style="font-size:.75rem;padding:.3rem .875rem;border-radius:18px">ELA</button>
+            </div>
+            <button onclick="irlab.moyRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
+          </div>
+        </div>`;
+
+      // Loading state
+      if (isLoading) {
+        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
+          <div style="font-size:1.5rem;margin-bottom:.75rem">⏳</div>
+          <div style="font-size:.9375rem;font-weight:600">Loading MOY data…</div>
+          <div style="font-size:.8125rem;margin-top:.375rem">Fetching Math and ELA winter diagnostics in parallel.</div>
+        </div>`;
+        html += `</div>`;
+        return html;
+      }
+
+      // Error state
+      if (_moyError) {
+        html += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:1.25rem">⚠️</span>
+          <div style="flex:1;font-size:.875rem;color:#991b1b">${_moyError}</div>
+          <button onclick="irlab.moyRefresh()" style="font-size:.8125rem;padding:.375rem .75rem;border-radius:8px;background:#b91c1c;color:#fff;border:none;cursor:pointer">Retry</button>
+        </div>`;
+        html += `</div>`;
+        return html;
+      }
+
+      // Not yet loaded
+      if (!hasData) {
+        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
+          <div style="font-size:1.5rem;margin-bottom:.75rem">📊</div>
+          <div style="font-size:.9375rem;font-weight:600">MOY data not yet loaded</div>
+          <div style="font-size:.8125rem;margin-top:.375rem;margin-bottom:1rem">Click below to fetch the live Winter diagnostic data.</div>
+          <button onclick="irlab.moyRefresh()" style="font-size:.875rem;padding:.5rem 1.25rem;border-radius:10px;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;cursor:pointer;font-weight:600">⬇ Load MOY Data</button>
+        </div>`;
+        html += `</div>`;
+        return html;
+      }
+
+      // Rush flag banner
+      if (net && net.rushFlags.red > 0) {
+        html += `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
+          ⚠️ <strong>${net.rushFlags.red} scholar${net.rushFlags.red!==1?'s':''}</strong> had a Red Rush Flag on their Winter diagnostic and have been excluded from all growth calculations.
+        </div>`;
+      }
+
+      // ── View pill toggles ──────────────────────────────────────────────────
+      html += `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.25rem">
+        ${[['overview','📊 Overview'],['regions','🗺️ By Region & School'],['correlations','📈 Correlations']].map(([v,l]) =>
+          `<button onclick="irlab.moySetView('${v}')" style="font-size:.8125rem;padding:.375rem .875rem;border-radius:20px;border:1.5px solid ${_moyView===v?'var(--navy)':'var(--border)'};background:${_moyView===v?'var(--navy)':'var(--surface)'};color:${_moyView===v?'#fff':'var(--text-2)'};cursor:pointer;font-weight:${_moyView===v?'700':'500'};transition:all .15s">${l}</button>`
+        ).join('')}
+      </div>`;
+
+      if (_moyView === 'overview' && net) {
+        // ── KPI cards ────────────────────────────────────────────────────────
+        html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.875rem;margin-bottom:1.25rem">
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.total}</div><div class="ta-kpi-sub">Total Scholars</div></div>
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.withGrowth}</div><div class="ta-kpi-sub">With Growth Data</div></div>
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.medianPctTypical)}">${net.medianPctTypical !== null ? net.medianPctTypical+'%' : '—'}</div><div class="ta-kpi-sub">Median % Typical Growth${_moyTierPill(net.medianPctTypical) ? '' : ''}</div>${_moyTierPill(net.medianPctTypical) ? '<div style="margin-top:.35rem">'+_moyTierPill(net.medianPctTypical)+'</div>' : ''}</div>
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.pctMetTypical)}">${net.pctMetTypical !== null ? net.pctMetTypical+'%' : '—'}</div><div class="ta-kpi-sub">% Met Typical</div></div>
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—'}</div><div class="ta-kpi-sub">Median Scale Gain</div></div>
+        </div>`;
+
+        // ── Growth tier stacked bar ───────────────────────────────────────────
+        if (net.withGrowth > 0) {
+          const tiers = [
+            { label: 'Met or Exceeded', pct: net.pctMetTypical || 0,    color: '#16a34a' },
+            { label: 'Making Progress', pct: net.pctProgressing || 0,   color: '#0050c8' },
+            { label: 'Needs Accel.',    pct: net.pctNeedsAccel || 0,    color: '#d97706' },
+            { label: 'Regression',      pct: net.pctRegressed || 0,     color: '#dc2626' },
+          ];
+          html += `<div style="margin-bottom:1.25rem">
+            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Growth Distribution — ${_moySubject} · ${net.withGrowth} scholars with valid Fall + Winter pairs</div>
+            <div style="height:28px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:.5rem">
+              ${tiers.map(t => t.pct > 0 ? `<div style="flex:${t.pct};background:${t.color};min-width:${t.pct > 0 ? '2px':0}" title="${t.label}: ${t.pct}%"></div>` : '').join('')}
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:.75rem">
+              ${tiers.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span><strong style="color:${t.color}">${t.pct}%</strong></div>`).join('')}
+            </div>
+          </div>`;
+        }
+
+        // ── Placement shift tiles ─────────────────────────────────────────────
+        html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
+          <div class="ta-card ta-kpi" style="border-top:3px solid #16a34a"><div style="font-size:1.875rem;font-weight:800;color:#16a34a">${net.movedUp}</div><div class="ta-kpi-sub">↑ Moved Up</div></div>
+          <div class="ta-card ta-kpi" style="border-top:3px solid #0050c8"><div style="font-size:1.875rem;font-weight:800;color:#0050c8">${net.held}</div><div class="ta-kpi-sub">→ Held</div></div>
+          <div class="ta-card ta-kpi" style="border-top:3px solid #dc2626"><div style="font-size:1.875rem;font-weight:800;color:#dc2626">${net.movedDown}</div><div class="ta-kpi-sub">↓ Moved Down</div></div>
+        </div>`;
+
+        // ── Winter-only note ──────────────────────────────────────────────────
+        if (net.winterOnly > 0) {
+          html += `<div style="font-size:.75rem;color:var(--muted);margin-bottom:.875rem">ⓘ ${net.winterOnly} scholar${net.winterOnly!==1?'s':''} had only a Winter diagnostic (no Fall baseline) — counted in placement totals but excluded from growth calculations.</div>`;
+        }
+      }
+
+      if (_moyView === 'regions' && metrics) {
+        // ── Region & School sortable table ─────────────────────────────────
+        const regionEntries = Object.entries(metrics.byRegion).sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
+        html += `<div style="margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">By Region — ${_moySubject}</div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead><tr style="background:var(--navy)">
+              <th style="padding:.625rem 1rem;text-align:left;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Region</th>
+              <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">N</th>
+              <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">w/ Growth</th>
+              <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Median Gain</th>
+              <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Median % Typical</th>
+              <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">% Met Typical</th>
+            </tr></thead>
+            <tbody>
+            ${regionEntries.map(([rg, m]) => {
+              const bg = m.medianPctTypical === null ? '' : m.medianPctTypical >= 80 ? 'background:#f0fdf4' : m.medianPctTypical >= 50 ? 'background:#fffbeb' : 'background:#fef2f2';
+              return `<tr style="${bg};border-bottom:1px solid var(--border-2)">
+                <td style="padding:.75rem 1rem;font-weight:700;color:var(--navy)">${esc(rg)}</td>
+                <td style="padding:.75rem;text-align:center">${m.total}</td>
+                <td style="padding:.75rem;text-align:center">${m.withGrowth}</td>
+                <td style="padding:.75rem;text-align:center;font-weight:600;color:var(--blue-mid)">${m.medianGain !== null ? (m.medianGain > 0 ? '+' : '') + m.medianGain : '—'}</td>
+                <td style="padding:.75rem;text-align:center;font-weight:700;color:${medColor(m.medianPctTypical)}">${m.medianPctTypical !== null ? m.medianPctTypical+'%' : '—'}</td>
+                <td style="padding:.75rem;text-align:center;font-weight:600">${m.pctMetTypical !== null ? m.pctMetTypical+'%' : '—'}</td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+
+        // School breakdown
+        const schoolEntries = Object.entries(metrics.bySchool)
+          .filter(([,m]) => m.withGrowth >= 3)
+          .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
+        html += `<div>
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">By School — ${_moySubject} (min 3 scholars with growth data)</div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead><tr style="background:var(--surface-2)">
+              <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">School</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">N</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Median Gain</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Median % Typical</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">% Met Typical</th>
+            </tr></thead>
+            <tbody>
+            ${schoolEntries.map(([sc, m]) => {
+              const bg = m.medianPctTypical === null ? '' : m.medianPctTypical >= 80 ? 'background:#f0fdf4' : m.medianPctTypical >= 50 ? 'background:#fffbeb' : 'background:#fef2f2';
+              return `<tr style="${bg};border-bottom:1px solid var(--border-2)">
+                <td style="padding:.625rem .875rem;font-size:.8rem;color:var(--navy);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(sc)}">${esc(sc)}</td>
+                <td style="padding:.625rem;text-align:center">${m.withGrowth}</td>
+                <td style="padding:.625rem;text-align:center;color:var(--blue-mid);font-weight:600">${m.medianGain !== null ? (m.medianGain > 0 ? '+' : '') + m.medianGain : '—'}</td>
+                <td style="padding:.625rem;text-align:center;font-weight:700;color:${medColor(m.medianPctTypical)}">${m.medianPctTypical !== null ? m.medianPctTypical+'%' : '—'}</td>
+                <td style="padding:.625rem;text-align:center">${m.pctMetTypical !== null ? m.pctMetTypical+'%' : '—'}</td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+      }
+
+      if (_moyView === 'correlations' && metrics) {
+        const allRows = _moySubject === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+        const validRows = allRows.filter(r => r.hasGrowth && r.pctTypical !== null);
+
+        // Grade band breakdown
+        const gradeBands = { 'K–2': [0,1,2,'K','1','2'], '3–5': [3,4,5,'3','4','5'], '6–8': [6,7,8,'6','7','8'] };
+        html += `<div style="margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Growth by Grade Band — ${_moySubject}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.875rem">
+          ${Object.entries(gradeBands).map(([band, grades]) => {
+            const bandRows = validRows.filter(r => grades.includes(r.grade) || grades.map(String).includes(String(r.grade)));
+            const pcts     = bandRows.map(r => r.pctTypical).filter(v => v !== null);
+            const med      = pcts.length ? Math.round(_moyMedian(pcts) * 100) : null;
+            return `<div class="ta-card ta-kpi">
+              <div style="font-size:1.5rem;font-weight:800;color:${medColor(med)}">${med !== null ? med+'%' : '—'}</div>
+              <div class="ta-kpi-sub">Grade ${band}</div>
+              <div style="font-size:.6875rem;color:var(--muted);margin-top:.25rem">${bandRows.length} scholars</div>
+            </div>`;
+          }).join('')}
+          </div>
+        </div>`;
+
+        // Placement level distribution comparison (Fall vs Winter)
+        html += `<div style="margin-bottom:1.5rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Placement Distribution — Fall vs Winter · ${_moySubject}</div>
+          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead><tr style="background:var(--surface-2)">
+              <th style="padding:.5rem 1rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Placement Level</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Fall</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Winter</th>
+              <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Change</th>
+            </tr></thead>
+            <tbody>
+            ${PLACEMENT_ORDER.slice().reverse().map(p => {
+              const fallN   = allRows.filter(r => r.baseRelPlacement === p).length;
+              const winterN = allRows.filter(r => r.winterRelPlacement === p).length;
+              const diff    = winterN - fallN;
+              const diffStr = diff > 0 ? `<span style="color:#0d6e3a;font-weight:700">+${diff}</span>` : diff < 0 ? `<span style="color:#b91c1c;font-weight:700">${diff}</span>` : `<span style="color:var(--muted)">0</span>`;
+              const color   = PLC[p] || '#888';
+              return `<tr style="border-bottom:1px solid var(--border-2)">
+                <td style="padding:.625rem 1rem;font-weight:600;color:${color}">${p}</td>
+                <td style="padding:.625rem;text-align:center">${fallN}</td>
+                <td style="padding:.625rem;text-align:center;font-weight:600">${winterN}</td>
+                <td style="padding:.625rem;text-align:center">${diffStr}</td>
+              </tr>`;
+            }).join('')}
+            </tbody>
+          </table></div>
+        </div>`;
+
+        // Educator callout
+        if (net && net.medianPctTypical !== null) {
+          const pct = net.medianPctTypical;
+          const trend = pct >= 100 ? 'on pace to meet or exceed expected annual growth' : pct >= 80 ? 'on track to close significant ground by year end' : pct >= 50 ? 'making progress but will need continued intensity to reach full-year targets' : 'behind the expected pace — targeted intervention is recommended before the spring window';
+          html += `<div style="background:linear-gradient(135deg,#0a1628,#162347);border-radius:12px;padding:1.25rem 1.5rem;color:#fff">
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.5rem">📣 What This Means</div>
+            <div style="font-size:.9375rem;line-height:1.65;color:rgba(255,255,255,.9)">At the mid-year checkpoint, our ${_moySubject} scholars are achieving a median of <strong style="color:#f0a500">${pct}%</strong> of their expected annual growth — meaning they are <strong>${trend}</strong>. ${net.movedUp} scholars improved their relative placement level since Fall, while ${net.movedDown} regressed. The data tells us our overall trajectory is ${pct >= 80 ? 'strong' : pct >= 50 ? 'developing' : 'in need of urgent attention'}.</div>
+          </div>`;
+        }
+      }
+
+      html += `</div>`; // close irlab-card
+      return html;
+    }
+
+    // ── MOY public setters (called from rendered HTML buttons) ───────────────
+    function moySetSubject(s) { _moySubject = s; renderLab(); }
+    function moySetView(v)    { _moyView = v;    renderLab(); }
+    async function moyRefresh() {
+      _moyLoading = true;
+      renderLab(); // show loading state
+      await _moyFetchLive(true);
+      renderLab(); // re-render with data
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -3053,7 +3561,12 @@
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
              getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
-             fetchLive: _irlFetchLive };  // exposed so Talent panel can trigger academic refresh
+             fetchLive: _irlFetchLive,
+             // MOY public API
+             moySetSubject, moySetView, moyRefresh,
+             getMOYData: () => MOY_DATA,
+             computeMOY,
+           };  // exposed so Talent panel can trigger academic refresh
   })();
 
 
