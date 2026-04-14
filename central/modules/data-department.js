@@ -2676,22 +2676,71 @@
             INST_OVERALL = 5, INST_ENGAGE = 2, INST_ENJOY = 3, INST_LEARN = 4;
       const INST_SCHOOL = 9, INST_DISTRICT = 10;
 
-      // ── SI reason taxonomy ─────────────────────────────────────────────────
-      // Tutor-caused: instructor absence or coverage failure
+      // ── Attendance classification — mirrors classifyRecord() in programming.js ─
+      // ATT_STATUS is ALWAYS "Attended", "Late", "Missed", or "Not recorded".
+      // It is NEVER "service interruption". SIs are ATT_STATUS="Missed" with a
+      // reason that is NOT a scholar-caused miss (not in SCHOLAR_MISS_REASONS).
+
+      // Scholar-caused misses (count against scholar; matches programming.js SCHOLAR_MISS_REASONS)
+      const SCHOLAR_MISS_REASONS = new Set([
+        'Absent',
+        'Scholar declined attending tutoring session',
+        'Classroom Teacher Requested to Keep Scholar in Class',
+        'HADDON TWP ONLY -- Teacher requested whole group support',
+        'Scholar Left Early',
+      ]);
+      // Classroom Teacher pull-out reasons (subset of SCHOLAR_MISS_REASONS — tracked separately)
+      const CT_PULL_REASONS = new Set([
+        'Classroom Teacher Requested to Keep Scholar in Class',
+        'HADDON TWP ONLY -- Teacher requested whole group support',
+      ]);
+
+      // Tutor-caused SIs (staffing/coverage failures — matches Pearl MISS_REASON values)
       const SI_TUTOR = new Set([
+        'Tutor Vacancy',                                   // HIGH — staffing gap
+        'NJTC Internal Issue/Error',                       // CRITICAL
+        // Legacy/alternate Pearl values
+        'Absent; Not Covered (Tutor not available)',
+        'Absent; Covered by Sub Tutor',
+        'Absent; Covered by Dual Role',
+        'Absent; Covered by the Site Leader',
+        'Absent; Covered by the Instructional Coach',
+        'Tutor Left Early (no sub)',
         'Instructor no-show','Instructor cancelled','Tutor no show','Tutor no-show',
         'No Tutor Coverage','Tutor Absent','Tutor absent','Tutor absent - excused',
         'Tutor absent - unexcused','Tutor left early','Coverage Issue','No Coverage',
         'Tutor No Show','Tutor Cancel',
       ]);
-      // School-caused: facility/scheduling reasons outside tutor/scholar control
+      // School/site-caused SIs (facility, testing, scheduling — matches Pearl SI_SEVERITY keys)
       const SI_SCHOOL = new Set([
-        'School closed','Site closed','School Event','School event','No School / Holiday',
+        'Unscheduled School Closure/Delay/Dismissal',      // HIGH
+        'Scholar Archived - Removed from Sessions',        // HIGH
+        'NJTC Diagnostic Testing',                         // MEDIUM
+        'School-administered Testing',                     // MEDIUM
+        'School Event',                                    // MEDIUM
+        'Scheduled/Unscheduled School Drill',              // MEDIUM
+        'HADDON TWP ONLY -- Program Redevelopment',        // MEDIUM
+        'Half Day',                                        // LOW
+        'Holiday - scheduled',                             // LOW
+        // Legacy/alternate values
+        'School closed','Site closed','School event','No School / Holiday',
         'No School','Testing / Assessment','Standardized Testing','Testing',
         'Standardized testing','District event','School holiday','Snow day',
         'Emergency closure','Field Trip','School Assembly','Early Dismissal',
         'School Cancelled','Site Cancelled',
       ]);
+
+      // Classify a single ATT row (student role only)
+      // Returns: 'attended' | 'absent' | 'service_interruption' | 'other'
+      function _classifyAttRow(attStatus, missReason) {
+        if (attStatus === 'Attended' || attStatus === 'Late') return 'attended';
+        if (attStatus === 'Missed') {
+          // Scholar-caused: blank reason also counts as absent (unknown = missed)
+          return (SCHOLAR_MISS_REASONS.has(missReason) || missReason === '')
+                 ? 'absent' : 'service_interruption';
+        }
+        return 'other';
+      }
 
       // ── Scholar map (keyed by Pearl UID or normalized name) ───────────────
       const scholarMap  = {};   // uid/name → profile
@@ -2706,7 +2755,7 @@
         if (!key) return;
         if (!scholarMap[key]) scholarMap[key] = {
           uid, name: r[ATT_USER] || '',
-          attended: 0, missed: 0,
+          attended: 0, absent: 0, ctPulls: 0, siCount: 0,
           siTutor: 0, siSchool: 0, siOther: 0,
           missReasons: {}, tutors: new Set(),
           minutesBySubject: { Math: 0, ELA: 0 },
@@ -2720,26 +2769,22 @@
           schoolIndex[sc].add(key);
         }
 
-        const cls = (r[ATT_ATT_STATUS] || '').toLowerCase();
-        const mr  = r[ATT_MISS_REASON] || '';
+        const attStatus = r[ATT_ATT_STATUS] || '';
+        const mr        = r[ATT_MISS_REASON] || '';
+        const cls       = _classifyAttRow(attStatus, mr);
 
-        if (cls === 'attended' || cls === 'present') {
+        if (cls === 'attended') {
           scholarMap[key].attended++;
-        } else if (cls === 'service interruption' || cls === 'service_interruption' || cls === 'si') {
-          // SI: session interrupted — not counted against scholar attendance
-          const reason = mr || 'Service Interruption';
-          scholarMap[key].missReasons[reason] = (scholarMap[key].missReasons[reason] || 0) + 1;
-          if      (SI_TUTOR.has(reason))  scholarMap[key].siTutor++;
-          else if (SI_SCHOOL.has(reason)) scholarMap[key].siSchool++;
-          else                            scholarMap[key].siOther++;
-        } else if (cls === 'missed' || cls === 'absent' || cls === 'no show') {
-          scholarMap[key].missed++;
-          if (mr) {
-            scholarMap[key].missReasons[mr] = (scholarMap[key].missReasons[mr] || 0) + 1;
-            // Some districts log SI-type reasons under "absent" status — count them
-            if      (SI_TUTOR.has(mr))  scholarMap[key].siTutor++;
-            else if (SI_SCHOOL.has(mr)) scholarMap[key].siSchool++;
-          }
+        } else if (cls === 'service_interruption') {
+          scholarMap[key].siCount++;
+          scholarMap[key].missReasons[mr] = (scholarMap[key].missReasons[mr] || 0) + 1;
+          if      (SI_TUTOR.has(mr))  scholarMap[key].siTutor++;
+          else if (SI_SCHOOL.has(mr)) scholarMap[key].siSchool++;
+          else                        scholarMap[key].siOther++;
+        } else if (cls === 'absent') {
+          scholarMap[key].absent++;
+          if (mr) scholarMap[key].missReasons[mr] = (scholarMap[key].missReasons[mr] || 0) + 1;
+          if (CT_PULL_REASONS.has(mr)) scholarMap[key].ctPulls++;
         }
       });
 
@@ -2786,7 +2831,8 @@
           if (!key) return;
           if (!scholarMap[key]) scholarMap[key] = {
             uid: stuIds.length ? key : '', name: rawName || nm,
-            attended: 0, missed: 0, siTutor: 0, siSchool: 0, siOther: 0,
+            attended: 0, absent: 0, ctPulls: 0, siCount: 0,
+            siTutor: 0, siSchool: 0, siOther: 0,
             missReasons: {}, tutors: new Set(),
             minutesBySubject: { Math: 0, ELA: 0 }, surveyScores: [],
           };
@@ -2879,15 +2925,20 @@
         const scKey = sc.toLowerCase();
         if (!schoolOpsMap[scKey]) schoolOpsMap[scKey] = {
           name: sc, district: r[ATT_DISTRICT] || '', region: '',
-          siTutor: 0, siSchool: 0, siOther: 0, stuSurvScores: [], instSurvScores: [],
+          siTutor: 0, siSchool: 0, siOther: 0, siCount: 0,
+          absent: 0, ctPulls: 0, stuSurvScores: [], instSurvScores: [],
         };
-        const cls = (r[ATT_ATT_STATUS] || '').toLowerCase();
-        const mr  = r[ATT_MISS_REASON] || '';
-        if (cls === 'service interruption' || cls === 'service_interruption' || cls === 'si') {
-          const reason = mr || 'Service Interruption';
-          if      (SI_TUTOR.has(reason))  schoolOpsMap[scKey].siTutor++;
-          else if (SI_SCHOOL.has(reason)) schoolOpsMap[scKey].siSchool++;
-          else                            schoolOpsMap[scKey].siOther++;
+        const attStatus = r[ATT_ATT_STATUS] || '';
+        const mr        = r[ATT_MISS_REASON] || '';
+        const cls       = _classifyAttRow(attStatus, mr);
+        if (cls === 'service_interruption') {
+          schoolOpsMap[scKey].siCount++;
+          if      (SI_TUTOR.has(mr))  schoolOpsMap[scKey].siTutor++;
+          else if (SI_SCHOOL.has(mr)) schoolOpsMap[scKey].siSchool++;
+          else                        schoolOpsMap[scKey].siOther++;
+        } else if (cls === 'absent') {
+          schoolOpsMap[scKey].absent++;
+          if (CT_PULL_REASONS.has(mr)) schoolOpsMap[scKey].ctPulls++;
         }
       });
       stuRows.forEach(r => {
@@ -3006,8 +3057,8 @@
               scholars: new Set(), pcts: [], gains: [],
               movedUp: 0, held: 0, movedDown: 0,
               minutesMath: 0, minutesELA: 0,
-              siTutor: 0, siSchool: 0, siOther: 0,
-              scholAttended: 0, scholMissed: 0,
+              siCount: 0, siTutor: 0, siSchool: 0, siOther: 0,
+              scholAttended: 0, scholAbsent: 0, scholCtPulls: 0,
               scholSurveyScores: [],
             };
           }
@@ -3029,13 +3080,15 @@
             td.minutesMath += (ops.minutesBySubject.Math || 0);
             td.minutesELA  += (ops.minutesBySubject.ELA  || 0);
           }
-          // Att / SI / survey: from ATT-row-based ops profile (separate data source)
+          // Att / SI / CT / survey: from ATT-row-based ops profile (separate data source)
           if (ops) {
+            td.siCount       += (ops.siCount   || 0);
             td.siTutor       += (ops.siTutor   || 0);
             td.siSchool      += (ops.siSchool  || 0);
             td.siOther       += (ops.siOther   || 0);
             td.scholAttended += (ops.attended  || 0);
-            td.scholMissed   += (ops.missed    || 0);
+            td.scholAbsent   += (ops.absent    || 0);
+            td.scholCtPulls  += (ops.ctPulls   || 0);
             if (ops.surveyAvg !== null && ops.surveyAvg !== undefined) {
               td.scholSurveyScores.push(ops.surveyAvg);
             }
@@ -3050,7 +3103,7 @@
         .filter(t => t.scholars.size >= 3 && t.pcts.length >= 3 && t.name !== 'Unassigned')
         .map(t => {
           const totalMins   = t.minutesMath + t.minutesELA;
-          const scholTotal  = t.scholAttended + t.scholMissed;
+          const scholTotal  = t.scholAttended + t.scholAbsent;
           const siTotal     = t.siTutor + t.siSchool + t.siOther;
           // Tutor survey: match by Pearl ID key first, fallback to name scan
           const tSurvey = tutorSurveyMap[t.key]
@@ -3073,17 +3126,17 @@
             hours:          Math.round(totalMins / 60 * 10) / 10,
             hoursMath:      Math.round(t.minutesMath / 60 * 10) / 10,
             hoursELA:       Math.round(t.minutesELA  / 60 * 10) / 10,
-            // Scholar attendance rate for this tutor's scholars
+            // Scholar attendance (attended vs absent, excluding SIs from denominator)
             scholAttRate:   scholTotal > 0 ? Math.round(t.scholAttended / scholTotal * 100) : null,
             scholAttended:  t.scholAttended,
-            scholMissed:    t.scholMissed,
+            scholAbsent:    t.scholAbsent,
+            scholCtPulls:   t.scholCtPulls,
             // Service interruptions — categorised
+            siCount:        t.siCount,
             siTotal,
             siTutor:        t.siTutor,
             siSchool:       t.siSchool,
             siOther:        t.siOther,
-            // Legacy alias
-            siCount:        siTotal,
             // Survey scores
             scholSurveyAvg: _avg(t.scholSurveyScores),
             tutorSurveyAvg: tSurvey ? tSurvey.avgOverall : null,
@@ -4154,31 +4207,37 @@
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↑ Up</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↓ Down</th>
               ${hasPearl ? `
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Hours</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Math hours / ELA hours">Hrs Math/ELA</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Scholar Att%</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Tutor-caused / School-caused / Other SIs">SIs (T/S/O)</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Scholar Sat.</th>
-              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Tutor Survey</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Total instructional hours delivered">Hours</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Math hours / ELA hours">M/E Hrs</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar attendance rate (attended ÷ attended+absent, SIs excluded)">Att%</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar absences (scholar-caused misses)">Abs</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Classroom Teacher pull-outs (counted as scholar absence)">CT Pulls</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Service interruptions: Tutor-caused / School-caused / Other">SIs (T/S/O)</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Instructor post-session survey avg">Tutor Survey</th>
               ` : ''}
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Tier</th>
             </tr></thead>
             <tbody>
             ${tutors.map((t, i) => `<tr style="border-bottom:1px solid var(--border-2);${i%2===0?'background:var(--surface-2)':''}">
-              <td style="padding:.625rem 1rem;font-weight:700;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</td>
+              <td style="padding:.625rem 1rem;font-weight:700;color:var(--navy);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</td>
               <td style="padding:.5rem;text-align:center">${t.n}</td>
               <td style="padding:.5rem;text-align:center;font-weight:800;color:${t.medianPct>=80?'#0d6e3a':t.medianPct>=50?'#d97706':'#b91c1c'}">${t.medianPct}%</td>
               <td style="padding:.5rem;text-align:center;color:var(--blue-mid);font-weight:600">${t.medianGain!==null?(t.medianGain>0?'+':'')+t.medianGain:'—'}</td>
               <td style="padding:.5rem;text-align:center;color:#16a34a;font-weight:700">${t.movedUp}</td>
               <td style="padding:.5rem;text-align:center;color:#dc2626">${t.movedDown}</td>
               ${hasPearl ? `
-              <td style="padding:.5rem;text-align:center;color:var(--muted)">${t.hours || '—'}</td>
-              <td style="padding:.5rem;text-align:center;color:var(--muted);font-size:.75rem">${t.hoursMath}M / ${t.hoursELA}E</td>
+              <td style="padding:.5rem;text-align:center;color:var(--muted)">${t.hours > 0 ? t.hours : '—'}</td>
+              <td style="padding:.5rem;text-align:center;color:var(--muted);font-size:.75rem">${t.hoursMath > 0 || t.hoursELA > 0 ? t.hoursMath+'M/'+t.hoursELA+'E' : '—'}</td>
               <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.scholAttRate===null?'var(--muted)':t.scholAttRate>=85?'#16a34a':'#d97706'}">${fmtRate(t.scholAttRate)}</td>
+              <td style="padding:.5rem;text-align:center;font-weight:${t.scholAbsent>0?'700':'400'};color:${t.scholAbsent>0?'#d97706':'var(--muted)'}">${t.scholAbsent > 0 ? t.scholAbsent : '—'}</td>
+              <td style="padding:.5rem;text-align:center;font-weight:${t.scholCtPulls>0?'700':'400'};color:${t.scholCtPulls>0?'#b91c1c':'var(--muted)'}" title="Classroom Teacher pulled scholar from tutoring">${t.scholCtPulls > 0 ? t.scholCtPulls : '—'}</td>
               <td style="padding:.5rem;text-align:center;font-size:.75rem">
-                ${t.siTutor > 0 ? `<span style="color:#b91c1c;font-weight:700">${t.siTutor}T</span> ` : '<span style="color:var(--muted)">0T</span> '}
-                ${t.siSchool > 0 ? `<span style="color:#d97706;font-weight:700">${t.siSchool}S</span> ` : '<span style="color:var(--muted)">0S</span> '}
-                ${t.siOther > 0 ? `<span style="color:var(--muted)">${t.siOther}O</span>` : '<span style="color:var(--muted)">0O</span>'}
+                <span style="color:${t.siTutor>0?'#b91c1c':'var(--muted)'};font-weight:${t.siTutor>0?'700':'400'}">${t.siTutor}T</span>
+                <span style="color:var(--muted)"> / </span>
+                <span style="color:${t.siSchool>0?'#d97706':'var(--muted)'};font-weight:${t.siSchool>0?'700':'400'}">${t.siSchool}S</span>
+                <span style="color:var(--muted)"> / </span>
+                <span style="color:var(--muted)">${t.siOther}O</span>
               </td>
               <td style="padding:.5rem;text-align:center;color:${t.scholSurveyAvg===null?'var(--muted)':t.scholSurveyAvg>=4?'#16a34a':'#d97706'}">${fmtSurvey(t.scholSurveyAvg)}</td>
               <td style="padding:.5rem;text-align:center;color:${t.tutorSurveyAvg===null?'var(--muted)':t.tutorSurveyAvg>=4?'#16a34a':'#d97706'}">${fmtSurvey(t.tutorSurveyAvg)}</td>
@@ -4188,10 +4247,11 @@
             </tbody>
           </table></div>
           <div style="font-size:.75rem;color:var(--muted);margin-top:.75rem;line-height:1.5">
-            Scholar–tutor matching: SESS student names (primary) · Pearl student ID · full-name index · last-name + school-scoped fallback.
-            SIs: T=tutor-caused, S=school-caused, O=other. Scholar Att% = scholar sessions attended under this tutor.
-            Tutor Survey = instructor post-session survey avg. Scholar Sat. = scholar satisfaction avg for this tutor's scholars.
-            Min 3 scholars per tutor required.
+            Matching: SESS student names (primary) · Pearl UID · name index · school-scoped fuzzy fallback.
+            Att% = scholar sessions attended ÷ (attended + absent); SIs excluded from denominator.
+            SIs: T=tutor/coverage-caused · S=school/facility-caused · O=other (not scholar's fault).
+            Abs = scholar-caused absences. CT Pulls = Classroom Teacher kept scholar from tutoring.
+            Scholar Sat. / Tutor Survey = post-session survey averages. Min 3 scholars per tutor.
           </div>`;
         }
 
@@ -4200,22 +4260,46 @@
         // to Pearl school-level SIs and survey scores to surface ops impact on outcomes.
         if (hasPearl && opsMap && opsMap.schoolOpsMap) {
           const schoolOpsData = opsMap.schoolOpsMap;
+          // Fuzzy school name normalizer — strips common suffixes for cross-system matching
+          const _normSc = n => (n || '').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\b(school|elementary|middle|high|charter|the|of|at|a|and)\b/g,'').replace(/\s+/g,' ').trim();
           const moySchools = [...new Set(allRows.map(r => (r.school || '').trim()).filter(Boolean))];
           const schoolCtxEntries = moySchools.map(sc => {
-            const sops = schoolOpsData[sc.toLowerCase()] || Object.values(schoolOpsData).find(s => s.name.toLowerCase() === sc.toLowerCase());
-            if (!sops) return null;
-            const scRows = allRows.filter(r => (r.school || '').trim().toLowerCase() === sc.toLowerCase() && r.hasGrowth && r.pctTypical !== null);
-            const medGrowth = scRows.length ? Math.round(_moyMedian(scRows.map(r => r.pctTypical)) * 100) : null;
-            return { name: sc, n: scRows.length, medGrowth,
-                     siTutor: sops.siTutor || 0, siSchool: sops.siSchool || 0, siOther: sops.siOther || 0,
-                     stuSurvAvg: sops.stuSurvAvg, instSurvAvg: sops.instSurvAvg,
-                     district: sops.district || '', region: sops.region || '' };
-          }).filter(Boolean).sort((a, b) => (b.siTutor + b.siSchool + b.siOther) - (a.siTutor + a.siSchool + a.siOther));
+            const scL = sc.toLowerCase();
+            const scN = _normSc(sc);
+            // 3-tier match: exact key → exact name → normalized fuzzy
+            const sops = schoolOpsData[scL]
+              || Object.values(schoolOpsData).find(s => s.name.toLowerCase() === scL)
+              || Object.values(schoolOpsData).find(s => {
+                   const sN = _normSc(s.name);
+                   return sN && scN && (sN === scN || sN.includes(scN) || scN.includes(sN)
+                          || scN.split(' ').filter(t=>t.length>3).every(t=>sN.includes(t)));
+                 });
+            const scRows = allRows.filter(r => (r.school||'').trim().toLowerCase()===scL && r.hasGrowth && r.pctTypical!==null);
+            const medGrowth = scRows.length ? Math.round(_moyMedian(scRows.map(r=>r.pctTypical))*100) : null;
+            return {
+              name: sc, n: scRows.length, medGrowth,
+              siCount:    sops ? (sops.siCount  || 0) : null,
+              siTutor:    sops ? (sops.siTutor  || 0) : null,
+              siSchool:   sops ? (sops.siSchool || 0) : null,
+              siOther:    sops ? (sops.siOther  || 0) : null,
+              absent:     sops ? (sops.absent   || 0) : null,
+              ctPulls:    sops ? (sops.ctPulls  || 0) : null,
+              stuSurvAvg: sops ? sops.stuSurvAvg  : null,
+              instSurvAvg:sops ? sops.instSurvAvg : null,
+              district:   sops ? (sops.district || '') : '',
+              noData:     !sops,
+            };
+          }).sort((a,b) => {
+            // Sort: schools with data first (by total SIs desc), no-data schools last
+            if (a.noData && !b.noData) return 1;
+            if (!a.noData && b.noData) return -1;
+            return ((b.siTutor||0)+(b.siSchool||0)+(b.siOther||0)) - ((a.siTutor||0)+(a.siSchool||0)+(a.siOther||0));
+          });
 
           if (schoolCtxEntries.length) {
             html += `<div style="margin-top:1.5rem">
-              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
-                <span>School Operational Context — ${_moySubject} · Pearl service data</span>
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <span>School Operational Context — ${_moySubject} · Pearl attendance &amp; survey data by school</span>
                 <span style="font-size:.6875rem;font-weight:400;color:var(--muted)">· Did operations impact academic outcomes?</span>
               </div>
               <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
@@ -4223,31 +4307,39 @@
                   <th style="padding:.5rem 1rem;text-align:left;color:var(--navy);font-size:.6875rem;font-weight:700;text-transform:uppercase;border-bottom:2px solid var(--border-2)">School</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholars with valid Fall+Winter growth data">N</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)">Med % Typical</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor-caused service interruptions">Tutor SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site-caused service interruptions">School SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:var(--muted);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)">Other SIs</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholar post-session survey avg for this school">Scholar Sat.</th>
-                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Instructor post-session survey avg for this school">Tutor Survey</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total scholar absences (scholar-caused misses)">Scholar Abs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#7c3aed;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Classroom Teacher pull-outs (scholars kept from tutoring by teacher)">CT Pulls</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Total interrupted sessions (not scholar's fault)">Total SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor/coverage-caused service interruptions">Tutor SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site/testing-caused service interruptions">School SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholar post-session satisfaction avg">Scholar Sat.</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Instructor post-session survey avg">Tutor Survey</th>
                 </tr></thead>
                 <tbody>
                 ${schoolCtxEntries.map((s, i) => {
-                  const siHigh = (s.siTutor + s.siSchool + s.siOther) > 10;
-                  return `<tr style="border-bottom:1px solid var(--border-2);${i%2===0?'background:var(--surface-2)':''}">
+                  const siHighT = (s.siTutor || 0) > 5;
+                  const siHighS = (s.siSchool || 0) > 5;
+                  const ctHigh  = (s.ctPulls  || 0) > 3;
+                  return `<tr style="border-bottom:1px solid var(--border-2);${i%2===0?'background:var(--surface-2)':''}${s.noData?';opacity:.55':''}">
                     <td style="padding:.5rem 1rem;font-weight:600;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.name)}">${esc(s.name)}${s.district ? `<div style="font-size:.6875rem;color:var(--muted);font-weight:400">${esc(s.district)}</div>` : ''}</td>
                     <td style="padding:.5rem;text-align:center;color:var(--muted)">${s.n || '—'}</td>
-                    <td style="padding:.5rem;text-align:center;font-weight:700;color:${s.medGrowth===null?'var(--muted)':s.medGrowth>=80?'#0d6e3a':s.medGrowth>=50?'#d97706':'#b91c1c'}">${s.medGrowth !== null ? s.medGrowth + '%' : '—'}</td>
-                    <td style="padding:.5rem;text-align:center;font-weight:${s.siTutor>0?'700':'400'};color:${s.siTutor>5?'#b91c1c':s.siTutor>0?'#dc2626aa':'var(--muted)'}">${s.siTutor}</td>
-                    <td style="padding:.5rem;text-align:center;font-weight:${s.siSchool>0?'700':'400'};color:${s.siSchool>5?'#d97706':s.siSchool>0?'#d97706aa':'var(--muted)'}">${s.siSchool}</td>
-                    <td style="padding:.5rem;text-align:center;color:var(--muted)">${s.siOther}</td>
-                    <td style="padding:.5rem;text-align:center;font-weight:${s.stuSurvAvg!==null?'600':'400'};color:${s.stuSurvAvg===null?'var(--muted)':s.stuSurvAvg>=4?'#16a34a':'#d97706'}">${s.stuSurvAvg !== null ? s.stuSurvAvg + '/5' : '—'}</td>
-                    <td style="padding:.5rem;text-align:center;font-weight:${s.instSurvAvg!==null?'600':'400'};color:${s.instSurvAvg===null?'var(--muted)':s.instSurvAvg>=4?'#16a34a':'#d97706'}">${s.instSurvAvg !== null ? s.instSurvAvg + '/5' : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:700;color:${s.medGrowth===null?'var(--muted)':s.medGrowth>=80?'#0d6e3a':s.medGrowth>=50?'#d97706':'#b91c1c'}">${s.medGrowth !== null ? s.medGrowth+'%' : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;color:${s.absent===null?'var(--muted)':(s.absent||0)>10?'#b91c1c':'#d97706'};font-weight:${(s.absent||0)>0?'700':'400'}">${s.absent !== null ? (s.absent||0) : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;color:${s.ctPulls===null?'var(--muted)':ctHigh?'#7c3aed':'var(--muted)'};font-weight:${ctHigh?'700':'400'}">${s.ctPulls !== null ? (s.ctPulls||0) : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${(s.siCount||0)>0?'700':'400'};color:${(s.siCount||0)>10?'#b91c1c':(s.siCount||0)>0?'#d97706':'var(--muted)'}">${s.siCount !== null ? (s.siCount||0) : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${siHighT?'700':'400'};color:${siHighT?'#b91c1c':(s.siTutor||0)>0?'#b91c1c99':'var(--muted)'}">${s.siTutor !== null ? (s.siTutor||0) : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${siHighS?'700':'400'};color:${siHighS?'#d97706':(s.siSchool||0)>0?'#d9770699':'var(--muted)'}">${s.siSchool !== null ? (s.siSchool||0) : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.stuSurvAvg!==null?'600':'400'};color:${s.stuSurvAvg===null?'var(--muted)':s.stuSurvAvg>=4?'#16a34a':'#d97706'}">${s.stuSurvAvg !== null ? s.stuSurvAvg+'/5' : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.instSurvAvg!==null?'600':'400'};color:${s.instSurvAvg===null?'var(--muted)':s.instSurvAvg>=4?'#16a34a':'#d97706'}">${s.instSurvAvg !== null ? s.instSurvAvg+'/5' : '—'}</td>
                   </tr>`;
                 }).join('')}
                 </tbody>
               </table></div>
               <div style="font-size:.75rem;color:var(--muted);margin-top:.625rem;line-height:1.5">
-                Tutor SIs = sessions lost to tutor absence or coverage failure · School SIs = facility/scheduling closures.
-                Scholar Sat. and Tutor Survey = Pearl post-session survey averages by school. Sorted by total SIs (highest first).
+                Att classification mirrors Pearl's classifyRecord(): Absent = scholar-caused (Absent / Declined / CT pull) ·
+                SIs = ATT_STATUS "Missed" with non-scholar reason (tutor vacancy, testing, closure, etc.).
+                CT Pulls = "Classroom Teacher Requested to Keep Scholar in Class" (counted as scholar absence, tracked separately).
+                Faded rows = no Pearl attendance data found for that school name.
               </div>
             </div>`;
           }
