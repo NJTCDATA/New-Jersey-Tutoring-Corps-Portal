@@ -804,6 +804,10 @@
 
   const LB_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pubhtml?gid=1827144938&single=true';
   const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pub?output=csv&gid=1827144938';
+  // GViz JSON endpoint — uses the raw sheet ID (not the 2PACX published ID).
+  // This endpoint reads current sheet state with a much shorter cache than the pub CSV,
+  // returns structured JSON (no BOM, no CSV ambiguity), and drops deleted rows immediately.
+  const LB_GVIZ_URL  = 'https://docs.google.com/spreadsheets/d/1kCMKkIfN_2ONjvHooIk5xbyXlw5j-UGWNqRpttD5uaA/gviz/tq?tqx=out:json&gid=1827144938';
 
   // Google Form entry IDs — confirmed from form HTML inspection
   const LB_ENTRY = {
@@ -843,8 +847,26 @@
   const LB_CACHE_TTL = 30 * 1000; // 30 s — stay close to live data
 
   // ── Fetch & parse leaderboard submissions ──────────────────────────────────
+  // Primary: GViz JSON (raw sheet ID, shorter cache, structured, no BOM, live deletes)
+  // Fallback: published CSV (2PACX URL) — used if GViz is blocked or returns bad data
   async function _lbFetch(force) {
     if (!force && _lbCache && (Date.now() - _lbCacheTs) < LB_CACHE_TTL) return _lbCache;
+    // 1. Try GViz JSON first — fastest path to live data
+    try {
+      const res = await fetch(LB_GVIZ_URL + '&t=' + Date.now(), { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const rows = _lbParseGViz(text);
+      if (rows !== null) {                  // null signals unrecoverable parse fail → fall through
+        _lbCache = rows;
+        _lbCacheTs = Date.now();
+        console.log('[LB] GViz fetch OK —', rows.length, 'rows');
+        return rows;
+      }
+    } catch(e) {
+      console.warn('[LB] GViz fetch failed, falling back to CSV:', e.message);
+    }
+    // 2. Fallback: published CSV
     try {
       const res = await fetch(LB_CSV_URL + '&t=' + Date.now(), { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -852,11 +874,55 @@
       const rows = _lbParseCSV(text);
       _lbCache = rows;
       _lbCacheTs = Date.now();
+      console.log('[LB] CSV fallback OK —', rows.length, 'rows');
       return rows;
     } catch(e) {
-      console.warn('[LB] Fetch failed:', e.message);
+      console.warn('[LB] CSV fallback also failed:', e.message);
       return _lbCache || [];
     }
+  }
+
+  // Parse the google.visualization.Query.setResponse({...}) JSON wrapper
+  // Returns an array of plain row objects {header: value, ...} — same shape as _lbParseCSV.
+  // Returns [] on empty sheet. Returns null on unrecoverable parse failure (caller falls back).
+  function _lbParseGViz(text) {
+    // Strip the JSONP wrapper: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)\s*;?\s*$/);
+    if (!m) return null;
+    let data;
+    try { data = JSON.parse(m[1]); } catch(e) { return null; }
+    if (!data || !data.table) return null;
+
+    const cols = (data.table.cols || []).map(c => (c.label || c.id || '').trim());
+    const rows = [];
+
+    for (const rowData of (data.table.rows || [])) {
+      if (!rowData || !rowData.c) continue;
+      const row = {};
+      cols.forEach((header, idx) => {
+        const cell = rowData.c ? rowData.c[idx] : null;
+        if (!cell || (cell.v === null && cell.f === undefined)) {
+          row[header] = '';
+          return;
+        }
+        // Prefer the formatted value (f) — it's the human-readable string Google Sheets
+        // would show (e.g. "4/13/2026 21:33:00"), which our _lbParseDate already handles.
+        // For plain string cells f is often absent; fall back to v.
+        const val = (cell.f !== undefined && cell.f !== null)
+          ? String(cell.f)
+          : (cell.v !== null && cell.v !== undefined ? String(cell.v) : '');
+        row[header] = val.trim();
+      });
+
+      // Ghost-row filter: skip rows with only a timestamp (and/or dept) but no real content
+      const hasContent = Object.entries(row).some(([k, v]) => {
+        const norm = k.replace(/^\ufeff/, '').trim().toLowerCase();
+        return norm !== 'timestamp' && norm !== 'department' && norm !== 'dept' && v && v.trim();
+      });
+      if (!hasContent) continue;
+      rows.push(row);
+    }
+    return rows;
   }
 
   function _lbParseCSV(text) {
