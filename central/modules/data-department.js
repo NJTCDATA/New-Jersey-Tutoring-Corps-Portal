@@ -2618,6 +2618,48 @@
       'first philadelphia preparatory charter school':          'SW',
     };
 
+    // ── Pearl → iReady school name crossref ──────────────────────────────────
+    // Pearl names schools as "LEA - iLearn [City] ES/MS/HS".
+    // iReady uses descriptive names that don't match. This map bridges the gap
+    // so schoolIndex and schoolOpsMap can be joined from both sides.
+    // Keys = Pearl school name (lowercase). Values = iReady school name (lowercase).
+    const PEARL_SCHOOL_CROSSREF = {
+      // iLearn Charter Network — NE
+      'lea - ilearn bergen es':          'bergen ascs elementary',
+      'lea - ilearn bergen ms':          'bergen middle school',
+      'lea - ilearn clifton es':         'passaic clifton elementary',
+      'lea - ilearn clifton ms':         'passaic clifton middle',
+      'lea - ilearn clifton hs':         'clifton high',
+      'lea - ilearn hudson es':          'hudson ascs elementary',
+      'lea - ilearn hudson ms':          'hudson middle school',
+      'lea - ilearn passaic es':         'passaic elementary',
+      'lea - ilearn passaic ms':         'passaic middle',
+      'lea - ilearn paterson es':        'paterson arts and science charter school elementary',
+      'lea - ilearn paterson ms':        'paterson arts and science charter school middle',
+      'lea - ilearn paterson':           'paterson silk city primary',
+      // Also handle without "lea - " prefix if Pearl shortens it
+      'ilearn bergen es':                'bergen ascs elementary',
+      'ilearn bergen ms':                'bergen middle school',
+      'ilearn clifton es':               'passaic clifton elementary',
+      'ilearn clifton ms':               'passaic clifton middle',
+      'ilearn clifton hs':               'clifton high',
+      'ilearn hudson es':                'hudson ascs elementary',
+      'ilearn hudson ms':                'hudson middle school',
+      'ilearn passaic es':               'passaic elementary',
+      'ilearn passaic ms':               'passaic middle',
+      'ilearn paterson es':              'paterson arts and science charter school elementary',
+      'ilearn paterson ms':              'paterson arts and science charter school middle',
+      'ilearn paterson':                 'paterson silk city primary',
+      // The Co — SW sites (if Pearl uses LEA prefix for these too)
+      'lea - theco gloucester':          'gloucester-loring flemming elementary',
+      'lea - theco penns grove es':      'penns grove field street elementary school',
+      'lea - theco penns grove ms':      'penns grove middle school',
+      'lea - theco penns grove carleton':'penns grove paul w carleton elementary school',
+    };
+    // Reverse crossref (iReady → Pearl) for lookups in both directions
+    const IREADY_TO_PEARL_SCHOOL = {};
+    Object.entries(PEARL_SCHOOL_CROSSREF).forEach(([p,i]) => { if (!IREADY_TO_PEARL_SCHOOL[i]) IREADY_TO_PEARL_SCHOOL[i] = p; });
+
     // Broad keyword lists — fallback when school name is not in the lookup above
     const MOY_NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey','bergen'];
     const MOY_SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
@@ -2763,10 +2805,16 @@
         };
 
         // School-scoped index for fuzzy name matching
+        // Index under BOTH Pearl name and mapped iReady name so cross-system lookups work.
         const sc = (r[ATT_SCHOOL] || '').toLowerCase().trim();
         if (sc) {
           if (!schoolIndex[sc]) schoolIndex[sc] = new Set();
           schoolIndex[sc].add(key);
+          const ireadySc = PEARL_SCHOOL_CROSSREF[sc];
+          if (ireadySc) {
+            if (!schoolIndex[ireadySc]) schoolIndex[ireadySc] = new Set();
+            schoolIndex[ireadySc].add(key);
+          }
         }
 
         const attStatus = r[ATT_ATT_STATUS] || '';
@@ -2967,6 +3015,21 @@
       Object.values(schoolOpsMap).forEach(s => {
         s.stuSurvAvg  = _sAvg(s.stuSurvScores);
         s.instSurvAvg = _sAvg(s.instSurvScores);
+      });
+
+      // ── Bridge Pearl → iReady school names in schoolOpsMap ──────────────────
+      // For every Pearl school entry that has a crossref, also register it under
+      // the iReady school name so that the correlations join finds it directly.
+      Object.entries(PEARL_SCHOOL_CROSSREF).forEach(([pearlName, ireadyName]) => {
+        if (schoolOpsMap[pearlName] && !schoolOpsMap[ireadyName]) {
+          schoolOpsMap[ireadyName] = schoolOpsMap[pearlName];
+        }
+      });
+      // Also bridge the reverse: iReady entry → Pearl key (if Pearl data came in under iReady name)
+      Object.entries(IREADY_TO_PEARL_SCHOOL).forEach(([ireadyName, pearlName]) => {
+        if (schoolOpsMap[ireadyName] && !schoolOpsMap[pearlName]) {
+          schoolOpsMap[pearlName] = schoolOpsMap[ireadyName];
+        }
       });
 
       return { scholarMap, tutorScholarMap, schoolIndex, tutorSurveyByUid, nameIndex, sessStudentNameToTutors, schoolOpsMap };
