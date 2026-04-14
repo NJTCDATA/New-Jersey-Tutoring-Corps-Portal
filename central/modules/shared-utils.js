@@ -805,22 +805,14 @@
   const LB_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pubhtml?gid=1827144938&single=true';
   const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pub?output=csv&gid=1827144938';
 
-  // Google Form entry IDs
-  // dept: set this to the entry ID of the "Department" field you added to the form.
-  // To find the right ID: open the Google Form → right-click any field → Inspect →
-  // look for <input name="entry.XXXXXXXXX"> next to the Department question.
-  // Candidates provided (one of these is the Department field — verify via inspect):
-  //   entry.382056456  entry.1971354312  entry.1490774208  entry.1425663631
-  //   entry.1888712931  entry.1379198778  entry.1060571871
-  // Column G in the sheet is populated automatically once this is set.
-  // Until set, the portal embeds [dept:XXX] in orgShareOut as a fallback.
+  // Google Form entry IDs — confirmed from form HTML inspection
   const LB_ENTRY = {
     deptSuccess:   'entry.2017090049',
     crossDept:     'entry.1704046748',
     weeklyGoal:    'entry.782352842',
     goalMissReason:'entry.1791426684',
     orgShareOut:   'entry.943721963',
-    dept:          null,   // ← set to the correct entry ID from the candidates above
+    dept:          'entry.834835718',  // ← Department field (confirmed from form HTML)
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
