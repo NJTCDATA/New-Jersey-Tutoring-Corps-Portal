@@ -2588,6 +2588,7 @@
       'paterson arts and science charter school elementary':    'NE',
       'paterson arts and science charter school middle':        'NE',
       'paterson silk city primary':                             'NE',
+      'ilearn paterson silk city':                              'NE',  // iReady alternate label for same school
       // NE — The Co (nj-theco8038) Hoboken + Central Jersey sites
       'hoboken dual language charter elementary school':        'NE',
       'hoboken dual language charter middle school':            'NE',
@@ -2637,6 +2638,9 @@
       'lea - ilearn paterson es':        'paterson arts and science charter school elementary',
       'lea - ilearn paterson ms':        'paterson arts and science charter school middle',
       'lea - ilearn paterson':           'paterson arts and science charter school elementary',  // legacy/no-level suffix = ASCS ES
+      // Paterson Silk City — Pearl uses "LEA - iLearn Paterson Silk City"; iReady uses "Paterson Silk City Primary"
+      'lea - ilearn paterson silk city': 'paterson silk city primary',
+      'lea - ilearn paterson silk city es': 'paterson silk city primary',
       // Also handle without "lea - " prefix if Pearl shortens it
       'ilearn bergen es':                'bergen ascs elementary',
       'ilearn bergen ms':                'bergen middle school',
@@ -2650,6 +2654,9 @@
       'ilearn paterson es':              'paterson arts and science charter school elementary',
       'ilearn paterson ms':              'paterson arts and science charter school middle',
       'ilearn paterson':                 'paterson arts and science charter school elementary',
+      'ilearn paterson silk city':       'paterson silk city primary',
+      'ilearn paterson silk city es':    'paterson silk city primary',
+      'paterson silk city':              'paterson silk city primary',  // Pearl short-form
       // The Co — SW sites (if Pearl uses LEA prefix for these too)
       'lea - theco gloucester':          'gloucester-loring flemming elementary',
       'lea - theco penns grove es':      'penns grove field street elementary school',

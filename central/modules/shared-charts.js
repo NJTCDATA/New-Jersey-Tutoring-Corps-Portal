@@ -1655,7 +1655,8 @@
     if (_pViewTab === 'inactive') list = list.filter(e => e.s !== 'Active');
     // Additional tier and role filters
     if (_pTier !== 'all') list = list.filter(e => (e._liveT||e.t) === _pTier);
-    if (_pRole !== 'all') list = list.filter(e => (e.r||'').toLowerCase().includes(_pRole.toLowerCase()));
+    // Role filter — options are now exact role strings from live data (exact match, case-insensitive)
+    if (_pRole !== 'all') list = list.filter(e => (e.r||'').toLowerCase() === _pRole.toLowerCase());
     // Apprentice filter — source of truth is HR Master List col K (_apprentice field, set by live overlay)
     if (_pApprentice) {
       const before = list.length;
@@ -2068,6 +2069,17 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     // ── Filtered list for current view ───────────────────────────
     const filtered = _filtered();  // _pStatus is synced to _pViewTab by _hrSetViewTab
 
+    // Dynamic role options — derived from the SY+tab base pool (before role filter)
+    // so the dropdown always reflects the actual roles present in the current data.
+    const _roleBase = (() => {
+      let l = HR_EMPS;
+      if (_pSY && _pSY !== 'all') l = l.filter(e => (e.y||[]).includes(_pSY)||(e._liveYears||[]).includes(_pSY));
+      if (_pViewTab === 'active')   l = l.filter(e => e.s === 'Active');
+      if (_pViewTab === 'inactive') l = l.filter(e => e.s !== 'Active');
+      return l;
+    })();
+    const _liveRoles = [...new Set(_roleBase.map(e => (e.r||'').trim()).filter(Boolean))].sort();
+
     // ── Card builder ─────────────────────────────────────────────
     const buildCard = (e) => {
       const cfg          = _tier(e._liveT || e.t);
@@ -2192,16 +2204,19 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
 <div style="border:1.5px solid var(--border);border-radius:0 8px 8px 8px;padding:.875rem;background:var(--surface);margin-bottom:1rem">`;
 
     // ── Filters row ──────────────────────────────────────────────
+    const _roleOpts = `<option value="all" ${_pRole==='all'?'selected':''}>All Roles</option>` +
+      _liveRoles.map(r => {
+        const esc2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        const sel = _pRole !== 'all' && r.toLowerCase() === _pRole.toLowerCase() ? 'selected' : '';
+        return `<option value="${esc2(r)}" ${sel}>${esc2(r)}</option>`;
+      }).join('');
     const filtersRow = `
 <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
   <select onchange="_hrSetRole(this.value)" style="font-size:.7rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--navy)">
-    <option value="all" ${_pRole==='all'?'selected':''}>All Roles</option>
-    <option value="tutor" ${_pRole==='tutor'?'selected':''}>Tutor</option>
-    <option value="site coord" ${_pRole.includes('site')?'selected':''}>Site Coordinator</option>
-    <option value="dual" ${_pRole==='dual'?'selected':''}>Dual Role</option>
+    ${_roleOpts}
   </select>
   <div style="position:relative;flex:1;min-width:180px">
-    <input type="text" placeholder="🔍 Search name, site, role…" oninput="_hrDoSearch(this.value)" value="${esc(_pQ)}"
+    <input id="hrSearchInput" type="text" placeholder="🔍 Search name, site, role…" oninput="_hrDoSearch(this.value)" value="${esc(_pQ)}"
       style="width:100%;padding:.3rem .625rem;border:1.5px solid var(--border);border-radius:6px;font-size:.72rem;background:var(--surface-2);color:var(--navy);box-sizing:border-box">
   </div>
   <button onclick="_hrSetApprentice()" style="padding:.3rem .65rem;border-radius:6px;border:1.5px solid ${_pApprentice?'#854d0e':'var(--border)'};background:${_pApprentice?'#fef9c3':'var(--surface-2)'};color:${_pApprentice?'#854d0e':'var(--navy)'};font-size:.7rem;font-weight:${_pApprentice?'800':'600'};cursor:pointer;white-space:nowrap">🎓 Apprentice${_pApprentice?' ✓':''}</button>
@@ -3439,7 +3454,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window._hrSetSY = sy => { _pSY = sy; _pViewTab='active'; _pTier='all'; _pQ=''; _pPage=0; _hrRebuildProfiles(); };
   window._hrSetRole    = r  => { _pRole=r;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetStatus  = s  => { _pStatus=s; _pPage=0; _hrRebuildProfiles(); };
-  window._hrDoSearch   = q  => { _pQ=q;      _pPage=0; _hrRebuildProfiles(); };
+  window._hrDoSearch   = q  => {
+    _pQ = q; _pPage = 0; _hrRebuildProfiles();
+    // After full DOM rebuild the original input node is gone — restore focus + cursor
+    // so continuous typing works without re-clicking the field.
+    requestAnimationFrame(() => {
+      const inp = document.getElementById('hrSearchInput');
+      if (inp) { inp.focus(); inp.setSelectionRange(q.length, q.length); }
+    });
+  };
   window._hrSetPage    = p  => { _pPage=p;             _hrRebuildProfiles(); };
   window._hrSetApprentice = () => { _pApprentice=!_pApprentice; _pPage=0; console.log('[HR] Apprentice filter toggled:', _pApprentice); _hrRebuildProfiles(); };
   // Toggle collapsible section in profiles
