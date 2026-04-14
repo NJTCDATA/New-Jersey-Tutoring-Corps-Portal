@@ -3278,21 +3278,21 @@
         });
 
         const schoolEntries = Object.entries(metrics.bySchool)
-          .filter(([,m])=>m.withGrowth>=3)
+          .filter(([,m])=>m.withGrowth>=1)
           .sort((a,b)=>(b[1].medianPctTypical||0)-(a[1].medianPctTypical||0))
-          .slice(0,20);
+          .slice(0,30);
         const nextY = doc.lastAutoTable.finalY + 10;
         doc.setFontSize(7); doc.setFont('helvetica','bold');
         doc.setTextColor(...NAVY);
-        doc.text('BY SCHOOL (TOP 20 \u00B7 MIN 3 SCHOLARS WITH GROWTH DATA)', 20, nextY-2);
+        doc.text('BY SCHOOL (ALL SCHOOLS WITH GROWTH DATA \u00B7 * = fewer than 3 scholars)', 20, nextY-2);
         doc.autoTable({
           startY: nextY,
           head: [['School','N','Median Gain','Median % Typical','% Met Typical']],
           body: schoolEntries.map(([sc,m]) => [
-            sc.length>45?sc.slice(0,45)+'…':sc, m.withGrowth,
-            m.medianGain !== null ? (m.medianGain>0?'+':'')+m.medianGain : '—',
-            m.medianPctTypical !== null ? m.medianPctTypical+'%' : '—',
-            m.pctMetTypical !== null ? m.pctMetTypical+'%' : '—',
+            (sc.length>43?sc.slice(0,42)+'...':sc)+(m.withGrowth<3?' *':''), m.withGrowth,
+            m.medianGain !== null ? (m.medianGain>0?'+':'')+m.medianGain : '--',
+            m.medianPctTypical !== null ? m.medianPctTypical+'%' : '--',
+            m.pctMetTypical !== null ? m.pctMetTypical+'%' : '--',
           ]),
           headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:7, fontStyle:'bold' },
           bodyStyles:{ fontSize:6.5 },
@@ -3578,10 +3578,106 @@
             }
           }
         } else {
-          doc.setFontSize(9); doc.setTextColor(100,120,145);
-          doc.text('Tutor impact data requires Pearl operational data to be loaded.', 108, 140, {align:'center'});
-          doc.setFontSize(7.5); doc.setTextColor(140, 150, 165);
-          doc.text('Ensure Pearl has finished syncing before generating this report.', 108, 150, {align:'center'});
+          // No tutor-level Pearl match -- show full iReady academic breakdown by region & school
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+          doc.text('ACADEMIC PERFORMANCE BY REGION & SCHOOL', 20, p3y);
+          p3y += 4;
+          doc.setFontSize(6); doc.setFont('helvetica','italic'); doc.setTextColor(100,120,145);
+          const _p3Note = opsMap
+            ? 'Pearl data was loaded but no tutor-scholar matches were found. Showing iReady-only academic breakdown.'
+            : 'Pearl operational data was not loaded. Showing iReady-only academic breakdown by region and school.';
+          doc.text(safe(_p3Note), 20, p3y); p3y += 6;
+
+          // Region breakdown table
+          const _p3Regions = Object.entries(metrics.byRegion)
+            .filter(([,m]) => m.withGrowth > 0)
+            .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
+          if (_p3Regions.length) {
+            doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+            doc.text('REGION PERFORMANCE', 20, p3y); p3y += 3;
+            doc.autoTable({
+              startY: p3y,
+              head: [['Region','N','w/ Growth','Med % Typical','% Met Typical','Med Gain','Moved Up','Moved Down']],
+              body: _p3Regions.map(([rg,m]) => [
+                safe(rg), m.total, m.withGrowth,
+                m.medianPctTypical!==null?m.medianPctTypical+'%':'--',
+                m.pctMetTypical!==null?m.pctMetTypical+'%':'--',
+                m.medianGain!==null?(m.medianGain>0?'+':'')+m.medianGain:'--',
+                m.movedUp||0, m.movedDown||0,
+              ]),
+              headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:6.5, fontStyle:'bold' },
+              bodyStyles:{ fontSize:6, cellPadding:1.8 },
+              alternateRowStyles:{ fillColor:[245,248,255] },
+              styles:{ overflow:'linebreak', cellPadding:2 },
+              margin:{ left:20, right:20 },
+              didParseCell: function(d) {
+                if (d.section!=='body') return;
+                if (d.column.index===3) {
+                  const v=parseInt(d.cell.raw);
+                  if (!isNaN(v)) { d.cell.styles.textColor=v>=80?GREEN:v>=50?[180,100,0]:RED; d.cell.styles.fontStyle='bold'; }
+                }
+              },
+            });
+            p3y = doc.lastAutoTable.finalY + 5;
+          }
+
+          // All schools with any growth data
+          const _p3Schools = Object.entries(metrics.bySchool)
+            .filter(([,m]) => m.withGrowth >= 1)
+            .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
+          if (_p3Schools.length && p3y < 240) {
+            doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+            doc.text('ALL SCHOOLS WITH GROWTH DATA \u00B7 SORTED BY MEDIAN % TYPICAL', 20, p3y); p3y += 3;
+            doc.autoTable({
+              startY: p3y,
+              head: [['School','N','Med % Typical','% Met Typical','Med Gain','Up / Down','Data']],
+              body: _p3Schools.slice(0,28).map(([sc,m]) => [
+                safe(sc.length>38?sc.slice(0,37)+'...':sc),
+                m.withGrowth,
+                m.medianPctTypical!==null?m.medianPctTypical+'%':'--',
+                m.pctMetTypical!==null?m.pctMetTypical+'%':'--',
+                m.medianGain!==null?(m.medianGain>0?'+':'')+m.medianGain:'--',
+                (m.movedUp||0)+' / '+(m.movedDown||0),
+                m.withGrowth<3?'limited':'ok',
+              ]),
+              headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:6.5, fontStyle:'bold' },
+              bodyStyles:{ fontSize:6, cellPadding:1.8 },
+              alternateRowStyles:{ fillColor:[245,248,255] },
+              styles:{ overflow:'linebreak', cellPadding:2 },
+              margin:{ left:20, right:20 },
+              columnStyles:{
+                0:{ cellWidth:52 },
+                1:{ cellWidth:12, halign:'center' },
+                2:{ cellWidth:22, halign:'center' },
+                3:{ cellWidth:22, halign:'center' },
+                4:{ cellWidth:16, halign:'center' },
+                5:{ cellWidth:20, halign:'center' },
+                6:{ cellWidth:18, halign:'center' },
+              },
+              didParseCell: function(d) {
+                if (d.section!=='body') return;
+                if (d.column.index===2) {
+                  const v=parseInt(d.cell.raw);
+                  if (!isNaN(v)) { d.cell.styles.textColor=v>=80?GREEN:v>=50?[180,100,0]:RED; d.cell.styles.fontStyle='bold'; }
+                }
+                if (d.column.index===6) {
+                  if (d.cell.raw==='limited') d.cell.styles.textColor=[140,140,140];
+                }
+              },
+            });
+            p3y = doc.lastAutoTable.finalY + 3;
+          }
+
+          // Rush flag summary
+          if (NET.rushFlags && NET.rushFlags.red > 0 && p3y < 265) {
+            doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
+            doc.text(safe(NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s':'')+' excluded due to Red Rush Flag'+(NET.rushFlags.red!==1?'s':'')+' on Winter diagnostic.'), 20, p3y);
+            p3y += 5;
+          }
+          if (NET.rushFlags && NET.rushFlags.yellow > 0 && p3y < 268) {
+            doc.setFontSize(6.5); doc.setFont('helvetica','normal'); doc.setTextColor(180,100,0);
+            doc.text(safe(NET.rushFlags.yellow+' scholar'+(NET.rushFlags.yellow!==1?'s have':' has')+' a Yellow Rush Flag -- growth may be slightly inflated.'), 20, p3y);
+          }
         }
         doc.setFontSize(6.5); doc.setTextColor(100,120,145);
         doc.text('Scholar\u2013tutor match: Pearl student ID (primary) \u00B7 name (secondary) \u00B7 school-scoped last-name (fallback)  \u00B7  iReady + Pearl Operational Data + Surveys  \u00B7  Confidential', 108, 272, {align:'center'});
@@ -3593,26 +3689,242 @@
         doc.text('WHAT THIS MEANS \u00B7 NEXT STEPS FOR PROGRAM LEADERSHIP', 20, 9);
 
         const pct2 = NET.medianPctTypical||0;
-        const steps = [
-          pct2 >= 80
-            ? 'Scholar growth is strong at mid-year. Prioritize maintaining intensity through the spring window to ensure full-year targets are met.'
-            : pct2 >= 50
-            ? 'Scholars are progressing but need additional support to reach year-end targets. Review tutors in "Needs Support" tier and schedule coaching conversations.'
-            : 'Immediate intervention is needed. Identify and contact the scholars who have regressed in placement. Review service interruption counts by school.',
-          `${NET.movedDown} scholars regressed in placement since Fall. Cross-reference with attendance data — scholars below 75% attendance show significantly lower growth rates.`,
-          opsMap
-            ? 'Connect with Program Managers at schools with the lowest median growth to discuss targeted session plans before the spring diagnostic window.'
-            : 'Load Pearl operational data and re-export to include tutor impact and instructional hours correlations.',
+        const pctNeedsAccel2 = NET.pctNeedsAccel||0;
+        let p4y = 18;
+
+        // ── Status banner ──────────────────────────────────────────────────
+        const _p4StatusColor = pct2>=80 ? GREEN : pct2>=50 ? [210,145,0] : RED;
+        const _p4StatusLabel = pct2>=80 ? 'ON TRACK' : pct2>=50 ? 'PROGRESSING -- NEEDS TARGETED SUPPORT' : 'CRITICAL -- IMMEDIATE ACTION REQUIRED';
+        doc.setFillColor(..._p4StatusColor); doc.roundedRect(20, p4y, 176, 10, 2, 2, 'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(8); doc.setFont('helvetica','bold');
+        doc.text(safe('MID-YEAR STATUS: '+_p4StatusLabel), 108, p4y+6.5, {align:'center'});
+        p4y += 13;
+
+        // ── Region data ──────────────────────────────────────────────────
+        const _p4Regions = Object.entries(metrics.byRegion)
+          .filter(([,m]) => m.withGrowth > 0)
+          .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
+        const _p4Best  = _p4Regions[0] || null;
+        const _p4Worst = _p4Regions[_p4Regions.length-1] || null;
+        const _p4Gap   = (_p4Best && _p4Worst && _p4Best[0] !== _p4Worst[0])
+          ? ((_p4Best[1].medianPctTypical||0) - (_p4Worst[1].medianPctTypical||0)) : 0;
+
+        // ── Performance narrative ────────────────────────────────────────
+        const _p4Narr = safe(
+          'At mid-year, the '+scopeLabel+' '+subject+' cohort shows a median of '+pct2+'% of expected annual growth across '+NET.withGrowth+' scholars with valid diagnostic pairs. ' +
+          (_p4Best&&_p4Worst&&_p4Best[0]!==_p4Worst[0]
+            ? 'Top region: '+_p4Best[0]+' ('+(_p4Best[1].medianPctTypical||'--')+'% typical). Lowest: '+_p4Worst[0]+' ('+(_p4Worst[1].medianPctTypical||'--')+'% typical) -- a '+_p4Gap+'-point gap requiring attention. '
+            : '') +
+          NET.movedDown+' scholars regressed in relative placement ('+(NET.withGrowth>0?Math.round(NET.movedDown/NET.withGrowth*100):0)+'% of those with data). '+
+          (NET.pctMetTypical||0)+'% met or exceeded typical annual growth' +
+          (pctNeedsAccel2>0 ? '; '+pctNeedsAccel2+'% still need acceleration to reach year-end targets.' : '.')
+        );
+        doc.setFillColor(15,30,55); doc.roundedRect(20, p4y, 176, 22, 2, 2, 'F');
+        doc.setFillColor(...GOLD); doc.rect(20, p4y, 3, 22, 'F');
+        doc.setTextColor(...WHITE); doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text(doc.splitTextToSize(_p4Narr, 162).slice(0,4), 28, p4y+6);
+        p4y += 26;
+
+        // ── Key metric chips ─────────────────────────────────────────────
+        const _p4Chips = [
+          { val: pct2+'%',                       lbl: 'Median % Typical',     col: pct2>=80?GREEN:pct2>=50?[200,140,0]:RED },
+          { val: (NET.pctMetTypical||0)+'%',     lbl: '% Met Typical Growth', col: (NET.pctMetTypical||0)>=70?GREEN:(NET.pctMetTypical||0)>=40?[200,140,0]:RED },
+          { val: String(NET.movedDown),          lbl: 'Scholars Regressed',   col: NET.movedDown>10?RED:NET.movedDown>3?[200,140,0]:GREEN },
+          { val: pctNeedsAccel2+'%',             lbl: '% Need Acceleration',  col: pctNeedsAccel2>40?RED:pctNeedsAccel2>20?[200,140,0]:GREEN },
         ];
-        steps.forEach((step, i) => {
-          const y = 25 + i*30;
-          doc.setFillColor(15,30,55); doc.roundedRect(20,y,176,25,2,2,'F');
-          doc.setFillColor(...GOLD); doc.circle(27,y+12.5,4,'F');
+        const _p4cw = 176/_p4Chips.length;
+        _p4Chips.forEach((c,i) => {
+          const cx = 20+i*_p4cw;
+          doc.setFillColor(240,244,255); doc.roundedRect(cx, p4y, _p4cw-2, 15, 1.5, 1.5, 'F');
+          doc.setFillColor(...c.col); doc.rect(cx, p4y, _p4cw-2, 2, 'F');
+          doc.setTextColor(...c.col); doc.setFontSize(10); doc.setFont('helvetica','bold');
+          doc.text(safe(String(c.val)), cx+(_p4cw-2)/2, p4y+9, {align:'center'});
+          doc.setTextColor(100,115,135); doc.setFontSize(5.5); doc.setFont('helvetica','normal');
+          doc.text(safe(c.lbl), cx+(_p4cw-2)/2, p4y+13.5, {align:'center'});
+        });
+        p4y += 19;
+
+        // ── Region ranking table ─────────────────────────────────────────
+        if (_p4Regions.length > 1) {
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+          doc.text('REGION PERFORMANCE RANKING', 20, p4y); p4y += 3;
+          doc.autoTable({
+            startY: p4y,
+            head: [['Rank','Region','N (Data)','Med % Typical','% Met Typical','Med Gain','Regressed','Status']],
+            body: _p4Regions.map(([rg,m],i) => {
+              const regPct = m.withGrowth>0 ? Math.round(m.movedDown/m.withGrowth*100) : 0;
+              const st = (m.medianPctTypical||0)>=80?'On Track':(m.medianPctTypical||0)>=50?'Progressing':'Needs Focus';
+              return [
+                i+1, safe(rg), m.withGrowth,
+                m.medianPctTypical!==null?m.medianPctTypical+'%':'--',
+                m.pctMetTypical!==null?m.pctMetTypical+'%':'--',
+                m.medianGain!==null?(m.medianGain>0?'+':'')+m.medianGain:'--',
+                m.movedDown+' ('+regPct+'%)',
+                st,
+              ];
+            }),
+            headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:6.5, fontStyle:'bold' },
+            bodyStyles:{ fontSize:6, cellPadding:1.8 },
+            alternateRowStyles:{ fillColor:[245,248,255] },
+            styles:{ overflow:'linebreak', cellPadding:2 },
+            margin:{ left:20, right:20 },
+            columnStyles:{
+              0:{ cellWidth:9, halign:'center' },
+              1:{ cellWidth:38 },
+              2:{ cellWidth:16, halign:'center' },
+              3:{ cellWidth:22, halign:'center' },
+              4:{ cellWidth:22, halign:'center' },
+              5:{ cellWidth:15, halign:'center' },
+              6:{ cellWidth:20, halign:'center' },
+              7:{ cellWidth:26 },
+            },
+            didParseCell: function(d) {
+              if (d.section!=='body') return;
+              if (d.column.index===3) {
+                const v=parseInt(d.cell.raw);
+                if (!isNaN(v)) { d.cell.styles.textColor=v>=80?GREEN:v>=50?[180,100,0]:RED; d.cell.styles.fontStyle='bold'; }
+              }
+              if (d.column.index===7) {
+                if (d.cell.raw==='On Track') d.cell.styles.textColor=GREEN;
+                else if (d.cell.raw==='Needs Focus') { d.cell.styles.textColor=RED; d.cell.styles.fontStyle='bold'; }
+              }
+            },
+          });
+          p4y = doc.lastAutoTable.finalY + 5;
+        }
+
+        // ── Bottom schools needing attention ──────────────────────────────
+        const _p4BotSchools = Object.entries(metrics.bySchool)
+          .filter(([,m]) => m.withGrowth >= 1)
+          .sort((a,b) => (a[1].medianPctTypical||0) - (b[1].medianPctTypical||0))
+          .slice(0, 8);
+        const _p4TopSchools = Object.entries(metrics.bySchool)
+          .filter(([,m]) => m.withGrowth >= 2)
+          .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0))
+          .slice(0, 5);
+
+        if (_p4BotSchools.length && p4y < 220) {
+          if (p4y > 210) { doc.addPage(); p4y = 20; }
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
+          doc.text('PRIORITY SCHOOLS: LOWEST ACADEMIC GROWTH (ACTION REQUIRED)', 20, p4y); p4y += 3;
+          doc.autoTable({
+            startY: p4y,
+            head: [['School','N','Med % Typical','% Met Typical','Regressed','Priority']],
+            body: _p4BotSchools.map(([sc,m]) => {
+              const regPct = m.withGrowth>0 ? Math.round(m.movedDown/m.withGrowth*100) : 0;
+              const pri = (m.medianPctTypical||0)<30?'CRITICAL':(m.medianPctTypical||0)<50?'High':'Monitor';
+              return [
+                safe(sc.length>40?sc.slice(0,39)+'...':sc), m.withGrowth,
+                m.medianPctTypical!==null?m.medianPctTypical+'%':'--',
+                m.pctMetTypical!==null?m.pctMetTypical+'%':'--',
+                m.movedDown+' ('+regPct+'%)',
+                pri,
+              ];
+            }),
+            headStyles:{ fillColor:[150,20,20], textColor:WHITE, fontSize:6.5, fontStyle:'bold' },
+            bodyStyles:{ fontSize:6.5, cellPadding:2 },
+            alternateRowStyles:{ fillColor:[255,245,245] },
+            styles:{ overflow:'linebreak', cellPadding:2 },
+            margin:{ left:20, right:20 },
+            columnStyles:{
+              0:{ cellWidth:58 },
+              1:{ cellWidth:12, halign:'center' },
+              2:{ cellWidth:22, halign:'center' },
+              3:{ cellWidth:22, halign:'center' },
+              4:{ cellWidth:22, halign:'center' },
+              5:{ cellWidth:28, halign:'center' },
+            },
+            didParseCell: function(d) {
+              if (d.section!=='body') return;
+              if (d.column.index===2) {
+                const v=parseInt(d.cell.raw);
+                if (!isNaN(v)) { d.cell.styles.textColor=v>=80?GREEN:v>=50?[180,100,0]:RED; d.cell.styles.fontStyle='bold'; }
+              }
+              if (d.column.index===5) {
+                if (d.cell.raw==='CRITICAL') { d.cell.styles.textColor=RED; d.cell.styles.fontStyle='bold'; }
+                else if (d.cell.raw==='High') d.cell.styles.textColor=[180,100,0];
+              }
+            },
+          });
+          p4y = doc.lastAutoTable.finalY + 5;
+        }
+
+        if (_p4TopSchools.length && p4y < 210) {
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...GREEN);
+          doc.text('TOP PERFORMING SCHOOLS: MODELS FOR NETWORK REPLICATION', 20, p4y); p4y += 3;
+          doc.autoTable({
+            startY: p4y,
+            head: [['School','N','Med % Typical','% Met Typical','Med Gain']],
+            body: _p4TopSchools.map(([sc,m]) => [
+              safe(sc.length>50?sc.slice(0,49)+'...':sc), m.withGrowth,
+              m.medianPctTypical!==null?m.medianPctTypical+'%':'--',
+              m.pctMetTypical!==null?m.pctMetTypical+'%':'--',
+              m.medianGain!==null?(m.medianGain>0?'+':'')+m.medianGain:'--',
+            ]),
+            headStyles:{ fillColor:GREEN, textColor:WHITE, fontSize:6.5, fontStyle:'bold' },
+            bodyStyles:{ fontSize:6.5, cellPadding:2 },
+            alternateRowStyles:{ fillColor:[240,255,247] },
+            styles:{ overflow:'linebreak', cellPadding:2 },
+            margin:{ left:20, right:20 },
+          });
+          p4y = doc.lastAutoTable.finalY + 5;
+        }
+
+        // ── Recommended action items ──────────────────────────────────────
+        if (p4y > 220) { doc.addPage(); p4y = 20; }
+        doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+        doc.text('RECOMMENDED ACTIONS FOR PROGRAM LEADERSHIP', 20, p4y); p4y += 4;
+
+        const _p4Actions = [
+          {
+            title: pct2>=80?'Sustain Momentum Through Spring Window':pct2>=50?'Intensify Support Before Spring Diagnostic':'Launch Immediate Intervention Protocol',
+            detail: pct2>=80
+              ? 'With '+pct2+'% median typical growth, the network is performing well. Focus on the '+NET.movedDown+' scholars who regressed in placement. Schedule PM check-ins and prioritize these scholars in upcoming sessions.'
+              : pct2>=50
+              ? 'At '+pct2+'% of typical growth, the network needs a push. Identify all scholars below 50% typical growth and connect tutors with coaching support before the spring window closes.'
+              : 'Network-wide median of '+pct2+'% is critical. Immediately review session quality, attendance, and caseloads. Escalate '+NET.movedDown+' regressed scholars to program leadership for direct intervention.',
+          },
+          ...(_p4Gap>15&&_p4Best&&_p4Worst?[{
+            title: 'Close the '+_p4Gap+'-Point Regional Performance Gap',
+            detail: safe(_p4Worst[0])+' is '+_p4Gap+' points behind '+safe(_p4Best[0])+'. Schedule a regional PM call this week to identify root causes: staffing gaps, attendance trends, or session frequency issues.',
+          }]:[]),
+          ...(_p4BotSchools.length?[{
+            title: 'Engage Program Managers at Lowest-Growth Schools',
+            detail: safe(_p4BotSchools[0][0].length>45?_p4BotSchools[0][0].slice(0,44)+'...':_p4BotSchools[0][0])+' has the lowest median growth ('+(_p4BotSchools[0][1].medianPctTypical||'--')+'% typical). PMs should conduct school visits, review scholar attendance, and evaluate session scheduling at all bottom-tier sites.',
+          }]:[]),
+          ...(_p4TopSchools.length?[{
+            title: 'Document and Replicate Best Practices from Top Schools',
+            detail: safe(_p4TopSchools[0][0].length>45?_p4TopSchools[0][0].slice(0,44)+'...':_p4TopSchools[0][0])+' leads the network'+(_p4TopSchools[0][1].medianPctTypical!==null?' at '+_p4TopSchools[0][1].medianPctTypical+'% typical growth':'')+'. Document session structure, tutor matching, and PM engagement -- share with underperforming sites before spring.',
+          }]:[]),
+          {
+            title: 'Address '+NET.movedDown+' Scholar Regressions in Relative Placement',
+            detail: NET.movedDown+' scholars moved down in relative placement from Fall to Winter. Cross-reference with attendance records -- scholars below 75% attendance show significantly higher regression rates. Prioritize in PM touchpoints this month.',
+          },
+          ...(opsMap?[{
+            title: 'Use Tutor Tier Data to Drive Coaching Conversations',
+            detail: 'Pearl data is loaded. Review tutors in the Needs Support tier (page 3) and schedule coaching conversations with their Program Managers. Focus on schools with the highest tutor-caused service interruption counts.',
+          }]:[{
+            title: 'Load Pearl Data to Unlock Tutor-Level Analysis',
+            detail: 'Pearl operational data was not available for this export. Load Pearl data and re-export the PDF to enable tutor impact matching, instructional hours correlations, and service interruption analysis by tutor and school.',
+          }]),
+          ...(NET.rushFlags&&NET.rushFlags.red>0?[{
+            title: 'Investigate '+NET.rushFlags.red+' Red Rush Flag Scholar'+(NET.rushFlags.red!==1?'s':''),
+            detail: NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s were':'was')+' excluded from growth calculations due to Red Rush Flags on the Winter diagnostic. Review testing conditions with school coordinators and request re-administration through iReady if flags were issued in error.',
+          }]:[]),
+        ];
+
+        _p4Actions.slice(0,7).forEach((item,i) => {
+          if (p4y > 258) return;
+          const boxH = 20;
+          doc.setFillColor(15,30,55); doc.roundedRect(20, p4y, 176, boxH, 2, 2, 'F');
+          doc.setFillColor(...GOLD); doc.circle(28, p4y+boxH/2, 4.5, 'F');
           doc.setTextColor(...NAVY); doc.setFontSize(9); doc.setFont('helvetica','bold');
-          doc.text(String(i+1), 27, y+14.5, {align:'center'});
-          doc.setTextColor(...WHITE); doc.setFontSize(7.5); doc.setFont('helvetica','normal');
-          const sLines = doc.splitTextToSize(safe(step), 155);
-          doc.text(sLines.slice(0,3), 35, y+9);
+          doc.text(String(i+1), 28, p4y+boxH/2+3.5, {align:'center'});
+          doc.setTextColor(...GOLD); doc.setFontSize(7); doc.setFont('helvetica','bold');
+          doc.text(safe(item.title), 36, p4y+6.5);
+          doc.setTextColor(...WHITE); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+          doc.text(doc.splitTextToSize(safe(item.detail), 158).slice(0,2), 36, p4y+11);
+          p4y += boxH+2;
         });
 
         doc.setFontSize(7); doc.setTextColor(100,120,145);
