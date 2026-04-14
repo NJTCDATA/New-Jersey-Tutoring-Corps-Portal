@@ -2821,26 +2821,52 @@
         t.count         = t.overall.length;
       });
 
-      return { scholarMap, tutorScholarMap, schoolIndex, tutorSurveyByUid };
+      // ── Name index: maps normalized-name variants → scholarMap key ──────────
+      // Required because scholarMap is keyed by Pearl UID for scholars that have
+      // one — so scholarMap[name] fails for UID-keyed entries. iReady student_id
+      // rarely matches Pearl UID directly, making the name index the primary join.
+      const nameIndex = {};
+      Object.entries(scholarMap).forEach(([key, sch]) => {
+        const nl = (sch.name || '').trim().toLowerCase();
+        if (!nl) return;
+        if (!nameIndex[nl]) nameIndex[nl] = key;
+        // "Lastname Firstname" ↔ "Firstname Lastname" variant
+        const parts = nl.split(/\s+/);
+        if (parts.length >= 2) {
+          const flipped = parts.slice(1).join(' ') + ' ' + parts[0];
+          if (!nameIndex[flipped]) nameIndex[flipped] = key;
+          // Last name only (for school-scoped fallback enrichment)
+          const lastOnly = parts[parts.length - 1];
+          if (lastOnly.length > 2 && !nameIndex['__last__' + lastOnly]) {
+            nameIndex['__last__' + lastOnly] = key;
+          }
+        }
+      });
+
+      return { scholarMap, tutorScholarMap, schoolIndex, tutorSurveyByUid, nameIndex };
     }
 
     // ── Match a MOY row to its operational profile ────────────────────────────
     // Join strategy (in order of confidence):
     //   1. Pearl student_id → MOY student_id   (exact, most reliable)
-    //   2. Normalized full name                 (medium confidence)
+    //   2. Name index lookup (handles UID-keyed scholarMap entries)
     //   3. Last-name + first-name token match   (fuzzy fallback)
     //   4. Same school + last-name              (school-scoped fallback — handles The Co ambiguity)
     function _moyMatchOps(moyRow, opsMap) {
       if (!opsMap) return null;
-      const { scholarMap, schoolIndex } = opsMap;
+      const { scholarMap, schoolIndex, nameIndex } = opsMap;
 
       // 1. Exact Pearl student_id
       const sid = (moyRow.scholarId || '').trim();
       if (sid && scholarMap[sid]) return scholarMap[sid];
 
-      // 2. Normalized full name
+      // 2. Name index lookup — covers both name-keyed and UID-keyed entries
       const fullName = (moyRow.scholarName || '').trim().toLowerCase();
-      if (fullName && scholarMap[fullName]) return scholarMap[fullName];
+      if (fullName) {
+        const nk = nameIndex && nameIndex[fullName];
+        if (nk && scholarMap[nk]) return scholarMap[nk];
+        if (scholarMap[fullName]) return scholarMap[fullName]; // direct name-keyed fallback
+      }
 
       // 3. Fuzzy last-name + at least one other token
       const nameParts = fullName.split(/\s+/);
