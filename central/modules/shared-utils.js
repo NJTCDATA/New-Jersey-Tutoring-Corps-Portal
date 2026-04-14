@@ -868,7 +868,9 @@
   }
 
   function _lbParseCSV(text) {
-    const lines = text.replace(/\r/g, '').split('\n').filter(l => l.trim());
+    // Strip UTF-8 BOM if present — Google Sheets prepends \ufeff which corrupts
+    // the first column header key (e.g. "Timestamp" → "\ufeffTimestamp").
+    const lines = text.replace(/^\ufeff/, '').replace(/\r/g, '').split('\n').filter(l => l.trim());
     if (lines.length < 2) return [];
     const headers = _lbCSVLine(lines[0]);
     const rows = [];
@@ -992,6 +994,18 @@
     return `${yy}-${mm}-${dd}`;
   }
 
+  // Find the timestamp value regardless of BOM or case variation on the key
+  function _lbGetTs(row) {
+    // Fast path (BOM already stripped by _lbParseCSV)
+    const v = row['Timestamp'] || row['timestamp'];
+    if (v) return _lbParseDate(v);
+    // Fallback: scan keys case-insensitively (catches any stray BOM / whitespace)
+    for (const k of Object.keys(row)) {
+      if (k.replace(/^\ufeff/,'').trim().toLowerCase() === 'timestamp') return _lbParseDate(row[k]);
+    }
+    return null;
+  }
+
   // ── Compute leaderboard stats from submissions ────────────────────────────
   function _lbStats(rows) {
     const byDept = {};
@@ -1003,7 +1017,7 @@
     rows.forEach(row => {
       const dept = _lbRowDept(row);
       if (!byDept[dept]) byDept[dept] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
-      const ts = _lbParseDate(row['Timestamp'] || row['timestamp']);
+      const ts = _lbGetTs(row);
       byDept[dept].count++;
       byDept[dept].entries.push(row);
       if (ts) {
@@ -1025,7 +1039,7 @@
       weekGoal:   latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest).find(k => /goal/i.test(k))] || '',
       goalMiss:   latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '',
       orgShareOut:_lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']),
-      timestamp:  latest['Timestamp'] || '',
+      timestamp:  _lbGetTs(latest),
     };
   }
 
@@ -1276,7 +1290,7 @@
         const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
         const miss  = latest ? (latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '') : '';
         const org   = latest ? _lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']) : '';
-        const ts    = latest && latest['Timestamp'] ? (_lbParseDate(latest['Timestamp']) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+        const ts    = latest ? (_lbGetTs(latest) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
 
         const cardId = `lbCard_${d}`;
         const detailId = `lbDetail_${d}`;
@@ -1390,7 +1404,7 @@
       <div style="display:flex;flex-direction:column;gap:.75rem">`;
     orgRows.slice(-3).reverse().forEach(r => {
       const msg = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
-      const ts = r['Timestamp'] ? (_lbParseDate(r['Timestamp']) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+      const ts = (_lbGetTs(r) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric'});
       html += `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-left:3px solid #f0a500;border-radius:8px;padding:.875rem 1rem">
         <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6">${msg}</div>
         ${ts ? `<div style="font-size:.6875rem;color:rgba(255,255,255,.35);margin-top:.375rem">Leadership · ${ts}</div>` : ''}
@@ -1470,7 +1484,7 @@
     // Group by calendar week (Mon–Sun)
     const byWeek = {};
     dRows.forEach(r => {
-      const ts = _lbParseDate(r['Timestamp']);
+      const ts = _lbGetTs(r);
       const wk = ts ? _lbWeekKey(ts) : 'undated';
       if (!byWeek[wk]) byWeek[wk] = { monDate: ts ? _lbWeekStart(ts) : null, rows: [] };
       byWeek[wk].rows.push({ r, ts });
@@ -1696,7 +1710,7 @@
     const byWeek = {};
     rows.forEach(r => {
       const d  = _lbRowDept(r);
-      const ts = _lbParseDate(r['Timestamp']);
+      const ts = _lbGetTs(r);
       const wk = ts ? _lbWeekKey(ts) : 'undated';
       if (!byWeek[wk]) byWeek[wk] = { monDate: ts ? _lbWeekStart(ts) : null, byDept: {} };
       if (!byWeek[wk].byDept[d]) byWeek[wk].byDept[d] = [];
@@ -1934,7 +1948,7 @@
         <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:.75rem">⚠️ Unattributed Submissions (${unknownEntries.length})</div>
         <div style="font-size:.8125rem;color:#78350f;margin-bottom:.75rem;line-height:1.5">These submissions were made directly via Google Form and couldn't be matched to a department. Resubmit through the portal to attribute them correctly.</div>
         ${unknownEntries.map(r => {
-          const ts = r['Timestamp'] ? (_lbParseDate(r['Timestamp'])||new Date(0)).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+          const ts = (_lbGetTs(r)||new Date(0)).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
           const succ = r['What successes has your department seen this week?'] || '';
           const goal = r['What is this week\'s goal for your department?'] || '';
           return `<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:.875rem 1rem;margin-bottom:.5rem">
