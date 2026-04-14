@@ -897,31 +897,41 @@
   }
 
   // ── Derive dept from a submission row ─────────────────────────────────────
-  // The Google Form has no Department field, so portal submissions encode dept
-  // as a [dept:XXX] tag appended to the orgShareOut field. We scan all field
-  // values for this tag as the primary attribution method.
+  // Priority order:
+  //  1. Explicit "Department" column (if form ever gains one)
+  //  2. [dept:XXX] tag embedded by portal in orgShareOut — colon, space, or no separator
+  //  3. Abbreviation prefix match (e.g. "prog" → "programming")
+  //  4. Fuzzy regex on any explicit dept column value
   function _lbRowDept(row) {
-    const d = (row['Department'] || row['department'] || row['Dept'] || '').toLowerCase().trim();
-    if (LB_ALL_DEPTS.includes(d)) return d;
-    // Fuzzy match common labels from any explicit dept column
-    if (/human.?res|hr\b/.test(d)) return 'hr';
-    if (/financ/.test(d)) return 'finance';
-    if (/program/.test(d)) return 'programming';
-    if (/train/.test(d)) return 'training';
-    if (/lead/.test(d)) return 'leadership';
-    if (/data|eval/.test(d)) return 'data';
-    if (/kb|exec/.test(d)) return 'kb';
-    // Scan all column values for [dept:XXX] tag embedded by portal submissions
+    // 1. Explicit department column (any reasonable header name)
+    const dCol = (row['Department'] || row['department'] || row['Dept'] || row['dept'] || '').toLowerCase().trim();
+    if (LB_ALL_DEPTS.includes(dCol)) return dCol;
+    if (/human.?res|hr\b/.test(dCol)) return 'hr';
+    if (/financ/.test(dCol))          return 'finance';
+    if (/program/.test(dCol))         return 'programming';
+    if (/train/.test(dCol))           return 'training';
+    if (/lead/.test(dCol))            return 'leadership';
+    if (/data|eval/.test(dCol))       return 'data';
+    if (/kb|exec/.test(dCol))         return 'kb';
+
+    // 2 & 3. Scan every column value for a [dept:XXX] or [dept XXX] tag
+    //   Accepts:  [dept:programming]  [dept: programming]  [dept programming]
+    //   Also resolves abbreviations like "prog" → "programming", "data" → "data"
     for (const val of Object.values(row)) {
-      const m = String(val || '').match(/\[dept:([a-z]+)\]/i);
-      if (m && LB_ALL_DEPTS.includes(m[1].toLowerCase())) return m[1].toLowerCase();
+      const m = String(val || '').match(/\[dept[:\s]+([a-z]+)\]/i);
+      if (!m) continue;
+      const tag = m[1].toLowerCase();
+      if (LB_ALL_DEPTS.includes(tag)) return tag;
+      // Prefix / abbreviation resolution
+      const resolved = LB_ALL_DEPTS.find(d => d.startsWith(tag) || tag.startsWith(d.slice(0, 4)));
+      if (resolved) return resolved;
     }
-    return d || 'unknown';
+    return dCol || 'unknown';
   }
 
-  // Strip [dept:XXX] tag from a field value before displaying it
+  // Strip [dept:XXX] / [dept XXX] tags from a field value before displaying it
   function _lbCleanVal(val) {
-    return (val || '').replace(/\n?\[dept:[a-z]+\]/gi, '').trim();
+    return (val || '').replace(/\n?\[dept[:\s]+[a-z]+\]/gi, '').trim();
   }
 
   // ── Countdown to deadline ─────────────────────────────────────────────────
@@ -1209,8 +1219,8 @@
 
   // ── Bind dynamic events after render ──────────────────────────────────────
   function _lbBindEvents(dept) {
-    // Load data and render board immediately after HTML is in DOM
-    setTimeout(() => _lbLoadBoard(dept), 50);
+    // Always force-fetch on first render — no cache, always live data
+    setTimeout(() => _lbLoadBoard(dept, true), 50);
   }
 
   // ── Load and render board data ─────────────────────────────────────────────
