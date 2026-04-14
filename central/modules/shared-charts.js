@@ -1557,7 +1557,8 @@
           requestAnimationFrame(() => {
             try {
               const _hw = document.getElementById('homeDeptWidget');
-              if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+              // Guard: leaderboard owns this slot — never overwrite it
+              if (_hw && _hw.innerHTML && !document.getElementById('lbWrap') && typeof window._buildTermAnalyticsWidget === 'function') {
                 const _dept = (window.NJTC_SESSION||{}).dept||'';
                 if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget();
                 else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') _hw.innerHTML = window._buildRetentionWidget();
@@ -1601,7 +1602,8 @@
             requestAnimationFrame(() => {
               try {
                 const _hw = document.getElementById('homeDeptWidget');
-                if (_hw && _hw.innerHTML && typeof window._buildTermAnalyticsWidget === 'function') {
+                // Guard: leaderboard owns this slot — never overwrite it
+                if (_hw && _hw.innerHTML && !document.getElementById('lbWrap') && typeof window._buildTermAnalyticsWidget === 'function') {
                   const _dept = (window.NJTC_SESSION||{}).dept||'';
                   if (['hr','data'].includes(_dept)) {
                     _hw.innerHTML = window._buildTermAnalyticsWidget();
@@ -3906,7 +3908,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // Poll until live data arrives, then swap in real widget
       setTimeout(function _pollHR() {
         const hw = document.getElementById('homeDeptWidget');
-        if (!hw) return;
+        // Guard: leaderboard owns this slot — stop polling if it rendered
+        if (!hw || document.getElementById('lbWrap')) return;
         if (window._hrDataFetched) {
           try { hw.innerHTML = _buildTermAnalyticsWidget(); } catch(e) {}
         } else {
