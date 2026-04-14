@@ -806,12 +806,17 @@
   const LB_CSV_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ-9-jt9hytxT8mf8iiQVVoLjwGG5ZA04i3QcVD6jBalFwVkPHB5BbLsvF8zDytd37OTApsqO8XSGgO/pub?output=csv&gid=1827144938';
 
   // Google Form entry IDs
+  // dept: set this to the entry ID of the "Department" field once you add it to the
+  // Google Form (e.g. 'entry.1234567890'). Column G in the response sheet is created
+  // automatically by Google when you add that question. Leave null until then —
+  // the portal falls back to embedding [dept:XXX] in the orgShareOut field.
   const LB_ENTRY = {
     deptSuccess:   'entry.2017090049',
     crossDept:     'entry.1704046748',
     weeklyGoal:    'entry.782352842',
     goalMissReason:'entry.1791426684',
     orgShareOut:   'entry.943721963',
+    dept:          null,   // ← fill in once you add the "Department" field to the form
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
@@ -1362,10 +1367,16 @@
     params.append(LB_ENTRY.crossDept,      (document.getElementById('lbF_cross') || {}).value || '');
     params.append(LB_ENTRY.weeklyGoal,     goal);
     params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbF_miss') || {}).value || '');
-    // Encode dept as a hidden [dept:XXX] tag at the end of orgShareOut so _lbRowDept
-    // can attribute this row to the correct department after it lands in the sheet.
-    const _orgRaw = (document.getElementById('lbF_org') || {}).value || '';
-    params.append(LB_ENTRY.orgShareOut, _orgRaw ? _orgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
+    // Preferred: if LB_ENTRY.dept is wired (column G "Department" field added to the form),
+    // submit dept directly to that dedicated field — clean, visible in the sheet.
+    if (LB_ENTRY.dept) {
+      params.append(LB_ENTRY.dept, dept);
+      params.append(LB_ENTRY.orgShareOut, (document.getElementById('lbF_org') || {}).value || '');
+    } else {
+      // Fallback: embed [dept:XXX] tag in orgShareOut until the form field is wired up.
+      const _orgRaw = (document.getElementById('lbF_org') || {}).value || '';
+      params.append(LB_ENTRY.orgShareOut, _orgRaw ? _orgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
+    }
 
     try {
       await fetch(LB_FORM_ACTION, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
@@ -1798,9 +1809,15 @@
     params.append(LB_ENTRY.crossDept,      (document.getElementById('lbExF_cross') || {}).value || '');
     params.append(LB_ENTRY.weeklyGoal,     goal);
     params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbExF_miss') || {}).value || '');
-    // Encode dept as a hidden [dept:XXX] tag so attribution works after landing in sheet
-    const _exOrgRaw = (document.getElementById('lbExF_org') || {}).value || '';
-    params.append(LB_ENTRY.orgShareOut, _exOrgRaw ? _exOrgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
+    // Preferred: submit dept directly to the dedicated Department field (column G) if wired up.
+    if (LB_ENTRY.dept) {
+      params.append(LB_ENTRY.dept, dept);
+      params.append(LB_ENTRY.orgShareOut, (document.getElementById('lbExF_org') || {}).value || '');
+    } else {
+      // Fallback: embed [dept:XXX] tag in orgShareOut until the form field is wired up.
+      const _exOrgRaw = (document.getElementById('lbExF_org') || {}).value || '';
+      params.append(LB_ENTRY.orgShareOut, _exOrgRaw ? _exOrgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
+    }
     try {
       await fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: params.toString() });
       const fb = document.getElementById('lbExecFormBody'); if (fb) fb.style.display = 'none';
