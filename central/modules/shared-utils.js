@@ -848,7 +848,7 @@
   // Cache for live sheet data
   let _lbCache = null;
   let _lbCacheTs = 0;
-  const LB_CACHE_TTL = 10 * 60 * 1000; // 10 min
+  const LB_CACHE_TTL = 30 * 1000; // 30 s — stay close to live data
 
   // ── Fetch & parse leaderboard submissions ──────────────────────────────────
   async function _lbFetch(force) {
@@ -939,18 +939,29 @@
 
   // ── Date parsing helpers (Google Sheets exports "M/D/YYYY H:MM:SS") ────────
   // new Date() is not reliable for that locale format in Safari/Firefox.
+  // Handles both 24-hour ("4/13/2026 21:33:00") and 12-hour AM/PM ("4/13/2026 9:33:00 PM").
   function _lbParseDate(val) {
     if (!val) return null;
+    const s = String(val).trim();
     // Try standard ISO strings first (future-proofing)
-    if (/^\d{4}-\d{2}-\d{2}/.test(String(val))) {
-      const d = new Date(val);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const d = new Date(s);
       return isNaN(d) ? null : d;
     }
-    // Google Sheets CSV format: M/D/YYYY H:MM:SS  or  M/D/YYYY H:MM
-    const m = String(val).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-    if (m) return new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], m[6] ? +m[6] : 0);
+    // Google Sheets CSV 24-hour: M/D/YYYY H:MM:SS  or  M/D/YYYY H:MM
+    const m24 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (m24) return new Date(+m24[3], +m24[1] - 1, +m24[2], +m24[4], +m24[5], m24[6] ? +m24[6] : 0);
+    // Google Sheets CSV 12-hour AM/PM: M/D/YYYY H:MM:SS AM/PM  or  M/D/YYYY H:MM AM/PM
+    const m12 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (m12) {
+      let hr = +m12[4];
+      const isPM = /pm/i.test(m12[7]);
+      if (isPM && hr < 12) hr += 12;
+      if (!isPM && hr === 12) hr = 0;
+      return new Date(+m12[3], +m12[1] - 1, +m12[2], hr, +m12[5], m12[6] ? +m12[6] : 0);
+    }
     // Last-resort fallback
-    const d = new Date(val);
+    const d = new Date(s);
     return isNaN(d) ? null : d;
   }
 
@@ -971,9 +982,14 @@
     return monDate.toLocaleDateString('en-US', opts) + ' – ' + sun.toLocaleDateString('en-US', opts) + ', ' + sun.getFullYear();
   }
 
-  // Sortable week key (ISO date of Monday, e.g. "2026-04-07")
+  // Sortable week key (local date of Monday, e.g. "2026-04-13").
+  // Using local YYYY-MM-DD avoids UTC-offset from shifting the week across midnight.
   function _lbWeekKey(d) {
-    return _lbWeekStart(d).toISOString().slice(0, 10);
+    const m = _lbWeekStart(d);
+    const yy = m.getFullYear();
+    const mm = String(m.getMonth() + 1).padStart(2, '0');
+    const dd = String(m.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
   }
 
   // ── Compute leaderboard stats from submissions ────────────────────────────
@@ -1445,7 +1461,7 @@
     modal.style.display = 'flex';
     const body = document.getElementById('lbViewModalBody');
     if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Loading…</div>';
-    const rows = await _lbFetch(false);
+    const rows = await _lbFetch(true); // always fetch fresh — reflect sheet edits immediately
     if (!body) return;
     const c = LB_DEPT_CFG[dept] || {};
     const dRows = rows.filter(r => _lbRowDept(r) === dept);
@@ -1462,52 +1478,79 @@
     // Newest week first
     const weeks = Object.entries(byWeek).sort((a, b) => b[0].localeCompare(a[0]));
 
-    let html = `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1.25rem">
-      <div style="width:10px;height:10px;border-radius:50%;background:${c.color||'#457b9d'};flex-shrink:0"></div>
-      <div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">${c.emoji||''} ${c.label||dept} · ${dRows.length} submission${dRows.length!==1?'s':''}</div>
+    const accent = c.color || '#457b9d';
+
+    // ── Helper: render one submission as a card ──────────────────────────────
+    function _lbEntryCard(r, ts, accent) {
+      const tsStr = ts ? ts.toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const succ  = r['What successes has your department seen this week?'] || '';
+      const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
+      const goal  = r['What is this week\'s goal for your department?'] || '';
+      const miss  = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+      const org   = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
+
+      const field = (icon, q, ans, bg, border) => ans
+        ? `<div style="margin-bottom:1rem">
+            <div style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.375rem">${icon} ${q}</div>
+            <div style="font-size:.9375rem;color:var(--text);line-height:1.7;padding:.75rem 1rem;background:${bg};border-left:3px solid ${border};border-radius:0 10px 10px 0">${ans}</div>
+           </div>`
+        : '';
+
+      return `
+      <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 6px rgba(10,22,40,.06)">
+        ${tsStr ? `
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.75rem 1.125rem;background:${accent}0d;border-bottom:1px solid ${accent}22">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${accent};flex-shrink:0"></span>
+          <span style="font-size:.8125rem;font-weight:600;color:var(--navy)">${tsStr}</span>
+        </div>` : ''}
+        <div style="padding:1.125rem 1.125rem .25rem">
+          ${field('🏆', 'What successes has your department seen this week?', succ, accent+'0d', accent+'66')}
+          ${field('🤝', 'What cross-departmental successes, if any, have you seen?', cross, '#e0f7fa', '#0891b2')}
+          ${field('🎯', "What is this week's goal for your department?", goal, '#eff6ff', '#3b82f6')}
+          ${field('❓', "If this week's departmental goal wasn't met, what was the reason?", miss, '#fffbeb', '#d97706')}
+          ${field('🌟', 'Organizational Share-Out (Leadership only)', org, '#fffdf0', '#f0a500')}
+        </div>
+      </div>`;
+    }
+
+    let html = `
+    <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:1.375rem">
+      <div style="width:10px;height:10px;border-radius:50%;background:${accent};flex-shrink:0"></div>
+      <div style="font-size:.875rem;font-weight:700;color:var(--navy)">${c.emoji||''} ${c.label||dept}</div>
+      <span style="font-size:.75rem;color:var(--muted)">· ${dRows.length} submission${dRows.length!==1?'s':''} on record</span>
     </div>`;
 
     weeks.forEach(([wkKey, wkData], wkIdx) => {
       const isFirst = wkIdx === 0;
       const panelId = 'lbWkPanel_' + wkKey.replace(/-/g,'');
       const chevId  = 'lbWkChev_'  + wkKey.replace(/-/g,'');
-      const label   = wkData.monDate ? _lbWeekLabel(wkData.monDate) : 'Unknown Date';
+      const label   = wkData.monDate ? _lbWeekLabel(wkData.monDate) : 'Unknown date';
       const cnt     = wkData.rows.length;
       const sorted  = wkData.rows.slice().sort((a,b) => (b.ts||0) - (a.ts||0));
 
-      html += `<div style="border:1.5px solid ${isFirst ? (c.color||'#457b9d')+'55' : 'var(--border)'};border-radius:14px;overflow:hidden;margin-bottom:.875rem;${isFirst?'box-shadow:0 2px 12px '+(c.color||'#457b9d')+'1a':''}">
+      html += `
+      <div style="border:1.5px solid ${isFirst ? accent+'55' : 'var(--border)'};border-radius:16px;overflow:hidden;margin-bottom:1rem;${isFirst ? 'box-shadow:0 2px 16px '+accent+'18' : ''}">
+
+        <!-- Week accordion header -->
         <div onclick="(function(){const p=document.getElementById('${panelId}');const ch=document.getElementById('${chevId}');const open=p.style.display!=='none';p.style.display=open?'none':'block';ch.style.transform=open?'rotate(0deg)':'rotate(180deg)'})()"
-          style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.125rem;cursor:pointer;background:${isFirst?(c.color||'#457b9d')+'0d':'var(--surface-2)'};user-select:none">
+          style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;cursor:pointer;background:${isFirst ? accent+'0d' : 'var(--surface-2)'};user-select:none">
           <div style="display:flex;align-items:center;gap:.75rem">
-            <div style="width:6px;height:6px;border-radius:50%;background:${c.color||'#457b9d'};flex-shrink:0"></div>
+            <div style="width:8px;height:8px;border-radius:50%;background:${accent};flex-shrink:0"></div>
             <div>
-              <div style="font-size:.875rem;font-weight:700;color:var(--navy)">Week of ${label}</div>
-              <div style="font-size:.6875rem;color:var(--muted);margin-top:.1rem">${cnt} submission${cnt!==1?'s':''}</div>
+              <div style="font-size:.9375rem;font-weight:700;color:var(--navy)">${label}</div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:.125rem">${cnt} submission${cnt!==1?'s':''}</div>
             </div>
           </div>
-          <div id="${chevId}" style="color:var(--muted);font-size:.8rem;transition:transform .2s;transform:${isFirst?'rotate(180deg)':'rotate(0deg)'}">▾</div>
+          <div id="${chevId}" style="color:var(--muted);font-size:.875rem;transition:transform .2s;transform:${isFirst?'rotate(180deg)':'rotate(0deg)'};flex-shrink:0">▾</div>
         </div>
-        <div id="${panelId}" style="display:${isFirst?'block':'none'}">`;
 
-      sorted.forEach(({r, ts}, idx) => {
-        const tsStr = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        const succ  = r['What successes has your department seen this week?'] || '';
-        const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
-        const goal  = r['What is this week\'s goal for your department?'] || '';
-        const miss  = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-        const org   = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
-
-        html += `<div style="${idx>0?'border-top:1px dashed var(--border-2);':''}padding:1.125rem 1.25rem">
-          ${tsStr ? `<div style="font-size:.6875rem;color:var(--muted);margin-bottom:.875rem;display:flex;align-items:center;gap:.375rem"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${c.color||'#457b9d'}"></span>Submitted ${tsStr}</div>` : ''}
-          ${succ  ? `<div style="margin-bottom:.875rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:${c.color||'#457b9d'};margin-bottom:.3rem">🏆 Successes</div><div style="font-size:.875rem;color:var(--text);line-height:1.65;background:${(c.color||'#457b9d')}0d;border-left:3px solid ${(c.color||'#457b9d')}66;padding:.625rem .875rem;border-radius:0 8px 8px 0">${succ}</div></div>` : ''}
-          ${cross ? `<div style="margin-bottom:.875rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#0891b2;margin-bottom:.3rem">🤝 Cross-Departmental</div><div style="font-size:.875rem;color:var(--text);line-height:1.65;background:#e0f7fa;border-left:3px solid #0891b2;padding:.625rem .875rem;border-radius:0 8px 8px 0">${cross}</div></div>` : ''}
-          ${goal  ? `<div style="margin-bottom:.875rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#0050c8;margin-bottom:.3rem">🎯 This Week's Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.65;background:#eff6ff;border-left:3px solid #0050c8;padding:.625rem .875rem;border-radius:0 8px 8px 0">${goal}</div></div>` : ''}
-          ${miss  ? `<div style="margin-bottom:.875rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#d97706;margin-bottom:.3rem">❓ Missed Goal Reason</div><div style="font-size:.875rem;color:var(--text);line-height:1.65;background:#fffbeb;border-left:3px solid #d97706;padding:.625rem .875rem;border-radius:0 8px 8px 0">${miss}</div></div>` : ''}
-          ${org   ? `<div><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#f0a500;margin-bottom:.3rem">🌟 Org Share-Out</div><div style="font-size:.875rem;color:var(--navy);line-height:1.65;background:#fffbeb;border-left:3px solid #f0a500;padding:.625rem .875rem;border-radius:0 8px 8px 0;font-weight:500">${org}</div></div>` : ''}
-        </div>`;
-      });
-
-      html += `</div></div>`;
+        <!-- Entries -->
+        <div id="${panelId}" style="display:${isFirst?'block':'none'}">
+          <div style="display:flex;flex-direction:column;gap:.875rem;padding:1rem 1.125rem 1.125rem">
+            ${sorted.map(({r,ts}) => _lbEntryCard(r, ts, accent)).join('')}
+          </div>
+        </div>
+      </div>`;
     });
 
     body.innerHTML = html;
@@ -1645,7 +1688,7 @@
     modal.style.display = 'flex';
     const body = document.getElementById('lbViewModalBody');
     if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Loading submissions…</div>';
-    const rows = await _lbFetch(false);
+    const rows = await _lbFetch(true); // always fetch fresh — reflect sheet edits immediately
     if (!body) return;
     if (!rows.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions on record yet.</div>'; return; }
 
@@ -1664,78 +1707,108 @@
     const weeks = Object.entries(byWeek).sort((a, b) => b[0].localeCompare(a[0]));
     const totalAttrib = rows.filter(r => _lbRowDept(r) !== 'unknown').length;
 
-    let html = `<div style="font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:1.25rem">All Department Submissions · ${totalAttrib} total</div>`;
+    // ── Helper: render one submission card (reused across dept rows) ──────────
+    function _lbAllEntryCard(r, ts, c) {
+      const accent = c.color || '#888';
+      const tsStr  = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const succ   = r['What successes has your department seen this week?'] || '';
+      const cross  = r['What cross-departmental successes, if any, have you seen?'] || '';
+      const goal   = r['What is this week\'s goal for your department?'] || '';
+      const miss   = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+      const org    = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
+
+      const field = (icon, q, ans, bg, border) => ans
+        ? `<div style="margin-bottom:.875rem">
+            <div style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem">${icon} ${q}</div>
+            <div style="font-size:.875rem;color:var(--text);line-height:1.65;padding:.625rem .875rem;background:${bg};border-left:3px solid ${border};border-radius:0 8px 8px 0">${ans}</div>
+           </div>`
+        : '';
+
+      return `
+      <div style="border:1px solid ${accent}22;border-radius:10px;overflow:hidden;background:#fff">
+        ${tsStr ? `<div style="padding:.5rem .875rem;background:${accent}0d;border-bottom:1px solid ${accent}1a;font-size:.75rem;font-weight:600;color:var(--navy)">${tsStr}</div>` : ''}
+        <div style="padding:.875rem .875rem .125rem">
+          ${field('🏆','What successes has your department seen this week?', succ, accent+'0d', accent+'66')}
+          ${field('🤝','What cross-departmental successes, if any, have you seen?', cross, '#e0f7fa', '#0891b2')}
+          ${field('🎯',"What is this week's goal for your department?", goal, '#eff6ff', '#3b82f6')}
+          ${field('❓',"If this week's departmental goal wasn't met, what was the reason?", miss, '#fffbeb', '#d97706')}
+          ${field('🌟','Organizational Share-Out (Leadership only)', org, '#fffdf0', '#f0a500')}
+        </div>
+      </div>`;
+    }
+
+    let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
+      <div style="font-size:.9375rem;font-weight:700;color:var(--navy)">All Department Submissions</div>
+      <span style="font-size:.75rem;color:var(--muted)">${totalAttrib} submission${totalAttrib!==1?'s':''} · ${weeks.length} week${weeks.length!==1?'s':''}</span>
+    </div>`;
 
     weeks.forEach(([wkKey, wkData], wkIdx) => {
       const isFirst   = wkIdx === 0;
       const panelId   = 'lbAllWkPanel_' + wkKey.replace(/-/g,'');
       const chevId    = 'lbAllWkChev_'  + wkKey.replace(/-/g,'');
-      const label     = wkData.monDate ? _lbWeekLabel(wkData.monDate) : 'Unknown Date';
+      const label     = wkData.monDate ? _lbWeekLabel(wkData.monDate) : 'Unknown date';
       const deptKeys  = Object.keys(wkData.byDept).filter(d => d !== 'unknown');
       const totalInWk = deptKeys.reduce((s,d) => s + wkData.byDept[d].length, 0);
 
-      // Dept pills for collapsed-state header preview
+      // Dept pills shown in collapsed header
       const pills = deptKeys.map(d => {
         const c = LB_DEPT_CFG[d] || {};
-        return `<span style="font-size:.575rem;font-weight:700;padding:.15rem .5rem;border-radius:10px;background:${c.color||'#888'}22;color:${c.color||'#888'};border:1px solid ${c.color||'#888'}44">${c.emoji||''} ${c.label||d}</span>`;
+        return `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .55rem;border-radius:10px;background:${c.color||'#888'}1a;color:${c.color||'#888'};border:1px solid ${c.color||'#888'}33">${c.emoji||''} ${c.label||d}</span>`;
       }).join('');
 
-      html += `<div style="border:1.5px solid ${isFirst?'rgba(240,165,0,.4)':'var(--border)'};border-radius:14px;overflow:hidden;margin-bottom:.875rem;${isFirst?'box-shadow:0 2px 16px rgba(240,165,0,.1)':''}">
+      html += `
+      <div style="border:1.5px solid ${isFirst?'rgba(240,165,0,.45)':'var(--border)'};border-radius:16px;overflow:hidden;margin-bottom:1rem;${isFirst?'box-shadow:0 2px 18px rgba(240,165,0,.12)':''}">
+
+        <!-- Week header (click to toggle) -->
         <div onclick="(function(){const p=document.getElementById('${panelId}');const ch=document.getElementById('${chevId}');const open=p.style.display!=='none';p.style.display=open?'none':'block';ch.style.transform=open?'rotate(0deg)':'rotate(180deg)'})()"
-          style="display:flex;align-items:flex-start;justify-content:space-between;padding:.875rem 1.125rem;cursor:pointer;background:${isFirst?'rgba(240,165,0,.06)':'var(--surface-2)'};user-select:none">
+          style="display:flex;align-items:flex-start;justify-content:space-between;padding:1rem 1.25rem;cursor:pointer;background:${isFirst?'rgba(240,165,0,.06)':'var(--surface-2)'};user-select:none">
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.375rem">
-              <div style="font-size:.875rem;font-weight:700;color:var(--navy)">Week of ${label}</div>
-              <span style="font-size:.6rem;font-weight:700;padding:.15rem .5rem;border-radius:10px;background:${isFirst?'rgba(240,165,0,.2)':'var(--surface-3,#f3f4f6)'};color:${isFirst?'#b45309':'var(--muted)'}">${totalInWk} submission${totalInWk!==1?'s':''}</span>
+            <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.4rem;flex-wrap:wrap">
+              <div style="font-size:.9375rem;font-weight:700;color:var(--navy)">${label}</div>
+              <span style="font-size:.7rem;font-weight:700;padding:.175rem .55rem;border-radius:10px;background:${isFirst?'rgba(240,165,0,.18)':'rgba(0,0,0,.06)'};color:${isFirst?'#b45309':'var(--muted)'}">${totalInWk} submission${totalInWk!==1?'s':''}</span>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:.25rem">${pills}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:.3rem">${pills}</div>
           </div>
-          <div id="${chevId}" style="color:var(--muted);font-size:.8rem;transition:transform .2s;transform:${isFirst?'rotate(180deg)':'rotate(0deg)'};margin-left:.75rem;flex-shrink:0;margin-top:.25rem">▾</div>
+          <div id="${chevId}" style="color:var(--muted);font-size:.875rem;transition:transform .2s;transform:${isFirst?'rotate(180deg)':'rotate(0deg)'};margin-left:.875rem;flex-shrink:0;margin-top:.25rem">▾</div>
         </div>
 
+        <!-- Dept sections -->
         <div id="${panelId}" style="display:${isFirst?'block':'none'}">`;
 
       deptKeys.forEach((d, dIdx) => {
         const c = LB_DEPT_CFG[d] || { label: d, emoji: '', color: '#888' };
         const dEntries = wkData.byDept[d].slice().sort((a,b) => (b.ts||0) - (a.ts||0));
 
-        html += `<div style="${dIdx>0?'border-top:1px solid var(--border)':''}">
-          <div style="padding:.75rem 1.125rem .375rem;font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color}">
-            ${c.emoji} ${c.label}
+        html += `
+          <div style="${dIdx>0?'border-top:1px solid var(--border)':''}">
+            <!-- Dept sub-header -->
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.75rem 1.25rem .5rem">
+              <div style="width:7px;height:7px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+              <span style="font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:${c.color}">${c.emoji} ${c.label}</span>
+              <span style="font-size:.6875rem;color:var(--muted)">${dEntries.length} submission${dEntries.length!==1?'s':''}</span>
+            </div>
+            <!-- Entry cards -->
+            <div style="display:flex;flex-direction:column;gap:.625rem;padding:.25rem 1.125rem 1rem">
+              ${dEntries.map(({r,ts}) => _lbAllEntryCard(r, ts, c)).join('')}
+            </div>
           </div>`;
-
-        dEntries.forEach(({r, ts}, entIdx) => {
-          const tsStr = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-          const succ  = r['What successes has your department seen this week?'] || r[Object.keys(r).find(k=>/success/i.test(k))||''] || '';
-          const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
-          const goal  = r['What is this week\'s goal for your department?'] || r[Object.keys(r).find(k=>/goal/i.test(k))||''] || '';
-          const miss  = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-          const org   = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
-
-          html += `<div style="padding:.625rem 1.25rem ${entIdx<dEntries.length-1?'.875rem':'1rem'};${entIdx>0?'border-top:1px dashed var(--border-2)':''}">
-            ${tsStr ? `<div style="font-size:.6875rem;color:var(--muted);margin-bottom:.625rem">${tsStr}</div>` : ''}
-            ${succ  ? `<div style="margin-bottom:.5rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color};margin-bottom:.2rem">🏆 Successes</div><div style="font-size:.875rem;color:var(--text);line-height:1.6;background:${c.color}0d;border-left:2px solid ${c.color}55;padding:.5rem .75rem;border-radius:0 6px 6px 0">${succ}</div></div>` : ''}
-            ${cross ? `<div style="margin-bottom:.5rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0891b2;margin-bottom:.2rem">🤝 Cross-Dept</div><div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#e0f7fa;border-left:2px solid #0891b2;padding:.5rem .75rem;border-radius:0 6px 6px 0">${cross}</div></div>` : ''}
-            ${goal  ? `<div style="margin-bottom:.5rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#0050c8;margin-bottom:.2rem">🎯 Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#eff6ff;border-left:2px solid #0050c8;padding:.5rem .75rem;border-radius:0 6px 6px 0">${goal}</div></div>` : ''}
-            ${miss  ? `<div style="margin-bottom:.5rem"><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#d97706;margin-bottom:.2rem">❓ Missed Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.6;background:#fffbeb;border-left:2px solid #d97706;padding:.5rem .75rem;border-radius:0 6px 6px 0">${miss}</div></div>` : ''}
-            ${org   ? `<div><div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#f0a500;margin-bottom:.2rem">🌟 Org Share-Out</div><div style="font-size:.875rem;color:var(--navy);line-height:1.6;background:#fffbeb;border-left:2px solid #f0a500;padding:.5rem .75rem;border-radius:0 6px 6px 0;font-weight:500">${org}</div></div>` : ''}
-          </div>`;
-        });
-
-        html += `</div>`;
       });
 
-      // Unattributed entries in this week (if any)
+      // Unattributed entries in this week
       if (wkData.byDept['unknown'] && wkData.byDept['unknown'].length) {
         const ukEntries = wkData.byDept['unknown'];
-        html += `<div style="border-top:1px solid #fde68a;background:#fffbeb;padding:.75rem 1.125rem">
-          <div style="font-size:.575rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:.5rem">⚠️ Unattributed (${ukEntries.length})</div>
-          ${ukEntries.map(({r,ts}) => {
-            const tsStr = ts ? ts.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
-            const succ  = r['What successes has your department seen this week?'] || '';
-            return `<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${tsStr?tsStr+' · ':''}${succ||'(no text)'}</div>`;
-          }).join('')}
-        </div>`;
+        html += `
+          <div style="border-top:1px solid #fde68a;background:#fffbeb;padding:.875rem 1.25rem">
+            <div style="font-size:.75rem;font-weight:700;color:#92400e;margin-bottom:.5rem">⚠️ Unattributed (${ukEntries.length}) — submitted via Google Form without a department tag</div>
+            <div style="display:flex;flex-direction:column;gap:.5rem">
+              ${ukEntries.map(({r,ts}) => {
+                const tsStr = ts ? ts.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+                const succ  = r['What successes has your department seen this week?'] || '';
+                return `<div style="font-size:.875rem;color:#78350f;background:#fff8e7;border-radius:8px;padding:.5rem .75rem">${tsStr?'<span style="font-weight:600">'+tsStr+'</span> · ':''}${succ||'(no content)'}</div>`;
+              }).join('')}
+            </div>
+          </div>`;
       }
 
       html += `</div></div>`;
