@@ -766,20 +766,28 @@
 
     // ── Departmental Success Leaderboard ──────────────────────────────────
     // T+48: runs AFTER all other writes so it wins the homeDeptWidget slot
+    // Guard: buildHome() can be called twice when KPI cache is stale (once for
+    // cache, again after network refresh). The guard prevents the second call
+    // from overwriting an already-rendered leaderboard with "Loading…" placeholders.
     const LEADERBOARD_EXEC_DEPTS = ['leadership','data','kb'];
     const _lbEl = document.getElementById('homeDeptWidget');
     if (LEADERBOARD_EXEC_DEPTS.includes(dept)) {
-      setTimeout(() => _lbInjectExecPill(dept), 50);
-    } else {
-      // Non-exec: leaderboard owns homeDeptWidget entirely
-      // Build HTML string first (pure string, no DOM), then write at T+48
-      const _lbHTML = _lbRenderFullBoard(dept);
+      // Exec pill: only inject once — guarded inside _lbInjectExecPill by id check
       setTimeout(() => {
-        if (_lbEl) {
-          _lbEl.innerHTML = _lbHTML;
-          _lbBindEvents(dept);
-        }
-      }, 48);
+        if (!document.getElementById('lbExecPillTile')) _lbInjectExecPill(dept);
+      }, 50);
+    } else {
+      // Non-exec: leaderboard owns homeDeptWidget entirely.
+      // Only write if lbWrap doesn't already exist (prevents flash on KPI re-render).
+      if (!document.getElementById('lbWrap')) {
+        const _lbHTML = _lbRenderFullBoard(dept);
+        setTimeout(() => {
+          if (_lbEl && !document.getElementById('lbWrap')) {
+            _lbEl.innerHTML = _lbHTML;
+            _lbBindEvents(dept);
+          }
+        }, 48);
+      }
     }
   }
 
@@ -807,9 +815,9 @@
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
-  // Next biweekly meeting: Tuesday April 14, 2026. Update this as meetings roll.
+  // Next biweekly meeting: Tuesday April 28, 2026. Update this as meetings roll.
   // The leaderboard checks submissions relative to the Friday before this date.
-  const LB_NEXT_MEETING = new Date('2026-04-14T09:00:00');
+  const LB_NEXT_MEETING = new Date('2026-04-28T09:00:00');
   const LB_SUBMIT_DEADLINE = new Date(LB_NEXT_MEETING);
   LB_SUBMIT_DEADLINE.setDate(LB_SUBMIT_DEADLINE.getDate() - 4); // Friday before
   LB_SUBMIT_DEADLINE.setHours(23, 59, 59, 0);
@@ -878,12 +886,13 @@
   }
 
   // ── Derive dept from a submission row ─────────────────────────────────────
-  // The form collects dept via the URL parameter or a hidden field.
-  // We fall back to matching the submitter name against HR_EMPS if needed.
+  // The Google Form has no Department field, so portal submissions encode dept
+  // as a [dept:XXX] tag appended to the orgShareOut field. We scan all field
+  // values for this tag as the primary attribution method.
   function _lbRowDept(row) {
     const d = (row['Department'] || row['department'] || row['Dept'] || '').toLowerCase().trim();
     if (LB_ALL_DEPTS.includes(d)) return d;
-    // Fuzzy match common labels
+    // Fuzzy match common labels from any explicit dept column
     if (/human.?res|hr\b/.test(d)) return 'hr';
     if (/financ/.test(d)) return 'finance';
     if (/program/.test(d)) return 'programming';
@@ -891,7 +900,17 @@
     if (/lead/.test(d)) return 'leadership';
     if (/data|eval/.test(d)) return 'data';
     if (/kb|exec/.test(d)) return 'kb';
+    // Scan all column values for [dept:XXX] tag embedded by portal submissions
+    for (const val of Object.values(row)) {
+      const m = String(val || '').match(/\[dept:([a-z]+)\]/i);
+      if (m && LB_ALL_DEPTS.includes(m[1].toLowerCase())) return m[1].toLowerCase();
+    }
     return d || 'unknown';
+  }
+
+  // Strip [dept:XXX] tag from a field value before displaying it
+  function _lbCleanVal(val) {
+    return (val || '').replace(/\n?\[dept:[a-z]+\]/gi, '').trim();
   }
 
   // ── Countdown to deadline ─────────────────────────────────────────────────
@@ -915,9 +934,11 @@
     LB_ALL_DEPTS.forEach(d => {
       byDept[d] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
     });
+    // Track unattributed (no dept tag) separately so they're surfaced in the UI
+    byDept['unknown'] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
     rows.forEach(row => {
       const dept = _lbRowDept(row);
-      if (!byDept[dept]) return;
+      if (!byDept[dept]) byDept[dept] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
       const ts = new Date(row['Timestamp'] || row['timestamp'] || '');
       byDept[dept].count++;
       byDept[dept].entries.push(row);
@@ -939,7 +960,7 @@
       crossDept:  latest['What cross-departmental successes, if any, have you seen?'] || latest[Object.keys(latest).find(k => /cross/i.test(k))] || '',
       weekGoal:   latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest).find(k => /goal/i.test(k))] || '',
       goalMiss:   latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '',
-      orgShareOut:latest['Please add the Organizational Share Outs (Leadership Only)'] || '',
+      orgShareOut:_lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']),
       timestamp:  latest['Timestamp'] || '',
     };
   }
@@ -978,7 +999,7 @@
           <div style="display:flex;gap:.625rem;flex-wrap:wrap;align-items:flex-start">
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
               <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Next Meeting</div>
-              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 14, 2026</div>
+              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 28, 2026</div>
             </div>
             <div style="background:${cdBg};border:1px solid ${cdBorder};border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
               <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Friday Deadline</div>
@@ -1048,7 +1069,7 @@
           <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${cfg.color},${cfg.color}88,transparent)"></div>
           <div style="font-size:.595rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.3rem">Weekly Update</div>
           <div style="font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.2rem">${cfg.emoji} ${cfg.label}</div>
-          <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · Tue Apr 14, 2026</div>
+          <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · Tue Apr 28, 2026</div>
           <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
         </div>
         <div style="padding:1.75rem" id="lbFormBody">
@@ -1190,7 +1211,7 @@
         const goal  = latest ? (latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest||{}).find(k=>/goal/i.test(k))||''] || '') : '';
         const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
         const miss  = latest ? (latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '') : '';
-        const org   = latest ? (latest['Please add the Organizational Share Outs (Leadership Only)'] || '') : '';
+        const org   = latest ? _lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']) : '';
         const ts    = latest && latest['Timestamp'] ? new Date(latest['Timestamp']).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
 
         const cardId = `lbCard_${d}`;
@@ -1253,6 +1274,12 @@
       });
 
       // Section 3: main board (largest write — given its own task slot at T+32ms)
+      const unknownCount = (stats['unknown'] || {}).count || 0;
+      const unknownNotice = unknownCount > 0
+        ? `<div style="padding:.75rem 1.25rem;background:#fffbeb;border-top:1px solid #fde68a;font-size:.75rem;color:#92400e;display:flex;align-items:center;gap:.5rem">
+            ⚠️ <strong>${unknownCount} unattributed submission${unknownCount!==1?'s':''}</strong> in the sheet couldn't be matched to a department — they were submitted directly via Google Form without a department tag. Resubmit through the portal to attribute them correctly.
+           </div>`
+        : '';
       setTimeout(() => {
         tableEl.innerHTML = `
           <div style="display:flex;align-items:center;gap:.875rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
@@ -1266,6 +1293,7 @@
           <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted)">
             Click any submitted department to expand their weekly details.
           </div>
+          ${unknownNotice}
         `;
       }, 32);
     }
@@ -1286,7 +1314,8 @@
     // Pull leadership org share-outs and all dept successes (latest per dept)
     const orgRows = rows.filter(r => {
       const d = _lbRowDept(r);
-      return (d === 'leadership' || d === 'kb') && (r['Please add the Organizational Share Outs (Leadership Only)'] || '').trim();
+      // Use cleaned value to filter — strip [dept:XXX] tag before checking if non-empty
+      return (d === 'leadership' || d === 'kb') && _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']).length > 0;
     });
 
     if (!orgRows.length) { spotEl.style.display = 'none'; return; }
@@ -1296,7 +1325,7 @@
       <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.875rem">🌟 Organizational Share-Outs — From Leadership</div>
       <div style="display:flex;flex-direction:column;gap:.75rem">`;
     orgRows.slice(-3).reverse().forEach(r => {
-      const msg = r['Please add the Organizational Share Outs (Leadership Only)'] || '';
+      const msg = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
       const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
       html += `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-left:3px solid #f0a500;border-radius:8px;padding:.875rem 1rem">
         <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6">${msg}</div>
@@ -1333,7 +1362,10 @@
     params.append(LB_ENTRY.crossDept,      (document.getElementById('lbF_cross') || {}).value || '');
     params.append(LB_ENTRY.weeklyGoal,     goal);
     params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbF_miss') || {}).value || '');
-    params.append(LB_ENTRY.orgShareOut,    (document.getElementById('lbF_org') || {}).value || '');
+    // Encode dept as a hidden [dept:XXX] tag at the end of orgShareOut so _lbRowDept
+    // can attribute this row to the correct department after it lands in the sheet.
+    const _orgRaw = (document.getElementById('lbF_org') || {}).value || '';
+    params.append(LB_ENTRY.orgShareOut, _orgRaw ? _orgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
 
     try {
       await fetch(LB_FORM_ACTION, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
@@ -1437,7 +1469,7 @@
         <div style="background:linear-gradient(135deg,#eff6ff,#f0f7ff);border:1.5px solid #dbeafe;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:.875rem">
           <div style="font-size:1.75rem;flex-shrink:0">📅</div>
           <div>
-            <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — Tue Apr 14, 2026</div>
+            <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — Tue Apr 28, 2026</div>
             <div style="font-size:.75rem;color:#1e40af;opacity:.75;margin-top:.2rem">
               ${countdown.days > 0 ? `${countdown.days} day${countdown.days!==1?'s':''} away` : 'Today!'} · Submit your weekly update by <strong>this Friday</strong>
             </div>
@@ -1547,6 +1579,22 @@
       });
       html += `</div>`;
     });
+    // Show unattributed submissions (submitted directly via Google Form, no dept tag)
+    const unknownRows = rows.filter(r => _lbRowDept(r) === 'unknown');
+    if (unknownRows.length) {
+      html += `<div style="margin-top:1rem;padding:1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:12px">
+        <div style="font-size:.625rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#92400e;margin-bottom:.5rem">⚠️ Unattributed (${unknownRows.length})</div>
+        <div style="font-size:.75rem;color:#78350f;margin-bottom:.625rem">Submitted directly via Google Form — no department detected. Resubmit through the portal to attribute.</div>
+        ${unknownRows.slice(0,3).map(r => {
+          const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+          const succ = r['What successes has your department seen this week?'] || '';
+          return `<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:.75rem .875rem;margin-bottom:.375rem;font-size:.8125rem;color:var(--text)">
+            ${ts ? `<div style="font-size:.6875rem;color:#92400e;margin-bottom:.3rem">${ts}</div>` : ''}
+            ${succ || '(No successes text recorded)'}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
     body.innerHTML = html || '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions found.</div>';
   }
 
@@ -1568,7 +1616,12 @@
     const strip = document.getElementById('homeStatsStrip');
     if (!strip) return;
 
+    // Guard: remove stale pill if it somehow survived a stats-strip rewrite
+    const _oldPill = document.getElementById('lbExecPillTile');
+    if (_oldPill) _oldPill.remove();
+
     const tile = document.createElement('div');
+    tile.id = 'lbExecPillTile';
     tile.className = 'stat-tile';
     tile.style.setProperty('--accent-color', '#f0a500');
     tile.style.cursor = 'pointer';
@@ -1638,7 +1691,7 @@
       const succ  = latest ? (latest['What successes has your department seen this week?'] || '') : '';
       const goal  = latest ? (latest['What is this week\'s goal for your department?'] || '') : '';
       const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
-      const org   = latest ? (latest['Please add the Organizational Share Outs (Leadership Only)'] || '') : '';
+      const org   = latest ? _lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']) : '';
       const badge = s.count > 0
         ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">${s.count} submission${s.count!==1?'s':''}</span>`
         : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not submitted</span>`;
@@ -1655,6 +1708,24 @@
         </div>` : `<div style="padding:1rem 1.125rem;color:var(--muted);font-size:.875rem;font-style:italic">No submission recorded for this week yet.</div>`}
       </div>`;
     });
+    // Show unattributed submissions so they're not silently lost
+    const unknownEntries = (stats['unknown'] || {}).entries || [];
+    if (unknownEntries.length) {
+      html += `<div style="margin-top:1.5rem;padding:1rem;background:#fffbeb;border:1px solid #fde68a;border-radius:12px">
+        <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:.75rem">⚠️ Unattributed Submissions (${unknownEntries.length})</div>
+        <div style="font-size:.8125rem;color:#78350f;margin-bottom:.75rem;line-height:1.5">These submissions were made directly via Google Form and couldn't be matched to a department. Resubmit through the portal to attribute them correctly.</div>
+        ${unknownEntries.map(r => {
+          const ts = r['Timestamp'] ? new Date(r['Timestamp']).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+          const succ = r['What successes has your department seen this week?'] || '';
+          const goal = r['What is this week\'s goal for your department?'] || '';
+          return `<div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:.875rem 1rem;margin-bottom:.5rem">
+            ${ts ? `<div style="font-size:.6875rem;color:#92400e;margin-bottom:.5rem">${ts}</div>` : ''}
+            ${succ ? `<div style="font-size:.875rem;color:var(--text);margin-bottom:.375rem"><strong>Successes:</strong> ${succ}</div>` : ''}
+            ${goal ? `<div style="font-size:.875rem;color:var(--text)"><strong>Goal:</strong> ${goal}</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
     body.innerHTML = html;
   }
 
@@ -1727,7 +1798,9 @@
     params.append(LB_ENTRY.crossDept,      (document.getElementById('lbExF_cross') || {}).value || '');
     params.append(LB_ENTRY.weeklyGoal,     goal);
     params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbExF_miss') || {}).value || '');
-    params.append(LB_ENTRY.orgShareOut,    (document.getElementById('lbExF_org') || {}).value || '');
+    // Encode dept as a hidden [dept:XXX] tag so attribution works after landing in sheet
+    const _exOrgRaw = (document.getElementById('lbExF_org') || {}).value || '';
+    params.append(LB_ENTRY.orgShareOut, _exOrgRaw ? _exOrgRaw + '\n[dept:' + dept + ']' : '[dept:' + dept + ']');
     try {
       await fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: params.toString() });
       const fb = document.getElementById('lbExecFormBody'); if (fb) fb.style.display = 'none';
