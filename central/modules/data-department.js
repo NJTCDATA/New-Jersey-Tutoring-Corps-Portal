@@ -2636,7 +2636,7 @@
       'lea - ilearn passaic ms':         'passaic middle',
       'lea - ilearn paterson es':        'paterson arts and science charter school elementary',
       'lea - ilearn paterson ms':        'paterson arts and science charter school middle',
-      'lea - ilearn paterson':           'paterson silk city primary',
+      'lea - ilearn paterson':           'paterson arts and science charter school elementary',  // legacy/no-level suffix = ASCS ES
       // Also handle without "lea - " prefix if Pearl shortens it
       'ilearn bergen es':                'bergen ascs elementary',
       'ilearn bergen ms':                'bergen middle school',
@@ -2649,7 +2649,7 @@
       'ilearn passaic ms':               'passaic middle',
       'ilearn paterson es':              'paterson arts and science charter school elementary',
       'ilearn paterson ms':              'paterson arts and science charter school middle',
-      'ilearn paterson':                 'paterson silk city primary',
+      'ilearn paterson':                 'paterson arts and science charter school elementary',
       // The Co — SW sites (if Pearl uses LEA prefix for these too)
       'lea - theco gloucester':          'gloucester-loring flemming elementary',
       'lea - theco penns grove es':      'penns grove field street elementary school',
