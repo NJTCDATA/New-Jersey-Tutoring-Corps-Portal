@@ -926,6 +926,21 @@
     return (val || '').replace(/\n?\[dept[:\s]+[a-z]+\]/gi, '').trim();
   }
 
+  // Retrieve the Organizational Share-Out column value regardless of exact header
+  // (Google Forms allows question text edits which change the sheet column header)
+  function _lbGetOrg(row) {
+    const v = row['Please add the Organizational Share Outs (Leadership Only)']
+           ?? row['Please add Organizational Share outs (Leadership)']
+           ?? row['Please add Organizational Share Outs (Leadership)']
+           ?? row['Please add Organizational Share outs (Leadership Only)'];
+    if (v !== undefined) return v || '';
+    // Fuzzy fallback — any key containing "organizational" (future-proof)
+    for (const k of Object.keys(row)) {
+      if (/organizational/i.test(k) && /share/i.test(k)) return row[k] || '';
+    }
+    return '';
+  }
+
   // ── Countdown to deadline ─────────────────────────────────────────────────
   function _lbCountdown() {
     const now = Date.now();
@@ -1040,7 +1055,7 @@
       crossDept:  latest['What cross-departmental successes, if any, have you seen?'] || latest[Object.keys(latest).find(k => /cross/i.test(k))] || '',
       weekGoal:   latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest).find(k => /goal/i.test(k))] || '',
       goalMiss:   latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '',
-      orgShareOut:_lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']),
+      orgShareOut:_lbCleanVal(_lbGetOrg(latest)),
       timestamp:  _lbGetTs(latest),
     };
   }
@@ -1291,7 +1306,7 @@
         const goal  = latest ? (latest['What is this week\'s goal for your department?'] || latest[Object.keys(latest||{}).find(k=>/goal/i.test(k))||''] || '') : '';
         const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
         const miss  = latest ? (latest['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '') : '';
-        const org   = latest ? _lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']) : '';
+        const org   = latest ? _lbCleanVal(_lbGetOrg(latest)) : '';
         const ts    = latest ? (_lbGetTs(latest) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
 
         const cardId = `lbCard_${d}`;
@@ -1395,7 +1410,7 @@
     const orgRows = rows.filter(r => {
       const d = _lbRowDept(r);
       // Use cleaned value to filter — strip [dept:XXX] tag before checking if non-empty
-      return (d === 'leadership' || d === 'kb') && _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']).length > 0;
+      return (d === 'leadership' || d === 'kb') && _lbGetOrg(r).length > 0;
     });
 
     if (!orgRows.length) { spotEl.style.display = 'none'; return; }
@@ -1405,7 +1420,7 @@
       <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.875rem">🌟 Organizational Share-Outs — From Leadership</div>
       <div style="display:flex;flex-direction:column;gap:.75rem">`;
     orgRows.slice(-3).reverse().forEach(r => {
-      const msg = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
+      const msg = _lbCleanVal(_lbGetOrg(r));
       const ts = (_lbGetTs(r) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric'});
       html += `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-left:3px solid #f0a500;border-radius:8px;padding:.875rem 1rem">
         <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6">${msg}</div>
@@ -1503,7 +1518,7 @@
       const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
       const goal  = r['What is this week\'s goal for your department?'] || '';
       const miss  = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-      const org   = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
+      const org   = _lbCleanVal(_lbGetOrg(r));
 
       const field = (icon, q, ans, bg, border) => ans
         ? `<div style="margin-bottom:1rem">
@@ -1731,7 +1746,7 @@
       const cross  = r['What cross-departmental successes, if any, have you seen?'] || '';
       const goal   = r['What is this week\'s goal for your department?'] || '';
       const miss   = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-      const org    = _lbCleanVal(r['Please add the Organizational Share Outs (Leadership Only)']);
+      const org    = _lbCleanVal(_lbGetOrg(r));
 
       const field = (icon, q, ans, bg, border) => ans
         ? `<div style="margin-bottom:.875rem">
@@ -1926,7 +1941,7 @@
       const succ  = latest ? (latest['What successes has your department seen this week?'] || '') : '';
       const goal  = latest ? (latest['What is this week\'s goal for your department?'] || '') : '';
       const cross = latest ? (latest['What cross-departmental successes, if any, have you seen?'] || '') : '';
-      const org   = latest ? _lbCleanVal(latest['Please add the Organizational Share Outs (Leadership Only)']) : '';
+      const org   = latest ? _lbCleanVal(_lbGetOrg(latest)) : '';
       const badge = s.count > 0
         ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">${s.count} submission${s.count!==1?'s':''}</span>`
         : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not submitted</span>`;
