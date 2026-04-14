@@ -6987,6 +6987,13 @@
         return _stuRows ? _stuRows.slice() : [];
       },
 
+      // getInstRows() — raw instructor survey rows for per-tutor satisfaction aggregation
+      // Used by MOY tutor impact join to attach tutor survey averages.
+      // Returns a shallow copy so callers cannot mutate internal state.
+      getInstRows: function() {
+        return _instRows ? _instRows.slice() : [];
+      },
+
       // getTutorSurveyScores() — per-tutor aggregated survey scores, joined through _sessMap
       // The streaming/cache paths don't store FILLED_FOR (tutor name) in raw rows.
       // This method resolves tutor names via _sessMap[sessId].instructor so it works
