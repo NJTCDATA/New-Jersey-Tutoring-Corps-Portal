@@ -4317,11 +4317,17 @@
       const metrics   = hasData ? _moyGetMetrics(_moySubject) : null;
       const net       = metrics ? metrics.network : null;
 
+      // PDF export is restricted to the Data & Evaluation team only
+      const _isDataDept = (window.NJTC_SESSION||{}).dept === 'data';
+
       // Color logic for median
       const medColor = (m) => m === null ? 'var(--muted)' : m >= 80 ? '#0d6e3a' : m >= 50 ? '#d97706' : '#b91c1c';
 
+      // overflow-x:auto overrides .irlab-card overflow:hidden so wide tables
+      // (Tutor Impact, School Operational Context) get a horizontal scrollbar
+      // rather than clipping or expanding outside the portal container.
       let html = `
-      <div class="irlab-card" id="moySection" style="margin-top:1.5rem">
+      <div class="irlab-card" id="moySection" style="margin-top:1.5rem;overflow-x:auto">
         <!-- MOY Header -->
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.875rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:2px solid var(--border)">
           <div>
@@ -4336,7 +4342,7 @@
               <button onclick="irlab.moySetSubject('ELA')" class="irlab-mode-tab ${_moySubject==='ELA'?'active':''}" style="font-size:.75rem;padding:.3rem .875rem;border-radius:18px">ELA</button>
             </div>
             <button onclick="irlab.moyRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
-            <button onclick="irlab._moyExportPDF('ALL','${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .875rem;border-radius:8px;border:none;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;cursor:pointer;font-weight:600">⬇ PDF Report</button>
+            ${_isDataDept ? `<button onclick="irlab._moyExportPDF('ALL','${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .875rem;border-radius:8px;border:none;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;cursor:pointer;font-weight:600">⬇ PDF Report</button>` : ''}
           </div>
         </div>`;
 
@@ -4435,7 +4441,7 @@
         const regionEntries = Object.entries(metrics.byRegion).sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
         html += `<div style="margin-bottom:1.5rem">
           <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">By Region — ${_moySubject}</div>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+          <div style="overflow-x:auto;width:100%;max-width:100%"><table style="min-width:500px;width:100%;border-collapse:collapse;font-size:.8125rem">
             <thead><tr style="background:var(--navy)">
               <th style="padding:.625rem 1rem;text-align:left;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Region</th>
               <th style="padding:.625rem .75rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">N</th>
@@ -4466,7 +4472,7 @@
           .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0));
         html += `<div>
           <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">By School — ${_moySubject} (min 3 scholars with growth data)</div>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+          <div style="overflow-x:auto;width:100%;max-width:100%"><table style="min-width:500px;width:100%;border-collapse:collapse;font-size:.8125rem">
             <thead><tr style="background:var(--surface-2)">
               <th style="padding:.5rem .875rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">School</th>
               <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">N</th>
@@ -4515,7 +4521,7 @@
         // Placement level distribution comparison (Fall vs Winter)
         html += `<div style="margin-bottom:1.5rem">
           <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.875rem">Placement Distribution — Fall vs Winter · ${_moySubject}</div>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+          <div style="overflow-x:auto;width:100%;max-width:100%"><table style="min-width:500px;width:100%;border-collapse:collapse;font-size:.8125rem">
             <thead><tr style="background:var(--surface-2)">
               <th style="padding:.5rem 1rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Placement Level</th>
               <th style="padding:.5rem .75rem;text-align:center;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border)">Fall</th>
@@ -4654,7 +4660,7 @@
           <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem">
             Tutor Academic Impact — ${_moySubject} · ${tutors.length} tutors · Ranked by Median % Typical Growth · Min 3 scholars
           </div>
-          <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+          <div style="overflow-x:auto;width:100%;max-width:100%"><table style="min-width:500px;width:100%;border-collapse:collapse;font-size:.8125rem">
             <thead><tr style="background:var(--navy)">
               <th style="padding:.625rem 1rem;text-align:left;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;white-space:nowrap">Tutor</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Scholars</th>
@@ -4758,7 +4764,7 @@
                 <span>School Operational Context — ${_moySubject} · Pearl attendance &amp; survey data by school</span>
                 <span style="font-size:.6875rem;font-weight:400;color:var(--muted)">· Did operations impact academic outcomes?</span>
               </div>
-              <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+              <div style="overflow-x:auto;width:100%;max-width:100%"><table style="min-width:500px;width:100%;border-collapse:collapse;font-size:.8125rem">
                 <thead><tr style="background:#f0f4ff">
                   <th style="padding:.5rem 1rem;text-align:left;color:var(--navy);font-size:.6875rem;font-weight:700;text-transform:uppercase;border-bottom:2px solid var(--border-2)">School</th>
                   <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholars with valid Fall+Winter growth data">N</th>
