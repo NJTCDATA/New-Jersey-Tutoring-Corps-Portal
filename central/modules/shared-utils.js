@@ -871,6 +871,14 @@
       if (!cols.length || !cols[0]) continue;
       const row = {};
       headers.forEach((h, idx) => { row[h.trim()] = (cols[idx] || '').trim(); });
+      // Ghost-row filter: skip rows that contain only a timestamp (and/or dept tag) but
+      // no real answer content.  This removes entries deleted from the sheet that still
+      // appear in Google's published-CSV cache as hollow rows.
+      const hasContent = Object.entries(row).some(([k, v]) => {
+        const norm = k.replace(/^\ufeff/, '').trim().toLowerCase();
+        return norm !== 'timestamp' && norm !== 'department' && norm !== 'dept' && v && v.trim();
+      });
+      if (!hasContent) continue;
       rows.push(row);
     }
     return rows;
@@ -895,8 +903,8 @@
   //  3. Abbreviation prefix match (e.g. "prog" → "programming")
   //  4. Fuzzy regex on any explicit dept column value
   function _lbRowDept(row) {
-    // 1. Explicit department column (any reasonable header name)
-    const dCol = (row['Department'] || row['department'] || row['Dept'] || row['dept'] || '').toLowerCase().trim();
+    // 1. Explicit department column — BOM/case/whitespace resilient via _lbGetDept()
+    const dCol = _lbGetDept(row);
     if (LB_ALL_DEPTS.includes(dCol)) return dCol;
     if (/human.?res|hr\b/.test(dCol)) return 'hr';
     if (/financ/.test(dCol))          return 'finance';
@@ -1021,6 +1029,21 @@
       if (k.replace(/^\ufeff/,'').trim().toLowerCase() === 'timestamp') return _lbParseDate(row[k]);
     }
     return null;
+  }
+
+  // Find the Department column value regardless of BOM / case / whitespace on the key.
+  // This mirrors _lbGetTs — resilient to Google Sheets exporting "\ufeffDepartment",
+  // "Department " (trailing space), "department", "Dept", etc.
+  function _lbGetDept(row) {
+    // Fast path — most common header names
+    const fast = row['Department'] ?? row['department'] ?? row['Dept'] ?? row['dept'];
+    if (fast !== undefined) return (fast || '').toLowerCase().trim();
+    // Fuzzy key scan — strips BOM, trims, lowercases, then compares
+    for (const k of Object.keys(row)) {
+      const norm = k.replace(/^\ufeff/, '').trim().toLowerCase();
+      if (norm === 'department' || norm === 'dept') return (row[k] || '').toLowerCase().trim();
+    }
+    return '';
   }
 
   // ── Compute leaderboard stats from submissions ────────────────────────────
