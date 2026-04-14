@@ -2665,14 +2665,16 @@
       if (!attRows.length && !sessRows.length) return null;
 
       const ATT_USER_ID = 13, ATT_USER = 0, ATT_ROLE = 1, ATT_ATT_STATUS = 6,
-            ATT_MISS_REASON = 7, ATT_SCHOOL = 11;
+            ATT_MISS_REASON = 7, ATT_SCHOOL = 11, ATT_DISTRICT = 12;
       const SESS_INSTRUCTOR = 1, SESS_STUDENTS = 2, SESS_STU_IDS = 16,
-            SESS_SUBJECT = 9, SESS_ACTUAL_DUR = 8, SESS_STATUS = 4, SESS_INST_ID = 15;
-
+            SESS_SUBJECT = 9, SESS_ACTUAL_DUR = 8, SESS_STATUS = 4, SESS_INST_ID = 15,
+            SESS_SCHOOL = 11;
       // Survey column indices — mirrors programming.js STU_S / INST_S constants
       const STU_FILLED_BY_ID = 12, STU_OVERALL = 5, STU_CONF = 2, STU_ENJOY = 3, STU_LEARN = 4;
+      const STU_SCHOOL = 8, STU_DISTRICT = 9, STU_REGION = 10;
       const INST_FILLED_BY_ID = 12, INST_FILLED_BY = 0,
             INST_OVERALL = 5, INST_ENGAGE = 2, INST_ENJOY = 3, INST_LEARN = 4;
+      const INST_SCHOOL = 9, INST_DISTRICT = 10;
 
       // ── SI reason taxonomy ─────────────────────────────────────────────────
       // Tutor-caused: instructor absence or coverage failure
@@ -2741,41 +2743,63 @@
         }
       });
 
-      // ── Session rows — link tutors to scholars + instructional minutes ────
+      // ── Session rows: (1) direct name→tutor index + (2) scholarMap updates ──
+      // sessStudentNameToTutors is the PRIMARY tutor-lookup path for MOY matching.
+      // It maps student names directly from SESS col 2 → tutor keys, bypassing the
+      // iReady student_id ≠ Pearl USER_ID mismatch that breaks all UID-based joins.
+      // It also handles the case where SESS_STU_IDS (col 16) is empty and stuIds.forEach
+      // would silently produce no entries at all.
+      const sessStudentNameToTutors = {}; // lowercase name → { tutors: Set, minutesBySubject }
+
       sessRows.forEach(r => {
         if (!r) return;
         const status = (r[SESS_STATUS] || '').toLowerCase();
         if (status !== 'attended' && status !== 'complete' && status !== 'success'
             && !status.includes('partial')) return;
-        const durMins   = parseFloat(r[SESS_ACTUAL_DUR]) || 45;
+        const durMins    = parseFloat(r[SESS_ACTUAL_DUR]) || 45;
         const subjectRaw = (r[SESS_SUBJECT] || '').toLowerCase();
-        const subject   = subjectRaw.includes('ela') || subjectRaw.includes('english') || subjectRaw.includes('literacy') || subjectRaw.includes('reading') ? 'ELA' : 'Math';
-        const tutorId   = r[SESS_INST_ID]   || '';
-        const tutorName = (r[SESS_INSTRUCTOR] || '').trim();
-        const stuIds    = (r[SESS_STU_IDS]  || '').split(',').map(s => s.trim()).filter(Boolean);
-        const stuNames  = (r[SESS_STUDENTS] || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        const subject    = subjectRaw.includes('ela') || subjectRaw.includes('english') || subjectRaw.includes('literacy') || subjectRaw.includes('reading') ? 'ELA' : 'Math';
+        const tutorId    = r[SESS_INST_ID] || '';
+        const tutorName  = (r[SESS_INSTRUCTOR] || '').trim();
+        const tutorKey   = tutorId || tutorName;
+        const stuIds     = (r[SESS_STU_IDS]   || '').split(',').map(s => s.trim()).filter(Boolean);
+        const stuNamesRaw = (r[SESS_STUDENTS] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const stuNames   = stuNamesRaw.map(s => s.toLowerCase());
 
-        stuIds.forEach((sid, idx) => {
-          const key = sid || stuNames[idx] || '';
+        // — PRIMARY: build name→tutor index from SESS student names (col 2) —
+        // This is the most reliable cross-system join since both iReady and Pearl
+        // store student full names in the same format.
+        stuNames.forEach(nm => {
+          if (!nm) return;
+          if (!sessStudentNameToTutors[nm]) sessStudentNameToTutors[nm] = { tutors: new Set(), minutesBySubject: { Math: 0, ELA: 0 } };
+          if (tutorKey) sessStudentNameToTutors[nm].tutors.add(tutorKey);
+          sessStudentNameToTutors[nm].minutesBySubject[subject] += durMins;
+        });
+
+        // — SECONDARY: update scholarMap for att-data merge via _moyMatchOps —
+        // Use Pearl IDs as keys when available; fall back to names when SESS_STU_IDS empty.
+        const items = stuIds.length > 0
+          ? stuIds.map((sid, i) => ({ key: sid, rawName: stuNamesRaw[i] || '', nm: stuNames[i] || '' }))
+          : stuNamesRaw.map((n, i) => ({ key: n.toLowerCase(), rawName: n, nm: n.toLowerCase() }));
+
+        items.forEach(({ key, rawName, nm }) => {
           if (!key) return;
           if (!scholarMap[key]) scholarMap[key] = {
-            uid: sid, name: stuNames[idx] || sid,
+            uid: stuIds.length ? key : '', name: rawName || nm,
             attended: 0, missed: 0, siTutor: 0, siSchool: 0, siOther: 0,
             missReasons: {}, tutors: new Set(),
             minutesBySubject: { Math: 0, ELA: 0 }, surveyScores: [],
           };
-          scholarMap[key].tutors.add(tutorId || tutorName);
-          scholarMap[key].minutesBySubject[subject] = (scholarMap[key].minutesBySubject[subject] || 0) + durMins;
+          if (tutorKey) scholarMap[key].tutors.add(tutorKey);
+          scholarMap[key].minutesBySubject[subject] += durMins;
 
-          const tKey = tutorId || tutorName;
-          if (tKey) {
-            if (!tutorScholarMap[tKey]) tutorScholarMap[tKey] = {
+          if (tutorKey) {
+            if (!tutorScholarMap[tutorKey]) tutorScholarMap[tutorKey] = {
               name: tutorName, id: tutorId, scholars: new Set(),
               minutesBySubject: { Math: 0, ELA: 0 },
             };
-            tutorScholarMap[tKey].scholars.add(key);
-            tutorScholarMap[tKey].minutesBySubject[subject] =
-              (tutorScholarMap[tKey].minutesBySubject[subject] || 0) + durMins;
+            tutorScholarMap[tutorKey].scholars.add(key);
+            tutorScholarMap[tutorKey].minutesBySubject[subject] += durMins;
           }
         });
       });
@@ -2843,7 +2867,58 @@
         }
       });
 
-      return { scholarMap, tutorScholarMap, schoolIndex, tutorSurveyByUid, nameIndex };
+      // ── School-level ops aggregates ──────────────────────────────────────────
+      // Provides school/district/region context even when tutor-level matching fails.
+      // Joined to MOY academic data by school name in the rendering layer.
+      const schoolOpsMap = {}; // schoolKey(lower) → { name, district, region, siTutor, siSchool, siOther, stuSurvScores, instSurvScores }
+
+      attRows.forEach(r => {
+        if ((r[ATT_ROLE] || '') !== 'Student') return;
+        const sc = (r[ATT_SCHOOL] || '').trim();
+        if (!sc) return;
+        const scKey = sc.toLowerCase();
+        if (!schoolOpsMap[scKey]) schoolOpsMap[scKey] = {
+          name: sc, district: r[ATT_DISTRICT] || '', region: '',
+          siTutor: 0, siSchool: 0, siOther: 0, stuSurvScores: [], instSurvScores: [],
+        };
+        const cls = (r[ATT_ATT_STATUS] || '').toLowerCase();
+        const mr  = r[ATT_MISS_REASON] || '';
+        if (cls === 'service interruption' || cls === 'service_interruption' || cls === 'si') {
+          const reason = mr || 'Service Interruption';
+          if      (SI_TUTOR.has(reason))  schoolOpsMap[scKey].siTutor++;
+          else if (SI_SCHOOL.has(reason)) schoolOpsMap[scKey].siSchool++;
+          else                            schoolOpsMap[scKey].siOther++;
+        }
+      });
+      stuRows.forEach(r => {
+        const sc = (r[STU_SCHOOL] || '').trim();
+        if (!sc) return;
+        const scKey = sc.toLowerCase();
+        if (!schoolOpsMap[scKey]) {
+          schoolOpsMap[scKey] = { name: sc, district: '', region: r[STU_REGION] || '', siTutor: 0, siSchool: 0, siOther: 0, stuSurvScores: [], instSurvScores: [] };
+        } else if (!schoolOpsMap[scKey].region) {
+          schoolOpsMap[scKey].region = r[STU_REGION] || '';
+        }
+        const o = parseFloat(r[STU_OVERALL]);
+        if (!isNaN(o) && o > 0) schoolOpsMap[scKey].stuSurvScores.push(o);
+      });
+      instRows.forEach(r => {
+        const sc = (r[INST_SCHOOL] || '').trim();
+        if (!sc) return;
+        const scKey = sc.toLowerCase();
+        if (!schoolOpsMap[scKey]) {
+          schoolOpsMap[scKey] = { name: sc, district: r[INST_DISTRICT] || '', region: '', siTutor: 0, siSchool: 0, siOther: 0, stuSurvScores: [], instSurvScores: [] };
+        }
+        const o = parseFloat(r[INST_OVERALL]);
+        if (!isNaN(o) && o > 0) schoolOpsMap[scKey].instSurvScores.push(o);
+      });
+      const _sAvg = arr => arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : null;
+      Object.values(schoolOpsMap).forEach(s => {
+        s.stuSurvAvg  = _sAvg(s.stuSurvScores);
+        s.instSurvAvg = _sAvg(s.instSurvScores);
+      });
+
+      return { scholarMap, tutorScholarMap, schoolIndex, tutorSurveyByUid, nameIndex, sessStudentNameToTutors, schoolOpsMap };
     }
 
     // ── Match a MOY row to its operational profile ────────────────────────────
@@ -2905,8 +2980,20 @@
 
       rows.forEach(r => {
         if (!r.hasGrowth || r.pctTypical === null) return;
-        const ops    = opsMap ? _moyMatchOps(r, opsMap) : null;
-        const tutors = ops ? [...ops.tutors] : (r.instructor ? [r.instructor] : []);
+
+        // Primary tutor lookup: SESS student-name index — bypasses Pearl UID mismatch.
+        // Maps MOY scholar name directly to tutors via SESS col 2 student names.
+        const moyName   = (r.scholarName || '').trim().toLowerCase();
+        const sessEntry = opsMap && opsMap.sessStudentNameToTutors && moyName
+                          ? opsMap.sessStudentNameToTutors[moyName] : null;
+        // Secondary: att-based scholar profile (for attendance, SI, scholar survey data)
+        const ops = opsMap ? _moyMatchOps(r, opsMap) : null;
+
+        // Resolve tutors: SESS-name index → ops.tutors → MOY instructor field → unassigned
+        const tutorSet = (sessEntry && sessEntry.tutors && sessEntry.tutors.size)
+                         ? sessEntry.tutors
+                         : (ops && ops.tutors && ops.tutors.size ? ops.tutors : null);
+        const tutors = tutorSet ? [...tutorSet] : (r.instructor ? [r.instructor] : []);
         if (!tutors.length) tutors.push('__unassigned__');
 
         tutors.forEach(t => {
@@ -2934,18 +3021,21 @@
           else if (shift === 'down') td.movedDown++;
           else                  td.held++;
 
-          if (ops) {
-            // Instructional minutes split by subject
+          // Minutes: SESS entry is authoritative — avoids double-counting with ops.minutesBySubject
+          if (sessEntry) {
+            td.minutesMath += (sessEntry.minutesBySubject.Math || 0);
+            td.minutesELA  += (sessEntry.minutesBySubject.ELA  || 0);
+          } else if (ops) {
             td.minutesMath += (ops.minutesBySubject.Math || 0);
             td.minutesELA  += (ops.minutesBySubject.ELA  || 0);
-            // SI breakdown
-            td.siTutor  += (ops.siTutor  || 0);
-            td.siSchool += (ops.siSchool || 0);
-            td.siOther  += (ops.siOther  || 0);
-            // Scholar attendance totals (for att rate under this tutor)
-            td.scholAttended += (ops.attended || 0);
-            td.scholMissed   += (ops.missed   || 0);
-            // Scholar satisfaction
+          }
+          // Att / SI / survey: from ATT-row-based ops profile (separate data source)
+          if (ops) {
+            td.siTutor       += (ops.siTutor   || 0);
+            td.siSchool      += (ops.siSchool  || 0);
+            td.siOther       += (ops.siOther   || 0);
+            td.scholAttended += (ops.attended  || 0);
+            td.scholMissed   += (ops.missed    || 0);
             if (ops.surveyAvg !== null && ops.surveyAvg !== undefined) {
               td.scholSurveyScores.push(ops.surveyAvg);
             }
@@ -4042,8 +4132,8 @@
         }
 
         if (!tutors.length) {
-          html += `<div style="padding:2rem;text-align:center;color:var(--muted);font-size:.875rem">
-            ${hasPearl ? 'Tutor impact requires at least 3 scholars per tutor with valid growth data.' : 'Waiting for Pearl operational data to load.'}
+          html += `<div style="padding:1.5rem;text-align:center;color:var(--muted);font-size:.875rem;border:1.5px dashed var(--border-2);border-radius:10px;margin-bottom:1rem">
+            ${hasPearl ? 'Tutor impact requires at least 3 scholars per tutor with valid growth data. Scholar–tutor matching uses SESS student names (col 2) → direct name join.' : 'Waiting for Pearl operational data to load.'}
           </div>`;
         } else {
           const tierColor = t => t === 'High Impact' ? '#0d6e3a' : t === 'On Track' ? '#0050c8' : '#b91c1c';
@@ -4098,11 +4188,69 @@
             </tbody>
           </table></div>
           <div style="font-size:.75rem;color:var(--muted);margin-top:.75rem;line-height:1.5">
-            Scholar–tutor matching: Pearl student ID (primary) · full-name (secondary) · last-name + school-scoped (fallback).
+            Scholar–tutor matching: SESS student names (primary) · Pearl student ID · full-name index · last-name + school-scoped fallback.
             SIs: T=tutor-caused, S=school-caused, O=other. Scholar Att% = scholar sessions attended under this tutor.
             Tutor Survey = instructor post-session survey avg. Scholar Sat. = scholar satisfaction avg for this tutor's scholars.
             Min 3 scholars per tutor required.
           </div>`;
+        }
+
+        // ── School Operational Context Panel ─────────────────────────────────
+        // Always shown when Pearl data is available. Joins MOY academic school names
+        // to Pearl school-level SIs and survey scores to surface ops impact on outcomes.
+        if (hasPearl && opsMap && opsMap.schoolOpsMap) {
+          const schoolOpsData = opsMap.schoolOpsMap;
+          const moySchools = [...new Set(allRows.map(r => (r.school || '').trim()).filter(Boolean))];
+          const schoolCtxEntries = moySchools.map(sc => {
+            const sops = schoolOpsData[sc.toLowerCase()] || Object.values(schoolOpsData).find(s => s.name.toLowerCase() === sc.toLowerCase());
+            if (!sops) return null;
+            const scRows = allRows.filter(r => (r.school || '').trim().toLowerCase() === sc.toLowerCase() && r.hasGrowth && r.pctTypical !== null);
+            const medGrowth = scRows.length ? Math.round(_moyMedian(scRows.map(r => r.pctTypical)) * 100) : null;
+            return { name: sc, n: scRows.length, medGrowth,
+                     siTutor: sops.siTutor || 0, siSchool: sops.siSchool || 0, siOther: sops.siOther || 0,
+                     stuSurvAvg: sops.stuSurvAvg, instSurvAvg: sops.instSurvAvg,
+                     district: sops.district || '', region: sops.region || '' };
+          }).filter(Boolean).sort((a, b) => (b.siTutor + b.siSchool + b.siOther) - (a.siTutor + a.siSchool + a.siOther));
+
+          if (schoolCtxEntries.length) {
+            html += `<div style="margin-top:1.5rem">
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+                <span>School Operational Context — ${_moySubject} · Pearl service data</span>
+                <span style="font-size:.6875rem;font-weight:400;color:var(--muted)">· Did operations impact academic outcomes?</span>
+              </div>
+              <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+                <thead><tr style="background:#f0f4ff">
+                  <th style="padding:.5rem 1rem;text-align:left;color:var(--navy);font-size:.6875rem;font-weight:700;text-transform:uppercase;border-bottom:2px solid var(--border-2)">School</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholars with valid Fall+Winter growth data">N</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)">Med % Typical</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#b91c1c;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Tutor-caused service interruptions">Tutor SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:#d97706;font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="School/site-caused service interruptions">School SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--muted);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)">Other SIs</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Scholar post-session survey avg for this school">Scholar Sat.</th>
+                  <th style="padding:.5rem .5rem;text-align:center;color:var(--navy);font-size:.6875rem;font-weight:700;border-bottom:2px solid var(--border-2)" title="Instructor post-session survey avg for this school">Tutor Survey</th>
+                </tr></thead>
+                <tbody>
+                ${schoolCtxEntries.map((s, i) => {
+                  const siHigh = (s.siTutor + s.siSchool + s.siOther) > 10;
+                  return `<tr style="border-bottom:1px solid var(--border-2);${i%2===0?'background:var(--surface-2)':''}">
+                    <td style="padding:.5rem 1rem;font-weight:600;color:var(--navy);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.name)}">${esc(s.name)}${s.district ? `<div style="font-size:.6875rem;color:var(--muted);font-weight:400">${esc(s.district)}</div>` : ''}</td>
+                    <td style="padding:.5rem;text-align:center;color:var(--muted)">${s.n || '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:700;color:${s.medGrowth===null?'var(--muted)':s.medGrowth>=80?'#0d6e3a':s.medGrowth>=50?'#d97706':'#b91c1c'}">${s.medGrowth !== null ? s.medGrowth + '%' : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.siTutor>0?'700':'400'};color:${s.siTutor>5?'#b91c1c':s.siTutor>0?'#dc2626aa':'var(--muted)'}">${s.siTutor}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.siSchool>0?'700':'400'};color:${s.siSchool>5?'#d97706':s.siSchool>0?'#d97706aa':'var(--muted)'}">${s.siSchool}</td>
+                    <td style="padding:.5rem;text-align:center;color:var(--muted)">${s.siOther}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.stuSurvAvg!==null?'600':'400'};color:${s.stuSurvAvg===null?'var(--muted)':s.stuSurvAvg>=4?'#16a34a':'#d97706'}">${s.stuSurvAvg !== null ? s.stuSurvAvg + '/5' : '—'}</td>
+                    <td style="padding:.5rem;text-align:center;font-weight:${s.instSurvAvg!==null?'600':'400'};color:${s.instSurvAvg===null?'var(--muted)':s.instSurvAvg>=4?'#16a34a':'#d97706'}">${s.instSurvAvg !== null ? s.instSurvAvg + '/5' : '—'}</td>
+                  </tr>`;
+                }).join('')}
+                </tbody>
+              </table></div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:.625rem;line-height:1.5">
+                Tutor SIs = sessions lost to tutor absence or coverage failure · School SIs = facility/scheduling closures.
+                Scholar Sat. and Tutor Survey = Pearl post-session survey averages by school. Sorted by total SIs (highest first).
+              </div>
+            </div>`;
+          }
         }
       }
 
