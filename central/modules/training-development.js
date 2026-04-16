@@ -2996,7 +2996,14 @@
         (s.surveyAvg!= null && s.surveyAvg < 3.5) ||
         (s.flags && s.flags.length > 0)
       );
-      const weeklyTrend = leaderData.weeklyTrend;
+      // weeklyTrend from getLeadershipData() is an array of {week, rate, total} — compute delta
+      const weeklyTrendArr = leaderData.weeklyTrend || [];
+      const weeklyTrend = (() => {
+        if (weeklyTrendArr.length < 2) return null;
+        const prev = weeklyTrendArr[weeklyTrendArr.length - 2];
+        const last = weeklyTrendArr[weeklyTrendArr.length - 1];
+        return last.rate - prev.rate;
+      })();
       const districts   = leaderData.districts || [];
 
       // ── Sessions That Can Benefit From Support ───────────────────────
@@ -3087,19 +3094,29 @@
               <thead>
                 <tr style="background:#f8fafc">
                   <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">District</th>
-                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.05em">On Track</th>
-                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.05em">At Risk</th>
-                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.05em">Needs Action</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Scholar Att%</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Tutor Att%</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Scholars</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Sessions</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Status</th>
                 </tr>
               </thead>
               <tbody>
-                ${districts.map(d => `
-                <tr style="border-bottom:1px solid #f1f5f9">
-                  <td style="padding:.45rem .75rem;font-size:.8125rem;font-weight:600;color:#1e293b">${d.district||d.name||'—'}</td>
-                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#059669;font-weight:700">${d.scholarOnTrack!=null?d.scholarOnTrack:'—'}</td>
-                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#d97706;font-weight:700">${d.scholarAtRisk!=null?d.scholarAtRisk:'—'}</td>
-                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#dc2626;font-weight:700">${d.scholarNeedsAction!=null?d.scholarNeedsAction:'—'}</td>
-                </tr>`).join('')}
+                ${[...districts].sort((a,b) => (a.scholarRate||0) - (b.scholarRate||0)).map(d => {
+                  const sr = d.scholarRate != null ? d.scholarRate : null;
+                  const tr = d.tutorRate   != null ? d.tutorRate   : null;
+                  const statusLabel = sr == null ? 'No Data' : sr >= 80 ? 'On Track' : sr >= 70 ? 'At Risk' : 'Needs Action';
+                  const statusColor = sr == null ? '#94a3b8'   : sr >= 80 ? '#059669' : sr >= 70 ? '#d97706' : '#dc2626';
+                  const statusBg    = sr == null ? '#f8fafc'   : sr >= 80 ? '#f0fdf4' : sr >= 70 ? '#fffbeb' : '#fef2f2';
+                  return `<tr style="border-bottom:1px solid #f1f5f9">
+                    <td style="padding:.45rem .75rem;font-size:.8125rem;font-weight:600;color:#1e293b">${d.name||'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(sr)}">${sr!=null?sr+'%':'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(tr)}">${tr!=null?tr+'%':'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#374151">${d.scholars!=null?d.scholars:'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#374151">${d.sessions!=null?d.sessions:'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center"><span style="font-size:.6875rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;color:${statusColor};background:${statusBg}">${statusLabel}</span></td>
+                  </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -3259,7 +3276,7 @@
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.surveyAvg)}">${s.surveyAvg!=null?s.surveyAvg.toFixed(2):'—'}</td>
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.instSurveyAvg)}">${s.instSurveyAvg!=null?s.instSurveyAvg.toFixed(2):'—'}</td>
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#64748b">${s.sessions!=null?s.sessions:'—'}</td>
-                  <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#64748b">${s.siCount!=null?s.siCount:'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#64748b">${s.surveyCount!=null?s.surveyCount:'—'}</td>
                 </tr>`).join('')}
               </tbody>
             </table>
