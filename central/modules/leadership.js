@@ -442,10 +442,10 @@
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy" title="Active Tutors: Count of employees with Active status in HR roster (HR_EMPS). This is the authoritative headcount — sourced from HR data, not Pearl attendance records.">
-          <div class="ecd-kpi-lbl">Active Tutors</div>
+        <div class="ecd-kpi ck-navy" title="Active Onsite Staff: Count of employees with Active status in HR Master List (HR_EMPS). This is the authoritative headcount — sourced from HR data, not Pearl attendance records.">
+          <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">Active employees · HR roster</div>
+          <div class="ecd-kpi-foot">Active FT staff · HR Master List</div>
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: Count of unique partner districts derived from Pearl Operations attendance records.">
           <div class="ecd-kpi-lbl">Districts</div>

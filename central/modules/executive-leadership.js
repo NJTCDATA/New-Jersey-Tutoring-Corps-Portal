@@ -134,7 +134,7 @@
       if (sya.sites)     chips.push({ico:'&#127960;',col:'#e0e7ff',txt:''+sya.sites,sub:'School Sites'+(sya.districts?' · '+sya.districts+' Districts':'')});
       if (po&&po.sessions)chips.push({ico:'&#9200;', col:'#dcfce7',txt:fmtN(po.sessions),sub:'Sessions Delivered'});
       var _hrActiveCt = (typeof HR_EMPS!=='undefined'&&HR_EMPS.length) ? HR_EMPS.filter(function(e){return e.s==='Active';}).length : (po?po.activeTutors:null);
-      if (_hrActiveCt) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+_hrActiveCt,sub:'Active Tutors'});
+      if (_hrActiveCt) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+_hrActiveCt,sub:'Active Onsite Staff'});
 
       // ── ATTENDANCE ──
       if (po&&po.instAttPct!=null) {
