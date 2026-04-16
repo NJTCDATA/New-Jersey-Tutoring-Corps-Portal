@@ -1,7 +1,7 @@
 {
-  "generated": "2026-04-16T18:04:27.820Z",
+  "generated": "2026-04-16T19:43:43.755Z",
   "project": "1211431518555737",
-  "count": 33,
+  "count": 32,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -744,40 +744,6 @@
       "name": "Host 2 in person events for the central team (Winter and Summer)",
       "notes": "Hosted December gathering\n\n",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555962"
-    },
-    {
-      "gid": "1211431518555967",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-03-20",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Identify and cross-train staff on key organizational activities to ensure business continuity",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555967"
     },
     {
       "gid": "1211431518555979",
