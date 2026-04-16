@@ -193,284 +193,8 @@
     window._njtcIM = im;
 
     // ── Insight drilldown modal ──────────────────────────────────────────────
-    window._njtcInsightDrill = function(tab) {
-      var d = window._njtcIM;
-      if (!d) return;
-      // Remove existing modal if any
-      var old = document.getElementById('ecdiModal');
-      if (old) old.remove();
-
-      // ── Helper: small median bar cell ──
-      function _barCell(val, max, cls) {
-        var pct = (max > 0 && val != null) ? Math.min(100, Math.max(0, Math.round(val/max*100))) : 0;
-        return '<td class="ecdi-bar-cell"><div class="ecdi-bar-wrap"><div class="ecdi-bar-fill" style="width:'+pct+'%;background:'+(cls||'#0050c8')+'"></div></div></td>';
-      }
-      function _gainSpan(v) {
-        if (v == null) return '—';
-        var s = (v>0?'+':'')+v;
-        return '<span class="'+(v>0?'ecdi-gain-pos':v<0?'ecdi-gain-neg':'')+'">' +s+'</span>';
-      }
-      function _fmt1(v) { return v != null ? v.toFixed(1) : '—'; }
-      function _fmtPct(v) { return v != null ? Math.round(v)+'%' : '—'; }
-
-      // ── Get unique values for filter dropdowns ──
-      var rows   = d.drillRows || [];
-      var _uniq  = function(field) {
-        var s={}; rows.forEach(function(r){if(r[field]) s[r[field]]=1;}); return Object.keys(s).sort();
-      };
-      var selects = [
-        { id:'ecdi-f-year',    label:'Year',       field:'year',       vals:_uniq('year')       },
-        { id:'ecdi-f-dist',    label:'District',   field:'district',   vals:_uniq('district')   },
-        { id:'ecdi-f-school',  label:'School',     field:'school',     vals:_uniq('school')     },
-        { id:'ecdi-f-grade',   label:'Grade',      field:'grade',      vals:_uniq('grade')      },
-        { id:'ecdi-f-subject', label:'Subject',    field:'subject',    vals:_uniq('subject')    },
-        { id:'ecdi-f-race',    label:'Race',       field:'race',       vals:_uniq('race')       },
-        { id:'ecdi-f-eth',     label:'Ethnicity',  field:'ethnicity',  vals:_uniq('ethnicity')  },
-        { id:'ecdi-f-econ',    label:'Econ Status',field:'econ',       vals:_uniq('econ')       },
-      ].filter(function(s){ return s.vals.length > 1; });
-
-      function _sel(s) {
-        return '<select id="'+s.id+'" class="ecdi-filter-sel" onchange="window._ecdiApplyFilters()">'
-          +'<option value="">'+s.label+' (all)</option>'
-          +s.vals.map(function(v){return '<option value="'+v.replace(/"/g,'&quot;')+'">'+v+'</option>';}).join('')
-          +'</select>';
-      }
-
-      // ── Apply filters + sort + paginate ──
-      var _ecdiPage = 0, _ecdiPageSize = 50, _ecdiSortCol = 'scaleGain', _ecdiSortAsc = false;
-      window._ecdiApplyFilters = function() {
-        var filtered = rows.filter(function(r) {
-          return selects.every(function(s) {
-            var el2 = document.getElementById(s.id);
-            var v = el2 ? el2.value : '';
-            return !v || r[s.field] === v;
-          });
-        });
-        filtered.sort(function(a,b){
-          var av=a[_ecdiSortCol], bv=b[_ecdiSortCol];
-          if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1;
-          return _ecdiSortAsc ? (av>bv?1:av<bv?-1:0) : (av<bv?1:av>bv?-1:0);
-        });
-        _ecdiPage = 0;
-        window._ecdiFiltered = filtered;
-        _ecdiRender();
-      };
-      window._ecdiSort = function(col) {
-        if(_ecdiSortCol===col) _ecdiSortAsc=!_ecdiSortAsc; else {_ecdiSortCol=col;_ecdiSortAsc=false;}
-        window._ecdiApplyFilters();
-      };
-      window._ecdiChangePage = function(dir) {
-        var pages = Math.ceil((window._ecdiFiltered||[]).length/_ecdiPageSize);
-        _ecdiPage = Math.max(0, Math.min(pages-1, _ecdiPage+dir));
-        _ecdiRender();
-      };
-
-      function _thSort(col, label) {
-        var arr = _ecdiSortCol===col ? (_ecdiSortAsc?' ▲':' ▼') : '';
-        return '<th onclick="window._ecdiSort(\''+col+'\')" title="Sort by '+label+'">'+label+arr+'</th>';
-      }
-
-      function _ecdiRender() {
-        var filtered = window._ecdiFiltered || [];
-        var start    = _ecdiPage * _ecdiPageSize;
-        var page     = filtered.slice(start, start+_ecdiPageSize);
-        var pages    = Math.ceil(filtered.length/_ecdiPageSize);
-        var body     = document.getElementById('ecdi-body');
-        if (!body) return;
-        // Scholar Growth Detail
-        var rows2 = page.map(function(r){
-          return '<tr>'
-            +'<td>'+(r.scholarId||'—')+'</td>'
-            +'<td>'+(r.district||'—')+'</td>'
-            +'<td>'+(r.school||'—')+'</td>'
-            +'<td>'+(r.grade||'—')+'</td>'
-            +'<td>'+(r.subject||'—')+'</td>'
-            +'<td class="num">'+(r.baseScore!=null?r.baseScore:'—')+'</td>'
-            +'<td class="num">'+(r.springScore!=null?r.springScore:'—')+'</td>'
-            +'<td class="num">'+_gainSpan(r.scaleGain)+'</td>'
-            +'<td class="num">'+_fmt1(r.monthsGrowth)+'</td>'
-            +'<td class="num">'+_fmtPct(r.pctExpected)+'</td>'
-            +'</tr>';
-        }).join('');
-        body.innerHTML = '<table class="ecdi-tbl"><thead><tr>'
-          +_thSort('scholarId','Scholar ID')
-          +_thSort('district','District')
-          +_thSort('school','School')
-          +_thSort('grade','Grade')
-          +_thSort('subject','Subject')
-          +_thSort('baseScore','Baseline')
-          +_thSort('springScore','Spring')
-          +_thSort('scaleGain','Scale Gain')
-          +_thSort('monthsGrowth','Months')
-          +_thSort('pctExpected','% Expected')
-          +'</tr></thead><tbody>'+rows2+'</tbody></table>'
-          +'<div class="ecdi-paginate">'
-          +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(-1)" '+(start<=0?'disabled':'')+'>← Prev</button>'
-          +'<span>Showing '+(filtered.length?start+1:0)+'–'+Math.min(start+_ecdiPageSize,filtered.length)+' of '+filtered.length.toLocaleString()+' records</span>'
-          +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(1)" '+(start+_ecdiPageSize>=filtered.length?'disabled':'')+'>Next →</button>'
-          +'</div>';
-      }
-
-      var _tabs = [
-        { id:'growth',    label:'Scholar Growth Detail' },
-        { id:'demo',      label:'Demographic Insights' },
-        { id:'district',  label:'District Outcomes' },
-        { id:'school',    label:'School Breakdown' },
-        { id:'grade',     label:'Grade Level' },
-        { id:'tutors',    label:'Tutor Contributors' }
-      ];
-      var _activeTab = tab || 'growth';
-
-      // ── Demographic breakdown table ──
-      function _demoTable(groups, title) {
-        if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
-        var maxGain = Math.max.apply(null, groups.map(function(g){return g.medGain||0;}));
-        var rows3 = groups.map(function(g){
-          return '<tr>'
-            +'<td>'+g.label+'</td>'
-            +'<td class="num">'+g.n+'</td>'
-            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
-            +_barCell(g.medGain, maxGain, '#0891b2')
-            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
-            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
-            +'</tr>';
-        }).join('');
-        return '<div style="font-size:.72rem;font-weight:700;color:#0a1628;margin-bottom:.5rem">'+title+'</div>'
-          +'<table class="ecdi-tbl" style="margin-bottom:1.25rem"><thead><tr>'
-          +'<th>Group</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
-          +'</tr></thead><tbody>'+rows3+'</tbody></table>';
-      }
-
-      // ── Generic ranked group table ──
-      function _groupTable(groups, labelCol, color) {
-        if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
-        var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
-        var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
-        var rowsHtml = sorted.map(function(g, i){
-          return '<tr>'
-            +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
-            +'<td>'+g.label+'</td>'
-            +'<td class="num">'+g.n+'</td>'
-            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
-            +_barCell(g.medGain, maxGain, color||'#059669')
-            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
-            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
-            +'</tr>';
-        }).join('');
-        return '<table class="ecdi-tbl"><thead><tr>'
-          +'<th></th><th>'+labelCol+'</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
-          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
-      }
-
-      // ── District outcomes table ──
-      function _distTable() {
-        return _groupTable(d.byDistrict||[], 'District', '#059669');
-      }
-
-      // ── Tutor contributors table ──
-      function _tutorTable() {
-        var groups = d.byTutor||[];
-        if (!groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No tutor data.</div>';
-        var hrEmps = window.HR_EMPS || [];
-        var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
-        var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
-        function _certBadge(name) {
-          var emp = hrEmps.find(function(e){ return e.n && e.n.toLowerCase() === (name||'').toLowerCase(); });
-          if (!emp) return '';
-          var isCert = emp._tutorCert === 'Yes' || emp._tutorCert === true || /certified/i.test(emp._tutorCert||'');
-          return isCert
-            ? '<span style="font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700;margin-left:.3rem">✓ Cert</span>'
-            : '<span style="font-size:.58rem;background:#fef3c7;color:#92400e;padding:.1rem .3rem;border-radius:4px;font-weight:600;margin-left:.3rem">Non-Cert</span>';
-        }
-        var rowsHtml = sorted.map(function(g, i){
-          return '<tr>'
-            +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
-            +'<td>'+g.label+_certBadge(g.label)+'</td>'
-            +'<td class="num">'+g.n+'</td>'
-            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
-            +_barCell(g.medGain, maxGain, '#7c3aed')
-            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
-            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
-            +'</tr>';
-        }).join('');
-        return '<table class="ecdi-tbl"><thead><tr>'
-          +'<th></th><th>Tutor</th><th>Scholars</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
-          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
-      }
-
-      function _tabBody() {
-        if (_activeTab==='growth') {
-          return '<div id="ecdi-filters-wrap"><div class="ecdi-modal-filters">'
-            +selects.map(_sel).join('')
-            +'</div></div>'
-            +'<div class="ecdi-modal-body" id="ecdi-body"></div>';
-        }
-        if (_activeTab==='demo') {
-          return '<div class="ecdi-modal-body">'
-            +_demoTable(d.byRace||[], 'By Race')
-            +_demoTable(d.byEthnicity||[], 'By Ethnicity')
-            +_demoTable(d.byEconStatus||[], 'By Economic Status')
-            +'</div>';
-        }
-        if (_activeTab==='district') {
-          return '<div class="ecdi-modal-body">'+_distTable()+'</div>';
-        }
-        if (_activeTab==='school') {
-          return '<div class="ecdi-modal-body">'+_groupTable(d.bySchool||[], 'School', '#0891b2')+'</div>';
-        }
-        if (_activeTab==='grade') {
-          return '<div class="ecdi-modal-body">'+_groupTable((d.byGrade||[]).slice().sort(function(a,b){ return (a.label||'').localeCompare(b.label||''); }), 'Grade', '#d97706')+'</div>';
-        }
-        if (_activeTab==='tutors') {
-          return '<div class="ecdi-modal-body">'+_tutorTable()+'</div>';
-        }
-        return '';
-      }
-
-      function _switchTab(t) {
-        _activeTab = t;
-        var mc = document.getElementById('ecdi-modal-content');
-        if (mc) mc.innerHTML = _tabBody();
-        _tabs.forEach(function(tb){
-          var btn = document.getElementById('ecdi-tab-'+tb.id);
-          if (btn) btn.className = 'ecdi-tab'+(tb.id===t?' active':'');
-        });
-        if (t==='growth') { window._ecdiApplyFilters(); }
-      }
-      window._ecdiSwitchTab = _switchTab;
-
-      var modalHTML = '<div id="ecdiModal" class="ecdi-overlay">'
-        +'<div class="ecdi-modal">'
-        +'<div class="ecdi-modal-hdr">'
-        +'<div><div class="ecdi-modal-title">Academic Insight Drilldown</div>'
-        +'<div class="ecdi-modal-sub">iReady diagnostic outcomes · '
-        +(d.allYears&&d.allYears.length ? d.allYears.join(', ') : 'All Years')
-        +' · '+d.n+' records with growth data</div></div>'
-        +'<button class="ecdi-modal-close" onclick="window._ecdiClose()">✕</button>'
-        +'</div>'
-        +'<div class="ecdi-modal-tabs">'
-        +_tabs.map(function(t){
-          return '<button id="ecdi-tab-'+t.id+'" class="ecdi-tab'+(t.id===_activeTab?' active':'')+'" onclick="window._ecdiSwitchTab(\''+t.id+'\')">'+t.label+'</button>';
-        }).join('')
-        +'</div>'
-        +'<div id="ecdi-modal-content">'+_tabBody()+'</div>'
-        +'</div></div>';
-
-      document.body.insertAdjacentHTML('beforeend', modalHTML);
-      requestAnimationFrame(function(){
-        var o = document.getElementById('ecdiModal');
-        if (o) { o.classList.add('open'); if (tab==='growth') window._ecdiApplyFilters(); }
-      });
-    };
-
-    window._ecdiClose = function() {
-      var o = document.getElementById('ecdiModal');
-      if (o) { o.classList.remove('open'); setTimeout(function(){ if(o.parentNode) o.remove(); }, 250); }
-    };
-    // Close on backdrop click
-    document.addEventListener('click', function(e) {
-      if (e.target && e.target.id === 'ecdiModal') window._ecdiClose();
-    });
+    // Defined at module level below so it's always available regardless of which
+    // dept view is active when the iReady KPI tiles are clicked.
 
     el.innerHTML = `<div class="ecd-main-col">
       <!-- ═══ HEADER ═══ -->
@@ -1516,6 +1240,254 @@
   window.expPrint      = expPrint;
   window.expSwitchMode = expSwitchMode;
   window.expInvalidate = expInvalidate;
+
+  // ── iReady Academic Insight drilldown modal ──────────────────────────────
+  // Defined at module level so it's always available — iReady panel buttons call
+  // this from any dept view, not just the leadership exec dashboard.
+  window._njtcInsightDrill = function(tab) {
+    var d = window._njtcIM;
+    if (!d) return;
+    var old = document.getElementById('ecdiModal');
+    if (old) old.remove();
+
+    function _barCell(val, max, cls) {
+      var pct = (max > 0 && val != null) ? Math.min(100, Math.max(0, Math.round(val/max*100))) : 0;
+      return '<td class="ecdi-bar-cell"><div class="ecdi-bar-wrap"><div class="ecdi-bar-fill" style="width:'+pct+'%;background:'+(cls||'#0050c8')+'"></div></div></td>';
+    }
+    function _gainSpan(v) {
+      if (v == null) return '—';
+      var s = (v>0?'+':'')+v;
+      return '<span class="'+(v>0?'ecdi-gain-pos':v<0?'ecdi-gain-neg':'')+'">' +s+'</span>';
+    }
+    function _fmt1(v) { return v != null ? v.toFixed(1) : '—'; }
+    function _fmtPct(v) { return v != null ? Math.round(v)+'%' : '—'; }
+
+    var rows   = d.drillRows || [];
+    var _uniq  = function(field) {
+      var s={}; rows.forEach(function(r){if(r[field]) s[r[field]]=1;}); return Object.keys(s).sort();
+    };
+    var selects = [
+      { id:'ecdi-f-year',    label:'Year',       field:'year',       vals:_uniq('year')       },
+      { id:'ecdi-f-dist',    label:'District',   field:'district',   vals:_uniq('district')   },
+      { id:'ecdi-f-school',  label:'School',     field:'school',     vals:_uniq('school')     },
+      { id:'ecdi-f-grade',   label:'Grade',      field:'grade',      vals:_uniq('grade')      },
+      { id:'ecdi-f-subject', label:'Subject',    field:'subject',    vals:_uniq('subject')    },
+      { id:'ecdi-f-race',    label:'Race',       field:'race',       vals:_uniq('race')       },
+      { id:'ecdi-f-eth',     label:'Ethnicity',  field:'ethnicity',  vals:_uniq('ethnicity')  },
+      { id:'ecdi-f-econ',    label:'Econ Status',field:'econ',       vals:_uniq('econ')       },
+    ].filter(function(s){ return s.vals.length > 1; });
+
+    function _sel(s) {
+      return '<select id="'+s.id+'" class="ecdi-filter-sel" onchange="window._ecdiApplyFilters()">'
+        +'<option value="">'+s.label+' (all)</option>'
+        +s.vals.map(function(v){return '<option value="'+v.replace(/"/g,'&quot;')+'">'+v+'</option>';}).join('')
+        +'</select>';
+    }
+
+    var _ecdiPage = 0, _ecdiPageSize = 50, _ecdiSortCol = 'scaleGain', _ecdiSortAsc = false;
+    window._ecdiApplyFilters = function() {
+      var filtered = rows.filter(function(r) {
+        return selects.every(function(s) {
+          var el2 = document.getElementById(s.id);
+          var v = el2 ? el2.value : '';
+          return !v || r[s.field] === v;
+        });
+      });
+      filtered.sort(function(a,b){
+        var av=a[_ecdiSortCol], bv=b[_ecdiSortCol];
+        if(av==null&&bv==null) return 0; if(av==null) return 1; if(bv==null) return -1;
+        return _ecdiSortAsc ? (av>bv?1:av<bv?-1:0) : (av<bv?1:av>bv?-1:0);
+      });
+      _ecdiPage = 0;
+      window._ecdiFiltered = filtered;
+      _ecdiRender();
+    };
+    window._ecdiSort = function(col) {
+      if(_ecdiSortCol===col) _ecdiSortAsc=!_ecdiSortAsc; else {_ecdiSortCol=col;_ecdiSortAsc=false;}
+      window._ecdiApplyFilters();
+    };
+    window._ecdiChangePage = function(dir) {
+      var pages = Math.ceil((window._ecdiFiltered||[]).length/_ecdiPageSize);
+      _ecdiPage = Math.max(0, Math.min(pages-1, _ecdiPage+dir));
+      _ecdiRender();
+    };
+
+    function _thSort(col, label) {
+      var arr = _ecdiSortCol===col ? (_ecdiSortAsc?' ▲':' ▼') : '';
+      return '<th onclick="window._ecdiSort(\''+col+'\')" title="Sort by '+label+'">'+label+arr+'</th>';
+    }
+
+    function _ecdiRender() {
+      var filtered = window._ecdiFiltered || [];
+      var start    = _ecdiPage * _ecdiPageSize;
+      var page     = filtered.slice(start, start+_ecdiPageSize);
+      var body     = document.getElementById('ecdi-body');
+      if (!body) return;
+      var rows2 = page.map(function(r){
+        return '<tr>'
+          +'<td>'+(r.scholarId||'—')+'</td>'
+          +'<td>'+(r.district||'—')+'</td>'
+          +'<td>'+(r.school||'—')+'</td>'
+          +'<td>'+(r.grade||'—')+'</td>'
+          +'<td>'+(r.subject||'—')+'</td>'
+          +'<td class="num">'+(r.baseScore!=null?r.baseScore:'—')+'</td>'
+          +'<td class="num">'+(r.springScore!=null?r.springScore:'—')+'</td>'
+          +'<td class="num">'+_gainSpan(r.scaleGain)+'</td>'
+          +'<td class="num">'+_fmt1(r.monthsGrowth)+'</td>'
+          +'<td class="num">'+_fmtPct(r.pctExpected)+'</td>'
+          +'</tr>';
+      }).join('');
+      body.innerHTML = '<table class="ecdi-tbl"><thead><tr>'
+        +_thSort('scholarId','Scholar ID')
+        +_thSort('district','District')
+        +_thSort('school','School')
+        +_thSort('grade','Grade')
+        +_thSort('subject','Subject')
+        +_thSort('baseScore','Baseline')
+        +_thSort('springScore','Spring')
+        +_thSort('scaleGain','Scale Gain')
+        +_thSort('monthsGrowth','Months')
+        +_thSort('pctExpected','% Expected')
+        +'</tr></thead><tbody>'+rows2+'</tbody></table>'
+        +'<div class="ecdi-paginate">'
+        +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(-1)" '+(start<=0?'disabled':'')+'>← Prev</button>'
+        +'<span>Showing '+(filtered.length?start+1:0)+'–'+Math.min(start+_ecdiPageSize,filtered.length)+' of '+filtered.length.toLocaleString()+' records</span>'
+        +'<button class="ecdi-pg-btn" onclick="window._ecdiChangePage(1)" '+(start+_ecdiPageSize>=filtered.length?'disabled':'')+'>Next →</button>'
+        +'</div>';
+    }
+
+    var _tabs = [
+      { id:'growth',   label:'Scholar Growth Detail' },
+      { id:'demo',     label:'Demographic Insights'  },
+      { id:'district', label:'District Outcomes'     },
+      { id:'school',   label:'School Breakdown'      },
+      { id:'grade',    label:'Grade Level'           },
+      { id:'tutors',   label:'Tutor Contributors'    }
+    ];
+    var _activeTab = tab || 'growth';
+
+    function _demoTable(groups, title) {
+      if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
+      var maxGain = Math.max.apply(null, groups.map(function(g){return g.medGain||0;}));
+      var rows3 = groups.map(function(g){
+        return '<tr>'
+          +'<td>'+g.label+'</td>'
+          +'<td class="num">'+g.n+'</td>'
+          +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+          +_barCell(g.medGain, maxGain, '#0891b2')
+          +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+          +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+          +'</tr>';
+      }).join('');
+      return '<div style="font-size:.72rem;font-weight:700;color:#0a1628;margin-bottom:.5rem">'+title+'</div>'
+        +'<table class="ecdi-tbl" style="margin-bottom:1.25rem"><thead><tr>'
+        +'<th>Group</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+        +'</tr></thead><tbody>'+rows3+'</tbody></table>';
+    }
+
+    function _groupTable(groups, labelCol, color) {
+      if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
+      var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
+      var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
+      var rowsHtml = sorted.map(function(g, i){
+        return '<tr>'
+          +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
+          +'<td>'+g.label+'</td>'
+          +'<td class="num">'+g.n+'</td>'
+          +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+          +_barCell(g.medGain, maxGain, color||'#059669')
+          +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+          +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+          +'</tr>';
+      }).join('');
+      return '<table class="ecdi-tbl"><thead><tr>'
+        +'<th></th><th>'+labelCol+'</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+        +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+    }
+
+    function _tutorTable() {
+      var groups = d.byTutor||[];
+      if (!groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No tutor data.</div>';
+      var hrEmps = window.HR_EMPS || [];
+      var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
+      var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
+      function _certBadge(name) {
+        var emp = hrEmps.find(function(e){ return e.n && e.n.toLowerCase() === (name||'').toLowerCase(); });
+        if (!emp) return '';
+        var isCert = emp._tutorCert === 'Yes' || emp._tutorCert === true || /certified/i.test(emp._tutorCert||'');
+        return isCert
+          ? '<span style="font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700;margin-left:.3rem">✓ Cert</span>'
+          : '<span style="font-size:.58rem;background:#fef3c7;color:#92400e;padding:.1rem .3rem;border-radius:4px;font-weight:600;margin-left:.3rem">Non-Cert</span>';
+      }
+      var rowsHtml = sorted.map(function(g, i){
+        return '<tr>'
+          +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
+          +'<td>'+g.label+_certBadge(g.label)+'</td>'
+          +'<td class="num">'+g.n+'</td>'
+          +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+          +_barCell(g.medGain, maxGain, '#7c3aed')
+          +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+          +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+          +'</tr>';
+      }).join('');
+      return '<table class="ecdi-tbl"><thead><tr>'
+        +'<th></th><th>Tutor</th><th>Scholars</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+        +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+    }
+
+    function _tabBody() {
+      if (_activeTab==='growth')   return '<div id="ecdi-filters-wrap"><div class="ecdi-modal-filters">'+selects.map(_sel).join('')+'</div></div><div class="ecdi-modal-body" id="ecdi-body"></div>';
+      if (_activeTab==='demo')     return '<div class="ecdi-modal-body">'+_demoTable(d.byRace||[],'By Race')+_demoTable(d.byEthnicity||[],'By Ethnicity')+_demoTable(d.byEconStatus||[],'By Economic Status')+'</div>';
+      if (_activeTab==='district') return '<div class="ecdi-modal-body">'+_groupTable(d.byDistrict||[],'District','#059669')+'</div>';
+      if (_activeTab==='school')   return '<div class="ecdi-modal-body">'+_groupTable(d.bySchool||[],'School','#0891b2')+'</div>';
+      if (_activeTab==='grade')    return '<div class="ecdi-modal-body">'+_groupTable((d.byGrade||[]).slice().sort(function(a,b){return (a.label||'').localeCompare(b.label||'');}), 'Grade','#d97706')+'</div>';
+      if (_activeTab==='tutors')   return '<div class="ecdi-modal-body">'+_tutorTable()+'</div>';
+      return '';
+    }
+
+    function _switchTab(t) {
+      _activeTab = t;
+      var mc = document.getElementById('ecdi-modal-content');
+      if (mc) mc.innerHTML = _tabBody();
+      _tabs.forEach(function(tb){
+        var btn = document.getElementById('ecdi-tab-'+tb.id);
+        if (btn) btn.className = 'ecdi-tab'+(tb.id===t?' active':'');
+      });
+      if (t==='growth') window._ecdiApplyFilters();
+    }
+    window._ecdiSwitchTab = _switchTab;
+
+    var modalHTML = '<div id="ecdiModal" class="ecdi-overlay">'
+      +'<div class="ecdi-modal">'
+      +'<div class="ecdi-modal-hdr">'
+      +'<div><div class="ecdi-modal-title">Academic Insight Drilldown</div>'
+      +'<div class="ecdi-modal-sub">iReady diagnostic outcomes · '
+      +(d.allYears&&d.allYears.length ? d.allYears.join(', ') : 'All Years')
+      +' · '+d.n+' records with growth data</div></div>'
+      +'<button class="ecdi-modal-close" onclick="window._ecdiClose()">✕</button>'
+      +'</div>'
+      +'<div class="ecdi-modal-tabs">'
+      +_tabs.map(function(t){
+        return '<button id="ecdi-tab-'+t.id+'" class="ecdi-tab'+(t.id===_activeTab?' active':'')+'" onclick="window._ecdiSwitchTab(\''+t.id+'\')">'+t.label+'</button>';
+      }).join('')
+      +'</div>'
+      +'<div id="ecdi-modal-content">'+_tabBody()+'</div>'
+      +'</div></div>';
+
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    requestAnimationFrame(function(){
+      var o = document.getElementById('ecdiModal');
+      if (o) { o.classList.add('open'); if (tab==='growth') window._ecdiApplyFilters(); }
+    });
+  };
+
+  window._ecdiClose = function() {
+    var o = document.getElementById('ecdiModal');
+    if (o) { o.classList.remove('open'); setTimeout(function(){ if(o.parentNode) o.remove(); }, 250); }
+  };
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'ecdiModal') window._ecdiClose();
+  });
 
   // ── Expose to global scope ───────────────────────────────────────────────
   window.buildExecDashboard       = buildExecDashboard;

@@ -1288,6 +1288,7 @@
     let _filtWeek     = [];
     let _filtRole     = [];
     let _filtFlag     = [];
+    let _poGlobalQ    = '';  // global text search (tutor / school / district)
 
     // ── Multi-Select Widget Builder ────────────────────────────────────────
     const _msState = {};
@@ -2644,8 +2645,13 @@
       const total = _attRows.length;
       const filtered = filteredAttRows().length;
       const el = document.getElementById('poFilterInfo');
-      const hasFilter = _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length;
+      const hasFilter = _filtDistrict.length || _filtSchool.length || _filtWeek.length || _filtRole.length || _filtFlag.length || _poGlobalQ;
       if (el) el.textContent = hasFilter ? `${filtered.toLocaleString()} of ${total.toLocaleString()} records match` : '';
+    }
+
+    function _globalSearch(q) {
+      _poGlobalQ = (q||'').trim();
+      renderView();
     }
 
     function clearFilters() {
@@ -2973,10 +2979,16 @@
     }
 
     function filteredSchools() {
-      return Object.values(_schoolMap).filter(sc =>
-        (!_filtDistrict.length || _filtDistrict.includes(sc.district)) &&
-        (!_filtSchool.length   || _filtSchool.includes(sc.school))
-      );
+      const q = (_poGlobalQ||'').toLowerCase().trim();
+      return Object.values(_schoolMap).filter(sc => {
+        if (_filtDistrict.length && !_filtDistrict.includes(sc.district)) return false;
+        if (_filtSchool.length   && !_filtSchool.includes(sc.school))     return false;
+        if (q) {
+          const hay = ((sc.school||'') + ' ' + (sc.district||'')).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
     }
 
     // ── VIEW ROUTER ───────────────────────────────────────────────────────
@@ -6458,7 +6470,7 @@
     }
 
     return {
-      init, refresh, applyFilters, clearFilters,
+      init, refresh, applyFilters, clearFilters, _globalSearch,
       drillSchool, drillPerson, goBack,
       switchTab, switchPersonTab,
       openFlagsModal, onPanelOpen,
