@@ -314,7 +314,10 @@
       var _tabs = [
         { id:'growth',    label:'Scholar Growth Detail' },
         { id:'demo',      label:'Demographic Insights' },
-        { id:'district',  label:'District Outcomes' }
+        { id:'district',  label:'District Outcomes' },
+        { id:'school',    label:'School Breakdown' },
+        { id:'grade',     label:'Grade Level' },
+        { id:'tutors',    label:'Tutor Contributors' }
       ];
       var _activeTab = tab || 'growth';
 
@@ -338,26 +341,61 @@
           +'</tr></thead><tbody>'+rows3+'</tbody></table>';
       }
 
-      // ── District outcomes table ──
-      function _distTable() {
-        var groups = d.byDistrict||[];
-        if (!groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No district data.</div>';
+      // ── Generic ranked group table ──
+      function _groupTable(groups, labelCol, color) {
+        if (!groups || !groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No data.</div>';
         var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
         var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
-        var rows4 = sorted.map(function(g, i){
+        var rowsHtml = sorted.map(function(g, i){
           return '<tr>'
             +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
             +'<td>'+g.label+'</td>'
             +'<td class="num">'+g.n+'</td>'
             +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
-            +_barCell(g.medGain, maxGain, '#059669')
+            +_barCell(g.medGain, maxGain, color||'#059669')
             +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
             +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
             +'</tr>';
         }).join('');
         return '<table class="ecdi-tbl"><thead><tr>'
-          +'<th></th><th>District</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
-          +'</tr></thead><tbody>'+rows4+'</tbody></table>';
+          +'<th></th><th>'+labelCol+'</th><th>n</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+      }
+
+      // ── District outcomes table ──
+      function _distTable() {
+        return _groupTable(d.byDistrict||[], 'District', '#059669');
+      }
+
+      // ── Tutor contributors table ──
+      function _tutorTable() {
+        var groups = d.byTutor||[];
+        if (!groups.length) return '<div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">No tutor data.</div>';
+        var hrEmps = window.HR_EMPS || [];
+        var sorted = groups.slice().sort(function(a,b){ return (b.medGain||0)-(a.medGain||0); });
+        var maxGain = Math.max.apply(null, sorted.map(function(g){return g.medGain||0;}));
+        function _certBadge(name) {
+          var emp = hrEmps.find(function(e){ return e.n && e.n.toLowerCase() === (name||'').toLowerCase(); });
+          if (!emp) return '';
+          var isCert = emp._tutorCert === 'Yes' || emp._tutorCert === true || /certified/i.test(emp._tutorCert||'');
+          return isCert
+            ? '<span style="font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700;margin-left:.3rem">✓ Cert</span>'
+            : '<span style="font-size:.58rem;background:#fef3c7;color:#92400e;padding:.1rem .3rem;border-radius:4px;font-weight:600;margin-left:.3rem">Non-Cert</span>';
+        }
+        var rowsHtml = sorted.map(function(g, i){
+          return '<tr>'
+            +(i<3?'<td style="font-size:.75rem;font-weight:800;color:#f0a500">'+['🥇','🥈','🥉'][i]+'</td>':'<td></td>')
+            +'<td>'+g.label+_certBadge(g.label)+'</td>'
+            +'<td class="num">'+g.n+'</td>'
+            +'<td class="num">'+_gainSpan(g.medGain!=null?parseFloat(g.medGain.toFixed(1)):null)+'</td>'
+            +_barCell(g.medGain, maxGain, '#7c3aed')
+            +'<td class="num">'+_fmt1(g.medMonths)+'</td>'
+            +'<td class="num">'+_fmtPct(g.medPct)+'</td>'
+            +'</tr>';
+        }).join('');
+        return '<table class="ecdi-tbl"><thead><tr>'
+          +'<th></th><th>Tutor</th><th>Scholars</th><th>Median Scale Gain</th><th style="min-width:70px">Bar</th><th>Med. Months</th><th>% Expected</th>'
+          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
       }
 
       function _tabBody() {
@@ -376,6 +414,15 @@
         }
         if (_activeTab==='district') {
           return '<div class="ecdi-modal-body">'+_distTable()+'</div>';
+        }
+        if (_activeTab==='school') {
+          return '<div class="ecdi-modal-body">'+_groupTable(d.bySchool||[], 'School', '#0891b2')+'</div>';
+        }
+        if (_activeTab==='grade') {
+          return '<div class="ecdi-modal-body">'+_groupTable((d.byGrade||[]).slice().sort(function(a,b){ return (a.label||'').localeCompare(b.label||''); }), 'Grade', '#d97706')+'</div>';
+        }
+        if (_activeTab==='tutors') {
+          return '<div class="ecdi-modal-body">'+_tutorTable()+'</div>';
         }
         return '';
       }
