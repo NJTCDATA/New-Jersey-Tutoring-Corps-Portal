@@ -513,7 +513,6 @@
     // ── STATS ─────────────────────────────────────────────────────────────
     function updateStats() {
       const s = _filtered;
-      const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatSites',     s.length);
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
       // Active scholars: pull directly from Pearl live data (unique scholars with ≥1 Attended/Late session).
@@ -522,7 +521,12 @@
       const _pearlActive = (_poStats && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
-      setText('syStatStaff',     stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
+      // Total Staff: sourced from HR Master List (HR_EMPS active count) — the authoritative headcount.
+      // Falls back to SY database staff sum only if HR data hasn't loaded yet.
+      const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+        ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
+      const stf = s.reduce((a,r) => a + r.totalStaff, 0);
+      setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
       // Notify exec dashboard — Home Schools KPI reads from syStatSites
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
