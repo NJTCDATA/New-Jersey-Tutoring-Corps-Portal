@@ -2131,12 +2131,14 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
       const concernBadge = hasConcern ? `<div style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}</div>` : '';
 
       // Rehire + status badges
+      const _rhTipNo  = 'No Rehire: HR has flagged this staff member as ineligible for rehire. This is determined from the HR Master List (Rehire column) and may reflect a documented concern, a programmatic performance issue, or an HR decision. Details in HR file.';
+      const _rhTipYes = 'Rehire Eligible: HR has designated this staff member as eligible for future employment. Determined from the HR Master List (Rehire column). No active HR barriers on file.';
       const rhBadge = (e.rh==='No'||e.rh===false)
-        ? `<span style="font-size:.58rem;background:#fee2e2;color:#b91c1c;padding:.1rem .3rem;border-radius:4px;font-weight:700">⛔ No Rehire</span>`
+        ? `<span title="${_rhTipNo}" style="cursor:help;font-size:.58rem;background:#fee2e2;color:#b91c1c;padding:.1rem .3rem;border-radius:4px;font-weight:700">⛔ No Rehire ⓘ</span>`
         : (e.rh==='Yes'||e.rh===true)
-          ? `<span style="font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Rehire</span>` : '';
+          ? `<span title="${_rhTipYes}" style="cursor:help;font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Rehire ⓘ</span>` : '';
 
-      return `<div onclick="_hrShowProfile('${esc(e.n)}')" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column;opacity:${isActive?'1':'0.72'}" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.12)';this.style.opacity='1'" onmouseleave="this.style.boxShadow='none';this.style.opacity='${isActive?'1':'0.72'}'">
+      return `<div onclick="window._hrShowProfile(this.getAttribute('data-empn'))" data-empn="${esc(e.n)}" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column;opacity:${isActive?'1':'0.72'}" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.12)';this.style.opacity='1'" onmouseleave="this.style.boxShadow='none';this.style.opacity='${isActive?'1':'0.72'}'">
   <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
     <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
       <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
@@ -2270,10 +2272,12 @@ ${gridClose}
     const uid          = emp.n.replace(/\W/g,'_');
 
     // Rehire badge
+    const _rhTipDrwNo  = 'No Rehire — HR has flagged this individual as ineligible for future employment. Determined from the HR Master List (Rehire column). This may reflect a documented concern, a programmatic performance issue, or an administrative HR decision. See Concerns section for details.';
+    const _rhTipDrwYes = 'Eligible for Rehire — HR has designated this individual as eligible for future employment. Determined from the HR Master List (Rehire column). No active HR barriers on file.';
     const rhBadge = (emp.rh==='No'||emp.rh===false)
-      ? '<span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire</span>'
+      ? '<span title="'+_rhTipDrwNo+'" style="cursor:help;background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire ⓘ</span>'
       : (emp.rh==='Yes'||emp.rh===true)
-        ? '<span style="background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire</span>' : '';
+        ? '<span title="'+_rhTipDrwYes+'" style="cursor:help;background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire ⓘ</span>' : '';
 
     // Section header helper with collapse toggle
     const sec = (label, id, body, defaultOpen=true) => body ? `
@@ -2531,12 +2535,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Ethnicity breakdown
     const ethMap = {};
     withEth.forEach(e => { const v = e._ethnicity||'Unknown'; ethMap[v] = (ethMap[v]||0)+1; });
-    const hispCount = withEth.filter(e => /hispanic|latino/i.test(e._ethnicity||'')).length;
+    const hispCount = withEth.filter(e => !/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||'')).length;
     const hispPct   = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
     // Combined: non-white OR Hispanic/Latino
     const diverseCount = pool.filter(e =>
       ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
-      (/hispanic|latino/i.test(e._ethnicity||''))
+      (!/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||''))
     ).length;
     const diversePct = tot ? Math.round(diverseCount/tot*100) : 0;
     const raceRows = Object.entries(raceMap).sort((a,b)=>b[1]-a[1]);
@@ -2697,11 +2701,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     withEth.forEach(e => { const v = e._ethnicity; ethMap[v] = (ethMap[v]||0)+1; });
     const nonWhiteCount = withRace.filter(e => e._race.toLowerCase() !== 'white').length;
     const nonWhitePct   = withRace.length ? Math.round(nonWhiteCount/withRace.length*100) : 0;
-    const hispCount     = withEth.filter(e => /hispanic|latino/i.test(e._ethnicity)).length;
+    const hispCount     = withEth.filter(e => !/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||'')).length;
     const hispPct       = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
     const diverseCount  = pool.filter(e =>
       ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
-      (/hispanic|latino/i.test(e._ethnicity||''))
+      (!/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||''))
     ).length;
     const diversePct   = tot ? Math.round(diverseCount/tot*100) : 0;
     const raceRows     = Object.entries(raceMap).sort((a,b)=>b[1]-a[1]);
@@ -2797,13 +2801,33 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const SW_KW_D   = ['american paradigm','first philadelphia','first philly','philadelphia charter','string theory','global leadership academy','global leadership','penns grove','carneys point','haddon township','haddon','hamilton township','gloucester township'];
     const SW_SCHOOLS= ['erial','loring flemming','field street','penns grove middle','van sciver','strawbridge','first philadelphia prep','first philly prep','the philadelphia charter','philadelphia charter school','global leadership academy'];
 
-    function tutorRegion(emp) {
-      const d  = (emp.di||'').toLowerCase();
-      const sc = (emp.si||'').toLowerCase();
-      if (NE_KW_D.some(k=>d.includes(k)))    return 'NE';
-      if (SW_KW_D.some(k=>d.includes(k)))    return 'SW';
-      if (SW_SCHOOLS.some(k=>sc.includes(k))) return 'SW';
-      return 'NE';
+    function tutorRegion(emp, pearlSchools) {
+      // Classify a single text (school or district name) against keyword lists
+      function _classifyText(text) {
+        const t = (text||'').toLowerCase();
+        if (NE_KW_D.some(k=>t.includes(k)))    return 'NE';
+        if (SW_KW_D.some(k=>t.includes(k)))    return 'SW';
+        if (SW_SCHOOLS.some(k=>t.includes(k))) return 'SW';
+        return null;
+      }
+      // Prefer Pearl operational data (where tutor actually works in SY 2025-2026)
+      if (pearlSchools && pearlSchools.length) {
+        const votes = { NE: 0, SW: 0 };
+        pearlSchools.forEach(s => {
+          const r = _classifyText(s);
+          if (r) votes[r]++;
+        });
+        if (votes.NE > votes.SW) return 'NE';
+        if (votes.SW > votes.NE) return 'SW';
+        // Tie-break or partial: first definitive match wins
+        for (const s of pearlSchools) {
+          const r = _classifyText(s);
+          if (r) return r;
+        }
+      }
+      // Fall back to HR-recorded district/school
+      const r = _classifyText(emp.di) || _classifyText(emp.si);
+      return r || 'NE';
     }
 
     function normName(n) { return (n||'').toLowerCase().replace(/\s+/g,' ').trim(); }
@@ -2917,7 +2941,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const profileData = pool.map(emp => {
       const metrics = buildMetrics(emp);
       const { level, reasons } = supportStatus(emp, metrics);
-      const region = tutorRegion(emp);
+      const region = tutorRegion(emp, metrics.tutorSchools);
       return { emp, metrics, level, reasons, region };
     });
 
@@ -3285,7 +3309,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       +'<select onchange="_ppSetRegion(this.value)" style="font-size:.78rem;padding:.3rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#374151;font-family:inherit">'
         +regions.map(r=>'<option value="'+r+'"'+(_ppRegion===r?' selected':'')+'>'+( r==='all'?'All Regions':r)+'</option>').join('')
       +'</select>'
-      +'<input type="text" placeholder="Search name or site\u2026" value="'+esc(_ppQ)+'" oninput="_ppSetQ(this.value)" style="font-size:.78rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;flex:1;min-width:140px;color:#374151;font-family:inherit">'
+      +'<input id="ppSearchInput" type="text" placeholder="Search name or site\u2026" value="'+esc(_ppQ)+'" oninput="_ppSetQ(this.value)" style="font-size:.78rem;padding:.3rem .6rem;border:1px solid #cbd5e1;border-radius:6px;flex:1;min-width:140px;color:#374151;font-family:inherit">'
       +(_ppStatus!=='all'||_ppRegion!=='all'||_ppQ ? '<button onclick="_ppClear()" style="font-size:.75rem;padding:.3rem .55rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:#64748b;cursor:pointer">\u2715 Clear</button>' : '')
       +'<span style="font-size:.72rem;color:#94a3b8;margin-left:auto">'+filtered.length+' of '+activeCount+' shown</span>'
       +'</div>';
@@ -3438,7 +3462,18 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const root = document.getElementById('hrProfilesRoot');
     if (!root) { console.warn('[HR] _hrRebuildProfiles: hrProfilesRoot not found'); return; }
     const dept = (window.NJTC_SESSION||{}).dept || 'hr';
+    // Preserve focus on search inputs so typing isn't interrupted
+    const activeId    = document.activeElement && document.activeElement.id;
+    const activeStart = document.activeElement && document.activeElement.selectionStart;
+    const activeEnd   = document.activeElement && document.activeElement.selectionEnd;
     root.innerHTML = _hrBuildProfiles(dept);
+    if (activeId) {
+      const el = document.getElementById(activeId);
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        el.focus();
+        try { el.setSelectionRange(activeEnd, activeEnd); } catch(e) {}
+      }
+    }
   }
 
   // ── Global handlers (onclick= safe) ──────────────────────────────────────
@@ -3485,7 +3520,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ── Programming Profile (Onsite Performance) filter/tooltip handlers ──────
   window._ppSetStatus = v  => { _ppStatus=v; _hrRebuildProfiles(); };
   window._ppSetRegion = v  => { _ppRegion=v; _hrRebuildProfiles(); };
-  window._ppSetQ      = v  => { _ppQ=v;      _hrRebuildProfiles(); };
+  window._ppSetQ      = v  => {
+    _ppQ = v; _hrRebuildProfiles();
+    requestAnimationFrame(() => {
+      const inp = document.getElementById('ppSearchInput');
+      if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+    });
+  };
   window._ppClear     = () => { _ppStatus='all'; _ppRegion='all'; _ppQ=''; _hrRebuildProfiles(); };
   window._ppShowTip   = text => {
     const m = document.getElementById('ppTipModal');

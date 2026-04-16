@@ -2136,7 +2136,14 @@
         : liveStatus;
 
       // ── Academic Insight Panel (moved from Exec Dashboard) ──────────────────
-      const _irlIm = (typeof getInsightMetrics === 'function') ? getInsightMetrics(_irlYear !== 'all' ? _irlYear : '') : null;
+      const _irlIm = (typeof getInsightMetrics === 'function') ? getInsightMetrics({
+        year:        _irlYear        !== 'all' ? _irlYear        : '',
+        district:    _irlDistrict    !== 'all' ? _irlDistrict    : '',
+        school:      _irlSchool      !== 'all' ? _irlSchool      : '',
+        grade:       _irlGrade       !== 'all' ? _irlGrade       : '',
+        subject:     _irlSubject     !== 'all' ? _irlSubject     : '',
+        scholarType: _irlScholarType !== 'all' ? _irlScholarType : '',
+      }) : null;
       window._njtcIM = _irlIm; // keep drilldown modal working
       const _irlIMLoaded = _irlIm && _irlIm.hasData;
       const _irlIMN      = _irlIm ? _irlIm.n : 0;
@@ -5323,12 +5330,25 @@
     // Use IRLAB_DATA main sheets only (math + ela); repeat sheets excluded to prevent
     // double-counting scholars who appear in both main and repeat datasets.
     // syFilter: specific SY string (e.g. '2024-2025'), '' or 'ALL' for program-wide.
-    function getInsightMetrics(syFilter) {
+    function getInsightMetrics(optsOrYear) {
+      if (!IRLAB_DATA.loaded) loadData();
+      // Accept either a legacy string year arg or a full opts object
+      var _opts = (optsOrYear && typeof optsOrYear === 'object') ? optsOrYear : {};
+      var _fYear        = (typeof optsOrYear === 'string') ? optsOrYear : (_opts.year        !== undefined ? _opts.year        : (_irlYear        !== 'all' ? _irlYear        : ''));
+      var _fDistrict    = _opts.district    !== undefined ? _opts.district    : (_irlDistrict    !== 'all' ? _irlDistrict    : '');
+      var _fSchool      = _opts.school      !== undefined ? _opts.school      : (_irlSchool      !== 'all' ? _irlSchool      : '');
+      var _fGrade       = _opts.grade       !== undefined ? _opts.grade       : (_irlGrade       !== 'all' ? _irlGrade       : '');
+      var _fSubject     = _opts.subject     !== undefined ? _opts.subject     : (_irlSubject     !== 'all' ? _irlSubject     : '');
+      var _fScholarType = _opts.scholarType !== undefined ? _opts.scholarType : (_irlScholarType !== 'all' ? _irlScholarType : '');
       if (!IRLAB_DATA.loaded) loadData();
       var rows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
-      if (syFilter && syFilter !== 'ALL') {
-        rows = rows.filter(function(r){ return r && r.year === syFilter; });
-      }
+      if (_fYear    && _fYear    !== 'ALL') rows = rows.filter(function(r){ return r && r.year     === _fYear;    });
+      if (_fDistrict)                       rows = rows.filter(function(r){ return r && r.district === _fDistrict; });
+      if (_fSchool)                         rows = rows.filter(function(r){ return r && r.school   === _fSchool;   });
+      if (_fGrade)                          rows = rows.filter(function(r){ return r && r.grade    === _fGrade;    });
+      if (_fSubject)                        rows = rows.filter(function(r){ return r && r.subject  === _fSubject;  });
+      if (_fScholarType === 'repeat')    rows = rows.filter(function(r){ return r && _isRepeatScholar(r); });
+      if (_fScholarType === 'nonrepeat') rows = rows.filter(function(r){ return r && !_isRepeatScholar(r); });
       // All available years from main sheets (for SY-alignment check with Pearl)
       var allSrcRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
       var allYears = [];
@@ -5344,7 +5364,7 @@
 
       var scaleGains=[], monthsArr=[], pctExpArr=[];
       var drillRows=[];
-      var byRace={}, byEthnicity={}, byEconStatus={}, byDistrict={}, byTutor={};
+      var byRace={}, byEthnicity={}, byEconStatus={}, byDistrict={}, bySchool={}, byGrade={}, byTutor={};
 
       rows.forEach(function(r) {
         if (!r) return;
@@ -5378,7 +5398,9 @@
           _push(byEthnicity, ethKey, gobj);
           _push(byEconStatus, econKey, gobj);
           _push(byDistrict, distKey, gobj);
-          tutorArr.forEach(function(t){ if(t){ if(!byTutor[t]) byTutor[t]=[]; byTutor[t].push(gain); } });
+          _push(bySchool, (r.school||'Unknown').trim(), gobj);
+          _push(byGrade,  (r.grade ||'Unknown').trim(), gobj);
+          tutorArr.forEach(function(t){ if(t){ _push(byTutor, t, gobj); } });
         }
         if (!isNaN(gain) || !isNaN(pct)) {
           drillRows.push({
@@ -5419,11 +5441,11 @@
       // Card E: tutor impact leaders (only when SY-aligned; require ≥2 scholars per tutor)
       var tutorImpactLeaders = null;
       if (syAligned) {
-        tutorImpactLeaders = Object.keys(byTutor).map(function(t) {
-          var arr = byTutor[t];
-          var sum = arr.reduce(function(s,v){return s+v;},0);
-          return { tutor:t, avgGain:parseFloat((sum/arr.length).toFixed(1)), n:arr.length };
-        }).filter(function(x){return x.n>=2;}).sort(function(a,b){return b.avgGain-a.avgGain;}).slice(0,5);
+        tutorImpactLeaders = _groupMeds(byTutor)
+          .filter(function(x){return x.n>=2;})
+          .sort(function(a,b){return (b.medGain||0)-(a.medGain||0);})
+          .slice(0,5)
+          .map(function(x){ return { tutor:x.label, avgGain:x.medGain, n:x.n }; });
       }
 
       var medGain   = _med(scaleGains);
@@ -5443,7 +5465,10 @@
         byRace:             _groupMeds(byRace),
         byEthnicity:        _groupMeds(byEthnicity),
         byEconStatus:       _groupMeds(byEconStatus),
-        byDistrict:         _groupMeds(byDistrict)
+        byDistrict:         _groupMeds(byDistrict),
+        bySchool:           _groupMeds(bySchool),
+        byGrade:            _groupMeds(byGrade),
+        byTutor:            _groupMeds(byTutor)
       };
     }
 

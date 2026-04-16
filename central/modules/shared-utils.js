@@ -6309,7 +6309,8 @@
           msg += 'Org health is currently **' + d.score + '% (' + d.health + ')** across ' + d.total + ' targets. ';
           if (d.nm > 0) msg += d.nm + ' goal' + (d.nm>1?'s are':' is') + ' not met. ';
         }
-        if (p && p.siCount > 0) msg += 'Pearl shows **' + p.siCount + ' service interruptions** this period. ';
+        if (p && p.activeScholars != null) msg += 'Pearl shows **' + _n(p.activeScholars) + ' active scholars** across ' + (p.schoolCount||'—') + ' schools. ';
+        else if (p && p.siCount > 0) msg += 'Pearl has loaded (' + p.siCount + ' service interruption records on file). ';
         msg += 'What would you like to know?';
         return msg;
       }

@@ -3628,8 +3628,15 @@
               📋 School-Level Operations Monitor
               <span style="font-weight:400">${schools.length} schools · Click to drill in</span>
             </div>
+            <div style="padding:.5rem .75rem .25rem;border-bottom:1px solid #f1f5f9">
+              <input id="poSchoolSearch" type="text" placeholder="Search school or district…"
+                style="width:100%;box-sizing:border-box;padding:.4rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.78rem;outline:none;transition:border .15s"
+                oninput="(function(v){v=v.toLowerCase();var rows=document.querySelectorAll('#poSchoolTable tbody tr');rows.forEach(function(r){r.style.display=r.textContent.toLowerCase().includes(v)?'':'none';});var vis=[].filter.call(rows,function(r){return r.style.display!=='none';}).length;var c=document.getElementById('poSchoolSearchCount');if(c)c.textContent=v?vis+' of ${schools.length} matching':'';document.getElementById('poSchoolSearch').style.borderColor=v?'#6366f1':'#e2e8f0';})(this.value)"
+                onfocus="this.style.borderColor='#6366f1'" onblur="if(!this.value)this.style.borderColor='#e2e8f0'">
+              <div id="poSchoolSearchCount" style="font-size:.65rem;color:#6366f1;font-weight:600;min-height:.9rem;margin-top:.2rem"></div>
+            </div>
             <div style="overflow-x:auto">
-              <table class="po-ops-table">
+              <table class="po-ops-table" id="poSchoolTable">
                 <thead><tr>
                   <th>School / District</th>
                   <th style="text-align:center">Att %</th>
