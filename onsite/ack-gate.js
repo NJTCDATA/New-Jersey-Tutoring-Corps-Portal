@@ -296,4 +296,3 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
-console.log('✅ NJTC Acknowledgement Gate Loaded');

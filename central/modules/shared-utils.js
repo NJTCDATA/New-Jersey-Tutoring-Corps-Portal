@@ -54,7 +54,8 @@
         { icon: '📚', label: 'Finance Policies', bg: '#e6f5ed', desc: 'Budget & financial guidelines', panel: 'policies' },
         { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit financial documents', panel: 'upload' },
         { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log a support conversation or context note', panel: 'concern' },
-      ]
+      ],
+      financeLinks: true,
     },
     programming: {
       label: 'Programming', emoji: '🎯', color: '#457b9d',
@@ -104,7 +105,8 @@
         { icon: '📚', label: 'All Policies', bg: '#f6f8fc', desc: 'Organization-wide library', panel: 'policies' },
         { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'All support context submissions', panel: 'concern' },
         { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
-      ]
+      ],
+      financeLinks: true,
     },
     kb: {
       label: 'Executive Overview', emoji: '🌟', color: '#5b8dee',
@@ -116,7 +118,8 @@
         { icon: '🌱', label: 'Growth Insights', bg: '#e8f5e9', desc: 'Trends and momentum indicators', panel: 'kpi-analytics' },
         { icon: '📚', label: 'Policy Library', bg: '#f6f8fc', desc: 'Organization-wide documentation', panel: 'policies' },
         { icon: '☁️', label: 'Drive Center', bg: '#f6f8fc', desc: 'Document management', panel: 'upload' },
-      ]
+      ],
+      financeLinks: true,
     }
   };
 
@@ -594,10 +597,7 @@
     delivery:        'entry.232659604',
     empSite:         'entry.2070944320',
     concernType:     'entry.2109849030',
-    concernOther:    'entry.TODO_Q15',
-    history:         'entry.TODO_Q16',
     hrNextSteps:     'entry.1704854495',
-    nextStepsDesc:   'entry.TODO_Q18',
   };
 
   // ══════════════════════════════════════════════════════════
@@ -749,6 +749,39 @@
         </div>
       `).join('');
     }, 16);
+
+    // T+20: Finance Workbooks cabinet (finance / leadership / kb only)
+    const _flEl = document.getElementById('homeFinanceLinks');
+    if (_flEl) {
+      if (cfg.financeLinks) {
+        const _FW = [
+          { icon: '📤', label: 'Outreach Tracker',    desc: 'Pipeline & outreach log',       color: '#e6f5ed', border: '#2a9d8f', url: 'https://docs.google.com/spreadsheets/d/1NH0pUQYVbsJYb_2eUsGYFCOOpkxNzJKD3G6hvQlW5vE/edit?gid=274887897#gid=274887897' },
+          { icon: '📋', label: 'Quotebuilder',         desc: 'Proposal & pricing builder',    color: '#e6efff', border: '#4361ee', url: 'https://docs.google.com/spreadsheets/d/1XCPDYSZ1nu3JHZHaJGeJKDYZcKL6ig42HRW-GbbsbpM/edit?gid=0#gid=0' },
+          { icon: '🌱', label: 'TAP Tracker',          desc: 'Apprenticeship program data',   color: '#fff7e0', border: '#e76f51', url: 'https://docs.google.com/spreadsheets/d/1wg0J1r0GJQKhZkKlrQckTZsw396q7_zMQ6rnwe_rtGo/edit?gid=1022841301#gid=1022841301' },
+          { icon: '🤝', label: 'Philanthropy Tracker', desc: 'Grants & donor tracking',       color: '#fdf2ff', border: '#7b2d8b', url: 'https://docs.google.com/spreadsheets/d/1JXXPLEYPRd4A62aWWzBn_ceZlujQwMvLqq2X_z4VWN4/edit?gid=59388731#gid=59388731' },
+        ];
+        setTimeout(() => {
+          _flEl.style.display = '';
+          _flEl.innerHTML = `
+            <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)">
+              <div style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.875rem">💼 Financial Workbooks</div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem">
+                ${_FW.map(fw => `
+                  <a href="${fw.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;background:${fw.color};border:1.5px solid ${fw.border}22;border-left:3px solid ${fw.border};border-radius:10px;transition:box-shadow .15s,transform .15s;cursor:pointer" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.10)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''">
+                    <span style="font-size:1.4rem;line-height:1;flex-shrink:0;margin-top:.05rem">${fw.icon}</span>
+                    <div>
+                      <div style="font-size:.8125rem;font-weight:700;color:#1B2A4A;line-height:1.2">${fw.label}</div>
+                      <div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${fw.desc}</div>
+                      <div style="font-size:.65rem;color:${fw.border};font-weight:600;margin-top:.35rem;letter-spacing:.02em">Open in Sheets ↗</div>
+                    </div>
+                  </a>`).join('')}
+              </div>
+            </div>`;
+        }, 20);
+      } else {
+        _flEl.style.display = 'none';
+      }
+    }
 
     // T+32: Dept-specific analytics widget (HR/programming)
     // NOTE: only runs for depts that have their OWN widget AND are NOT getting the leaderboard
@@ -2847,10 +2880,7 @@
     params.append(ENTRY.delivery,        r('delivery'));
     params.append(ENTRY.empSite,         document.getElementById('f_empSite').value);
     params.append(ENTRY.concernType,     r('concernType'));
-    params.append(ENTRY.concernOther,    g('f_concernOther'));
-    params.append(ENTRY.history,         g('f_history'));
     params.append(ENTRY.hrNextSteps,     r('hrNextSteps'));
-    params.append(ENTRY.nextStepsDesc,   g('f_nextStepsDesc'));
 
     try {
       await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
