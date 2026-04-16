@@ -6948,7 +6948,17 @@
               instSurveyAvg:sc.instSurveyAvg ? parseFloat(sc.instSurveyAvg.toFixed(2)) : null,
               surveyCount:  sc.stuSurveyRows  ? sc.stuSurveyRows.length  : 0,
               siCount:      sc.stuInterruptions || 0,
-              flags:        (sc.flags || []).slice(),
+              flags:        (sc.flags || []).map(function(f) {
+                var SHORT = {
+                  ratio:       'Ratio >1:4',      critical_si: 'Critical SI',
+                  vacancy_si:  'Vacancy Gap',      high_si:     'High SI',
+                  declined:    'Scholar Declined', ct_pull:     'CT Pull-Out',
+                };
+                return typeof f === 'string' ? f : (SHORT[f.type] || f.type || f.msg || '');
+              }).filter(Boolean),
+              flagDetails:  (sc.flags || []).map(function(f) {
+                return typeof f === 'string' ? f : (f.msg || '');
+              }).filter(Boolean),
             });
           });
           schools.sort(function(a, b) {

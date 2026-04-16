@@ -3153,7 +3153,7 @@
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(s.attRate)}">${s.attRate!=null?s.attRate.toFixed(1)+'%':'—'}</td>
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.surveyAvg)}">${s.surveyAvg!=null?s.surveyAvg.toFixed(2):'—'}</td>
                   <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.instSurveyAvg)}">${s.instSurveyAvg!=null?s.instSurveyAvg.toFixed(2):'—'}</td>
-                  <td style="padding:.45rem .5rem;font-size:.6875rem;color:#dc2626">${(s.flags||[]).join(', ')||'—'}</td>
+                  <td style="padding:.45rem .5rem;font-size:.6875rem;color:#dc2626" title="${(s.flagDetails||s.flags||[]).join(' · ')}">${(s.flags||[]).join(', ')||'—'}</td>
                 </tr>`).join('')}
               </tbody>
             </table>
