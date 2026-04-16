@@ -6944,7 +6944,11 @@
             schools.push({
               school: name, district: sc.district || '',
               attRate: attRate, sessions: sessCount,
-              surveyAvg: sc.stuSurveyAvg ? parseFloat(sc.stuSurveyAvg.toFixed(2)) : null,
+              surveyAvg:    sc.stuSurveyAvg  ? parseFloat(sc.stuSurveyAvg.toFixed(2))  : null,
+              instSurveyAvg:sc.instSurveyAvg ? parseFloat(sc.instSurveyAvg.toFixed(2)) : null,
+              surveyCount:  sc.stuSurveyRows  ? sc.stuSurveyRows.length  : 0,
+              siCount:      sc.stuInterruptions || 0,
+              flags:        (sc.flags || []).slice(),
             });
           });
           schools.sort(function(a, b) {
