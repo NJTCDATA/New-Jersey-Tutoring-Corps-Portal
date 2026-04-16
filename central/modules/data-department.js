@@ -2238,7 +2238,9 @@
 
     function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {
       const sess    = window.NJTC_SESSION;
-      const myDept  = (sess && sess.dept) ? sess.dept : _irlDept;
+      const _sessRawDept = (sess && sess.dept) ? sess.dept : _irlDept;
+      // Normalize: shared-utils uses 'training' but DEPT_CFG uses 'training_development'
+      const myDept  = _sessRawDept === 'training' ? 'training_development' : _sessRawDept;
       const canSwitch = ['leadership','data'].includes(myDept);
       if (!canSwitch && DEPT_CFG[myDept]) _irlDept = myDept;
       const cfg = DEPT_CFG[_irlDept] || DEPT_CFG.leadership;
@@ -4937,8 +4939,10 @@
     function onPanelOpen() {
       // Always re-read session dept so dept is locked even if session was set after first open
       const sess = window.NJTC_SESSION;
-      if (sess && sess.dept && DEPT_CFG[sess.dept]) {
-        _irlDept = sess.dept;
+      if (sess && sess.dept) {
+        // Normalize: shared-utils uses 'training' but DEPT_CFG uses 'training_development'
+        const _normDept = sess.dept === 'training' ? 'training_development' : sess.dept;
+        if (DEPT_CFG[_normDept]) _irlDept = _normDept;
       }
       if (!_irlBuilt) {
         _irlBuilt = true;
