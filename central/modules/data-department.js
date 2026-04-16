@@ -134,11 +134,12 @@
 
     // ── Dept config ─────────────────────────────────────────────────────────
     const DEPT_CFG = {
-      leadership:  { label:'Leadership',   emoji:'👑', color:'#f0a500', bg:'#fff8e6' },
-      programming: { label:'Programming',  emoji:'🏫', color:'#457b9d', bg:'#edf4f9' },
-      data:        { label:'Data & Eval',  emoji:'🔬', color:'#7b2d8b', bg:'#f5edfb' },
-      hr:          { label:'HR',           emoji:'👥', color:'#e63946', bg:'#fdedef' },
-      finance:     { label:'Finance',      emoji:'💡', color:'#2a9d8f', bg:'#e6f5f3' },
+      leadership:          { label:'Leadership',      emoji:'👑', color:'#f0a500', bg:'#fff8e6' },
+      programming:         { label:'Programming',     emoji:'🏫', color:'#457b9d', bg:'#edf4f9' },
+      data:                { label:'Data & Eval',     emoji:'🔬', color:'#7b2d8b', bg:'#f5edfb' },
+      hr:                  { label:'HR',              emoji:'👥', color:'#e63946', bg:'#fdedef' },
+      finance:             { label:'Finance',         emoji:'💡', color:'#2a9d8f', bg:'#e6f5f3' },
+      training_development:{ label:'Training & Dev',  emoji:'📋', color:'#0891b2', bg:'#ecfeff' },
     };
 
     // ── CSV parser ──────────────────────────────────────────────────────────
@@ -1305,6 +1306,13 @@
           {c:'#0d6e3a',i:'🏅',t:`Grade-level attainment: ${m.pctOnGL}% (${m.sprOnGL.length.toLocaleString()} scholars)`,b:'This should be the headline number in budget and impact discussions.'},
           {c:'#0050c8',i:'📍',t:'Site-level resource allocation signal',b:'High-performing sites justify investment continuity; lower-performing sites warrant cost-effectiveness review.'},
         ],
+        training_development:[
+          // Framed around "where/what should T&D coaches support" — district-first, instruction-second
+          {c:'#0891b2',i:'🎯',t:`${m.metTypPct!==null?m.metTypPct+'%':'—'} of scholars met typical growth target`,b:`Scholars meeting typical growth indicate tutors are differentiating instruction effectively. Districts below 60% are priority coaching visits — bring targeted PD, not generic check-ins.`},
+          {c:(()=>{const mD=m.byDistrict?Object.values(m.byDistrict).length:0;const low=Object.entries(m.byDistrict||{}).map(([,r])=>computeMetrics(r)).filter(Boolean).filter(d=>d.pctMoved<50).length;return low>0?'#d97706':'#0d6e3a';})(),i:'📍',t:(()=>{const dArr=Object.entries(m.byDistrict||{}).map(([n,r])=>{const dm=computeMetrics(r);return dm?{name:n,pct:dm.pctMoved}:null}).filter(Boolean).sort((a,b)=>a.pct-b.pct);return dArr.length?`${dArr[0].name}: lowest district movement (${dArr[0].pct}%)`:'District coaching signal — apply filters for breakdown';})(),b:'This district should receive the next T&D coaching visit. Bring subject-specific strategies and session observation tools tailored to their scholars\' gap profile.'},
+          {c:'#d97706',i:'📐',t:(()=>{const g=Object.entries(m.byGrade||{}).map(([gr,r])=>{const dm=computeMetrics(r);return dm?{grade:gr,pct:dm.pctMoved,n:dm.n}:null}).filter(Boolean).sort((a,b)=>a.pct-b.pct)[0];return g?`Grade ${g.grade} needs coaching focus (${g.pct}% moved, ${g.n} scholars)`:'Grade-band signal: apply a year filter for detail';})(),b:'Grade-level performance gaps signal that tutors may need support with grade-appropriate pacing, scaffolding, and small-group strategies. Prioritize PD sessions for this grade band.'},
+          {c:m.regress.length>0?'#dc2626':'#059669',i:'🔄',t:`${m.regress.length} scholar${m.regress.length!==1?'s':''} regressed — ${Math.round(m.regress.length/Math.max(m.n,1)*100)}% of assessed`,b:m.regress.length>0?'Regressions signal instructional misalignment — sessions may not be meeting scholars at their level. T&D should prioritize differentiation coaching at the sites with the highest regression counts.':'No regressions this period — strong instructional fidelity signal.'},
+        ],
       };
       return (insights[dept]||insights.leadership).map(ins=>`
         <div class="irlab-insight" style="--ins-color:${ins.c}">
@@ -2334,7 +2342,7 @@
             <div class="irlab-card-meta">${_irlDept==='leadership'?'Program-wide academic outcomes':'Dept insights · '+m.n.toLocaleString()+' scholars'}</div>
           </div>
           <div class="irlab-card-body" style="padding:.875rem">
-            ${_irlDept==='leadership' ? renderLeadershipInsights(m, mathM, elaM) : renderDeptInsights(m, _irlDept)}
+            ${_irlDept==='leadership' ? renderLeadershipInsights(m, mathM, elaM) : _irlDept==='training_development' ? renderTDInsights(m, mathM, elaM) : renderDeptInsights(m, _irlDept)}
           </div>
         </div>
         ${dataUpdatePanel}
@@ -2551,6 +2559,109 @@
         <div style="width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6875rem;font-weight:700;flex-shrink:0">${i+1}</div>
         <div style="font-size:.875rem;line-height:1.5;color:var(--navy)">${pt}</div>
       </div>`).join('')}`;
+    }
+
+    // ── TRAINING & DEVELOPMENT VIEW ──────────────────────────────────────────
+    // Purpose: surfaces where T&D coaches should go (district-first) and what
+    // they should train on (subject content + grade band), always from live data.
+    function renderTDInsights(m, mathM, elaM) {
+      if (!m) return renderDeptInsights(m, 'training_development');
+
+      // ── Per-district coaching metrics (sorted worst-first) ────────────────
+      const dists = Object.entries(m.byDistrict).map(([name, drows]) => {
+        const dm     = computeMetrics(drows); if (!dm) return null;
+        const dmMath = computeMetrics(drows.filter(r => r.subject === 'Math'));
+        const dmELA  = computeMetrics(drows.filter(r => r.subject === 'ELA'));
+        const dTyp   = medianArr(getAllRows({district: name}).map(r => r.pctTypical).filter(v => v !== null && !isNaN(v)));
+        return { name, ...dm, mathPct: dmMath ? dmMath.pctMoved : null, elaPct: dmELA ? dmELA.pctMoved : null, medianTyp: dTyp };
+      }).filter(Boolean).sort((a, b) => (a.pctMoved || 0) - (b.pctMoved || 0)); // worst first
+
+      // ── Grade-band cards ──────────────────────────────────────────────────
+      const BANDS = [
+        {label:'K–2', gr:['K','1','2']},
+        {label:'3–5', gr:['3','4','5']},
+        {label:'6–8', gr:['6','7','8']},
+        {label:'9–12',gr:['9','10','11','12']},
+      ];
+      const bandCards = BANDS.map(band => {
+        const bRows = Object.entries(m.byGrade)
+          .filter(([g]) => band.gr.includes(String(g)))
+          .flatMap(([, r]) => r);
+        const bm = bRows.length ? computeMetrics(bRows) : null;
+        if (!bm) return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center;color:#94a3b8;font-size:.72rem">${band.label}<br>No data</div>`;
+        const clr = bm.pctMoved >= 65 ? '#059669' : bm.pctMoved >= 50 ? '#d97706' : '#dc2626';
+        const lbl = bm.pctMoved >= 65 ? 'On Track' : bm.pctMoved >= 50 ? 'Monitor' : 'Priority';
+        return `<div style="background:#fff;border:1.5px solid ${clr}30;border-radius:10px;padding:.75rem;text-align:center">
+          <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${clr};margin-bottom:.25rem">${band.label}</div>
+          <div style="font-size:1.5rem;font-weight:700;color:${clr};line-height:1.1">${bm.pctMoved}%</div>
+          <div style="font-size:.6rem;color:#94a3b8;margin:.15rem 0">moved · ${bm.n} scholars</div>
+          <div style="display:inline-block;font-size:.6rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;color:${clr};background:${clr}18">${lbl}</div>
+        </div>`;
+      }).join('');
+
+      // ── Subject focus callout ─────────────────────────────────────────────
+      const mathPct = mathM ? mathM.pctMoved : null;
+      const elaPct  = elaM  ? elaM.pctMoved  : null;
+      let subjectCallout = '';
+      if (mathPct !== null && elaPct !== null) {
+        const weaker = mathPct < elaPct ? 'Math' : 'ELA';
+        const gap    = Math.abs(mathPct - elaPct);
+        subjectCallout = `<div style="margin-top:.625rem;padding:.5rem .875rem;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:.8rem;color:#1e40af">
+          📌 <strong>${weaker} is the coaching priority this period</strong> — ${gap}pp behind the stronger subject
+          (Math: ${mathPct}% moved · ELA: ${elaPct}% moved). Focus next PD cycle on
+          <strong>${weaker} instructional strategies</strong> and domain fluency for tutors.
+        </div>`;
+      }
+
+      return `
+        <!-- T&D insight cards (framed around coaching action) -->
+        ${renderDeptInsights(m, 'training_development')}
+
+        <!-- District Coaching Priority Grid -->
+        ${dists.length > 1 ? `<div style="margin-top:.875rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#475569;margin-bottom:.5rem">📍 District Coaching Priority — Sorted by Need</div>
+          <div style="overflow-x:auto;border-radius:10px;border:1px solid #e2e8f0">
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+              <thead><tr style="background:#f8fafc">
+                <th style="text-align:left;padding:.4rem .75rem;font-size:.6rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em">District</th>
+                <th style="text-align:center;padding:.4rem .4rem;font-size:.6rem;font-weight:700;color:#64748b;text-transform:uppercase">#</th>
+                <th style="text-align:center;padding:.4rem .4rem;font-size:.6rem;font-weight:700;color:#0050c8;text-transform:uppercase">Math%</th>
+                <th style="text-align:center;padding:.4rem .4rem;font-size:.6rem;font-weight:700;color:#7b2d8b;text-transform:uppercase">ELA%</th>
+                <th style="text-align:center;padding:.4rem .4rem;font-size:.6rem;font-weight:700;color:#d97706;text-transform:uppercase">Typical Growth</th>
+                <th style="text-align:center;padding:.4rem .4rem;font-size:.6rem;font-weight:700;color:#dc2626;text-transform:uppercase">Regress</th>
+                <th style="text-align:center;padding:.4rem .75rem;font-size:.6rem;font-weight:700;color:#64748b;text-transform:uppercase">T&amp;D Priority</th>
+              </tr></thead>
+              <tbody>
+                ${dists.map(d => {
+                  const pm    = d.pctMoved;
+                  const pri   = pm < 40 ? 'Urgent' : pm < 55 ? 'High' : pm < 70 ? 'Monitor' : 'On Track';
+                  const pClr  = pri==='Urgent'?'#dc2626':pri==='High'?'#d97706':pri==='Monitor'?'#0369a1':'#059669';
+                  const pBg   = pri==='Urgent'?'#fef2f2':pri==='High'?'#fffbeb':pri==='Monitor'?'#eff6ff':'#f0fdf4';
+                  const mClr  = d.mathPct!==null?(d.mathPct<50?'#dc2626':d.mathPct<65?'#d97706':'#059669'):'#94a3b8';
+                  const eClr  = d.elaPct !==null?(d.elaPct <50?'#dc2626':d.elaPct <65?'#d97706':'#059669'):'#94a3b8';
+                  const tClr  = d.medianTyp!==null?(d.medianTyp<0.7?'#dc2626':d.medianTyp<1.0?'#d97706':'#059669'):'#94a3b8';
+                  const regN  = d.regress ? d.regress.length : 0;
+                  return `<tr style="border-bottom:1px solid #f1f5f9">
+                    <td style="padding:.45rem .75rem;font-weight:600;color:#1e293b;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.name)}">${esc(d.name)}</td>
+                    <td style="padding:.45rem .4rem;text-align:center;color:#64748b;font-size:.75rem">${d.n}</td>
+                    <td style="padding:.45rem .4rem;text-align:center;font-weight:700;color:${mClr}">${d.mathPct!==null?d.mathPct+'%':'—'}</td>
+                    <td style="padding:.45rem .4rem;text-align:center;font-weight:700;color:${eClr}">${d.elaPct!==null?d.elaPct+'%':'—'}</td>
+                    <td style="padding:.45rem .4rem;text-align:center;font-weight:700;color:${tClr}">${d.medianTyp!==null?(d.medianTyp*100).toFixed(0)+'%':'—'}</td>
+                    <td style="padding:.45rem .4rem;text-align:center;font-weight:${regN>0?'700':'400'};color:${regN>0?'#dc2626':'#94a3b8'}">${regN>0?regN:'—'}</td>
+                    <td style="padding:.45rem .75rem;text-align:center"><span style="font-size:.65rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;color:${pClr};background:${pBg}">${pri}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+
+        <!-- Grade-Band Coaching Focus -->
+        <div style="margin-top:.875rem">
+          <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#475569;margin-bottom:.5rem">📐 Grade-Band Coaching Focus</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem">${bandCards}</div>
+          ${subjectCallout}
+        </div>`;
     }
 
     // ════════════════════════════════════════════════════════════════
