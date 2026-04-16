@@ -5527,7 +5527,13 @@
         <div class="ms-wrap" id="mswWeek"></div>
         <div class="ms-wrap" id="mswRole"></div>
         <div class="ms-wrap" id="mswFlag"></div>
-        <button class="btn btn-secondary" onclick="sya.clearFilters()" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
+        <input id="poGlobalSearch" type="text" placeholder="&#128269; Search tutor, school, district…"
+          style="flex:1;min-width:180px;max-width:280px;padding:.4rem .7rem;border:1.5px solid var(--border);border-radius:8px;font-size:.8125rem;font-family:inherit;background:var(--surface);color:var(--text);outline:none;transition:border-color .15s"
+          oninput="po._globalSearch(this.value)"
+          onfocus="this.style.borderColor='#6366f1'"
+          onblur="this.style.borderColor=''"
+        >
+        <button class="btn btn-secondary" onclick="sya.clearFilters();document.getElementById('poGlobalSearch').value='';po._globalSearch('')" style="padding:.4rem .875rem;font-size:.8125rem">&#x2715; Clear</button>
         <span id="poFilterInfo" style="font-size:.8125rem;color:var(--muted);margin-left:auto"></span>
         <div id="poDurationPill" style="display:none;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border-radius:20px;padding:.35rem .9rem;font-size:.8rem;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(30,58,95,.25);flex-shrink:0"></div>
       </div>

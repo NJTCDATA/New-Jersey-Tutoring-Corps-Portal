@@ -2367,7 +2367,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     <div style="color:var(--navy)">${esc(emp._obsLatest.notes?.slice(0,200)||'No notes recorded')}</div>
     ${emp._obsLatest.rating?`<div style="margin-top:.3rem;font-size:.7rem;color:var(--muted)">Rating: ${esc(emp._obsLatest.rating)}</div>`:''}
   </div>`:''}
-</div>` : (!OBS_2PACX ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Site leader observations sheet not yet configured (set OBS_2PACX in code).</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
+</div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open the Talent Analytics panel or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
     const concernBody = (concernCount>0||emp.co===1) ? `
