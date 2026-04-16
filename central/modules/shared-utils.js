@@ -8005,6 +8005,51 @@
       }
     },
 
+    // District-level flag rollup — "which districts have issues", "district flags", "district health"
+    { match: /district.{0,25}(flag|issue|problem|health|concern|attention|risk|critical|alert|status)|flag.{0,25}district|(which|what).{0,20}district.{0,20}(bad|worst|issue|problem|flag|concern|struggling|attention)|district.{0,20}breakdown.{0,20}flag|flag.{0,20}breakdown.{0,20}district/i,
+      respond: function() {
+        try {
+          if (!window.po || typeof window.po.getSchoolFlags !== 'function')
+            return 'Pearl Operations data not loaded yet — open Pearl Operations first, then ask again.';
+          var sf = window.po.getSchoolFlags();
+          if (!sf.length) return '✅ No flags active across any district in Pearl right now.';
+          // Aggregate by district
+          var dMap = {};
+          sf.forEach(function(s) {
+            var d = s.district || 'Unknown';
+            if (!dMap[d]) dMap[d] = { name: d, crit: [], high: [], med: [], schools: [] };
+            if (dMap[d].schools.indexOf(s.school) < 0) dMap[d].schools.push(s.school);
+            s.flags.forEach(function(f) {
+              if (f.severity === 'critical')      dMap[d].crit.push({ school: s.school, msg: f.msg });
+              else if (f.severity === 'high')     dMap[d].high.push({ school: s.school, msg: f.msg });
+              else                                dMap[d].med.push({ school: s.school, msg: f.msg });
+            });
+          });
+          var districts = Object.values(dMap).sort(function(a, b) {
+            return (b.crit.length * 100 + b.high.length * 10 + b.med.length)
+                 - (a.crit.length * 100 + a.high.length * 10 + a.med.length);
+          });
+          var msg = '**District Flag Overview — ' + districts.length + ' district' + (districts.length !== 1 ? 's' : '') + ' with flags:**\n\n';
+          districts.forEach(function(d) {
+            var icon = d.crit.length ? '🚨' : d.high.length ? '⚠️' : '🔵';
+            var status = d.crit.length ? 'CRITICAL' : d.high.length ? 'HIGH' : 'MONITOR';
+            msg += icon + ' **' + d.name + '** — ' + status + '\n';
+            msg += '  ' + d.schools.length + ' site' + (d.schools.length !== 1 ? 's' : '') + ' flagged';
+            if (d.crit.length) msg += ' · ' + d.crit.length + ' critical';
+            if (d.high.length) msg += ' · ' + d.high.length + ' high';
+            if (d.med.length)  msg += ' · ' + d.med.length + ' medium';
+            msg += '\n';
+            // Show top flag per district
+            var topFlag = (d.crit[0] || d.high[0] || d.med[0]);
+            if (topFlag) msg += '  → *' + topFlag.school + '*: ' + topFlag.msg + '\n';
+            msg += '\n';
+          });
+          msg += 'Click a district row in the **District Flag Overview** in Pearl Operations to filter directly, or ask "flags for [district name]" for full details.';
+          return msg;
+        } catch(e) { return 'District flag data not available — open Pearl Operations first.'; }
+      }
+    },
+
     // HIT compliance flags by school
     { match: /hit.?flag|compliance.?flag|flag.*(school|site|hit)|school.*(flag|compliance|hit)|pearl.?flag|compliance.?issue|flag.*report/i,
       respond: function() {
