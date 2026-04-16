@@ -874,6 +874,7 @@
         case 'tutor-obs':    renderTutorObsTab();     break;
         case 'sl-obs':       renderSLObsTab();        break;
         case 'doc-vault':    renderDocVaultTab();     break;
+        case 'survey-intel': renderSurveyIntelTab();  break;
       }
     }
   }
@@ -885,7 +886,7 @@
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
-    ['pd','intake','otj-overview','apprentice','tutor-obs','sl-obs','doc-vault'].forEach(id => {
+    ['pd','intake','otj-overview','apprentice','tutor-obs','sl-obs','doc-vault','survey-intel'].forEach(id => {
       const el = document.getElementById('td-content-' + id);
       if (el) el.innerHTML = '';
     });
@@ -2959,6 +2960,323 @@
 
 
   // ══════════════════════════════════════════════════════════════════
+  //  SUB-TAB: FIELD INTEL — Survey & Cohort Performance Intelligence
+  // ══════════════════════════════════════════════════════════════════
+
+  function renderSurveyIntelTab() {
+    const el = document.getElementById('td-content-survey-intel');
+    if (!el) return;
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:#64748b;font-size:.875rem">Loading Field Intel…</div>';
+
+    try {
+      const po = window.po;
+      if (!po) {
+        el.innerHTML = '<div style="padding:2rem;text-align:center;color:#64748b">Pearl Operations data not available.</div>';
+        return;
+      }
+
+      // ── Data Collection ──────────────────────────────────────────────
+      const schools        = po.getStellarSchools      ? po.getStellarSchools()           : [];
+      const leaderData     = po.getLeadershipData      ? po.getLeadershipData()            : {};
+      const tutorSessions  = po.getTutorSessionStats   ? po.getTutorSessionStats()         : [];
+      const concerns       = po.getCommentsByCategory  ? po.getCommentsByCategory('concern')  : [];
+      const positives      = po.getCommentsByCategory  ? po.getCommentsByCategory('positive') : [];
+
+      // ── Program Pulse ────────────────────────────────────────────────
+      const schoolsWithSurvey    = schools.filter(s => s.surveyAvg != null);
+      const schoolsWithInst      = schools.filter(s => s.instSurveyAvg != null);
+      const avgSurvey    = schoolsWithSurvey.length
+        ? schoolsWithSurvey.reduce((a,s) => a + s.surveyAvg, 0) / schoolsWithSurvey.length : null;
+      const avgInstSurvey = schoolsWithInst.length
+        ? schoolsWithInst.reduce((a,s) => a + s.instSurveyAvg, 0) / schoolsWithInst.length : null;
+      const avgAtt = schools.length
+        ? schools.reduce((a,s) => a + (s.attRate||0), 0) / schools.length : null;
+      const schoolsNeedingAction = schools.filter(s =>
+        (s.attRate  != null && s.attRate  < 80) ||
+        (s.surveyAvg!= null && s.surveyAvg < 3.5) ||
+        (s.flags && s.flags.length > 0)
+      );
+      const weeklyTrend = leaderData.weeklyTrend;
+      const districts   = leaderData.districts || [];
+
+      // ── Sessions That Can Benefit From Support ───────────────────────
+      // Group tutors by the school cohort they're assigned to
+      const sessionMap = {};
+      tutorSessions.forEach(t => {
+        const schoolList = Array.isArray(t.schools) ? t.schools : [t.school || 'Unknown'];
+        schoolList.forEach(school => {
+          if (!sessionMap[school]) sessionMap[school] = { school, tutors: [], surveys: [], attRates: [], sessionIds: [] };
+          const nm = t.name || t.tutor || '';
+          if (nm) sessionMap[school].tutors.push(nm);
+          if (t.surveyAvg != null) sessionMap[school].surveys.push(t.surveyAvg);
+          if (t.attRate   != null) sessionMap[school].attRates.push(t.attRate);
+          if (t.sessionId)         sessionMap[school].sessionIds.push(t.sessionId);
+        });
+      });
+
+      const allSessions = Object.values(sessionMap).map(s => ({
+        ...s,
+        avgSurvey: s.surveys.length  ? s.surveys.reduce((a,v)=>a+v,0)/s.surveys.length   : null,
+        avgAtt:    s.attRates.length ? s.attRates.reduce((a,v)=>a+v,0)/s.attRates.length : null,
+      })).filter(s => s.tutors.length > 0);
+
+      const sessionsNeedingSupport = allSessions
+        .filter(s => (s.avgSurvey != null && s.avgSurvey < 3.8) || (s.avgAtt != null && s.avgAtt < 80))
+        .sort((a, b) => {
+          // Rank by combined severity score (lower = worse)
+          const scoreA = (a.avgSurvey != null ? a.avgSurvey : 5) + (a.avgAtt != null ? a.avgAtt/20 : 5);
+          const scoreB = (b.avgSurvey != null ? b.avgSurvey : 5) + (b.avgAtt != null ? b.avgAtt/20 : 5);
+          return scoreA - scoreB;
+        });
+
+      // ── Colour helpers ───────────────────────────────────────────────
+      function sColor(v) {
+        if (v == null) return '#94a3b8';
+        if (v >= 4.5)  return '#059669';
+        if (v >= 4.0)  return '#1d4ed8';
+        if (v >= 3.5)  return '#d97706';
+        return '#dc2626';
+      }
+      function aColor(v) {
+        if (v == null) return '#94a3b8';
+        if (v >= 90) return '#059669';
+        if (v >= 80) return '#1d4ed8';
+        if (v >= 70) return '#d97706';
+        return '#dc2626';
+      }
+
+      // ── Render ───────────────────────────────────────────────────────
+      el.innerHTML = `
+        <!-- Header row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:1.25rem">
+          <div>
+            <div style="font-size:1.05rem;font-weight:700;color:#0a1628">🗺️ Field Intelligence — Survey &amp; Performance</div>
+            <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Live Pearl Operations data · Identifies sites, districts &amp; sessions needing T&amp;D attention</div>
+          </div>
+          <button onclick="window._tdLoaded&&(delete window._tdLoaded['survey-intel']);renderSurveyIntelTab()"
+            style="font-size:.72rem;font-weight:600;padding:.3rem .75rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;cursor:pointer;color:#374151">↺ Refresh</button>
+        </div>
+
+        <!-- ── Section 1: Program Pulse ──────────────────────────────────── -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:.625rem;margin-bottom:1.5rem">
+          ${[
+            { label:'Avg Survey',      val: avgSurvey!=null     ? avgSurvey.toFixed(2)      : '—', sub:'Program-wide',     color: sColor(avgSurvey) },
+            { label:'Avg Instructional',val:avgInstSurvey!=null ? avgInstSurvey.toFixed(2)  : '—', sub:'Instruction quality',color:sColor(avgInstSurvey) },
+            { label:'Avg Attendance',  val: avgAtt!=null        ? avgAtt.toFixed(1)+'%'     : '—', sub:'All sites',         color: aColor(avgAtt) },
+            { label:'Sites Need Action',val:schoolsNeedingAction.length, sub: schools.length?'of '+schools.length+' sites':'—', color:schoolsNeedingAction.length>0?'#dc2626':'#059669' },
+            { label:'Sessions Queued', val: sessionsNeedingSupport.length, sub:'need support',    color:sessionsNeedingSupport.length>0?'#d97706':'#059669' },
+            { label:'W-o-W Trend',     val: weeklyTrend!=null ? (weeklyTrend>0?'+':'')+weeklyTrend+'%' : '—', sub:'vs last week', color:weeklyTrend!=null?(weeklyTrend>=0?'#059669':'#dc2626'):'#94a3b8' },
+          ].map(k => `
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem .875rem;text-align:center">
+              <div style="font-size:1.375rem;font-weight:800;color:${k.color};line-height:1.1">${k.val}</div>
+              <div style="font-size:.6875rem;font-weight:700;color:#374151;margin-top:.3rem">${k.label}</div>
+              <div style="font-size:.6rem;color:#94a3b8;margin-top:.1rem">${k.sub}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- ── Section 2: District Health Grid ───────────────────────────── -->
+        ${districts.length ? `
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1.25rem;overflow:hidden">
+          <div style="padding:.65rem 1rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#475569">District Health Grid</div>
+            <div style="font-size:.6875rem;color:#94a3b8">${districts.length} districts</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">District</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.05em">On Track</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.05em">At Risk</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:.05em">Needs Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${districts.map(d => `
+                <tr style="border-bottom:1px solid #f1f5f9">
+                  <td style="padding:.45rem .75rem;font-size:.8125rem;font-weight:600;color:#1e293b">${d.district||d.name||'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#059669;font-weight:700">${d.scholarOnTrack!=null?d.scholarOnTrack:'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#d97706;font-weight:700">${d.scholarAtRisk!=null?d.scholarAtRisk:'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;color:#dc2626;font-weight:700">${d.scholarNeedsAction!=null?d.scholarNeedsAction:'—'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+
+        <!-- ── Section 3: T&D Action Queue ────────────────────────────────── -->
+        ${schoolsNeedingAction.length ? `
+        <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;margin-bottom:1.25rem;overflow:hidden">
+          <div style="padding:.65rem 1rem;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#b91c1c">⚠ T&amp;D Action Queue — ${schoolsNeedingAction.length} Site${schoolsNeedingAction.length>1?'s':''}</div>
+            <div style="font-size:.6875rem;color:#b91c1c">Low attendance or survey score</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">School</th>
+                  <th style="text-align:left;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">District</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Att%</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Survey</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Inst Survey</th>
+                  <th style="text-align:left;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...schoolsNeedingAction].sort((a,b) => {
+                  const sa = (a.attRate||100)/20 + (a.surveyAvg||5);
+                  const sb = (b.attRate||100)/20 + (b.surveyAvg||5);
+                  return sa - sb;
+                }).map(s => `
+                <tr style="border-bottom:1px solid #f1f5f9">
+                  <td style="padding:.45rem .75rem;font-size:.8rem;font-weight:600;color:#1e293b;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.school||'—'}</td>
+                  <td style="padding:.45rem .5rem;font-size:.72rem;color:#64748b">${s.district||'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(s.attRate)}">${s.attRate!=null?s.attRate.toFixed(1)+'%':'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.surveyAvg)}">${s.surveyAvg!=null?s.surveyAvg.toFixed(2):'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.instSurveyAvg)}">${s.instSurveyAvg!=null?s.instSurveyAvg.toFixed(2):'—'}</td>
+                  <td style="padding:.45rem .5rem;font-size:.6875rem;color:#dc2626">${(s.flags||[]).join(', ')||'—'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : `
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:.875rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;color:#166534;font-weight:600">
+          ✅ No sites currently flagged for T&amp;D intervention — all sites meeting attendance &amp; survey thresholds.
+        </div>`}
+
+        <!-- ── Section 4: Sessions That Can Benefit From Support ─────────── -->
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:1.25rem;overflow:hidden">
+          <div style="padding:.65rem 1rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#475569">Sessions That Can Benefit From Support</div>
+              <div style="font-size:.625rem;color:#94a3b8;margin-top:.1rem">Cohort/group-level · Session IDs tie surveys to tutor performance</div>
+            </div>
+            <div style="font-size:.6875rem;color:#94a3b8">${sessionsNeedingSupport.length} of ${allSessions.length} session groups flagged</div>
+          </div>
+          ${sessionsNeedingSupport.length ? `
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">School / Site</th>
+                  <th style="text-align:left;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Tutors Assigned</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Avg Survey</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Avg Att%</th>
+                  <th style="text-align:left;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Session IDs</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Priority</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sessionsNeedingSupport.map(s => {
+                  const lowSurvey = s.avgSurvey != null && s.avgSurvey < 3.5;
+                  const lowAtt    = s.avgAtt    != null && s.avgAtt    < 75;
+                  const priority  = (lowSurvey && lowAtt) ? 'Critical' : (lowSurvey || lowAtt) ? 'High' : 'Monitor';
+                  const pColor    = priority==='Critical'?'#dc2626':priority==='High'?'#d97706':'#1d4ed8';
+                  const pBg       = priority==='Critical'?'#fef2f2':priority==='High'?'#fffbeb':'#eff6ff';
+                  const tutorList = (s.tutors||[]).slice(0,3).join(', ') + (s.tutors.length > 3 ? ' +' + (s.tutors.length-3) + ' more' : '');
+                  const sidList   = (s.sessionIds||[]).slice(0,3).join(', ') + (s.sessionIds.length > 3 ? '…' : '');
+                  return `<tr style="border-bottom:1px solid #f1f5f9">
+                    <td style="padding:.45rem .75rem;font-size:.8rem;font-weight:600;color:#1e293b;max-width:165px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s.school||''}">${s.school||'—'}</td>
+                    <td style="padding:.45rem .5rem;font-size:.72rem;color:#374151;max-width:160px">${tutorList||'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.avgSurvey)}">${s.avgSurvey!=null?s.avgSurvey.toFixed(2):'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(s.avgAtt)}">${s.avgAtt!=null?s.avgAtt.toFixed(1)+'%':'—'}</td>
+                    <td style="padding:.45rem .5rem;font-size:.68rem;color:#94a3b8;font-family:monospace">${sidList||'—'}</td>
+                    <td style="padding:.45rem .5rem;text-align:center"><span style="font-size:.6875rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;color:${pColor};background:${pBg}">${priority}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>` : `
+          <div style="padding:1.5rem;text-align:center;color:#059669;font-size:.875rem;font-weight:600">
+            ✅ All session groups are meeting performance benchmarks
+          </div>`}
+        </div>
+
+        <!-- ── Section 5: Scholar Voice ─────────────────────────────────── -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem">
+          <!-- Concerns -->
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;overflow:hidden">
+            <div style="padding:.6rem 1rem;background:#fef2f2;border-bottom:1px solid #fecaca">
+              <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#b91c1c">⚠ Operational Concerns (${concerns.length})</div>
+            </div>
+            <div style="padding:.75rem;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem">
+              ${concerns.length ? concerns.slice(0,8).map(c => `
+                <div style="background:#fef9f9;border:1px solid #fee2e2;border-radius:8px;padding:.5rem .75rem">
+                  <div style="font-size:.75rem;color:#374151;line-height:1.45;font-style:italic">"${((c.text||c.comment||'')).substring(0,130)}${(c.text||c.comment||'').length>130?'…':''}"</div>
+                  <div style="font-size:.625rem;color:#94a3b8;margin-top:.2rem">${c.school||c.site||''} · ${c.date||''}</div>
+                </div>
+              `).join('') : '<div style="font-size:.8rem;color:#94a3b8;padding:.5rem;text-align:center">No concerns flagged</div>'}
+            </div>
+          </div>
+          <!-- Spotlights -->
+          <div style="background:#fff;border:1px solid #bbf7d0;border-radius:12px;overflow:hidden">
+            <div style="padding:.6rem 1rem;background:#f0fdf4;border-bottom:1px solid #bbf7d0">
+              <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#166534">✨ Positive Spotlights (${positives.length})</div>
+            </div>
+            <div style="padding:.75rem;max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem">
+              ${positives.length ? positives.slice(0,8).map(c => `
+                <div style="background:#f8fffe;border:1px solid #d1fae5;border-radius:8px;padding:.5rem .75rem">
+                  <div style="font-size:.75rem;color:#374151;line-height:1.45;font-style:italic">"${((c.text||c.comment||'')).substring(0,130)}${(c.text||c.comment||'').length>130?'…':''}"</div>
+                  <div style="font-size:.625rem;color:#94a3b8;margin-top:.2rem">${c.school||c.site||''} · ${c.date||''}</div>
+                </div>
+              `).join('') : '<div style="font-size:.8rem;color:#94a3b8;padding:.5rem;text-align:center">No spotlight comments available</div>'}
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Section 6: All Schools — Full Survey & Attendance Table ─────── -->
+        ${schools.length ? `
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+          <div style="padding:.65rem 1rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#475569">All Schools — Survey &amp; Attendance</div>
+            <div style="font-size:.6875rem;color:#94a3b8">${schools.length} schools · sorted by performance</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">School</th>
+                  <th style="text-align:left;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">District</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Att%</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Survey</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Inst Survey</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Sessions</th>
+                  <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Survey Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...schools].sort((a,b) => {
+                  const sa = (a.attRate||100)/20 + (a.surveyAvg||5);
+                  const sb = (b.attRate||100)/20 + (b.surveyAvg||5);
+                  return sa - sb;
+                }).map(s => `
+                <tr style="border-bottom:1px solid #f1f5f9">
+                  <td style="padding:.45rem .75rem;font-size:.8rem;font-weight:600;color:#1e293b;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s.school||''}">${s.school||'—'}</td>
+                  <td style="padding:.45rem .5rem;font-size:.72rem;color:#64748b;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.district||'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${aColor(s.attRate)}">${s.attRate!=null?s.attRate.toFixed(1)+'%':'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.surveyAvg)}">${s.surveyAvg!=null?s.surveyAvg.toFixed(2):'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.8rem;font-weight:700;color:${sColor(s.instSurveyAvg)}">${s.instSurveyAvg!=null?s.instSurveyAvg.toFixed(2):'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#64748b">${s.sessions!=null?s.sessions:'—'}</td>
+                  <td style="padding:.45rem .5rem;text-align:center;font-size:.75rem;color:#64748b">${s.siCount!=null?s.siCount:'—'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+      `;
+
+    } catch(e) {
+      if (el) el.innerHTML = `<div style="padding:2rem;color:#b91c1c;font-size:.875rem">
+        Error loading Field Intel: ${e.message}.
+        <button onclick="delete window._tdLoaded['survey-intel'];renderSurveyIntelTab()"
+          style="text-decoration:underline;background:none;border:none;cursor:pointer;color:#1d4ed8;margin-left:.5rem">Retry</button>
+      </div>`;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   //  INITIALIZATION & DEPT-AWARE SETUP
   // ══════════════════════════════════════════════════════════════════
 
@@ -2974,13 +3292,14 @@
       if (!_tdLoaded[tabId]) {
         _tdLoaded[tabId] = true;
         switch (tabId) {
-          case 'pd':           renderPDTab();          break;
-          case 'intake':       renderIntakeTab();      break;
-          case 'otj-overview': renderOTJOverviewTab(); break;
-          case 'apprentice':   renderApprenticeTab();  break;
-          case 'tutor-obs':    renderTutorObsTab();    break;
-          case 'sl-obs':       renderSLObsTab();       break;
-          case 'doc-vault':    renderDocVaultTab();    break;
+          case 'pd':           renderPDTab();           break;
+          case 'intake':       renderIntakeTab();       break;
+          case 'otj-overview': renderOTJOverviewTab();  break;
+          case 'apprentice':   renderApprenticeTab();   break;
+          case 'tutor-obs':    renderTutorObsTab();     break;
+          case 'sl-obs':       renderSLObsTab();        break;
+          case 'doc-vault':    renderDocVaultTab();     break;
+          case 'survey-intel': renderSurveyIntelTab();  break;
           default:             renderPDTab();
         }
       }

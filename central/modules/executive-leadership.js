@@ -1857,84 +1857,87 @@
     panel.id = 'ap-prog-panel';
     panel.style.cssText = 'margin-bottom:1.5rem;font-family:inherit';
     panel.innerHTML = `
-      <!-- TAP header card -->
-      <div style="background:linear-gradient(135deg,#0a1628 0%,#162347 60%,#0a1628 100%);border-radius:16px;padding:1.5rem 1.75rem;color:#fff;margin-bottom:1rem;position:relative;overflow:hidden">
+      <!-- TAP compact hero card -->
+      <div style="background:linear-gradient(135deg,#0a1628 0%,#162347 60%,#0a1628 100%);border-radius:14px;padding:.875rem 1.25rem;color:#fff;margin-bottom:.75rem;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#f0a500,#f0a50088,transparent)"></div>
-        <div style="position:absolute;right:-1rem;top:-1rem;font-size:7rem;opacity:.04;pointer-events:none;line-height:1">🎓</div>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+        <div style="position:absolute;right:-.5rem;top:-.5rem;font-size:5rem;opacity:.04;pointer-events:none;line-height:1">🎓</div>
+        <!-- Title row + badges -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.625rem;margin-bottom:.75rem">
           <div>
-            <div style="font-size:.595rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.375rem">Tutor Apprenticeship Program · SY 2025–2026</div>
-            <div style="font-size:1.375rem;font-weight:800;letter-spacing:-.02em">TAP Central Dashboard</div>
-            <div style="font-size:.8125rem;color:rgba(255,255,255,.5);margin-top:.25rem">Grow-your-own educator pipeline · ${enrolled.length} enrolled · ${Object.keys(netMap).length} networks</div>
+            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2025–2026</div>
+            <div style="font-size:1rem;font-weight:800;letter-spacing:-.02em;line-height:1.2">TAP Central Dashboard</div>
           </div>
-          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-            <div style="background:rgba(240,165,0,.18);border:1px solid rgba(240,165,0,.35);border-radius:20px;padding:.25rem .875rem;font-size:.6875rem;font-weight:700;color:#f6d860;letter-spacing:.04em">LIVE</div>
+          <div style="display:flex;gap:.375rem;align-items:center;flex-wrap:wrap">
+            <div style="background:rgba(240,165,0,.18);border:1px solid rgba(240,165,0,.35);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#f6d860;letter-spacing:.04em">LIVE</div>
             ${flagged.length > 0
-              ? `<div style="background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.3);border-radius:20px;padding:.25rem .875rem;font-size:.6875rem;font-weight:700;color:#fca5a5">⚠ ${flagged.length} need attention</div>`
-              : `<div style="background:rgba(22,163,74,.2);border:1px solid rgba(22,163,74,.3);border-radius:20px;padding:.25rem .875rem;font-size:.6875rem;font-weight:700;color:#86efac">✅ No flags</div>`}
+              ? `<div style="background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.3);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#fca5a5">⚠ ${flagged.length} need attention</div>`
+              : `<div style="background:rgba(22,163,74,.2);border:1px solid rgba(22,163,74,.3);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#86efac">✅ No flags</div>`}
           </div>
         </div>
-
-        <!-- KPI strip inside hero -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:.625rem;margin-top:1.25rem;padding-top:1.125rem;border-top:1px solid rgba(255,255,255,.08)">
+        <!-- Compact KPI strip -->
+        <div style="display:flex;flex-wrap:wrap;gap:.375rem;padding-top:.625rem;border-top:1px solid rgba(255,255,255,.08)">
           ${[
-            { v: enrolled.length,    l: 'Enrolled',      sub: Object.keys(netMap).length + ' networks',    c: '#93c5fd' },
-            { v: eligible.length,    l: 'Eligible',       sub: 'not yet enrolled',                          c: '#fde68a' },
-            { v: regions.NE.length,  l: 'NE Region',      sub: Math.round(regions.NE.length/Math.max(enrolled.length,1)*100) + '% of enrolled', c: '#6ee7b7' },
-            { v: regions.SW.length,  l: 'SW Region',      sub: Math.round(regions.SW.length/Math.max(enrolled.length,1)*100) + '% of enrolled', c: '#6ee7b7' },
-            { v: flagged.length || '✓', l: flagged.length ? 'Flagged' : 'No Flags', sub: flagged.length ? 'need follow-up' : 'all on track', c: flagged.length ? '#fca5a5' : '#86efac' },
-          ].map(function(t){ return `<div style="text-align:center;padding:.5rem .375rem">
-            <div style="font-size:1.5rem;font-weight:800;color:${t.c};line-height:1;letter-spacing:-.02em">${t.v}</div>
-            <div style="font-size:.5625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.5);margin-top:.25rem">${t.l}</div>
-            <div style="font-size:.5625rem;color:rgba(255,255,255,.3);margin-top:.125rem">${t.sub}</div>
+            { v: enrolled.length,        l: 'Enrolled',    sub: Object.keys(netMap).length+' networks', c: '#93c5fd' },
+            { v: eligible.length,        l: 'Eligible',    sub: 'not yet enrolled',                     c: '#fde68a' },
+            { v: regions.NE.length,      l: 'NE',          sub: Math.round(regions.NE.length/Math.max(enrolled.length,1)*100)+'%', c: '#6ee7b7' },
+            { v: regions.SW.length,      l: 'SW',          sub: Math.round(regions.SW.length/Math.max(enrolled.length,1)*100)+'%', c: '#6ee7b7' },
+            { v: flagged.length || '✓',  l: flagged.length?'Flagged':'No Flags', sub: flagged.length?'follow-up':'all on track', c: flagged.length?'#fca5a5':'#86efac' },
+          ].map(function(t){ return `<div style="text-align:center;padding:.3rem .625rem;background:rgba(255,255,255,.05);border-radius:8px;min-width:64px;flex:1">
+            <div style="font-size:1.125rem;font-weight:800;color:${t.c};line-height:1;letter-spacing:-.02em">${t.v}</div>
+            <div style="font-size:.5rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45);margin-top:.15rem">${t.l}</div>
+            <div style="font-size:.45rem;color:rgba(255,255,255,.25);margin-top:.1rem">${t.sub}</div>
           </div>`; }).join('')}
         </div>
       </div>
 
-      <!-- Two column: flags + network grid -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-
-        <!-- OTJ flags -->
-        <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:14px;padding:1.125rem 1.25rem">
-          <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#dc2626;margin-bottom:.75rem">⚠ Action Required (${flagged.length})</div>
-          ${flagged.length > 0 ? flagRows : `<div style="text-align:center;padding:1.5rem;color:#9ca3af;font-size:.875rem">
-            <div style="font-size:1.5rem;margin-bottom:.5rem">✅</div>
-            All apprentices have no active OTJ flags
-          </div>`}
-          <div style="margin-top:.875rem;padding:.75rem;background:#fffbeb;border-radius:8px;border:1px solid #fde68a">
-            <div style="font-size:.6875rem;font-weight:700;color:#92400e;margin-bottom:.375rem">Programming requirements</div>
-            <div style="font-size:.6875rem;color:#92400e;line-height:1.7">① OTJ Beginning — Month 4 deadline<br>② Formal IC observation required<br>③ Site leader must be assigned<br>④ Hours: 1,100 · 2,200 · 3,300 · 3,800 · 4,000</div>
-          </div>
-        </div>
-
-        <!-- Network breakdown -->
-        <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:14px;padding:1.125rem 1.25rem">
-          <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted,#94a3b8);margin-bottom:.75rem">By Partner Network — click any card</div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.5rem">
-            ${netCards}
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.75rem">
-            <div style="background:#eff6ff;border-radius:8px;padding:.625rem;text-align:center">
-              <div style="font-size:1.25rem;font-weight:800;color:#0a1628">${regions.NE.length}</div>
-              <div style="font-size:.625rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:.125rem">NE Region</div>
-            </div>
-            <div style="background:#fffbeb;border-radius:8px;padding:.625rem;text-align:center">
-              <div style="font-size:1.25rem;font-weight:800;color:#b8960c">${regions.SW.length}</div>
-              <div style="font-size:.625rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:.125rem">SW Region</div>
+      <!-- Collapsible detail section -->
+      <details style="margin-bottom:.625rem" id="ap-prog-detail">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;background:#f8fafc;border:1.5px solid var(--border,#e2e8f0);border-radius:10px;font-size:.75rem;font-weight:700;color:#374151;user-select:none">
+          <span>Breakdown · OTJ Flags &amp; Networks</span>
+          <span style="font-size:.6875rem;color:#94a3b8;font-weight:600">▾ expand</span>
+        </summary>
+        <div style="padding:.75rem 0 0;display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <!-- OTJ flags -->
+          <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:.875rem 1rem">
+            <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#dc2626;margin-bottom:.625rem">⚠ Action Required (${flagged.length})</div>
+            ${flagged.length > 0 ? flagRows : `<div style="text-align:center;padding:1rem;color:#9ca3af;font-size:.8125rem">
+              <div style="font-size:1.25rem;margin-bottom:.375rem">✅</div>
+              All apprentices have no active OTJ flags
+            </div>`}
+            <div style="margin-top:.625rem;padding:.625rem;background:#fffbeb;border-radius:8px;border:1px solid #fde68a">
+              <div style="font-size:.6875rem;font-weight:700;color:#92400e;margin-bottom:.25rem">Programming requirements</div>
+              <div style="font-size:.6875rem;color:#92400e;line-height:1.7">① OTJ Beginning — Month 4 deadline<br>② Formal IC observation required<br>③ Site leader must be assigned<br>④ Hours: 1,100 · 2,200 · 3,300 · 3,800 · 4,000</div>
             </div>
           </div>
+          <!-- Network breakdown -->
+          <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:.875rem 1rem">
+            <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--muted,#94a3b8);margin-bottom:.625rem">By Partner Network — click any card</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.4rem">
+              ${netCards}
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-top:.5rem">
+              <div style="background:#eff6ff;border-radius:8px;padding:.5rem;text-align:center">
+                <div style="font-size:1.125rem;font-weight:800;color:#0a1628">${regions.NE.length}</div>
+                <div style="font-size:.5625rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:.1rem">NE Region</div>
+              </div>
+              <div style="background:#fffbeb;border-radius:8px;padding:.5rem;text-align:center">
+                <div style="font-size:1.125rem;font-weight:800;color:#b8960c">${regions.SW.length}</div>
+                <div style="font-size:.5625rem;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;margin-top:.1rem">SW Region</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
 
-      <!-- Pipeline insight bar -->
-      <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.875rem">
-        <div style="width:40px;height:40px;flex-shrink:0;background:#fffbeb;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.125rem;border:1px solid rgba(240,165,0,.2)">💡</div>
-        <div style="font-size:.8125rem;color:#374151;line-height:1.6;flex:1">
-          <strong style="color:#0a1628">Growth Opportunity:</strong> ${eligible.length} active tutors qualify for TAP but are not yet enrolled — a
-          <strong style="color:#b8960c">${growthPct}% program increase</strong> without additional hiring.
+      <!-- Pipeline insight bar (compact) -->
+      <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:10px;padding:.625rem 1rem;display:flex;align-items:center;gap:.75rem">
+        <div style="font-size:1rem;flex-shrink:0">💡</div>
+        <div style="font-size:.75rem;color:#374151;line-height:1.5;flex:1">
+          <strong style="color:#0a1628">Growth:</strong> ${eligible.length} tutors eligible but not enrolled —
+          <strong style="color:#b8960c">${growthPct}% increase</strong> without additional hiring.
           ${flagged.length
-            ? `<span style="color:#dc2626;font-weight:600"> ${flagged.length} enrolled apprentice${flagged.length !== 1 ? 's require' : ' requires'} OTJ follow-up.</span>`
-            : `<span style="color:#16a34a;font-weight:600"> All enrolled apprentices are on track.</span>`}
+            ? `<span style="color:#dc2626;font-weight:600"> ${flagged.length} apprentice${flagged.length !== 1 ? 's require' : ' requires'} OTJ follow-up.</span>`
+            : `<span style="color:#16a34a;font-weight:600"> All on track.</span>`}
         </div>
       </div>`;
 
@@ -2017,70 +2020,62 @@
     section.style.cssText = 'margin-bottom:2rem;font-family:inherit';
     section.innerHTML = `
 
-      <!-- ── HERO HEADER ── -->
-      <div style="background:linear-gradient(135deg,#0a1628 0%,#162347 55%,#0d1e3d 100%);border-radius:18px;padding:2rem 2.25rem;color:#fff;margin-bottom:1.25rem;position:relative;overflow:hidden">
+      <!-- ── COMPACT HERO HEADER ── -->
+      <div style="background:linear-gradient(135deg,#0a1628 0%,#162347 55%,#0d1e3d 100%);border-radius:14px;padding:.875rem 1.25rem;color:#fff;margin-bottom:.75rem;position:relative;overflow:hidden">
         <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#f0a500,#f0a50077,transparent)"></div>
-        <div style="position:absolute;right:-1.5rem;top:-1.5rem;font-size:10rem;opacity:.035;pointer-events:none;line-height:1">🎓</div>
-
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1.25rem;margin-bottom:1.5rem">
+        <div style="position:absolute;right:-.75rem;top:-.75rem;font-size:6rem;opacity:.035;pointer-events:none;line-height:1">🎓</div>
+        <!-- Title + badges row -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.625rem;margin-bottom:.75rem">
           <div>
-            <div style="font-size:.595rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem">
-              <span style="display:inline-block;width:18px;height:2px;background:#f0a500;border-radius:1px"></span>
-              Tutor Apprenticeship Program · SY 2025–2026
-            </div>
-            <div style="font-size:1.625rem;font-weight:800;letter-spacing:-.02em;line-height:1.15">TAP Central Dashboard</div>
-            <div style="font-size:.8125rem;color:rgba(255,255,255,.5);margin-top:.375rem">Grow-your-own educator pipeline · ${networkCount} partner networks</div>
+            <div style="font-size:.5rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:#f0a500;margin-bottom:.2rem">Tutor Apprenticeship Program · SY 2025–2026</div>
+            <div style="font-size:1rem;font-weight:800;letter-spacing:-.02em;line-height:1.2">TAP Central Dashboard</div>
           </div>
-          <div style="display:flex;gap:.5rem;align-items:flex-start;flex-wrap:wrap">
-            <div style="background:rgba(240,165,0,.18);border:1px solid rgba(240,165,0,.35);border-radius:20px;padding:.3rem 1rem;font-size:.6875rem;font-weight:700;color:#f6d860;letter-spacing:.04em">LIVE</div>
-            <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:.3rem 1rem;font-size:.6875rem;font-weight:600;color:rgba(255,255,255,.7)">${enrolled.length} enrolled</div>
+          <div style="display:flex;gap:.375rem;align-items:center;flex-wrap:wrap">
+            <div style="background:rgba(240,165,0,.18);border:1px solid rgba(240,165,0,.35);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#f6d860;letter-spacing:.04em">LIVE</div>
+            <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:600;color:rgba(255,255,255,.7)">${enrolled.length} enrolled</div>
             ${flagged > 0
-              ? `<div style="background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.3);border-radius:20px;padding:.3rem 1rem;font-size:.6875rem;font-weight:700;color:#fca5a5">⚠ ${flagged} flags</div>`
-              : `<div style="background:rgba(22,163,74,.2);border:1px solid rgba(22,163,74,.3);border-radius:20px;padding:.3rem 1rem;font-size:.6875rem;font-weight:700;color:#86efac">✅ No flags</div>`}
+              ? `<div style="background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.3);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#fca5a5">⚠ ${flagged} flags</div>`
+              : `<div style="background:rgba(22,163,74,.2);border:1px solid rgba(22,163,74,.3);border-radius:20px;padding:.2rem .75rem;font-size:.625rem;font-weight:700;color:#86efac">✅ No flags</div>`}
           </div>
         </div>
-
-        <!-- KPI row -->
-        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,.08)">
+        <!-- Compact KPI strip -->
+        <div style="display:flex;flex-wrap:wrap;gap:.375rem;padding-top:.625rem;border-top:1px solid rgba(255,255,255,.08)">
           ${[
-            { v: enrolled.length,    l: 'Enrolled',    sub: networkCount + ' networks',    c: '#93c5fd', def: 'TAP participants active in SY 2025–2026' },
-            { v: eligible.length,    l: 'Eligible',    sub: 'not yet enrolled',             c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet — your pipeline' },
-            { v: totalNE,            l: 'NE Region',   sub: nePct + '% of enrolled',       c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen networks' },
-            { v: totalSW,            l: 'SW Region',   sub: swPct + '% of enrolled',       c: '#6ee7b7', def: 'Hamilton Township, Gloucester Township, Haddon Township, Pennsauken, First Philadelphia, String Theory' },
-            { v: beginComplete,      l: 'OTJ Begin ✓', sub: beginComplete + ' of ' + enrolled.length, c: '#c4b5fd', def: 'First of three OTJ milestones — must be complete by Month 4' },
-            { v: flagged || '✓',     l: flagged ? 'Flagged' : 'No Flags', sub: flagged ? 'need follow-up' : 'all on track', c: flagged ? '#fca5a5' : '#86efac', def: 'Missing OTJ milestone, no site leader assigned, or PM follow-up note' },
-          ].map(function(t){ return `<div title="${t.def||''}" style="text-align:center;padding:.5rem .375rem;cursor:default">
-            <div style="font-size:2rem;font-weight:900;color:${t.c};line-height:1;letter-spacing:-.025em">${t.v}</div>
-            <div style="font-size:.5625rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.45);margin-top:.3rem">${t.l}</div>
-            <div style="font-size:.5rem;color:rgba(255,255,255,.25);margin-top:.125rem">${t.sub}</div>
+            { v: enrolled.length,  l: 'Enrolled',    sub: networkCount+' networks',  c: '#93c5fd', def: 'TAP participants active in SY 2025–2026' },
+            { v: eligible.length,  l: 'Eligible',    sub: 'not yet enrolled',         c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet' },
+            { v: totalNE,          l: 'NE',           sub: nePct+'% enrolled',        c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen' },
+            { v: totalSW,          l: 'SW',           sub: swPct+'% enrolled',        c: '#6ee7b7', def: 'Hamilton, Gloucester, Haddon, Pennsauken, First Philadelphia' },
+            { v: beginComplete,    l: 'OTJ Begin ✓',  sub: beginComplete+' of '+enrolled.length, c: '#c4b5fd', def: 'First OTJ milestone — due Month 4' },
+            { v: flagged || '✓',   l: flagged?'Flagged':'No Flags', sub: flagged?'need follow-up':'all on track', c: flagged?'#fca5a5':'#86efac', def: 'Missing milestone, no site leader, or PM note' },
+          ].map(function(t){ return `<div title="${t.def||''}" style="text-align:center;padding:.3rem .625rem;background:rgba(255,255,255,.05);border-radius:8px;flex:1;min-width:58px;cursor:default">
+            <div style="font-size:1.25rem;font-weight:900;color:${t.c};line-height:1;letter-spacing:-.025em">${t.v}</div>
+            <div style="font-size:.5rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45);margin-top:.15rem">${t.l}</div>
+            <div style="font-size:.45rem;color:rgba(255,255,255,.25);margin-top:.1rem">${t.sub}</div>
           </div>`; }).join('')}
         </div>
       </div>
 
-      <!-- ── NETWORK GRID ── -->
-      <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:16px;overflow:hidden;margin-bottom:1rem">
-        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:.875rem 1.375rem;display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.2rem">Partner Networks</div>
-            <div style="font-size:.9375rem;font-weight:700;color:#fff">By Partner Network — click any card for full roster + OTJ status</div>
-          </div>
-          <div style="font-size:.6875rem;color:rgba(255,255,255,.3)">${networkCount} networks · ${enrolled.length} apprentices</div>
-        </div>
-        <div style="padding:1.125rem 1.25rem">
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:.625rem">
+      <!-- ── COLLAPSIBLE NETWORK GRID ── -->
+      <details style="margin-bottom:.625rem" id="ap-leadership-networks">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;background:#f8fafc;border:1.5px solid var(--border,#e2e8f0);border-radius:10px;font-size:.75rem;font-weight:700;color:#374151;user-select:none">
+          <span>Partner Networks — ${networkCount} networks · ${enrolled.length} apprentices</span>
+          <span style="font-size:.6875rem;color:#94a3b8;font-weight:600">▾ expand</span>
+        </summary>
+        <div style="padding:.75rem;background:#fff;border:1.5px solid var(--border,#e2e8f0);border-top:none;border-radius:0 0 10px 10px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.5rem">
             ${networkCards}
           </div>
         </div>
-      </div>
+      </details>
 
-      <!-- ── PIPELINE INSIGHT ── -->
-      <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.875rem">
-        <div style="width:40px;height:40px;flex-shrink:0;background:#fffbeb;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;border:1px solid rgba(240,165,0,.2)">💡</div>
-        <div style="flex:1;font-size:.875rem;color:#374151;line-height:1.6">
-          <strong style="color:#0a1628">Growth Opportunity:</strong> ${eligible.length} active tutors qualify for TAP but are not yet enrolled —
+      <!-- ── PIPELINE INSIGHT (compact) ── -->
+      <div style="background:#fff;border:1.5px solid var(--border,#e2e8f0);border-radius:10px;padding:.625rem 1rem;display:flex;align-items:center;gap:.75rem">
+        <div style="font-size:1rem;flex-shrink:0">💡</div>
+        <div style="flex:1;font-size:.75rem;color:#374151;line-height:1.5">
+          <strong style="color:#0a1628">Growth:</strong> ${eligible.length} tutors eligible but not enrolled —
           a <strong style="color:#b8960c">${growthPct}% program increase</strong> without additional hiring.
           ${flagged
-            ? `<span style="color:#dc2626;font-weight:600"> ${flagged} enrolled apprentice${flagged !== 1 ? 's require' : ' requires'} OTJ follow-up.</span>`
+            ? `<span style="color:#dc2626;font-weight:600"> ${flagged} apprentice${flagged !== 1 ? 's require' : ' requires'} OTJ follow-up.</span>`
             : `<span style="color:#16a34a;font-weight:600"> All enrolled apprentices are on track.</span>`}
         </div>
       </div>

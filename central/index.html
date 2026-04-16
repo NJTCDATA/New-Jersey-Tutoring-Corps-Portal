@@ -5319,11 +5319,11 @@
       <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)">
         <span class="sl-icon">📋</span> Partner Satisfaction (Q)
       </button>
-      <div class="sf-nav-coming">
+      <div class="sf-nav-coming" title="Launching Q4 2026.">
         <span class="sl-icon" style="opacity:.3">🏫</span> Onsite Feedback
         <span class="sf-cs-badge">SOON</span>
       </div>
-      <div class="sf-nav-coming">
+      <div class="sf-nav-coming" title="Launching Q4 2026.">
         <span class="sl-icon" style="opacity:.3">🎓</span> Scholar Feedback
         <span class="sf-cs-badge">SOON</span>
       </div>
@@ -5392,8 +5392,10 @@
       <div id="homeDeptWidget"></div>
       <!-- KPI summary strip — below leaderboard -->
       <div class="stats-strip" id="homeStatsStrip"><!-- filled by JS --></div>
-      <!-- Quick links — navigation shortcuts, last -->
+      <!-- Quick links — navigation shortcuts -->
       <div class="ql-grid" id="homeQuickLinks"><!-- filled by JS --></div>
+      <!-- Finance Workbooks cabinet — finance / leadership / kb only, filled by JS -->
+      <div id="homeFinanceLinks" style="display:none"></div>
     </div>
 
 
@@ -6007,6 +6009,7 @@
         <button class="pst-tab"        id="tdTab-tutor-obs"     onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
         <button class="pst-tab"        id="tdTab-sl-obs"        onclick="tdShowTab('sl-obs',this)">🏫 Site Leader Obs</button>
         <button class="pst-tab"        id="tdTab-doc-vault"     onclick="tdShowTab('doc-vault',this)">📁 Document Vault</button>
+        <button class="pst-tab"        id="tdTab-survey-intel"  onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
       </div>
 
       <!-- Sub-tab content panels -->
@@ -6017,6 +6020,7 @@
       <div id="td-content-tutor-obs"    class="td-tab-content" style="display:none"></div>
       <div id="td-content-sl-obs"       class="td-tab-content" style="display:none"></div>
       <div id="td-content-doc-vault"    class="td-tab-content" style="display:none"></div>
+      <div id="td-content-survey-intel" class="td-tab-content" style="display:none"></div>
 
       <!-- Legacy target for backward-compat (hidden) -->
       <div id="trainingAnalyticsContent" style="display:none"></div>

@@ -454,7 +454,6 @@ const roleContent = {
 let currentRole = null;
 
 function init() {
-    console.log('🚀 NJTC Portal Initializing...');
     loadDailyQuote();
     updateTime();
     setInterval(updateTime, 1000);
@@ -642,4 +641,3 @@ if (document.readyState === 'loading') {
     init();
 }
 
-console.log('✅ NJTC Portal Loaded Successfully!');

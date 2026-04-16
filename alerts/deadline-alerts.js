@@ -310,5 +310,4 @@
     document.body.style.paddingTop = '0';
   });
 
-  console.log(`[NJTC Alerts] Banner rendered — ${overdue.length} overdue, ${upcoming.length} upcoming`);
 })();
