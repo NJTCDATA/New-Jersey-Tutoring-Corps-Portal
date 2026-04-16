@@ -2628,6 +2628,12 @@
       _filtWeek     = getFilterSelected('week');
       _filtRole     = getFilterSelected('role');
       _filtFlag     = getFilterSelected('flag');
+      // Changing any filter while in a drill view resets to the list — the new filter
+      // defines a different scope and the drilled school/person may no longer be relevant.
+      if (_view === 'school' || _view === 'person') {
+        _view = 'schools';
+        _selSchool = null;
+      }
       // If exactly one school selected and on schools view, drill into it
       if (_filtSchool.length === 1 && _view === 'schools') { drillSchool(_filtSchool[0]); return; }
       updateFilterInfo();
@@ -4131,7 +4137,79 @@
           </div>
         </div>`;
 
-      // ── 2. Triage — show 5 visible, rest collapsed (no endless scroll) ───
+      // ── 2. District Flags Overview ────────────────────────────────────────
+      // Aggregate per-school flags up to district level — first indicator for
+      // Programming: lets team see which districts have the most severe issues
+      // before drilling into individual sites.
+      const distFlagMap = {};
+      schools.forEach(sc => {
+        const d = sc.district || 'Unknown';
+        if (!distFlagMap[d]) distFlagMap[d] = { name:d, sites:0, crit:0, high:0, med:0, topMsg:'', topSev:'' };
+        distFlagMap[d].sites++;
+        (sc.flags||[]).forEach(f => {
+          if (f.severity==='critical') {
+            distFlagMap[d].crit++;
+            if (distFlagMap[d].topSev !== 'critical') { distFlagMap[d].topSev='critical'; distFlagMap[d].topMsg=f.msg; }
+          } else if (f.severity==='high') {
+            distFlagMap[d].high++;
+            if (!distFlagMap[d].topSev) { distFlagMap[d].topSev='high'; distFlagMap[d].topMsg=f.msg; }
+          } else { distFlagMap[d].med++; }
+        });
+      });
+      const distFlagRows = Object.values(distFlagMap)
+        .filter(d => d.crit || d.high || d.med)
+        .sort((a,b) => (b.crit*100+b.high*10+b.med) - (a.crit*100+a.high*10+a.med));
+      const allDistRows = Object.values(distFlagMap)
+        .sort((a,b) => (b.crit*100+b.high*10+b.med) - (a.crit*100+a.high*10+a.med));
+      let distFlagHTML = '';
+      if (allDistRows.length > 1) { // only show when multiple districts present
+        const hasCritDist = distFlagRows.some(d=>d.crit>0);
+        distFlagHTML = `
+          <div class="sg-section" style="border-left:3px solid ${hasCritDist?'#b91c1c':'#d97706'}">
+            <div class="sg-section-hd" style="cursor:pointer;${hasCritDist?'background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca':'background:#fffbeb;color:#92400e;border-bottom-color:#fde68a'}"
+                 onclick="po.toggleSection('sgDistFlagBody',this,'🗺 District Flag Overview (collapsed)','🗺 District Flag Overview')">
+              <span>🗺 District Flag Overview</span>
+              <span style="font-weight:400;font-size:.7rem">${distFlagRows.length} of ${allDistRows.length} district${allDistRows.length!==1?'s':''} with flags · click to collapse</span>
+            </div>
+            <div id="sgDistFlagBody">
+              <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+                  <thead>
+                    <tr style="background:#f8fafc">
+                      <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em">District</th>
+                      <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase">Status</th>
+                      <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#dc2626;text-transform:uppercase">Critical</th>
+                      <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#d97706;text-transform:uppercase">High</th>
+                      <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase">Sites</th>
+                      <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase">Top Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${allDistRows.map(d => {
+                      const sev   = d.crit>0?'critical':d.high>0?'high':d.med>0?'medium':'ok';
+                      const stLbl = d.crit>0?'Critical':d.high>0?'Needs Attention':d.med>0?'Monitor':'On Track';
+                      const stClr = d.crit>0?'#dc2626':d.high>0?'#d97706':d.med>0?'#0369a1':'#059669';
+                      const stBg  = d.crit>0?'#fef2f2':d.high>0?'#fffbeb':d.med>0?'#eff6ff':'#f0fdf4';
+                      const topTxt= d.topMsg ? d.topMsg.substring(0,70)+(d.topMsg.length>70?'…':'') : '—';
+                      return `<tr style="border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="po.filterByDistrict('${esc(d.name)}')" title="Click to filter Pearl Operations to ${esc(d.name)}">
+                        <td style="padding:.45rem .75rem;font-weight:600;color:#1e293b">${d.name}</td>
+                        <td style="padding:.45rem .5rem;text-align:center">
+                          <span style="font-size:.6875rem;font-weight:700;padding:.15rem .5rem;border-radius:999px;color:${stClr};background:${stBg}">${stLbl}</span>
+                        </td>
+                        <td style="padding:.45rem .5rem;text-align:center;font-weight:700;color:${d.crit>0?'#dc2626':'#94a3b8'}">${d.crit>0?d.crit:'—'}</td>
+                        <td style="padding:.45rem .5rem;text-align:center;font-weight:700;color:${d.high>0?'#d97706':'#94a3b8'}">${d.high>0?d.high:'—'}</td>
+                        <td style="padding:.45rem .5rem;text-align:center;color:#64748b">${d.sites}</td>
+                        <td style="padding:.45rem .75rem;color:#64748b;font-size:.72rem;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.topMsg)}">${topTxt}</td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      // ── 4. Triage — show 5 visible, rest collapsed (no endless scroll) ───
       const triageAll = [...critSchools, ...highSchools];
       let triageHTML = '';
       if (triageAll.length > 0) {
@@ -4181,7 +4259,7 @@
           </div>`;
       }
 
-      // ── 3. School cards — collapsed by default, toggle to expand ─────────
+      // ── 5. School cards — collapsed by default, toggle to expand ─────────
       function buildCard(sc) {
         const hasCrit  = sc.flags.some(f=>f.severity==='critical');
         const hasHigh  = sc.flags.some(f=>f.severity==='high');
@@ -4224,7 +4302,7 @@
       }
       const cards = schools.map(buildCard).join('');
 
-      // ── 4. Late survey filers ────────────────────────────────────────────
+      // ── 6. Late survey filers ────────────────────────────────────────────
       const lf = computeTutorLateFilersStats();
       const lateFilerHTML = lf.totalFlagged ? `
         <div class="sg-section" style="border-left:3px solid #d97706">
@@ -4247,6 +4325,7 @@
       mc.innerHTML = `
         <div class="sg-wrap">
           ${summaryHTML}
+          ${distFlagHTML}
           ${triageHTML}
           <div class="sg-section">
             <div class="sg-section-hd" style="cursor:pointer" onclick="po.toggleSection('sgAllSchoolsBody',this,'📋 All ${schools.length} Sites (collapsed) — click to expand','📋 All ${schools.length} Sites — click to collapse')">
