@@ -2967,10 +2967,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
       return true;
     });
-    filtered.sort((a,b) => {
-      const lo = (levelOrder[a.level]||2) - (levelOrder[b.level]||2);
-      return lo !== 0 ? lo : a.emp.n.localeCompare(b.emp.n);
-    });
+    filtered.sort((a,b) => a.emp.n.localeCompare(b.emp.n));
 
     // ── Chip & badge helpers ────────────────────────────────────────────────
     const CHIP_TIPS = {
