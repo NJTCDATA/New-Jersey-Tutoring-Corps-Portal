@@ -181,6 +181,86 @@
     .sdc-tagline { font-size: .75rem; color: rgba(255,255,255,.45); margin-top: .25rem; line-height: 1.4; }
     .sdc-bar { height: 2px; background: rgba(255,255,255,.1); border-radius: 1px; margin-top: .875rem; overflow: hidden; }
     .sdc-bar-fill { height: 100%; border-radius: 1px; background: linear-gradient(90deg, var(--blue-lite), var(--gold)); animation: barSlide .8s ease forwards; }
+    .sdc-native-role { font-size: .625rem; color: rgba(255,255,255,.3); margin-top: .5rem; letter-spacing: .04em; }
+
+    /* ── Department Lens Switcher ─────────────────────────────── */
+    .dept-lens-bar {
+      display: none;
+      align-items: center;
+      gap: .2rem;
+      background: rgba(255,255,255,.07);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 30px;
+      padding: .2rem .3rem;
+      max-width: 520px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .dept-lens-bar::-webkit-scrollbar { display: none; }
+    .dept-lens-pill {
+      display: flex; align-items: center; gap: .3rem;
+      padding: .3rem .7rem;
+      border-radius: 20px;
+      font-size: .7rem; font-weight: 600;
+      color: rgba(255,255,255,.5);
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-family: inherit;
+      transition: background .15s, color .15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .dept-lens-pill:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.9); }
+    .dept-lens-pill.active { background: var(--lens-color, rgba(255,255,255,.18)); color: #fff; font-weight: 700; }
+    .dept-lens-home-dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: var(--gold); display: inline-block; flex-shrink: 0;
+    }
+    .dept-lens-label {
+      font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
+      color: rgba(255,255,255,.25); white-space: nowrap; display: none;
+    }
+    @media (min-width: 960px) { .dept-lens-label { display: block; } }
+
+    /* ── Concern Alert Banner ─────────────────────────────────── */
+    .concern-alert-banner {
+      position: fixed;
+      top: 76px; right: 1.5rem;
+      z-index: 8500;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-left: 4px solid #e63946;
+      border-radius: 14px;
+      box-shadow: 0 8px 36px rgba(0,0,0,.18);
+      padding: 1rem 1.25rem 1rem 1rem;
+      display: flex; gap: .875rem; align-items: flex-start;
+      max-width: 400px;
+      transform: translateX(130%);
+      transition: transform .4s cubic-bezier(.34,1.4,.64,1);
+    }
+    .concern-alert-banner.visible { transform: translateX(0); }
+    .cab-icon { font-size: 1.375rem; flex-shrink: 0; margin-top: .1rem; }
+    .cab-content { flex: 1; min-width: 0; }
+    .cab-title { font-size: .8125rem; font-weight: 700; color: var(--navy); margin-bottom: .2rem; }
+    .cab-detail { font-size: .775rem; color: var(--text); line-height: 1.55; }
+    .cab-sub { font-size: .7rem; color: var(--muted); margin-top: .25rem; }
+    .cab-badge { font-weight: 700; color: #e63946; }
+    .cab-time { margin-left: .4rem; font-size: .675rem; color: var(--muted); }
+    .cab-actions { display: flex; gap: .5rem; margin-top: .625rem; }
+    .cab-btn-open {
+      font-size: .7rem; font-weight: 600; padding: .3rem .75rem;
+      background: var(--navy); color: #fff; border: none; border-radius: 8px;
+      cursor: pointer; font-family: inherit; transition: opacity .15s;
+    }
+    .cab-btn-open:hover { opacity: .85; }
+    .cab-dismiss {
+      position: absolute; top: .625rem; right: .75rem;
+      background: none; border: none; font-size: 1.1rem;
+      color: var(--muted); cursor: pointer; padding: 0; line-height: 1;
+      transition: color .1s;
+    }
+    .cab-dismiss:hover { color: var(--navy); }
     @keyframes barSlide { from { width: 0 } to { width: var(--pct, 72%) } }
 
     .sidebar-group { margin-bottom: .25rem; }
@@ -5223,6 +5303,10 @@
   </div>
   <div class="nav-center">
     <span class="nav-date" id="navDate"></span>
+    <div class="dept-lens-bar" id="deptLensBar" role="navigation" aria-label="Department lens switcher">
+      <span class="dept-lens-label">Viewing As</span>
+      <!-- Pills injected by initLensSwitcher() for leadership + kb sessions -->
+    </div>
   </div>
   <div class="nav-right">
     <span class="dept-pill" id="deptBadge">LOADING</span>
@@ -5239,10 +5323,11 @@
 
     <!-- Dept card -->
     <div class="sidebar-dept-card" id="sidebarDeptCard">
-      <div class="sdc-label">Your Department</div>
+      <div class="sdc-label" id="sdcLabel">Your Department</div>
       <div class="sdc-dept" id="sdcDept">—</div>
       <div class="sdc-tagline" id="sdcTagline">—</div>
       <div class="sdc-bar"><div class="sdc-bar-fill" id="sdcBar" style="--pct:0%"></div></div>
+      <div class="sdc-native-role" id="sdcNativeRole" style="display:none"></div>
     </div>
 
     <div class="sidebar-group">
@@ -6201,7 +6286,6 @@
                     <label class="form-lbl req">Employee Site / Location</label>
                     <select id="f_empSite" class="form-ctrl">
                       <option value="">Select site…</option>
-                      <option>Central Jersey College Prep</option>
                       <option>Clinton Township School District - Round Valley School</option>
                       <option>First Philadelphia Prep Charter School (American Paradigm)</option>
                       <option>Global Leadership Academy - GLA- West</option>
@@ -6209,19 +6293,9 @@
                       <option>Gloucester Township School District- Erial Elementary School</option>
                       <option>Gloucester Township School District- JW Lilley Elementary School</option>
                       <option>Gloucester Township School District- Loring Flemming Elementary School</option>
-                      <option>Haddon Township School District- Stoy Elementary School</option>
-                      <option>Haddon Township School District-Clyde Jennings Elementary School</option>
-                      <option>Haddon Township School District-Edison Elementary School</option>
-                      <option>Haddon Township School District-Strawbridge Elementary School</option>
-                      <option>Haddon Township School District-Van Sciver Elementary School</option>
                       <option>Hamilton Township School District- Albert E. Grice Middle School</option>
                       <option>Hamilton Township School District- Crockett Middle School</option>
                       <option>Hamilton Township School District- Kuser Elementary School</option>
-                      <option>Hamilton Township School District- Mercerville Elementary School</option>
-                      <option>Hamilton Township School District- Sayen Elementary School</option>
-                      <option>Hamilton Township School District-Alexander Elementary School</option>
-                      <option>Hoboken Dual Language Charter School (HOLA) - ES</option>
-                      <option>Hoboken Dual Language Charter School (HOLA) - MS</option>
                       <option>iLearn Charter School- Bergen ES</option>
                       <option>iLearn Charter School- Bergen MS</option>
                       <option>iLearn Charter School- Clifton ES</option>
@@ -6239,14 +6313,25 @@
                       <option>Monmouth County BGC- College Achieve (CAPS Neptune)</option>
                       <option>Paterson Charter School Science & Tech.- PCSST 4-7 Campus</option>
                       <option>Pemberton- Denbo-Crichton Location</option>
-                      <option>Penns Grove - Carneys Point Regional School District- Penns Grove Middle School</option>
-                      <option>Penns Grove - Field Street Elementary</option>
-                      <option>Penns Grove - P.W. Carleton Elementary</option>
                       <option>Riverton School District- Riverton Public School</option>
-                      <option>Salem City School District- Salem - John Fenwick Academy (K-2)</option>
-                      <option>Salem City School District- Salem Middle School (3-5)</option>
                       <option>Waterford Township School District- Atco Elementary School</option>
                       <option>Waterford Township School District- Waterford Elementary School</option>
+                      <option>Penns Grove - Carneys Point Regional School District- Penns Grove Middle School</option>
+                      <option>Salem City School District- Salem - John Fenwick Academy (K-2)</option>
+                      <option>Salem City School District- Salem Middle School (3-5)</option>
+                      <option>Hamilton Township School District- Mercerville Elementary School</option>
+                      <option>Hamilton Township School District- Sayen Elementary School</option>
+                      <option>Hamilton Township School District-Alexander Elementary School</option>
+                      <option>Haddon Township School District-Van Sciver Elementary School</option>
+                      <option>Haddon Township School District-Strawbridge Elementary School</option>
+                      <option>Haddon Township School District-Edison Elementary School</option>
+                      <option>Haddon Township School District-Clyde Jennings Elementary School</option>
+                      <option>Haddon Township School District- Stoy Elementary School</option>
+                      <option>Central Jersey College Prep</option>
+                      <option>Penns Grove - P.W. Carleton Elementary</option>
+                      <option>Penns Grove - Field Street Elementary</option>
+                      <option>Hoboken Dual Language Charter School (HOLA) - ES</option>
+                      <option>Hoboken Dual Language Charter School (HOLA) - MS</option>
                     </select>
                   </div>
                   <div class="form-row-2">
