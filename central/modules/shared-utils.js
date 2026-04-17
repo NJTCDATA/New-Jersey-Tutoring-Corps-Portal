@@ -164,16 +164,20 @@
 
   const DEPT_COLORS = {
     hr: '#e63946', finance: '#2a9d8f', programming: '#457b9d',
-    data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500', __drive__: '#0969da'
+    data: '#7b2d8b', training: '#e76f51', leadership: '#f0a500', kb: '#5b8dee', __drive__: '#0969da'
   };
   const DEPT_ICONS = {
     hr: '👔', finance: '💰', programming: '🎯',
-    data: '📈', training: '🎓', leadership: '⭐', __drive__: '☁️'
+    data: '📈', training: '🎓', leadership: '⭐', kb: '🌟', __drive__: '☁️'
   };
   const DEPT_LABELS = {
     hr: 'HR', finance: 'Finance', programming: 'Programming',
-    data: 'Data & Eval', training: 'Training', leadership: 'Leadership', __drive__: 'Google Drive Additions'
+    data: 'Data & Eval', training: 'Training', leadership: 'Leadership', kb: 'KB', __drive__: 'Google Drive Additions'
   };
+
+  // Lens switcher — departments accessible as lenses (Data excluded — restricted access)
+  const LENS_DEPTS = ['leadership', 'kb', 'hr', 'finance', 'programming', 'training'];
+  const LENS_SHORT  = { leadership: 'Leadership', kb: 'KB', hr: 'HR', finance: 'Finance', programming: 'Program', training: 'T&D' };
 
   // ══════════════════════════════════════════════════════════
   //  KPI DATA
@@ -578,26 +582,27 @@
   const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSfBqQmfn4ZHyJ1-tv-ehKDyr-zD4RkBr5AfZ2QeJMpJFbFxHg/formResponse';
 
   const ENTRY = {
-    email:           'entry.1457676306',
-    submitterName:   'entry.580089576',
-    onBehalf:        'entry.1590438580',
-    onBehalfOf:      'entry.1245652844',
-    empName:         'entry.629932880',
-    empRole:         'entry.2044182643',
-    empRoleOther:    'entry.1645253994',
+    submitterName:   'entry.1457676306',  // NJTC Employee Completing Form (Name/Title)
+    onBehalfYesNo:   'entry.1911489470',  // Are you completing on behalf? Yes/No
+    onBehalfOf:      'entry.580089576',   // Name & role of person on behalf of
+    empName:         'entry.1590438580',  // Employee Name
+    empRole:         'entry.2044182643',  // Employee Role (SC/Tutor/IC/Dual Role/Other)
     todayYear:       'entry.701375141_year',
     todayMonth:      'entry.701375141_month',
     todayDay:        'entry.701375141_day',
     convYear:        'entry.651108769_year',
     convMonth:       'entry.651108769_month',
     convDay:         'entry.651108769_day',
-    firstOccurrence: 'entry.1911489470',
-    supportType:     'entry.1990325444',
-    supportOther:    'entry.59727443',
-    delivery:        'entry.232659604',
-    empSite:         'entry.2070944320',
-    concernType:     'entry.2109849030',
-    hrNextSteps:     'entry.1704854495',
+    firstOccurrence: 'entry.2109849030',  // Is this the first documented occurrence? Yes/No
+    supportType:     'entry.1990325444',  // What type of support are you documenting?
+    supportOther:    'entry.1245652844',  // If support type is "Other", describe
+    delivery:        'entry.232659604',   // How was this conversation delivered?
+    empSite:         'entry.2070944320',  // Employee Site/Location
+    concernType:     'entry.1295144696',  // Type of concern (Attendance/Lesson Plans/etc.)
+    concernOther:    'entry.629932880',   // Explain context if concern type is "Other"
+    history:         'entry.1645253994',  // Relevant historical details
+    hrNextSteps:     'entry.1704854495',  // Next Steps Requested From HR
+    nextStepsDesc:   'entry.59727443',    // Please describe any relevant next steps
   };
 
   // ══════════════════════════════════════════════════════════
@@ -2210,6 +2215,22 @@
     document.getElementById('sdcTagline').textContent = cfg.tagline || '';
     document.getElementById('sdcBar').style.setProperty('--pct', cfg.goalPct || '0%');
 
+    // Viewing-as indicator: show when lens differs from session dept
+    const sessionDept = window.NJTC_SESSION?.dept;
+    const sdcLabel = document.getElementById('sdcLabel');
+    const sdcNativeRole = document.getElementById('sdcNativeRole');
+    const isViewing = sessionDept && dept !== sessionDept;
+    if (sdcLabel) sdcLabel.textContent = isViewing ? 'Viewing As' : 'Your Department';
+    if (sdcNativeRole) {
+      if (isViewing) {
+        const nativeCfg = DEPT_CONFIG[sessionDept] || {};
+        sdcNativeRole.textContent = `Your role: ${nativeCfg.emoji || ''} ${nativeCfg.label || sessionDept}`;
+        sdcNativeRole.style.display = '';
+      } else {
+        sdcNativeRole.style.display = 'none';
+      }
+    }
+
     // Connections in sidebar (show 3 max)
     const connections = cfg.connections || [];
     const connList = document.getElementById('deptConnectionsList');
@@ -2221,6 +2242,76 @@
       </div>
     `).join('') + (deptConns.length === 0 ? '<div class="dc-text" style="color:rgba(255,255,255,.3)">No connections configured</div>' : '');
   }
+
+  // ── Department Lens Switcher ──────────────────────────────────────────────
+  function initLensSwitcher(sessionDept) {
+    if (!['leadership', 'kb'].includes(sessionDept)) return;
+    const bar = document.getElementById('deptLensBar');
+    if (!bar) return;
+    bar.style.display = 'flex';
+    bar.innerHTML = `<span class="dept-lens-label">Viewing As</span>` + LENS_DEPTS.map(d => {
+      const cfg = DEPT_CONFIG[d] || {};
+      const isNative = d === sessionDept;
+      const color = DEPT_COLORS[d] || 'rgba(255,255,255,.18)';
+      return `<button class="dept-lens-pill${d === sessionDept ? ' active' : ''}"
+        id="lensPill_${d}"
+        style="${d === sessionDept ? `--lens-color:${color}55` : ''}"
+        onclick="window.switchLens('${d}')"
+        title="${cfg.label || d}">
+        <span>${cfg.emoji || ''}</span>
+        <span>${LENS_SHORT[d] || d}</span>
+        ${isNative ? '<span class="dept-lens-home-dot" title="Your home department"></span>' : ''}
+      </button>`;
+    }).join('');
+  }
+
+  function switchLens(dept) {
+    const sessionDept = window.NJTC_SESSION?.dept;
+    if (!['leadership', 'kb'].includes(sessionDept)) return;
+    if (!LENS_DEPTS.includes(dept)) return;
+
+    window.NJTC_VIEW_DEPT = dept;
+    window._currentDept   = dept;
+
+    // Update pill active states
+    LENS_DEPTS.forEach(d => {
+      const pill = document.getElementById(`lensPill_${d}`);
+      if (!pill) return;
+      const color = DEPT_COLORS[d] || 'rgba(255,255,255,.18)';
+      if (d === dept) {
+        pill.classList.add('active');
+        pill.style.setProperty('--lens-color', color + '55');
+      } else {
+        pill.classList.remove('active');
+        pill.style.removeProperty('--lens-color');
+      }
+    });
+
+    // Rebuild sidebar for viewed dept
+    buildSidebarDept(dept);
+    if (typeof window.initDeptNav === 'function') window.initDeptNav(dept);
+
+    // Update top-right dept badge
+    const badge = document.getElementById('deptBadge');
+    if (badge) {
+      const cfg = DEPT_CONFIG[dept] || {};
+      badge.textContent = dept !== sessionDept
+        ? `Viewing: ${cfg.label || dept}`
+        : (cfg.label || dept.toUpperCase());
+    }
+
+    // If home panel is active, rebuild it for the new lens
+    const homePanel = document.getElementById('panel-home');
+    if (homePanel && homePanel.classList.contains('active')) {
+      // Clear leaderboard/exec guards so they re-render for the new dept
+      ['lbWrap', 'lbExecPillTile'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      buildHome(dept);
+    }
+  }
+  window.switchLens = switchLens;
 
   // ══════════════════════════════════════════════════════════
   //  CONNECTIONS MODAL
@@ -2308,7 +2399,7 @@
         if (txt) txt.innerHTML = `<strong>${_kc.fresh ? 'Cached' : 'Stale cache'}</strong> · ${KPI_DATA.length} targets · ${_kpiLastFetched.toLocaleTimeString()}`;
         if (btn) btn.disabled = false;
         const _sess = window.NJTC_SESSION;
-        if (_sess) buildHome(_sess.dept);
+        if (_sess) buildHome(window.NJTC_VIEW_DEPT || _sess.dept);
         if (_kc.fresh) return;  // still fresh — skip network fetch
         // stale: fall through to re-fetch silently in background
       }
@@ -2380,7 +2471,7 @@
         buildKPI();
         setTimeout(() => {
           const session = window.NJTC_SESSION;
-          if (session) buildHome(session.dept);
+          if (session) buildHome(window.NJTC_VIEW_DEPT || session.dept);
           fetchKPIMetadata(false);
         }, 16); // ~1 frame
       }, 16);
@@ -2861,29 +2952,46 @@
     const g = (id) => document.getElementById(id)?.value?.trim() || '';
     const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 
-    params.append(ENTRY.email,           g('f_email'));
-    params.append(ENTRY.submitterName,   g('f_submitter'));
-    params.append(ENTRY.onBehalf,        r('onBehalf') || 'No');
-    params.append(ENTRY.onBehalfOf,      g('f_onBehalfOf'));
-    params.append(ENTRY.empName,         g('f_empName'));
-    params.append(ENTRY.empRole,         document.getElementById('f_empRole').value);
-    params.append(ENTRY.empRoleOther,    document.getElementById('f_empRole').value === 'Other' ? '' : '');
-    params.append(ENTRY.todayYear,       td.year);
-    params.append(ENTRY.todayMonth,      td.month);
-    params.append(ENTRY.todayDay,        td.day);
-    params.append(ENTRY.convYear,        cd.year);
-    params.append(ENTRY.convMonth,       cd.month);
-    params.append(ENTRY.convDay,         cd.day);
-    params.append(ENTRY.firstOccurrence, r('firstOccurrence'));
-    params.append(ENTRY.supportType,     r('supportType'));
-    params.append(ENTRY.supportOther,    g('f_supportOther'));
-    params.append(ENTRY.delivery,        r('delivery'));
-    params.append(ENTRY.empSite,         document.getElementById('f_empSite').value);
-    params.append(ENTRY.concernType,     r('concernType'));
-    params.append(ENTRY.hrNextSteps,     r('hrNextSteps'));
+    // emailAddress is the standard Google Forms respondent email field (for App Script receipt)
+    params.append('emailAddress',          g('f_email'));
+    params.append(ENTRY.submitterName,     g('f_submitter'));
+    params.append(ENTRY.onBehalfYesNo,     r('onBehalf') || 'No');
+    params.append(ENTRY.onBehalfOf,        g('f_onBehalfOf'));
+    params.append(ENTRY.empName,           g('f_empName'));
+    params.append(ENTRY.empRole,           document.getElementById('f_empRole').value);
+    params.append(ENTRY.todayYear,         td.year);
+    params.append(ENTRY.todayMonth,        td.month);
+    params.append(ENTRY.todayDay,          td.day);
+    params.append(ENTRY.convYear,          cd.year);
+    params.append(ENTRY.convMonth,         cd.month);
+    params.append(ENTRY.convDay,           cd.day);
+    params.append(ENTRY.firstOccurrence,   r('firstOccurrence'));
+    params.append(ENTRY.supportType,       r('supportType'));
+    params.append(ENTRY.supportOther,      g('f_supportOther'));
+    params.append(ENTRY.delivery,          r('delivery'));
+    params.append(ENTRY.empSite,           document.getElementById('f_empSite').value);
+    params.append(ENTRY.concernType,       r('concernType'));
+    params.append(ENTRY.concernOther,      g('f_concernOther'));
+    params.append(ENTRY.history,           g('f_history'));
+    params.append(ENTRY.hrNextSteps,       r('hrNextSteps'));
+    params.append(ENTRY.nextStepsDesc,     g('f_nextStepsDesc'));
 
     try {
       await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
+
+      // Fire in-portal alert so Programming + HR teams are notified in real time
+      try {
+        localStorage.setItem('njtc_concern_alert_v1', JSON.stringify({
+          ts:          Date.now(),
+          submitter:   g('f_submitter'),
+          empName:     g('f_empName'),
+          empSite:     document.getElementById('f_empSite').value,
+          concernType: r('concernType') || g('f_concernOther'),
+          supportType: r('supportType'),
+          hrNextSteps: r('hrNextSteps'),
+        }));
+      } catch(e) {}
+
       document.getElementById('formContainer').style.display = 'none';
       document.getElementById('formSuccess').style.display = 'block';
     } catch(e) {
@@ -2966,6 +3074,7 @@
 
     const dept = session.dept;
     _currentDept = dept;
+    window.NJTC_VIEW_DEPT = dept; // initialize lens to own dept
     const cfg = DEPT_CONFIG[dept] || {};
 
     // ── T+0: Show UI shell immediately — user can interact right away ──────
@@ -2980,11 +3089,20 @@
     // User sees a structured placeholder instead of blank/frozen content
     _renderHomeSkeleton(dept);
 
-    // ── T+50ms: Sidebar — fast, synchronous, no network needed ────────────
+    // ── T+50ms: Sidebar + lens switcher — fast, synchronous ───────────────
     setTimeout(() => {
       try { buildSidebarDept(dept); } catch(e) {}
       try { if (typeof window.initDeptNav === 'function') window.initDeptNav(dept); } catch(e) {}
+      try { initLensSwitcher(dept); } catch(e) {}
     }, 50);
+
+    // ── T+400ms: Concern alert check for HR + Programming ─────────────────
+    if (CONCERN_ALERT_DEPTS.includes(dept)) {
+      setTimeout(() => { try { checkConcernAlert(); } catch(e) {} }, 400);
+      window.addEventListener('storage', (e) => {
+        if (e.key === CONCERN_ALERT_KEY) { try { checkConcernAlert(); } catch(e) {} }
+      });
+    }
 
     // ── T+100ms: KPI from cache first (instant numbers if cached) ─────────
     // If cached data exists, buildHome renders immediately with real numbers
@@ -4587,6 +4705,71 @@
 
 
 
+
+  // ══════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════
+  //  CONCERN ALERT — cross-tab notification for HR + Programming
+  // ══════════════════════════════════════════════════════════
+  const CONCERN_ALERT_KEY = 'njtc_concern_alert_v1';
+  const CONCERN_ALERT_DEPTS = ['hr', 'programming'];
+
+  function _fmtTimeAgo(ts) {
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if (diff < 60)    return 'just now';
+    if (diff < 3600)  return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function checkConcernAlert() {
+    try {
+      const raw = localStorage.getItem(CONCERN_ALERT_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (!data || !data.ts) return;
+      if (Date.now() - data.ts > 24 * 60 * 60 * 1000) return; // older than 24h
+      if (sessionStorage.getItem('njtc_ca_dismissed_' + data.ts)) return; // dismissed this session
+      showConcernAlert(data);
+    } catch(e) {}
+  }
+
+  function showConcernAlert(data) {
+    const existing = document.getElementById('concernAlertBanner');
+    if (existing) existing.remove();
+    const banner = document.createElement('div');
+    banner.id = 'concernAlertBanner';
+    banner.className = 'concern-alert-banner';
+    banner.style.position = 'fixed';
+    const timeAgo = _fmtTimeAgo(data.ts);
+    banner.innerHTML = `
+      <button class="cab-dismiss" onclick="window.dismissConcernAlert(${data.ts})" title="Dismiss">×</button>
+      <div class="cab-icon">📋</div>
+      <div class="cab-content">
+        <div class="cab-title">New Performance Concern Submitted</div>
+        <div class="cab-detail">
+          <strong>${data.empName || 'Unknown employee'}</strong> ·
+          ${data.empSite || 'Unknown site'} ·
+          <span class="cab-badge">${data.concernType || '—'}</span>
+          <span class="cab-time">${timeAgo}</span>
+        </div>
+        <div class="cab-sub">Submitted by ${data.submitter || 'Unknown'} · HR next step: <strong>${data.hrNextSteps || '—'}</strong></div>
+        <div class="cab-actions">
+          <button class="cab-btn-open" onclick="showPanel('concern',document.querySelector('[data-panel=concern]'));window.dismissConcernAlert(${data.ts})">Open Support Log →</button>
+        </div>
+      </div>`;
+    document.body.appendChild(banner);
+    requestAnimationFrame(() => requestAnimationFrame(() => banner.classList.add('visible')));
+  }
+
+  function dismissConcernAlert(ts) {
+    try { sessionStorage.setItem('njtc_ca_dismissed_' + ts, '1'); } catch(e) {}
+    const banner = document.getElementById('concernAlertBanner');
+    if (banner) {
+      banner.classList.remove('visible');
+      setTimeout(() => banner.remove(), 400);
+    }
+  }
+  window.dismissConcernAlert = dismissConcernAlert;
 
   // ══════════════════════════════════════════════════════════
   //  WINDOW EXPOSURES — make shared state accessible globally
