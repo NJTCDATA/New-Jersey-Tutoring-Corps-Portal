@@ -2952,8 +2952,6 @@
     const g = (id) => document.getElementById(id)?.value?.trim() || '';
     const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 
-    // emailAddress is the standard Google Forms respondent email field (for App Script receipt)
-    params.append('emailAddress',          g('f_email'));
     params.append(ENTRY.submitterName,     g('f_submitter'));
     params.append(ENTRY.onBehalfYesNo,     r('onBehalf') || 'No');
     params.append(ENTRY.onBehalfOf,        g('f_onBehalfOf'));
