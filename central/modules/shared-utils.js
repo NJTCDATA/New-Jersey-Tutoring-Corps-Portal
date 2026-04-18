@@ -3431,7 +3431,7 @@
   const _HR_BASE_LEN = HR_EMPS.length;
 
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
+  const TALENT_CSV_URL = 'https://script.google.com/macros/s/AKfycbwNzgzneNks5nIt1W_cvJ73ekIOlX5vzHUyvWSJ-3bUpp_n-XdFQ1Z7jMxitGhcSy4a_g/exec';
 
   // Parse a full CSV text that may contain quoted multiline fields.
   // Returns an array of string-arrays (rows → columns).
@@ -3515,8 +3515,8 @@
         // stale: fall through to background re-fetch
       }
     }
-    const cacheBust = _forceRefresh ? '&t=' + Date.now() : '';
-    const url = TALENT_CSV_URL + '&gid=' + TALENT_CSV_GIDS[0] + cacheBust;
+    const cacheBust = _forceRefresh ? '?t=' + Date.now() : '';
+    const url = TALENT_CSV_URL + cacheBust;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
