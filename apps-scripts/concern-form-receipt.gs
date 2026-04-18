@@ -22,8 +22,9 @@
  */
 
 // ── Spreadsheet config ────────────────────────────────────────────────────────
-const SPREADSHEET_ID  = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
-const CONCERN_SHEET_GID = 274671201;
+const SPREADSHEET_ID    = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
+const CONCERN_SHEET_GID = 274671201;   // "Performance Concern Form" tab
+const REVIEWS_SHEET_GID = 63958401;   // "Monthly Site Leader Reviews" tab
 
 // ── Core HR Recipient ────────────────────────────────────────────────────────
 const HR_EMAIL = 'dalitza@njtutoringcorps.org';
@@ -73,18 +74,23 @@ const SITE_REGION_MAP = [
 ];
 
 // ── Web App: CSV endpoint ─────────────────────────────────────────────────────
-// Serves the Performance Concern Form sheet as CSV so the portal can read it
-// without hitting Google Workspace domain restrictions on pub?output=csv.
+// Serves sheet tabs as CSV, bypassing Google Workspace pub?output=csv restrictions.
 // Deploy as: Execute as Me / Who has access: Anyone (even anonymous)
+//
+// Usage:
+//   ?tab=concerns  → Performance Concern Form tab (gid 274671201)  [default]
+//   ?tab=reviews   → Monthly Site Leader Reviews tab (gid 63958401)
 function doGet(e) {
   try {
+    var tab   = (e && e.parameter && e.parameter.tab) || 'concerns';
+    var gid   = (tab === 'reviews') ? REVIEWS_SHEET_GID : CONCERN_SHEET_GID;
     var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheets().filter(function(s) {
-      return s.getSheetId() === CONCERN_SHEET_GID;
+      return s.getSheetId() === gid;
     })[0];
 
     if (!sheet) {
-      return ContentService.createTextOutput('Sheet not found')
+      return ContentService.createTextOutput('Sheet not found: ' + tab)
         .setMimeType(ContentService.MimeType.TEXT);
     }
 

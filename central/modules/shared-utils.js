@@ -3135,6 +3135,7 @@
     setTimeout(() => {
       try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
       try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveReviews === 'function') fetchLiveReviews().catch(()=>{}); } catch(e) {}
     }, 1200);
 
     // ── T+1800ms: iReady + SY + Observations (background, lowest priority) ─
@@ -3431,7 +3432,8 @@
   const _HR_BASE_LEN = HR_EMPS.length;
 
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL = 'https://script.google.com/macros/s/AKfycbwNzgzneNks5nIt1W_cvJ73ekIOlX5vzHUyvWSJ-3bUpp_n-XdFQ1Z7jMxitGhcSy4a_g/exec';
+  const TALENT_CSV_URL     = 'https://script.google.com/macros/s/AKfycbwNzgzneNks5nIt1W_cvJ73ekIOlX5vzHUyvWSJ-3bUpp_n-XdFQ1Z7jMxitGhcSy4a_g/exec';
+  const TALENT_REVIEWS_URL = TALENT_CSV_URL + '?tab=reviews';
 
   // Parse a full CSV text that may contain quoted multiline fields.
   // Returns an array of string-arrays (rows → columns).
@@ -3536,6 +3538,85 @@
     }
     _talentLiveStatus = 'fallback';
     console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
+  }
+
+  // ── Live Reviews Fetch ──────────────────────────────────────────────────────
+  // Reads Monthly Site Leader Reviews tab via the same Apps Script proxy.
+  // Uses header-name matching so column order changes don't break parsing.
+  function _parseReviewsCSV(text) {
+    const rows = _parseCSVFull(text);
+    if (rows.length < 2) return [];
+    const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
+    const ci = key => {
+      const aliases = {
+        ts:     ['timestamp'],
+        month:  ['month','review month','cycle'],
+        pm:     ['pm','program manager','submitted by','submitter'],
+        leader: ['leader','site leader','leader name','staff name','name'],
+        site:   ['site','school','location','district'],
+        role:   ['role','position'],
+        d1:     ['domain 1','d1','domain one','domain 1 rating'],
+        d23:    ['domain 2','d23','domain 2&3','domain 2 & 3','domains 2','domain 2-3'],
+        d4:     ['domain 4','d4','domain four','domain 4 rating'],
+        notes:  ['notes','comments','feedback','additional notes'],
+      }[key] || [];
+      for (const alias of aliases) {
+        const idx = hdr.findIndex(h => h.includes(alias));
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+    const get = (row, key) => { const i = ci(key); return i >= 0 ? (row[i]||'').trim() : ''; };
+    const fresh = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const tsRaw = get(row, 'ts');
+      if (!tsRaw) continue;
+      const dt = new Date(tsRaw);
+      if (isNaN(dt.getTime())) continue;
+      const leader = get(row, 'leader');
+      if (!leader) continue;
+      fresh.push({
+        ts:     tsRaw,
+        month:  get(row,'month') || dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
+        yr:     dt.getFullYear(),
+        mo:     dt.getMonth()+1,
+        pm:     get(row,'pm'),
+        leader: leader,
+        site:   normDistrict(get(row,'site')),
+        role:   get(row,'role'),
+        d1:     get(row,'d1'),
+        d23:    get(row,'d23'),
+        d4:     get(row,'d4'),
+        notes:  get(row,'notes'),
+      });
+    }
+    return fresh;
+  }
+
+  async function fetchLiveReviews() {
+    const _rc = NJTC_CACHE.get('njtc_reviews_v1');
+    if (_rc && _rc.data && _rc.data.length) {
+      REVIEWS = _rc.data; window.REVIEWS = REVIEWS;
+      if (_rc.fresh) return;
+    }
+    try {
+      const res = await fetch(TALENT_REVIEWS_URL, { signal: AbortSignal.timeout(15000) });
+      if (res.ok) {
+        const text = await res.text();
+        const fresh = _parseReviewsCSV(text);
+        if (fresh.length > 0) {
+          REVIEWS = fresh; window.REVIEWS = REVIEWS;
+          NJTC_CACHE.set('njtc_reviews_v1', fresh);
+          console.log('[Reviews] Live data loaded: ' + fresh.length + ' records');
+          if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('[Reviews] Fetch failed:', e.message);
+    }
+    console.warn('[Reviews] Using built-in seed data: ' + REVIEWS.length + ' records');
   }
 
   function countBy(arr, key) {
@@ -4829,6 +4910,7 @@
   window.submitConcernForm     = submitConcernForm;
   window.showChangeLog         = showChangeLog;
   window.fetchLiveConcerns     = fetchLiveConcerns;
+  window.fetchLiveReviews      = fetchLiveReviews;
   window.fetchAndRebuildKPI    = fetchAndRebuildKPI;
   window.govOpen               = govOpen;
   window.govClose              = govClose;
