@@ -1,25 +1,10 @@
 /**
- * NJTC HR Email Notification Script — v4
- * CHANGES FROM v3:
- *   Added doGet() Web App endpoint that serves the Performance Concern Form
- *   sheet as CSV. This bypasses Google Workspace org-level restrictions that
- *   block the standard "Publish to the web" pub?output=csv endpoint (403).
- *
- *   HOW TO DEPLOY THE WEB APP (required for portal CSV access):
- *   1. In Apps Script: click Deploy → New deployment
- *   2. Type: Web app
- *   3. Execute as: Me
- *   4. Who has access: Anyone (even anonymous)
- *   5. Click Deploy → copy the Web App URL
- *   6. Give that URL to your developer to update TALENT_CSV_URL in the portal
- *
- *   HOW TO INSTALL THE FORM TRIGGER (for email receipts):
- *   Save this file, then Run → installTrigger (authorize when prompted).
- *
- *   GOOGLE FORM SETTINGS REQUIRED:
- *   Form Settings → Responses → Collect email addresses → "Do not collect"
- *   Form Settings → Responses → Allow response editing → OFF
- *   (Both features require Google sign-in and block portal no-cors submissions)
+ * NJTC HR Email Notification Script — v5
+ * CHANGES FROM v4:
+ *   doGet() now supports ?tab=resolutions → Concern Resolutions sheet tab.
+ *   doPost() added — receives HR resolution payloads from the portal and
+ *   appends them to the "Concern Resolutions" tab (creates tab if needed).
+ *   This powers the Support Log index resolution workflow.
  */
 
 // ── Spreadsheet config ────────────────────────────────────────────────────────
@@ -79,16 +64,27 @@ const SITE_REGION_MAP = [
 // Deploy as: Execute as Me / Who has access: Anyone (even anonymous)
 //
 // Usage:
-//   ?tab=concerns  → Performance Concern Form tab (gid 274671201)  [default]
-//   ?tab=reviews   → Monthly Site Leader Reviews tab (gid 63958401)
+//   ?tab=concerns    → Performance Concern Form tab (gid 274671201)  [default]
+//   ?tab=reviews     → Monthly Site Leader Reviews tab (gid 63958401)
+//   ?tab=resolutions → Concern Resolutions tab (created by doPost on first resolve)
 function doGet(e) {
   try {
-    var tab   = (e && e.parameter && e.parameter.tab) || 'concerns';
-    var gid   = (tab === 'reviews') ? REVIEWS_SHEET_GID : CONCERN_SHEET_GID;
-    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet = ss.getSheets().filter(function(s) {
-      return s.getSheetId() === gid;
-    })[0];
+    var tab = (e && e.parameter && e.parameter.tab) || 'concerns';
+    var ss  = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet;
+
+    if (tab === 'resolutions') {
+      sheet = ss.getSheetByName('Concern Resolutions');
+      if (!sheet) {
+        // Return empty CSV with headers if the tab doesn't exist yet
+        return ContentService.createTextOutput('concern_ts,resolved_by,resolved_by_email,reason,resolved_at')
+          .setMimeType(ContentService.MimeType.CSV);
+      }
+    } else if (tab === 'reviews') {
+      sheet = ss.getSheets().filter(function(s) { return s.getSheetId() === REVIEWS_SHEET_GID; })[0];
+    } else {
+      sheet = ss.getSheets().filter(function(s) { return s.getSheetId() === CONCERN_SHEET_GID; })[0];
+    }
 
     if (!sheet) {
       return ContentService.createTextOutput('Sheet not found: ' + tab)
@@ -116,6 +112,40 @@ function doGet(e) {
   } catch (err) {
     return ContentService.createTextOutput('Error: ' + err.toString())
       .setMimeType(ContentService.MimeType.TEXT);
+  }
+}
+
+// ── Web App: Resolution POST endpoint ────────────────────────────────────────
+// Receives HR resolution payloads from the portal Support Log index.
+// Body: JSON string with { concern_ts, resolved_by, resolved_by_email, reason, resolved_at }
+// Portal uses mode:'no-cors' so response is opaque — portal updates UI optimistically.
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet   = ss.getSheetByName('Concern Resolutions');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Concern Resolutions');
+      sheet.appendRow(['concern_ts', 'resolved_by', 'resolved_by_email', 'reason', 'resolved_at']);
+      sheet.setFrozenRows(1);
+    }
+
+    sheet.appendRow([
+      payload.concern_ts        || '',
+      payload.resolved_by       || '',
+      payload.resolved_by_email || '',
+      payload.reason            || '',
+      payload.resolved_at       || new Date().toISOString()
+    ]);
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    Logger.log('doPost error: ' + err.toString());
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -170,23 +200,32 @@ function installTrigger() {
 // ── Main Form Submit Handler ──────────────────────────────────────────────────
 function onFormSubmit(e) {
   try {
-    var nv = e.namedValues;
+    var nv   = e.namedValues;
+    var vals = e.values;   // positional fallback — same order as sheet columns
 
+    // Read by question title for fields whose titles are stable and confirmed working
     function v(title) {
       return (nv[title] && nv[title][0]) ? nv[title][0].trim() : '';
     }
 
-    var submittedAt = e.values[0] || 'N/A';
+    var submittedAt = vals[0] || 'N/A';
 
-    var submitterEmail = '';
-    try { submitterEmail = e.response.getRespondentEmail() || ''; } catch (_) {}
-    if (!submitterEmail) submitterEmail = v('Please provide your email address:');
+    // These three read by column index — question titles have minor mismatches
+    // that cause v() to return empty. Indices confirmed from portal CSV parser:
+    //   col C (2) = submitter name, col F (5) = employee name, col Q (16) = history
+    var submitterName   = (vals[2]  || '').trim() || 'N/A';
+    var empName         = (vals[5]  || '').trim() || '[Name Not Provided]';
+    var history         = (vals[16] || '').trim() || 'N/A';
 
-    var submitterName   = v('NJTC Employee Completing Form (Name/Title)')    || 'N/A';
+    // Submitter email: col U (20) — manual "Please provide your email" field
+    var submitterEmail  = (vals[20] || '').trim();
+    if (!submitterEmail) {
+      try { submitterEmail = e.response.getRespondentEmail() || ''; } catch (_) {}
+    }
+
     var onBehalf        = v('Are you completing this form on behalf of someone else?') || 'No';
     var onBehalfOf      = v('Please provide the name (and role) of the person you are completing this form on behalf of.') || '';
 
-    var empName         = v('Employee Name')          || '[Name Not Provided]';
     var empRole         = v('Employee Role')           || 'N/A';
     var empSite         = v('Employee Site/Location')  || 'N/A';
     var todayDate       = v("Today's Date")            || 'N/A';
@@ -198,7 +237,6 @@ function onFormSubmit(e) {
     var delivery     = v('How was this conversation delivered?')      || 'N/A';
     var concernType  = v('Please indicate the type of concern that led you to have this conversation.') || 'N/A';
     var concernOther = v('Explain context of concern if "Other" was chosen above') || '';
-    var history      = v('Please provide any relevant historical details regarding the context for this conversation, important details from the conversation and/or support offered.') || 'N/A';
 
     var hrNextSteps   = v('Next Steps Requested From HR')         || 'N/A';
     var nextStepsDesc = v('Please describe any relevant next steps') || '';
