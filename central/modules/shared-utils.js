@@ -3501,6 +3501,7 @@
         concern_detail:(cols[16]||'').trim(),
         hr_action:    (()=>{ let hr_action = (cols[17]||'').trim(); if (hr_action === 'Yes') hr_action = 'On Watch'; if (hr_action === 'No') hr_action = 'No Action'; return hr_action; })(),
         first_time:   (cols[19]||'').trim(),
+        hr_followup:  (cols[20]||'').trim(),
       });
     }
     return fresh;
