@@ -3449,7 +3449,7 @@
   const _HR_BASE_LEN = HR_EMPS.length;
 
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL       = 'https://script.google.com/macros/s/AKfycbzoQ0JfuScMKLwGzmBT54kdE2tUbZA3oVk668Ozaoh-H9-GeFO0od8nfxb1cQrR-rBTtw/exec';
+  const TALENT_CSV_URL       = 'https://script.google.com/macros/s/AKfycbyw8E92X2mWfxI8EQ5w8Wx7a-nPO9cmBWl12FWCvQD_Co-Z-8Izj6XVb7ErlNhu2qtkUw/exec';
   const TALENT_REVIEWS_URL   = TALENT_CSV_URL + '?tab=reviews';
   const TALENT_RESOLUTIONS_URL = TALENT_CSV_URL + '?tab=resolutions';
   const _SL_LOCAL_KEY  = 'njtc_sl_local_v1';   // optimistic local resolutions
