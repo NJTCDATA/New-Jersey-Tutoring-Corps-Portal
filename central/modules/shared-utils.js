@@ -3432,7 +3432,7 @@
   const _HR_BASE_LEN = HR_EMPS.length;
 
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL     = 'https://script.google.com/macros/s/AKfycbwNzgzneNks5nIt1W_cvJ73ekIOlX5vzHUyvWSJ-3bUpp_n-XdFQ1Z7jMxitGhcSy4a_g/exec';
+  const TALENT_CSV_URL     = 'https://script.google.com/macros/s/AKfycbzoQ0JfuScMKLwGzmBT54kdE2tUbZA3oVk668Ozaoh-H9-GeFO0od8nfxb1cQrR-rBTtw/exec';
   const TALENT_REVIEWS_URL = TALENT_CSV_URL + '?tab=reviews';
 
   // Parse a full CSV text that may contain quoted multiline fields.
