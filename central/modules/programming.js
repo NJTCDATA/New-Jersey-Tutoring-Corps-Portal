@@ -5404,7 +5404,7 @@
         <div style="background:var(--surface);border-radius:16px;box-shadow:0 24px 64px rgba(0,0,0,.3);width:560px;max-width:96vw;max-height:90vh;overflow-y:auto;">
           <div style="background:linear-gradient(135deg,#1a3a5c,#2563eb);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
             <div>
-              <div style="color:#fff;font-weight:700;font-size:1.05rem;">📋 Field Staff Report</div>
+              <div style="color:#fff;font-weight:700;font-size:1.05rem;">📋 Onsite Staff Report</div>
               <div style="color:rgba(255,255,255,.75);font-size:.78rem;margin-top:.2rem;">Incompletes · Survey Capture · Low Ratings</div>
             </div>
             <button onclick="document.getElementById('poFieldReportModal').style.display='none'"
@@ -5413,7 +5413,7 @@
 
           <div style="padding:1.375rem 1.5rem;">
             <div style="font-size:.8rem;color:var(--muted);margin-bottom:1.125rem;line-height:1.5;">
-              This report is what programming asks about most. Filter it, then open a print-ready summary you can share with field staff or save as a PDF.
+              This report is what programming asks about most. Filter it, then open a print-ready summary you can share with onsite staff or save as a PDF.
             </div>
 
             <!-- Region toggle -->
@@ -5462,7 +5462,7 @@
 
             <button onclick="po._generateFieldReport()"
               style="width:100%;padding:.75rem;background:linear-gradient(135deg,#1a3a5c,#2563eb);color:#fff;border:none;border-radius:10px;font-size:.9375rem;font-weight:700;cursor:pointer;letter-spacing:.01em;">
-              📄 Open Field Report (Print / Save PDF)
+              📄 Open Onsite Staff Report (Print / Save PDF)
             </button>
           </div>
         </div>`;
@@ -5750,7 +5750,7 @@
       const thStyle = 'padding:7px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9fafb;text-align:center;';
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-        <title>NJTC Field Staff Report — ${dateStr}</title>
+        <title>NJTC Onsite Staff Report — ${dateStr}</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: system-ui, -apple-system, sans-serif; color: #111827; background: #fff; padding: 32px; font-size: 13px; }
@@ -5776,7 +5776,7 @@
         <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:16px;border-bottom:3px solid #1e3a5f;">
           <div>
-            <div style="font-size:1.5rem;font-weight:800;color:#1e3a5f;">NJTC Field Staff Report</div>
+            <div style="font-size:1.5rem;font-weight:800;color:#1e3a5f;">NJTC Onsite Staff Report</div>
             <div style="color:#6b7280;font-size:.9rem;margin-top:4px;">${dateStr}</div>
             ${scopeStr ? `<div style="color:#2563eb;font-size:.85rem;font-weight:600;margin-top:4px;">Filters: ${scopeStr}</div>` : ''}
           </div>
