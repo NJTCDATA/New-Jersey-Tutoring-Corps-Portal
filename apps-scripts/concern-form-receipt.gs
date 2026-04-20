@@ -179,7 +179,7 @@ function onFormSubmit(e) {
 
     var submitterEmail = '';
     try { submitterEmail = e.response.getRespondentEmail() || ''; } catch (_) {}
-    if (!submitterEmail) submitterEmail = v('Email Address');
+    if (!submitterEmail) submitterEmail = v('Your Email') || v('Email Address');
 
     var submitterName   = v('NJTC Employee Completing Form (Name/Title)')    || 'N/A';
     var onBehalf        = v('Are you completing this form on behalf of someone else?') || 'No';

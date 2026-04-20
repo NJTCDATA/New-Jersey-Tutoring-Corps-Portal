@@ -603,6 +603,7 @@
     history:         'entry.1645253994',  // Relevant historical details
     hrNextSteps:     'entry.1704854495',  // Next Steps Requested From HR
     nextStepsDesc:   'entry.59727443',    // Please describe any relevant next steps
+    submitterEmail:  'entry.886808275',   // Submitter email (for Apps Script receipt)
   };
 
   // ══════════════════════════════════════════════════════════
@@ -2952,6 +2953,7 @@
     const g = (id) => document.getElementById(id)?.value?.trim() || '';
     const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 
+    params.append(ENTRY.submitterEmail,    g('f_email'));
     params.append(ENTRY.submitterName,     g('f_submitter'));
     params.append(ENTRY.onBehalfYesNo,     r('onBehalf') || 'No');
     params.append(ENTRY.onBehalfOf,        g('f_onBehalfOf'));
