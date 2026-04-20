@@ -5692,9 +5692,41 @@
         </tr>`;
       }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No tutors below 3.5 rating threshold for this filter</td></tr>`;
 
-      // Derive effective week: prefer explicit week column, fall back to date-derived
-      const _effWeekStu  = r => r[STU_S.WEEK]  || weekKeyFromDateStr(r[STU_S.DATE]  || '');
-      const _effWeekInst = r => r[INST_S.WEEK] || weekKeyFromDateStr(r[INST_S.DATE] || '');
+      // ── Effective week helpers — same method as Pearl Operations ──────────
+      // Priority: (1) explicit WEEK column, (2) session start date via Session ID
+      // + Pearl User ID match, (3) Date Responded column as last resort.
+      // Scholar surveys: verify Filled For ID is in session.studentIds.
+      // Instructor surveys: tutors rate the entire session — Session ID only.
+      const _sessWeekById = sessId => {
+        const sess = sessId && _sessMap ? _sessMap[sessId] : null;
+        return sess ? (weekKeyFromDateStr(sess.start) || '') : '';
+      };
+      const _effWeekStu = r => {
+        if (r[STU_S.WEEK]) return r[STU_S.WEEK];
+        const sessId = r[STU_S.SESS_ID] || '';
+        const sess   = sessId && _sessMap ? _sessMap[sessId] : null;
+        if (sess) {
+          const filledForId = (r[STU_S.FILLED_FOR_ID] || '').trim();
+          // Accept if no user ID or user ID matches a student in this session
+          if (!filledForId || !sess.studentIds || sess.studentIds.includes(filledForId)) {
+            return weekKeyFromDateStr(sess.start) || '';
+          }
+        }
+        return weekKeyFromDateStr(r[STU_S.DATE] || ''); // Date Responded fallback
+      };
+      const _effWeekInst = r => {
+        if (r[INST_S.WEEK]) return r[INST_S.WEEK];
+        const sessId = r[INST_S.SESS_ID] || '';
+        const sess   = sessId && _sessMap ? _sessMap[sessId] : null;
+        if (sess) {
+          const filledById = (r[INST_S.FILLED_BY_ID] || '').trim();
+          // Tutors rate the whole session — verify instructor ID if present
+          if (!filledById || sess.instId === filledById) {
+            return weekKeyFromDateStr(sess.start) || '';
+          }
+        }
+        return weekKeyFromDateStr(r[INST_S.DATE] || ''); // Date Responded fallback
+      };
 
       // ── Collect all comments for a category, then pick the most recent week ──
       // Separated staff are excluded from concern flags; their sessions remain in metrics.
@@ -5992,11 +6024,37 @@
         return true;
       }
 
+      // ── Week derivation (same method as _generateFieldReport) ────────────
+      // (1) explicit WEEK column, (2) session start via Session ID + User ID,
+      // (3) Date Responded column as last resort.
+      const _gcWeekStu = r => {
+        if (r[STU_S.WEEK]) return r[STU_S.WEEK];
+        const sid  = r[STU_S.SESS_ID] || '';
+        const sess = sid && _sessMap ? _sessMap[sid] : null;
+        if (sess) {
+          const ffi = (r[STU_S.FILLED_FOR_ID] || '').trim();
+          if (!ffi || !sess.studentIds || sess.studentIds.includes(ffi))
+            return weekKeyFromDateStr(sess.start) || '';
+        }
+        return weekKeyFromDateStr(r[STU_S.DATE] || '');
+      };
+      const _gcWeekInst = r => {
+        if (r[INST_S.WEEK]) return r[INST_S.WEEK];
+        const sid  = r[INST_S.SESS_ID] || '';
+        const sess = sid && _sessMap ? _sessMap[sid] : null;
+        if (sess) {
+          const fbi = (r[INST_S.FILLED_BY_ID] || '').trim();
+          if (!fbi || sess.instId === fbi)
+            return weekKeyFromDateStr(sess.start) || '';
+        }
+        return weekKeyFromDateStr(r[INST_S.DATE] || '');
+      };
+
       const results = [];
       // Scholar comments
       for (const r of (_stuRows || [])) {
         if (results.length >= maxRows) break;
-        const week = r[STU_S.WEEK] || weekKeyFromDateStr(r[STU_S.DATE] || '');
+        const week = _gcWeekStu(r);
         if (weekF && week && week !== weekF) continue; // week filter
         const text = (r[STU_S.COMMENT] || '').trim(); if (!text) continue;
         const bucket = categorizeComment(text);
@@ -6012,7 +6070,7 @@
       // Instructor comments
       for (const r of (_instRows || [])) {
         if (results.length >= maxRows) break;
-        const week     = r[INST_S.WEEK] || weekKeyFromDateStr(r[INST_S.DATE] || '');
+        const week     = _gcWeekInst(r);
         if (weekF && week && week !== weekF) continue;
         const tutor    = (r[INST_S.FILLED_BY] || '').trim();
         const sessId   = r[INST_S.SESS_ID] || '';
