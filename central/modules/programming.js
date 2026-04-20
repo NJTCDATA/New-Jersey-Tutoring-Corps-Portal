@@ -1195,7 +1195,7 @@
 
     // ── COMMENT CATEGORIZATION ────────────────────────────────────────────
     const COMMENT_BUCKETS = {
-      concern:    { label: 'Concern', css: 'concern',    keywords: ['concern','problem','issue','struggle','difficult','hard','poor','bad','confused','distract','behavior','not understand','behind','worry','fail'] },
+      concern:    { label: 'Concern', css: 'concern',    keywords: ['concern','problem','issue','struggle','difficult','hard','poor','bad','confused','distract','behavior','not understand','behind','worry','fail','target','harass','assault','unsafe','bully','scared','afraid','inappropriate','threaten','uncomfortable','disrespect','not happy','not fair','not safe','hurt','crying'] },
       positive:   { label: 'Positive Feedback', css: 'positive',  keywords: ['great','excellent','amazing','wonderful','good','enjoyed','love','fantastic','perfect','best','happy','engaged','excited','helpful','fun'] },
       engagement: { label: 'Engagement', css: 'engagement', keywords: ['engage','participat','attention','focus','interest','active','involv','motivat','enthusias','energy'] },
       logistics:  { label: 'Logistics', css: 'logistics',  keywords: ['late','time','reschedul','cancel','interrup','delay','technolog','zoom','link','access','material','room','space','tool'] },
@@ -1203,12 +1203,20 @@
       relationship: { label: 'Relationship', css: 'relationship', keywords: ['rapport','relationship','bond','trust','comfort','familiar','personali','know','connect','feel safe','individual'] },
     };
 
+    // Returns true if kw appears negated in context (no X, not X, nothing X, etc.)
+    function _negated(lower, kw) {
+      const idx = lower.indexOf(kw);
+      if (idx < 0) return false;
+      const before = lower.substring(Math.max(0, idx - 25), idx);
+      return /\b(no|not|nothing|never|don.?t|doesn.?t|isn.?t|wasn.?t|none|without)\s+(?:\w+\s+){0,3}$/.test(before);
+    }
+
     function categorizeComment(text) {
       if (!text || !text.trim()) return null;
       const lower = text.toLowerCase();
       let best = null, bestScore = 0;
       for (const [key, {keywords}] of Object.entries(COMMENT_BUCKETS)) {
-        const score = keywords.filter(kw => lower.includes(kw)).length;
+        const score = keywords.filter(kw => lower.includes(kw) && !_negated(lower, kw)).length;
         if (score > bestScore) { bestScore = score; best = key; }
       }
       return best || 'other';
@@ -5616,6 +5624,33 @@
         return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:5px;vertical-align:middle;"></span>`;
       }
 
+      // ── Terminated tutor lookup for [SEP] badges (field report scope) ────
+      const _frNorm = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
+      const _frTermMap = {};
+      try {
+        (window.HR_EMPS||[]).forEach(e => {
+          if (e.s === 'Active') return;
+          if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
+          const nk = _frNorm(e.n||'');
+          if (nk) _frTermMap[nk] = true;
+        });
+      } catch(_frE) {}
+      const _frTermKeys = Object.keys(_frTermMap);
+      const _frIsTermHR = name => {
+        if (!name) return false;
+        const tk = _frNorm(name);
+        if (_frTermMap[tk]) return true;
+        const tp = tk.split(' ');
+        return _frTermKeys.some(dk => {
+          const dp = dk.split(' ');
+          return (tp.length >= 2 && tp.every(p => dp.includes(p))) ||
+                 (dp.length >= 2 && dp.every(p => tp.includes(p)));
+        });
+      };
+      const _sepBadge = name => _frIsTermHR(name)
+        ? '<span style="font-size:.6rem;font-weight:700;background:#eff6ff;color:#1d4ed8;padding:.1rem .35rem;border-radius:3px;margin-left:.375rem;border:1px solid #bfdbfe">SEP</span>'
+        : '';
+
       // Flatten incomplete sessions to individual rows for the Session ID table
       const incompleteRows_flat = [];
       for (const t of incompleteTutors) {
@@ -5626,7 +5661,7 @@
 
       const incomplete_rows = incompleteRows_flat.length ? incompleteRows_flat.map(r => `
         <tr>
-          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${r.tutor}</td>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${r.tutor}${_sepBadge(r.tutor)}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${r.school}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${r.district}</td>
           <td style="padding:6px 10px;font-family:monospace;font-size:.8em;color:#7c3aed">${r.sessId}</td>
@@ -5639,7 +5674,7 @@
         const gapNote = gap > 0
           ? `<div style="font-size:.72em;color:#92400e;margin-top:2px">+${gap} unmatched</div>` : '';
         return `<tr>
-          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}${_sepBadge(t.name)}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:700;color:#1e3a5f">${t.totalSubmitted}${gapNote}</td>
           <td style="padding:6px 10px;text-align:center;color:#4b5563">${t.validated} / ${t.delivered}</td>
@@ -5650,83 +5685,60 @@
       const rating_rows = lowRatings.length ? lowRatings.map(t => {
         const col = t.avg >= 4.0 ? '#16a34a' : t.avg >= 3.5 ? '#d97706' : '#dc2626';
         return `<tr>
-          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}</td>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${t.name}${_sepBadge(t.name)}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${t.school}</td>
           <td style="padding:6px 10px;text-align:center;color:#4b5563">${t.responses} response${t.responses!==1?'s':''}</td>
           <td style="padding:6px 10px;text-align:center;font-weight:700;color:${col}">${statusDot(t.avg,4.0,3.5)}${t.avg}</td>
         </tr>`;
       }).join('') : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#6b7280;font-style:italic">✓ No tutors below 3.5 rating threshold for this filter</td></tr>`;
 
-      // Derive current school year week label (same algorithm as Pearl week column)
-      const currentWeek = weekKeyFromDateStr(new Date());
+      // Derive effective week: prefer explicit week column, fall back to date-derived
+      const _effWeekStu  = r => r[STU_S.WEEK]  || weekKeyFromDateStr(r[STU_S.DATE]  || '');
+      const _effWeekInst = r => r[INST_S.WEEK] || weekKeyFromDateStr(r[INST_S.DATE] || '');
 
-      // ── Section 4: Comments Requiring Follow-Up (concern bucket, current week, top 5) ──
-      const flaggedComments = [];
-      for (const r of (_stuRows || [])) {
-        if (flaggedComments.length >= 5) break;
-        const week = r[STU_S.WEEK] || '';
-        if (currentWeek && week && week !== currentWeek) continue; // current week only
-        const text = (r[STU_S.COMMENT] || '').trim();
-        if (!text) continue;
-        if (categorizeComment(text) !== 'concern') continue;
-        const school   = (r[STU_S.SCHOOL]    || '').trim();
-        const district = (r[STU_S.DISTRICT]  || '').trim();
-        const sessId   = r[STU_S.SESS_ID] || '';
-        const tutor    = (_sessMap && _sessMap[sessId]) ? (_sessMap[sessId].instructor || '') : '';
-        if (!matchesFR(school, district)) continue;
-        if (!matchesTutor(tutor)) continue;
-        flaggedComments.push({ source: 'Scholar', text, tutor, school, district, sessId, week });
-      }
-      for (const r of (_instRows || [])) {
-        if (flaggedComments.length >= 5) break;
-        const week  = r[INST_S.WEEK] || '';
-        if (currentWeek && week && week !== currentWeek) continue;
-        const tutor    = (r[INST_S.FILLED_BY] || '').trim();
-        const sessId   = r[INST_S.SESS_ID] || '';
-        const school   = (r[INST_S.SCHOOL]   || '').trim();
-        const district = (r[INST_S.DISTRICT] || '').trim();
-        if (!matchesFR(school, district)) continue;
-        if (!matchesTutor(tutor)) continue;
-        for (const text of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]].map(t=>(t||'').trim()).filter(Boolean)) {
-          if (flaggedComments.length >= 5) break;
-          if (categorizeComment(text) !== 'concern') continue;
-          flaggedComments.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
+      // ── Collect all comments for a category, then pick the most recent week ──
+      // Separated staff are excluded from concern flags; their sessions remain in metrics.
+      function _gatherComments(category) {
+        const pool = [];
+        for (const r of (_stuRows || [])) {
+          const text = (r[STU_S.COMMENT] || '').trim();
+          if (!text || categorizeComment(text) !== category) continue;
+          const school   = (r[STU_S.SCHOOL]   || '').trim();
+          const district = (r[STU_S.DISTRICT] || '').trim();
+          const sessId   = r[STU_S.SESS_ID] || '';
+          const tutor    = (_sessMap && _sessMap[sessId]) ? (_sessMap[sessId].instructor || '') : '';
+          if (!matchesFR(school, district)) continue;
+          if (!matchesTutor(tutor)) continue;
+          if (category === 'concern' && _frIsTermHR(tutor)) continue;
+          const week = _effWeekStu(r);
+          pool.push({ source: 'Scholar', text, tutor, school, district, sessId, week });
         }
+        for (const r of (_instRows || [])) {
+          const tutor    = (r[INST_S.FILLED_BY] || '').trim();
+          const sessId   = r[INST_S.SESS_ID] || '';
+          const school   = (r[INST_S.SCHOOL]   || '').trim();
+          const district = (r[INST_S.DISTRICT] || '').trim();
+          if (!matchesFR(school, district)) continue;
+          if (!matchesTutor(tutor)) continue;
+          if (category === 'concern' && _frIsTermHR(tutor)) continue;
+          const week = _effWeekInst(r);
+          for (const raw of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]]) {
+            const text = (raw||'').trim();
+            if (!text || categorizeComment(text) !== category) continue;
+            pool.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
+          }
+        }
+        // Sort pool by week descending; pick top 5 from the most recent week present
+        pool.sort((a,b) => parseInt((b.week||'Week 0').replace('Week ','')) - parseInt((a.week||'Week 0').replace('Week ','')));
+        const topWeek = pool.length ? pool[0].week : '';
+        return pool.filter(c => c.week === topWeek).slice(0, 5);
       }
 
-      // ── Section 5: Spotlight Comments (positive bucket, current week, top 5) ─
-      const spotlightComments = [];
-      for (const r of (_stuRows || [])) {
-        if (spotlightComments.length >= 5) break;
-        const week = r[STU_S.WEEK] || '';
-        if (currentWeek && week && week !== currentWeek) continue;
-        const text = (r[STU_S.COMMENT] || '').trim();
-        if (!text) continue;
-        if (categorizeComment(text) !== 'positive') continue;
-        const school   = (r[STU_S.SCHOOL]   || '').trim();
-        const district = (r[STU_S.DISTRICT] || '').trim();
-        const sessId   = r[STU_S.SESS_ID] || '';
-        const tutor    = (_sessMap && _sessMap[sessId]) ? (_sessMap[sessId].instructor || '') : '';
-        if (!matchesFR(school, district)) continue;
-        if (!matchesTutor(tutor)) continue;
-        spotlightComments.push({ source: 'Scholar', text, tutor, school, district, sessId, week });
-      }
-      for (const r of (_instRows || [])) {
-        if (spotlightComments.length >= 5) break;
-        const week  = r[INST_S.WEEK] || '';
-        if (currentWeek && week && week !== currentWeek) continue;
-        const tutor    = (r[INST_S.FILLED_BY] || '').trim();
-        const sessId   = r[INST_S.SESS_ID] || '';
-        const school   = (r[INST_S.SCHOOL]   || '').trim();
-        const district = (r[INST_S.DISTRICT] || '').trim();
-        if (!matchesFR(school, district)) continue;
-        if (!matchesTutor(tutor)) continue;
-        for (const text of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]].map(t=>(t||'').trim()).filter(Boolean)) {
-          if (spotlightComments.length >= 5) break;
-          if (categorizeComment(text) !== 'positive') continue;
-          spotlightComments.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
-        }
-      }
+      // ── Section 4: Comments Requiring Follow-Up (concern bucket, top 5) ──
+      const flaggedComments = _gatherComments('concern');
+
+      // ── Section 5: Spotlight Comments (positive bucket, top 5) ─────────
+      const spotlightComments = _gatherComments('positive');
 
       const flaggedCommentRows = flaggedComments.length ? flaggedComments.map(c => `
         <tr>
@@ -5739,7 +5751,7 @@
 
       const spotlightRows = spotlightComments.length ? spotlightComments.map(c => `
         <tr>
-          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${c.tutor || '—'}</td>
+          <td style="padding:6px 10px;font-weight:600;color:#1e3a5f">${c.tutor || '—'}${_sepBadge(c.tutor)}</td>
           <td style="padding:6px 10px;color:#4b5563;font-size:.85em">${c.school}</td>
           <td style="padding:6px 10px;font-size:.75em;color:#6b7280">${c.source} · ${c.week}</td>
           <td style="padding:6px 10px;font-size:.85em;color:#166534">${c.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
@@ -5981,7 +5993,7 @@
       // Scholar comments
       for (const r of (_stuRows || [])) {
         if (results.length >= maxRows) break;
-        const week = r[STU_S.WEEK] || '';
+        const week = r[STU_S.WEEK] || weekKeyFromDateStr(r[STU_S.DATE] || '');
         if (weekF && week && week !== weekF) continue; // week filter
         const text = (r[STU_S.COMMENT] || '').trim(); if (!text) continue;
         const bucket = categorizeComment(text);
@@ -5997,7 +6009,7 @@
       // Instructor comments
       for (const r of (_instRows || [])) {
         if (results.length >= maxRows) break;
-        const week     = r[INST_S.WEEK] || '';
+        const week     = r[INST_S.WEEK] || weekKeyFromDateStr(r[INST_S.DATE] || '');
         if (weekF && week && week !== weekF) continue;
         const tutor    = (r[INST_S.FILLED_BY] || '').trim();
         const sessId   = r[INST_S.SESS_ID] || '';
