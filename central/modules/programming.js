@@ -5760,6 +5760,9 @@
       const sectionStyle = 'margin-bottom:28px;border-radius:10px;overflow:hidden;border:1px solid #e5e7eb;';
       const hdStyle = 'padding:10px 14px;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:center;';
       const thStyle = 'padding:7px 10px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9fafb;text-align:center;';
+      // Use the week from the actual returned comments (most recent week with data)
+      const _flagWeekLabel  = flaggedComments.length  ? (flaggedComments[0].week  || '') : weekKeyFromDateStr(new Date());
+      const _spotWeekLabel  = spotlightComments.length ? (spotlightComments[0].week || '') : weekKeyFromDateStr(new Date());
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
         <title>NJTC Onsite Staff Report — ${dateStr}</title>
@@ -5905,7 +5908,7 @@
         <!-- Section 4: Flagged Comments -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#fff7ed;border-bottom:1px solid #fed7aa;">
-            <span style="color:#9a3412;">🚩 Section 4 — Comments Requiring Follow-Up${currentWeek ? ' · ' + currentWeek : ''} (Top 5 · Concern Keywords)</span>
+            <span style="color:#9a3412;">🚩 Section 4 — Comments Requiring Follow-Up${_flagWeekLabel ? ' · ' + _flagWeekLabel : ''} (Top 5 · Concern Keywords)</span>
             <span style="color:#c2410c;font-weight:800;font-size:1rem;">${flaggedComments.length} comment${flaggedComments.length!==1?'s':''}</span>
           </div>
           <table>
@@ -5923,7 +5926,7 @@
         <!-- Section 5: Spotlight Comments -->
         <div style="${sectionStyle}">
           <div style="${hdStyle}background:#f0fdf4;border-bottom:1px solid #bbf7d0;">
-            <span style="color:#14532d;">⭐ Section 5 — Spotlight Comments${currentWeek ? ' · ' + currentWeek : ''} (Top 5 · Shoutout Candidates)</span>
+            <span style="color:#14532d;">⭐ Section 5 — Spotlight Comments${_spotWeekLabel ? ' · ' + _spotWeekLabel : ''} (Top 5 · Shoutout Candidates)</span>
             <span style="color:#15803d;font-weight:800;font-size:1rem;">${spotlightComments.length} comment${spotlightComments.length!==1?'s':''}</span>
           </div>
           <table>
