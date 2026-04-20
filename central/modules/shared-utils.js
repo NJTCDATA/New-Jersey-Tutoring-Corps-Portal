@@ -9435,58 +9435,149 @@
       }
     },
 
-    // Flagged / concern comments — requires Pearl Operations loaded
+    // ── Comment helpers shared by the three comment-surfacing intents ───────
+    // _pieFetchComments: week-aware fetcher with most-recent-week fallback
+    // _pieSeverity: classifies a concern comment as Critical / High / Moderate
+    // Severity classification for concern comments
+    // Inlined as IIFE to keep helpers scoped without polluting outer PIE vars
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Flagged / concern comments — top 5 from most recent week; week-aware
     { match: /flag(ged)?.{0,20}comment|concern.{0,20}comment|comment.{0,20}(flag|concern|follow.?up|escalat|review)|survey.{0,20}(concern|issue|problem|red.?flag)|who.{0,15}(flag|concern|issue).{0,15}comment/i,
       respond: function() {
+        var _msg = _lastQ || '';
         if (!window.po || typeof window.po.getCommentsByCategory !== 'function')
           return 'Pearl Operations data not loaded yet — open the Pearl Operations section first, then ask again.';
-        var concerns = window.po.getCommentsByCategory('concern', { max: 20 });
-        if (!concerns.length) return '✅ No concern-flagged comments found in the current Pearl data set.';
-        var byTutor = {};
+        // ── Severity helper ───────────────────────────────────────────────
+        var _sev = function(text) {
+          var lo = (text||'').toLowerCase();
+          var crit = ['target','harass','assault','unsafe','bully','threaten','scared','afraid','inappropriate','not safe','hurt','crying','violence','physical'];
+          var high = ['concern','behavior','distract','not understand','behind','worry','fail','issue','problem'];
+          if (crit.some(function(k){return lo.indexOf(k)>=0;})) return {icon:'🔴',label:'Critical'};
+          if (high.some(function(k){return lo.indexOf(k)>=0;})) return {icon:'⚠️',label:'High'};
+          return {icon:'🟡',label:'Moderate'};
+        };
+        // ── Week extraction ───────────────────────────────────────────────
+        var weekMatch = _msg.match(/\bweek\s*(\d+)\b/i);
+        var allMode   = /\ball\b|every|full list|complete/i.test(_msg);
+        var maxN      = allMode ? 50 : 5;
+        var weekOpt   = weekMatch ? 'Week ' + weekMatch[1] : 'current';
+        var concerns  = window.po.getCommentsByCategory('concern', { max: maxN, week: weekOpt });
+        // Fallback: most recent week with concern data
+        if (!concerns.length && !weekMatch) {
+          var _all = window.po.getCommentsByCategory('concern', { max: 200, week: null });
+          if (_all.length) {
+            _all.sort(function(a,b){return parseInt((b.week||'Week 0').replace('Week ',''))-parseInt((a.week||'Week 0').replace('Week ',''));});
+            var _tw = _all[0].week;
+            concerns = _all.filter(function(c){return c.week===_tw;}).slice(0, maxN);
+            weekOpt = _tw;
+          }
+        }
+        if (!concerns.length) return '✅ No concern-flagged comments found' + (weekMatch ? ' for ' + weekOpt : ' in the most recent week') + '.';
+        var weekLabel = concerns[0] && concerns[0].week ? concerns[0].week : weekOpt;
+        var lines = ['**🚨 ' + concerns.length + ' concern comment' + (concerns.length !== 1 ? 's' : '') + ' — ' + weekLabel + '** (severity-ranked):\n'];
+        // Sort critical first
+        concerns.sort(function(a,b){
+          var sv = {Critical:0,High:1,Moderate:2};
+          return (sv[_sev(a.text).label]||2) - (sv[_sev(b.text).label]||2);
+        });
         concerns.forEach(function(c) {
-          var k = c.tutor || '(Unknown Tutor)';
-          if (!byTutor[k]) byTutor[k] = [];
-          byTutor[k].push(c);
+          var sv = _sev(c.text);
+          var snippet = c.text.length > 120 ? c.text.slice(0,120) + '…' : c.text;
+          lines.push(sv.icon + ' **' + sv.label + '** · ' + (c.tutor||'Unknown') + ' — ' + c.school);
+          lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
         });
-        var lines = ['**' + concerns.length + ' comment' + (concerns.length !== 1 ? 's' : '') + ' flagged for follow-up** (concern keywords detected):\n'];
-        Object.entries(byTutor).slice(0, 8).forEach(function(entry) {
-          var tutor = entry[0], items = entry[1];
-          lines.push('**' + tutor + '** — ' + items[0].school + ' (' + items.length + ' comment' + (items.length !== 1 ? 's' : '') + ')');
-          items.slice(0, 2).forEach(function(c) {
-            var snippet = c.text.length > 100 ? c.text.slice(0, 100) + '…' : c.text;
-            lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
-          });
-        });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Onsite Staff Report (Pearl Ops → Onsite Staff Report) for the full list._');
-        else lines.push('\n_Open Onsite Staff Report → Section 4 to view all flagged comments with Session IDs._');
+        if (allMode) lines.push('\n_' + concerns.length + ' total concern comments shown._');
+        else lines.push('\n_Top 5 shown. Ask "show all concern comments' + (weekMatch ? ' week '+weekMatch[1] : '') + '" for the full list, or open Onsite Staff Report → Section 4._');
         return lines.join('\n');
       }
     },
 
-    // Spotlight / positive comments — shoutout candidates
+    // Spotlight / positive comments — top 5 from most recent week; week-aware
     { match: /spotlight.{0,20}comment|positive.{0,20}comment|comment.{0,20}(positive|shoutout|spotlight|great|excellent|kudos|recogni)|shoutout|who.{0,15}(great|amazing|positive|excellent).{0,15}comment|best.{0,20}comment|stand.?out.{0,20}comment/i,
       respond: function() {
+        var _msg = _lastQ || '';
         if (!window.po || typeof window.po.getCommentsByCategory !== 'function')
           return 'Pearl Operations data not loaded yet — open the Pearl Operations section first, then ask again.';
-        var positives = window.po.getCommentsByCategory('positive', { max: 20 });
-        if (!positives.length) return 'No positive spotlight comments found in the current Pearl data set.';
-        var byTutor = {};
+        var weekMatch = _msg.match(/\bweek\s*(\d+)\b/i);
+        var allMode   = /\ball\b|every|full list|complete/i.test(_msg);
+        var maxN      = allMode ? 50 : 5;
+        var weekOpt   = weekMatch ? 'Week ' + weekMatch[1] : 'current';
+        var positives = window.po.getCommentsByCategory('positive', { max: maxN, week: weekOpt });
+        if (!positives.length && !weekMatch) {
+          var _all = window.po.getCommentsByCategory('positive', { max: 200, week: null });
+          if (_all.length) {
+            _all.sort(function(a,b){return parseInt((b.week||'Week 0').replace('Week ',''))-parseInt((a.week||'Week 0').replace('Week ',''));});
+            var _tw = _all[0].week;
+            positives = _all.filter(function(c){return c.week===_tw;}).slice(0, maxN);
+          }
+        }
+        if (!positives.length) return 'No spotlight comments found' + (weekMatch ? ' for ' + weekOpt : ' in the most recent week') + '.';
+        var weekLabel = positives[0] && positives[0].week ? positives[0].week : weekOpt;
+        var lines = ['**⭐ ' + positives.length + ' spotlight comment' + (positives.length !== 1 ? 's' : '') + ' — ' + weekLabel + '** (shoutout candidates):\n'];
         positives.forEach(function(c) {
-          var k = c.tutor || '(Unknown Tutor)';
-          if (!byTutor[k]) byTutor[k] = [];
-          byTutor[k].push(c);
+          var snippet = c.text.length > 140 ? c.text.slice(0,140) + '…' : c.text;
+          lines.push('⭐ **' + (c.tutor||'Unknown') + '** — ' + c.school);
+          lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
         });
-        var lines = ['**' + positives.length + ' spotlight comment' + (positives.length !== 1 ? 's' : '') + '** — shoutout candidates for the team:\n'];
-        Object.entries(byTutor).slice(0, 8).forEach(function(entry) {
-          var tutor = entry[0], items = entry[1];
-          lines.push('⭐ **' + tutor + '** — ' + items[0].school);
-          items.slice(0, 2).forEach(function(c) {
-            var snippet = c.text.length > 120 ? c.text.slice(0, 120) + '…' : c.text;
-            lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
+        if (allMode) lines.push('\n_' + positives.length + ' total spotlight comments shown._');
+        else lines.push('\n_Share these at your next team check-in! Ask "show all spotlight comments" for the full list._');
+        return lines.join('\n');
+      }
+    },
+
+    // Combined "what are scholars/tutors saying" — top 5 concerns + top 5 spotlights from most recent week
+    { match: /what.{0,25}(scholar|student|tutor|instructor).{0,25}(say|saying|comment|think|feel|wrote|report)|how.{0,20}(scholar|tutor|student).{0,20}(feel|rate|respond)|comment.{0,20}this week|survey comment.{0,20}week|week.{0,20}comment/i,
+      respond: function() {
+        var _msg = _lastQ || '';
+        if (!window.po || typeof window.po.getCommentsByCategory !== 'function')
+          return 'Pearl Operations data not loaded yet — open the Pearl Operations section first, then ask again.';
+        var _sev = function(text) {
+          var lo = (text||'').toLowerCase();
+          var crit = ['target','harass','assault','unsafe','bully','threaten','scared','afraid','inappropriate','not safe','hurt','crying','violence'];
+          var high = ['concern','behavior','distract','not understand','behind','worry','fail','issue','problem'];
+          if (crit.some(function(k){return lo.indexOf(k)>=0;})) return {icon:'🔴',label:'Critical'};
+          if (high.some(function(k){return lo.indexOf(k)>=0;})) return {icon:'⚠️',label:'High'};
+          return {icon:'🟡',label:'Moderate'};
+        };
+        var weekMatch = _msg.match(/\bweek\s*(\d+)\b/i);
+        var weekOpt   = weekMatch ? 'Week ' + weekMatch[1] : 'current';
+        // Helper: fetch top 5 for a category with fallback
+        var _fetch = function(cat) {
+          var res = window.po.getCommentsByCategory(cat, { max: 5, week: weekOpt });
+          if (!res.length && !weekMatch) {
+            var _all = window.po.getCommentsByCategory(cat, { max: 200, week: null });
+            if (_all.length) {
+              _all.sort(function(a,b){return parseInt((b.week||'Week 0').replace('Week ',''))-parseInt((a.week||'Week 0').replace('Week ',''));});
+              var _tw = _all[0].week; weekOpt = _tw;
+              res = _all.filter(function(c){return c.week===_tw;}).slice(0, 5);
+            }
+          }
+          return res;
+        };
+        var concerns  = _fetch('concern');
+        var positives = _fetch('positive');
+        if (!concerns.length && !positives.length) return 'No survey comments found' + (weekMatch ? ' for ' + weekOpt : '') + '. Pearl Operations may still be loading.';
+        var weekLabel = (concerns[0]||positives[0]||{}).week || weekOpt;
+        var lines = ['**📊 Survey Comments — ' + weekLabel + ':**\n'];
+        if (concerns.length) {
+          concerns.sort(function(a,b){var sv={Critical:0,High:1,Moderate:2};return (sv[_sev(a.text).label]||2)-(sv[_sev(b.text).label]||2);});
+          lines.push('**🚨 Requires Follow-Up (' + concerns.length + '):**');
+          concerns.forEach(function(c){
+            var sv = _sev(c.text);
+            var snippet = c.text.length > 100 ? c.text.slice(0,100)+'…' : c.text;
+            lines.push(sv.icon + ' **' + (c.tutor||'Unknown') + '** — ' + c.school + ': _"' + snippet + '"_');
           });
-        });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Onsite Staff Report → Section 5 for the full spotlight list._');
-        else lines.push('\n_Share these at your next team meeting! Full list in Onsite Staff Report → Section 5._');
+        }
+        if (positives.length) {
+          if (concerns.length) lines.push('');
+          lines.push('**⭐ Spotlight Candidates (' + positives.length + '):**');
+          positives.forEach(function(c){
+            var snippet = c.text.length > 100 ? c.text.slice(0,100)+'…' : c.text;
+            lines.push('⭐ **' + (c.tutor||'Unknown') + '** — ' + c.school + ': _"' + snippet + '"_');
+          });
+        }
+        lines.push('\n_Ask "show all concern comments" or "show all spotlight comments" for the full list, or open Onsite Staff Report for Session IDs._');
         return lines.join('\n');
       }
     },
@@ -10184,7 +10275,7 @@
       [/iready|math|ela|growth|diagnostic|typical|grade level|profic/, 'iready math ela typical growth'],
       [/scholar.*race|student.*race|demograph.*scholar/,     'scholar race ethnic demographic'],
       [/race|ethnic|diversity|demograph/,                    'staff race ethnicity diversity'],
-      [/flag.{0,10}comment|concern.{0,10}comment|follow.?up.{0,10}comment/, 'flagged comment concern follow-up'],
+      [/flag.{0,10}comment|concern.{0,10}comment|follow.?up.{0,10}comment|scholar.*say|tutor.*say|comment.*week/, 'flagged comment concern follow-up'],
       [/spotlight|shoutout|positive.{0,10}comment/,           'spotlight comment positive shoutout'],
       [/concern|watch|write.?up|pgp|termination|hr action/,   'who is on watch hr action'],
       [/staff|employee|workforce|headcount/,                  'how many staff employees headcount'],

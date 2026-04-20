@@ -5993,7 +5993,7 @@
       // Scholar comments
       for (const r of (_stuRows || [])) {
         if (results.length >= maxRows) break;
-        const week = r[STU_S.WEEK] || '';
+        const week = r[STU_S.WEEK] || weekKeyFromDateStr(r[STU_S.DATE] || '');
         if (weekF && week && week !== weekF) continue; // week filter
         const text = (r[STU_S.COMMENT] || '').trim(); if (!text) continue;
         const bucket = categorizeComment(text);
@@ -6009,7 +6009,7 @@
       // Instructor comments
       for (const r of (_instRows || [])) {
         if (results.length >= maxRows) break;
-        const week     = r[INST_S.WEEK] || '';
+        const week     = r[INST_S.WEEK] || weekKeyFromDateStr(r[INST_S.DATE] || '');
         if (weekF && week && week !== weekF) continue;
         const tutor    = (r[INST_S.FILLED_BY] || '').trim();
         const sessId   = r[INST_S.SESS_ID] || '';
