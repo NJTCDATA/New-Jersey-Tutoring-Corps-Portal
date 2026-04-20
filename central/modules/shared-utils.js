@@ -2962,8 +2962,11 @@
     const g = (id) => document.getElementById(id)?.value?.trim() || '';
     const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 
-    params.append(ENTRY.submitterEmail,    g('f_email'));
-    params.append(ENTRY.submitterName,     g('f_submitter'));
+    // Embed email in the name field so App Script can send the confirmation receipt
+    // when v[1] (Google auth email) is empty for portal API submissions.
+    // Format: "Jane Smith, PM [jane@njtc.org]" — App Script strips the bracket portion for display.
+    const _nameVal = g('f_email') ? g('f_submitter') + ' [' + g('f_email') + ']' : g('f_submitter');
+    params.append(ENTRY.submitterName,     _nameVal);
     params.append(ENTRY.onBehalfYesNo,     r('onBehalf') || 'No');
     params.append(ENTRY.onBehalfOf,        g('f_onBehalfOf'));
     params.append(ENTRY.empName,           g('f_empName'));
@@ -3521,6 +3524,7 @@
         concern_detail:(cols[16]||'').trim(),
         hr_action:    (()=>{ let hr_action = (cols[17]||'').trim(); if (hr_action === 'Yes') hr_action = 'On Watch'; if (hr_action === 'No') hr_action = 'No Action'; return hr_action; })(),
         first_time:   (cols[19]||'').trim(),
+        hr_followup:  (cols[20]||'').trim(),
       });
     }
     return fresh;

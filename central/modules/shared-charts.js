@@ -2370,12 +2370,23 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open the Talent Analytics panel or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
-    const concernBody = (concernCount>0||emp.co===1) ? `
+    const _liveConcernRecs = (window.CONCERNS||[]).filter(c=>c.emp===emp.n).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    const concernBody = (concernCount>0||emp.co===1||_liveConcernRecs.length>0) ? `
 <div style="padding:.75rem;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px">
-  <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.3rem">⚠️ Performance Concern${concernCount>0?' ('+concernCount+' active)':''}</div>
-  ${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
+  <div style="font-size:.8125rem;font-weight:700;color:#92400e;margin-bottom:.5rem">⚠️ Performance Concern${_liveConcernRecs.length>0?' ('+_liveConcernRecs.length+' on record)':''}</div>
+  ${_liveConcernRecs.length>0
+    ? _liveConcernRecs.map(c=>`<div style="margin-bottom:.5rem;padding:.4rem .6rem;background:#fff;border:1px solid #fed7aa;border-radius:6px">
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <span style="font-size:.78rem;font-weight:700;color:#92400e">${esc(c.concern_label||c.concern_type||'Concern')}</span>
+          ${c.hr_action?`<span style="font-size:.68rem;padding:.1rem .4rem;background:#fee2e2;border-radius:4px;color:#b91c1c;font-weight:600">${esc(c.hr_action)}</span>`:''}
+          <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">${esc((c.ts||'').substring(0,10))}</span>
+        </div>
+        ${c.concern_detail?`<div style="font-size:.72rem;color:#78350f;margin-top:.25rem">${esc(c.concern_detail)}</div>`:''}
+        ${c.hr_followup?`<div style="margin-top:.3rem;padding:.25rem .5rem;background:#eff6ff;border-left:2px solid #3b82f6;border-radius:0 4px 4px 0;font-size:.72rem;color:#1e40af"><span style="font-weight:700">HR Follow-Up:</span> ${esc(c.hr_followup)}</div>`:''}
+      </div>`).join('')
+    : `${emp.ct?`<div style="font-size:.8125rem;color:#78350f;margin-bottom:.25rem">${esc(emp.ct)}</div>`:''}
   ${emp.cd?`<div style="font-size:.7rem;color:var(--muted)">Recorded: ${esc(emp.cd)}</div>`:''}
-  ${hrAction?`<div style="margin-top:.375rem;font-size:.75rem;background:#fee2e2;padding:.3rem .6rem;border-radius:6px;color:#b91c1c;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}
+  ${hrAction?`<div style="margin-top:.375rem;font-size:.75rem;background:#fee2e2;padding:.3rem .6rem;border-radius:6px;color:#b91c1c;font-weight:600">HR Action: ${esc(hrAction)}</div>`:''}`}
 </div>` : '';
 
     // ── Hiring decision summary (bottom of card) ─────────────────────
@@ -3165,6 +3176,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
             +(c.hr_action?'<span style="margin-left:.4rem;font-size:.68rem;color:#92400e;background:#fffbeb;padding:.1rem .3rem;border-radius:3px">'+esc(c.hr_action)+'</span>':'')
             +'<span style="float:right;color:#94a3b8">'+esc((c.ts||'').substring(0,10))+'</span>'
             +(c.concern_detail?'<div style="margin-top:.2rem;color:#64748b">'+esc(c.concern_detail)+'</div>':'')
+            +(c.hr_followup?'<div style="margin-top:.25rem;padding:.2rem .4rem;background:#eff6ff;border-left:2px solid #3b82f6;border-radius:0 4px 4px 0;color:#1e40af;font-size:.68rem"><span style="font-weight:700">HR Follow-Up:</span> '+esc(c.hr_followup)+'</div>':'')
             +'</div>').join('')
           +'</div></div>'
         : '';
