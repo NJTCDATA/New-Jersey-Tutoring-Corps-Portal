@@ -3491,6 +3491,7 @@
         yr:           dt.getFullYear(),
         mo:           dt.getMonth()+1,
         submitter:    (cols[2] ||'').trim(),
+        submitter_email:(cols[20]||'').trim(),
         emp:          emp,
         role:         (cols[6] ||'').trim(),
         support_type: (cols[9] ||'').trim(),
@@ -9150,8 +9151,8 @@
             lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
           });
         });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Field Report (Pearl Ops → Field Report) for the full list._');
-        else lines.push('\n_Open Field Report → Section 4 to view all flagged comments with Session IDs._');
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Onsite Staff Report (Pearl Ops → Onsite Staff Report) for the full list._');
+        else lines.push('\n_Open Onsite Staff Report → Section 4 to view all flagged comments with Session IDs._');
         return lines.join('\n');
       }
     },
@@ -9178,8 +9179,8 @@
             lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
           });
         });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Field Report → Section 5 for the full spotlight list._');
-        else lines.push('\n_Share these at your next team meeting! Full list in Field Report → Section 5._');
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Onsite Staff Report → Section 5 for the full spotlight list._');
+        else lines.push('\n_Share these at your next team meeting! Full list in Onsite Staff Report → Section 5._');
         return lines.join('\n');
       }
     },
