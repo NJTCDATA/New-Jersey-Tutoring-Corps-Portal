@@ -3491,6 +3491,7 @@
         yr:           dt.getFullYear(),
         mo:           dt.getMonth()+1,
         submitter:    (cols[2] ||'').trim(),
+        submitter_email:(cols[20]||'').trim(),
         emp:          emp,
         role:         (cols[6] ||'').trim(),
         support_type: (cols[9] ||'').trim(),

@@ -207,7 +207,7 @@ function onFormSubmit(e) {
     if (concernOther) concernLabel = concernType + ' — ' + concernOther;
 
     var supportLabel = supportType;
-    if (supportType === 'Other' && supportOther) supportLabel = 'Other — ' + supportOther;
+    if (supportOther) supportLabel = supportType + ' — ' + supportOther;
 
     var region = getRegionForPM(submitterEmail);
     if (!region) region = detectRegion(empSite);
