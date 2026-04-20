@@ -3534,7 +3534,7 @@
       if (_tc && _tc.data && _tc.data.length) {
         CONCERNS = _tc.data; window.CONCERNS = CONCERNS;
         _talentLiveStatus = 'live';
-        if (_tc.fresh) return;  // cache fresh — skip network
+        if (_tc.fresh) return CONCERNS;  // cache fresh — skip network
         // stale: fall through to background re-fetch
       }
     }
@@ -3551,7 +3551,7 @@
           NJTC_CACHE.set('njtc_talent_v1', fresh);
           console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
-          return;
+          return CONCERNS;
         }
       }
     } catch(e) {
@@ -3559,6 +3559,7 @@
     }
     _talentLiveStatus = 'fallback';
     console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
+    return CONCERNS;
   }
 
   // ── Support Log Resolutions ─────────────────────────────────────────────────
