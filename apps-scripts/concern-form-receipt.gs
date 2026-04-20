@@ -16,9 +16,10 @@
  *   HOW TO INSTALL THE FORM TRIGGER (for email receipts):
  *   Save this file, then Run → installTrigger (authorize when prompted).
  *
- *   GOOGLE FORM SETTING REQUIRED:
- *   Form Settings → Responses → Collect email addresses → "Responder input"
- *   (NOT "Verified" — Verified mode blocks portal no-cors submissions)
+ *   GOOGLE FORM SETTINGS REQUIRED:
+ *   Form Settings → Responses → Collect email addresses → "Do not collect"
+ *   Form Settings → Responses → Allow response editing → OFF
+ *   (Both features require Google sign-in and block portal no-cors submissions)
  */
 
 // ── Spreadsheet config ────────────────────────────────────────────────────────
@@ -179,7 +180,7 @@ function onFormSubmit(e) {
 
     var submitterEmail = '';
     try { submitterEmail = e.response.getRespondentEmail() || ''; } catch (_) {}
-    if (!submitterEmail) submitterEmail = v('Email Address');
+    if (!submitterEmail) submitterEmail = v('Please provide your email address:');
 
     var submitterName   = v('NJTC Employee Completing Form (Name/Title)')    || 'N/A';
     var onBehalf        = v('Are you completing this form on behalf of someone else?') || 'No';
