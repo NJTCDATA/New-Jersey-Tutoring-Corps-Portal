@@ -5277,6 +5277,54 @@
     }
     /* ── END SURVEY FEEDBACK ───────────────────────────────────── */
 
+    /* ── SUPPORT LOG INDEX ──────────────────────────────────────── */
+    .sl-stats { display:flex;gap:.875rem;margin-bottom:1.75rem;flex-wrap:wrap; }
+    .sl-stat-card { background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.8rem 1.25rem;min-width:110px;text-align:center; }
+    .sl-stat-num { font-size:1.6rem;font-weight:800;color:#1e3a5f;line-height:1; }
+    .sl-stat-lbl { font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-top:.25rem; }
+    .sl-stat-card.sl-open .sl-stat-num { color:#dc2626; }
+    .sl-stat-card.sl-res .sl-stat-num { color:#059669; }
+    .sl-week { margin-bottom:1rem;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;background:#fff; }
+    .sl-week-hdr { background:#f8fafc;padding:.7rem 1.25rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e2e8f0; }
+    .sl-week-hdr-title { font-weight:700;font-size:.875rem;color:#1e3a5f; }
+    .sl-week-hdr-count { font-size:.75rem;color:#64748b; }
+    .sl-col-heads { display:grid;grid-template-columns:96px 80px 150px 160px 1fr 110px 170px;gap:.5rem;padding:.45rem 1.25rem;background:#f1f5f9;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b; }
+    .sl-row { display:grid;grid-template-columns:96px 80px 150px 160px 1fr 110px 170px;align-items:center;gap:.5rem;padding:.65rem 1.25rem;border-bottom:1px solid #f1f5f9;font-size:.7875rem; }
+    .sl-row:last-child { border-bottom:none; }
+    .sl-row.sl-row-resolved { background:#f0fdf4; }
+    .sl-row:not(.sl-row-resolved):hover { background:#fafbfc; }
+    .sl-badge { display:inline-flex;align-items:center;gap:.25rem;border-radius:20px;padding:.2rem .6rem;font-size:.68rem;font-weight:700;white-space:nowrap; }
+    .sl-badge-open { background:#fef2f2;color:#dc2626;border:1px solid #fecaca; }
+    .sl-badge-res { background:#f0fdf4;color:#059669;border:1px solid #bbf7d0; }
+    .sl-resolve-btn { padding:.3rem .65rem;background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;border:none;border-radius:6px;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap; }
+    .sl-resolve-btn:hover { opacity:.85; }
+    .sl-res-reason { font-size:.7rem;color:#059669;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .sl-res-by { font-size:.65rem;color:#94a3b8;margin-top:.15rem; }
+    .sl-cell-muted { color:#94a3b8;font-size:.75rem; }
+    /* Resolve modal */
+    .sl-modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s ease; }
+    .sl-modal { background:#fff;border-radius:16px;padding:2rem;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25); }
+    .sl-modal-hdr { font-size:1.05rem;font-weight:700;color:#1e3a5f;margin-bottom:.5rem; }
+    .sl-modal-meta { font-size:.8125rem;color:#475569;padding:.75rem;background:#f8fafc;border-radius:8px;margin-bottom:1.25rem;line-height:1.65; }
+    .sl-modal textarea { width:100%;min-height:90px;padding:.75rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.875rem;font-family:inherit;resize:vertical;box-sizing:border-box; }
+    .sl-modal textarea:focus { outline:none;border-color:#2563eb; }
+    .sl-modal-actions { display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem; }
+    /* Nav glow — fires for Programming & Data when HR resolves a log */
+    @keyframes sl-glow-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} 50%{box-shadow:0 0 0 5px rgba(16,185,129,.38)} }
+    .sl-glow-active { animation:sl-glow-pulse 2s ease-in-out infinite;border-radius:8px; }
+    /* Notification banner for resolved logs */
+    .sl-resolution-banner { display:flex;align-items:flex-start;gap:.875rem;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.875rem 1.125rem;margin-bottom:1.25rem;font-size:.8125rem; }
+    .sl-resolution-banner .slrb-icon { font-size:1.25rem;flex-shrink:0;margin-top:.05rem; }
+    .sl-resolution-banner .slrb-body { flex:1; }
+    .sl-resolution-banner .slrb-dismiss { background:none;border:none;color:#64748b;cursor:pointer;font-size:.8rem;padding:.1rem .3rem;border-radius:4px;flex-shrink:0; }
+    .sl-resolution-banner .slrb-dismiss:hover { background:#dcfce7; }
+    @media(max-width:900px) {
+      .sl-col-heads,.sl-row { grid-template-columns:90px 130px 1fr 110px 130px; }
+      .sl-row > *:nth-child(2),.sl-row > *:nth-child(3) { display:none; }
+      .sl-col-heads > *:nth-child(2),.sl-col-heads > *:nth-child(3) { display:none; }
+    }
+    /* ── END SUPPORT LOG ──────────────────────────────────────── */
+
     </style>
 
 
@@ -5364,8 +5412,10 @@
         <span class="sl-icon">📊</span> Pearl Operations
         <span class="sl-badge" id="pearlFlagsBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
-      <button class="sidebar-link" data-panel="concern" onclick="showPanel('concern',this)">
+      <!-- Support Log: HR, Programming, Data only — shown by initDeptNav() -->
+      <button class="sidebar-link dept-nav-concern" data-panel="concern" onclick="showPanel('concern',this)" style="display:none">
         <span class="sl-icon">📝</span> Support Log
+        <span class="sl-badge" id="slOpenBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <!-- Dept-restricted nav items — shown/hidden by initDeptNav() -->
       <button class="sidebar-link dept-nav-perf" data-panel="perf" onclick="showPanel('perf',this)" style="display:none">
@@ -6176,12 +6226,29 @@
       </div>
     </div>
 
-    <!-- ══ CONCERN FORM PANEL ════════════════════════════════ -->
+    <!-- ══ SUPPORT LOG (weekly index) ═══════════════════════ -->
     <div class="panel" id="panel-concern">
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">HR Reporting</div>
-          <h2 class="ph-title">Performance Support & Program Context Form</h2>
+          <h2 class="ph-title">Support Log</h2>
+          <p class="ph-subtitle">Weekly index of submitted performance support and program context records. HR can resolve entries; Programming and Data are notified on update.</p>
+        </div>
+        <div class="ph-actions" id="slLogBtnWrap" style="display:none">
+          <button class="btn btn-primary" onclick="showPanel('perf',document.querySelector('[data-panel=perf]'))">+ Log New Concern</button>
+        </div>
+      </div>
+      <div id="slIndex">
+        <div style="padding:3rem;text-align:center;color:#94a3b8;font-size:.9rem">Loading support log…</div>
+      </div>
+    </div>
+
+    <!-- ══ PERFORMANCE CONCERNS (form) ═══════════════════════ -->
+    <div class="panel" id="panel-perf">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">HR Reporting</div>
+          <h2 class="ph-title">Performance Concerns</h2>
           <p class="ph-subtitle">Document a support conversation or program context note. Submitted securely to HR — no external tools required.</p>
         </div>
       </div>
@@ -6466,26 +6533,6 @@
       </div>
     </div>
 
-    <!-- ══ PERFORMANCE (redirect) ════════════════════════════ -->
-    <div class="panel" id="panel-perf">
-      <div class="page-header">
-        <div class="ph-text">
-          <div class="ph-eyebrow">HR Reporting</div>
-          <h2 class="ph-title">Performance Concerns</h2>
-          <p class="ph-subtitle">Use the unified concern form to document employee performance conversations.</p>
-        </div>
-      </div>
-      <div style="max-width:480px">
-        <div class="alert alert-info">
-          <span>ℹ️</span>
-          <div>Performance support conversations and program context notes are submitted through the same secure form, which routes automatically to HR.</div>
-        </div>
-        <button class="btn btn-primary" onclick="showPanel('concern',document.querySelector('[data-panel=concern]'))">
-          📝 Open Support Log →
-        </button>
-      </div>
-    </div>
-
     <!-- ══ i-READY ANALYSIS LAB ═══════════════════════════════ -->
     <div class="panel" id="panel-iready-lab">
       <div id="irlabContainer"><!-- rendered by irlab module --></div>
@@ -6663,7 +6710,7 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=20"></script>
+<script src="modules/shared-utils.js?v=21"></script>
 <script src="modules/shared-charts.js?v=5"></script>
 <script src="modules/shared-filters.js?v=2"></script>
 <script src="modules/leadership.js?v=2"></script>
