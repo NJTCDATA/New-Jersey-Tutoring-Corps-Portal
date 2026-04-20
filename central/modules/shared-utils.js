@@ -2975,8 +2975,6 @@
     params.append(ENTRY.history,           g('f_history'));
     params.append(ENTRY.hrNextSteps,       r('hrNextSteps'));
     params.append(ENTRY.nextStepsDesc,     g('f_nextStepsDesc'));
-    params.append('fvv',         '1');
-    params.append('pageHistory', '0');
 
     try {
       await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
@@ -4911,6 +4909,9 @@
   window.initTalentTabsForDept = initTalentTabsForDept;
   window.resetConcernForm      = resetConcernForm;
   window.submitConcernForm     = submitConcernForm;
+  window.toggleOnBehalf        = toggleOnBehalf;
+  window.toggleSupportOther    = toggleSupportOther;
+  window.toggleConcernOther    = toggleConcernOther;
   window.showChangeLog         = showChangeLog;
   window.fetchLiveConcerns     = fetchLiveConcerns;
   window.fetchLiveReviews      = fetchLiveReviews;
