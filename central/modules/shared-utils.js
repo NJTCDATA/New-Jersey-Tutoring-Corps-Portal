@@ -2922,10 +2922,10 @@
     document.getElementById('onBehalfField').style.display = val==='Yes' ? 'block' : 'none';
   }
   function toggleSupportOther(val) {
-    document.getElementById('supportOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('supportOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
   function toggleConcernOther(val) {
-    document.getElementById('concernOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('concernOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
 
   function _parseDate(s) {
@@ -2976,7 +2976,6 @@
     params.append(ENTRY.hrNextSteps,       r('hrNextSteps'));
     params.append(ENTRY.nextStepsDesc,     g('f_nextStepsDesc'));
 
-    console.log('[ConcernForm] POST body:', params.toString());
     try {
       await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
 
