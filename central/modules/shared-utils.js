@@ -603,6 +603,7 @@
     history:         'entry.1645253994',  // Relevant historical details
     hrNextSteps:     'entry.1704854495',  // Next Steps Requested From HR
     nextStepsDesc:   'entry.59727443',    // Please describe any relevant next steps
+    submitterEmail:  'entry.886808275',   // Submitter email (for Apps Script receipt)
   };
 
   // ══════════════════════════════════════════════════════════
@@ -638,6 +639,15 @@
           if (typeof setTalentTab === 'function') setTalentTab('profiles');
         }, 300);
       }
+    }
+    if (id === "concern") {
+      // Mark Support Log as seen for Programming/Data — clears glow
+      const _slDept = (window.NJTC_SESSION||{}).dept||'';
+      if (['programming','data'].includes(_slDept)) {
+        try { localStorage.setItem(_SL_SEEN_KEY, Date.now().toString()); } catch(e) {}
+        document.querySelectorAll('.dept-nav-concern').forEach(b => b.classList.remove('sl-glow-active'));
+      }
+      setTimeout(() => renderSupportLog(), 50);
     }
     if (id === "iready-lab") {
       setTimeout(() => { if (window.irlab) irlab.onPanelOpen(); }, 50);
@@ -2921,10 +2931,10 @@
     document.getElementById('onBehalfField').style.display = val==='Yes' ? 'block' : 'none';
   }
   function toggleSupportOther(val) {
-    document.getElementById('supportOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('supportOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
   function toggleConcernOther(val) {
-    document.getElementById('concernOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('concernOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
 
   function _parseDate(s) {
@@ -3106,6 +3116,13 @@
       });
     }
 
+    // ── T+800ms: Support Log glow check for Programming + Data ────────────
+    if (['programming','data'].includes(dept)) {
+      setTimeout(() => {
+        fetchLiveResolutions().then(() => { try { _checkSLGlow(); } catch(e) {} });
+      }, 800);
+    }
+
     // ── T+100ms: KPI from cache first (instant numbers if cached) ─────────
     // If cached data exists, buildHome renders immediately with real numbers
     // If not cached, it renders with static fallback and fetches in background
@@ -3138,6 +3155,7 @@
     setTimeout(() => {
       try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
       try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveReviews === 'function') fetchLiveReviews().catch(()=>{}); } catch(e) {}
     }, 1200);
 
     // ── T+1800ms: iReady + SY + Observations (background, lowest priority) ─
@@ -3434,7 +3452,11 @@
   const _HR_BASE_LEN = HR_EMPS.length;
 
   const TALENT_CSV_GIDS = ['274671201'];
-  const TALENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQvtHFBuZ4GqbRooDaRlxIIq1mqzYyvTGyMaJkRd3eCMniaSY8EZh3p1-g1av2Mi-R0zp8BdFmc_ZMy/pub?output=csv';
+  const TALENT_CSV_URL       = 'https://script.google.com/macros/s/AKfycbyw8E92X2mWfxI8EQ5w8Wx7a-nPO9cmBWl12FWCvQD_Co-Z-8Izj6XVb7ErlNhu2qtkUw/exec';
+  const TALENT_REVIEWS_URL   = TALENT_CSV_URL + '?tab=reviews';
+  const TALENT_RESOLUTIONS_URL = TALENT_CSV_URL + '?tab=resolutions';
+  const _SL_LOCAL_KEY  = 'njtc_sl_local_v1';   // optimistic local resolutions
+  const _SL_SEEN_KEY   = 'njtc_sl_seen_v1';    // timestamp of last time user viewed Support Log
 
   // Parse a full CSV text that may contain quoted multiline fields.
   // Returns an array of string-arrays (rows → columns).
@@ -3491,6 +3513,7 @@
         yr:           dt.getFullYear(),
         mo:           dt.getMonth()+1,
         submitter:    (cols[2] ||'').trim(),
+        submitter_email:(cols[20]||'').trim(),
         emp:          emp,
         role:         (cols[6] ||'').trim(),
         support_type: (cols[9] ||'').trim(),
@@ -3515,12 +3538,12 @@
       if (_tc && _tc.data && _tc.data.length) {
         CONCERNS = _tc.data; window.CONCERNS = CONCERNS;
         _talentLiveStatus = 'live';
-        if (_tc.fresh) return;  // cache fresh — skip network
+        if (_tc.fresh) return CONCERNS;  // cache fresh — skip network
         // stale: fall through to background re-fetch
       }
     }
-    const cacheBust = _forceRefresh ? '&t=' + Date.now() : '';
-    const url = TALENT_CSV_URL + '&gid=' + TALENT_CSV_GIDS[0] + cacheBust;
+    const cacheBust = _forceRefresh ? '?t=' + Date.now() : '';
+    const url = TALENT_CSV_URL + cacheBust;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (res.ok) {
@@ -3532,7 +3555,7 @@
           NJTC_CACHE.set('njtc_talent_v1', fresh);
           console.log('[Talent] Live data loaded: ' + fresh.length + ' records');
           if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
-          return;
+          return CONCERNS;
         }
       }
     } catch(e) {
@@ -3540,6 +3563,364 @@
     }
     _talentLiveStatus = 'fallback';
     console.warn('[Talent] Using built-in seed data: ' + CONCERNS.length + ' records');
+    return CONCERNS;
+  }
+
+  // ── Support Log Resolutions ─────────────────────────────────────────────────
+  // Parses the Concern Resolutions sheet tab (CSV served by doGet ?tab=resolutions).
+  // Columns: concern_ts, resolved_by, resolved_by_email, reason, resolved_at
+  function _parseResolutionsCSV(text) {
+    const rows = _parseCSVFull(text);
+    if (rows.length < 2) return [];
+    const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
+    const idx = k => hdr.indexOf(k);
+    const ci = idx('concern_ts'), rb = idx('resolved_by'), re = idx('resolved_by_email'),
+          rr = idx('reason'),     ra = idx('resolved_at');
+    const out = [];
+    for (let i = 1; i < rows.length; i++) {
+      const c = rows[i];
+      const ts = (c[ci]||'').trim();
+      if (!ts) continue;
+      out.push({
+        concern_ts:        ts,
+        resolved_by:       (rb>=0 ? c[rb]||'' : '').trim(),
+        resolved_by_email: (re>=0 ? c[re]||'' : '').trim(),
+        reason:            (rr>=0 ? c[rr]||'' : '').trim(),
+        resolved_at:       (ra>=0 ? c[ra]||'' : '').trim(),
+      });
+    }
+    return out;
+  }
+
+  let _SL_RESOLUTIONS = [];
+  async function fetchLiveResolutions() {
+    const cached = NJTC_CACHE.get('njtc_resolutions_v1');
+    if (cached && cached.fresh) { _SL_RESOLUTIONS = cached.data; return cached.data; }
+    if (cached) _SL_RESOLUTIONS = cached.data;
+    try {
+      const bust = '?tab=resolutions&t=' + Date.now();
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 15000);
+      const resp = await fetch(TALENT_RESOLUTIONS_URL.replace('?tab=resolutions', bust), { signal: ctrl.signal });
+      clearTimeout(tid);
+      const text = await resp.text();
+      const parsed = _parseResolutionsCSV(text);
+      _SL_RESOLUTIONS = parsed;
+      NJTC_CACHE.set('njtc_resolutions_v1', parsed);
+      return parsed;
+    } catch(e) {
+      console.warn('[SupportLog] Resolutions fetch failed:', e.message);
+      return _SL_RESOLUTIONS;
+    }
+  }
+
+  // ── Support Log Index Renderer ──────────────────────────────────────────────
+  function _slWeekKey(tsStr) {
+    const dt = new Date(tsStr);
+    if (isNaN(dt)) return '0000-00-00';
+    const day = dt.getDay();
+    const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(dt); mon.setDate(diff); mon.setHours(0,0,0,0);
+    return mon.toISOString().split('T')[0];
+  }
+
+  function _slWeekLabel(isoKey) {
+    const mon = new Date(isoKey + 'T00:00:00');
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const fmt = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return 'Week of ' + fmt(mon) + ' – ' + fmt(sun) + ', ' + mon.getFullYear();
+  }
+
+  function renderSupportLog() {
+    const container = document.getElementById('slIndex');
+    if (!container) return;
+
+    const dept   = (window.NJTC_SESSION||{}).dept || '';
+    const isHR   = dept === 'hr';
+    const canLog = window.TALENT_FULL_DEPTS && window.TALENT_FULL_DEPTS.includes(dept);
+
+    // Show/hide "Log New Concern" action button
+    const logBtn = document.getElementById('slLogBtnWrap');
+    if (logBtn) logBtn.style.display = canLog ? '' : 'none';
+
+    // Mark seen (clear glow) for Programming & Data
+    if (['programming','data'].includes(dept)) {
+      try { localStorage.setItem(_SL_SEEN_KEY, Date.now().toString()); } catch(e) {}
+      document.querySelectorAll('.dept-nav-concern').forEach(b => b.classList.remove('sl-glow-active'));
+      const banner = document.getElementById('slResolutionBanner');
+      if (banner) banner.style.display = 'none';
+    }
+
+    // Merge local optimistic resolutions with fetched ones
+    function mergedResolutions(fetched) {
+      const map = {};
+      fetched.forEach(r => { map[r.concern_ts] = r; });
+      try {
+        const local = JSON.parse(localStorage.getItem(_SL_LOCAL_KEY) || '{}');
+        Object.keys(local).forEach(ts => { if (!map[ts]) map[ts] = local[ts]; });
+      } catch(e) {}
+      return map;
+    }
+
+    Promise.all([fetchLiveConcerns(), fetchLiveResolutions()]).then(([concerns, resolutions]) => {
+      const resMap = mergedResolutions(resolutions);
+
+      // Stats
+      const total    = concerns.length;
+      const resolved = concerns.filter(c => !!resMap[c.ts]).length;
+      const open     = total - resolved;
+      const thisWeek = concerns.filter(c => _slWeekKey(c.ts) === _slWeekKey(new Date().toISOString())).length;
+
+      // Update nav badge
+      const badge = document.getElementById('slOpenBadge');
+      if (badge) { badge.textContent = open; badge.style.display = open > 0 ? '' : 'none'; }
+
+      // Group by week
+      const weeks = {};
+      concerns.forEach(c => {
+        const wk = _slWeekKey(c.ts);
+        if (!weeks[wk]) weeks[wk] = [];
+        weeks[wk].push(c);
+      });
+      const sortedWeeks = Object.keys(weeks).sort((a,b) => b.localeCompare(a));
+
+      // Check for unacknowledged resolution banner (Programming/Data)
+      let bannerHtml = '';
+      if (['programming','data'].includes(dept)) {
+        const lastSeen = parseInt(localStorage.getItem(_SL_SEEN_KEY) || '0', 10);
+        // We just set lastSeen above, so check against resolutions we haven't shown yet
+        // Show banner if there are any resolutions (just informational)
+        const recentRes = resolutions.filter(r => {
+          const t = new Date(r.resolved_at).getTime();
+          return !isNaN(t);
+        });
+        if (recentRes.length > 0) {
+          const newest = recentRes.sort((a,b) => new Date(b.resolved_at) - new Date(a.resolved_at))[0];
+          bannerHtml = `<div class="sl-resolution-banner" id="slResolutionBanner">
+            <span class="slrb-icon">✅</span>
+            <div class="slrb-body"><strong>${recentRes.length} log${recentRes.length>1?'s':''} resolved by HR</strong> — most recently by ${newest.resolved_by||'HR'}: "${newest.reason||'—'}"</div>
+            <button class="slrb-dismiss" onclick="document.getElementById('slResolutionBanner').style.display='none'">✕</button>
+          </div>`;
+        }
+      }
+
+      // Build HTML
+      let html = bannerHtml;
+      html += `<div class="sl-stats">
+        <div class="sl-stat-card"><div class="sl-stat-num">${total}</div><div class="sl-stat-lbl">Total Logs</div></div>
+        <div class="sl-stat-card sl-open"><div class="sl-stat-num">${open}</div><div class="sl-stat-lbl">Open</div></div>
+        <div class="sl-stat-card sl-res"><div class="sl-stat-num">${resolved}</div><div class="sl-stat-lbl">Resolved</div></div>
+        <div class="sl-stat-card"><div class="sl-stat-num">${thisWeek}</div><div class="sl-stat-lbl">This Week</div></div>
+      </div>`;
+
+      if (sortedWeeks.length === 0) {
+        html += '<div style="padding:2rem;text-align:center;color:#94a3b8">No support logs found.</div>';
+      } else {
+        sortedWeeks.forEach(wk => {
+          const logs = weeks[wk];
+          const wkResolved = logs.filter(c => !!resMap[c.ts]).length;
+          html += `<div class="sl-week">
+            <div class="sl-week-hdr">
+              <span class="sl-week-hdr-title">${_slWeekLabel(wk)}</span>
+              <span class="sl-week-hdr-count">${logs.length} log${logs.length>1?'s':''} &nbsp;·&nbsp; ${wkResolved} resolved</span>
+            </div>
+            <div class="sl-col-heads">
+              <span>Status</span><span class="sl-col-date">Date</span><span class="sl-col-sub">Submitted By</span>
+              <span>Employee</span><span>Concern</span><span>HR Action</span><span>Resolution</span>
+            </div>`;
+          logs.sort((a,b) => new Date(b.ts) - new Date(a.ts)).forEach(c => {
+            const res = resMap[c.ts];
+            const isRes = !!res;
+            const dateStr = new Date(c.ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+            const submitter = c.submitter || '—';
+            const emp = c.emp || '—';
+            const label = c.concern_label || c.concern_type || '—';
+            const action = c.hr_action || '—';
+            const resolveCell = isRes
+              ? `<div><div class="sl-res-reason" title="${(res.reason||'').replace(/"/g,'&quot;')}">"${res.reason||'—'}"</div><div class="sl-res-by">— ${res.resolved_by||'HR'}</div></div>`
+              : isHR
+                ? `<button class="sl-resolve-btn" onclick="showSLResolveModal('${c.ts.replace(/'/g,"\\'")}','${emp.replace(/'/g,"\\'")}','${label.replace(/'/g,"\\'")}','${action.replace(/'/g,"\\'")}')">Resolve</button>`
+                : '<span class="sl-cell-muted">Pending HR</span>';
+            html += `<div class="sl-row${isRes?' sl-row-resolved':''}">
+              <span><span class="sl-badge ${isRes?'sl-badge-res':'sl-badge-open'}">${isRes?'✓ Resolved':'● Open'}</span></span>
+              <span class="sl-col-date sl-cell-muted">${dateStr}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${submitter}">${submitter}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${emp}"><strong>${emp}</strong></span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.75rem" title="${label}">${label}</span>
+              <span style="font-size:.75rem;color:#475569">${action}</span>
+              ${resolveCell}
+            </div>`;
+          });
+          html += '</div>';
+        });
+      }
+
+      container.innerHTML = html;
+    }).catch(err => {
+      container.innerHTML = '<div style="padding:2rem;color:#dc2626">Error loading support log. Please refresh.</div>';
+      console.error('[SupportLog]', err);
+    });
+  }
+
+  // ── HR Resolve Modal ────────────────────────────────────────────────────────
+  function showSLResolveModal(ts, empName, concernLabel, hrAction) {
+    const existing = document.getElementById('slResolveModal');
+    if (existing) existing.remove();
+
+    const esc = s => s.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const overlay = document.createElement('div');
+    overlay.className = 'sl-modal-overlay';
+    overlay.id = 'slResolveModal';
+    overlay.innerHTML = `
+      <div class="sl-modal">
+        <div class="sl-modal-hdr">✅ Resolve Log Entry</div>
+        <div class="sl-modal-meta">
+          <strong>Employee:</strong> ${esc(empName)}<br>
+          <strong>Concern:</strong> ${esc(concernLabel)}<br>
+          <strong>HR Action:</strong> ${esc(hrAction)}
+        </div>
+        <label style="font-size:.8125rem;font-weight:600;color:#1e3a5f;display:block;margin-bottom:.4rem">Resolution Reason <span style="color:#dc2626">*</span></label>
+        <div class="sl-modal">
+          <textarea id="slResolveReason" placeholder="Describe the resolution, next steps taken, or reason for closing this log…"></textarea>
+        </div>
+        <div class="sl-modal-actions">
+          <button class="btn btn-secondary" onclick="document.getElementById('slResolveModal').remove()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitSLResolution('${ts.replace(/'/g,"\\'")}')">Confirm Resolve ✓</button>
+        </div>
+      </div>`;
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    setTimeout(() => document.getElementById('slResolveReason')?.focus(), 50);
+  }
+
+  async function submitSLResolution(ts) {
+    const reasonEl = document.getElementById('slResolveReason');
+    const reason   = (reasonEl?.value || '').trim();
+    if (!reason) { reasonEl?.focus(); return; }
+
+    const session    = window.NJTC_SESSION || {};
+    const resolvedBy = session.name || session.displayName || 'HR';
+    const resolvedByEmail = session.email || '';
+
+    // Optimistic local store so the UI updates immediately
+    try {
+      const local = JSON.parse(localStorage.getItem(_SL_LOCAL_KEY) || '{}');
+      local[ts] = { concern_ts: ts, resolved_by: resolvedBy, resolved_by_email: resolvedByEmail,
+                    reason, resolved_at: new Date().toISOString() };
+      localStorage.setItem(_SL_LOCAL_KEY, JSON.stringify(local));
+    } catch(e) {}
+
+    // Bust resolutions cache so next render re-fetches
+    NJTC_CACHE.bust('njtc_resolutions_v1');
+
+    // Fire POST to Apps Script (no-cors — fire and forget)
+    try {
+      fetch(TALENT_CSV_URL, {
+        method: 'POST', mode: 'no-cors',
+        body: JSON.stringify({ concern_ts: ts, resolved_by: resolvedBy,
+          resolved_by_email: resolvedByEmail, reason, resolved_at: new Date().toISOString() })
+      });
+    } catch(e) {}
+
+    // Close modal and re-render
+    document.getElementById('slResolveModal')?.remove();
+    renderSupportLog();
+  }
+
+  // ── Support Log Glow Check ──────────────────────────────────────────────────
+  // Called on portal load. Applies glow to Support Log nav for Programming/Data
+  // if there are resolutions newer than their last-seen timestamp.
+  function _checkSLGlow() {
+    const dept = (window.NJTC_SESSION||{}).dept || '';
+    if (!['programming','data'].includes(dept)) return;
+    const lastSeen   = parseInt(localStorage.getItem(_SL_SEEN_KEY) || '0', 10);
+    const resolutions = _SL_RESOLUTIONS || [];
+    const hasNew = resolutions.some(r => {
+      const t = new Date(r.resolved_at).getTime();
+      return !isNaN(t) && t > lastSeen;
+    });
+    document.querySelectorAll('.dept-nav-concern').forEach(b => {
+      b.classList.toggle('sl-glow-active', hasNew);
+    });
+  }
+
+  // ── Live Reviews Fetch ──────────────────────────────────────────────────────
+  // Reads Monthly Site Leader Reviews tab via the same Apps Script proxy.
+  // Uses header-name matching so column order changes don't break parsing.
+  function _parseReviewsCSV(text) {
+    const rows = _parseCSVFull(text);
+    if (rows.length < 2) return [];
+    const hdr = rows[0].map(h => (h||'').toLowerCase().trim());
+    const ci = key => {
+      const aliases = {
+        ts:     ['timestamp'],
+        month:  ['month','review month','cycle'],
+        pm:     ['pm','program manager','submitted by','submitter'],
+        leader: ['leader','site leader','leader name','staff name','name'],
+        site:   ['site','school','location','district'],
+        role:   ['role','position'],
+        d1:     ['domain 1','d1','domain one','domain 1 rating'],
+        d23:    ['domain 2','d23','domain 2&3','domain 2 & 3','domains 2','domain 2-3'],
+        d4:     ['domain 4','d4','domain four','domain 4 rating'],
+        notes:  ['notes','comments','feedback','additional notes'],
+      }[key] || [];
+      for (const alias of aliases) {
+        const idx = hdr.findIndex(h => h.includes(alias));
+        if (idx !== -1) return idx;
+      }
+      return -1;
+    };
+    const get = (row, key) => { const i = ci(key); return i >= 0 ? (row[i]||'').trim() : ''; };
+    const fresh = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const tsRaw = get(row, 'ts');
+      if (!tsRaw) continue;
+      const dt = new Date(tsRaw);
+      if (isNaN(dt.getTime())) continue;
+      const leader = get(row, 'leader');
+      if (!leader) continue;
+      fresh.push({
+        ts:     tsRaw,
+        month:  get(row,'month') || dt.toLocaleString('en-US',{month:'short',year:'numeric'}),
+        yr:     dt.getFullYear(),
+        mo:     dt.getMonth()+1,
+        pm:     get(row,'pm'),
+        leader: leader,
+        site:   normDistrict(get(row,'site')),
+        role:   get(row,'role'),
+        d1:     get(row,'d1'),
+        d23:    get(row,'d23'),
+        d4:     get(row,'d4'),
+        notes:  get(row,'notes'),
+      });
+    }
+    return fresh;
+  }
+
+  async function fetchLiveReviews() {
+    const _rc = NJTC_CACHE.get('njtc_reviews_v1');
+    if (_rc && _rc.data && _rc.data.length) {
+      REVIEWS = _rc.data; window.REVIEWS = REVIEWS;
+      if (_rc.fresh) return;
+    }
+    try {
+      const res = await fetch(TALENT_REVIEWS_URL, { signal: AbortSignal.timeout(15000) });
+      if (res.ok) {
+        const text = await res.text();
+        const fresh = _parseReviewsCSV(text);
+        if (fresh.length > 0) {
+          REVIEWS = fresh; window.REVIEWS = REVIEWS;
+          NJTC_CACHE.set('njtc_reviews_v1', fresh);
+          console.log('[Reviews] Live data loaded: ' + fresh.length + ' records');
+          if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('[Reviews] Fetch failed:', e.message);
+    }
+    console.warn('[Reviews] Using built-in seed data: ' + REVIEWS.length + ' records');
   }
 
   function countBy(arr, key) {
@@ -4831,8 +5212,16 @@
   window.initTalentTabsForDept = initTalentTabsForDept;
   window.resetConcernForm      = resetConcernForm;
   window.submitConcernForm     = submitConcernForm;
+  window.toggleOnBehalf        = toggleOnBehalf;
+  window.toggleSupportOther    = toggleSupportOther;
+  window.toggleConcernOther    = toggleConcernOther;
   window.showChangeLog         = showChangeLog;
   window.fetchLiveConcerns     = fetchLiveConcerns;
+  window.fetchLiveResolutions  = fetchLiveResolutions;
+  window.renderSupportLog      = renderSupportLog;
+  window.showSLResolveModal    = showSLResolveModal;
+  window.submitSLResolution    = submitSLResolution;
+  window.fetchLiveReviews      = fetchLiveReviews;
   window.fetchAndRebuildKPI    = fetchAndRebuildKPI;
   window.govOpen               = govOpen;
   window.govClose              = govClose;
@@ -9068,8 +9457,8 @@
             lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
           });
         });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Field Report (Pearl Ops → Field Report) for the full list._');
-        else lines.push('\n_Open Field Report → Section 4 to view all flagged comments with Session IDs._');
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open the Onsite Staff Report (Pearl Ops → Onsite Staff Report) for the full list._');
+        else lines.push('\n_Open Onsite Staff Report → Section 4 to view all flagged comments with Session IDs._');
         return lines.join('\n');
       }
     },
@@ -9096,8 +9485,8 @@
             lines.push('  › _' + c.source + (c.week ? ' · ' + c.week : '') + ':_ "' + snippet + '"');
           });
         });
-        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Field Report → Section 5 for the full spotlight list._');
-        else lines.push('\n_Share these at your next team meeting! Full list in Field Report → Section 5._');
+        if (Object.keys(byTutor).length > 8) lines.push('_…and ' + (Object.keys(byTutor).length - 8) + ' more tutors. Open Onsite Staff Report → Section 5 for the full spotlight list._');
+        else lines.push('\n_Share these at your next team meeting! Full list in Onsite Staff Report → Section 5._');
         return lines.join('\n');
       }
     },

@@ -1,16 +1,19 @@
 (function() {
 
   function initDeptNav(dept) {
-    // Show/hide perf + talent nav based on dept
-    const perfBtns   = document.querySelectorAll('.dept-nav-perf');
-    const talentBtns = document.querySelectorAll('.dept-nav-talent');
-    const label      = document.getElementById('talentNavLabel');
+    // Show/hide perf + talent + concern nav based on dept
+    const perfBtns    = document.querySelectorAll('.dept-nav-perf');
+    const concernBtns = document.querySelectorAll('.dept-nav-concern');
+    const talentBtns  = document.querySelectorAll('.dept-nav-talent');
+    const label       = document.getElementById('talentNavLabel');
 
-    const showPerf   = TALENT_FULL_DEPTS.includes(dept);
-    const showTalent = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept) || TALENT_TRAINING_DEPT.includes(dept);
+    const showPerf    = TALENT_FULL_DEPTS.includes(dept);
+    const showConcern = ['hr','programming','data'].includes(dept);
+    const showTalent  = TALENT_FULL_DEPTS.includes(dept) || TALENT_FINANCE_DEPT.includes(dept) || TALENT_TRAINING_DEPT.includes(dept);
 
-    perfBtns.forEach(b   => b.style.display = showPerf   ? '' : 'none');
-    talentBtns.forEach(b => b.style.display = showTalent ? '' : 'none');
+    perfBtns.forEach(b    => b.style.display = showPerf    ? '' : 'none');
+    concernBtns.forEach(b => b.style.display = showConcern ? '' : 'none');
+    talentBtns.forEach(b  => b.style.display = showTalent  ? '' : 'none');
 
     // Rename the talent nav link and panel for finance/training
     if (dept === 'finance') {
