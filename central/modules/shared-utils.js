@@ -2953,6 +2953,7 @@
     const g = (id) => document.getElementById(id)?.value?.trim() || '';
     const r = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || '';
 
+    params.append(ENTRY.submitterEmail,    g('f_email'));
     params.append(ENTRY.submitterName,     g('f_submitter'));
     params.append(ENTRY.onBehalfYesNo,     r('onBehalf') || 'No');
     params.append(ENTRY.onBehalfOf,        g('f_onBehalfOf'));
@@ -2975,7 +2976,6 @@
     params.append(ENTRY.hrNextSteps,       r('hrNextSteps'));
     params.append(ENTRY.nextStepsDesc,     g('f_nextStepsDesc'));
 
-    console.log('[ConcernForm] POST body:', params.toString());
     try {
       await fetch(FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:params.toString() });
 
