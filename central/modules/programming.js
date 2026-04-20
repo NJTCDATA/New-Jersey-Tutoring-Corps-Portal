@@ -1201,6 +1201,7 @@
       'inappropriate','disrespect','not safe','hurt','crying','violence','physical',
       'not happy','not fair','feel bad','feel sad','feel uncomfortable',
       'yell','curse','hit me','push me','kick me',
+      'unhappy','disgruntled','unwilling to participate','refused to participate',
     ];
     // Regular concern keywords — need 2+ (or 1 strong above) to classify as concern.
     // Deliberately excludes "problem", "hard", "issue" which are frequent false positives
@@ -1209,7 +1210,8 @@
       'concern','struggle','difficult','poor','confused','distract','behavior',
       'not understand','behind','worry','fail','uncomfortable','fell behind',
       'too fast','too slow','cant focus','can\'t focus','left me out',
-      'ignored','mean to me','made me feel',
+      'ignored','mean to me','made me feel','refused to','won\'t participate',
+      'didn\'t participate','acting out','off task','disruptive',
     ];
     const COMMENT_BUCKETS = {
       concern:    { label: 'Concern', css: 'concern',
@@ -1247,15 +1249,22 @@
       return /\b(no|not|nothing|never|don.?t|doesn.?t|isn.?t|wasn.?t|none|without)\s+(?:\w+\s+){0,3}$/.test(before);
     }
 
+    // Word-boundary match for single-word keywords; phrase match for multi-word.
+    // Prevents "happy" from hitting "unhappy", "fun" from hitting "function", etc.
+    function _kwMatch(lower, kw) {
+      if (kw.includes(' ')) return lower.includes(kw);
+      return new RegExp('\\b' + kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(lower);
+    }
+
     function categorizeComment(text) {
       if (!text || !text.trim()) return null;
       const lower = text.toLowerCase();
       // STRONG concern: single match is sufficient — safety/conduct issues
       if (STRONG_CONCERN_KW.some(kw => lower.includes(kw) && !_negated(lower, kw))) return 'concern';
-      // Score all buckets with negation detection
+      // Score all buckets with word-boundary matching + negation detection
       let best = null, bestScore = 0;
       for (const [key, {keywords}] of Object.entries(COMMENT_BUCKETS)) {
-        const score = keywords.filter(kw => lower.includes(kw) && !_negated(lower, kw)).length;
+        const score = keywords.filter(kw => _kwMatch(lower, kw) && !_negated(lower, kw)).length;
         if (score > bestScore) { bestScore = score; best = key; }
       }
       // Concern requires 2+ keyword hits — prevents single ambiguous words from triggering
@@ -5820,14 +5829,14 @@
         // ── Spotlight quality filter + tutor diversity ─────────────────────
         // Reject spam (keyboard mashing), too-short, and off-topic comments.
         const TUTOR_CTX = ['tutor','session','class','learn','taught','teach','lesson',
-          'help','explain','understand','today','practice','mrs','mr','ms','she','he',
-          'they','teacher','coach','her','him','showed','showed me','showed us'];
+          'help','explain','understand','today','practice','mrs','mr','ms',
+          'teacher','coach','showed','showed me','showed us','my tutor','the tutor'];
         const _qualOk = txt => {
           if (!txt || txt.length < 20) return false;            // too short
           if (/(.)\1{4,}/i.test(txt)) return false;             // keyboard spam
           const lo = txt.toLowerCase();
           // Must reference tutoring context OR have 2+ positive keyword hits
-          const posHits = COMMENT_BUCKETS.positive.keywords.filter(kw => lo.includes(kw)).length;
+          const posHits = COMMENT_BUCKETS.positive.keywords.filter(kw => _kwMatch(lo, kw)).length;
           const hasCtx  = TUTOR_CTX.some(w => lo.includes(w));
           return hasCtx || posHits >= 2;
         };
@@ -5836,7 +5845,7 @@
           .filter(c => _qualOk(c.text))
           .map(c => {
             const lo = c.text.toLowerCase();
-            const hits = COMMENT_BUCKETS.positive.keywords.filter(kw => lo.includes(kw)).length;
+            const hits = COMMENT_BUCKETS.positive.keywords.filter(kw => _kwMatch(lo, kw)).length;
             return { ...c, _q: c.text.length + hits * 15 };
           })
           .sort((a,b) => b._q - a._q);
