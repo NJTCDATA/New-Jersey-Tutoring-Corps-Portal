@@ -5810,10 +5810,47 @@
             pool.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
           }
         }
-        // Sort pool by week descending; pick top 5 from the most recent week present
+        // Sort pool by week descending; filter to most recent week
         pool.sort((a,b) => parseInt((b.week||'Week 0').replace('Week ','')) - parseInt((a.week||'Week 0').replace('Week ','')));
         const topWeek = pool.length ? pool[0].week : '';
-        return pool.filter(c => c.week === topWeek).slice(0, 5);
+        const weekPool = pool.filter(c => c.week === topWeek);
+
+        if (category !== 'positive') return weekPool.slice(0, 5);
+
+        // ── Spotlight quality filter + tutor diversity ─────────────────────
+        // Reject spam (keyboard mashing), too-short, and off-topic comments.
+        const TUTOR_CTX = ['tutor','session','class','learn','taught','teach','lesson',
+          'help','explain','understand','today','practice','mrs','mr','ms','she','he',
+          'they','teacher','coach','her','him','showed','showed me','showed us'];
+        const _qualOk = txt => {
+          if (!txt || txt.length < 20) return false;            // too short
+          if (/(.)\1{4,}/i.test(txt)) return false;             // keyboard spam
+          const lo = txt.toLowerCase();
+          // Must reference tutoring context OR have 2+ positive keyword hits
+          const posHits = COMMENT_BUCKETS.positive.keywords.filter(kw => lo.includes(kw)).length;
+          const hasCtx  = TUTOR_CTX.some(w => lo.includes(w));
+          return hasCtx || posHits >= 2;
+        };
+        // Score by quality (length + keyword richness) for ranking
+        const scored = weekPool
+          .filter(c => _qualOk(c.text))
+          .map(c => {
+            const lo = c.text.toLowerCase();
+            const hits = COMMENT_BUCKETS.positive.keywords.filter(kw => lo.includes(kw)).length;
+            return { ...c, _q: c.text.length + hits * 15 };
+          })
+          .sort((a,b) => b._q - a._q);
+        // Select top 5 ensuring at most 2 per tutor (prefer variety across tutors)
+        const tutorCnt = {};
+        const selected = [];
+        for (const c of scored) {
+          const k = c.tutor || '—';
+          if ((tutorCnt[k] || 0) >= 2) continue;
+          tutorCnt[k] = (tutorCnt[k] || 0) + 1;
+          selected.push(c);
+          if (selected.length >= 5) break;
+        }
+        return selected;
       }
 
       // ── Section 4: Comments Requiring Follow-Up (concern bucket, top 5) ──
