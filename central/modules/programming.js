@@ -1194,13 +1194,49 @@
     }
 
     // ── COMMENT CATEGORIZATION ────────────────────────────────────────────
+    // STRONG concern keywords — a single match triggers follow-up immediately.
+    // These represent safety, conduct, or distress that always needs action.
+    const STRONG_CONCERN_KW = [
+      'target','harass','assault','unsafe','bully','threaten','scared','afraid',
+      'inappropriate','disrespect','not safe','hurt','crying','violence','physical',
+      'not happy','not fair','feel bad','feel sad','feel uncomfortable',
+      'yell','curse','hit me','push me','kick me',
+    ];
+    // Regular concern keywords — need 2+ (or 1 strong above) to classify as concern.
+    // Deliberately excludes "problem", "hard", "issue" which are frequent false positives
+    // in educational contexts ("math problems", "try harder", "Wi-Fi issue").
+    const CONCERN_KW = [
+      'concern','struggle','difficult','poor','confused','distract','behavior',
+      'not understand','behind','worry','fail','uncomfortable','fell behind',
+      'too fast','too slow','cant focus','can\'t focus','left me out',
+      'ignored','mean to me','made me feel',
+    ];
     const COMMENT_BUCKETS = {
-      concern:    { label: 'Concern', css: 'concern',    keywords: ['concern','problem','issue','struggle','difficult','hard','poor','bad','confused','distract','behavior','not understand','behind','worry','fail','target','harass','assault','unsafe','bully','scared','afraid','inappropriate','threaten','uncomfortable','disrespect','not happy','not fair','not safe','hurt','crying'] },
-      positive:   { label: 'Positive Feedback', css: 'positive',  keywords: ['great','excellent','amazing','wonderful','good','enjoyed','love','fantastic','perfect','best','happy','engaged','excited','helpful','fun'] },
-      engagement: { label: 'Engagement', css: 'engagement', keywords: ['engage','participat','attention','focus','interest','active','involv','motivat','enthusias','energy'] },
-      logistics:  { label: 'Logistics', css: 'logistics',  keywords: ['late','time','reschedul','cancel','interrup','delay','technolog','zoom','link','access','material','room','space','tool'] },
-      curriculum: { label: 'Curriculum', css: 'curriculum', keywords: ['lesson','curriculum','material','content','topic','math','reading','ela','english','skill','standard','objective','worksheet','practice'] },
-      relationship: { label: 'Relationship', css: 'relationship', keywords: ['rapport','relationship','bond','trust','comfort','familiar','personali','know','connect','feel safe','individual'] },
+      concern:    { label: 'Concern', css: 'concern',
+                    keywords: [...STRONG_CONCERN_KW, ...CONCERN_KW] },
+      positive:   { label: 'Positive Feedback', css: 'positive',
+                    keywords: ['great','excellent','amazing','wonderful','good','enjoyed',
+                               'love','fantastic','perfect','best','happy','engaged',
+                               'excited','helpful','fun','thank','awesome','brilliant',
+                               'boost','better','learned','learn a lot','understood',
+                               'my favorite','the best','really good','so good'] },
+      engagement: { label: 'Engagement', css: 'engagement',
+                    keywords: ['engage','participat','attention','focus','interest',
+                               'active','involv','motivat','enthusias','energy'] },
+      logistics:  { label: 'Logistics', css: 'logistics',
+                    keywords: ['late','reschedul','cancel','interrup','delay','technolog',
+                               'zoom','link','access','material','room','space','tool',
+                               'wi-fi','wifi','internet','computer','device','connection',
+                               'lunchroom','cafeteria','library','hallway','location'] },
+      curriculum: { label: 'Curriculum', css: 'curriculum',
+                    keywords: ['lesson','curriculum','material','content','topic','math',
+                               'reading','ela','english','skill','standard','objective',
+                               'worksheet','practice','multiplication','division','fraction',
+                               'algebra','vocabulary','grammar','spelling'] },
+      relationship: { label: 'Relationship', css: 'relationship',
+                      keywords: ['rapport','relationship','bond','trust','comfort',
+                                 'familiar','personali','know','connect','feel safe',
+                                 'individual'] },
     };
 
     // Returns true if kw appears negated in context (no X, not X, nothing X, etc.)
@@ -1214,11 +1250,16 @@
     function categorizeComment(text) {
       if (!text || !text.trim()) return null;
       const lower = text.toLowerCase();
+      // STRONG concern: single match is sufficient — safety/conduct issues
+      if (STRONG_CONCERN_KW.some(kw => lower.includes(kw) && !_negated(lower, kw))) return 'concern';
+      // Score all buckets with negation detection
       let best = null, bestScore = 0;
       for (const [key, {keywords}] of Object.entries(COMMENT_BUCKETS)) {
         const score = keywords.filter(kw => lower.includes(kw) && !_negated(lower, kw)).length;
         if (score > bestScore) { bestScore = score; best = key; }
       }
+      // Concern requires 2+ keyword hits — prevents single ambiguous words from triggering
+      if (best === 'concern' && bestScore < 2) return 'other';
       return best || 'other';
     }
 
@@ -5730,8 +5771,15 @@
 
       // ── Collect all comments for a category, then pick the most recent week ──
       // Separated staff are excluded from concern flags; their sessions remain in metrics.
+      // Deduplication: identical (sessId + normalized text) pairs shown only once.
       function _gatherComments(category) {
         const pool = [];
+        const _seen = new Set(); // deduplicate by sessId+text
+        const _dedup = (sessId, text) => {
+          const key = (sessId || '') + '||' + text.toLowerCase().replace(/\s+/g,' ').trim().slice(0,60);
+          if (_seen.has(key)) return false;
+          _seen.add(key); return true;
+        };
         for (const r of (_stuRows || [])) {
           const text = (r[STU_S.COMMENT] || '').trim();
           if (!text || categorizeComment(text) !== category) continue;
@@ -5742,6 +5790,7 @@
           if (!matchesFR(school, district)) continue;
           if (!matchesTutor(tutor)) continue;
           if (category === 'concern' && _frIsTermHR(tutor)) continue;
+          if (!_dedup(sessId, text)) continue;
           const week = _effWeekStu(r);
           pool.push({ source: 'Scholar', text, tutor, school, district, sessId, week });
         }
@@ -5757,6 +5806,7 @@
           for (const raw of [r[INST_S.COMMENT_ADMIN], r[INST_S.COMMENT_SELF]]) {
             const text = (raw||'').trim();
             if (!text || categorizeComment(text) !== category) continue;
+            if (!_dedup(sessId, text)) continue;
             pool.push({ source: 'Tutor', text, tutor, school, district, sessId, week });
           }
         }
