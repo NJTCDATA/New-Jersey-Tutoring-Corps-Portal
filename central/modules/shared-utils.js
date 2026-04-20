@@ -2922,10 +2922,10 @@
     document.getElementById('onBehalfField').style.display = val==='Yes' ? 'block' : 'none';
   }
   function toggleSupportOther(val) {
-    document.getElementById('supportOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('supportOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
   function toggleConcernOther(val) {
-    document.getElementById('concernOtherWrap').style.display = val==='Other' ? 'block' : 'none';
+    document.getElementById('concernOtherWrap').style.display = val.startsWith('Other') ? 'block' : 'none';
   }
 
   function _parseDate(s) {
