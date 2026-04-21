@@ -856,17 +856,48 @@
             { icon: '📝', label: '1:1 Agenda Doc Template', desc: 'Template for 1-on-1 meetings', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/document/d/1jiR-4_XKsH0JjMBa9GbwggDNBVMWv-tIxnDXV1lhUKQ/edit?tab=t.0#heading=h.wg6ftg9st61t', lbl: 'Open Doc ↗' },
           ]},
         ];
-        const _pgCard = item => {
-          if (!item.subs) {
-            return `<a href="${item.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;background:${item.c};border:1.5px solid ${item.b}22;border-left:3px solid ${item.b};border-radius:10px;transition:box-shadow .15s,transform .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.10)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''"><span style="font-size:1.4rem;line-height:1;flex-shrink:0;margin-top:.05rem">${item.icon}</span><div><div style="font-size:.8125rem;font-weight:700;color:#1B2A4A;line-height:1.2">${item.label}</div><div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${item.desc}</div><div style="font-size:.65rem;color:${item.b};font-weight:600;margin-top:.35rem;letter-spacing:.02em">${item.lbl}</div></div></a>`;
+        const _pgRow = item => {
+          const rowCss = 'display:flex;align-items:center;gap:.5rem;padding:.4rem .375rem;border-radius:7px;text-decoration:none;color:inherit;width:100%';
+          const body = `<span style="font-size:.875rem;flex-shrink:0;line-height:1">${item.icon}</span><span style="font-size:.75rem;font-weight:600;color:#1B2A4A;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.label}</span>${item.url ? '<span style="font-size:.6rem;color:#457b9d;font-weight:700;flex-shrink:0;opacity:.7">↗</span>' : ''}`;
+          const main = item.url ? `<a href="${item.url}" target="_blank" rel="noopener" class="pg-row" style="${rowCss}">${body}</a>` : `<div style="${rowCss}">${body}</div>`;
+          if (!item.subs) return main;
+          const subs = `<div style="padding-left:1.375rem;display:flex;flex-direction:column;gap:.1rem;margin-top:.1rem">${item.subs.map(s => `<a href="${s.url}" target="_blank" rel="noopener" class="pg-sub" style="display:flex;align-items:center;gap:.3rem;font-size:.6875rem;color:#457b9d;font-weight:500;padding:.2rem .375rem;border-radius:5px;text-decoration:none"><span style="opacity:.5;font-size:.65rem">↳</span>${s.label}</a>`).join('')}</div>`;
+          return `<div>${main}${subs}</div>`;
+        };
+        window._pgToggle = function(idx) {
+          const el = document.getElementById('pgDr'+idx), cv = document.getElementById('pgCv'+idx), hd = document.getElementById('pgHd'+idx);
+          if (!el) return;
+          const open = el.dataset.open === '1';
+          if (open) {
+            el.style.maxHeight = '0'; el.style.opacity = '0'; el.style.paddingTop = '0'; el.style.paddingBottom = '0';
+            el.dataset.open = '0'; cv.textContent = '▶'; if (hd) hd.classList.remove('is-open');
+          } else {
+            el.style.maxHeight = el.scrollHeight + 'px'; el.style.opacity = '1'; el.style.paddingTop = '.5rem'; el.style.paddingBottom = '.875rem';
+            el.dataset.open = '1'; cv.textContent = '▼'; if (hd) hd.classList.add('is-open');
           }
-          const _inner = `<span style="font-size:1.4rem;line-height:1;flex-shrink:0;margin-top:.05rem">${item.icon}</span><div><div style="font-size:.8125rem;font-weight:700;color:#1B2A4A;line-height:1.2">${item.label}</div><div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${item.desc}</div>${item.lbl ? `<div style="font-size:.65rem;color:${item.b};font-weight:600;margin-top:.35rem;letter-spacing:.02em">${item.lbl}</div>` : ''}</div>`;
-          const _hdr = item.url ? `<a href="${item.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem .625rem;transition:background .12s" onmouseover="this.style.background='${item.b}11'" onmouseout="this.style.background=''">${_inner}</a>` : `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem .625rem">${_inner}</div>`;
-          return `<div style="background:${item.c};border:1.5px solid ${item.b}22;border-left:3px solid ${item.b};border-radius:10px;overflow:hidden">${_hdr}<div style="border-top:1px solid ${item.b}22;padding:.5rem .875rem .625rem 1rem;display:flex;flex-direction:column;gap:.25rem">${item.subs.map(s => `<a href="${s.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:center;gap:.375rem;font-size:.7rem;color:${item.b};font-weight:500;padding:.2rem .35rem;border-radius:5px;transition:background .12s" onmouseover="this.style.background='${item.b}18'" onmouseout="this.style.background=''"><span style="opacity:.6;font-size:.8rem">↳</span>${s.label}</a>`).join('')}</div></div>`;
         };
         setTimeout(() => {
-          _plEl.style.display = '';
-          _plEl.innerHTML = `<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)"><div style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1.25rem">📂 Programming Resources</div>${_pgSecs.map(sec => `<div style="margin-bottom:1.25rem"><div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.625rem;padding-left:.125rem">${sec.hdr}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem">${sec.items.map(_pgCard).join('')}</div></div>`).join('')}</div>`;
+          if (document.getElementById('progCabinet')) return;
+          _plEl.style.display = 'none';
+          if (!document.getElementById('pgCabinetCSS')) {
+            const _st = document.createElement('style'); _st.id = 'pgCabinetCSS';
+            _st.textContent = '#progHomeLayout{display:flex;gap:1.5rem;align-items:flex-start}#progLeftCol{flex:1;min-width:0}#progCabinet{width:288px;flex-shrink:0;position:sticky;top:1.5rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,.08);overflow:hidden;max-height:calc(100vh - 5rem);display:flex;flex-direction:column}.pg-dc{overflow:hidden;transition:max-height .28s ease,opacity .2s ease,padding .2s ease}.pg-hd{cursor:pointer;user-select:none;transition:background .15s;display:flex;align-items:center;gap:.625rem;padding:.8125rem 1.125rem;border-top:1px solid var(--border)}.pg-hd:hover{background:#f0f5ff!important}.pg-hd.is-open{background:#eef4ff}a.pg-row:hover{background:#f0f5ff!important}.pg-sub:hover{background:#e0f0ff!important}@media(max-width:1079px){#progHomeLayout{flex-direction:column}#progCabinet{width:100%;position:static;max-height:none}}';
+            document.head.appendChild(_st);
+          }
+          const _ph = document.getElementById('panel-home');
+          if (!_ph) return;
+          const _layout = document.createElement('div'); _layout.id = 'progHomeLayout';
+          const _lc = document.createElement('div'); _lc.id = 'progLeftCol';
+          ['execDashboard','homeDeptWidget','homeStatsStrip','homeQuickLinks','homeFinanceLinks'].forEach(id => { const e = document.getElementById(id); if (e) _lc.appendChild(e); });
+          const _cab = document.createElement('div'); _cab.id = 'progCabinet';
+          const _secs = _pgSecs.map((sec, i) => {
+            const first = i === 0;
+            return `<div class="pg-hd${first?' is-open':''}" id="pgHd${i}" onclick="window._pgToggle(${i})"><span style="font-size:.875rem;line-height:1">${sec.hdr.split(' ')[0]}</span><span style="font-size:.7rem;font-weight:700;color:#1B2A4A;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sec.hdr.split(' ').slice(1).join(' ')}</span><span id="pgCv${i}" style="font-size:.65rem;color:var(--muted);flex-shrink:0">${first?'▼':'▶'}</span></div><div id="pgDr${i}" class="pg-dc" data-open="${first?1:0}" style="max-height:${first?'800px':'0'};opacity:${first?1:0};padding-top:${first?'.5rem':'0'};padding-bottom:${first?'.875rem':'0'};padding-left:.75rem;padding-right:.75rem">${sec.items.map(_pgRow).join('')}</div>`;
+          }).join('');
+          _cab.innerHTML = `<div style="background:linear-gradient(135deg,#0a1628,#1a3a5c);padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem;flex-shrink:0"><span style="font-size:1.5rem;line-height:1">🗄️</span><div><div style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#7db5e8;margin-bottom:.15rem">Programming</div><div style="font-size:.9rem;font-weight:700;color:#fff;letter-spacing:-.01em">Resources</div></div><div style="margin-left:auto;font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#4a9dd4;text-align:right;line-height:1.5">📂 File<br>Cabinet</div></div><div style="overflow-y:auto;flex:1">${_secs}</div>`;
+          _layout.appendChild(_lc);
+          _layout.appendChild(_cab);
+          _ph.appendChild(_layout);
         }, 22);
       } else {
         _plEl.style.display = 'none';
