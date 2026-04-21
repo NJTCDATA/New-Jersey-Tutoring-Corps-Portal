@@ -67,7 +67,8 @@
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Scholar impact goals', panel: 'kpi' },
         { icon: '📚', label: 'Site Policies', bg: '#e0f0ff', desc: 'Program procedures', panel: 'policies' },
         { icon: '☁️', label: 'Upload Docs', bg: '#f6f8fc', desc: 'Submit program materials', panel: 'upload' },
-      ]
+      ],
+      programmingLinks: true,
     },
     data: {
       label: 'Data & Evaluation', emoji: '📈', color: '#7b2d8b',
@@ -795,6 +796,80 @@
         }, 20);
       } else {
         _flEl.style.display = 'none';
+      }
+    }
+
+    // T+22: Programming Resources cabinet (programming only)
+    const _plEl = document.getElementById('homeProgrammingLinks');
+    if (_plEl) {
+      if (cfg.programmingLinks) {
+        const _pgSecs = [
+          { hdr: '👥 Team & Communication', items: [
+            { icon: '👥', label: 'Central Team & Consultants', desc: 'NJTC/PATC contact directory', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/d/1UZ3Bct8vahriAs9D2T4NiYR4DVWkAMu76qTgk2Yk3Xw/edit?gid=246750649#gid=246750649', lbl: 'Open in Sheets ↗' },
+            { icon: '📋', label: 'Program Pulse Check', desc: 'Ongoing program health snapshot', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/document/d/1zBvViOseKIYnC3j2jsuEHtx6_A3kbWCV0Wk89iN_zKs/edit?usp=sharing', lbl: 'Open Doc ↗' },
+          ]},
+          { hdr: '📊 Program Operations', items: [
+            { icon: '💳', label: 'PSA Trackers', desc: 'Program spending & inventory', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/d/1vBpFMxYZ9-dBhwCgC3xAEfWqhWWSeHKRpqY-KkJ9hAM/edit?gid=1974836617#gid=1974836617', lbl: 'Open in Sheets ↗' },
+            { icon: '👁', label: 'OTJ & Observation Tracker', desc: 'Field observations & feedback docs', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/spreadsheets/d/1PDYfmzk99OdPYvmTEyjsBjJeRy6P2y0CCl_rXMXkbo8/edit?gid=0#gid=0', lbl: 'Open in Sheets ↗', subs: [
+              { label: 'Monthly Feedback — Site Coordinator Roles', url: 'https://docs.google.com/document/d/1E_xcXmk57T7y0a30VzhVTBAyRqRF-J1hJNklMkOvAj4/edit?usp=sharing' },
+              { label: 'Monthly Feedback — Dual Roles', url: 'https://docs.google.com/document/d/1XLe-WVDLjOyJ8GI0fIlZlwDVSwpC9eZlIvnnLiuNb30/edit?usp=sharing' },
+              { label: 'Monthly Feedback — Instructional Coaches', url: 'https://docs.google.com/document/d/1yQvZ7FCKfvcot6tw6tAgBrbY_51RTbKFCu9cz1FVpPw/edit?usp=sharing' },
+              { label: 'Monthly Feedback Review Form', url: 'https://forms.gle/y2xnrfda7ShoicDU6' },
+              { label: 'Tutor Observation Forms', url: 'https://docs.google.com/document/d/18mX3HbMyg7DuZpErOKhbHocdEmVDPXtFjcR1THpBjb0/edit?tab=t.0#heading=h.nj23sjpj5u97' },
+            ]},
+            { icon: '📊', label: 'Training Tracker', desc: 'Staff training completion data', c: '#fff7e0', b: '#e9a825', url: 'https://docs.google.com/spreadsheets/d/1f_PnCHeZgWTtPMNqt4t1xypyEUf5BkyGu9445eBfDCo/edit?gid=976013103#gid=976013103', lbl: 'Open in Sheets ↗' },
+            { icon: '📋', label: 'Current Training Plan', desc: 'Active PD schedule & plan', c: '#fff0e8', b: '#e76f51', url: 'https://docs.google.com/document/d/1HdPYkXfrg76nEPJwLXR52IBsbiTjnBjaX0B_1h-04_w/edit?tab=t.2ozcd9148hix', lbl: 'Open Doc ↗' },
+            { icon: '🎓', label: 'Google Classroom', desc: 'Tutor learning management portal', c: '#f0eeff', b: '#6c63d4', url: 'https://classroom.google.com/', lbl: 'Open Classroom ↗' },
+            { icon: '⏱', label: 'Timecard Tracker', desc: 'Staff hours & timecard log', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/d/1EojTzQf1rLMAhg1XW93UuE3OWjsLfSxJxWbh8lC36LI/edit?gid=1181370475#gid=1181370475', lbl: 'Open in Sheets ↗' },
+            { icon: '📌', label: 'Program Management Guide', desc: 'PM reference & operations guide', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/document/d/134eftXVWfwNs0mxSpMiUxvpLO8yVEkxjfSEXi0IYp1g/edit?tab=t.0#heading=h.t47yrpwc2d6n', lbl: 'Open Doc ↗' },
+          ]},
+          { hdr: '📈 Data & Databases', items: [
+            { icon: '🗃', label: 'Database (SY or Summer)', desc: 'Active program database', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/d/1jq7KZloR9l6hisd5W_muvLVXtN02Jpjre8H35o8_9co/edit', lbl: 'Open in Sheets ↗' },
+            { icon: '📚', label: 'Historical Databases', desc: 'Archive of all past databases', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/document/d/178iwda7OEobl0ylaH10X1yap6MEplzokkOgLyYzPf_g/edit?tab=t.0', lbl: 'Open Doc ↗' },
+            { icon: '🎯', label: 'Talent Database', desc: 'Staff & tutor talent records', c: '#fff7e0', b: '#e9a825', url: 'https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/edit?gid=984921063#gid=984921063', lbl: 'Open in Sheets ↗' },
+            { icon: '📊', label: 'Attendance & Survey Dashboards', desc: 'SY 25-26 · site-level dashboards', c: '#fff0e8', b: '#e76f51', url: '', lbl: '', subs: [
+              { label: 'iLearn CMO', url: 'https://lookerstudio.google.com/u/0/reporting/aeb01676-9642-40a8-8155-a2bb650d18ee/page/p_4a6qemb1wd?s=uBS0GoqqElw' },
+              { label: 'Global Leadership Academy', url: 'https://lookerstudio.google.com/s/kgkTOfLeH6o' },
+              { label: 'CJCP', url: 'https://lookerstudio.google.com/s/v4a2fqNs7c4' },
+              { label: 'Haddon Township', url: 'https://lookerstudio.google.com/s/mEPHzh_4aMA' },
+              { label: 'Hamilton Township', url: 'https://lookerstudio.google.com/s/p4oph5l-BI0' },
+              { label: 'Gloucester Township SD', url: 'https://lookerstudio.google.com/s/gCnVDYfV89M' },
+              { label: 'Hoboken Dual Language Charter', url: 'https://lookerstudio.google.com/s/gCmw-ALgK-Y' },
+              { label: 'Penns Grove', url: 'https://lookerstudio.google.com/reporting/83433268-6915-4cd2-bfe7-7ff8a3d1063b' },
+              { label: 'American Paradigm', url: 'https://lookerstudio.google.com/s/jCrADn85fQ8' },
+            ]},
+            { icon: '📉', label: 'T&D Longitudinal Dashboard', desc: 'Training & development trends', c: '#f0eeff', b: '#6c63d4', url: 'https://lookerstudio.google.com/reporting/39f0c4bb-d479-43cb-8320-ce3c0d014d75', lbl: 'Open Dashboard ↗' },
+          ]},
+          { hdr: '🌱 Growth & Business Development', items: [
+            { icon: '📤', label: 'Outreach', desc: 'Partner pipeline & outreach log', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/u/0/d/1NH0pUQYVbsJYb_2eUsGYFCOOpkxNzJKD3G6hvQlW5vE/edit', lbl: 'Open in Sheets ↗' },
+            { icon: '🎤', label: 'Pitch Deck', desc: 'NJTC program pitch presentation', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/presentation/d/1aiGeBX-3eEJ4buZnwZUgCaAf_-ldaaoi/edit?slide=id.g3a4b8ca4575_0_44#slide=id.g3a4b8ca4575_0_44', lbl: 'Open Slides ↗' },
+            { icon: '💰', label: 'Quote Builder 26-27', desc: 'Proposal & pricing tool', c: '#fff7e0', b: '#e9a825', url: 'https://docs.google.com/spreadsheets/d/12JdzpqZ87fZJOoFRiYrcof_jjpoKAU2Rf5og5Hbdts4/edit?gid=1372550430#gid=1372550430', lbl: 'Open in Sheets ↗' },
+            { icon: '📁', label: 'MOU/DSA Templates', desc: 'Contract & agreement templates', c: '#fff0e8', b: '#e76f51', url: 'https://drive.google.com/drive/u/0/folders/1iUNiwALtAHg1XyWFPoDLMhbHjgz0ZByF', lbl: 'Open in Drive ↗' },
+            { icon: '📄', label: 'NJTC One-Pager', desc: 'Program overview for partners', c: '#f0eeff', b: '#6c63d4', url: 'https://www.canva.com/design/DAG39iwj03k/aBwkuZa5tQOWzoE1L5UMGw/view?utm_content=DAG39iwj03k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hdffb6f7651', lbl: 'Open in Canva ↗' },
+          ]},
+          { hdr: '📚 Strategy & Documentation', items: [
+            { icon: '🗺', label: 'Strategic Plans', desc: 'Org-wide strategic plan archive', c: '#e0f0ff', b: '#457b9d', url: 'https://drive.google.com/drive/u/0/folders/1yMxpU4FYR0lkO6Z3ybE_tAARoKvxdB2J', lbl: 'Open in Drive ↗' },
+            { icon: '📅', label: 'Annual Plan (FY 26)', desc: 'Current fiscal year annual plan', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/document/d/1AmwQNBzJh-DJALTxnVw6sN-SIJhkU122gOTWc8MUKzU/edit?tab=t.0', lbl: 'Open Doc ↗' },
+            { icon: '📘', label: 'Central Team Handbook', desc: 'Policies & guidelines for central team', c: '#fff7e0', b: '#e9a825', url: 'https://docs.google.com/document/d/1SwImDpg9ccdaywhpjOvDxc_2n5IuqFTZN4OGI7iBj0g/edit?tab=t.0#heading=h.gjdgxs', lbl: 'Open Doc ↗' },
+            { icon: '📗', label: 'On-Site Staff Handbook', desc: 'Field staff policies & procedures', c: '#fff0e8', b: '#e76f51', url: 'https://docs.google.com/document/d/1U7uHCrUVcglcm_fOtJXojmzB9Td0kEuqJayScEBrus/edit?tab=t.0', lbl: 'Open Doc ↗' },
+            { icon: '⚙', label: 'Operations Manual', desc: 'Org-wide operations reference', c: '#f0eeff', b: '#6c63d4', url: 'https://docs.google.com/document/d/1RDGWYWngPhasxpZdBAJDvPjhEfwFrSOLMHUc-0qkeVk/edit?tab=t.0', lbl: 'Open Doc ↗' },
+            { icon: '📝', label: '1:1 Agenda Doc Template', desc: 'Template for 1-on-1 meetings', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/document/d/1jiR-4_XKsH0JjMBa9GbwggDNBVMWv-tIxnDXV1lhUKQ/edit?tab=t.0#heading=h.wg6ftg9st61t', lbl: 'Open Doc ↗' },
+          ]},
+        ];
+        const _pgCard = item => {
+          if (!item.subs) {
+            return `<a href="${item.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem;background:${item.c};border:1.5px solid ${item.b}22;border-left:3px solid ${item.b};border-radius:10px;transition:box-shadow .15s,transform .15s" onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.10)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''"><span style="font-size:1.4rem;line-height:1;flex-shrink:0;margin-top:.05rem">${item.icon}</span><div><div style="font-size:.8125rem;font-weight:700;color:#1B2A4A;line-height:1.2">${item.label}</div><div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${item.desc}</div><div style="font-size:.65rem;color:${item.b};font-weight:600;margin-top:.35rem;letter-spacing:.02em">${item.lbl}</div></div></a>`;
+          }
+          const _inner = `<span style="font-size:1.4rem;line-height:1;flex-shrink:0;margin-top:.05rem">${item.icon}</span><div><div style="font-size:.8125rem;font-weight:700;color:#1B2A4A;line-height:1.2">${item.label}</div><div style="font-size:.7rem;color:var(--muted);margin-top:.2rem">${item.desc}</div>${item.lbl ? `<div style="font-size:.65rem;color:${item.b};font-weight:600;margin-top:.35rem;letter-spacing:.02em">${item.lbl}</div>` : ''}</div>`;
+          const _hdr = item.url ? `<a href="${item.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem .625rem;transition:background .12s" onmouseover="this.style.background='${item.b}11'" onmouseout="this.style.background=''">${_inner}</a>` : `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.875rem 1rem .625rem">${_inner}</div>`;
+          return `<div style="background:${item.c};border:1.5px solid ${item.b}22;border-left:3px solid ${item.b};border-radius:10px;overflow:hidden">${_hdr}<div style="border-top:1px solid ${item.b}22;padding:.5rem .875rem .625rem 1rem;display:flex;flex-direction:column;gap:.25rem">${item.subs.map(s => `<a href="${s.url}" target="_blank" rel="noopener" style="text-decoration:none;display:flex;align-items:center;gap:.375rem;font-size:.7rem;color:${item.b};font-weight:500;padding:.2rem .35rem;border-radius:5px;transition:background .12s" onmouseover="this.style.background='${item.b}18'" onmouseout="this.style.background=''"><span style="opacity:.6;font-size:.8rem">↳</span>${s.label}</a>`).join('')}</div></div>`;
+        };
+        setTimeout(() => {
+          _plEl.style.display = '';
+          _plEl.innerHTML = `<div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)"><div style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:1.25rem">📂 Programming Resources</div>${_pgSecs.map(sec => `<div style="margin-bottom:1.25rem"><div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.625rem;padding-left:.125rem">${sec.hdr}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.75rem">${sec.items.map(_pgCard).join('')}</div></div>`).join('')}</div>`;
+        }, 22);
+      } else {
+        _plEl.style.display = 'none';
       }
     }
 
