@@ -5380,70 +5380,70 @@
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Navigation</div>
-      <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)">
+      <button class="sidebar-link active" data-panel="home" onclick="showPanel('home',this)" title="Your department's overview, KPIs, and quick-access actions">
         <span class="sl-icon">🏠</span> Department Home
       </button>
-      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)">
+      <button class="sidebar-link" data-panel="kpi" onclick="showPanel('kpi',this)" title="Set and track your department's key performance indicator targets">
         <span class="sl-icon">📊</span> KPI Targets
         <span class="sl-badge gold" id="metBadge">—</span>
       </button>
-      <button class="sidebar-link" data-panel="kpi-analytics" onclick="showPanel('kpi-analytics',this)">
+      <button class="sidebar-link" data-panel="kpi-analytics" onclick="showPanel('kpi-analytics',this)" title="Visualize KPI trends and drill into performance data over time">
         <span class="sl-icon">🔍</span> KPI Analytics
       </button>
     </div>
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Documents</div>
-      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)">
+      <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)" title="Browse NJTC policies, procedures, and compliance documents">
         <span class="sl-icon">📚</span> Policies Library
       </button>
-      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload',this)">
+      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload',this)" title="Upload, manage, and access department files and shared resources">
         <span class="sl-icon">☁️</span> Drive Center
       </button>
     </div>
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Reporting</div>
-      <button class="sidebar-link" data-panel="sy-analytics" onclick="showPanel('sy-analytics',this)">
+      <button class="sidebar-link" data-panel="sy-analytics" onclick="showPanel('sy-analytics',this)" title="View school-year site performance metrics and location-level program data">
         <span class="sl-icon">🗺️</span> SY Site Analytics
         <span class="sl-badge" id="syChangesBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
-      <button class="sidebar-link" data-panel="pearl-ops" onclick="showPanel('pearl-ops',this)">
+      <button class="sidebar-link" data-panel="pearl-ops" onclick="showPanel('pearl-ops',this)" title="Monitor tutoring session delivery, attendance, and program operations metrics">
         <span class="sl-icon">📊</span> Pearl Operations
         <span class="sl-badge" id="pearlFlagsBadge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <!-- Support Log: HR, Programming, Data only — shown by initDeptNav() -->
-      <button class="sidebar-link dept-nav-concern" data-panel="concern" onclick="showPanel('concern',this)" style="display:none">
+      <button class="sidebar-link dept-nav-concern" data-panel="concern" onclick="showPanel('concern',this)" style="display:none" title="Submit and track employee support actions and coaching records">
         <span class="sl-icon">📝</span> Support Log
         <span class="sl-badge" id="slOpenBadge" style="display:none;background:#dc2626;color:#fff;border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
       <!-- Dept-restricted nav items — shown/hidden by initDeptNav() -->
-      <button class="sidebar-link dept-nav-perf" data-panel="perf" onclick="showPanel('perf',this)" style="display:none">
+      <button class="sidebar-link dept-nav-perf" data-panel="perf" onclick="showPanel('perf',this)" style="display:none" title="Document and review employee performance issues and corrective actions">
         <span class="sl-icon">👤</span> Performance Concerns
       </button>
-      <button class="sidebar-link dept-nav-talent" data-panel="talent" onclick="showPanel('talent',this)" style="display:none">
+      <button class="sidebar-link dept-nav-talent" data-panel="talent" onclick="showPanel('talent',this)" style="display:none" title="Analyze staff talent data, hiring pipeline, and workforce metrics">
         <span class="sl-icon">📊</span> <span id="talentNavLabel">Talent Analytics</span>
       </button>
-      <button class="sidebar-link dept-nav-td-data" data-panel="training-analytics" onclick="showPanel('training-analytics',this)" style="display:none">
+      <button class="sidebar-link dept-nav-td-data" data-panel="training-analytics" onclick="showPanel('training-analytics',this)" style="display:none" title="Training and Development program performance and staff outcome data">
         <span class="sl-icon">🎓</span> T&amp;D Analytics
       </button>
     </div>
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Academic Intelligence</div>
-      <button class="sidebar-link" data-panel="iready-lab" onclick="showPanel('iready-lab',this)">
+      <button class="sidebar-link" data-panel="iready-lab" onclick="showPanel('iready-lab',this)" title="Analyze i-Ready diagnostic data and track student academic growth outcomes">
         <span class="sl-icon">🔬</span> i-Ready Analysis Lab
         <span class="sl-badge" style="background:#7b2d8b;color:#fff" id="irlabBadge" style="display:none"></span>
       </button>
       <!-- Impact Report Builder — Data dept + leadership + kb only -->
-      <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none">
+      <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none" title="Generate executive-ready impact reports and export program outcomes as PDF">
         <span class="sl-icon">📊</span> Impact Report Builder
       </button>
     </div>
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Advocacy</div>
-      <button class="sidebar-link dept-nav-advocacy" data-panel="advocacy" onclick="showPanel('advocacy',this)" style="display:none">
+      <button class="sidebar-link dept-nav-advocacy" data-panel="advocacy" onclick="showPanel('advocacy',this)" style="display:none" title="Manage NJTC advocacy initiatives, public relations, and media communications">
         <span class="sl-icon">🏛️</span> Advocacy & Media
       </button>
     </div>
@@ -5451,7 +5451,7 @@
     <!-- Survey Feedback — shown for programming, data, leadership, kb (controlled by initDeptNav) -->
     <div class="sidebar-group dept-nav-survey" style="display:none">
       <div class="sidebar-group-label">Survey Feedback</div>
-      <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)">
+      <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)" title="Review satisfaction survey results from partner schools and program sites">
         <span class="sl-icon">📋</span> Partner Satisfaction (Q)
       </button>
       <div class="sf-nav-coming" title="Launching Q4 2026.">
@@ -5466,7 +5466,7 @@
 
     <div class="sidebar-group">
       <div class="sidebar-group-label">Community</div>
-      <button class="sidebar-link" data-panel="knowtion" onclick="showPanel('knowtion',this)">
+      <button class="sidebar-link" data-panel="knowtion" onclick="showPanel('knowtion',this)" title="Access the NJTC team knowledge base, shared notes, and community resources">
         <span class="sl-icon">🌐</span> Knowtion Community
         <span class="sl-badge" id="kntionBadge" style="display:none;background:var(--gold);color:var(--navy);border-radius:10px;padding:0 6px;font-size:.65rem;font-weight:700;margin-left:auto"></span>
       </button>
