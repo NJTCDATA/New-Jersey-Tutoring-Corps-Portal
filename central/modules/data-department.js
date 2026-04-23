@@ -772,10 +772,12 @@
           springPercentile:   _pf(spr,'Percentile','percentile'),
           springRushFlag:     '',
           springWeeks:        _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics'),
-          pctTypical:         _pct(spr,'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
+          pctTypical:         _pct(spr,'Percent Progress to Annual Typical Growth (%)','percent_progress_to_annual_typical_growth',
+                                   'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
                                    '% Progress Toward Typical Growth','pct_progress_toward_typical_growth',
                                    'Pct Progress Typical Growth','pct_progress_typical_growth'),
-          pctStretch:         _pct(spr,'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
+          pctStretch:         _pct(spr,'Percent Progress to Annual Stretch Growth (%)','percent_progress_to_annual_stretch_growth',
+                                   'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
                                    '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
           annualTypical:      _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'),
           annualStretch:      _pf(win,'Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'),
@@ -847,42 +849,65 @@
       if (window._iready2526Source !== 'manual') return;
 
       // ── Cert status lookup from HR Master List ────────────────────────────
-      // role field from HR_EMPS drives certification classification.
+      // HR_EMPS uses shorthand keys: n=name, r=role.
+      function _normN(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
       var _hrEmps = (window.HR_EMPS && Array.isArray(window.HR_EMPS)) ? window.HR_EMPS : [];
       var _nameToCert = {};
       _hrEmps.forEach(function(emp) {
-        if (!emp || !emp.name) return;
-        var role = (emp.role || '').toLowerCase();
+        if (!emp) return;
+        var empName = emp.n || emp.name || '';
+        var role    = (emp.r || emp.role || '').toLowerCase();
+        if (!empName || !role) return;
         var cert;
-        if      (role.includes('dual'))                                         cert = 'Certified';
-        else if (role.includes('non-cert') || role.includes('non cert'))       cert = 'Non Certified';
-        else if (role.includes('coach') || role.includes('instructional'))     cert = 'Certified';
-        else if (role.includes('certified'))                                    cert = 'Certified';
-        else if (role.includes('site'))                                         cert = 'Certified';
-        if (cert) _nameToCert[emp.name.trim()] = cert;
+        if      (role.includes('dual'))                                    cert = 'Certified';
+        else if (role.includes('non-cert') || role.includes('non cert'))  cert = 'Non Certified';
+        else if (role.includes('coach') || role.includes('instructional')) cert = 'Certified';
+        else if (role.includes('certified'))                               cert = 'Certified';
+        else if (role.includes('site'))                                    cert = 'Certified';
+        if (cert) _nameToCert[_normN(empName)] = cert;
       });
 
-      // ── Instructor assignment from Pearl session data ──────────────────────
-      // Student ID in the 25-26 sheet (col D) === Pearl User ID in SESS_STU_IDS
+      // ── Pearl session join — tutor assignment + tutoring hours ─────────────
+      // PRIMARY: student name (SESS col 2) — more reliable than Pearl IDs across systems.
+      // SECONDARY: Pearl User IDs (SESS col 16) — used when IDs are present.
+      // Both maps store subject-keyed { tutors: Set<name>, mins: number }.
       var sessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
-      var SESS_INSTRUCTOR = 1, SESS_STU_IDS = 16, SESS_SUBJECT = 9, SESS_STATUS = 4;
-      var scholarTutorMap = {};
+      var SESS_INSTRUCTOR = 1, SESS_STUDENTS = 2, SESS_STU_IDS = 16,
+          SESS_SUBJECT = 9, SESS_ACTUAL_DUR_P = 8, SESS_STATUS = 4;
+
+      function _subjKey(raw) {
+        var s = (raw || '').toLowerCase();
+        if (s.includes('ela') || s.includes('english') || s.includes('literacy') || s.includes('reading') || s.includes('language')) return 'ELA';
+        if (s.includes('math')) return 'Math';
+        return null;
+      }
+      function _addToMap(map, key, subj, tutor, mins) {
+        if (!key || !subj) return;
+        if (!map[key]) map[key] = {};
+        if (!map[key][subj]) map[key][subj] = { tutors: new Set(), mins: 0 };
+        if (tutor) map[key][subj].tutors.add(tutor);
+        map[key][subj].mins += mins;
+      }
+
+      var idMap   = {};  // pearlId  → { ELA:{tutors,mins}, Math:{tutors,mins} }
+      var nameMap = {};  // lowerName → { ELA:{tutors,mins}, Math:{tutors,mins} }
+
       sessRows.forEach(function(r) {
+        if (!r) return;
         var status = (r[SESS_STATUS] || '').toLowerCase();
-        if (!status.includes('attended') && !status.includes('complete') && !status.includes('success')) return;
-        var subjRaw = (r[SESS_SUBJECT] || '').toLowerCase();
-        var isELA   = subjRaw.includes('ela') || subjRaw.includes('reading') || subjRaw.includes('language');
-        var isMath  = subjRaw.includes('math');
-        if (!isELA && !isMath) return;
-        var subjKey   = isELA ? 'ELA' : 'Math';
-        var tutorName = (r[SESS_INSTRUCTOR] || '').trim();
-        if (!tutorName) return;
+        var ok = status.includes('attended') || status.includes('complete') ||
+                 status.includes('success')  || status.includes('partial');
+        if (!ok) return;
+        var subj = _subjKey(r[SESS_SUBJECT]);
+        if (!subj) return;
+        var tutor   = (r[SESS_INSTRUCTOR] || '').trim();
+        var durMins = parseFloat(r[SESS_ACTUAL_DUR_P]) || 45;
+        // Index 2 — comma-separated student display names (primary join)
+        var stuNames = (r[SESS_STUDENTS] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        stuNames.forEach(function(nm) { _addToMap(nameMap, nm.toLowerCase(), subj, tutor, durMins); });
+        // Index 16 — comma-separated Pearl user IDs (secondary join)
         var stuIds = (r[SESS_STU_IDS] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
-        stuIds.forEach(function(id) {
-          if (!scholarTutorMap[id]) scholarTutorMap[id] = {};
-          if (!scholarTutorMap[id][subjKey]) scholarTutorMap[id][subjKey] = new Set();
-          scholarTutorMap[id][subjKey].add(tutorName);
-        });
+        stuIds.forEach(function(id)   { _addToMap(idMap,   id,              subj, tutor, durMins); });
       });
 
       // ── Repeat scholar detection ─────────────────────────────────────────
@@ -899,9 +924,13 @@
           // Assign instructor from Pearl sessions (direct Pearl ID match)
           // Join on iReady User Name (= Pearl user ID) first; fall back to Student ID.
           // The "User Name" column (col M, stored as _pearlId) matches SESS_STU_IDS values.
-          var joinKey  = row._pearlId || row.scholarId;
-          var tutors   = scholarTutorMap[joinKey] || scholarTutorMap[row.scholarId] || {};
-          var tutorSet = tutors[subj];
+          // Resolve Pearl session data — try ID maps first, fall back to name map
+          var _pid    = row._pearlId || row.scholarId;
+          var _lname  = _normN(row.scholarName);
+          var _sessData = (idMap[_pid] && idMap[_pid][subj]) ||
+                          (idMap[row.scholarId] && idMap[row.scholarId][subj]) ||
+                          (nameMap[_lname] && nameMap[_lname][subj]) || null;
+          var tutorSet = _sessData ? _sessData.tutors : null;
           if (tutorSet && tutorSet.size > 0) {
             row.instructor = [...tutorSet].join('; ');
             row.tutors     = [...tutorSet];
@@ -909,15 +938,17 @@
             row.instructor = 'Unidentified';
             row.tutors     = ['Unidentified'];
           }
-          // Derive cert status from HR Master List by first matched tutor's role
-          var _tutorList = (tutorSet && tutorSet.size > 0) ? [...tutorSet] : [];
+          // Tutoring hours for this scholar+subject (used by Learning Velocity)
+          row._tutorHours = _sessData ? _sessData.mins / 60 : null;
+          // Cert status from HR Master List via normalized name fuzzy match
+          var _tutorList = tutorSet && tutorSet.size > 0 ? [...tutorSet] : [];
           var _certFound = null;
           for (var _ti = 0; _ti < _tutorList.length; _ti++) {
-            var _c = _nameToCert[_tutorList[_ti]];
+            var _c = _nameToCert[_normN(_tutorList[_ti])];
             if (_c) { _certFound = _c; break; }
           }
           row.certStatus = _certFound || '';
-          row.isRepeat = priorIds.has(row.scholarId);
+          row.isRepeat   = priorIds.has(row.scholarId);
           _irlManual2526Rows.push(row);
         });
         if (subj === 'ELA')  IRLAB_DATA.ela  = IRLAB_DATA.ela.concat(normalized);
@@ -5808,22 +5839,10 @@
           .map(function(x){ return { tutor:x.label, avgGain:x.medGain, n:x.n }; });
       }
 
-      // Card D: Learning Velocity (scale score gain ÷ tutoring hours) — 2025-2026 only
+      // Card D: Learning Velocity (scale score gain ÷ tutoring hours) — 2025-2026 only.
+      // Uses _tutorHours pre-computed in _irlProcess2526 (name+ID dual-join, already resolved).
       var medVelocity = null;
       if (syAligned) {
-        var _vSessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
-        var _vSTU = 16, _vDUR = 8, _vSTA = 4;
-        var _pidHours = {};
-        _vSessRows.forEach(function(sr) {
-          var st = (sr[_vSTA] || '').toLowerCase();
-          if (!st.includes('attended') && !st.includes('complete') && !st.includes('success')) return;
-          var dur = parseFloat(sr[_vDUR]);
-          if (isNaN(dur) || dur <= 0) return;
-          (sr[_vSTU] || '').split(',').forEach(function(id) {
-            id = id.trim();
-            if (id) _pidHours[id] = (_pidHours[id] || 0) + dur / 60;
-          });
-        });
         var velArr = [];
         var _sy2526 = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []).filter(function(r){ return r && r.year === PEARL_SY; });
         _sy2526.forEach(function(r) {
@@ -5831,8 +5850,7 @@
             ? parseFloat(r.springGain)
             : (r.springScore != null && r.baseScore != null ? r.springScore - r.baseScore : NaN);
           if (isNaN(gain)) return;
-          var pid = r._pearlId || r.scholarId;
-          var hrs = _pidHours[pid];
+          var hrs = r._tutorHours;
           if (!hrs || hrs <= 0) return;
           velArr.push(gain / hrs);
         });
