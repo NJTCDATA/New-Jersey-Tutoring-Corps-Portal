@@ -707,15 +707,44 @@ function buildReportHTML(r) {
     '<span class="irb-rh-ts">Generated '+ts+'</span>' +
     '</div>';
 
-  // BLOCK 1: KPI Strip
+  // BLOCK 1: KPI Strip (dual-lens — Scholar Impact / Session Impact)
   var a = r.agg, pa = r.priorAgg;
+  var _schoolCt = Object.keys(a.bySchool).length;
+
+  // Terminology key — global legend defining both impact dimensions
+  html += '<div class="irb-term-key">' +
+    '<div class="irb-term-key-hdr">' +
+      '<span class="irb-term-key-title">Metric Framework</span>' +
+      '<span class="irb-term-key-note">Scholar Impact and Session Impact are independent measures &mdash; do not compare directly</span>' +
+    '</div>' +
+    '<div class="irb-term-key-body">' +
+      '<div class="irb-term-col">' +
+        '<div class="irb-term-col-hdr scholar">Scholar Impact</div>' +
+        '<div class="irb-term-row"><strong>Scholars Impacted</strong> &mdash; unique individuals with &ge;1 missed-session record. Headcount of affected people.</div>' +
+        '<div class="irb-term-row"><strong>Session Records</strong> &mdash; total scholar&times;session pairs (1 scholar missing 2 sessions = 2 records). Not unique scholars.</div>' +
+        '<div class="irb-term-row"><strong>Scholar Hrs Lost</strong> &mdash; session records &times; 0.75 hr. Instructional time lost per scholar, not total session time.</div>' +
+      '</div>' +
+      '<div class="irb-term-col">' +
+        '<div class="irb-term-col-hdr session">Session Impact</div>' +
+        '<div class="irb-term-row"><strong>Sessions Disrupted</strong> &mdash; distinct session events (site + date + title) where &ge;1 scholar was pulled. <em>The session still ran for remaining scholars.</em></div>' +
+        '<div class="irb-term-row"><strong>Avg Pull Rate</strong> &mdash; records &divide; disrupted events. Average number of scholars pulled per impacted session event.</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+  // Dual-lens group header labels aligned to the 5-column KPI grid
+  html += '<div class="irb-kpi-lens-hdrs">' +
+    '<div class="irb-kpi-lens-hdr scholar">Scholar Impact</div>' +
+    '<div class="irb-kpi-lens-hdr session">Session Impact</div>' +
+  '</div>';
+
   html += '<div class="irb-kpi-strip">' +
-    kpiCard('Scholars Impacted',   a.scholars,           fmtDelta(a.scholars, pa.scholars),           'unique scholars') +
-    kpiCard('Scholar-Sess Records',a.sessions,           fmtDelta(a.sessions, pa.sessions),           'scholar × session records') +
-    kpiCard('Sessions Disrupted',  a.sessionsDisrupted,  null,                                        'distinct session events') +
-    kpiCard('Avg Pull Rate',       a.avgPullRate,        null,                                        'records ÷ events') +
-    kpiCard('Hours Lost',          a.hours,              fmtDelta(a.hours,    pa.hours),              'records × 45 min ÷ 60') +
-    '</div>';
+    kpiCard('Scholars Impacted', a.scholars,          fmtDelta(a.scholars, pa.scholars), a.scholars+' unique scholars across '+_schoolCt+' school'+(_schoolCt!==1?'s':'')) +
+    kpiCard('Session Records',   a.sessions,          fmtDelta(a.sessions, pa.sessions), a.sessions+' individual scholar-session records') +
+    kpiCard('Scholar Hrs Lost',  a.hours,             fmtDelta(a.hours,    pa.hours),    a.sessions+' records &times; 0.75 hr per session') +
+    kpiCard('Sessions Disrupted',a.sessionsDisrupted, null,                              a.sessionsDisrupted+' distinct events had &ge;1 scholar pulled') +
+    kpiCard('Avg Pull Rate',     a.avgPullRate,       null,                              a.sessions+' records &divide; '+a.sessionsDisrupted+' disrupted events') +
+  '</div>';
 
   // Contribution bar (multi-reason)
   if (r.selectedIds.length >= 2 && a.sessions > 0) {
@@ -737,6 +766,16 @@ function buildReportHTML(r) {
   html += buildRankingTable(r);
 
   // BLOCK 5: Export controls — 4 distinct outputs
+  html += '<div class="irb-meth-footnote">' +
+    '<strong>Methodology Disclosure &mdash;</strong> ' +
+    '<strong>Session-level disruption counts</strong> reflect distinct tutoring session events (by site and date) where at least one scholar was retained by a classroom teacher. ' +
+    'The session itself was not cancelled &mdash; it continued for all other scholars present. &nbsp;' +
+    '<strong>Scholar-level impact counts</strong> reflect total individual scholar-session records marked with this reason. ' +
+    'One scholar missing three separate sessions contributes 3 records and 3&times;0.75&nbsp;=&nbsp;2.25 hrs lost, but counts as 1 unique scholar. &nbsp;' +
+    'These are independent metrics and should not be compared directly. &nbsp;' +
+    '<em>Session duration assumed 45 min (0.75 hr) per record unless otherwise noted.</em>' +
+  '</div>';
+
   html += '<div class="irb-export-bar">' +
     '<div class="irb-export-group">' +
       '<div class="irb-export-group-label">Data Export</div>' +
@@ -1016,8 +1055,8 @@ function renderRankingHtml(schools, multiReason) {
     '<div style="overflow-x:auto"><table class="irb-rank-table" id="irbRankTable">' +
     '<thead><tr>' +
     th('#','scholars')+ th('School','school')+ th('Region','region')+
-    th('Scholars','scholars')+ th('Records','sessions')+ th('Sess Disrupted','sessDisr')+ th('Avg Pull','avgPull')+
-    th('Hrs Lost','hrs')+ th('vs. Prior','priorScholars')+
+    th('Scholars','scholars')+ th('Sess Records','sessions')+ th('Sess Disrupted','sessDisr')+ th('Avg Pull','avgPull')+
+    th('Scholar Hrs','hrs')+ th('vs. Prior','priorScholars')+
     (multiReason ? th('Top Reason','topReason') : '') +
     '</tr></thead><tbody>';
 
@@ -1596,13 +1635,17 @@ function exportPDF() {
       '</div>' +
     '</div>' +
 
-    // KPI grid
+    // KPI grid — dual-lens group labels + 5 KPI tiles
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7pt;margin-bottom:5pt">' +
+      '<div style="grid-column:span 3;font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#0369a1;padding:.15rem .45rem;background:#f0f9ff;border-radius:4px;text-align:center">Scholar Impact</div>' +
+      '<div style="grid-column:span 2;font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7c3aed;padding:.15rem .45rem;background:#f5f3ff;border-radius:4px;text-align:center">Session Impact</div>' +
+    '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7pt;margin-bottom:16pt">' +
       kpi(a.scholars,'Scholars Impacted',a.scholars>pa.scholars,pa.scholars) +
-      kpi(a.sessions,'Scholar-Sess Records',a.sessions>pa.sessions,pa.sessions) +
+      kpi(a.sessions,'Session Records',a.sessions>pa.sessions,pa.sessions) +
+      kpi(a.hours,'Scholar Hrs Lost',a.hours>pa.hours,pa.hours) +
       kpi(a.sessionsDisrupted,'Sessions Disrupted',false,null) +
       kpi(a.avgPullRate,'Avg Pull Rate',false,null) +
-      kpi(a.hours,'Hours Lost',a.hours>pa.hours,pa.hours) +
     '</div>' +
 
     // 8-week context strip
@@ -1639,11 +1682,12 @@ function exportPDF() {
     // Methodology footnote
     '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
       '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
-      '<strong>Scholars Impacted:</strong> count of distinct scholars with \u22651 missed-session record in the period. &nbsp;' +
-      '<strong>Scholar-Session Records:</strong> total rows where a scholar missed a session (one scholar missing two sessions = 2 records). &nbsp;' +
-      '<strong>Sessions Disrupted:</strong> count of distinct session events (school + date + session title) that had \u22651 scholar pulled from them. &nbsp;' +
-      '<strong>Avg Pull Rate:</strong> scholar-session records \xf7 sessions disrupted — average number of scholars pulled per disrupted session. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
+      '<strong>Scholars Impacted:</strong> unique scholars with \u22651 missed-session record (headcount of individuals). &nbsp;' +
+      '<strong>Session Records:</strong> total scholar\xd7session pairs &mdash; 1 scholar missing 2 sessions = 2 records. &nbsp;' +
+      '<strong>Scholar Hrs Lost:</strong> records \xd7 0.75 hr &mdash; <em>scholar instructional hours lost, not operational session hours</em>. &nbsp;' +
+      '<strong>Sessions Disrupted:</strong> distinct session events (school + date + title) with \u22651 scholar pulled &mdash; <em>the session still ran for remaining scholars; these are not cancelled sessions</em>. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events. &nbsp;' +
+      'Scholar Impact and Session Impact are independent metrics and should not be compared directly.' +
     '</div>' +
 
     // Footer
@@ -1733,32 +1777,53 @@ function exportPDFSchool() {
           '<span style="background:'+regAccent+';color:#fff;font-size:7pt;font-weight:700;padding:2pt 8pt;border-radius:20px">'+esc(regLabel)+'</span>' +
         '</div>' +
       '</div>' +
-      // Stats row — Scholar Impact lens + Session Impact lens
-      '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0">' +
-        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#e63946">'+s.scholars+'</div>' +
-          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholars</div>' +
-          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">unique</div>' +
+      // Dual-lens stats panel: Scholar Impact | Session Impact
+      '<div style="display:grid;grid-template-columns:1fr 1px 1fr;border-top:1px solid #f1f5f9">' +
+        // ── Scholar Impact lens ──────────────────────────────────────────────
+        '<div style="padding:9pt 12pt">' +
+          '<div style="font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#0369a1;margin-bottom:6pt;display:flex;align-items:center;gap:4pt">' +
+            '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#0369a1;flex-shrink:0"></span>Scholar Impact' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0">' +
+            '<div style="text-align:center;border-right:1px solid #f1f5f9;padding-right:6pt">' +
+              '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#e63946">'+s.scholars+'</div>' +
+              '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholars</div>' +
+              '<div style="font-size:6pt;color:#94a3b8;font-style:italic">'+s.scholars+' unique individuals</div>' +
+            '</div>' +
+            '<div style="text-align:center;border-right:1px solid #f1f5f9;padding:0 6pt">' +
+              '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#f59e0b">'+s.sessions+'</div>' +
+              '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Session Records</div>' +
+              '<div style="font-size:6pt;color:#94a3b8;font-style:italic">'+s.sessions+' scholar\xd7sess pairs</div>' +
+            '</div>' +
+            '<div style="text-align:center;padding-left:6pt">' +
+              '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#475569">'+s.hrs+'</div>' +
+              '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Scholar Hrs Lost</div>' +
+              '<div style="font-size:6pt;color:#94a3b8;font-style:italic">'+s.sessions+' rec \xd7 0.75 hr</div>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
-        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#f59e0b">'+s.sessions+'</div>' +
-          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Records</div>' +
-          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">scholar \xd7 sess</div>' +
-        '</div>' +
-        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#7c3aed">'+s.sessDisr+'</div>' +
-          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Sess Disrupted</div>' +
-          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">distinct events</div>' +
-        '</div>' +
-        '<div style="padding:8pt;text-align:center;border-right:1px solid #f1f5f9">' +
-          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#0ea5e9">'+s.avgPull+'</div>' +
-          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Avg Pull Rate</div>' +
-          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">records \xf7 events</div>' +
-        '</div>' +
-        '<div style="padding:8pt;text-align:center">' +
-          '<div style="font-family:Playfair Display,serif;font-size:18pt;font-weight:700;color:#475569">'+s.hrs+'</div>' +
-          '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Hours Lost</div>' +
-          '<div style="font-size:6pt;color:#94a3b8;font-style:italic">rec \xd7 45 \xf7 60</div>' +
+        // ── Vertical divider ─────────────────────────────────────────────────
+        '<div style="background:#e2e8f0;width:1px"></div>' +
+        // ── Session Impact lens ──────────────────────────────────────────────
+        '<div style="padding:9pt 12pt">' +
+          '<div style="font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#7c3aed;margin-bottom:6pt;display:flex;align-items:center;gap:4pt">' +
+            '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#7c3aed;flex-shrink:0"></span>Session Impact' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0">' +
+            '<div style="text-align:center;border-right:1px solid #f1f5f9;padding-right:6pt">' +
+              '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#7c3aed">'+s.sessDisr+'</div>' +
+              '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Sessions Disrupted</div>' +
+              '<div style="font-size:6pt;color:#94a3b8;font-style:italic">'+s.sessDisr+' distinct events had \u22651 scholar pulled</div>' +
+            '</div>' +
+            '<div style="text-align:center;padding-left:6pt">' +
+              '<div style="font-family:Playfair Display,serif;font-size:17pt;font-weight:700;color:#0ea5e9">'+s.avgPull+'</div>' +
+              '<div style="font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b">Avg Pull Rate</div>' +
+              '<div style="font-size:6pt;color:#94a3b8;font-style:italic">'+s.sessions+' rec \xf7 '+s.sessDisr+' events</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="margin-top:5pt;font-size:6pt;color:#94a3b8;font-style:italic;line-height:1.4">' +
+            'Session still ran for remaining scholars &mdash; only pulled scholars missed.' +
+          '</div>' +
         '</div>' +
       '</div>' +
       // Two-column: dates + reasons
@@ -1801,23 +1866,36 @@ function exportPDFSchool() {
       'Each card shows scholars affected, sessions missed, and the primary reasons — to support coordination and follow-up.' +
     '</div>' +
 
-    // Summary strip
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8pt;margin-bottom:18pt">' +
+    // Summary strip — 5 KPIs with lens labels
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7pt;margin-bottom:6pt">' +
+      '<div style="font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;padding:.15rem .4rem;background:#f1f5f9;border-radius:4px;text-align:center">Schools</div>' +
+      '<div style="grid-column:span 2;font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#0369a1;padding:.15rem .4rem;background:#f0f9ff;border-radius:4px;text-align:center">Scholar Impact</div>' +
+      '<div style="grid-column:span 2;font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7c3aed;padding:.15rem .4rem;background:#faf5ff;border-radius:4px;text-align:center">Session Impact</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7pt;margin-bottom:18pt">' +
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#0f172a">'+rankedSchools.length+'</div>' +
         '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Schools Affected</div>' +
       '</div>' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #0369a1;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#e63946">'+a.scholars+'</div>' +
         '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Scholars Impacted</div>' +
+        '<div style="font-size:6pt;color:#94a3b8;margin-top:2pt;font-style:italic">unique headcount</div>' +
       '</div>' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #0369a1;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#f59e0b">'+a.hours+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Scholar Hrs Lost</div>' +
+        '<div style="font-size:6pt;color:#94a3b8;margin-top:2pt;font-style:italic">'+a.sessions+' records \xd7 0.75 hr</div>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #7c3aed;border-radius:8px;padding:10pt;text-align:center">' +
         '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#7c3aed">'+a.sessionsDisrupted+'</div>' +
         '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Sessions Disrupted</div>' +
+        '<div style="font-size:6pt;color:#94a3b8;margin-top:2pt;font-style:italic">distinct events &ge;1 pulled</div>' +
       '</div>' +
-      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10pt;text-align:center">' +
-        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#f59e0b">'+a.hours+'</div>' +
-        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Hours Lost</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:3px solid #7c3aed;border-radius:8px;padding:10pt;text-align:center">' +
+        '<div style="font-family:Playfair Display,serif;font-size:22pt;font-weight:700;color:#0ea5e9">'+a.avgPullRate+'</div>' +
+        '<div style="font-size:7pt;font-weight:700;text-transform:uppercase;color:#64748b;margin-top:3pt">Avg Pull Rate</div>' +
+        '<div style="font-size:6pt;color:#94a3b8;margin-top:2pt;font-style:italic">records \xf7 events</div>' +
       '</div>' +
     '</div>' +
 
@@ -1826,11 +1904,12 @@ function exportPDFSchool() {
     // Methodology footnote
     '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
       '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
-      '<strong>Scholars:</strong> unique scholars with \u22651 missed-session record. &nbsp;' +
-      '<strong>Records:</strong> total scholar \xd7 session pairs missed. &nbsp;' +
-      '<strong>Sess Disrupted:</strong> distinct session events (school + date + title) with \u22651 scholar pulled. &nbsp;' +
-      '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
+      '<strong>Scholars:</strong> unique individuals with \u22651 missed-session record (headcount). &nbsp;' +
+      '<strong>Session Records:</strong> total scholar\xd7session pairs &mdash; 1 scholar missing 2 sessions = 2 records; not unique scholars. &nbsp;' +
+      '<strong>Scholar Hrs Lost:</strong> records \xd7 0.75 hr &mdash; instructional time lost per scholar, not total session time. &nbsp;' +
+      '<strong>Sessions Disrupted:</strong> distinct session events (site + date + title) with \u22651 scholar pulled &mdash; the session still ran for remaining scholars; this is NOT a session cancellation count. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events &mdash; avg scholars pulled per impacted session. &nbsp;' +
+      '<em>Session-level disruption counts and scholar-level impact counts are independent metrics and should not be compared directly.</em>' +
     '</div>' +
 
     // Footer
@@ -1946,10 +2025,10 @@ function exportPDFProgram() {
     // KPI row
     '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5pt;margin-bottom:14pt">' +
       ['Scholars Impacted|'+a.scholars+'|vs prior: '+delta(a.scholars,pa.scholars),
-       'Scholar-Sess Records|'+a.sessions+'|vs prior: '+delta(a.sessions,pa.sessions),
-       'Sessions Disrupted|'+a.sessionsDisrupted+'|distinct events',
+       'Session Records|'+a.sessions+'|'+a.sessions+' scholar\xd7sess pairs',
+       'Scholar Hrs Lost|'+a.hours+'|'+a.sessions+' rec \xd7 0.75 hr',
+       'Sessions Disrupted|'+a.sessionsDisrupted+'|distinct events \u22651 pulled',
        'Avg Pull Rate|'+a.avgPullRate+'|records \xf7 events',
-       'Hours Lost|'+a.hours+'|vs prior: '+delta(a.hours,pa.hours),
        'Schools Affected|'+rankedSchools.length+'|',
        '8-wk Avg|'+r.avg8Scholars+' scholars|per week'].map(function(s) {
          var p=s.split('|');
@@ -1996,12 +2075,12 @@ function exportPDFProgram() {
     // Methodology footnote
     '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:9pt 12pt;margin-bottom:12pt;font-size:7pt;color:#64748b;line-height:1.6">' +
       '<strong style="color:#0f172a;font-size:7.5pt">Methodology &amp; Definitions</strong> &nbsp;&mdash;&nbsp; ' +
-      '<strong>Scholars Impacted:</strong> unique scholars with \u22651 missed-session record. &nbsp;' +
-      '<strong>Scholar-Session Records:</strong> total scholar \xd7 session pairs (1 scholar missing 2 sessions = 2 records). &nbsp;' +
-      '<strong>Sessions Disrupted:</strong> distinct session events (school + date + session title) that had \u22651 scholar pulled. &nbsp;' +
-      '<strong>Avg Pull Rate:</strong> records \xf7 sessions disrupted. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60. &nbsp;' +
-      'Data sourced live from Pearl Operations attendance sheet.' +
+      '<strong>Scholars Impacted:</strong> unique scholars with \u22651 missed-session record (headcount of individuals). &nbsp;' +
+      '<strong>Session Records:</strong> total scholar\xd7session pairs &mdash; 1 scholar missing 2 sessions = 2 records; not unique scholars. &nbsp;' +
+      '<strong>Scholar Hrs Lost:</strong> records \xd7 0.75 hr &mdash; <em>scholar instructional hours, not total session operational hours</em>. &nbsp;' +
+      '<strong>Sessions Disrupted:</strong> distinct session events (school + date + title) with \u22651 scholar pulled &mdash; <em>session continued for other scholars present; these are NOT cancelled sessions</em>. &nbsp;' +
+      '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events &mdash; avg scholars pulled per impacted session. &nbsp;' +
+      'Scholar Impact and Session Impact are independent metrics &mdash; session-level disruption counts reflect operational impact on sessions, scholar-level counts reflect instructional impact on individuals. Data sourced live from Pearl Operations.' +
     '</div>' +
 
     // Footer
