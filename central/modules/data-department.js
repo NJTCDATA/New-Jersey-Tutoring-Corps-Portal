@@ -110,13 +110,12 @@
     let   _irlLiveStatus   = 'embedded';
 
     // ── 25-26 manual snapshot sheet — live, multi-tab, parallel fetch ────────
-    // Same 2PACX publishing pattern as the longitudinal sheet.
-    // Tab GIDs: ela=0 is the current ELA tab (gid=0 = default/first tab).
-    // When a Math tab is added to the sheet, set math to its numeric gid here —
-    // the fetch loop picks it up automatically with no other code changes needed.
-    const IRLAB_2526_2PACX = '2PACX-1vS9ZZXvflSokndLrGgCUo2ttY0OwRAuSbwKSEh7701WwEDlcqQ' +
-                              'IrcLswfCA7QnLLRy0oZkKbHREUToM';
-    const IRLAB_2526_GIDS  = { ela: 0, math: null };  // math: null until Math tab is added
+    // Direct sheet ID — sheet is shared "Anyone with the link" so the /export
+    // endpoint works without a 2PACX published key.
+    // Tab GIDs: ela=1640935949 is the "25-26 Academic Report" tab (ELA).
+    // When the Math tab is added, set math to its gid and the loop handles it.
+    const IRLAB_2526_SHEET_ID = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
+    const IRLAB_2526_GIDS     = { ela: 1640935949, math: null };  // math: null until Math tab added
     let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -573,8 +572,8 @@
           .map(function(_e){
             var _subj = _e[0], _gid = _e[1];
             return fetch(
-              'https://docs.google.com/spreadsheets/d/e/' + IRLAB_2526_2PACX +
-              '/pub?output=csv&gid=' + _gid + (force ? '&t=' + Date.now() : ''),
+              'https://docs.google.com/spreadsheets/d/' + IRLAB_2526_SHEET_ID +
+              '/export?format=csv&gid=' + _gid + (force ? '&t=' + Date.now() : ''),
               { signal: AbortSignal.timeout(15000) }
             )
             .then(function(r){ return r.ok ? r.text() : Promise.reject('HTTP '+r.status); })
@@ -740,11 +739,16 @@
           instructor:         '',   // filled in below from Pearl session data
           tutors:             [],
           scholarId:          sid,
-          scholarName:        (g(dem,'First Name','first_name').trim()+' '+g(dem,'Last Name','last_name').trim()).trim(),
+          // "User Name" (col M) is the iReady login ID, which matches the Pearl SESS_STU_IDS
+          // value. Stored separately so the Pearl join uses it while scholarId (col D Student ID)
+          // continues to be used for cross-year repeat detection against the longitudinal sheet.
+          _pearlId:           g(dem,'User Name','user_name') || sid,
+          scholarName:        g(dem,'Full Name','full_name') ||
+                              (g(dem,'First Name','first_name').trim()+' '+g(dem,'Last Name','last_name').trim()).trim(),
           sex:                g(dem,'Sex','sex'),
           hispanic:           g(dem,'Hispanic or Latino','hispanic_or_latino'),
           race:               g(dem,'Race Analytics','race_analytics','Race'),
-          ell:                g(dem,'English Language Learner','english_language_learner'),
+          ell:                g(dem,'English Language Learner','english_language_learner','English Language'),
           sped:               g(dem,'Special Education','special_education'),
           ecodis:             g(dem,'Economically Disadvantaged','economically_disadvantaged'),
           // Base (Winter) fields
@@ -869,8 +873,11 @@
         var normalized = _normalize2526StudentRows(rows, subj);
         normalized.forEach(function(row) {
           // Assign instructor from Pearl sessions (direct Pearl ID match)
-          var tutors = scholarTutorMap[row.scholarId];
-          var tutorSet = tutors && tutors[subj];
+          // Join on iReady User Name (= Pearl user ID) first; fall back to Student ID.
+          // The "User Name" column (col M, stored as _pearlId) matches SESS_STU_IDS values.
+          var joinKey  = row._pearlId || row.scholarId;
+          var tutors   = scholarTutorMap[joinKey] || scholarTutorMap[row.scholarId] || {};
+          var tutorSet = tutors[subj];
           if (tutorSet && tutorSet.size > 0) {
             row.instructor = [...tutorSet].join('; ');
             row.tutors     = [...tutorSet];
