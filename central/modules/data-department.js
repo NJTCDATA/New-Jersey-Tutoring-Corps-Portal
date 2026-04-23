@@ -722,7 +722,7 @@
           var n = parseFloat(v);
           return isNaN(n) ? null : n;
         }
-        // Percent helper — handles %-suffix and >15 integer encoding
+        // Percent helper — handles %-suffix and >15 integer encoding (for longitudinal data)
         function _pct(row) {
           var keys = Array.prototype.slice.call(arguments, 1);
           if (!row) return null;
@@ -732,6 +732,17 @@
           if (typeof raw === 'string' && raw.trim().slice(-1) === '%') return v / 100;
           if (v > 15) return v / 100;
           return v;
+        }
+        // Integer-percent helper — for the 25-26 sheet columns that store integer
+        // percentages (0–219). Always divides by 100. Avoids the >15 threshold
+        // ambiguity: BK=15 must become 0.15, not be left as 15.
+        function _iPct(row) {
+          var keys = Array.prototype.slice.call(arguments, 1);
+          if (!row) return null;
+          var raw = g.apply(null, [row].concat(keys));
+          var v = parseFloat(raw);
+          if (isNaN(v)) return null;
+          return v / 100;
         }
 
         var isELA  = subject === 'ELA';
@@ -772,13 +783,13 @@
           springPercentile:   _pf(spr,'Percentile','percentile'),
           springRushFlag:     '',
           springWeeks:        _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics'),
-          pctTypical:         _pct(spr,'Percent Progress to Annual Typical Growth (%)','percent_progress_to_annual_typical_growth',
-                                   'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
-                                   '% Progress Toward Typical Growth','pct_progress_toward_typical_growth',
-                                   'Pct Progress Typical Growth','pct_progress_typical_growth'),
-          pctStretch:         _pct(spr,'Percent Progress to Annual Stretch Growth (%)','percent_progress_to_annual_stretch_growth',
-                                   'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
-                                   '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
+          pctTypical:         _iPct(spr,'Percent Progress to Annual Typical Growth (%)','percent_progress_to_annual_typical_growth',
+                                    'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
+                                    '% Progress Toward Typical Growth','pct_progress_toward_typical_growth',
+                                    'Pct Progress Typical Growth','pct_progress_typical_growth'),
+          pctStretch:         _iPct(spr,'Percent Progress to Annual Stretch Growth (%)','percent_progress_to_annual_stretch_growth',
+                                    'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
+                                    '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
           annualTypical:      _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'),
           annualStretch:      _pf(win,'Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'),
           isRepeat:           false,  // set below after longitudinal ID scan
