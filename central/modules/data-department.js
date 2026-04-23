@@ -2766,6 +2766,18 @@
                    style="flex:1;border:none;background:transparent;font-size:.8125rem;color:var(--text,#1e293b);outline:none;min-width:0"/>
             ${_irlSearch ? `<button onclick="irlab.setSearch('')" title="Clear search" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.75rem;padding:0 .2rem;line-height:1">✕</button>` : ''}
           </div>
+          ${myDept === 'data' ? `
+          <!-- Export row — Data dept only -->
+          <div style="display:flex;align-items:center;gap:.5rem;margin-top:.45rem;padding-top:.45rem;border-top:1px solid var(--border);flex-wrap:wrap">
+            <span style="font-size:.725rem;font-weight:700;color:var(--navy);flex-shrink:0">📥 Export data:</span>
+            <button onclick="irlab.downloadCSV()" title="Download filtered data as CSV (opens in Excel, Google Sheets)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:.75rem;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">
+              📄 CSV
+            </button>
+            <button onclick="irlab.downloadXLSX()" title="Download filtered data as Excel workbook (.xlsx)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid #16a34a;border-radius:7px;font-size:.75rem;font-weight:600;color:#15803d;cursor:pointer;font-family:inherit">
+              📊 XLSX
+            </button>
+            <span style="font-size:.685rem;color:var(--muted)">Current filters applied · ${allRows.length.toLocaleString()} rows · includes Pearl operational data</span>
+          </div>` : ''}
         </div>
 
         ${!m ? `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Try broadening your filters.</div></div></div>` : `
@@ -5944,12 +5956,73 @@
       };
     }
 
+    // ── Data export (Data dept only) ─────────────────────────────────────────
+    function _irlBuildExportRows() {
+      const rows = getAllRows({});
+      return rows.map(r => ({
+        'Scholar Name':              r.scholarName  || '',
+        'Scholar ID':                r.scholarId    || '',
+        'Subject':                   r.subject      || '',
+        'Year':                      r.year         || '',
+        'District':                  r.district     || '',
+        'School':                    r.school       || '',
+        'Grade':                     r.grade        || '',
+        'Sex':                       r.sex          || '',
+        'Hispanic/Latino':           r.hispanic     || '',
+        'Race':                      r.race         || '',
+        'ELL':                       r.ell          || '',
+        'Special Education':         r.sped         || '',
+        'Econ. Disadvantaged':       r.ecodis       || '',
+        'Instructor (Pearl)':        r.instructor   || '',
+        'Tutoring Hours (Pearl)':    r._tutorHours  != null ? r._tutorHours.toFixed(2)          : '',
+        'Base Scale Score':          r.baseScore    != null ? r.baseScore                        : '',
+        'Base Relative Placement':   r.baseRelPlacement    || '',
+        'Base Placement':            r.basePlacement       || '',
+        'Spring Scale Score':        r.springScore  != null ? r.springScore                      : '',
+        'Spring Relative Placement': r.springRelPlacement  || '',
+        'Spring Placement':          r.springPlacement     || '',
+        'Scale Score Gain':          r.springGain   != null ? r.springGain                       : '',
+        'Pct of Typical Growth':     r.pctTypical   != null ? (r.pctTypical * 100).toFixed(1)+'%': '',
+        'Annual Typical Growth':     r.annualTypical!= null ? r.annualTypical                    : '',
+        'Annual Stretch Growth':     r.annualStretch!= null ? r.annualStretch                    : '',
+        'Repeat Scholar':            r.isRepeat ? 'Yes' : 'No',
+      }));
+    }
+
+    function downloadCSV() {
+      const rows = _irlBuildExportRows();
+      if (!rows.length) { alert('No data to export with current filters.'); return; }
+      const headers = Object.keys(rows[0]);
+      const _esc = v => { const s = String(v == null ? '' : v); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+      const csv = [headers.map(_esc).join(','), ...rows.map(r => headers.map(h => _esc(r[h])).join(','))].join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'njtc-iready-' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadXLSX() {
+      if (typeof XLSX === 'undefined') { downloadCSV(); return; }
+      const rows = _irlBuildExportRows();
+      if (!rows.length) { alert('No data to export with current filters.'); return; }
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // Auto-width columns
+      const colWidths = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, ...rows.map(r => String(r[k] == null ? '' : r[k]).length).slice(0,200)) + 2 }));
+      ws['!cols'] = colWidths;
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'iReady Data');
+      XLSX.writeFile(wb, 'njtc-iready-' + new Date().toISOString().slice(0,10) + '.xlsx');
+    }
+
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setSearch, setDept, setBreakdownTab, setDeepTab,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
              getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive,
+             downloadCSV, downloadXLSX,
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,

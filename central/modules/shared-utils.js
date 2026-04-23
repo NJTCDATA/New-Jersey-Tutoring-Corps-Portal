@@ -2146,6 +2146,19 @@
         <div class="ql-arrow" style="color:#f0a500">Submit now →</div>
       `;
       qlGrid.insertBefore(qlCard, qlGrid.firstChild);
+
+      // View All Submissions card — opens the full week-by-week accordion detail view
+      const viewCard = document.createElement('div');
+      viewCard.className = 'ql-card';
+      viewCard.style.borderLeft = '3px solid #3b82f6';
+      viewCard.onclick = () => _lbOpenViewModal(dept);
+      viewCard.innerHTML = `
+        <div class="ql-icon-wrap" style="background:#eff6ff">🔍</div>
+        <div class="ql-title">View All Submissions</div>
+        <div class="ql-desc">See every department's weekly submissions — grouped by week with full detail accordion view.</div>
+        <div class="ql-arrow" style="color:#3b82f6">View details →</div>
+      `;
+      qlGrid.insertBefore(viewCard, qlGrid.firstChild);
     }
   }
 
