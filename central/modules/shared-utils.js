@@ -998,13 +998,14 @@
 
   // Dept display config for leaderboard
   const LB_DEPT_CFG = {
-    hr:         { label: 'Human Resources',        emoji: '👔', color: '#e63946' },
-    finance:    { label: 'Finance',                emoji: '💰', color: '#2a9d8f' },
-    programming:{ label: 'Programming',            emoji: '🎯', color: '#457b9d' },
-    training:   { label: 'Training & Development', emoji: '🎓', color: '#e76f51' },
-    leadership: { label: 'Leadership',             emoji: '⭐', color: '#f0a500' },
-    data:       { label: 'Data & Evaluation',      emoji: '📈', color: '#7b2d8b' },
-    kb:         { label: 'Executive Overview',     emoji: '🌟', color: '#5b8dee' },
+    hr:             { label: 'Human Resources',             emoji: '👔', color: '#e63946' },
+    finance:        { label: 'Finance',                     emoji: '💰', color: '#2a9d8f' },
+    programming:    { label: 'Programming',                 emoji: '🎯', color: '#457b9d' },
+    training:       { label: 'Training & Development',      emoji: '🎓', color: '#e76f51' },
+    leadership:     { label: 'Leadership',                  emoji: '⭐', color: '#f0a500' },
+    data:           { label: 'Data & Evaluation',           emoji: '📈', color: '#7b2d8b' },
+    kb:             { label: 'Executive Overview',          emoji: '🌟', color: '#5b8dee' },
+    exec_assistant: { label: 'Executive Assistant to CEO',  emoji: '🗂️', color: '#0891b2' },
   };
 
   // All departments that participate (includes exec for org share-outs)
@@ -1141,6 +1142,8 @@
     // 1. Explicit department column — BOM/case/whitespace resilient via _lbGetDept()
     const dCol = _lbGetDept(row);
     if (LB_ALL_DEPTS.includes(dCol)) return dCol;
+    if (dCol === 'exec_assistant')               return 'exec_assistant';
+    if (/exec.?assist|ea.?ceo/i.test(dCol))      return 'exec_assistant';
     if (/human.?res|hr\b/.test(dCol)) return 'hr';
     if (/financ/.test(dCol))          return 'finance';
     if (/program/.test(dCol))         return 'programming';
@@ -1153,9 +1156,10 @@
     //   Accepts:  [dept:programming]  [dept: programming]  [dept programming]
     //   Also resolves abbreviations like "prog" → "programming", "data" → "data"
     for (const val of Object.values(row)) {
-      const m = String(val || '').match(/\[dept[:\s]+([a-z]+)\]/i);
+      const m = String(val || '').match(/\[dept[:\s]+([a-z_]+)\]/i);
       if (!m) continue;
       const tag = m[1].toLowerCase();
+      if (tag === 'exec_assistant') return 'exec_assistant';
       if (LB_ALL_DEPTS.includes(tag)) return tag;
       // Prefix / abbreviation resolution
       const resolved = LB_ALL_DEPTS.find(d => d.startsWith(tag) || tag.startsWith(d.slice(0, 4)));
@@ -2607,6 +2611,22 @@
         <div class="ql-arrow" style="color:#3b82f6">View details →</div>
       `;
       qlGrid.insertBefore(viewCard, qlGrid.firstChild);
+
+      // EA submit card — only injected for the KB (Executive Overview) login
+      if (dept === 'kb') {
+        const eaCard = document.createElement('div');
+        eaCard.id = 'lbEASubmitCard';
+        eaCard.className = 'ql-card';
+        eaCard.style.borderLeft = '3px solid #0891b2';
+        eaCard.onclick = () => _lbCreateEASubmitModal();
+        eaCard.innerHTML = `
+          <div class="ql-icon-wrap" style="background:#e0f7fa">🗂️</div>
+          <div class="ql-title">Executive Assistant to CEO</div>
+          <div class="ql-desc">Submit weekly updates on behalf of the Executive Assistant to the CEO — tracked separately from department submissions.</div>
+          <div class="ql-arrow" style="color:#0891b2">Submit update →</div>
+        `;
+        qlGrid.insertBefore(eaCard, qlGrid.firstChild);
+      }
     }
   }
 
@@ -2663,6 +2683,29 @@
         </div>` : `<div style="padding:1rem 1.125rem;color:var(--muted);font-size:.875rem;font-style:italic">No submission recorded for this week yet.</div>`}
       </div>`;
     });
+    // Executive Assistant to CEO submissions — shown as a distinct section
+    const eaEntries = rows.filter(r => _lbRowDept(r) === 'exec_assistant');
+    if (eaEntries.length) {
+      const eaCfg = LB_DEPT_CFG['exec_assistant'];
+      const latest = eaEntries[eaEntries.length - 1];
+      const succ  = latest['What successes has your department seen this week?'] || '';
+      const goal  = latest["What is this week's goal for your department?"] || '';
+      const cross = latest['What cross-departmental successes, if any, have you seen?'] || '';
+      const ts    = (_lbGetTs(latest)||new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      html += `<div style="margin-bottom:1.5rem;border:1.5px solid ${eaCfg.color}44;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#054f6b22,#0891b211);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${eaCfg.color}22">
+          <div style="font-weight:700;color:var(--navy)">${eaCfg.emoji} ${eaCfg.label}</div>
+          <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#cffafe;color:#0e7490">${eaEntries.length} submission${eaEntries.length!==1?'s':''}</span>
+        </div>
+        <div style="padding:1rem 1.125rem">
+          ${succ  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Highlights</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${succ}</div></div>` : ''}
+          ${cross ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Cross-Dept Notes</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${cross}</div></div>` : ''}
+          ${goal  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Weekly Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${goal}</div></div>` : ''}
+          <div style="font-size:.6875rem;color:var(--muted);margin-top:.375rem">Latest: ${ts} · ${eaEntries.length} total entry${eaEntries.length!==1?'s':''}</div>
+        </div>
+      </div>`;
+    }
+
     // Show unattributed submissions so they're not silently lost
     const unknownEntries = (stats['unknown'] || {}).entries || [];
     if (unknownEntries.length) {
@@ -2783,6 +2826,108 @@
   };
 
 
+
+  // ── Executive Assistant to CEO: submit modal ─────────────────────────────
+  // Renders a dedicated submit modal tagged as 'exec_assistant' so her entries
+  // are tracked separately from the KB/Leadership exec submissions in the sheet.
+  function _lbCreateEASubmitModal() {
+    const EA_TAG = 'exec_assistant';
+    const eaCfg  = LB_DEPT_CFG[EA_TAG];
+
+    let modal = document.getElementById('lbEASubmitModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lbEASubmitModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+        <div style="background:linear-gradient(135deg,#054f6b,#0891b2);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#a5f3fc;margin-bottom:.25rem">Weekly Update</div>
+            <div style="font-size:1.125rem;font-weight:700;color:#fff">${eaCfg.emoji} ${eaCfg.label}</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:.2rem">Submitted separately from department entries — tagged as Executive Assistant to CEO in the shared sheet.</div>
+          </div>
+          <button onclick="document.getElementById('lbEASubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
+        </div>
+
+        <div style="padding:1.5rem 1.75rem" id="lbEAFormBody">
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 Weekly successes / highlights <span style="color:#e63946">*</span></label>
+            <textarea id="lbEAF_success" rows="3" placeholder="Key wins, progress, or highlights this week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🤝 Cross-departmental notes</label>
+            <textarea id="lbEAF_cross" rows="2" placeholder="Any cross-team coordination or collaboration worth noting… (optional)" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🎯 Goal for this week <span style="color:#e63946">*</span></label>
+            <textarea id="lbEAF_goal" rows="2" placeholder="One clear priority for the coming week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">❓ Last week's missed goal — reason</label>
+            <textarea id="lbEAF_miss" rows="2" placeholder="Optional — leave blank if goal was met" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div id="lbEAFormError" style="display:none;background:rgba(185,28,28,.07);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:.75rem 1rem;font-size:.875rem;color:#b91c1c;margin-bottom:1rem"></div>
+          <div style="display:flex;justify-content:flex-end;gap:.75rem">
+            <button class="btn btn-secondary" onclick="document.getElementById('lbEASubmitModal').style.display='none'">Cancel</button>
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,#054f6b,#0891b2)" onclick="_lbSubmitEAForm()">🗂️ Submit as Exec Assistant →</button>
+          </div>
+        </div>
+
+        <div id="lbEAFormSuccess" style="display:none;text-align:center;padding:3rem 2rem">
+          <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.5rem">Submitted!</div>
+          <div style="font-size:.875rem;color:var(--muted);margin-bottom:1.5rem">Your update has been recorded as <strong>Executive Assistant to CEO</strong> in the shared leaderboard sheet.</div>
+          <button class="btn btn-secondary" onclick="document.getElementById('lbEASubmitModal').style.display='none'">Close</button>
+        </div>
+      </div>`;
+
+    modal.style.display = 'flex';
+  }
+
+  async function _lbSubmitEAForm() {
+    const EA_TAG = 'exec_assistant';
+    const success = (document.getElementById('lbEAF_success') || {}).value || '';
+    const goal    = (document.getElementById('lbEAF_goal')    || {}).value || '';
+    const errEl   = document.getElementById('lbEAFormError');
+
+    if (!success.trim()) {
+      if (errEl) { errEl.textContent = 'Please fill in your weekly highlights before submitting.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!goal.trim()) {
+      if (errEl) { errEl.textContent = 'Please fill in this week\'s goal before submitting.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (errEl) errEl.style.display = 'none';
+
+    const params = new URLSearchParams();
+    params.append(LB_ENTRY.deptSuccess,    success);
+    params.append(LB_ENTRY.crossDept,      (document.getElementById('lbEAF_cross') || {}).value || '');
+    params.append(LB_ENTRY.weeklyGoal,     goal);
+    params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbEAF_miss')  || {}).value || '');
+    // Tag the submission as exec_assistant in the Department column
+    if (LB_ENTRY.dept) {
+      params.append(LB_ENTRY.dept, EA_TAG);
+      params.append(LB_ENTRY.orgShareOut, '');
+    } else {
+      // Fallback: embed tag in org share-out field
+      params.append(LB_ENTRY.orgShareOut, '[dept:' + EA_TAG + ']');
+    }
+
+    try {
+      await fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: params.toString() });
+      _lbCache = null;
+      const fb = document.getElementById('lbEAFormBody');    if (fb) fb.style.display = 'none';
+      const fs = document.getElementById('lbEAFormSuccess'); if (fs) fs.style.display = 'block';
+    } catch(e) {
+      if (errEl) { errEl.textContent = 'Submission failed — please try again.'; errEl.style.display = 'block'; }
+    }
+  }
 
   // ══════════════════════════════════════════════════════════
   //  SIDEBAR DEPT CARD + CONNECTIONS
@@ -6141,6 +6286,9 @@
   window._lbQuizSubmit         = _lbQuizSubmit;
   window._lbQuizOnSelect       = _lbQuizOnSelect;
   window._lbQuizInit           = _lbQuizInit;
+  // Executive Assistant to CEO
+  window._lbCreateEASubmitModal = _lbCreateEASubmitModal;
+  window._lbSubmitEAForm        = _lbSubmitEAForm;
 
   // ── Leadership Inbox public API (onclick handlers need global access) ─────
   window._lbNotifDismiss       = _lbNotifDismiss;
