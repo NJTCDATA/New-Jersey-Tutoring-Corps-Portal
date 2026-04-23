@@ -590,6 +590,7 @@
             await _irlProcess2526(await _snap2526Pr);
             if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
             if (typeof renderLab === 'function') renderLab();
+            try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
             return;
           }
         } catch(e) {}
@@ -700,9 +701,16 @@
       const result = [];
       byStudent.forEach(function(entry) {
         var rows = entry.rows, sid = entry.sid;
-        // Norming Window pivot: Winter → baseline (base_), Spring → spring_
-        var win = rows.find(function(r){ return (g(r,'Norming Window','norming_window')||'').toLowerCase().includes('winter'); });
-        var spr = rows.find(function(r){ return (g(r,'Norming Window','norming_window')||'').toLowerCase().includes('spring'); });
+        // Norming Window pivot: Fall or Winter → baseline (base_), Spring → spring_
+        // iReady exports "Fall 2025" for the first diagnostic (not "Winter"), so both strings are accepted.
+        var win = rows.find(function(r){
+          var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
+          return nw.includes('fall') || nw.includes('winter');
+        });
+        var spr = rows.find(function(r){
+          var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
+          return nw.includes('spring');
+        });
         var dem = spr || win || rows[0];
         if (!dem) return;
 
@@ -838,6 +846,22 @@
 
       if (window._iready2526Source !== 'manual') return;
 
+      // ── Cert status lookup from HR Master List ────────────────────────────
+      // role field from HR_EMPS drives certification classification.
+      var _hrEmps = (window.HR_EMPS && Array.isArray(window.HR_EMPS)) ? window.HR_EMPS : [];
+      var _nameToCert = {};
+      _hrEmps.forEach(function(emp) {
+        if (!emp || !emp.name) return;
+        var role = (emp.role || '').toLowerCase();
+        var cert;
+        if      (role.includes('dual'))                                         cert = 'Certified';
+        else if (role.includes('non-cert') || role.includes('non cert'))       cert = 'Non Certified';
+        else if (role.includes('coach') || role.includes('instructional'))     cert = 'Certified';
+        else if (role.includes('certified'))                                    cert = 'Certified';
+        else if (role.includes('site'))                                         cert = 'Certified';
+        if (cert) _nameToCert[emp.name.trim()] = cert;
+      });
+
       // ── Instructor assignment from Pearl session data ──────────────────────
       // Student ID in the 25-26 sheet (col D) === Pearl User ID in SESS_STU_IDS
       var sessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
@@ -885,6 +909,14 @@
             row.instructor = 'Unidentified';
             row.tutors     = ['Unidentified'];
           }
+          // Derive cert status from HR Master List by first matched tutor's role
+          var _tutorList = (tutorSet && tutorSet.size > 0) ? [...tutorSet] : [];
+          var _certFound = null;
+          for (var _ti = 0; _ti < _tutorList.length; _ti++) {
+            var _c = _nameToCert[_tutorList[_ti]];
+            if (_c) { _certFound = _c; break; }
+          }
+          row.certStatus = _certFound || '';
           row.isRepeat = priorIds.has(row.scholarId);
           _irlManual2526Rows.push(row);
         });
@@ -2511,7 +2543,9 @@
         // Card D: Learning Velocity
         +'<div class="ecdi-card cci-purple'+((!_irlIm||!_irlIm.syAligned)?' ecdi-ph':'')+'">'
         +'<div class="ecdi-eyebrow">Learning Velocity<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span></div>'
-        +'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>'
+        +((_irlIm&&_irlIm.syAligned&&_irlIm.medVelocity!=null)
+          ?'<div class="ecdi-val">'+_irlIm.medVelocity.toFixed(2)+'<span style="font-size:.55rem;font-weight:400;color:#a5b4fc;margin-left:.25rem">pts/hr</span></div>'
+          :'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>')
         +'<div class="ecdi-card-title">Learning Velocity</div>'
         +((!_irlIm||!_irlIm.syAligned)?'<div class="ecdi-ph-msg">Learning Velocity will activate once 2025&ndash;2026 academic diagnostic data becomes available.</div>':'<div class="ecdi-card-desc">Scale score points gained per tutoring hour (requires matching SY data).</div>')
         +'</div>'
@@ -5774,6 +5808,37 @@
           .map(function(x){ return { tutor:x.label, avgGain:x.medGain, n:x.n }; });
       }
 
+      // Card D: Learning Velocity (scale score gain ÷ tutoring hours) — 2025-2026 only
+      var medVelocity = null;
+      if (syAligned) {
+        var _vSessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
+        var _vSTU = 16, _vDUR = 8, _vSTA = 4;
+        var _pidHours = {};
+        _vSessRows.forEach(function(sr) {
+          var st = (sr[_vSTA] || '').toLowerCase();
+          if (!st.includes('attended') && !st.includes('complete') && !st.includes('success')) return;
+          var dur = parseFloat(sr[_vDUR]);
+          if (isNaN(dur) || dur <= 0) return;
+          (sr[_vSTU] || '').split(',').forEach(function(id) {
+            id = id.trim();
+            if (id) _pidHours[id] = (_pidHours[id] || 0) + dur / 60;
+          });
+        });
+        var velArr = [];
+        var _sy2526 = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []).filter(function(r){ return r && r.year === PEARL_SY; });
+        _sy2526.forEach(function(r) {
+          var gain = (r.springGain != null && !isNaN(parseFloat(r.springGain)))
+            ? parseFloat(r.springGain)
+            : (r.springScore != null && r.baseScore != null ? r.springScore - r.baseScore : NaN);
+          if (isNaN(gain)) return;
+          var pid = r._pearlId || r.scholarId;
+          var hrs = _pidHours[pid];
+          if (!hrs || hrs <= 0) return;
+          velArr.push(gain / hrs);
+        });
+        medVelocity = _med(velArr);
+      }
+
       var medGain   = _med(scaleGains);
       var medMonths = _med(monthsArr);
       var medPct    = _med(pctExpArr);
@@ -5786,6 +5851,7 @@
         medianMonthsGrowth: medMonths != null ? parseFloat(medMonths.toFixed(1)) : null,
         medianPctExpected:  medPct    != null ? parseFloat(medPct.toFixed(1))    : null,
         syAligned:          syAligned,
+        medVelocity:        medVelocity != null ? parseFloat(medVelocity.toFixed(2)) : null,
         tutorImpactLeaders: tutorImpactLeaders,
         drillRows:          drillRows,
         byRace:             _groupMeds(byRace),
