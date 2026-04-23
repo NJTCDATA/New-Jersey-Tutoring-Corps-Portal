@@ -1958,8 +1958,27 @@
   }
 
   async function _lbOpenViewModal(dept) {
-    const modal = document.getElementById('lbViewModal');
-    if (!modal) return;
+    let modal = document.getElementById('lbViewModal');
+    if (!modal) {
+      // Exec depts don't get the full leaderboard HTML injected, so create the modal on demand
+      modal = document.createElement('div');
+      modal.id = 'lbViewModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(6px);z-index:1000;align-items:center;justify-content:center;padding:1rem';
+      modal.innerHTML = `<div style="background:#fff;border-radius:20px;width:100%;max-width:820px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 28px 80px rgba(10,22,40,.3)">
+        <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.25rem 1.5rem;border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);margin-bottom:.2rem">Cross-Departmental</div>
+            <div style="font-size:.9375rem;font-weight:700;color:#fff">All Submissions — SY 2025–2026</div>
+          </div>
+          <button onclick="document.getElementById('lbViewModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
+        </div>
+        <div id="lbViewModalBody" style="flex:1;overflow-y:auto;padding:1.5rem">
+          <div style="text-align:center;color:var(--muted);padding:2rem">Loading…</div>
+        </div>
+      </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
     modal.style.display = 'flex';
     const body = document.getElementById('lbViewModalBody');
     if (body) body.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Loading submissions…</div>';
