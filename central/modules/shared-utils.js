@@ -1289,6 +1289,47 @@
         if (ts <= LB_SUBMIT_DEADLINE) byDept[dept].metDeadline++;
       }
     });
+
+    // ── Gamification: streak, score, badges ──────────────────────────────
+    LB_ALL_DEPTS.forEach(d => {
+      const s = byDept[d];
+
+      // Streak — consecutive weeks with ≥1 submission, counting back from most recent
+      const weekSet = [];
+      s.entries.forEach(e => {
+        const ts = _lbGetTs(e);
+        if (ts) { const wk = _lbWeekKey(ts); if (!weekSet.includes(wk)) weekSet.push(wk); }
+      });
+      weekSet.sort((a, b) => b.localeCompare(a)); // newest first
+      let streak = weekSet.length > 0 ? 1 : 0;
+      for (let i = 1; i < weekSet.length; i++) {
+        const diffDays = (new Date(weekSet[i-1]) - new Date(weekSet[i])) / 86400000;
+        if (diffDays <= 8) { streak++; } else { break; }
+      }
+      s.streak = streak;
+
+      // Cross-dept recognition count
+      const crossCount = s.entries.filter(e => {
+        const v = e['What cross-departmental successes, if any, have you seen?']
+               || e[Object.keys(e).find(k => /cross/i.test(k)) || ''] || '';
+        return v.trim().length > 0;
+      }).length;
+
+      // Score: 10/submission + 5/on-time + streak bonus (streak×3 when ≥2) + 2/cross-dept mention
+      s.score = (s.count * 10) + (s.metDeadline * 5) + (streak >= 2 ? streak * 3 : 0) + (crossCount * 2);
+
+      // Achievement badges
+      s.badges = [];
+      if (streak >= 3) s.badges.push({ icon: '🔥', label: streak + '-week streak' });
+      if (s.count >= 2 && s.metDeadline === s.count) s.badges.push({ icon: '⚡', label: 'Always on time' });
+      if (s.count >= 8) s.badges.push({ icon: '🎖️', label: 'Consistent contributor' });
+      if (crossCount > 0) s.badges.push({ icon: '🤝', label: 'Cross-dept recognition' });
+    });
+
+    // 👑 Top-department badge — awarded after all scores are computed
+    const ranked = [...LB_ALL_DEPTS].sort((a, b) => byDept[b].score - byDept[a].score);
+    if (byDept[ranked[0]].count > 0) byDept[ranked[0]].badges.unshift({ icon: '👑', label: 'Top department' });
+
     return byDept;
   }
 
@@ -1489,15 +1530,20 @@
     setTimeout(() => {
       const strip = document.getElementById('lbDeptScoreStrip');
       if (strip) {
-        strip.innerHTML = LB_ALL_DEPTS.map(d => {
+        // Sort pills by score so the strip itself is a quick ranking glance
+        const pillOrder = [...LB_ALL_DEPTS].sort((a, b) => stats[b].score - stats[a].score);
+        strip.innerHTML = pillOrder.map((d, pillIdx) => {
           const s = stats[d];
           const c = LB_DEPT_CFG[d];
           const isMe = d === dept;
           const hasThis = s.count > 0;
-          return `<div style="display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border-radius:20px;background:${isMe ? c.color+'28' : 'rgba(255,255,255,.06)'};border:1px solid ${isMe ? c.color+'55' : 'rgba(255,255,255,.09)'}" title="${c.label}">
-            <span style="font-size:.75rem">${c.emoji}</span>
+          const crownHtml = pillIdx === 0 && hasThis ? '<span style="font-size:.6rem">👑</span>' : '';
+          const streakHtml = s.streak >= 2 ? `<span style="font-size:.6rem;color:#fb923c">🔥${s.streak}</span>` : '';
+          return `<div style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;border-radius:20px;background:${isMe ? c.color+'28' : 'rgba(255,255,255,.06)'};border:1px solid ${isMe ? c.color+'55' : 'rgba(255,255,255,.09)'}" title="${c.label} · ${s.score} pts${s.streak>=2?' · '+s.streak+'-week streak':''}">
+            ${crownHtml}<span style="font-size:.75rem">${c.emoji}</span>
             <span style="font-size:.6875rem;font-weight:${isMe?'800':'600'};color:${isMe?'#fff':'rgba(255,255,255,.55)'}">${c.label.split(' ')[0]}</span>
-            <span style="font-size:.6875rem;font-weight:800;color:${hasThis?'#4ade80':'rgba(255,255,255,.25)'}">${s.count}</span>
+            <span style="font-size:.6875rem;font-weight:800;color:${hasThis?'#4ade80':'rgba(255,255,255,.25)'}">${s.score}<span style="font-size:.55rem;font-weight:600;opacity:.7">pts</span></span>
+            ${streakHtml}
           </div>`;
         }).join('');
       }
@@ -1507,24 +1553,30 @@
     setTimeout(() => {
       const sumEl = document.getElementById('lbSubmissionSummary');
       if (sumEl) {
-        const myCount = stats[dept].count;
+        const myScore = stats[dept].score;
+        const myStreak = stats[dept].streak;
         const pct = Math.round(submitted / LB_ALL_DEPTS.length * 100);
+        const topDept = [...LB_ALL_DEPTS].sort((a, b) => stats[b].score - stats[a].score)[0];
+        const topCfg = LB_DEPT_CFG[topDept];
+        const topHasData = stats[topDept].count > 0;
+        const notYet = LB_ALL_DEPTS.filter(d => stats[d].count === 0).length;
         sumEl.innerHTML = `
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
             <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
-              <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${myCount}</div>
-              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Mine</div>
+              <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${myScore}<span style="font-size:.7rem;font-weight:600;color:var(--muted)">pts</span></div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">My Score${myStreak>=2?' 🔥'+myStreak:''}
+              </div>
             </div>
             <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
               <div style="font-size:1.375rem;font-weight:800;color:var(--navy)">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
-              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Depts</div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Depts In</div>
             </div>
             <div style="text-align:center;padding:.625rem .5rem;background:var(--surface-2);border-radius:8px">
               <div style="font-size:1.375rem;font-weight:800;color:${pct>=70?'#0d6e3a':pct>=40?'#d97706':'#b91c1c'}">${pct}%</div>
-              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Active</div>
+              <div style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Engaged</div>
             </div>
           </div>
-          <div style="font-size:.75rem;color:var(--muted)">${total} total · ${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length} dept${LB_ALL_DEPTS.filter(d=>stats[d].count===0).length!==1?'s':''} not yet submitted</div>
+          <div style="font-size:.75rem;color:var(--muted)">${total} total · ${topHasData ? `👑 Leading: ${topCfg.emoji} ${topCfg.label.split(' ')[0]} (${stats[topDept].score}pts)` : notYet + ' dept' + (notYet!==1?'s':'') + ' not yet submitted'}</div>
         `;
       }
     }, 16);
@@ -1532,7 +1584,9 @@
     // ── Main board — dept cards with expandable details ────────────────────
     const tableEl = document.getElementById('lbBoardTable');
     if (tableEl) {
-      const sortedDepts = [...LB_ALL_DEPTS].sort((a,b) => stats[b].count - stats[a].count);
+      // Sort by score descending (gamified ranking)
+      const sortedDepts = [...LB_ALL_DEPTS].sort((a, b) => stats[b].score - stats[a].score);
+      const maxScore = Math.max(...sortedDepts.map(d => stats[d].score), 1);
       let boardHTML = '';
       sortedDepts.forEach((d, idx) => {
         const s = stats[d];
@@ -1541,12 +1595,24 @@
         const hasData = s.count > 0;
         const latest = s.entries[s.entries.length - 1];
         const lastDate = s.lastDate ? s.lastDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : null;
-        const rankIcon = idx === 0 && hasData ? '🥇' : idx === 1 && hasData ? '🥈' : idx === 2 && hasData ? '🥉' : '';
+
+        // Rank bubble styling: gold/silver/bronze for top 3, muted for rest
+        const rankBg    = idx===0&&hasData ? '#f0a500' : idx===1&&hasData ? '#94a3b8' : idx===2&&hasData ? '#b87333' : 'var(--surface-2)';
+        const rankColor = idx < 3 && hasData ? '#fff' : 'var(--muted)';
+
         const statusBadge = !hasData
           ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fee2e2;color:#991b1b">Not Submitted</span>`
           : s.metDeadline > 0
             ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#d1fae5;color:#065f46">✓ On Time</span>`
             : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#fef3c7;color:#92400e">Late</span>`;
+
+        // Score progress bar width (% of max dept score)
+        const barPct = maxScore > 0 ? Math.round((s.score / maxScore) * 100) : 0;
+
+        // Badge chips HTML (max 3 shown inline)
+        const badgeHtml = s.badges.slice(0, 3).map(b =>
+          `<span title="${b.label}" style="font-size:.8rem;cursor:default">${b.icon}</span>`
+        ).join('');
 
         // Latest submission content preview
         const succ  = latest ? (latest['What successes has your department seen this week?'] || latest[Object.keys(latest||{}).find(k=>/success/i.test(k))||''] || '') : '';
@@ -1561,26 +1627,33 @@
         const hasDetails = hasData && (succ || goal || cross || miss || org);
 
         boardHTML += `
-        <div id="${cardId}" style="border-bottom:1px solid var(--border-2);${isMe?`background:${c.color}05;`:''}" >
+        <div id="${cardId}" style="border-bottom:1px solid var(--border-2);${isMe?`background:${c.color}05;`:''}">
           <!-- Summary row (always visible) -->
-          <div style="display:flex;align-items:center;gap:.875rem;padding:.875rem 1.25rem;cursor:${hasDetails?'pointer':'default'}"
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.875rem 1.25rem;cursor:${hasDetails?'pointer':'default'}"
             ${hasDetails ? `onclick="document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'block':'none';this.querySelector('.lb-chevron').style.transform=document.getElementById('${detailId}').style.display==='block'?'rotate(180deg)':'rotate(0deg)'"` : ''}>
-            <!-- Color dot + dept -->
-            <div style="display:flex;align-items:center;gap:.625rem;flex:1;min-width:0">
-              <div style="width:9px;height:9px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+            <!-- Rank bubble -->
+            <div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0;background:${rankBg};color:${rankColor};box-shadow:${idx<3&&hasData?'0 2px 6px rgba(0,0,0,.18)':'none'}">${idx+1}</div>
+            <!-- Dept info -->
+            <div style="display:flex;align-items:center;gap:.5rem;flex:1;min-width:0">
               <div style="min-width:0">
-                <div style="font-weight:700;font-size:.875rem;color:var(--navy);display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+                <div style="font-weight:700;font-size:.875rem;color:var(--navy);display:flex;align-items:center;gap:.35rem;flex-wrap:wrap">
                   ${c.emoji} ${c.label}
                   ${isMe ? `<span style="font-size:.6rem;background:${c.color}22;color:${c.color};padding:.1rem .45rem;border-radius:10px;font-weight:800">YOU</span>` : ''}
-                  ${rankIcon ? `<span style="font-size:.8rem">${rankIcon}</span>` : ''}
+                  ${badgeHtml}
                 </div>
-                ${lastDate ? `<div style="font-size:.75rem;color:var(--muted);margin-top:1px">Last submitted ${lastDate}</div>` : ''}
+                ${lastDate ? `<div style="font-size:.75rem;color:var(--muted);margin-top:1px">Last submitted ${lastDate}</div>` : '<div style="font-size:.75rem;color:var(--muted);margin-top:1px">No submissions yet</div>'}
               </div>
             </div>
-            <!-- Count -->
-            <div style="font-family:'DM Serif Display',serif;font-size:1.375rem;color:${hasData?'var(--navy)':'var(--muted)'};width:32px;text-align:center;flex-shrink:0">${s.count}</div>
+            <!-- Score + bar + streak -->
+            <div style="width:76px;flex-shrink:0;text-align:right">
+              <div style="font-family:'DM Serif Display',serif;font-size:1.1rem;font-weight:800;color:${hasData?'var(--navy)':'var(--muted)'};line-height:1">${s.score}<span style="font-size:.55rem;font-weight:600;color:var(--muted)">pts</span></div>
+              <div style="height:4px;background:var(--surface-2);border-radius:2px;margin-top:3px;overflow:hidden">
+                <div style="height:100%;width:${barPct}%;background:${c.color};border-radius:2px;transition:width .5s ease"></div>
+              </div>
+              ${s.streak >= 2 ? `<div style="font-size:.6rem;color:#f97316;font-weight:700;margin-top:2px;text-align:right">🔥 ${s.streak}-wk</div>` : ''}
+            </div>
             <!-- Met deadline -->
-            <div style="font-size:.8125rem;color:var(--text-2);width:56px;text-align:center;flex-shrink:0">${s.count>0?s.metDeadline+'/'+s.count:'—'}</div>
+            <div style="font-size:.8125rem;color:var(--text-2);width:52px;text-align:center;flex-shrink:0">${s.count>0?s.metDeadline+'/'+s.count:'—'}</div>
             <!-- Status -->
             <div style="flex-shrink:0">${statusBadge}</div>
             <!-- Chevron -->
@@ -1589,6 +1662,7 @@
 
           <!-- Expandable detail panel -->
           <div id="${detailId}" style="display:none;border-top:1px dashed var(--border-2);margin:0 1.25rem;padding:.875rem 0 1rem">
+            ${s.badges.length ? `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:.75rem">${s.badges.map(b=>`<span style="display:inline-flex;align-items:center;gap:.25rem;font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:var(--surface-2);color:var(--text-2)">${b.icon} ${b.label}</span>`).join('')}</div>` : ''}
             ${succ ? `<div style="margin-bottom:.875rem">
               <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${c.color};margin-bottom:.3rem">🏆 Successes</div>
               <div style="font-size:.875rem;color:var(--text);line-height:1.6;background:${c.color}08;border-left:3px solid ${c.color}55;padding:.625rem .875rem;border-radius:0 8px 8px 0">${succ}</div>
@@ -1609,7 +1683,7 @@
               <div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#f0a500;margin-bottom:.3rem">🌟 Org Share-Out</div>
               <div style="font-size:.875rem;color:var(--navy);line-height:1.6;background:#fffbeb;border-left:3px solid #f0a500;padding:.625rem .875rem;border-radius:0 8px 8px 0;font-weight:500">${org}</div>
             </div>` : ''}
-            ${ts ? `<div style="font-size:.6875rem;color:var(--muted);margin-top:.5rem">Submitted ${ts} · ${s.count} total submission${s.count!==1?'s':''} on record</div>` : ''}
+            ${ts ? `<div style="font-size:.6875rem;color:var(--muted);margin-top:.5rem">Submitted ${ts} · ${s.count} total submission${s.count!==1?'s':''} · ${s.score} pts</div>` : ''}
             ${s.count > 1 ? `<button onclick="_lbOpenViewModalDept('${d}')" style="margin-top:.625rem;font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline">View all ${s.count} submissions from ${c.label} →</button>` : ''}
           </div>
         </div>`;
@@ -1624,16 +1698,20 @@
         : '';
       setTimeout(() => {
         tableEl.innerHTML = `
-          <div style="display:flex;align-items:center;gap:.875rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.625rem 1.25rem;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">
+            <div style="width:26px;text-align:center">#</div>
             <div style="flex:1">Department</div>
-            <div style="width:32px;text-align:center">Total</div>
-            <div style="width:56px;text-align:center">On Time</div>
+            <div style="width:76px;text-align:right">Score</div>
+            <div style="width:52px;text-align:center">On Time</div>
             <div style="flex-shrink:0;min-width:90px;text-align:right">Status</div>
             <div style="width:16px"></div>
           </div>
           ${boardHTML}
-          <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted)">
-            Click any submitted department to expand their weekly details.
+          <div style="padding:.625rem 1.25rem;background:var(--surface-2);border-top:1px solid var(--border);font-size:.75rem;color:var(--muted);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+            <span>Click any submitted department to expand their weekly details.</span>
+            <span style="margin-left:auto;display:inline-flex;gap:.5rem;align-items:center;font-size:.6875rem">
+              <span title="Scoring: 10pts/submission · +5pts on time · streak bonus · +2pts cross-dept" style="cursor:help;text-decoration:underline dotted">ⓘ How scores work</span>
+            </span>
           </div>
           ${unknownNotice}
         `;
