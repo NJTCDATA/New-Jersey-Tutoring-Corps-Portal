@@ -944,6 +944,9 @@
         }, 48);
       }
     }
+
+    // ── Leadership Inbox: init once per session (guarded by bell existence) ──
+    setTimeout(() => _lbNotifInit(), 100);
   }
 
   // ── Executive Analytics Dashboard ─────────────────────────────────────────
@@ -5239,6 +5242,313 @@
 
 
 
+
+
+
+
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  LEADERSHIP INBOX — notification system for Leadership & KB submissions
+  //  All users see a bell icon (top-right nav) with unread badge.
+  //  Clicking opens a dropdown showing Leadership/KB weekly submissions.
+  //  Each message can be dismissed individually; dismissed state is stored
+  //  in localStorage so it survives refresh but resets per device.
+  // ══════════════════════════════════════════════════════════════════════
+
+  const LB_NOTIF_STORE    = 'njtc_lb_notif_dismissed_v2';
+  const LB_NOTIF_DEPTS    = ['leadership', 'kb'];
+  // Show submissions from the 2 weeks leading up to the next meeting
+  const LB_NOTIF_LOOKBACK_DAYS = 14;
+
+  function _lbNotifGetDismissed() {
+    try { return JSON.parse(localStorage.getItem(LB_NOTIF_STORE) || '[]'); } catch(e) { return []; }
+  }
+  function _lbNotifSaveDismissed(keys) {
+    try { localStorage.setItem(LB_NOTIF_STORE, JSON.stringify(keys)); } catch(e) {}
+  }
+
+  function _lbNotifRowKey(row) {
+    const ts   = _lbGetTs(row);
+    const dept = _lbRowDept(row);
+    return dept + '|' + (ts ? ts.toISOString().slice(0, 16) : 'unknown');
+  }
+
+  function _lbNotifDismiss(key) {
+    const seen = _lbNotifGetDismissed();
+    if (!seen.includes(key)) { seen.push(key); _lbNotifSaveDismissed(seen); }
+    // Remove the card from the open dropdown immediately
+    const card = document.getElementById('lbnCard_' + key.replace(/[^a-z0-9]/gi, '_'));
+    if (card) {
+      card.style.transition = 'opacity .2s,transform .2s';
+      card.style.opacity = '0'; card.style.transform = 'translateX(12px)';
+      setTimeout(() => { if (card.parentNode) card.parentNode.removeChild(card); _lbNotifCheckEmpty(); }, 210);
+    }
+    _lbNotifUpdateBadge();
+  }
+
+  function _lbNotifDismissAll() {
+    const bell = document.getElementById('lbNotifBell');
+    if (!bell) return;
+    const allKeys = JSON.parse(bell.dataset.allKeys || '[]');
+    const seen = _lbNotifGetDismissed();
+    allKeys.forEach(k => { if (!seen.includes(k)) seen.push(k); });
+    _lbNotifSaveDismissed(seen);
+    const dd = document.getElementById('lbNotifDropdown');
+    if (dd) dd.style.display = 'none';
+    _lbNotifUpdateBadge();
+  }
+
+  function _lbNotifCheckEmpty() {
+    const body = document.getElementById('lbNotifBody');
+    if (!body) return;
+    if (!body.querySelector('.lbn-card')) {
+      body.innerHTML = '<div class="lbn-empty">You\'re all caught up! No unread messages from Leadership or Executive.</div>';
+    }
+  }
+
+  function _lbNotifUpdateBadge() {
+    const badge = document.getElementById('lbNotifBadge');
+    const bell  = document.getElementById('lbNotifBell');
+    if (!badge || !bell) return;
+    const dismissed = _lbNotifGetDismissed();
+    const allKeys   = JSON.parse(bell.dataset.allKeys || '[]');
+    const unread    = allKeys.filter(k => !dismissed.includes(k)).length;
+    badge.textContent = unread > 9 ? '9+' : unread;
+    badge.style.display = unread > 0 ? 'flex' : 'none';
+    bell.title = unread > 0
+      ? `Leadership Inbox — ${unread} unread message${unread !== 1 ? 's' : ''}`
+      : 'Leadership Inbox — all caught up';
+  }
+
+  function _lbNotifInjectShell() {
+    if (document.getElementById('lbNotifBell')) return;
+
+    // ── Styles ──────────────────────────────────────────────────────────
+    const css = document.createElement('style');
+    css.id = 'lbNotifCSS';
+    css.textContent = `
+      /* Bell button */
+      #lbNotifBell {
+        position: relative; display: inline-flex; align-items: center;
+        background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18);
+        color: rgba(255,255,255,.85); border-radius: 8px; padding: .4rem .6rem;
+        font-size: 1rem; cursor: pointer; font-family: inherit;
+        transition: background .15s, color .15s;
+      }
+      #lbNotifBell:hover { background: rgba(255,255,255,.18); color: #fff; }
+      #lbNotifBell.lbn-active { background: rgba(59,130,246,.25); border-color: rgba(59,130,246,.5); }
+      #lbNotifBadge {
+        position: absolute; top: -5px; right: -6px;
+        background: #e63946; color: #fff; font-size: .55rem; font-weight: 800;
+        border-radius: 20px; min-width: 16px; height: 16px;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0 .2rem; border: 2px solid #0a1628; pointer-events: none;
+        animation: lbnBadgePop .3s cubic-bezier(.34,1.6,.64,1);
+      }
+      @keyframes lbnBadgePop { from { transform: scale(0); } to { transform: scale(1); } }
+
+      /* Dropdown */
+      #lbNotifDropdown {
+        position: fixed; top: 72px; right: 1.25rem;
+        width: 400px; max-height: 560px;
+        background: #fff; border-radius: 18px;
+        box-shadow: 0 20px 64px rgba(10,22,40,.22), 0 4px 16px rgba(10,22,40,.1);
+        border: 1.5px solid var(--border);
+        z-index: 9100; flex-direction: column; overflow: hidden;
+        animation: lbnDropIn .22s cubic-bezier(.34,1.4,.64,1);
+      }
+      @keyframes lbnDropIn { from { opacity:0; transform:translateY(-10px) scale(.97); } to { opacity:1; transform:none; } }
+      .lbn-dd-header {
+        background: linear-gradient(135deg,#0a1628 0%,#162347 100%);
+        padding: .875rem 1.125rem;
+        display: flex; align-items: center; justify-content: space-between;
+        flex-shrink: 0; border-radius: 18px 18px 0 0;
+      }
+      .lbn-dd-title  { font-size: .875rem; font-weight: 700; color: #fff; }
+      .lbn-dd-sub    { font-size: .7rem; color: rgba(255,255,255,.4); margin-top: .15rem; }
+      .lbn-dd-mark-btn {
+        font-size: .7rem; font-weight: 700; color: rgba(255,255,255,.6);
+        background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+        border-radius: 7px; padding: .275rem .625rem; cursor: pointer; font-family: inherit;
+        transition: background .12s;
+      }
+      .lbn-dd-mark-btn:hover { background: rgba(255,255,255,.22); color: #fff; }
+      #lbNotifBody { flex:1; overflow-y:auto; }
+
+      /* Message cards */
+      .lbn-card {
+        padding: .9375rem 1rem .9375rem 1rem;
+        border-bottom: 1px solid var(--border,#e2e8f0);
+        position: relative;
+        background: #fff;
+      }
+      .lbn-card:last-child { border-bottom: none; }
+      .lbn-card.lbn-unread { background: #f8faff; }
+      .lbn-card-dept-row   { display:flex; align-items:center; gap:.45rem; margin-bottom:.5rem; }
+      .lbn-dept-chip {
+        font-size: .6rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .07em; padding: .15rem .55rem; border-radius: 20px;
+      }
+      .lbn-unread-dot { width:7px; height:7px; border-radius:50%; background:#3b82f6; flex-shrink:0; }
+      .lbn-ts         { font-size:.695rem; color:var(--muted,#64748b); margin-left:auto; }
+      .lbn-field      { margin-bottom:.5rem; }
+      .lbn-field:last-child { margin-bottom:0; }
+      .lbn-field-lbl  { font-size:.595rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted,#64748b); margin-bottom:.2rem; }
+      .lbn-field-txt  {
+        font-size:.8125rem; color:var(--navy,#0a1628); line-height:1.6;
+        padding:.4rem .7rem; border-radius:0 7px 7px 0; border-left-width:3px; border-left-style:solid;
+      }
+      .lbn-dismiss-btn {
+        position:absolute; top:.625rem; right:.75rem;
+        background:none; border:none; color:var(--muted,#94a3b8);
+        cursor:pointer; font-size:.8rem; padding:.25rem .4rem; border-radius:5px;
+        font-family:inherit; line-height:1; transition:background .12s,color .12s;
+      }
+      .lbn-dismiss-btn:hover { background:var(--surface-2,#f1f5f9); color:var(--navy,#0a1628); }
+      .lbn-empty {
+        padding:2.25rem 1.5rem; text-align:center;
+        color:var(--muted,#64748b); font-size:.875rem; line-height:1.55;
+      }
+      .lbn-empty-icon { font-size:1.75rem; margin-bottom:.625rem; }
+    `;
+    document.head.appendChild(css);
+
+    // ── Bell button ──────────────────────────────────────────────────────
+    const bell = document.createElement('button');
+    bell.id        = 'lbNotifBell';
+    bell.innerHTML = '🔔<span id="lbNotifBadge" style="display:none">0</span>';
+    bell.dataset.allKeys = '[]';
+    bell.onclick = _lbNotifToggle;
+
+    const signOut = document.querySelector('.btn-signout');
+    if (signOut && signOut.parentNode) signOut.parentNode.insertBefore(bell, signOut);
+
+    // ── Dropdown shell ───────────────────────────────────────────────────
+    const dd = document.createElement('div');
+    dd.id    = 'lbNotifDropdown';
+    dd.style.display = 'none';
+    dd.innerHTML = `
+      <div class="lbn-dd-header">
+        <div>
+          <div class="lbn-dd-title">📬 Leadership Inbox</div>
+          <div class="lbn-dd-sub">Weekly messages from Leadership &amp; Executive teams</div>
+        </div>
+        <button class="lbn-dd-mark-btn" onclick="_lbNotifDismissAll()">Mark all read</button>
+      </div>
+      <div id="lbNotifBody">
+        <div class="lbn-empty"><div class="lbn-empty-icon">⏳</div>Loading…</div>
+      </div>`;
+    document.body.appendChild(dd);
+
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      const _dd   = document.getElementById('lbNotifDropdown');
+      const _bell = document.getElementById('lbNotifBell');
+      if (_dd && _bell && _dd.style.display !== 'none'
+          && !_dd.contains(e.target) && !_bell.contains(e.target)) {
+        _dd.style.display = 'none';
+        _bell.classList.remove('lbn-active');
+      }
+    });
+  }
+
+  function _lbNotifToggle() {
+    const dd   = document.getElementById('lbNotifDropdown');
+    const bell = document.getElementById('lbNotifBell');
+    if (!dd || !bell) return;
+    const open = dd.style.display !== 'none';
+    if (open) {
+      dd.style.display = 'none';
+      bell.classList.remove('lbn-active');
+    } else {
+      dd.style.display = 'flex';
+      bell.classList.add('lbn-active');
+      _lbNotifPopulate();
+    }
+  }
+
+  async function _lbNotifPopulate() {
+    const body = document.getElementById('lbNotifBody');
+    if (!body) return;
+    body.innerHTML = '<div class="lbn-empty"><div class="lbn-empty-icon">⏳</div>Loading…</div>';
+
+    const rows = await _lbFetch(false);
+    const dismissed = _lbNotifGetDismissed();
+
+    // Window: from LB_NOTIF_LOOKBACK_DAYS before next meeting up to now
+    const cutoff = new Date(LB_NEXT_MEETING);
+    cutoff.setDate(cutoff.getDate() - LB_NOTIF_LOOKBACK_DAYS);
+
+    const msgs = rows
+      .filter(r => LB_NOTIF_DEPTS.includes(_lbRowDept(r)))
+      .filter(r => { const ts = _lbGetTs(r); return ts && ts >= cutoff; })
+      .sort((a, b) => (_lbGetTs(b) || 0) - (_lbGetTs(a) || 0));
+
+    const allKeys = msgs.map(_lbNotifRowKey);
+    const bell = document.getElementById('lbNotifBell');
+    if (bell) bell.dataset.allKeys = JSON.stringify(allKeys);
+    _lbNotifUpdateBadge();
+
+    if (!msgs.length) {
+      body.innerHTML = `<div class="lbn-empty"><div class="lbn-empty-icon">📭</div>No messages from Leadership or Executive this week yet.</div>`;
+      return;
+    }
+
+    const _field = (icon, lbl, text, bg, border) => text
+      ? `<div class="lbn-field">
+           <div class="lbn-field-lbl">${icon} ${lbl}</div>
+           <div class="lbn-field-txt" style="background:${bg};border-left-color:${border}">${_lbEscHtml(text)}</div>
+         </div>`
+      : '';
+
+    body.innerHTML = msgs.map(row => {
+      const key    = _lbNotifRowKey(row);
+      const dept   = _lbRowDept(row);
+      const cfg    = LB_DEPT_CFG[dept] || {};
+      const ts     = _lbGetTs(row);
+      const tsStr  = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const unread = !dismissed.includes(key);
+      const succ   = (row['What successes has your department seen this week?']            || '').trim();
+      const cross  = (row['What cross-departmental successes, if any, have you seen?']     || '').trim();
+      const goal   = (row["What is this week's goal for your department?"]                 || '').trim();
+      const org    = _lbCleanVal(_lbGetOrg(row));
+      const safeKey = key.replace(/[^a-z0-9]/gi, '_');
+      const col    = cfg.color || '#888';
+
+      return `
+      <div class="lbn-card ${unread ? 'lbn-unread' : ''}" id="lbnCard_${safeKey}">
+        <button class="lbn-dismiss-btn" onclick="_lbNotifDismiss('${key.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Mark as read">✕</button>
+        <div class="lbn-card-dept-row">
+          ${unread ? '<span class="lbn-unread-dot"></span>' : ''}
+          <span class="lbn-dept-chip" style="background:${col}1a;color:${col};border:1px solid ${col}33">${cfg.emoji || ''} ${cfg.label || dept}</span>
+          <span class="lbn-ts">${tsStr}</span>
+        </div>
+        ${_field('🏆','Successes',      succ,  col+'0d',   col+'66')}
+        ${_field('🤝','Cross-Dept Wins',cross, '#e0f7fa',  '#0891b2')}
+        ${_field('🎯',"This Week's Goal",goal,  '#eff6ff',  '#3b82f6')}
+        ${org ? _field('🌟','Org Share-Out', org, '#fffdf0', '#f0a500') : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function _lbEscHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function _lbNotifInit() {
+    _lbNotifInjectShell();
+    const rows = await _lbFetch(false);
+    const cutoff = new Date(LB_NEXT_MEETING);
+    cutoff.setDate(cutoff.getDate() - LB_NOTIF_LOOKBACK_DAYS);
+    const msgs = rows
+      .filter(r => LB_NOTIF_DEPTS.includes(_lbRowDept(r)))
+      .filter(r => { const ts = _lbGetTs(r); return ts && ts >= cutoff; });
+    const allKeys = msgs.map(_lbNotifRowKey);
+    const bell = document.getElementById('lbNotifBell');
+    if (bell) bell.dataset.allKeys = JSON.stringify(allKeys);
+    _lbNotifUpdateBadge();
+  }
+
   // ══════════════════════════════════════════════════════════
   // ══════════════════════════════════════════════════════════
   //  CONCERN ALERT — cross-tab notification for HR + Programming
@@ -5400,6 +5710,10 @@
   window._lbCountdown          = _lbCountdown;
   window._lbShowWelcomeModal   = _lbShowWelcomeModal;
   window._lbDismissWelcome     = _lbDismissWelcome;
+
+  // ── Leadership Inbox public API (onclick handlers need global access) ─────
+  window._lbNotifDismiss       = _lbNotifDismiss;
+  window._lbNotifDismissAll    = _lbNotifDismissAll;
   window._lbDismissWelcomeAndSubmit = _lbDismissWelcomeAndSubmit;
 
   // Allow KPI_DATA reassignment to propagate to window
