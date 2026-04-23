@@ -109,6 +109,16 @@
     let   _irlDiscoveryPromise = null;  // promise lock — prevents concurrent discovery races
     let   _irlLiveStatus   = 'embedded';
 
+    // ── 25-26 manual snapshot sheet — live, multi-tab, parallel fetch ────────
+    // Same 2PACX publishing pattern as the longitudinal sheet.
+    // Tab GIDs: ela=0 is the current ELA tab (gid=0 = default/first tab).
+    // When a Math tab is added to the sheet, set math to its numeric gid here —
+    // the fetch loop picks it up automatically with no other code changes needed.
+    const IRLAB_2526_2PACX = '2PACX-1vS9ZZXvflSokndLrGgCUo2ttY0OwRAuSbwKSEh7701WwEDlcqQ' +
+                              'IrcLswfCA7QnLLRy0oZkKbHREUToM';
+    const IRLAB_2526_GIDS  = { ela: 0, math: null };  // math: null until Math tab is added
+    let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
+
     // ── Placement config ────────────────────────────────────────────────────
     const PLACEMENT_ORDER = [
       '3 or More Grade Levels Below',
@@ -552,12 +562,35 @@
       // Ensure GIDs are resolved before fetching
       const gidsOk = await _irlDiscoverGIDs();
       if (!gidsOk) { console.warn('[irlab] Skipping live fetch — no GIDs resolved'); return; }
+
+      // Kick off the 25-26 snapshot fetches immediately in parallel — one fetch per
+      // configured tab (ela always; math once that tab is added to IRLAB_2526_GIDS).
+      // Runs regardless of whether the longitudinal cache is still warm, so the
+      // 25-26 data is always current on every refresh cycle.
+      const _snap2526Pr = Promise.all(
+        Object.entries(IRLAB_2526_GIDS)
+          .filter(function(_e){ return _e[1] !== null && _e[1] !== undefined; })
+          .map(function(_e){
+            var _subj = _e[0], _gid = _e[1];
+            return fetch(
+              'https://docs.google.com/spreadsheets/d/e/' + IRLAB_2526_2PACX +
+              '/pub?output=csv&gid=' + _gid + (force ? '&t=' + Date.now() : ''),
+              { signal: AbortSignal.timeout(15000) }
+            )
+            .then(function(r){ return r.ok ? r.text() : Promise.reject('HTTP '+r.status); })
+            .then(function(text){ return { subj: _subj === 'ela' ? 'ELA' : 'Math', text: text }; })
+            .catch(function(e){ console.warn('[irlab] 25-26 '+_subj+' fetch failed:', e); return null; });
+          })
+      ).then(function(results){ return results.filter(Boolean); });
+
       if (!force) {
         try { const c=JSON.parse(localStorage.getItem(IRLAB_LIVE_CACHE)||'null');
           if (c&&c.ts&&(Date.now()-c.ts)<IRLAB_REFRESH_MS) {
             _irlMergeLive(c);
             _irlLiveStatus='live';
+            await _irlProcess2526(await _snap2526Pr);
             if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+            if (typeof renderLab === 'function') renderLab();
             return;
           }
         } catch(e) {}
@@ -613,6 +646,7 @@
         try { localStorage.setItem(IRLAB_LIVE_CACHE,JSON.stringify(pkg)); } catch(e){}
         _irlMergeLive(pkg);
         _irlLiveStatus='live';
+        await _irlProcess2526(await _snap2526Pr);
         // Invalidate HR profiles overlay so academic data updates
         if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
         // If HR profiles tab is active, trigger a re-render
@@ -640,6 +674,289 @@
       IRLAB_DATA.source='Live+Embedded ('+new Date(pkg.ts).toLocaleDateString()+')';
       _irlRepeatIndex = null; // invalidate cached repeat index so it rebuilds from fresh data
     }
+    // ── 25-26 manual snapshot — normalize, arbitrate, merge ──────────────────
+
+    // Pivot per-diagnostic rows (one row per student per norming window) into
+    // the same normalized shape that normalizeRow() already produces for the
+    // longitudinal sheet.  Winter → base_ fields; Spring → spring_ fields.
+    // subject is 'ELA' or 'Math' — determined by the tab (IRLAB_2526_GIDS key).
+    function _normalize2526StudentRows(rawRows, subject) {
+      const byStudent = new Map();
+      rawRows.forEach(function(rawRow) {
+        // Mirror normalizeRow's header normalization (lowercase + non-alphanum → _)
+        const _rn = {};
+        Object.keys(rawRow).forEach(function(k) {
+          _rn[k] = rawRow[k];
+          const lk = k.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+          if (_rn[lk] === undefined) _rn[lk] = rawRow[k];
+          const lk2 = k.toLowerCase().replace(/ /g,'_');
+          if (_rn[lk2] === undefined) _rn[lk2] = rawRow[k];
+        });
+        const sid = g(_rn,'Student ID','student_id').trim();
+        if (!sid) return;
+        if (!byStudent.has(sid)) byStudent.set(sid, { rows:[], sid:sid });
+        byStudent.get(sid).rows.push(_rn);
+      });
+
+      const result = [];
+      byStudent.forEach(function(entry) {
+        var rows = entry.rows, sid = entry.sid;
+        // Norming Window pivot: Winter → baseline (base_), Spring → spring_
+        var win = rows.find(function(r){ return (g(r,'Norming Window','norming_window')||'').toLowerCase().includes('winter'); });
+        var spr = rows.find(function(r){ return (g(r,'Norming Window','norming_window')||'').toLowerCase().includes('spring'); });
+        var dem = spr || win || rows[0];
+        if (!dem) return;
+
+        // parseFloat helper — returns null instead of NaN
+        function _pf(row) {
+          var keys = Array.prototype.slice.call(arguments, 1);
+          if (!row) return null;
+          var v = g.apply(null, [row].concat(keys));
+          var n = parseFloat(v);
+          return isNaN(n) ? null : n;
+        }
+        // Percent helper — handles %-suffix and >15 integer encoding
+        function _pct(row) {
+          var keys = Array.prototype.slice.call(arguments, 1);
+          if (!row) return null;
+          var raw = g.apply(null, [row].concat(keys));
+          var v = parseFloat(raw);
+          if (isNaN(v)) return null;
+          if (typeof raw === 'string' && raw.trim().slice(-1) === '%') return v / 100;
+          if (v > 15) return v / 100;
+          return v;
+        }
+
+        var isELA  = subject === 'ELA';
+        var isMath = subject === 'Math';
+
+        var obj = {
+          subject:            subject,
+          year:               '2025-2026',
+          district:           g(dem,'District','district') || '',
+          school:             g(dem,'School','school'),
+          grade:              g(dem,'Student Grade','student_grade','Grade'),
+          certStatus:         '',
+          instructor:         '',   // filled in below from Pearl session data
+          tutors:             [],
+          scholarId:          sid,
+          scholarName:        (g(dem,'First Name','first_name').trim()+' '+g(dem,'Last Name','last_name').trim()).trim(),
+          sex:                g(dem,'Sex','sex'),
+          hispanic:           g(dem,'Hispanic or Latino','hispanic_or_latino'),
+          race:               g(dem,'Race Analytics','race_analytics','Race'),
+          ell:                g(dem,'English Language Learner','english_language_learner'),
+          sped:               g(dem,'Special Education','special_education'),
+          ecodis:             g(dem,'Economically Disadvantaged','economically_disadvantaged'),
+          // Base (Winter) fields
+          baseScore:          _pf(win,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
+          baseRelPlacement:   g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement'),
+          basePlacement:      g(win||{},'Overall Placement','overall_placement','Placement','placement'),
+          baseRushFlag:       '',
+          // Spring fields
+          springScore:        _pf(spr,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
+          springRelPlacement: g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement'),
+          springPlacement:    g(spr||{},'Overall Placement','overall_placement','Placement','placement'),
+          springGain:         _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain'),
+          springPercentile:   _pf(spr,'Percentile','percentile'),
+          springRushFlag:     '',
+          springWeeks:        _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics'),
+          pctTypical:         _pct(spr,'Spring Pct Progress Typical Growth','spring_pct_progress_typical_growth',
+                                   '% Progress Toward Typical Growth','pct_progress_toward_typical_growth',
+                                   'Pct Progress Typical Growth','pct_progress_typical_growth'),
+          pctStretch:         _pct(spr,'Spring Pct Progress Stretch Growth','spring_pct_progress_stretch_growth',
+                                   '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
+          annualTypical:      _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'),
+          annualStretch:      _pf(win,'Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'),
+          isRepeat:           false,  // set below after longitudinal ID scan
+          // ELA domain subscores
+          elaPhonologicalScore:       isELA ? _pf(win,'Phonological Awareness Scale Score','phonological_awareness_scale_score') : null,
+          elaPhonicsScore:            isELA ? _pf(win,'Phonics Scale Score','phonics_scale_score') : null,
+          elaHFWScore:                isELA ? _pf(win,'High Frequency Words Scale Score','high_frequency_words_scale_score') : null,
+          elaVocabScore:              isELA ? _pf(win,'Vocabulary Scale Score','vocabulary_scale_score') : null,
+          elaRCOverallScore:          isELA ? _pf(win,'Reading Comprehension Overall Scale Score','reading_comprehension_overall_scale_score') : null,
+          elaRCLitScore:              isELA ? _pf(win,'Reading Comprehension Literature Scale Score','reading_comprehension_literature_scale_score') : null,
+          elaRCInfoScore:             isELA ? _pf(win,'Reading Comprehension Informational Text Scale Score','reading_comprehension_informational_text_scale_score') : null,
+          elaPhonologicalSpringScore: isELA ? _pf(spr,'Phonological Awareness Scale Score','phonological_awareness_scale_score') : null,
+          elaPhonicsSpringScore:      isELA ? _pf(spr,'Phonics Scale Score','phonics_scale_score') : null,
+          elaHFWSpringScore:          isELA ? _pf(spr,'High Frequency Words Scale Score','high_frequency_words_scale_score') : null,
+          elaVocabSpringScore:        isELA ? _pf(spr,'Vocabulary Scale Score','vocabulary_scale_score') : null,
+          elaRCOverallSpringScore:    isELA ? _pf(spr,'Reading Comprehension Overall Scale Score','reading_comprehension_overall_scale_score') : null,
+          elaRCLitSpringScore:        isELA ? _pf(spr,'Reading Comprehension Literature Scale Score','reading_comprehension_literature_scale_score') : null,
+          elaRCInfoSpringScore:       isELA ? _pf(spr,'Reading Comprehension Informational Text Scale Score','reading_comprehension_informational_text_scale_score') : null,
+          // Math domain subscores
+          mathNumOpsScore:        isMath ? _pf(win,'Number and Operations Scale Score','number_and_operations_scale_score') : null,
+          mathAlgebraScore:       isMath ? _pf(win,'Algebra and Algebraic Thinking Scale Score','algebra_and_algebraic_thinking_scale_score') : null,
+          mathMeasDataScore:      isMath ? _pf(win,'Measurement and Data Scale Score','measurement_and_data_scale_score') : null,
+          mathGeometryScore:      isMath ? _pf(win,'Geometry Scale Score','geometry_scale_score') : null,
+          mathNumOpsSpringScore:     isMath ? _pf(spr,'Number and Operations Scale Score','number_and_operations_scale_score') : null,
+          mathAlgebraSpringScore:    isMath ? _pf(spr,'Algebra and Algebraic Thinking Scale Score','algebra_and_algebraic_thinking_scale_score') : null,
+          mathMeasDataSpringScore:   isMath ? _pf(spr,'Measurement and Data Scale Score','measurement_and_data_scale_score') : null,
+          mathGeometrySpringScore:   isMath ? _pf(spr,'Geometry Scale Score','geometry_scale_score') : null,
+          _source2526: 'manual',  // internal tag — used for clean removal on re-fetch
+        };
+        result.push(obj);
+      });
+      return result;
+    }
+
+    // Source arbitration + instructor assignment + repeat detection + merge.
+    // snap2526Results: array of {subj:'ELA'|'Math', text:string} (already null-filtered).
+    async function _irlProcess2526(snap2526Results) {
+      if (!Array.isArray(snap2526Results)) snap2526Results = [];
+
+      // Parse raw CSV text for each tab that was successfully fetched
+      var raw2526 = { ELA: [], Math: [] };
+      snap2526Results.forEach(function(item) {
+        if (!item || !item.text) return;
+        var rows = parseCSV(item.text);
+        if (item.subj === 'ELA')  raw2526.ELA  = rows;
+        if (item.subj === 'Math') raw2526.Math = rows;
+      });
+      var totalRaw = raw2526.ELA.length + raw2526.Math.length;
+
+      // ── Source arbitration ────────────────────────────────────────────────
+      // Longitudinal sheet wins if it already carries 2025-2026 rows (not tagged as manual).
+      var longitudinalHas2526 = [...IRLAB_DATA.ela, ...IRLAB_DATA.math].some(function(r) {
+        return (r.year || '').trim() === '2025-2026' && r._source2526 !== 'manual';
+      });
+      var manualSuppressed = localStorage.getItem('njtc_suppress2526manual') === 'true';
+
+      window._iready2526Source = longitudinalHas2526 ? 'longitudinal'
+                                : manualSuppressed   ? 'suppressed'
+                                : totalRaw > 0       ? 'manual'
+                                :                      'none';
+
+      // Always strip any previously merged manual rows before deciding what to add
+      IRLAB_DATA.ela  = IRLAB_DATA.ela.filter(function(r)  { return r._source2526 !== 'manual'; });
+      IRLAB_DATA.math = IRLAB_DATA.math.filter(function(r) { return r._source2526 !== 'manual'; });
+      _irlRepeatIndex = null;
+      _irlManual2526Rows = [];
+
+      if (window._iready2526Source !== 'manual') return;
+
+      // ── Instructor assignment from Pearl session data ──────────────────────
+      // Student ID in the 25-26 sheet (col D) === Pearl User ID in SESS_STU_IDS
+      var sessRows = (window.po && typeof window.po.getSessRows === 'function') ? window.po.getSessRows() : [];
+      var SESS_INSTRUCTOR = 1, SESS_STU_IDS = 16, SESS_SUBJECT = 9, SESS_STATUS = 4;
+      var scholarTutorMap = {};
+      sessRows.forEach(function(r) {
+        var status = (r[SESS_STATUS] || '').toLowerCase();
+        if (!status.includes('attended') && !status.includes('complete') && !status.includes('success')) return;
+        var subjRaw = (r[SESS_SUBJECT] || '').toLowerCase();
+        var isELA   = subjRaw.includes('ela') || subjRaw.includes('reading') || subjRaw.includes('language');
+        var isMath  = subjRaw.includes('math');
+        if (!isELA && !isMath) return;
+        var subjKey   = isELA ? 'ELA' : 'Math';
+        var tutorName = (r[SESS_INSTRUCTOR] || '').trim();
+        if (!tutorName) return;
+        var stuIds = (r[SESS_STU_IDS] || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+        stuIds.forEach(function(id) {
+          if (!scholarTutorMap[id]) scholarTutorMap[id] = {};
+          if (!scholarTutorMap[id][subjKey]) scholarTutorMap[id][subjKey] = new Set();
+          scholarTutorMap[id][subjKey].add(tutorName);
+        });
+      });
+
+      // ── Repeat scholar detection ─────────────────────────────────────────
+      var priorIds = new Set(
+        [...IRLAB_DATA.ela, ...IRLAB_DATA.math].map(function(r){ return r.scholarId; }).filter(Boolean)
+      );
+
+      // ── Normalize, annotate, and merge each tab ───────────────────────────
+      ['ELA', 'Math'].forEach(function(subj) {
+        var rows = raw2526[subj];
+        if (!rows.length) return;
+        var normalized = _normalize2526StudentRows(rows, subj);
+        normalized.forEach(function(row) {
+          // Assign instructor from Pearl sessions (direct Pearl ID match)
+          var tutors = scholarTutorMap[row.scholarId];
+          var tutorSet = tutors && tutors[subj];
+          if (tutorSet && tutorSet.size > 0) {
+            row.instructor = [...tutorSet].join('; ');
+            row.tutors     = [...tutorSet];
+          } else {
+            row.instructor = 'Unidentified';
+            row.tutors     = ['Unidentified'];
+          }
+          row.isRepeat = priorIds.has(row.scholarId);
+          _irlManual2526Rows.push(row);
+        });
+        if (subj === 'ELA')  IRLAB_DATA.ela  = IRLAB_DATA.ela.concat(normalized);
+        if (subj === 'Math') IRLAB_DATA.math = IRLAB_DATA.math.concat(normalized);
+      });
+
+      _irlRepeatIndex = null;  // force rebuild so 25-26 scholars appear in repeat views
+      console.log('[irlab] 25-26 snapshot merged — ELA:', raw2526.ELA.length,
+                  'raw / Math:', raw2526.Math.length, 'raw / source:', window._iready2526Source);
+    }
+
+    // Post-render DOM injection: preliminary banner + Data-dept suppress toggle.
+    // Called at the end of renderLab so it runs for every dept lens.
+    function _irlPostRender2526() {
+      var container = document.getElementById('irlabContainer');
+      if (!container) return;
+
+      // Remove any leftovers from the previous render cycle
+      var prevBanner = document.getElementById('irlab-prelim-banner');
+      if (prevBanner) prevBanner.remove();
+      var prevToggle = document.getElementById('irlab-2526-toggle-wrap');
+      if (prevToggle) prevToggle.remove();
+
+      var src = window._iready2526Source;
+      if (!src || src === 'none') return;
+
+      // ── Preliminary banner — shown only when manual snapshot is active ────
+      if (src === 'manual') {
+        var banner = document.createElement('div');
+        banner.id = 'irlab-prelim-banner';
+        banner.style.cssText = [
+          'background:#fff8e1','border-left:4px solid #f59e0b','border-radius:6px',
+          'padding:10px 14px','margin-bottom:16px','font-size:13px','color:#92400e',
+          'display:flex','align-items:center','gap:10px'
+        ].join(';');
+        banner.innerHTML = '<span style="font-size:16px">⚠️</span>' +
+          '<span><strong>SY 2025–26 data is preliminary.</strong> ' +
+          'This reflects a manual snapshot pending the official iReady report. ' +
+          'Figures may change when the final report is published.</span>';
+        container.insertBefore(banner, container.firstChild);
+      }
+
+      // ── Data dept suppress toggle — hidden once longitudinal has 25-26 ────
+      if (src === 'longitudinal') return;
+      var sess   = window.NJTC_SESSION;
+      var myDept = (sess && sess.dept) ? sess.dept : _irlDept;
+      if (myDept !== 'data') return;
+
+      // Find the compact filter bar's inner flex row (contains .irlab-select elements)
+      var filterRow = null;
+      var allDivs = container.querySelectorAll('div');
+      for (var i = 0; i < allDivs.length; i++) {
+        var d = allDivs[i];
+        var st = d.getAttribute('style') || '';
+        if (st.includes('flex-wrap:wrap') && d.querySelector('.irlab-select')) {
+          filterRow = d; break;
+        }
+      }
+      if (!filterRow) return;
+
+      var wrap = document.createElement('label');
+      wrap.id = 'irlab-2526-toggle-wrap';
+      wrap.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px;color:#6b7280;cursor:pointer;padding-left:6px';
+      var cb = document.createElement('input');
+      cb.type    = 'checkbox';
+      cb.id      = 'irlab-2526-toggle';
+      cb.style.cursor = 'pointer';
+      cb.checked = (src === 'manual');
+      cb.addEventListener('change', function() {
+        if (cb.checked) { localStorage.removeItem('njtc_suppress2526manual'); }
+        else            { localStorage.setItem('njtc_suppress2526manual','true'); }
+        _irlFetchLive(true).catch(function(){});
+      });
+      wrap.appendChild(cb);
+      wrap.appendChild(document.createTextNode(' Use preliminary SY25–26 snapshot'));
+      filterRow.appendChild(wrap);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     const pct   = (n,d) => d>0?Math.round(n/d*100):0;
     const avg   = arr  => arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
@@ -2241,6 +2558,8 @@
       }
       // Initialize Impact Report Builder charts (if report is generated)
       try { if (typeof impactBuilder !== 'undefined') impactBuilder.postRender(); } catch(e) {}
+      // Inject 25-26 preliminary banner and Data-dept suppress toggle
+      try { _irlPostRender2526(); } catch(e) {}
     }
 
     function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {
