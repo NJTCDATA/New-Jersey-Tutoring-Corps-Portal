@@ -81,6 +81,7 @@
     let _irlSchool      = 'all';
     let _irlGrade       = 'all';
     let _irlScholarType = 'all'; // 'all' | 'repeat' | 'nonrepeat'
+    let _irlSearch      = '';         // free-text: tutor | school | district
     let _irlBreakdownTab = 'school';   // 'school' | 'grade' | 'district'
     let _irlDeepTab      = 'domains';  // 'domains' | 'repeat'
     let _irlCsvData     = null;        // Quick CSV session result (never persisted)
@@ -115,7 +116,7 @@
     // Tab GIDs: ela=1640935949 is the "25-26 Academic Report" tab (ELA).
     // When the Math tab is added, set math to its gid and the loop handles it.
     const IRLAB_2526_SHEET_ID = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
-    const IRLAB_2526_GIDS     = { ela: 1640935949, math: null };  // math: null until Math tab added
+    const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557 };  // math tab gid confirmed
     let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -751,7 +752,12 @@
         var obj = {
           subject:            subject,
           year:               '2025-2026',
-          district:           g(dem,'District','district') || '',
+          district:           (function(){
+            var _dk=['District','district','School District','school_district',
+                     'District Name','district_name','LEA','lea','LEA Name','lea_name',
+                     'Student District','student_district'];
+            return g.apply(null,[dem].concat(_dk))||g.apply(null,[spr||{}].concat(_dk))||g.apply(null,[win||{}].concat(_dk))||'';
+          })(),
           school:             g(dem,'School','school'),
           grade:              g(dem,'Student Grade','student_grade','Grade'),
           certStatus:         '',
@@ -1154,6 +1160,15 @@
       // Repeat filter uses computed cross-year index (ID-first, name-fallback)
       if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
       if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
+      if (_irlSearch) {
+        const _sq = _irlSearch.toLowerCase();
+        rows = rows.filter(r =>
+          (r.instructor  || '').toLowerCase().includes(_sq) ||
+          (r.school      || '').toLowerCase().includes(_sq) ||
+          (r.district    || '').toLowerCase().includes(_sq) ||
+          (r.scholarName || '').toLowerCase().includes(_sq)
+        );
+      }
       return rows.filter(r=>r.baseRelPlacement&&r.springRelPlacement&&
         PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
     }
@@ -1174,6 +1189,15 @@
       if (grade       !== 'all') rows = rows.filter(r => r.grade    === grade);
       if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
       if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
+      if (_irlSearch) {
+        const _sq = _irlSearch.toLowerCase();
+        rows = rows.filter(r =>
+          (r.instructor  || '').toLowerCase().includes(_sq) ||
+          (r.school      || '').toLowerCase().includes(_sq) ||
+          (r.district    || '').toLowerCase().includes(_sq) ||
+          (r.scholarName || '').toLowerCase().includes(_sq)
+        );
+      }
       return rows;
     }
 
@@ -1407,6 +1431,11 @@
     const _staged = { math:null, ela:null, mathRep:null, elaRep:null };
 
     function handleEmbedUpload(key, input) {
+      // Only data dept may upload CSVs
+      const _us = window.NJTC_SESSION;
+      if ((_us && _us.dept) !== 'data' && ((_us && _us.dept) || _irlDept) !== 'data') {
+        console.warn('[irlab] Upload blocked: not data dept'); return;
+      }
       const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -1446,6 +1475,10 @@
     }
 
     function applyEmbeddedUpdate() {
+      // Only data dept may apply embedded updates
+      const _as = window.NJTC_SESSION;
+      const _aDept = (_as && _as.dept) ? _as.dept : _irlDept;
+      if (_aDept !== 'data') { console.warn('[irlab] applyEmbeddedUpdate blocked: not data dept'); return; }
       // Merge staged with existing stored
       let existing = { math:[], ela:[], mathRep:[], elaRep:[], ts:null };
       try { existing = JSON.parse(localStorage.getItem(EMBED_STORE_KEY)||'null') || existing; } catch(e) {}
@@ -2507,11 +2540,12 @@
 
       const allRows = [...IRLAB_DATA.math,...IRLAB_DATA.ela];
       const years   = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
-      const dists   = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
-      // Schools cascade from district
-      const distFiltered = _irlDistrict !== 'all' ? allRows.filter(r=>r.district===_irlDistrict) : allRows;
+      // Filters cascade: year → district → school/grade (only show options that exist in the selected year)
+      const yearRows = _irlYear !== 'all' ? allRows.filter(r=>r.year===_irlYear) : allRows;
+      const dists   = [...new Set(yearRows.map(r=>r.district))].filter(Boolean).sort();
+      const distFiltered = _irlDistrict !== 'all' ? yearRows.filter(r=>r.district===_irlDistrict) : yearRows;
       const schools = [...new Set(distFiltered.map(r=>r.school))].filter(Boolean).sort();
-      const grades  = [...new Set(allRows.map(r=>r.grade))].filter(Boolean).sort((a,b)=>{
+      const grades  = [...new Set(distFiltered.map(r=>r.grade))].filter(Boolean).sort((a,b)=>{
         const na=parseInt(a)||99, nb=parseInt(b)||99; return na-nb;
       });
       const hasData = allRows.length > 0;
@@ -2715,6 +2749,16 @@
             <select class="irlab-select" onchange="irlab.setScholarType(this.value)">${typeOpts}</select>
             ${activeFilt.length ? activeFilt.map(f=>`<span style="background:#dbeafe;color:#1e40af;font-size:.68rem;font-weight:700;padding:.15rem .45rem;border-radius:20px">✓ ${esc(f)}</span>`).join('') : ''}
             <span style="font-size:.725rem;color:var(--muted);margin-left:auto"><strong>${totalUnique.toLocaleString()}</strong> scholars · <strong>${rows.length.toLocaleString()}</strong> pairs</span>
+          </div>
+          <!-- Search bar — persistent across both longitudinal and 25-26 data -->
+          <div style="display:flex;align-items:center;gap:.4rem;margin-top:.45rem;padding-top:.45rem;border-top:1px solid var(--border)">
+            <span style="font-size:.8rem;color:var(--muted);flex-shrink:0">🔍</span>
+            <input type="text" id="irlab-search-input"
+                   placeholder="Search by tutor, school, or district…"
+                   value="${esc(_irlSearch)}"
+                   oninput="irlab.setSearch(this.value)"
+                   style="flex:1;border:none;background:transparent;font-size:.8125rem;color:var(--text,#1e293b);outline:none;min-width:0"/>
+            ${_irlSearch ? `<button onclick="irlab.setSearch('')" title="Clear search" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.75rem;padding:0 .2rem;line-height:1">✕</button>` : ''}
           </div>
         </div>
 
@@ -5392,12 +5436,13 @@
       _irlTutorDrill   = null;
       renderLab();
     }
-    function setYear(y)        { _irlYear=y;         renderLab(); }
+    function setYear(y)        { _irlYear=y; _irlDistrict='all'; _irlSchool='all'; _irlGrade='all'; renderLab(); }
     function setSubject(s)     { _irlSubject=s;      renderLab(); }
     function setDistrict(d)    { _irlDistrict=d; _irlSchool='all'; renderLab(); }
     function setSchool(s)      { _irlSchool=s;       renderLab(); }
     function setGrade(g)       { _irlGrade=g;        renderLab(); }
     function setScholarType(t) { _irlScholarType=t;  renderLab(); }
+    function setSearch(q)      { _irlSearch=q;       renderLab(); }
     function setBreakdownTab(t){ _irlBreakdownTab=t; renderLab(); }
     function setDeepTab(t)     { _irlDeepTab=t;      renderLab(); }
     function setDept(d) {
@@ -5893,7 +5938,7 @@
       };
     }
 
-    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setDept, setBreakdownTab, setDeepTab,
+    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setSearch, setDept, setBreakdownTab, setDeepTab,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
