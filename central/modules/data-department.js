@@ -753,10 +753,16 @@
           subject:            subject,
           year:               '2025-2026',
           district:           (function(){
-            var _dk=['District','district','School District','school_district',
+            var _dk=['Districts','districts','District','district',
+                     'School District','school_district','School Districts','school_districts',
                      'District Name','district_name','LEA','lea','LEA Name','lea_name',
                      'Student District','student_district'];
-            return g.apply(null,[dem].concat(_dk))||g.apply(null,[spr||{}].concat(_dk))||g.apply(null,[win||{}].concat(_dk))||'';
+            var _row = dem||spr||win||{};
+            var _val = g.apply(null,[dem].concat(_dk))||g.apply(null,[spr||{}].concat(_dk))||g.apply(null,[win||{}].concat(_dk));
+            if (_val) return _val;
+            // Fuzzy: find any key containing 'district' in case column was named differently
+            var _fk = Object.keys(_row).find(function(k){ return k.toLowerCase().includes('district'); });
+            return _fk ? (_row[_fk]||'') : '';
           })(),
           school:             g(dem,'School','school'),
           grade:              g(dem,'Student Grade','student_grade','Grade'),
