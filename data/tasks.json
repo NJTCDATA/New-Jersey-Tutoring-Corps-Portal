@@ -1,7 +1,7 @@
 {
-  "generated": "2026-04-24T16:01:20.356Z",
+  "generated": "2026-04-24T17:28:05.546Z",
   "project": "1211431518555737",
-  "count": 32,
+  "count": 31,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -724,28 +724,6 @@
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555960"
     },
     {
-      "gid": "1211431518555962",
-      "assignee": {
-        "gid": "1203930291954613",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-14",
-      "followers": [
-        {
-          "gid": "1203930291954613",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Host 2 in person events for the central team (Winter and Summer)",
-      "notes": "Hosted December gathering\n\n",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555962"
-    },
-    {
       "gid": "1211431518555979",
       "assignee": {
         "gid": "1202953622354860",
@@ -794,7 +772,7 @@
         }
       ],
       "name": "Meet with at least 7 education organizations across New Jersey\n",
-      "notes": "Met with :\n\nSJCC\nTAN\nNJPSA",
+      "notes": "Met with :\n\nSJCC\nTAN\nNJPSA\nNJAEL",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555981"
     },
     {
