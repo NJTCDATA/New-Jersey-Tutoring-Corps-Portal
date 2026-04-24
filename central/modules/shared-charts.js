@@ -1790,7 +1790,7 @@
       {pos:true,  ico:'🌟', txt:`${highPerf} high performers (Stellar+Strong) — ${Math.round(highPerf/total*100)}% of total staff`},
       {pos:true,  ico:'🔁', txt:`${multiCy} multi-cycle employees — institutional knowledge retention strength`},
       {pos:true,  ico:'✅', txt:`${rehireable} currently active & eligible for rehire with 2+ cycles`},
-      ...(noRehire>0?[{pos:false,ico:'⛔', txt:`${noRehire} employees marked Do Not Rehire`}]:[]),
+      ...(noRehire>0?[{pos:true,ico:'🆕', txt:`${noRehire} employees are new this SY (first-time hires, not rehires from a prior cycle)`}]:[]),
       ...(termRisk>0?[{pos:false,ico:'⚠️', txt:`${termRisk} employees with active termination recommendation`}]:[]),
       ...(attRisk>5?[{pos:false,ico:'🔴', txt:`${attRisk} active staff below 80% attendance — immediate attention needed`}]:[]),
       ...(avgPctMoved!=null?[{pos:avgPctMoved>=40,ico:'📚',txt:`${avgPctMoved}% of tutored scholars improved i-Ready placement (${acadScholars} scholars total)`}]:[]),
@@ -1818,7 +1818,7 @@
   ${[
     {v:attRisk.length,l:'Active Staff Below 85% Attendance',sub:'service delivery risk',bg:'#fef2f2',co:'#b91c1c'},
     {v:ns,            l:'Needs Support Performance',        sub:'across all cycles',   bg:'#fff7ed',co:'#d97706'},
-    {v:noRehire,      l:'Not Eligible for Rehire',          sub:'pipeline constraint', bg:'#fef2f2',co:'#b91c1c'},
+    {v:noRehire,      l:'New This SY',                      sub:'first-time hires',    bg:'#eff6ff',co:'#1d4ed8'},
   ].map(x=>`<div style="background:${x.bg};border-radius:var(--radius-sm);padding:1.25rem;border:1px solid ${x.co}33;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:2rem;color:${x.co}">${x.v}</div><div style="font-size:.8125rem;font-weight:700;color:${x.co};margin-top:.25rem">${x.l}</div><div style="font-size:.7rem;color:var(--muted)">${x.sub}</div></div>`).join('')}
 </div>
 ${attRisk.length ? `
@@ -2013,13 +2013,13 @@ ${hasAcad ? `
   <div style="font-size:.7rem;color:var(--muted);margin-top:.375rem;font-style:italic">For tutor-level academic detail, open iReady Analysis Lab or T&D Analytics.</div>
 </div>` : ''}
 
-<!-- Rehire pipeline -->
+<!-- SY Rehire Status -->
 <div style="padding:.875rem 1rem;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;margin-bottom:1.125rem">
-  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.5rem">🔁 Rehire Pipeline</div>
+  <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.07em;margin-bottom:.5rem">🔁 SY Rehire Status</div>
   <div style="display:flex;gap:1.5rem;flex-wrap:wrap;font-size:.875rem">
-    <span><strong style="color:#0d6e3a">${HR_EMPS.filter(e=>(e.rh==='Yes'||e.rh===true)&&e.s!=='Active').length}</strong> <span style="color:var(--muted)">eligible for rehire</span></span>
-    <span><strong style="color:#b91c1c">${noRehire.length}</strong> <span style="color:var(--muted)">do not rehire</span></span>
-    <span><strong style="color:var(--navy)">${HR_EMPS.filter(e=>e.c>=3&&(e.rh==='Yes'||e.rh===true)).length}</strong> <span style="color:var(--muted)">3+ cycle veterans eligible</span></span>
+    <span><strong style="color:#0d6e3a">${HR_EMPS.filter(e=>(e.rh==='Yes'||e.rh===true)).length}</strong> <span style="color:var(--muted)">returning from previous cycle</span></span>
+    <span><strong style="color:var(--navy)">${noRehire.length}</strong> <span style="color:var(--muted)">new this SY</span></span>
+    <span><strong style="color:#7c3aed">${HR_EMPS.filter(e=>e.c>=3&&(e.rh==='Yes'||e.rh===true)).length}</strong> <span style="color:var(--muted)">3+ cycle veterans who returned</span></span>
   </div>
 </div>
 ${_buildStaffDiversityHtml(HR_EMPS.filter(e=>e.s==='Active'), 'Active Staff — Race & Ethnicity')}
@@ -2131,12 +2131,11 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
       const concernBadge = hasConcern ? `<div style="margin-top:.4rem;padding:.25rem .5rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:5px;font-size:.62rem;color:#92400e;font-weight:600">⚠️ ${concernCount > 0 ? concernCount + ' concern' + (concernCount>1?'s':'') : 'Concern on record'}${hrActionRaw ? ' · ' + esc(hrActionRaw.slice(0,22)) : ''}</div>` : '';
 
       // Rehire + status badges
-      const _rhTipNo  = 'No Rehire: HR has flagged this staff member as ineligible for rehire. This is determined from the HR Master List (Rehire column) and may reflect a documented concern, a programmatic performance issue, or an HR decision. Details in HR file.';
-      const _rhTipYes = 'Rehire Eligible: HR has designated this staff member as eligible for future employment. Determined from the HR Master List (Rehire column). No active HR barriers on file.';
-      const rhBadge = (e.rh==='No'||e.rh===false)
-        ? `<span title="${_rhTipNo}" style="cursor:help;font-size:.58rem;background:#fee2e2;color:#b91c1c;padding:.1rem .3rem;border-radius:4px;font-weight:700">⛔ No Rehire ⓘ</span>`
-        : (e.rh==='Yes'||e.rh===true)
-          ? `<span title="${_rhTipYes}" style="cursor:help;font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Rehire ⓘ</span>` : '';
+      // SY Rehire column = "Yes" means this person was a rehire from a previous cycle (returning staff).
+      // "No" means they were new this year — it does NOT mean ineligible for future rehire.
+      const _rhTipYes = 'Returning Staff: This individual was a rehire from a previous program cycle (SY Rehire = Yes in HR Master List). They have prior NJTC experience.';
+      const rhBadge = (e.rh==='Yes'||e.rh===true)
+          ? `<span title="${_rhTipYes}" style="cursor:help;font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Returning ⓘ</span>` : '';
 
       return `<div onclick="window._hrShowProfile(this.getAttribute('data-empn'))" data-empn="${esc(e.n)}" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column;opacity:${isActive?'1':'0.72'}" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.12)';this.style.opacity='1'" onmouseleave="this.style.boxShadow='none';this.style.opacity='${isActive?'1':'0.72'}'">
   <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
@@ -2181,7 +2180,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   ${statCard(activeTiers.stellar + activeTiers.strong, 'High Performers', '#0d6e3a')}
   ${statCard(concerns, 'Active Concerns', concerns > 0 ? '#b91c1c' : 'var(--muted)')}
   ${statCard(avgAtt != null ? avgAtt + '%' : '—', 'Avg Attendance', attColor)}
-  ${statCard(noRehire, 'No Rehire Flags', noRehire > 0 ? '#b91c1c' : 'var(--muted)')}
+  ${statCard(noRehire, 'New This SY', 'var(--navy)')}
   <div style="display:flex;align-items:center;margin-left:auto;font-size:.65rem;color:var(--muted);font-style:italic">${src}</div>
 </div>
 <div style="display:flex;align-items:center;gap:.375rem;font-size:.6875rem;color:var(--muted);background:var(--surface-2);border:1px solid var(--border-2);border-radius:6px;padding:.375rem .75rem;margin-bottom:.875rem;line-height:1.4">
@@ -2272,12 +2271,10 @@ ${gridClose}
     const uid          = emp.n.replace(/\W/g,'_');
 
     // Rehire badge
-    const _rhTipDrwNo  = 'No Rehire — HR has flagged this individual as ineligible for future employment. Determined from the HR Master List (Rehire column). This may reflect a documented concern, a programmatic performance issue, or an administrative HR decision. See Concerns section for details.';
-    const _rhTipDrwYes = 'Eligible for Rehire — HR has designated this individual as eligible for future employment. Determined from the HR Master List (Rehire column). No active HR barriers on file.';
-    const rhBadge = (emp.rh==='No'||emp.rh===false)
-      ? '<span title="'+_rhTipDrwNo+'" style="cursor:help;background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">⛔ No Rehire ⓘ</span>'
-      : (emp.rh==='Yes'||emp.rh===true)
-        ? '<span title="'+_rhTipDrwYes+'" style="cursor:help;background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Eligible for Rehire ⓘ</span>' : '';
+    // SY Rehire column = "Yes" means returning from a previous cycle; "No" means new this year.
+    const _rhTipDrwYes = 'Returning Staff — This individual was a rehire from a previous program cycle (SY Rehire = Yes in HR Master List). They have prior NJTC experience.';
+    const rhBadge = (emp.rh==='Yes'||emp.rh===true)
+        ? '<span title="'+_rhTipDrwYes+'" style="cursor:help;background:#d1fae5;color:#065f46;padding:.15rem .45rem;border-radius:8px;font-size:.65rem;font-weight:700">✅ Returning Staff ⓘ</span>' : '';
 
     // Section header helper with collapse toggle
     const sec = (label, id, body, defaultOpen=true) => body ? `
@@ -2393,8 +2390,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const hiringSignals = [];
     if (emp.c >= 3)                              hiringSignals.push({ico:'⭐', txt:'3+ cycles — proven retention', pos:true});
     if (emp.c >= 2 && emp.c < 3)                 hiringSignals.push({ico:'📅', txt:'Multi-cycle — building track record', pos:true});
-    if ((emp.rh==='Yes'||emp.rh===true))         hiringSignals.push({ico:'✅', txt:'Eligible for rehire', pos:true});
-    if ((emp.rh==='No'||emp.rh===false))         hiringSignals.push({ico:'⛔', txt:'Not eligible for rehire', pos:false});
+    if ((emp.rh==='Yes'||emp.rh===true))         hiringSignals.push({ico:'🔁', txt:'Returning staff — rehired from previous cycle', pos:true});
     if (emp.mp>=3)                               hiringSignals.push({ico:'📈', txt:'Strong performance score ('+emp.mp+'/4)', pos:true});
     if (emp.mp!==null&&emp.mp<2)                 hiringSignals.push({ico:'📉', txt:'Below-threshold performance score', pos:false});
     if (att!==null&&att>=90)                     hiringSignals.push({ico:'🟢', txt:'Excellent attendance ('+att+'%)', pos:true});
@@ -4200,10 +4196,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No cycle data available.</div>'}
     </div>
     <div>
-      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Rehire Pipeline</div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">SY Rehire Status</div>
       ${[
-        { label: '✅ Eligible (2+ cycles)', count: rehireEligible, bg: '#f0fdf4', color: '#059669' },
-        { label: '⛔ Not Eligible',         count: noRehire,       bg: '#fef2f2', color: '#dc2626' },
+        { label: '✅ Returning (2+ cycles)', count: rehireEligible, bg: '#f0fdf4', color: '#059669' },
+        { label: '🆕 New This SY',            count: noRehire,       bg: '#eff6ff', color: '#1d4ed8' },
       ].map(x => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .65rem;background:${x.bg};border-radius:6px;margin-bottom:.35rem">
         <span style="font-size:.75rem;font-weight:600;color:${x.color}">${x.label}</span>
         <span style="font-size:.75rem;font-weight:800;color:${x.color}">${x.count}</span>
