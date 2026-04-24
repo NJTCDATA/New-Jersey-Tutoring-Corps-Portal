@@ -1170,7 +1170,7 @@
 
   // Strip [dept:XXX] / [dept XXX] tags from a field value before displaying it
   function _lbCleanVal(val) {
-    return (val || '').replace(/\n?\[dept[:\s]+[a-z]+\]/gi, '').trim();
+    return (val || '').replace(/\n?\[dept[:\s]+[a-z_]+\]/gi, '').replace(/\n?\[quiz_result:[^\]]*\]/gi, '').trim();
   }
 
   // Retrieve the Organizational Share-Out column value regardless of exact header
@@ -1295,6 +1295,22 @@
     byDept['unknown'] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
     rows.forEach(row => {
       const dept = _lbRowDept(row);
+      // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column
+      const succVal = (row['What successes has your department seen this week?'] || '').trim();
+      if (succVal.startsWith('[QUIZ_RECORD]')) {
+        const orgVal = _lbGetOrg(row);
+        const qm = orgVal.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
+        if (qm) {
+          const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
+          const target = byDept[dept] || byDept['unknown'];
+          if (target && (!target.quizTs || qts > target.quizTs)) {
+            target.quizScore = qs;
+            target.quizTotal = qt;
+            target.quizTs    = qts;
+          }
+        }
+        return; // don't count quiz records as regular submissions
+      }
       if (!byDept[dept]) byDept[dept] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
       const ts = _lbGetTs(row);
       byDept[dept].count++;
@@ -1976,7 +1992,7 @@
       <div id="lbQuizError" style="display:none;color:#dc2626;font-size:.8125rem;margin-bottom:.75rem"></div>
       <div style="display:flex;justify-content:flex-end;gap:.625rem;padding-top:.5rem;border-top:1px solid var(--border)">
         <button onclick="document.getElementById('lbQuizModal').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:8px;font-size:.875rem;font-family:inherit;cursor:pointer">Cancel</button>
-        <button onclick="_lbQuizSubmit('${dept}', ${JSON.stringify(questions).replace(/'/g,"\\'")})" style="padding:.5rem 1.375rem;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,48,135,.25)">Submit Quiz →</button>
+        <button onclick="_lbQuizSubmit('${dept}')" style="padding:.5rem 1.375rem;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,48,135,.25)">Submit Quiz →</button>
       </div>`;
 
     body.innerHTML = html;
@@ -1995,7 +2011,9 @@
     });
   }
 
-  function _lbQuizSubmit(dept, questions) {
+  function _lbQuizSubmit(dept) {
+    const questions = window._lbQuizActiveQuestions;
+    if (!questions || !questions.length) return;
     // Validate all questions answered
     const errEl = document.getElementById('lbQuizError');
     let allAnswered = true;
@@ -2021,6 +2039,20 @@
     // Save state
     const state = { completed:true, score, total:questions.length, ts:Date.now() };
     _lbQuizSetState(state);
+
+    // Record quiz result to Google Sheet so Leadership/Data can see it cross-device
+    try {
+      const qParams = new URLSearchParams();
+      qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD]');
+      const qTag = '[quiz_result:' + score + ':' + questions.length + ':' + state.ts + ']';
+      if (LB_ENTRY.dept) {
+        qParams.append(LB_ENTRY.dept, dept);
+        qParams.append(LB_ENTRY.orgShareOut, qTag);
+      } else {
+        qParams.append(LB_ENTRY.orgShareOut, '[dept:' + dept + ']\n' + qTag);
+      }
+      fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: qParams.toString() });
+    } catch(e) { /* non-blocking */ }
 
     // Render results
     const body = document.getElementById('lbQuizBody');
@@ -2054,7 +2086,14 @@
 
   // ── Inject missed-quiz notification into the Leadership Inbox bell ──────
   function _lbQuizInjectMissedNotif(dept) {
-    if (localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY)) return; // already injected this cycle
+    // Accumulate missed depts across logins — multiple depts may miss independently
+    const deptsKey = LB_QUIZ_MISSED_NOTIF_KEY + '_depts';
+    const existing = JSON.parse(localStorage.getItem(deptsKey) || '[]');
+    if (!existing.includes(dept)) {
+      existing.push(dept);
+      localStorage.setItem(deptsKey, JSON.stringify(existing));
+    }
+    if (localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY)) return; // bell already pulsed this cycle
     localStorage.setItem(LB_QUIZ_MISSED_NOTIF_KEY, '1');
 
     const deptCfg = LB_DEPT_CFG[dept] || {};
@@ -2628,6 +2667,31 @@
         qlGrid.insertBefore(eaCard, qlGrid.firstChild);
       }
     }
+
+    // Inject quiz area and modal for exec depts so they can take the knowledge check
+    if (!document.getElementById('lbQuizArea')) {
+      const quizArea = document.createElement('div');
+      quizArea.id = 'lbQuizArea';
+      quizArea.style.cssText = 'display:none;margin-bottom:1.5rem';
+      const strip = document.getElementById('homeStatsStrip');
+      if (strip && strip.parentNode) strip.parentNode.insertBefore(quizArea, strip.nextSibling);
+    }
+    if (!document.getElementById('lbQuizModal')) {
+      const quizModal = document.createElement('div');
+      quizModal.id = 'lbQuizModal';
+      quizModal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(6px);z-index:1001;align-items:center;justify-content:center;padding:1rem';
+      quizModal.setAttribute('onclick', "if(event.target===this)this.style.display='none'");
+      quizModal.innerHTML = `
+        <div style="background:#fff;border-radius:18px;width:100%;max-width:540px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(10,22,40,.3);overflow:hidden">
+          <div style="background:linear-gradient(135deg,#0a1628,#003087);padding:1.125rem 1.375rem;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+            <div style="font-size:.9375rem;font-weight:700;color:#fff">📋 Pre-Meeting Knowledge Check</div>
+            <button onclick="document.getElementById('lbQuizModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
+          </div>
+          <div id="lbQuizBody" style="flex:1;overflow-y:auto;padding:1.375rem"></div>
+        </div>`;
+      document.body.appendChild(quizModal);
+    }
+    setTimeout(() => _lbQuizInit(dept), 100);
   }
 
   // ── Exec: view modal (read-only summary of all submissions) ───────────────
@@ -2702,6 +2766,44 @@
           ${cross ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Cross-Dept Notes</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${cross}</div></div>` : ''}
           ${goal  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Weekly Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${goal}</div></div>` : ''}
           <div style="font-size:.6875rem;color:var(--muted);margin-top:.375rem">Latest: ${ts} · ${eaEntries.length} total entry${eaEntries.length!==1?'s':''}</div>
+        </div>
+      </div>`;
+    }
+
+    // Quiz participation table — only show during/after the quiz window
+    const now = new Date();
+    if (now >= LB_QUIZ_OPEN) {
+      const quizRows = LB_ALL_DEPTS.map(d => {
+        const s = stats[d];
+        const c = LB_DEPT_CFG[d];
+        const hasScore = s.quizTs != null;
+        const pct = hasScore ? Math.round(s.quizScore / s.quizTotal * 100) : null;
+        const statusChip = hasScore
+          ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${pct===100?'#d1fae5':pct>=50?'#dbeafe':'#fee2e2'};color:${pct===100?'#065f46':pct>=50?'#1e40af':'#991b1b'}">${s.quizScore}/${s.quizTotal} (${pct}%)</span>`
+          : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#f3f4f6;color:#6b7280">Not completed</span>`;
+        const tsStr = hasScore ? new Date(s.quizTs).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+        return `<tr style="border-top:1px solid #f1f5f9">
+          <td style="padding:.5rem .75rem;font-size:.875rem;font-weight:600;color:var(--navy)">${c.emoji} ${c.label}</td>
+          <td style="padding:.5rem .75rem">${statusChip}</td>
+          <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${tsStr}</td>
+        </tr>`;
+      }).join('');
+      const completed = LB_ALL_DEPTS.filter(d => stats[d].quizTs != null).length;
+      const total = LB_ALL_DEPTS.length;
+      html += `<div style="margin-bottom:1.5rem;border:1.5px solid #818cf833;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#1e1b4b11,#3730a311);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #818cf822">
+          <div style="font-weight:700;color:var(--navy)">📋 Pre-Meeting Quiz — This Cycle</div>
+          <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${completed===total?'#d1fae5':'#fef3c7'};color:${completed===total?'#065f46':'#92400e'}">${completed}/${total} completed</span>
+        </div>
+        <div style="padding:.25rem 0">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:#f8fafc">
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Department</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Score</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Completed</th>
+            </tr></thead>
+            <tbody>${quizRows}</tbody>
+          </table>
         </div>
       </div>`;
     }
@@ -6100,6 +6202,53 @@
         ${org ? _field('🌟','Org Share-Out', org, '#fffdf0', '#f0a500') : ''}
       </div>`;
     }).join('');
+
+    // Re-inject any missed-quiz notification cards that survived from this cycle
+    _lbNotifReInjectMissed(body);
+  }
+
+  // Rebuild missed-quiz notification cards from localStorage state after _lbNotifPopulate overwrites the body
+  function _lbNotifReInjectMissed(body) {
+    if (!body) return;
+    if (!localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY)) return;
+    // Already injected this cycle — rebuild the cards from the stored missed-dept list
+    const raw = localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY + '_depts');
+    if (!raw) return;
+    let missedDepts;
+    try { missedDepts = JSON.parse(raw); } catch(e) { return; }
+    if (!Array.isArray(missedDepts) || !missedDepts.length) return;
+
+    const deadlineStr = LB_QUIZ_CLOSE.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
+                      + ' at ' + LB_QUIZ_CLOSE.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+    // Remove existing missed card if present (avoid duplicates on rapid re-opens)
+    const existing = body.querySelector('#lbnQuizMissed');
+    if (existing) existing.remove();
+
+    const card = document.createElement('div');
+    card.className = 'lbn-card lbn-unread';
+    card.id = 'lbnQuizMissed';
+    card.style.cssText = 'border-left:3px solid #f97316';
+    const deptList = missedDepts.map(d => {
+      const cfg = LB_DEPT_CFG[d] || {};
+      return (cfg.emoji || '') + ' ' + (cfg.label || d);
+    }).join(', ');
+    card.innerHTML = `
+      <div class="lbn-card-dept-row">
+        <span class="lbn-unread-dot" style="background:#f97316"></span>
+        <span class="lbn-dept-chip" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa">⚠️ Quiz Missed</span>
+        <span class="lbn-ts">${new Date().toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+      <div class="lbn-field">
+        <div class="lbn-field-lbl">📋 Pre-Meeting Knowledge Check</div>
+        <div class="lbn-field-txt" style="background:#fff7ed;border-left-color:#f97316">
+          The following department(s) did not complete the pre-meeting knowledge check before the deadline (${deadlineStr}):
+          <strong>${deptList}</strong>
+        </div>
+      </div>`;
+    body.insertBefore(card, body.firstChild);
+    const empty = body.querySelector('.lbn-empty');
+    if (empty) empty.remove();
   }
 
   function _lbEscHtml(str) {
