@@ -2709,7 +2709,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const nonWhiteCount = withRace.filter(e => e._race.toLowerCase() !== 'white').length;
     const nonWhitePct   = withRace.length ? Math.round(nonWhiteCount/withRace.length*100) : 0;
     const hispCount     = withEth.filter(e => !/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||'')).length;
-    const hispPct       = withEth.length ? Math.round(hispCount/withEth.length*100) : 0;
+    const hispPct       = tot ? Math.round(hispCount/tot*100) : 0;
     const diverseCount  = pool.filter(e =>
       ((e._race||'').toLowerCase() !== 'white' && e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||'')) ||
       (!/not hispanic/i.test(e._ethnicity||'') && /hispanic|latino/i.test(e._ethnicity||''))
@@ -2744,7 +2744,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     <div style="background:#fef3c7;border:1.5px solid #fde68a;border-radius:10px;padding:.625rem .875rem;min-width:110px;text-align:center">
       <div style="font-size:1.5rem;font-weight:900;line-height:1;color:#d97706">${hispPct}%</div>
       <div style="font-size:.62rem;color:#92400e;margin-top:.2rem;font-weight:700">Hispanic / Latino</div>
-      <div style="font-size:.58rem;color:#94a3b8">${hispCount} of ${withEth.length} w/ eth. data</div>
+      <div style="font-size:.58rem;color:#94a3b8">${hispCount} of ${tot} active</div>
     </div>
   </div>
   ${raceRows.length ? `
