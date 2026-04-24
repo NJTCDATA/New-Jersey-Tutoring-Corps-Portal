@@ -1945,6 +1945,26 @@
           </div>
         </div>`;
       _lbQuizInjectMissedNotif(dept);
+      return;
+    }
+
+    // Owner preview — Data dept can test the quiz before it goes live for everyone
+    if (dept === 'data' && !isOpen && !isPast) {
+      const goLiveStr = LB_QUIZ_OPEN.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})
+                      + ' at ' + LB_QUIZ_OPEN.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      area.style.display = '';
+      area.innerHTML = `
+        <div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:14px;padding:1.125rem 1.5rem;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+          <div>
+            <div style="font-size:.55rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#a5b4fc;margin-bottom:.3rem">🔬 Owner Preview — Data & Evaluation</div>
+            <div style="font-size:.9375rem;font-weight:700;margin-bottom:.25rem">Preview This Cycle's Knowledge Check</div>
+            <div style="font-size:.8125rem;color:rgba(255,255,255,.7);line-height:1.5;max-width:420px">Questions are generated live from current submission data. Preview runs don't save scores or notify anyone — safe to test as many times as needed.</div>
+            <div style="font-size:.7rem;color:#c7d2fe;margin-top:.4rem">⏰ Goes live for all departments: ${goLiveStr}</div>
+          </div>
+          <button onclick="window._lbQuizPreviewMode=true;_lbQuizOpenModal('${dept}')" style="background:#fff;color:#312e81;border:none;border-radius:10px;padding:.5625rem 1.375rem;font-size:.9375rem;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.3)">
+            Preview Quiz →
+          </button>
+        </div>`;
     }
   }
 
@@ -1971,8 +1991,24 @@
       return;
     }
 
+    // Show preview-mode banner inside the modal header area
+    if (window._lbQuizPreviewMode) {
+      const hdr = modal.querySelector('div[style*="background:linear-gradient"]');
+      if (hdr && !hdr.querySelector('.lbQuizPreviewBadge')) {
+        const badge = document.createElement('span');
+        badge.className = 'lbQuizPreviewBadge';
+        badge.style.cssText = 'font-size:.6rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .55rem;border-radius:20px;background:#a5b4fc;color:#1e1b4b;margin-left:.625rem;vertical-align:middle';
+        badge.textContent = 'PREVIEW';
+        const titleEl = hdr.querySelector('div');
+        if (titleEl) titleEl.appendChild(badge);
+      }
+    }
+
     // Render questions with radio buttons
     let html = `<div style="padding:.25rem 0">`;
+    if (window._lbQuizPreviewMode) {
+      html += `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:.625rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;color:#3730a3;line-height:1.5">🔬 <strong>Preview Mode</strong> — Results won't be saved or posted. Scores will not affect leaderboard data for this run.</div>`;
+    }
     questions.forEach((q, qi) => {
       const dCfg = LB_DEPT_CFG[q.dept] || {};
       html += `
@@ -2036,12 +2072,15 @@
       return { qi, correct: isCorrect, chosen: sel ? q.options[parseInt(sel.value)] : '', answer: q.correct };
     });
 
-    // Save state
+    const isPreview = !!window._lbQuizPreviewMode;
+    window._lbQuizPreviewMode = false; // clear after grading regardless
+
+    // Save state — skipped in preview so the real quiz slot stays open
     const state = { completed:true, score, total:questions.length, ts:Date.now() };
-    _lbQuizSetState(state);
+    if (!isPreview) _lbQuizSetState(state);
 
     // Record quiz result to Google Sheet so Leadership/Data can see it cross-device
-    try {
+    if (!isPreview) try {
       const qParams = new URLSearchParams();
       qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD]');
       const qTag = '[quiz_result:' + score + ':' + questions.length + ':' + state.ts + ']';
@@ -2078,6 +2117,7 @@
         </div>`;
     });
     html += `</div>
+      ${isPreview ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:.625rem 1rem;margin-bottom:1rem;font-size:.8125rem;color:#3730a3">🔬 Preview run — score not saved, leaderboard unaffected. Run again anytime before Friday.</div>` : ''}
       <div style="display:flex;justify-content:flex-end">
         <button onclick="document.getElementById('lbQuizModal').style.display='none';_lbQuizInit('${dept}')" style="padding:.5rem 1.375rem;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer">Done ✓</button>
       </div>`;
