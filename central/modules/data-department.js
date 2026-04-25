@@ -2662,6 +2662,48 @@
         +'</div>'
         +'</div>'; // end .ecd-insight-panel
 
+      // ── Diagnostic Testing Windows ──────────────────────────────────────
+      // Pull from Pearl Operations: missed reasons = NJTC Diagnostic Testing
+      // or School-administered Testing. Aggregated by school → unique weeks.
+      const _diagData = (window.po && typeof window.po.getDiagnosticTestingData === 'function')
+        ? window.po.getDiagnosticTestingData() : [];
+      const _diagSection = (function(){
+        if (!_diagData.length) return '';
+        const totalWeeks = _diagData.reduce(function(s,d){ return Math.max(s, d.diagnosticWeeks); }, 0);
+        const rows = _diagData.map(function(d){
+          const pct = totalWeeks > 0 ? Math.round(d.diagnosticWeeks / totalWeeks * 100) : 0;
+          const col = d.diagnosticWeeks >= 3 ? '#d97706' : '#059669';
+          return '<tr>'
+            +'<td style="padding:.35rem .5rem;font-size:.7rem;font-weight:600;color:#1e293b">' + d.school + '</td>'
+            +'<td style="padding:.35rem .5rem;font-size:.68rem;color:#64748b">' + (d.district||'—') + '</td>'
+            +'<td style="padding:.35rem .5rem;text-align:center;font-weight:700;color:' + col + ';font-size:.8rem">' + d.diagnosticWeeks + '</td>'
+            +'<td style="padding:.35rem .5rem;text-align:center;font-size:.68rem;color:#64748b">' + d.scholars + '</td>'
+            +'<td style="padding:.35rem .5rem;font-size:.65rem;color:#94a3b8">' + (d.weekLabels.slice(0,4).join(', ') + (d.weekLabels.length > 4 ? '…' : '')) + '</td>'
+            +'</tr>';
+        }).join('');
+        const totalSites = _diagData.length;
+        const maxWks = _diagData[0] ? _diagData[0].diagnosticWeeks : 0;
+        return '<details style="margin-top:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">'
+          +'<summary style="padding:.6rem 1rem;cursor:pointer;font-size:.75rem;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:.5rem;list-style:none">'
+          +'<span style="flex:1">🔬 Diagnostic Testing Windows — ' + totalSites + ' site' + (totalSites>1?'s':'') + ' · Up to ' + maxWks + ' program week' + (maxWks>1?'s':'') + ' used for diagnostics</span>'
+          +'<span style="font-size:.65rem;color:#94a3b8;font-weight:400">Missed reason: NJTC Diagnostic Testing &nbsp;▼</span>'
+          +'</summary>'
+          +'<div style="padding:.5rem 1rem 1rem">'
+          +'<p style="font-size:.68rem;color:#64748b;margin:.25rem 0 .5rem">Counts unique <em>program weeks</em> (Pearl Week label) where a diagnostic testing missed reason was recorded for scholar rows. Helps contextualize shorter spring-window durations in the iReady data above.</p>'
+          +'<table style="width:100%;border-collapse:collapse">'
+          +'<thead><tr style="border-bottom:1px solid #e2e8f0">'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">School</th>'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">District</th>'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:center;color:#64748b;font-weight:600">Diag. Weeks</th>'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:center;color:#64748b;font-weight:600">Scholars</th>'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">Weeks</th>'
+          +'</tr></thead>'
+          +'<tbody>' + rows + '</tbody>'
+          +'</table>'
+          +'</div>'
+          +'</details>';
+      })();
+
       el.innerHTML = `<div class="irlab-wrap">
         <div class="irlab-header">
           <div>
@@ -2685,7 +2727,7 @@
 
         ${_irlMode==='quickcsv'
           ? renderQuickCSVMode()
-          : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}</div>${_irlInsightHTML}</div>`
+          : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}${_diagSection}</div>${_irlInsightHTML}</div>`
         }
         ${(()=>{ try { return (typeof impactBuilder!=='undefined') ? impactBuilder.renderSection() : ''; } catch(e){ return ''; } })()}
         ${renderMOYSection()}
@@ -4067,7 +4109,7 @@
               lbl: 'Avg Med % Typical',
               color: Math.round(tutorImpact.reduce((s,t)=>s+t.medianPct,0)/tutorImpact.length) >= 80 ? GREEN : GOLD },
             { val: totHrs.toFixed(1)+'h',       lbl: 'Total Inst. Hours', color: BLUE },
-            { val: avgAttRate !== null ? avgAttRate+'%' : '\u2014', lbl: 'Avg Scholar Att.', color: avgAttRate && avgAttRate >= 85 ? GREEN : GOLD },
+            { val: avgAttRate !== null ? avgAttRate+'%' : '\u2014', lbl: 'Avg Scholar Att.', color: avgAttRate && avgAttRate >= 95 ? GREEN : GOLD },
           ];
           const chipW1 = (176) / chips1.length;
           chips1.forEach((c, i) => {
@@ -5206,7 +5248,7 @@
               { v: matchedScholars,        l: 'Scholars Matched',       c: 'var(--navy)' },
               { v: (avgPct !== null ? avgPct + '%' : '—'),   l: 'Avg Med % Typical',  c: avgPct >= 80 ? '#0d6e3a' : avgPct >= 50 ? '#d97706' : '#b91c1c' },
               { v: totalHrs.toFixed(1) + 'h', l: 'Total Inst. Hours',   c: '#0050c8' },
-              { v: avgAttRate !== null ? avgAttRate + '%' : '—', l: 'Avg Scholar Att.',  c: avgAttRate >= 85 ? '#0d6e3a' : '#d97706' },
+              { v: avgAttRate !== null ? avgAttRate + '%' : '—', l: 'Avg Scholar Att.',  c: avgAttRate >= 95 ? '#0d6e3a' : '#d97706' },
               { v: (totalSiTutor + totalSiSchool + totalSiOther) || '0', l: 'Total SIs',  c: (totalSiTutor + totalSiSchool + totalSiOther) > 10 ? '#b91c1c' : '#92400e' },
               ...(avgTutorSurvey ? [{ v: avgTutorSurvey + '/5', l: 'Avg Tutor Survey', c: parseFloat(avgTutorSurvey) >= 4 ? '#0d6e3a' : '#d97706' }] : []),
             ].map(c => `<div style="background:var(--surface-2);border-radius:8px;padding:.75rem;text-align:center;border:1px solid var(--border-2)">
@@ -5295,7 +5337,7 @@
               ${hasPearl ? `
               <td style="padding:.5rem;text-align:center;color:var(--muted)">${t.hours > 0 ? t.hours : '—'}</td>
               <td style="padding:.5rem;text-align:center;color:var(--muted);font-size:.75rem">${t.hoursMath > 0 || t.hoursELA > 0 ? t.hoursMath+'M/'+t.hoursELA+'E' : '—'}</td>
-              <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.scholAttRate===null?'var(--muted)':t.scholAttRate>=85?'#16a34a':'#d97706'}">${fmtRate(t.scholAttRate)}</td>
+              <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.scholAttRate===null?'var(--muted)':t.scholAttRate>=95?'#16a34a':'#d97706'}">${fmtRate(t.scholAttRate)}</td>
               <td style="padding:.5rem;text-align:center;font-weight:${t.scholAbsent>0?'700':'400'};color:${t.scholAbsent>0?'#d97706':'var(--muted)'}">${t.scholAbsent > 0 ? t.scholAbsent : '—'}</td>
               <td style="padding:.5rem;text-align:center;font-weight:${t.scholCtPulls>0?'700':'400'};color:${t.scholCtPulls>0?'#b91c1c':'var(--muted)'}" title="Classroom Teacher pulled scholar from tutoring">${t.scholCtPulls > 0 ? t.scholCtPulls : '—'}</td>
               <td style="padding:.5rem;text-align:center;font-size:.75rem">

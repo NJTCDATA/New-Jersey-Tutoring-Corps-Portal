@@ -2914,13 +2914,65 @@
       setText('poStatFlags',         hitFlags.toLocaleString());
     }
 
-    function updateFlagsBadge() {
-      const critCount = Object.values(_schoolMap)
-        .flatMap(sc => sc.flags).filter(f => f.severity === 'critical').length
-        + Object.values(_personMap).flatMap(p => p.flags || []).filter(f => f.severity === 'critical').length;
+    // ── FLAG CLEARING STORAGE ─────────────────────────────────────────────
+    const _FLAG_CLEAR_KEY = 'njtc_cleared_flags_v1';
+    const _FLAG_CLEAR_REASONS = [
+      'N/A',
+      'Discussed in Context to Data',
+      'Internal discrepancy',
+      'Onsite staff clarification',
+      'Program Team or Data Department override',
+    ];
 
-      const totalFlags = Object.values(_schoolMap).flatMap(sc => sc.flags).length
-        + Object.values(_personMap).flatMap(p => p.flags || []).length;
+    function _getClearedFlags() {
+      try { return JSON.parse(localStorage.getItem(_FLAG_CLEAR_KEY) || '{}'); } catch(e) { return {}; }
+    }
+    function _saveClearedFlags(data) {
+      try { localStorage.setItem(_FLAG_CLEAR_KEY, JSON.stringify(data)); } catch(e) {}
+    }
+
+    // Global helpers called from inline onclick in modal HTML
+    window._poFlagToggleClear = function(i) {
+      const el = document.getElementById('pfcp_' + i);
+      if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+    };
+    window._poFlagConfirmClear = function(i, dept) {
+      const el = document.getElementById('pfcp_' + i);
+      if (!el) return;
+      const checked = Array.from(el.querySelectorAll('input[type="checkbox"]:checked')).map(function(cb){ return cb.dataset.reason; });
+      if (!checked.length) { alert('Please select at least one reason before confirming.'); return; }
+      const flagKey = (window._poFlagKeys || [])[i];
+      if (!flagKey) return;
+      const data = _getClearedFlags();
+      data[flagKey] = { reasons: checked, clearedAt: Date.now(), clearedBy: dept };
+      _saveClearedFlags(data);
+      updateFlagsBadge();
+      openFlagsModal(_lastFlagFilter || 'critical');
+    };
+    window._poFlagRestore = function(i) {
+      const flagKey = (window._poFlagKeys || [])[i];
+      if (!flagKey) return;
+      const data = _getClearedFlags();
+      delete data[flagKey];
+      _saveClearedFlags(data);
+      updateFlagsBadge();
+      openFlagsModal(_lastFlagFilter || 'critical');
+    };
+    let _lastFlagFilter = 'critical';
+
+    function updateFlagsBadge() {
+      const cleared = _getClearedFlags();
+      // School-level critical flags, excluding any that have been cleared
+      const schoolCritCount = Object.entries(_schoolMap)
+        .flatMap(function([school, sc]){ return sc.flags.map(function(f){ return Object.assign({}, f, {school: school}); }); })
+        .filter(function(f){ return f.severity === 'critical' && !cleared[f.school + '::' + f.type]; }).length;
+      const personCritCount = Object.values(_personMap)
+        .flatMap(function(p){ return (p.flags || []); })
+        .filter(function(f){ return f.severity === 'critical'; }).length;
+      const critCount = schoolCritCount + personCritCount;
+
+      const totalFlags = Object.values(_schoolMap).flatMap(function(sc){ return sc.flags; }).length
+        + Object.values(_personMap).flatMap(function(p){ return p.flags || []; }).length;
 
       const badge = document.getElementById('pearlFlagsBadge');
       if (badge) {
@@ -3142,7 +3194,7 @@
       const checkInPct  = totalScholars > 0 ? Math.round(d.scholarNeedsAction / totalScholars * 100) : 0;
 
       // Soften the banner language for KB
-      const overallStrong = d.scholarRate >= 85 && d.tutorRate >= 85;
+      const overallStrong = d.scholarRate >= 95 && d.tutorRate >= 90;
       const overallGrowing = d.scholarRate >= 75;
       const bannerClass = overallStrong ? 'green' : overallGrowing ? 'amber' : 'amber';
       const bannerIcon = overallStrong ? '🌟' : '📈';
@@ -3155,7 +3207,7 @@
       const trend = (d.weeklyTrend || []).slice(-12);
       const trendBars = trend.map(w => {
         const h = Math.round((w.rate / 100) * 60);
-        const col = w.rate >= 85 ? '#0d6e3a' : w.rate >= 75 ? '#d97706' : '#e07a2f';
+        const col = w.rate >= 95 ? '#0d6e3a' : w.rate >= 80 ? '#d97706' : '#e07a2f';
         return `<div class="po-exec-bar-wrap" title="${w.week}: ${w.rate}%">
           <div class="po-exec-tooltip">${w.week}<br>${w.rate}%</div>
           <div class="po-exec-bar" style="height:${h}px;background:${col}"></div>
@@ -3176,8 +3228,8 @@
 
       // District rows — reframed language
       const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
-        const lvl = dt.scholarRate >= 85 ? {label:'Strong', color:'var(--met)', icon:'🌟'} :
-                    dt.scholarRate >= 75 ? {label:'Growing', color:'#d97706', icon:'📈'} :
+        const lvl = dt.scholarRate >= 95 ? {label:'Strong', color:'var(--met)', icon:'🌟'} :
+                    dt.scholarRate >= 80 ? {label:'Growing', color:'#d97706', icon:'📈'} :
                                            {label:'Developing', color:'#e07a2f', icon:'🤝'};
         const bar = `<div style="display:flex;align-items:center;gap:.5rem">
           <div style="flex:1;height:6px;background:var(--border-2);border-radius:3px;overflow:hidden"><div style="width:${dt.scholarRate}%;height:100%;background:${lvl.color};border-radius:3px"></div></div>
@@ -3220,7 +3272,7 @@
         </div>
 
         <div class="po-exec-kpi-row">
-          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=85?'var(--met)':'#d97706'}">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=95?'var(--met)':'#d97706'}">
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Participation</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
@@ -3312,7 +3364,7 @@
       if (!d) { mc.innerHTML = '<div class="po-exec-empty">⏳ Loading program data…</div>'; return; }
 
       // Status determination
-      const scholarOk = d.scholarRate >= 85;
+      const scholarOk = d.scholarRate >= 95;
       const scholarWarn = d.scholarRate >= 75;
       const tutorOk = d.tutorRate >= 85;
       const totalScholars = d.scholarOnTrack + d.scholarAtRisk + d.scholarNeedsAction;
@@ -3349,7 +3401,7 @@
       const maxRate = trend.length ? Math.max(...trend.map(w => w.rate), 1) : 100;
       const trendBars = trend.map(w => {
         const h = Math.round((w.rate / 100) * 60);
-        const col = w.rate >= 85 ? '#0d6e3a' : w.rate >= 75 ? '#d97706' : '#b91c1c';
+        const col = w.rate >= 95 ? '#0d6e3a' : w.rate >= 80 ? '#d97706' : '#b91c1c';
         return `<div class="po-exec-bar-wrap" title="${w.week}: ${w.rate}%">
           <div class="po-exec-tooltip">${w.week}<br>${w.rate}%</div>
           <div class="po-exec-bar" style="height:${h}px;background:${col}"></div>
@@ -3359,9 +3411,9 @@
 
       // District rows
       const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
-        const rateColor = dt.scholarRate >= 85 ? 'var(--met)' : dt.scholarRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const rateColor = dt.scholarRate >= 95 ? 'var(--met)' : dt.scholarRate >= 80 ? '#d97706' : 'var(--notmet)';
         const pill = `<span class="po-exec-rate-pill" style="color:${rateColor}">${dt.scholarRate}%<span class="po-exec-mini-bar" style="width:${dt.scholarRate * 0.5}px;background:${rateColor};height:6px;border-radius:3px;vertical-align:middle;display:inline-block"></span></span>`;
-        const tutorColor = dt.tutorRate >= 85 ? 'var(--met)' : dt.tutorRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const tutorColor = dt.tutorRate >= 90 ? 'var(--met)' : dt.tutorRate >= 80 ? '#d97706' : 'var(--notmet)';
         const flags = dt.ctFlag ? '<span class="po-badge po-badge-gold">⚠️ CT Pull-out</span>' : '<span class="po-badge po-badge-green">✓</span>';
         return `<tr onclick="po.drillSchool('${esc(dt.schools[0]&&dt.schools[0].name||'')}')" style="cursor:pointer">
           <td><div style="font-weight:700;color:var(--navy);font-size:.8125rem">${dt.name}</div><div style="font-size:.7rem;color:var(--muted)">${dt.scholars} active scholars · ${dt.schools.length} school(s)</div></td>
@@ -3406,7 +3458,7 @@
 
         <!-- KPI ROW -->
         <div class="po-exec-kpi-row">
-          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=85?'var(--met)':d.scholarRate>=75?'#d97706':'var(--notmet)'}">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=95?'var(--met)':d.scholarRate>=80?'#d97706':'var(--notmet)'}">
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Attendance</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
@@ -3527,8 +3579,8 @@
       const critSchools = schools.filter(sc => sc.attRate < 75).length;
 
       const kpis = [
-        { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 85 ? '#0d6e3a' : d.scholarRate >= 75 ? '#d97706' : '#b91c1c' },
-        { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 85 ? '#0d6e3a' : d.tutorRate >= 75 ? '#d97706' : '#b91c1c' },
+        { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 95 ? '#0d6e3a' : d.scholarRate >= 80 ? '#d97706' : '#b91c1c' },
+        { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 90 ? '#0d6e3a' : d.tutorRate >= 80 ? '#d97706' : '#b91c1c' },
         { lbl:'Sessions Delivered', val: d.sessionsDelivered.toLocaleString(), sub:'Completed this period', col: '#0050c8' },
         { lbl:'Service Interruptions', val: allSI, sub:'Non-attendance disruptions', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
       ];
@@ -3576,7 +3628,7 @@
       // School ops table rows
       const topSchools = schools.slice(0, 20);
       const tableRows = topSchools.map(sc => {
-        const attColor = sc.attRate >= 85 ? 'var(--met)' : sc.attRate >= 75 ? '#d97706' : 'var(--notmet)';
+        const attColor = sc.attRate >= 95 ? 'var(--met)' : sc.attRate >= 80 ? '#d97706' : 'var(--notmet)';
         const hasCrit = sc.flags.some(f => f.severity === 'critical');
         const hasHigh = sc.flags.some(f => f.severity === 'high');
         const flagBadge = sc.flags.length ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">🚩${sc.flags.length}</span>` : '<span class="po-badge po-badge-green">✓</span>';
@@ -3656,7 +3708,7 @@
       const trendOpsHTML = trend.length ? `
         <div style="margin-top:.625rem">
           <div class="po-ops-sparkline" style="height:40px;gap:3px">
-            ${trend.map(w=>{const h=Math.max(2,Math.round(w.rate*0.4));const c=w.rate>=85?'#0d6e3a':w.rate>=75?'#d97706':'#b91c1c';return `<div title="${w.week}: ${w.rate}%" class="po-ops-spark-bar" style="height:${h}px;background:${c};flex:1;cursor:help"></div>`;}).join('')}
+            ${trend.map(w=>{const h=Math.max(2,Math.round(w.rate*0.4));const c=w.rate>=95?'#0d6e3a':w.rate>=80?'#d97706':'#b91c1c';return `<div title="${w.week}: ${w.rate}%" class="po-ops-spark-bar" style="height:${h}px;background:${c};flex:1;cursor:help"></div>`;}).join('')}
           </div>
           <div style="display:flex;justify-content:space-between;font-size:.55rem;color:var(--muted);margin-top:.25rem">
             <span>${trend[0]?.week||''}</span><span>→ Latest: ${trend[trend.length-1]?.rate||0}%</span>
@@ -4299,7 +4351,7 @@
           const detail  = topFlag ? topFlag.msg
                         : sc.stuInterruptions > 0 ? `${sc.stuInterruptions} service interruptions this period`
                         : `${sc.attRate}% attendance — below target`;
-          const aC = sc.attRate>=85?'#0d6e3a':sc.attRate>=75?'#d97706':'#b91c1c';
+          const aC = sc.attRate>=95?'#0d6e3a':sc.attRate>=80?'#d97706':'#b91c1c';
           return `<div class="sg-triage-item sg-triage-${hasCrit?'crit':'high'}" onclick="po.drillSchool('${esc(sc.school)}')">
             <div class="sg-triage-left">
               <span class="sg-triage-badge">${hasCrit?'🔴 Critical':'🟡 Watch'}</span>
@@ -5141,6 +5193,7 @@
 
     // ── FLAGS MODAL ───────────────────────────────────────────────────────
     function openFlagsModal(filter) {
+      _lastFlagFilter = filter || 'critical';
       let overlay = document.getElementById('poFlagsModal');
       if (!overlay) {
         overlay = document.createElement('div');
@@ -5149,34 +5202,88 @@
         overlay.onclick = e => { if (e.target === overlay) overlay.style.display = 'none'; };
         document.body.appendChild(overlay);
       }
+
+      const dept = (window.NJTC_SESSION || {}).dept || '';
+      const canClear = dept === 'data' || dept === 'programming';
+      const cleared = _getClearedFlags();
+
       const allFlags = [];
       for (const [school, sc] of Object.entries(_schoolMap)) {
-        for (const f of sc.flags) allFlags.push({...f, school, entity: school, isSchool: true});
+        for (const f of sc.flags) allFlags.push(Object.assign({}, f, {school, entity: school, isSchool: true}));
       }
       const close = `<button class="po-modal-close" onclick="document.getElementById('poFlagsModal').style.display='none'">✕</button>`;
       const sevOrder = {critical:0,high:1,medium:2,low:3};
       const filtered = filter === 'critical' ? allFlags.filter(f => f.severity === 'critical') : allFlags;
       filtered.sort((a,b) => (sevOrder[a.severity]||2) - (sevOrder[b.severity]||2));
 
-      const rows = filtered.map(f => `
-        <div class="po-flag-row" style="${f.severity==='critical'?'background:#fef2f2':f.severity==='high'?'background:#fff8f8':''}">
-          <div class="po-flag-icon">${f.severity==='critical'?'🚨':f.severity==='high'?'🔴':'🟡'}</div>
-          <div class="po-flag-text">
-            <div class="po-flag-label" style="cursor:pointer;color:var(--blue-mid)" onclick="po.drillSchool('${esc(f.school)}');document.getElementById('poFlagsModal').style.display='none'">${f.school}</div>
-            <div class="po-flag-sub">${f.msg}</div>
+      // Track flag keys for global clear/restore handlers
+      window._poFlagKeys = filtered.map(f => f.school + '::' + f.type);
+
+      const clearedCount = filtered.filter(f => cleared[f.school + '::' + f.type]).length;
+      const activeCount  = filtered.length - clearedCount;
+
+      const rows = filtered.map((f, i) => {
+        const flagKey  = f.school + '::' + f.type;
+        const isCleared = !!cleared[flagKey];
+        const clearedInfo = cleared[flagKey];
+        const rowBg = isCleared ? 'background:#f0fdf4' : (f.severity==='critical'?'background:#fef2f2':f.severity==='high'?'background:#fff8f8':'');
+
+        const reasonChecks = _FLAG_CLEAR_REASONS.map(r =>
+          `<label style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:#374151;cursor:pointer;padding:.15rem 0">
+            <input type="checkbox" data-reason="${esc(r)}" style="cursor:pointer"> ${esc(r)}
+          </label>`
+        ).join('');
+
+        const clearPanel = canClear && !isCleared ? `
+          <div id="pfcp_${i}" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:.625rem .75rem;margin-top:.5rem">
+            <div style="font-size:.7rem;font-weight:700;color:#1e40af;margin-bottom:.4rem">Select reason(s) for clearing this flag:</div>
+            ${reasonChecks}
+            <div style="display:flex;gap:.5rem;margin-top:.5rem">
+              <button onclick="window._poFlagConfirmClear(${i},'${esc(dept)}')" style="padding:.3rem .7rem;font-size:.72rem;background:#1e40af;color:#fff;border:none;border-radius:5px;cursor:pointer;font-weight:600">Confirm Clear</button>
+              <button onclick="window._poFlagToggleClear(${i})" style="padding:.3rem .7rem;font-size:.72rem;background:#e2e8f0;color:#374151;border:none;border-radius:5px;cursor:pointer">Cancel</button>
+            </div>
+          </div>` : '';
+
+        const clearedBadge = isCleared ? `
+          <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.35rem;padding:.35rem .6rem;background:#dcfce7;border-radius:5px;border:1px solid #86efac">
+            <span style="font-size:.72rem;font-weight:700;color:#16a34a">✓ Cleared</span>
+            <span style="font-size:.7rem;color:#374151">${(clearedInfo.reasons||[]).map(r=>`<em>${esc(r)}</em>`).join(', ')}</span>
+            ${canClear ? `<button onclick="window._poFlagRestore(${i})" style="margin-left:auto;padding:.2rem .55rem;font-size:.68rem;background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;font-weight:600">Restore</button>` : ''}
+          </div>` : '';
+
+        const clearBtn = canClear && !isCleared ? `
+          <button onclick="window._poFlagToggleClear(${i})" style="padding:.25rem .6rem;font-size:.7rem;background:#fff;color:#6b7280;border:1px solid #d1d5db;border-radius:5px;cursor:pointer;white-space:nowrap;font-weight:500;margin-left:.5rem" title="Clear this flag with a reason">Clear Flag</button>` : '';
+
+        return `
+        <div class="po-flag-row" style="${rowBg}${isCleared?';opacity:.75':''}">
+          <div class="po-flag-icon">${isCleared?'✅':f.severity==='critical'?'🚨':f.severity==='high'?'🔴':'🟡'}</div>
+          <div class="po-flag-text" style="flex:1">
+            <div style="display:flex;align-items:center;gap:.25rem;flex-wrap:wrap">
+              <span class="po-flag-label" style="cursor:pointer;color:var(--blue-mid)" onclick="po.drillSchool('${esc(f.school)}');document.getElementById('poFlagsModal').style.display='none'">${esc(f.school)}</span>
+              ${clearBtn}
+            </div>
+            <div class="po-flag-sub">${esc(f.msg)}</div>
+            ${clearedBadge}
+            ${clearPanel}
           </div>
-          <span class="po-severity-${f.severity}">${f.severity.toUpperCase()}</span>
-        </div>`).join('');
+          ${!isCleared ? `<span class="po-severity-${f.severity}">${f.severity.toUpperCase()}</span>` : ''}
+        </div>`;
+      }).join('');
+
+      const metaSuffix = clearedCount > 0 ? ` · <span style="color:#16a34a;font-weight:600">${clearedCount} cleared</span>` : '';
 
       overlay.innerHTML = `<div class="po-modal">
         <div class="po-modal-hd">
           <div>
-            <div class="po-modal-name">${filter==='critical'?'🚨 Critical Flags':'All HIT & Service Interruption Flags'}</div>
-            <div class="po-modal-meta">${filtered.length} flags · Click a school name to drill down</div>
+            <div class="po-modal-name">${filter==='critical'?'🚨 Critical Flags':'All HIT &amp; Service Interruption Flags'}</div>
+            <div class="po-modal-meta">${activeCount} active${metaSuffix} · Click a school name to drill down</div>
           </div>${close}
         </div>
         <div class="po-modal-body">${rows || '<div style="text-align:center;padding:2rem;color:var(--muted)">No flags found</div>'}</div>
-        <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);text-align:right"><button class="btn btn-secondary" onclick="document.getElementById('poFlagsModal').style.display='none'">Close</button></div>
+        <div style="padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          ${canClear && clearedCount > 0 ? `<span style="font-size:.72rem;color:#6b7280">${clearedCount} flag${clearedCount>1?'s':''} cleared by ${dept} — scroll up to review</span>` : '<span></span>'}
+          <button class="btn btn-secondary" onclick="document.getElementById('poFlagsModal').style.display='none'">Close</button>
+        </div>
       </div>`;
       overlay.style.display = 'flex';
     }
@@ -7244,6 +7351,47 @@
           });
           return { byScholar: scholarRace, totalScholars: Object.keys(seen).length };
         } catch(e) { return null; }
+      },
+
+      // getDiagnosticTestingData() — returns per-school summary of weeks where
+      // NJTC Diagnostic Testing or School-administered Testing was the missed reason.
+      // Used by iReady Analysis Lab to contextualize how many program weeks were
+      // consumed by diagnostic windows, helping teams interpret springWeeks data.
+      getDiagnosticTestingData: function() {
+        try {
+          var DIAG_REASONS = new Set([
+            'NJTC Diagnostic Testing',
+            'School-administered Testing',
+          ]);
+          var bySchool = {};
+          _attRows.forEach(function(r) {
+            if (r[ATT.ROLE] !== 'Student') return;
+            var reason = r[ATT.MISS_REASON] || '';
+            if (!DIAG_REASONS.has(reason)) return;
+            var school   = r[ATT.SCHOOL]   || 'Unknown';
+            var district = r[ATT.DISTRICT] || '';
+            var week     = r[ATT.WEEK]     || '';
+            var uid      = r[ATT.USER_ID]  || '';
+            if (!bySchool[school]) bySchool[school] = { district: district, weeks: {}, scholars: new Set() };
+            if (week) bySchool[school].weeks[week] = (bySchool[school].weeks[week] || 0) + 1;
+            if (uid) bySchool[school].scholars.add(uid);
+          });
+          return Object.entries(bySchool)
+            .map(function(entry) {
+              var school = entry[0], d = entry[1];
+              var weekKeys = Object.keys(d.weeks);
+              return {
+                school:          school,
+                district:        d.district,
+                diagnosticWeeks: weekKeys.length,
+                records:         Object.values(d.weeks).reduce(function(s,v){ return s+v; }, 0),
+                scholars:        d.scholars.size,
+                weekLabels:      weekKeys.sort(),
+              };
+            })
+            .filter(function(s) { return s.diagnosticWeeks > 0; })
+            .sort(function(a, b) { return b.diagnosticWeeks - a.diagnosticWeeks; });
+        } catch(e) { return []; }
       },
 
       // getAttRows() — raw attendance rows for Impact Report Builder (Data dept)
