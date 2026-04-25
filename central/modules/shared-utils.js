@@ -5706,7 +5706,7 @@
           { icon: '📈', label: 'Progress to Grade Level Proficiency', desc: 'Overall relative placement movement for scholars beginning at least 1 grade level below. Primary impact metric.', live: true },
           { icon: '⬆️', label: 'Progress ≥1 Grade Level', desc: 'Percentage of scholars who advanced at least one placement level from baseline to spring. Key external reporting metric.', live: true },
           { icon: '📉', label: 'Regression Rate', desc: 'Percent of scholars who regressed from baseline placement level. Target: ≤7% for full-cycle tutors per ADP Suite benchmarks.', live: true },
-          { icon: '🎯', label: 'Median % to Typical Growth', desc: 'iReady\'s alignment metric — in 30 weeks, scholars should reach 100% typical growth. NJTC tracks and reports this to partners.', live: true },
+          { icon: '🎯', label: 'Program-Window Progress', desc: 'Growth relative to your program\'s actual duration, not iReady\'s 30-week annual standard. iReady pre-computes each scholar\'s % of typical annual growth; NJTC adjusts that to the median diagnostic window of your program so shorter partnerships are evaluated fairly.', live: true },
           { icon: '🔁', label: 'Repeat Scholar Metrics', desc: 'Multi-year scholars tracked longitudinally. Repeat cohorts demonstrate long-term effectiveness of NJTC\'s high-dosage model.', live: true },
         ],
         mission: 'We rigorously collect and analyze academic data to demonstrate the tangible impact of high-impact tutoring — particularly for scholars performing 2+ grade levels below. This data provides concrete FACTS of scholar progress for stakeholders, funders, and partners.'
