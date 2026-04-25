@@ -975,6 +975,7 @@
     goalMissReason:'entry.1791426684',
     orgShareOut:   'entry.943721963',
     dept:          'entry.834835718',  // ← Department field (confirmed from form HTML)
+    quizScore:     'entry.1613033347', // ← Dedicated quiz score column (hidden form field)
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
@@ -1193,6 +1194,22 @@
     return '';
   }
 
+  // Returns value of the dedicated quiz score column (entry.1613033347).
+  // Tries multiple likely header names; falls back to scanning all keys for [quiz_result:.
+  function _lbGetQuizScoreCol(row) {
+    // Check likely column header names for the hidden quiz score field
+    const candidates = ['Quiz Score', 'quiz_score', 'Quiz score', 'quiz score'];
+    for (const k of candidates) {
+      if (row[k] !== undefined) return row[k] || '';
+    }
+    // Scan all keys — the hidden field header is unknown but [quiz_result: is unambiguous
+    for (const k of Object.keys(row)) {
+      const v = row[k] || '';
+      if (v.includes('[quiz_result:')) return v;
+    }
+    return '';
+  }
+
   // ── Countdown to deadline ─────────────────────────────────────────────────
   function _lbCountdown() {
     const now = Date.now();
@@ -1301,13 +1318,16 @@
     rows.forEach(row => {
       const dept = _lbRowDept(row);
       // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column.
-      // Machine tag [quiz_result:score:total:ts] now written to goalMissReason (new location).
-      // Legacy rows (written before this fix) stored the tag in orgShareOut — check both.
+      // Priority: new dedicated quizScore column → goalMissReason (interim fix) → orgShareOut (legacy).
       const succVal = (row['What successes has your department seen this week?'] || '').trim();
       if (succVal.startsWith('[QUIZ_RECORD]')) {
-        const goalMissVal = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-        const orgVal = _lbGetOrg(row);
-        const tagSource = goalMissVal.includes('[quiz_result:') ? goalMissVal : orgVal;
+        // Try all columns that may hold the machine tag, newest location first
+        const quizScoreVal  = _lbGetQuizScoreCol(row);
+        const goalMissVal   = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+        const orgVal        = _lbGetOrg(row);
+        const tagSource = quizScoreVal.includes('[quiz_result:') ? quizScoreVal
+                        : goalMissVal.includes('[quiz_result:')  ? goalMissVal
+                        : orgVal;
         const qm = tagSource.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
         if (qm) {
           const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
@@ -2107,14 +2127,14 @@
     if (!isPreview) _lbQuizSetState(state);
 
     // Record quiz result to Google Sheet so Leadership/Data can see it cross-device.
-    // deptSuccess → human-readable "Score: X/Y" visible in the sheet.
-    // goalMissReason → machine-readable [quiz_result:...] tag for score restoration.
-    // orgShareOut is intentionally left empty so quiz rows no longer pollute that column.
+    // deptSuccess → human-readable "[QUIZ_RECORD] Score: X/Y" marker row identifier.
+    // quizScore   → dedicated hidden field; stores "X/Y [quiz_result:X:Y:ts]" for
+    //               clean display in the sheet AND machine-readable restoration.
     if (!isPreview) try {
       const qParams = new URLSearchParams();
       qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD] Score: ' + score + '/' + questions.length);
       const qTag = '[quiz_result:' + score + ':' + questions.length + ':' + state.ts + ']';
-      qParams.append(LB_ENTRY.goalMissReason, qTag);
+      qParams.append(LB_ENTRY.quizScore, score + '/' + questions.length + ' ' + qTag);
       qParams.append(LB_ENTRY.dept, dept);
       fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: qParams.toString() });
     } catch(e) { /* non-blocking */ }

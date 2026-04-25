@@ -412,7 +412,9 @@
         _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
         const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
         // Apprentice-specific race data
-        const _appPool = _activeP.filter(e => e._apprentice === 'Yes');
+        // em='Yes' in HR data = enrolled apprentice (30 active); _apprentice is set from live-sheet col K
+        // but live matching misses some; em is the authoritative static count.
+        const _appPool = _activeP.filter(e => e.em === 'Yes' || e._apprentice === 'Yes');
         const _appWithR = _appPool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
         const _appNW    = _appWithR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
         const _appNWPct = _appWithR.length ? Math.round(_appNW/_appWithR.length*100) : null;
@@ -447,7 +449,7 @@
     <span style="font-size:1rem">🎓</span>
     <span style="font-size:.8125rem;font-weight:800;color:#92400e">${_appPool.length}</span>
     <span style="font-size:.7rem;color:#a16207;font-weight:600">Active Apprentices</span>
-    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="Apprentice flag from column K · HR Master List">ⓘ</span>
+    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="Active apprentices enrolled in TAP · HR Master List (em field)">ⓘ</span>
   </div>` : ''}
 </div>`;
       }())}
