@@ -7154,21 +7154,18 @@
             // Active scholars: unique students who have at least 1 attended session in Pearl
             stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
           }
-          // Rostered scholars: unique student IDs from DELIVERED sessions in _sessMap — identical
-          // computation to the Pearl Operations filter bar pill (isDelivered && durMins > 0).
-          // This is the single authoritative count; _personMap is NOT used here because the
-          // attendance-tab name keys can have duplicate variants that inflate the count.
+          // Rostered scholars: unique student IDs from Pearl Attendance tab (_attRows).
+          // Uses the same source as getRaceData() — captures all enrolled scholars whether
+          // their sessions were delivered, cancelled, or they were marked absent. A scholar
+          // enrolled in Pearl but only in cancelled sessions is still a rostered scholar.
           try {
-            var _rosterSet = new Set();
-            if (_sessMap) {
-              Object.values(_sessMap).forEach(function(sess) {
-                if (sess && sess.isDelivered && sess.durMins > 0 && sess.studentIds) {
-                  sess.studentIds.forEach(function(id) { if (id) _rosterSet.add(id); });
-                }
-              });
-            }
-            stats.rosteredScholars = _rosterSet.size > 0 ? _rosterSet.size :
-              Object.keys(_personMap||{}).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
+            var _rosSet = {};
+            _attRows.forEach(function(r) {
+              if (r[ATT.ROLE] !== 'Student') return;
+              var uid = r[ATT.USER_ID] || r[ATT.USER];
+              if (uid) _rosSet[uid] = true;
+            });
+            stats.rosteredScholars = Object.keys(_rosSet).length;
           } catch(e) {
             stats.rosteredScholars = Object.keys(_personMap||{}).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student'; }).length;
           }
