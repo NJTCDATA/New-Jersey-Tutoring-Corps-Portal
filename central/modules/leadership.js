@@ -238,7 +238,7 @@
           <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Attended ≥1 session</div>
         </div>
-        <div class="ecd-kpi ck-blue" title="Rostered Scholars: Unique student IDs from Pearl Sessions tab — the same source as the filter bar pill. Uses stable Pearl internal IDs to avoid duplicate counting from attendance-tab name variants. Matches the Pearl Operations filter bar exactly.">
+        <div class="ecd-kpi ck-blue" title="Rostered Scholars: Unique student IDs from the Pearl Attendance tab — all scholars who appear in Pearl regardless of whether their sessions were delivered or cancelled, and regardless of attendance. Enrollment does not require attending a session. Consistent with the Scholar Demographics n= count below.">
           <div class="ecd-kpi-lbl">Rostered Scholars</div>
           <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '\u2014'}</div>
           <div class="ecd-kpi-foot">Total Pearl enrollment</div>
@@ -373,7 +373,7 @@
               <div class="ecd-race-n">${fc(n)}</div>
             </div>`;
           }).join('')}
-          <div class="ecd-race-foot">n=${fc(raceTot)} scholars &middot; Active enrollment</div>
+          <div class="ecd-race-foot">n=${fc(raceTot)} scholars &middot; Total Pearl enrollment</div>
         </div>` : '<div class="ecd-card"><div class="ecd-card-title">Scholar Demographics</div><div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">Loading attendance data&hellip;</div></div>'}
       </div>
 
