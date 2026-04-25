@@ -1168,9 +1168,14 @@
     return dCol || 'unknown';
   }
 
-  // Strip [dept:XXX] / [dept XXX] tags from a field value before displaying it
+  // Strip machine tags from a field value before displaying it.
+  // Handles: [dept:XXX], [quiz_result:...], [QUIZ_RECORD ...] markers.
   function _lbCleanVal(val) {
-    return (val || '').replace(/\n?\[dept[:\s]+[a-z_]+\]/gi, '').replace(/\n?\[quiz_result:[^\]]*\]/gi, '').trim();
+    return (val || '')
+      .replace(/\n?\[dept[:\s]+[a-z_]+\]/gi, '')
+      .replace(/\n?\[quiz_result:[^\]]*\]/gi, '')
+      .replace(/^\[QUIZ_RECORD\][^\n]*/m, '')
+      .trim();
   }
 
   // Retrieve the Organizational Share-Out column value regardless of exact header
@@ -1295,11 +1300,15 @@
     byDept['unknown'] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
     rows.forEach(row => {
       const dept = _lbRowDept(row);
-      // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column
+      // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column.
+      // Machine tag [quiz_result:score:total:ts] now written to goalMissReason (new location).
+      // Legacy rows (written before this fix) stored the tag in orgShareOut — check both.
       const succVal = (row['What successes has your department seen this week?'] || '').trim();
       if (succVal.startsWith('[QUIZ_RECORD]')) {
+        const goalMissVal = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
         const orgVal = _lbGetOrg(row);
-        const qm = orgVal.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
+        const tagSource = goalMissVal.includes('[quiz_result:') ? goalMissVal : orgVal;
+        const qm = tagSource.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
         if (qm) {
           const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
           const target = byDept[dept] || byDept['unknown'];
@@ -2097,17 +2106,16 @@
     const state = { completed:true, score, total:questions.length, ts:Date.now() };
     if (!isPreview) _lbQuizSetState(state);
 
-    // Record quiz result to Google Sheet so Leadership/Data can see it cross-device
+    // Record quiz result to Google Sheet so Leadership/Data can see it cross-device.
+    // deptSuccess → human-readable "Score: X/Y" visible in the sheet.
+    // goalMissReason → machine-readable [quiz_result:...] tag for score restoration.
+    // orgShareOut is intentionally left empty so quiz rows no longer pollute that column.
     if (!isPreview) try {
       const qParams = new URLSearchParams();
-      qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD]');
+      qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD] Score: ' + score + '/' + questions.length);
       const qTag = '[quiz_result:' + score + ':' + questions.length + ':' + state.ts + ']';
-      if (LB_ENTRY.dept) {
-        qParams.append(LB_ENTRY.dept, dept);
-        qParams.append(LB_ENTRY.orgShareOut, qTag);
-      } else {
-        qParams.append(LB_ENTRY.orgShareOut, '[dept:' + dept + ']\n' + qTag);
-      }
+      qParams.append(LB_ENTRY.goalMissReason, qTag);
+      qParams.append(LB_ENTRY.dept, dept);
       fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: qParams.toString() });
     } catch(e) { /* non-blocking */ }
 
