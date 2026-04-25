@@ -1378,6 +1378,13 @@
     '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8' +
     '/pub?output=csv&gid=911694457';
 
+  // Authoritative TAP roster sheet — published CSV (live, auto-refreshes)
+  // Headers are in row 5; columns used: A (Date Registered), B (Status),
+  // E (Cohort Seat), F (Full Name), H (Placement/School), AA (Folder Link)
+  const AP_TAP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/' +
+    '2PACX-1vShvE5znVyoguTLg3zbU2A0eVvnZnnUa_xm2BgOXRqC_ifDxjJc6HRBkQR4Z4QrPEA_qbcglZ8ou92y' +
+    '/pub?output=csv';
+
   window.AP_DATA = []; // Populated by ap_buildFromLive() before any render
 
   const ap_buildFromLive = async () => {
@@ -1460,6 +1467,123 @@
       console.warn('[AP] Master List fetch failed — AP_DATA empty:', err.message);
       window.AP_DATA = [];
     }
+  };
+
+  // ── TAP Sheet fetch — authoritative enrolled roster with folder links ─────
+  // Published CSV from the dedicated TAP apprentice tracking sheet.
+  // Headers in row 5 — parser finds the header row dynamically by scanning for
+  // "status" in col B so the row offset is resilient to future sheet changes.
+  const ap_buildFromTAPSheet = async () => {
+    window.AP_TAP_ROSTER = [];
+    try {
+      const result = await njtc_fetch(AP_TAP_SHEET_URL, 15000);
+      if (!result.ok) throw new Error('HTTP ' + result.status);
+      const splitRow = row => {
+        const cells = []; let cell = '', inq = false;
+        for (let i = 0; i < row.length; i++) {
+          const c = row[i];
+          if (c === '"') { if (inq && row[i+1] === '"') { cell += '"'; i++; } else inq = !inq; }
+          else if (c === ',' && !inq) { cells.push(cell); cell = ''; }
+          else cell += c;
+        }
+        cells.push(cell);
+        return cells;
+      };
+      const lines = result.text.replace(/\r\n/g,'\n').replace(/\r/g,'\n')
+        .split('\n').filter(l => l.trim());
+      // Find header row dynamically — look for "status" in col B (index 1)
+      const hIdx = lines.findIndex(l => {
+        const cells = splitRow(l);
+        const b = (cells[1] || '').trim().toLowerCase();
+        const f = (cells[5] || '').trim().toLowerCase();
+        return b === 'status' || f === 'full name' || f.includes('name');
+      });
+      if (hIdx < 0) throw new Error('Header row not found in TAP sheet');
+      // Column indices (0-based): A=0 B=1 E=4 F=5 H=7 AA=26
+      const COL = { dateReg: 0, status: 1, cohort: 4, name: 5, placement: 7, folderLink: 26 };
+      window.AP_TAP_ROSTER = lines.slice(hIdx + 1).map(line => {
+        const cells = splitRow(line);
+        return {
+          dateReg:    (cells[COL.dateReg]    || '').trim(),
+          status:     (cells[COL.status]     || '').trim(),
+          cohort:     (cells[COL.cohort]     || '').trim(),
+          name:       (cells[COL.name]       || '').trim(),
+          placement:  (cells[COL.placement]  || '').trim(),
+          folderLink: (cells[COL.folderLink] || '').trim(),
+        };
+      }).filter(r => r.name && /active/i.test(r.status));
+      console.log('[AP] TAP Sheet: ' + window.AP_TAP_ROSTER.length + ' active records');
+    } catch (err) {
+      console.warn('[AP] TAP Sheet fetch failed:', err.message);
+      window.AP_TAP_ROSTER = [];
+    }
+  };
+
+  // ── Merge HR data + TAP sheet into final AP_DATA ──────────────────────────
+  // Enrolled (apprentice='Yes') comes from the TAP sheet (authoritative count).
+  // Eligible (apprentice='No') comes from the HR Master List.
+  // TAP records are enriched with HR site/district data for better network matching.
+  const ap_mergeTAPData = () => {
+    const tapRoster = window.AP_TAP_ROSTER || [];
+    if (!tapRoster.length) return; // TAP fetch failed — keep HR-derived AP_DATA as-is
+    const nm = s => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    // Build HR lookup by normalized name
+    const hrByName = {};
+    (window.AP_DATA || []).forEach(r => { hrByName[nm(r.name)] = r; });
+    // Eligible staff = HR records not in TAP sheet
+    const tapNames = new Set(tapRoster.map(r => nm(r.name)));
+    const hrEligible = (window.AP_DATA || []).filter(r => {
+      return r.apprentice !== 'Yes' && !tapNames.has(nm(r.name));
+    });
+    // Build enrolled records from TAP sheet, enriched with HR data where available
+    const enrolled = tapRoster.map(tap => {
+      const hrMatch = hrByName[nm(tap.name)];
+      // For network derivation: prefer HR site/district (more granular), fall back to placement
+      const site     = (hrMatch && hrMatch.site)     || tap.placement || '';
+      const district = (hrMatch && hrMatch.district) || '';
+      // Try HR-derived network first; if 'Other', fall back to placement text
+      let network = ap_deriveNetwork(site, district);
+      let region  = ap_deriveRegion(site, district);
+      if (network === 'Other') {
+        network = ap_deriveNetwork(tap.placement, '');
+        region  = ap_deriveRegion(tap.placement, '');
+      }
+      // Also check cohort seat for explicit network hints (e.g. "NE - iLearn Seat 1")
+      if (network === 'Other' && tap.cohort) {
+        const cs = tap.cohort.toLowerCase();
+        if (cs.includes('ilearn') || cs.includes('i-learn')) { network = 'iLearn Charter Network'; region = 'NE'; }
+        else if (cs.includes('kipp'))                         { network = 'KIPP NJ';               region = 'NE'; }
+        else if (cs.includes('hamilton'))                     { network = 'Hamilton Township';      region = 'SW'; }
+        else if (cs.includes('gloucester'))                   { network = 'Gloucester Township';    region = 'SW'; }
+        else if (cs.includes('haddon'))                       { network = 'Haddon Township';        region = 'SW'; }
+        else if (cs.includes('penns') || cs.includes('carneys')) { network = 'Penns Grove';        region = 'SW'; }
+        else if (cs.includes('somerset'))                     { network = 'Somerset';               region = 'NE'; }
+        else if (cs.includes('middlesex'))                    { network = 'Middlesex Charter';      region = 'NE'; }
+        else if (cs.includes('hoboken') || cs.includes('hola')){ network = 'Hoboken Dual Charter'; region = 'NE'; }
+        else if (cs.includes('global') || cs.includes('glaw')){ network = 'Global Leadership Academy'; region = 'NE'; }
+        else if (cs.includes('roseville'))                    { network = 'Roseville';              region = 'NE'; }
+        else if (cs.startsWith('ne'))                         { region = 'NE'; }
+        else if (cs.startsWith('sw'))                         { region = 'SW'; }
+      }
+      return {
+        name:       tap.name,
+        role:       (hrMatch && hrMatch.role)   || 'Tutor Apprentice',
+        site:       site || tap.placement,
+        district:   district,
+        network:    network,
+        region:     region,
+        apprentice: 'Yes',
+        cohort:     tap.cohort,
+        dateReg:    tap.dateReg,
+        folderLink: tap.folderLink,
+        email:      (hrMatch && hrMatch.email)  || '',
+        rehire:     (hrMatch && hrMatch.rehire) || '',
+        cycles:     (hrMatch && hrMatch.cycles) || '',
+      };
+    });
+    window.AP_DATA = hrEligible.concat(enrolled);
+    console.log('[AP] Merged: ' + enrolled.length + ' enrolled (TAP sheet) + ' +
+      hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
   };
 
   // ── Utility functions — all derived from live AP_DATA (zero hardcodes) ───
@@ -1952,17 +2076,28 @@
     var cache   = window.njtcAPCache || {};
     var flagCount = members.filter(function(m) { return (cache[m.name] || {}).hasFlag; }).length;
     var listHTML = members.map(function(m) {
-      var c      = cache[m.name] || {};
-      var otj    = c.otjStatus  || { beginning: '—', middle: '—', end: '—', siteLeader: '—' };
-      var flagged = c.hasFlag   || false;
+      var c       = cache[m.name] || {};
+      var otj     = c.otjStatus  || { beginning: '—', middle: '—', end: '—', siteLeader: '—' };
+      var flagged = c.hasFlag    || false;
+      var location = m.site || m.district || '—';
+      var folderBtn = m.folderLink
+        ? '<a href="' + m.folderLink + '" target="_blank" rel="noopener noreferrer" ' +
+          'style="font-size:9px;background:#EFF6FF;color:#1D4ED8;padding:2px 8px;border-radius:6px;' +
+          'text-decoration:none;font-weight:700;flex-shrink:0;white-space:nowrap;" ' +
+          'title="Open apprentice folder">📁 Folder</a>'
+        : '';
+      var cohortTag = m.cohort
+        ? '<span style="font-size:10px;color:#9CA3AF;font-weight:400;margin-left:6px">· Seat ' + m.cohort + '</span>'
+        : '';
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #F3F4F6;">' +
-        '<div style="min-width:0;">' +
-          '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + '</div>' +
-          '<div style="font-size:11px;color:#9CA3AF;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (m.site || m.district || '—') + '</div>' +
+        '<div style="min-width:0;flex:1;">' +
+          '<div style="font-size:13px;font-weight:600;color:#111827;">' + m.name + cohortTag + '</div>' +
+          '<div style="font-size:11px;color:#9CA3AF;margin-top:1px;overflow:hidden;text-overflow:ellipsis;">' + location + '</div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:10px;">' +
+        '<div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:10px;">' +
           '<span title="OTJ Beginning: ' + otj.beginning + '">' + ap_dotStatus(otj.beginning) + '</span>' +
           (flagged ? '<span style="font-size:9px;background:#FEE2E2;color:#DC2626;font-weight:700;padding:2px 7px;border-radius:8px;">FLAG</span>' : '') +
+          folderBtn +
         '</div>' +
       '</div>';
     }).join('');
@@ -2465,7 +2600,12 @@
   // ap_initAll: async — fetches live Master List FIRST, then renders.
   // Called exclusively by njtc_onDataReady after all 5 live sources are settled.
   const ap_initAll = async () => {
-    await ap_buildFromLive();  // fetch Master List → populate AP_DATA
+    // Fetch HR Master List and TAP sheet in parallel for fastest load
+    await Promise.all([
+      ap_buildFromLive(),      // HR Master List → AP_DATA (enrolled + eligible)
+      ap_buildFromTAPSheet(),  // TAP sheet → AP_TAP_ROSTER (authoritative enrolled with folder links)
+    ]);
+    ap_mergeTAPData();  // TAP sheet overrides enrolled; HR keeps eligible list
 
     // ── Program DB OTJ diagnostic ─────────────────────────────────────────
     // Enrollment is determined solely by HR Master List col K ("Yes").
