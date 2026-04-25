@@ -975,6 +975,7 @@
     goalMissReason:'entry.1791426684',
     orgShareOut:   'entry.943721963',
     dept:          'entry.834835718',  // ← Department field (confirmed from form HTML)
+    quizScore:     'entry.1613033347', // ← Dedicated quiz score column (hidden form field)
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
@@ -1193,6 +1194,22 @@
     return '';
   }
 
+  // Returns value of the dedicated quiz score column (entry.1613033347).
+  // Tries multiple likely header names; falls back to scanning all keys for [quiz_result:.
+  function _lbGetQuizScoreCol(row) {
+    // Check likely column header names for the hidden quiz score field
+    const candidates = ['Quiz Score', 'quiz_score', 'Quiz score', 'quiz score'];
+    for (const k of candidates) {
+      if (row[k] !== undefined) return row[k] || '';
+    }
+    // Scan all keys — the hidden field header is unknown but [quiz_result: is unambiguous
+    for (const k of Object.keys(row)) {
+      const v = row[k] || '';
+      if (v.includes('[quiz_result:')) return v;
+    }
+    return '';
+  }
+
   // ── Countdown to deadline ─────────────────────────────────────────────────
   function _lbCountdown() {
     const now = Date.now();
@@ -1301,13 +1318,16 @@
     rows.forEach(row => {
       const dept = _lbRowDept(row);
       // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column.
-      // Machine tag [quiz_result:score:total:ts] now written to goalMissReason (new location).
-      // Legacy rows (written before this fix) stored the tag in orgShareOut — check both.
+      // Priority: new dedicated quizScore column → goalMissReason (interim fix) → orgShareOut (legacy).
       const succVal = (row['What successes has your department seen this week?'] || '').trim();
       if (succVal.startsWith('[QUIZ_RECORD]')) {
-        const goalMissVal = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-        const orgVal = _lbGetOrg(row);
-        const tagSource = goalMissVal.includes('[quiz_result:') ? goalMissVal : orgVal;
+        // Try all columns that may hold the machine tag, newest location first
+        const quizScoreVal  = _lbGetQuizScoreCol(row);
+        const goalMissVal   = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+        const orgVal        = _lbGetOrg(row);
+        const tagSource = quizScoreVal.includes('[quiz_result:') ? quizScoreVal
+                        : goalMissVal.includes('[quiz_result:')  ? goalMissVal
+                        : orgVal;
         const qm = tagSource.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
         if (qm) {
           const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
@@ -1316,6 +1336,9 @@
             target.quizScore = qs;
             target.quizTotal = qt;
             target.quizTs    = qts;
+            // Q&A log stored in orgShareOut for this quiz row
+            const qaRaw = _lbGetOrg(row);
+            if (qaRaw && qaRaw.includes('Q1')) target.quizQA = qaRaw;
           }
         }
         return; // don't count quiz records as regular submissions
@@ -2107,15 +2130,31 @@
     if (!isPreview) _lbQuizSetState(state);
 
     // Record quiz result to Google Sheet so Leadership/Data can see it cross-device.
-    // deptSuccess → human-readable "Score: X/Y" visible in the sheet.
-    // goalMissReason → machine-readable [quiz_result:...] tag for score restoration.
-    // orgShareOut is intentionally left empty so quiz rows no longer pollute that column.
+    // deptSuccess → "[QUIZ_RECORD] Score: X/Y" row marker.
+    // quizScore   → dedicated field: "X/Y [quiz_result:X:Y:ts]" for display + restoration.
+    // dept        → department name so the row is attributed correctly.
+    // orgShareOut → Q&A log: each question, the dept's choice, and whether it was correct.
     if (!isPreview) try {
+      const _trunc = (s, n) => s && s.length > n ? s.slice(0, n - 1) + '…' : (s || '');
+      const qaLines = results.map((r, i) => {
+        const q = questions[i];
+        const dCfg = LB_DEPT_CFG[q.dept] || {};
+        const tag = '[' + (q.type || 'q') + '→' + (dCfg.label || q.dept) + ']';
+        const mark = r.correct ? '✓' : '✗';
+        const chosen = _trunc(r.chosen, 80);
+        const correct = _trunc(r.answer, 80);
+        const qa = r.correct
+          ? `Q${i + 1} ${tag}: "${_trunc(q.question, 80)}" — ${mark} "${chosen}"`
+          : `Q${i + 1} ${tag}: "${_trunc(q.question, 80)}" — ${mark} Said: "${chosen}" / Correct: "${correct}"`;
+        return qa;
+      });
+      const qaLog = qaLines.join('\n');
       const qParams = new URLSearchParams();
       qParams.append(LB_ENTRY.deptSuccess, '[QUIZ_RECORD] Score: ' + score + '/' + questions.length);
       const qTag = '[quiz_result:' + score + ':' + questions.length + ':' + state.ts + ']';
-      qParams.append(LB_ENTRY.goalMissReason, qTag);
+      qParams.append(LB_ENTRY.quizScore, score + '/' + questions.length + ' ' + qTag);
       qParams.append(LB_ENTRY.dept, dept);
+      qParams.append(LB_ENTRY.orgShareOut, qaLog);
       fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: qParams.toString() });
     } catch(e) { /* non-blocking */ }
 
@@ -2770,14 +2809,14 @@
       const pct  = has ? Math.round(s.quizScore / s.quizTotal * 100) : null;
       const ts   = has ? new Date(s.quizTs).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
       const status = !has ? 'Not Completed' : pct === 100 ? 'Perfect' : pct >= 50 ? 'Passed' : 'Attempted';
-      return { dept: c.label || d, score: has ? s.quizScore : '', total: has ? s.quizTotal : '', pct: pct != null ? pct + '%' : '', ts, status };
+      return { dept: c.label || d, score: has ? s.quizScore : '', total: has ? s.quizTotal : '', pct: pct != null ? pct + '%' : '', ts, status, qa: s.quizQA || '' };
     });
   }
 
   function _lbQuizExportCSV(stats) {
     const cycleLabel = LB_NEXT_MEETING.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-    const header = ['Department','Score','Total Questions','Percentage','Completed At','Status'];
-    const rows = _lbQuizBuildRows(stats).map(r => [r.dept, r.score, r.total, r.pct, r.ts, r.status]);
+    const header = ['Department','Score','Total Questions','Percentage','Completed At','Status','Questions & Answers'];
+    const rows = _lbQuizBuildRows(stats).map(r => [r.dept, r.score, r.total, r.pct, r.ts, r.status, r.qa]);
     const csv  = [header, ...rows].map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
@@ -2796,11 +2835,11 @@
       ['Generated:', new Date().toLocaleString()],
       ['Participation:', completed + ' / ' + LB_ALL_DEPTS.length + ' departments completed'],
       [],
-      ['Department','Score','Total Questions','Percentage','Completed At','Status'],
-      ..._lbQuizBuildRows(stats).map(r => [r.dept, r.score === '' ? '' : Number(r.score), r.total === '' ? '' : Number(r.total), r.pct, r.ts, r.status]),
+      ['Department','Score','Total Questions','Percentage','Completed At','Status','Questions & Answers'],
+      ..._lbQuizBuildRows(stats).map(r => [r.dept, r.score === '' ? '' : Number(r.score), r.total === '' ? '' : Number(r.total), r.pct, r.ts, r.status, r.qa]),
     ];
     const ws = window.XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 20 },{ wch: 8 },{ wch: 16 },{ wch: 12 },{ wch: 22 },{ wch: 14 }];
+    ws['!cols'] = [{ wch: 20 },{ wch: 8 },{ wch: 16 },{ wch: 12 },{ wch: 22 },{ wch: 14 },{ wch: 80 }];
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, 'Quiz Results');
     window.XLSX.writeFile(wb, 'njtc-quiz-' + cycleLabel.replace(/\s/g,'-') + '.xlsx');
@@ -2816,13 +2855,20 @@
       const bg       = !hasPct ? '#f3f4f6' : pctNum===100 ? '#d1fae5' : pctNum>=50 ? '#dbeafe' : '#fee2e2';
       const fg       = !hasPct ? '#6b7280' : pctNum===100 ? '#065f46' : pctNum>=50 ? '#1e40af' : '#991b1b';
       const scoreStr = hasPct ? r.score+'/'+r.total+' ('+r.pct+')' : 'Not Completed';
+      const qaCell = r.qa
+        ? r.qa.split('\n').filter(Boolean).map(line => {
+            const wrong = line.includes(' ✗ ');
+            return `<div style="font-size:10px;color:${wrong?'#991b1b':'#065f46'};line-height:1.5">${line}</div>`;
+          }).join('')
+        : '<span style="font-size:10px;color:#94a3b8">—</span>';
       return `<tr>
-        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:13px">${r.dept}</td>
-        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center">
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:13px;vertical-align:top">${r.dept}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;vertical-align:top">
           <span style="background:${bg};color:${fg};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${scoreStr}</span>
         </td>
-        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#6b7280;font-size:12px">${r.ts||'—'}</td>
-        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;color:#374151">${r.status}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#6b7280;font-size:12px;vertical-align:top">${r.ts||'—'}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;color:#374151;vertical-align:top">${r.status}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top">${qaCell}</td>
       </tr>`;
     }).join('');
     const chipBg = completed===total ? '#d1fae5' : '#fef3c7';
@@ -2839,7 +2885,7 @@
         table{width:100%;border-collapse:collapse;margin-top:6px}
         th{padding:8px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;background:#f8fafc;border-bottom:2px solid #e2e8f0}
         .footer{margin-top:20px;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between}
-        @media print{body{padding:16px}@page{margin:1cm}}
+        @media print{body{padding:16px}@page{margin:1cm;size:landscape}}
       </style>
     </head><body>
       <div class="hdr">
@@ -2854,6 +2900,7 @@
         <thead><tr>
           <th>Department</th><th style="text-align:center">Score</th>
           <th style="text-align:center">Completed At</th><th style="text-align:center">Status</th>
+          <th>Questions &amp; Answers</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -2955,10 +3002,22 @@
           ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${pct===100?'#d1fae5':pct>=50?'#dbeafe':'#fee2e2'};color:${pct===100?'#065f46':pct>=50?'#1e40af':'#991b1b'}">${s.quizScore}/${s.quizTotal} (${pct}%)</span>`
           : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#f3f4f6;color:#6b7280">Not completed</span>`;
         const tsStr = hasScore ? new Date(s.quizTs).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+        // Q&A detail — one line per question from the stored log
+        let qaHtml = '';
+        if (s.quizQA) {
+          const lines = s.quizQA.split('\n').filter(Boolean);
+          qaHtml = lines.map(line => {
+            const isWrong = line.includes(' ✗ ');
+            return `<div style="font-size:.6875rem;line-height:1.5;color:${isWrong?'#991b1b':'#065f46'};margin-top:.15rem">${line}</div>`;
+          }).join('');
+        } else if (hasScore) {
+          qaHtml = `<div style="font-size:.6875rem;color:#94a3b8;margin-top:.15rem;font-style:italic">Questions not recorded (pre-update submission)</div>`;
+        }
         return `<tr style="border-top:1px solid #f1f5f9">
-          <td style="padding:.5rem .75rem;font-size:.875rem;font-weight:600;color:var(--navy)">${c.emoji} ${c.label}</td>
-          <td style="padding:.5rem .75rem">${statusChip}</td>
-          <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${tsStr}</td>
+          <td style="padding:.5rem .75rem;font-size:.875rem;font-weight:600;color:var(--navy);vertical-align:top">${c.emoji} ${c.label}</td>
+          <td style="padding:.5rem .75rem;vertical-align:top">${statusChip}</td>
+          <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted);vertical-align:top">${tsStr}</td>
+          <td style="padding:.5rem .75rem;vertical-align:top;max-width:340px">${qaHtml}</td>
         </tr>`;
       }).join('');
       const completed = LB_ALL_DEPTS.filter(d => stats[d].quizTs != null).length;
@@ -2975,12 +3034,13 @@
             <button onclick="_lbQuizExportXLSX(window._lbLastStats||{})" style="padding:.25rem .75rem;font-size:.6875rem;font-weight:700;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;font-family:inherit">📗 XLSX</button>`:''}
           </div>
         </div>
-        <div style="padding:.25rem 0">
-          <table style="width:100%;border-collapse:collapse">
+        <div style="padding:.25rem 0;overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;min-width:560px">
             <thead><tr style="background:#f8fafc">
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Department</th>
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Score</th>
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Completed</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Questions & Answers</th>
             </tr></thead>
             <tbody>${quizRows}</tbody>
           </table>
