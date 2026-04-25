@@ -1525,51 +1525,46 @@
   // TAP records are enriched with HR site/district data for better network matching.
   const ap_mergeTAPData = () => {
     const tapRoster = window.AP_TAP_ROSTER || [];
-    if (!tapRoster.length) return; // TAP fetch failed — keep HR-derived AP_DATA as-is
+    if (!tapRoster.length) return;
     const nm = s => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    // Build HR lookup by normalized name
     const hrByName = {};
     (window.AP_DATA || []).forEach(r => { hrByName[nm(r.name)] = r; });
-    // Eligible staff = HR records not in TAP sheet
     const tapNames = new Set(tapRoster.map(r => nm(r.name)));
-    const hrEligible = (window.AP_DATA || []).filter(r => {
-      return r.apprentice !== 'Yes' && !tapNames.has(nm(r.name));
-    });
-    // Build enrolled records from TAP sheet, enriched with HR data where available
+    const hrEligible = (window.AP_DATA || []).filter(r =>
+      r.apprentice !== 'Yes' && !tapNames.has(nm(r.name))
+    );
     const enrolled = tapRoster.map(tap => {
       const hrMatch = hrByName[nm(tap.name)];
-      // For network derivation: prefer HR site/district (more granular), fall back to placement
-      const site     = (hrMatch && hrMatch.site)     || tap.placement || '';
-      const district = (hrMatch && hrMatch.district) || '';
-      // Try HR-derived network first; if 'Other', fall back to placement text
-      let network = ap_deriveNetwork(site, district);
-      let region  = ap_deriveRegion(site, district);
-      if (network === 'Other') {
-        network = ap_deriveNetwork(tap.placement, '');
-        region  = ap_deriveRegion(tap.placement, '');
+      // TAP placement is the authoritative current school — derive network from it first.
+      // HR site/district is only used as a fallback when placement alone is ambiguous.
+      let network = ap_deriveNetwork(tap.placement, '');
+      let region  = ap_deriveRegion(tap.placement, '');
+      if (network === 'Other' && hrMatch) {
+        network = ap_deriveNetwork(hrMatch.site, hrMatch.district);
+        region  = ap_deriveRegion(hrMatch.site, hrMatch.district);
       }
-      // Also check cohort seat for explicit network hints (e.g. "NE - iLearn Seat 1")
+      // Final fallback: explicit keywords in cohort seat text (e.g. "NE - iLearn Seat 1")
       if (network === 'Other' && tap.cohort) {
         const cs = tap.cohort.toLowerCase();
-        if (cs.includes('ilearn') || cs.includes('i-learn')) { network = 'iLearn Charter Network'; region = 'NE'; }
-        else if (cs.includes('kipp'))                         { network = 'KIPP NJ';               region = 'NE'; }
-        else if (cs.includes('hamilton'))                     { network = 'Hamilton Township';      region = 'SW'; }
-        else if (cs.includes('gloucester'))                   { network = 'Gloucester Township';    region = 'SW'; }
-        else if (cs.includes('haddon'))                       { network = 'Haddon Township';        region = 'SW'; }
-        else if (cs.includes('penns') || cs.includes('carneys')) { network = 'Penns Grove';        region = 'SW'; }
-        else if (cs.includes('somerset'))                     { network = 'Somerset';               region = 'NE'; }
-        else if (cs.includes('middlesex'))                    { network = 'Middlesex Charter';      region = 'NE'; }
-        else if (cs.includes('hoboken') || cs.includes('hola')){ network = 'Hoboken Dual Charter'; region = 'NE'; }
-        else if (cs.includes('global') || cs.includes('glaw')){ network = 'Global Leadership Academy'; region = 'NE'; }
-        else if (cs.includes('roseville'))                    { network = 'Roseville';              region = 'NE'; }
-        else if (cs.startsWith('ne'))                         { region = 'NE'; }
-        else if (cs.startsWith('sw'))                         { region = 'SW'; }
+        if      (cs.includes('ilearn') || cs.includes('i-learn')) { network = 'iLearn Charter Network';     region = 'NE'; }
+        else if (cs.includes('kipp'))                              { network = 'KIPP NJ';                   region = 'NE'; }
+        else if (cs.includes('hamilton'))                          { network = 'Hamilton Township';          region = 'SW'; }
+        else if (cs.includes('gloucester'))                        { network = 'Gloucester Township';        region = 'SW'; }
+        else if (cs.includes('haddon'))                            { network = 'Haddon Township';            region = 'SW'; }
+        else if (cs.includes('penns') || cs.includes('carneys'))   { network = 'Penns Grove';               region = 'SW'; }
+        else if (cs.includes('somerset'))                          { network = 'Somerset';                   region = 'NE'; }
+        else if (cs.includes('middlesex'))                         { network = 'Middlesex Charter';          region = 'NE'; }
+        else if (cs.includes('hoboken') || cs.includes('hola'))    { network = 'Hoboken Dual Charter';      region = 'NE'; }
+        else if (cs.includes('global') || cs.includes('glaw'))     { network = 'Global Leadership Academy'; region = 'NE'; }
+        else if (cs.includes('roseville'))                         { network = 'Roseville';                  region = 'NE'; }
+        else if (cs.startsWith('ne'))                              { region = 'NE'; }
+        else if (cs.startsWith('sw'))                              { region = 'SW'; }
       }
       return {
         name:       tap.name,
         role:       (hrMatch && hrMatch.role)   || 'Tutor Apprentice',
-        site:       site || tap.placement,
-        district:   district,
+        site:       tap.placement || (hrMatch && hrMatch.site) || '',
+        district:   (hrMatch && hrMatch.district) || '',
         network:    network,
         region:     region,
         apprentice: 'Yes',
@@ -1584,6 +1579,24 @@
     window.AP_DATA = hrEligible.concat(enrolled);
     console.log('[AP] Merged: ' + enrolled.length + ' enrolled (TAP sheet) + ' +
       hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
+    // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
+    ap_syncHREmps(new Set(tapRoster.map(r => nm(r.name))));
+  };
+
+  // Push TAP enrolled status into HR_EMPS so the Talent Analytics "Apprentice" filter works
+  const ap_syncHREmps = (enrolledNames) => {
+    const hrEmps = window.HR_EMPS;
+    if (!hrEmps || !hrEmps.length) return;
+    const nm = s => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    let synced = 0;
+    hrEmps.forEach(emp => {
+      const n = nm(emp.n || emp.name || '');
+      if (enrolledNames.has(n)) {
+        emp._apprentice = 'Yes';
+        synced++;
+      }
+    });
+    if (synced) console.log('[AP] Synced ' + synced + ' HR_EMPS records → apprentice=Yes (TAP sheet)');
   };
 
   // ── Utility functions — all derived from live AP_DATA (zero hardcodes) ───
@@ -2080,7 +2093,7 @@
       var otj     = c.otjStatus  || { beginning: '—', middle: '—', end: '—', siteLeader: '—' };
       var flagged = c.hasFlag    || false;
       var location = m.site || m.district || '—';
-      var folderBtn = m.folderLink
+      var folderBtn = (m.folderLink && /^https?:\/\//i.test(m.folderLink))
         ? '<a href="' + m.folderLink + '" target="_blank" rel="noopener noreferrer" ' +
           'style="font-size:9px;background:#EFF6FF;color:#1D4ED8;padding:2px 8px;border-radius:6px;' +
           'text-decoration:none;font-weight:700;flex-shrink:0;white-space:nowrap;" ' +
@@ -2180,7 +2193,6 @@
             { v: eligible.length,  l: 'Eligible',    sub: 'not yet enrolled',         c: '#fde68a', def: 'Active tutors who qualify but have not enrolled yet' },
             { v: totalNE,          l: 'NE',           sub: nePct+'% enrolled',        c: '#6ee7b7', def: 'iLearn, KIPP, Hoboken, Middlesex, Somerset, Bergen' },
             { v: totalSW,          l: 'SW',           sub: swPct+'% enrolled',        c: '#6ee7b7', def: 'Hamilton, Gloucester, Haddon, Pennsauken, First Philadelphia' },
-            { v: beginComplete,    l: 'OTJ Begin ✓',  sub: beginComplete+' of '+enrolled.length, c: '#c4b5fd', def: 'First OTJ milestone — due Month 4' },
             { v: flagged || '✓',   l: flagged?'Flagged':'No Flags', sub: flagged?'need follow-up':'all on track', c: flagged?'#fca5a5':'#86efac', def: 'Missing milestone, no site leader, or PM note' },
           ].map(function(t){ return `<div title="${t.def||''}" style="text-align:center;padding:.3rem .625rem;background:rgba(255,255,255,.05);border-radius:8px;flex:1;min-width:58px;cursor:default">
             <div style="font-size:1.25rem;font-weight:900;color:${t.c};line-height:1;letter-spacing:-.025em">${t.v}</div>
@@ -2263,7 +2275,6 @@
       '<div style="padding:0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#F8FAFC;"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;">Metric</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#B8960C;text-transform:uppercase;letter-spacing:0.06em;">🎓 Apprentices (' + enrolled.length + ')</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">Non-Apprentices (' + nonEnrolled.length + ')</th></tr></thead><tbody>' +
       metricRow('Avg Scholar Rating (Pearl)', apScholarRating, nonApScholarRating) +
       metricRow('Avg Attendance Rate', apAttendance, nonApAttendance) +
-      metricRow('OTJ Beginning Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).beginning==='Completed';}).length + ' / ' + enrolled.length, '—') +
       metricRow('OTJ Middle Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).middle==='Completed';}).length + ' / ' + enrolled.length, '—') +
       metricRow('Returning (Re-hire = Yes)', enrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + enrolled.length, nonEnrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + nonEnrolled.length) +
       '</tbody></table></div>' +

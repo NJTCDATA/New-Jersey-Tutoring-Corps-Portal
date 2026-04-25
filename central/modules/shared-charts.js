@@ -4072,6 +4072,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     <span style="font-size:.62rem;color:#94a3b8;font-style:italic">${src}</span>
   </div>
 
+  <!-- Definition callout -->
+  <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
+    <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How Retention Is Calculated</strong>
+    <strong>Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
+    "Total headcount" includes every employee who worked at any point during ${CY} — both currently active and those who have since separated.
+    A staff member is counted as <em>separated</em> when their ADP status is no longer "Active."
+    <strong>Quarterly retention</strong> is based on when terminations occurred (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug).
+    Voluntary vs. involuntary split is derived from the termination type field in the HR Master List.
+  </div>
+
   <!-- KPI tiles row -->
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.125rem">
     ${[
