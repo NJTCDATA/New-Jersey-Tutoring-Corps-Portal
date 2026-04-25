@@ -1575,6 +1575,8 @@
   async function _lbLoadBoard(dept, force) {
     const rows = await _lbFetch(force);
     const stats = _lbStats(rows);
+    // Restore quiz state from Google Sheet if localStorage was cleared
+    _lbQuizRestoreFromSheet(dept, stats);
     const total = LB_ALL_DEPTS.reduce((a, d) => a + stats[d].count, 0);
     const submitted = LB_ALL_DEPTS.filter(d => stats[d].count > 0).length;
 
@@ -1821,6 +1823,22 @@
   function _lbQuizIsWindowPast()  { return Date.now() > LB_QUIZ_CLOSE.getTime(); }
   function _lbQuizGetState()      { try { return JSON.parse(localStorage.getItem(LB_QUIZ_STATE_KEY)||'null'); } catch(e){return null;} }
   function _lbQuizSetState(s)     { try { localStorage.setItem(LB_QUIZ_STATE_KEY, JSON.stringify(s)); } catch(e){} }
+
+  // Restore quiz completion from Google Sheet when localStorage was cleared.
+  // Called from _lbLoadBoard after stats are computed so cross-device/cleared-cache
+  // sessions re-hydrate automatically without re-taking the quiz.
+  function _lbQuizRestoreFromSheet(dept, stats) {
+    if (_lbQuizGetState()) return; // already in localStorage — nothing to do
+    const s = (stats || {})[dept] || {};
+    if (s.quizTs == null) return; // no quiz record in sheet for this dept
+    // Only restore results from the current cycle (quizTs must be >= quiz open time)
+    if (s.quizTs < LB_QUIZ_OPEN.getTime()) return;
+    const restored = { completed: true, score: s.quizScore, total: s.quizTotal, ts: s.quizTs };
+    _lbQuizSetState(restored);
+    console.log('[LB Quiz] State restored from Google Sheet for', dept, restored);
+    // Re-render quiz area to show the completion banner instead of the prompt
+    _lbQuizInit(dept);
+  }
 
   function _lbQuizCountdown() {
     const diff = LB_QUIZ_CLOSE.getTime() - Date.now();
@@ -2651,7 +2669,7 @@
     tile.style.setProperty('--accent-color', '#f0a500');
     tile.style.cursor = 'pointer';
     tile.title = 'Click to view departmental success submissions';
-    tile.onclick = () => _lbOpenExecViewModal();
+    tile.onclick = () => _lbOpenExecViewModal(dept);
     tile.innerHTML = `
       <div class="st-icon">🏆</div>
       <div class="st-value" style="font-size:1.5rem">${submitted}<span style="font-size:.875rem;font-weight:400;color:var(--muted)">/7</span></div>
@@ -2735,7 +2753,113 @@
   }
 
   // ── Exec: view modal (read-only summary of all submissions) ───────────────
-  async function _lbOpenExecViewModal() {
+  // ── Quiz export helpers ───────────────────────────────────────────────────
+  function _lbQuizBuildRows(stats) {
+    return LB_ALL_DEPTS.map(d => {
+      const s = stats[d] || {};
+      const c = LB_DEPT_CFG[d] || {};
+      const has  = s.quizTs != null;
+      const pct  = has ? Math.round(s.quizScore / s.quizTotal * 100) : null;
+      const ts   = has ? new Date(s.quizTs).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const status = !has ? 'Not Completed' : pct === 100 ? 'Perfect' : pct >= 50 ? 'Passed' : 'Attempted';
+      return { dept: c.label || d, score: has ? s.quizScore : '', total: has ? s.quizTotal : '', pct: pct != null ? pct + '%' : '', ts, status };
+    });
+  }
+
+  function _lbQuizExportCSV(stats) {
+    const cycleLabel = LB_NEXT_MEETING.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const header = ['Department','Score','Total Questions','Percentage','Completed At','Status'];
+    const rows = _lbQuizBuildRows(stats).map(r => [r.dept, r.score, r.total, r.pct, r.ts, r.status]);
+    const csv  = [header, ...rows].map(r => r.map(v => '"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: 'njtc-quiz-' + cycleLabel.replace(/\s/g,'-') + '.csv' });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  function _lbQuizExportXLSX(stats) {
+    if (!window.XLSX) { alert('XLSX library not available — please refresh and try again.'); return; }
+    const cycleLabel = LB_NEXT_MEETING.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const completed  = LB_ALL_DEPTS.filter(d => (stats[d]||{}).quizTs != null).length;
+    const aoa = [
+      ['NJTC Pre-Meeting Knowledge Check — Quiz Results'],
+      ['Cycle:', cycleLabel],
+      ['Generated:', new Date().toLocaleString()],
+      ['Participation:', completed + ' / ' + LB_ALL_DEPTS.length + ' departments completed'],
+      [],
+      ['Department','Score','Total Questions','Percentage','Completed At','Status'],
+      ..._lbQuizBuildRows(stats).map(r => [r.dept, r.score === '' ? '' : Number(r.score), r.total === '' ? '' : Number(r.total), r.pct, r.ts, r.status]),
+    ];
+    const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{ wch: 20 },{ wch: 8 },{ wch: 16 },{ wch: 12 },{ wch: 22 },{ wch: 14 }];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Quiz Results');
+    window.XLSX.writeFile(wb, 'njtc-quiz-' + cycleLabel.replace(/\s/g,'-') + '.xlsx');
+  }
+
+  function _lbQuizExportPDF(stats) {
+    const cycleLabel = LB_NEXT_MEETING.toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    const completed  = LB_ALL_DEPTS.filter(d => (stats[d]||{}).quizTs != null).length;
+    const total      = LB_ALL_DEPTS.length;
+    const rows = _lbQuizBuildRows(stats).map(r => {
+      const hasPct   = r.pct !== '';
+      const pctNum   = hasPct ? parseInt(r.pct) : null;
+      const bg       = !hasPct ? '#f3f4f6' : pctNum===100 ? '#d1fae5' : pctNum>=50 ? '#dbeafe' : '#fee2e2';
+      const fg       = !hasPct ? '#6b7280' : pctNum===100 ? '#065f46' : pctNum>=50 ? '#1e40af' : '#991b1b';
+      const scoreStr = hasPct ? r.score+'/'+r.total+' ('+r.pct+')' : 'Not Completed';
+      return `<tr>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:13px">${r.dept}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center">
+          <span style="background:${bg};color:${fg};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">${scoreStr}</span>
+        </td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#6b7280;font-size:12px">${r.ts||'—'}</td>
+        <td style="padding:9px 14px;border-bottom:1px solid #f1f5f9;text-align:center;font-size:12px;color:#374151">${r.status}</td>
+      </tr>`;
+    }).join('');
+    const chipBg = completed===total ? '#d1fae5' : '#fef3c7';
+    const chipFg = completed===total ? '#065f46' : '#92400e';
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>NJTC Quiz Results — ${cycleLabel}</title>
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;padding:28px 32px;color:#111;font-size:14px}
+        .hdr{background:linear-gradient(135deg,#0a1628,#003087);color:#fff;padding:20px 24px;border-radius:12px;margin-bottom:20px}
+        .hdr h1{font-size:17px;font-weight:800;margin-bottom:4px}
+        .hdr p{font-size:11px;opacity:.65}
+        .chip{display:inline-block;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;margin-left:8px}
+        table{width:100%;border-collapse:collapse;margin-top:6px}
+        th{padding:8px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;background:#f8fafc;border-bottom:2px solid #e2e8f0}
+        .footer{margin-top:20px;font-size:10px;color:#94a3b8;display:flex;justify-content:space-between}
+        @media print{body{padding:16px}@page{margin:1cm}}
+      </style>
+    </head><body>
+      <div class="hdr">
+        <h1>📋 NJTC Pre-Meeting Knowledge Check</h1>
+        <p>Meeting: ${cycleLabel} · Exported: ${new Date().toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</p>
+      </div>
+      <div style="display:flex;align-items:center;margin-bottom:14px">
+        <strong style="font-size:14px;color:#0a1628">Quiz Participation Summary</strong>
+        <span class="chip" style="background:${chipBg};color:${chipFg}">${completed}/${total} Departments Completed</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Department</th><th style="text-align:center">Score</th>
+          <th style="text-align:center">Completed At</th><th style="text-align:center">Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="footer">
+        <span>New Jersey Tutoring Corps · Data &amp; Evaluation · Confidential</span>
+        <span>Quiz cycle: ${cycleLabel}</span>
+      </div>
+      <script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>
+    </body></html>`;
+    const w = window.open('','_blank','width=740,height=620');
+    if (w) { w.document.write(html); w.document.close(); }
+  }
+
+  async function _lbOpenExecViewModal(dept) {
     // Re-use the same view modal pattern but open it body-level
     let modal = document.getElementById('lbExecViewModal');
     if (!modal) {
@@ -2759,6 +2883,7 @@
 
     const rows = await _lbFetch(false);
     const stats = _lbStats(rows);
+    window._lbLastStats = stats; // cache for export buttons
     if (!body) return;
     if (!rows.length) { body.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">No submissions on record yet.</div>'; return; }
 
@@ -2831,9 +2956,16 @@
       const completed = LB_ALL_DEPTS.filter(d => stats[d].quizTs != null).length;
       const total = LB_ALL_DEPTS.length;
       html += `<div style="margin-bottom:1.5rem;border:1.5px solid #818cf833;border-radius:12px;overflow:hidden">
-        <div style="background:linear-gradient(135deg,#1e1b4b11,#3730a311);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #818cf822">
-          <div style="font-weight:700;color:var(--navy)">📋 Pre-Meeting Quiz — This Cycle</div>
-          <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${completed===total?'#d1fae5':'#fef3c7'};color:${completed===total?'#065f46':'#92400e'}">${completed}/${total} completed</span>
+        <div style="background:linear-gradient(135deg,#1e1b4b11,#3730a311);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;border-bottom:1px solid #818cf822">
+          <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
+            <div style="font-weight:700;color:var(--navy)">📋 Pre-Meeting Quiz — This Cycle</div>
+            <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${completed===total?'#d1fae5':'#fef3c7'};color:${completed===total?'#065f46':'#92400e'}">${completed}/${total} completed</span>
+          </div>
+          <div style="display:flex;gap:.375rem;flex-wrap:wrap;align-items:center">
+            <button onclick="_lbQuizExportPDF(window._lbLastStats||{})" style="padding:.25rem .75rem;font-size:.6875rem;font-weight:700;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;font-family:inherit">📄 PDF</button>
+            ${dept==='data'?`<button onclick="_lbQuizExportCSV(window._lbLastStats||{})" style="padding:.25rem .75rem;font-size:.6875rem;font-weight:700;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;font-family:inherit">📊 CSV</button>
+            <button onclick="_lbQuizExportXLSX(window._lbLastStats||{})" style="padding:.25rem .75rem;font-size:.6875rem;font-weight:700;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;font-family:inherit">📗 XLSX</button>`:''}
+          </div>
         </div>
         <div style="padding:.25rem 0">
           <table style="width:100%;border-collapse:collapse">
@@ -6462,6 +6594,9 @@
   window._lbOpenViewModal      = _lbOpenViewModal;
   window._lbOpenViewModalDept  = _lbOpenViewModalDept;
   window._lbOpenExecViewModal  = _lbOpenExecViewModal;
+  window._lbQuizExportCSV     = _lbQuizExportCSV;
+  window._lbQuizExportXLSX    = _lbQuizExportXLSX;
+  window._lbQuizExportPDF     = _lbQuizExportPDF;
   window._lbCreateExecSubmitModal = _lbCreateExecSubmitModal;
   window._lbSubmitForm         = _lbSubmitForm;
   window._lbSubmitExecForm     = _lbSubmitExecForm;
