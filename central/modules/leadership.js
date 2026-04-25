@@ -319,7 +319,6 @@
                 <div class="ecd-achip-pct">${mathPct}</div>
                 <div class="ecd-achip-pct-unit">% of Typical</div>
               </div>
-              <div class="ecd-achip-desc">${mathPct >= 100 ? '\u2705 At or above typical growth' : '\u26a0\ufe0f Below typical growth pace'}</div>
               ${mathGain != null ? `<div class="ecd-achip-gain">Avg gain: +${mathGain} pts${mathN != null ? ' &middot; n='+fc(mathN) : ''}</div>` : ''}
               <div class="ecd-achip-track"><div class="ecd-achip-fill math" style="width:${mathBar}%"></div></div>
             </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">Mathematics</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}
@@ -330,7 +329,7 @@
                 <div class="ecd-achip-pct">${elaPct}</div>
                 <div class="ecd-achip-pct-unit">% of Typical</div>
               </div>
-              <div class="ecd-achip-desc">${elaPct >= 100 ? '\u2705 At or above typical growth' : '\u26a0\ufe0f Below typical growth pace'}</div>
+
               ${elaGain != null ? `<div class="ecd-achip-gain">Avg gain: +${elaGain} pts${elaN != null ? ' &middot; n='+fc(elaN) : ''}</div>` : ''}
               <div class="ecd-achip-track"><div class="ecd-achip-fill ela" style="width:${elaBar}%"></div></div>
             </div>` : `<div class="ecd-achip" style="opacity:.35"><div class="ecd-achip-subj">ELA / Reading</div><div class="ecd-achip-pct" style="font-size:1.5rem">&#8212;</div><div class="ecd-achip-desc" style="color:#94a3b8">Loading&hellip;</div></div>`}

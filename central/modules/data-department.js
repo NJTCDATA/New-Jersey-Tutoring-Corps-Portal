@@ -2619,7 +2619,7 @@
         +'<div class="ecdi-card-title">Growth Toward Target</div>'
         +'<div class="ecdi-card-desc">Median scholar progress toward expected yearly academic growth. 100% = on pace with iReady norms.</div>'
         +'<div class="ecdi-card-foot">'
-        +'<span class="ecdi-n">'+(_irlIMLoaded&&_irlIm.medianPctExpected!=null?(_irlIm.medianPctExpected>=100?'✅ At/above typical':'⚠️ Below typical'):'&mdash;')+'</span>'
+        +'<span class="ecdi-n">&mdash;</span>'
         +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
         +'</div></div>'
         // Card D: Learning Velocity
