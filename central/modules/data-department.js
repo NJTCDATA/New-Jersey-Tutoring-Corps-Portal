@@ -2612,16 +2612,36 @@
         +'<span class="ecdi-n">'+(_irlIMSY||'&mdash;')+'</span>'
         +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'demo\')">Drilldown &rarr;</button>':'')
         +'</div></div>'
-        // Card C: Target Progress
-        +'<div class="ecdi-card cci-gold">'
-        +'<div class="ecdi-eyebrow">Target Progress<span class="ecdi-tip" title="Growth Toward Target&#10;&#10;Formula: Scale Score Gain &divide; Differentiated Typical Growth &times; 100&#10;= pctTypical &times; 100&#10;&#10;100% = exactly on-pace with iReady typical growth norms.&#10;&gt;100% = exceeding expected annual growth.&#10;Source: Spring_pct_progress_typical_growth (pre-computed by iReady per scholar).">ⓘ</span></div>'
-        +_irlEcdiVal(_irlIMLoaded && _irlIm.medianPctExpected != null ? Math.round(_irlIm.medianPctExpected) : null, '%')
-        +'<div class="ecdi-card-title">Growth Toward Target</div>'
-        +'<div class="ecdi-card-desc">Median scholar progress toward expected yearly academic growth. 100% = on pace with iReady norms.</div>'
-        +'<div class="ecdi-card-foot">'
-        +'<span class="ecdi-n">&mdash;</span>'
-        +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
-        +'</div></div>'
+        // Card C: Target Progress — program-window adjusted using median springWeeks
+        +(function(){
+          var _adj  = _irlIMLoaded && _irlIm.windowAdjustedPct  != null ? _irlIm.windowAdjustedPct  : null;
+          var _raw  = _irlIMLoaded && _irlIm.medianPctExpected   != null ? _irlIm.medianPctExpected   : null;
+          var _wks  = _irlIMLoaded && _irlIm.medianSpringWeeks   != null ? _irlIm.medianSpringWeeks   : null;
+          var _disp = _adj != null ? Math.round(_adj) : (_raw != null ? Math.round(_raw) : null);
+          var _wkLbl = _wks != null ? ('~'+Math.round(_wks)+' wk window') : '&mdash;';
+          var _desc = _wks != null
+            ? 'Scholars’ growth relative to what’s expected for a ~'+Math.round(_wks)+'-week program window. 100 % = on pace for your program duration.'
+            : 'Median scholar progress toward expected yearly academic growth. 100 % = on pace with iReady norms.';
+          var _tip = 'Program-Window Progress&#10;&#10;'
+            + 'Adjusts for your actual program duration instead of iReady’s 30-week annual standard.&#10;&#10;'
+            + 'Formula: Median % of typical annual growth ÷ (median diagnostic weeks ÷ 30)&#10;&#10;'
+            + 'Each scholar’s pctTypical = actual gain ÷ expected annual gain (pre-computed by iReady).&#10;'
+            + 'The median across scholars is then divided by (median weeks ÷ 30) to rescale to program duration.&#10;&#10;'
+            + '100% = scholars achieved exactly what is expected for their program window&#10;'
+            + '>100% = scholars exceeded program-window expectations&#10;'
+            + '<100% = scholars are below program-window expectations&#10;&#10;'
+            + (_wks != null ? 'Median diagnostic window: ~'+Math.round(_wks)+' wks (iReady standard = 30 wks)&#10;' : '')
+            + 'Source: spring_pct_progress_typical_growth + spring_weeks_between_diagnostics';
+          return '<div class="ecdi-card cci-gold">'
+            +'<div class="ecdi-eyebrow">Target Progress<span class="ecdi-tip" title="'+_tip+'">ⓘ</span></div>'
+            +_irlEcdiVal(_disp, '%')
+            +'<div class="ecdi-card-title">Program-Window Progress</div>'
+            +'<div class="ecdi-card-desc">'+_desc+'</div>'
+            +'<div class="ecdi-card-foot">'
+            +'<span class="ecdi-n">'+_wkLbl+'</span>'
+            +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
+            +'</div></div>';
+        })()
         // Card D: Learning Velocity
         +'<div class="ecdi-card cci-purple'+((!_irlIm||!_irlIm.syAligned)?' ecdi-ph':'')+'">'
         +'<div class="ecdi-eyebrow">Learning Velocity<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span></div>'
@@ -5827,7 +5847,7 @@
         return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
       }
 
-      var scaleGains=[], monthsArr=[], pctExpArr=[];
+      var scaleGains=[], monthsArr=[], pctExpArr=[], springWeeksArr=[];
       var drillRows=[];
       var byRace={}, byEthnicity={}, byEconStatus={}, byDistrict={}, bySchool={}, byGrade={}, byTutor={};
 
@@ -5847,6 +5867,8 @@
         if (!isNaN(gain)) scaleGains.push(gain);
         if (!isNaN(months)) monthsArr.push(months);
         if (!isNaN(pctExp)) pctExpArr.push(pctExp);
+        var wks = (r.springWeeks != null && parseFloat(r.springWeeks) > 0) ? parseFloat(r.springWeeks) : NaN;
+        if (!isNaN(wks)) springWeeksArr.push(wks);
 
         var raceKey = (r.race||'').trim() || 'Not Specified';
         var ethKey  = /yes/i.test(r.hispanic||'') ? 'Hispanic/Latino'
@@ -5934,6 +5956,14 @@
       var medGain   = _med(scaleGains);
       var medMonths = _med(monthsArr);
       var medPct    = _med(pctExpArr);
+      var medWeeks  = _med(springWeeksArr);
+      // Window-adjusted pct: compares median growth to what's expected for the actual
+      // program window (medianSpringWeeks) rather than the iReady 30-week annual standard.
+      // windowAdjustedPct = medianPctExpected ÷ (medianSpringWeeks ÷ 30)
+      // 100% = scholars achieved exactly what is expected for their program's duration.
+      var windowAdjustedPct = (medPct != null && medWeeks != null && medWeeks > 0)
+        ? parseFloat((medPct / (medWeeks / 30)).toFixed(1))
+        : null;
 
       return {
         hasData:            rows.length > 0,
@@ -5942,6 +5972,8 @@
         medianScaleGain:    medGain   != null ? parseFloat(medGain.toFixed(1))   : null,
         medianMonthsGrowth: medMonths != null ? parseFloat(medMonths.toFixed(1)) : null,
         medianPctExpected:  medPct    != null ? parseFloat(medPct.toFixed(1))    : null,
+        medianSpringWeeks:  medWeeks  != null ? parseFloat(medWeeks.toFixed(1))  : null,
+        windowAdjustedPct:  windowAdjustedPct,
         syAligned:          syAligned,
         medVelocity:        medVelocity != null ? parseFloat(medVelocity.toFixed(2)) : null,
         tutorImpactLeaders: tutorImpactLeaders,
