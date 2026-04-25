@@ -7359,54 +7359,75 @@
       // consumed by diagnostic windows, helping teams interpret springWeeks data.
       getDiagnosticTestingData: function() {
         try {
-          var DIAG_REASONS = new Set([
-            'NJTC Diagnostic Testing',
-            'School-administered Testing',
-          ]);
-          // Minimum distinct scholars in a week to count it as a "diagnostic testing week"
-          // rather than an individual make-up session.
+          var NJTC_REASON   = 'NJTC Diagnostic Testing';
+          var SCHOOL_REASON = 'School-administered Testing';
+          // A week counts as a testing window only if ≥3 distinct scholars were affected
+          // (filters out lone make-up sessions).
           var WEEK_SCHOLAR_MIN = 3;
+          var _sortWeek = function(a, b) {
+            return (parseInt(a.replace(/\D+/,''))||0) - (parseInt(b.replace(/\D+/,''))||0);
+          };
           var bySchool = {};
           _attRows.forEach(function(r) {
             if (r[ATT.ROLE] !== 'Student') return;
             var reason = r[ATT.MISS_REASON] || '';
-            if (!DIAG_REASONS.has(reason)) return;
+            var isNJTC   = reason === NJTC_REASON;
+            var isSchool = reason === SCHOOL_REASON;
+            if (!isNJTC && !isSchool) return;
             var school   = r[ATT.SCHOOL]   || 'Unknown';
             var district = r[ATT.DISTRICT] || '';
             var week     = r[ATT.WEEK]     || '';
             var uid      = r[ATT.USER_ID]  || '';
-            if (!bySchool[school]) bySchool[school] = { district: district, weekScholars: {}, scholars: new Set() };
+            if (!bySchool[school]) bySchool[school] = {
+              district: district,
+              njtcWeekScholars:   {},   // week → Set<uid>  for NJTC Diagnostic Testing
+              schoolWeekScholars: {},   // week → Set<uid>  for School-administered Testing
+              scholars: new Set(),
+            };
+            var bucket = isNJTC ? bySchool[school].njtcWeekScholars : bySchool[school].schoolWeekScholars;
             if (week && uid) {
-              if (!bySchool[school].weekScholars[week]) bySchool[school].weekScholars[week] = new Set();
-              bySchool[school].weekScholars[week].add(uid);
+              if (!bucket[week]) bucket[week] = new Set();
+              bucket[week].add(uid);
             }
             if (uid) bySchool[school].scholars.add(uid);
           });
+
+          var _summariseReason = function(weekScholars) {
+            var allKeys  = Object.keys(weekScholars).sort(_sortWeek);
+            var concKeys = allKeys.filter(function(w){ return weekScholars[w].size >= WEEK_SCHOLAR_MIN; });
+            return {
+              weeks:       concKeys.length,
+              allWeeks:    allKeys.length,
+              makeupWeeks: allKeys.length - concKeys.length,
+              weekLabels:  concKeys,
+            };
+          };
+
           return Object.entries(bySchool)
             .map(function(entry) {
               var school = entry[0], d = entry[1];
-              var _sortWeek = function(a, b) {
-                return (parseInt(a.replace(/\D+/,''))||0) - (parseInt(b.replace(/\D+/,''))||0);
-              };
-              // All weeks with any diagnostic record
-              var allWeekKeys = Object.keys(d.weekScholars).sort(_sortWeek);
-              // Concentrated weeks: ≥ WEEK_SCHOLAR_MIN distinct scholars
-              var diagWeekKeys = allWeekKeys.filter(function(w) {
-                return d.weekScholars[w].size >= WEEK_SCHOLAR_MIN;
-              });
+              var njtc   = _summariseReason(d.njtcWeekScholars);
+              var school_ = _summariseReason(d.schoolWeekScholars);
               return {
                 school:          school,
                 district:        d.district,
-                diagnosticWeeks: diagWeekKeys.length,   // primary: concentrated testing weeks
-                allWeeks:        allWeekKeys.length,     // total incl. individual make-ups
-                records:         allWeekKeys.reduce(function(s,w){ return s + d.weekScholars[w].size; }, 0),
                 scholars:        d.scholars.size,
-                weekLabels:      diagWeekKeys,           // labels for concentrated weeks only
-                allWeekLabels:   allWeekKeys,
+                // NJTC Diagnostic Testing (primary concern)
+                njtcWeeks:       njtc.weeks,
+                njtcAllWeeks:    njtc.allWeeks,
+                njtcMakeup:      njtc.makeupWeeks,
+                njtcWeekLabels:  njtc.weekLabels,
+                // School-administered Testing (secondary)
+                schoolWeeks:     school_.weeks,
+                schoolAllWeeks:  school_.allWeeks,
+                schoolMakeup:    school_.makeupWeeks,
+                schoolWeekLabels: school_.weekLabels,
+                // Combined total for sorting (NJTC is primary sort key)
+                diagnosticWeeks: njtc.weeks,
               };
             })
-            .filter(function(s) { return s.allWeeks > 0; })
-            .sort(function(a, b) { return b.diagnosticWeeks - a.diagnosticWeeks || b.allWeeks - a.allWeeks; });
+            .filter(function(s) { return s.njtcAllWeeks > 0 || s.schoolAllWeeks > 0; })
+            .sort(function(a, b) { return b.njtcWeeks - a.njtcWeeks || b.schoolWeeks - a.schoolWeeks; });
         } catch(e) { return []; }
       },
 
