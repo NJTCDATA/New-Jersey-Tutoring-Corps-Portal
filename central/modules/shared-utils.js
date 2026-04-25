@@ -1210,6 +1210,30 @@
     return '';
   }
 
+  // Returns { display: '2/2', score: 2, total: 2, pct: 100 } for a quiz row, or null.
+  function _lbQuizRowMeta(row) {
+    const succVal = (row['What successes has your department seen this week?'] || '').trim();
+    if (!succVal.startsWith('[QUIZ_RECORD]')) return null;
+    // Try new dedicated column first, then legacy fallbacks
+    const src = _lbGetQuizScoreCol(row)
+             || row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || ''
+             || _lbGetOrg(row);
+    const qm = src.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
+    if (qm) {
+      const score = parseInt(qm[1]), total = parseInt(qm[2]);
+      return { display: score + '/' + total, score, total, pct: total > 0 ? Math.round(score/total*100) : 0 };
+    }
+    // Fall back to the human-readable prefix in the quizScore column ("2/2 [...")
+    const raw = _lbGetQuizScoreCol(row).trim();
+    const hm = raw.match(/^(\d+)\/(\d+)/);
+    if (hm) {
+      const score = parseInt(hm[1]), total = parseInt(hm[2]);
+      return { display: score + '/' + total, score, total, pct: total > 0 ? Math.round(score/total*100) : 0 };
+    }
+    // Row is a quiz record but score couldn't be parsed
+    return { display: null, score: null, total: null, pct: null };
+  }
+
   // ── Countdown to deadline ─────────────────────────────────────────────────
   function _lbCountdown() {
     const now = Date.now();
@@ -2335,6 +2359,39 @@
     // ── Helper: render one submission as a card ──────────────────────────────
     function _lbEntryCard(r, ts, accent) {
       const tsStr = ts ? ts.toLocaleString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+
+      // Quiz completion rows — show dedicated card, not the regular submission fields
+      const quizMeta = _lbQuizRowMeta(r);
+      if (quizMeta) {
+        const { display, pct } = quizMeta;
+        const scoreBg  = pct === 100 ? '#d1fae5' : pct >= 50 ? '#dbeafe' : pct != null ? '#fee2e2' : '#f3f4f6';
+        const scoreFg  = pct === 100 ? '#065f46' : pct >= 50 ? '#1e40af' : pct != null ? '#991b1b' : '#6b7280';
+        const scoreStr = display ? display + ' (' + pct + '%)' : 'Score unavailable';
+        const qaRaw = _lbGetOrg(r);
+        const qaHtml = qaRaw && qaRaw.includes('Q1')
+          ? qaRaw.split('\n').filter(Boolean).map(line => {
+              const wrong = line.includes(' ✗ ');
+              return `<div style="font-size:.8125rem;line-height:1.6;color:${wrong?'#991b1b':'#065f46'};padding:.2rem 0">${line}</div>`;
+            }).join('')
+          : '';
+        return `
+        <div style="background:#fff;border:1.5px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 6px rgba(10,22,40,.06)">
+          ${tsStr ? `
+          <div style="display:flex;align-items:center;gap:.5rem;padding:.75rem 1.125rem;background:${accent}0d;border-bottom:1px solid ${accent}22">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${accent};flex-shrink:0"></span>
+            <span style="font-size:.8125rem;font-weight:600;color:var(--navy)">${tsStr}</span>
+          </div>` : ''}
+          <div style="padding:1.125rem 1.125rem .875rem">
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:${qaHtml?'.875rem':0}">
+              <span style="font-size:1.125rem">📋</span>
+              <span style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">Quiz Completion</span>
+              <span style="padding:.25rem .75rem;border-radius:20px;font-size:.8125rem;font-weight:700;background:${scoreBg};color:${scoreFg}">${scoreStr}</span>
+            </div>
+            ${qaHtml ? `<div style="padding:.625rem .875rem;background:#f8fafc;border-left:3px solid ${accent}66;border-radius:0 8px 8px 0">${qaHtml}</div>` : ''}
+          </div>
+        </div>`;
+      }
+
       const succ  = r['What successes has your department seen this week?'] || '';
       const cross = r['What cross-departmental successes, if any, have you seen?'] || '';
       const goal  = r['What is this week\'s goal for your department?'] || '';
@@ -2582,6 +2639,35 @@
     function _lbAllEntryCard(r, ts, c) {
       const accent = c.color || '#888';
       const tsStr  = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+
+      // Quiz completion rows — dedicated card
+      const quizMeta = _lbQuizRowMeta(r);
+      if (quizMeta) {
+        const { display, pct } = quizMeta;
+        const scoreBg  = pct === 100 ? '#d1fae5' : pct >= 50 ? '#dbeafe' : pct != null ? '#fee2e2' : '#f3f4f6';
+        const scoreFg  = pct === 100 ? '#065f46' : pct >= 50 ? '#1e40af' : pct != null ? '#991b1b' : '#6b7280';
+        const scoreStr = display ? display + ' (' + pct + '%)' : 'Score unavailable';
+        const qaRaw = _lbGetOrg(r);
+        const qaHtml = qaRaw && qaRaw.includes('Q1')
+          ? qaRaw.split('\n').filter(Boolean).map(line => {
+              const wrong = line.includes(' ✗ ');
+              return `<div style="font-size:.75rem;line-height:1.6;color:${wrong?'#991b1b':'#065f46'};padding:.15rem 0">${line}</div>`;
+            }).join('')
+          : '';
+        return `
+        <div style="border:1px solid ${accent}22;border-radius:10px;overflow:hidden;background:#fff">
+          ${tsStr ? `<div style="padding:.5rem .875rem;background:${accent}0d;border-bottom:1px solid ${accent}1a;font-size:.75rem;font-weight:600;color:var(--navy)">${tsStr}</div>` : ''}
+          <div style="padding:.875rem .875rem ${qaHtml?'.625rem':'.5rem'}">
+            <div style="display:flex;align-items:center;gap:.625rem;margin-bottom:${qaHtml?'.75rem':0}">
+              <span style="font-size:1rem">📋</span>
+              <span style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">Quiz Completion</span>
+              <span style="padding:.2rem .625rem;border-radius:20px;font-size:.75rem;font-weight:700;background:${scoreBg};color:${scoreFg}">${scoreStr}</span>
+            </div>
+            ${qaHtml ? `<div style="padding:.5rem .75rem;background:#f8fafc;border-left:3px solid ${accent}66;border-radius:0 6px 6px 0">${qaHtml}</div>` : ''}
+          </div>
+        </div>`;
+      }
+
       const succ   = r['What successes has your department seen this week?'] || '';
       const cross  = r['What cross-departmental successes, if any, have you seen?'] || '';
       const goal   = r['What is this week\'s goal for your department?'] || '';
