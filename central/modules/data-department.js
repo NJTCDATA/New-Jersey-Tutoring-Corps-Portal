@@ -2669,34 +2669,40 @@
         ? window.po.getDiagnosticTestingData() : [];
       const _diagSection = (function(){
         if (!_diagData.length) return '';
-        const totalWeeks = _diagData.reduce(function(s,d){ return Math.max(s, d.diagnosticWeeks); }, 0);
+        const maxWks = _diagData[0] ? _diagData[0].diagnosticWeeks : 0;
         const rows = _diagData.map(function(d){
-          const pct = totalWeeks > 0 ? Math.round(d.diagnosticWeeks / totalWeeks * 100) : 0;
-          const col = d.diagnosticWeeks >= 3 ? '#d97706' : '#059669';
+          // diagnosticWeeks = concentrated weeks (≥3 distinct scholars); allWeeks = every week with any record
+          const makeupWks = d.allWeeks - d.diagnosticWeeks;
+          const col = d.diagnosticWeeks >= 3 ? '#d97706' : d.diagnosticWeeks > 0 ? '#ca8a04' : '#059669';
+          const weekCell = d.weekLabels.length
+            ? d.weekLabels.slice(0,4).join(', ') + (d.weekLabels.length > 4 ? '…' : '')
+            : '—';
+          const makeupNote = makeupWks > 0
+            ? ' <span style="font-size:.6rem;color:#94a3b8">(+' + makeupWks + ' make-up)</span>'
+            : '';
           return '<tr>'
             +'<td style="padding:.35rem .5rem;font-size:.7rem;font-weight:600;color:#1e293b">' + d.school + '</td>'
             +'<td style="padding:.35rem .5rem;font-size:.68rem;color:#64748b">' + (d.district||'—') + '</td>'
-            +'<td style="padding:.35rem .5rem;text-align:center;font-weight:700;color:' + col + ';font-size:.8rem">' + d.diagnosticWeeks + '</td>'
+            +'<td style="padding:.35rem .5rem;text-align:center;font-weight:700;color:' + col + ';font-size:.8rem">' + d.diagnosticWeeks + makeupNote + '</td>'
             +'<td style="padding:.35rem .5rem;text-align:center;font-size:.68rem;color:#64748b">' + d.scholars + '</td>'
-            +'<td style="padding:.35rem .5rem;font-size:.65rem;color:#94a3b8">' + (d.weekLabels.slice(0,4).join(', ') + (d.weekLabels.length > 4 ? '…' : '')) + '</td>'
+            +'<td style="padding:.35rem .5rem;font-size:.65rem;color:#94a3b8">' + weekCell + '</td>'
             +'</tr>';
         }).join('');
         const totalSites = _diagData.length;
-        const maxWks = _diagData[0] ? _diagData[0].diagnosticWeeks : 0;
         return '<details style="margin-top:.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">'
           +'<summary style="padding:.6rem 1rem;cursor:pointer;font-size:.75rem;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:.5rem;list-style:none">'
-          +'<span style="flex:1">🔬 Diagnostic Testing Windows — ' + totalSites + ' site' + (totalSites>1?'s':'') + ' · Up to ' + maxWks + ' program week' + (maxWks>1?'s':'') + ' used for diagnostics</span>'
+          +'<span style="flex:1">🔬 Diagnostic Testing Windows — ' + totalSites + ' site' + (totalSites>1?'s':'') + ' · Up to ' + maxWks + ' concentrated week' + (maxWks!==1?'s':'') + ' used for diagnostics</span>'
           +'<span style="font-size:.65rem;color:#94a3b8;font-weight:400">Missed reason: NJTC Diagnostic Testing &nbsp;▼</span>'
           +'</summary>'
           +'<div style="padding:.5rem 1rem 1rem">'
-          +'<p style="font-size:.68rem;color:#64748b;margin:.25rem 0 .5rem">Counts unique <em>program weeks</em> (Pearl Week label) where a diagnostic testing missed reason was recorded for scholar rows. Helps contextualize shorter spring-window durations in the iReady data above.</p>'
+          +'<p style="font-size:.68rem;color:#64748b;margin:.25rem 0 .5rem"><strong>Diag. Weeks</strong> counts program weeks (Pearl Week label) where <strong>3 or more distinct scholars</strong> had a diagnostic testing missed reason — this represents a true testing window, not a single make-up session. The <em>+N make-up</em> note shows additional weeks with fewer than 3 scholars (individual make-ups). Helps contextualize shorter spring-window durations in the iReady data above.</p>'
           +'<table style="width:100%;border-collapse:collapse">'
           +'<thead><tr style="border-bottom:1px solid #e2e8f0">'
           +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">School</th>'
           +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">District</th>'
           +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:center;color:#64748b;font-weight:600">Diag. Weeks</th>'
           +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:center;color:#64748b;font-weight:600">Scholars</th>'
-          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">Weeks</th>'
+          +'<th style="padding:.3rem .5rem;font-size:.65rem;text-align:left;color:#64748b;font-weight:600">Weeks (concentrated)</th>'
           +'</tr></thead>'
           +'<tbody>' + rows + '</tbody>'
           +'</table>'
