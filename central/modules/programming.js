@@ -7363,6 +7363,9 @@
             'NJTC Diagnostic Testing',
             'School-administered Testing',
           ]);
+          // Minimum distinct scholars in a week to count it as a "diagnostic testing week"
+          // rather than an individual make-up session.
+          var WEEK_SCHOLAR_MIN = 3;
           var bySchool = {};
           _attRows.forEach(function(r) {
             if (r[ATT.ROLE] !== 'Student') return;
@@ -7372,25 +7375,38 @@
             var district = r[ATT.DISTRICT] || '';
             var week     = r[ATT.WEEK]     || '';
             var uid      = r[ATT.USER_ID]  || '';
-            if (!bySchool[school]) bySchool[school] = { district: district, weeks: {}, scholars: new Set() };
-            if (week) bySchool[school].weeks[week] = (bySchool[school].weeks[week] || 0) + 1;
+            if (!bySchool[school]) bySchool[school] = { district: district, weekScholars: {}, scholars: new Set() };
+            if (week && uid) {
+              if (!bySchool[school].weekScholars[week]) bySchool[school].weekScholars[week] = new Set();
+              bySchool[school].weekScholars[week].add(uid);
+            }
             if (uid) bySchool[school].scholars.add(uid);
           });
           return Object.entries(bySchool)
             .map(function(entry) {
               var school = entry[0], d = entry[1];
-              var weekKeys = Object.keys(d.weeks);
+              var _sortWeek = function(a, b) {
+                return (parseInt(a.replace(/\D+/,''))||0) - (parseInt(b.replace(/\D+/,''))||0);
+              };
+              // All weeks with any diagnostic record
+              var allWeekKeys = Object.keys(d.weekScholars).sort(_sortWeek);
+              // Concentrated weeks: ≥ WEEK_SCHOLAR_MIN distinct scholars
+              var diagWeekKeys = allWeekKeys.filter(function(w) {
+                return d.weekScholars[w].size >= WEEK_SCHOLAR_MIN;
+              });
               return {
                 school:          school,
                 district:        d.district,
-                diagnosticWeeks: weekKeys.length,
-                records:         Object.values(d.weeks).reduce(function(s,v){ return s+v; }, 0),
+                diagnosticWeeks: diagWeekKeys.length,   // primary: concentrated testing weeks
+                allWeeks:        allWeekKeys.length,     // total incl. individual make-ups
+                records:         allWeekKeys.reduce(function(s,w){ return s + d.weekScholars[w].size; }, 0),
                 scholars:        d.scholars.size,
-                weekLabels:      weekKeys.sort(),
+                weekLabels:      diagWeekKeys,           // labels for concentrated weeks only
+                allWeekLabels:   allWeekKeys,
               };
             })
-            .filter(function(s) { return s.diagnosticWeeks > 0; })
-            .sort(function(a, b) { return b.diagnosticWeeks - a.diagnosticWeeks; });
+            .filter(function(s) { return s.allWeeks > 0; })
+            .sort(function(a, b) { return b.diagnosticWeeks - a.diagnosticWeeks || b.allWeeks - a.allWeeks; });
         } catch(e) { return []; }
       },
 
