@@ -8051,8 +8051,16 @@
             });
 
             // Survey scores this week
-            var cwStuSurvRows = _stuRows.filter(function(r){ return (r[STU_S.WEEK]||'')===curWeekLabel; });
-            var cwInstSurvRows = _instRows.filter(function(r){ return (r[INST_S.WEEK]||'')===curWeekLabel; });
+            // Match surveys by Date Responded (STU_S.DATE / INST_S.DATE) — the WEEK column is often blank.
+            // Tooltip on the chip will note "based on Date Responded" so users know it's by submission date.
+            var cwStuSurvRows = _stuRows.filter(function(r){
+              var wk = weekKeyFromDateStr(r[STU_S.DATE]) || (r[STU_S.WEEK]||'');
+              return wk === curWeekLabel;
+            });
+            var cwInstSurvRows = _instRows.filter(function(r){
+              var wk = weekKeyFromDateStr(r[INST_S.DATE]) || (r[INST_S.WEEK]||'');
+              return wk === curWeekLabel;
+            });
             function survAvg(rows, cols) {
               var sum=0, cnt=0;
               rows.forEach(function(r){ cols.forEach(function(c){ var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){sum+=v;cnt++;} }); });

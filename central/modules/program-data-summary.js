@@ -300,7 +300,8 @@ function buildBanner(icon, title, body, tone) {
 function buildStatGrid(stats) {
   return '<div class="pds-stat-grid">' +
     stats.map(function(s) {
-      return '<div class="pds-stat">' +
+      var tipAttr = s.tooltip ? ' title="' + s.tooltip + '"' : '';
+      return '<div class="pds-stat"' + tipAttr + (s.tooltip ? ' style="cursor:help"' : '') + '>' +
         '<div class="pds-stat-val" style="color:' + (s.color||'var(--navy)') + '">' + s.val + '</div>' +
         '<div class="pds-stat-label">' + s.label + '</div>' +
         '</div>';
@@ -360,8 +361,8 @@ function renderThisWeek(d) {
     { val: tutRate !== null ? tutRate + '%' : '—', label: 'Tutor Attendance',   color: rateColor(tutRate) },
     { val: cw.incompletes,                          label: 'Incomplete Sessions',color: cw.incompletes > 5 ? '#dc2626' : 'var(--navy)' },
     { val: cw.siTotal,                              label: 'Service Interruptions', color: cw.siTotal > 3 ? '#d97706' : 'var(--navy)' },
-    { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : cw.scholarSurvey ? '#7c3aed' : '#94a3b8' },
-    { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : cw.tutorSurvey ? '#7c3aed' : '#94a3b8' },
+    { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : cw.scholarSurvey ? '#7c3aed' : '#94a3b8', tooltip: 'Avg scholar survey score for surveys submitted during this week (matched by Date Responded). Surveys submitted in a different week than the session will appear in the week they were submitted.' },
+    { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : cw.tutorSurvey ? '#7c3aed' : '#94a3b8', tooltip: 'Avg instructor/tutor survey score for surveys submitted during this week (matched by Date Responded). Surveys submitted in a different week than the session will appear in the week they were submitted.' },
   ]);
 
   // What to do
