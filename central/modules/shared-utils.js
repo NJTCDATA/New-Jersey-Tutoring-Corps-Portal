@@ -1213,7 +1213,10 @@
   // Returns { display: '2/2', score: 2, total: 2, pct: 100 } for a quiz row, or null.
   function _lbQuizRowMeta(row) {
     const succVal = (row['What successes has your department seen this week?'] || '').trim();
-    if (!succVal.startsWith('[QUIZ_RECORD]')) return null;
+    // [QUIZ_RECORD] is the current marker; "Quiz Submission" is the legacy pre-marker format
+    const isQuizRecord = succVal.startsWith('[QUIZ_RECORD]');
+    const isLegacyQuiz = succVal === 'Quiz Submission';
+    if (!isQuizRecord && !isLegacyQuiz) return null;
     // Try new dedicated column first, then legacy fallbacks
     const src = _lbGetQuizScoreCol(row)
              || row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || ''
@@ -1341,10 +1344,10 @@
     byDept['unknown'] = { count: 0, lastDate: null, metDeadline: 0, entries: [] };
     rows.forEach(row => {
       const dept = _lbRowDept(row);
-      // Detect quiz result records — tagged [QUIZ_RECORD] in the successes column.
+      // Detect quiz result records — [QUIZ_RECORD] is current marker; "Quiz Submission" is legacy.
       // Priority: new dedicated quizScore column → goalMissReason (interim fix) → orgShareOut (legacy).
       const succVal = (row['What successes has your department seen this week?'] || '').trim();
-      if (succVal.startsWith('[QUIZ_RECORD]')) {
+      if (succVal.startsWith('[QUIZ_RECORD]') || succVal === 'Quiz Submission') {
         // Try all columns that may hold the machine tag, newest location first
         const quizScoreVal  = _lbGetQuizScoreCol(row);
         const goalMissVal   = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';

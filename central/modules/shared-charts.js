@@ -1414,6 +1414,11 @@
         if (result.status === 'fulfilled' && result.value.ok) {
           const rows = _parseObsSheet(await result.value.text(), skipMap[i]);
           combined.push(...rows);
+        } else if (result.status === 'fulfilled') {
+          // Non-ok response (e.g. 400) means the sheet isn't publicly shared — skip silently
+          console.info('[Obs] Observations sheet HTTP ' + result.value.status + ' — ensure the OBS sheet is shared ("Anyone with the link can view").');
+        } else {
+          console.info('[Obs] Observations fetch failed (' + (i===0?'NE':'SW') + '):', result.reason?.message || 'network error');
         }
       }
       if (!combined.length) return;
