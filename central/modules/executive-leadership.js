@@ -1533,7 +1533,15 @@
     const hrEligible = (window.AP_DATA || []).filter(r =>
       r.apprentice !== 'Yes' && !tapNames.has(nm(r.name))
     );
-    const enrolled = tapRoster.map(tap => {
+    // ADP Active filter — mirrors T&D: only include entries with ADP Status 'Active' or no OTJ record.
+    // njtcOTJMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
+    const _otjLookup = window.njtcOTJMap || {};
+    const _fl2 = n => { const p = n.split(/\s+/).filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : n; };
+    const _adpStatus = name => { const k = nm(name); const row = _otjLookup[k] || _otjLookup[_fl2(k)] || null; return row ? (row['ADP Status']||'').trim() : ''; };
+    const activeRoster = tapRoster.filter(tap => { const adp = _adpStatus(tap.name); return adp === '' || adp === 'Active'; });
+    if (activeRoster.length !== tapRoster.length)
+      console.log('[AP] ADP filter: ' + activeRoster.length + ' ADP-active of ' + tapRoster.length + ' TAP entries');
+    const enrolled = activeRoster.map(tap => {
       const hrMatch = hrByName[nm(tap.name)];
       // TAP placement is the authoritative current school — derive network from it first.
       // HR site/district is only used as a fallback when placement alone is ambiguous.
@@ -1592,7 +1600,7 @@
       hrOnlyEnrolled.length + ' enrolled (HR-only) + ' +
       hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
     // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
-    ap_syncHREmps(new Set(tapRoster.map(r => nm(r.name))));
+    ap_syncHREmps(new Set(activeRoster.map(r => nm(r.name))));
   };
 
   // Push TAP enrolled status into HR_EMPS so the Talent Analytics "Apprentice" filter works
