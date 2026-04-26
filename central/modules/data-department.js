@@ -4962,9 +4962,143 @@
         doc.setFontSize(7); doc.setTextColor(100,120,145);
         doc.text('Data Source: iReady SY 2025\u20132026  \u00B7  NJTC Central Team Staff Portal  \u00B7  Confidential', 108, 272, {align:'center'});
 
+        // ── PAGE 5: Operational + Academic Marriage ──────────────────────────
+        if (opsMap && tutorImpact.length) {
+          doc.addPage();
+          doc.setFillColor(...NAVY); doc.rect(0,0,216,14,'F');
+          doc.setTextColor(...WHITE); doc.setFontSize(9); doc.setFont('helvetica','bold');
+          doc.text('OPERATIONAL IMPACT ON ACADEMIC GROWTH · ' + subject.toUpperCase(), 20, 9);
+          let p5y = 18;
+
+          // Plain-language intro for teachers
+          doc.setFillColor(240,244,255); doc.roundedRect(20, p5y, 176, 16, 2, 2, 'F');
+          doc.setFillColor(...BLUE); doc.rect(20, p5y, 3, 16, 'F');
+          doc.setTextColor(...NAVY); doc.setFontSize(7); doc.setFont('helvetica','bold');
+          doc.text('WHAT IS THIS PAGE?', 28, p5y+5);
+          doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(30,50,90);
+          const p5intro = 'This page connects what happened in sessions (service interruptions, attendance, surveys) with how much scholars learned. ' +
+            'Use it to understand where operational challenges may have limited growth, and where tutors delivered strong outcomes despite disruptions.';
+          doc.text(doc.splitTextToSize(safe(p5intro), 162).slice(0,2), 28, p5y+9.5);
+          p5y += 20;
+
+          // Network operational snapshot chips
+          const totSIs5   = tutorImpact.reduce(function(s,t){ return s + t.siTutor + t.siSchool + t.siOther; }, 0);
+          const totSiT5   = tutorImpact.reduce(function(s,t){ return s + t.siTutor; }, 0);
+          const totSiS5   = tutorImpact.reduce(function(s,t){ return s + t.siSchool; }, 0);
+          const totHrs5   = tutorImpact.reduce(function(s,t){ return s + t.hours; }, 0);
+          const tutWAtt5  = tutorImpact.filter(function(t){ return t.scholAttRate !== null; });
+          const netAtt5   = tutWAtt5.length ? Math.round(tutWAtt5.reduce(function(s,t){ return s+t.scholAttRate; },0) / tutWAtt5.length) : null;
+          const tutWMo5   = tutorImpact.filter(function(t){ return t.medianMonths !== null; });
+          const netMo5    = tutWMo5.length ? parseFloat((tutWMo5.reduce(function(s,t){ return s+t.medianMonths; },0) / tutWMo5.length).toFixed(1)) : null;
+          const tutWSurv5 = tutorImpact.filter(function(t){ return t.scholSurveyAvg !== null; });
+          const netSurv5  = tutWSurv5.length ? parseFloat((tutWSurv5.reduce(function(s,t){ return s+t.scholSurveyAvg; },0) / tutWSurv5.length).toFixed(2)) : null;
+
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+          doc.text('NETWORK SNAPSHOT · PEARL + IREADY COMBINED', 20, p5y); p5y += 4;
+
+          const opsChips5 = [
+            { v: totHrs5.toFixed(1)+'h',               l: 'Inst. Hours',        c: BLUE  },
+            { v: netAtt5 !== null ? netAtt5+'%' : '—', l: 'Avg Scholar Att.', c: netAtt5&&netAtt5>=90?GREEN:GOLD },
+            { v: totSIs5,                               l: 'Total SIs',          c: totSIs5>20?RED:GOLD },
+            { v: totSiT5,                               l: 'Tutor-Caused SIs',   c: totSiT5>10?RED:GOLD },
+            { v: totSiS5,                               l: 'School-Caused SIs',  c: GOLD  },
+            { v: netSurv5 !== null ? netSurv5+'/5':'—', l: 'Avg Scholar Sat.', c: netSurv5&&netSurv5>=4?GREEN:GOLD },
+            { v: netMo5 !== null ? netMo5+' mo':'—',   l: 'Avg Months Gained', c: netMo5&&netMo5>=8?GREEN:netMo5&&netMo5>=5?GOLD:RED },
+          ];
+          const opsW5 = 176 / opsChips5.length;
+          opsChips5.forEach(function(c,i) {
+            const cx = 20 + i*opsW5;
+            doc.setFillColor(245,248,255); doc.roundedRect(cx, p5y, opsW5-2, 16, 1.5, 1.5, 'F');
+            doc.setFillColor(...c.c); doc.rect(cx, p5y, opsW5-2, 2, 'F');
+            doc.setTextColor(...c.c); doc.setFontSize(9); doc.setFont('helvetica','bold');
+            doc.text(safe(String(c.v)), cx+(opsW5-2)/2, p5y+9, {align:'center'});
+            doc.setTextColor(100,115,135); doc.setFontSize(5); doc.setFont('helvetica','normal');
+            doc.text(safe(c.l), cx+(opsW5-2)/2, p5y+14, {align:'center'});
+          });
+          p5y += 20;
+
+          // SI vs Months table
+          doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(...NAVY);
+          doc.text('SERVICE INTERRUPTIONS vs MONTHS OF LEARNING GAINED · BY TUTOR', 20, p5y);
+          doc.setFontSize(5.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,120,145);
+          doc.text('Tutors with high SIs but strong growth demonstrate resilience. High SIs + low growth = coaching conversation needed.', 20, p5y+4);
+          p5y += 8;
+
+          const siVsGrowth5 = tutorImpact
+            .filter(function(t){ return t.medianMonths !== null; })
+            .sort(function(a,b){ return (b.siTutor+b.siSchool)-(a.siTutor+a.siSchool); }).slice(0,20);
+
+          doc.autoTable({
+            startY: p5y,
+            head: [['Tutor','N','Mo Gained','% Typical','Att%','T-SIs','S-SIs','Hrs','Scholar Sat.','Signal']],
+            body: siVsGrowth5.map(function(t) {
+              const siTot5 = t.siTutor + t.siSchool;
+              const sig5 = siTot5===0
+                ? (t.medianMonths>=8?'Excellent':t.medianMonths>=5?'Good':'Monitor')
+                : t.medianMonths>=8?'Resilient':siTot5>5?'SIs limited growth':'Monitor';
+              return [
+                safe(t.name.length>22?t.name.slice(0,21)+'…':t.name),
+                t.n,
+                t.medianMonths!==null?t.medianMonths+' mo':'—',
+                t.medianPct+'%',
+                t.scholAttRate!==null?t.scholAttRate+'%':'—',
+                t.siTutor>0?'⚠ '+t.siTutor:'0',
+                t.siSchool>0?t.siSchool:'0',
+                t.hours>0?t.hours+'h':'—',
+                t.scholSurveyAvg!==null?t.scholSurveyAvg.toFixed(1)+'/5':'—',
+                safe(sig5),
+              ];
+            }),
+            headStyles:{ fillColor:NAVY, textColor:WHITE, fontSize:6, fontStyle:'bold' },
+            bodyStyles:{ fontSize:5.5, cellPadding:1.5 },
+            alternateRowStyles:{ fillColor:[245,248,255] },
+            styles:{ overflow:'linebreak', cellPadding:1.5 },
+            margin:{ left:20, right:20 },
+            columnStyles:{
+              0:{cellWidth:30}, 1:{cellWidth:10,halign:'center'},
+              2:{cellWidth:14,halign:'center'}, 3:{cellWidth:13,halign:'center'},
+              4:{cellWidth:11,halign:'center'}, 5:{cellWidth:11,halign:'center'},
+              6:{cellWidth:11,halign:'center'}, 7:{cellWidth:11,halign:'center'},
+              8:{cellWidth:15,halign:'center'}, 9:{cellWidth:30},
+            },
+            didParseCell: function(d) {
+              if (d.section!=='body') return;
+              if (d.column.index===2){ const v=parseFloat(d.cell.raw); if(!isNaN(v)){d.cell.styles.textColor=v>=8?GREEN:v>=5?[180,100,0]:RED; d.cell.styles.fontStyle='bold';} }
+              if (d.column.index===3){ const v=parseInt(d.cell.raw); if(!isNaN(v)) d.cell.styles.textColor=v>=80?GREEN:v>=50?[180,100,0]:RED; }
+              if (d.column.index===5 && d.cell.raw!=='0'){ d.cell.styles.textColor=RED; d.cell.styles.fontStyle='bold'; }
+            },
+          });
+          p5y = doc.lastAutoTable.finalY + 5;
+
+          // Attendance-growth correlation callout
+          if (p5y < 242) {
+            const hiAtt5 = tutorImpact.filter(function(t){ return t.scholAttRate!==null&&t.scholAttRate>=90&&t.medianMonths!==null; });
+            const loAtt5 = tutorImpact.filter(function(t){ return t.scholAttRate!==null&&t.scholAttRate<75&&t.medianMonths!==null; });
+            const hiAvg5 = hiAtt5.length ? parseFloat((hiAtt5.reduce(function(s,t){return s+t.medianMonths;},0)/hiAtt5.length).toFixed(1)) : null;
+            const loAvg5 = loAtt5.length ? parseFloat((loAtt5.reduce(function(s,t){return s+t.medianMonths;},0)/loAtt5.length).toFixed(1)) : null;
+            if (hiAvg5!==null || loAvg5!==null) {
+              doc.setFillColor(15,30,55); doc.roundedRect(20, p5y, 176, 22, 2, 2, 'F');
+              doc.setFillColor(...GOLD); doc.rect(20, p5y, 3, 22, 'F');
+              doc.setTextColor(...GOLD); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+              doc.text('ATTENDANCE → LEARNING CORRELATION', 28, p5y+6);
+              doc.setTextColor(...WHITE); doc.setFontSize(6); doc.setFont('helvetica','normal');
+              let attNarr5 = '';
+              if (hiAvg5!==null && loAvg5!==null) {
+                const diff5 = parseFloat((hiAvg5-loAvg5).toFixed(1));
+                attNarr5 = 'Tutors with 90%+ scholar attendance averaged '+hiAvg5+' months of learning vs '+loAvg5+' months for sub-75% attendance — a '+(diff5>0?'+':'')+diff5+'-month difference. '+(diff5>2?'Meaningful gap. Attendance conversations with scholars and families should be a PM priority before the spring window.':diff5>0?'Attendance is a positive lever. Continue reinforcing session commitment.':'Attendance gap is minimal this period. Monitor trends into spring.');
+              } else {
+                attNarr5 = hiAvg5!==null ? 'Tutors with 90%+ scholar attendance averaged '+hiAvg5+' months of learning gained at mid-year.' : 'Tutors with scholar attendance below 75% averaged '+loAvg5+' months of learning. Attendance is a lever for program leaders to act on.';
+              }
+              doc.text(doc.splitTextToSize(safe(attNarr5), 162).slice(0,3), 28, p5y+11.5);
+            }
+          }
+          doc.setFontSize(6.5); doc.setTextColor(100,120,145);
+          doc.text('Source: Pearl Attendance + iReady Diagnostics  ·  NJTC Central Team Staff Portal  ·  Confidential', 108, 272, {align:'center'});
+        }
+
         const regionSlug = scope === 'ALL' ? 'Network' : scope;
         const dateStr = new Date().toISOString().slice(0,10);
-        const filename = `NJTC-MOY-${subject}-${regionSlug}-${dateStr}.pdf`;
+        const filename = 'NJTC-MOY-' + subject + '-' + regionSlug + '-' + dateStr + '.pdf';
         doc.save(filename);
 
       } catch(err) {
