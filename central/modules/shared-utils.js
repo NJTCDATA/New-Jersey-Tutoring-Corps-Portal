@@ -5381,6 +5381,7 @@
         else el.innerHTML = renderTalentReviews();
       }
       else if (_talentTab === 'log')     el.innerHTML = renderTalentLog();
+      else if (_talentTab === 'hiring')  el.innerHTML = (typeof window._hrHiringFileCabinet === 'function') ? window._hrHiringFileCabinet() : '<div style="padding:2rem;color:var(--muted)">Hiring records not available.</div>';
     } catch(e) {
       document.getElementById('talentContent').innerHTML = `<div style="padding:2rem;color:var(--muted);text-align:center">Render error: ${e.message}</div>`;
       console.error('Talent dashboard error:', e);
@@ -5389,17 +5390,17 @@
 
   // Update tab labels and layout based on dept
   function initTalentTabsForDept(dept) {
-    // Full tab list: profiles, all (concerns), program, hr, reviews, log
-    const TAB_IDS = ['profiles','all','program','hr','reviews','log'];
+    // Full tab list: profiles, all (concerns), program, hr, reviews, log, hiring
+    const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring'];
     // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
     const TAB_MAP = {
-      kb:          ['profiles'],                                        // KB: exec summary only
-      leadership:  ['all'],                                              // leadership: summary dashboard only
-      data:        ['profiles','all','program','hr','reviews','log'],   // data: full access
-      hr:          ['profiles','all','reviews','log'],                  // HR: profiles + concerns + site leader reviews + log
-      programming: ['profiles','all','reviews'],                        // Programming: profiles + site overview + site leader reviews
-      finance:     ['profiles','all'],                                  // Finance: their view
-      training:    ['profiles','all','reviews'],                        // Training: profiles + concerns + site leader reviews
+      kb:          ['profiles'],                                               // KB: exec summary only
+      leadership:  ['all'],                                                    // leadership: summary dashboard only
+      data:        ['profiles','all','program','hr','reviews','log','hiring'], // data: full access
+      hr:          ['profiles','all','reviews','log','hiring'],                // HR: profiles + concerns + reviews + log + hiring records
+      programming: ['profiles','all','reviews'],                               // Programming: profiles + site overview + site leader reviews
+      finance:     ['profiles','all'],                                         // Finance: their view
+      training:    ['profiles','all','reviews'],                               // Training: profiles + concerns + site leader reviews
     };
     const allowed = new Set(TAB_MAP[dept] || ['all']);
 
