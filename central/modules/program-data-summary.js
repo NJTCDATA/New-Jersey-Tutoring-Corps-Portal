@@ -625,3 +625,140 @@ function renderDiscrepancies(d) {
   });
   return html;
 }
+
+// ── State ──────────────────────────────────────────────────────────────────
+var _activeTab = 'week';
+var _lastRendered = 0;
+var TABS = [
+  { id: 'week',   label: '📋 This Week' },
+  { id: 'trends', label: '📈 Trends' },
+  { id: 'regional', label: '🗺 Regional' },
+  { id: 'academic', label: '📚 Academic' },
+  { id: 'discrepancies', label: '🔍 Data Health' },
+];
+
+// ── Open / Close ───────────────────────────────────────────────────────────
+function open() {
+  var ov = document.getElementById('pdsOverlay');
+  var sh = document.getElementById('pdsSheet');
+  if (!ov || !sh) { buildDOM(); ov = document.getElementById('pdsOverlay'); sh = document.getElementById('pdsSheet'); }
+  ov.classList.add('open');
+  sh.classList.add('open');
+  renderActiveTab();
+}
+
+function close() {
+  var ov = document.getElementById('pdsOverlay');
+  var sh = document.getElementById('pdsSheet');
+  if (ov) ov.classList.remove('open');
+  if (sh) sh.classList.remove('open');
+}
+
+function switchTab(tabId) {
+  _activeTab = tabId;
+  // Update tab buttons
+  TABS.forEach(function(t) {
+    var btn = document.getElementById('pdsTab-' + t.id);
+    if (btn) btn.className = 'pds-tab' + (t.id === tabId ? ' active' : '');
+  });
+  renderActiveTab();
+}
+
+function renderActiveTab() {
+  var body = document.getElementById('pdsBody');
+  if (!body) return;
+
+  // Check data
+  var poReady = window.po && typeof window.po.getProgramSummaryData === 'function' && window.po.isDataLoaded && window.po.isDataLoaded();
+  if (!poReady) {
+    body.innerHTML = '<div class="pds-loading">⏳ Pearl data is loading… Open the Pearl Operations panel first to load data, then come back here.</div>';
+    return;
+  }
+
+  var d;
+  try { d = window.po.getProgramSummaryData(); } catch(e) { d = { loaded: false }; }
+
+  if (!d.loaded) {
+    body.innerHTML = '<div class="pds-loading">⏳ Loading program data… this usually takes under 10 seconds.</div>';
+    return;
+  }
+
+  var html = '';
+  if      (_activeTab === 'week')          html = renderThisWeek(d);
+  else if (_activeTab === 'trends')        html = renderTrends(d);
+  else if (_activeTab === 'regional')      html = renderRegional(d);
+  else if (_activeTab === 'academic')      html = renderAcademic();
+  else if (_activeTab === 'discrepancies') html = renderDiscrepancies(d);
+
+  body.innerHTML = html;
+  body.scrollTop = 0;
+  _lastRendered = Date.now();
+
+  // Update sync time
+  var syncTxt = document.getElementById('pdsSyncTxt');
+  if (syncTxt) syncTxt.textContent = 'Data as of ' + new Date().toLocaleTimeString();
+}
+
+// ── Build DOM (called once) ────────────────────────────────────────────────
+function buildDOM() {
+  if (document.getElementById('pdsOverlay')) return;
+
+  // Overlay
+  var ov = document.createElement('div');
+  ov.id = 'pdsOverlay';
+  ov.onclick = function(e) { if (e.target === ov) close(); };
+  document.body.appendChild(ov);
+
+  // Sheet
+  var sh = document.createElement('div');
+  sh.id = 'pdsSheet';
+  sh.innerHTML =
+    '<div class="pds-header">' +
+      '<div class="pds-header-left">' +
+        '<div class="pds-eyebrow">Program Intelligence · SY 2025–2026</div>' +
+        '<div class="pds-title">Program Pulse</div>' +
+        '<div class="pds-subtitle">Your week at a glance — attendance, surveys, interruptions, and what needs your attention.</div>' +
+      '</div>' +
+      '<button class="pds-close-btn" onclick="window.pds.close()" title="Close">✕</button>' +
+    '</div>' +
+    '<div class="pds-sync-bar"><span class="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#4ade80;display:inline-block;flex-shrink:0"></span>' +
+      '<span id="pdsSyncTxt">Live Pearl data</span>' +
+      '<button onclick="window.pds.refresh()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:6px;padding:.25rem .625rem;font-size:.75rem;cursor:pointer;font-family:inherit;color:var(--muted)">↺ Refresh</button>' +
+    '</div>' +
+    '<div class="pds-tab-bar">' +
+      TABS.map(function(t) {
+        return '<button id="pdsTab-' + t.id + '" class="pds-tab' + (t.id === _activeTab ? ' active' : '') + '" onclick="window.pds.switchTab(\'' + t.id + '\')">' + t.label + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div class="pds-body" id="pdsBody"><div class="pds-loading">Loading…</div></div>';
+  document.body.appendChild(sh);
+
+  // Trigger button
+  var btn = document.createElement('button');
+  btn.id = 'pdsPulseBtn';
+  btn.innerHTML = '<span class="pds-btn-dot"></span> Program Pulse';
+  btn.onclick = function() { open(); };
+  document.body.appendChild(btn);
+}
+
+// ── Refresh ────────────────────────────────────────────────────────────────
+function refresh() {
+  _lastRendered = 0;
+  renderActiveTab();
+}
+
+// ── Show/hide button based on dept ─────────────────────────────────────────
+function updateVisibility(dept) {
+  var allowed = ['programming', 'data', 'leadership', 'kb'];
+  var btn = document.getElementById('pdsPulseBtn');
+  if (!btn) { buildDOM(); btn = document.getElementById('pdsPulseBtn'); }
+  if (btn) btn.className = allowed.includes(dept) ? 'visible' : '';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildDOM();
+
+// ── Public API ─────────────────────────────────────────────────────────────
+window.pds = { open: open, close: close, switchTab: switchTab, refresh: refresh, updateVisibility: updateVisibility };
+
+})(); // end IIFE
