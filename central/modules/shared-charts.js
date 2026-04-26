@@ -1058,7 +1058,7 @@
   const HIRING_SHEET_GID   = '786776521';
   // Google Form action URL — get from your form's viewform link: replace /viewform with /formResponse
   // Share your form → Copy link (1FAIpQLSe...) → paste here as the FORM_ID segment
-  const HIRING_FORM_ID = null; // TODO: paste your form's 1FAIpQLSe... ID here
+  const HIRING_FORM_ID = '1FAIpQLScg2aTj4-GwyDQHvms5Cwkuf03JpaRWkXHWl5gzfoXClsyAIg';
 
   const HIRING_KEY = 'njtc_hiring_decisions_v2';
   let _hiringSheetCache = null;  // cached sheet rows to merge into file cabinet

@@ -52,7 +52,6 @@
       quickLinks: [
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Funding & financial goals', panel: 'kpi' },
         { icon: '📚', label: 'Finance Policies', bg: '#e6f5ed', desc: 'Budget & financial guidelines', panel: 'policies' },
-        { icon: '☁️', label: 'Upload Reports', bg: '#f6f8fc', desc: 'Submit financial documents', panel: 'upload' },
         { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log a support conversation or context note', panel: 'concern' },
       ],
       financeLinks: true,
@@ -66,7 +65,6 @@
         { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log site-level support conversations', panel: 'concern' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Scholar impact goals', panel: 'kpi' },
         { icon: '📚', label: 'Site Policies', bg: '#e0f0ff', desc: 'Program procedures', panel: 'policies' },
-        { icon: '☁️', label: 'Upload Docs', bg: '#f6f8fc', desc: 'Submit program materials', panel: 'upload' },
       ],
       programmingLinks: true,
     },
@@ -91,7 +89,6 @@
       quickLinks: [
         { icon: '📚', label: 'Training Materials', bg: '#fff0e0', desc: 'PD policies & procedures', panel: 'policies' },
         { icon: '📊', label: 'KPI Targets', bg: '#e6efff', desc: 'Pipeline & apprenticeship goals', panel: 'kpi' },
-        { icon: '☁️', label: 'Upload PD Docs', bg: '#f6f8fc', desc: 'Submit training materials', panel: 'upload' },
         { icon: '📝', label: 'Support Log', bg: '#fff7e0', desc: 'Log training support conversations', panel: 'concern' },
       ]
     },
@@ -6846,7 +6843,7 @@
     'Academic':     ['What is our iReady math growth?',         'How does ELA compare to math growth?',        'What is typical growth?'],
     'Program':      ['How many active scholars?',               'What is a service interruption?',             'How many districts are we in?'],
     'Policies':     ['Show me all governance policies',         'Where is the employee handbook?',             'Show me the escalation protocol'],
-    'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',            'How often is data synced?'],
+    'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',            'How often is data synced?',             'Validate data sources — where does each metric come from?'],
     'Satisfaction': ['What is our partner NPS?',                'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
     // Context-specific categories — shown when relevant panel/dept is active
     'My Sites':     ['Which of my sites is below attendance benchmark?', 'Which tutors at my sites need attention?', 'Show me my scholar count by district'],
@@ -11589,6 +11586,59 @@
       }
     },
 
+    // ── DATA SOURCE VALIDATION (Leadership only) ──────────────────────────────
+    // Full source map — all components
+    { match: /\b(where.{0,15}(data|numbers?|info|figures?|this|these|come from|sourced|pulled|from)|what.{0,15}(source|system|report|file|sheet|data).{0,20}(use|pull|read|come from|from)|validate.{0,20}(data|source|number)|data.*validat|source.*validat|validat.*source|verify.{0,20}source|confirm.{0,15}source|which.{0,20}(system|source|report|sheet|file|data).{0,20}(use|pull|read)|how.{0,15}(data|numbers?).{0,20}(pull|collect|gather|sourced|created)|data.*origin|source.*origin|data.*pipeline|source.*breakdown|source.*map|map.*source|all.*sources?|every.*source|list.*sources?|sources?.*list|what data do you|data do you read|what do you read|what.*read|what.*pull|what.*access|what.*see|what.*know|adp.*source|pearl.*source|tap.*source|iready.*source|otj.*source|survey.*source)\b/i,
+      respond: function() {
+        if (!_deptCan('partner_nps')) {
+          // Non-leadership departments get a shorter version
+          return '**PIE Data Sources**\n\nPIE reads live data from the following systems:\n\n• 📊 **Pearl** — Session, attendance, and scholar data\n• 📈 **iReady** — Academic diagnostic and growth data\n• 🏫 **SY Program Sheet** — Site, district, and program structure\n• 📋 **HR Master List** — Staff roster and workforce data\n• 📝 **Surveys** — Scholar and instructor satisfaction\n\nFor a full source breakdown with validation details, ask in the **Leadership department**.\n\n_Contact the Director of Program Evaluation & Impact (PEI) for data validation questions._';
+        }
+        return '**NJTC Data Source Map — Validation Reference**\n\n' +
+          '👔 **HR Components**\n' +
+          '• **ADP WFN Report** — Active/inactive employee roster, pay classifications, hire/term dates\n' +
+          '• **SY Database Terminations** — Current school year terminations and termination reason codes\n\n' +
+
+          '🔷 **PEARL Operations**\n' +
+          '• **Attendance Detail Report** — Scholar-level and tutor-level session attendance records\n' +
+          '• **Session Details Report** — Session logs, volumes, site assignments, and delivery data\n' +
+          '• **Instructor Surveys** — Tutor self-reported session quality and program experience\n' +
+          '• **Tutor Surveys** — Scholar perception of tutor effectiveness (Scholar Enjoyment / Learning metrics)\n\n' +
+
+          '🎓 **TAP / Apprentice Details**\n' +
+          '• **TAP Tracker** — DOL apprenticeship enrollment, status, and progress. _Owned by Ashley — contact directly for updates or discrepancies._\n\n' +
+
+          '👁 **OTJ Observations**\n' +
+          '• **NE & SW OTJ Database** — Field observation records from site visits. Derived sheet created from the Northeast and Southwest OTJ databases. _Inquire with PEI for additional detail on methodology or field definitions._\n\n' +
+
+          '📐 **Academic Data (iReady)**\n' +
+          '• **Formal iReady Extracts** — Provided by iReady stakeholders; available in the shared Google Drive\n' +
+          '• **Manual Pulls** — Direct exports from iReady dashboard or partner dashboard using NJTC credentials\n' +
+          '_Inquire with PEI for access, extraction methodology, or data definition questions._\n\n' +
+
+          '📅 **SY Database**\n' +
+          '• **Current School Year Database** — Created and maintained by the Central Team. Available to all staff through the shared Google Drive. Contains program structure, site assignments, and schedule data.\n\n' +
+
+          '📝 **Surveys**\n' +
+          '• All survey data captured through **formal Google Form methods**\n' +
+          '• Includes: Partner Satisfaction Survey, Training Intake Form, PD Session Data, and supplemental program forms\n' +
+          '_Inquire with PEI for specific report outputs, response rates, or methodology questions._\n\n' +
+
+          '_Source questions and validation inquiries should be directed to the **Director of Program Evaluation & Impact**._';
+      }
+    },
+
+    // Quick "what does PIE read" shortcut (also in Reports chips)
+    { match: /\b(what data sources?|data sources? pie|pie.*data sources?|which sources?|what sources?|sources? used|all sources?|source of truth|our data sources?|njtc data sources?)\b/i,
+      respond: function() {
+        if (!_deptCan('partner_nps')) {
+          return '**PIE reads the following live data sources:**\n\n• Pearl (sessions, attendance, scholars)\n• iReady (academic growth diagnostics)\n• SY Program Sheet (sites, districts, structure)\n• HR Master List (staff roster)\n• Survey data (scholar + instructor feedback)\n\n_For full source attribution and validation details, contact the PEI Director._';
+        }
+        // Leadership/Data/KB — full map via proxy
+        return _route('where does the data come from validate source');
+      }
+    },
+
   ];
 
   // ── Markdown bold → HTML ──────────────────────────────────────────────────
@@ -11817,6 +11867,7 @@
       [/by role.*satisf|satisf.*role|role.*nps|nps.*role/,   'by role partner satisfaction nps'],
       [/improving.*school|school.*improving|declining.*school|school.*declining/, 'improving declining school trajectory'],
       [/policy|policies|governance|handbook|protocol|escalation|procedure|guideline|manual/, 'policy policies governance list show'],
+      [/source|validate|validat|where.*data|data.*come from|adp|tap tracker|otj.*source|iready.*source|pearl.*source|survey.*source/, 'where does the data come from validate source'],
     ];
     for (var k = 0; k < kw.length; k++) {
       if (kw[k][0].test(qn)) {

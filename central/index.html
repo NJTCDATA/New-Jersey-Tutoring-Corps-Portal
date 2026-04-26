@@ -5398,7 +5398,7 @@
       <button class="sidebar-link" data-panel="policies" onclick="showPanel('policies',this)" title="Browse NJTC policies, procedures, and compliance documents">
         <span class="sl-icon">📚</span> Policies Library
       </button>
-      <button class="sidebar-link" data-panel="upload" onclick="showPanel('upload',this)" title="Upload, manage, and access department files and shared resources">
+      <button class="sidebar-link dept-nav-upload" data-panel="upload" onclick="showPanel('upload',this)" title="Upload, manage, and access department files and shared resources" style="display:none">
         <span class="sl-icon">☁️</span> Drive Center
       </button>
     </div>
@@ -5980,7 +5980,7 @@
           <h2 class="ph-title">Policies & Procedures Library</h2>
           <p class="ph-subtitle">Official NJTC documents organized by department. Documents uploaded to Google Drive appear with a <strong style="color:#0969da">☁️ Google Drive Addition</strong> tag — separate from the Policies &amp; Procedures Manual.</p>
         </div>
-        <div class="ph-actions">
+        <div class="ph-actions dept-nav-upload" style="display:none">
           <button class="btn btn-secondary" onclick="showPanel('upload',document.querySelector('[data-panel=upload]'))">
             ☁️ Upload Doc
           </button>
