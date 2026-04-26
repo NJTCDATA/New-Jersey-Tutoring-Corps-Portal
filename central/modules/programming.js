@@ -8146,13 +8146,29 @@
               else if (cls==='absent') trendMap[w].instAbs++;
             }
           });
-          // Survey by week
-          _stuRows.forEach(function(r){
-            var w=r[STU_S.WEEK]; if(!w||!trendMap[w]) return;
-            if(!trendMap[w].survSum) trendMap[w].survSum=0, trendMap[w].survCnt=0;
-            [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL].forEach(function(c){
-              var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){trendMap[w].survSum+=v;trendMap[w].survCnt++;}
+          // Survey by week — resolve week from session ID (same approach as "This Week" tab).
+          // Build sessId→week lookup once, then bucket each survey into the right week.
+          var sessIdWeekMap = {};
+          Object.values(_sessMap).forEach(function(s) {
+            var wk = weekKeyFromDateStr(s.start);
+            if (wk) sessIdWeekMap[s.id] = wk;
+          });
+          function addSurveyToTrend(sessId, dateStr, weekCol, cols, row) {
+            // Prefer session ID → week; fall back to Date Responded; then WEEK column
+            var w = (sessId && sessIdWeekMap[sessId]) || weekKeyFromDateStr(dateStr) || weekCol || '';
+            if (!w || !trendMap[w]) return;
+            if (!trendMap[w].survSum) { trendMap[w].survSum = 0; trendMap[w].survCnt = 0; }
+            cols.forEach(function(c) {
+              var v = parseFloat(row[c]); if (!isNaN(v) && v > 0) { trendMap[w].survSum += v; trendMap[w].survCnt++; }
             });
+          }
+          _stuRows.forEach(function(r) {
+            addSurveyToTrend(r[STU_S.SESS_ID]||'', r[STU_S.DATE]||'', r[STU_S.WEEK]||'',
+              [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL], r);
+          });
+          _instRows.forEach(function(r) {
+            addSurveyToTrend(r[INST_S.SESS_ID]||'', r[INST_S.DATE]||'', r[INST_S.WEEK]||'',
+              [INST_S.ENGAGEMENT,INST_S.ENJOYMENT,INST_S.LEARNING,INST_S.OVERALL], r);
           });
           out.weeklyTrend = sortedWeeks.slice(-16).map(function(w) {
             var d = trendMap[w]||{};
