@@ -258,3 +258,80 @@
   el.textContent = css;
   document.head.appendChild(el);
 })();
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function rateColor(r) {
+  if (r === null || r === undefined) return 'var(--muted)';
+  if (r >= 90) return '#059669';
+  if (r >= 80) return '#d97706';
+  return '#dc2626';
+}
+function rateBg(r) {
+  if (r === null || r === undefined) return 'var(--surface-2)';
+  if (r >= 90) return '#f0fdf4';
+  if (r >= 80) return '#fffbeb';
+  return '#fff1f2';
+}
+function rateIcon(r) {
+  if (r === null || r === undefined) return '—';
+  if (r >= 90) return '✅';
+  if (r >= 80) return '🟡';
+  return '🔴';
+}
+function survIcon(v) {
+  if (!v) return '—';
+  if (v >= 4.5) return '⭐⭐⭐⭐⭐';
+  if (v >= 4.0) return '⭐⭐⭐⭐';
+  if (v >= 3.5) return '⭐⭐⭐';
+  return '⭐⭐';
+}
+function pct(n, d) { return d > 0 ? Math.round(n / d * 100) : 0; }
+
+// ── Banner builder ─────────────────────────────────────────────────────────
+function buildBanner(icon, title, body, tone) {
+  var cls = tone === 'green' ? 'green' : tone === 'red' ? 'red' : 'amber';
+  return '<div class="pds-banner ' + cls + '">' +
+    '<div class="pds-banner-icon">' + icon + '</div>' +
+    '<div><div class="pds-banner-title">' + title + '</div>' +
+    '<div class="pds-banner-body">' + body + '</div></div></div>';
+}
+
+// ── Stat grid builder ──────────────────────────────────────────────────────
+function buildStatGrid(stats) {
+  return '<div class="pds-stat-grid">' +
+    stats.map(function(s) {
+      return '<div class="pds-stat">' +
+        '<div class="pds-stat-val" style="color:' + (s.color||'var(--navy)') + '">' + s.val + '</div>' +
+        '<div class="pds-stat-label">' + s.label + '</div>' +
+        '</div>';
+    }).join('') + '</div>';
+}
+
+// ── Bar row builder ────────────────────────────────────────────────────────
+function buildBarRows(items, max, color) {
+  if (!items || !items.length) return '<div style="font-size:.8rem;color:var(--muted);padding:.25rem 0">None recorded</div>';
+  return items.slice(0, 7).map(function(it) {
+    var w = max > 0 ? Math.round(it.count / max * 100) : 0;
+    var fill = color || 'var(--blue-mid)';
+    return '<div class="pds-bar-row">' +
+      '<div class="pds-bar-label" title="' + it.reason + '">' + it.reason + '</div>' +
+      '<div class="pds-bar-track"><div class="pds-bar-fill" style="width:' + w + '%;background:' + fill + '"></div></div>' +
+      '<div class="pds-bar-count">' + it.count + '</div></div>';
+  }).join('');
+}
+
+// ── Trend chart builder ────────────────────────────────────────────────────
+function buildTrendChart(weeks) {
+  if (!weeks || !weeks.length) return '<div class="pds-empty"><div class="pds-empty-icon">📊</div>No trend data yet.</div>';
+  var rates = weeks.map(function(w){ return w.scholarRate || 0; });
+  var maxR = Math.max.apply(null, rates) || 1;
+  var bars = weeks.map(function(w) {
+    var h = Math.round((( w.scholarRate || 0) / maxR) * 60);
+    var col = rateColor(w.scholarRate);
+    var lbl = (w.week || '').replace(/week\s*/i, 'W').replace(/\s.*$/, '');
+    return '<div class="pds-trend-col" title="' + w.week + ': ' + (w.scholarRate !== null ? w.scholarRate + '%' : '—') + '">' +
+      '<div class="pds-trend-bar" style="height:' + h + 'px;background:' + col + '"></div>' +
+      '<div class="pds-trend-lbl">' + lbl + '</div></div>';
+  }).join('');
+  return '<div class="pds-trend-chart">' + bars + '</div>';
+}
