@@ -531,60 +531,225 @@ function renderRegional(d) {
   return html;
 }
 
-// ── TAB: Academic (i-Ready) ────────────────────────────────────────────────
+// ── TAB: Academic (i-Ready) — SY 2025-2026 MOY + EOY ─────────────────────
 function renderAcademic() {
   var irlab = window.irlab;
-  if (!irlab || typeof irlab.getInsightMetrics !== 'function') {
-    return '<div class="pds-empty"><div class="pds-empty-icon">📚</div>i-Ready data not loaded. Go to the i-Ready Lab panel to load academic data first.</div>';
-  }
-  var m = irlab.getInsightMetrics('');
-  if (!m || !m.hasData) {
-    return '<div class="pds-empty"><div class="pds-empty-icon">📚</div>No i-Ready data available yet. Ask your Data Specialist to upload the latest diagnostic file.</div>';
+  if (!irlab) {
+    return '<div class="pds-empty"><div class="pds-empty-icon">📚</div>i-Ready Lab not initialized.</div>';
   }
 
-  var gainColor = m.medianScaleGain > 0 ? '#059669' : '#dc2626';
-  var tone = m.medianPctExpected >= 100 ? 'green' : m.medianPctExpected >= 75 ? 'amber' : 'red';
-  var acadMsg = m.medianPctExpected >= 100
-    ? 'Scholars are meeting or exceeding expected growth targets. Academic progress is on track.'
-    : m.medianPctExpected >= 75
-    ? 'Scholars are making meaningful progress but haven\'t quite hit the growth target yet. Keep reinforcing consistent tutoring sessions.'
-    : 'Scholar growth is below target. The biggest lever is attendance — every missed session is a missed opportunity to grow.';
+  var html = '';
+  var medColor = function(v) { return v === null ? 'var(--muted)' : v >= 80 ? '#059669' : v >= 50 ? '#d97706' : '#dc2626'; };
+  var gainColor = function(v) { return v === null ? 'var(--muted)' : v > 0 ? '#059669' : '#dc2626'; };
 
-  var html = buildBanner('📚', 'Academic Growth Summary', acadMsg, tone);
-  html += buildStatGrid([
-    { val: m.totalScholars,                                                label: 'Scholars in Data' },
-    { val: (m.medianScaleGain > 0 ? '+' : '') + m.medianScaleGain + ' pts', label: 'Median Scale Score Gain', color: gainColor },
-    { val: Math.round(m.medianPctExpected) + '%',                         label: 'Growth vs. Target',        color: tone === 'green' ? '#059669' : tone === 'amber' ? '#d97706' : '#dc2626' },
-    { val: m.subjectLabel || 'All Subjects',                              label: 'Subject' },
-  ]);
+  // ── Section header helper ──────────────────────────────────────────────
+  function secHead(emoji, label, badge, badgeColor) {
+    return '<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:2px solid var(--border)">' +
+      '<span style="font-size:1.25rem">' + emoji + '</span>' +
+      '<span style="font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy);font-weight:700">' + label + '</span>' +
+      (badge ? '<span style="font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:' + (badgeColor||'#dbeafe') + ';color:' + (badgeColor ? '#fff' : '#1e40af') + '">' + badge + '</span>' : '') +
+      '</div>';
+  }
 
-  html += '<div class="pds-action-box"><div class="pds-action-label">📖 What This Means</div>' +
-    'The <strong>scale score gain</strong> tells you how much each scholar improved since the last diagnostic. ' +
-    'The <strong>% of typical growth</strong> compares that gain to what we\'d expect for a typical student nationally. ' +
-    '100% = meeting expectations. Above 100% = exceeding. Below 100% = still growing but not there yet.<br><br>' +
-    'A scholar who attends 90%+ of sessions typically grows <strong>2–3x faster</strong> than one with low attendance. ' +
-    'This is why attendance is the #1 lever you have.</div>';
+  function kpiRow(stats) {
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.5rem;margin-bottom:.875rem">' +
+      stats.map(function(s) {
+        return '<div style="background:var(--surface-2);border:1.5px solid var(--border);border-radius:10px;padding:.625rem .75rem;text-align:center">' +
+          '<div style="font-size:1.375rem;font-weight:800;color:' + (s.color || 'var(--navy)') + ';line-height:1">' + s.val + '</div>' +
+          '<div style="font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:.25rem;line-height:1.3">' + s.label + '</div>' +
+          (s.note ? '<div style="font-size:.6rem;color:var(--muted);margin-top:.15rem">' + s.note + '</div>' : '') +
+          '</div>';
+      }).join('') + '</div>';
+  }
 
-  // Performance tiers if available
-  if (m.tierBreakdown && m.tierBreakdown.length) {
-    html += '<div class="pds-card"><div class="pds-card-title">📊 Scholar Performance Tiers</div>';
-    m.tierBreakdown.forEach(function(t) {
-      var dotColor = t.label === 'On/Above Level' ? '#059669' : t.label === 'One Level Below' ? '#d97706' : '#dc2626';
-      html += '<div class="pds-acad-tier">' +
-        '<div class="pds-acad-tier-dot" style="background:' + dotColor + '"></div>' +
-        '<div style="flex:1;font-size:.8125rem"><strong>' + t.label + '</strong></div>' +
-        '<div style="font-size:.8125rem;font-weight:700;color:' + dotColor + '">' + t.count + ' scholars (' + t.pct + '%)</div></div>';
+  function stacked(tiers) {
+    var total = tiers.reduce(function(s,t){return s+t.pct;}, 0);
+    if (!total) return '';
+    return '<div style="height:14px;border-radius:6px;overflow:hidden;display:flex;margin-bottom:.375rem">' +
+      tiers.filter(function(t){return t.pct>0;}).map(function(t){
+        return '<div style="flex:' + t.pct + ';background:' + t.color + '" title="' + t.label + ': ' + t.pct + '%"></div>';
+      }).join('') +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:.5rem">' +
+      tiers.map(function(t) {
+        return '<div style="display:flex;align-items:center;gap:.3rem;font-size:.7rem">' +
+          '<div style="width:8px;height:8px;border-radius:2px;background:' + t.color + '"></div>' +
+          '<span style="color:var(--muted)">' + t.label + '</span>' +
+          '<strong style="color:' + t.color + '">' + t.pct + '%</strong></div>';
+      }).join('') + '</div>';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BLOCK 1: MOY — Winter Diagnostic (Live · SY 2025-2026)
+  // ═══════════════════════════════════════════════════════════════════════
+  var moyData = (typeof irlab.getMOYData === 'function') ? irlab.getMOYData() : null;
+  var hasMOY  = moyData && moyData.loaded && (moyData.math.length > 0 || moyData.ela.length > 0);
+
+  html += '<div class="pds-card" style="margin-bottom:1rem">';
+  html += secHead('❄️', 'Mid-Year (MOY) · Winter Diagnostics · SY 2025–2026', 'Live', '#0891b2');
+
+  if (!hasMOY) {
+    html += '<div style="padding:.75rem;text-align:center;font-size:.8125rem;color:var(--muted);border:1.5px dashed var(--border-2);border-radius:8px">' +
+      '<div style="font-size:1.25rem;margin-bottom:.35rem">❄️</div>' +
+      'MOY data not yet loaded. Open the <strong>i-Ready Analysis Lab → MOY tab</strong> and click Refresh to load live Winter 2025-2026 diagnostics.' +
+      '</div>';
+  } else {
+    // Compute for both subjects
+    var moyMath = (typeof irlab.computeMOY === 'function') ? irlab.computeMOY(moyData.math) : null;
+    var moyELA  = (typeof irlab.computeMOY === 'function') ? irlab.computeMOY(moyData.ela)  : null;
+    var netM = moyMath ? moyMath.network : null;
+    var netE = moyELA  ? moyELA.network  : null;
+
+    // Render each subject block
+    [[netM, 'Math', '#0050c8', moyData.math.length], [netE, 'ELA', '#7c3aed', moyData.ela.length]].forEach(function(row) {
+      var net = row[0], subj = row[1], color = row[2], rawN = row[3];
+      if (!net || rawN === 0) return;
+
+      html += '<div style="margin-bottom:1rem;padding:.875rem;background:var(--surface-2);border-radius:10px;border-left:4px solid ' + color + '">';
+      html += '<div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:' + color + ';margin-bottom:.625rem">' + subj + '</div>';
+      html += kpiRow([
+        { val: net.total,      label: 'Total Scholars', note: net.winterOnly > 0 ? net.winterOnly + ' winter-only' : null },
+        { val: net.withGrowth, label: 'With Growth Data',
+          note: net.total !== net.withGrowth ? (net.total - net.withGrowth) + ' no Fall baseline' : null,
+          color: 'var(--navy)' },
+        { val: net.medianPctTypical !== null ? net.medianPctTypical + '%' : '—',
+          label: 'Median % Typical', color: medColor(net.medianPctTypical) },
+        { val: net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—',
+          label: 'Months of Learning',
+          color: net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 8 ? '#059669' : net.medianMonthsGrowth >= 5 ? '#d97706' : '#dc2626') : 'var(--muted)' },
+        { val: net.pctMetTypical !== null ? net.pctMetTypical + '%' : '—',
+          label: '% Met Typical', color: medColor(net.pctMetTypical) },
+        { val: net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—',
+          label: 'Median Scale Gain', color: 'var(--blue-mid)' },
+      ]);
+
+      if (net.withGrowth > 0) {
+        html += stacked([
+          { label: 'Met/Exceeded', pct: net.pctMetTypical  || 0, color: '#16a34a' },
+          { label: 'Progressing',  pct: net.pctProgressing || 0, color: '#0050c8' },
+          { label: 'Needs Accel.', pct: net.pctNeedsAccel  || 0, color: '#d97706' },
+          { label: 'Regression',   pct: net.pctRegressed   || 0, color: '#dc2626' },
+        ]);
+
+        html += '<div style="display:flex;gap:1rem;margin-top:.625rem;flex-wrap:wrap">' +
+          '<div style="font-size:.8rem"><span style="color:#16a34a;font-weight:700">↑ ' + net.movedUp + '</span> <span style="color:var(--muted)">moved up in placement</span></div>' +
+          '<div style="font-size:.8rem"><span style="color:var(--navy);font-weight:700">→ ' + net.held + '</span> <span style="color:var(--muted)">held</span></div>' +
+          '<div style="font-size:.8rem"><span style="color:#dc2626;font-weight:700">↓ ' + net.movedDown + '</span> <span style="color:var(--muted)">moved down</span></div>' +
+          '</div>';
+      }
+      html += '</div>';
     });
-    html += '</div>';
-  }
 
-  html += '<div class="pds-card"><div class="pds-card-title">🎯 What to Do With This Data</div>' +
-    '<div class="pds-card-body">' +
-    '• <strong>Share the wins</strong> — if scholars are growing, tell your onsite staff. It matters.<br>' +
-    '• <strong>Follow up on low-growth sites</strong> — check attendance first, then lesson plan quality.<br>' +
-    '• <strong>Use MOY data to adjust</strong> — tutors should know which scholars need more targeted support.<br>' +
-    '• <strong>Use EOY data for partner conversations</strong> — this is your impact story.' +
-    '</div></div>';
+    // Pearl operational alignment for MOY
+    var poData = null;
+    try { if (window.po && typeof window.po.getProgramSummaryData === 'function') poData = window.po.getProgramSummaryData(); } catch(e){}
+    if (poData && poData.loaded && poData.currentWeek) {
+      var cw = poData.currentWeek;
+      var schAtt = cw.scholarAtt ? cw.scholarAtt.rate : null;
+      html += '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.75rem 1rem;margin-top:.5rem">';
+      html += '<div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#0891b2;margin-bottom:.5rem">Pearl Alignment · Current Week</div>';
+      html += '<div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem">';
+      if (schAtt !== null) html += '<div><span style="color:var(--muted)">Scholar Att: </span><strong style="color:' + (schAtt>=90?'#059669':schAtt>=80?'#d97706':'#dc2626') + '">' + schAtt + '%</strong></div>';
+      if (cw.siTotal !== undefined) html += '<div><span style="color:var(--muted)">SIs This Week: </span><strong style="color:' + (cw.siTotal>3?'#d97706':'var(--navy)') + '">' + cw.siTotal + '</strong></div>';
+      if (cw.scholarSurvey) html += '<div><span style="color:var(--muted)">Scholar Survey: </span><strong style="color:#7c3aed">' + cw.scholarSurvey + '/5</strong></div>';
+      html += '</div>';
+      // Plain-language insight connecting attendance to academic growth
+      if (schAtt !== null) {
+        var connMsg = schAtt >= 90
+          ? 'Attendance is strong this week. Scholars who attend consistently are on the best path to hitting MOY growth targets.'
+          : schAtt >= 80
+          ? 'Attendance is in range but every missed session affects growth trajectory. A scholar missing 2+ sessions/month sees noticeably slower scale score gains.'
+          : 'Attendance is below 80% this week — this is the #1 risk factor for low MOY growth. Reach out to Program Managers today.';
+        html += '<div style="font-size:.75rem;color:#0c4a6e;margin-top:.5rem;line-height:1.5">' + connMsg + '</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div style="font-size:.7rem;color:var(--muted);margin-top:.625rem">Source: Live Google Sheets · iReady Winter 2025–2026 Diagnostics · ' +
+      (moyData.math.length + moyData.ela.length) + ' total rows loaded</div>';
+  }
+  html += '</div>';
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BLOCK 2: EOY — Longitudinal (Uploaded · SY 2025-2026)
+  // ═══════════════════════════════════════════════════════════════════════
+  html += '<div class="pds-card" style="margin-bottom:1rem">';
+  html += secHead('🎓', 'End-of-Year (EOY) · Longitudinal Data · SY 2025–2026', null, null);
+
+  var eoyM = (typeof irlab.getInsightMetrics === 'function')
+    ? irlab.getInsightMetrics({ year: '2025-2026' }) : null;
+  var hasEOY = eoyM && eoyM.hasData && eoyM.n > 0;
+
+  if (!hasEOY) {
+    var allM = (typeof irlab.getInsightMetrics === 'function') ? irlab.getInsightMetrics({}) : null;
+    var hasAny = allM && allM.hasData;
+    html += '<div style="padding:.75rem;font-size:.8125rem;color:var(--muted);border:1.5px dashed var(--border-2);border-radius:8px;text-align:center">' +
+      '<div style="font-size:1.25rem;margin-bottom:.35rem">🎓</div>';
+    if (!hasAny) {
+      html += 'EOY longitudinal data not uploaded. Go to the <strong>i-Ready Analysis Lab</strong> and upload the SY 2025–2026 diagnostic CSV to see end-of-year results.';
+    } else {
+      var yrList = (allM.allYears || []).join(', ');
+      html += 'SY 2025–2026 EOY data not yet uploaded. Data currently loaded covers: <strong>' + (yrList || 'unknown years') + '</strong>.<br>When SY 2025–2026 spring diagnostics are complete, upload the CSV in the i-Ready Lab.';
+    }
+    html += '</div>';
+  } else {
+    var tone2 = eoyM.medianPctExpected >= 100 ? 'green' : eoyM.medianPctExpected >= 75 ? 'amber' : 'red';
+    var pctColor2 = tone2 === 'green' ? '#059669' : tone2 === 'amber' ? '#d97706' : '#dc2626';
+    html += kpiRow([
+      { val: eoyM.n,           label: 'Scholars w/ Gain Data' },
+      { val: eoyM.medianScaleGain !== null ? (eoyM.medianScaleGain > 0 ? '+' : '') + eoyM.medianScaleGain + ' pts' : '—',
+        label: 'Median Scale Gain', color: gainColor(eoyM.medianScaleGain) },
+      { val: eoyM.medianMonthsGrowth !== null ? eoyM.medianMonthsGrowth + ' mo' : '—',
+        label: 'Months of Learning',
+        color: eoyM.medianMonthsGrowth !== null ? (eoyM.medianMonthsGrowth >= 8 ? '#059669' : eoyM.medianMonthsGrowth >= 5 ? '#d97706' : '#dc2626') : 'var(--muted)' },
+      { val: eoyM.medianPctExpected !== null ? Math.round(eoyM.medianPctExpected) + '%' : '—',
+        label: 'Median % Typical Growth', color: pctColor2 },
+      { val: eoyM.windowAdjustedPct !== null ? Math.round(eoyM.windowAdjustedPct) + '%' : '—',
+        label: 'Window-Adjusted %', color: pctColor2 },
+      { val: eoyM.medianSpringWeeks !== null ? eoyM.medianSpringWeeks + ' wks' : '—',
+        label: 'Avg Program Window' },
+    ]);
+
+    var eoyMsg = eoyM.medianPctExpected >= 100
+      ? 'Scholars met or exceeded expected full-year growth — a strong end-of-year result.'
+      : eoyM.medianPctExpected >= 75
+      ? 'Scholars made meaningful progress toward full-year targets. Continued intensity through spring is key.'
+      : 'End-of-year growth is below the typical benchmark. Review session quality, attendance trends, and tutor support.';
+    html += '<div style="font-size:.8125rem;color:var(--text-2);line-height:1.6;margin-bottom:.625rem">' + eoyMsg + '</div>';
+
+    // Top school performers
+    if (eoyM.bySchool && eoyM.bySchool.length) {
+      var topSchools = eoyM.bySchool.filter(function(s){return s.n>=3;}).sort(function(a,b){return (b.medPct||0)-(a.medPct||0);}).slice(0,5);
+      if (topSchools.length) {
+        html += '<div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.375rem">Top Schools · % Typical Growth</div>';
+        topSchools.forEach(function(s) {
+          var pctV = s.medPct !== null ? Math.round(s.medPct) : null;
+          html += '<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid var(--border-2);font-size:.8rem">' +
+            '<div style="flex:1;color:var(--navy);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + s.label + '</div>' +
+            '<div style="font-size:.75rem;color:var(--muted)">' + s.n + ' scholars</div>' +
+            '<div style="font-weight:700;color:' + (pctV!==null?medColor(pctV):'var(--muted)') + ';min-width:42px;text-align:right">' + (pctV!==null?pctV+'%':'—') + '</div>' +
+            '</div>';
+        });
+      }
+    }
+
+    if (eoyM.syAligned) {
+      html += '<div style="font-size:.7rem;color:#059669;margin-top:.5rem">✅ SY 2025–2026 aligned with Pearl operational records</div>';
+    }
+    html += '<div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Source: Uploaded iReady Longitudinal CSV · SY 2025–2026 filter active · ' + eoyM.n + ' records with gain data</div>';
+  }
+  html += '</div>';
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BLOCK 3: What to do with this data
+  // ═══════════════════════════════════════════════════════════════════════
+  html += '<div class="pds-action-box"><div class="pds-action-label">🎯 How to Use This Data</div>' +
+    '<strong>MOY (Winter Diagnostics)</strong> — live data, available right now. Use it to identify scholars who are falling behind and adjust tutor focus before spring. ' +
+    'A scholar at 50% of typical growth by MOY has roughly <strong>5 months left</strong> to close the gap before EOY testing.<br><br>' +
+    '<strong>EOY (Longitudinal Data)</strong> — uploaded after spring diagnostics are complete. This is your full-year impact story — share it with school partners and funders.<br><br>' +
+    '<strong>The #1 lever you have right now:</strong> attendance. Scholars who attend 90%+ of sessions consistently achieve <strong>2–3x the scale score gains</strong> of low-attenders. ' +
+    'Every conversation about a missed session is an academic intervention.</div>';
+
   return html;
 }
 
