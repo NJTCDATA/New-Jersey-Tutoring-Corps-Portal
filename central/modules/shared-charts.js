@@ -1041,12 +1041,86 @@
 
   // ── Hiring Decision Store ─────────────────────────────────────────────────
   // Records persist in localStorage keyed by employee ID; visible to HR + Data only.
+  // ── Hiring Decision Store + Google Form write-through ────────────────────
+  // Google Form entry IDs — must match the form fields exactly
+  const HIRING_FORM_ENTRIES = {
+    dateYear:  'entry.939632120_year',
+    dateMonth: 'entry.939632120_month',
+    dateDay:   'entry.939632120_day',
+    empName:   'entry.491781665',
+    location:  'entry.1942615159',
+    decision:  'entry.834835718',
+    rationale: 'entry.2017090049',
+    decidedBy: 'entry.778195494',
+  };
+  // Google Sheet (published CSV) — for reading historical decisions
+  const HIRING_SHEET_2PACX = '2PACX-1vRRtGvwqKiDtvUdoU6tf3u_Rqlyd84co09ULwzgCTGeHEOBVLoYQKPdQf57HM_kgZEpeY1fc7V8cRQp';
+  const HIRING_SHEET_GID   = '786776521';
+  // Google Form action URL — get from your form's viewform link: replace /viewform with /formResponse
+  // Share your form → Copy link (1FAIpQLSe...) → paste here as the FORM_ID segment
+  const HIRING_FORM_ID = null; // TODO: paste your form's 1FAIpQLSe... ID here
+
   const HIRING_KEY = 'njtc_hiring_decisions_v2';
+  let _hiringSheetCache = null;  // cached sheet rows to merge into file cabinet
+
   function _hiringLoad()  { try { return JSON.parse(localStorage.getItem(HIRING_KEY)||'[]'); } catch(e) { return []; } }
   function _hiringSave(r) { try { localStorage.setItem(HIRING_KEY, JSON.stringify(r)); } catch(e) {} }
   function _hiringGet(ek) { return _hiringLoad().filter(r => r.ek === ek); }
+
+  // Submit the decision to the Google Form (fire-and-forget, no-cors)
+  function _hiringSubmitToForm(rec, empSite) {
+    if (!HIRING_FORM_ID) return;
+    try {
+      const now = new Date();
+      const p = new URLSearchParams();
+      p.append(HIRING_FORM_ENTRIES.dateYear,  now.getFullYear());
+      p.append(HIRING_FORM_ENTRIES.dateMonth, now.getMonth() + 1);
+      p.append(HIRING_FORM_ENTRIES.dateDay,   now.getDate());
+      p.append(HIRING_FORM_ENTRIES.empName,   rec.en || '');
+      p.append(HIRING_FORM_ENTRIES.location,  empSite || '');
+      p.append(HIRING_FORM_ENTRIES.decision,  rec.d  || '');
+      p.append(HIRING_FORM_ENTRIES.rationale, rec.n  || '');
+      p.append(HIRING_FORM_ENTRIES.decidedBy, rec.by || '');
+      fetch(`https://docs.google.com/forms/d/e/${HIRING_FORM_ID}/formResponse`,
+            { method: 'POST', body: p, mode: 'no-cors' })
+        .then(() => console.log('[Hiring] Form response submitted for', rec.en))
+        .catch(e => console.warn('[Hiring] Form submit failed:', e.message));
+    } catch(e) { console.warn('[Hiring] Form submit error:', e.message); }
+  }
+
+  // Parse simple CSV — handles double-quoted fields with embedded commas/newlines
+  function _parseHiringCSVLine(line) {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"' && !inQ) { inQ = true; }
+      else if (c === '"' && inQ) { if (line[i+1]==='"') { cur+='"'; i++; } else inQ=false; }
+      else if (c === ',' && !inQ) { out.push(cur); cur=''; }
+      else cur += c;
+    }
+    out.push(cur); return out;
+  }
+
+  // Fetch and parse historical decisions from the Google Sheet
+  async function _hiringFetchSheet() {
+    const url = `https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pub?output=csv&gid=${HIRING_SHEET_GID}`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return [];
+      const text = await res.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      // Column order from form: Timestamp | Date | Employee Name | Location | Decision | Rationale | Decided By
+      return lines.slice(1).map(line => {
+        const c = _parseHiringCSVLine(line);
+        return { ts: c[0]||'', en: c[2]||'', loc: c[3]||'', d: c[4]||'', n: c[5]||'', by: c[6]||'', sy:'2025-2026', src:'sheet' };
+      }).filter(r => r.en && r.d);
+    } catch(e) { return []; }
+  }
+
   const _H_COLOR = {'Invite Back':'#065f46','Do Not Rehire':'#b91c1c','Conditional':'#d97706','Hold':'#1e40af'};
   const _H_BG    = {'Invite Back':'#d1fae5','Do Not Rehire':'#fee2e2','Conditional':'#fef3c7','Hold':'#dbeafe'};
+
   function _hiringRecordsHtml(ek) {
     const recs = _hiringGet(ek).sort((a,b) => b.ts.localeCompare(a.ts));
     const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -4729,13 +4803,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window._hrSaveHiringDecision = function(ek, en, decision, notes) {
     if (!decision) { alert('Please select a decision before saving.'); return; }
     const sess = window.NJTC_SESSION || {};
+    const emp  = (typeof HR_EMPS !== 'undefined' ? HR_EMPS : []).find(e => e.n.replace(/\W/g,'_') === ek);
+    const empSite = (emp && emp.si) || '';
     const recs = _hiringLoad();
-    recs.push({
+    const rec = {
       id:   Date.now() + '_' + Math.random().toString(36).slice(2,7),
       ek, en: en, d: decision, n: notes || '', sy: '2025-2026',
-      ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown'
-    });
+      ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown',
+      loc:  empSite,
+    };
+    recs.push(rec);
     _hiringSave(recs);
+    // Also submit to Google Form for durable historical record
+    _hiringSubmitToForm(rec, empSite);
     // Expose to PIE context
     window._njtcHiringDecisions = recs;
     // Refresh the records list in the open modal
@@ -4759,10 +4839,29 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // Expose current decisions to PIE on load
   window._njtcHiringDecisions = _hiringLoad();
 
-  // ── Hiring File Cabinet — table of all decisions ────────────────────────
+  // ── Hiring File Cabinet — table of all decisions (localStorage + Google Sheet) ──
   function _hrHiringFileCabinet() {
     const esc2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const recs = _hiringLoad().sort((a,b) => b.ts.localeCompare(a.ts));
+    // Merge localStorage + cached sheet rows; sheet rows older than local get de-duped by ts+name
+    const local = _hiringLoad();
+    const sheet = _hiringSheetCache || [];
+    const localTsNames = new Set(local.map(r => (r.ts||'').slice(0,16) + '|' + (r.en||r.ek)));
+    const sheetOnly = sheet.filter(r => {
+      const k = (r.ts||'').slice(0,16) + '|' + (r.en||'');
+      return !localTsNames.has(k);
+    });
+    const recs = [...local, ...sheetOnly].sort((a,b) => b.ts.localeCompare(a.ts));
+
+    // Trigger async sheet fetch to refresh cache, re-render when done
+    _hiringFetchSheet().then(rows => {
+      _hiringSheetCache = rows;
+      // Re-render only if the file cabinet is still visible
+      const el = document.getElementById('talentContent');
+      if (el && document.getElementById('talentTab-hiring') &&
+          document.getElementById('talentTab-hiring').classList.contains('active')) {
+        el.innerHTML = _hrHiringFileCabinet();
+      }
+    });
     const bySY = {};
     recs.forEach(r => { const sy = r.sy||'Unknown'; if (!bySY[sy]) bySY[sy] = []; bySY[sy].push(r); });
     const summary = ['Invite Back','Conditional','Hold','Do Not Rehire'].map(d => {
@@ -4781,14 +4880,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     return `
 <div style="padding:1.25rem">
-  <div style="padding:.625rem .875rem;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.625rem">
-    <span style="font-size:1rem;flex-shrink:0">⚠️</span>
-    <div style="font-size:.75rem;color:#92400e;line-height:1.6">
-      <strong>Records stored in browser only (localStorage)</strong> — clearing your browser data or switching browsers will erase decisions.
-      Export CSV or XLSX after each session to maintain a durable record. For a permanent audit trail, paste the exported file into your shared drive or ADP system.
+  <div style="padding:.625rem .875rem;background:${HIRING_FORM_ID?'#f0fdf4':'#fef3c7'};border:1px solid ${HIRING_FORM_ID?'#bbf7d0':'#fde68a'};border-radius:8px;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.625rem;flex-wrap:wrap">
+    <span style="font-size:1rem;flex-shrink:0">${HIRING_FORM_ID?'✅':'⚠️'}</span>
+    <div style="font-size:.75rem;color:${HIRING_FORM_ID?'#065f46':'#92400e'};line-height:1.6;flex:1;min-width:200px">
+      ${HIRING_FORM_ID
+        ? `<strong>Google Form write-through active</strong> — every decision is automatically submitted to the form and recorded in the Google Sheet. Local browser cache provides instant access.
+           <a href="https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pubhtml" target="_blank" rel="noopener" style="color:#065f46;font-weight:700;margin-left:.5rem">📊 View Google Sheet ↗</a>`
+        : `<strong>Google Form not yet connected</strong> — decisions are saved locally only. Provide your form's ID to enable permanent Google Sheet write-through.
+           <a href="https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pubhtml" target="_blank" rel="noopener" style="color:#92400e;font-weight:700;margin-left:.5rem">📊 View Sheet ↗</a>`}
     </div>
     <div style="display:flex;gap:.375rem;flex-shrink:0">
-      <button onclick="window._hrExportHiringCSV()" style="padding:.3rem .625rem;background:#fff;border:1.5px solid #fde68a;border-radius:6px;font-size:.7rem;font-weight:700;color:#92400e;cursor:pointer;font-family:inherit;white-space:nowrap">📄 Backup CSV</button>
+      <button onclick="window._hrExportHiringCSV()" style="padding:.3rem .625rem;background:#fff;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.7rem;font-weight:700;color:#374151;cursor:pointer;font-family:inherit;white-space:nowrap">📄 Backup CSV</button>
     </div>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem;margin-bottom:1.125rem">
