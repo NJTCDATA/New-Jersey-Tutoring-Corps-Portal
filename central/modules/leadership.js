@@ -412,8 +412,9 @@
         _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
         const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
         // Apprentice-specific race data
-        // em='Yes' is the authoritative apprentice flag in HR data — gives exactly 30 active.
-        const _appPool = _activeP.filter(e => e.em === 'Yes');
+        // em='Yes' is the TAP enrollment flag — use _hrPool (not _activeP) so live status
+        // overwrites don't reduce the count. TAP enrollment is independent of current status.
+        const _appPool = _hrPool.filter(e => e.em === 'Yes');
         const _appWithR = _appPool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
         const _appNW    = _appWithR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
         const _appNWPct = _appWithR.length ? Math.round(_appNW/_appWithR.length*100) : null;
