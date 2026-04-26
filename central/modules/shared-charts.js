@@ -1395,14 +1395,38 @@
     }
     _hrRaceByYear = _rByYr;
 
-    // Raw apprentice count from col K — before HR_EMPS name-matching, gives accurate total (e.g. 30)
-    const _rawApprSet = new Set();
+    // Raw apprentice count + race breakdown from col K — deduped by name, no HR_EMPS matching needed
+    const _rawApprSet  = new Set();
+    const _apprRaceMap = {};
+    const _apprEthMap  = {};
+    let _apprNonWhite = 0, _apprHisp = 0, _apprWithRace = 0, _apprWithEth = 0;
     for (const r of liveRows) {
-      if (r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice) && r.name) {
-        _rawApprSet.add(_hn(r.name));
+      if (r.yr !== '2025-2026' || !r.apprentice || !/yes|y|true|1/i.test(r.apprentice) || !r.name) continue;
+      const nk = _hn(r.name);
+      if (_rawApprSet.has(nk)) continue;  // deduplicate
+      _rawApprSet.add(nk);
+      const rc = (r.race||'').trim();
+      const et = (r.ethnicity||'').trim();
+      if (rc && !/not listed|prefer not/i.test(rc)) {
+        _apprWithRace++;
+        _apprRaceMap[rc] = (_apprRaceMap[rc]||0) + 1;
+        if (rc.toLowerCase() !== 'white') _apprNonWhite++;
+      }
+      if (et && !/not listed|prefer not/i.test(et)) {
+        _apprWithEth++;
+        if (/hispanic|latino/i.test(et)) _apprHisp++;
       }
     }
-    window._liveApprenticeCount = _rawApprSet.size;
+    window._liveApprenticeCount    = _rawApprSet.size;
+    window._liveApprenticeRaceData = {
+      total:        _rawApprSet.size,
+      withRace:     _apprWithRace,
+      nonWhite:     _apprNonWhite,
+      nonWhitePct:  _apprWithRace ? Math.round(_apprNonWhite / _apprWithRace * 100) : null,
+      hispanic:     _apprHisp,
+      withEth:      _apprWithEth,
+      raceMap:      _apprRaceMap,
+    };
 
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
     console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only) · apprentices:', _rawApprSet.size);
@@ -2825,6 +2849,37 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     </table>
     </div>
   </div>`;
+  })()}
+  ${(()=>{
+    // DOL Apprentice race breakdown — sourced directly from raw live HR rows (col K),
+    // deduped by name before matching, so count reflects true 30 not the 22 name-matched.
+    const ard = window._liveApprenticeRaceData;
+    if (!ard || !ard.total) return '';
+    const appRaceRows = Object.entries(ard.raceMap).sort((a,b)=>b[1]-a[1]);
+    return `<div style="margin-top:.875rem;padding:.75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
+      <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.08em;margin-bottom:.5rem">🎓 DOL Apprentices (${ard.total}) — Race & Ethnicity
+        <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem">col K · Live HR Dashboard · 2025-2026</span>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
+        ${ard.withRace ? `<div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
+          <div style="font-size:1rem;font-weight:900;color:#854d0e">${ard.nonWhitePct}%</div>
+          <div style="font-size:.55rem;color:#92400e;font-weight:700">Non-White</div>
+          <div style="font-size:.52rem;color:#94a3b8">${ard.nonWhite} of ${ard.withRace} w/ race data</div>
+        </div>` : ''}
+        ${ard.withEth ? `<div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
+          <div style="font-size:1rem;font-weight:900;color:#b45309">${ard.hispanic}</div>
+          <div style="font-size:.55rem;color:#92400e;font-weight:700">Hispanic/Latino</div>
+          <div style="font-size:.52rem;color:#94a3b8">of ${ard.withEth} w/ eth. data</div>
+        </div>` : ''}
+        <div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
+          <div style="font-size:1rem;font-weight:900;color:#92400e">${ard.total - ard.withRace}</div>
+          <div style="font-size:.55rem;color:#92400e;font-weight:700">No Race On File</div>
+          <div style="font-size:.52rem;color:#94a3b8">of ${ard.total} total appr.</div>
+        </div>
+      </div>
+      ${appRaceRows.length ? `<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#a16207;letter-spacing:.07em;margin-bottom:.35rem">Race Breakdown</div>
+        ${appRaceRows.map(([race,n])=>{const p=ard.withRace?Math.round(n/ard.withRace*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#d97706';return `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem"><div style="font-size:.63rem;font-weight:600;color:#1e293b;width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.64rem;font-weight:800;color:${bc};width:28px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.58rem;color:#94a3b8;width:22px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}` : '<div style="font-size:.63rem;color:#94a3b8;font-style:italic">Race data loading — will appear after live HR sheet syncs.</div>'}
+    </div>`;
   })()}
 </div>`;
   }
