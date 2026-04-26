@@ -17,6 +17,9 @@
     '/pub?output=csv&gid=1298105082';
   // ── Apprenticeship Program Database ───────────────────────────────
   const APPR_SHEET_ID = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
+  const LIVE_TRACKER_ID  = '1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs';
+  const LIVE_TRACKER_URL = 'https://docs.google.com/spreadsheets/d/' + LIVE_TRACKER_ID + '/export?format=csv&gid=0';
+  const LIVE_TRACKER_OTJ_COLS = 17; // columns AB (index 27) through AR (index 43)
   const APPR_GIDS = {
     otjTemplate:     '251323957',
     neOtj:           '2085207682',
@@ -550,7 +553,10 @@
       return _apprParsed;
     }
     const keys = ['neOtj','swOtj','neTutorObs','swTutorObs','neSiteLeaderObs','swSiteLeaderObs'];
-    const texts = await Promise.all(keys.map(k => fetchApprCSV(k)));
+    const [texts, liveTrackerText] = await Promise.all([
+      Promise.all(keys.map(k => fetchApprCSV(k))),
+      fetchCSV(LIVE_TRACKER_URL).catch(() => ''),
+    ]);
     const raw = {};
     keys.forEach((k, i) => { raw[k] = texts[i]; });
 
@@ -590,9 +596,33 @@
       (r['Site Leader'] || '').trim()
     );
 
+    // ── Live Apprentice Tracker: count OTJ items per apprentice ─────────────
+    // Sheet 1Dh1-..., gid=0, headers at row 5 (skipRows=4)
+    // Columns AB (index 27) through AR (index 43) = individual OTJ checklist items
+    const liveOtjCountMap = {};
+    try {
+      if (liveTrackerText) {
+        const ltp = parseCsvText(liveTrackerText, 4);
+        const lth = ltp.headers;
+        const otjHdrs = lth.slice(27, 44); // AB–AR
+        const nameCol = lth[0];
+        ltp.rows.forEach(r => {
+          const rawName = (r[nameCol] || '').trim();
+          if (!rawName) return;
+          const canon = normalizeApprenticeName(rawName) || rawName;
+          const key   = canon.toLowerCase().replace(/\s+/g,' ').trim();
+          const count = otjHdrs.filter(h => (r[h] || '').trim()).length;
+          if (!liveOtjCountMap[key] || count > liveOtjCountMap[key]) liveOtjCountMap[key] = count;
+        });
+        console.log('[T&D] Live Tracker OTJ: ' + Object.keys(liveOtjCountMap).length + ' apprentices mapped');
+      }
+    } catch(e) { console.warn('[T&D] Live Tracker OTJ parse error:', e); }
+    window.njtcLiveOtjMap = liveOtjCountMap;
+
     _apprParsed = { neOtj, swOtj, neTutorObs, swTutorObs, neSLObs, swSLObs,
                     neTutorObsHeaders: neTutorObsParsed.headers,
-                    swTutorObsHeaders: swTutorObsParsed.headers };
+                    swTutorObsHeaders: swTutorObsParsed.headers,
+                    liveOtjCountMap };
 
     // ── Overlay obs counts onto HR_EMPS so PIE can surface them ────────────
     // Runs once (cached). Triggers as soon as any T&D tab loads data.
@@ -847,6 +877,14 @@
     if (v === 'Active')          return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#DCFCE7;color:#166534">Active</span>`;
     if (v.includes('Terminat'))  return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#FEE2E2;color:#991B1B">Terminated</span>`;
     return `<span style="padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:700;background:#F3F4F6;color:#6B7280">${v || 'Unknown'}</span>`;
+  }
+
+  // Live Tracker OTJ item count badge — shows X/17 with color based on completion %
+  function otjItemBadge(count) {
+    if (count === null || count === undefined) return '<span style="color:#9ca3af;font-size:.8rem">—</span>';
+    const pct   = LIVE_TRACKER_OTJ_COLS > 0 ? Math.round(count / LIVE_TRACKER_OTJ_COLS * 100) : 0;
+    const color = pct >= 80 ? '#059669' : pct >= 40 ? '#d97706' : count > 0 ? '#2563eb' : '#9ca3af';
+    return `<span style="font-weight:700;font-size:.8rem;color:${color}">${count}<span style="font-weight:400;color:#9ca3af">/${LIVE_TRACKER_OTJ_COLS}</span></span>`;
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -2139,10 +2177,16 @@
       d.swOtj.forEach(r => addOtjRow(r, 'SW'));
 
       const apps = Object.values(appMap);
+      // Overlay Live Tracker OTJ counts onto this view's apps
+      const ltCountMap = d.liveOtjCountMap || {};
+      apps.forEach(a => {
+        const key = a.name.toLowerCase().replace(/\s+/g,' ').trim();
+        a.otjItems = ltCountMap.hasOwnProperty(key) ? ltCountMap[key] : null;
+      });
       const total   = apps.length;
       const active  = apps.filter(a => (a.adp||'').trim() === 'Active' || !a.adp).length;
-      const begDone = apps.filter(a => getOTJStatus(a.beg) === 'completed').length;
-      const midDone = apps.filter(a => getOTJStatus(a.mid) === 'completed').length;
+      const begDone = apps.filter(a => a.otjItems !== null && a.otjItems >= LIVE_TRACKER_OTJ_COLS).length;
+      const midDone = apps.filter(a => a.otjItems !== null && a.otjItems > 0 && a.otjItems < LIVE_TRACKER_OTJ_COLS).length;
       const needsFU = apps.filter(a =>
         getOTJStatus(a.beg) === 'needs-followup' ||
         getOTJStatus(a.mid) === 'needs-followup' ||
@@ -2291,7 +2335,7 @@
             <table style="width:100%;border-collapse:collapse;font-size:.82rem">
               <thead><tr style="background:#1B2A4A;color:#fff">
                 <th style="padding:.4rem;text-align:left">Name</th><th style="padding:.4rem">Region</th><th style="padding:.4rem">District</th>
-                <th style="padding:.4rem;text-align:center">Beginning</th><th style="padding:.4rem;text-align:center">Middle</th><th style="padding:.4rem;text-align:center">End</th>
+                <th style="padding:.4rem;text-align:center">OTJ Items</th><th style="padding:.4rem;text-align:center">% Done</th><th style="padding:.4rem;text-align:center">End</th>
                 <th style="padding:.4rem;text-align:center">Obs</th><th style="padding:.4rem;text-align:center">ADP</th>
               </tr></thead>
               <tbody>
@@ -2299,8 +2343,8 @@
                   <td style="padding:.35rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
                   <td style="padding:.35rem .4rem;text-align:center"><span style="background:${a.region==='NE'?'#dbeafe':'#fef3c7'};color:${a.region==='NE'?'#1e40af':'#92400e'};padding:.1rem .4rem;border-radius:4px;font-size:.75rem;font-weight:700">${a.region}</span></td>
                   <td style="padding:.35rem .4rem;font-size:.78rem;color:#6b7280">${a.district||'—'}</td>
-                  <td style="padding:.35rem;text-align:center">${otjStatusBadge(a.beg)}</td>
-                  <td style="padding:.35rem;text-align:center">${otjStatusBadge(a.mid)}</td>
+                  <td style="padding:.35rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
+                  <td style="padding:.35rem;text-align:center;font-size:.8rem;color:#6b7280">${a.otjItems!==null?Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%':'—'}</td>
                   <td style="padding:.35rem;text-align:center">${otjStatusBadge(a.end)}</td>
                   <td style="padding:.35rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
                   <td style="padding:.35rem;text-align:center">${adpStatusBadge(a.adp)}</td>
@@ -2358,12 +2402,12 @@
                 ${info.link ? `<a href="${info.link}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:.75rem;text-decoration:none">📁 OTJ Checklist</a>` : ''}
               </div>
               <table style="width:100%;font-size:.82rem;border-collapse:collapse">
-                <thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:.3rem .4rem">Tutor</th><th style="padding:.3rem;text-align:center">Beginning</th><th style="padding:.3rem;text-align:center">Middle</th><th style="padding:.3rem;text-align:center">End</th><th style="padding:.3rem;text-align:center">Obs</th><th style="text-align:left;padding:.3rem .4rem">PM Notes</th></tr></thead>
+                <thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:.3rem .4rem">Tutor</th><th style="padding:.3rem;text-align:center">OTJ Items</th><th style="padding:.3rem;text-align:center">% Done</th><th style="padding:.3rem;text-align:center">End</th><th style="padding:.3rem;text-align:center">Obs</th><th style="text-align:left;padding:.3rem .4rem">PM Notes</th></tr></thead>
                 <tbody>
                   ${info.tutors.map((a,i)=>`<tr style="${i%2?'background:#f9fafb':''}">
                     <td style="padding:.3rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
-                    <td style="padding:.3rem;text-align:center">${otjStatusBadge(a.beg)}</td>
-                    <td style="padding:.3rem;text-align:center">${otjStatusBadge(a.mid)}</td>
+                    <td style="padding:.3rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
+                    <td style="padding:.3rem;text-align:center;font-size:.8rem;color:#6b7280">${a.otjItems!==null?Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%':'—'}</td>
                     <td style="padding:.3rem;text-align:center">${otjStatusBadge(a.end)}</td>
                     <td style="padding:.3rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
                     <td style="padding:.3rem .4rem;font-size:.78rem;color:#6b7280;font-style:italic">${a.notes||'—'}</td>
@@ -2433,7 +2477,7 @@
       // Build canonical apprentice records
       const appMap = {};
       function ensureApp(name, region) {
-        if (!appMap[name]) appMap[name] = { name, region, district:'', school:'', sl:'', beg:'', mid:'', end:'', link:'', notes:'', adp:'Active', obsCount:0, lastObs:'' };
+        if (!appMap[name]) appMap[name] = { name, region, district:'', school:'', sl:'', beg:'', mid:'', end:'', link:'', notes:'', adp:'Active', obsCount:0, lastObs:'', otjItems:null };
       }
       // Initialize from master lists
       APPRENTICES_NE.forEach(n => ensureApp(n,'NE'));
@@ -2456,6 +2500,13 @@
       }
       d.neOtj.forEach(r => overlayOtj(r,'NE'));
       d.swOtj.forEach(r => overlayOtj(r,'SW'));
+
+      // Overlay Live Tracker OTJ item counts (columns AB–AR = 17 checklist items)
+      const ltMap = d.liveOtjCountMap || {};
+      Object.keys(appMap).forEach(name => {
+        const key = name.toLowerCase().replace(/\s+/g,' ').trim();
+        if (ltMap.hasOwnProperty(key)) appMap[name].otjItems = ltMap[key];
+      });
 
       // Overlay observation counts from NE Tutor Obs
       const NE_OBS_MONTHS = ['October','November','December','January','February','March','April','May','June'];
@@ -2481,11 +2532,19 @@
       const apps = Object.values(appMap);
       const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 
-      // Stats for narrative
-      const neBegDone = APPRENTICES_NE.filter(n => appMap[n] && getOTJStatus(appMap[n].beg)==='completed').length;
-      const neMidIP   = APPRENTICES_NE.filter(n => appMap[n] && getOTJStatus(appMap[n].mid)==='in-progress').length;
-      const swBegDone = APPRENTICES_SW.filter(n => appMap[n] && getOTJStatus(appMap[n].beg)==='completed').length;
-      const swMidIP   = APPRENTICES_SW.filter(n => appMap[n] && getOTJStatus(appMap[n].mid)==='in-progress').length;
+      // Derived OTJ status from Live Tracker count (for filter data attributes)
+      function otjItemStatus(count) {
+        if (count === null || count === undefined) return 'none';
+        if (count === 0) return 'none';
+        if (count >= LIVE_TRACKER_OTJ_COLS) return 'completed';
+        return 'in-progress';
+      }
+
+      // Stats for narrative — use Live Tracker counts where available
+      const neBegDone = APPRENTICES_NE.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='completed').length;
+      const neMidIP   = APPRENTICES_NE.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='in-progress').length;
+      const swBegDone = APPRENTICES_SW.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='completed').length;
+      const swMidIP   = APPRENTICES_SW.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='in-progress').length;
 
       el.innerHTML = `
         <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
@@ -2516,8 +2575,8 @@
                 <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Region</th>
                 <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">District</th>
                 <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Site Leader</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Beginning</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Middle</th>
+                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">OTJ Items</th>
+                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">% Done</th>
                 <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">End</th>
                 <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Obs</th>
                 <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Last Obs</th>
@@ -2529,15 +2588,17 @@
               ${apps.map((a,i) => {
                 const isTerminated = (a.adp||'').includes('Terminat');
                 const borderColor  = isTerminated ? '#fca5a5' : '#bbf7d0';
-                return `<tr class="appr-row" data-region="${a.region}" data-district="${a.district}" data-beg="${getOTJStatus(a.beg)}" data-mid="${getOTJStatus(a.mid)}" data-end="${getOTJStatus(a.end)}"
+                const otjSt = otjItemStatus(a.otjItems);
+                const otjPct = a.otjItems !== null ? Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%' : '—';
+                return `<tr class="appr-row" data-region="${a.region}" data-district="${a.district}" data-beg="${otjSt}" data-mid="${otjSt}" data-end="${getOTJStatus(a.end)}"
                   style="border-bottom:1px solid #e5e7eb;border-left:3px solid ${borderColor}">
                   <td style="padding:.4rem .4rem;color:#9ca3af">${i+1}</td>
                   <td style="padding:.4rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
                   <td style="padding:.4rem .4rem"><span style="background:${a.region==='NE'?'#dbeafe':'#fef3c7'};color:${a.region==='NE'?'#1e40af':'#92400e'};padding:.15rem .4rem;border-radius:4px;font-size:.75rem;font-weight:700">${a.region}</span></td>
                   <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.district||'—'}</td>
                   <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.sl||'—'}</td>
-                  <td style="padding:.4rem;text-align:center">${otjStatusBadge(a.beg)}</td>
-                  <td style="padding:.4rem;text-align:center">${otjStatusBadge(a.mid)}</td>
+                  <td style="padding:.4rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
+                  <td style="padding:.4rem;text-align:center;font-size:.8rem;color:#6b7280">${otjPct}</td>
                   <td style="padding:.4rem;text-align:center">${otjStatusBadge(a.end)}</td>
                   <td style="padding:.4rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
                   <td style="padding:.4rem;text-align:center;font-size:.8rem;color:#6b7280">${a.lastObs||'—'}</td>
@@ -2552,10 +2613,10 @@
           <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.95rem">Program Narrative</div>
           <p style="font-size:.9rem;color:#374151;line-height:1.6;margin:0">
             As of <strong>${today}</strong>, <strong>${apps.length} apprentices</strong> are enrolled and active in the NJTC Apprenticeship Program.
-            In the <strong>NE region</strong>, ${neBegDone} of ${APPRENTICES_NE.length} apprentices have completed the Beginning OTJ phase
-            and ${neMidIP} are currently in progress on Middle.
-            In the <strong>SW region</strong>, ${swBegDone} of ${APPRENTICES_SW.length} apprentices have completed Beginning
-            and ${swMidIP} are in progress on Middle.
+            In the <strong>NE region</strong>, ${neBegDone} of ${APPRENTICES_NE.length} apprentices have completed all ${LIVE_TRACKER_OTJ_COLS} OTJ checklist items
+            and ${neMidIP} are currently in progress.
+            In the <strong>SW region</strong>, ${swBegDone} of ${APPRENTICES_SW.length} have completed all items
+            and ${swMidIP} are in progress.
             ${apps.filter(a=>a.obsCount===0).length > 0 ? `<strong>${apps.filter(a=>a.obsCount===0).length} apprentices</strong> have not yet received any recorded observation.` : 'All apprentices have at least one recorded observation on file.'}
           </p>
         </div>`;

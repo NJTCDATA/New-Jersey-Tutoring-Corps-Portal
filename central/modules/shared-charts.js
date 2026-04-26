@@ -2647,7 +2647,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       {v:att!=null?att+'%':'—',                           l:`Att${liveLabel}`, c:_attColor(att)},
       {v:emp.je!=null?'★'+emp.je:'—',                    l:'Survey',          c:'#7c3aed'},
       {v:emp.mp!=null?emp.mp+'/4':'—',                   l:'Perf Score <span title="4 binary metrics from prior SY: Att Target · Scholar Enjoyment · Scholar Learning · Acad Improvement" style="cursor:help;font-size:.55rem">ⓘ</span>', c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
-      {v:emp._obsCount!=null&&emp._obsCount>0?emp._obsCount:'—', l:'Obs',    c:'var(--navy)'},
+      {v:(()=>{const t=(emp._obsCount||0)+(emp._tndObsObserved||0);return t>0?t:'—';})(), l:'Obs', c:'var(--navy)'},
     ].map(x=>`<div style="text-align:center;padding:.625rem .375rem;background:var(--surface-2);border-radius:8px">
       <div style="font-size:1.375rem;font-weight:800;color:${x.c};line-height:1">${esc(String(x.v??'—'))}</div>
       <div style="font-size:.6rem;color:var(--muted);margin-top:.2rem">${x.l}</div>
