@@ -411,17 +411,6 @@
         const _rMap = {};
         _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
         const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
-        // Apprentice-specific data — _apprentice is set by live overlay from HR Master List col K
-        // window._liveApprenticeCount holds the raw count from col K before name-matching (more accurate)
-        const _appPool = _hrPool.filter(e => e._apprentice === 'Yes');
-        const _appBadgeCount = window._liveApprenticeCount || _appPool.length;
-        const _appWithR = _appPool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
-        const _appNW    = _appWithR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
-        const _appNWPct = _appWithR.length ? Math.round(_appNW/_appWithR.length*100) : null;
-        const _appHisp  = _appPool.filter(e => /hispanic|latino/i.test(e._ethnicity||'')).length;
-        const _appRMap  = {};
-        _appWithR.forEach(e => { const r = e._race||'Unknown'; _appRMap[r] = (_appRMap[r]||0)+1; });
-        const _appRRows = Object.entries(_appRMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
         return `<div class="ecd-divider"><div class="ecd-divider-txt">Staff Diversity & Equity</div><div class="ecd-divider-line"></div></div>
 <div style="background:#fff;border:1px solid #e8edf4;border-radius:12px;padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05);margin-bottom:.75rem">
   <div style="display:flex;gap:.625rem;flex-wrap:wrap;margin-bottom:.75rem;align-items:stretch">
@@ -445,12 +434,6 @@
     </div>` : ''}
   </div>
   <div style="font-size:.6rem;color:#94a3b8;font-weight:600">Active on-site staff · Live HR sheet · ${_withR.length} of ${_tot} with race data on file</div>
-  ${_appBadgeCount ? `<div style="margin-top:.625rem;display:inline-flex;align-items:center;gap:.5rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.4rem .75rem">
-    <span style="font-size:1rem">🎓</span>
-    <span style="font-size:.8125rem;font-weight:800;color:#92400e">${_appBadgeCount}</span>
-    <span style="font-size:.7rem;color:#a16207;font-weight:600">Active Apprentices</span>
-    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="DOL apprentices enrolled in TAP · Source: HR Master List col K · 2025-2026">ⓘ</span>
-  </div>` : ''}
 </div>`;
       }())}
 

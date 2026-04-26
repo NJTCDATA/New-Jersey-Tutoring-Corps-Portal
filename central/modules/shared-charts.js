@@ -1031,9 +1031,8 @@
   // ── Site Leader Observations — Apprenticeship Program Database ───────────
   // NE tab gid=1649286205 · SW tab gid=373912327
   // Same sheet as apprenticeship OTJ — direct export URL (sheet shared with anyone)
-  const OBS_SHEET_ID  = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
-  const OBS_NE_GID    = '1649286205';   // Northeast Site Leader Observations
-  const OBS_SW_GID    = '373912327';    // Southwest Site Leader Observations
+  const OBS_SHEET_ID  = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
+  const OBS_SL_GID    = '63958401';    // Onsite Monthly Site Leader Reviews (combined)
   const OBS_CACHE_KEY = 'njtc_obs_live_v1';
   const OBS_TTL_MS    = 60 * 60 * 1000;  // 1-hour cache
   let   _obsRows      = [];
@@ -1504,32 +1503,23 @@
       } catch(e) {}
     }
     const bust = force ? '?t='+Date.now() : '';
-    const neUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_NE_GID}${bust}`;
-    const swUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_SW_GID}${bust}`;
+    const slUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_SL_GID}${bust ? bust : ''}`;
     try {
-      const [neRes, swRes] = await Promise.allSettled([
-        fetch(neUrl, {signal: AbortSignal.timeout(10000)}),
-        fetch(swUrl, {signal: AbortSignal.timeout(10000)}),
-      ]);
       const combined = [];
-      // NE headers at row 2 (skipRows=1), SW headers at row 3 (skipRows=2)
-      const skipMap = [1, 2];
-      for (const [i, result] of [neRes, swRes].entries()) {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const rows = _parseObsSheet(await result.value.text(), skipMap[i]);
-          combined.push(...rows);
-        } else if (result.status === 'fulfilled') {
-          // Non-ok response (e.g. 400) means the sheet isn't publicly shared — skip silently
-          console.info('[Obs] Observations sheet HTTP ' + result.value.status + ' — ensure the OBS sheet is shared ("Anyone with the link can view").');
-        } else {
-          console.info('[Obs] Observations fetch failed (' + (i===0?'NE':'SW') + '):', result.reason?.message || 'network error');
-        }
+      const slRes = await fetch(slUrl, {signal: AbortSignal.timeout(10000)}).catch(e => ({ ok: false, _err: e }));
+      if (slRes.ok) {
+        const rows = _parseObsSheet(await slRes.text(), 0);
+        combined.push(...rows);
+      } else if (slRes.status) {
+        console.info('[Obs] Site Leader Reviews sheet HTTP ' + slRes.status + ' — ensure the sheet is shared ("Anyone with the link can view").');
+      } else {
+        console.info('[Obs] Site Leader Reviews fetch failed:', slRes._err?.message || 'network error');
       }
       if (!combined.length) return;
       _obsRows = combined;
       _obsFetched = true;
       try { localStorage.setItem(OBS_CACHE_KEY, JSON.stringify({ts:Date.now(),rows:combined})); } catch(e){}
-      console.log('[HR Profiles] Observations loaded:', combined.length, 'records (NE+SW)');
+      console.log('[HR Profiles] Site Leader Reviews loaded:', combined.length, 'records');
       _hrOverlayObs();
       // Re-render talent profiles if currently visible
       const _lb = document.getElementById('talentTab-profiles');
@@ -2836,33 +2826,6 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     </div>
   </div>`;
   })()}
-  ${apprentices.length ? (()=>{
-    const appRaceMap={};
-    const appWithRace=apprentices.filter(e=>e._race&&e._race!==''&&!/not listed|prefer not/i.test(e._race||''));
-    appWithRace.forEach(e=>{const r=e._race||'Unknown';appRaceMap[r]=(appRaceMap[r]||0)+1;});
-    const appNonWhite=appWithRace.filter(e=>(e._race||'').toLowerCase()!=='white').length;
-    const appNonWhitePct=appWithRace.length?Math.round(appNonWhite/appWithRace.length*100):0;
-    const appHisp=apprentices.filter(e=>/hispanic|latino/i.test(e._ethnicity||'')).length;
-    const appRaceRows=Object.entries(appRaceMap).sort((a,b)=>b[1]-a[1]);
-    return `<div style="margin-top:.875rem;padding:.75rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
-      <div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#854d0e;letter-spacing:.08em;margin-bottom:.5rem">🎓 DOL Apprentices (${apprentices.length}) — Race & Ethnicity
-        <span style="font-weight:400;font-size:.55rem;color:#a16207;margin-left:.35rem">col K · HR Master List · live data</span>
-      </div>
-      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
-        <div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
-          <div style="font-size:1rem;font-weight:900;color:#854d0e">${appNonWhitePct}%</div>
-          <div style="font-size:.55rem;color:#92400e;font-weight:700">Non-White</div>
-          <div style="font-size:.52rem;color:#94a3b8">${appNonWhite} of ${appWithRace.length}</div>
-        </div>
-        <div style="text-align:center;padding:.4rem .6rem;background:#fff;border-radius:7px;min-width:90px">
-          <div style="font-size:1rem;font-weight:900;color:#b45309">${appHisp}</div>
-          <div style="font-size:.55rem;color:#92400e;font-weight:700">Hispanic/Latino</div>
-          <div style="font-size:.52rem;color:#94a3b8">of ${apprentices.length} appr.</div>
-        </div>
-      </div>
-      ${appRaceRows.length?`<div style="font-size:.6rem;font-weight:800;text-transform:uppercase;color:#a16207;letter-spacing:.07em;margin-bottom:.35rem">Race Breakdown</div>${appRaceRows.map(([race,n])=>{const p=appWithRace.length?Math.round(n/appWithRace.length*100):0;const isW=(race||'').toLowerCase()==='white';const bc=isW?'#cbd5e1':'#d97706';return `<div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem"><div style="font-size:.63rem;font-weight:600;color:#1e293b;width:150px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(race)}</div>${pBar(p,bc)}<div style="font-size:.64rem;font-weight:800;color:${bc};width:28px;text-align:right;flex-shrink:0">${p}%</div><div style="font-size:.58rem;color:#94a3b8;width:22px;text-align:right;flex-shrink:0">${n}</div></div>`;}).join('')}`:'<div style="font-size:.63rem;color:#94a3b8;font-style:italic">Race data not yet on file for apprentices — available after live HR sheet syncs.</div>'}
-    </div>`;
-  })() : ''}
 </div>`;
   }
 
