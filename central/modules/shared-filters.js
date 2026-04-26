@@ -56,6 +56,12 @@
     // Pearl Operations PDF buttons — Data dept only
     document.querySelectorAll('.po-pdf-data-only').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
 
+    // Pearl Operations Ticket System — Programming, Data, Leadership, KB
+    const TICKET_DEPTS = ['programming','data','leadership','kb'];
+    document.querySelectorAll('.po-ticket-btn').forEach(b =>
+      b.style.display = TICKET_DEPTS.includes(dept) ? '' : 'none'
+    );
+
     // Impact Report Builder — Data dept only
     document.querySelectorAll('.dept-nav-irb').forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
 

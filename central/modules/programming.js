@@ -1286,6 +1286,31 @@
     const canSeeNames  = () => ['leadership','data','hr','programming','training_development','kb'].includes(role());
     const canSeeIndiv  = () => ['leadership','data','hr','programming','kb'].includes(role());
 
+    // ── Module-level region detector (used by ticket system and school cards) ─
+    const _NE_KW = ['ilearn','i-learn','paterson','pcsst','paterson charter','hoboken','middlesex','central jersey'];
+    const _SW_KW = ['american paradigm','first philadelphia','first philly','philadelphia charter',
+                    'string theory','global leadership academy','global leadership',
+                    'penns grove','carneys point','haddon township','haddon',
+                    'hamilton township','gloucester township'];
+    const _SW_SC = ['erial','loring flemming','field street','penns grove middle','van sciver',
+                    'strawbridge','first philadelphia prep','first philly prep',
+                    'the philadelphia charter','philadelphia charter school','global leadership academy'];
+    function _poRegion(school, district) {
+      const s = (school||'').toLowerCase(), d = (district||'').toLowerCase();
+      if (_NE_KW.some(k=>d.includes(k)||s.includes(k))) return 'NE';
+      if (_SW_KW.some(k=>d.includes(k))) return 'SW';
+      if (_SW_SC.some(k=>s.includes(k))) return 'SW';
+      return 'NE';
+    }
+
+    // ── Pearl Operations Ticket System ────────────────────────────────────────
+    const TICKET_FORM_URL  = 'https://docs.google.com/forms/d/e/1FAIpQLSfBqfEOWMgR4ynfbQi5t0vGMMtZjUZ6IMqRabPF9BZqTMlgqQ/formResponse';
+    const TICKET_2PACX     = '2PACX-1vQflQdmRksRjySJgjGFsueUku9ReSAqKCKHeR0w_smPb3lnxZFeFoNBtINGrFgk2HrftP2dYgcj3YrI';
+    const TICKET_GID       = '1157594489';
+    const TICKET_CACHE_KEY = 'njtc_pearl_tickets_v1';
+    const TICKET_TTL_MS    = 5 * 60 * 1000;
+    let   _ticketRows      = null;
+
     // ── RFC-4180 CSV PARSER ───────────────────────────────────────────────
     function parseCSV(text) {
       const rows = []; let row = [], f = '', inQ = false;
@@ -4311,6 +4336,7 @@
                       <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#d97706;text-transform:uppercase">High</th>
                       <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase">Sites</th>
                       <th style="text-align:left;padding:.4rem .75rem;font-size:.6875rem;font-weight:700;color:#64748b;text-transform:uppercase">Top Issue</th>
+                      <th style="text-align:center;padding:.4rem .5rem;font-size:.6875rem;font-weight:700;color:#2563eb;text-transform:uppercase">Inquire</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4329,6 +4355,10 @@
                         <td style="padding:.45rem .5rem;text-align:center;font-weight:700;color:${d.high>0?'#d97706':'#94a3b8'}">${d.high>0?d.high:'—'}</td>
                         <td style="padding:.45rem .5rem;text-align:center;color:#64748b">${d.sites}</td>
                         <td style="padding:.45rem .75rem;color:#64748b;font-size:.72rem;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${esc(d.topMsg)}">${topTxt}</td>
+                        <td style="padding:.45rem .5rem;text-align:center">
+                          <button onclick="event.stopPropagation();po.openTicketModal({district:'${esc(d.name)}'})"
+                            style="padding:.2rem .5rem;background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:6px;font-size:.65rem;font-weight:700;cursor:pointer">📬</button>
+                        </td>
                       </tr>`;
                     }).join('')}
                   </tbody>
@@ -4425,7 +4455,12 @@
           <div class="sg-card-details">${details.join('')||'<div class="sg-card-detail sg-card-detail-ok">✓ No issues</div>'}</div>
           <div class="sg-card-footer">
             <span class="sg-status-badge ${stCls}">${stLbl}</span>
-            <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View →</span>
+            <span style="display:flex;gap:.4rem;align-items:center">
+              <span onclick="event.stopPropagation();po.openTicketModal({region:'${region}',district:'${esc(sc.district)}',school:'${esc(sc.school)}'})"
+                style="font-size:.63rem;color:#2563eb;font-weight:700;cursor:pointer;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:.18rem .4rem"
+                title="Submit a data request or question about this school">📬</span>
+              <span style="font-size:.7rem;color:var(--blue-mid);font-weight:600">View →</span>
+            </span>
           </div>
         </div>`;
       }
@@ -4486,8 +4521,12 @@
               <span style="font-size:.875rem;font-weight:700;color:var(--navy)">${sc.school}</span>
               <span style="font-size:.75rem;color:var(--muted);margin-left:.75rem">${sc.district}</span>
             </div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
               ${sc.flags.map(f => `<span class="po-severity-${f.severity}" title="${f.msg}">${f.msg.substring(0,40)}…</span>`).join('')}
+              <button onclick="po.openTicketModal({region:'${_poRegion(sc.school,sc.district)}',district:'${esc(sc.district)}',school:'${esc(sc.school)}'})"
+                style="padding:.25rem .65rem;background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:7px;font-size:.72rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem">
+                📬 Inquire
+              </button>
             </div>
           </div>
           <div class="po-tabs-bar" id="poSchoolTabsBar">
@@ -6745,6 +6784,335 @@
       return map;
     }
 
+    // ── Ticket System: CSV parser ─────────────────────────────────────────────
+    function _splitTicketRow(line) {
+      const cols = []; let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"' && !inQ)             { inQ = true; continue; }
+        if (ch === '"' && inQ)              { if (line[i+1]==='"'){cur+='"';i++;}else inQ=false; continue; }
+        if (ch === ',' && !inQ)             { cols.push(cur); cur=''; continue; }
+        cur += ch;
+      }
+      cols.push(cur);
+      return cols;
+    }
+
+    function _parseTicketCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) return [];
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const c = _splitTicketRow(lines[i]);
+        if (!c || c.length < 4) continue;
+        rows.push({
+          timestamp: (c[0]||'').trim(),
+          submitter: (c[1]||'').trim(),
+          date:      (c[2]||'').trim(),
+          region:    (c[3]||'').trim(),
+          district:  (c[4]||'').trim(),
+          school:    (c[5]||'').trim(),
+          request:   (c[6]||'').trim(),
+          escalate:  (c[7]||'').trim(),
+          urgency:   (c[8]||'').trim(),
+          type:      (c[9]||'').trim(),
+          response:  (c[10]||'').trim(),
+        });
+      }
+      return rows.filter(r => r.submitter || r.request);
+    }
+
+    async function _fetchTickets(force) {
+      if (!force) {
+        try {
+          const c = JSON.parse(localStorage.getItem(TICKET_CACHE_KEY)||'null');
+          if (c && c.ts && (Date.now()-c.ts) < TICKET_TTL_MS && c.rows) { _ticketRows = c.rows; return c.rows; }
+        } catch(e) {}
+      }
+      const url = `https://docs.google.com/spreadsheets/d/e/${TICKET_2PACX}/pub?output=csv&gid=${TICKET_GID}`;
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const rows = _parseTicketCSV(await res.text());
+        _ticketRows = rows;
+        try { localStorage.setItem(TICKET_CACHE_KEY, JSON.stringify({ts:Date.now(),rows})); } catch(e) {}
+        return rows;
+      } catch(e) {
+        console.warn('[Pearl Tickets] Fetch failed:', e.message);
+        return _ticketRows || [];
+      }
+    }
+
+    // ── Ticket System: form builder ───────────────────────────────────────────
+    function _buildTicketFormHTML(ctx) {
+      ctx = ctx || {};
+      const today = new Date();
+      const urgencyOpts = ['Low','Moderate','High','Critical'];
+      const typeOpts    = ['Data Question','Meeting Request','Clarification','Concern','Other'];
+      const sessionName = (window.NJTC_SESSION && window.NJTC_SESSION.name) ? window.NJTC_SESSION.name : '';
+      const escV = v => (v||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      return `
+        <form id="poTicketForm" style="display:grid;gap:1.125rem">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Your Name *</label>
+              <input id="ptName" type="text" value="${escV(sessionName)}" required placeholder="Full name"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Region *</label>
+              <select id="ptRegion" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+                <option value="">Select region…</option>
+                <option value="NE" ${ctx.region==='NE'?'selected':''}>NE — North/East</option>
+                <option value="SW" ${ctx.region==='SW'?'selected':''}>SW — South/West</option>
+                <option value="Both">Both Regions</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">School District</label>
+              <input id="ptDistrict" type="text" value="${escV(ctx.district||'')}" placeholder="District name"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">School</label>
+              <input id="ptSchool" type="text" value="${escV(ctx.school||'')}" placeholder="School name"
+                style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+            </div>
+          </div>
+          <div>
+            <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Describe Your Request / Question *</label>
+            <textarea id="ptRequest" rows="4" required
+              placeholder="Provide context — what data are you seeing, what's the question, what do you need from Data &amp; Evaluation?"
+              style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Type</label>
+              <select id="ptType" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+                ${typeOpts.map(o=>`<option value="${o}" ${o===(ctx.type||'Data Question')?'selected':''}>${o}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Urgency</label>
+              <select id="ptUrgency" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+                ${urgencyOpts.map(o=>`<option value="${o}" ${o===(ctx.urgency||'Moderate')?'selected':''}>${o}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.75rem;font-weight:700;color:#475569;display:block;margin-bottom:.35rem">Needs Escalation?</label>
+              <select id="ptEscalate" style="width:100%;padding:.5rem .75rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.875rem;box-sizing:border-box">
+                <option value="No">No — standard queue</option>
+                <option value="Yes">Yes — needs attention</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:.75rem;align-items:center;padding-top:.25rem">
+            <button type="button" onclick="po.submitTicket()"
+              style="padding:.6rem 1.5rem;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer">
+              📬 Submit Ticket
+            </button>
+            <span id="ptStatus" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+        </form>`;
+    }
+
+    // ── Ticket System: list builder ───────────────────────────────────────────
+    function _buildTicketsListHTML(rows) {
+      if (!rows || !rows.length) return `
+        <div style="padding:2.5rem;text-align:center;color:var(--muted)">
+          <div style="font-size:2rem;margin-bottom:.5rem">📭</div>
+          <div style="font-weight:600">No tickets yet</div>
+          <div style="font-size:.8rem;margin-top:.25rem">Use "Submit New Request" to send your first data question or escalation.</div>
+        </div>`;
+      const urgColor = u => u==='Critical'?'#dc2626':u==='High'?'#d97706':u==='Moderate'?'#2563eb':'#059669';
+      const urgBg    = u => u==='Critical'?'#fef2f2':u==='High'?'#fffbeb':u==='Moderate'?'#eff6ff':'#f0fdf4';
+      const esc      = v => (v||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const rowsHTML = rows.slice().reverse().map(r => {
+        const hasResp   = !!r.response;
+        const statusClr = hasResp ? '#059669' : '#d97706';
+        const statusBg  = hasResp ? '#f0fdf4'  : '#fffbeb';
+        const statusLbl = hasResp ? '✓ Responded' : '⏳ Pending';
+        const dateStr   = r.timestamp ? r.timestamp.substring(0,10) : r.date || '—';
+        const reqShort  = esc(r.request||'—').substring(0,90) + ((r.request||'').length>90?'…':'');
+        return `<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:.6rem .75rem;font-size:.72rem;color:#64748b;white-space:nowrap">${dateStr}</td>
+          <td style="padding:.6rem .75rem;font-weight:600;color:#1e293b;font-size:.8rem;white-space:nowrap">${esc(r.submitter||'—')}</td>
+          <td style="padding:.6rem .75rem;font-size:.72rem;color:#64748b">${esc(r.region||'—')}</td>
+          <td style="padding:.6rem .75rem;font-size:.72rem;color:#64748b;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.district)}">${esc(r.district||'—')}</td>
+          <td style="padding:.6rem .75rem;font-size:.72rem;color:#64748b;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.school)}">${esc(r.school||'—')}</td>
+          <td style="padding:.6rem .5rem;text-align:center">
+            <span style="font-size:.6rem;font-weight:700;padding:.15rem .45rem;border-radius:999px;color:${urgColor(r.urgency)};background:${urgBg(r.urgency)};white-space:nowrap">${esc(r.urgency||'—')}</span>
+          </td>
+          <td style="padding:.6rem .75rem;font-size:.75rem;color:#334155;min-width:160px">
+            <div style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.request)}">${reqShort}</div>
+            ${r.type?`<div style="font-size:.65rem;color:#94a3b8;margin-top:.1rem">${esc(r.type)}</div>`:''}
+          </td>
+          <td style="padding:.6rem .5rem;text-align:center">
+            <span style="font-size:.6rem;font-weight:700;padding:.15rem .45rem;border-radius:999px;color:${statusClr};background:${statusBg};white-space:nowrap">${statusLbl}</span>
+          </td>
+          <td style="padding:.6rem .75rem;font-size:.75rem;color:#1e293b;min-width:180px">
+            ${hasResp
+              ? `<div style="background:#f8fafc;border-left:3px solid #059669;padding:.4rem .6rem;border-radius:0 4px 4px 0;font-style:italic;max-width:240px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical" title="${esc(r.response)}">${esc(r.response)}</div>`
+              : '<span style="color:#94a3b8;font-style:italic">Awaiting response…</span>'}
+          </td>
+        </tr>`;
+      }).join('');
+      return `<div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead>
+            <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase;white-space:nowrap">Date</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Submitter</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Region</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">District</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">School</th>
+              <th style="padding:.5rem .5rem;text-align:center;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Urgency</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Request</th>
+              <th style="padding:.5rem .5rem;text-align:center;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Status</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.63rem;font-weight:700;color:#64748b;text-transform:uppercase">Response</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      </div>`;
+    }
+
+    // ── Ticket System: open form modal ────────────────────────────────────────
+    function openTicketModal(ctx) {
+      let ov = document.getElementById('poTicketOverlay');
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'poTicketOverlay';
+        ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.85);overflow-y:auto;padding:2rem;backdrop-filter:blur(4px)';
+        document.body.appendChild(ov);
+      }
+      ov.innerHTML = `
+        <div style="max-width:680px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+          <div style="background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-size:1.0625rem;font-weight:800;letter-spacing:-.01em">📬 Submit a Data Request</div>
+              <div style="font-size:.75rem;opacity:.8;margin-top:.15rem">Pearl Operations · Data &amp; Evaluation Team</div>
+            </div>
+            <button onclick="document.getElementById('poTicketOverlay').style.display='none'"
+              style="background:rgba(255,255,255,.15);border:none;color:#fff;width:2rem;height:2rem;border-radius:50%;cursor:pointer;font-size:1.125rem;line-height:1;flex-shrink:0">×</button>
+          </div>
+          <div style="padding:1.5rem">${_buildTicketFormHTML(ctx)}</div>
+        </div>`;
+      ov.style.display = 'block';
+      ov.onclick = e => { if (e.target === ov) ov.style.display = 'none'; };
+    }
+
+    // ── Ticket System: view all tickets overlay ───────────────────────────────
+    function openTicketsView() {
+      let ov = document.getElementById('poTicketsViewOverlay');
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.id = 'poTicketsViewOverlay';
+        ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;background:rgba(10,22,40,.85);overflow-y:auto;padding:2rem;backdrop-filter:blur(4px)';
+        document.body.appendChild(ov);
+      }
+      const headerHTML = `
+        <div style="background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:1.0625rem;font-weight:800;letter-spacing:-.01em">📬 Pearl Operations Tickets</div>
+            <div style="font-size:.75rem;opacity:.8;margin-top:.15rem">Data requests, escalations &amp; context meetings · Responses from Data &amp; Evaluation</div>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0">
+            <button onclick="po.openTicketModal()" style="padding:.4rem 1rem;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:600">+ New Request</button>
+            <button onclick="document.getElementById('poTicketsViewOverlay').style.display='none'"
+              style="background:rgba(255,255,255,.15);border:none;color:#fff;width:2rem;height:2rem;border-radius:50%;cursor:pointer;font-size:1.125rem;line-height:1">×</button>
+          </div>
+        </div>`;
+      ov.innerHTML = `<div style="max-width:1100px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)">${headerHTML}<div id="poTicketsBody" style="padding:1.5rem"><div style="text-align:center;padding:2rem;color:var(--muted)">⏳ Loading tickets…</div></div></div>`;
+      ov.style.display = 'block';
+      ov.onclick = e => { if (e.target === ov) ov.style.display = 'none'; };
+      _fetchTickets(false).then(rows => {
+        const body = document.getElementById('poTicketsBody');
+        if (!body) return;
+        const responded = rows.filter(r=>r.response).length;
+        const pending   = rows.length - responded;
+        body.innerHTML = `
+          <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+            <div style="display:flex;gap:.6rem">
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem 1rem;text-align:center;min-width:56px">
+                <div style="font-size:1.375rem;font-weight:800;color:#1e293b">${rows.length}</div>
+                <div style="font-size:.63rem;color:#64748b;font-weight:700;text-transform:uppercase">Total</div>
+              </div>
+              <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem 1rem;text-align:center;min-width:56px">
+                <div style="font-size:1.375rem;font-weight:800;color:#059669">${responded}</div>
+                <div style="font-size:.63rem;color:#059669;font-weight:700;text-transform:uppercase">Responded</div>
+              </div>
+              <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.5rem 1rem;text-align:center;min-width:56px">
+                <div style="font-size:1.375rem;font-weight:800;color:#d97706">${pending}</div>
+                <div style="font-size:.63rem;color:#d97706;font-weight:700;text-transform:uppercase">Pending</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:.5rem;margin-left:auto">
+              <button onclick="po.openTicketModal()" style="padding:.45rem 1.1rem;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.8125rem;font-weight:700">📬 New Request</button>
+              <button onclick="po.refreshTickets()" style="padding:.45rem .9rem;background:#f8fafc;border:1.5px solid #e2e8f0;color:#475569;border-radius:8px;cursor:pointer;font-size:.8125rem;font-weight:600">↺ Refresh</button>
+            </div>
+          </div>
+          ${_buildTicketsListHTML(rows)}`;
+      });
+    }
+
+    // ── Ticket System: submit form ────────────────────────────────────────────
+    async function submitTicket() {
+      const g  = id => (document.getElementById(id)||{}).value || '';
+      const name     = g('ptName').trim();
+      const region   = g('ptRegion');
+      const district = g('ptDistrict').trim();
+      const school   = g('ptSchool').trim();
+      const request  = g('ptRequest').trim();
+      const type     = g('ptType');
+      const urgency  = g('ptUrgency');
+      const escalate = g('ptEscalate');
+      const st = document.getElementById('ptStatus');
+      if (!name || !request) {
+        if (st) st.innerHTML = '<span style="color:#dc2626">⚠ Name and request description are required.</span>';
+        return;
+      }
+      const today = new Date();
+      const params = new URLSearchParams({
+        'entry.491781665': name,
+        'entry.939632120_year':  today.getFullYear(),
+        'entry.939632120_month': today.getMonth() + 1,
+        'entry.939632120_day':   today.getDate(),
+        'entry.2143428895': region,
+        'entry.1942615159': district,
+        'entry.269372707':  school,
+        'entry.2017090049': request,
+        'entry.1978739295': escalate,
+        'entry.778195494':  urgency,
+        'entry.834835718':  type,
+      });
+      if (st) st.innerHTML = '<span style="color:#2563eb">Submitting…</span>';
+      try {
+        await fetch(TICKET_FORM_URL, { method:'POST', mode:'no-cors', body: params });
+        try { localStorage.removeItem(TICKET_CACHE_KEY); } catch(e) {}
+        _ticketRows = null;
+        if (st) st.innerHTML = '<span style="color:#059669">✓ Submitted! Check Tickets view for a response from the Data &amp; Evaluation team.</span>';
+        setTimeout(() => {
+          const ov = document.getElementById('poTicketOverlay');
+          if (ov) ov.style.display = 'none';
+        }, 2800);
+      } catch(e) {
+        if (st) st.innerHTML = '<span style="color:#dc2626">⚠ Submission failed. Please try again.</span>';
+      }
+    }
+
+    // ── Ticket System: refresh tickets list in-place ──────────────────────────
+    async function refreshTickets() {
+      const rows = await _fetchTickets(true);
+      const body = document.getElementById('poTicketsBody');
+      if (!body) return;
+      const tableDiv = body.querySelector('[style*="overflow-x:auto"]');
+      if (tableDiv) tableDiv.outerHTML = _buildTicketsListHTML(rows);
+      else body.insertAdjacentHTML('beforeend', _buildTicketsListHTML(rows));
+    }
+
     return {
       init, refresh, applyFilters, clearFilters, _globalSearch,
       drillSchool, drillPerson, goBack,
@@ -6757,6 +7125,7 @@
       _frSetRegion, _generateFieldReport,
       getCommentsByCategory,
       exportData, showExportModal,
+      openTicketModal, openTicketsView, submitTicket, refreshTickets,
 
       // ── PDF export data accessor ─────────────────────────────────────────
       // regionFilter: 'NE' | 'SW' | 'ALL'
