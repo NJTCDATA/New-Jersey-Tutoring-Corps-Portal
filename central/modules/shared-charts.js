@@ -1039,6 +1039,27 @@
   let   _obsRows      = [];
   let   _obsFetched   = false;
 
+  // ── Hiring Decision Store ─────────────────────────────────────────────────
+  // Records persist in localStorage keyed by employee ID; visible to HR + Data only.
+  const HIRING_KEY = 'njtc_hiring_decisions_v2';
+  function _hiringLoad()  { try { return JSON.parse(localStorage.getItem(HIRING_KEY)||'[]'); } catch(e) { return []; } }
+  function _hiringSave(r) { try { localStorage.setItem(HIRING_KEY, JSON.stringify(r)); } catch(e) {} }
+  function _hiringGet(ek) { return _hiringLoad().filter(r => r.ek === ek); }
+  const _H_COLOR = {'Invite Back':'#065f46','Do Not Rehire':'#b91c1c','Conditional':'#d97706','Hold':'#1e40af'};
+  const _H_BG    = {'Invite Back':'#d1fae5','Do Not Rehire':'#fee2e2','Conditional':'#fef3c7','Hold':'#dbeafe'};
+  function _hiringRecordsHtml(ek) {
+    const recs = _hiringGet(ek).sort((a,b) => b.ts.localeCompare(a.ts));
+    const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (!recs.length) return '<div style="font-size:.75rem;color:var(--muted);padding:.375rem 0">No decisions on record yet.</div>';
+    return recs.map(r => `<div style="margin-bottom:.5rem;padding:.5rem .625rem;background:#fff;border:1px solid var(--border);border-radius:8px">
+  <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-bottom:${r.n?'.25rem':'0'}">
+    <span style="padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;background:${_H_BG[r.d]||'#f3f4f6'};color:${_H_COLOR[r.d]||'#374151'}">${e2(r.d)}</span>
+    <span style="font-size:.63rem;color:var(--muted)">SY ${e2(r.sy||'—')} · ${e2((r.ts||'').slice(0,10))} · ${e2(r.by||'—')} (${e2(r.role||'—')})</span>
+  </div>
+  ${r.n?`<div style="font-size:.75rem;color:var(--navy);line-height:1.5;margin-top:.1rem">${e2(r.n)}</div>`:''}
+</div>`).join('');
+  }
+
   // ── Academic data overlay (from irlab) ──────────────────────────────
   // Pulled at render time from irlab.getTutorAcademicData() — no extra fetch needed
 
@@ -2315,6 +2336,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Historic performance metrics ─────────────────────────────────
     const metricsBody = emp.mp!==null ? `
 <div>
+  <div style="padding:.5rem .75rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:.625rem">
+    <div style="font-size:.7rem;font-weight:700;color:#0369a1;margin-bottom:.25rem">📐 How Perf Score is Calculated</div>
+    <div style="font-size:.68rem;color:#0369a1;line-height:1.6">
+      Score = count of 4 binary metrics met (0–4) from Pearl HR Master List · SY: <strong>${esc(emp.py||'—')}</strong><br>
+      <span style="color:#075985">① Att Target — tutor met ≥95% school-year attendance goal</span><br>
+      <span style="color:#075985">② Scholar Enjoyment — majority of tutored scholars reported enjoying sessions in survey</span><br>
+      <span style="color:#075985">③ Scholar Learning — majority of tutored scholars reported learning in survey</span><br>
+      <span style="color:#075985">④ Acad Improvement — scholars showed measurable placement gain in i-Ready diagnostics</span>
+    </div>
+  </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.375rem;margin-bottom:.625rem">
     ${[['Att Target',emp.am],['Scholar Enjoyment',emp.em],['Scholar Learning',emp.lm],['Acad Improvement',emp.acm]]
       .map(([l,v])=>`<div style="text-align:center;padding:.4rem .25rem;background:var(--surface-2);border-radius:6px">
@@ -2330,10 +2361,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">SY: ${esc(emp.py||'—')} · Overall score: ${emp.mp!==null?emp.mp+'/4':'—'}</div>
 </div>` : `<div style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">ℹ️ Full performance metrics not available in embedded dataset.</div>`;
 
-    // ── i-Ready academic outcomes ─────────────────────────────────────
+    // ── i-Ready academic outcomes (current SY + prior SY cycle comparison) ────
     const hasAcad = emp._acadScholars != null;
+    const hasPriorAcad = emp.pi != null;
     const acadBody = hasAcad ? `
 <div>
+  ${(emp.c >= 2 && hasPriorAcad) ? `<div style="display:flex;gap:.375rem;margin-bottom:.75rem;font-size:.68rem">
+    <span style="padding:.2rem .6rem;border-radius:20px;background:#e0f2fe;color:#0369a1;font-weight:700">Current SY (Live)</span>
+    <span style="padding:.2rem .6rem;border-radius:20px;background:#f1f5f9;color:var(--muted)">vs Prior SY: ${esc(emp.py||'—')} — ${emp.pi}% improved placement</span>
+    ${emp.pi!=null&&emp._acadPctMoved!=null?`<span style="padding:.2rem .6rem;border-radius:20px;font-weight:700;background:${emp._acadPctMoved>emp.pi?'#dcfce7':'#fef2f2'};color:${emp._acadPctMoved>emp.pi?'#166534':'#991b1b'}">${emp._acadPctMoved>emp.pi?'▲ +'+(emp._acadPctMoved-emp.pi)+'%':'▼ '+(emp._acadPctMoved-emp.pi)+'%'} cycle-over-cycle</span>`:''}
+  </div>` : ''}
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.375rem;margin-bottom:.625rem">
     ${[
       {v:emp._acadScholars,          l:'Scholars',           c:'var(--navy)'},
@@ -2350,8 +2387,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     <span>⚠️ Regressed: <strong>${emp._acadRegressed||0}</strong></span>
     ${emp._acadAvgGain!=null?`<span>📊 Avg gain: <strong>${emp._acadAvgGain} pts</strong></span>`:''}
   </div>
-  <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">
-    ${emp._acadSubjects?'Subjects: '+esc(emp._acadSubjects)+' · ':''}${emp._acadDistricts?'Districts: '+esc(emp._acadDistricts.slice(0,60)):''} 
+  ${emp._acadYears?`<div style="margin-top:.375rem;font-size:.68rem;color:var(--muted)">Data spans: ${esc(emp._acadYears)}</div>`:''}
+  <div style="margin-top:.375rem;font-size:.7rem;color:var(--muted)">
+    ${emp._acadSubjects?'Subjects: '+esc(emp._acadSubjects)+' · ':''}${emp._acadDistricts?'Districts: '+esc(emp._acadDistricts.slice(0,60)):''}
     ${emp._acadCert?'· Cert: '+esc(emp._acadCert):''}
   </div>
 </div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">i-Ready data not yet loaded. Open the i-Ready Lab panel first to enable this overlay.</div>`;
@@ -2433,7 +2471,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       {v:emp.c!=null?emp.c:'—',                          l:'Cycles',          c:'var(--navy)'},
       {v:att!=null?att+'%':'—',                           l:`Att${liveLabel}`, c:_attColor(att)},
       {v:emp.je!=null?'★'+emp.je:'—',                    l:'Survey',          c:'#7c3aed'},
-      {v:emp.mp!=null?emp.mp+'/4':'—',                   l:'Perf Score',      c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
+      {v:emp.mp!=null?emp.mp+'/4':'—',                   l:'Perf Score <span title="4 binary metrics from prior SY: Att Target · Scholar Enjoyment · Scholar Learning · Acad Improvement" style="cursor:help;font-size:.55rem">ⓘ</span>', c:emp.mp!=null?(emp.mp>=3?'#0d6e3a':emp.mp>=2?'#d97706':'#b91c1c'):'var(--muted)'},
       {v:emp._obsCount!=null&&emp._obsCount>0?emp._obsCount:'—', l:'Obs',    c:'var(--navy)'},
     ].map(x=>`<div style="text-align:center;padding:.625rem .375rem;background:var(--surface-2);border-radius:8px">
       <div style="font-size:1.375rem;font-weight:800;color:${x.c};line-height:1">${esc(String(x.v??'—'))}</div>
@@ -2447,6 +2485,34 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   ${concernBody ? sec('Program Concerns', uid+'_concern', concernBody, true) : ''}
   ${sec('Site Leader Observations', uid+'_obs', obsBody, hasObs)}
   ${sec('Hiring Decision Signals', uid+'_hiring', hiringBody, true)}
+  ${(()=>{
+    const _d = (window.NJTC_SESSION||{}).dept||'';
+    if (!['hr','data'].includes(_d)) return '';
+    const _ek = uid;
+    const _en = emp.n;
+    const _sy = '2025-2026';
+    const latestRec = _hiringGet(_ek).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+    const latestBadge = latestRec
+      ? `<span style="padding:.2rem .6rem;border-radius:20px;font-size:.72rem;font-weight:700;background:${_H_BG[latestRec.d]||'#f3f4f6'};color:${_H_COLOR[latestRec.d]||'#374151'}">${esc(latestRec.d)}</span>`
+      : '<span style="font-size:.72rem;color:var(--muted)">No decision yet</span>';
+    const body = `<div>
+  <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.625rem">${latestBadge}</div>
+  <div id="hiring_records_${_ek}" style="margin-bottom:.75rem">${_hiringRecordsHtml(_ek)}</div>
+  <div style="padding:.75rem;background:#f8fafc;border:1px solid var(--border);border-radius:8px">
+    <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;letter-spacing:.06em">Record New Decision · SY ${_sy}</div>
+    <select id="hiring_sel_${_ek}" style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8125rem;margin-bottom:.5rem;font-family:inherit;background:#fff">
+      <option value="">— Select Decision —</option>
+      <option value="Invite Back">✅ Invite Back</option>
+      <option value="Conditional">⚠️ Conditional — Needs Review</option>
+      <option value="Hold">⏸ Hold — Pending More Info</option>
+      <option value="Do Not Rehire">🚫 Do Not Rehire</option>
+    </select>
+    <textarea id="hiring_notes_${_ek}" rows="3" placeholder="Notes — rationale, conditions, context..." style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8125rem;margin-bottom:.5rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+    <button id="hiring_save_${_ek}" onclick="_hrSaveHiringDecision('${_ek}','${_en.replace(/'/g,"&#39;")}',document.getElementById('hiring_sel_${_ek}').value,document.getElementById('hiring_notes_${_ek}').value)" style="padding:.4rem 1rem;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit">Save Decision</button>
+  </div>
+</div>`;
+    return sec('🗂️ Hiring Decision Record', uid+'_hiringrec', body, true);
+  })()}
 
   ${emp.tr?`<div style="font-size:.75rem;color:var(--muted);padding:.5rem .75rem;background:var(--surface-2);border-radius:6px;margin-bottom:.75rem">Termination reason: ${esc(emp.tr)}</div>`:''}
 </div>`;
@@ -4610,6 +4676,135 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.KPI_Q_DATA                    = KPI_Q_DATA;
 
   window.buildTalentDashboard    = buildTalentDashboard;
+  // ── Hiring Decision: global save handler (called from inline onclick) ─────
+  window._hrSaveHiringDecision = function(ek, en, decision, notes) {
+    if (!decision) { alert('Please select a decision before saving.'); return; }
+    const sess = window.NJTC_SESSION || {};
+    const recs = _hiringLoad();
+    recs.push({
+      id:   Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      ek, en: en, d: decision, n: notes || '', sy: '2025-2026',
+      ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown'
+    });
+    _hiringSave(recs);
+    // Refresh the records list in the open modal
+    const listEl = document.getElementById('hiring_records_' + ek);
+    if (listEl) listEl.innerHTML = _hiringRecordsHtml(ek);
+    // Clear the form
+    const sel = document.getElementById('hiring_sel_' + ek);
+    const txt = document.getElementById('hiring_notes_' + ek);
+    const btn = document.getElementById('hiring_save_' + ek);
+    if (sel) sel.value = '';
+    if (txt) txt.value = '';
+    if (btn) { const orig = btn.textContent; btn.textContent = '✓ Saved'; btn.style.background='#16a34a'; setTimeout(()=>{ btn.textContent=orig; btn.style.background='#0a1628'; },2200); }
+  };
+
+  // ── Hiring File Cabinet — table of all decisions ────────────────────────
+  function _hrHiringFileCabinet() {
+    const esc2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const recs = _hiringLoad().sort((a,b) => b.ts.localeCompare(a.ts));
+    const bySY = {};
+    recs.forEach(r => { const sy = r.sy||'Unknown'; if (!bySY[sy]) bySY[sy] = []; bySY[sy].push(r); });
+    const summary = ['Invite Back','Conditional','Hold','Do Not Rehire'].map(d => {
+      const n = recs.filter(r=>r.d===d).length;
+      return n ? `<span style="padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:700;background:${_H_BG[d]||'#f3f4f6'};color:${_H_COLOR[d]||'#374151'}">${d}: <strong>${n}</strong></span>` : '';
+    }).filter(Boolean).join(' ');
+
+    const tableRows = recs.map(r => `<tr>
+      <td style="padding:.5rem .625rem;font-weight:600;color:var(--navy)">${esc2(r.en||r.ek)}</td>
+      <td style="padding:.5rem .625rem">${esc2(r.sy||'—')}</td>
+      <td style="padding:.5rem .625rem"><span style="padding:.15rem .5rem;border-radius:20px;font-size:.72rem;font-weight:700;background:${_H_BG[r.d]||'#f3f4f6'};color:${_H_COLOR[r.d]||'#374151'}">${esc2(r.d)}</span></td>
+      <td style="padding:.5rem .625rem;font-size:.75rem;color:var(--muted)">${esc2((r.ts||'').slice(0,10))}</td>
+      <td style="padding:.5rem .625rem;font-size:.75rem">${esc2(r.by||'—')}</td>
+      <td style="padding:.5rem .625rem;font-size:.75rem;color:var(--text-2);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc2(r.n||'—')}</td>
+    </tr>`).join('');
+
+    return `
+<div style="padding:1.25rem">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem;margin-bottom:1.125rem">
+    <div>
+      <div style="font-size:1.125rem;font-weight:800;color:var(--navy);margin-bottom:.25rem">🗂️ Hiring Decision File Cabinet</div>
+      <div style="font-size:.75rem;color:var(--muted)">${recs.length} decision${recs.length!==1?'s':''} on record · visible to HR and Data department only</div>
+      ${summary?`<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-top:.5rem">${summary}</div>`:''}
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <button onclick="window._hrExportHiringCSV()" style="padding:.4rem .875rem;background:#fff;border:1.5px solid #e2e8f0;border-radius:7px;font-size:.75rem;font-weight:700;color:#374151;cursor:pointer;font-family:inherit">📄 Export CSV</button>
+      <button onclick="window._hrExportHiringXLSX()" style="padding:.4rem .875rem;background:#166534;color:#fff;border:none;border-radius:7px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">📗 Export XLSX (ADP)</button>
+    </div>
+  </div>
+  ${recs.length === 0
+    ? `<div style="text-align:center;padding:3rem;color:var(--muted);background:var(--surface-2);border-radius:12px">No hiring decisions recorded yet. Open an employee profile to record the first decision.</div>`
+    : `<div style="overflow-x:auto;border-radius:10px;border:1px solid var(--border)">
+  <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+    <thead>
+      <tr style="background:var(--surface-2)">
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">Employee</th>
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">SY</th>
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">Decision</th>
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">Date</th>
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">Decided By</th>
+        <th style="padding:.5rem .625rem;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.06em">Notes</th>
+      </tr>
+    </thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+</div>`}
+</div>`;
+  }
+
+  // ── Hiring export helpers ────────────────────────────────────────────────
+  window._hrExportHiringCSV = function() {
+    const recs = _hiringLoad().sort((a,b) => b.ts.localeCompare(a.ts));
+    if (!recs.length) { alert('No hiring decisions to export.'); return; }
+    // Enrich with HR_EMPS operational fields
+    const header = ['Employee Name','School Year','Decision','Date','Decided By','Role/Dept','Notes','Cycles','Current Site','District','Status','Perf Score','Attendance','iReady % Improved','Concerns'];
+    const rows = recs.map(r => {
+      const emp = HR_EMPS.find(e => e.n.replace(/\W/g,'_') === r.ek) || {};
+      const att = emp._liveAtt !== undefined ? emp._liveAtt : emp.att;
+      return [
+        r.en||r.ek, r.sy||'', r.d||'', (r.ts||'').slice(0,10), r.by||'', r.role||'', r.n||'',
+        emp.c??'', emp.si||'', emp.di||'', emp.s||'',
+        emp.mp!=null?emp.mp+'/4':'', att!=null?att+'%':'',
+        emp._acadPctMoved!=null?emp._acadPctMoved+'%':'',
+        emp._liveConcerns||0
+      ].map(v => '"'+String(v).replace(/"/g,'""')+'"');
+    });
+    const csv = [header.map(h=>'"'+h+'"').join(','), ...rows.map(r=>r.join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);
+    a.download = 'njtc-hiring-decisions-'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click();
+  };
+
+  window._hrExportHiringXLSX = function() {
+    if (!window.XLSX) { alert('XLSX library not loaded — use CSV export instead.'); return; }
+    const recs = _hiringLoad().sort((a,b) => b.ts.localeCompare(a.ts));
+    if (!recs.length) { alert('No hiring decisions to export.'); return; }
+    const rows = recs.map(r => {
+      const emp = HR_EMPS.find(e => e.n.replace(/\W/g,'_') === r.ek) || {};
+      const att = emp._liveAtt !== undefined ? emp._liveAtt : emp.att;
+      return {
+        'Employee Name': r.en||r.ek, 'School Year': r.sy||'', 'Decision': r.d||'',
+        'Date': (r.ts||'').slice(0,10), 'Decided By': r.by||'', 'Dept/Role': r.role||'',
+        'Notes': r.n||'', 'Cycles': emp.c??'', 'Current Site': emp.si||'',
+        'District': emp.di||'', 'Status': emp.s||'', 'Role': emp.r||'',
+        'Perf Score': emp.mp!=null?emp.mp+'/4':'', 'Perf Score (num)': emp.mp??'',
+        'Attendance %': att??'', 'iReady % Improved': emp._acadPctMoved??'',
+        'iReady Scholars': emp._acadScholars??'', 'Concerns': emp._liveConcerns||0,
+        'HR Action': emp._liveHRAction||'', 'Returning Staff': emp.rh||'',
+        'Race': emp._race||'', 'Ethnicity': emp._ethnicity||'',
+        'TAP Apprentice': emp.em||'', 'Email': emp.e||''
+      };
+    });
+    const ws = window.XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [22,12,20,12,22,12,40,8,35,30,12,20,14,14,14,18,16,10,22,16,22,22,14,32].map(w=>({wch:w}));
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Hiring Decisions');
+    window.XLSX.writeFile(wb, 'njtc-hiring-decisions-adp-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  };
+
+  window._hrHiringFileCabinet = _hrHiringFileCabinet;
+
   window.fetchLiveHRData         = fetchLiveHRData;
   window.fetchLiveObsData        = fetchLiveObsData;   // NE+SW site leader observations
   window._updateTalentBadge      = _updateTalentBadge;
