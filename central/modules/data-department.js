@@ -5468,23 +5468,29 @@
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—'}</div><div class="ta-kpi-sub">Median Scale Gain</div></div>
         </div>`;
 
-        // ── Growth tier stacked bar ───────────────────────────────────────────
-        if (net.withGrowth > 0) {
-          const tiers = [
-            { label: 'Met or Exceeded', pct: net.pctMetTypical || 0,    color: '#16a34a' },
-            { label: 'Making Progress', pct: net.pctProgressing || 0,   color: '#0050c8' },
-            { label: 'Needs Accel.',    pct: net.pctNeedsAccel || 0,    color: '#d97706' },
-            { label: 'Regression',      pct: net.pctRegressed || 0,     color: '#dc2626' },
-          ];
-          html += `<div style="margin-bottom:1.25rem">
-            <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Growth Distribution — ${_moySubject} · ${net.withGrowth} scholars with valid Fall + Winter pairs</div>
-            <div style="height:28px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:.5rem">
-              ${tiers.map(t => t.pct > 0 ? `<div style="flex:${t.pct};background:${t.color};min-width:${t.pct > 0 ? '2px':0}" title="${t.label}: ${t.pct}%"></div>` : '').join('')}
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:.75rem">
-              ${tiers.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span><strong style="color:${t.color}">${t.pct}%</strong></div>`).join('')}
-            </div>
-          </div>`;
+        // ── Placement level distribution bar (Winter snapshot) ───────────────
+        {
+          const plDist = net.placementDist || {};
+          const plTotal = PLACEMENT_ORDER.reduce((s, p) => s + (plDist[p] || 0), 0);
+          const plTiers = [
+            { label: '3+ GL Below',   full: '3 or More Grade Levels Below', color: '#b91c1c' },
+            { label: '2 GL Below',    full: '2 Grade Levels Below',          color: '#e07a2f' },
+            { label: '1 GL Below',    full: '1 Grade Level Below',           color: '#d97706' },
+            { label: 'Early On GL',   full: 'Early On Grade Level',          color: '#0d9488' },
+            { label: 'Mid/Above GL',  full: 'Mid or Above Grade Level',      color: '#0d6e3a' },
+          ].map(t => ({ ...t, count: plDist[t.full] || 0, pct: plTotal > 0 ? Math.round((plDist[t.full] || 0) / plTotal * 100) : 0 }));
+
+          if (plTotal > 0) {
+            html += `<div style="margin-bottom:1.25rem">
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Winter Placement Distribution — ${_moySubject} · ${plTotal} scholars</div>
+              <div style="height:28px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:.5rem">
+                ${plTiers.map(t => t.count > 0 ? `<div style="flex:${t.count};background:${t.color}" title="${t.full}: ${t.pct}% (${t.count})"></div>` : '').join('')}
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:.75rem">
+                ${plTiers.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span><strong style="color:${t.color}">${t.pct}%</strong><span style="color:var(--muted);font-size:.65rem">(${t.count})</span></div>`).join('')}
+              </div>
+            </div>`;
+          }
         }
 
         // ── Placement movement breakdown ──────────────────────────────────────
