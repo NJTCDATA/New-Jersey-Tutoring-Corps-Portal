@@ -1209,8 +1209,8 @@
       role: ci('position'), site: ci('site'), district: ci('district'),
       rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
       race: ci('race'), ethnicity: ci('ethnicity'),
-      // Column K in HR Master List — apprentice designation
-      apprentice: ci('apprentice'),
+      // Column K in HR Master List — header may be "Apprentice", "Apprentice (TAP)", "DOL Apprentice", etc.
+      apprentice: ciAny('apprentice', 'apprenticeship'),
       // Termination detail fields — try multiple header aliases, then positional fallback (N=13, O=14, P=15)
       termDate:   ciAny('termination date', 'term date', 'date of term', 'separation date', 'end date'),
       termReason: ciAny('reason category', 'term reason', 'reason for', 'separation reason', 'exit reason'),
@@ -1249,6 +1249,12 @@
       HR_EMPS.splice(window._HR_BASE_LEN);  // truncate back to embedded snapshot
     }
     _hrLiveAddedKeys.clear();  // allow re-evaluation of new hires
+
+    // Pre-build _hn() keyed set of canonical apprentice names for supplementary flagging
+    const _apprHnSet = new Set();
+    if (window._njtcAllApprenticeNames) {
+      for (const n of window._njtcAllApprenticeNames) _apprHnSet.add(_hn(n));
+    }
 
     // Group live rows by normalized name key
     const byKey = {};
@@ -1309,9 +1315,11 @@
       emp._termDate   = latest.termDate   || '';
       emp._termReason = latest.termReason || '';
       emp._termType   = latest.termType   || '';
-      // Apprentice indicator from col K — flag if any current SY row is marked
-      const anyApprent = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice));
-      emp._apprentice = anyApprent ? 'Yes' : (emp._apprentice || '');
+      // Apprentice indicator from col K — flag if any current SY row is marked,
+      // or if the employee's canonical name is in the ALL_APPRENTICES master list
+      const anyApprent    = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice));
+      const inApprList    = _apprHnSet.size > 0 && _apprHnSet.has(_hn(emp.n));
+      emp._apprentice = (anyApprent || inApprList) ? 'Yes' : (emp._apprentice || '');
       // Track all SYs this person has appeared in
       const allYrs = [...new Set(rows.map(r=>r.yr).filter(Boolean))].sort().reverse();
       emp.y = allYrs;
@@ -1361,7 +1369,7 @@
         pi:null, pr:null, p2:null, att:null, je:null, jl:null,
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
         _race: latest.race||null, _ethnicity: latest.ethnicity||null,
-        _apprentice: (latest.apprentice && /yes|y|true|1/i.test(latest.apprentice)) ? 'Yes' : '',
+        _apprentice: ((latest.apprentice && /yes|y|true|1/i.test(latest.apprentice)) || (_apprHnSet.size > 0 && _apprHnSet.has(k))) ? 'Yes' : '',
         _termDate: latest.termDate||'', _termReason: latest.termReason||'', _termType: latest.termType||'',
         _live:true, _liveYears:['2025-2026'],
       });
@@ -1526,8 +1534,8 @@
         }
       } catch(e) {}
     }
-    const bust = force ? '?t='+Date.now() : '';
-    const slUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_SL_GID}${bust ? bust : ''}`;
+    const bust = force ? '&t='+Date.now() : '';
+    const slUrl = `https://docs.google.com/spreadsheets/d/${OBS_SHEET_ID}/export?format=csv&gid=${OBS_SL_GID}${bust}`;
     try {
       const combined = [];
       const slRes = await fetch(slUrl, {signal: AbortSignal.timeout(10000)}).catch(e => ({ ok: false, _err: e }));
@@ -1672,12 +1680,43 @@
   function _hrOverlayTndObs() {
     const tnd = window._njtcTutorObs;
     if (!tnd) return;
-    const _normN = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
-    let matched = 0;
+    const normN = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
+
+    // Reverse index: normalized emp name → emp object
+    const empByNorm = new Map();
     for (const emp of HR_EMPS) {
-      const k = _normN(emp.n);
-      const entries = tnd[k] || [];
-      if (!entries.length) continue;
+      empByNorm.set(normN(emp.n), emp);
+    }
+
+    // Three-tier fuzzy match: exact → "First L." initial → token subset
+    function findEmp(tndKey) {
+      if (empByNorm.has(tndKey)) return empByNorm.get(tndKey);
+      const parts = tndKey.split(' ').filter(Boolean);
+      // "First L." pattern — e.g., "james d." → "james dejesus"
+      if (parts.length === 2 && /^[a-z]\.$/.test(parts[1])) {
+        const first = parts[0], lastInit = parts[1][0];
+        for (const [k, emp] of empByNorm) {
+          const kp = k.split(' ');
+          if (kp.length >= 2 && kp[0] === first && kp[kp.length-1].startsWith(lastInit)) return emp;
+        }
+      }
+      // Token subset: all meaningful tokens in tndKey appear in emp name
+      const tndToks = parts.filter(p => p.length > 1 && !/\.$/.test(p));
+      if (tndToks.length >= 2) {
+        for (const [k, emp] of empByNorm) {
+          const kToks = k.split(' ');
+          if (tndToks.every(t => kToks.includes(t))) return emp;
+        }
+      }
+      return null;
+    }
+
+    let matched = 0;
+    for (const [tndKey, entries] of Object.entries(tnd)) {
+      const emp = findEmp(tndKey);
+      if (!emp) continue;
+      // Skip alias keys pointing to same emp (rawKey → same array as canonical key)
+      if (emp._tndObsTotal !== undefined) continue;
       const observed = entries.filter(e => e.observed).length;
       const missed   = entries.filter(e => e.missed).length;
       const link     = (entries.find(e => e.link) || {}).link || '';
