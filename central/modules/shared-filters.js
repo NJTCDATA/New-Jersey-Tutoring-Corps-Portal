@@ -85,6 +85,11 @@
     document.querySelectorAll('.dept-nav-upload').forEach(b =>
       b.style.display = UPLOAD_DEPTS.includes(dept) ? '' : 'none'
     );
+
+    // Data Sources File Cabinet — Data dept only
+    document.querySelectorAll('.dept-nav-data-cabinet').forEach(b =>
+      b.style.display = (dept === 'data') ? '' : 'none'
+    );
   }
 
   // ── Year extraction helpers ────────────────────────────────────
