@@ -8746,7 +8746,7 @@
     },
 
     // Goals not met / at risk
-    { match: /not met|has not met|fall(ing)? short|behind on|which goals|goal.*(not|behind|weak)|needs attention|weakest goal|goal area|unmet/i,
+    { match: /not met|has not met|fall(ing)? short|behind on|which goals.{0,25}(not|unmet|fail|miss|behind|weak|short)|goal.*(not|behind|weak)|needs attention|weakest goal|goal area|unmet/i,
       respond: function() {
         var d = _kpi();
         if (!d) return 'KPI data is still loading — try again in a moment.';
@@ -8983,7 +8983,7 @@
     },
 
     // iReady / typical growth
-    { match: /typical growth|iready|scale score|placement level|percent.?of.?typical|academic growth/i,
+    { match: /typical growth|iready(?! math\b| ela\b| school year\b| by year\b| \d{4}|.*compare year)|scale score|placement level|percent.?of.?typical|academic growth/i,
       respond: function() {
         try {
           if (!window.irlab || typeof window.irlab.getSummary !== 'function') {
@@ -9265,6 +9265,26 @@
     },
 
     // iReady math growth specifically
+    // iReady math vs ELA comparison — must be before math-specific handler so "how does ELA compare to math growth" routes correctly
+    { match: /math.*vs.*ela|ela.*vs.*math|compare.*math.*ela|math.*compare.*ela|math.*ela.*difference|how does ela compare/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
+        var math = irl.mathMedianPctAllYears != null ? Math.round(irl.mathMedianPctAllYears) : null;
+        var ela  = irl.elaMedianPctAllYears  != null ? Math.round(irl.elaMedianPctAllYears)  : null;
+        if (math==null && ela==null) return 'iReady comparison data not yet available.';
+        var msg = '**iReady Math vs ELA — All-Years Program Medians:**\n\n';
+        msg += '📐 **Math**: '+(math!=null?'**'+math+'%** of typical growth':'—')+' ('+_n(irl.mathRows)+' records)\n';
+        msg += '📖 **ELA/Reading**: '+(ela!=null?'**'+ela+'%** of typical growth':'—')+' ('+_n(irl.elaRows)+' records)\n';
+        if (math!=null && ela!=null) {
+          var diff = ela - math;
+          msg += '\n'+(diff>0?'ELA is **'+diff+' points** ahead of math.':diff<0?'Math is **'+Math.abs(diff)+' points** ahead of ELA.':'Math and ELA are at the same level.');
+        }
+        msg += '\n\n≥100% = at or above grade-level trajectory. Benchmark target: 100%.';
+        return msg;
+      }
+    },
+
     { match: /iready math|math (growth|score|gain|typical|diagnostic)|math.?percent|math median/i,
       respond: function() {
         try {
@@ -9863,6 +9883,55 @@
     },
 
     // Scholar grade level proficiency / placement
+    // ── PLACEMENT LEVEL SHIFTS — must precede grade-level distribution handler so "placement level shifts" routes here
+    { match: /placement.?(level.?shift|shift|change|advanc|distribut|progress|mov|data|result|breakdown)|who.?moved.?up|who.?moved.?down|level.?change|level.?shift|base.*spring.*(placement|level)|spring.*base.*(placement|level)|placement.*advanc|level.*advanc|80%.*(scholar.*level|placement)|kpi.*placement|how.*(scholar|student).*(mov|advanc|level)|scholar.*(mov|advanc|level|shift)|iready.*(level|shift|change|placement|distribut)/i,
+      respond: function() {
+        var irl = _irl(), d = _kpi();
+        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for placement level data.';
+        var pc = irl.placementCounts;
+        if (!pc || !pc.spring) return 'Spring placement data not yet available — check back after the spring iReady window.';
+        var PL = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+        var PS = ['3+ Below','2 Below','1 Below','Early GL','On/Above GL'];
+        var springTotal = PL.reduce(function(s,k){return s+(pc.spring[k]||0);},0);
+        var hasBase = pc.base && PL.reduce(function(s,k){return s+(pc.base[k]||0);},0) > 0;
+        var msg = '**Placement Level Distribution — Base vs Spring**\n\n';
+        if (hasBase) {
+          var baseTotal = PL.reduce(function(s,k){return s+(pc.base[k]||0);},0);
+          PL.forEach(function(pl,i){
+            var bCt=pc.base[pl]||0, sCt=pc.spring[pl]||0;
+            var bPct=Math.round(bCt/baseTotal*100), sPct=Math.round(sCt/springTotal*100);
+            var diff=sPct-bPct;
+            msg += '**'+PS[i]+'**: '+_n(bCt)+' ('+bPct+'%) → '+_n(sCt)+' ('+sPct+'%)  '+(diff>0?'▲ +'+diff+'%':diff<0?'▼ '+diff+'%':'→')+'\n';
+          });
+          var bBelow2=(pc.base['2 Grade Levels Below']||0)+(pc.base['3 or More Grade Levels Below']||0);
+          var sBelow2=(pc.spring['2 Grade Levels Below']||0)+(pc.spring['3 or More Grade Levels Below']||0);
+          if (bBelow2>0) {
+            var red=Math.round((bBelow2-sBelow2)/bBelow2*100);
+            msg += '\n'+(red>=35?'✅':red>0?'⚠️':'🔴')+' **Gap Closing (2+ below):** '+_n(bBelow2)+' → '+_n(sBelow2)+' — **'+(red>0?red+'% reduction':Math.abs(red)+'% increase')+'** (KPI goal: 35%)\n';
+          }
+          var bGL=(pc.base['Early On Grade Level']||0)+(pc.base['Mid or Above Grade Level']||0);
+          var sGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
+          var glShift=Math.round(sGL/springTotal*100)-Math.round(bGL/baseTotal*100);
+          msg += (glShift>=0?'📈':'📉')+' **On/Above Grade Level:** '+_n(bGL)+' ('+Math.round(bGL/baseTotal*100)+'%) → '+_n(sGL)+' ('+Math.round(sGL/springTotal*100)+'%)  '+(glShift>=0?'+':'')+glShift+' pts\n';
+        } else {
+          var onGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
+          var b1=pc.spring['1 Grade Level Below']||0, b2=pc.spring['2 Grade Levels Below']||0, b3=pc.spring['3 or More Grade Levels Below']||0;
+          msg += '**Spring Distribution ('+_n(springTotal)+' scholars):**\n';
+          msg += '✅ On/Above GL: **'+_n(onGL)+'** ('+Math.round(onGL/springTotal*100)+'%)\n';
+          msg += '⚠️ 1 Below: **'+_n(b1)+'** ('+Math.round(b1/springTotal*100)+'%)\n';
+          msg += '🔴 2 Below: **'+_n(b2)+'** ('+Math.round(b2/springTotal*100)+'%)\n';
+          msg += '🔴 3+ Below: **'+_n(b3)+'** ('+Math.round(b3/springTotal*100)+'%)\n';
+          msg += '_Upload baseline iReady data to compare shifts._\n';
+        }
+        if (d) {
+          var plKPI = d.data.find(function(k){return /80%.*scholar.*advanc|placement level change/i.test(k.target||'');});
+          if (plKPI) { var ps=plKPI.midStatus||plKPI.status||''; msg += '\n📋 **KPI: Placement Level Change** — Status: **'+ps+'** '+(ps==='Met'?'✅':ps==='Has Not Met'?'🔴':'⚠️'); }
+        }
+        msg += '\n\n_Ask "scholar demographic outcomes" to see placement by race/ethnicity. Ask "grant reporting summary" for the full funder package._';
+        return msg.trim();
+      }
+    },
+
     { match: /grade level|profici|on grade|at grade|below grade|grade level profic|placed.*grade|scholar.*level|placement (level|break|dist)|move.*grade|grade.*move|promot|proficien/i,
       respond: function() {
         try {
@@ -9890,7 +9959,7 @@
     },
 
     // ── SCHOLAR DEMOGRAPHIC OUTCOMES ─────────────────────────────────────────
-    { match: /demographic.*(outcome|result|growth|academ|impact|perform)|outcome.*(demographic|race|ethnicity|equity)|race.*(outcome|growth|result|impact)|equity.*(outcome|growth|academ|result)|scholar.*(race|ethnicity).*(growth|academ|impact|perform|outcome)|how.*(equit|gap).*(race|ethnic|group|demographic)|achievement.*gap.*race|racial.*gap|equity.*gap/i,
+    { match: /demographic.*(outcome|result|growth|academ|impact|perform)|outcome.*(demographic|race|ethnicity|equity)|race.*(outcome|growth|result|impact)|equity.*(outcome|growth|academ|result)|scholar.*(race|ethnicity).*(growth|academ|impact|perform|outcome)|how.*(equit|gap).*(race|ethnic|group|demographic)|achievement.*gap.*race|racial.*gap|equity.*gap|tutor.*(diversity|race|ethnic).*(vs|scholar|compar|mirror)|tutor.*diversity.*scholar|scholar.*diversity.*tutor/i,
       respond: function() {
         try {
           var irl = _irl(), d = _kpi(), active = _hrActive();
@@ -10000,26 +10069,6 @@
         msg += rows.slice(0,8).map(function(r){ return '• **'+r[0]+'**: '+_n(r[1])+' ('+Math.round(r[1]/active.length*100)+'%)'; }).join('\n');
         if (eCount) msg += '\n• **Hispanic/Latino** (ethnicity): **'+eCount+'**';
         msg += '\n\n**'+Math.round(nw/active.length*100)+'% non-white** among staff with reported race.';
-        return msg;
-      }
-    },
-
-    // iReady math vs ELA comparison
-    { match: /math.*vs.*ela|ela.*vs.*math|compare.*math.*ela|math.*compare.*ela|math.*ela.*difference|how does ela compare/i,
-      respond: function() {
-        var irl = _irl();
-        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
-        var math = irl.mathMedianPctAllYears != null ? Math.round(irl.mathMedianPctAllYears) : null;
-        var ela  = irl.elaMedianPctAllYears  != null ? Math.round(irl.elaMedianPctAllYears)  : null;
-        if (math==null && ela==null) return 'iReady comparison data not yet available.';
-        var msg = '**iReady Math vs ELA — All-Years Program Medians:**\n\n';
-        msg += '📐 **Math**: '+(math!=null?'**'+math+'%** of typical growth':'—')+' ('+_n(irl.mathRows)+' records)\n';
-        msg += '📖 **ELA/Reading**: '+(ela!=null?'**'+ela+'%** of typical growth':'—')+' ('+_n(irl.elaRows)+' records)\n';
-        if (math!=null && ela!=null) {
-          var diff = ela - math;
-          msg += '\n'+(diff>0?'ELA is **'+diff+' points** ahead of math.':diff<0?'Math is **'+Math.abs(diff)+' points** ahead of ELA.':'Math and ELA are at the same level.');
-        }
-        msg += '\n\n≥100% = at or above grade-level trajectory. Benchmark target: 100%.';
         return msg;
       }
     },
@@ -10728,6 +10777,13 @@
     },
 
     // OTJ / apprenticeship on-the-job training status
+    // OTJ definition — must precede the status handler so "What is OTJ?" routes here, not to status data
+    { match: /what is.{0,10}otj\b|otj.{0,10}mean|on.?the.?job.{0,10}observ|define.{0,10}otj/i,
+      respond: function() {
+        return '**OTJ (On-the-Job Observation)** — A structured classroom observation used in NJTC\'s TAP program to assess tutor readiness.\n\n• **Beginning phase** — Early-year baseline observation\n• **Middle phase** — Mid-year progress check\n• **End phase** — Year-end summative assessment\n\nEach phase is rated: ✅ Complete · 🔄 In Progress · 🔴 Not Started\n\nObservations are conducted by site leaders or program managers and feed into TAP apprenticeship status.';
+      }
+    },
+
     { match: /otj|on.?the.?job|apprentice.*(status|progress|phase|complete|finish|done)|tap.*(status|progress|complete|otj|phase)|(beginning|middle|end).*(otj|phase|complet)|who.*completed.*otj|otj.*status/i,
       respond: function() {
         var rows = _tdOTJ();
@@ -11025,13 +11081,6 @@
         } catch(e) {
           return '**TAP (Tutor Apprenticeship Program)** — NJTC\'s grow-your-own pipeline that converts high-performing tutors into certified teachers. Apprentices complete structured OTJ observations (Beginning → Middle → End) while continuing to tutor.';
         }
-      }
-    },
-
-    // OTJ definition
-    { match: /what is.{0,10}otj\b|otj.{0,10}mean|on.?the.?job.{0,10}observ|define.{0,10}otj/i,
-      respond: function() {
-        return '**OTJ (On-the-Job Observation)** — A structured classroom observation used in NJTC\'s TAP program to assess tutor readiness.\n\n• **Beginning phase** — Early-year baseline observation\n• **Middle phase** — Mid-year progress check\n• **End phase** — Year-end summative assessment\n\nEach phase is rated: ✅ Complete · 🔄 In Progress · 🔴 Not Started\n\nObservations are conducted by site leaders or program managers and feed into TAP apprenticeship status.';
       }
     },
 
@@ -11949,55 +11998,6 @@
           if (sf.atRisk.length) msg += '⚠️ At-risk schools: **'+sf.atRisk.length+'**\n';
         }
         msg += '\n_Ask "placement level shifts", "year-over-year standouts", "gap closing progress", or "scholar demographic outcomes" for deeper evidence. Ask "generate flash report" for a printable export._';
-        return msg.trim();
-      }
-    },
-
-    // ── PLACEMENT LEVEL SHIFTS ────────────────────────────────────────────────
-    { match: /placement.?(level.?shift|shift|change|advanc|distribut|progress|mov|data|result|breakdown)|who.?moved.?up|who.?moved.?up|who.?moved.?down|level.?change|level.?shift|base.*spring.*(placement|level)|spring.*base.*(placement|level)|placement.*advanc|level.*advanc|80%.*(scholar.*level|placement)|kpi.*placement|how.*(scholar|student).*(mov|advanc|level)|scholar.*(mov|advanc|level|shift)|iready.*(level|shift|change|placement|distribut)/i,
-      respond: function() {
-        var irl = _irl(), d = _kpi();
-        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for placement level data.';
-        var pc = irl.placementCounts;
-        if (!pc || !pc.spring) return 'Spring placement data not yet available — check back after the spring iReady window.';
-        var PL = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
-        var PS = ['3+ Below','2 Below','1 Below','Early GL','On/Above GL'];
-        var springTotal = PL.reduce(function(s,k){return s+(pc.spring[k]||0);},0);
-        var hasBase = pc.base && PL.reduce(function(s,k){return s+(pc.base[k]||0);},0) > 0;
-        var msg = '**Placement Level Distribution — Base vs Spring**\n\n';
-        if (hasBase) {
-          var baseTotal = PL.reduce(function(s,k){return s+(pc.base[k]||0);},0);
-          PL.forEach(function(pl,i){
-            var bCt=pc.base[pl]||0, sCt=pc.spring[pl]||0;
-            var bPct=Math.round(bCt/baseTotal*100), sPct=Math.round(sCt/springTotal*100);
-            var diff=sPct-bPct;
-            msg += '**'+PS[i]+'**: '+_n(bCt)+' ('+bPct+'%) → '+_n(sCt)+' ('+sPct+'%)  '+(diff>0?'▲ +'+diff+'%':diff<0?'▼ '+diff+'%':'→')+'\n';
-          });
-          var bBelow2=(pc.base['2 Grade Levels Below']||0)+(pc.base['3 or More Grade Levels Below']||0);
-          var sBelow2=(pc.spring['2 Grade Levels Below']||0)+(pc.spring['3 or More Grade Levels Below']||0);
-          if (bBelow2>0) {
-            var red=Math.round((bBelow2-sBelow2)/bBelow2*100);
-            msg += '\n'+(red>=35?'✅':red>0?'⚠️':'🔴')+' **Gap Closing (2+ below):** '+_n(bBelow2)+' → '+_n(sBelow2)+' — **'+(red>0?red+'% reduction':Math.abs(red)+'% increase')+'** (KPI goal: 35%)\n';
-          }
-          var bGL=(pc.base['Early On Grade Level']||0)+(pc.base['Mid or Above Grade Level']||0);
-          var sGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
-          var glShift=Math.round(sGL/springTotal*100)-Math.round(bGL/baseTotal*100);
-          msg += (glShift>=0?'📈':'📉')+' **On/Above Grade Level:** '+_n(bGL)+' ('+Math.round(bGL/baseTotal*100)+'%) → '+_n(sGL)+' ('+Math.round(sGL/springTotal*100)+'%)  '+(glShift>=0?'+':'')+glShift+' pts\n';
-        } else {
-          var onGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
-          var b1=pc.spring['1 Grade Level Below']||0, b2=pc.spring['2 Grade Levels Below']||0, b3=pc.spring['3 or More Grade Levels Below']||0;
-          msg += '**Spring Distribution ('+_n(springTotal)+' scholars):**\n';
-          msg += '✅ On/Above GL: **'+_n(onGL)+'** ('+Math.round(onGL/springTotal*100)+'%)\n';
-          msg += '⚠️ 1 Below: **'+_n(b1)+'** ('+Math.round(b1/springTotal*100)+'%)\n';
-          msg += '🔴 2 Below: **'+_n(b2)+'** ('+Math.round(b2/springTotal*100)+'%)\n';
-          msg += '🔴 3+ Below: **'+_n(b3)+'** ('+Math.round(b3/springTotal*100)+'%)\n';
-          msg += '_Upload baseline iReady data to compare shifts._\n';
-        }
-        if (d) {
-          var plKPI = d.data.find(function(k){return /80%.*scholar.*advanc|placement level change/i.test(k.target||'');});
-          if (plKPI) { var ps=plKPI.midStatus||plKPI.status||''; msg += '\n📋 **KPI: Placement Level Change** — Status: **'+ps+'** '+(ps==='Met'?'✅':ps==='Has Not Met'?'🔴':'⚠️'); }
-        }
-        msg += '\n\n_Ask "scholar demographic outcomes" to see placement by race/ethnicity. Ask "grant reporting summary" for the full funder package._';
         return msg.trim();
       }
     },
