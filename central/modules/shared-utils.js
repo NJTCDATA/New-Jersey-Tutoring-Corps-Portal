@@ -8316,6 +8316,74 @@
   // ── HR helper: active employees only ─────────────────────────────────────
   function _hrActive() { return (window.HR_EMPS||[]).filter(function(e){ return e.s==='Active'; }); }
 
+  // ── Self-adaptive helpers — normalize data regardless of naming conventions ─
+
+  // Fuzzy-maps iReady/NWEA placement level keys to canonical names.
+  // If the source data renames a level, this layer absorbs the change silently.
+  // Unrecognized names go into out._unmatched[] so PIE can surface the anomaly.
+  function _normPlacement(counts) {
+    if (!counts) return {};
+    var FUZZY = [
+      { key:'3orMore', re:/3.?or.?more|three.*more|\b3\s*\+|3\+\s*grade/i },
+      { key:'2below',  re:/^2\s*grade|two\s*grade.*below|2\s*grade.*below/i },
+      { key:'1below',  re:/^1\s*grade|one\s*grade.*below|1\s*grade.*below/i },
+      { key:'earlyOn', re:/early.?on.?grade|on.?grade.?level(?!.*below)/i },
+      { key:'midAbove',re:/mid.?or.?above|above.?grade|at.?grade/i },
+    ];
+    var LABELS = { '3orMore':'3 or More Grade Levels Below','2below':'2 Grade Levels Below',
+                   '1below':'1 Grade Level Below','earlyOn':'Early On Grade Level','midAbove':'Mid or Above Grade Level' };
+    var out = {}; var unmatched = [];
+    Object.keys(counts).forEach(function(k) {
+      var v = counts[k]; var m = null;
+      for (var i=0; i<FUZZY.length; i++) { if (FUZZY[i].re.test(k)) { m=FUZZY[i].key; break; } }
+      if (m) { out[LABELS[m]] = (out[LABELS[m]]||0) + v; } else { out[k] = (out[k]||0) + v; unmatched.push(k); }
+    });
+    out._unmatched = unmatched;
+    return out;
+  }
+
+  // Normalizes HR action strings — absorbs "Write Up" / "Write-up" / "WriteUp" etc.
+  function _normHrAction(action) {
+    if (!action) return null;
+    var a = (action+'').trim();
+    if (/^yes$/i.test(a))          return 'Acknowledged';
+    if (/termin/i.test(a))         return 'Termination';
+    if (/write.?up/i.test(a))      return 'Write Up';
+    if (/\bpgp\b/i.test(a))        return 'PGP';
+    if (/on.?watch|watch/i.test(a))return 'On Watch';
+    if (/verbal|reminder/i.test(a))return 'Verbal Warning';
+    if (/coach/i.test(a))          return 'Coaching';
+    return a;
+  }
+
+  // Checks if placement level keys in counts deviate from expected naming.
+  // Returns null if clean, or {novel, levels} if unexpected names found.
+  function _placementSchemaCheck(counts) {
+    var expected = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+    var actual = Object.keys(counts||{}).filter(function(k){ return k!=='_unmatched'; });
+    if (!actual.length) return null;
+    var novel = actual.filter(function(a){ return expected.indexOf(a)===-1; });
+    return novel.length ? { levels:actual, novel:novel } : null;
+  }
+
+  // Lightweight fingerprint of all loaded data — used to detect changes between sessions.
+  function _dataFingerprint() {
+    var d=_kpi(), p=_pearl(), irl=_irl(), c=_concerns(), hr=_hrActive();
+    return [d?d.total+'|'+d.score:'0|0', p?p.activeScholars||0:0,
+            irl?''+irl.mathRows+irl.elaRows:'0', c.length, hr.length].join(':');
+  }
+
+  // Returns Pearl leadership/district data — per-district attendance and sessions.
+  function _ldData() {
+    try {
+      if (window.po && typeof window.po.getLeadershipData==='function') {
+        var d = window.po.getLeadershipData();
+        if (d && (d.districts||d.topSites)) return d;
+      }
+    } catch(e) {}
+    return null;
+  }
+
   // ── Context stack helpers (conversational follow-up) ──────────────────────
   // Push a named intent to the stack so follow-up pronouns can be resolved.
   // type: string key ('low_att_tutors', 'site_list', 'kpi_notmet', etc.)
@@ -8384,52 +8452,71 @@
       .map(function(x){ return x.q; });
   }
 
-  // Proactive alert — runs when PIE opens and data is already loaded.
-  // Returns a short alert string if anything is critical, or null if all clear.
+  // Proactive alert — runs when PIE opens. Uses normalized helpers so naming
+  // convention changes in the underlying data don't silently break flag logic.
   function _quickAlert() {
-    var flags = [];
-    var p = _pearl();
-    var d = _kpi();
-    var irl = _irl();
+    var flags = []; var notes = [];
+    var p=_pearl(), d=_kpi(), irl=_irl(), sf=_sf();
+    // Data change detection — notify when portal data shifted since last open
+    var fp = _dataFingerprint();
+    var lastFp = sessionStorage.getItem('pie_last_fp');
+    if (lastFp && lastFp !== fp) notes.push('🔄 **Data updated** since your last session — results reflect the latest portal state');
+    sessionStorage.setItem('pie_last_fp', fp);
+    // Schema anomaly detection — surface if placement level naming changed
+    if (irl && irl.placementCounts && irl.placementCounts.base) {
+      var norm = _normPlacement(irl.placementCounts.base);
+      var schemaIssue = _placementSchemaCheck(norm);
+      if (schemaIssue && schemaIssue.novel.length)
+        notes.push('🔍 **Placement level naming change detected** — found: "'+schemaIssue.novel.slice(0,2).join('", "')+'". PIE auto-normalized. Verify iReady export format.');
+    }
+    // New KPI goal areas — detect if goal names changed or new ones added
+    if (d) {
+      var knownGoalPatterns = [/impact.*scholar|scholar.*impact/i,/opportunit|gap|close/i,/organiz.*capac|capacity/i,/educator.*pipeline|tap|pipeline/i];
+      var goals = d.data.map(function(k){return k.goal||'';}).filter(function(g,i,a){return a.indexOf(g)===i;});
+      goals.forEach(function(g){
+        if (g && !knownGoalPatterns.some(function(re){return re.test(g);}))
+          notes.push('📋 **New KPI goal area detected:** "'+g+'" — PIE will include it in all briefings automatically');
+      });
+    }
     // Scholar attendance below floor
-    if (p && p.scholAttPct != null && p.scholAttPct < 80)
-      flags.push('🔴 Scholar attendance at **' + _pct(p.scholAttPct) + '** — below the 80% floor');
-    // HR escalations (only for depts with access)
+    if (p && p.scholAttPct!=null && p.scholAttPct<80)
+      flags.push('🔴 Scholar attendance at **'+_pct(p.scholAttPct)+'** — below the 80% floor');
+    // HR escalations — uses _normHrAction so Write-up/WriteUp variants all caught
     if (_deptCan('hr_concerns')) {
-      var esc = _concerns().filter(function(r){ return /termination|write.?up/i.test(r.hr_action||''); });
+      var esc=_concerns().filter(function(r){ var a=_normHrAction(r.hr_action); return a==='Termination'||a==='Write Up'; });
       if (esc.length)
-        flags.push('🔴 **' + esc.length + ' employee' + (esc.length>1?'s':'') + '** in active escalation (Write Up / Termination)');
+        flags.push('🔴 **'+esc.length+' employee'+(esc.length>1?'s':'')+' in active escalation** (Write Up / Termination)');
     }
     // KPIs not met
-    if (d && d.nm > 0)
-      flags.push('⚠️ **' + d.nm + ' KPI goal' + (d.nm>1?'s':'') + '** currently at "Has Not Met" — ask "which KPIs are not met" for details');
-    // Grant KPI — gap closing below threshold
+    if (d && d.nm>0)
+      flags.push('⚠️ **'+d.nm+' KPI goal'+(d.nm>1?'s':'')+' at "Has Not Met"** — ask "which KPIs are not met"');
+    // Grant KPI — gap closing — uses _normPlacement so naming changes don't break it
     if (irl && irl.placementCounts) {
-      var base=irl.placementCounts.base||{}; var spr=irl.placementCounts.spring||{};
-      var bBel=(base['2 Grade Levels Below']||0)+(base['3 or More Grade Levels Below']||0);
-      var sBel=(spr['2 Grade Levels Below']||0)+(spr['3 or More Grade Levels Below']||0);
+      var baseN=_normPlacement(irl.placementCounts.base||{}); var sprN=_normPlacement(irl.placementCounts.spring||{});
+      var bBel=(baseN['2 Grade Levels Below']||0)+(baseN['3 or More Grade Levels Below']||0);
+      var sBel=(sprN['2 Grade Levels Below']||0)+(sprN['3 or More Grade Levels Below']||0);
       if (bBel>0) {
         var gapPct=Math.round((bBel-sBel)/bBel*100);
-        if (gapPct<35) flags.push('🟡 Gap closing at **'+gapPct+'%** — below the 35% grant target (ask "gap closing progress")');
+        if (gapPct<35) flags.push('🟡 Gap closing at **'+gapPct+'%** — below 35% grant target (ask "gap closing progress")');
+        else flags.push('✅ Gap closing on track: **'+gapPct+'%** — exceeds 35% target');
       }
-    }
-    // Grant KPI — placement level advancement (80% target)
-    if (irl && irl.placementCounts) {
-      var b2=irl.placementCounts.base||{}; var s2=irl.placementCounts.spring||{};
-      var bTot=Object.values(b2).reduce(function(a,v){return a+v;},0);
+      // Placement advancement KPI
+      var bTot=Object.keys(baseN).filter(function(k){return k!=='_unmatched';}).reduce(function(a,k){return a+(baseN[k]||0);},0);
       if (bTot>0) {
-        var bOnG=(b2['Early On Grade Level']||0)+(b2['Mid or Above Grade Level']||0);
-        var sOnG=(s2['Early On Grade Level']||0)+(s2['Mid or Above Grade Level']||0);
-        var advPct=Math.round(sOnG/bTot*100);
-        if (advPct<80) flags.push('🟡 On-grade level scholars at **'+advPct+'%** — below 80% advancement KPI target');
+        var bOnG=(baseN['Early On Grade Level']||0)+(baseN['Mid or Above Grade Level']||0);
+        var sOnG=(sprN['Early On Grade Level']||0)+(sprN['Mid or Above Grade Level']||0);
+        if (sOnG<bOnG*0.8) flags.push('🟡 On-grade advancement at **'+Math.round(sOnG/bTot*100)+'%** — below 80% KPI target');
       }
     }
-    // Partner NPS risk
-    var sf = _sf();
-    if (sf && sf.atRisk && sf.atRisk.length >= 3)
-      flags.push('⚠️ **'+sf.atRisk.length+' at-risk partner sites** on NPS survey — ask "partner satisfaction" for details');
-    if (!flags.length) return null;
-    return '**Active right now:**\n' + flags.join('\n') + '\n\nAsk me about any of these for details.';
+    // Partner NPS at-risk
+    if (sf && sf.atRisk && sf.atRisk.length>=3)
+      flags.push('⚠️ **'+sf.atRisk.length+' at-risk partner sites** — ask "partner satisfaction" for details');
+    // Combine
+    var allLines = [];
+    if (notes.length) allLines = allLines.concat(notes);
+    if (flags.length) { allLines.push('\n**Active right now:**'); allLines = allLines.concat(flags); }
+    if (!allLines.length) return null;
+    return allLines.join('\n') + '\n\nAsk me about any of these for details.';
   }
 
   var RULES = [
@@ -11725,7 +11812,7 @@
     },
 
     // ── GRANT REPORTING PACKAGE ───────────────────────────────────────────────
-    { match: /grant.?(report|summary|narrative|component|data|breakdown|package|evidence)|funder.?(data|report|evidence)|philanthropic.?(report|data)|annual.?report.*(data|component|evidence)|grant.*evidence|what.*need.*grant|reporting.*component|impact.*evidence.*(board|funder|grant)/i,
+    { match: /grant.?(report|summary|narrative|component|data|breakdown|package|evidence|prep|ready)|funder.?(data|report|evidence)|philanthropic.?(report|data)|annual.?report.*(data|component|evidence)|grant.*evidence|what.*need.*grant|reporting.*component|impact.*evidence.*(board|funder|grant)|whats.*grant|how.*grant.*doing|grant.*status|for.*the.*grant|prepare.*grant|grant.*prep/i,
       respond: function() {
         var d = _kpi(), irl = _irl(), p = _pearl(), active = _hrActive(), sf = _sf();
         var apps = active.filter(function(e){ return e._apprentice==='Yes'; }).length;
@@ -11790,7 +11877,7 @@
     },
 
     // ── PLACEMENT LEVEL SHIFTS ────────────────────────────────────────────────
-    { match: /placement.?(level.?shift|shift|change|advanc|distribut|progress|mov)|who.?moved.?up|who.?moved.?down|level.?change|base.*spring.*(placement|level)|spring.*base.*(placement|level)|placement.*advanc|level.*advanc|80%.*(scholar.*level|placement)|kpi.*placement/i,
+    { match: /placement.?(level.?shift|shift|change|advanc|distribut|progress|mov|data|result|breakdown)|who.?moved.?up|who.?moved.?up|who.?moved.?down|level.?change|level.?shift|base.*spring.*(placement|level)|spring.*base.*(placement|level)|placement.*advanc|level.*advanc|80%.*(scholar.*level|placement)|kpi.*placement|how.*(scholar|student).*(mov|advanc|level)|scholar.*(mov|advanc|level|shift)|iready.*(level|shift|change|placement|distribut)/i,
       respond: function() {
         var irl = _irl(), d = _kpi();
         if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for placement level data.';
@@ -11936,21 +12023,24 @@
     },
 
     // ── GAP CLOSING PROGRESS ──────────────────────────────────────────────────
-    { match: /gap.?closing|close.*gap|gap.*kpi|2\+.*below|two.*grade.?level.*below|35%.*(gap|below|reduction)|below.?grade.*level.*(reduce|declin|gap|progress)|equity.*gap.*progress|achievement.*gap.*progress|reduce.*below/i,
+    { match: /gap.?clos|close.*gap|gap.*kpi|2\+.*below|two.*grade.?level.*below|35%.*(gap|below|reduction)|below.?grade.*level.*(reduce|declin|gap|progress)|equity.*gap.*progress|achievement.*gap.*progress|reduce.*below|how many.*below.*grade|scholars.*below.*(grade|level)|below.*benchmark.*scholar|how.*far.*below|grade.*level.*below.*(count|number|how many)/i,
       respond: function() {
         var irl = _irl(), d = _kpi();
         if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for gap closing data.';
         var pc = irl.placementCounts;
         if (!pc||!pc.spring) return 'Spring placement data not yet available for gap closing analysis.';
         var msg = '**Gap Closing Progress — "2+ Grade Levels Below" Reduction**\n\n_KPI Target: 35% decrease in scholars 2+ grade levels below_\n\n';
-        var sTotal=Object.values(pc.spring).reduce(function(s,v){return s+v;},0);
-        var sB2=(pc.spring['2 Grade Levels Below']||0)+(pc.spring['3 or More Grade Levels Below']||0);
-        var sB3=pc.spring['3 or More Grade Levels Below']||0;
-        var hasBase = pc.base && Object.values(pc.base).reduce(function(s,v){return s+v;},0) > 0;
+        // Use _normPlacement so level naming changes in iReady exports don't break this
+        var sprN=_normPlacement(pc.spring||{}), baseNorm=_normPlacement(pc.base||{});
+        var sTotal=Object.keys(sprN).filter(function(k){return k!=='_unmatched';}).reduce(function(s,k){return s+(sprN[k]||0);},0);
+        var sB2=(sprN['2 Grade Levels Below']||0)+(sprN['3 or More Grade Levels Below']||0);
+        var sB3=sprN['3 or More Grade Levels Below']||0;
+        if (sprN._unmatched&&sprN._unmatched.length) msg+='_Note: Placement level naming adapted automatically — found "'+sprN._unmatched[0]+'" in data._\n\n';
+        var hasBase = pc.base && Object.keys(baseNorm).filter(function(k){return k!=='_unmatched';}).reduce(function(s,k){return s+(baseNorm[k]||0);},0) > 0;
         if (hasBase) {
-          var bTotal=Object.values(pc.base).reduce(function(s,v){return s+v;},0);
-          var bB2=(pc.base['2 Grade Levels Below']||0)+(pc.base['3 or More Grade Levels Below']||0);
-          var bB3=pc.base['3 or More Grade Levels Below']||0;
+          var bTotal=Object.keys(baseNorm).filter(function(k){return k!=='_unmatched';}).reduce(function(s,k){return s+(baseNorm[k]||0);},0);
+          var bB2=(baseNorm['2 Grade Levels Below']||0)+(baseNorm['3 or More Grade Levels Below']||0);
+          var bB3=baseNorm['3 or More Grade Levels Below']||0;
           var red=bB2>0?Math.round((bB2-sB2)/bB2*100):null;
           var red3=bB3>0?Math.round((bB3-sB3)/bB3*100):null;
           msg += '**2+ Grade Levels Below:**\n';
@@ -12010,7 +12100,7 @@
     },
 
     // ── KB / EXECUTIVE FULL BRIEFING ──────────────────────────────────────────
-    { match: /kb.*(brief|summary|overview|update|status|report|briefing)|executive.*(brief|summary|update|overview)|what.*(kb|executive).*(need|know|see|show)|brief.*(me|kb|executive|leadership)|give me.*(briefing|full.*update|full.*summary|full.*brief|executive.*update|kb.*update)|everything.*need.*know|what.*should.*know.*(today|now|right.?now)|catch.*me.*up/i,
+    { match: /kb.*(brief|summary|overview|update|status|report|briefing)|executive.*(brief|summary|update|overview)|what.*(kb|executive).*(need|know|see|show)|brief.*(me|kb|executive|leadership)|give me.*(briefing|full.*update|full.*summary|full.*brief|executive.*update|kb.*update)|everything.*need.*know|what.*should.*know.*(today|now|right.?now)|catch.*me.*up|show.*me.*everything|full.*picture|full.*update|complete.*picture|complete.*update|whats.*(happening|going on|the deal)|run.*me.*through|bring.*me.*up.*(speed|date)|summarize.*everything|everything.*today/i,
       respond: function() {
         var d=_kpi(), irl=_irl(), p=_pearl(), active=_hrActive(), sf=_sf(), c=_concerns();
         var apps=active.filter(function(e){return e._apprentice==='Yes';}).length;
@@ -12108,12 +12198,12 @@
         // Academic context
         lines.push('\n### Academic Context');
         if (irl && irl.placementCounts) {
-          var base=irl.placementCounts.base||{}; var spr=irl.placementCounts.spring||{};
-          var bBel=(base['2 Grade Levels Below']||0)+(base['3 or More Grade Levels Below']||0);
-          var sBel=(spr['2 Grade Levels Below']||0)+(spr['3 or More Grade Levels Below']||0);
-          var bTot=Object.values(base).reduce(function(a,b){return a+b;},0);
-          if (bTot>0&&bBel>0) {
-            var gapChg=Math.round((bBel-sBel)/bBel*100);
+          var baseN2=_normPlacement(irl.placementCounts.base||{}); var sprN2=_normPlacement(irl.placementCounts.spring||{});
+          var bBel2=(baseN2['2 Grade Levels Below']||0)+(baseN2['3 or More Grade Levels Below']||0);
+          var sBel2=(sprN2['2 Grade Levels Below']||0)+(sprN2['3 or More Grade Levels Below']||0);
+          var bTot2=Object.keys(baseN2).filter(function(k){return k!=='_unmatched';}).reduce(function(a,k){return a+(baseN2[k]||0);},0);
+          if (bTot2>0&&bBel2>0) {
+            var gapChg=Math.round((bBel2-sBel2)/bBel2*100);
             lines.push((gapChg>=35?'🟢':gapChg>=15?'🟡':'🔴')+' Gap closing: **'+gapChg+'%** reduction in 2+ below (target: 35%)');
           }
         } else { lines.push('_iReady data not yet loaded_'); }
@@ -12164,12 +12254,12 @@
         // Academic KPIs
         lines.push('\n### Academic Outcomes');
         if (irl && irl.placementCounts) {
-          var base=irl.placementCounts.base||{}; var spr=irl.placementCounts.spring||{};
-          var bTot=Object.values(base).reduce(function(a,b){return a+b;},0);
-          var bBel=(base['2 Grade Levels Below']||0)+(base['3 or More Grade Levels Below']||0);
-          var sBel=(spr['2 Grade Levels Below']||0)+(spr['3 or More Grade Levels Below']||0);
-          var bOnGr=(base['Early On Grade Level']||0)+(base['Mid or Above Grade Level']||0);
-          var sOnGr=(spr['Early On Grade Level']||0)+(spr['Mid or Above Grade Level']||0);
+          var baseP=_normPlacement(irl.placementCounts.base||{}); var sprP=_normPlacement(irl.placementCounts.spring||{});
+          var bTot=Object.keys(baseP).filter(function(k){return k!=='_unmatched';}).reduce(function(a,k){return a+(baseP[k]||0);},0);
+          var bBel=(baseP['2 Grade Levels Below']||0)+(baseP['3 or More Grade Levels Below']||0);
+          var sBel=(sprP['2 Grade Levels Below']||0)+(sprP['3 or More Grade Levels Below']||0);
+          var bOnGr=(baseP['Early On Grade Level']||0)+(baseP['Mid or Above Grade Level']||0);
+          var sOnGr=(sprP['Early On Grade Level']||0)+(sprP['Mid or Above Grade Level']||0);
           if (bTot>0) {
             var gapPct=bBel>0?Math.round((bBel-sBel)/bBel*100):0;
             lines.push((gapPct>=35?'🟢':gapPct>=15?'🟡':'🔴')+' Gap closing: **'+gapPct+'%** reduction in 2+ below (target: 35%)');
@@ -12239,6 +12329,360 @@
           if (inK.pending!=null&&inK.pending>0) lines.push('⏳ Pending intake items: **'+inK.pending+'**');
         } else { lines.push('_Intake data unavailable — load Intake Analytics_'); }
         lines.push('\n---\n_Ask "educator pipeline status" · "apprentice list" · "OTJ training" · "scholar confidence KPIs" · "full KB briefing"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── WHAT NEEDS ATTENTION / ACTION ITEMS ──────────────────────────────────
+    {
+      match: /what.?(needs?|need).?attention|action.?item|what.?(should|do).?(i|we).?(do|focus|prioritize|address|tackle|look)|priority.?(list|item|action)|what.?s.?(urgent|critical|important|pressing|wrong|red|flagged)|anything.?(i|we).?should.?know|top.?(issue|problem|concern|flag|priority)|where.?(should|do).?(i|we).?focus|what.?s.?going.?on|status.?check|catch.?up.?quick|quick.?status|give me.?a.?snapshot|whats.?up.?with.?(program|njtc|everything)/i,
+      respond: function() {
+        var lines = ['## 🎯 Action Items — What Needs Attention'];
+        var d=_kpi(), p=_pearl(), irl=_irl(), c=_concerns(), active=_hrActive(), sf=_sf();
+        var getS=function(k){return k.midStatus||k.status||'';};
+        var urgent=[], watch=[], good=[];
+        // KPI flags
+        if (d) {
+          var nmList=d.data.filter(function(k){return getS(k)==='Has Not Met';});
+          if (nmList.length) urgent.push('🔴 **'+nmList.length+' KPI'+(nmList.length>1?'s':'')+' at Has Not Met** — '+nmList.slice(0,2).map(function(k){return (k.target||'').slice(0,45);}).join('; ')+(nmList.length>2?' +more':''));
+          var partList=d.data.filter(function(k){return getS(k)==='Partially Met';});
+          if (partList.length>=3) watch.push('🟡 **'+partList.length+' KPIs Partially Met** — close to target');
+          if (d.weakest) watch.push('📉 Weakest goal area: **'+d.weakest[0]+'** ('+d.weakest[1].score+'% health)');
+          if (d.strongest) good.push('💪 Strongest: **'+d.strongest[0]+'** ('+d.strongest[1].score+'%)');
+        }
+        // Scholar attendance
+        if (p && p.scholAttPct!=null) {
+          if (p.scholAttPct<75) urgent.push('🔴 **Scholar attendance '+_pct(p.scholAttPct)+'** — significantly below 80% floor');
+          else if (p.scholAttPct<80) watch.push('🟡 **Scholar attendance '+_pct(p.scholAttPct)+'** — just below 80% floor');
+          else good.push('✅ Scholar attendance **'+_pct(p.scholAttPct)+'**');
+          if (p.siCount>5) watch.push('⚠️ **'+_n(p.siCount)+' service interruptions** on file — review sites');
+        }
+        // HR escalations (normalized so naming variations don't slip through)
+        if (_deptCan('hr_concerns')) {
+          var esc=c.filter(function(r){return _normHrAction(r.hr_action)==='Termination';});
+          var wu=c.filter(function(r){return _normHrAction(r.hr_action)==='Write Up';});
+          var pgp=c.filter(function(r){return _normHrAction(r.hr_action)==='PGP';});
+          if (esc.length) urgent.push('🔴 **'+esc.length+' employee'+(esc.length>1?'s':'')+' at Termination** — HR action required');
+          if (wu.length>=2) watch.push('🟡 **'+wu.length+' employees on Write Up** — monitor');
+          if (pgp.length) watch.push('📋 **'+pgp.length+' employees on PGP**');
+        }
+        // Gap closing (normalized placement levels)
+        if (irl && irl.placementCounts) {
+          var baseN=_normPlacement(irl.placementCounts.base||{});
+          var sprN=_normPlacement(irl.placementCounts.spring||{});
+          var bBel=(baseN['2 Grade Levels Below']||0)+(baseN['3 or More Grade Levels Below']||0);
+          var sBel=(sprN['2 Grade Levels Below']||0)+(sprN['3 or More Grade Levels Below']||0);
+          if (bBel>0) {
+            var gap=Math.round((bBel-sBel)/bBel*100);
+            if (gap<15) urgent.push('🔴 **Gap closing at '+gap+'%** — well below 35% grant target');
+            else if (gap<35) watch.push('🟡 **Gap closing at '+gap+'%** — below 35% grant target');
+            else good.push('✅ Gap closing **'+gap+'%** — exceeds 35% target');
+          }
+          // Schema anomaly
+          if (baseN._unmatched&&baseN._unmatched.length) watch.push('🔍 **Placement level naming change detected** — "'+baseN._unmatched[0]+'" normalized automatically. Verify iReady export.');
+        }
+        // Partner NPS
+        if (sf) {
+          if (sf.lowestSchool&&sf.lowestSchool.nps<0) urgent.push('🔴 **'+sf.lowestSchool.name+'** NPS at '+Math.round(sf.lowestSchool.nps)+' — partner at risk');
+          else if (sf.atRisk&&sf.atRisk.length>=3) watch.push('🟡 **'+sf.atRisk.length+' at-risk partner sites** — ask "partner satisfaction"');
+          if (sf.bestSchool) good.push('✅ Partner NPS: **'+Math.round(sf.overallNPS*10)/10+'** · Top site: '+sf.bestSchool.name);
+        }
+        // Educator pipeline
+        var apps=active.filter(function(e){return e._apprentice==='Yes';}).length;
+        if (apps>0&&apps<25) watch.push('🟡 Educator pipeline: **'+apps+'/40 apprentices** — below halfway to DOL target');
+        else if (apps>=40) good.push('✅ Educator pipeline: **'+apps+'/40 apprentices** — DOL KPI met');
+        // Render by priority
+        if (!urgent.length&&!watch.length) {
+          lines.push('\n✅ **No critical flags detected across all systems.** Program looks healthy.');
+        } else {
+          if (urgent.length) { lines.push('\n### 🔴 Act Now'); urgent.forEach(function(f){lines.push(f);}); }
+          if (watch.length)  { lines.push('\n### 🟡 Watch Closely'); watch.forEach(function(f){lines.push(f);}); }
+        }
+        if (good.length) { lines.push('\n### ✅ On Track'); good.forEach(function(f){lines.push(f);}); }
+        _ctxPush('action_items', {urgent:urgent.length, watch:watch.length});
+        lines.push('\n---\n_Ask about any flag above for details · "full KB briefing" · "grant reporting summary"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── FLASH REPORT (printable export) ──────────────────────────────────────
+    {
+      match: /generate.*(flash|report|export|print)|flash.*(report|export|print)|print.*(report|summary)|export.*(report|summary|data)|pdf.*(report|summary)|printable.*(report|summary)|copy.*report|report.*export|give me.*report|create.*report/i,
+      respond: function() {
+        var d=_kpi(), p=_pearl(), irl=_irl(), active=_hrActive(), sf=_sf(), c=_concerns();
+        var getS=function(k){return k.midStatus||k.status||'';};
+        var dt=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+        var lines=['## 📄 NJTC Program Flash Report — '+dt];
+        lines.push('_Generated by PIE · SY 2025–26 · Live portal data · Copy and paste to share_\n');
+        lines.push('---\n### 📊 KPI Scorecard');
+        if (d) {
+          lines.push('Score: **'+d.score+'% — '+d.health+'** ('+d.total+' targets tracked)');
+          lines.push('✅ Met: '+d.met+' · 🟡 Partial: '+d.part+' · 🔵 In Progress: '+d.prog+' · 🔴 Not Met: '+d.nm+' · ⬛ Pipeline: '+d.pipe);
+          var nm=d.data.filter(function(k){return getS(k)==='Has Not Met';});
+          if (nm.length) lines.push('Not Met: '+nm.map(function(k){return k.target.slice(0,55);}).join(' · '));
+        } else { lines.push('_KPI data not loaded — open KPI Dashboard_'); }
+        lines.push('\n### 🏫 Program Reach');
+        if (p) {
+          lines.push('Scholars: **'+_n(p.activeScholars||0)+'** · Sites: **'+_n(p.schools||0)+'** · Districts: **'+_n(p.districts||0)+'**');
+          if (p.sessions) lines.push('Sessions: **'+_n(p.sessions)+'** · Instructional hours: ~**'+_n(Math.round((p.totalMins||0)/60))+'**');
+          lines.push('Scholar Attendance: **'+_pct(p.scholAttPct)+'** · Service Interruptions: **'+_n(p.siCount||0)+'**');
+        } else { lines.push('_Pearl data not loaded — open Pearl Operations_'); }
+        lines.push('\n### 📈 Academic Outcomes');
+        if (irl) {
+          if (irl.mathMedianPctAllYears!=null) lines.push('Math Growth: **'+Math.round(irl.mathMedianPctAllYears)+'%** of typical · ELA: **'+Math.round(irl.elaMedianPctAllYears||0)+'%** of typical');
+          if (irl.placementCounts) {
+            var baseN=_normPlacement(irl.placementCounts.base||{}), sprN=_normPlacement(irl.placementCounts.spring||{});
+            var bBel=(baseN['2 Grade Levels Below']||0)+(baseN['3 or More Grade Levels Below']||0);
+            var sBel=(sprN['2 Grade Levels Below']||0)+(sprN['3 or More Grade Levels Below']||0);
+            var bTot=Object.keys(baseN).filter(function(k){return k!=='_unmatched';}).reduce(function(a,k){return a+(baseN[k]||0);},0);
+            if (bBel>0) lines.push('Gap Closing: **'+Math.round((bBel-sBel)/bBel*100)+'%** reduction in 2+ below (target ≥35%)');
+            if (bTot>0) {
+              var sOnG=(sprN['Early On Grade Level']||0)+(sprN['Mid or Above Grade Level']||0);
+              lines.push('On/Above Grade Level (spring): **'+_n(sOnG)+'** ('+Math.round(sOnG/bTot*100)+'% of cohort)');
+            }
+          }
+        } else { lines.push('_iReady data not loaded — open iReady Analysis Lab_'); }
+        lines.push('\n### 👥 Workforce');
+        if (active.length) {
+          var apps=active.filter(function(e){return e._apprentice==='Yes';}).length;
+          lines.push('Active Staff: **'+active.length+'** · TAP Apprentices: **'+apps+'**/40 target ('+Math.round(apps/40*100)+'%)');
+        }
+        if (c.length) {
+          var esc=c.filter(function(r){var a=_normHrAction(r.hr_action);return a==='Termination'||a==='Write Up';}).length;
+          lines.push('Concern Records: **'+c.length+'** total · Escalated: **'+esc+'**');
+        }
+        lines.push('\n### 🤝 Partner Experience');
+        if (sf&&sf.totalRespondents>0) {
+          lines.push('NPS: **'+Math.round(sf.overallNPS*10)/10+'** · Promoters: '+sf.promoterPct+'% · Total Respondents: '+sf.totalRespondents);
+          if (sf.atRisk&&sf.atRisk.length) lines.push('At-Risk Sites: **'+sf.atRisk.length+'** — '+sf.atRisk.slice(0,3).join(', ')+(sf.atRisk.length>3?' +more':''));
+        } else { lines.push('_Partner survey not loaded_'); }
+        lines.push('\n---\n_📋 To export: select all text above → copy → paste into Google Docs or Word._');
+        lines.push('_Ask "grant reporting summary" for funder narrative · "placement level shifts" for academic detail · "what needs attention" for action items_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── SITE PERFORMANCE RANKINGS ─────────────────────────────────────────────
+    {
+      match: /which.*(site|school).*(best|top|perform|rank|lead|high|strong)|best.*(site|school)|top.*(site|school)|rank.*(site|school)|site.*(rank|perform|top|best|worst|bottom|low|below|struggle|concern|attention|need)|school.*(rank|perform|best|worst)|(worst|bottom|lowest|struggling|under).*(site|school)|site.*performance|school.*performance|sites.*attention|schools.*attention|which.*sites?.*doing|how.*sites?.*doing|sites.*status|schools.*status/i,
+      respond: function() {
+        var lines=['## 🏫 Site Performance Overview'];
+        var p=_pearl(), c=_concerns(), sf=_sf(), ld=_ldData();
+        var hasData=false;
+        // Per-district breakdown from Pearl leadership data
+        if (ld && ld.districts && ld.districts.length) {
+          hasData=true;
+          var sorted=ld.districts.slice().sort(function(a,b){return (a.scholarRate||0)-(b.scholarRate||0);});
+          lines.push('\n### Attendance by District/Site (Pearl)');
+          lines.push('_Sorted lowest → highest scholar attendance_\n');
+          sorted.slice(0,5).forEach(function(d){
+            var r=d.scholarRate||0;
+            lines.push((r<70?'🔴':r<80?'🟡':'🟢')+' **'+d.name+'**: '+_pct(r)+' att · '+_n(d.scholars||0)+' scholars · '+_n(d.sessions||0)+' sessions');
+          });
+          if (sorted.length>5) {
+            lines.push('\n_Top performers:_');
+            sorted.slice(-3).reverse().forEach(function(d){ lines.push('✅ **'+d.name+'**: '+_pct(d.scholarRate||0)); });
+          }
+        } else if (p) {
+          lines.push('\n_Per-site breakdown unavailable — open Pearl Operations and reload._');
+          lines.push('Org-wide: scholar att **'+_pct(p.scholAttPct)+'** · **'+_n(p.schools||0)+'** sites · **'+_n(p.siCount||0)+'** service interruptions');
+        }
+        // Sites with most concern records
+        if (c.length) {
+          hasData=true;
+          lines.push('\n### Sites With Most Concern Records');
+          var bySite={};
+          c.forEach(function(r){if(r.site){bySite[r.site]=(bySite[r.site]||0)+1;}});
+          Object.entries(bySite).sort(function(a,b){return b[1]-a[1];}).slice(0,6).forEach(function(s){
+            lines.push((s[1]>=4?'🔴':s[1]>=2?'🟡':'⚪')+' **'+s[0]+'**: '+s[1]+' record'+(s[1]===1?'':'s'));
+          });
+        }
+        // Partner NPS by site
+        if (sf && sf.bySchool && Object.keys(sf.bySchool).length) {
+          hasData=true;
+          lines.push('\n### Partner NPS by Site');
+          if (sf.lowestSchool) lines.push('📉 Lowest: **'+sf.lowestSchool.name+'** (NPS '+Math.round(sf.lowestSchool.nps)+')'+((sf.lowestSchool.risk)?'  ⚠️ at risk':''));
+          if (sf.bestSchool)   lines.push('📈 Highest: **'+sf.bestSchool.name+'** (NPS '+Math.round(sf.bestSchool.nps)+')');
+          if (sf.declining&&sf.declining.length) lines.push('📉 Declining trend: '+sf.declining.slice(0,3).join(', '));
+          if (sf.improving&&sf.improving.length) lines.push('📈 Improving trend: '+sf.improving.slice(0,3).join(', '));
+          if (sf.atRisk&&sf.atRisk.length) lines.push('⚠️ At-risk: '+sf.atRisk.slice(0,4).join(', ')+(sf.atRisk.length>4?' +more':''));
+        }
+        if (!hasData) return 'Load Pearl Operations and Partner Survey to see site rankings. Ask again after loading.'+_navBtn('Open Pearl Ops','pearl-ops');
+        _ctxPush('site_performance',{});
+        lines.push('\n---\n_Ask "site attendance details" · "partner satisfaction" · "concern pattern analysis" · "programming briefing"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── CONCERN PATTERN ANALYSIS ──────────────────────────────────────────────
+    {
+      match: /concern.*(pattern|trend|analysis|breakdown|summary|common|frequent|repeat)|pattern.*(concern)|which.*(type|kind).*(concern|most)|most.*(common|frequent).*(concern)|concern.*(by.site|by.dept|by.type|by.month|concentrat|repeat|chronic)|repeat.*(offend|concern|employee|flag)|chronic.*(concern|performer|issue)|concern.*intelligence|concern.*insight/i,
+      respond: function() {
+        var c=_concerns();
+        if (!_deptCan('hr_concerns')) return 'Concern pattern data is restricted to HR, Leadership, Data, and KB access.';
+        if (!c.length) return '✅ No concern records on file. All clear.';
+        var lines=['## 🔍 Concern Pattern Analysis'];
+        var total=c.length, uniqEmps=new Set(c.map(function(r){return r.emp;})).size;
+        lines.push('**'+total+' records · '+uniqEmps+' unique employees flagged**\n');
+        // By normalized HR action type
+        lines.push('### By HR Action (Normalized)');
+        var byAct={};
+        c.forEach(function(r){var a=_normHrAction(r.hr_action)||'Other'; byAct[a]=(byAct[a]||0)+1;});
+        Object.entries(byAct).sort(function(a,b){return b[1]-a[1];}).forEach(function(e){
+          lines.push('• **'+e[0]+'**: '+e[1]);
+        });
+        // By concern label/type
+        lines.push('\n### By Concern Type (Top 8)');
+        var byType={};
+        c.forEach(function(r){var t=r.concern_label||r.concern_type||'Other'; byType[t]=(byType[t]||0)+1;});
+        Object.entries(byType).sort(function(a,b){return b[1]-a[1];}).slice(0,8).forEach(function(e){
+          lines.push('• **'+e[0]+'**: '+e[1]);
+        });
+        // By site
+        lines.push('\n### Concentration by Site');
+        var bySite={};
+        c.forEach(function(r){if(r.site){bySite[r.site]=(bySite[r.site]||0)+1;}});
+        Object.entries(bySite).sort(function(a,b){return b[1]-a[1];}).slice(0,6).forEach(function(s){
+          lines.push((s[1]>=4?'🔴':s[1]>=2?'🟡':'⚪')+' **'+s[0]+'**: '+s[1]);
+        });
+        // By month — trend over time
+        var byMo={};
+        c.forEach(function(r){if(r.month){byMo[r.month]=(byMo[r.month]||0)+1;}});
+        var moArr=Object.entries(byMo).sort(function(a,b){return new Date('1 '+a[0])-new Date('1 '+b[0]);});
+        if (moArr.length>1) {
+          lines.push('\n### Volume by Month (Trend)');
+          var maxV=Math.max.apply(null,moArr.map(function(m){return m[1];}));
+          moArr.forEach(function(m){
+            var bar='█'.repeat(Math.round(m[1]/maxV*8));
+            lines.push('• **'+m[0]+'**: '+bar+' '+m[1]);
+          });
+        }
+        // Repeat flags — employees with 2+ records
+        var empCt={};
+        c.forEach(function(r){if(r.emp){empCt[r.emp]=(empCt[r.emp]||0)+1;}});
+        var repeats=Object.entries(empCt).filter(function(e){return e[1]>=2;}).sort(function(a,b){return b[1]-a[1];});
+        if (repeats.length) {
+          lines.push('\n### Repeat Flags (2+ Records)');
+          repeats.slice(0,6).forEach(function(e){ lines.push('• **'+e[0]+'**: '+e[1]+' records'); });
+        }
+        _ctxPush('concern_patterns',{});
+        lines.push('\n---\n_Ask "who has concerns" · "HR concern details" · "HR briefing" · "site performance"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── KPI TREND & GOAL AREA ANALYSIS ────────────────────────────────────────
+    {
+      match: /what.*(improv|better|up|progress|gain|stronger)|improv.*(kpi|goal|target|area|perf)|kpi.*(improv|better|up|trend|gain)|what.*(declin|worse|down|drop|fall|weaken)|declin.*(kpi|goal|target)|kpi.*(declin|worse|down|trend|drop)|kpi.*(trend|progress|direction|momentum|overall|by.*goal|goal.*area|breakdown)|which.*(kpi|goal).*(best|worst|better|worse|improv|declin|strong|weak)|goal.*area.*breakdown|how.*kpis.*doing|kpi.*deep.*dive|kpi.*full/i,
+      respond: function() {
+        var d=_kpi();
+        if (!d) return 'KPI data not loaded — open the KPI Dashboard and try again.'+_navBtn('Open KPIs','kpi');
+        var getS=function(k){return k.midStatus||k.status||'';};
+        var lines=['## 📊 KPI Goal Area Analysis'];
+        lines.push('Overall: **'+d.score+'% — '+d.health+'** ('+d.total+' targets)\n');
+        // By goal area (sorted best → worst)
+        lines.push('### Goal Area Health');
+        d.sorted.forEach(function(entry){
+          var name=entry[0], g=entry[1];
+          var icon=g.score>=85?'✅':g.score>=60?'🟡':'🔴';
+          var detail=g.met+' Met'+(g.nm?' · 🔴 '+g.nm+' Not Met':'')+(g.part?' · '+g.part+' Partial':'');
+          lines.push(icon+' **'+name+'**: '+g.score+'% — '+detail);
+        });
+        // Winners and needs-focus
+        if (d.strongest) lines.push('\n💪 **Strongest area:** '+d.strongest[0]+' ('+d.strongest[1].score+'%)');
+        if (d.weakest && d.weakest!==d.strongest) lines.push('⚠️ **Needs most attention:** '+d.weakest[0]+' ('+d.weakest[1].score+'%)');
+        // Full KPI list by status
+        var met=d.data.filter(function(k){return getS(k)==='Met';});
+        var nm=d.data.filter(function(k){return getS(k)==='Has Not Met';});
+        var part=d.data.filter(function(k){return getS(k)==='Partially Met';});
+        var prog=d.data.filter(function(k){return getS(k)==='In Progress';});
+        if (met.length) { lines.push('\n✅ **Met ('+met.length+'):**'); met.forEach(function(k){lines.push('• '+k.target.slice(0,68));}); }
+        if (part.length) { lines.push('\n🟡 **Partially Met ('+part.length+'):**'); part.forEach(function(k){lines.push('• '+k.target.slice(0,68));}); }
+        if (prog.length) { lines.push('\n🔵 **In Progress ('+prog.length+'):**'); prog.forEach(function(k){lines.push('• '+k.target.slice(0,68));}); }
+        if (nm.length) { lines.push('\n🔴 **Has Not Met ('+nm.length+'):**'); nm.forEach(function(k){lines.push('• '+k.target.slice(0,68));}); }
+        _ctxPush('kpi_trend',{});
+        lines.push('\n---\n_Ask "grant reporting summary" · "gap closing progress" · "what needs attention"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── SCHOLAR GROWTH MILESTONES ─────────────────────────────────────────────
+    {
+      match: /how many.*(scholar|student).*(hit|met|reach|achiev|made|got).*(target|goal|growth|typical|100%|benchmark)|scholar.*(hit|met|reach|achiev).*(target|goal|growth|typical|100%)|met.*(growth|target|typical|100%).*(scholar|student)|scholar.*growth.*(milestone|target|hit|met|achiev|reach|kpi)|typical.*growth.*(scholar|how many|count|number)|100%.*(typical|growth).*(scholar|how many)|iready.*milestone|growth.*milestone|scholar.*milestone|milestone.*scholar/i,
+      respond: function() {
+        var irl=_irl();
+        if (!irl) return 'iReady data not loaded. Open the iReady Analysis Lab to see scholar growth milestones.'+_navBtn('Open iReady Lab','iready-lab');
+        var lines=['## 🎓 Scholar Growth Milestones (iReady)'];
+        if (irl.mathMedianPctAllYears!=null) lines.push('📐 Math median growth: **'+Math.round(irl.mathMedianPctAllYears)+'%** of typical ('+_n(irl.mathRows)+' records)');
+        if (irl.elaMedianPctAllYears!=null)  lines.push('📖 ELA median growth:  **'+Math.round(irl.elaMedianPctAllYears)+'%** of typical ('+_n(irl.elaRows)+' records)');
+        if (irl.totalWithGrowth) lines.push('📈 Scholars with positive scale score gains: **'+_n(irl.totalWithGrowth)+'**');
+        if (irl.placementCounts) {
+          var baseN=_normPlacement(irl.placementCounts.base||{}), sprN=_normPlacement(irl.placementCounts.spring||{});
+          var bTot=Object.keys(baseN).filter(function(k){return k!=='_unmatched';}).reduce(function(a,k){return a+(baseN[k]||0);},0);
+          if (bTot>0) {
+            var bOnG=(baseN['Early On Grade Level']||0)+(baseN['Mid or Above Grade Level']||0);
+            var sOnG=(sprN['Early On Grade Level']||0)+(sprN['Mid or Above Grade Level']||0);
+            var moved=sOnG-bOnG;
+            if (moved>0) lines.push('\n🏆 **'+_n(moved)+' scholars** advanced to on/above grade level this year');
+            var bBel=(baseN['2 Grade Levels Below']||0)+(baseN['3 or More Grade Levels Below']||0);
+            var sBel=(sprN['2 Grade Levels Below']||0)+(sprN['3 or More Grade Levels Below']||0);
+            if (bBel>0) lines.push('📉 Scholars 2+ grade levels below: **'+_n(bBel)+' → '+_n(sBel)+'** ('+Math.round((bBel-sBel)/bBel*100)+'% reduction)');
+            lines.push('\n### Placement Level Shifts');
+            ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'].forEach(function(lvl){
+              var b=baseN[lvl]||0, s=sprN[lvl]||0;
+              if (b||s) {
+                var delta=s-b;
+                lines.push((delta<0?'📉':delta>0?'📈':'➡️')+' **'+lvl+'**: '+_n(b)+' → '+_n(s)+' ('+(delta>=0?'+':'')+delta+')');
+              }
+            });
+            // Surface unmatched level names — adaptive naming detection
+            var um=[...(baseN._unmatched||[]),...(sprN._unmatched||[])];
+            if (um.length) lines.push('\n⚠️ _Unrecognized level names: "'+[...new Set(um)].join('", "')+'". PIE auto-normalized these. If iReady renamed a level, the data is still counted correctly._');
+          }
+        }
+        lines.push('\n---\n_Ask "gap closing progress" · "placement level shifts" · "grant reporting summary"_');
+        return lines.join('\n');
+      }
+    },
+
+    // ── DATA STATUS / WHAT'S LOADED / SCHEMA HEALTH ───────────────────────────
+    {
+      match: /what.?(data|s).?loaded|data.?loaded|what.?s.?loaded|data.?status|is.?data.?current|data.?fresh|data.?loaded.?when|data.?available|what.?can.?you.?see|what.?do.?you.?have|current.?data|data.?snapshot|data.?refresh|refresh.?data|what.?changed|any.?update|updated.?since|what.?s.?new.?in.?data|data.?change|schema|data.?health|portal.?data.?status|check.?data|data.?check/i,
+      respond: function() {
+        var d=_kpi(), p=_pearl(), irl=_irl(), c=_concerns(), hr=_hrActive(), sf=_sf();
+        var lines=['## 💾 Data Status — What PIE Can See'];
+        // Change detection
+        var fp=_dataFingerprint(), lastFp=sessionStorage.getItem('pie_last_fp');
+        if (lastFp && lastFp!==fp) lines.push('🔄 **Data changed since your last check** — results are fresh\n');
+        else if (lastFp) lines.push('✓ Data unchanged since last check\n');
+        sessionStorage.setItem('pie_last_fp', fp);
+        // Module status
+        lines.push('### Loaded Data Modules');
+        lines.push(d ? '✅ **KPI Dashboard** — **'+d.total+'** targets · Score: **'+d.score+'% ('+d.health+')**' : '⬜ **KPI Dashboard** — not loaded'+_navBtn('Open KPIs','kpi'));
+        lines.push(p ? '✅ **Pearl Operations** — **'+_n(p.activeScholars||0)+'** scholars · **'+_n(p.schools||0)+'** sites · **'+_n(p.sessions||0)+'** sessions' : '⬜ **Pearl Operations** — not loaded'+_navBtn('Open Pearl Ops','pearl-ops'));
+        lines.push(irl ? '✅ **iReady Lab** — **'+_n(irl.mathRows||0)+'** math · **'+_n(irl.elaRows||0)+'** ELA records' : '⬜ **iReady Lab** — not loaded'+_navBtn('Open iReady Lab','iready-lab'));
+        lines.push(c.length ? '✅ **Concerns** — **'+c.length+'** records · **'+new Set(c.map(function(r){return r.emp;})).size+'** unique employees' : '⬜ **Concerns** — no records on file');
+        lines.push(hr.length ? '✅ **HR Master List** — **'+hr.length+'** active · **'+hr.filter(function(e){return e._apprentice==='Yes';}).length+'** apprentices' : '⬜ **HR Master List** — not loaded'+_navBtn('Open Talent','talent'));
+        lines.push(sf&&sf.totalRespondents>0 ? '✅ **Partner Survey** — **'+sf.totalRespondents+'** responses · NPS **'+Math.round(sf.overallNPS*10)/10+'**' : '⬜ **Partner Survey** — not loaded');
+        // Schema health — proactively detect naming convention changes
+        var anomalies=[];
+        if (irl&&irl.placementCounts&&irl.placementCounts.base) {
+          var normB=_normPlacement(irl.placementCounts.base);
+          if (normB._unmatched&&normB._unmatched.length) anomalies.push('⚠️ iReady placement level naming change detected: "'+normB._unmatched.join('", "')+'" — PIE auto-normalized. Verify your iReady export matches standard level names.');
+        }
+        if (c.length) {
+          var actionVals=[...new Set(c.map(function(r){return (r.hr_action||'').trim();}))];
+          var unknownActs=actionVals.filter(function(a){ return a && !/^(yes|termination|write.?up|pgp|on.?watch|verbal|coach|reminder)/i.test(a); });
+          if (unknownActs.length) anomalies.push('📋 New HR action type(s) detected in Concerns: "'+unknownActs.slice(0,3).join('", "')+'" — PIE normalized these and includes them in all concern counts.');
+        }
+        if (d) {
+          var goalNames=[...new Set(d.data.map(function(k){return k.goal||'';}))].filter(Boolean);
+          var novelGoals=goalNames.filter(function(g){ return !/impact.*scholar|scholar.*impact|opportunit|gap|close|organiz.*capac|capacity|educator.*pipeline|tap|pipeline/i.test(g); });
+          if (novelGoals.length) anomalies.push('📋 New KPI goal area(s) detected: "'+novelGoals.join('", "')+'". PIE adapts automatically — these will appear in all briefings and reports.');
+        }
+        if (anomalies.length) { lines.push('\n### 🔍 Schema & Naming Notes'); anomalies.forEach(function(a){lines.push(a);}); }
+        else { lines.push('\n✅ **Schema health: clean** — all data structures match expected format'); }
+        lines.push('\n---\n_Load missing modules and ask again. Ask "what needs attention" to act on what\'s loaded._');
         return lines.join('\n');
       }
     },
@@ -12580,10 +13024,10 @@
       var _wScholars = _wP&&_wP.activeScholars!=null?_wP.activeScholars:null;
       var _wSites    = _wP&&_wP.schools!=null?_wP.schools:null;
       var _wReach    = _wScholars?'**'+_wScholars+'** scholars'+(_wSites?' across **'+_wSites+' sites**':''):null;
-      // Gap closing snapshot — from iReady placement counts
+      // Gap closing snapshot — uses _normPlacement so naming changes don't break it
       var _wGap = (function(){
         if (!_wI||!_wI.placementCounts) return null;
-        var b=_wI.placementCounts.base||{},sp=_wI.placementCounts.spring||{};
+        var b=_normPlacement(_wI.placementCounts.base||{}), sp=_normPlacement(_wI.placementCounts.spring||{});
         var bB=(b['2 Grade Levels Below']||0)+(b['3 or More Grade Levels Below']||0);
         var sB=(sp['2 Grade Levels Below']||0)+(sp['3 or More Grade Levels Below']||0);
         return bB>0?Math.round((bB-sB)/bB*100)+'% gap closing':null;
@@ -12722,8 +13166,6 @@
   window.pieSetPanel = function(panelKey) {
     var prevPanel = _panel;
     _panel = (panelKey || 'home').replace(/^panel-/,'');
-    // Auto-select the most relevant chip category for this panel
-    // (only reset if the panel actually changed, so manual tab picks are preserved while on the same panel)
     if (_panel !== prevPanel) {
       var pOvr = PANEL_CAT_DEFAULTS[_panel];
       var dOvr = DEPT_CAT_DEFAULTS[_dept];
@@ -12731,20 +13173,44 @@
       else if (dOvr && dOvr.def) _cat = dOvr.def;
       else _cat = 'Overview';
     }
-    // Update context badge
+    var panelLabels = {
+      'home':'Home', 'kpi':'KPI', 'kpi-analytics':'KPI Analytics',
+      'pearl-ops':'Pearl Ops', 'sy-analytics':'Site Analytics',
+      'talent':'Talent', 'concern':'Concerns', 'iready-lab':'iReady',
+      'training-analytics':'T&D', 'policies':'Policies',
+      'impact-report':'Impact', 'finance-analytics':'Finance', 'perf':'Performance',
+      'data-cabinet':'Data Sources',
+    };
     var badge = document.getElementById('pieCtxBadge');
     if (badge) {
-      var panelLabels = {
-        'home':'Home', 'kpi':'KPI', 'kpi-analytics':'KPI Analytics',
-        'pearl-ops':'Pearl Ops', 'sy-analytics':'Site Analytics',
-        'talent':'Talent', 'concern':'Concerns', 'iready-lab':'iReady',
-        'training-analytics':'T&D', 'policies':'Policies',
-        'impact-report':'Impact', 'finance-analytics':'Finance', 'perf':'Performance',
-        'data-cabinet':'Data Sources',
-      };
       var lbl = panelLabels[_panel];
       if (lbl) { badge.textContent = lbl; badge.style.display = ''; }
       else       { badge.style.display = 'none'; }
+    }
+    // Proactive panel context — surface the key metric for this panel when PIE is open
+    // and the panel actually changed, so users get immediate intelligence on navigation
+    if (_open && _panel !== prevPanel) {
+      var panelCtx = {
+        'kpi':             function(){ var d=_kpi(); return d?'📊 KPI score: **'+d.score+'% — '+d.health+'** · '+d.met+'/'+d.total+' met · '+d.nm+' not met':null; },
+        'pearl-ops':       function(){ var p=_pearl(); return p?'🏫 Pearl: **'+_n(p.activeScholars||0)+'** scholars · **'+_n(p.schools||0)+'** sites · attendance **'+_pct(p.scholAttPct)+'**':null; },
+        'iready-lab':      function(){ var irl=_irl(); return irl&&irl.mathMedianPctAllYears!=null?'📈 iReady: Math **'+Math.round(irl.mathMedianPctAllYears)+'%** typical · ELA **'+Math.round(irl.elaMedianPctAllYears||0)+'%** · '+_n(irl.mathRows+irl.elaRows)+' records':null; },
+        'talent':          function(){ var hr=_hrActive(); return hr.length?'👥 HR: **'+hr.length+'** active staff · **'+hr.filter(function(e){return e._apprentice==='Yes';}).length+'** apprentices':null; },
+        'concern':         function(){ var c=_concerns(); if(!c.length) return '✅ No concern records on file'; var esc=c.filter(function(r){return _normHrAction(r.hr_action)==='Termination'||_normHrAction(r.hr_action)==='Write Up';}).length; return (esc?'🔴 **'+esc+' escalated** · ':'')+'**'+c.length+'** total concern records · '+new Set(c.map(function(r){return r.emp;})).size+' employees'; },
+        'finance-analytics':function(){ var p=_pearl(); return p?'💰 Volume: **'+_n(p.sessions||0)+'** sessions · **'+_n(p.activeScholars||0)+'** scholars · **'+_n(p.schools||0)+'** sites':null; },
+        'impact-report':   function(){ var d=_kpi(),irl=_irl(); var pts=[]; if(d) pts.push('KPI **'+d.score+'%**'); if(irl&&irl.mathMedianPctAllYears!=null) pts.push('Math growth **'+Math.round(irl.mathMedianPctAllYears)+'%** typical'); return pts.length?pts.join(' · '):null; },
+        'training-analytics':function(){ var hr=_hrActive(); var apps=hr.filter(function(e){return e._apprentice==='Yes';}).length; return apps?'🌱 TAP pipeline: **'+apps+'/40 apprentices** ('+Math.round(apps/40*100)+'% to DOL target)':null; },
+        'sy-analytics':    function(){ var p=_pearl(); return p&&p.scholAttPct!=null?'📍 Scholar attendance: **'+_pct(p.scholAttPct)+'** · **'+_n(p.siCount||0)+'** service interruptions':null; },
+      };
+      var ctxFn = panelCtx[_panel];
+      if (ctxFn) {
+        var ctxMsg = null;
+        try { ctxMsg = ctxFn(); } catch(e) {}
+        if (ctxMsg) {
+          setTimeout(function(){
+            if (_open) _addMsg('pie', '📍 _('+( panelLabels[_panel]||_panel)+')_ '+ctxMsg+'\n_Ask me anything about this panel._');
+          }, 250);
+        }
+      }
     }
     _renderChips();
   };
