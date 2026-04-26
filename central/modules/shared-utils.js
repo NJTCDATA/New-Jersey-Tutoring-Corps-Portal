@@ -6850,6 +6850,7 @@
     'Program':      ['How many active scholars?',               'What is a service interruption?',             'How many districts are we in?'],
     'Policies':     ['Show me all governance policies',         'Where is the employee handbook?',             'Show me the escalation protocol'],
     'Reports':      ['Generate an executive flash report',      'What data sources does PIE read?',            'How often is data synced?',             'Validate data sources — where does each metric come from?'],
+    'Help':         ['What years of data are available?',      'How long does data take to load?',            'Data not showing — how do I troubleshoot?'],
     'Satisfaction': ['What is our partner NPS?',                'Which schools are at risk in partner survey?','Show me satisfaction by role type'],
     // Context-specific categories — shown when relevant panel/dept is active
     'My Sites':     ['Which of my sites is below attendance benchmark?', 'Which tutors at my sites need attention?', 'Show me my scholar count by district'],
@@ -6861,7 +6862,7 @@
     'Dept Briefing':   ['Give me a full KB executive briefing','What does Leadership need to know today?',    'Give me an HR department briefing',         'Programming department status',              'Training & Development briefing'],
     'Demographics':    ['Scholar race and ethnicity breakdown', 'Scholar demographic outcomes by subject',    'Tutor diversity vs scholar diversity',       'What is our gap closing progress?'],
   };
-  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Policies','Satisfaction','Reports'];
+  var CAT_ORDER = ['Overview','Attendance','KPIs','Workforce','Academic','Program','Policies','Satisfaction','Reports','Help'];
 
   // ── Panel-specific chip defaults — auto-select best category when panel opens ──
   // order: which categories to show (trimmed list); def: default selected tab
@@ -9397,6 +9398,71 @@
       }
     },
 
+    // What years of data are available
+    { match: /what years|which years|what school years|available years|years.?of.?data|data.?available.?for.?which|how many years|year.?range|data.?coverage|years.?do.?we.?have|what year.?can|which year.?can/i,
+      respond: function() {
+        var irl = _irl();
+        var syList = '';
+        try {
+          if (irl && window.irlab && typeof window.irlab.getSummary === 'function') {
+            var s = window.irlab.getSummary('ALL');
+            if (s && s.schoolYears && s.schoolYears.length) {
+              syList = s.schoolYears.slice().sort().join(', ');
+            }
+          }
+        } catch(e2) {}
+        var msg = '**Data Years Available in the Portal:**\n\n';
+        msg += '📐 **iReady Academic Data** — ' + (syList ? 'School years: ' + syList : 'Open iReady Analysis Lab to load — school years will appear after upload') + '\n';
+        msg += '   Collected at baseline (fall) and spring assessment windows.\n\n';
+        msg += '🎓 **Operations (Pearl)** — Current school year attendance, sessions, and survey data. Year-over-year (YoY) collection is being built; additional years will appear here as data is uploaded.\n\n';
+        msg += '👥 **HR Personnel** — Multi-year hire history. Includes hire date, location, role, and program year for all staff on record.\n\n';
+        msg += '📊 **KPI Dashboard** — Current program year strategic targets and status.\n\n';
+        msg += '🤝 **Partner Surveys** — Available for the current year; YoY comparison will expand as prior-year data is added.\n\n';
+        msg += '_To drill into a specific year, just include it in your question — e.g., "Show me attendance for 2023-2024" or "iReady math growth 2022-2023."_';
+        return msg;
+      }
+    },
+
+    // How long does data take to load / should I wait
+    { match: /how long.?(does|will|to).?(data|load|take|populate|show|appear|ready)|should i wait|wait.?to.?touch|data.?load.?time|when.?will.?data|how.?long.?before.?data|loading time|takes.?how.?long|data.?fully.?load|takes.?to.?populate/i,
+      respond: function() {
+        return '**Data Load Times by Source:**\n\n' +
+          '📊 **KPI Dashboard** — Loads on login, typically **under 3 seconds**. Ready immediately when you open the portal.\n\n' +
+          '👥 **HR Master List** — Loads on login, typically **under 3 seconds**. Available as soon as you are signed in.\n\n' +
+          '🎓 **Pearl (Operations)** — Fetched fresh each time you open the Pearl/Operations panel. Expect **2–5 seconds** depending on sheet size and connection speed.\n\n' +
+          '⚠️ **Concerns** — Live fetch from Google Sheets. Loads in **2–4 seconds** when you open the Performance Concerns section.\n\n' +
+          '📐 **iReady Analysis Lab** — Uploaded 3× per year (fall, winter, spring). When you open the iReady Lab, expect **5–15 seconds** for data to fully render, especially with large uploads.\n\n' +
+          '📋 **Training & PD Data** — Fetched when the T&D Analytics panel opens. Usually **3–8 seconds**.\n\n' +
+          '**What to do while waiting:** Open the relevant panel, wait for the loading indicator to disappear, then ask PIE your question. You do not need to refresh the page — PIE reads the live data at the moment you ask. If data still seems missing after 15 seconds, see _"What if data doesn\'t show up?"_';
+      }
+    },
+
+    // Data not showing / tech troubleshooting (user-facing, not admin)
+    { match: /data.?(not|isn.?t).?(show|appear|load|display|visible|there|coming|populating)|not showing|won.?t load|data.?missing|can.?t see.?data|data.?gone|no data|data.?disappeared|troubleshoot|trouble.*data|data.*trouble|issue.*data|data.*issue|tech.?issue|technical.?issue|something.?wrong|page.?broken|portal.?not|not working|how.?do.?i.?fix|fix.?my|what.?can.?i.?do.?if/i,
+      respond: function() {
+        return '**If Data Is Not Showing — Self-Service Steps:**\n\n' +
+          '**Step 1 — Open the right panel first.**\n' +
+          'Most data loads only when its panel is opened:\n' +
+          '• iReady data → open **iReady Analysis Lab**\n' +
+          '• Attendance / sessions / surveys → open **Pearl / Operations**\n' +
+          '• HR staff data → sign out and back in if no employees appear\n' +
+          '• Concerns → open **Performance Concerns**\n\n' +
+          '**Step 2 — Wait 10–15 seconds.**\n' +
+          'Google Sheets fetches can be slow on first load. Watch for a spinning indicator and let it finish before asking PIE.\n\n' +
+          '**Step 3 — Scroll to the top of the panel.**\n' +
+          'Some dashboards render from the top down — content lower on the page may still be loading.\n\n' +
+          '**Step 4 — Refresh the page (F5 or Ctrl + R).**\n' +
+          'A hard refresh clears any stale state. Re-open the panel you need after refreshing.\n\n' +
+          '**Step 5 — Try a different browser.**\n' +
+          'Chrome is recommended. If you are on Firefox, Safari, or Edge, try switching to Chrome.\n\n' +
+          '**Step 6 — Check your internet connection.**\n' +
+          'The portal reads live Google Sheets — a slow or disconnected network will prevent data from loading.\n\n' +
+          '**Step 7 — Contact the Data & Evaluation team.**\n' +
+          'If none of the above steps work, reach out with a description of what you were trying to view and what you saw (or didn\'t see). Screenshots help!\n\n' +
+          '_Note: iReady data is uploaded only at assessment windows (fall, winter, spring). If you are between windows, the previous upload is the most current available._';
+      }
+    },
+
     // Generate PDF / flash report
     { match: /generate.?(pdf|report|flash|summary)|pdf.?(report|summary|export|flash)|flash.?(report|summary)|executive.?(summary|report|snapshot)/i,
       respond: function() {
@@ -10676,6 +10742,26 @@
           } else {
             msg += '\n✅ No service interruptions this week.';
           }
+          // Survey comments for this week
+          try {
+            if (window.po && typeof window.po.getCommentsByCategory === 'function') {
+              var wkConcerns = window.po.getCommentsByCategory('concern', {max:3, week:'Week '+wn});
+              var wkPositive = window.po.getCommentsByCategory('positive', {max:2, week:'Week '+wn});
+              if (wkConcerns && wkConcerns.length) {
+                msg += '\n\n**⚠️ Flagged Scholar Comments — Week '+wn+' ('+wkConcerns.length+'):**\n';
+                wkConcerns.forEach(function(c){ msg += '• "'+((c.text||'').slice(0,90))+(c.text&&c.text.length>90?'…':'')+'" — '+(c.school||'')+'\n'; });
+              }
+              if (wkPositive && wkPositive.length) {
+                msg += (wkConcerns&&wkConcerns.length?'':'\n')+'**⭐ Positive Comments — Week '+wn+' ('+wkPositive.length+'):**\n';
+                wkPositive.forEach(function(c){ msg += '• "'+((c.text||'').slice(0,90))+(c.text&&c.text.length>90?'…':'')+'"'+(c.school?' — '+c.school:'')+'\n'; });
+              }
+              if ((!wkConcerns||!wkConcerns.length) && (!wkPositive||!wkPositive.length)) {
+                msg += '\n\n_No scholar comments recorded for Week '+wn+' — surveys may not have been collected that week._';
+              }
+            }
+          } catch(e2) {}
+          // Academic data note
+          msg += '\n\n_📐 iReady academic data is collected at baseline and spring windows, not per session week. For academic outcomes ask "iReady math growth" or "placement level shifts"._';
           return msg;
         }
         var period = _detectPeriod(_lastQ||'') || 'last_week';
