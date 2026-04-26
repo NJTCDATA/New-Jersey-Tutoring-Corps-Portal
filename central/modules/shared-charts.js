@@ -1633,7 +1633,7 @@
         emp._acadScholars    = td.scholarCount   || 0;
         emp._acadPctMoved    = td.pctMoved       ?? null;   // % scholars improved placement
         emp._acadPctGL       = td.pctGL          ?? null;   // % on grade level at spring
-        emp._acadAvgGain     = td.avgGain        ?? null;   // avg diagnostic gain
+        emp._acadAvgGain     = td.avgGain != null ? Math.round(td.avgGain * 10) / 10 : null;
         emp._acadMoved       = td.moved          || 0;
         emp._acadHeld        = td.held           || 0;
         emp._acadRegressed   = td.regressed      || 0;
@@ -1641,6 +1641,15 @@
         emp._acadDistricts   = [...(td.districts||[])].filter(Boolean).join(', ');
         emp._acadYears       = [...(td.years||[])].filter(Boolean).sort().reverse().join(', ');
         emp._acadSubjects    = [...(td.subjects||[])].filter(Boolean).join(', ');
+        // Year-over-year improvement: compare current live % moved vs prior SY %
+        // If prior year data is absent, the metric is N/A (doesn't count against score)
+        if (emp._acadPctMoved !== null && emp.pi !== null) {
+          emp._acadImproveYoY = emp._acadPctMoved > emp.pi ? 'Yes' : 'No';
+        } else if (emp._acadPctMoved !== null && emp.pi === null) {
+          emp._acadImproveYoY = 'N/A'; // no baseline to compare — don't penalize
+        } else {
+          emp._acadImproveYoY = null;  // academic data not loaded
+        }
         matched++;
       }
       console.log('[HR Profiles] Academic overlay matched:', matched, 'employees');
@@ -2494,32 +2503,48 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   ${emp._liveSessions?`<span>📅 <strong>${emp._liveSessions}</strong> <span style="color:var(--muted)">sessions</span></span>`:''}
 </div>`:''}`;
 
-    // ── Historic performance metrics ─────────────────────────────────
+    // ── Historic performance metrics (with live YoY acad improvement override) ──
+    // Live acad improvement: compare current _acadPctMoved vs prior year pi
+    // 'Yes' = improved, 'No' = did not improve, 'N/A' = no prior year data (not penalized)
+    const liveAcadImprove = emp._acadImproveYoY ?? null;
+    const acadDisplay     = liveAcadImprove !== null ? liveAcadImprove : emp.acm;
+    const acadIsNA        = liveAcadImprove === 'N/A';
+    const acadIsLive      = liveAcadImprove !== null;
+    // Compute adjusted score using live acad status when available
+    const _amPt = (emp.am === 'Yes' || emp.am === true) ? 1 : 0;
+    const _emPt = (emp.em === 'Yes' || emp.em === true) ? 1 : 0;
+    const _lmPt = (emp.lm === 'Yes' || emp.lm === true) ? 1 : 0;
+    const _acPt = (!acadIsNA && (acadDisplay === 'Yes' || acadDisplay === true)) ? 1 : 0;
+    const adjDenom = acadIsNA ? 3 : 4;
+    const adjScore = _amPt + _emPt + _lmPt + (acadIsNA ? 0 : _acPt);
     const metricsBody = emp.mp!==null ? `
 <div>
   <div style="padding:.5rem .75rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;margin-bottom:.625rem">
     <div style="font-size:.7rem;font-weight:700;color:#0369a1;margin-bottom:.25rem">📐 How Perf Score is Calculated</div>
     <div style="font-size:.68rem;color:#0369a1;line-height:1.6">
-      Score = count of 4 binary metrics met (0–4) from Pearl HR Master List · SY: <strong>${esc(emp.py||'—')}</strong><br>
+      Score = count of binary metrics met · SY: <strong>${esc(emp.py||'—')}</strong>${acadIsLive?' <span style="background:#dbeafe;color:#1e40af;padding:.05rem .35rem;border-radius:8px;font-weight:700">④ updated from live data</span>':''}<br>
       <span style="color:#075985">① Att Target — tutor met ≥95% school-year attendance goal</span><br>
       <span style="color:#075985">② Scholar Enjoyment — majority of tutored scholars reported enjoying sessions in survey</span><br>
       <span style="color:#075985">③ Scholar Learning — majority of tutored scholars reported learning in survey</span><br>
-      <span style="color:#075985">④ Acad Improvement — scholars showed measurable placement gain in i-Ready diagnostics</span>
+      <span style="color:#075985">④ Acad Improvement — ${acadIsLive?'current SY placement gain vs prior SY (live)':'scholars showed measurable placement gain in i-Ready diagnostics (prior SY)'}</span>${acadIsNA?'<br><span style="color:#d97706;font-weight:600">ⓘ No prior year baseline — academic metric excluded from score</span>':''}
     </div>
   </div>
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.375rem;margin-bottom:.625rem">
-    ${[['Att Target',emp.am],['Scholar Enjoyment',emp.em],['Scholar Learning',emp.lm],['Acad Improvement',emp.acm]]
-      .map(([l,v])=>`<div style="text-align:center;padding:.4rem .25rem;background:var(--surface-2);border-radius:6px">
-      <div style="font-size:.875rem;font-weight:700;color:${v==='Yes'||v===true?'#0d6e3a':'#b91c1c'}">${v==='Yes'||v===true?'✓':'✗'}</div>
-      <div style="font-size:.6rem;color:var(--muted);margin-top:.1rem">${l}</div>
-    </div>`).join('')}
+    ${[['Att Target',emp.am,false],['Scholar Enjoyment',emp.em,false],['Scholar Learning',emp.lm,false],['Acad Improvement',acadDisplay,acadIsLive]]
+      .map(([l,v,isLive])=>{
+        const isYes = v==='Yes'||v===true;
+        const isNA  = v==='N/A';
+        return `<div style="text-align:center;padding:.4rem .25rem;background:var(--surface-2);border-radius:6px${isLive?';border:1.5px solid #93c5fd':''}" title="${isLive?'Updated from live iReady data':'From prior SY Master List'}">
+        <div style="font-size:.875rem;font-weight:700;color:${isNA?'#d97706':isYes?'#0d6e3a':'#b91c1c'}">${isNA?'N/A':isYes?'✓':'✗'}</div>
+        <div style="font-size:.6rem;color:var(--muted);margin-top:.1rem">${l}${isLive?'<span style="color:#2563eb"> ●</span>':''}</div>
+      </div>`;}).join('')}
   </div>
   ${emp.pi!=null?`<div style="display:flex;gap:.875rem;flex-wrap:wrap;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.8125rem">
-    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">improved placement</span></span>
+    <span>📈 <strong>${emp.pi}%</strong> <span style="color:var(--muted)">improved placement (${esc(emp.py||'prior SY')})</span></span>
     ${emp.pr!=null?`<span>📉 <strong>${emp.pr}%</strong> <span style="color:var(--muted)">regressed</span></span>`:''}
     ${emp.p2!=null?`<span>⭐ <strong>${emp.p2}%</strong> <span style="color:var(--muted)">improved 2+ levels</span></span>`:''}
   </div>`:''}
-  <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">SY: ${esc(emp.py||'—')} · Overall score: ${emp.mp!==null?emp.mp+'/4':'—'}</div>
+  <div style="margin-top:.5rem;font-size:.7rem;color:var(--muted)">${acadIsLive?`Live-adjusted score: <strong>${adjScore}/${adjDenom}</strong> · `:''}SY: ${esc(emp.py||'—')} · Historical score: ${emp.mp!==null?emp.mp+'/4':'—'}</div>
 </div>` : `<div style="padding:.625rem .75rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.75rem;color:#92400e">ℹ️ Full performance metrics not available in embedded dataset.</div>`;
 
     // ── i-Ready academic outcomes (current SY + prior SY cycle comparison) ────
