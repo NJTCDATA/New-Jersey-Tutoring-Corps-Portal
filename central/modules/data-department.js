@@ -3846,7 +3846,7 @@
           const td = tutorData[t];
           td.scholars.add(r.scholarId || r.scholarName);
           td.pcts.push(r.pctTypical);
-          if (r.winterWeeks > 0) td.months.push(r.pctTypical * (r.winterWeeks / 4));
+          if (r.winterWeeks > 0) td.months.push(r.annualTypical > 0 && r.winterGain !== null ? r.winterGain * 10 / r.annualTypical : r.pctTypical * (r.winterWeeks / 4));
           if (r.winterGain !== null) td.gains.push(r.winterGain);
 
           const shift = _moyPlShift(r.baseRelPlacement, r.winterRelPlacement);
@@ -4174,7 +4174,7 @@
         const trend = pct >= 80 ? 'on a strong trajectory toward year-end targets' : pct >= 50 ? 'making measurable progress' : 'in need of intensified support before the spring window';
         const narrative = `At the mid-year checkpoint, our ${subject} scholars across the ${scopeLabel} are achieving a median of ${pct}% of their expected annual growth` +
           (NET.medianMonthsGrowth != null ? ` (${NET.medianMonthsGrowth} months of learning gained)` : '') +
-          ` \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement level, ${NET.held} held steady, and ${NET.movedDown} regressed.` +
+          ` \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement band, ${NET.held} held their band, and ${NET.movedDown} dropped a placement band (note: band movement \u2260 score regression \u2014 positive gains can still result in a band drop if below the band threshold).` +
           (NET.rushFlags && NET.rushFlags.red > 0 ? ` ${NET.rushFlags.red} scholars had Red Rush Flags on their Winter diagnostic and are flagged for review (included in calculations).` : '');
 
         doc.setFillColor(15,30,55);
@@ -4742,7 +4742,7 @@
           (_p4Best&&_p4Worst&&_p4Best[0]!==_p4Worst[0]
             ? 'Top region: '+_p4Best[0]+' ('+(_p4Best[1].medianPctTypical||'--')+'% typical). Lowest: '+_p4Worst[0]+' ('+(_p4Worst[1].medianPctTypical||'--')+'% typical) -- a '+_p4Gap+'-point gap requiring attention. '
             : '') +
-          NET.movedDown+' scholars regressed in relative placement ('+(NET.withGrowth>0?Math.round(NET.movedDown/NET.withGrowth*100):0)+'% of those with data). '+
+          NET.movedDown+' scholars dropped a relative placement band ('+(NET.withGrowth>0?Math.round(NET.movedDown/NET.withGrowth*100):0)+'% of those with data; band drop ≠ score regression). '+
           (NET.pctMetTypical||0)+'% met or exceeded typical annual growth' +
           (pctNeedsAccel2>0 ? '; '+pctNeedsAccel2+'% still need acceleration to reach year-end targets.' : '.')
         );
@@ -4756,7 +4756,7 @@
         const _p4Chips = [
           { val: pct2+'%',                       lbl: 'Median % Typical',     col: pct2>=80?GREEN:pct2>=50?[200,140,0]:RED },
           { val: (NET.pctMetTypical||0)+'%',     lbl: '% Met Typical Growth', col: (NET.pctMetTypical||0)>=70?GREEN:(NET.pctMetTypical||0)>=40?[200,140,0]:RED },
-          { val: String(NET.movedDown),          lbl: 'Scholars Regressed',   col: NET.movedDown>10?RED:NET.movedDown>3?[200,140,0]:GREEN },
+          { val: String(NET.movedDown),          lbl: 'Dropped Placement Band', col: NET.movedDown>10?RED:NET.movedDown>3?[200,140,0]:GREEN },
           { val: pctNeedsAccel2+'%',             lbl: '% Need Acceleration',  col: pctNeedsAccel2>40?RED:pctNeedsAccel2>20?[200,140,0]:GREEN },
         ];
         const _p4cw = 176/_p4Chips.length;
@@ -5171,7 +5171,7 @@
         // Winter diagnostic
         winterScore:          parseFloat(gv('winter_overall_scale_score')) || null,
         winterRelPlacement:   gv('winter_overall_relative_placement'),
-        winterGain:           parseFloat(gv('winter_diagnostic_gain')) || null,
+        winterGain:           (function(){ const _g = parseFloat(gv('winter_diagnostic_gain')); return isNaN(_g) ? null : _g; })(),
         winterWeeks,
         winterRush,
         baseRush,
@@ -5259,9 +5259,13 @@
         const movedDown = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'down').length;
         const gains     = valid.map(r => r.winterGain).filter(v => v !== null && !isNaN(v));
         const pcts      = valid.map(r => r.pctTypical).filter(v => v !== null && !isNaN(v));
-        // months of learning = pctTypical × winterWeeks / 4 (actual Fall→Winter diagnostic window)
-        const months    = valid.filter(r => r.pctTypical !== null && r.winterWeeks > 0)
-                               .map(r => r.pctTypical * (r.winterWeeks / 4));
+        // months of learning = winterGain / (annualTypical / 10) — canonical iReady formula
+        // (10-month school year: how many months of typical growth did the scholar achieve?)
+        // Falls back to pctTypical × winterWeeks / 4 when annualTypical is unavailable.
+        const months    = valid.filter(r => r.winterWeeks > 0 && (r.annualTypical > 0 ? r.winterGain !== null : r.pctTypical !== null))
+                               .map(r => r.annualTypical > 0 && r.winterGain !== null
+                                 ? r.winterGain * 10 / r.annualTypical
+                                 : r.pctTypical * (r.winterWeeks / 4));
         const metTyp    = pcts.filter(v => v >= 1.0);
         const progressing = pcts.filter(v => v >= 0.5 && v < 1.0);
         const needsAccel  = pcts.filter(v => v >= 0 && v < 0.5);
@@ -5414,8 +5418,8 @@
 
       // Rush flag banner
       if (net && net.rushFlags.red > 0) {
-        html += `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
-          ⚠️ <strong>${net.rushFlags.red} scholar${net.rushFlags.red!==1?'s':''}</strong> had a Red Rush Flag on their Winter diagnostic. These scholars are <strong>included</strong> in all calculations — review the flagged list below and contact iReady if re-administration is needed.
+        html += `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem">
+          ⚠️ <strong>${net.rushFlags.red} scholar${net.rushFlags.red!==1?'s':''} had a Red Rush Flag on their Winter diagnostic.</strong> These scholars are included in all growth calculations — review the flagged list below and contact iReady if re-administration is needed.
         </div>`;
       }
 
@@ -5448,7 +5452,7 @@
               ${net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—'}
             </div>
             <div class="ta-kpi-sub">Median Months of Learning
-              <span title="Median months of academic learning gained. Formula: pctTypical × winterWeeks ÷ 4 per scholar. Median is more robust than the average for skewed distributions. Thresholds: 4.5+ mo = strong · 3.0–4.4 = progressing · below 3.0 = needs support. 100% typical over 22 weeks ≈ 5.5 mo." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+              <span title="Median months of academic learning gained. Formula: winterGain ÷ (annualTypical ÷ 10) per scholar — iReady canonical formula using a 10-month school year. Median is the primary metric (robust to outliers). The avg footnote aligns with spreadsheet totals. Thresholds: 4.5+ mo = strong · 3.0–4.4 = progressing · below 3.0 = needs support." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
             </div>
             ${net.avgMonthsGrowth !== null ? '<div style="font-size:.6875rem;color:var(--muted);margin-top:.2rem">avg: ' + net.avgMonthsGrowth + ' mo</div>' : ''}
           </div>
@@ -5477,9 +5481,9 @@
 
         // ── Placement shift tiles ─────────────────────────────────────────────
         html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
-          <div class="ta-card ta-kpi" style="border-top:3px solid #16a34a"><div style="font-size:1.875rem;font-weight:800;color:#16a34a">${net.movedUp}</div><div class="ta-kpi-sub">↑ Moved Up</div></div>
-          <div class="ta-card ta-kpi" style="border-top:3px solid #0050c8"><div style="font-size:1.875rem;font-weight:800;color:#0050c8">${net.held}</div><div class="ta-kpi-sub">→ Held</div></div>
-          <div class="ta-card ta-kpi" style="border-top:3px solid #dc2626"><div style="font-size:1.875rem;font-weight:800;color:#dc2626">${net.movedDown}</div><div class="ta-kpi-sub">↓ Moved Down</div></div>
+          <div class="ta-card ta-kpi" style="border-top:3px solid #16a34a"><div style="font-size:1.875rem;font-weight:800;color:#16a34a">${net.movedUp}</div><div class="ta-kpi-sub">↑ Moved Up <span title="Scholar moved to a higher iReady relative placement BAND between Fall and Winter (e.g., '2 Grade Levels Below' → '1 Grade Level Below'). This reflects band position change, not raw scale score direction — a scholar with positive score gains can still hold or move down if growth was below the band threshold." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
+          <div class="ta-card ta-kpi" style="border-top:3px solid #0050c8"><div style="font-size:1.875rem;font-weight:800;color:#0050c8">${net.held}</div><div class="ta-kpi-sub">→ Held <span title="Scholar remained in the same iReady relative placement BAND between Fall and Winter. May still have gained scale score points — held means the band did not change, not that there was zero growth." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
+          <div class="ta-card ta-kpi" style="border-top:3px solid #dc2626"><div style="font-size:1.875rem;font-weight:800;color:#dc2626">${net.movedDown}</div><div class="ta-kpi-sub">↓ Moved Down <span title="Scholar dropped to a lower iReady relative placement BAND between Fall and Winter (e.g., '1 Grade Level Below' → '2 Grade Levels Below'). NOTE: this is NOT the same as score regression. A scholar can have a positive scale score gain and still move down if their growth was less than what was needed to maintain their current band — because grade-level benchmarks rise throughout the year." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
         </div>`;
 
         // ── Winter-only note ──────────────────────────────────────────────────
@@ -5604,7 +5608,7 @@
           const trend = pct >= 100 ? 'on pace to meet or exceed expected annual growth' : pct >= 80 ? 'on track to close significant ground by year end' : pct >= 50 ? 'making progress but will need continued intensity to reach full-year targets' : 'behind the expected pace — targeted intervention is recommended before the spring window';
           html += `<div style="background:linear-gradient(135deg,#0a1628,#162347);border-radius:12px;padding:1.25rem 1.5rem;color:#fff">
             <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.5rem">📣 What This Means</div>
-            <div style="font-size:.9375rem;line-height:1.65;color:rgba(255,255,255,.9)">At the mid-year checkpoint, our ${_moySubject} scholars are achieving a median of <strong style="color:#f0a500">${pct}%</strong> of their expected annual growth — meaning they are <strong>${trend}</strong>. ${net.movedUp} scholars improved their relative placement level since Fall, while ${net.movedDown} regressed. The data tells us our overall trajectory is ${pct >= 80 ? 'strong' : pct >= 50 ? 'developing' : 'in need of urgent attention'}.</div>
+            <div style="font-size:.9375rem;line-height:1.65;color:rgba(255,255,255,.9)">At the mid-year checkpoint, our ${_moySubject} scholars are achieving a median of <strong style="color:#f0a500">${pct}%</strong> of their expected annual growth — meaning they are <strong>${trend}</strong>. ${net.movedUp} scholars improved their iReady placement band since Fall; ${net.held} held their band; ${net.movedDown} dropped a band. (Note: placement band movement reflects grade-level positioning — a positive scale score gain can still result in a band drop if growth was below the threshold to maintain the current level.) The data tells us our overall trajectory is ${pct >= 80 ? 'strong' : pct >= 50 ? 'developing' : 'in need of urgent attention'}.</div>
           </div>`;
         }
       }
