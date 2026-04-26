@@ -1490,6 +1490,11 @@
   // Headers in row 5 — parser finds the header row dynamically by scanning for
   // "status" in col B so the row offset is resilient to future sheet changes.
   const ap_buildFromTAPSheet = async () => {
+    // njtc_loadAll() builds AP_TAP_ROSTER from the same Live Tracker fetch — skip if already done
+    if (window.AP_TAP_ROSTER && window.AP_TAP_ROSTER.length > 0) {
+      console.log('[AP] TAP Roster already populated (' + window.AP_TAP_ROSTER.length + ' entries from Live Tracker) — skipping fetch');
+      return;
+    }
     window.AP_TAP_ROSTER = [];
     try {
       const result = await njtc_fetch(AP_TAP_SHEET_URL, 15000);
@@ -1507,14 +1512,16 @@
       };
       const lines = result.text.replace(/\r\n/g,'\n').replace(/\r/g,'\n')
         .split('\n').filter(l => l.trim());
-      // Find header row dynamically — look for "status" in col B (index 1)
-      const hIdx = lines.findIndex(l => {
+      // Find header row: require both B contains 'status' AND F contains 'name'.
+      // Skip rows 0-3 (title rows before row 5). Fallback to index 4 (row 5).
+      let hIdx = lines.findIndex((l, i) => {
+        if (i < 4) return false;
         const cells = splitRow(l);
         const b = (cells[1] || '').trim().toLowerCase();
         const f = (cells[5] || '').trim().toLowerCase();
-        return b === 'status' || f === 'full name' || f.includes('name');
+        return b.includes('status') && f.includes('name');
       });
-      if (hIdx < 0) throw new Error('Header row not found in TAP sheet');
+      if (hIdx < 0) hIdx = 4; // fallback: row 5 per confirmed Live Tracker structure
       // Column indices (0-based): A=0 B=1 E=4 F=5 H=7 AA=26
       const COL = { dateReg: 0, status: 1, cohort: 4, name: 5, placement: 7, folderLink: 26 };
       window.AP_TAP_ROSTER = lines.slice(hIdx + 1).map(line => {
@@ -2699,12 +2706,13 @@
             if (ltStatusIdx < 0) ltStatusIdx = 1;
             var ltStatusCol = ltHeaders[ltStatusIdx];
             var ltMap = {};
+            var ltRoster = [];
             for (var ltR = 1; ltR < ltDataLines.length; ltR++) {
               var ltCells = splitRow(ltDataLines[ltR]);
               if (ltCells.every(function(c) { return !c.trim(); })) continue;
               var ltObj = {};
               ltHeaders.forEach(function(h, idx) { ltObj[h] = (ltCells[idx] || '').trim(); });
-              // Skip non-Active rows
+              // Only Active apprentices
               var ltStatus = (ltObj[ltStatusCol] || '').trim();
               if (ltStatus && !/active/i.test(ltStatus)) continue;
               var rawName = (ltObj[ltNameCol] || '').trim();
@@ -2712,9 +2720,19 @@
               var ltKey = rawName.toLowerCase().replace(/\s+/g,' ').trim();
               var ltCount = ltOtjHdrs.filter(function(h) { return (ltObj[h] || '').trim(); }).length;
               if (!ltMap[ltKey] || ltCount > ltMap[ltKey]) ltMap[ltKey] = ltCount;
+              // Collect TAP roster entry — col indices: A=0, B=1, E=4, F=5, H=7, AA=26
+              ltRoster.push({
+                dateReg:    (ltCells[0]  || '').trim(),
+                status:     ltStatus,
+                cohort:     (ltCells[4]  || '').trim(),
+                name:       rawName,
+                placement:  (ltCells[7]  || '').trim(),
+                folderLink: (ltCells[26] || '').trim(),
+              });
             }
-            window.njtcLiveOtjMap = ltMap;
-            console.log('[NJTC] Live Tracker: ' + Object.keys(ltMap).length + ' active apprentices in OTJ map (name col=' + ltNameCol + ', status col=' + ltStatusCol + ')');
+            window.njtcLiveOtjMap  = ltMap;
+            window.AP_TAP_ROSTER   = ltRoster;
+            console.log('[NJTC] Live Tracker: ' + ltRoster.length + ' active apprentices → AP_TAP_ROSTER + OTJ map (name col=' + ltNameCol + ')');
           }
         } catch(e) { console.warn('[NJTC] Live Tracker parse error:', e); }
       } else {
