@@ -4175,7 +4175,7 @@
         const narrative = `At the mid-year checkpoint, our ${subject} scholars across the ${scopeLabel} are achieving a median of ${pct}% of their expected annual growth` +
           (NET.medianMonthsGrowth != null ? ` (${NET.medianMonthsGrowth} months of learning gained)` : '') +
           ` \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement level, ${NET.held} held steady, and ${NET.movedDown} regressed.` +
-          (NET.rushFlags && NET.rushFlags.red > 0 ? ` ${NET.rushFlags.red} scholars were excluded due to Red Rush Flags.` : '');
+          (NET.rushFlags && NET.rushFlags.red > 0 ? ` ${NET.rushFlags.red} scholars had Red Rush Flags on their Winter diagnostic and are flagged for review (included in calculations).` : '');
 
         doc.setFillColor(15,30,55);
         doc.roundedRect(20, 124, 176, 30, 2, 2, 'F');
@@ -4211,7 +4211,7 @@
           ['Median Months of Learning Gained', 'Estimated months of academic learning gained by mid-year. Formula: pctTypical x winterWeeks / 4 per scholar (median). winterWeeks = actual weeks between Fall and Winter diagnostics. 4.5+ months = strong. 3.0-4.4 = progressing. Below 3.0 = needs support. Avg months also shown for spreadsheet alignment.'],
           ['N (Total) vs N (Growth)', '"N Total" is every scholar in the MOY sheet. "N Growth" is only scholars with BOTH a Fall AND Winter iReady diagnostic. Schools marked (W) appear in the Winter sheet but have no Fall baseline -- growth cannot be calculated.'],
           ['Placement Movement', 'Whether a scholar moved to a higher (Up), same (Held), or lower (Down) relative placement level between Fall and Winter. Directional placement change, not a growth score.'],
-          ['Red Rush Flag', 'iReady flags diagnostics completed unusually fast (possible guessing). Scholars with Red Rush Flags are excluded from all growth calculations in this report.'],
+          ['Red Rush Flag', 'iReady flags diagnostics completed unusually fast (possible guessing). Scholars with Red Rush Flags are INCLUDED in all growth calculations but flagged for review. Contact iReady if re-administration is warranted.'],
         ];
         let hiy = howY+12;
         howItems.forEach(([term,def]) => {
@@ -4698,7 +4698,7 @@
           // Rush flag summary
           if (NET.rushFlags && NET.rushFlags.red > 0) {
             doc.setFontSize(6.5); doc.setFont('helvetica','bold'); doc.setTextColor(...RED);
-            doc.text(safe(NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s':'')+' excluded due to Red Rush Flag'+(NET.rushFlags.red!==1?'s':'')+' on Winter diagnostic.'), 20, p3y);
+            doc.text(safe(NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s':'')+' flagged with Red Rush on Winter diagnostic — included in calculations, review recommended.'), 20, p3y);
             p3y += 5;
           }
           if (NET.rushFlags && NET.rushFlags.yellow > 0) {
@@ -4942,8 +4942,8 @@
             detail: 'Pearl operational data was not available for this export. Load Pearl data and re-export the PDF to enable tutor impact matching, instructional hours correlations, and service interruption analysis by tutor and school.',
           }]),
           ...(NET.rushFlags&&NET.rushFlags.red>0?[{
-            title: 'Investigate '+NET.rushFlags.red+' Red Rush Flag Scholar'+(NET.rushFlags.red!==1?'s':''),
-            detail: NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s were':'was')+' excluded from growth calculations due to Red Rush Flags. These scholars appear in the MOY sheet but are not counted in any percentages. Review testing conditions and request re-administration if flags were in error.',
+            title: 'Review '+NET.rushFlags.red+' Red Rush Flag Scholar'+(NET.rushFlags.red!==1?'s':''),
+            detail: NET.rushFlags.red+' scholar'+(NET.rushFlags.red!==1?'s have':'has')+' a Red Rush Flag on their Winter diagnostic. These scholars ARE included in all growth calculations. Review testing conditions and contact iReady if re-administration is warranted.',
           }]:[]),
         ];
 
@@ -5153,8 +5153,9 @@
       const winterRush  = gv('winter_rush_flag');
       const baseRush    = gv('base_rush_flag');
       const isRedRush   = /red/i.test(winterRush);
-      // Valid growth = has both Fall + Winter (weeks > 0) AND no red rush flag
-      const hasGrowth   = winterWeeks > 0 && !isRedRush;
+      // Valid growth = has both Fall + Winter diagnostics (weeks > 0)
+      // Red Rush scholars are flagged but INCLUDED in all calculations
+      const hasGrowth   = winterWeeks > 0 && pctTypical !== null;
 
       return {
         subject,
@@ -5250,7 +5251,7 @@
     function computeMOY(rows) {
       function metricBlock(subset) {
         const total     = subset.length;
-        const valid     = subset.filter(r => r.hasGrowth); // Fall+Winter pair, no red rush
+        const valid     = subset.filter(r => r.hasGrowth); // Fall+Winter pair (red rush flagged but included)
         const withGrowth = valid.length;
         const plShifts  = valid.filter(r => PLACEMENT_ORDER.includes(r.baseRelPlacement) && PLACEMENT_ORDER.includes(r.winterRelPlacement));
         const movedUp   = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'up').length;
@@ -5414,7 +5415,7 @@
       // Rush flag banner
       if (net && net.rushFlags.red > 0) {
         html += `<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.625rem 1rem;font-size:.8125rem;color:#92400e;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem">
-          ⚠️ <strong>${net.rushFlags.red} scholar${net.rushFlags.red!==1?'s':''}</strong> had a Red Rush Flag on their Winter diagnostic and have been excluded from all growth calculations.
+          ⚠️ <strong>${net.rushFlags.red} scholar${net.rushFlags.red!==1?'s':''}</strong> had a Red Rush Flag on their Winter diagnostic. These scholars are <strong>included</strong> in all calculations — review the flagged list below and contact iReady if re-administration is needed.
         </div>`;
       }
 
@@ -6510,16 +6511,32 @@
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
+             // Scholars truly excluded: appear in MOY sheet but have no Fall+Winter pair
              getMOYMissingScholars: (subject) => {
                const rows = subject === 'ELA' ? (MOY_DATA.ela || []) : (MOY_DATA.math || []);
                return rows
-                 .filter(r => !r.hasGrowth)
+                 .filter(r => r.winterWeeks === 0 || r.pctTypical === null)
                  .map(r => ({
                    name:        r.scholarName || '—',
                    school:      r.school      || '—',
                    grade:       r.grade       || '—',
-                   reason:      r.isRedRush ? 'Red Rush Flag' : r.winterWeeks === 0 ? 'No Fall Baseline (Winter-only)' : 'Missing pct data',
+                   reason:      r.winterWeeks === 0 ? 'No Fall Baseline (Winter-only)' : 'Missing % Typical data',
                    winterScore: r.winterScore,
+                 }))
+                 .sort((a,b) => a.school.localeCompare(b.school));
+             },
+             // Red Rush flagged scholars — included in calculations, surfaced for review
+             getMOYRushFlagged: (subject) => {
+               const rows = subject === 'ELA' ? (MOY_DATA.ela || []) : (MOY_DATA.math || []);
+               return rows
+                 .filter(r => r.isRedRush)
+                 .map(r => ({
+                   name:        r.scholarName || '—',
+                   school:      r.school      || '—',
+                   grade:       r.grade       || '—',
+                   winterScore: r.winterScore,
+                   pctTypical:  r.pctTypical !== null ? Math.round(r.pctTypical * 100) + '%' : '—',
+                   rushFlag:    r.winterRush  || 'Red',
                  }))
                  .sort((a,b) => a.school.localeCompare(b.school));
              },

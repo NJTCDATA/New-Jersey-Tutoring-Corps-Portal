@@ -638,25 +638,48 @@ function renderAcademic() {
           '</div>';
       }
 
-      // Missing scholars panel — scholars present in MOY sheet but excluded from growth calcs
+      // Excluded scholars panel — no Fall baseline, cannot compute growth
       var missingCount = net.total - net.withGrowth;
       if (missingCount > 0 && typeof irlab.getMOYMissingScholars === 'function') {
         var missing = irlab.getMOYMissingScholars(subj);
-        var panelId = 'pds-missing-' + subj;
-        html += '<details style="margin-top:.625rem;font-size:.75rem" id="' + panelId + '">';
-        html += '<summary style="cursor:pointer;color:#b45309;font-weight:700;user-select:none">';
-        html += '⚠ ' + missingCount + ' scholar' + (missingCount !== 1 ? 's' : '') + ' excluded from growth calculations — click to view</summary>';
-        html += '<div style="margin-top:.5rem;max-height:180px;overflow-y:auto;border:1px solid #fde68a;border-radius:6px;background:#fffbeb">';
-        html += '<table style="width:100%;border-collapse:collapse;font-size:.7rem">';
-        html += '<thead><tr style="background:#fef3c7"><th style="padding:.3rem .5rem;text-align:left">Scholar</th><th style="padding:.3rem .5rem;text-align:left">School</th><th style="padding:.3rem .5rem;text-align:left">Grade</th><th style="padding:.3rem .5rem;text-align:left">Reason</th></tr></thead><tbody>';
-        missing.forEach(function(s, i) {
-          html += '<tr style="background:' + (i % 2 === 0 ? '#fffbeb' : '#fefce8') + '">' +
-            '<td style="padding:.3rem .5rem">' + s.name + '</td>' +
-            '<td style="padding:.3rem .5rem">' + s.school + '</td>' +
-            '<td style="padding:.3rem .5rem">' + s.grade + '</td>' +
-            '<td style="padding:.3rem .5rem;color:#92400e">' + s.reason + '</td></tr>';
-        });
-        html += '</tbody></table></div></details>';
+        if (missing.length > 0) {
+          html += '<details style="margin-top:.625rem;font-size:.75rem">';
+          html += '<summary style="cursor:pointer;color:#b45309;font-weight:700;user-select:none">' +
+            '⛔ ' + missing.length + ' scholar' + (missing.length !== 1 ? 's' : '') + ' excluded from growth calculations (no Fall baseline) — click to view</summary>';
+          html += '<div style="margin-top:.5rem;max-height:160px;overflow-y:auto;border:1px solid #fde68a;border-radius:6px;background:#fffbeb">';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:.7rem">';
+          html += '<thead><tr style="background:#fef3c7"><th style="padding:.3rem .5rem;text-align:left">Scholar</th><th style="padding:.3rem .5rem;text-align:left">School</th><th style="padding:.3rem .5rem;text-align:left">Grade</th><th style="padding:.3rem .5rem;text-align:left">Reason</th></tr></thead><tbody>';
+          missing.forEach(function(s, i) {
+            html += '<tr style="background:' + (i % 2 === 0 ? '#fffbeb' : '#fefce8') + '">' +
+              '<td style="padding:.3rem .5rem">' + s.name + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.school + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.grade + '</td>' +
+              '<td style="padding:.3rem .5rem;color:#92400e">' + s.reason + '</td></tr>';
+          });
+          html += '</tbody></table></div></details>';
+        }
+      }
+
+      // Rush-flagged scholars panel — included in calculations, shown for transparency
+      if (net.rushFlags && net.rushFlags.red > 0 && typeof irlab.getMOYRushFlagged === 'function') {
+        var flagged = irlab.getMOYRushFlagged(subj);
+        if (flagged.length > 0) {
+          html += '<details style="margin-top:.375rem;font-size:.75rem">';
+          html += '<summary style="cursor:pointer;color:#1d4ed8;font-weight:700;user-select:none">' +
+            'ℹ ' + flagged.length + ' scholar' + (flagged.length !== 1 ? 's' : '') + ' with Red Rush Flag (included in calculations) — click to review</summary>';
+          html += '<div style="margin-top:.5rem;max-height:160px;overflow-y:auto;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff">';
+          html += '<div style="font-size:.7rem;padding:.4rem .625rem;color:#1e40af;border-bottom:1px solid #bfdbfe">These scholars are counted in all growth metrics. Red Rush means iReady detected unusually fast test completion. Review with school staff and contact iReady if re-administration is needed.</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:.7rem">';
+          html += '<thead><tr style="background:#dbeafe"><th style="padding:.3rem .5rem;text-align:left">Scholar</th><th style="padding:.3rem .5rem;text-align:left">School</th><th style="padding:.3rem .5rem;text-align:left">Grade</th><th style="padding:.3rem .5rem;text-align:center">% Typical</th></tr></thead><tbody>';
+          flagged.forEach(function(s, i) {
+            html += '<tr style="background:' + (i % 2 === 0 ? '#eff6ff' : '#dbeafe') + '">' +
+              '<td style="padding:.3rem .5rem">' + s.name + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.school + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.grade + '</td>' +
+              '<td style="padding:.3rem .5rem;text-align:center">' + s.pctTypical + '</td></tr>';
+          });
+          html += '</tbody></table></div></details>';
+        }
       }
 
       html += '</div>';
