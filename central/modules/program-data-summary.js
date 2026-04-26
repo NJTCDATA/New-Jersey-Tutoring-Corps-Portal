@@ -360,8 +360,8 @@ function renderThisWeek(d) {
     { val: tutRate !== null ? tutRate + '%' : '—', label: 'Tutor Attendance',   color: rateColor(tutRate) },
     { val: cw.incompletes,                          label: 'Incomplete Sessions',color: cw.incompletes > 5 ? '#dc2626' : 'var(--navy)' },
     { val: cw.siTotal,                              label: 'Service Interruptions', color: cw.siTotal > 3 ? '#d97706' : 'var(--navy)' },
-    { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : '—', label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : '#7c3aed' },
-    { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : '—', label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : '#7c3aed' },
+    { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : cw.scholarSurvey ? '#7c3aed' : '#94a3b8' },
+    { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : (cw.surveyLoading ? 'Loading…' : 'No data'), label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : cw.tutorSurvey ? '#7c3aed' : '#94a3b8' },
   ]);
 
   // What to do
@@ -614,9 +614,9 @@ function renderAcademic() {
           color: 'var(--navy)' },
         { val: net.medianPctTypical !== null ? net.medianPctTypical + '%' : '—',
           label: 'Median % Typical', color: medColor(net.medianPctTypical) },
-        { val: net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—',
-          label: 'Months of Learning',
-          color: net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 8 ? '#059669' : net.medianMonthsGrowth >= 5 ? '#d97706' : '#dc2626') : 'var(--muted)' },
+        { val: net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' + (net.avgMonthsGrowth !== null && net.avgMonthsGrowth !== net.medianMonthsGrowth ? ' <span style="font-size:.65rem;color:var(--muted)">(avg ' + net.avgMonthsGrowth + ')</span>' : '') : '—',
+          label: 'Median Months of Learning',
+          color: net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 4.5 ? '#059669' : net.medianMonthsGrowth >= 3.0 ? '#d97706' : '#dc2626') : 'var(--muted)' },
         { val: net.pctMetTypical !== null ? net.pctMetTypical + '%' : '—',
           label: '% Met Typical', color: medColor(net.pctMetTypical) },
         { val: net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—',
@@ -637,6 +637,51 @@ function renderAcademic() {
           '<div style="font-size:.8rem"><span style="color:#dc2626;font-weight:700">↓ ' + net.movedDown + '</span> <span style="color:var(--muted)">moved down</span></div>' +
           '</div>';
       }
+
+      // Excluded scholars panel — no Fall baseline, cannot compute growth
+      var missingCount = net.total - net.withGrowth;
+      if (missingCount > 0 && typeof irlab.getMOYMissingScholars === 'function') {
+        var missing = irlab.getMOYMissingScholars(subj);
+        if (missing.length > 0) {
+          html += '<details style="margin-top:.625rem;font-size:.75rem">';
+          html += '<summary style="cursor:pointer;color:#b45309;font-weight:700;user-select:none">' +
+            '⛔ ' + missing.length + ' scholar' + (missing.length !== 1 ? 's' : '') + ' excluded from growth calculations (no Fall baseline) — click to view</summary>';
+          html += '<div style="margin-top:.5rem;max-height:160px;overflow-y:auto;border:1px solid #fde68a;border-radius:6px;background:#fffbeb">';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:.7rem">';
+          html += '<thead><tr style="background:#fef3c7"><th style="padding:.3rem .5rem;text-align:left">Scholar</th><th style="padding:.3rem .5rem;text-align:left">School</th><th style="padding:.3rem .5rem;text-align:left">Grade</th><th style="padding:.3rem .5rem;text-align:left">Reason</th></tr></thead><tbody>';
+          missing.forEach(function(s, i) {
+            html += '<tr style="background:' + (i % 2 === 0 ? '#fffbeb' : '#fefce8') + '">' +
+              '<td style="padding:.3rem .5rem">' + s.name + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.school + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.grade + '</td>' +
+              '<td style="padding:.3rem .5rem;color:#92400e">' + s.reason + '</td></tr>';
+          });
+          html += '</tbody></table></div></details>';
+        }
+      }
+
+      // Rush-flagged scholars panel — included in calculations, shown for transparency
+      if (net.rushFlags && net.rushFlags.red > 0 && typeof irlab.getMOYRushFlagged === 'function') {
+        var flagged = irlab.getMOYRushFlagged(subj);
+        if (flagged.length > 0) {
+          html += '<details style="margin-top:.375rem;font-size:.75rem">';
+          html += '<summary style="cursor:pointer;color:#1d4ed8;font-weight:700;user-select:none">' +
+            'ℹ ' + flagged.length + ' scholar' + (flagged.length !== 1 ? 's' : '') + ' with Red Rush Flag (included in calculations) — click to review</summary>';
+          html += '<div style="margin-top:.5rem;max-height:160px;overflow-y:auto;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff">';
+          html += '<div style="font-size:.7rem;padding:.4rem .625rem;color:#1e40af;border-bottom:1px solid #bfdbfe">These scholars are counted in all growth metrics. Red Rush means iReady detected unusually fast test completion. Review with school staff and contact iReady if re-administration is needed.</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:.7rem">';
+          html += '<thead><tr style="background:#dbeafe"><th style="padding:.3rem .5rem;text-align:left">Scholar</th><th style="padding:.3rem .5rem;text-align:left">School</th><th style="padding:.3rem .5rem;text-align:left">Grade</th><th style="padding:.3rem .5rem;text-align:center">% Typical</th></tr></thead><tbody>';
+          flagged.forEach(function(s, i) {
+            html += '<tr style="background:' + (i % 2 === 0 ? '#eff6ff' : '#dbeafe') + '">' +
+              '<td style="padding:.3rem .5rem">' + s.name + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.school + '</td>' +
+              '<td style="padding:.3rem .5rem">' + s.grade + '</td>' +
+              '<td style="padding:.3rem .5rem;text-align:center">' + s.pctTypical + '</td></tr>';
+          });
+          html += '</tbody></table></div></details>';
+        }
+      }
+
       html += '</div>';
     });
 
