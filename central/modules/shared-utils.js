@@ -13418,21 +13418,27 @@
   var _SEEN_KEY   = 'njtc_guide_seen_v1';
 
   function _guideInit() {
-    // Inject styles
     var style = document.createElement('style');
     style.textContent = [
-      '#njtcGuideBtn{position:fixed;bottom:80px;left:16px;z-index:9990;display:flex;align-items:center;gap:6px;',
-      'background:#1B2A4A;color:#fff;border:none;border-radius:24px;padding:8px 14px 8px 10px;',
-      'font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);',
-      'letter-spacing:.03em;transition:background .15s,transform .15s;user-select:none;}',
-      '#njtcGuideBtn:hover{background:#2d4270;transform:translateY(-1px);}',
-      '#njtcGuideBtn .gb-dot{width:8px;height:8px;border-radius:50%;background:#34d399;',
-      'display:inline-block;transition:background .3s;}',
-      '#njtcGuideBtn.guide-new .gb-dot{background:#f59e0b;animation:guidePulse 1.2s ease infinite;}',
-      '@keyframes guidePulse{0%,100%{opacity:1}50%{opacity:.35}}',
+      // Panel-top guide bar — injected as first child of each active panel
+      '.njtc-guide-bar{display:flex;align-items:center;justify-content:space-between;',
+      'background:#f8fafc;border-bottom:1px solid #e5e7eb;padding:6px 18px 6px 14px;',
+      'font-size:11.5px;color:#6b7280;gap:8px;flex-shrink:0;}',
+      '.njtc-guide-bar-left{display:flex;align-items:center;gap:6px;}',
+      '.njtc-guide-bar-icon{font-size:13px;line-height:1;}',
+      '.njtc-guide-bar-label{font-weight:600;color:#374151;}',
+      '.njtc-guide-bar-sub{color:#9ca3af;font-size:10.5px;}',
+      '.njtc-guide-bar-btn{background:none;border:1px solid #d1d5db;border-radius:12px;',
+      'padding:3px 11px;font-size:11px;font-weight:600;color:#1B2A4A;cursor:pointer;',
+      'transition:background .12s,border-color .12s;white-space:nowrap;}',
+      '.njtc-guide-bar-btn:hover{background:#1B2A4A;color:#fff;border-color:#1B2A4A;}',
+      '.njtc-guide-bar-btn.pulsing{border-color:#f59e0b;color:#92400e;',
+      'animation:gbPulse 1.4s ease infinite;}',
+      '@keyframes gbPulse{0%,100%{opacity:1}50%{opacity:.5}}',
+      // Slide-in drawer
       '#njtcGuideDrawer{position:fixed;top:0;right:-340px;width:320px;height:100vh;',
       'background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 20px rgba(0,0,0,.12);',
-      'z-index:9991;transition:right .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;',
+      'z-index:9995;transition:right .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;',
       'display:flex;flex-direction:column;}',
       '#njtcGuideDrawer.open{right:0;}',
       '#njtcGuideDrawer .gd-header{background:#1B2A4A;color:#fff;padding:14px 16px;',
@@ -13453,55 +13459,65 @@
       '#njtcGuideDrawer .gd-term dd{font-size:11px;color:#4b5563;line-height:1.5;margin:0;}',
       '#njtcGuideDrawer .gd-footer{padding:10px 14px;border-top:1px solid #e5e7eb;font-size:10.5px;',
       'color:#9ca3af;line-height:1.4;flex-shrink:0;}',
-      '#njtcGuideOverlay{display:none;position:fixed;inset:0;background:transparent;z-index:9989;}',
     ].join('');
     document.head.appendChild(style);
 
-    // Inject HTML
-    var html = '<button id="njtcGuideBtn" onclick="window.njtcGuideToggle()" title="Section Guide — definitions and metric explanations">' +
-      '<span class="gb-dot"></span><span>Guide</span></button>' +
-      '<div id="njtcGuideOverlay" onclick="window.njtcGuideClose()"></div>' +
-      '<div id="njtcGuideDrawer">' +
-        '<div class="gd-header"><div class="gd-title" id="njtcGuideTitle">Section Guide</div>' +
-        '<button class="gd-close" onclick="window.njtcGuideClose()" title="Close guide">✕</button></div>' +
-        '<div class="gd-what" id="njtcGuideWhat"><strong>What this section shows</strong><span id="njtcGuideWhatText">—</span></div>' +
-        '<div class="gd-body"><h4>Key Terms &amp; Definitions</h4><dl id="njtcGuideTerms"></dl></div>' +
-        '<div class="gd-footer">Definitions are high-level guides for portal navigation. Ask PIE for deeper analysis and live data insights.</div>' +
-      '</div>';
-    var host = document.createElement('div');
-    host.innerHTML = html;
-    while (host.firstChild) document.body.appendChild(host.firstChild);
+    // Inject only the drawer (no floating button — bar is injected per-panel by _guideUpdate)
+    var drawerEl = document.createElement('div');
+    drawerEl.id = 'njtcGuideDrawer';
+    drawerEl.innerHTML =
+      '<div class="gd-header"><div class="gd-title" id="njtcGuideTitle">Section Guide</div>' +
+      '<button class="gd-close" onclick="window.njtcGuideClose()" title="Close">✕</button></div>' +
+      '<div class="gd-what"><strong>What this section shows</strong><span id="njtcGuideWhatText">—</span></div>' +
+      '<div class="gd-body"><h4>Key Terms &amp; Definitions</h4><dl id="njtcGuideTerms"></dl></div>' +
+      '<div class="gd-footer">Definitions are high-level guides. Ask PIE for live data analysis and deeper insights.</div>';
+    document.body.appendChild(drawerEl);
 
-    // Update on panel change
+    // Hook showPanel to move guide bar to each new panel
     var _origSP = window.showPanel;
     window.showPanel = function(id, btn) {
       if (typeof _origSP === 'function') _origSP(id, btn);
       _guideUpdate(id);
     };
 
-    // Keyboard dismiss
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') window.njtcGuideClose(); });
 
-    // Update for current panel on init
+    // Init for current panel
     setTimeout(function() {
       var active = document.querySelector('.panel.active');
-      if (active) {
-        var id = (active.id || '').replace(/^panel-/, '');
-        _guideUpdate(id);
-      }
-    }, 400);
+      if (active) _guideUpdate((active.id || '').replace(/^panel-/, ''));
+    }, 450);
   }
 
   function _guideUpdate(panelId) {
     _guidePanel = panelId || 'home';
     var data = _GUIDE_CONTENT[_guidePanel];
+
+    // Move (or create) the guide bar inside the newly active panel
+    var panelEl = document.getElementById('panel-' + _guidePanel);
+    var existing = document.getElementById('njtcGuideBar');
+    if (existing) existing.remove();
+
+    if (panelEl) {
+      var bar = document.createElement('div');
+      bar.id = 'njtcGuideBar';
+      bar.className = 'njtc-guide-bar';
+      var label = data ? data.title : (_guidePanel.charAt(0).toUpperCase() + _guidePanel.slice(1));
+      bar.innerHTML =
+        '<div class="njtc-guide-bar-left">' +
+          '<span class="njtc-guide-bar-icon">📖</span>' +
+          '<span class="njtc-guide-bar-label">' + _esc(label.split(' — ')[0]) + '</span>' +
+          '<span class="njtc-guide-bar-sub">Section Guide</span>' +
+        '</div>' +
+        '<button class="njtc-guide-bar-btn" id="njtcGuideBarBtn" onclick="window.njtcGuideToggle()">' +
+          'View Definitions ›' +
+        '</button>';
+      panelEl.insertBefore(bar, panelEl.firstChild);
+    }
+
     if (!data) return;
-    var btn = document.getElementById('njtcGuideBtn');
-    if (!btn) return;
-    // Pulse the dot to signal content updated
-    btn.classList.add('guide-new');
-    setTimeout(function() { btn.classList.remove('guide-new'); }, 2500);
-    // Update drawer content (even if closed, so it's ready)
+
+    // Update drawer content
     var titleEl = document.getElementById('njtcGuideTitle');
     var whatEl  = document.getElementById('njtcGuideWhatText');
     var termsEl = document.getElementById('njtcGuideTerms');
@@ -13512,7 +13528,15 @@
         return '<div class="gd-term"><dt>' + _esc(t[0]) + '</dt><dd>' + _esc(t[1]) + '</dd></div>';
       }).join('');
     }
-    // If guide is open, keep it open with new content
+
+    // Pulse the bar button to signal content changed
+    var barBtn = document.getElementById('njtcGuideBarBtn');
+    if (barBtn) {
+      barBtn.classList.add('pulsing');
+      setTimeout(function() { if (barBtn) barBtn.classList.remove('pulsing'); }, 2500);
+    }
+
+    // If drawer is open, keep it updated
     if (_guideOpen) {
       var drawer = document.getElementById('njtcGuideDrawer');
       if (drawer) drawer.classList.add('open');
@@ -13525,21 +13549,16 @@
 
   window.njtcGuideToggle = function() {
     _guideOpen = !_guideOpen;
-    var drawer  = document.getElementById('njtcGuideDrawer');
-    var overlay = document.getElementById('njtcGuideOverlay');
-    if (drawer)  drawer.classList.toggle('open', _guideOpen);
-    if (overlay) overlay.style.display = _guideOpen ? 'block' : 'none';
-    // Pulse removed when user opens — they've seen the update
-    var btn = document.getElementById('njtcGuideBtn');
-    if (btn && _guideOpen) btn.classList.remove('guide-new');
+    var drawer = document.getElementById('njtcGuideDrawer');
+    if (drawer) drawer.classList.toggle('open', _guideOpen);
+    var barBtn = document.getElementById('njtcGuideBarBtn');
+    if (barBtn && _guideOpen) barBtn.classList.remove('pulsing');
   };
 
   window.njtcGuideClose = function() {
     _guideOpen = false;
-    var drawer  = document.getElementById('njtcGuideDrawer');
-    var overlay = document.getElementById('njtcGuideOverlay');
-    if (drawer)  drawer.classList.remove('open');
-    if (overlay) overlay.style.display = 'none';
+    var drawer = document.getElementById('njtcGuideDrawer');
+    if (drawer) drawer.classList.remove('open');
   };
 
   // Init after DOM ready
