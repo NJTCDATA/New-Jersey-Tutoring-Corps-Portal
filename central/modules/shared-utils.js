@@ -1239,6 +1239,15 @@
       const score = parseInt(hm[1]), total = parseInt(hm[2]);
       return { display: score + '/' + total, score, total, pct: total > 0 ? Math.round(score/total*100) : 0 };
     }
+    // Last resort: score is embedded directly in the [QUIZ_RECORD] marker in column B
+    // e.g. "[QUIZ_RECORD] Score: 2/2" — used when the dedicated quiz score column was not posted
+    if (isQuizRecord) {
+      const rm = succVal.match(/\[QUIZ_RECORD\]\s*Score:\s*(\d+)\/(\d+)/i);
+      if (rm) {
+        const score = parseInt(rm[1]), total = parseInt(rm[2]);
+        return { display: score + '/' + total, score, total, pct: total > 0 ? Math.round(score/total*100) : 0 };
+      }
+    }
     // Row is a quiz record but score couldn't be parsed
     return { display: null, score: null, total: null, pct: null };
   }
@@ -1369,9 +1378,27 @@
             target.quizScore = qs;
             target.quizTotal = qt;
             target.quizTs    = qts;
-            // Q&A log stored in orgShareOut for this quiz row
-            const qaRaw = _lbGetOrg(row);
+            // Q&A log: orgShareOut is primary; goalMissReason is fallback (entry ID may be swapped)
+            const qaRaw = _lbGetOrg(row) || goalMissVal || '';
             if (qaRaw && qaRaw.includes('Q1')) target.quizQA = qaRaw;
+          }
+        } else {
+          // Fallback: [quiz_result:] tag not present — extract score from [QUIZ_RECORD] Score: X/Y
+          // or from the human-readable prefix in quizScoreVal ("2/2" prefix without tag)
+          const fallbackSrc = quizScoreVal || succVal;
+          const fm = fallbackSrc.match(/(?:\[QUIZ_RECORD\]\s*Score:\s*)?(\d+)\/(\d+)/i);
+          if (fm) {
+            const qs = parseInt(fm[1]), qt = parseInt(fm[2]);
+            const rowTs = _lbGetTs(row);
+            const qts = rowTs ? rowTs.getTime() : Date.now();
+            const target = byDept[dept] || byDept['unknown'];
+            if (target && (!target.quizTs || qts > target.quizTs)) {
+              target.quizScore = qs;
+              target.quizTotal = qt;
+              target.quizTs    = qts;
+              const qaRaw = _lbGetOrg(row) || goalMissVal || '';
+              if (qaRaw && qaRaw.includes('Q1')) target.quizQA = qaRaw;
+            }
           }
         }
         return; // don't count quiz records as regular submissions
@@ -2376,7 +2403,8 @@
         const scoreBg  = pct === 100 ? '#d1fae5' : pct >= 50 ? '#dbeafe' : pct != null ? '#fee2e2' : '#f3f4f6';
         const scoreFg  = pct === 100 ? '#065f46' : pct >= 50 ? '#1e40af' : pct != null ? '#991b1b' : '#6b7280';
         const scoreStr = display ? display + ' (' + pct + '%)' : 'Score unavailable';
-        const qaRaw = _lbGetOrg(r);
+        const _goalMissCol = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+        const qaRaw = _lbGetOrg(r) || (_goalMissCol.includes('Q1') ? _goalMissCol : '');
         const qaHtml = qaRaw && qaRaw.includes('Q1')
           ? qaRaw.split('\n').filter(Boolean).map(line => {
               const wrong = line.includes(' ✗ ');
@@ -2656,7 +2684,8 @@
         const scoreBg  = pct === 100 ? '#d1fae5' : pct >= 50 ? '#dbeafe' : pct != null ? '#fee2e2' : '#f3f4f6';
         const scoreFg  = pct === 100 ? '#065f46' : pct >= 50 ? '#1e40af' : pct != null ? '#991b1b' : '#6b7280';
         const scoreStr = display ? display + ' (' + pct + '%)' : 'Score unavailable';
-        const qaRaw = _lbGetOrg(r);
+        const _gmCol2 = r['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
+        const qaRaw = _lbGetOrg(r) || (_gmCol2.includes('Q1') ? _gmCol2 : '');
         const qaHtml = qaRaw && qaRaw.includes('Q1')
           ? qaRaw.split('\n').filter(Boolean).map(line => {
               const wrong = line.includes(' ✗ ');
