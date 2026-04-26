@@ -3846,7 +3846,7 @@
           const td = tutorData[t];
           td.scholars.add(r.scholarId || r.scholarName);
           td.pcts.push(r.pctTypical);
-          if (r.winterWeeks > 0) td.months.push(r.annualTypical > 0 && r.winterGain !== null ? r.winterGain * 10 / r.annualTypical : r.pctTypical * (r.winterWeeks / 4));
+          if (r.winterWeeks > 0) td.months.push(r.pctTypical * (r.winterWeeks / 4));
           if (r.winterGain !== null) td.gains.push(r.winterGain);
 
           const shift = _moyPlShift(r.baseRelPlacement, r.winterRelPlacement);
@@ -5259,13 +5259,10 @@
         const movedDown = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'down').length;
         const gains     = valid.map(r => r.winterGain).filter(v => v !== null && !isNaN(v));
         const pcts      = valid.map(r => r.pctTypical).filter(v => v !== null && !isNaN(v));
-        // months of learning = winterGain / (annualTypical / 10) — canonical iReady formula
-        // (10-month school year: how many months of typical growth did the scholar achieve?)
-        // Falls back to pctTypical × winterWeeks / 4 when annualTypical is unavailable.
-        const months    = valid.filter(r => r.winterWeeks > 0 && (r.annualTypical > 0 ? r.winterGain !== null : r.pctTypical !== null))
-                               .map(r => r.annualTypical > 0 && r.winterGain !== null
-                                 ? r.winterGain * 10 / r.annualTypical
-                                 : r.pctTypical * (r.winterWeeks / 4));
+        // months of learning = pctTypical × winterWeeks / 4
+        // Uses actual weeks between Fall and Winter diagnostics per scholar (same approach as EOY).
+        const months    = valid.filter(r => r.pctTypical !== null && r.winterWeeks > 0)
+                               .map(r => r.pctTypical * (r.winterWeeks / 4));
         const metTyp    = pcts.filter(v => v >= 1.0);
         const progressing = pcts.filter(v => v >= 0.5 && v < 1.0);
         const needsAccel  = pcts.filter(v => v >= 0 && v < 0.5);
@@ -5452,7 +5449,7 @@
               ${net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—'}
             </div>
             <div class="ta-kpi-sub">Median Months of Learning
-              <span title="Median months of academic learning gained. Formula: winterGain ÷ (annualTypical ÷ 10) per scholar — iReady canonical formula using a 10-month school year. Median is the primary metric (robust to outliers). The avg footnote aligns with spreadsheet totals. Thresholds: 4.5+ mo = strong · 3.0–4.4 = progressing · below 3.0 = needs support." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+              <span title="Median months of academic learning gained. Formula: pctTypical × winterWeeks ÷ 4 per scholar — uses the actual weeks between each scholar's Fall and Winter diagnostic. Same approach as EOY. Median is the primary metric (robust to outliers). Avg shown as footnote for spreadsheet reference. Thresholds: 4.5+ mo = strong · 3.0–4.4 = progressing · below 3.0 = needs support." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
             </div>
             ${net.avgMonthsGrowth !== null ? '<div style="font-size:.6875rem;color:var(--muted);margin-top:.2rem">avg: ' + net.avgMonthsGrowth + ' mo</div>' : ''}
           </div>
