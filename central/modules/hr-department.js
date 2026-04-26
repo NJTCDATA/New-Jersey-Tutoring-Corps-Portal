@@ -28,6 +28,7 @@
     return html;
   }
   function renderTalentLog() {
+    const esc = s => String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const data=_filteredConcerns.slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
     if (!data.length) return '<div style="padding:3rem;text-align:center;color:var(--muted)">No records match filters.</div>';
     const hasFollowup = data.some(r=>r.hr_followup);

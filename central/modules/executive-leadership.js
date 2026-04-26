@@ -1687,6 +1687,20 @@
     return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (map[status]||'#9CA3AF') + ';margin-right:4px;" title="' + status + '"></span>';
   };
 
+  // Live Tracker OTJ item count lookup
+  const ap_otjItemCount = (name) => {
+    const map = window.njtcLiveOtjMap || {};
+    const key = (name || '').toLowerCase().replace(/\s+/g,' ').trim();
+    return map.hasOwnProperty(key) ? map[key] : null;
+  };
+
+  const ap_otjCountBadge = (count) => {
+    if (count === null || count === undefined) return '<span style="font-size:10px;color:#9CA3AF;">—</span>';
+    var pct = LIVE_TRACKER_OTJ_COLS > 0 ? Math.round(count / LIVE_TRACKER_OTJ_COLS * 100) : 0;
+    var color = pct >= 80 ? '#16A34A' : pct >= 40 ? '#D97706' : count > 0 ? '#2563EB' : '#9CA3AF';
+    return '<span style="font-weight:700;font-size:11px;color:' + color + ';">' + count + '<span style="font-weight:400;color:#9CA3AF;">/' + LIVE_TRACKER_OTJ_COLS + '</span></span>';
+  };
+
   const ap_openModal = (titleText, bodyHTML) => {
     let overlay = document.getElementById('ap-modal-overlay');
     if (!overlay) {
@@ -1861,9 +1875,10 @@
     const enrolled = ap_enrolled();
 
     const rows = enrolled.map(function(r) {
-      const otj = ap_otjStatus(r.name);
       const flagged = ap_hasFlag(r.name);
-      return '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:10px 12px;font-size:12px;font-weight:600;color:#002855;">' + r.name + (flagged ? ap_flagBadge('FLAG') : '') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.role + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.network + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.site.length > 30 ? r.site.substring(0,30)+'…' : r.site) + '</td><td style="padding:10px 12px;text-align:center;">' + ap_dotStatus(otj.beginning) + '<span style="font-size:10px;color:#6B7280;">' + (otj.beginning||'—') + '</span></td><td style="padding:10px 12px;text-align:center;">' + ap_dotStatus(otj.middle) + '<span style="font-size:10px;color:#6B7280;">' + (otj.middle||'—') + '</span></td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.rehire === 'Yes' ? '✅' : '—') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.cycles + ' cycle' + (r.cycles==='1'?'':'s') + '</td></tr>';
+      const ltCount = ap_otjItemCount(r.name);
+      const ltPct   = ltCount !== null ? Math.round(ltCount / LIVE_TRACKER_OTJ_COLS * 100) + '%' : '—';
+      return '<tr style="border-bottom:1px solid #F3F4F6;"><td style="padding:10px 12px;font-size:12px;font-weight:600;color:#002855;">' + r.name + (flagged ? ap_flagBadge('FLAG') : '') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.role + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.network + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.site.length > 30 ? r.site.substring(0,30)+'…' : r.site) + '</td><td style="padding:10px 12px;text-align:center;">' + ap_otjCountBadge(ltCount) + '</td><td style="padding:10px 12px;text-align:center;font-size:11px;color:#6B7280;">' + ltPct + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + (r.rehire === 'Yes' ? '✅' : '—') + '</td><td style="padding:10px 12px;font-size:11px;color:#6B7280;">' + r.cycles + ' cycle' + (r.cycles==='1'?'':'s') + '</td></tr>';
     }).join('');
 
     const flagCount = enrolled.filter(function(r) { return ap_hasFlag(r.name); }).length;
@@ -1898,7 +1913,7 @@
       '<div id="ap-hr-roster-body" style="display:' + (hrOpen ? '' : 'none') + ';">' +
         '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">' +
         '<thead><tr style="background:#F8FAFC;border-bottom:2px solid #E5E7EB;">' +
-        ['Name','Role','Network','School/Site','OTJ Begin','OTJ Middle','Re-hire','Cycles'].map(function(h) {
+        ['Name','Role','Network','School/Site','OTJ Items','% Done','Re-hire','Cycles'].map(function(h) {
           return '<th style="padding:10px 12px;text-align:left;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;white-space:nowrap;">' + h + '</th>';
         }).join('') +
         '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
@@ -1927,11 +1942,11 @@
       if (ap_hasFlag(record.name)) {
         nameEl.insertAdjacentHTML('beforeend', ap_flagBadge('OTJ FLAG'));
       }
-      const otj = ap_otjStatus(record.name);
+      const ltCount = ap_otjItemCount(record.name);
       const statusStrip = document.createElement('div');
       statusStrip.className = 'ap-prog-status-strip';
       statusStrip.style.cssText = 'margin-top:8px;padding:8px 10px;background:#FFF9E6;border-radius:6px;border-left:3px solid #B8960C;font-size:10px;';
-      statusStrip.innerHTML = '<div style="font-weight:700;color:#92400E;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">OTJ Status</div><div style="display:flex;gap:12px;flex-wrap:wrap;"><span>' + ap_dotStatus(otj.beginning) + 'Begin: <b>' + (otj.beginning||'—') + '</b></span><span>' + ap_dotStatus(otj.middle) + 'Mid: <b>' + (otj.middle||'—') + '</b></span><span>' + ap_dotStatus(otj.end) + 'End: <b>' + (otj.end||'—') + '</b></span></div>' + (otj.pmNotes ? '<div style="margin-top:4px;color:#6B7280;font-style:italic;">' + otj.pmNotes + '</div>' : '');
+      statusStrip.innerHTML = '<div style="font-weight:700;color:#92400E;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;">OTJ Progress</div><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">' + ap_otjCountBadge(ltCount) + '<span style="color:#6B7280;font-size:10px;">of ' + LIVE_TRACKER_OTJ_COLS + ' checklist items</span></div>';
       card.appendChild(statusStrip);
     });
   };
@@ -2108,7 +2123,7 @@
           '<div style="font-size:11px;color:#9CA3AF;margin-top:1px;overflow:hidden;text-overflow:ellipsis;">' + location + '</div>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:5px;flex-shrink:0;margin-left:10px;">' +
-          '<span title="OTJ Beginning: ' + otj.beginning + '">' + ap_dotStatus(otj.beginning) + '</span>' +
+          ap_otjCountBadge(ap_otjItemCount(m.name)) +
           (flagged ? '<span style="font-size:9px;background:#FEE2E2;color:#DC2626;font-weight:700;padding:2px 7px;border-radius:8px;">FLAG</span>' : '') +
           folderBtn +
         '</div>' +
@@ -2134,7 +2149,7 @@
 
     var cache = window.njtcAPCache || {};
     const beginComplete = enrolled.filter(function(r) {
-      return (cache[r.name] && cache[r.name].otjStatus.beginning === 'Completed');
+      return ap_otjItemCount(r.name) >= LIVE_TRACKER_OTJ_COLS;
     }).length;
     const flagged = enrolled.filter(function(r) { return cache[r.name] && cache[r.name].hasFlag; }).length;
     const growthPct = enrolled.length ? Math.round(eligible.length / enrolled.length * 100) : 0;
@@ -2275,7 +2290,7 @@
       '<div style="padding:0;"><table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#F8FAFC;"><th style="padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.06em;">Metric</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#B8960C;text-transform:uppercase;letter-spacing:0.06em;">🎓 Apprentices (' + enrolled.length + ')</th><th style="padding:10px 14px;text-align:center;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.06em;">Non-Apprentices (' + nonEnrolled.length + ')</th></tr></thead><tbody>' +
       metricRow('Avg Scholar Rating (Pearl)', apScholarRating, nonApScholarRating) +
       metricRow('Avg Attendance Rate', apAttendance, nonApAttendance) +
-      metricRow('OTJ Middle Complete', enrolled.filter(function(r){return ap_otjStatus(r.name).middle==='Completed';}).length + ' / ' + enrolled.length, '—') +
+      metricRow('OTJ Items Complete', enrolled.filter(function(r){return ap_otjItemCount(r.name)>=LIVE_TRACKER_OTJ_COLS;}).length + ' / ' + enrolled.length, '—') +
       metricRow('Returning (Re-hire = Yes)', enrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + enrolled.length, nonEnrolled.filter(function(r){return r.rehire==='Yes';}).length + ' / ' + nonEnrolled.length) +
       '</tbody></table></div>' +
       '<div style="padding:12px 20px;background:#F8FAFC;border-top:1px solid #E5E7EB;font-size:11px;color:#9CA3AF;">Scholar rating and attendance pulled from Pearl Operations (window.po). If Pearl data is unavailable for a tutor, cell shows N/A. ⬆ indicates the higher-performing group for that metric.</div>';
@@ -2346,6 +2361,8 @@
   const APPR_PROG_DB_ID   = '1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U';
   const APPR_NE_OTJ_URL   = 'https://docs.google.com/spreadsheets/d/' + APPR_PROG_DB_ID + '/export?format=csv&gid=2085207682';
   const APPR_SW_OTJ_URL   = 'https://docs.google.com/spreadsheets/d/' + APPR_PROG_DB_ID + '/export?format=csv&gid=1510819560';
+  const LIVE_TRACKER_URL  = 'https://docs.google.com/spreadsheets/d/1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs/export?format=csv&gid=0';
+  const LIVE_TRACKER_OTJ_COLS = 17; // columns AB (index 27) through AR (index 43)
 
   // ── Data source registry ─────────────────────────────────────────────────
   const NJTC_SOURCES = {
@@ -2515,12 +2532,13 @@
 
   // ── Main parallel loader ─────────────────────────────────────────────────
   const njtc_loadAll = async () => {
-    const [r_neOtj, r_swOtj, r_td, r_pd, r_intake] = await Promise.allSettled([
+    const [r_neOtj, r_swOtj, r_td, r_pd, r_intake, r_liveTracker] = await Promise.allSettled([
       njtc_fetch(APPR_NE_OTJ_URL),   // Program DB — NE OTJ tab
       njtc_fetch(APPR_SW_OTJ_URL),   // Program DB — SW OTJ tab
       njtc_fetch(NJTC_SOURCES.TRAINING_DETAILS),
       njtc_fetch(NJTC_SOURCES.PD_FEEDBACK),
       njtc_fetch(NJTC_SOURCES.TRAINING_INTAKE),
+      njtc_fetch(LIVE_TRACKER_URL),  // Live Apprentice Tracker — OTJ checklist counts
     ]);
 
     // — PROGRAM TEAM DATABASE: NE + SW OTJ combined ———————————————————————
@@ -2563,6 +2581,61 @@
 
       console.log('[NJTC] Program DB OTJ: NE=' + neRows.length + ' SW=' + swRows.length +
         ' combined=' + combined.length + ' map keys=' + Object.keys(window.njtcOTJMap).length);
+    }
+
+    // — LIVE APPRENTICE TRACKER: OTJ item counts (columns AB–AR = 17 items) ──
+    // Sheet 1Dh1-..., gid=0, headers at row 5 (skip 4 rows before headers line)
+    {
+      if (!window.njtcLiveOtjMap) window.njtcLiveOtjMap = {};
+      if (r_liveTracker.status === 'fulfilled' && r_liveTracker.value.ok) {
+        try {
+          var ltText = r_liveTracker.value.text;
+          // Split lines respecting quoted fields
+          var ltLines = []; var ltCur = ''; var ltInQ = false;
+          for (var ltI = 0; ltI < ltText.length; ltI++) {
+            var ltCh = ltText[ltI];
+            if (ltCh === '"') ltInQ = !ltInQ;
+            else if (ltCh === '\n' && !ltInQ) { ltLines.push(ltCur); ltCur = ''; continue; }
+            ltCur += ltCh;
+          }
+          if (ltCur) ltLines.push(ltCur);
+          // Headers at row 5 (skip 4 lines)
+          var ltDataLines = ltLines.slice(4);
+          if (ltDataLines.length > 1) {
+            var splitRow = function(row) {
+              var cells = []; var cell = ''; var inq = false;
+              for (var i = 0; i < row.length; i++) {
+                var c = row[i];
+                if (c === '"') { if (inq && row[i+1] === '"') { cell += '"'; i++; } else inq = !inq; }
+                else if (c === ',' && !inq) { cells.push(cell); cell = ''; }
+                else cell += c;
+              }
+              cells.push(cell);
+              return cells;
+            };
+            var ltHeaders = splitRow(ltDataLines[0]).map(function(h) { return h.trim(); });
+            var ltOtjHdrs = ltHeaders.slice(27, 44); // AB–AR
+            var ltNameCol = ltHeaders[0];
+            var ltMap = {};
+            for (var ltR = 1; ltR < ltDataLines.length; ltR++) {
+              var ltCells = splitRow(ltDataLines[ltR]);
+              if (ltCells.every(function(c) { return !c.trim(); })) continue;
+              var ltObj = {};
+              ltHeaders.forEach(function(h, idx) { ltObj[h] = (ltCells[idx] || '').trim(); });
+              var rawName = (ltObj[ltNameCol] || '').trim();
+              if (!rawName) continue;
+              var ltKey = rawName.toLowerCase().replace(/\s+/g,' ').trim();
+              var ltCount = ltOtjHdrs.filter(function(h) { return (ltObj[h] || '').trim(); }).length;
+              if (!ltMap[ltKey] || ltCount > ltMap[ltKey]) ltMap[ltKey] = ltCount;
+            }
+            window.njtcLiveOtjMap = ltMap;
+            console.log('[NJTC] Live Tracker OTJ: ' + Object.keys(ltMap).length + ' apprentices mapped');
+          }
+        } catch(e) { console.warn('[NJTC] Live Tracker parse error:', e); }
+      } else {
+        var ltReason = r_liveTracker.status === 'fulfilled' ? 'HTTP ' + r_liveTracker.value.status : 'network error';
+        console.warn('[NJTC] Live Apprentice Tracker unavailable:', ltReason);
+      }
     }
 
     // — TRAINING_DETAILS (KNOWN — 34 cols, n≈30) ──────────────────────────
