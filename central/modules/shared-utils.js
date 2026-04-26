@@ -13245,170 +13245,185 @@
       title: 'Home — Dashboard Overview',
       what: 'Your personalized hub: live KPI summary, quick-action shortcuts, and an at-a-glance view of program health across all data sources.',
       terms: [
-        ['KPI', 'Key Performance Indicator — a measurable goal your team is tracking this school year.'],
-        ['Met / In Progress / Has Not Met', 'Status labels showing whether a KPI goal has been achieved, is on track, or needs attention.'],
-        ['Quick Links', 'Shortcuts to the most frequently accessed portal sections for your role.'],
-        ['Active Scholars', 'Students currently enrolled in NJTC tutoring services at partner sites.'],
-        ['PIE', 'Program Intelligence Engine — NJTC\'s automated data assistant. Ask it questions about any live data shown in the portal.'],
+        ['KPI Score', 'Calculated as: (# of KPIs in "Met" status ÷ total KPIs) × 100. Example: 18 Met out of 43 total = 41.9% score.'],
+        ['Met', 'Goal achieved at or above 100% of its target value for the current school year.'],
+        ['In Progress', 'Active effort underway; performance trajectory is positive but target not yet reached.'],
+        ['Has Not Met', 'Performance is below target with no clear recovery trajectory. Requires an intervention plan.'],
+        ['Active Scholars', 'Students with ≥1 attended tutoring session in the current reporting window. Source: Pearl live data.'],
+        ['Sessions Delivered', 'Total completed tutoring sessions logged in Pearl for the selected period.'],
+        ['PIE', 'Program Intelligence Engine — NJTC\'s automated data assistant. Ask it questions in plain English about any live data shown in the portal.'],
       ]
     },
     'kpi': {
       title: 'KPI Tracker',
       what: 'Set, update, and review Key Performance Indicators for your site or region. Each KPI represents a program-level commitment for the school year.',
       terms: [
-        ['KPI', 'Key Performance Indicator — a measurable, time-bound goal aligned to program outcomes.'],
-        ['Met', 'Goal achieved. The site\'s performance equals or exceeds the target value.'],
-        ['In Progress', 'Actively being worked on; performance is on a positive trajectory toward target.'],
-        ['Partially Met', 'Progress made but not yet at full target — an interim milestone was hit.'],
-        ['Has Not Met', 'Performance is below threshold. An intervention or course-correction is likely needed.'],
-        ['Coming Down the Pipeline', 'Goal identified but implementation has not yet started.'],
-        ['Goal Area', 'The category the KPI belongs to (e.g., Scholar Growth, Attendance, Session Fidelity).'],
-        ['Target', 'The specific numerical or percentage threshold that defines "Met" for this KPI.'],
+        ['Organization Score', 'Formula: (# Met KPIs ÷ total KPIs) × 100. Refreshes each time a KPI status is updated.'],
+        ['Met', 'Actual performance ≥ 100% of the set target. Example: 82% scholar att. against an 80% target = Met.'],
+        ['Partially Met', 'Performance reached 70–99% of target. Progress documented; gap to target is defined.'],
+        ['In Progress', 'Implementation underway; trajectory is positive. No minimum threshold — judgment-based by site lead.'],
+        ['Has Not Met', 'Performance below 70% of target with no recovery trajectory. Triggers check-in with program leadership.'],
+        ['Coming Down the Pipeline', 'Goal scoped but not yet launched. Does not count toward organization score.'],
+        ['Goal Area', 'The domain the KPI belongs to: Scholar Growth, Attendance, Session Fidelity, Staff Retention, etc.'],
+        ['Target', 'The measurable threshold set at the start of the school year. Example: "≥80% scholar attendance by Q3."'],
+        ['Weight', 'Some KPI categories carry more weight in the overall score. Ask PIE for the current weighting breakdown.'],
       ]
     },
     'kpi-analytics': {
       title: 'KPI Analytics',
       what: 'Visualize KPI trends over time, compare site performance, and identify goal areas where the program is excelling or needs focus.',
       terms: [
-        ['Score', 'The percentage of KPIs currently in "Met" status across the organization.'],
-        ['Trend', 'Direction of performance change over a period — improving, stable, or declining.'],
-        ['Goal Area Breakdown', 'Distribution of KPIs by category — shows where the program is strongest and where gaps exist.'],
-        ['Site Ranking', 'Sites ordered by their KPI Met percentage to identify top performers and those needing support.'],
-        ['Benchmark', 'The target value established at the start of the school year for comparison.'],
-        ['Trajectory', 'The projected path of a KPI based on current rate of progress — used to forecast end-of-year outcomes.'],
+        ['Organization Score', 'Formula: (# Met ÷ total) × 100. Scored at the time of last update. Ask PIE for trend over time.'],
+        ['Health Band', 'Score ≥80% = Strong · 60–79% = Developing · <60% = Needs Attention. Used in leadership briefings.'],
+        ['Trend', 'Direction of score change across quarters: improving (↑), stable (→), or declining (↓).'],
+        ['Goal Area Breakdown', 'Counts KPIs by domain (Attendance, Growth, Fidelity, etc.) to show where concentration of gaps exist.'],
+        ['Site Ranking', 'Sites sorted by % of their own KPIs in "Met" status — identifies top performers and those needing support.'],
+        ['Benchmark', 'The target value set at the start of SY 2025–26. All performance is measured against this fixed number.'],
+        ['Trajectory', 'Projected end-of-year outcome based on current rate of progress. A goal "In Progress" at 60% with 2 months left may be at risk.'],
       ]
     },
     'pearl-ops': {
       title: 'Pearl Ops — Program Operations',
       what: 'Monitor live tutoring session delivery, scholar attendance, and operational performance across all active sites.',
       terms: [
-        ['Pearl', 'NJTC\'s tutoring session management and delivery tracking system.'],
-        ['Active Scholars', 'Students currently enrolled and receiving tutoring services.'],
-        ['Scholar Attendance %', '(Sessions attended ÷ Sessions scheduled) × 100. How consistently scholars show up to tutoring.'],
-        ['Session Fidelity', 'A quality score indicating whether tutoring sessions met delivery standards (duration, structure, content).'],
-        ['Site / Network', 'The specific school or charter network where NJTC operates. Sites roll up into Networks.'],
-        ['Service Interruption (SI)', 'A scheduled session that was not delivered due to a school- or staff-side issue.'],
-        ['District', 'The broader school district that a site belongs to.'],
-        ['Sessions Delivered', 'Total tutoring sessions that were completed and logged in Pearl for the selected period.'],
+        ['Scholar Attendance %', 'Formula: (sessions attended ÷ sessions scheduled) × 100. Averaged across all scholars at the site. A scholar must have ≥1 attended session to count as "active."'],
+        ['Tutor Attendance %', 'Formula: (sessions delivered by tutor ÷ sessions assigned to tutor) × 100. Reflects tutor reliability, not scholar show-up rate.'],
+        ['Scholar Tiers', 'On Track = ≥80% attendance · At Risk = 70–79% · Needs Action = <70%. Tier assigned per individual scholar based on their cumulative attendance rate.'],
+        ['Session Fidelity', 'Rated 1–5 per session via site observation or tutor self-report. Score ≥4.0 = on track. Avg across all rated sessions at the site. Not available for all sites.'],
+        ['Service Interruption (SI)', 'Any scheduled session that was not delivered: school cancellation, tutor no-show, early dismissal, etc. Each occurrence = 1 SI logged. High SI count indicates operational instability at a site.'],
+        ['Active Scholar', 'Student with ≥1 attended session in the current reporting window. "Rostered" = enrolled but may have 0 attended sessions.'],
+        ['Site / Network', 'Site = individual school building. Network = the charter management org or district grouping. Metrics roll up from site → network → program-wide.'],
+        ['Controllable Absence', 'SI flagged as preventable: tutor no-show, scheduling error, unreported cancellation. Non-controllable = school holiday, student illness. Only controllable SIs factor into operational health scoring.'],
       ]
     },
     'iready-lab': {
       title: 'iReady Lab — Scholar Growth',
       what: 'Analyze iReady diagnostic data to track scholar academic growth, placement level distribution, and progress toward reading and math targets.',
       terms: [
-        ['iReady', 'A digital diagnostic assessment measuring student reading and math levels. NJTC uses it to track scholar progress.'],
-        ['Diagnostic', 'A formal iReady assessment administered at defined intervals (typically fall, winter, spring).'],
-        ['Placement Level', 'Where a student performs relative to grade level: 3+ Below · 2 Below · 1 Below · On Level · 1+ Above.'],
-        ['Scale Score', 'A continuous numerical score used to measure and compare iReady performance across grades.'],
-        ['Typical Growth', 'The score gain expected to maintain current placement level by year end.'],
-        ['Stretch Growth', 'A more ambitious target — closes the grade-level gap, not just maintains placement.'],
-        ['Growth Milestone', 'Whether a scholar hit Typical or Stretch Growth based on diagnostic score change.'],
-        ['% Typical / Stretch', 'The share of scholars who met each growth target out of all assessed.'],
+        ['Scale Score Gain', 'Formula: Post-diagnostic score − Pre-diagnostic score. Measured in iReady scale score points (roughly 100–800+ scale). Example: 482 → 531 = +49 pts gain.'],
+        ['Typical Growth', 'iReady\'s nationally normed expected gain for each grade + placement level combination (published in iReady growth norms table). Example: A 3rd grader 1 GL below might need +15 pts for "typical." A scholar meets typical if their actual gain ≥ this threshold.'],
+        ['Stretch Growth', 'A more ambitious gain target set above typical — usually 1.25–1.5× the typical threshold. Closing the grade-level gap requires stretch, not just typical growth.'],
+        ['% Meeting Typical', 'Formula: (scholars with actual gain ≥ typical threshold ÷ total assessed scholars) × 100. Shown separately for Math and ELA.'],
+        ['Months of Learning Gained', 'Formula: (Actual scale score gain ÷ expected full-year gain) × 12. Example: Typical = 15 pts/yr; scholar gained 10 pts → (10÷15) × 12 = 8 months of learning.'],
+        ['Placement Level', '5 tiers relative to grade level: 3+ GL Below · 2 GL Below · 1 GL Below · On Grade Level · 1+ GL Above. Determined by iReady\'s grade-specific scale score cutoffs.'],
+        ['Median % to Typical', 'The median scholar in NJTC\'s cohort has reached this % of their typical growth target. 81% means the median scholar is 81% of the way to their annual typical growth norm.'],
+        ['Valid Pair', 'A scholar with both a baseline (pre) and end-point (post) diagnostic. Only valid pairs are used for growth calculations — unpaired records are excluded.'],
+        ['Program-Window Progress', 'Formula: Actual gain ÷ (expected yearly gain × program weeks ÷ 34) × 100. Adjusts expected growth for NJTC\'s program window length rather than a full school year.'],
+        ['Learning Velocity', 'Formula: Scale score gain ÷ tutoring hours. Measures academic efficiency — points gained per hour of instruction. Requires matching SY Pearl session data.'],
       ]
     },
     'talent': {
       title: 'Talent Analytics',
       what: 'View and analyze staff data: active employees, role distribution, retention trends, and apprenticeship enrollment.',
       terms: [
-        ['Active Staff', 'Employees with a current "Active" ADP payroll status — working and receiving compensation.'],
-        ['ADP', 'Automatic Data Processing — NJTC\'s payroll and HR system. ADP Status is the authoritative source for employment.'],
-        ['Retention Rate', 'Percentage of prior-year staff who returned for the current school year.'],
-        ['Apprentice', 'A staff member formally enrolled in the NJTC Tutor Apprenticeship Program (TAP).'],
-        ['Rehire', 'A staff member returning after having previously worked with NJTC.'],
-        ['Cycle', 'The number of school-year contracts a staff member has completed with NJTC.'],
-        ['Network / Region', 'The charter network or geographic region (NE or SW) the staff member is assigned to.'],
+        ['Active Staff', 'Employees with ADP Status = "Active" — currently employed and receiving compensation. Source: HR Master List (live Google Sheet).'],
+        ['ADP', 'Automatic Data Processing — NJTC\'s payroll system. ADP Status is the single source of truth for employment. All other systems (Pearl, portal) defer to it.'],
+        ['Retention Rate', 'Formula: (staff returning from prior SY ÷ total prior SY staff) × 100. Example: 72 of 95 prior-year tutors returned = 75.8% retention. Measured at start of each school year.'],
+        ['Rehire', 'Staff returning after a gap year or more. Counted separately from continuous retention. Indicates program reputation and alumni pull-back success.'],
+        ['Cycle', 'Number of complete school-year contracts with NJTC. 1 cycle = 1 full SY. Average cycles = team tenure indicator. High average cycles signal program loyalty.'],
+        ['Apprentice', 'Staff enrolled in the NJTC Tutor Apprenticeship Program (TAP) — a DOL-registered apprenticeship. Requires active ADP status + TAP sheet enrollment.'],
+        ['Network / Region', 'NE = Northeast NJ sites (iLearn, KIPP, Hoboken, etc.). SW = Southwest NJ sites (Hamilton, Gloucester, Haddon, Penns Grove, etc.).'],
+        ['HR Concern Rate', 'Formula: (employees with ≥1 support log entry ÷ total active staff) × 100. Tracks what % of the workforce has had a documented support interaction this SY.'],
       ]
     },
     'concern': {
       title: 'Support Log — Employee Concerns',
       what: 'Document, review, and track employee coaching conversations, formal warnings, and performance interventions.',
       terms: [
-        ['Support Action', 'Any documented employee engagement: coaching conversation, verbal warning, write-up, or performance plan.'],
-        ['Write-Up', 'A formal written record of a policy violation or performance issue. Becomes part of the employee\'s file.'],
-        ['PGP', 'Professional Growth Plan — a structured, time-bound improvement plan with specific goals and check-in dates.'],
-        ['Termination', 'Employment separation initiated by NJTC, typically following documented performance or conduct issues.'],
-        ['Repeat Concern', '2+ logged concerns for the same employee in the same category — signals a pattern requiring escalation.'],
-        ['HR Action', 'Whether a formal HR step was taken beyond coaching: write-up, PGP, or termination.'],
-        ['First-Time', 'Whether this is the first concern logged for this employee. Relevant context for escalation decisions.'],
+        ['Escalation Ladder', 'Standard progression: Coaching conversation → Verbal warning → Written write-up → PGP → Termination. Each step should be documented before advancing.'],
+        ['Write-Up', 'A formal written record of a policy violation or performance issue. Creates a legal paper trail. Must be signed by both parties. Becomes part of the employee\'s permanent HR file.'],
+        ['PGP', 'Professional Growth Plan — a structured plan with specific, measurable goals and defined check-in dates. Typically 30–90 days. "Successfully completed PGP" = concern resolved.'],
+        ['Termination', 'Employment separation initiated by NJTC. Requires prior documentation in most cases. Logged here as the final HR action in the escalation chain.'],
+        ['Repeat Concern', '2+ concern entries for the same employee in the same category within a school year. Signals a pattern. Portal flags repeat concerns automatically — they appear in red in the concern list.'],
+        ['Concern Rate', 'Formula: (# employees with ≥1 concern ÷ total active staff) × 100. A rate >10% in a region warrants leadership review.'],
+        ['HR Action', 'Boolean flag (Yes/No) indicating whether a formal HR step beyond coaching was taken. "Yes" = write-up, PGP, or termination was initiated.'],
+        ['Support Type', 'Categorizes the nature of the concern: Attendance · Performance · Professionalism · Policy Violation · Other. Used to identify org-wide patterns across teams.'],
       ]
     },
     'training-analytics': {
       title: 'Training & Development',
       what: 'Track apprenticeship progress, on-the-job training completion, PD participation, and training outcomes across all NJTC staff.',
       terms: [
-        ['OTJ', 'On-the-Job Training — supervised practice observations required for apprenticeship completion.'],
-        ['OTJ Phase', 'Three required observation windows during the year: Beginning, Middle, and End.'],
-        ['ADP Status', 'Payroll employment status from NJTC\'s HR system. "Active" = currently employed and on payroll.'],
-        ['Apprentice', 'A staff member enrolled in NJTC\'s TAP (Tutor Apprenticeship Program) — a registered DOL apprenticeship.'],
-        ['NE / SW Region', 'Northeast and Southwest — the two geographic service areas NJTC operates in.'],
-        ['PD', 'Professional Development — structured learning sessions for staff skill-building and program alignment.'],
-        ['Observation', 'A formal coaching/supervisory visit documented in the OTJ tracker by a site leader or program manager.'],
-        ['DOL Target', 'The Department of Labor enrollment benchmark for registered apprenticeships.'],
+        ['OTJ Completion %', 'Formula: (# checklist items marked complete ÷ 17 total required items) × 100 per apprentice. 17 items span the full program year; all 17 must be complete for apprenticeship certification.'],
+        ['OTJ Phases', 'Three required observation windows: Beginning (fall, Sept–Nov) · Middle (winter, Dec–Feb) · End (spring, Mar–May). Each phase must be formally documented by a site leader or PM.'],
+        ['Needs Follow-Up', 'An OTJ checklist item flagged as incomplete or requiring a return visit. Appears in red in the tracker. Must be resolved before phase is counted as complete.'],
+        ['ADP Status', '"Active" = on NJTC payroll, receiving compensation. "Inactive" / blank = separated or on leave. Only Active apprentices count toward the program\'s enrolled headcount of 30.'],
+        ['Apprentice', 'Staff enrolled in NJTC\'s TAP (Tutor Apprenticeship Program) — a DOL-registered apprenticeship. Requires active enrollment on the TAP roster AND active ADP payroll status.'],
+        ['DOL Target', 'NJTC\'s Department of Labor benchmark for registered apprenticeship enrollment. Current program target: 40 apprentices. 30 enrolled = 75% of DOL target.'],
+        ['PD Rating', 'Participant-rated score (1–5) for each professional development session. Avg ≥4.0 = well-received. Scores pulled from PD feedback form; visible in the PD Feedback tab.'],
+        ['Tutor Observation', 'A formal coaching visit logged by a site leader, typically monthly. Tracked across NE and SW separately. Observation coverage = % of apprentices with ≥1 obs per month.'],
+        ['Related Instruction', 'The classroom/training component of the DOL apprenticeship model (in addition to OTJ). 144 hours required over the program year for full certification.'],
       ]
     },
     'sy-analytics': {
       title: 'Site Analytics — School Year View',
       what: 'Explore school-year performance data by site, including scholar engagement, attendance patterns, and location-level outcomes.',
       terms: [
-        ['SY', 'School Year — the current academic year (e.g., 2025–2026).'],
-        ['Site', 'An individual school location where NJTC provides tutoring services.'],
-        ['Scholar Attendance', 'The rate at which enrolled scholars attend scheduled tutoring sessions at a given site.'],
-        ['Site Performance', 'A composite view of a site\'s key metrics — attendance, fidelity, scholar volume, and KPI status.'],
-        ['Network', 'A charter network or district group that contains multiple NJTC partner sites.'],
-        ['Cohort', 'A group of scholars or staff in the same program cycle, used for year-over-year comparison.'],
+        ['Scholar Attendance (site)', 'Formula: (total attended sessions at site ÷ total scheduled sessions at site) × 100. Aggregated across all scholars at that location for the school year to date.'],
+        ['Site Performance Score', 'Composite of: Scholar Att. % + Tutor Att. % + Session Fidelity rating + KPI status. Higher weight given to scholar attendance. Drives the site ranking in this view.'],
+        ['Rostered vs. Active', 'Rostered = total scholars enrolled at site. Active = those with ≥1 attended session. Gap between rostered and active = scholars enrolled but not yet engaging.'],
+        ['Sessions per Scholar', 'Formula: total sessions delivered ÷ active scholars. Indicates dosage — how much tutoring each participating scholar is receiving on average.'],
+        ['Network Rollup', 'Sites within the same charter network (e.g., iLearn) are grouped for aggregate comparison. Network-level metrics = avg of all constituent site metrics, weighted by scholar volume.'],
+        ['SY', 'School Year — NJTC\'s program year runs Aug–June. Current SY: 2025–2026. Year-over-year comparisons use the same site, same calendar period from the prior SY.'],
+        ['Cohort Strength', 'Sites with 2+ consecutive SYs of data. Stronger cohort = more reliable trend lines. New sites (first SY) show current-year data only.'],
       ]
     },
     'impact-report': {
       title: 'Impact Report',
       what: 'Generate executive-ready summaries of NJTC program outcomes. Export as PDF for board presentations, grant reporting, and stakeholder communications.',
       terms: [
-        ['Impact', 'The measurable change in scholar academic outcomes attributable to NJTC\'s tutoring program.'],
-        ['Growth Rate', 'Percentage of scholars who achieved Typical or Stretch iReady growth targets.'],
-        ['Program Hours', 'Total tutoring hours delivered across all sites in the reporting period.'],
-        ['Grant Reporting', 'Output formatted to match funders\' required metrics: attendance, scholar growth, and program hours.'],
-        ['Exportable', 'Report can be downloaded as a print-ready PDF for external distribution.'],
+        ['Scholar Growth Rate', 'Formula: (scholars who met Typical Growth ÷ total scholars with valid diagnostic pairs) × 100. Primary academic impact metric for funder reporting.'],
+        ['Program Hours', 'Formula: total sessions delivered × avg session duration (minutes) ÷ 60. Example: 16,836 sessions × 45 min ÷ 60 = ~12,627 hours of instruction delivered.'],
+        ['Cost Per Scholar', 'Formula: total program expenditure ÷ # active scholars. Example: $1.2M budget ÷ 1,738 scholars = ~$690/scholar. Used in ROI and grant efficiency arguments.'],
+        ['ROI Narrative', 'Standard advocacy framing: cost per scholar vs. cost of remediation ($4,200–$8,000/student for held-back or intervention services). NJTC tutoring at <$700/scholar = strong public investment.'],
+        ['Composite Impact Score', 'Weighted index combining: Scholar Att. % (40%) + Growth Rate % (40%) + Session Fidelity (20%). Used for board-level program health summary. Ask PIE for current composite score.'],
+        ['Grant Reporting Metrics', 'Standard funder-required outputs: # scholars served · # sessions delivered · scholar attendance % · % meeting Typical Growth · # sites · tutor workforce size.'],
+        ['Exportable PDF', 'Formatted for print or digital distribution. Includes live data pulled at export time — numbers reflect the current state of the program, not a static snapshot.'],
       ]
     },
     'finance-analytics': {
       title: 'Finance Analytics',
       what: 'Review high-level program volume metrics and financial context — sessions delivered, scholar counts, and operational scale indicators.',
       terms: [
-        ['Sessions', 'Total tutoring sessions delivered in the defined period across all sites.'],
-        ['Budget Variance', 'Difference between planned (budgeted) and actual spend. Positive = under budget; negative = over.'],
-        ['Revenue', 'Income received from grants, contracts, or fee-for-service agreements.'],
-        ['Encumbrance', 'Funds committed (e.g., purchase orders) but not yet fully paid out.'],
-        ['Cost Per Scholar', 'Total program spend divided by active scholars — a key program efficiency indicator.'],
+        ['Cost Per Scholar', 'Formula: total program expenditure ÷ # active scholars served. Benchmark: NJTC targets <$750/scholar. Lower is better for grant competitiveness.'],
+        ['Cost Per Session', 'Formula: total program expenditure ÷ # sessions delivered. Secondary efficiency metric. Typically $70–$110/session depending on region and staffing model.'],
+        ['Budget Variance', 'Formula: (budgeted amount − actual spend) ÷ budgeted amount × 100. Positive % = under budget (favorable). Negative % = over budget (requires explanation).'],
+        ['Revenue', 'Income from three sources: (1) government grants/contracts, (2) philanthropic donations, (3) fee-for-service district agreements. Reported separately in Finance.'],
+        ['Encumbrance', 'Funds legally committed but not yet disbursed — e.g., purchase orders, signed contracts, payroll obligations. Reduces your "available" budget balance even before payment.'],
+        ['Program Volume Metrics', 'Sessions delivered · Total minutes · Scholar contact minutes. These are the output metrics used to calculate per-unit costs and demonstrate scale to funders.'],
       ]
     },
     'policies': {
       title: 'Policies & Procedures',
       what: 'Access NJTC\'s operations manual, staff policies, compliance documents, and program procedures. Use the search bar to find topics quickly.',
       terms: [
-        ['Operations Manual', 'NJTC\'s comprehensive guide to program delivery standards, staff expectations, and site protocols.'],
-        ['Compliance', 'Meeting regulatory, funder, or organizational requirements (background checks, certifications, etc.).'],
-        ['Policy', 'A formal organizational rule or expectation that applies to all relevant staff.'],
-        ['Procedure', 'Step-by-step process for implementing a policy or completing a defined workflow.'],
+        ['Operations Manual', 'NJTC\'s comprehensive guide to program delivery standards, staff expectations, site protocols, and compliance requirements. Updated annually by leadership.'],
+        ['Policy', 'A formal organizational rule that applies to all relevant staff. Policies define the "what" — what is required or prohibited.'],
+        ['Procedure', 'The step-by-step process for executing a policy. Procedures define the "how." Example: the background check procedure implements the Compliance policy.'],
+        ['Compliance', 'Meeting regulatory, funder, or organizational requirements. Key compliance areas: background checks · certifications · data privacy · grant reporting deadlines.'],
+        ['Effective Date', 'The date a policy took effect or was last revised. Always check the effective date when applying a policy to a past-year situation — prior policies may have applied.'],
       ]
     },
     'perf': {
       title: 'Performance Management',
       what: 'Document and review formal employee performance issues, corrective action plans, and outcomes for HR records.',
       terms: [
-        ['Performance Issue', 'A documented deviation from expected job standards or professional conduct.'],
-        ['Corrective Action', 'A formal step taken to address a performance issue — warning, PGP, or termination.'],
-        ['PGP', 'Professional Growth Plan — a structured improvement plan with goals, timelines, and accountability checkpoints.'],
-        ['Progressive Discipline', 'An escalating response to repeated issues: coaching → verbal warning → write-up → PGP → termination.'],
+        ['Progressive Discipline', 'Standard sequence: (1) Coaching conversation → (2) Verbal warning → (3) Written write-up → (4) PGP → (5) Termination. Each step should be documented before advancing.'],
+        ['Performance Issue', 'A documented deviation from NJTC\'s expected job standards or code of conduct. Must be specific, observable, and tied to a policy or performance expectation.'],
+        ['Corrective Action', 'Any formal response to a performance issue beyond informal coaching. Write-up, PGP, and termination are all corrective actions and create an HR record.'],
+        ['PGP', 'Professional Growth Plan — a written improvement plan with specific, measurable goals, a defined review window (typically 30–90 days), and consequences for non-completion.'],
+        ['Resolution', '"Resolved" = employee met all PGP goals or issue did not recur. "Unresolved" = situation escalated or employee separated. Resolution status tracked in the log.'],
       ]
     },
     'data-cabinet': {
       title: 'Data Sources',
       what: 'Browse all live data sources and databases that power the NJTC portal. Understand where each metric comes from.',
       terms: [
-        ['Live Data', 'Data automatically refreshed from a connected source (e.g., Google Sheets via CSV, ADP, Pearl).'],
-        ['Source of Truth', 'The authoritative data system for a given metric — the system that overrides all others.'],
-        ['CSV Feed', 'A published spreadsheet feed that the portal reads live. No manual upload required.'],
-        ['Refresh Interval', 'How frequently a given data source is updated. Most NJTC feeds update within minutes of the source changing.'],
-        ['Data Lag', 'A delay between when data is entered and when it appears in the portal. Usually under 5 minutes for live feeds.'],
+        ['Live Data', 'Data automatically refreshed from a connected source (Google Sheets published CSV, ADP export, Pearl API). No manual upload required — updates within minutes of the source changing.'],
+        ['Source of Truth', 'The authoritative system for a given metric. Example: ADP is the source of truth for employment status. If ADP says "Active," the portal shows Active — regardless of what other systems say.'],
+        ['CSV Feed', 'A published spreadsheet that the portal reads live via a public URL. Data flows automatically when anyone edits the source sheet. Refresh lag: typically 1–5 minutes.'],
+        ['Data Lag', 'Delay between source edit and portal update. Most NJTC feeds: <5 minutes. iReady longitudinal data: updates daily. HR Master List: real-time on save.'],
+        ['Published GID', 'The Google Sheet tab identifier in the CSV URL. Each tab has a unique GID — changing it in the URL fetches a different sheet tab from the same workbook.'],
       ]
     },
   };
@@ -13418,21 +13433,27 @@
   var _SEEN_KEY   = 'njtc_guide_seen_v1';
 
   function _guideInit() {
-    // Inject styles
     var style = document.createElement('style');
     style.textContent = [
-      '#njtcGuideBtn{position:fixed;bottom:80px;left:16px;z-index:9990;display:flex;align-items:center;gap:6px;',
-      'background:#1B2A4A;color:#fff;border:none;border-radius:24px;padding:8px 14px 8px 10px;',
-      'font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);',
-      'letter-spacing:.03em;transition:background .15s,transform .15s;user-select:none;}',
-      '#njtcGuideBtn:hover{background:#2d4270;transform:translateY(-1px);}',
-      '#njtcGuideBtn .gb-dot{width:8px;height:8px;border-radius:50%;background:#34d399;',
-      'display:inline-block;transition:background .3s;}',
-      '#njtcGuideBtn.guide-new .gb-dot{background:#f59e0b;animation:guidePulse 1.2s ease infinite;}',
-      '@keyframes guidePulse{0%,100%{opacity:1}50%{opacity:.35}}',
+      // Panel-top guide bar — injected as first child of each active panel
+      '.njtc-guide-bar{display:flex;align-items:center;justify-content:space-between;',
+      'background:#f8fafc;border-bottom:1px solid #e5e7eb;padding:6px 18px 6px 14px;',
+      'font-size:11.5px;color:#6b7280;gap:8px;flex-shrink:0;}',
+      '.njtc-guide-bar-left{display:flex;align-items:center;gap:6px;}',
+      '.njtc-guide-bar-icon{font-size:13px;line-height:1;}',
+      '.njtc-guide-bar-label{font-weight:600;color:#374151;}',
+      '.njtc-guide-bar-sub{color:#9ca3af;font-size:10.5px;}',
+      '.njtc-guide-bar-btn{background:none;border:1px solid #d1d5db;border-radius:12px;',
+      'padding:3px 11px;font-size:11px;font-weight:600;color:#1B2A4A;cursor:pointer;',
+      'transition:background .12s,border-color .12s;white-space:nowrap;}',
+      '.njtc-guide-bar-btn:hover{background:#1B2A4A;color:#fff;border-color:#1B2A4A;}',
+      '.njtc-guide-bar-btn.pulsing{border-color:#f59e0b;color:#92400e;',
+      'animation:gbPulse 1.4s ease infinite;}',
+      '@keyframes gbPulse{0%,100%{opacity:1}50%{opacity:.5}}',
+      // Slide-in drawer
       '#njtcGuideDrawer{position:fixed;top:0;right:-340px;width:320px;height:100vh;',
       'background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 20px rgba(0,0,0,.12);',
-      'z-index:9991;transition:right .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;',
+      'z-index:9995;transition:right .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;',
       'display:flex;flex-direction:column;}',
       '#njtcGuideDrawer.open{right:0;}',
       '#njtcGuideDrawer .gd-header{background:#1B2A4A;color:#fff;padding:14px 16px;',
@@ -13453,55 +13474,65 @@
       '#njtcGuideDrawer .gd-term dd{font-size:11px;color:#4b5563;line-height:1.5;margin:0;}',
       '#njtcGuideDrawer .gd-footer{padding:10px 14px;border-top:1px solid #e5e7eb;font-size:10.5px;',
       'color:#9ca3af;line-height:1.4;flex-shrink:0;}',
-      '#njtcGuideOverlay{display:none;position:fixed;inset:0;background:transparent;z-index:9989;}',
     ].join('');
     document.head.appendChild(style);
 
-    // Inject HTML
-    var html = '<button id="njtcGuideBtn" onclick="window.njtcGuideToggle()" title="Section Guide — definitions and metric explanations">' +
-      '<span class="gb-dot"></span><span>Guide</span></button>' +
-      '<div id="njtcGuideOverlay" onclick="window.njtcGuideClose()"></div>' +
-      '<div id="njtcGuideDrawer">' +
-        '<div class="gd-header"><div class="gd-title" id="njtcGuideTitle">Section Guide</div>' +
-        '<button class="gd-close" onclick="window.njtcGuideClose()" title="Close guide">✕</button></div>' +
-        '<div class="gd-what" id="njtcGuideWhat"><strong>What this section shows</strong><span id="njtcGuideWhatText">—</span></div>' +
-        '<div class="gd-body"><h4>Key Terms &amp; Definitions</h4><dl id="njtcGuideTerms"></dl></div>' +
-        '<div class="gd-footer">Definitions are high-level guides for portal navigation. Ask PIE for deeper analysis and live data insights.</div>' +
-      '</div>';
-    var host = document.createElement('div');
-    host.innerHTML = html;
-    while (host.firstChild) document.body.appendChild(host.firstChild);
+    // Inject only the drawer (no floating button — bar is injected per-panel by _guideUpdate)
+    var drawerEl = document.createElement('div');
+    drawerEl.id = 'njtcGuideDrawer';
+    drawerEl.innerHTML =
+      '<div class="gd-header"><div class="gd-title" id="njtcGuideTitle">Section Guide</div>' +
+      '<button class="gd-close" onclick="window.njtcGuideClose()" title="Close">✕</button></div>' +
+      '<div class="gd-what"><strong>What this section shows</strong><span id="njtcGuideWhatText">—</span></div>' +
+      '<div class="gd-body"><h4>Key Terms &amp; Definitions</h4><dl id="njtcGuideTerms"></dl></div>' +
+      '<div class="gd-footer">Definitions are high-level guides. Ask PIE for live data analysis and deeper insights.</div>';
+    document.body.appendChild(drawerEl);
 
-    // Update on panel change
+    // Hook showPanel to move guide bar to each new panel
     var _origSP = window.showPanel;
     window.showPanel = function(id, btn) {
       if (typeof _origSP === 'function') _origSP(id, btn);
       _guideUpdate(id);
     };
 
-    // Keyboard dismiss
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') window.njtcGuideClose(); });
 
-    // Update for current panel on init
+    // Init for current panel
     setTimeout(function() {
       var active = document.querySelector('.panel.active');
-      if (active) {
-        var id = (active.id || '').replace(/^panel-/, '');
-        _guideUpdate(id);
-      }
-    }, 400);
+      if (active) _guideUpdate((active.id || '').replace(/^panel-/, ''));
+    }, 450);
   }
 
   function _guideUpdate(panelId) {
     _guidePanel = panelId || 'home';
     var data = _GUIDE_CONTENT[_guidePanel];
+
+    // Move (or create) the guide bar inside the newly active panel
+    var panelEl = document.getElementById('panel-' + _guidePanel);
+    var existing = document.getElementById('njtcGuideBar');
+    if (existing) existing.remove();
+
+    if (panelEl) {
+      var bar = document.createElement('div');
+      bar.id = 'njtcGuideBar';
+      bar.className = 'njtc-guide-bar';
+      var label = data ? data.title : (_guidePanel.charAt(0).toUpperCase() + _guidePanel.slice(1));
+      bar.innerHTML =
+        '<div class="njtc-guide-bar-left">' +
+          '<span class="njtc-guide-bar-icon">📖</span>' +
+          '<span class="njtc-guide-bar-label">' + _esc(label.split(' — ')[0]) + '</span>' +
+          '<span class="njtc-guide-bar-sub">Section Guide</span>' +
+        '</div>' +
+        '<button class="njtc-guide-bar-btn" id="njtcGuideBarBtn" onclick="window.njtcGuideToggle()">' +
+          'View Definitions ›' +
+        '</button>';
+      panelEl.insertBefore(bar, panelEl.firstChild);
+    }
+
     if (!data) return;
-    var btn = document.getElementById('njtcGuideBtn');
-    if (!btn) return;
-    // Pulse the dot to signal content updated
-    btn.classList.add('guide-new');
-    setTimeout(function() { btn.classList.remove('guide-new'); }, 2500);
-    // Update drawer content (even if closed, so it's ready)
+
+    // Update drawer content
     var titleEl = document.getElementById('njtcGuideTitle');
     var whatEl  = document.getElementById('njtcGuideWhatText');
     var termsEl = document.getElementById('njtcGuideTerms');
@@ -13512,7 +13543,15 @@
         return '<div class="gd-term"><dt>' + _esc(t[0]) + '</dt><dd>' + _esc(t[1]) + '</dd></div>';
       }).join('');
     }
-    // If guide is open, keep it open with new content
+
+    // Pulse the bar button to signal content changed
+    var barBtn = document.getElementById('njtcGuideBarBtn');
+    if (barBtn) {
+      barBtn.classList.add('pulsing');
+      setTimeout(function() { if (barBtn) barBtn.classList.remove('pulsing'); }, 2500);
+    }
+
+    // If drawer is open, keep it updated
     if (_guideOpen) {
       var drawer = document.getElementById('njtcGuideDrawer');
       if (drawer) drawer.classList.add('open');
@@ -13525,21 +13564,16 @@
 
   window.njtcGuideToggle = function() {
     _guideOpen = !_guideOpen;
-    var drawer  = document.getElementById('njtcGuideDrawer');
-    var overlay = document.getElementById('njtcGuideOverlay');
-    if (drawer)  drawer.classList.toggle('open', _guideOpen);
-    if (overlay) overlay.style.display = _guideOpen ? 'block' : 'none';
-    // Pulse removed when user opens — they've seen the update
-    var btn = document.getElementById('njtcGuideBtn');
-    if (btn && _guideOpen) btn.classList.remove('guide-new');
+    var drawer = document.getElementById('njtcGuideDrawer');
+    if (drawer) drawer.classList.toggle('open', _guideOpen);
+    var barBtn = document.getElementById('njtcGuideBarBtn');
+    if (barBtn && _guideOpen) barBtn.classList.remove('pulsing');
   };
 
   window.njtcGuideClose = function() {
     _guideOpen = false;
-    var drawer  = document.getElementById('njtcGuideDrawer');
-    var overlay = document.getElementById('njtcGuideOverlay');
-    if (drawer)  drawer.classList.remove('open');
-    if (overlay) overlay.style.display = 'none';
+    var drawer = document.getElementById('njtcGuideDrawer');
+    if (drawer) drawer.classList.remove('open');
   };
 
   // Init after DOM ready

@@ -1550,14 +1550,28 @@
     const hrEligible = (window.AP_DATA || []).filter(r =>
       r.apprentice !== 'Yes' && !tapNames.has(nm(r.name))
     );
-    // ADP Active filter — mirrors T&D: only include entries with ADP Status 'Active' or no OTJ record.
-    // njtcOTJMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
-    const _otjLookup = window.njtcOTJMap || {};
+    // Live Tracker whitelist — source of truth for ADP-active apprentices.
+    // njtcLiveOtjMap is keyed by lowercased name from the Live Apprentice Tracker sheet
+    // (1Dh1-...) which contains exactly the 30 currently ADP-active apprentices.
+    // njtcLiveOtjMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
+    // Fuzzy match: try full name, first+last only, and reversed "Last, First" variants.
+    const _ltMap = window.njtcLiveOtjMap || {};
+    const _ltKeys = new Set(Object.keys(_ltMap));
     const _fl2 = n => { const p = n.split(/\s+/).filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : n; };
-    const _adpStatus = name => { const k = nm(name); const row = _otjLookup[k] || _otjLookup[_fl2(k)] || null; return row ? (row['ADP Status']||'').trim() : ''; };
-    const activeRoster = tapRoster.filter(tap => { const adp = _adpStatus(tap.name); return adp === '' || adp === 'Active'; });
-    if (activeRoster.length !== tapRoster.length)
-      console.log('[AP] ADP filter: ' + activeRoster.length + ' ADP-active of ' + tapRoster.length + ' TAP entries');
+    const _inLT = name => {
+      const k = nm(name);
+      if (_ltKeys.has(k)) return true;
+      const fl = _fl2(k);
+      if (fl !== k && _ltKeys.has(fl)) return true;
+      // Try matching each Live Tracker key against first+last of the TAP name
+      for (const ltk of _ltKeys) { if (_fl2(ltk) === fl) return true; }
+      return false;
+    };
+    // Only filter when Live Tracker loaded successfully (has entries); otherwise keep all TAP entries
+    const activeRoster = _ltKeys.size > 0
+      ? tapRoster.filter(tap => _inLT(tap.name))
+      : tapRoster;
+    console.log('[AP] Live Tracker whitelist: ' + _ltKeys.size + ' keys · TAP=' + tapRoster.length + ' · active=' + activeRoster.length);
     const enrolled = activeRoster.map(tap => {
       const hrMatch = hrByName[nm(tap.name)];
       // TAP placement is the authoritative current school — derive network from it first.
