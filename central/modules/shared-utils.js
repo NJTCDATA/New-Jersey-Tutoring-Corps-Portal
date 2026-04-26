@@ -683,6 +683,9 @@
   function buildHome(dept) {
     const cfg = DEPT_CONFIG[dept] || DEPT_CONFIG.programming;
 
+    // Program Pulse button — show for programming, data, leadership
+    try { if (window.pds) window.pds.updateVisibility(dept); } catch(_e) {}
+
     // ── First-login welcome modal (once per session per dept) ──────────────
     const _welcomeKey = 'njtc_welcomed_' + dept + '_v1';
     if (!sessionStorage.getItem(_welcomeKey)) {
@@ -5483,6 +5486,8 @@
       if (id === 'pearl-ops')     { if (window.po)  _idle(() => window.po.onPanelOpen(), 800); }
       if (id === 'iready-lab')    { if (window.irlab) _idle(() => window.irlab.onPanelOpen(), 800); }
       if (id === 'knowtion')      { _idle(() => { if (window.kn) window.kn.build((window.NJTC_SESSION||{}).dept || 'all'); }); }
+      // Program Pulse button visibility — show on pearl-ops and home for allowed depts
+      _idle(() => { try { if (window.pds) window.pds.updateVisibility((window.NJTC_VIEW_DEPT||(window.NJTC_SESSION||{}).dept||'')); } catch(_e){} });
     };
   })();
 
