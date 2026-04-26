@@ -3898,6 +3898,7 @@
             n:              t.scholars.size,
             medianPct:      Math.round(_med(t.pcts) * 100),
             medianGain:     t.gains.length ? Math.round(_med(t.gains) * 10) / 10 : null,
+            medianMonths:   t.pcts.length ? parseFloat((_med(t.pcts) * 10).toFixed(1)) : null,
             movedUp:        t.movedUp,
             held:           t.held,
             movedDown:      t.movedDown,
@@ -3929,6 +3930,162 @@
           };
         })
         .sort((a, b) => b.medianPct - a.medianPct);
+    }
+
+    // ── MOY CSV export ────────────────────────────────────────────────────────
+    function _moyExportCSV(subject) {
+      const subj = subject || _moySubject;
+      const rows = subj === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+      if (!rows.length) { alert('No MOY data loaded. Click Refresh first.'); return; }
+      const _esc = v => { const s = String(v == null ? '' : v); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+      const headers = ['Scholar Name','School','Region','Grade','Subject',
+        'Fall Placement','Winter Placement','Placement Movement',
+        'Winter Scale Score','Scale Gain','% Typical Growth','Months of Learning Gained',
+        'Met Typical Growth','Has Growth Data','Winter-Only (no Fall baseline)',
+        'Rush Flag','Instructor'];
+      const csvRows = rows.map(r => {
+        const months = r.pctTypical !== null ? parseFloat((r.pctTypical * 10).toFixed(1)) : '';
+        const shift  = r.hasGrowth ? _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) : '';
+        return [
+          r.scholarName, r.school, r.region, r.grade, subj,
+          r.baseRelPlacement || '', r.winterRelPlacement || '',
+          shift === 'up' ? 'Up' : shift === 'down' ? 'Down' : shift === 'held' ? 'Held' : '',
+          r.winterScore != null ? r.winterScore : '',
+          r.winterGain  != null ? r.winterGain  : '',
+          r.pctTypical  != null ? Math.round(r.pctTypical * 100) + '%' : '',
+          months !== '' ? months + ' mo' : '',
+          r.hasGrowth ? (r.pctTypical >= 1.0 ? 'Yes' : 'No') : '',
+          r.hasGrowth ? 'Yes' : 'No',
+          r.winterWeeks === 0 ? 'Yes' : 'No',
+          r.winterRush || '',
+          r.instructor || '',
+        ].map(_esc).join(',');
+      });
+      const csv  = [headers.map(_esc).join(','), ...csvRows].join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = 'njtc-moy-' + subj.toLowerCase() + '-' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ── MOY XLSX export ───────────────────────────────────────────────────────
+    function _moyExportXLSX(subject) {
+      const subj = subject || _moySubject;
+      const rows = subj === 'ELA' ? MOY_DATA.ela : MOY_DATA.math;
+      if (!rows.length) { alert('No MOY data loaded. Click Refresh first.'); return; }
+      if (typeof XLSX === 'undefined') { _moyExportCSV(subject); return; }
+      const metrics  = _moyGetMetrics(subj);
+      const net      = metrics ? metrics.network : null;
+      const opsMap   = _moyBuildOperationalMap(rows);
+      const dated    = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+      // Sheet 1: Individual Scholar Data
+      const scholarSheet = rows.map(r => {
+        const months = r.pctTypical !== null ? parseFloat((r.pctTypical * 10).toFixed(1)) : null;
+        const shift  = r.hasGrowth ? _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) : null;
+        return {
+          'Scholar Name':            r.scholarName || '',
+          'School':                  r.school      || '',
+          'Region':                  r.region      || '',
+          'Grade':                   r.grade       != null ? String(r.grade) : '',
+          'Subject':                 subj,
+          'Fall Placement':          r.baseRelPlacement    || '',
+          'Winter Placement':        r.winterRelPlacement  || '',
+          'Placement Movement':      shift === 'up' ? 'Up' : shift === 'down' ? 'Down' : shift === 'held' ? 'Held' : '',
+          'Winter Scale Score':      r.winterScore != null ? r.winterScore : '',
+          'Scale Score Gain':        r.winterGain  != null ? r.winterGain  : '',
+          '% Typical Growth':        r.pctTypical  != null ? Math.round(r.pctTypical * 100) : '',
+          'Months of Learning Gained': months != null ? months : '',
+          'Met Typical Growth':      r.hasGrowth ? (r.pctTypical >= 1.0 ? 'Yes' : 'No') : '',
+          'Has Growth Data':         r.hasGrowth ? 'Yes' : 'No',
+          'Winter-Only':             r.winterWeeks === 0 ? 'Yes' : 'No',
+          'Rush Flag':               r.winterRush || '',
+          'Instructor':              r.instructor  || '',
+        };
+      });
+
+      // Sheet 2: Network Summary
+      const summarySheet = net ? [
+        { 'Metric': 'Subject',                  'Value': subj },
+        { 'Metric': 'Report Date',              'Value': dated },
+        { 'Metric': 'Total Scholars',           'Value': net.total },
+        { 'Metric': 'With Growth Data',         'Value': net.withGrowth },
+        { 'Metric': 'Winter-Only (no Fall)',     'Value': net.total - net.withGrowth },
+        { 'Metric': 'Median % Typical Growth',  'Value': net.medianPctTypical != null ? net.medianPctTypical + '%' : '—' },
+        { 'Metric': 'Median Months of Learning','Value': net.medianMonthsGrowth != null ? net.medianMonthsGrowth + ' mo' : '—' },
+        { 'Metric': '% Met Typical Growth',     'Value': net.pctMetTypical != null ? net.pctMetTypical + '%' : '—' },
+        { 'Metric': 'Median Scale Gain',        'Value': net.medianGain != null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—' },
+        { 'Metric': 'Moved Up (placement)',     'Value': net.movedUp },
+        { 'Metric': 'Held (placement)',         'Value': net.held },
+        { 'Metric': 'Moved Down (placement)',   'Value': net.movedDown },
+        { 'Metric': '% Met or Exceeded',        'Value': net.pctMetTypical != null ? net.pctMetTypical + '%' : '—' },
+        { 'Metric': '% Progressing (50–99%)',   'Value': net.pctProgressing != null ? net.pctProgressing + '%' : '—' },
+        { 'Metric': '% Needs Acceleration',     'Value': net.pctNeedsAccel != null ? net.pctNeedsAccel + '%' : '—' },
+        { 'Metric': '% Regressed',              'Value': net.pctRegressed != null ? net.pctRegressed + '%' : '—' },
+      ] : [];
+
+      // Sheet 3: By School
+      const schoolSheet = metrics ? Object.entries(metrics.bySchool)
+        .filter(([sc]) => sc !== 'Unknown')
+        .sort((a,b) => (b[1].medianPctTypical||0) - (a[1].medianPctTypical||0))
+        .map(([sc,m]) => ({
+          'School':                   sc,
+          'Total Scholars':           m.total,
+          'With Growth Data':         m.withGrowth,
+          'Winter-Only':              m.total - m.withGrowth,
+          'Median Scale Gain':        m.medianGain != null ? m.medianGain : '',
+          'Median % Typical Growth':  m.medianPctTypical != null ? m.medianPctTypical : '',
+          'Median Months Gained':     m.medianMonthsGrowth != null ? m.medianMonthsGrowth : (m.medianPctTypical != null ? parseFloat((m.medianPctTypical / 100 * 10).toFixed(1)) : ''),
+          '% Met Typical':            m.pctMetTypical != null ? m.pctMetTypical : '',
+        })) : [];
+
+      // Sheet 4: Tutor Impact (if Pearl loaded)
+      const validRows   = rows.filter(r => r.hasGrowth && r.pctTypical !== null);
+      const tutorImpact = _moyBuildTutorImpact(validRows, subj, opsMap);
+      const tutorSheet  = tutorImpact.map(t => ({
+        'Tutor':                    t.name,
+        'Scholars':                 t.n,
+        'Median % Typical Growth':  t.medianPct,
+        'Median Months Gained':     t.medianMonths != null ? t.medianMonths : '',
+        'Median Scale Gain':        t.medianGain   != null ? t.medianGain   : '',
+        'Moved Up':                 t.movedUp,
+        'Moved Down':               t.movedDown,
+        'Inst. Hours':              t.hours > 0 ? t.hours : '',
+        'Scholar Att. Rate %':      t.scholAttRate != null ? t.scholAttRate  : '',
+        'Scholar Absences':         t.scholAbsent,
+        'CT Pulls':                 t.scholCtPulls,
+        'SIs Tutor-Caused':         t.siTutor,
+        'SIs School-Caused':        t.siSchool,
+        'SIs Other':                t.siOther,
+        'Scholar Sat. Avg':         t.scholSurveyAvg != null ? t.scholSurveyAvg : '',
+        'Tutor Survey Avg':         t.tutorSurveyAvg != null ? t.tutorSurveyAvg : '',
+        'Tier':                     t.tier,
+      }));
+
+      const autoWidth = sheet => {
+        const ref = sheet['!ref'];
+        if (!ref) return;
+        const range = XLSX.utils.decode_range(ref);
+        const widths = [];
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          let max = 10;
+          for (let R = range.s.r; R <= range.e.r; R++) {
+            const cell = sheet[XLSX.utils.encode_cell({ r: R, c: C })];
+            if (cell && cell.v != null) max = Math.max(max, String(cell.v).length);
+          }
+          widths.push({ wch: Math.min(max + 2, 40) });
+        }
+        sheet['!cols'] = widths;
+      };
+
+      const wb = XLSX.utils.book_new();
+      const ws1 = XLSX.utils.json_to_sheet(scholarSheet); autoWidth(ws1); XLSX.utils.book_append_sheet(wb, ws1, subj + ' Scholars');
+      const ws2 = XLSX.utils.json_to_sheet(summarySheet); autoWidth(ws2); XLSX.utils.book_append_sheet(wb, ws2, 'Network Summary');
+      if (schoolSheet.length) { const ws3 = XLSX.utils.json_to_sheet(schoolSheet); autoWidth(ws3); XLSX.utils.book_append_sheet(wb, ws3, 'By School'); }
+      if (tutorSheet.length)  { const ws4 = XLSX.utils.json_to_sheet(tutorSheet);  autoWidth(ws4); XLSX.utils.book_append_sheet(wb, ws4, 'Tutor Impact'); }
+      XLSX.writeFile(wb, 'njtc-moy-' + subj.toLowerCase() + '-' + new Date().toISOString().slice(0,10) + '.xlsx');
     }
 
     // ── MOY PDF/PPTX generation ────────────────────────────────────────────────
@@ -3990,60 +4147,68 @@
           { label:'Scholars', val: NET.total },
           { label:'w/ Growth Data', val: NET.withGrowth },
           { label:'Median % Typical', val: (NET.medianPctTypical||'—')+(NET.medianPctTypical?'%':'') },
+          { label:'Months Gained', val: NET.medianMonthsGrowth != null ? NET.medianMonthsGrowth+' mo' : '—' },
           { label:'Met Typical', val: (NET.pctMetTypical||'—')+(NET.pctMetTypical?'%':'') },
           { label:'Median Gain', val: NET.medianGain !== null ? (NET.medianGain>0?'+':'')+NET.medianGain+' pts' : '—' },
         ];
+        // 6 tiles, two rows of 3 at 57mm each fits 176mm total
+        const tileW = 28, tileGap = 1, tileY = 68;
         tiles.forEach((t,i) => {
-          const x = 20 + i*38, y = 72;
+          const col = i % 3, row = Math.floor(i / 3);
+          const x = 20 + col * (tileW + tileGap), y = tileY + row * 26;
           doc.setFillColor(20,36,60);
-          doc.roundedRect(x, y, 35, 22, 2, 2, 'F');
+          doc.roundedRect(x, y, tileW, 22, 2, 2, 'F');
           doc.setTextColor(...GOLD);
-          doc.setFontSize(14); doc.setFont('helvetica','bold');
-          doc.text(safe(String(t.val)), x+17.5, y+10, {align:'center'});
+          doc.setFontSize(11); doc.setFont('helvetica','bold');
+          doc.text(safe(String(t.val)), x + tileW/2, y+10, {align:'center'});
           doc.setTextColor(160,175,195);
-          doc.setFontSize(6.5); doc.setFont('helvetica','normal');
-          doc.text(safe(t.label.toUpperCase()), x+17.5, y+17, {align:'center'});
+          doc.setFontSize(5.5); doc.setFont('helvetica','normal');
+          doc.text(safe(t.label.toUpperCase()), x + tileW/2, y+17, {align:'center'});
         });
 
         // Narrative
         const pct = NET.medianPctTypical || 0;
+        const moStr = NET.medianMonthsGrowth != null ? ` \u2014 equivalent to <strong>${NET.medianMonthsGrowth} months</strong> of academic learning gained` : '';
         const trend = pct >= 80 ? 'on a strong trajectory toward year-end targets' : pct >= 50 ? 'making measurable progress' : 'in need of intensified support before the spring window';
-        const narrative = `At the mid-year checkpoint, our ${subject} scholars across the ${scopeLabel} are achieving a median of ${pct}% of their expected annual growth \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement level, ${NET.held} held steady, and ${NET.movedDown} regressed. ${NET.rushFlags && NET.rushFlags.red > 0 ? NET.rushFlags.red+' scholars were excluded due to Red Rush Flags.' : ''}`;
+        const narrative = `At the mid-year checkpoint, our ${subject} scholars across the ${scopeLabel} are achieving a median of ${pct}% of their expected annual growth` +
+          (NET.medianMonthsGrowth != null ? ` (${NET.medianMonthsGrowth} months of learning gained)` : '') +
+          ` \u2014 ${trend}. Of ${NET.withGrowth} scholars with valid Fall + Winter diagnostic pairs, ${NET.movedUp} improved their relative placement level, ${NET.held} held steady, and ${NET.movedDown} regressed.` +
+          (NET.rushFlags && NET.rushFlags.red > 0 ? ` ${NET.rushFlags.red} scholars were excluded due to Red Rush Flags.` : '');
 
         doc.setFillColor(15,30,55);
-        doc.roundedRect(20, 100, 176, 28, 2, 2, 'F');
+        doc.roundedRect(20, 124, 176, 30, 2, 2, 'F');
         doc.setFillColor(...GOLD);
-        doc.rect(20, 100, 3, 28, 'F');
+        doc.rect(20, 124, 3, 30, 'F');
         doc.setTextColor(...WHITE);
-        doc.setFontSize(8); doc.setFont('helvetica','italic');
-        const nLines = doc.splitTextToSize(safe(narrative), 166);
-        doc.text(nLines.slice(0,4), 28, 108);
+        doc.setFontSize(7.5); doc.setFont('helvetica','italic');
+        const nLines = doc.splitTextToSize(safe(narrative), 164);
+        doc.text(nLines.slice(0,4), 28, 132);
 
         // Placement shift
         doc.setTextColor(...GOLD);
         doc.setFontSize(7); doc.setFont('helvetica','bold');
-        doc.text('PLACEMENT MOVEMENT (FALL \u2192 WINTER)', 20, 136);
+        doc.text('PLACEMENT MOVEMENT (FALL \u2192 WINTER)', 20, 162);
         [['\u2191 Moved Up', NET.movedUp, GREEN],['\u2192 Held', NET.held, BLUE],['\u2193 Moved Down', NET.movedDown, RED]].forEach(([lbl,n,col],i) => {
           const x = 20+i*60;
-          doc.setFillColor(15,30,55); doc.roundedRect(x,139,55,18,2,2,'F');
+          doc.setFillColor(15,30,55); doc.roundedRect(x,165,55,18,2,2,'F');
           doc.setTextColor(...col); doc.setFontSize(16); doc.setFont('helvetica','bold');
-          doc.text(String(n), x+27.5, 150, {align:'center'});
+          doc.text(String(n), x+27.5, 176, {align:'center'});
           doc.setTextColor(160,175,195); doc.setFontSize(7); doc.setFont('helvetica','normal');
-          doc.text(safe(lbl), x+27.5, 155.5, {align:'center'});
+          doc.text(safe(lbl), x+27.5, 181, {align:'center'});
         });
 
         // ── How to Read This Report ──────────────────────────────────────────
-        const howY = 165;
-        doc.setFillColor(20,36,60); doc.roundedRect(20, howY, 176, 90, 2, 2, 'F');
-        doc.setFillColor(...GOLD); doc.rect(20, howY, 3, 90, 'F');
+        const howY = 190;
+        doc.setFillColor(20,36,60); doc.roundedRect(20, howY, 176, 80, 2, 2, 'F');
+        doc.setFillColor(...GOLD); doc.rect(20, howY, 3, 80, 'F');
         doc.setTextColor(...GOLD); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
         doc.text('HOW TO READ THIS REPORT', 28, howY+7);
         doc.setTextColor(...WHITE); doc.setFontSize(6); doc.setFont('helvetica','normal');
         const howItems = [
           ['Median % Typical Growth', 'How much of the expected full-year iReady growth a scholar achieved by mid-year. 100% = exactly on pace. 80%+ = on track. 50-79% = progressing but needs support. Below 50% = needs acceleration.'],
-          ['N (Total) vs N (Growth)', '"N Total" is every scholar in the MOY sheet for that school/region. "N Growth" is the subset with both a Fall AND Winter iReady diagnostic. Schools marked (W) appear in the Winter sheet but have no Fall baseline -- growth cannot be calculated for these scholars.'],
-          ['* Small Sample Warning', 'Schools or tutors with fewer than 3 scholars in the growth calculation are marked *. Percentages from small samples are less statistically reliable -- interpret with caution and avoid direct comparisons to larger cohorts.'],
-          ['Placement Movement', 'Whether a scholar moved to a higher (Up), same (Held), or lower (Down) relative placement level between Fall and Winter. This is directional placement change, not a growth score.'],
+          ['Months of Learning Gained', 'Estimated months of academic learning gained by mid-year. Calculated as % Typical Growth / 100 x 10 school months per year. Same formula used in our End-of-Year analysis. 8+ months = strong. 5-7 = progressing. Below 5 = needs support.'],
+          ['N (Total) vs N (Growth)', '"N Total" is every scholar in the MOY sheet. "N Growth" is only scholars with BOTH a Fall AND Winter iReady diagnostic. Schools marked (W) appear in the Winter sheet but have no Fall baseline -- growth cannot be calculated.'],
+          ['Placement Movement', 'Whether a scholar moved to a higher (Up), same (Held), or lower (Down) relative placement level between Fall and Winter. Directional placement change, not a growth score.'],
           ['Red Rush Flag', 'iReady flags diagnostics completed unusually fast (possible guessing). Scholars with Red Rush Flags are excluded from all growth calculations in this report.'],
         ];
         let hiy = howY+12;
@@ -4220,13 +4385,14 @@
 
           const hasPearlData = opsMap !== null;
           const impactHead = hasPearlData
-            ? [['Tutor','N','Med % Typ','Med Gain','\u2191Up/\u2193Dn','Hours','Sch Att%','SIs T/S','Sch Sat.','Tutor Surv.','Tier']]
-            : [['Tutor','N','Med % Typ','Med Gain','\u2191 Up','\u2193 Down','Tier']];
+            ? [['Tutor','N','Med % Typ','Mo Gained','Med Gain','\u2191Up/\u2193Dn','Hours','Sch Att%','SIs T/S','Sch Sat.','Tutor Surv.','Tier']]
+            : [['Tutor','N','Med % Typ','Mo Gained','Med Gain','\u2191 Up','\u2193 Down','Tier']];
 
           const impactBody = tutorImpact.slice(0, 30).map(t => {
             const nm = t.name.length > 26 ? t.name.slice(0, 25) + '\u2026' : t.name;
             const base = [
               safe(nm), t.n, t.medianPct + '%',
+              t.medianMonths !== null ? t.medianMonths + ' mo' : '\u2014',
               t.medianGain !== null ? (t.medianGain > 0 ? '+' : '') + t.medianGain : '\u2014',
             ];
             if (hasPearlData) {
@@ -4244,39 +4410,42 @@
             return [...base, t.movedUp, t.movedDown, t.tier];
           });
 
-          const tierCol = hasPearlData ? 10 : 6;
+          const tierCol = hasPearlData ? 11 : 7;
           const pctCol  = 2;
-          const attCol  = hasPearlData ? 6  : -1;
+          const moCol   = 3;
+          const attCol  = hasPearlData ? 7  : -1;
 
           doc.autoTable({
             startY: p3y,
             head:   impactHead,
             body:   impactBody,
-            headStyles:          { fillColor: NAVY, textColor: WHITE, fontSize: 6.5, fontStyle: 'bold' },
-            bodyStyles:          { fontSize: 6, cellPadding: 1.8 },
+            headStyles:          { fillColor: NAVY, textColor: WHITE, fontSize: 6, fontStyle: 'bold' },
+            bodyStyles:          { fontSize: 5.5, cellPadding: 1.5 },
             alternateRowStyles:  { fillColor: [245, 248, 255] },
-            styles:              { overflow: 'linebreak', cellPadding: 2 },
+            styles:              { overflow: 'linebreak', cellPadding: 1.8 },
             margin:              { left: 20, right: 20 },
             columnStyles: hasPearlData ? {
-              0: { cellWidth: 36 },
-              1: { cellWidth: 10, halign: 'center' },
-              2: { cellWidth: 16, halign: 'center' },
-              3: { cellWidth: 14, halign: 'center' },
-              4: { cellWidth: 16, halign: 'center' },
-              5: { cellWidth: 14, halign: 'center' },
-              6: { cellWidth: 14, halign: 'center' },
-              7: { cellWidth: 14, halign: 'center' },
-              8: { cellWidth: 14, halign: 'center' },
-              9: { cellWidth: 14, halign: 'center' },
-             10: { cellWidth: 20, halign: 'center' },
+              0: { cellWidth: 32 },
+              1: { cellWidth: 9,  halign: 'center' },
+              2: { cellWidth: 14, halign: 'center' },
+              3: { cellWidth: 13, halign: 'center' },
+              4: { cellWidth: 12, halign: 'center' },
+              5: { cellWidth: 13, halign: 'center' },
+              6: { cellWidth: 12, halign: 'center' },
+              7: { cellWidth: 13, halign: 'center' },
+              8: { cellWidth: 13, halign: 'center' },
+              9: { cellWidth: 12, halign: 'center' },
+             10: { cellWidth: 12, halign: 'center' },
+             11: { cellWidth: 19, halign: 'center' },
             } : {
-              0: { cellWidth: 60 },
-              1: { cellWidth: 14, halign: 'center' },
-              2: { cellWidth: 24, halign: 'center' },
-              3: { cellWidth: 22, halign: 'center' },
-              4: { cellWidth: 14, halign: 'center' },
-              5: { cellWidth: 14, halign: 'center' },
-              6: { cellWidth: 24, halign: 'center' },
+              0: { cellWidth: 52 },
+              1: { cellWidth: 13, halign: 'center' },
+              2: { cellWidth: 22, halign: 'center' },
+              3: { cellWidth: 18, halign: 'center' },
+              4: { cellWidth: 18, halign: 'center' },
+              5: { cellWidth: 13, halign: 'center' },
+              6: { cellWidth: 13, halign: 'center' },
+              7: { cellWidth: 22, halign: 'center' },
             },
             didParseCell: function(d) {
               if (d.section !== 'body') return;
@@ -4285,6 +4454,14 @@
                 const v = parseInt(d.cell.raw);
                 if (!isNaN(v)) {
                   d.cell.styles.textColor = v >= 80 ? GREEN : v >= 50 ? [180, 100, 0] : RED;
+                  d.cell.styles.fontStyle = 'bold';
+                }
+              }
+              // Color-code months gained
+              if (d.column.index === moCol) {
+                const v = parseFloat(d.cell.raw);
+                if (!isNaN(v)) {
+                  d.cell.styles.textColor = v >= 8 ? GREEN : v >= 5 ? [180, 100, 0] : RED;
                   d.cell.styles.fontStyle = 'bold';
                 }
               }
@@ -4945,6 +5122,8 @@
         const movedDown = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'down').length;
         const gains     = valid.map(r => r.winterGain).filter(v => v !== null && !isNaN(v));
         const pcts      = valid.map(r => r.pctTypical).filter(v => v !== null && !isNaN(v));
+        // months of learning gained = pctTypical (decimal) × 10 school months/year
+        const months    = pcts.map(v => v * 10);
         const metTyp    = pcts.filter(v => v >= 1.0);
         const progressing = pcts.filter(v => v >= 0.5 && v < 1.0);
         const needsAccel  = pcts.filter(v => v >= 0 && v < 0.5);
@@ -4969,6 +5148,7 @@
           pctNeedsAccel:   pcts.length ? Math.round(needsAccel.length / pcts.length * 100) : null,
           pctRegressed:    pcts.length ? Math.round(regressed.length / pcts.length * 100) : null,
           movedUp, held, movedDown,
+          medianMonthsGrowth: months.length ? parseFloat((_moyMedian(months)).toFixed(1)) : null,
           placementDist,
           rushFlags: { red: redRushCount, yellow: yellowRushCount },
         };
@@ -5053,7 +5233,9 @@
               <button onclick="irlab.moySetSubject('ELA')" class="irlab-mode-tab ${_moySubject==='ELA'?'active':''}" style="font-size:.75rem;padding:.3rem .875rem;border-radius:18px">ELA</button>
             </div>
             <button onclick="irlab.moyRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
-            ${_isDataDept ? `<button onclick="irlab._moyExportPDF('ALL','${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .875rem;border-radius:8px;border:none;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;cursor:pointer;font-weight:600">⬇ PDF Report</button>` : ''}
+            ${_isDataDept ? `<button onclick="irlab._moyExportPDF('ALL','${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .875rem;border-radius:8px;border:none;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;cursor:pointer;font-weight:600">⬇ PDF Report</button>
+            <button onclick="irlab._moyExportCSV('${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2);font-weight:600">⬇ CSV</button>
+            <button onclick="irlab._moyExportXLSX('${_moySubject==='ELA'?'ELA':'Math'}')" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid #16a34a;background:#f0fdf4;cursor:pointer;color:#15803d;font-weight:600">⬇ XLSX</button>` : ''}
           </div>
         </div>`;
 
@@ -5108,9 +5290,28 @@
       if (_moyView === 'overview' && net) {
         // ── KPI cards ────────────────────────────────────────────────────────
         html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.875rem;margin-bottom:1.25rem">
-          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.total}</div><div class="ta-kpi-sub">Total Scholars</div></div>
-          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.withGrowth}</div><div class="ta-kpi-sub">With Growth Data</div></div>
-          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.medianPctTypical)}">${net.medianPctTypical !== null ? net.medianPctTypical+'%' : '—'}</div><div class="ta-kpi-sub">Median % Typical Growth${_moyTierPill(net.medianPctTypical) ? '' : ''}</div>${_moyTierPill(net.medianPctTypical) ? '<div style="margin-top:.35rem">'+_moyTierPill(net.medianPctTypical)+'</div>' : ''}</div>
+          <div class="ta-card ta-kpi" style="position:relative">
+            <div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.total}</div>
+            <div class="ta-kpi-sub">Total Scholars
+              <span title="Every scholar who appears in the Winter diagnostic sheet — including those who only have a Winter score with no Fall baseline. These scholars are counted in placement totals but cannot have a growth score." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+            </div>
+          </div>
+          <div class="ta-card ta-kpi" style="position:relative">
+            <div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.withGrowth}</div>
+            <div class="ta-kpi-sub">With Growth Data
+              <span title="Scholars who have BOTH a Fall AND a Winter iReady diagnostic — the only scholars where we can calculate how much they grew. Scholars missing a Fall baseline (Winter-only) are in Total but excluded here." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+            </div>
+            ${net.winterOnly > 0 ? `<div style="font-size:.6875rem;color:var(--muted);margin-top:.2rem">${net.total - net.withGrowth} Winter-only</div>` : ''}
+          </div>
+          <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.medianPctTypical)}">${net.medianPctTypical !== null ? net.medianPctTypical+'%' : '—'}</div><div class="ta-kpi-sub">Median % Typical Growth</div>${_moyTierPill(net.medianPctTypical) ? '<div style="margin-top:.35rem">'+_moyTierPill(net.medianPctTypical)+'</div>' : ''}</div>
+          <div class="ta-card ta-kpi">
+            <div style="font-size:2rem;font-weight:800;color:${net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 8 ? '#0d6e3a' : net.medianMonthsGrowth >= 5 ? '#d97706' : '#b91c1c') : 'var(--navy)'}">
+              ${net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—'}
+            </div>
+            <div class="ta-kpi-sub">Median Months of Learning
+              <span title="Estimated months of academic learning gained. Calculated as Median % Typical Growth ÷ 100 × 10 school months. Same formula used for End-of-Year analysis." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+            </div>
+          </div>
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.pctMetTypical)}">${net.pctMetTypical !== null ? net.pctMetTypical+'%' : '—'}</div><div class="ta-kpi-sub">% Met Typical</div></div>
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—'}</div><div class="ta-kpi-sub">Median Scale Gain</div></div>
         </div>`;
@@ -5302,6 +5503,8 @@
           const matchedScholars = tutors.reduce((s, t) => s + t.n, 0);
           const totalHrs        = tutors.reduce((s, t) => s + t.hours, 0);
           const avgPct          = tutors.length ? Math.round(tutors.reduce((s, t) => s + t.medianPct, 0) / tutors.length) : null;
+          const avgMonths       = tutors.filter(t => t.medianMonths !== null);
+          const avgMedianMonths = avgMonths.length ? parseFloat((avgMonths.reduce((s,t) => s + t.medianMonths, 0) / avgMonths.length).toFixed(1)) : null;
           const avgScholarAtt   = tutors.filter(t => t.scholAttRate !== null);
           const avgAttRate      = avgScholarAtt.length ? Math.round(avgScholarAtt.reduce((s,t) => s + t.scholAttRate, 0) / avgScholarAtt.length) : null;
           const tutorWithSurvey = tutors.filter(t => t.tutorSurveyAvg !== null);
@@ -5312,6 +5515,7 @@
               { v: tutors.length,         l: 'Matched Tutors',         c: 'var(--navy)' },
               { v: matchedScholars,        l: 'Scholars Matched',       c: 'var(--navy)' },
               { v: (avgPct !== null ? avgPct + '%' : '—'),   l: 'Avg Med % Typical',  c: avgPct >= 80 ? '#0d6e3a' : avgPct >= 50 ? '#d97706' : '#b91c1c' },
+              { v: avgMedianMonths !== null ? avgMedianMonths + ' mo' : '—', l: 'Avg Months Gained', c: avgMedianMonths >= 8 ? '#0d6e3a' : avgMedianMonths >= 5 ? '#d97706' : '#b91c1c' },
               { v: totalHrs.toFixed(1) + 'h', l: 'Total Inst. Hours',   c: '#0050c8' },
               { v: avgAttRate !== null ? avgAttRate + '%' : '—', l: 'Avg Scholar Att.',  c: avgAttRate >= 95 ? '#0d6e3a' : '#d97706' },
               { v: (totalSiTutor + totalSiSchool + totalSiOther) || '0', l: 'Total SIs',  c: (totalSiTutor + totalSiSchool + totalSiOther) > 10 ? '#b91c1c' : '#92400e' },
@@ -5376,6 +5580,7 @@
               <th style="padding:.625rem 1rem;text-align:left;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700;text-transform:uppercase;white-space:nowrap">Tutor</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Scholars</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Med % Typical</th>
+              <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700" title="Estimated months of learning gained (% Typical ÷ 100 × 10)">Months Gained</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">Med Gain</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↑ Up</th>
               <th style="padding:.625rem .5rem;text-align:center;color:rgba(255,255,255,.7);font-size:.6875rem;font-weight:700">↓ Down</th>
@@ -5396,6 +5601,7 @@
               <td style="padding:.625rem 1rem;font-weight:700;color:var(--navy);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</td>
               <td style="padding:.5rem;text-align:center">${t.n}</td>
               <td style="padding:.5rem;text-align:center;font-weight:800;color:${t.medianPct>=80?'#0d6e3a':t.medianPct>=50?'#d97706':'#b91c1c'}">${t.medianPct}%</td>
+              <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.medianMonths>=8?'#0d6e3a':t.medianMonths>=5?'#d97706':'#b91c1c'}">${t.medianMonths !== null ? t.medianMonths+' mo' : '—'}</td>
               <td style="padding:.5rem;text-align:center;color:var(--blue-mid);font-weight:600">${t.medianGain!==null?(t.medianGain>0?'+':'')+t.medianGain:'—'}</td>
               <td style="padding:.5rem;text-align:center;color:#16a34a;font-weight:700">${t.movedUp}</td>
               <td style="padding:.5rem;text-align:center;color:#dc2626">${t.movedDown}</td>
@@ -6166,7 +6372,9 @@
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
              computeMOY,
-             _moyExportPDF: _moyGeneratePDF,
+             _moyExportPDF:  _moyGeneratePDF,
+             _moyExportCSV:  _moyExportCSV,
+             _moyExportXLSX: _moyExportXLSX,
            };  // exposed so Talent panel can trigger academic refresh
   })();
 
