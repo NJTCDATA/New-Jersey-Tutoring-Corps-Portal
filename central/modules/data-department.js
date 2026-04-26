@@ -6259,6 +6259,20 @@
       desc: 'Quarterly satisfaction survey responses from partner organizations',
       tag:  'T&D · Survey · Partner',
     },
+    {
+      name: 'Pearl Ops Ticket System',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1OsgHVtWiQVEKvqqnRSwuzJ0Gt1GrvawSZzWu3eK-w7c/edit?gid=1157594489#gid=1157594489',
+      desc: 'Programming & Data escalation tickets for Pearl Operations — review submissions and enter responses in column K.',
+      tag:  'Pearl · Tickets · Escalations',
+    },
+    {
+      name: 'Pearl Ops Ticket Form',
+      type: 'forms',
+      url:  'https://docs.google.com/forms/d/e/1FAIpQLSfBqfEOWMgR4ynfbQi5t0vGMMtZjUZ6IMqRabPF9BZqTMlgqQ/viewform',
+      desc: 'Form for Programming & Data to submit Pearl Operations data requests, context questions, and meeting requests.',
+      tag:  'Pearl · Form · Escalations',
+    },
   ];
 
   function _buildDataCabinet() {
