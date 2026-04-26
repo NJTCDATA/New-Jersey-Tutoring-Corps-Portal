@@ -8106,6 +8106,7 @@
               siTotal: stuStats.si,
               scholarSurvey: cwScholarSurvey,
               tutorSurvey: cwTutorSurvey,
+              surveyLoading: !_stuStreamComplete,
               lowRatingSites: lowRatingSites,
               positiveCallouts: positiveCallouts,
             };

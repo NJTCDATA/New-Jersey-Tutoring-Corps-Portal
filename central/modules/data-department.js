@@ -4016,6 +4016,7 @@
         { 'Metric': 'Winter-Only (no Fall)',     'Value': net.total - net.withGrowth },
         { 'Metric': 'Median % Typical Growth',  'Value': net.medianPctTypical != null ? net.medianPctTypical + '%' : '—' },
         { 'Metric': 'Median Months of Learning','Value': net.medianMonthsGrowth != null ? net.medianMonthsGrowth + ' mo' : '—' },
+        { 'Metric': 'Avg Months of Learning',  'Value': net.avgMonthsGrowth   != null ? net.avgMonthsGrowth   + ' mo' : '—' },
         { 'Metric': '% Met Typical Growth',     'Value': net.pctMetTypical != null ? net.pctMetTypical + '%' : '—' },
         { 'Metric': 'Median Scale Gain',        'Value': net.medianGain != null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—' },
         { 'Metric': 'Moved Up (placement)',     'Value': net.movedUp },
@@ -4038,7 +4039,7 @@
           'Winter-Only':              m.total - m.withGrowth,
           'Median Scale Gain':        m.medianGain != null ? m.medianGain : '',
           'Median % Typical Growth':  m.medianPctTypical != null ? m.medianPctTypical : '',
-          'Median Months Gained':     m.medianMonthsGrowth != null ? m.medianMonthsGrowth : '',
+          'Median Months Gained':       m.medianMonthsGrowth != null ? m.medianMonthsGrowth : '',
           '% Met Typical':            m.pctMetTypical != null ? m.pctMetTypical : '',
         })) : [];
 
@@ -4049,7 +4050,7 @@
         'Tutor':                    t.name,
         'Scholars':                 t.n,
         'Median % Typical Growth':  t.medianPct,
-        'Median Months Gained':     t.medianMonths != null ? t.medianMonths : '',
+        'Median Months Gained':       t.medianMonths != null ? t.medianMonths : '',
         'Median Scale Gain':        t.medianGain   != null ? t.medianGain   : '',
         'Moved Up':                 t.movedUp,
         'Moved Down':               t.movedDown,
@@ -4207,7 +4208,7 @@
         doc.setTextColor(...WHITE); doc.setFontSize(6); doc.setFont('helvetica','normal');
         const howItems = [
           ['Median % Typical Growth', 'How much of the expected full-year iReady growth a scholar achieved by mid-year. 100% = exactly on pace. 80%+ = on track. 50-79% = progressing but needs support. Below 50% = needs acceleration.'],
-          ['Months of Learning Gained', 'Estimated months of academic learning gained by mid-year. Calculated as % Typical Growth / 100 x 10 school months per year. Same formula used in our End-of-Year analysis. 8+ months = strong. 5-7 = progressing. Below 5 = needs support.'],
+          ['Median Months of Learning Gained', 'Estimated months of academic learning gained by mid-year. Formula: pctTypical x winterWeeks / 4 per scholar (median). winterWeeks = actual weeks between Fall and Winter diagnostics. 4.5+ months = strong. 3.0-4.4 = progressing. Below 3.0 = needs support. Avg months also shown for spreadsheet alignment.'],
           ['N (Total) vs N (Growth)', '"N Total" is every scholar in the MOY sheet. "N Growth" is only scholars with BOTH a Fall AND Winter iReady diagnostic. Schools marked (W) appear in the Winter sheet but have no Fall baseline -- growth cannot be calculated.'],
           ['Placement Movement', 'Whether a scholar moved to a higher (Up), same (Held), or lower (Down) relative placement level between Fall and Winter. Directional placement change, not a growth score.'],
           ['Red Rush Flag', 'iReady flags diagnostics completed unusually fast (possible guessing). Scholars with Red Rush Flags are excluded from all growth calculations in this report.'],
@@ -5004,7 +5005,7 @@
             { v: totSiT5,                               l: 'Tutor-Caused SIs',   c: totSiT5>10?RED:GOLD },
             { v: totSiS5,                               l: 'School-Caused SIs',  c: GOLD  },
             { v: netSurv5 !== null ? netSurv5+'/5':'—', l: 'Avg Scholar Sat.', c: netSurv5&&netSurv5>=4?GREEN:GOLD },
-            { v: netMo5 !== null ? netMo5+' mo':'—',   l: 'Avg Months Gained', c: netMo5&&netMo5>=8?GREEN:netMo5&&netMo5>=5?GOLD:RED },
+            { v: netMo5 !== null ? netMo5+' mo':'—',   l: 'Avg Months Gained', c: netMo5&&netMo5>=4.5?GREEN:netMo5&&netMo5>=3.0?GOLD:RED },
           ];
           const opsW5 = 176 / opsChips5.length;
           opsChips5.forEach(function(c,i) {
@@ -5035,8 +5036,8 @@
             body: siVsGrowth5.map(function(t) {
               const siTot5 = t.siTutor + t.siSchool;
               const sig5 = siTot5===0
-                ? (t.medianMonths>=8?'Excellent':t.medianMonths>=5?'Good':'Monitor')
-                : t.medianMonths>=8?'Resilient':siTot5>5?'SIs limited growth':'Monitor';
+                ? (t.medianMonths>=4.5?'Excellent':t.medianMonths>=3.0?'Good':'Monitor')
+                : t.medianMonths>=4.5?'Resilient':siTot5>5?'SIs limited growth':'Monitor';
               return [
                 safe(t.name.length>22?t.name.slice(0,21)+'…':t.name),
                 t.n,
@@ -5285,6 +5286,7 @@
           pctRegressed:    pcts.length ? Math.round(regressed.length / pcts.length * 100) : null,
           movedUp, held, movedDown,
           medianMonthsGrowth: months.length ? parseFloat((_moyMedian(months)).toFixed(1)) : null,
+          avgMonthsGrowth:    months.length ? parseFloat((months.reduce((a,b)=>a+b,0)/months.length).toFixed(1)) : null,
           placementDist,
           rushFlags: { red: redRushCount, yellow: yellowRushCount },
         };
@@ -5441,12 +5443,13 @@
           </div>
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.medianPctTypical)}">${net.medianPctTypical !== null ? net.medianPctTypical+'%' : '—'}</div><div class="ta-kpi-sub">Median % Typical Growth</div>${_moyTierPill(net.medianPctTypical) ? '<div style="margin-top:.35rem">'+_moyTierPill(net.medianPctTypical)+'</div>' : ''}</div>
           <div class="ta-card ta-kpi">
-            <div style="font-size:2rem;font-weight:800;color:${net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 8 ? '#0d6e3a' : net.medianMonthsGrowth >= 5 ? '#d97706' : '#b91c1c') : 'var(--navy)'}">
+            <div style="font-size:2rem;font-weight:800;color:${net.medianMonthsGrowth !== null ? (net.medianMonthsGrowth >= 4.5 ? '#0d6e3a' : net.medianMonthsGrowth >= 3.0 ? '#d97706' : '#b91c1c') : 'var(--navy)'}">
               ${net.medianMonthsGrowth !== null ? net.medianMonthsGrowth + ' mo' : '—'}
             </div>
             <div class="ta-kpi-sub">Median Months of Learning
-              <span title="Estimated months of academic learning gained. Calculated as Median % Typical Growth ÷ 100 × 10 school months. Same formula used for End-of-Year analysis." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
+              <span title="Median months of academic learning gained. Formula: pctTypical × winterWeeks ÷ 4 per scholar. Median is more robust than the average for skewed distributions. Thresholds: 4.5+ mo = strong · 3.0–4.4 = progressing · below 3.0 = needs support. 100% typical over 22 weeks ≈ 5.5 mo." style="cursor:help;margin-left:.3em;color:#0891b2;font-size:.75rem">ⓘ</span>
             </div>
+            ${net.avgMonthsGrowth !== null ? '<div style="font-size:.6875rem;color:var(--muted);margin-top:.2rem">avg: ' + net.avgMonthsGrowth + ' mo</div>' : ''}
           </div>
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${medColor(net.pctMetTypical)}">${net.pctMetTypical !== null ? net.pctMetTypical+'%' : '—'}</div><div class="ta-kpi-sub">% Met Typical</div></div>
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—'}</div><div class="ta-kpi-sub">Median Scale Gain</div></div>
@@ -5651,7 +5654,7 @@
               { v: tutors.length,         l: 'Matched Tutors',         c: 'var(--navy)' },
               { v: matchedScholars,        l: 'Scholars Matched',       c: 'var(--navy)' },
               { v: (avgPct !== null ? avgPct + '%' : '—'),   l: 'Avg Med % Typical',  c: avgPct >= 80 ? '#0d6e3a' : avgPct >= 50 ? '#d97706' : '#b91c1c' },
-              { v: avgMedianMonths !== null ? avgMedianMonths + ' mo' : '—', l: 'Avg Months Gained', c: avgMedianMonths >= 8 ? '#0d6e3a' : avgMedianMonths >= 5 ? '#d97706' : '#b91c1c' },
+              { v: avgMedianMonths !== null ? avgMedianMonths + ' mo' : '—', l: 'Avg Months Gained', c: avgMedianMonths >= 4.5 ? '#0d6e3a' : avgMedianMonths >= 3.0 ? '#d97706' : '#b91c1c' },
               { v: totalHrs.toFixed(1) + 'h', l: 'Total Inst. Hours',   c: '#0050c8' },
               { v: avgAttRate !== null ? avgAttRate + '%' : '—', l: 'Avg Scholar Att.',  c: avgAttRate >= 95 ? '#0d6e3a' : '#d97706' },
               { v: (totalSiTutor + totalSiSchool + totalSiOther) || '0', l: 'Total SIs',  c: (totalSiTutor + totalSiSchool + totalSiOther) > 10 ? '#b91c1c' : '#92400e' },
@@ -5737,7 +5740,7 @@
               <td style="padding:.625rem 1rem;font-weight:700;color:var(--navy);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</td>
               <td style="padding:.5rem;text-align:center">${t.n}</td>
               <td style="padding:.5rem;text-align:center;font-weight:800;color:${t.medianPct>=80?'#0d6e3a':t.medianPct>=50?'#d97706':'#b91c1c'}">${t.medianPct}%</td>
-              <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.medianMonths>=8?'#0d6e3a':t.medianMonths>=5?'#d97706':'#b91c1c'}">${t.medianMonths !== null ? t.medianMonths+' mo' : '—'}</td>
+              <td style="padding:.5rem;text-align:center;font-weight:700;color:${t.medianMonths>=4.5?'#0d6e3a':t.medianMonths>=3.0?'#d97706':'#b91c1c'}">${t.medianMonths !== null ? t.medianMonths+' mo' : '—'}</td>
               <td style="padding:.5rem;text-align:center;color:var(--blue-mid);font-weight:600">${t.medianGain!==null?(t.medianGain>0?'+':'')+t.medianGain:'—'}</td>
               <td style="padding:.5rem;text-align:center;color:#16a34a;font-weight:700">${t.movedUp}</td>
               <td style="padding:.5rem;text-align:center;color:#dc2626">${t.movedDown}</td>
@@ -6507,6 +6510,19 @@
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
+             getMOYMissingScholars: (subject) => {
+               const rows = subject === 'ELA' ? (MOY_DATA.ela || []) : (MOY_DATA.math || []);
+               return rows
+                 .filter(r => !r.hasGrowth)
+                 .map(r => ({
+                   name:        r.scholarName || '—',
+                   school:      r.school      || '—',
+                   grade:       r.grade       || '—',
+                   reason:      r.isRedRush ? 'Red Rush Flag' : r.winterWeeks === 0 ? 'No Fall Baseline (Winter-only)' : 'Missing pct data',
+                   winterScore: r.winterScore,
+                 }))
+                 .sort((a,b) => a.school.localeCompare(b.school));
+             },
              computeMOY,
              _moyExportPDF:  _moyGeneratePDF,
              _moyExportCSV:  _moyExportCSV,
