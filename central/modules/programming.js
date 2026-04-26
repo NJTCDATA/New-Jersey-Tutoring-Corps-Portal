@@ -7960,6 +7960,325 @@
           return sb - sa;
         });
       },
+
+      // getProgramSummaryData() — comprehensive data package for Program Pulse summary
+      // Powers the Program Data Summary overlay in Programming + Data departments.
+      // Reads from in-memory data only — no additional API calls, no timeouts possible.
+      getProgramSummaryData: function() {
+        var out = {
+          loaded: false, currentWeek: null, allWeeks: [], weeklyTrend: [],
+          regional: { NE: null, SW: null }, discrepancies: [], onsiteComments: [],
+          positiveCallouts: [], areasToReview: [], stellarSites: [],
+          academic: null,
+        };
+        try {
+          if (!_attRows || !_attRows.length) return out;
+          out.loaded = true;
+
+          // ── Derive weeks and current week ──────────────────────────────────
+          var weekNums = {};
+          _attRows.forEach(function(r) {
+            var w = r[ATT.WEEK]; if (!w) return;
+            var n = parseInt(w.replace(/\D/g,''), 10); if (isNaN(n)) return;
+            weekNums[w] = n;
+          });
+          var sortedWeeks = Object.keys(weekNums).sort(function(a,b){ return weekNums[a]-weekNums[b]; });
+          out.allWeeks = sortedWeeks;
+          var curWeekLabel = sortedWeeks[sortedWeeks.length - 1] || null;
+
+          // ── Helper: compute att stats for a set of rows ───────────────────
+          function attStats(rows, role) {
+            var filtered = role ? rows.filter(function(r){ return r[ATT.ROLE]===role; }) : rows;
+            var att=0, abs=0, si=0, nr=0;
+            var siReasons={}, missReasons={};
+            filtered.forEach(function(r) {
+              var cls = classifyRecord(r);
+              if (cls==='attended')             att++;
+              else if (cls==='absent') {
+                abs++;
+                var reason = r[ATT.MISS_REASON]||'Unknown';
+                missReasons[reason] = (missReasons[reason]||0) + 1;
+              }
+              else if (cls==='service_interruption') {
+                si++;
+                var reason = r[ATT.MISS_REASON]||'Unknown';
+                siReasons[reason] = (siReasons[reason]||0) + 1;
+              }
+              else if (cls==='not_recorded') nr++;
+            });
+            var total = att+abs;
+            return { att, abs, si, nr, total, rate: total>0?Math.round(att/total*100):null, siReasons, missReasons };
+          }
+
+          // ── Helper: region for a school/district ─────────────────────────
+          var NE_KW = ['ilearn','i-learn','paterson','pcsst','hoboken','middlesex','central jersey','cjcp'];
+          var SW_KW = ['american paradigm','first philadelphia','first philly','global leadership','penns grove','carneys point','haddon','hamilton township','gloucester'];
+          function getRegion(school, district) {
+            var s=(school||'').toLowerCase(), d=(district||'').toLowerCase();
+            for (var i=0;i<NE_KW.length;i++){ if(d.includes(NE_KW[i])||s.includes(NE_KW[i])) return 'NE'; }
+            for (var i=0;i<SW_KW.length;i++){ if(d.includes(SW_KW[i])||s.includes(SW_KW[i])) return 'SW'; }
+            return 'NE'; // default
+          }
+
+          // ── Current week analysis ─────────────────────────────────────────
+          if (curWeekLabel) {
+            var cwRows = _attRows.filter(function(r){ return r[ATT.WEEK]===curWeekLabel; });
+            var stuStats  = attStats(cwRows, 'Student');
+            var instStats = attStats(cwRows, 'Instructor');
+
+            // Incomplete sessions this week (Scheduled status)
+            var cwSessIncomplete = Object.values(_sessMap).filter(function(s){
+              if (s.status !== 'Scheduled') return false;
+              var sessWeek = deriveWeekLabel(s.startDate || s.date || '');
+              return sessWeek === curWeekLabel;
+            }).length;
+            // Fallback: all scheduled sessions if week derivation yields 0
+            if (cwSessIncomplete === 0) {
+              cwSessIncomplete = Object.values(_sessMap).filter(function(s){ return s.status==='Scheduled'; }).length;
+            }
+
+            // Missed reason breakdown (scholar rows, current week)
+            var missBreakdown = [];
+            Object.entries(stuStats.missReasons).sort(function(a,b){return b[1]-a[1];}).forEach(function(e){
+              missBreakdown.push({ reason: e[0], count: e[1] });
+            });
+
+            // SI breakdown by severity
+            var siByLevel = { critical:[], high:[], medium:[], low:[] };
+            Object.entries(stuStats.siReasons).forEach(function(e){
+              var sev = SI_SEVERITY[e[0]] || 'medium';
+              siByLevel[sev].push({ reason: e[0], count: e[1] });
+            });
+
+            // Survey scores this week
+            var cwStuSurvRows = _stuRows.filter(function(r){ return (r[STU_S.WEEK]||'')===curWeekLabel; });
+            var cwInstSurvRows = _instRows.filter(function(r){ return (r[INST_S.WEEK]||'')===curWeekLabel; });
+            function survAvg(rows, cols) {
+              var sum=0, cnt=0;
+              rows.forEach(function(r){ cols.forEach(function(c){ var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){sum+=v;cnt++;} }); });
+              return cnt>0 ? Math.round(sum/cnt*10)/10 : null;
+            }
+            var cwScholarSurvey = survAvg(cwStuSurvRows, [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL]);
+            var cwTutorSurvey   = survAvg(cwInstSurvRows, [INST_S.ENGAGEMENT,INST_S.ENJOYMENT,INST_S.LEARNING,INST_S.OVERALL]);
+
+            // Low-rating sites this week (school avg survey < 3.5)
+            var cwSchoolSurvMap = {};
+            cwStuSurvRows.forEach(function(r){
+              var sch = r[STU_S.SCHOOL]||'Unknown';
+              if (!cwSchoolSurvMap[sch]) cwSchoolSurvMap[sch] = { sum:0, cnt:0, district: r[STU_S.DISTRICT]||'' };
+              [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL].forEach(function(c){
+                var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){cwSchoolSurvMap[sch].sum+=v;cwSchoolSurvMap[sch].cnt++;}
+              });
+            });
+            var lowRatingSites = [];
+            Object.entries(cwSchoolSurvMap).forEach(function(e){
+              var avg = e[1].cnt>0 ? Math.round(e[1].sum/e[1].cnt*10)/10 : null;
+              if (avg !== null && avg < 3.5) lowRatingSites.push({ school: e[0], district: e[1].district, avg: avg });
+            });
+            lowRatingSites.sort(function(a,b){return a.avg-b.avg;});
+
+            // Positive callouts: schools with high attendance + survey this week
+            var cwSchoolAttMap = {};
+            cwRows.filter(function(r){return r[ATT.ROLE]==='Student';}).forEach(function(r){
+              var sch = r[ATT.SCHOOL]||'Unknown', d = r[ATT.DISTRICT]||'';
+              if (!cwSchoolAttMap[sch]) cwSchoolAttMap[sch] = { att:0, abs:0, district:d };
+              var cls = classifyRecord(r);
+              if (cls==='attended') cwSchoolAttMap[sch].att++;
+              else if (cls==='absent') cwSchoolAttMap[sch].abs++;
+            });
+            var positiveCallouts = [];
+            Object.entries(cwSchoolAttMap).forEach(function(e){
+              var t = e[1].att+e[1].abs;
+              var rate = t>0?Math.round(e[1].att/t*100):0;
+              var surv = cwSchoolSurvMap[e[0]];
+              var survAvgVal = surv&&surv.cnt>0 ? Math.round(surv.sum/surv.cnt*10)/10 : null;
+              if (rate>=95 && t>=10) positiveCallouts.push({ school:e[0], district:e[1].district, attRate:rate, surveyAvg:survAvgVal });
+            });
+            positiveCallouts.sort(function(a,b){return b.attRate-a.attRate;}).splice(5);
+
+            out.currentWeek = {
+              label: curWeekLabel,
+              scholarAtt: stuStats,
+              tutorAtt: instStats,
+              incompletes: cwSessIncomplete,
+              missedReasons: missBreakdown,
+              serviceInterruptions: siByLevel,
+              siTotal: stuStats.si,
+              scholarSurvey: cwScholarSurvey,
+              tutorSurvey: cwTutorSurvey,
+              lowRatingSites: lowRatingSites,
+              positiveCallouts: positiveCallouts,
+            };
+          }
+
+          // ── Weekly trend (last 16 weeks) ──────────────────────────────────
+          var trendMap = {};
+          _attRows.forEach(function(r) {
+            var w = r[ATT.WEEK]; if (!w) return;
+            if (!trendMap[w]) trendMap[w] = { stuAtt:0, stuAbs:0, instAtt:0, instAbs:0, si:0 };
+            var cls = classifyRecord(r);
+            if (r[ATT.ROLE]==='Student') {
+              if (cls==='attended') trendMap[w].stuAtt++;
+              else if (cls==='absent') trendMap[w].stuAbs++;
+              else if (cls==='service_interruption') trendMap[w].si++;
+            } else if (r[ATT.ROLE]==='Instructor') {
+              if (cls==='attended') trendMap[w].instAtt++;
+              else if (cls==='absent') trendMap[w].instAbs++;
+            }
+          });
+          // Survey by week
+          _stuRows.forEach(function(r){
+            var w=r[STU_S.WEEK]; if(!w||!trendMap[w]) return;
+            if(!trendMap[w].survSum) trendMap[w].survSum=0, trendMap[w].survCnt=0;
+            [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL].forEach(function(c){
+              var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){trendMap[w].survSum+=v;trendMap[w].survCnt++;}
+            });
+          });
+          out.weeklyTrend = sortedWeeks.slice(-16).map(function(w) {
+            var d = trendMap[w]||{};
+            var st=d.stuAtt+d.stuAbs, it=d.instAtt+d.instAbs;
+            return {
+              week: w,
+              scholarRate: st>0?Math.round(d.stuAtt/st*100):null,
+              tutorRate:   it>0?Math.round(d.instAtt/it*100):null,
+              siCount: d.si||0,
+              surveyAvg: d.survCnt>0?Math.round(d.survSum/d.survCnt*10)/10:null,
+            };
+          });
+
+          // ── Regional breakdown (all-time) ─────────────────────────────────
+          var regMap = { NE:{stuAtt:0,stuAbs:0,instAtt:0,instAbs:0,si:0,survSum:0,survCnt:0,schools:new Set()},
+                         SW:{stuAtt:0,stuAbs:0,instAtt:0,instAbs:0,si:0,survSum:0,survCnt:0,schools:new Set()} };
+          _attRows.forEach(function(r){
+            var reg = getRegion(r[ATT.SCHOOL],r[ATT.DISTRICT]);
+            var rm = regMap[reg]; if(!rm) return;
+            if (r[ATT.SCHOOL]) rm.schools.add(r[ATT.SCHOOL]);
+            var cls = classifyRecord(r);
+            if (r[ATT.ROLE]==='Student') {
+              if (cls==='attended') rm.stuAtt++;
+              else if (cls==='absent') rm.stuAbs++;
+              else if (cls==='service_interruption') rm.si++;
+            } else if (r[ATT.ROLE]==='Instructor') {
+              if (cls==='attended') rm.instAtt++;
+              else if (cls==='absent') rm.instAbs++;
+            }
+          });
+          _stuRows.forEach(function(r){
+            var reg = getRegion(r[STU_S.SCHOOL],r[STU_S.DISTRICT]);
+            var rm = regMap[reg]; if(!rm) return;
+            [STU_S.CONFIDENCE,STU_S.ENJOYMENT,STU_S.LEARNING,STU_S.OVERALL].forEach(function(c){
+              var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){rm.survSum+=v;rm.survCnt++;}
+            });
+          });
+          ['NE','SW'].forEach(function(reg){
+            var rm = regMap[reg];
+            var st=rm.stuAtt+rm.stuAbs, it=rm.instAtt+rm.instAbs;
+            out.regional[reg] = {
+              scholarRate: st>0?Math.round(rm.stuAtt/st*100):null,
+              tutorRate:   it>0?Math.round(rm.instAtt/it*100):null,
+              siCount:     rm.si,
+              surveyAvg:   rm.survCnt>0?Math.round(rm.survSum/rm.survCnt*10)/10:null,
+              schools:     rm.schools.size,
+            };
+          });
+
+          // ── Pearl discrepancies ───────────────────────────────────────────
+          var discrepancies = [];
+          // 1. Scholar archived but also has non-archived sessions
+          var scholarStatuses = {}; // uid -> { hasArchived: bool, hasActive: bool, name: '', school: '' }
+          _attRows.forEach(function(r){
+            if (r[ATT.ROLE]!=='Student') return;
+            var uid=r[ATT.USER_ID]; if(!uid) return;
+            if (!scholarStatuses[uid]) scholarStatuses[uid]={hasArchived:false,hasActive:false,name:r[ATT.USER]||'',school:r[ATT.SCHOOL]||'',district:r[ATT.DISTRICT]||''};
+            if ((r[ATT.MISS_REASON]||'').includes('Archived')) scholarStatuses[uid].hasArchived=true;
+            else scholarStatuses[uid].hasActive=true;
+          });
+          var archivedConflicts = [];
+          Object.entries(scholarStatuses).forEach(function(e){
+            if (e[1].hasArchived && e[1].hasActive) archivedConflicts.push({ uid:e[0], name:e[1].name, school:e[1].school, district:e[1].district, type:'archived_active_conflict' });
+          });
+          if (archivedConflicts.length) discrepancies.push({ type:'archived_conflict', label:'Scholars Archived but Still in Active Sessions', items:archivedConflicts.slice(0,10), total:archivedConflicts.length });
+
+          // 2. Sessions missing subject
+          var missingSubject = [];
+          Object.values(_sessMap).forEach(function(s){
+            if (!s.subject && s.isDelivered) missingSubject.push({ school:s.school||'', district:s.district||'', title:s.title||'' });
+          });
+          if (missingSubject.length) discrepancies.push({ type:'missing_subject', label:'Delivered Sessions Missing Subject', items:missingSubject.slice(0,10), total:missingSubject.length });
+
+          // 3. Scholars with 3+ consecutive absences (CONSEC_STATUS flag)
+          var consecAbsent = [];
+          var seenConsec = {};
+          _attRows.forEach(function(r){
+            if (r[ATT.ROLE]!=='Student') return;
+            if ((r[ATT.CONSEC_STATUS]||'').includes('Concern')) {
+              var uid=r[ATT.USER_ID]||r[ATT.USER]; if(seenConsec[uid]) return; seenConsec[uid]=true;
+              consecAbsent.push({ name:r[ATT.USER]||'Unknown', school:r[ATT.SCHOOL]||'', district:r[ATT.DISTRICT]||'' });
+            }
+          });
+          if (consecAbsent.length) discrepancies.push({ type:'consecutive_absent', label:'Scholars with Attendance Concern Flag', items:consecAbsent.slice(0,10), total:consecAbsent.length });
+
+          out.discrepancies = discrepancies;
+
+          // ── Onsite comments (flagged + positive, last 2 weeks) ────────────
+          var recentWeeks = sortedWeeks.slice(-2);
+          var onsiteComments = [];
+          _instRows.forEach(function(r){
+            var w = r[INST_S.WEEK]||'';
+            if (!recentWeeks.includes(w)) return;
+            var txt = (r[INST_S.COMMENT_ADMIN]||'').trim();
+            if (!txt || txt.length < 10) return;
+            // Keyword classification
+            var lower = txt.toLowerCase();
+            var isConcern = ['behavior','unsafe','bully','concern','struggle','uncomfortable','refusing','not participat','disrupt'].some(function(kw){return lower.includes(kw);});
+            var isPositive = ['great','excellent','amazing','good session','wonderful','love','fantastic','best','happy','engaged','excited','helpful','fun','awesome'].some(function(kw){return lower.includes(kw);});
+            if (isConcern || isPositive) {
+              onsiteComments.push({ text:txt, school:r[INST_S.SCHOOL]||'', district:r[INST_S.DISTRICT]||'', week:w, type: isConcern?'concern':'positive' });
+            }
+          });
+          _stuRows.forEach(function(r){
+            var w = r[STU_S.WEEK]||'';
+            if (!recentWeeks.includes(w)) return;
+            var txt = (r[STU_S.COMMENT]||'').trim();
+            if (!txt || txt.length < 10) return;
+            var lower = txt.toLowerCase();
+            var isConcern = ['behavior','unsafe','bully','concern','struggle','uncomfortable','refusing','not participat','disrupt','scared','hurt'].some(function(kw){return lower.includes(kw);});
+            var isPositive = ['great','excellent','amazing','good','love','fantastic','best','happy','fun','awesome','learned','enjoyed'].some(function(kw){return lower.includes(kw);});
+            if (isConcern || isPositive) {
+              onsiteComments.push({ text:txt, school:r[STU_S.SCHOOL]||'', district:r[STU_S.DISTRICT]||'', week:w, type: isConcern?'concern':'positive' });
+            }
+          });
+          // Sort: concerns first, then positive
+          onsiteComments.sort(function(a,b){ return a.type==='concern'&&b.type!=='concern'?-1:b.type==='concern'&&a.type!=='concern'?1:0; });
+          out.onsiteComments = onsiteComments.slice(0, 20);
+
+          // ── Stellar sites (top 5 by attendance + survey) ─────────────────
+          var stellar = [];
+          Object.entries(_schoolMap).forEach(function(e){
+            var name=e[0], sc=e[1]; if(!name||!name.trim()) return;
+            var t = sc.stuAttended+sc.stuAbsent;
+            if (t < 10) return;
+            var rate = Math.round(sc.stuAttended/t*100);
+            if (rate >= 90) stellar.push({ school:name, district:sc.district||'', attRate:rate, surveyAvg: sc.stuSurveyAvg?parseFloat(sc.stuSurveyAvg.toFixed(1)):null, sessions: sc.sessions?sc.sessions.length:0 });
+          });
+          stellar.sort(function(a,b){ return b.attRate-a.attRate || (b.surveyAvg||0)-(a.surveyAvg||0); });
+          out.stellarSites = stellar.slice(0, 5);
+
+          // ── Areas to review: schools below 80% attendance ─────────────────
+          var areasToReview = [];
+          Object.entries(_schoolMap).forEach(function(e){
+            var name=e[0], sc=e[1]; if(!name||!name.trim()) return;
+            var t = sc.stuAttended+sc.stuAbsent;
+            if (t < 10) return;
+            var rate = Math.round(sc.stuAttended/t*100);
+            if (rate < 80) areasToReview.push({ school:name, district:sc.district||'', attRate:rate, siCount:sc.stuInterruptions||0, sessions:sc.sessions?sc.sessions.length:0 });
+          });
+          areasToReview.sort(function(a,b){ return a.attRate-b.attRate; });
+          out.areasToReview = areasToReview.slice(0, 8);
+
+        } catch(e) { console.warn('[getProgramSummaryData] error:', e.message, e.stack); }
+        return out;
+      },
     };
   })();
 
