@@ -1687,11 +1687,34 @@
     return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (map[status]||'#9CA3AF') + ';margin-right:4px;" title="' + status + '"></span>';
   };
 
-  // Live Tracker OTJ item count lookup
+  // Live Tracker OTJ item count lookup.
+  // Falls back to phase-based estimation from Program DB (Beginning=6, Middle=12, End=17)
+  // when the Live Tracker map has no matching entry — happens when the sheet's column
+  // structure doesn't align with the expected AB-AR range (e.g. after GAINS import).
   const ap_otjItemCount = (name) => {
     const map = window.njtcLiveOtjMap || {};
     const key = (name || '').toLowerCase().replace(/\s+/g,' ').trim();
-    return map.hasOwnProperty(key) ? map[key] : null;
+    if (map.hasOwnProperty(key)) return map[key];
+
+    // Phase-based fallback: derive approximate count from OTJ Beginning/Middle/End
+    const otj = ap_getOTJ(name);
+    if (!otj) return null;
+    const beg = (otj['OTJ Beginning'] || '').trim();
+    const mid = (otj['OTJ Middle']    || '').trim();
+    const end = (otj['OTJ End']       || '').trim();
+    if (!beg || beg === '—') return null; // no phase data at all
+
+    const done  = /completed|meets expectations/i;
+    const inprog = /in progress|partially/i;
+    // Items per phase: Beginning=6, Middle=6, End=5 (total 17)
+    let count = 0;
+    if      (done.test(beg))   count += 6;
+    else if (inprog.test(beg)) count += 3;
+    if      (done.test(mid))   count += 6;
+    else if (inprog.test(mid) && done.test(beg)) count += 3;
+    if      (done.test(end))   count += 5;
+    else if (inprog.test(end) && done.test(mid)) count += 2;
+    return count;
   };
 
   const ap_otjCountBadge = (count) => {

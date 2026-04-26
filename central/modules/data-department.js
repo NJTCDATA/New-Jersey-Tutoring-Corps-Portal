@@ -6372,4 +6372,242 @@
 
   window._buildDataCabinet = _buildDataCabinet;
 
+  // ── Data Department Device Security ────────────────────────────────────────
+  // Shows a deterrent overlay to any device that is not registered as trusted.
+  // Trusted devices are registered per-device via the admin code flow.
+  // Access events are logged locally so the admin can review them on their device.
+  (function() {
+    const TRUSTED_KEY = 'njtcDataTrustedDevices';
+    const LOG_KEY     = 'njtcDataAccessLog';
+
+    function getFingerprint() {
+      const raw = [
+        navigator.userAgent,
+        screen.width + 'x' + screen.height,
+        screen.colorDepth,
+        (Intl.DateTimeFormat().resolvedOptions().timeZone || ''),
+        navigator.language,
+        (navigator.hardwareConcurrency || '')
+      ].join('|');
+      let h = 5381;
+      for (let i = 0; i < raw.length; i++) h = ((h << 5) + h) ^ raw.charCodeAt(i);
+      return (h >>> 0).toString(36);
+    }
+
+    function getTrusted() {
+      try { return JSON.parse(localStorage.getItem(TRUSTED_KEY) || '[]'); } catch(e) { return []; }
+    }
+
+    function trustDevice(fp) {
+      const list = getTrusted();
+      if (!list.find(d => d.fp === fp)) {
+        const label = /mac os x|macintosh/i.test(navigator.userAgent) ? 'MacBook'
+                    : /windows/i.test(navigator.userAgent)             ? 'Windows PC'
+                    : /linux/i.test(navigator.userAgent)               ? 'Linux Device'
+                    : 'Authorized Device';
+        list.push({ fp, label, registered: new Date().toLocaleString() });
+        localStorage.setItem(TRUSTED_KEY, JSON.stringify(list));
+      }
+    }
+
+    function logAccess(fp, trusted) {
+      try {
+        const log = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+        log.unshift({ fp, trusted, time: new Date().toLocaleString(), ua: (navigator.userAgent||'').substring(0, 90) });
+        localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(0, 60)));
+      } catch(e) {}
+    }
+
+    function showDeterrentOverlay(fp) {
+      const ts = new Date().toLocaleString('en-US', {
+        weekday:'long', year:'numeric', month:'long', day:'numeric',
+        hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short'
+      });
+
+      const ov = document.createElement('div');
+      ov.id = 'njtc-data-sec-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;';
+      ov.innerHTML =
+        '<div style="max-width:600px;width:94%;background:#0a0e18;border:2px solid #dc2626;border-radius:16px;padding:2.5rem;color:#fff;box-shadow:0 0 90px rgba(220,38,38,.45)">' +
+          '<div style="display:flex;align-items:center;gap:.875rem;margin-bottom:1.25rem">' +
+            '<div style="width:48px;height:48px;background:#dc2626;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">⚠</div>' +
+            '<div>' +
+              '<div style="font-size:.6rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:#dc2626;margin-bottom:.25rem">NJTC — DATA &amp; EVALUATION — SECURITY NOTICE</div>' +
+              '<div style="font-size:1.1rem;font-weight:800;line-height:1.25">Unrecognized Device Access Flagged</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="background:#1a0707;border:1px solid #7f1d1d;border-radius:8px;padding:1rem;margin-bottom:1.25rem;font-size:.8125rem;color:#fca5a5;line-height:1.8">' +
+            '<div><strong>Access Timestamp:</strong> ' + ts + '</div>' +
+            '<div><strong>Department:</strong> Data &amp; Evaluation</div>' +
+            '<div><strong>Device Status:</strong> <span style="color:#f87171;font-weight:700">UNRECOGNIZED — NOT IN TRUSTED REGISTRY</span></div>' +
+          '</div>' +
+          '<p style="font-size:.875rem;color:#e5e7eb;line-height:1.75;margin:0 0 .875rem">' +
+            'The <strong>NJTC Data &amp; Evaluation Department</strong> has detected this login and recorded this access event. ' +
+            'The department has been notified and this breach has been escalated per data security protocol.' +
+          '</p>' +
+          '<p style="font-size:.875rem;color:#e5e7eb;line-height:1.75;margin:0 0 1.5rem">' +
+            '<strong>If you are not an authorized member of the Data &amp; Evaluation team, log out immediately.</strong> ' +
+            'Unauthorized access to NJTC internal data systems is a violation of organizational policy.' +
+          '</p>' +
+          '<div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem">' +
+            '<button id="njtc-sec-logout" style="flex:1;padding:.8rem 1.25rem;background:#dc2626;color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;cursor:pointer;min-width:160px">🚪 Log Out Now</button>' +
+            '<button id="njtc-sec-continue" style="flex:1;padding:.8rem 1.25rem;background:#1f2937;color:#d1d5db;border:1px solid #374151;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;min-width:160px">I Am Authorized — Continue</button>' +
+          '</div>' +
+          '<div id="njtc-sec-reg-wrap" style="display:none;border-top:1px solid #374151;padding-top:1rem;margin-top:.25rem">' +
+            '<div style="font-size:.8rem;color:#9ca3af;margin-bottom:.625rem">Authorized admin: enter your Data &amp; Evaluation department code to permanently register this device as trusted.</div>' +
+            '<div style="display:flex;gap:.5rem">' +
+              '<input id="njtc-sec-code" type="password" placeholder="Department code" style="flex:1;padding:.55rem .75rem;background:#111827;border:1px solid #374151;border-radius:6px;color:#fff;font-size:.875rem">' +
+              '<button id="njtc-sec-register" style="padding:.55rem 1rem;background:#1d4ed8;color:#fff;border:none;border-radius:6px;font-size:.875rem;font-weight:700;cursor:pointer">Register Device</button>' +
+            '</div>' +
+            '<div id="njtc-sec-reg-msg" style="font-size:.75rem;margin-top:.4rem;min-height:1rem"></div>' +
+          '</div>' +
+          '<div style="text-align:center;margin-top:.875rem">' +
+            '<button id="njtc-sec-reg-toggle" style="background:none;border:none;color:#6b7280;font-size:.7rem;cursor:pointer;text-decoration:underline">Authorized admin: register this device as trusted</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(ov);
+
+      document.getElementById('njtc-sec-logout').onclick = function() { ov.remove(); if (typeof NJTCAuth !== 'undefined') NJTCAuth.logout(); };
+      document.getElementById('njtc-sec-continue').onclick = function() { ov.remove(); };
+      document.getElementById('njtc-sec-reg-toggle').onclick = function() {
+        var w = document.getElementById('njtc-sec-reg-wrap');
+        w.style.display = w.style.display === 'none' ? 'block' : 'none';
+      };
+      document.getElementById('njtc-sec-register').onclick = async function() {
+        var code = (document.getElementById('njtc-sec-code').value || '').trim();
+        var msg  = document.getElementById('njtc-sec-reg-msg');
+        if (!code) { msg.style.color='#ef4444'; msg.textContent='Enter your department code.'; return; }
+        try {
+          var result = await NJTCAuth.login(code);
+          if (result && result.dept === 'data') {
+            trustDevice(fp);
+            msg.style.color = '#22c55e';
+            msg.textContent = '✓ Device registered as trusted. You will not see this warning again on this browser.';
+            setTimeout(function() { ov.remove(); }, 2000);
+          } else {
+            msg.style.color = '#ef4444';
+            msg.textContent = 'Code not recognized. Contact the Data & Evaluation Director.';
+          }
+        } catch(e) {
+          msg.style.color = '#ef4444';
+          msg.textContent = 'Verification failed — check your connection and try again.';
+        }
+      };
+    }
+
+    function runSecurityCheck() {
+      var session = window.NJTC_SESSION;
+      if (!session || session.dept !== 'data') return;
+      var fp = getFingerprint();
+      var trusted = getTrusted();
+      var isTrusted = trusted.some(function(d) { return d.fp === fp; });
+      logAccess(fp, isTrusted);
+      if (!isTrusted) showDeterrentOverlay(fp);
+    }
+
+    // Run after DOM ready and after session has had time to be set
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(runSecurityCheck, 600); });
+    } else {
+      setTimeout(runSecurityCheck, 600);
+    }
+
+    // ── Access Log Widget — injected into Data Dept home panel ────────────────
+    // Shows recent access events (from this device's localStorage) and trusted
+    // device registry. Only visible to logged-in data dept users.
+    function renderSecurityWidget() {
+      var session = window.NJTC_SESSION;
+      if (!session || session.dept !== 'data') return;
+      var hp = document.getElementById('panel-home');
+      if (!hp || document.getElementById('njtc-data-sec-widget')) return;
+
+      var log = (function() { try { return JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); } catch(e) { return []; } })();
+      var trusted = getTrusted();
+      var fp = getFingerprint();
+
+      var widget = document.createElement('div');
+      widget.id = 'njtc-data-sec-widget';
+      widget.style.cssText = 'margin-top:1.5rem;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.05)';
+
+      var untrustedCount = log.filter(function(e) { return !e.trusted; }).length;
+      var headerColor = untrustedCount > 0 ? '#7f1d1d' : '#0f2d5e';
+      var headerBg    = untrustedCount > 0 ? '#fef2f2' : '#f0f4fa';
+
+      var rows = log.slice(0, 8).map(function(e) {
+        var devLabel = trusted.find(function(d) { return d.fp === e.fp; });
+        var devName  = devLabel ? devLabel.label : 'Unknown Device';
+        var isMe     = e.fp === fp;
+        var statusColor = e.trusted ? '#16a34a' : '#dc2626';
+        var statusLabel = e.trusted ? (isMe ? 'This Device' : 'Trusted') : '⚠ Unrecognized';
+        return '<tr style="border-bottom:1px solid #f3f4f6">' +
+          '<td style="padding:.45rem .75rem;font-size:.75rem;color:#374151;white-space:nowrap">' + (e.time||'—') + '</td>' +
+          '<td style="padding:.45rem .75rem;font-size:.75rem;font-weight:600;color:#1e293b">' + devName + '</td>' +
+          '<td style="padding:.45rem .75rem"><span style="font-size:.65rem;font-weight:700;color:' + statusColor + ';background:' + (e.trusted?'#dcfce7':'#fee2e2') + ';padding:.15rem .5rem;border-radius:8px">' + statusLabel + '</span></td>' +
+        '</tr>';
+      }).join('');
+
+      var trustedRows = trusted.map(function(d) {
+        var isMe = d.fp === fp;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;border-bottom:1px solid #f3f4f6">' +
+          '<div>' +
+            '<div style="font-size:.8rem;font-weight:600;color:#1e293b">' + d.label + (isMe?' <span style="font-size:.65rem;color:#2563eb;font-weight:700">(this device)</span>':'') + '</div>' +
+            '<div style="font-size:.7rem;color:#9ca3af">Registered: ' + (d.registered||'—') + '</div>' +
+          '</div>' +
+          (!isMe ? '<button onclick="window._njtcDataRevokeDevice(\'' + d.fp + '\');document.getElementById(\'njtc-data-sec-widget\').remove();setTimeout(window._njtcDataSecRenderWidget,100)" style="font-size:.65rem;color:#ef4444;background:none;border:none;cursor:pointer;padding:.2rem .5rem">Revoke</button>' : '') +
+        '</div>';
+      }).join('');
+
+      widget.innerHTML =
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.125rem;background:' + headerBg + ';border-bottom:1px solid #e5e7eb;cursor:pointer" onclick="var b=document.getElementById(\'njtc-sec-body\');b.style.display=b.style.display===\'none\'?\'block\':\'none\'">' +
+          '<div style="display:flex;align-items:center;gap:.625rem">' +
+            '<span style="font-size:1rem">🔒</span>' +
+            '<div>' +
+              '<div style="font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:' + headerColor + '">Data Department Access Security</div>' +
+              '<div style="font-size:.7rem;color:#6b7280;margin-top:.1rem">' +
+                (untrustedCount > 0
+                  ? '<span style="color:#dc2626;font-weight:700">⚠ ' + untrustedCount + ' unrecognized access event' + (untrustedCount>1?'s':'') + ' logged on this device</span>'
+                  : 'All recent access events from recognized devices') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<span style="font-size:.7rem;color:#9ca3af">▾ expand</span>' +
+        '</div>' +
+        '<div id="njtc-sec-body" style="display:none">' +
+          '<div style="padding:.875rem 1.125rem;border-bottom:1px solid #f3f4f6">' +
+            '<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#374151;margin-bottom:.5rem">📋 Recent Access Log (this device)</div>' +
+            (log.length
+              ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc"><th style="padding:.4rem .75rem;font-size:.65rem;color:#6b7280;text-align:left;font-weight:700">Timestamp</th><th style="padding:.4rem .75rem;font-size:.65rem;color:#6b7280;text-align:left;font-weight:700">Device</th><th style="padding:.4rem .75rem;font-size:.65rem;color:#6b7280;text-align:left;font-weight:700">Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
+              : '<div style="font-size:.75rem;color:#9ca3af;padding:.25rem 0">No access events recorded on this device yet.</div>') +
+            '<div style="font-size:.65rem;color:#9ca3af;margin-top:.5rem">ⓘ Access events are logged locally on each device. Cross-device activity is not available without a backend service.</div>' +
+          '</div>' +
+          '<div style="padding:.875rem 1.125rem">' +
+            '<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#374151;margin-bottom:.5rem">✅ Trusted Devices (this browser)</div>' +
+            (trusted.length
+              ? '<div style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">' + trustedRows + '</div>'
+              : '<div style="font-size:.75rem;color:#9ca3af">No trusted devices registered yet. Log in and use the deterrent overlay to register this device.</div>') +
+          '</div>' +
+        '</div>';
+
+      hp.appendChild(widget);
+    }
+
+    window._njtcDataSecRenderWidget = renderSecurityWidget;
+
+    // Render widget after home builds — give the home panel 1.5s to settle
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(renderSecurityWidget, 1500); });
+    } else {
+      setTimeout(renderSecurityWidget, 1500);
+    }
+
+    // Expose access log + trusted device management to the home panel
+    window._njtcDataSecurityLog    = function() { try { return JSON.parse(localStorage.getItem(LOG_KEY)||'[]'); } catch(e) { return []; } };
+    window._njtcDataTrustedDevices = function() { return getTrusted(); };
+    window._njtcDataRevokeDevice   = function(fp) {
+      var list = getTrusted().filter(function(d) { return d.fp !== fp; });
+      localStorage.setItem(TRUSTED_KEY, JSON.stringify(list));
+    };
+  })();
+
 })();
