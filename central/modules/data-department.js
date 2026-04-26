@@ -3835,7 +3835,7 @@
                               || (t === '__unassigned__' ? 'Unassigned' : t);
             tutorData[t] = {
               key: t, name: realName,
-              scholars: new Set(), pcts: [], gains: [],
+              scholars: new Set(), pcts: [], gains: [], months: [],
               movedUp: 0, held: 0, movedDown: 0,
               minutesMath: 0, minutesELA: 0,
               siCount: 0, siTutor: 0, siSchool: 0, siOther: 0,
@@ -3846,6 +3846,7 @@
           const td = tutorData[t];
           td.scholars.add(r.scholarId || r.scholarName);
           td.pcts.push(r.pctTypical);
+          if (r.winterWeeks > 0) td.months.push(r.pctTypical * (r.winterWeeks / 4));
           if (r.winterGain !== null) td.gains.push(r.winterGain);
 
           const shift = _moyPlShift(r.baseRelPlacement, r.winterRelPlacement);
@@ -3898,7 +3899,7 @@
             n:              t.scholars.size,
             medianPct:      Math.round(_med(t.pcts) * 100),
             medianGain:     t.gains.length ? Math.round(_med(t.gains) * 10) / 10 : null,
-            medianMonths:   t.pcts.length ? parseFloat((_med(t.pcts) * 10).toFixed(1)) : null,
+            medianMonths:   t.months.length ? parseFloat((_med(t.months)).toFixed(1)) : null,
             movedUp:        t.movedUp,
             held:           t.held,
             movedDown:      t.movedDown,
@@ -3944,7 +3945,7 @@
         'Met Typical Growth','Has Growth Data','Winter-Only (no Fall baseline)',
         'Rush Flag','Instructor'];
       const csvRows = rows.map(r => {
-        const months = r.pctTypical !== null ? parseFloat((r.pctTypical * 10).toFixed(1)) : '';
+        const months = r.pctTypical !== null && r.winterWeeks > 0 ? parseFloat((r.pctTypical * (r.winterWeeks / 4)).toFixed(1)) : '';
         const shift  = r.hasGrowth ? _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) : '';
         return [
           r.scholarName, r.school, r.region, r.grade, subj,
@@ -3983,7 +3984,7 @@
 
       // Sheet 1: Individual Scholar Data
       const scholarSheet = rows.map(r => {
-        const months = r.pctTypical !== null ? parseFloat((r.pctTypical * 10).toFixed(1)) : null;
+        const months = r.pctTypical !== null && r.winterWeeks > 0 ? parseFloat((r.pctTypical * (r.winterWeeks / 4)).toFixed(1)) : null;
         const shift  = r.hasGrowth ? _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) : null;
         return {
           'Scholar Name':            r.scholarName || '',
@@ -4037,7 +4038,7 @@
           'Winter-Only':              m.total - m.withGrowth,
           'Median Scale Gain':        m.medianGain != null ? m.medianGain : '',
           'Median % Typical Growth':  m.medianPctTypical != null ? m.medianPctTypical : '',
-          'Median Months Gained':     m.medianMonthsGrowth != null ? m.medianMonthsGrowth : (m.medianPctTypical != null ? parseFloat((m.medianPctTypical / 100 * 10).toFixed(1)) : ''),
+          'Median Months Gained':     m.medianMonthsGrowth != null ? m.medianMonthsGrowth : '',
           '% Met Typical':            m.pctMetTypical != null ? m.pctMetTypical : '',
         })) : [];
 
@@ -5256,8 +5257,9 @@
         const movedDown = plShifts.filter(r => _moyPlShift(r.baseRelPlacement, r.winterRelPlacement) === 'down').length;
         const gains     = valid.map(r => r.winterGain).filter(v => v !== null && !isNaN(v));
         const pcts      = valid.map(r => r.pctTypical).filter(v => v !== null && !isNaN(v));
-        // months of learning gained = pctTypical (decimal) × 10 school months/year
-        const months    = pcts.map(v => v * 10);
+        // months of learning = pctTypical × winterWeeks / 4 (actual Fall→Winter diagnostic window)
+        const months    = valid.filter(r => r.pctTypical !== null && r.winterWeeks > 0)
+                               .map(r => r.pctTypical * (r.winterWeeks / 4));
         const metTyp    = pcts.filter(v => v >= 1.0);
         const progressing = pcts.filter(v => v >= 0.5 && v < 1.0);
         const needsAccel  = pcts.filter(v => v >= 0 && v < 0.5);

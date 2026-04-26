@@ -546,7 +546,7 @@ function renderAcademic() {
   function secHead(emoji, label, badge, badgeColor) {
     return '<div style="display:flex;align-items:center;gap:.625rem;margin-bottom:.875rem;padding-bottom:.5rem;border-bottom:2px solid var(--border)">' +
       '<span style="font-size:1.25rem">' + emoji + '</span>' +
-      '<span style="font-family:'DM Serif Display',serif;font-size:1rem;color:var(--navy);font-weight:700">' + label + '</span>' +
+      '<span style="font-family:serif;font-size:1rem;color:var(--navy);font-weight:700">' + label + '</span>' +
       (badge ? '<span style="font-size:.6875rem;font-weight:700;padding:.2rem .6rem;border-radius:20px;background:' + (badgeColor||'#dbeafe') + ';color:' + (badgeColor ? '#fff' : '#1e40af') + '">' + badge + '</span>' : '') +
       '</div>';
   }
