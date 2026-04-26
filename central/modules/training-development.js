@@ -597,24 +597,30 @@
     );
 
     // ── Live Apprentice Tracker: count OTJ items per apprentice ─────────────
-    // Sheet 1Dh1-..., gid=0, headers at row 5 (skipRows=4)
-    // Columns AB (index 27) through AR (index 43) = individual OTJ checklist items
+    // Sheet 1Dh1-..., gid=0. Originally expected OTJ items in columns AB–AR but
+    // that tab now contains GAINS IMPORTRANGE data with month columns there.
+    // We still attempt the parse; if it yields 0 matches the phase-based fallback
+    // in ap_otjItemCount (executive-leadership.js) fills in the gaps automatically.
     const liveOtjCountMap = {};
     try {
       if (liveTrackerText) {
         const ltp = parseCsvText(liveTrackerText, 4);
         const lth = ltp.headers;
+        // Auto-detect name column: prefer header containing 'name' or 'tutor'
+        const nameColIdx = lth.findIndex(h => /name|tutor/i.test(h));
+        const nameCol = nameColIdx >= 0 ? lth[nameColIdx] : lth[0];
+        // Only count cells with checkbox-style values, not bare numbers (avoids GAINS months)
+        const isChecked = v => { const t = (v||'').trim(); return t && !/^\d+$/.test(t); };
         const otjHdrs = lth.slice(27, 44); // AB–AR
-        const nameCol = lth[0];
         ltp.rows.forEach(r => {
           const rawName = (r[nameCol] || '').trim();
-          if (!rawName) return;
+          if (!rawName || /^\d+$/.test(rawName)) return; // skip numeric-only "names"
           const canon = normalizeApprenticeName(rawName) || rawName;
           const key   = canon.toLowerCase().replace(/\s+/g,' ').trim();
-          const count = otjHdrs.filter(h => (r[h] || '').trim()).length;
+          const count = otjHdrs.filter(h => isChecked(r[h])).length;
           if (!liveOtjCountMap[key] || count > liveOtjCountMap[key]) liveOtjCountMap[key] = count;
         });
-        console.log('[T&D] Live Tracker OTJ: ' + Object.keys(liveOtjCountMap).length + ' apprentices mapped');
+        console.log('[T&D] Live Tracker OTJ: ' + Object.keys(liveOtjCountMap).length + ' apprentices mapped (phase fallback active for any 0-match entries)');
       }
     } catch(e) { console.warn('[T&D] Live Tracker OTJ parse error:', e); }
     window.njtcLiveOtjMap = liveOtjCountMap;
@@ -2501,11 +2507,29 @@
       d.neOtj.forEach(r => overlayOtj(r,'NE'));
       d.swOtj.forEach(r => overlayOtj(r,'SW'));
 
-      // Overlay Live Tracker OTJ item counts (columns AB–AR = 17 checklist items)
+      // Overlay Live Tracker OTJ item counts; fall back to phase-based estimation
+      // when the Live Tracker map has no match (e.g. sheet structure changed to GAINS).
       const ltMap = d.liveOtjCountMap || {};
+      const _done  = /completed|meets expectations/i;
+      const _inprog = /in progress|partially/i;
       Object.keys(appMap).forEach(name => {
         const key = name.toLowerCase().replace(/\s+/g,' ').trim();
-        if (ltMap.hasOwnProperty(key)) appMap[name].otjItems = ltMap[key];
+        if (ltMap.hasOwnProperty(key)) {
+          appMap[name].otjItems = ltMap[key];
+        } else {
+          // Phase fallback: Beginning=6 items, Middle=6, End=5 (total 17)
+          const a = appMap[name];
+          const beg = (a.beg||'').trim(), mid = (a.mid||'').trim(), end = (a.end||'').trim();
+          if (!beg || beg === '—') return; // no phase data
+          let c = 0;
+          if      (_done.test(beg))   c += 6;
+          else if (_inprog.test(beg)) c += 3;
+          if      (_done.test(mid))   c += 6;
+          else if (_inprog.test(mid) && _done.test(beg)) c += 3;
+          if      (_done.test(end))   c += 5;
+          else if (_inprog.test(end) && _done.test(mid)) c += 2;
+          appMap[name].otjItems = c;
+        }
       });
 
       // Overlay observation counts from NE Tutor Obs
