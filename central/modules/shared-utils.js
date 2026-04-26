@@ -13232,3 +13232,320 @@
   })();
 
 })();
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DEFINITION AGENT — Section-aware metric glossary, toggle on/off per panel
+//  Self-contained IIFE. Hooks showPanel; renders a slide-in guide drawer.
+// ══════════════════════════════════════════════════════════════════════════════
+(function() {
+  'use strict';
+
+  var _GUIDE_CONTENT = {
+    'home': {
+      title: 'Home — Dashboard Overview',
+      what: 'Your personalized hub: live KPI summary, quick-action shortcuts, and an at-a-glance view of program health across all data sources.',
+      terms: [
+        ['KPI', 'Key Performance Indicator — a measurable goal your team is tracking this school year.'],
+        ['Met / In Progress / Has Not Met', 'Status labels showing whether a KPI goal has been achieved, is on track, or needs attention.'],
+        ['Quick Links', 'Shortcuts to the most frequently accessed portal sections for your role.'],
+        ['Active Scholars', 'Students currently enrolled in NJTC tutoring services at partner sites.'],
+        ['PIE', 'Program Intelligence Engine — NJTC\'s automated data assistant. Ask it questions about any live data shown in the portal.'],
+      ]
+    },
+    'kpi': {
+      title: 'KPI Tracker',
+      what: 'Set, update, and review Key Performance Indicators for your site or region. Each KPI represents a program-level commitment for the school year.',
+      terms: [
+        ['KPI', 'Key Performance Indicator — a measurable, time-bound goal aligned to program outcomes.'],
+        ['Met', 'Goal achieved. The site\'s performance equals or exceeds the target value.'],
+        ['In Progress', 'Actively being worked on; performance is on a positive trajectory toward target.'],
+        ['Partially Met', 'Progress made but not yet at full target — an interim milestone was hit.'],
+        ['Has Not Met', 'Performance is below threshold. An intervention or course-correction is likely needed.'],
+        ['Coming Down the Pipeline', 'Goal identified but implementation has not yet started.'],
+        ['Goal Area', 'The category the KPI belongs to (e.g., Scholar Growth, Attendance, Session Fidelity).'],
+        ['Target', 'The specific numerical or percentage threshold that defines "Met" for this KPI.'],
+      ]
+    },
+    'kpi-analytics': {
+      title: 'KPI Analytics',
+      what: 'Visualize KPI trends over time, compare site performance, and identify goal areas where the program is excelling or needs focus.',
+      terms: [
+        ['Score', 'The percentage of KPIs currently in "Met" status across the organization.'],
+        ['Trend', 'Direction of performance change over a period — improving, stable, or declining.'],
+        ['Goal Area Breakdown', 'Distribution of KPIs by category — shows where the program is strongest and where gaps exist.'],
+        ['Site Ranking', 'Sites ordered by their KPI Met percentage to identify top performers and those needing support.'],
+        ['Benchmark', 'The target value established at the start of the school year for comparison.'],
+        ['Trajectory', 'The projected path of a KPI based on current rate of progress — used to forecast end-of-year outcomes.'],
+      ]
+    },
+    'pearl-ops': {
+      title: 'Pearl Ops — Program Operations',
+      what: 'Monitor live tutoring session delivery, scholar attendance, and operational performance across all active sites.',
+      terms: [
+        ['Pearl', 'NJTC\'s tutoring session management and delivery tracking system.'],
+        ['Active Scholars', 'Students currently enrolled and receiving tutoring services.'],
+        ['Scholar Attendance %', '(Sessions attended ÷ Sessions scheduled) × 100. How consistently scholars show up to tutoring.'],
+        ['Session Fidelity', 'A quality score indicating whether tutoring sessions met delivery standards (duration, structure, content).'],
+        ['Site / Network', 'The specific school or charter network where NJTC operates. Sites roll up into Networks.'],
+        ['Service Interruption (SI)', 'A scheduled session that was not delivered due to a school- or staff-side issue.'],
+        ['District', 'The broader school district that a site belongs to.'],
+        ['Sessions Delivered', 'Total tutoring sessions that were completed and logged in Pearl for the selected period.'],
+      ]
+    },
+    'iready-lab': {
+      title: 'iReady Lab — Scholar Growth',
+      what: 'Analyze iReady diagnostic data to track scholar academic growth, placement level distribution, and progress toward reading and math targets.',
+      terms: [
+        ['iReady', 'A digital diagnostic assessment measuring student reading and math levels. NJTC uses it to track scholar progress.'],
+        ['Diagnostic', 'A formal iReady assessment administered at defined intervals (typically fall, winter, spring).'],
+        ['Placement Level', 'Where a student performs relative to grade level: 3+ Below · 2 Below · 1 Below · On Level · 1+ Above.'],
+        ['Scale Score', 'A continuous numerical score used to measure and compare iReady performance across grades.'],
+        ['Typical Growth', 'The score gain expected to maintain current placement level by year end.'],
+        ['Stretch Growth', 'A more ambitious target — closes the grade-level gap, not just maintains placement.'],
+        ['Growth Milestone', 'Whether a scholar hit Typical or Stretch Growth based on diagnostic score change.'],
+        ['% Typical / Stretch', 'The share of scholars who met each growth target out of all assessed.'],
+      ]
+    },
+    'talent': {
+      title: 'Talent Analytics',
+      what: 'View and analyze staff data: active employees, role distribution, retention trends, and apprenticeship enrollment.',
+      terms: [
+        ['Active Staff', 'Employees with a current "Active" ADP payroll status — working and receiving compensation.'],
+        ['ADP', 'Automatic Data Processing — NJTC\'s payroll and HR system. ADP Status is the authoritative source for employment.'],
+        ['Retention Rate', 'Percentage of prior-year staff who returned for the current school year.'],
+        ['Apprentice', 'A staff member formally enrolled in the NJTC Tutor Apprenticeship Program (TAP).'],
+        ['Rehire', 'A staff member returning after having previously worked with NJTC.'],
+        ['Cycle', 'The number of school-year contracts a staff member has completed with NJTC.'],
+        ['Network / Region', 'The charter network or geographic region (NE or SW) the staff member is assigned to.'],
+      ]
+    },
+    'concern': {
+      title: 'Support Log — Employee Concerns',
+      what: 'Document, review, and track employee coaching conversations, formal warnings, and performance interventions.',
+      terms: [
+        ['Support Action', 'Any documented employee engagement: coaching conversation, verbal warning, write-up, or performance plan.'],
+        ['Write-Up', 'A formal written record of a policy violation or performance issue. Becomes part of the employee\'s file.'],
+        ['PGP', 'Professional Growth Plan — a structured, time-bound improvement plan with specific goals and check-in dates.'],
+        ['Termination', 'Employment separation initiated by NJTC, typically following documented performance or conduct issues.'],
+        ['Repeat Concern', '2+ logged concerns for the same employee in the same category — signals a pattern requiring escalation.'],
+        ['HR Action', 'Whether a formal HR step was taken beyond coaching: write-up, PGP, or termination.'],
+        ['First-Time', 'Whether this is the first concern logged for this employee. Relevant context for escalation decisions.'],
+      ]
+    },
+    'training-analytics': {
+      title: 'Training & Development',
+      what: 'Track apprenticeship progress, on-the-job training completion, PD participation, and training outcomes across all NJTC staff.',
+      terms: [
+        ['OTJ', 'On-the-Job Training — supervised practice observations required for apprenticeship completion.'],
+        ['OTJ Phase', 'Three required observation windows during the year: Beginning, Middle, and End.'],
+        ['ADP Status', 'Payroll employment status from NJTC\'s HR system. "Active" = currently employed and on payroll.'],
+        ['Apprentice', 'A staff member enrolled in NJTC\'s TAP (Tutor Apprenticeship Program) — a registered DOL apprenticeship.'],
+        ['NE / SW Region', 'Northeast and Southwest — the two geographic service areas NJTC operates in.'],
+        ['PD', 'Professional Development — structured learning sessions for staff skill-building and program alignment.'],
+        ['Observation', 'A formal coaching/supervisory visit documented in the OTJ tracker by a site leader or program manager.'],
+        ['DOL Target', 'The Department of Labor enrollment benchmark for registered apprenticeships.'],
+      ]
+    },
+    'sy-analytics': {
+      title: 'Site Analytics — School Year View',
+      what: 'Explore school-year performance data by site, including scholar engagement, attendance patterns, and location-level outcomes.',
+      terms: [
+        ['SY', 'School Year — the current academic year (e.g., 2025–2026).'],
+        ['Site', 'An individual school location where NJTC provides tutoring services.'],
+        ['Scholar Attendance', 'The rate at which enrolled scholars attend scheduled tutoring sessions at a given site.'],
+        ['Site Performance', 'A composite view of a site\'s key metrics — attendance, fidelity, scholar volume, and KPI status.'],
+        ['Network', 'A charter network or district group that contains multiple NJTC partner sites.'],
+        ['Cohort', 'A group of scholars or staff in the same program cycle, used for year-over-year comparison.'],
+      ]
+    },
+    'impact-report': {
+      title: 'Impact Report',
+      what: 'Generate executive-ready summaries of NJTC program outcomes. Export as PDF for board presentations, grant reporting, and stakeholder communications.',
+      terms: [
+        ['Impact', 'The measurable change in scholar academic outcomes attributable to NJTC\'s tutoring program.'],
+        ['Growth Rate', 'Percentage of scholars who achieved Typical or Stretch iReady growth targets.'],
+        ['Program Hours', 'Total tutoring hours delivered across all sites in the reporting period.'],
+        ['Grant Reporting', 'Output formatted to match funders\' required metrics: attendance, scholar growth, and program hours.'],
+        ['Exportable', 'Report can be downloaded as a print-ready PDF for external distribution.'],
+      ]
+    },
+    'finance-analytics': {
+      title: 'Finance Analytics',
+      what: 'Review high-level program volume metrics and financial context — sessions delivered, scholar counts, and operational scale indicators.',
+      terms: [
+        ['Sessions', 'Total tutoring sessions delivered in the defined period across all sites.'],
+        ['Budget Variance', 'Difference between planned (budgeted) and actual spend. Positive = under budget; negative = over.'],
+        ['Revenue', 'Income received from grants, contracts, or fee-for-service agreements.'],
+        ['Encumbrance', 'Funds committed (e.g., purchase orders) but not yet fully paid out.'],
+        ['Cost Per Scholar', 'Total program spend divided by active scholars — a key program efficiency indicator.'],
+      ]
+    },
+    'policies': {
+      title: 'Policies & Procedures',
+      what: 'Access NJTC\'s operations manual, staff policies, compliance documents, and program procedures. Use the search bar to find topics quickly.',
+      terms: [
+        ['Operations Manual', 'NJTC\'s comprehensive guide to program delivery standards, staff expectations, and site protocols.'],
+        ['Compliance', 'Meeting regulatory, funder, or organizational requirements (background checks, certifications, etc.).'],
+        ['Policy', 'A formal organizational rule or expectation that applies to all relevant staff.'],
+        ['Procedure', 'Step-by-step process for implementing a policy or completing a defined workflow.'],
+      ]
+    },
+    'perf': {
+      title: 'Performance Management',
+      what: 'Document and review formal employee performance issues, corrective action plans, and outcomes for HR records.',
+      terms: [
+        ['Performance Issue', 'A documented deviation from expected job standards or professional conduct.'],
+        ['Corrective Action', 'A formal step taken to address a performance issue — warning, PGP, or termination.'],
+        ['PGP', 'Professional Growth Plan — a structured improvement plan with goals, timelines, and accountability checkpoints.'],
+        ['Progressive Discipline', 'An escalating response to repeated issues: coaching → verbal warning → write-up → PGP → termination.'],
+      ]
+    },
+    'data-cabinet': {
+      title: 'Data Sources',
+      what: 'Browse all live data sources and databases that power the NJTC portal. Understand where each metric comes from.',
+      terms: [
+        ['Live Data', 'Data automatically refreshed from a connected source (e.g., Google Sheets via CSV, ADP, Pearl).'],
+        ['Source of Truth', 'The authoritative data system for a given metric — the system that overrides all others.'],
+        ['CSV Feed', 'A published spreadsheet feed that the portal reads live. No manual upload required.'],
+        ['Refresh Interval', 'How frequently a given data source is updated. Most NJTC feeds update within minutes of the source changing.'],
+        ['Data Lag', 'A delay between when data is entered and when it appears in the portal. Usually under 5 minutes for live feeds.'],
+      ]
+    },
+  };
+
+  var _guideOpen  = false;
+  var _guidePanel = 'home';
+  var _SEEN_KEY   = 'njtc_guide_seen_v1';
+
+  function _guideInit() {
+    // Inject styles
+    var style = document.createElement('style');
+    style.textContent = [
+      '#njtcGuideBtn{position:fixed;bottom:80px;left:16px;z-index:9990;display:flex;align-items:center;gap:6px;',
+      'background:#1B2A4A;color:#fff;border:none;border-radius:24px;padding:8px 14px 8px 10px;',
+      'font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);',
+      'letter-spacing:.03em;transition:background .15s,transform .15s;user-select:none;}',
+      '#njtcGuideBtn:hover{background:#2d4270;transform:translateY(-1px);}',
+      '#njtcGuideBtn .gb-dot{width:8px;height:8px;border-radius:50%;background:#34d399;',
+      'display:inline-block;transition:background .3s;}',
+      '#njtcGuideBtn.guide-new .gb-dot{background:#f59e0b;animation:guidePulse 1.2s ease infinite;}',
+      '@keyframes guidePulse{0%,100%{opacity:1}50%{opacity:.35}}',
+      '#njtcGuideDrawer{position:fixed;top:0;right:-340px;width:320px;height:100vh;',
+      'background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 20px rgba(0,0,0,.12);',
+      'z-index:9991;transition:right .25s cubic-bezier(.4,0,.2,1);overflow-y:auto;',
+      'display:flex;flex-direction:column;}',
+      '#njtcGuideDrawer.open{right:0;}',
+      '#njtcGuideDrawer .gd-header{background:#1B2A4A;color:#fff;padding:14px 16px;',
+      'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0;}',
+      '#njtcGuideDrawer .gd-title{font-size:13px;font-weight:800;line-height:1.3;flex:1;}',
+      '#njtcGuideDrawer .gd-close{background:none;border:none;color:#93c5fd;font-size:18px;',
+      'cursor:pointer;line-height:1;padding:0;flex-shrink:0;}',
+      '#njtcGuideDrawer .gd-close:hover{color:#fff;}',
+      '#njtcGuideDrawer .gd-what{background:#f0f9ff;border-left:3px solid #3b82f6;',
+      'padding:10px 14px;font-size:11.5px;color:#1e3a5f;line-height:1.55;flex-shrink:0;}',
+      '#njtcGuideDrawer .gd-what strong{display:block;font-size:10px;text-transform:uppercase;',
+      'letter-spacing:.06em;color:#6b7280;margin-bottom:4px;}',
+      '#njtcGuideDrawer .gd-body{padding:12px 14px;flex:1;}',
+      '#njtcGuideDrawer .gd-body h4{font-size:10px;text-transform:uppercase;letter-spacing:.07em;',
+      'color:#6b7280;margin:0 0 8px;font-weight:700;}',
+      '#njtcGuideDrawer .gd-term{margin-bottom:9px;}',
+      '#njtcGuideDrawer .gd-term dt{font-size:11.5px;font-weight:700;color:#1B2A4A;margin-bottom:1px;}',
+      '#njtcGuideDrawer .gd-term dd{font-size:11px;color:#4b5563;line-height:1.5;margin:0;}',
+      '#njtcGuideDrawer .gd-footer{padding:10px 14px;border-top:1px solid #e5e7eb;font-size:10.5px;',
+      'color:#9ca3af;line-height:1.4;flex-shrink:0;}',
+      '#njtcGuideOverlay{display:none;position:fixed;inset:0;background:transparent;z-index:9989;}',
+    ].join('');
+    document.head.appendChild(style);
+
+    // Inject HTML
+    var html = '<button id="njtcGuideBtn" onclick="window.njtcGuideToggle()" title="Section Guide — definitions and metric explanations">' +
+      '<span class="gb-dot"></span><span>Guide</span></button>' +
+      '<div id="njtcGuideOverlay" onclick="window.njtcGuideClose()"></div>' +
+      '<div id="njtcGuideDrawer">' +
+        '<div class="gd-header"><div class="gd-title" id="njtcGuideTitle">Section Guide</div>' +
+        '<button class="gd-close" onclick="window.njtcGuideClose()" title="Close guide">✕</button></div>' +
+        '<div class="gd-what" id="njtcGuideWhat"><strong>What this section shows</strong><span id="njtcGuideWhatText">—</span></div>' +
+        '<div class="gd-body"><h4>Key Terms &amp; Definitions</h4><dl id="njtcGuideTerms"></dl></div>' +
+        '<div class="gd-footer">Definitions are high-level guides for portal navigation. Ask PIE for deeper analysis and live data insights.</div>' +
+      '</div>';
+    var host = document.createElement('div');
+    host.innerHTML = html;
+    while (host.firstChild) document.body.appendChild(host.firstChild);
+
+    // Update on panel change
+    var _origSP = window.showPanel;
+    window.showPanel = function(id, btn) {
+      if (typeof _origSP === 'function') _origSP(id, btn);
+      _guideUpdate(id);
+    };
+
+    // Keyboard dismiss
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') window.njtcGuideClose(); });
+
+    // Update for current panel on init
+    setTimeout(function() {
+      var active = document.querySelector('.panel.active');
+      if (active) {
+        var id = (active.id || '').replace(/^panel-/, '');
+        _guideUpdate(id);
+      }
+    }, 400);
+  }
+
+  function _guideUpdate(panelId) {
+    _guidePanel = panelId || 'home';
+    var data = _GUIDE_CONTENT[_guidePanel];
+    if (!data) return;
+    var btn = document.getElementById('njtcGuideBtn');
+    if (!btn) return;
+    // Pulse the dot to signal content updated
+    btn.classList.add('guide-new');
+    setTimeout(function() { btn.classList.remove('guide-new'); }, 2500);
+    // Update drawer content (even if closed, so it's ready)
+    var titleEl = document.getElementById('njtcGuideTitle');
+    var whatEl  = document.getElementById('njtcGuideWhatText');
+    var termsEl = document.getElementById('njtcGuideTerms');
+    if (titleEl) titleEl.textContent = data.title;
+    if (whatEl)  whatEl.textContent  = data.what;
+    if (termsEl) {
+      termsEl.innerHTML = data.terms.map(function(t) {
+        return '<div class="gd-term"><dt>' + _esc(t[0]) + '</dt><dd>' + _esc(t[1]) + '</dd></div>';
+      }).join('');
+    }
+    // If guide is open, keep it open with new content
+    if (_guideOpen) {
+      var drawer = document.getElementById('njtcGuideDrawer');
+      if (drawer) drawer.classList.add('open');
+    }
+  }
+
+  function _esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  window.njtcGuideToggle = function() {
+    _guideOpen = !_guideOpen;
+    var drawer  = document.getElementById('njtcGuideDrawer');
+    var overlay = document.getElementById('njtcGuideOverlay');
+    if (drawer)  drawer.classList.toggle('open', _guideOpen);
+    if (overlay) overlay.style.display = _guideOpen ? 'block' : 'none';
+    // Pulse removed when user opens — they've seen the update
+    var btn = document.getElementById('njtcGuideBtn');
+    if (btn && _guideOpen) btn.classList.remove('guide-new');
+  };
+
+  window.njtcGuideClose = function() {
+    _guideOpen = false;
+    var drawer  = document.getElementById('njtcGuideDrawer');
+    var overlay = document.getElementById('njtcGuideOverlay');
+    if (drawer)  drawer.classList.remove('open');
+    if (overlay) overlay.style.display = 'none';
+  };
+
+  // Init after DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _guideInit);
+  } else {
+    setTimeout(_guideInit, 50);
+  }
+})();

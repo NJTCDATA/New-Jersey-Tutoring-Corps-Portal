@@ -189,7 +189,7 @@
           chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
         }
       } else {
-        chips.push({ico:'&#9432;',col:'#f3f4f6',txt:'Pending',sub:'iReady 2025-26 Upload'});
+        chips.push({ico:'&#128200;',col:'#f3f4f6',txt:'—',sub:'iReady Live Data'});
       }
 
       // ── SERVICE INTERRUPTIONS ──
@@ -398,15 +398,15 @@
             source:'iReady Longitudinal Dashboard · '+irlSY+' · '+fmtN(irl.totalRows)+' records'});
         } else {
           cards.push({color:'gold',label:'Academic Outcomes',
-            headline:'&#9432; iReady 2025-26 Data Pending Upload',
-            body:'The Data team has not yet uploaded the mid-year iReady CSV. Historical data covers '+irlSY+'. Once uploaded, growth rates and placement breakdowns appear here automatically.',
-            source:'Pending Data upload · i-Ready Lab panel'});
+            headline:'&#9432; iReady Live — Growth Rates Not Yet Calculable',
+            body:'iReady data is active in the live feed ('+irlSY+') but growth rate calculations are not yet available for this period — likely awaiting a second diagnostic window. Visit the iReady Analysis Lab for the current diagnostic breakdown and placement levels.',
+            source:'iReady Longitudinal Live Feed &middot; i-Ready Lab panel'});
         }
       } else {
         cards.push({color:'gold',label:'Academic Outcomes',
-          headline:'&#9432; iReady Data — Visit i-Ready Lab to Load',
-          body:'Or — Data team: upload the mid-year CSV in the Lab panel to make academic data available here automatically for all departments.',
-          source:'i-Ready Analysis Lab'});
+          headline:'&#9432; iReady Live Data Not Yet Available',
+          body:'iReady 2025-26 results will appear here automatically once the longitudinal live feed is updated. No action needed — data refreshes live when the feed is populated.',
+          source:'iReady Longitudinal Live Feed &middot; i-Ready Analysis Lab'});
       }
 
       // ── 9. KPI ORGANIZATIONAL HEALTH ──
@@ -518,23 +518,40 @@
       var po=getPo(); var ld=getLD(); var race=getRace(); var st=getStella(); var kpi=getKPI(); var irl=getIRL();
       var html='';
 
-      // iReady snapshot notice
+      // ── ACADEMIC OUTCOMES (iReady) — always live from irlab.getSummary / longitudinal feed ──
+      // Priority: 1) 25-26 longitudinal live data  2) most-recent-year live data (with note)
+      // No manual upload required — updates automatically when longitudinal feed has new data.
       try {
-        var snap=window.irlab&&window.irlab.getSnapshot?window.irlab.getSnapshot():null;
-        if(snap&&snap.summary) {
-          var age=Math.round((Date.now()-snap.ts)/60000);
-          var ageStr=age<60?age+' min ago':Math.round(age/60)+' hr ago';
-          html+='<div class="adv-chart-card" style="border-left:3px solid #7c3aed;margin-bottom:.75rem">'+
-            '<div style="display:flex;justify-content:space-between;align-items:center">'+
-              '<div style="font-size:.78rem;font-weight:700;color:#7c3aed">&#128203; iReady Snapshot — '+snap.sy+'</div>'+
-              '<div style="font-size:.7rem;color:var(--muted)">'+ageStr+'</div>'+
+        if (irl && irl.growthPct != null) {
+          var irlSY2     = irl.activeSY || 'Historical';
+          var has2526    = irl.hasCurrentYearData;
+          var irlBorder  = has2526 ? '#7c3aed' : '#9ca3af';
+          var irlBadge   = has2526
+            ? '<div style="font-size:.68rem;background:#f3e8ff;color:#7c3aed;padding:.15rem .45rem;border-radius:10px;font-weight:700">2025-26 LIVE</div>'
+            : '<div style="font-size:.68rem;background:#f3f4f6;color:#6b7280;padding:.15rem .45rem;border-radius:10px">'+irlSY2+' HISTORICAL</div>';
+          var mMed2      = irl.mathMedianPctAllYears!=null ? irl.mathMedianPctAllYears : irl.mathMedianPctTypical;
+          var eMed2      = irl.elaMedianPctAllYears!=null  ? irl.elaMedianPctAllYears  : irl.elaMedianPctTypical;
+          var irlMetrics = [];
+          if (irl.mathAvgGain!=null && mMed2!=null) irlMetrics.push('Math: +'+irl.mathAvgGain+' pts &nbsp;·&nbsp; '+mMed2+'% to typical');
+          if (irl.elaAvgGain!=null  && eMed2!=null) irlMetrics.push('ELA: +'+irl.elaAvgGain+' pts &nbsp;·&nbsp; '+eMed2+'% to typical');
+          var irlMetricStr = irlMetrics.length ? irlMetrics.join('<br>') : fmtP(irl.growthPct)+' growth rate';
+          html+='<div class="adv-chart-card" style="border-left:3px solid '+irlBorder+';margin-bottom:.75rem">'+
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">'+
+              '<div style="font-size:.78rem;font-weight:700;color:#7c3aed">&#128200; iReady Academic Outcomes &mdash; '+irlSY2+'</div>'+
+              irlBadge+
             '</div>'+
-            '<div style="font-size:.77rem;color:var(--text-1);margin-top:.3rem">'+fmtN(snap.totalRows)+' rows uploaded · '+fmtN(snap.summary.totalScholars)+' scholars · '+(snap.summary.growthPct!=null?snap.summary.growthPct+'% growth rate':'No growth data yet')+' · <em style="color:var(--muted)">Visible to all departments</em></div>'+
+            '<div style="font-size:1rem;font-weight:800;color:#1B2A4A;margin-bottom:.2rem">'+fmtP(irl.growthPct)+' of scholars show measurable academic growth</div>'+
+            '<div style="font-size:.77rem;color:#374151;line-height:1.6;margin-bottom:.35rem">'+irlMetricStr+'</div>'+
+            '<div style="font-size:.7rem;color:var(--muted)">'+fmtN(irl.totalRows)+' scholar records'+
+              (irl.totalWithGrowth?' &nbsp;·&nbsp; '+fmtN(irl.totalWithGrowth)+' with positive gains':'')+
+              ' &nbsp;·&nbsp; Source: iReady Longitudinal Live Feed'+
+              (!has2526?' &nbsp;&#9888;&#65039; <em>2025-26 not yet in longitudinal feed &mdash; '+irlSY2+' results shown; will auto-update</em>':'')+
+            '</div>'+
           '</div>';
         } else {
-          html+='<div class="adv-chart-card" style="border-left:3px solid #9ca3af;opacity:.7;margin-bottom:.75rem">'+
-            '<div style="font-size:.78rem;font-weight:600;color:var(--muted)">&#9432; iReady 2025-26 Snapshot Not Yet Available</div>'+
-            '<div style="font-size:.76rem;color:var(--muted);margin-top:.2rem">Data team has not yet uploaded the mid-year CSV. When uploaded, snapshot appears here and in all department views automatically.</div>'+
+          html+='<div class="adv-chart-card" style="border-left:3px solid #9ca3af;opacity:.75;margin-bottom:.75rem">'+
+            '<div style="font-size:.78rem;font-weight:600;color:var(--muted)">&#9432; iReady Academic Data Not Yet Available</div>'+
+            '<div style="font-size:.76rem;color:var(--muted);margin-top:.2rem">iReady 2025-26 results will appear here automatically once the longitudinal live feed is updated. No manual upload required.</div>'+
           '</div>';
         }
       } catch(e) {}
@@ -1533,7 +1550,15 @@
     const hrEligible = (window.AP_DATA || []).filter(r =>
       r.apprentice !== 'Yes' && !tapNames.has(nm(r.name))
     );
-    const enrolled = tapRoster.map(tap => {
+    // ADP Active filter — mirrors T&D: only include entries with ADP Status 'Active' or no OTJ record.
+    // njtcOTJMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
+    const _otjLookup = window.njtcOTJMap || {};
+    const _fl2 = n => { const p = n.split(/\s+/).filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : n; };
+    const _adpStatus = name => { const k = nm(name); const row = _otjLookup[k] || _otjLookup[_fl2(k)] || null; return row ? (row['ADP Status']||'').trim() : ''; };
+    const activeRoster = tapRoster.filter(tap => { const adp = _adpStatus(tap.name); return adp === '' || adp === 'Active'; });
+    if (activeRoster.length !== tapRoster.length)
+      console.log('[AP] ADP filter: ' + activeRoster.length + ' ADP-active of ' + tapRoster.length + ' TAP entries');
+    const enrolled = activeRoster.map(tap => {
       const hrMatch = hrByName[nm(tap.name)];
       // TAP placement is the authoritative current school — derive network from it first.
       // HR site/district is only used as a fallback when placement alone is ambiguous.
@@ -1592,7 +1617,7 @@
       hrOnlyEnrolled.length + ' enrolled (HR-only) + ' +
       hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
     // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
-    ap_syncHREmps(new Set(tapRoster.map(r => nm(r.name))));
+    ap_syncHREmps(new Set(activeRoster.map(r => nm(r.name))));
   };
 
   // Push TAP enrolled status into HR_EMPS so the Talent Analytics "Apprentice" filter works

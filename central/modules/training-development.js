@@ -2182,15 +2182,17 @@
       d.neOtj.forEach(r => addOtjRow(r, 'NE'));
       d.swOtj.forEach(r => addOtjRow(r, 'SW'));
 
-      const apps = Object.values(appMap);
+      let apps = Object.values(appMap);
       // Overlay Live Tracker OTJ counts onto this view's apps
       const ltCountMap = d.liveOtjCountMap || {};
       apps.forEach(a => {
         const key = a.name.toLowerCase().replace(/\s+/g,' ').trim();
         a.otjItems = ltCountMap.hasOwnProperty(key) ? ltCountMap[key] : null;
       });
-      const total   = apps.length;
-      const active  = apps.filter(a => (a.adp||'').trim() === 'Active' || !a.adp).length;
+      // Restrict to ADP-active only — matches HR dashboard live count
+      apps = apps.filter(a => (a.adp||'').trim() === 'Active' || !a.adp);
+      const total  = apps.length;
+      const active = apps.length;
       const begDone = apps.filter(a => a.otjItems !== null && a.otjItems >= LIVE_TRACKER_OTJ_COLS).length;
       const midDone = apps.filter(a => a.otjItems !== null && a.otjItems > 0 && a.otjItems < LIVE_TRACKER_OTJ_COLS).length;
       const needsFU = apps.filter(a =>
@@ -2574,8 +2576,8 @@
         <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
           <div style="font-weight:700;color:#1B2A4A;font-size:.9rem">Region:</div>
           <button class="pst-tab active" id="apprRegAll" onclick="apprRegionFilter('all',this)" style="padding:.3rem .8rem;font-size:.8rem">All (${apps.length})</button>
-          <button class="pst-tab" id="apprRegNE" onclick="apprRegionFilter('NE',this)" style="padding:.3rem .8rem;font-size:.8rem">NE (${APPRENTICES_NE.length})</button>
-          <button class="pst-tab" id="apprRegSW" onclick="apprRegionFilter('SW',this)" style="padding:.3rem .8rem;font-size:.8rem">SW (${APPRENTICES_SW.length})</button>
+          <button class="pst-tab" id="apprRegNE" onclick="apprRegionFilter('NE',this)" style="padding:.3rem .8rem;font-size:.8rem">NE (${apps.filter(a=>a.region==='NE').length})</button>
+          <button class="pst-tab" id="apprRegSW" onclick="apprRegionFilter('SW',this)" style="padding:.3rem .8rem;font-size:.8rem">SW (${apps.filter(a=>a.region==='SW').length})</button>
           <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
             <select id="apprDistFilter" onchange="apprApplyFilter()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid #d1d5db;border-radius:6px">
               <option value="">All Districts</option>
