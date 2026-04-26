@@ -411,10 +411,10 @@
         const _rMap = {};
         _withR.forEach(e => { const r = e._race||'Unknown'; _rMap[r] = (_rMap[r]||0)+1; });
         const _rRows = Object.entries(_rMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
-        // Apprentice-specific race data
-        // em='Yes' is the TAP enrollment flag — use _hrPool (not _activeP) so live status
-        // overwrites don't reduce the count. TAP enrollment is independent of current status.
-        const _appPool = _hrPool.filter(e => e.em === 'Yes');
+        // Apprentice-specific data — _apprentice is set by live overlay from HR Master List col K
+        // window._liveApprenticeCount holds the raw count from col K before name-matching (more accurate)
+        const _appPool = _hrPool.filter(e => e._apprentice === 'Yes');
+        const _appBadgeCount = window._liveApprenticeCount || _appPool.length;
         const _appWithR = _appPool.filter(e => e._race && e._race !== '' && !/not listed|prefer not/i.test(e._race||''));
         const _appNW    = _appWithR.filter(e => (e._race||'').toLowerCase() !== 'white').length;
         const _appNWPct = _appWithR.length ? Math.round(_appNW/_appWithR.length*100) : null;
@@ -445,11 +445,11 @@
     </div>` : ''}
   </div>
   <div style="font-size:.6rem;color:#94a3b8;font-weight:600">Active on-site staff · Live HR sheet · ${_withR.length} of ${_tot} with race data on file</div>
-  ${_appPool.length ? `<div style="margin-top:.625rem;display:inline-flex;align-items:center;gap:.5rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.4rem .75rem">
+  ${_appBadgeCount ? `<div style="margin-top:.625rem;display:inline-flex;align-items:center;gap:.5rem;background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:.4rem .75rem">
     <span style="font-size:1rem">🎓</span>
-    <span style="font-size:.8125rem;font-weight:800;color:#92400e">${_appPool.length}</span>
+    <span style="font-size:.8125rem;font-weight:800;color:#92400e">${_appBadgeCount}</span>
     <span style="font-size:.7rem;color:#a16207;font-weight:600">Active Apprentices</span>
-    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="Active apprentices enrolled in TAP · HR Master List (em field)">ⓘ</span>
+    <span style="font-size:.6rem;color:#ca8a04;margin-left:.25rem" title="DOL apprentices enrolled in TAP · Source: HR Master List col K · 2025-2026">ⓘ</span>
   </div>` : ''}
 </div>`;
       }())}
