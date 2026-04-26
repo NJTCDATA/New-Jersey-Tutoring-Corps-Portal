@@ -9889,6 +9889,83 @@
       }
     },
 
+    // ── SCHOLAR DEMOGRAPHIC OUTCOMES ─────────────────────────────────────────
+    { match: /demographic.*(outcome|result|growth|academ|impact|perform)|outcome.*(demographic|race|ethnicity|equity)|race.*(outcome|growth|result|impact)|equity.*(outcome|growth|academ|result)|scholar.*(race|ethnicity).*(growth|academ|impact|perform|outcome)|how.*(equit|gap).*(race|ethnic|group|demographic)|achievement.*gap.*race|racial.*gap|equity.*gap/i,
+      respond: function() {
+        try {
+          var irl = _irl(), d = _kpi(), active = _hrActive();
+          if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for demographic outcome data.';
+          var mathIM = null, elaIM = null;
+          try {
+            if (window.irlab && typeof window.irlab.getInsightMetrics === 'function') {
+              mathIM = window.irlab.getInsightMetrics({subject:'Math'});
+              elaIM  = window.irlab.getInsightMetrics({subject:'ELA'});
+            }
+          } catch(e2) {}
+          var msg = '**Scholar Demographic Outcomes by Subject**\n\n';
+          function _raceRows(byRace, label) {
+            if (!byRace || !byRace.length) return '';
+            var out = label + '\n';
+            byRace.slice(0,6).forEach(function(r){
+              var g  = r.medGain   != null ? Math.round(r.medGain)   + ' pts gain'    : '';
+              var mo = r.medMonths != null ? Math.round(r.medMonths) + ' mo'           : '';
+              var p  = r.medPct    != null ? Math.round(r.medPct)    + '% of typical' : '';
+              var detail = [g, mo, p].filter(Boolean).join(', ');
+              out += '• **' + r.label + '** (' + _n(r.n) + ' records): ' + detail + '\n';
+            });
+            return out + '\n';
+          }
+          var hasBySubj = (mathIM && mathIM.byRace && mathIM.byRace.length) || (elaIM && elaIM.byRace && elaIM.byRace.length);
+          if (hasBySubj) {
+            if (mathIM && mathIM.byRace && mathIM.byRace.length) msg += _raceRows(mathIM.byRace, '📐 **Math — Median Outcomes by Race/Ethnicity:**');
+            if (elaIM  && elaIM.byRace  && elaIM.byRace.length)  msg += _raceRows(elaIM.byRace,  '📖 **ELA — Median Outcomes by Race/Ethnicity:**');
+          } else {
+            var raceMap = irl.scholarRace||{};
+            var raceEntries = Object.entries(raceMap).sort(function(a,b){return b[1]-a[1];});
+            var totalScholars = raceEntries.reduce(function(s,e){return s+e[1];},0);
+            if (raceEntries.length) {
+              msg += '**Scholar Population by Race/Ethnicity ('+_n(totalScholars)+' scholars):**\n';
+              raceEntries.forEach(function(e){ msg += '• **'+e[0]+'**: '+_n(e[1])+' ('+Math.round(e[1]/totalScholars*100)+'%)\n'; });
+              msg += '\n';
+            }
+            msg += '**Program-Wide Academic Growth:**\n';
+            if (irl.mathMedianPctAllYears!=null) msg += '📐 Math: **'+Math.round(irl.mathMedianPctAllYears)+'% of typical** ('+_n(irl.mathRows)+' records)\n';
+            if (irl.elaMedianPctAllYears!=null)  msg += '📖 ELA:  **'+Math.round(irl.elaMedianPctAllYears)+'% of typical** ('+_n(irl.elaRows)+' records)\n';
+            msg += '\n';
+          }
+          var pc = irl.placementCounts;
+          if (pc && pc.spring) {
+            var st=Object.values(pc.spring).reduce(function(s,v){return s+v;},0);
+            if (st) {
+              var onGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
+              var b2=(pc.spring['2 Grade Levels Below']||0)+(pc.spring['3 or More Grade Levels Below']||0);
+              msg += '**Spring Placement Equity Indicators:**\n';
+              msg += '• '+Math.round(onGL/st*100)+'% at/above grade level\n';
+              msg += '• '+Math.round(b2/st*100)+'% still 2+ grade levels below (equity gap target: 35% reduction)\n\n';
+            }
+          }
+          if (active.length) {
+            var staffRaceMap={};
+            active.forEach(function(e){ if(e._race&&!/not listed|prefer not/i.test(e._race)) staffRaceMap[e._race]=(staffRaceMap[e._race]||0)+1; });
+            var srEntries=Object.entries(staffRaceMap).sort(function(a,b){return b[1]-a[1];});
+            var nw=srEntries.filter(function(r){return !/^white$/i.test(r[0]);}).reduce(function(s,r){return s+r[1];},0);
+            if (srEntries.length) {
+              msg += '**Tutor Workforce Diversity (vs. Scholar Population):**\n';
+              srEntries.slice(0,5).forEach(function(e){ msg += '• '+e[0]+': '+_n(e[1])+' ('+Math.round(e[1]/active.length*100)+'% of staff)\n'; });
+              if (nw) msg += '• **'+Math.round(nw/active.length*100)+'% non-white tutors** — KPI: mirror scholar diversity\n';
+              msg += '\n';
+            }
+          }
+          if (d) {
+            var divKPI=d.data.find(function(k){return /diversity.*tutor.*mirror|mirror.*diversity/i.test(k.target||'');});
+            if (divKPI) { var ds=divKPI.midStatus||divKPI.status||''; msg += '📋 KPI — Tutor Diversity: **'+ds+'** '+(ds==='Met'?'✅':'⚠️')+'\n'; }
+          }
+          msg += '\n_Open iReady Analysis Lab → filter by district or grade for deeper demographic analysis._';
+          return msg.trim();
+        } catch(e) { return 'Demographic outcome data not available — open iReady Analysis Lab first.'; }
+      }
+    },
+
     // Scholar race demographics (iReady)
     { match: /scholar.*(race|ethnic|demographic|diversity|white|black|hispanic|latino)|race.*(scholar|student)|student.*(race|ethnic|demographic)|iready.*(race|ethnic|demographic|diversity)/i,
       respond: function() {
@@ -11970,55 +12047,6 @@
           msg += '\n_Ask "iReady by school year" for per-year detail. Ask "grant reporting summary" for the full funder package._';
           return msg.trim();
         } catch(e) { return 'Year-over-year data not yet available — load iReady Analysis Lab with multiple school years for historical comparison.'; }
-      }
-    },
-
-    // ── SCHOLAR DEMOGRAPHIC OUTCOMES ─────────────────────────────────────────
-    { match: /demographic.*(outcome|result|growth|academ|impact|perform)|outcome.*(demographic|race|ethnicity|equity)|race.*(outcome|growth|result|impact)|equity.*(outcome|growth|academ|result)|scholar.*(race|ethnicity).*(growth|academ|impact|perform|outcome)|how.*(equit|gap).*(race|ethnic|group|demographic)|achievement.*gap.*race|racial.*gap|equity.*gap/i,
-      respond: function() {
-        try {
-          var irl = _irl(), d = _kpi(), active = _hrActive();
-          if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab for demographic outcome data.';
-          var raceMap = irl.scholarRace||{}, raceEntries = Object.entries(raceMap).sort(function(a,b){return b[1]-a[1];});
-          var totalScholars = raceEntries.reduce(function(s,e){return s+e[1];},0);
-          var msg = '**Scholar Demographic Outcomes — iReady Data**\n\n';
-          if (raceEntries.length) {
-            msg += '**Scholar Population by Race/Ethnicity ('+_n(totalScholars)+' scholars):**\n';
-            raceEntries.forEach(function(e){ msg += '• **'+e[0]+'**: '+_n(e[1])+' ('+Math.round(e[1]/totalScholars*100)+'%)\n'; });
-          } else { msg += '_Race/ethnicity data not available in current iReady dataset_\n'; }
-          msg += '\n**Program-Wide Academic Growth:**\n';
-          if (irl.mathMedianPctAllYears!=null) msg += '📐 Math: **'+Math.round(irl.mathMedianPctAllYears)+'% of typical** ('+_n(irl.mathRows)+' records)\n';
-          if (irl.elaMedianPctAllYears!=null)  msg += '📖 ELA:  **'+Math.round(irl.elaMedianPctAllYears)+'% of typical** ('+_n(irl.elaRows)+' records)\n';
-          if (irl.totalWithGrowth) msg += '📊 **'+_n(irl.totalWithGrowth)+'** scholars show positive scale score gains\n';
-          var pc = irl.placementCounts;
-          if (pc && pc.spring) {
-            var st=Object.values(pc.spring).reduce(function(s,v){return s+v;},0);
-            if (st) {
-              var onGL=(pc.spring['Early On Grade Level']||0)+(pc.spring['Mid or Above Grade Level']||0);
-              var b2=(pc.spring['2 Grade Levels Below']||0)+(pc.spring['3 or More Grade Levels Below']||0);
-              msg += '\n**Spring Placement Equity Indicators:**\n';
-              msg += '• '+Math.round(onGL/st*100)+'% at/above grade level\n';
-              msg += '• '+Math.round(b2/st*100)+'% still 2+ grade levels below (equity gap target: 35% reduction)\n';
-            }
-          }
-          if (active.length) {
-            var staffRaceMap={};
-            active.forEach(function(e){ if(e._race&&!/not listed|prefer not/i.test(e._race)) staffRaceMap[e._race]=(staffRaceMap[e._race]||0)+1; });
-            var srEntries=Object.entries(staffRaceMap).sort(function(a,b){return b[1]-a[1];});
-            var nw=srEntries.filter(function(r){return !/^white$/i.test(r[0]);}).reduce(function(s,r){return s+r[1];},0);
-            if (srEntries.length) {
-              msg += '\n**Tutor Workforce Diversity (vs. Scholar Population):**\n';
-              srEntries.slice(0,5).forEach(function(e){ msg += '• '+e[0]+': '+_n(e[1])+' ('+Math.round(e[1]/active.length*100)+'% of staff)\n'; });
-              if (nw) msg += '• **'+Math.round(nw/active.length*100)+'% non-white tutors** — KPI: mirror scholar diversity\n';
-            }
-          }
-          if (d) {
-            var divKPI=d.data.find(function(k){return /diversity.*tutor.*mirror|mirror.*diversity/i.test(k.target||'');});
-            if (divKPI) { var ds=divKPI.midStatus||divKPI.status||''; msg += '\n📋 KPI — Tutor Diversity: **'+ds+'** '+(ds==='Met'?'✅':'⚠️')+'\n'; }
-          }
-          msg += '\n_Ask "grant reporting summary" for the full funder package. Open iReady Analysis Lab → filter by district/grade for deeper analysis._';
-          return msg.trim();
-        } catch(e) { return 'Demographic outcome data not available — open iReady Analysis Lab first.'; }
       }
     },
 
