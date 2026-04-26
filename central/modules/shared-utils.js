@@ -654,6 +654,12 @@
     if (id === "impact-report") {
       setTimeout(() => { if (window.irb) irb.onPanelOpen(); }, 50);
     }
+    if (id === "data-cabinet") {
+      const el = document.getElementById('dataCabinetRoot');
+      if (el && typeof window._buildDataCabinet === 'function') {
+        el.innerHTML = window._buildDataCabinet();
+      }
+    }
     // Note: Knowtion render is handled exclusively by the IIFE override below (no double-render)
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
@@ -12083,6 +12089,7 @@
         'talent':'Talent', 'concern':'Concerns', 'iready-lab':'iReady',
         'training-analytics':'T&D', 'policies':'Policies',
         'impact-report':'Impact', 'finance-analytics':'Finance', 'perf':'Performance',
+        'data-cabinet':'Data Sources',
       };
       var lbl = panelLabels[_panel];
       if (lbl) { badge.textContent = lbl; badge.style.display = ''; }

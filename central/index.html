@@ -5440,6 +5440,10 @@
       <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none" title="Generate executive-ready impact reports and export program outcomes as PDF">
         <span class="sl-icon">📊</span> Impact Report Builder
       </button>
+      <!-- Data Sources Cabinet — Data dept only -->
+      <button class="sidebar-link dept-nav-data-cabinet" data-panel="data-cabinet" onclick="showPanel('data-cabinet',this)" style="display:none" title="Browse all live data sources and databases used by the Data & Evaluation team">
+        <span class="sl-icon">🗄️</span> Data Sources
+      </button>
     </div>
 
     <div class="sidebar-group">
@@ -5776,6 +5780,20 @@
           <p class="kqr-drop-hint">Quarterly data auto-syncs from Google Sheet every 30 minutes. Upload a CSV only to manually override the live snapshot. Export (PDF &amp; PPTX) available in KPI Analytics &rarr; Quarterly tab.</p>
         </div>
         <div id="kpiQRReport"></div>
+      </div>
+    </div>
+
+    <!-- ══ DATA SOURCES FILE CABINET (Data Dept only) ═══════ -->
+    <div class="panel" id="panel-data-cabinet">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">Data & Evaluation · Internal</div>
+          <h2 class="ph-title">🗄️ Data Sources File Cabinet</h2>
+          <p class="ph-subtitle">All live databases, reports, and forms used by the Data &amp; Evaluation team. Click any entry to open directly.</p>
+        </div>
+      </div>
+      <div id="dataCabinetRoot">
+        <div style="padding:3rem;text-align:center;color:#94a3b8;font-size:.9rem">Loading data sources…</div>
       </div>
     </div>
 

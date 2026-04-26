@@ -6159,4 +6159,178 @@
   window.irlab                 = irlab;
   window.irlabRefreshLive      = () => irlab.refreshIRLabLive();
 
+  // ── Data Sources File Cabinet ─────────────────────────────────────────────
+  const DATA_SOURCES_CATALOG = [
+    {
+      name: 'Pearl Operations Report',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1yMa4-7SJlfT-Z8ZlRwhQ0wlstkPPvHP0o61YK6MzAiA/edit?gid=117217808#gid=117217808',
+      desc: 'Attendance Detail, Session Detail, Instructor Surveys, Student Surveys, Instructor Attendance Summary (used for apprentice tag inclusion only)',
+      tag:  'Pearl · Program Data',
+    },
+    {
+      name: 'iReady Longitudinal Report',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/16TGLCi5zCzrujBFRjOckcScYt47VKOr-RcKvu2EMiT0/edit?gid=394721793#gid=394721793',
+      desc: 'Tutor-Scholar Association, Cycle-over-Cycle Analysis, Overall Relative Placement, Scale Score Gains, Median Typical Growth',
+      tag:  'iReady · Academic',
+    },
+    {
+      name: 'Annual Goal Database',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1woHFd7OzO_IS5yD8HOGifVCu0hW3qAStyja63hcxvWg/edit?gid=1313501732#gid=1313501732',
+      desc: 'Annual Goal Targets, Owners, Metrics Captured, Goal Target, Quarterly to Mid/End Review',
+      tag:  'KPI · Strategy',
+    },
+    {
+      name: 'HIT Compliance Database (Current SY)',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/edit?gid=274671201#gid=274671201',
+      desc: 'Partner Details, Personnel Details (Staff Fulfillment), Terminations, Retention Bonuses, iReady Dashboard Credentials, Program Concerns, Site Observations',
+      tag:  'HIT · Compliance · HR',
+    },
+    {
+      name: 'Apprenticeship Database',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1_s6FnrI4537A7woPJ0F-56l2GS1Pt8c1x5RZuUjEl7U/edit?gid=1649286205#gid=1649286205',
+      desc: 'On-the-Job (OTJ) Checklist, NE & SW Apprenticeship Database (new/updated), Master Apprenticeship Database (not currently in use)',
+      tag:  'TAP · OTJ',
+    },
+    {
+      name: 'Apprentice Tracker — Import Range',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs/edit?gid=0#gid=0',
+      desc: 'Apprenticeship tracker imported range (automated) — managed by Ashley',
+      tag:  'TAP · Automated',
+    },
+    {
+      name: 'Leaderboard / Team Meeting Database',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1kCMKkIfN_2ONjvHooIk5xbyXlw5j-UGWNqRpttD5uaA/edit?gid=1827144938#gid=1827144938',
+      desc: 'Team meeting leaderboard submissions — replaces Team Meeting Pre-work document',
+      tag:  'Leaderboard · Submissions',
+    },
+    {
+      name: 'Leaderboard Submission Form',
+      type: 'forms',
+      url:  'https://docs.google.com/forms/d/1gLj4Rvo0zwsBxFCHxzo15msQoDPEwlw06BhZi2F0n2I/edit',
+      desc: 'Weekly Team Meeting Notes submission form (linked to Portal)',
+      tag:  'Form · Leaderboard',
+    },
+    {
+      name: 'Annual Goal Intake Questionnaire',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1meBFuYvhzzOaDiuyT-1QIkMI4Q6JTp6MYOUdFDiWe3k/edit?gid=34364495#gid=34364495',
+      desc: 'KPI Target Google Form — Question submission and response log',
+      tag:  'KPI · Form Responses',
+    },
+    {
+      name: 'Asana Annual Goal Tracking',
+      type: 'asana',
+      url:  'https://app.asana.com/1/1202967547815613/project/1211431518555737/list/1211431677026997',
+      desc: 'Annual Goal Tracking Project Plan, Potential Department Project Plans',
+      tag:  'Asana · Project Mgmt',
+    },
+    {
+      name: 'Hiring Decisions Form',
+      type: 'forms',
+      url:  'https://docs.google.com/forms/d/e/1FAIpQLScg2aTj4-GwyDQHvms5Cwkuf03JpaRWkXHWl5gzfoXClsyAIg/viewform',
+      desc: 'Hiring decisions submitted by the Hiring Team',
+      tag:  'Form · HR · Hiring',
+    },
+    {
+      name: 'T&D — Professional Development',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/18LyHoN0c8BTD-ZVC0D4BpwD-rhq9ZBjgvFIXrsOKYM8/edit?gid=471085177#gid=471085177',
+      desc: 'Professional Development tracking for field staff',
+      tag:  'T&D · Field Staff',
+    },
+    {
+      name: 'T&D — Training Intake Form',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/11OH4pBpKhJ80miKDnbKhQ2fB1ZHuRoQPn3i3oLmdruk/edit?gid=1298105082#gid=1298105082',
+      desc: 'Training intake form responses for field staff',
+      tag:  'T&D · Intake · Field Staff',
+    },
+    {
+      name: 'T&D — Quarterly Satisfaction Survey',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/edit?gid=616402823#gid=616402823',
+      desc: 'Quarterly satisfaction survey responses from partner organizations',
+      tag:  'T&D · Survey · Partner',
+    },
+  ];
+
+  function _buildDataCabinet() {
+    const TYPE_META = {
+      sheets: { icon: '📊', label: 'Google Sheets', color: '#1a7340', bg: '#e8f5e9', border: '#a5d6a7', btn: '#1a7340' },
+      forms:  { icon: '📝', label: 'Google Forms',  color: '#6a1b9a', bg: '#f3e5f5', border: '#ce93d8', btn: '#6a1b9a' },
+      asana:  { icon: '🎯', label: 'Asana',          color: '#e05a2b', bg: '#fff3ef', border: '#ffb59a', btn: '#e05a2b' },
+    };
+
+    const grouped = {};
+    DATA_SOURCES_CATALOG.forEach(s => {
+      const g = s.type;
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push(s);
+    });
+
+    const sectionOrder = ['sheets', 'forms', 'asana'];
+    const sectionLabels = { sheets: 'Google Sheets Databases', forms: 'Google Forms', asana: 'Project Management' };
+
+    let html = `
+<div style="padding:1.5rem 1.25rem 2rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem">
+    <div>
+      <div style="font-size:.7rem;font-weight:700;color:#7b2d8b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Data & Evaluation · Internal Use Only</div>
+      <div style="font-size:.8125rem;color:#475569">${DATA_SOURCES_CATALOG.length} data sources · Click any entry to open in Google Sheets, Google Forms, or Asana</div>
+    </div>
+    <div style="font-size:.7rem;color:#94a3b8;display:flex;gap:.625rem;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:.3rem"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1a7340"></span>Sheets</span>
+      <span style="display:inline-flex;align-items:center;gap:.3rem"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#6a1b9a"></span>Forms</span>
+      <span style="display:inline-flex;align-items:center;gap:.3rem"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e05a2b"></span>Asana</span>
+    </div>
+  </div>`;
+
+    sectionOrder.forEach(type => {
+      const items = grouped[type];
+      if (!items || !items.length) return;
+      const m = TYPE_META[type];
+      html += `
+  <div style="margin-bottom:1.5rem">
+    <div style="font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${m.color};margin-bottom:.625rem;padding-bottom:.3rem;border-bottom:1.5px solid ${m.border}">${m.icon} ${sectionLabels[type]} (${items.length})</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:.625rem">`;
+
+      items.forEach((s, i) => {
+        html += `
+      <div style="background:#fff;border:1px solid #e8edf4;border-left:3px solid ${m.color};border-radius:8px;padding:.75rem 1rem;display:flex;flex-direction:column;gap:.3rem;box-shadow:0 1px 3px rgba(0,0,0,.05)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem">
+          <div style="font-size:.8125rem;font-weight:700;color:#1e293b;line-height:1.3">${s.name}</div>
+          <a href="${s.url}" target="_blank" rel="noopener noreferrer"
+             style="flex-shrink:0;font-size:.68rem;font-weight:700;color:#fff;background:${m.btn};border-radius:5px;padding:.25rem .6rem;text-decoration:none;white-space:nowrap;margin-top:.05rem">
+            Open ↗
+          </a>
+        </div>
+        <div style="font-size:.72rem;color:#475569;line-height:1.5">${s.desc}</div>
+        <div style="margin-top:.15rem">
+          ${s.tag.split('·').map(t => `<span style="display:inline-block;font-size:.6rem;font-weight:600;color:${m.color};background:${m.bg};border:1px solid ${m.border};border-radius:99px;padding:.1rem .45rem;margin-right:.25rem;margin-bottom:.15rem">${t.trim()}</span>`).join('')}
+        </div>
+      </div>`;
+      });
+
+      html += `
+    </div>
+  </div>`;
+    });
+
+    html += `
+  <div style="margin-top:1rem;padding:.625rem .875rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;font-size:.7rem;color:#94a3b8;line-height:1.6">
+    🔒 <strong style="color:#475569">Data Department access only.</strong> These links connect to live operational databases. Contact the Director of Program Evaluation &amp; Impact (PEI) for questions about data definitions, access, or methodology.
+  </div>
+</div>`;
+    return html;
+  }
+
+  window._buildDataCabinet = _buildDataCabinet;
+
 })();
