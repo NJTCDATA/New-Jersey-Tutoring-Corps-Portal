@@ -335,3 +335,147 @@ function buildTrendChart(weeks) {
   }).join('');
   return '<div class="pds-trend-chart">' + bars + '</div>';
 }
+
+// ── TAB: This Week ─────────────────────────────────────────────────────────
+function renderThisWeek(d) {
+  var cw = d.currentWeek;
+  if (!cw) return '<div class="pds-empty"><div class="pds-empty-icon">⏳</div>Pearl data is still loading. Try again in a moment.</div>';
+
+  var schRate = cw.scholarAtt.rate, tutRate = cw.tutorAtt.rate;
+  var tone = schRate >= 90 ? 'green' : schRate >= 80 ? 'amber' : 'red';
+  var bannerTitle = schRate >= 90 ? 'Program is running strong this week' :
+                    schRate >= 80 ? 'Solid week — a few areas worth checking' :
+                    'Attendance needs attention — follow up with your sites';
+  var bannerBody = schRate >= 90
+    ? 'Scholar attendance is above goal. Tutors are showing up. Keep the momentum going.'
+    : schRate >= 80
+    ? 'Attendance is in a healthy range but not yet at the 90% goal. Check the sites flagged below.'
+    : 'Scholar attendance is below 80%. This affects scholar progress and partner satisfaction. Review the flagged sites and reach out this week.';
+
+  var html = buildBanner(rateIcon(schRate), bannerTitle, bannerBody, tone);
+
+  // Key numbers
+  html += buildStatGrid([
+    { val: schRate !== null ? schRate + '%' : '—', label: 'Scholar Attendance', color: rateColor(schRate) },
+    { val: tutRate !== null ? tutRate + '%' : '—', label: 'Tutor Attendance',   color: rateColor(tutRate) },
+    { val: cw.incompletes,                          label: 'Incomplete Sessions',color: cw.incompletes > 5 ? '#dc2626' : 'var(--navy)' },
+    { val: cw.siTotal,                              label: 'Service Interruptions', color: cw.siTotal > 3 ? '#d97706' : 'var(--navy)' },
+    { val: cw.scholarSurvey !== null ? cw.scholarSurvey + '/5' : '—', label: 'Scholar Survey',  color: cw.scholarSurvey && cw.scholarSurvey < 3.5 ? '#dc2626' : '#7c3aed' },
+    { val: cw.tutorSurvey   !== null ? cw.tutorSurvey   + '/5' : '—', label: 'Tutor Survey',    color: cw.tutorSurvey   && cw.tutorSurvey   < 3.5 ? '#dc2626' : '#7c3aed' },
+  ]);
+
+  // What to do
+  var actions = [];
+  if (cw.incompletes > 0) actions.push('📋 <strong>' + cw.incompletes + ' sessions</strong> are still marked Scheduled — remind tutors to complete their attendance entry.');
+  if (cw.siByLevel && (cw.serviceInterruptions.critical.length || cw.serviceInterruptions.high.length)) {
+    var critN = cw.serviceInterruptions.critical.length, highN = cw.serviceInterruptions.high.length;
+    if (critN) actions.push('🔴 <strong>' + critN + ' critical interruption' + (critN>1?'s':'') + '</strong> — review immediately (NJTC Internal Error).');
+    if (highN) actions.push('🟠 <strong>' + highN + ' high-severity interruption' + (highN>1?'s':'') + '</strong> — check for tutor vacancies and escalate to HR if needed.');
+  }
+  if (cw.lowRatingSites && cw.lowRatingSites.length) actions.push('⭐ <strong>' + cw.lowRatingSites.length + ' site' + (cw.lowRatingSites.length>1?'s have':' has') + ' survey scores below 3.5</strong> — schedule a follow-up conversation with those site leaders.');
+  if (schRate !== null && schRate < 80) actions.push('📞 Attendance is below 80%. Contact Program Managers to identify root causes at the lowest-performing sites.');
+  if (!actions.length) actions.push('✅ No urgent actions this week. Keep checking in with your sites and reviewing comments below.');
+
+  html += '<div class="pds-action-box"><div class="pds-action-label">🎯 What to Focus On This Week</div>' + actions.join('<br>') + '</div>';
+
+  // Missed reasons
+  html += '<div class="pds-card"><div class="pds-card-title">📊 Why Were Sessions Missed? (' + cw.label + ')</div>';
+  var topMiss = cw.missedReasons.slice(0, 6);
+  var maxMiss = topMiss.length ? topMiss[0].count : 1;
+  html += buildBarRows(topMiss, maxMiss, '#457b9d');
+  html += '<div class="pds-card-body" style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border-2)">Absences marked <strong>Tutor Absent</strong> are a staffing issue — loop in HR. <strong>Scholar Absent</strong> is normal but watch for patterns. <strong>School Closure</strong> requires no action.</div></div>';
+
+  // Service interruptions
+  var siCards = '';
+  var siLevels = [
+    { key:'critical', label:'Critical',  color:'#dc2626', bg:'#fff1f2' },
+    { key:'high',     label:'High',      color:'#ea580c', bg:'#fff7ed' },
+    { key:'medium',   label:'Medium',    color:'#d97706', bg:'#fffbeb' },
+  ];
+  siLevels.forEach(function(lv) {
+    var items = cw.serviceInterruptions[lv.key] || [];
+    if (!items.length) return;
+    items.forEach(function(it) {
+      siCards += '<div class="pds-alert-row ' + lv.key + '"><span>' + lv.label.toUpperCase() + '</span><span style="flex:1">' + it.reason + '</span><strong>' + it.count + '</strong></div>';
+    });
+  });
+  if (siCards) html += '<div class="pds-card"><div class="pds-card-title">⚡ Service Interruptions</div>' + siCards + '</div>';
+
+  // Sites needing review
+  if (d.areasToReview && d.areasToReview.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">🔍 Sites Requiring Attention (Below 80% Attendance)</div>';
+    html += '<div class="pds-card-body" style="margin-bottom:.625rem">These sites have attendance below 80% overall. Reach out to the onsite lead and ask what\'s getting in the way.</div>';
+    d.areasToReview.forEach(function(site) {
+      html += '<div class="pds-alert-row ' + (site.attRate < 70 ? 'critical' : 'high') + '">' +
+        '<span style="font-size:1rem">' + rateIcon(site.attRate) + '</span>' +
+        '<div style="flex:1"><strong>' + site.school + '</strong><div style="font-size:.75rem;opacity:.75">' + site.district + '</div></div>' +
+        '<strong style="color:' + rateColor(site.attRate) + '">' + site.attRate + '%</strong></div>';
+    });
+    html += '</div>';
+  }
+
+  // Positive callouts
+  if (cw.positiveCallouts && cw.positiveCallouts.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">🌟 Positive Call-Outs This Week</div>';
+    html += '<div class="pds-card-body" style="margin-bottom:.625rem">These sites are showing up strong. Shout them out in your next team meeting.</div>';
+    cw.positiveCallouts.forEach(function(site) {
+      html += '<div class="pds-alert-row ok">⭐ <div style="flex:1"><strong>' + site.school + '</strong><div style="font-size:.75rem;opacity:.75">' + site.district + '</div></div>' +
+        '<strong style="color:#059669">' + site.attRate + '%</strong>' +
+        (site.surveyAvg ? ' <span style="font-size:.75rem;color:#7c3aed;margin-left:.4rem">' + site.surveyAvg + '/5 ⭐</span>' : '') + '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Stellar sites (overall)
+  if (d.stellarSites && d.stellarSites.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">🏆 Top Performing Sites (Overall Program)</div>';
+    d.stellarSites.forEach(function(site) {
+      html += '<div class="pds-alert-row ok">🏅 <div style="flex:1"><strong>' + site.school + '</strong><div style="font-size:.75rem;opacity:.75">' + site.district + '</div></div>' +
+        '<strong style="color:#059669">' + site.attRate + '%</strong>' +
+        (site.surveyAvg ? ' <span style="font-size:.75rem;color:#7c3aed;margin-left:.4rem">' + site.surveyAvg + '/5</span>' : '') + '</div>';
+    });
+    html += '</div>';
+  }
+
+  return html;
+}
+
+// ── TAB: Trends ────────────────────────────────────────────────────────────
+function renderTrends(d) {
+  var trend = d.weeklyTrend || [];
+  if (!trend.length) return '<div class="pds-empty"><div class="pds-empty-icon">📈</div>No trend data yet.</div>';
+
+  var last = trend[trend.length - 1] || {};
+  var prev = trend[trend.length - 2] || {};
+  var delta = (last.scholarRate !== null && prev.scholarRate !== null) ? last.scholarRate - prev.scholarRate : null;
+  var trendTone = delta === null ? 'amber' : delta >= 0 ? 'green' : delta < -5 ? 'red' : 'amber';
+  var trendMsg  = delta === null ? 'Not enough data to show a trend yet.' :
+                  delta >  2 ? 'Attendance is going up — great momentum. Keep the focus.' :
+                  delta < -5 ? 'Attendance dropped ' + Math.abs(delta) + ' points this week. Something changed — follow up with your sites.' :
+                               'Attendance is holding steady week over week.';
+
+  var html = buildBanner('📈', 'Week-Over-Week Trend', trendMsg, trendTone);
+  html += '<div class="pds-card"><div class="pds-card-title">Scholar Attendance % — Last ' + trend.length + ' Weeks</div>';
+  html += buildTrendChart(trend);
+
+  // Legend
+  html += '<div style="display:flex;gap:1rem;font-size:.75rem;color:var(--muted);margin-top:.5rem;flex-wrap:wrap">' +
+    '<span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#059669;display:inline-block"></span>90%+</span>' +
+    '<span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#d97706;display:inline-block"></span>80–89%</span>' +
+    '<span style="display:flex;align-items:center;gap:.3rem"><span style="width:10px;height:10px;border-radius:2px;background:#dc2626;display:inline-block"></span>Below 80%</span>' +
+    '</div></div>';
+
+  // Detailed week table
+  html += '<div class="pds-card"><div class="pds-card-title">Week-by-Week Detail</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.8rem">';
+  html += '<thead><tr style="background:var(--surface-2)"><th style="padding:.4rem .5rem;text-align:left;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Week</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Scholar Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Tutor Att</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Interruptions</th><th style="padding:.4rem .5rem;text-align:center;font-size:.7rem;color:var(--muted);border-bottom:1px solid var(--border)">Survey Avg</th></tr></thead><tbody>';
+  trend.slice().reverse().forEach(function(w) {
+    html += '<tr style="border-bottom:1px solid var(--border-2)">' +
+      '<td style="padding:.35rem .5rem;font-weight:600">' + w.week + '</td>' +
+      '<td style="padding:.35rem .5rem;text-align:center;font-weight:700;color:' + rateColor(w.scholarRate) + '">' + (w.scholarRate !== null ? w.scholarRate + '%' : '—') + '</td>' +
+      '<td style="padding:.35rem .5rem;text-align:center;color:' + rateColor(w.tutorRate) + '">'   + (w.tutorRate   !== null ? w.tutorRate   + '%' : '—') + '</td>' +
+      '<td style="padding:.35rem .5rem;text-align:center;color:' + (w.siCount > 3 ? '#d97706' : 'var(--navy)') + '">' + (w.siCount || 0) + '</td>' +
+      '<td style="padding:.35rem .5rem;text-align:center;color:#7c3aed">' + (w.surveyAvg || '—') + '</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+  return html;
+}
