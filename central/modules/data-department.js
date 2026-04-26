@@ -5276,6 +5276,16 @@
         PLACEMENT_ORDER.forEach(p => { placementDist[p] = 0; });
         subset.forEach(r => { if (placementDist[r.winterRelPlacement] !== undefined) placementDist[r.winterRelPlacement]++; });
 
+        // Band-to-band movement breakdown (Fall → Winter)
+        const movementMap = {};
+        plShifts.forEach(r => {
+          const key = r.baseRelPlacement + '→' + r.winterRelPlacement;
+          movementMap[key] = (movementMap[key] || 0) + 1;
+        });
+        const movementBreakdown = Object.entries(movementMap)
+          .map(([k, count]) => { const [from, to] = k.split('→'); return { from, to, count, dir: _moyPlShift(from, to) }; })
+          .sort((a, b) => b.count - a.count);
+
         return {
           total,
           withGrowth,
@@ -5290,6 +5300,7 @@
           medianMonthsGrowth: months.length ? parseFloat((_moyMedian(months)).toFixed(1)) : null,
           avgMonthsGrowth:    months.length ? parseFloat((months.reduce((a,b)=>a+b,0)/months.length).toFixed(1)) : null,
           placementDist,
+          movementBreakdown,
           rushFlags: { red: redRushCount, yellow: yellowRushCount },
         };
       }
@@ -5476,12 +5487,46 @@
           </div>`;
         }
 
-        // ── Placement shift tiles ─────────────────────────────────────────────
-        html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
-          <div class="ta-card ta-kpi" style="border-top:3px solid #16a34a"><div style="font-size:1.875rem;font-weight:800;color:#16a34a">${net.movedUp}</div><div class="ta-kpi-sub">↑ Moved Up <span title="Scholar moved to a higher iReady relative placement BAND between Fall and Winter (e.g., '2 Grade Levels Below' → '1 Grade Level Below'). This reflects band position change, not raw scale score direction — a scholar with positive score gains can still hold or move down if growth was below the band threshold." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
-          <div class="ta-card ta-kpi" style="border-top:3px solid #0050c8"><div style="font-size:1.875rem;font-weight:800;color:#0050c8">${net.held}</div><div class="ta-kpi-sub">→ Held <span title="Scholar remained in the same iReady relative placement BAND between Fall and Winter. May still have gained scale score points — held means the band did not change, not that there was zero growth." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
-          <div class="ta-card ta-kpi" style="border-top:3px solid #dc2626"><div style="font-size:1.875rem;font-weight:800;color:#dc2626">${net.movedDown}</div><div class="ta-kpi-sub">↓ Moved Down <span title="Scholar dropped to a lower iReady relative placement BAND between Fall and Winter (e.g., '1 Grade Level Below' → '2 Grade Levels Below'). NOTE: this is NOT the same as score regression. A scholar can have a positive scale score gain and still move down if their growth was less than what was needed to maintain their current band — because grade-level benchmarks rise throughout the year." style="cursor:help;color:#0891b2;font-size:.7rem">ⓘ</span></div></div>
-        </div>`;
+        // ── Placement movement breakdown ──────────────────────────────────────
+        {
+          const PLC_SHORT_MOY = {
+            '3 or More Grade Levels Below': '3+ GL Below',
+            '2 Grade Levels Below':         '2 GL Below',
+            '1 Grade Level Below':          '1 GL Below',
+            'Early On Grade Level':         'Early On GL',
+            'Mid or Above Grade Level':     'Mid/Above GL',
+          };
+          const dirColor = { up: '#16a34a', held: '#0050c8', down: '#dc2626' };
+          const dirIcon  = { up: '↑', held: '→', down: '↓' };
+          const moves    = net.movementBreakdown || [];
+          const upRows   = moves.filter(m => m.dir === 'up');
+          const heldRows = moves.filter(m => m.dir === 'held');
+          const downRows = moves.filter(m => m.dir === 'down');
+
+          const renderGroup = (label, rows, color, icon, total) => {
+            if (!total) return '';
+            const detail = rows.map(m =>
+              `<div style="display:flex;justify-content:space-between;align-items:center;padding:.2rem 0;border-bottom:1px solid rgba(0,0,0,.05)">
+                <span style="color:var(--muted);font-size:.75rem">${PLC_SHORT_MOY[m.from]||m.from} ${icon} ${PLC_SHORT_MOY[m.to]||m.to}</span>
+                <span style="font-weight:700;font-size:.75rem;color:${color}">${m.count}</span>
+              </div>`
+            ).join('');
+            return `<div class="ta-card" style="border-top:3px solid ${color};padding:.75rem 1rem">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem">
+                <span style="font-weight:800;font-size:1.25rem;color:${color}">${icon} ${total}</span>
+                <span style="font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:${color}">${label}</span>
+              </div>
+              ${detail}
+            </div>`;
+          };
+
+          html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.875rem;margin-bottom:1.25rem">
+            ${renderGroup('Moved Up', upRows, dirColor.up, dirIcon.up, net.movedUp)}
+            ${renderGroup('Held Band', heldRows, dirColor.held, dirIcon.held, net.held)}
+            ${renderGroup('Moved Down', downRows, dirColor.down, dirIcon.down, net.movedDown)}
+          </div>
+          <div style="font-size:.6875rem;color:var(--muted);margin-bottom:.75rem">Placement band movement (Fall → Winter). A positive scale score gain can still result in a band drop if growth was below the threshold to hold the current band — grade-level benchmarks rise through the year.</div>`;
+        }
 
         // ── Winter-only note ──────────────────────────────────────────────────
         if (net.winterOnly > 0) {

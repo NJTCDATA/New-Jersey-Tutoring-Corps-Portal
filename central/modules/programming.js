@@ -8050,9 +8050,28 @@
               siByLevel[sev].push({ reason: e[0], count: e[1] });
             });
 
-            // Survey scores this week
-            var cwStuSurvRows = _stuRows.filter(function(r){ return (r[STU_S.WEEK]||'')===curWeekLabel; });
-            var cwInstSurvRows = _instRows.filter(function(r){ return (r[INST_S.WEEK]||'')===curWeekLabel; });
+            // Survey scores this week — match by session ID (same approach as late survey detection).
+            // Build the set of session IDs that belong to the current week, then pull any survey
+            // that references one of those IDs. Falls back to Date Responded week only when a
+            // survey has no session ID attached.
+            var cwSessIds = new Set();
+            Object.values(_sessMap).forEach(function(s) {
+              if (weekKeyFromDateStr(s.start) === curWeekLabel) cwSessIds.add(s.id);
+            });
+            var cwStuSurvRows = _stuRows.filter(function(r) {
+              var sid = r[STU_S.SESS_ID] || '';
+              if (sid) return cwSessIds.has(sid);
+              // No session ID — fall back to Date Responded
+              var wk = weekKeyFromDateStr(r[STU_S.DATE]) || (r[STU_S.WEEK]||'');
+              return wk === curWeekLabel;
+            });
+            var cwInstSurvRows = _instRows.filter(function(r) {
+              var sid = r[INST_S.SESS_ID] || '';
+              if (sid) return cwSessIds.has(sid);
+              // No session ID — fall back to Date Responded
+              var wk = weekKeyFromDateStr(r[INST_S.DATE]) || (r[INST_S.WEEK]||'');
+              return wk === curWeekLabel;
+            });
             function survAvg(rows, cols) {
               var sum=0, cnt=0;
               rows.forEach(function(r){ cols.forEach(function(c){ var v=parseFloat(r[c]); if(!isNaN(v)&&v>0){sum+=v;cnt++;} }); });
