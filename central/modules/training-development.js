@@ -466,6 +466,7 @@
     'Katrina Valentin','Micaela Wilkerson','Nicholas Hoover'
   ];
   const ALL_APPRENTICES = [...APPRENTICES_NE, ...APPRENTICES_SW];
+  window._njtcAllApprenticeNames = new Set(ALL_APPRENTICES.map(n => n.toLowerCase()));
 
   // Name normalization aliases: informal → ADP canonical
   const NAME_ALIASES = {
