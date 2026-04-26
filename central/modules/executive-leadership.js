@@ -777,9 +777,20 @@
       var topSch=st.slice(0,3);
       var raceLines='';
       if(race&&race.byScholar){var rE2=Object.entries(race.byScholar).sort(function(a,b){return b[1]-a[1];}).slice(0,4);var rTot2=Object.values(race.byScholar).reduce(function(s,v){return s+v;},0);raceLines=rE2.map(function(e){return e[0]+': '+Math.round(e[1]/rTot2*100)+'%';}).join(' &bull; ');}
-      var printEl=document.getElementById('advPrintContent');
       var frameEl=document.getElementById('advPrintFrame');
-      if(!printEl||!frameEl){console.warn('[Advocacy] Print elements not found');return;}
+      if(!frameEl){
+        frameEl=document.createElement('div');
+        frameEl.id='advPrintFrame';
+        frameEl.style.display='none';
+        document.body.appendChild(frameEl);
+      }
+      var printEl=document.getElementById('advPrintContent');
+      if(!printEl){
+        printEl=document.createElement('div');
+        printEl.id='advPrintContent';
+        printEl.className='adv-print-page';
+        frameEl.appendChild(printEl);
+      }
       printEl.innerHTML=
         '<div class="adv-print-header">'+
           '<div class="adv-print-logo-area"><h1>New Jersey Tutoring Corps</h1><p>SY 2025-2026 &middot; Program Impact Brief &middot; '+aud.label+'</p><p style="font-size:8.5pt;color:#4a5568;font-style:italic;margin-top:2pt">'+aud.intro+'</p></div>'+
