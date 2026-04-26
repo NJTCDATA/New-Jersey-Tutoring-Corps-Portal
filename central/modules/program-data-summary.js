@@ -479,3 +479,149 @@ function renderTrends(d) {
   html += '</tbody></table></div></div>';
   return html;
 }
+
+// ── TAB: Regional ──────────────────────────────────────────────────────────
+function renderRegional(d) {
+  var ne = d.regional.NE, sw = d.regional.SW;
+  if (!ne && !sw) return '<div class="pds-empty"><div class="pds-empty-icon">🗺</div>Regional data not yet available.</div>';
+
+  function regionCard(label, r, color) {
+    if (!r) return '<div class="pds-region-card"><div class="pds-region-label">' + label + ' Region</div><div style="color:var(--muted);font-size:.8rem">No data</div></div>';
+    return '<div class="pds-region-card" style="border-top:4px solid ' + color + '">' +
+      '<div class="pds-region-label">' + label + ' Region</div>' +
+      '<div class="pds-region-name" style="color:' + color + '">' + label + '</div>' +
+      '<div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">' + (r.schools || 0) + ' schools tracked</div>' +
+      '<div style="display:flex;flex-direction:column;gap:.4rem">' +
+        statRow('Scholar Attendance', r.scholarRate !== null ? r.scholarRate + '%' : '—', rateColor(r.scholarRate)) +
+        statRow('Tutor Attendance',   r.tutorRate   !== null ? r.tutorRate   + '%' : '—', rateColor(r.tutorRate)) +
+        statRow('Service Interruptions', r.siCount, r.siCount > 5 ? '#d97706' : 'var(--navy)') +
+        statRow('Survey Avg', r.surveyAvg ? r.surveyAvg + '/5' : '—', '#7c3aed') +
+      '</div></div>';
+  }
+  function statRow(label, val, color) {
+    return '<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px solid var(--border-2)">' +
+      '<span style="font-size:.8rem;color:var(--text-2)">' + label + '</span>' +
+      '<strong style="font-size:.8rem;color:' + color + '">' + val + '</strong></div>';
+  }
+
+  var html = '<div class="pds-region-grid">' + regionCard('NE', ne, '#2563eb') + regionCard('SW', sw, '#059669') + '</div>';
+
+  // Comparison insight
+  if (ne && sw && ne.scholarRate !== null && sw.scholarRate !== null) {
+    var diff = ne.scholarRate - sw.scholarRate;
+    var stronger = diff > 0 ? 'NE' : 'SW';
+    var weaker   = diff > 0 ? 'SW' : 'NE';
+    var absDiff  = Math.abs(diff);
+    var insight  = absDiff < 3
+      ? 'Both regions are performing very similarly. Great consistency across the network.'
+      : 'The <strong>' + stronger + ' Region</strong> is running <strong>' + absDiff + ' percentage points higher</strong> in scholar attendance than the ' + weaker + ' Region. Look at what\'s working in ' + stronger + ' and share those practices.';
+    html += buildBanner('🗺', 'Regional Comparison', insight, absDiff < 3 ? 'green' : 'amber');
+  }
+
+  // Onsite comments by region
+  if (d.onsiteComments && d.onsiteComments.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">💬 Recent Onsite Comments</div>';
+    html += '<div class="pds-card-body" style="margin-bottom:.75rem">These comments came from tutor and scholar surveys in the past 2 weeks. <strong>Orange = needs follow-up.</strong> Green = worth sharing as a positive.</div>';
+    d.onsiteComments.slice(0, 10).forEach(function(c) {
+      html += '<div class="pds-comment ' + c.type + '">"' + c.text.substring(0, 200) + (c.text.length > 200 ? '…' : '') + '"' +
+        '<div class="pds-comment-meta">' + c.school + (c.district ? ' · ' + c.district : '') + ' · ' + c.week + '</div></div>';
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+// ── TAB: Academic (i-Ready) ────────────────────────────────────────────────
+function renderAcademic() {
+  var irlab = window.irlab;
+  if (!irlab || typeof irlab.getInsightMetrics !== 'function') {
+    return '<div class="pds-empty"><div class="pds-empty-icon">📚</div>i-Ready data not loaded. Go to the i-Ready Lab panel to load academic data first.</div>';
+  }
+  var m = irlab.getInsightMetrics('');
+  if (!m || !m.hasData) {
+    return '<div class="pds-empty"><div class="pds-empty-icon">📚</div>No i-Ready data available yet. Ask your Data Specialist to upload the latest diagnostic file.</div>';
+  }
+
+  var gainColor = m.medianScaleGain > 0 ? '#059669' : '#dc2626';
+  var tone = m.medianPctExpected >= 100 ? 'green' : m.medianPctExpected >= 75 ? 'amber' : 'red';
+  var acadMsg = m.medianPctExpected >= 100
+    ? 'Scholars are meeting or exceeding expected growth targets. Academic progress is on track.'
+    : m.medianPctExpected >= 75
+    ? 'Scholars are making meaningful progress but haven\'t quite hit the growth target yet. Keep reinforcing consistent tutoring sessions.'
+    : 'Scholar growth is below target. The biggest lever is attendance — every missed session is a missed opportunity to grow.';
+
+  var html = buildBanner('📚', 'Academic Growth Summary', acadMsg, tone);
+  html += buildStatGrid([
+    { val: m.totalScholars,                                                label: 'Scholars in Data' },
+    { val: (m.medianScaleGain > 0 ? '+' : '') + m.medianScaleGain + ' pts', label: 'Median Scale Score Gain', color: gainColor },
+    { val: Math.round(m.medianPctExpected) + '%',                         label: 'Growth vs. Target',        color: tone === 'green' ? '#059669' : tone === 'amber' ? '#d97706' : '#dc2626' },
+    { val: m.subjectLabel || 'All Subjects',                              label: 'Subject' },
+  ]);
+
+  html += '<div class="pds-action-box"><div class="pds-action-label">📖 What This Means</div>' +
+    'The <strong>scale score gain</strong> tells you how much each scholar improved since the last diagnostic. ' +
+    'The <strong>% of typical growth</strong> compares that gain to what we\'d expect for a typical student nationally. ' +
+    '100% = meeting expectations. Above 100% = exceeding. Below 100% = still growing but not there yet.<br><br>' +
+    'A scholar who attends 90%+ of sessions typically grows <strong>2–3x faster</strong> than one with low attendance. ' +
+    'This is why attendance is the #1 lever you have.</div>';
+
+  // Performance tiers if available
+  if (m.tierBreakdown && m.tierBreakdown.length) {
+    html += '<div class="pds-card"><div class="pds-card-title">📊 Scholar Performance Tiers</div>';
+    m.tierBreakdown.forEach(function(t) {
+      var dotColor = t.label === 'On/Above Level' ? '#059669' : t.label === 'One Level Below' ? '#d97706' : '#dc2626';
+      html += '<div class="pds-acad-tier">' +
+        '<div class="pds-acad-tier-dot" style="background:' + dotColor + '"></div>' +
+        '<div style="flex:1;font-size:.8125rem"><strong>' + t.label + '</strong></div>' +
+        '<div style="font-size:.8125rem;font-weight:700;color:' + dotColor + '">' + t.count + ' scholars (' + t.pct + '%)</div></div>';
+    });
+    html += '</div>';
+  }
+
+  html += '<div class="pds-card"><div class="pds-card-title">🎯 What to Do With This Data</div>' +
+    '<div class="pds-card-body">' +
+    '• <strong>Share the wins</strong> — if scholars are growing, tell your onsite staff. It matters.<br>' +
+    '• <strong>Follow up on low-growth sites</strong> — check attendance first, then lesson plan quality.<br>' +
+    '• <strong>Use MOY data to adjust</strong> — tutors should know which scholars need more targeted support.<br>' +
+    '• <strong>Use EOY data for partner conversations</strong> — this is your impact story.' +
+    '</div></div>';
+  return html;
+}
+
+// ── TAB: Discrepancies ─────────────────────────────────────────────────────
+function renderDiscrepancies(d) {
+  var disc = d.discrepancies || [];
+  var html = '';
+
+  html += buildBanner('🔍', 'Pearl Data Health Check',
+    'These are issues found in your Pearl data that need to be cleaned up. They don\'t fix themselves — someone needs to log in and correct them. Think of this as your data hygiene checklist.',
+    disc.length === 0 ? 'green' : 'amber');
+
+  if (!disc.length) {
+    html += '<div class="pds-alert-row ok">✅ <strong>No discrepancies found.</strong> Your Pearl data looks clean.</div>';
+    return html;
+  }
+
+  disc.forEach(function(group) {
+    html += '<div class="pds-flag">';
+    html += '<div class="pds-flag-title">⚠️ ' + group.label + ' (' + group.total + ')</div>';
+    var desc = '';
+    if (group.type === 'archived_conflict') desc = 'These scholars are marked as Archived in Pearl but still appear in active session records. This creates incorrect attendance calculations. Remove them from active sessions or un-archive if still enrolled.';
+    else if (group.type === 'missing_subject') desc = 'These delivered sessions have no Subject recorded. Your academic reports need this to be accurate. Have tutors go back and update their session records.';
+    else if (group.type === 'consecutive_absent') desc = 'These scholars have an Attendance Concern flag in Pearl — meaning they missed several consecutive sessions. Reach out to the site lead to check if they\'re still enrolled or need re-engagement.';
+    html += '<div class="pds-flag-body">' + desc + '</div>';
+
+    if (group.items && group.items.length) {
+      html += '<div style="margin-top:.625rem;display:flex;flex-direction:column;gap:.25rem">';
+      group.items.slice(0, 8).forEach(function(it) {
+        html += '<div style="font-size:.775rem;padding:.3rem .5rem;background:rgba(255,255,255,.6);border-radius:6px;display:flex;gap:.5rem;flex-wrap:wrap">' +
+          '<strong>' + (it.name || it.title || 'Unknown') + '</strong>' +
+          '<span style="color:var(--muted)">' + (it.school || '') + (it.district ? ' · ' + it.district : '') + '</span></div>';
+      });
+      if (group.total > 8) html += '<div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">+ ' + (group.total - 8) + ' more…</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
