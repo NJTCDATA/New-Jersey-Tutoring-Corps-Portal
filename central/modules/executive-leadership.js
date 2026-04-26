@@ -1396,11 +1396,10 @@
     '/pub?output=csv&gid=911694457';
 
   // Authoritative TAP roster sheet — published CSV (live, auto-refreshes)
-  // Headers are in row 5; columns used: A (Date Registered), B (Status),
-  // E (Cohort Seat), F (Full Name), H (Placement/School), AA (Folder Link)
-  const AP_TAP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/' +
-    '2PACX-1vShvE5znVyoguTLg3zbU2A0eVvnZnnUa_xm2BgOXRqC_ifDxjJc6HRBkQR4Z4QrPEA_qbcglZ8ou92y' +
-    '/pub?output=csv';
+  // Live Apprentice Tracker — authoritative source for enrolled apprentices (exactly 30 active).
+  // Columns: A (Date Registered), B (Status), F (Full Name), H (Placement/School), AA (Folder Link)
+  // Headers in row 5; status 'Active' = currently enrolled.
+  const AP_TAP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs/export?format=csv&gid=0';
 
   window.AP_DATA = []; // Populated by ap_buildFromLive() before any render
 
@@ -1616,10 +1615,12 @@
       };
     });
 
-    // Supplement: HR-confirmed apprentices not yet added to the TAP sheet.
-    // Without this, they drop out of both hrEligible and enrolled.
+    // Supplement: HR-confirmed apprentices not yet in the Live Tracker.
+    // Guarded by the Live Tracker whitelist to prevent people removed from the tracker
+    // from being re-added via the HR master list.
     const hrOnlyEnrolled = (window.AP_DATA || []).filter(r =>
-      r.apprentice === 'Yes' && !tapNames.has(nm(r.name))
+      r.apprentice === 'Yes' && !tapNames.has(nm(r.name)) &&
+      (_ltKeys.size === 0 || _inLT(r.name))
     );
     if (hrOnlyEnrolled.length) {
       console.warn('[AP] ' + hrOnlyEnrolled.length + ' HR-confirmed apprentice(s) not in TAP sheet — adding to enrolled. Add to TAP sheet to resolve:',
@@ -2689,21 +2690,31 @@
             };
             var ltHeaders = splitRow(ltDataLines[0]).map(function(h) { return h.trim(); });
             var ltOtjHdrs = ltHeaders.slice(27, 44); // AB–AR
-            var ltNameCol = ltHeaders[0];
+            // Name is in col F (index 5); detect dynamically, fallback to index 5
+            var ltNameIdx = ltHeaders.findIndex(function(h) { return /\bname\b|tutor/i.test(h); });
+            if (ltNameIdx < 0) ltNameIdx = 5;
+            var ltNameCol = ltHeaders[ltNameIdx];
+            // Status is in col B (index 1); detect dynamically, fallback to index 1
+            var ltStatusIdx = ltHeaders.findIndex(function(h) { return /\bstatus\b/i.test(h); });
+            if (ltStatusIdx < 0) ltStatusIdx = 1;
+            var ltStatusCol = ltHeaders[ltStatusIdx];
             var ltMap = {};
             for (var ltR = 1; ltR < ltDataLines.length; ltR++) {
               var ltCells = splitRow(ltDataLines[ltR]);
               if (ltCells.every(function(c) { return !c.trim(); })) continue;
               var ltObj = {};
               ltHeaders.forEach(function(h, idx) { ltObj[h] = (ltCells[idx] || '').trim(); });
+              // Skip non-Active rows
+              var ltStatus = (ltObj[ltStatusCol] || '').trim();
+              if (ltStatus && !/active/i.test(ltStatus)) continue;
               var rawName = (ltObj[ltNameCol] || '').trim();
-              if (!rawName) continue;
+              if (!rawName || /^\d+$/.test(rawName)) continue;
               var ltKey = rawName.toLowerCase().replace(/\s+/g,' ').trim();
               var ltCount = ltOtjHdrs.filter(function(h) { return (ltObj[h] || '').trim(); }).length;
               if (!ltMap[ltKey] || ltCount > ltMap[ltKey]) ltMap[ltKey] = ltCount;
             }
             window.njtcLiveOtjMap = ltMap;
-            console.log('[NJTC] Live Tracker OTJ: ' + Object.keys(ltMap).length + ' apprentices mapped');
+            console.log('[NJTC] Live Tracker: ' + Object.keys(ltMap).length + ' active apprentices in OTJ map (name col=' + ltNameCol + ', status col=' + ltStatusCol + ')');
           }
         } catch(e) { console.warn('[NJTC] Live Tracker parse error:', e); }
       } else {
