@@ -8029,7 +8029,7 @@
             // Incomplete sessions this week (Scheduled status)
             var cwSessIncomplete = Object.values(_sessMap).filter(function(s){
               if (s.status !== 'Scheduled') return false;
-              var sessWeek = deriveWeekLabel(s.startDate || s.date || '');
+              var sessWeek = weekKeyFromDateStr(s.startDate || s.date || '');
               return sessWeek === curWeekLabel;
             }).length;
             // Fallback: all scheduled sessions if week derivation yields 0
