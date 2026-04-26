@@ -116,7 +116,7 @@
     // Tab GIDs: ela=1640935949 is the "25-26 Academic Report" tab (ELA).
     // When the Math tab is added, set math to its gid and the loop handles it.
     const IRLAB_2526_SHEET_ID = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
-    const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557 };  // math tab gid confirmed
+    const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557, eoy: 1193172756 };  // eoy = 25-26 EOY combined tab
     let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -578,7 +578,7 @@
               { signal: AbortSignal.timeout(15000) }
             )
             .then(function(r){ return r.ok ? r.text() : Promise.reject('HTTP '+r.status); })
-            .then(function(text){ return { subj: _subj === 'ela' ? 'ELA' : 'Math', text: text }; })
+            .then(function(text){ return { subj: _subj === 'ela' ? 'ELA' : _subj === 'math' ? 'Math' : 'Combined', text: text }; })
             .catch(function(e){ console.warn('[irlab] 25-26 '+_subj+' fetch failed:', e); return null; });
           })
       ).then(function(results){ return results.filter(Boolean); });
@@ -842,12 +842,30 @@
       if (!Array.isArray(snap2526Results)) snap2526Results = [];
 
       // Parse raw CSV text for each tab that was successfully fetched
+      // 'Combined' tabs (eoy key) are split by their Subject column into ELA/Math buckets
       var raw2526 = { ELA: [], Math: [] };
       snap2526Results.forEach(function(item) {
         if (!item || !item.text) return;
         var rows = parseCSV(item.text);
-        if (item.subj === 'ELA')  raw2526.ELA  = rows;
-        if (item.subj === 'Math') raw2526.Math = rows;
+        if (item.subj === 'ELA') {
+          raw2526.ELA = raw2526.ELA.concat(rows);
+        } else if (item.subj === 'Math') {
+          raw2526.Math = raw2526.Math.concat(rows);
+        } else if (item.subj === 'Combined') {
+          // Split rows by Subject column into ELA / Math buckets
+          rows.forEach(function(r) {
+            var rawS = (r['Subject'] || r['subject'] || r['SUBJECT'] || '').toLowerCase();
+            if (rawS.includes('ela') || rawS.includes('english') || rawS.includes('reading') || rawS.includes('language') || rawS.includes('literacy')) {
+              raw2526.ELA.push(r);
+            } else if (rawS.includes('math')) {
+              raw2526.Math.push(r);
+            } else {
+              // No subject tag — add to both buckets with explicit subject field
+              raw2526.ELA.push(Object.assign({}, r, { Subject: 'ELA'  }));
+              raw2526.Math.push(Object.assign({}, r, { Subject: 'Math' }));
+            }
+          });
+        }
       });
       var totalRaw = raw2526.ELA.length + raw2526.Math.length;
 
@@ -6174,6 +6192,13 @@
       url:  'https://docs.google.com/spreadsheets/d/16TGLCi5zCzrujBFRjOckcScYt47VKOr-RcKvu2EMiT0/edit?gid=394721793#gid=394721793',
       desc: 'Tutor-Scholar Association, Cycle-over-Cycle Analysis, Overall Relative Placement, Scale Score Gains, Median Typical Growth',
       tag:  'iReady · Academic',
+    },
+    {
+      name: 'iReady 25-26 EOY Academic Data (Manual Extract)',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0/edit?gid=1193172756#gid=1193172756',
+      desc: '2025-2026 End-of-Year iReady academic data — student placement, scale scores, diagnostic gains. Secondary to longitudinal report; merged automatically when longitudinal lacks 25-26 rows.',
+      tag:  'iReady · Academic · EOY · 2025-2026',
     },
     {
       name: 'Annual Goal Database',
