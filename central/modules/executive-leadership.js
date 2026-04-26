@@ -1520,9 +1520,9 @@
   };
 
   // ── Merge HR data + TAP sheet into final AP_DATA ──────────────────────────
-  // Enrolled (apprentice='Yes') comes from the TAP sheet (authoritative count).
-  // Eligible (apprentice='No') comes from the HR Master List.
-  // TAP records are enriched with HR site/district data for better network matching.
+  // Enrolled = union of TAP-sheet actives (primary) + HR Master List apprentice=Yes
+  // who are NOT in the TAP sheet (supplement). This prevents HR-confirmed apprentices
+  // from being silently dropped when the TAP sheet hasn't been updated yet.
   const ap_mergeTAPData = () => {
     const tapRoster = window.AP_TAP_ROSTER || [];
     if (!tapRoster.length) return;
@@ -1576,8 +1576,20 @@
         cycles:     (hrMatch && hrMatch.cycles) || '',
       };
     });
-    window.AP_DATA = hrEligible.concat(enrolled);
-    console.log('[AP] Merged: ' + enrolled.length + ' enrolled (TAP sheet) + ' +
+
+    // Supplement: HR-confirmed apprentices not yet added to the TAP sheet.
+    // Without this, they drop out of both hrEligible and enrolled.
+    const hrOnlyEnrolled = (window.AP_DATA || []).filter(r =>
+      r.apprentice === 'Yes' && !tapNames.has(nm(r.name))
+    );
+    if (hrOnlyEnrolled.length) {
+      console.warn('[AP] ' + hrOnlyEnrolled.length + ' HR-confirmed apprentice(s) not in TAP sheet — adding to enrolled. Add to TAP sheet to resolve:',
+        hrOnlyEnrolled.map(r => '"' + r.name + '"').join(', '));
+    }
+
+    window.AP_DATA = hrEligible.concat(enrolled).concat(hrOnlyEnrolled);
+    console.log('[AP] Merged: ' + enrolled.length + ' enrolled (TAP) + ' +
+      hrOnlyEnrolled.length + ' enrolled (HR-only) + ' +
       hrEligible.length + ' eligible (HR) = ' + window.AP_DATA.length + ' total');
     // Sync apprentice status to HR_EMPS so Talent Analytics filter shows correct count
     ap_syncHREmps(new Set(tapRoster.map(r => nm(r.name))));
