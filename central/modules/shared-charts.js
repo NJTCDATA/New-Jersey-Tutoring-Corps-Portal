@@ -1041,12 +1041,86 @@
 
   // ── Hiring Decision Store ─────────────────────────────────────────────────
   // Records persist in localStorage keyed by employee ID; visible to HR + Data only.
+  // ── Hiring Decision Store + Google Form write-through ────────────────────
+  // Google Form entry IDs — must match the form fields exactly
+  const HIRING_FORM_ENTRIES = {
+    dateYear:  'entry.939632120_year',
+    dateMonth: 'entry.939632120_month',
+    dateDay:   'entry.939632120_day',
+    empName:   'entry.491781665',
+    location:  'entry.1942615159',
+    decision:  'entry.834835718',
+    rationale: 'entry.2017090049',
+    decidedBy: 'entry.778195494',
+  };
+  // Google Sheet (published CSV) — for reading historical decisions
+  const HIRING_SHEET_2PACX = '2PACX-1vRRtGvwqKiDtvUdoU6tf3u_Rqlyd84co09ULwzgCTGeHEOBVLoYQKPdQf57HM_kgZEpeY1fc7V8cRQp';
+  const HIRING_SHEET_GID   = '786776521';
+  // Google Form action URL — get from your form's viewform link: replace /viewform with /formResponse
+  // Share your form → Copy link (1FAIpQLSe...) → paste here as the FORM_ID segment
+  const HIRING_FORM_ID = '1FAIpQLScg2aTj4-GwyDQHvms5Cwkuf03JpaRWkXHWl5gzfoXClsyAIg';
+
   const HIRING_KEY = 'njtc_hiring_decisions_v2';
+  let _hiringSheetCache = null;  // cached sheet rows to merge into file cabinet
+
   function _hiringLoad()  { try { return JSON.parse(localStorage.getItem(HIRING_KEY)||'[]'); } catch(e) { return []; } }
   function _hiringSave(r) { try { localStorage.setItem(HIRING_KEY, JSON.stringify(r)); } catch(e) {} }
   function _hiringGet(ek) { return _hiringLoad().filter(r => r.ek === ek); }
+
+  // Submit the decision to the Google Form (fire-and-forget, no-cors)
+  function _hiringSubmitToForm(rec, empSite) {
+    if (!HIRING_FORM_ID) return;
+    try {
+      const now = new Date();
+      const p = new URLSearchParams();
+      p.append(HIRING_FORM_ENTRIES.dateYear,  now.getFullYear());
+      p.append(HIRING_FORM_ENTRIES.dateMonth, now.getMonth() + 1);
+      p.append(HIRING_FORM_ENTRIES.dateDay,   now.getDate());
+      p.append(HIRING_FORM_ENTRIES.empName,   rec.en || '');
+      p.append(HIRING_FORM_ENTRIES.location,  empSite || '');
+      p.append(HIRING_FORM_ENTRIES.decision,  rec.d  || '');
+      p.append(HIRING_FORM_ENTRIES.rationale, rec.n  || '');
+      p.append(HIRING_FORM_ENTRIES.decidedBy, rec.by || '');
+      fetch(`https://docs.google.com/forms/d/e/${HIRING_FORM_ID}/formResponse`,
+            { method: 'POST', body: p, mode: 'no-cors' })
+        .then(() => console.log('[Hiring] Form response submitted for', rec.en))
+        .catch(e => console.warn('[Hiring] Form submit failed:', e.message));
+    } catch(e) { console.warn('[Hiring] Form submit error:', e.message); }
+  }
+
+  // Parse simple CSV — handles double-quoted fields with embedded commas/newlines
+  function _parseHiringCSVLine(line) {
+    const out = []; let cur = ''; let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"' && !inQ) { inQ = true; }
+      else if (c === '"' && inQ) { if (line[i+1]==='"') { cur+='"'; i++; } else inQ=false; }
+      else if (c === ',' && !inQ) { out.push(cur); cur=''; }
+      else cur += c;
+    }
+    out.push(cur); return out;
+  }
+
+  // Fetch and parse historical decisions from the Google Sheet
+  async function _hiringFetchSheet() {
+    const url = `https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pub?output=csv&gid=${HIRING_SHEET_GID}`;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return [];
+      const text = await res.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      // Column order from form: Timestamp | Date | Employee Name | Location | Decision | Rationale | Decided By
+      return lines.slice(1).map(line => {
+        const c = _parseHiringCSVLine(line);
+        return { ts: c[0]||'', en: c[2]||'', loc: c[3]||'', d: c[4]||'', n: c[5]||'', by: c[6]||'', sy:'2025-2026', src:'sheet' };
+      }).filter(r => r.en && r.d);
+    } catch(e) { return []; }
+  }
+
   const _H_COLOR = {'Invite Back':'#065f46','Do Not Rehire':'#b91c1c','Conditional':'#d97706','Hold':'#1e40af'};
   const _H_BG    = {'Invite Back':'#d1fae5','Do Not Rehire':'#fee2e2','Conditional':'#fef3c7','Hold':'#dbeafe'};
+
   function _hiringRecordsHtml(ek) {
     const recs = _hiringGet(ek).sort((a,b) => b.ts.localeCompare(a.ts));
     const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1322,8 +1396,17 @@
     }
     _hrRaceByYear = _rByYr;
 
+    // Raw apprentice count from col K — before HR_EMPS name-matching, gives accurate total (e.g. 30)
+    const _rawApprSet = new Set();
+    for (const r of liveRows) {
+      if (r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice) && r.name) {
+        _rawApprSet.add(_hn(r.name));
+      }
+    }
+    window._liveApprenticeCount = _rawApprSet.size;
+
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
-    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only)');
+    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only) · apprentices:', _rawApprSet.size);
   }
 
   // ── Overlay live Pearl Ops data onto HR_EMPS ─────────────────────────────
@@ -1567,6 +1650,31 @@
         ? Math.round(emp._obsRatings.reduce((a,b)=>a+b,0)/emp._obsRatings.length*10)/10 : null;
     }
     console.log('[HR Profiles] Obs overlay applied');
+  }
+
+  // ── T&D observation overlay — maps OTJ observation sheet onto HR_EMPS ────────
+  // window._njtcTutorObs is keyed by normalized name; each value is array of
+  // {month, observed, missed, note, link} entries from the OTJ live sheet.
+  function _hrOverlayTndObs() {
+    const tnd = window._njtcTutorObs;
+    if (!tnd) return;
+    const _normN = n => (n||'').toLowerCase().replace(/\s+/g,' ').trim();
+    let matched = 0;
+    for (const emp of HR_EMPS) {
+      const k = _normN(emp.n);
+      const entries = tnd[k] || [];
+      if (!entries.length) continue;
+      const observed = entries.filter(e => e.observed).length;
+      const missed   = entries.filter(e => e.missed).length;
+      const link     = (entries.find(e => e.link) || {}).link || '';
+      emp._tndObsTotal    = entries.length;
+      emp._tndObsObserved = observed;
+      emp._tndObsMissed   = missed;
+      emp._tndObsLink     = link;
+      emp._tndObsMonths   = entries.filter(e => e.observed).map(e => e.month).join(', ');
+      matched++;
+    }
+    console.log('[HR Profiles] T&D obs overlay matched:', matched, 'employees');
   }
 
   async function fetchLiveHRData(force=false) {
@@ -2394,20 +2502,34 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   </div>
 </div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">i-Ready data not yet loaded. Open the i-Ready Lab panel first to enable this overlay.</div>`;
 
-    // ── Site leader observations ──────────────────────────────────────
-    const hasObs = emp._obsCount > 0;
+    // ── Site leader observations + T&D OTJ observations ──────────────────────
+    const hasTndObs  = (emp._tndObsObserved || 0) > 0;
+    const hasSLObs   = emp._obsCount > 0;
+    const hasObs     = hasSLObs || hasTndObs;
     const obsBody = hasObs ? `
 <div>
-  <div style="display:flex;align-items:center;gap:.875rem;margin-bottom:.625rem;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px">
-    <span style="font-size:.8125rem"><strong>${emp._obsCount}</strong> observation${emp._obsCount!==1?'s':''}</span>
-    ${emp._obsAvgRating!=null?`<span style="font-size:.8125rem">Avg rating: <strong style="color:${emp._obsAvgRating>=4?'#0d6e3a':emp._obsAvgRating>=3?'#d97706':'#b91c1c'}">${emp._obsAvgRating}/5</strong></span>`:''}
-  </div>
-  ${emp._obsLatest?`<div style="padding:.625rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem">
-    <div style="font-size:.65rem;color:var(--muted);margin-bottom:.2rem">Most recent · ${esc(emp._obsLatest.date||'—')} · ${esc(emp._obsLatest.observer||'—')}</div>
-    <div style="color:var(--navy)">${esc(emp._obsLatest.notes?.slice(0,200)||'No notes recorded')}</div>
-    ${emp._obsLatest.rating?`<div style="margin-top:.3rem;font-size:.7rem;color:var(--muted)">Rating: ${esc(emp._obsLatest.rating)}</div>`:''}
-  </div>`:''}
-</div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open the Talent Analytics panel or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
+  ${hasSLObs ? `<div style="margin-bottom:.625rem">
+    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.06em;margin-bottom:.375rem">📋 Site Leader Observations</div>
+    <div style="display:flex;align-items:center;gap:.875rem;margin-bottom:.375rem;padding:.5rem .75rem;background:var(--surface-2);border-radius:8px">
+      <span style="font-size:.8125rem"><strong>${emp._obsCount}</strong> observation${emp._obsCount!==1?'s':''}</span>
+      ${emp._obsAvgRating!=null?`<span style="font-size:.8125rem">Avg rating: <strong style="color:${emp._obsAvgRating>=4?'#0d6e3a':emp._obsAvgRating>=3?'#d97706':'#b91c1c'}">${emp._obsAvgRating}/5</strong></span>`:''}
+    </div>
+    ${emp._obsLatest?`<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem">
+      <div style="font-size:.65rem;color:var(--muted);margin-bottom:.2rem">Most recent · ${esc(emp._obsLatest.date||'—')} · ${esc(emp._obsLatest.observer||'—')}</div>
+      <div style="color:var(--navy)">${esc(emp._obsLatest.notes?.slice(0,200)||'No notes recorded')}</div>
+      ${emp._obsLatest.rating?`<div style="margin-top:.3rem;font-size:.7rem;color:var(--muted)">Rating: ${esc(emp._obsLatest.rating)}</div>`:''}
+    </div>`:''}
+  </div>` : ''}
+  ${hasTndObs ? `<div>
+    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.06em;margin-bottom:.375rem">👁️ T&D OTJ Observations (Live Sheet)</div>
+    <div style="display:flex;align-items:center;gap:.875rem;padding:.5rem .75rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;flex-wrap:wrap">
+      <span style="font-size:.8125rem"><strong style="color:#0d6e3a">${emp._tndObsObserved}</strong> <span style="color:var(--muted)">observed</span></span>
+      ${emp._tndObsMissed?`<span style="font-size:.8125rem"><strong style="color:#d97706">${emp._tndObsMissed}</strong> <span style="color:var(--muted)">missed/unlogged</span></span>`:''}
+      ${emp._tndObsMonths?`<span style="font-size:.75rem;color:var(--muted)">${esc(emp._tndObsMonths)}</span>`:''}
+      ${emp._tndObsLink?`<a href="${esc(emp._tndObsLink)}" target="_blank" rel="noopener" style="margin-left:auto;font-size:.75rem;color:#0369a1;font-weight:600;text-decoration:none">📄 View OTJ Sheet ↗</a>`:''}
+    </div>
+  </div>` : ''}
+</div>` : (!(window._njtcTutorObs || window._njtcSLObs) ? `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">Observation data not yet loaded. Open T&D Analytics or trigger a data refresh.</div>` : `<div style="padding:.5rem .75rem;background:var(--surface-2);border-radius:8px;font-size:.75rem;color:var(--muted)">No observations on record for this employee.</div>`);
 
     // ── Concerns ─────────────────────────────────────────────────────
     const _liveConcernRecs = (window.CONCERNS||[]).filter(c=>c.emp===emp.n).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
@@ -2850,6 +2972,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       _hrOverlayPearl();
       _hrOverlayAcademic();
       if (_obsRows.length) _hrOverlayObs();
+      if (window._njtcTutorObs) _hrOverlayTndObs();  // T&D OTJ observation sheet
       _hrRecomputeTiers();
       _hrLastOverlayVersion = _hrOverlayVersion;
     }
@@ -4680,13 +4803,21 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window._hrSaveHiringDecision = function(ek, en, decision, notes) {
     if (!decision) { alert('Please select a decision before saving.'); return; }
     const sess = window.NJTC_SESSION || {};
+    const emp  = (typeof HR_EMPS !== 'undefined' ? HR_EMPS : []).find(e => e.n.replace(/\W/g,'_') === ek);
+    const empSite = (emp && emp.si) || '';
     const recs = _hiringLoad();
-    recs.push({
+    const rec = {
       id:   Date.now() + '_' + Math.random().toString(36).slice(2,7),
       ek, en: en, d: decision, n: notes || '', sy: '2025-2026',
-      ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown'
-    });
+      ts:   new Date().toISOString(), by: sess.name || 'Unknown', role: sess.dept || 'unknown',
+      loc:  empSite,
+    };
+    recs.push(rec);
     _hiringSave(recs);
+    // Also submit to Google Form for durable historical record
+    _hiringSubmitToForm(rec, empSite);
+    // Expose to PIE context
+    window._njtcHiringDecisions = recs;
     // Refresh the records list in the open modal
     const listEl = document.getElementById('hiring_records_' + ek);
     if (listEl) listEl.innerHTML = _hiringRecordsHtml(ek);
@@ -4696,13 +4827,41 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const btn = document.getElementById('hiring_save_' + ek);
     if (sel) sel.value = '';
     if (txt) txt.value = '';
-    if (btn) { const orig = btn.textContent; btn.textContent = '✓ Saved'; btn.style.background='#16a34a'; setTimeout(()=>{ btn.textContent=orig; btn.style.background='#0a1628'; },2200); }
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ Saved — export from 🗂️ Hiring Records tab to back up';
+      btn.style.background='#16a34a';
+      btn.style.fontSize='.72rem';
+      setTimeout(()=>{ btn.textContent=orig; btn.style.background='#0a1628'; btn.style.fontSize=''; },4000);
+    }
   };
 
-  // ── Hiring File Cabinet — table of all decisions ────────────────────────
+  // Expose current decisions to PIE on load
+  window._njtcHiringDecisions = _hiringLoad();
+
+  // ── Hiring File Cabinet — table of all decisions (localStorage + Google Sheet) ──
   function _hrHiringFileCabinet() {
     const esc2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const recs = _hiringLoad().sort((a,b) => b.ts.localeCompare(a.ts));
+    // Merge localStorage + cached sheet rows; sheet rows older than local get de-duped by ts+name
+    const local = _hiringLoad();
+    const sheet = _hiringSheetCache || [];
+    const localTsNames = new Set(local.map(r => (r.ts||'').slice(0,16) + '|' + (r.en||r.ek)));
+    const sheetOnly = sheet.filter(r => {
+      const k = (r.ts||'').slice(0,16) + '|' + (r.en||'');
+      return !localTsNames.has(k);
+    });
+    const recs = [...local, ...sheetOnly].sort((a,b) => b.ts.localeCompare(a.ts));
+
+    // Trigger async sheet fetch to refresh cache, re-render when done
+    _hiringFetchSheet().then(rows => {
+      _hiringSheetCache = rows;
+      // Re-render only if the file cabinet is still visible
+      const el = document.getElementById('talentContent');
+      if (el && document.getElementById('talentTab-hiring') &&
+          document.getElementById('talentTab-hiring').classList.contains('active')) {
+        el.innerHTML = _hrHiringFileCabinet();
+      }
+    });
     const bySY = {};
     recs.forEach(r => { const sy = r.sy||'Unknown'; if (!bySY[sy]) bySY[sy] = []; bySY[sy].push(r); });
     const summary = ['Invite Back','Conditional','Hold','Do Not Rehire'].map(d => {
@@ -4721,6 +4880,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     return `
 <div style="padding:1.25rem">
+  <div style="padding:.625rem .875rem;background:${HIRING_FORM_ID?'#f0fdf4':'#fef3c7'};border:1px solid ${HIRING_FORM_ID?'#bbf7d0':'#fde68a'};border-radius:8px;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.625rem;flex-wrap:wrap">
+    <span style="font-size:1rem;flex-shrink:0">${HIRING_FORM_ID?'✅':'⚠️'}</span>
+    <div style="font-size:.75rem;color:${HIRING_FORM_ID?'#065f46':'#92400e'};line-height:1.6;flex:1;min-width:200px">
+      ${HIRING_FORM_ID
+        ? `<strong>Google Form write-through active</strong> — every decision is automatically submitted to the form and recorded in the Google Sheet. Local browser cache provides instant access.
+           <a href="https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pubhtml" target="_blank" rel="noopener" style="color:#065f46;font-weight:700;margin-left:.5rem">📊 View Google Sheet ↗</a>`
+        : `<strong>Google Form not yet connected</strong> — decisions are saved locally only. Provide your form's ID to enable permanent Google Sheet write-through.
+           <a href="https://docs.google.com/spreadsheets/d/e/${HIRING_SHEET_2PACX}/pubhtml" target="_blank" rel="noopener" style="color:#92400e;font-weight:700;margin-left:.5rem">📊 View Sheet ↗</a>`}
+    </div>
+    <div style="display:flex;gap:.375rem;flex-shrink:0">
+      <button onclick="window._hrExportHiringCSV()" style="padding:.3rem .625rem;background:#fff;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.7rem;font-weight:700;color:#374151;cursor:pointer;font-family:inherit;white-space:nowrap">📄 Backup CSV</button>
+    </div>
+  </div>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem;margin-bottom:1.125rem">
     <div>
       <div style="font-size:1.125rem;font-weight:800;color:var(--navy);margin-bottom:.25rem">🗂️ Hiring Decision File Cabinet</div>
@@ -4804,6 +4976,56 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   };
 
   window._hrHiringFileCabinet = _hrHiringFileCabinet;
+
+  // ── PIE: expose metric definitions and hiring data for AI context ─────────
+  window._njtcTalentDefs = {
+    perfScore: {
+      label: 'Performance Score (Perf Score)',
+      format: '0–4 integer',
+      source: 'Pearl HR Master List · prior school year (emp.py)',
+      description: 'Count of 4 binary performance metrics met in the prior SY. Each metric is Yes/No based on Pearl data.',
+      metrics: {
+        'Att Target':         'Tutor met ≥95% school-year attendance goal',
+        'Scholar Enjoyment':  'Majority of tutored scholars reported enjoying sessions in end-of-cycle survey',
+        'Scholar Learning':   'Majority of tutored scholars reported learning in end-of-cycle survey',
+        'Acad Improvement':   'Scholar cohort showed measurable i-Ready placement gain from fall to spring',
+      },
+      tiers: { stellar:'≥3/4', strong:'2/4', developing:'1/4', needs_support:'0/4' }
+    },
+    liveTier: {
+      label: 'Live Performance Tier',
+      description: 'Composite score computed from: Perf Score (×2.5 weight) + Attendance + iReady % Improved + Concerns (penalty) + Cycles (bonus). Scaled to 0–100% then bucketed into Stellar/Strong/Developing/Needs Support.',
+    },
+    attendance: { label: 'Attendance %', source: 'Pearl Ops (live)', description: 'Tutor session attendance rate for current SY from Pearl.' },
+    survey: { label: 'Survey Score', source: 'Scholar surveys (end of cycle)', description: 'Average scholar-reported enjoyment and learning rating on a 1–5 scale.' },
+    iReady: {
+      label: 'i-Ready Academic Outcomes',
+      source: 'i-Ready Analysis Lab (live)',
+      metrics: {
+        '% Improved Placement': 'Scholars who moved to a higher placement band fall→spring',
+        '% On Grade Level': 'Scholars at or above grade-level placement in spring',
+        'Avg Gain': 'Average diagnostic score gain in points across all tutored scholars',
+      }
+    },
+    hiringDecision: {
+      label: 'Hiring Decision Record',
+      access: 'HR and Data departments only',
+      description: 'Persistent decision record stored per employee. Options: Invite Back / Conditional / Hold / Do Not Rehire. Records accumulate and are exportable as CSV/XLSX.',
+      persistence: 'Browser localStorage (njtc_hiring_decisions_v2) — export regularly to maintain durable record',
+    },
+    apprentice: {
+      label: 'TAP Apprentice',
+      source: 'HR Master List col K · 2025-2026',
+      description: 'DOL-registered apprentice enrolled in NJTC Tutor Apprenticeship Program (TAP). Count from raw live HR data before name-matching.',
+    },
+  };
+
+  // Re-apply T&D obs overlay whenever T&D data becomes available
+  const _origTndObsReady = window._njtcObsReady;
+  window._njtcObsReady = function() {
+    if (window._njtcTutorObs) { _hrInvalidateOverlay(); _hrOverlayTndObs(); }
+    if (typeof _origTndObsReady === 'function') _origTndObsReady();
+  };
 
   window.fetchLiveHRData         = fetchLiveHRData;
   window.fetchLiveObsData        = fetchLiveObsData;   // NE+SW site leader observations

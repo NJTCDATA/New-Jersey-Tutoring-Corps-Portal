@@ -79,6 +79,12 @@
     document.querySelectorAll('.dept-nav-survey').forEach(b =>
       b.style.display = SURVEY_DEPTS.includes(dept) ? '' : 'none'
     );
+
+    // Drive Center (upload) — Leadership, Data, and KB only
+    const UPLOAD_DEPTS = ['leadership','data','kb'];
+    document.querySelectorAll('.dept-nav-upload').forEach(b =>
+      b.style.display = UPLOAD_DEPTS.includes(dept) ? '' : 'none'
+    );
   }
 
   // ── Year extraction helpers ────────────────────────────────────
