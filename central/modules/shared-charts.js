@@ -2510,6 +2510,65 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     return `
 ${summaryBar}
 ${_divHtml}
+<div style="margin-bottom:.875rem;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden">
+  <div onclick="_hrToggle('_hrScoringBanner')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;background:linear-gradient(90deg,#0a1628 0%,#1a3a6b 100%);user-select:none">
+    <span style="font-size:.75rem;font-weight:800;color:#fff;letter-spacing:.03em">ℹ&nbsp; How Performance Buckets Work</span>
+    <span id="_hrScoringBanner_btn" style="font-size:.65rem;color:#94a3b8">▼ Hide</span>
+  </div>
+  <div id="_hrScoringBanner" style="background:var(--surface-2);padding:.75rem .875rem;display:grid;gap:.625rem">
+    <div>
+      <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Performance Tiers — computed from weighted live score</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.35rem;align-items:center">
+        <span style="background:#d1fae5;color:#0d6e3a;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">⭐ Stellar</span>
+        <span style="font-size:.6rem;color:var(--muted)">≥75% of max score</span>
+        <span style="color:var(--border);margin:0 .1rem">│</span>
+        <span style="background:#dbeafe;color:#0050c8;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">✅ Strong</span>
+        <span style="font-size:.6rem;color:var(--muted)">55–74%</span>
+        <span style="color:var(--border);margin:0 .1rem">│</span>
+        <span style="background:#fef3c7;color:#d97706;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">📈 Developing</span>
+        <span style="font-size:.6rem;color:var(--muted)">38–54%</span>
+        <span style="color:var(--border);margin:0 .1rem">│</span>
+        <span style="background:#fee2e2;color:#b91c1c;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">🤝 Needs Support</span>
+        <span style="font-size:.6rem;color:var(--muted)">&lt;38%</span>
+        <span style="color:var(--border);margin:0 .1rem">│</span>
+        <span style="background:#f1f5f9;color:#7d8fa1;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">📋 No Score</span>
+        <span style="font-size:.6rem;color:var(--muted)">No prior-SY Perf Score uploaded yet — tier held from last known SY</span>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem">
+        <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Tier Score — Weighted Formula</div>
+        <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+          <b>①</b> Perf Score (0–4) × 2.5 &rarr; <em>max 10 pts</em><br>
+          <b>②</b> Attendance &rarr; ≥95%=10 &middot; ≥90%=8 &middot; ≥85%=6 &middot; ≥80%=4 &middot; ≥75%=2 &middot; &lt;75%=0<br>
+          <b>③</b> iReady Academic &rarr; ≥60% scholars advanced=10 &middot; ≥45%=8 &middot; ≥30%=5 &middot; ≥15%=2<br>
+          <b>−</b> Concerns: −3 pts each &nbsp;&nbsp; <b>+</b> Longevity: +3 pts (3+ cycles) / +1 pt (2 cycles)<br>
+          <span style="color:#b91c1c;font-weight:600">⚠ HR action (Termination / PGP) hard-caps tier at Needs Support</span>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem">
+        <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Perf Score (0–4) — Prior SY Manual Upload</div>
+        <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+          Each metric is a binary pass/fail. Score = # of metrics met out of 4.<br>
+          <b>① Att Target</b> — Tutor met ≥95% school-year attendance goal<br>
+          <b>② Scholar Enjoyment</b> — Majority of scholars reported enjoying sessions<br>
+          <b>③ Scholar Learning</b> — Majority of scholars reported learning in survey<br>
+          <b>④ Acad Improvement</b> — Scholars showed measurable iReady placement gain
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;padding:.3rem .6rem;background:#0c1e38;border-radius:6px">
+      <span style="font-size:.6rem;color:#94a3b8;font-weight:700;margin-right:.1rem">● Live indicators:</span>
+      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Att ●</span><span style="font-size:.6rem;color:#94a3b8">= Attendance from Pearl Operations</span>
+      <span style="color:#334155;margin:0 .15rem">·</span>
+      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Survey ●</span><span style="font-size:.6rem;color:#94a3b8">= Scholar enjoyment from Pearl (used when no EOY upload exists)</span>
+      <span style="color:#334155;margin:0 .15rem">·</span>
+      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Location ●</span><span style="font-size:.6rem;color:#94a3b8">= Schools where tutor ran ≥1 Pearl session this SY</span>
+      <span style="color:#334155;margin:0 .15rem">·</span>
+      <span style="font-size:.58rem;color:#475569;font-style:italic">Pearl data refreshes hourly</span>
+    </div>
+  </div>
+</div>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
   <div style="font-size:.72rem;font-weight:700;color:var(--navy)">Employee Profiles</div>
   <div style="display:flex;align-items:center;gap:.5rem">
