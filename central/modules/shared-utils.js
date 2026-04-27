@@ -10028,8 +10028,10 @@
             msg += '📐 Math — Median: **' + mathNet.medianMonthsGrowth + ' mo** · Avg: ' + (mathNet.avgMonthsGrowth||'—') + ' mo\n';
           if (elaNet && elaNet.medianMonthsGrowth != null)
             msg += '📖 ELA  — Median: **' + elaNet.medianMonthsGrowth  + ' mo** · Avg: ' + (elaNet.avgMonthsGrowth ||'—') + ' mo\n';
-          msg += '\n**Formula:** (% of Typical Growth) × (weeks between Fall & Winter diagnostics) ÷ 4\n';
-          msg += 'Uses each scholar\'s actual diagnostic window. Median is the primary metric (robust to outliers); average is shown for reference and matches the Google Sheet.';
+          msg += '\n**Formula:** `pctTypicalGrowthDecimal × (winterWeeks / 4)`\n';
+          msg += '• `pctTypicalGrowthDecimal` = scholar\'s % of Typical Growth as a decimal (e.g. 0.88 for 88%)\n';
+          msg += '• `winterWeeks` = actual weeks between that scholar\'s Fall (BOY) and Winter (MOY) diagnostic\n\n';
+          msg += '**Median** (bold, large) is the primary metric — resistant to outliers from unusually long/short diagnostic windows. **Average** (small footnote) matches the Google Sheet calculation and is shown for reference.';
           return msg;
         }
 
@@ -13562,7 +13564,7 @@
         ['Typical Growth', 'iReady\'s nationally normed expected gain for each grade + placement level combination (published in iReady growth norms table). Example: A 3rd grader 1 GL below might need +15 pts for "typical." A scholar meets typical if their actual gain ≥ this threshold.'],
         ['Stretch Growth', 'A more ambitious gain target set above typical — usually 1.25–1.5× the typical threshold. Closing the grade-level gap requires stretch, not just typical growth.'],
         ['% Meeting Typical', 'Formula: (scholars with actual gain ≥ typical threshold ÷ total assessed scholars) × 100. Shown separately for Math and ELA.'],
-        ['Months of Learning Gained', 'Formula: (% of Typical Growth) × (weeks between Fall and Winter diagnostics) ÷ 4. Uses each scholar\'s actual diagnostic window rather than a full school year — same approach as EOY. Example: scholar at 80% typical with a 10-week window → 0.80 × 10 ÷ 4 = 2.0 months. Median is the primary metric shown; more robust to outliers than the average.'],
+        ['Months of Learning Gained', 'Formula: pctTypicalGrowthDecimal × (winterWeeks / 4). pctTypicalGrowthDecimal = the scholar\'s % of Typical Growth expressed as a decimal (e.g. 0.88 for 88%). winterWeeks = the number of weeks between that scholar\'s individual Fall (BOY) and Winter (MOY) iReady diagnostic dates — so each scholar\'s window is used rather than a fixed school-year length. Example: a scholar at 88% typical with a 10-week window → 0.88 × (10 / 4) = 2.2 months gained. The large number shown in the widget is the MEDIAN (more robust to outliers from unusually long or short diagnostic windows); the small footnote below it is the AVERAGE, which matches the figure in the Google Sheet.'],
         ['BOY / MOY', 'BOY = Beginning of Year (Fall diagnostic, Sep–Oct). MOY = Mid-Year (Winter diagnostic, Jan–Feb). All growth metrics and placement movement in this lab compare BOY → MOY for the program\'s mid-year review window.'],
         ['Placement Level', '5 tiers relative to grade level, determined by iReady\'s grade-specific scale score cutoffs: 🔴 3 or More Grade Levels Below · 🟠 2 Grade Levels Below · 🟡 1 Grade Level Below · 🟢 Early On Grade Level · 🟢 Mid or Above Grade Level.'],
         ['Placement Distribution', 'Dual stacked bars showing the share of scholars in each placement tier — one bar for Fall (BOY) and one for Winter (MOY). Color-coded stoplight: red (3+ below) → orange (2 below) → yellow (1 below) → teal (Early On GL) → green (Mid/Above GL). Each bar includes a legend with % and count per band.'],
