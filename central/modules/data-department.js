@@ -5486,10 +5486,13 @@
             const total = PLACEMENT_ORDER.reduce((s, p) => s + (dist[p] || 0), 0);
             if (!total) return '';
             const tiers = TIERS.map(t => ({ ...t, count: dist[t.full] || 0, pct: Math.round((dist[t.full] || 0) / total * 100) }));
-            return `<div style="margin-bottom:.75rem">
+            return `<div style="margin-bottom:.875rem">
               <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.375rem">${label} · ${total} scholars</div>
-              <div style="height:22px;border-radius:6px;overflow:hidden;display:flex">
+              <div style="height:22px;border-radius:6px;overflow:hidden;display:flex;margin-bottom:.375rem">
                 ${tiers.map(t => t.count > 0 ? `<div style="flex:${t.count};background:${t.color}" title="${t.full}: ${t.pct}% (${t.count})"></div>` : '').join('')}
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+                ${tiers.filter(t => t.count > 0).map(t => `<div style="display:flex;align-items:center;gap:.3rem;font-size:.7rem"><div style="width:8px;height:8px;border-radius:2px;background:${t.color};flex-shrink:0"></div><span style="color:var(--muted)">${t.label}</span><strong style="color:${t.color}">${t.pct}%</strong><span style="color:var(--muted);font-size:.625rem">(${t.count})</span></div>`).join('')}
               </div>
             </div>`;
           };
@@ -5499,9 +5502,6 @@
             html += `<div style="margin-bottom:1.25rem">
               <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Placement Distribution — ${_moySubject}</div>
               ${fallBar}${winterBar}
-              <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.375rem">
-                ${TIERS.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span></div>`).join('')}
-              </div>
             </div>`;
           }
         }
