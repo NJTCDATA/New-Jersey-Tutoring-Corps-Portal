@@ -3,7 +3,9 @@
 
 // ══════════════════════════════════════════════════════════════════════════
 //  PROGRAM DATA SUMMARY  —  "Program Pulse"
-//  Visible to: programming, data departments
+//  Default access: programming, data  (leadership + KB off by default)
+//  Data dept can toggle access per dept via the in-panel ⚙ Pulse Access bar.
+//  Access list persisted in localStorage key: njtc_pulse_depts_v1
 //  Reads from: po.getProgramSummaryData(), irlab.getInsightMetrics()
 //  No direct API calls — all data is already in memory.
 // ══════════════════════════════════════════════════════════════════════════
@@ -881,8 +883,28 @@ function renderDiscrepancies(d) {
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
-var _activeTab = 'week';
+var _activeTab    = 'week';
 var _lastRendered = 0;
+var _currentDept  = 'programming';
+var _PULSE_STORE  = 'njtc_pulse_depts_v1';
+// Default: only programming + data. Leadership/KB start OFF.
+// Data dept can toggle any entry via the in-panel access bar.
+var _PULSE_DEFAULT = ['programming', 'data'];
+
+function _getPulseDepts() {
+  try {
+    var s = JSON.parse(localStorage.getItem(_PULSE_STORE) || 'null');
+    return Array.isArray(s) ? s : _PULSE_DEFAULT.slice();
+  } catch(e) { return _PULSE_DEFAULT.slice(); }
+}
+function _setPulseDept(dept, enabled) {
+  var depts = _getPulseDepts();
+  if (enabled  && !depts.includes(dept)) depts.push(dept);
+  if (!enabled) depts = depts.filter(function(d){ return d !== dept; });
+  try { localStorage.setItem(_PULSE_STORE, JSON.stringify(depts)); } catch(e) {}
+  updateVisibility(_currentDept);
+  _renderAccessPanel();
+}
 var TABS = [
   { id: 'week',   label: '📋 This Week' },
   { id: 'trends', label: '📈 Trends' },
@@ -979,6 +1001,7 @@ function buildDOM() {
       '<span id="pdsSyncTxt">Live Pearl data</span>' +
       '<button onclick="window.pds.refresh()" style="margin-left:auto;background:none;border:1px solid var(--border);border-radius:6px;padding:.25rem .625rem;font-size:.75rem;cursor:pointer;font-family:inherit;color:var(--muted)">↺ Refresh</button>' +
     '</div>' +
+    '<div id="pdsAccessPanel"></div>' +
     '<div class="pds-tab-bar">' +
       TABS.map(function(t) {
         return '<button id="pdsTab-' + t.id + '" class="pds-tab' + (t.id === _activeTab ? ' active' : '') + '" onclick="window.pds.switchTab(\'' + t.id + '\')">' + t.label + '</button>';
@@ -1001,18 +1024,52 @@ function refresh() {
   renderActiveTab();
 }
 
-// ── Show/hide button based on dept ─────────────────────────────────────────
+// ── Show/hide button based on dept (reads localStorage-backed list) ─────────
 function updateVisibility(dept) {
-  var allowed = ['programming', 'data', 'leadership', 'kb'];
+  if (dept) _currentDept = dept;
   var btn = document.getElementById('pdsPulseBtn');
   if (!btn) { buildDOM(); btn = document.getElementById('pdsPulseBtn'); }
-  if (btn) btn.className = allowed.includes(dept) ? 'visible' : '';
+  var enabled = _getPulseDepts();
+  if (btn) btn.className = enabled.includes(_currentDept) ? 'visible' : '';
+  _renderAccessPanel();
+}
+
+// ── Access control panel (data dept only) ────────────────────────────────────
+function _renderAccessPanel() {
+  var el = document.getElementById('pdsAccessPanel');
+  if (!el) return;
+  if (_currentDept !== 'data') { el.innerHTML = ''; el.style.display = 'none'; return; }
+  var depts = _getPulseDepts();
+  var MANAGEABLE = [
+    { id: 'leadership',  label: 'Leadership' },
+    { id: 'kb',          label: 'Knowledge Base' },
+    { id: 'programming', label: 'Program Dept' },
+  ];
+  el.style.display = 'block';
+  el.innerHTML =
+    '<div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:.45rem 1.25rem;display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">' +
+      '<span style="font-size:.72rem;font-weight:700;color:#1e40af;white-space:nowrap;margin-right:.25rem">⚙ Pulse Access:</span>' +
+      MANAGEABLE.map(function(d) {
+        var on = depts.includes(d.id);
+        return '<button onclick="window.pds.toggleAccess(\'' + d.id + '\',' + String(!on) + ')" style="' +
+          'border:1px solid ' + (on ? '#2563eb' : '#cbd5e1') + ';' +
+          'background:' + (on ? '#2563eb' : '#f8fafc') + ';' +
+          'color:' + (on ? '#fff' : '#94a3b8') + ';' +
+          'border-radius:20px;padding:.2rem .7rem;font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s">' +
+          (on ? '✓ ' : '') + d.label + '</button>';
+      }).join('') +
+      '<span style="font-size:.68rem;color:#94a3b8;margin-left:auto">Data Dept only</span>' +
+    '</div>';
+}
+
+function toggleAccess(dept, enable) {
+  _setPulseDept(dept, enable === true || enable === 'true');
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 buildDOM();
 
 // ── Public API ─────────────────────────────────────────────────────────────
-window.pds = { open: open, close: close, switchTab: switchTab, refresh: refresh, updateVisibility: updateVisibility };
+window.pds = { open: open, close: close, switchTab: switchTab, refresh: refresh, updateVisibility: updateVisibility, toggleAccess: toggleAccess };
 
 })(); // end IIFE
