@@ -9003,7 +9003,7 @@
     },
 
     // Concerns / workforce
-    { match: /concern|workforce concern|how many.*(concern|active)|open concern|hr concern|active concern/i,
+    { match: /concern|workforce concern|how many.*concern|open concern|hr concern|active concern/i,
       respond: function() {
         var c = _concerns();
         if (!c.length) return 'No concern records loaded yet. Open Performance Concerns or Talent Analytics to load data.' + _navBtn('Open Talent Analytics', 'talent');
@@ -9173,19 +9173,25 @@
     // Apprentice count
     { match: /apprentice|tap\b|tutor apprentice|apprenticeship|tap program|how many apprentice|how many.*tap/i,
       respond: function() {
-        var active = _hrActive();
-        var apps = active.filter(function(e){ return e._apprentice==='Yes'; });
-        if (!apps.length) return 'Apprentice data not yet loaded from HR Master List. Open the T&D Analytics → Apprentice Tracker to load it.';
-        var msg = '**' + apps.length + ' active TAP apprentices** (from HR Master List, col K).\n\n';
-        // Race breakdown if available
-        var rMap = {};
-        apps.forEach(function(e){ if(e._race && !/not listed|prefer not/i.test(e._race)){ rMap[e._race]=(rMap[e._race]||0)+1; } });
-        var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
-        if (rRows.length) {
-          msg += '**Race breakdown:**\n' + rRows.map(function(r){ return '• ' + r[0] + ': ' + r[1] + ' (' + Math.round(r[1]/apps.length*100) + '%)'; }).join('\n');
+        // Source of truth: Live Tracker via window.AP_DATA (built in executive-leadership.js)
+        var apEnrolled = (window.AP_DATA||[]).filter(function(r){ return r.apprentice==='Yes'; });
+        if (!apEnrolled.length) return 'Apprentice data not yet loaded. Open the Apprentice Tracker to load it.';
+        var count = apEnrolled.length;
+        var msg = '**' + count + ' active TAP apprentices** (from Live Tracker).\n\n';
+        // Race/ethnicity: cross-reference HR_EMPS records (which carry _race/_ethnicity fields)
+        var hrByName = {};
+        _hrActive().forEach(function(e){ hrByName[((e.n||e.name||'').toLowerCase().replace(/\s+/g,' ').trim())] = e; });
+        var hrMatched = apEnrolled.map(function(r){ return hrByName[(r.name||'').toLowerCase().replace(/\s+/g,' ').trim()]; }).filter(Boolean);
+        if (hrMatched.length) {
+          var rMap = {};
+          hrMatched.forEach(function(e){ if(e._race&&!/not listed|prefer not/i.test(e._race)){ rMap[e._race]=(rMap[e._race]||0)+1; } });
+          var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
+          if (rRows.length) {
+            msg += '**Race breakdown:**\n' + rRows.map(function(r){ return '• ' + r[0] + ': ' + r[1] + ' (' + Math.round(r[1]/count*100) + '%)'; }).join('\n');
+          }
+          var hisp = hrMatched.filter(function(e){ return /hispanic|latino/i.test(e._ethnicity||''); }).length;
+          if (hisp) msg += '\n• Hispanic/Latino ethnicity: ' + hisp;
         }
-        var hisp = apps.filter(function(e){ return /hispanic|latino/i.test(e._ethnicity||''); }).length;
-        if (hisp) msg += '\n• Hispanic/Latino ethnicity: ' + hisp;
         return msg;
       }
     },
@@ -9193,20 +9199,24 @@
     // Apprentice race/demographics specifically
     { match: /apprentice (race|diversity|demographic|ethnic|identity)|race.?of.?apprentice|apprentice.?race/i,
       respond: function() {
-        var active = _hrActive();
-        var apps = active.filter(function(e){ return e._apprentice==='Yes'; });
-        if (!apps.length) return 'Apprentice data not loaded from HR Master List.';
-        var rMap = {}, eMap = {};
-        apps.forEach(function(e){
+        var apEnrolled = (window.AP_DATA||[]).filter(function(r){ return r.apprentice==='Yes'; });
+        if (!apEnrolled.length) return 'Apprentice data not loaded. Open the Apprentice Tracker to load it.';
+        var count = apEnrolled.length;
+        var hrByName = {};
+        _hrActive().forEach(function(e){ hrByName[((e.n||e.name||'').toLowerCase().replace(/\s+/g,' ').trim())] = e; });
+        var hrMatched = apEnrolled.map(function(r){ return hrByName[(r.name||'').toLowerCase().replace(/\s+/g,' ').trim()]; }).filter(Boolean);
+        if (!hrMatched.length) return 'Demographic data not yet available for the ' + count + ' enrolled apprentices.';
+        var rMap = {}, hisp = 0;
+        hrMatched.forEach(function(e){
           if(e._race&&!/not listed|prefer not/i.test(e._race)) rMap[e._race]=(rMap[e._race]||0)+1;
-          if(/hispanic|latino/i.test(e._ethnicity||'')) eMap['Hispanic/Latino']=(eMap['Hispanic/Latino']||0)+1;
+          if(/hispanic|latino/i.test(e._ethnicity||'')) hisp++;
         });
         var rRows = Object.entries(rMap).sort(function(a,b){ return b[1]-a[1]; });
         var nw = rRows.filter(function(r){ return !/^white$/i.test(r[0]); }).reduce(function(a,r){ return a+r[1]; },0);
-        var msg = '**Apprentice Diversity (' + apps.length + ' total):**\n\n';
-        msg += rRows.map(function(r){ return '• ' + r[0] + ': **' + r[1] + '** (' + Math.round(r[1]/apps.length*100) + '%)'; }).join('\n');
-        if (eMap['Hispanic/Latino']) msg += '\n• Hispanic/Latino: **' + eMap['Hispanic/Latino'] + '**';
-        msg += '\n\n**' + Math.round(nw/apps.length*100) + '% non-white** among apprentices with reported race.';
+        var msg = '**Apprentice Diversity (' + count + ' enrolled):**\n\n';
+        msg += rRows.map(function(r){ return '• ' + r[0] + ': **' + r[1] + '** (' + Math.round(r[1]/count*100) + '%)'; }).join('\n');
+        if (hisp) msg += '\n• Hispanic/Latino: **' + hisp + '**';
+        if (nw && count) msg += '\n\n**' + Math.round(nw/count*100) + '% non-white** among apprentices with reported race.';
         return msg;
       }
     },
