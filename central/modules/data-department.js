@@ -128,9 +128,9 @@
       'Mid or Above Grade Level',
     ];
     const PLC = {
-      '3 or More Grade Levels Below': '#b91c1c',
-      '2 Grade Levels Below':         '#e07a2f',
-      '1 Grade Level Below':          '#d97706',
+      '3 or More Grade Levels Below': '#dc2626',
+      '2 Grade Levels Below':         '#f97316',
+      '1 Grade Level Below':          '#eab308',
       'Early On Grade Level':         '#0d9488',
       'Mid or Above Grade Level':     '#0d6e3a',
     };
@@ -5473,9 +5473,9 @@
           const plDist = net.placementDist || {};
           const plTotal = PLACEMENT_ORDER.reduce((s, p) => s + (plDist[p] || 0), 0);
           const plTiers = [
-            { label: '3+ GL Below',   full: '3 or More Grade Levels Below', color: '#b91c1c' },
-            { label: '2 GL Below',    full: '2 Grade Levels Below',          color: '#e07a2f' },
-            { label: '1 GL Below',    full: '1 Grade Level Below',           color: '#d97706' },
+            { label: '3+ GL Below',   full: '3 or More Grade Levels Below', color: '#dc2626' },
+            { label: '2 GL Below',    full: '2 Grade Levels Below',          color: '#f97316' },
+            { label: '1 GL Below',    full: '1 Grade Level Below',           color: '#eab308' },
             { label: 'Early On GL',   full: 'Early On Grade Level',          color: '#0d9488' },
             { label: 'Mid/Above GL',  full: 'Mid or Above Grade Level',      color: '#0d6e3a' },
           ].map(t => ({ ...t, count: plDist[t.full] || 0, pct: plTotal > 0 ? Math.round((plDist[t.full] || 0) / plTotal * 100) : 0 }));
