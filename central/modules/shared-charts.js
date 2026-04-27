@@ -1025,7 +1025,7 @@
 
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
-  const HR_CACHE_KEY  = 'njtc_hr_live_v1';
+  const HR_CACHE_KEY  = 'njtc_hr_live_v2';
   const HR_TTL_MS     = 60 * 60 * 1000;  // 1-hour cache
 
   // ── Site Leader Observations — Apprenticeship Program Database ───────────
@@ -1236,6 +1236,18 @@
         termReason: C.termReason >= 0 ? (r[C.termReason] ||'').trim() : (r[14]||'').trim(),
         termType:   C.termType   >= 0 ? (r[C.termType]   ||'').trim() : (r[15]||'').trim(),
       }))
+      .map(r => {
+        // If yr field is blank but a termination date exists, infer the academic year
+        // (handles rows where the Academic Year column was left empty)
+        if (!r.yr && r.termDate) {
+          const td = new Date(r.termDate);
+          if (!isNaN(td.getTime())) {
+            const m = td.getMonth() + 1, y = td.getFullYear();
+            r.yr = m >= 9 ? `${y}-${y+1}` : `${y-1}-${y}`;
+          }
+        }
+        return r;
+      })
       .filter(r => r.name && r.yr);
   }
 
@@ -4277,7 +4289,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   </style>
 </div>`;
     }
-    const yearEmps = HR_EMPS.filter(e => (e.y||[]).includes(CY) || (e._liveYears||[]).includes(CY));
+    // Normalize year strings to handle spacing variants like '2025 - 2026' vs '2025-2026'
+    const _normY = y => (y||'').replace(/\s/g,'');
+    const _normCY = _normY(CY);
+    const yearEmps = HR_EMPS.filter(e => {
+      const yrs = [...(e.y||[]), ...(e._liveYears||[])];
+      if (yrs.some(y => _normY(y) === _normCY)) return true;
+      // Fallback for terminated employees whose year field was blank: use termination date
+      if (e.s !== 'Active' && e._termDate) {
+        const td = new Date(e._termDate);
+        if (!isNaN(td.getTime())) {
+          const m = td.getMonth() + 1, y = td.getFullYear();
+          return (m >= 9 ? `${y}-${y+1}` : `${y-1}-${y}`) === CY;
+        }
+      }
+      return false;
+    });
     const activeEmps = yearEmps.filter(e => e.s === 'Active');
     const termEmps   = yearEmps.filter(e => e.s !== 'Active');
     const total      = yearEmps.length || 1;  // avoid div/0
