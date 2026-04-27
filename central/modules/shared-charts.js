@@ -4294,16 +4294,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const _normCY = _normY(CY);
     const yearEmps = HR_EMPS.filter(e => {
       const yrs = [...(e.y||[]), ...(e._liveYears||[])];
-      if (yrs.some(y => _normY(y) === _normCY)) return true;
-      // Fallback for terminated employees whose year field was blank: use termination date
-      if (e.s !== 'Active' && e._termDate) {
-        const td = new Date(e._termDate);
-        if (!isNaN(td.getTime())) {
-          const m = td.getMonth() + 1, y = td.getFullYear();
-          return (m >= 9 ? `${y}-${y+1}` : `${y-1}-${y}`) === CY;
-        }
-      }
-      return false;
+      return yrs.some(y => _normY(y) === _normCY);
     });
     const activeEmps = yearEmps.filter(e => e.s === 'Active');
     const termEmps   = yearEmps.filter(e => e.s !== 'Active');
