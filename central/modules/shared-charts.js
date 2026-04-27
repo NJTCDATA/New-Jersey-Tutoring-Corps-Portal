@@ -1462,7 +1462,9 @@
       const hasStatus = r.status && !/^active$/i.test(r.status.trim());
       const isTermByEvidence = !r.status && (r.termDate || r.termReason);
       if (!hasStatus && !isTermByEvidence) return;
-      const k = _hn(r.name);
+      // Use exact lowercased name as key — _hn() sorts name parts alphabetically which
+      // causes two different people (e.g. "Kim Park" / "Park Kim") to collide
+      const k = r.name.trim().toLowerCase();
       if (!_liveTermCache[k]) _liveTermCache[k] = r;
     });
     window._njtcLiveTerminated2526 = Object.values(_liveTermCache);
