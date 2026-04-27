@@ -1448,8 +1448,20 @@
       raceMap:      _apprRaceMap,
     };
 
+    // Cache CY-terminated employees directly from live rows — used by attrition widget so
+    // count and reasons come from the source of truth, not HR_EMPS name-matching
+    const _liveTermCache = {};
+    liveRows.forEach(r => {
+      if (!r.name || !r.status || /^active$/i.test(r.status.trim())) return;
+      const normYr = (r.yr || '').replace(/\s/g, '');
+      if (normYr !== '2025-2026') return;
+      const k = _hn(r.name);
+      if (!_liveTermCache[k]) _liveTermCache[k] = r;
+    });
+    window._njtcLiveTerminated2526 = Object.values(_liveTermCache);
+
     _hrInvalidateOverlay();  // signal that re-render needs fresh overlays
-    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only) · apprentices:', _rawApprSet.size);
+    console.log('[HR Profiles] Live overlay: updated='+updated+' added='+added+' (current SY only) · apprentices:', _rawApprSet.size, '· terminated:', window._njtcLiveTerminated2526.length);
   }
 
   // ── Overlay live Pearl Ops data onto HR_EMPS ─────────────────────────────
@@ -4297,8 +4309,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       return yrs.some(y => _normY(y) === _normCY);
     });
     const activeEmps = yearEmps.filter(e => e.s === 'Active');
-    const termEmps   = yearEmps.filter(e => e.s !== 'Active');
-    const total      = yearEmps.length || 1;  // avoid div/0
+    // Use live-sheet terminated data directly so count and reasons match the HR Master List
+    // exactly — bypasses HR_EMPS name-matching failures that caused Unknown entries
+    const _liveTerm = window._njtcLiveTerminated2526 || [];
+    const termEmps = _liveTerm.length > 0
+      ? _liveTerm.map(r => ({ _termReason: r.termReason||'', _termType: r.termType||'', _termDate: r.termDate||'' }))
+      : yearEmps.filter(e => e.s !== 'Active');
+    const total = (activeEmps.length + termEmps.length) || 1;  // avoid div/0
 
     // Quarter helper (academic year quarters: Q1=Sep-Nov, Q2=Dec-Feb, Q3=Mar-May, Q4=Jun-Aug)
     const _qtr = raw => {
@@ -4350,8 +4367,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No termination reason data available yet.</div>';
 
     // Type split
-    const volCount  = termEmps.filter(e => /voluntary/i.test(e._termType||'')).length;
-    const invCount  = termEmps.filter(e => /involuntary/i.test(e._termType||'')).length;
+    // Anchor with ^ so "Involuntary" doesn't substring-match /voluntary/
+    const volCount  = termEmps.filter(e => /^voluntary/i.test((e._termType||'').trim())).length;
+    const invCount  = termEmps.filter(e => /^involuntary/i.test((e._termType||'').trim())).length;
     const unkCount  = termEmps.length - volCount - invCount;
     const volPct    = termEmps.length ? Math.round(volCount / termEmps.length * 100) : 0;
 
