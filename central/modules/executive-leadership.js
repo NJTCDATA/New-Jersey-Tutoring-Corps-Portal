@@ -1340,13 +1340,14 @@
     if (s.includes('middlesex'))                        return 'Middlesex Charter';
     if (s.includes('somerset'))                         return 'Somerset';
     if (s.includes('penns grove') || s.includes('carneys')) return 'Penns Grove';
+    if (s.includes('central jersey'))                        return 'Central Jersey College Prep';
     return 'Other';
   };
   const ap_inferNetwork = ap_deriveNetwork; // alias
 
   const ap_deriveRegion = (site, district) => {
     const net = ap_deriveNetwork(site, district);
-    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset'].includes(net)) return 'NE';
+    if (['iLearn Charter Network','KIPP NJ','Hoboken Dual Charter','Global Leadership Academy','Roseville','Middlesex Charter','Somerset','Central Jersey College Prep'].includes(net)) return 'NE';
     if (['Hamilton Township','Gloucester Township','Haddon Township','Penns Grove'].includes(net)) return 'SW';
     return 'Unassigned';
   };
@@ -1610,6 +1611,7 @@
         else if (cs.includes('penns') || cs.includes('carneys'))   { network = 'Penns Grove';               region = 'SW'; }
         else if (cs.includes('somerset'))                          { network = 'Somerset';                   region = 'NE'; }
         else if (cs.includes('middlesex'))                         { network = 'Middlesex Charter';          region = 'NE'; }
+        else if (cs.includes('central jersey'))                    { network = 'Central Jersey College Prep'; region = 'NE'; }
         else if (cs.includes('hoboken') || cs.includes('hola'))    { network = 'Hoboken Dual Charter';      region = 'NE'; }
         else if (cs.includes('global') || cs.includes('glaw'))     { network = 'Global Leadership Academy'; region = 'NE'; }
         else if (cs.includes('roseville'))                         { network = 'Roseville';                  region = 'NE'; }
