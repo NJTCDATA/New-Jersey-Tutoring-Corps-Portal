@@ -5271,10 +5271,14 @@
         const redRushCount    = subset.filter(r => r.isRedRush).length;
         const yellowRushCount = subset.filter(r => /yellow/i.test(r.winterRush)).length;
 
-        // Placement distribution (Winter snapshot — all scholars)
+        // Placement distribution — Fall (BOY) and Winter (MOY) snapshots
         const placementDist = {};
-        PLACEMENT_ORDER.forEach(p => { placementDist[p] = 0; });
-        subset.forEach(r => { if (placementDist[r.winterRelPlacement] !== undefined) placementDist[r.winterRelPlacement]++; });
+        const fallPlacementDist = {};
+        PLACEMENT_ORDER.forEach(p => { placementDist[p] = 0; fallPlacementDist[p] = 0; });
+        subset.forEach(r => {
+          if (placementDist[r.winterRelPlacement] !== undefined) placementDist[r.winterRelPlacement]++;
+          if (fallPlacementDist[r.baseRelPlacement] !== undefined) fallPlacementDist[r.baseRelPlacement]++;
+        });
 
         // Band-to-band movement breakdown (Fall → Winter)
         const movementMap = {};
@@ -5300,6 +5304,7 @@
           medianMonthsGrowth: months.length ? parseFloat((_moyMedian(months)).toFixed(1)) : null,
           avgMonthsGrowth:    months.length ? parseFloat((months.reduce((a,b)=>a+b,0)/months.length).toFixed(1)) : null,
           placementDist,
+          fallPlacementDist,
           movementBreakdown,
           rushFlags: { red: redRushCount, yellow: yellowRushCount },
         };
@@ -5468,26 +5473,34 @@
           <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${net.medianGain !== null ? (net.medianGain > 0 ? '+' : '') + net.medianGain : '—'}</div><div class="ta-kpi-sub">Median Scale Gain</div></div>
         </div>`;
 
-        // ── Placement level distribution bar (Winter snapshot) ───────────────
+        // ── Placement distribution — Fall (BOY) and Winter (MOY) bars ────────
         {
-          const plDist = net.placementDist || {};
-          const plTotal = PLACEMENT_ORDER.reduce((s, p) => s + (plDist[p] || 0), 0);
-          const plTiers = [
-            { label: '3+ GL Below',   full: '3 or More Grade Levels Below', color: '#dc2626' },
-            { label: '2 GL Below',    full: '2 Grade Levels Below',          color: '#f97316' },
-            { label: '1 GL Below',    full: '1 Grade Level Below',           color: '#eab308' },
-            { label: 'Early On GL',   full: 'Early On Grade Level',          color: '#0d9488' },
-            { label: 'Mid/Above GL',  full: 'Mid or Above Grade Level',      color: '#0d6e3a' },
-          ].map(t => ({ ...t, count: plDist[t.full] || 0, pct: plTotal > 0 ? Math.round((plDist[t.full] || 0) / plTotal * 100) : 0 }));
-
-          if (plTotal > 0) {
-            html += `<div style="margin-bottom:1.25rem">
-              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Winter Placement Distribution — ${_moySubject} · ${plTotal} scholars</div>
-              <div style="height:28px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:.5rem">
-                ${plTiers.map(t => t.count > 0 ? `<div style="flex:${t.count};background:${t.color}" title="${t.full}: ${t.pct}% (${t.count})"></div>` : '').join('')}
+          const TIERS = [
+            { label: '3+ GL Below',  full: '3 or More Grade Levels Below', color: '#dc2626' },
+            { label: '2 GL Below',   full: '2 Grade Levels Below',          color: '#f97316' },
+            { label: '1 GL Below',   full: '1 Grade Level Below',           color: '#eab308' },
+            { label: 'Early On GL',  full: 'Early On Grade Level',          color: '#0d9488' },
+            { label: 'Mid/Above GL', full: 'Mid or Above Grade Level',      color: '#0d6e3a' },
+          ];
+          const mkBar = (dist, label) => {
+            const total = PLACEMENT_ORDER.reduce((s, p) => s + (dist[p] || 0), 0);
+            if (!total) return '';
+            const tiers = TIERS.map(t => ({ ...t, count: dist[t.full] || 0, pct: Math.round((dist[t.full] || 0) / total * 100) }));
+            return `<div style="margin-bottom:.75rem">
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.375rem">${label} · ${total} scholars</div>
+              <div style="height:22px;border-radius:6px;overflow:hidden;display:flex">
+                ${tiers.map(t => t.count > 0 ? `<div style="flex:${t.count};background:${t.color}" title="${t.full}: ${t.pct}% (${t.count})"></div>` : '').join('')}
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:.75rem">
-                ${plTiers.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span><strong style="color:${t.color}">${t.pct}%</strong><span style="color:var(--muted);font-size:.65rem">(${t.count})</span></div>`).join('')}
+            </div>`;
+          };
+          const fallBar  = mkBar(net.fallPlacementDist  || {}, 'Fall (BOY)');
+          const winterBar = mkBar(net.placementDist || {}, 'Winter (MOY)');
+          if (fallBar || winterBar) {
+            html += `<div style="margin-bottom:1.25rem">
+              <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.625rem">Placement Distribution — ${_moySubject}</div>
+              ${fallBar}${winterBar}
+              <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.375rem">
+                ${TIERS.map(t => `<div style="display:flex;align-items:center;gap:.35rem;font-size:.75rem"><div style="width:10px;height:10px;border-radius:2px;background:${t.color}"></div><span style="color:var(--muted)">${t.label}</span></div>`).join('')}
               </div>
             </div>`;
           }
