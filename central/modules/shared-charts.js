@@ -1452,9 +1452,16 @@
     // count and reasons come from the source of truth, not HR_EMPS name-matching
     const _liveTermCache = {};
     liveRows.forEach(r => {
-      if (!r.name || !r.status || /^active$/i.test(r.status.trim())) return;
+      if (!r.name) return;
+      // Accept common year formats: '2025-2026', '2025/2026', 'SY 2025-2026', etc.
       const normYr = (r.yr || '').replace(/\s/g, '');
-      if (normYr !== '2025-2026') return;
+      const isCY = normYr === '2025-2026' || /2025.{0,3}2026/.test(normYr);
+      if (!isCY) return;
+      // Terminated = status field is non-blank and not 'Active',
+      // OR status is blank but termDate or termReason confirms separation
+      const hasStatus = r.status && !/^active$/i.test(r.status.trim());
+      const isTermByEvidence = !r.status && (r.termDate || r.termReason);
+      if (!hasStatus && !isTermByEvidence) return;
       const k = _hn(r.name);
       if (!_liveTermCache[k]) _liveTermCache[k] = r;
     });
