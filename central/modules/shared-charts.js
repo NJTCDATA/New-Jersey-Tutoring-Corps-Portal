@@ -2510,64 +2510,14 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     return `
 ${summaryBar}
 ${_divHtml}
-<div style="margin-bottom:.875rem;border:1.5px solid #e2e8f0;border-radius:10px;overflow:hidden">
-  <div onclick="_hrToggle('_hrScoringBanner')" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;background:linear-gradient(90deg,#0a1628 0%,#1a3a6b 100%);user-select:none">
-    <span style="font-size:.75rem;font-weight:800;color:#fff;letter-spacing:.03em">ℹ&nbsp; How Performance Buckets Work</span>
-    <span id="_hrScoringBanner_btn" style="font-size:.65rem;color:#94a3b8">▼ Hide</span>
-  </div>
-  <div id="_hrScoringBanner" style="background:var(--surface-2);padding:.75rem .875rem;display:grid;gap:.625rem">
-    <div>
-      <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Performance Tiers — computed from weighted live score</div>
-      <div style="display:flex;flex-wrap:wrap;gap:.35rem;align-items:center">
-        <span style="background:#d1fae5;color:#0d6e3a;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">⭐ Stellar</span>
-        <span style="font-size:.6rem;color:var(--muted)">≥75% of max score</span>
-        <span style="color:var(--border);margin:0 .1rem">│</span>
-        <span style="background:#dbeafe;color:#0050c8;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">✅ Strong</span>
-        <span style="font-size:.6rem;color:var(--muted)">55–74%</span>
-        <span style="color:var(--border);margin:0 .1rem">│</span>
-        <span style="background:#fef3c7;color:#d97706;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">📈 Developing</span>
-        <span style="font-size:.6rem;color:var(--muted)">38–54%</span>
-        <span style="color:var(--border);margin:0 .1rem">│</span>
-        <span style="background:#fee2e2;color:#b91c1c;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">🤝 Needs Support</span>
-        <span style="font-size:.6rem;color:var(--muted)">&lt;38%</span>
-        <span style="color:var(--border);margin:0 .1rem">│</span>
-        <span style="background:#f1f5f9;color:#7d8fa1;padding:.18rem .5rem;border-radius:6px;font-size:.68rem;font-weight:700">📋 No Score</span>
-        <span style="font-size:.6rem;color:var(--muted)">No prior-SY Perf Score uploaded yet — tier held from last known SY</span>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem">
-        <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Tier Score — Weighted Formula</div>
-        <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
-          <b>①</b> Perf Score (0–4) × 2.5 &rarr; <em>max 10 pts</em><br>
-          <b>②</b> Attendance &rarr; ≥95%=10 &middot; ≥90%=8 &middot; ≥85%=6 &middot; ≥80%=4 &middot; ≥75%=2 &middot; &lt;75%=0<br>
-          <b>③</b> iReady Academic &rarr; ≥60% scholars advanced=10 &middot; ≥45%=8 &middot; ≥30%=5 &middot; ≥15%=2<br>
-          <b>−</b> Concerns: −3 pts each &nbsp;&nbsp; <b>+</b> Longevity: +3 pts (3+ cycles) / +1 pt (2 cycles)<br>
-          <span style="color:#b91c1c;font-weight:600">⚠ HR action (Termination / PGP) hard-caps tier at Needs Support</span>
-        </div>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .65rem">
-        <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Perf Score (0–4) — Prior SY Manual Upload</div>
-        <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
-          Each metric is a binary pass/fail. Score = # of metrics met out of 4.<br>
-          <b>① Att Target</b> — Tutor met ≥95% school-year attendance goal<br>
-          <b>② Scholar Enjoyment</b> — Majority of scholars reported enjoying sessions<br>
-          <b>③ Scholar Learning</b> — Majority of scholars reported learning in survey<br>
-          <b>④ Acad Improvement</b> — Scholars showed measurable iReady placement gain
-        </div>
-      </div>
-    </div>
-    <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;padding:.3rem .6rem;background:#0c1e38;border-radius:6px">
-      <span style="font-size:.6rem;color:#94a3b8;font-weight:700;margin-right:.1rem">● Live indicators:</span>
-      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Att ●</span><span style="font-size:.6rem;color:#94a3b8">= Attendance from Pearl Operations</span>
-      <span style="color:#334155;margin:0 .15rem">·</span>
-      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Survey ●</span><span style="font-size:.6rem;color:#94a3b8">= Scholar enjoyment from Pearl (used when no EOY upload exists)</span>
-      <span style="color:#334155;margin:0 .15rem">·</span>
-      <span style="font-size:.63rem;font-weight:700;color:#38bdf8">Location ●</span><span style="font-size:.6rem;color:#94a3b8">= Schools where tutor ran ≥1 Pearl session this SY</span>
-      <span style="color:#334155;margin:0 .15rem">·</span>
-      <span style="font-size:.58rem;color:#475569;font-style:italic">Pearl data refreshes hourly</span>
-    </div>
-  </div>
+<div style="display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin-bottom:.75rem;padding:.4rem .75rem;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+  <span style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-right:.2rem">Tiers:</span>
+  <span style="background:#d1fae5;color:#0d6e3a;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">⭐ Stellar ≥75%</span>
+  <span style="background:#dbeafe;color:#0050c8;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">✅ Strong 55–74%</span>
+  <span style="background:#fef3c7;color:#d97706;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">📈 Developing 38–54%</span>
+  <span style="background:#fee2e2;color:#b91c1c;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">🤝 Needs Support &lt;38%</span>
+  <span style="background:#f1f5f9;color:#7d8fa1;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">📋 No Score</span>
+  <span style="margin-left:auto;font-size:.6rem;color:#2563eb;font-weight:700;cursor:pointer;white-space:nowrap" onclick="setTalentTab('definitions')">📖 Full definitions &rarr;</span>
 </div>
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
   <div style="font-size:.72rem;font-weight:700;color:var(--navy)">Employee Profiles</div>
@@ -5267,10 +5217,231 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     if (typeof _origTndObsReady === 'function') _origTndObsReady();
   };
 
+  // ── Talent Analytics: Definitions tab ────────────────────────────────────
+  function _hrViewDefinitions() {
+    const sec = (icon, title, body) =>
+      `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:.875rem">
+        <div style="padding:.55rem .875rem;background:linear-gradient(90deg,#0a1628,#1a3a6b);display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.85rem">${icon}</span>
+          <span style="font-size:.75rem;font-weight:800;color:#fff;letter-spacing:.02em">${title}</span>
+        </div>
+        <div style="padding:.75rem .875rem">${body}</div>
+      </div>`;
+
+    const row = (label, value, note='', valueColor='var(--navy)') =>
+      `<div style="display:flex;align-items:baseline;gap:.5rem;padding:.3rem 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.7rem;font-weight:700;color:var(--navy);min-width:180px;flex-shrink:0">${label}</span>
+        <span style="font-size:.7rem;font-weight:800;color:${valueColor}">${value}</span>
+        ${note?`<span style="font-size:.65rem;color:var(--muted);font-style:italic">${note}</span>`:''}
+      </div>`;
+
+    const tierChip = (bg,col,label) =>
+      `<span style="background:${bg};color:${col};padding:.2rem .55rem;border-radius:6px;font-size:.72rem;font-weight:700;display:inline-block">${label}</span>`;
+
+    // ── Section 1: Tier Overview ──────────────────────────────────────────────
+    const tierOverview = sec('🏅', 'Performance Tiers — What Each Bucket Means',
+      `<div style="display:flex;flex-direction:column;gap:.625rem">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:.5rem .875rem;align-items:start">
+          ${tierChip('#d1fae5','#0d6e3a','⭐ Stellar')}
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:#0d6e3a;margin-bottom:.15rem">Consistently meets or exceeds all program benchmarks</div>
+            <div style="font-size:.68rem;color:var(--navy);line-height:1.6">Scored ≥75% of the maximum possible weighted tier score. Typically: strong Perf Score (3–4/4), attendance ≥90–95%, positive iReady academic outcomes, no active concerns. These are the program's model tutors — retention priority and candidates for leadership responsibilities.</div>
+          </div>
+          ${tierChip('#dbeafe','#0050c8','✅ Strong')}
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:#0050c8;margin-bottom:.15rem">Meeting core benchmarks reliably; no critical flags</div>
+            <div style="font-size:.68rem;color:var(--navy);line-height:1.6">Scored 55–74%. Solid performance across most dimensions. Minor attendance gaps or one missed survey metric are acceptable at this tier. No active HR action. These tutors are dependable program contributors who may be one growth area away from Stellar.</div>
+          </div>
+          ${tierChip('#fef3c7','#d97706','📈 Developing')}
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:#d97706;margin-bottom:.15rem">Below one or more benchmarks; progressing with support</div>
+            <div style="font-size:.68rem;color:var(--navy);line-height:1.6">Scored 38–54%. Meaningful gaps exist in attendance, scholar outcomes, or the Perf Score, but the tutor is not in a critical state. Proactive check-ins, coaching, and monitoring are appropriate. New tutors with limited historical data often start here as they build track records.</div>
+          </div>
+          ${tierChip('#fee2e2','#b91c1c','🤝 Needs Support')}
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:#b91c1c;margin-bottom:.15rem">Critically below benchmarks — requires immediate intervention</div>
+            <div style="font-size:.68rem;color:var(--navy);line-height:1.6">Scored &lt;38%, OR has an active HR action (Write-Up, PGP, Recommended Termination). May include tutors with very low attendance, multiple program concerns, or poor Perf Scores. This tier is a call to action for supervisors and HR — not a judgment of character, but a signal that structured support is needed urgently.</div>
+          </div>
+          ${tierChip('#f1f5f9','#7d8fa1','📋 No Score')}
+          <div>
+            <div style="font-size:.72rem;font-weight:700;color:#7d8fa1;margin-bottom:.15rem">Insufficient data to compute a live tier</div>
+            <div style="font-size:.68rem;color:var(--navy);line-height:1.6">No prior-SY Perf Score has been uploaded to the HR Master List for this person. The tier shown (if any) is carried over from the last SY in which a Perf Score existed. This is common for new hires mid-cycle and for any tutor whose EOY upload is still pending.</div>
+          </div>
+        </div>
+        <div style="padding:.4rem .625rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;font-size:.67rem;color:#0369a1;line-height:1.6">
+          <b>Note:</b> Operational flags (late surveys, incomplete sessions, HIT ratio) appear on individual cards and profiles but are <em>separate</em> from the tier system. A Stellar employee may carry minor operational flags — always review context before acting on a flag in isolation.
+        </div>
+      </div>`
+    );
+
+    // ── Section 2: Tier Score Formula ─────────────────────────────────────────
+    const formulaBody =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+        <div style="padding:.5rem .7rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#166534;margin-bottom:.4rem">Formula at a Glance</div>
+          <div style="font-size:.68rem;color:#1e293b;line-height:2">
+            <b>Score</b> = sum of factor points − penalties + bonuses<br>
+            <b>Tier</b> = Score ÷ MaxPossible<br>
+            &nbsp;&nbsp;≥ 75% → ⭐ Stellar<br>
+            &nbsp;&nbsp;55–74% → ✅ Strong<br>
+            &nbsp;&nbsp;38–54% → 📈 Developing<br>
+            &nbsp;&nbsp;&lt; 38% → 🤝 Needs Support
+          </div>
+        </div>
+        <div style="padding:.5rem .7rem;background:#fef9f0;border:1px solid #fed7aa;border-radius:8px">
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#92400e;margin-bottom:.4rem">Override Rules</div>
+          <div style="font-size:.68rem;color:#1e293b;line-height:1.8">
+            <span style="color:#b91c1c;font-weight:700">Hard cap at Needs Support</span> when active HR action includes:<br>
+            Recommended Termination, PGP (Performance Growth Plan), or First Write-Up — regardless of how high the raw score is.<br>
+            <span style="font-size:.63rem;color:#92400e;font-style:italic">Rationale: unresolved HR actions create organizational risk that outweighs positive metrics.</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        ${row('① Perf Score (0–4) × 2.5', 'Max 10 pts', 'Highest-weight factor — manual year-end assessment', '#0d6e3a')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.2rem 0 .4rem 180px;line-height:1.5"><b>Rationale:</b> The Perf Score is the most authoritative measure of tutor effectiveness — a human-reviewed composite of attendance target, scholar satisfaction, and academic impact from the prior SY. Weighting it at 2.5× reflects that it's the program's most deliberate and holistic evaluation.</div>
+        ${row('② Attendance (live Pearl)', 'Max 10 pts', '≥95%=10 · ≥90%=8 · ≥85%=6 · ≥80%=4 · ≥75%=2 · <75%=0', '#0050c8')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.2rem 0 .4rem 180px;line-height:1.5"><b>Rationale:</b> Presence is foundational. A tutor who is absent cannot tutor. Every missed session is a gap in scholar support. Attendance is the most direct, measurable proxy for program delivery and is weighted equally to the academic outcome factor because both reflect program execution.</div>
+        ${row('③ iReady Academic Outcomes', 'Max 10 pts', '≥60% scholars advanced=10 · ≥45%=8 · ≥30%=5 · ≥15%=2 · <15%=0', '#7c3aed')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.2rem 0 .4rem 180px;line-height:1.5"><b>Rationale:</b> Academic growth is the program's core mission. This factor measures whether the students a tutor worked with actually advanced placement levels in iReady diagnostics — the ultimate upstream outcome metric. It's weighted equally to attendance because impact matters as much as presence.</div>
+        ${row('④ Longevity Bonus', '+3 pts (3+ cycles) / +1 pt (2 cycles)', 'Rewards institutional knowledge and scholar relationships', '#d97706')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.2rem 0 .4rem 180px;line-height:1.5"><b>Rationale:</b> Returning tutors know the program, build long-term scholar relationships, and reduce onboarding costs. A modest bonus (not a multiplier) reflects that experience adds value without over-riding poor current-SY performance.</div>
+        ${row('⑤ Concern Penalty', '−3 pts per active program concern', 'Applied for each concern logged in the Talent system', '#b91c1c')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.2rem 0 .4rem 180px;line-height:1.5"><b>Rationale:</b> Program concerns — conduct, reliability, policy violations — signal risk to scholars and sites. They are penalized heavily enough to move a tutor down one tier per concern, preventing high academic scores from masking behavioral or HR issues.</div>
+      </div>`;
+
+    const formulaSection = sec('⚖️', 'Tier Score — Weighted Formula & Rationale', formulaBody);
+
+    // ── Section 3: Perf Score (0–4) ───────────────────────────────────────────
+    const perfBody =
+      `<div style="font-size:.68rem;color:var(--navy);margin-bottom:.625rem;line-height:1.6">
+        The Perf Score is a <b>manual year-end (EOY) upload</b> from the HR Master List. It is computed at the end of each school year and reflects the prior SY's performance. It is <em>not</em> recalculated live — it is a snapshot. Each of the 4 metrics below is binary: 1 if the standard was met, 0 if not. The total is the number met (0–4).
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0;margin-bottom:.625rem">
+        ${row('① Attendance Target', 'Pass / Fail', 'Tutor met ≥95% school-year attendance goal across all sessions')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.15rem 0 .35rem 180px;line-height:1.5"><b>How measured:</b> Total sessions attended ÷ total sessions scheduled ≥ 0.95. This is the <em>tutor's</em> attendance — not scholar attendance. Threshold reflects NJTC's 95% program standard.</div>
+        ${row('② Scholar Enjoyment', 'Pass / Fail', 'Majority of scholars who completed surveys reported enjoying sessions')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.15rem 0 .35rem 180px;line-height:1.5"><b>How measured:</b> Median or majority scholar response to the enjoyment question in the Pearl end-of-session survey ≥ threshold. Enjoyment is a strong leading indicator of continued attendance and engagement.</div>
+        ${row('③ Scholar Learning', 'Pass / Fail', 'Majority of scholars reported learning something in their sessions')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.15rem 0 .35rem 180px;line-height:1.5"><b>How measured:</b> Scholar self-report on the learning question in the Pearl end-of-session survey. While subjective, scholar-perceived learning correlates with academic outcome improvement and is an accessible real-time signal.</div>
+        ${row('④ Academic Improvement', 'Pass / Fail', 'Scholars showed measurable iReady diagnostic placement gain')}
+        <div style="font-size:.65rem;color:var(--muted);padding:.15rem 0 .35rem 180px;line-height:1.5"><b>How measured:</b> Comparison of iReady diagnostic placements for scholars assigned to this tutor across two testing windows (typically fall → spring). "Improved" = scholar moved to a higher placement band. This metric is <em>N/A</em> (and excluded from scoring) when no prior-SY baseline exists.</div>
+      </div>
+      <div style="padding:.4rem .625rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;font-size:.67rem;color:#0369a1;line-height:1.6">
+        <b>When is Perf Score missing?</b> A tutor will show <b>No Score</b> if: (a) they are in their first SY and no EOY data has been uploaded yet, (b) their EOY upload is pending for the current SY, or (c) they were added from the live HR sheet but not yet included in a completed EOY review. The 2025-2026 SY Perf Scores will appear once the EOY upload is complete.
+      </div>`;
+
+    const perfSection = sec('📐', 'Perf Score (0–4) — Prior SY Binary Metrics', perfBody);
+
+    // ── Section 4: Pearl Live Data ────────────────────────────────────────────
+    const pearlBody =
+      `<div style="font-size:.68rem;color:var(--navy);margin-bottom:.625rem;line-height:1.6">
+        For the current SY (2025-2026), the following data is pulled <b>live from Pearl Operations</b> and overlaid on each tutor's profile. A blue <span style="color:#38bdf8;font-weight:700">●</span> indicator appears next to any field using live data. Pearl data is cached and refreshes up to <b>once per hour</b>.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0;margin-bottom:.625rem">
+        ${row('Att ● (Attendance)', 'Live from Pearl', 'Sessions attended ÷ sessions scheduled; only instructors with ≥1 attendance record', '#38bdf8')}
+        ${row('Survey ● (Scholar Enjoyment)', 'Live from Pearl', 'Average scholar enjoyment score across all sessions this SY; used when no EOY upload exists', '#38bdf8')}
+        ${row('Location ●', 'Live from Pearl', 'Schools where tutor ran ≥1 Pearl session as instructor this SY — replaces static HR site field', '#38bdf8')}
+        ${row('Scholar Count', 'Live from Pearl', 'Unique scholars across all of this tutor\'s sessions this SY', '#38bdf8')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div style="padding:.4rem .625rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;font-size:.67rem;color:#0369a1;line-height:1.6">
+          <b>Name matching:</b> Profiles are matched to Pearl records using a fuzzy token-sorted algorithm that handles middle initials, hyphenated surnames (e.g. Ramsey-Copeland → matches "Ramsey"), parenthetical nicknames, and "-SUB" suffixes. If a tutor shows "Not yet in Pearl this SY," their HR name may need to be reconciled with their Pearl login name.
+        </div>
+        <div style="padding:.4rem .625rem;background:#faf5ff;border:1px solid #e9d5ff;border-radius:7px;font-size:.67rem;color:#6d28d9;line-height:1.6">
+          <b>Tier score update:</b> Live attendance from Pearl feeds directly into the tier score computation (Factor ②). This means tiers shift in real time as Pearl data updates — a tutor's tier may change week-to-week as their attendance rate moves across a threshold.
+        </div>
+      </div>`;
+
+    const pearlSection = sec('🔵', 'Pearl Live Data — How Real-Time Overlay Works', pearlBody);
+
+    // ── Section 5: iReady Academic Outcomes ──────────────────────────────────
+    const acadBody =
+      `<div style="font-size:.68rem;color:var(--navy);margin-bottom:.625rem;line-height:1.6">
+        iReady diagnostic data is imported via the <b>iReady Lab</b> module and matched to tutors through their scholar roster. The metric shown is the <b>median % of typical growth</b> achieved by scholars under each tutor — e.g., 85% means the median scholar achieved 85% of the growth that iReady considers "typical" for that grade level.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0;margin-bottom:.625rem">
+        ${row('≥ 100% typical growth', 'Excellent (green)', 'Scholars growing at or above grade-level expectation', '#059669')}
+        ${row('60–99% typical growth', 'On Track (yellow)', 'Meaningful growth, approaching grade-level pace', '#d97706')}
+        ${row('< 60% typical growth', 'Below Pace (red)', 'Growth is happening but slower than expected; warrants review', '#b91c1c')}
+      </div>
+      <div style="padding:.4rem .625rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;font-size:.67rem;color:#166534;line-height:1.6">
+        <b>Important context:</b> Scholars may overlap across multiple tutors (e.g., a scholar in both math and ELA tutoring). The "n=" count shown reflects the number of scholars with valid diagnostic data for that tutor — not total scholars. Low n (&lt;3) should be interpreted cautiously. The 2025-26 academic data will appear once iReady diagnostic windows close and data is imported.
+      </div>`;
+
+    const acadSection = sec('📊', 'iReady Academic Outcomes — Interpretation Guide', acadBody);
+
+    // ── Section 6: Data Sources ───────────────────────────────────────────────
+    const sourcesBody =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+        <div>
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Static (HR Master List)</div>
+          <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+            Name, role, status (Active/Terminated)<br>
+            School year history &amp; cycle count<br>
+            Rehire / returning status<br>
+            Prior-SY Perf Score (0–4) and binary metrics<br>
+            Prior-SY academic improvement (iReady EOY)<br>
+            Apprentice status (DOL-registered)<br>
+            Termination date, reason, type
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Live (Pearl Operations · hourly refresh)</div>
+          <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+            Current-SY attendance rate &amp; session count<br>
+            Current-SY scholar survey scores<br>
+            Current-SY session stats (complete / incomplete)<br>
+            Active school locations this SY<br>
+            Scholar roster &amp; unique scholar count<br>
+            Late survey filing rate
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Live (iReady Lab · imported per diagnostic window)</div>
+          <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+            Per-tutor median % of typical growth (Math &amp; ELA)<br>
+            Scholar count with valid diagnostic data<br>
+            Year-over-year placement comparison (when available)
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Live (Talent System · real-time)</div>
+          <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
+            Program concern logs (type, date, detail)<br>
+            HR action status (Watch / Write-Up / PGP / Term)<br>
+            Site Leader observation records<br>
+            OTJ (On-the-Job) training progress<br>
+            Formal observation ratings &amp; notes
+          </div>
+        </div>
+      </div>`;
+
+    const sourcesSection = sec('🗂️', 'Data Sources — What Comes From Where', sourcesBody);
+
+    return `
+<div style="max-width:900px">
+  <div style="margin-bottom:1rem;padding:.5rem .875rem;background:linear-gradient(90deg,#0a1628,#1a3a6b);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:.85rem;font-weight:800;color:#fff">📖 Talent Analytics — Definitions &amp; Methodology</div>
+      <div style="font-size:.62rem;color:#94a3b8;margin-top:.15rem">How performance buckets are computed, what each metric means, and where data comes from</div>
+    </div>
+    <button onclick="setTalentTab('profiles')" style="padding:.3rem .75rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:.68rem;font-weight:700;cursor:pointer;white-space:nowrap">← Back to Profiles</button>
+  </div>
+  ${tierOverview}
+  ${formulaSection}
+  ${perfSection}
+  ${pearlSection}
+  ${acadSection}
+  ${sourcesSection}
+</div>`;
+  }
+
   window.fetchLiveHRData         = fetchLiveHRData;
   window.fetchLiveObsData        = fetchLiveObsData;   // NE+SW site leader observations
   window._updateTalentBadge      = _updateTalentBadge;
   window._hrBuildProfiles        = _hrBuildProfiles;  // called from shared-utils.js
+  window._hrViewDefinitions      = _hrViewDefinitions; // called from shared-utils.js buildTalentContent
   window._buildTermAnalyticsWidget = _buildTermAnalyticsWidget;  // HR & Data home widget
   window._buildRetentionWidget     = _buildRetentionWidget;      // Programming home widget
 
