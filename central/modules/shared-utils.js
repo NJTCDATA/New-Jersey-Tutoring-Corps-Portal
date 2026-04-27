@@ -9982,6 +9982,73 @@
       }
     },
 
+    // MOY band-movement: moved up / held / moved down (placement BAND shifts, not scale score regression)
+    { match: /\b(moved.?up|moved.?down|held.?band|band.*mov|mov.*band|placement.*band|band.*placement|band.?shift|boy.*moy|moy.*boy|fall.*winter.*placement|winter.*fall.*placement|red.?rush|rush.?flag|winter.?only|boy.?placement|moy.?placement|fall.?diagnostic|winter.?diagnostic|months.?of.?learning|months.?gained|learn.*month|month.*learn)\b/i,
+      respond: function() {
+        var irl = _irl();
+        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
+        var net = irl.currentNet;
+        if (!net) return 'MOY data is not yet computed — open iReady Analysis Lab and select a school/subject.';
+        var PL = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+        var PLS = ['3+ GL Below','2 GL Below','1 GL Below','Early On GL','Mid/Above GL'];
+
+        // Red Rush Flag
+        if (/red.?rush|rush.?flag/i.test(_lastQ||'')) {
+          var rr = net.rushFlags ? net.rushFlags.red : null;
+          if (rr == null) return 'Red Rush Flag data not available — check that the iReady dataset includes the Rush Flag column.';
+          return '🚩 **Red Rush Flag — ' + rr + ' scholar' + (rr!==1?'s':'') + '** had an unusually fast Winter diagnostic completion.\n\nThese scholars are **included** in all growth and placement calculations but are listed separately for administrator review. Contact iReady support if re-administration may be needed.\n\n_A Red Rush Flag does not automatically invalidate the diagnostic — it is a signal to investigate._';
+        }
+
+        // Months of Learning
+        if (/months.?of.?learn|months.?gained|learn.*month|month.*learn/i.test(_lastQ||'')) {
+          var med = net.mathMedianMonths != null ? net.mathMedianMonths : (net.elaMedianMonths != null ? net.elaMedianMonths : null);
+          var avg = net.mathAvgMonths != null ? net.mathAvgMonths : (net.elaAvgMonths != null ? net.elaAvgMonths : null);
+          var msg = '**Months of Learning Gained (MOY)**\n\n';
+          if (net.mathMedianMonths != null) msg += '📐 Math — Median: **' + net.mathMedianMonths + ' mo** · Avg: ' + (net.mathAvgMonths||'—') + ' mo\n';
+          if (net.elaMedianMonths  != null) msg += '📖 ELA  — Median: **' + net.elaMedianMonths  + ' mo** · Avg: ' + (net.elaAvgMonths ||'—') + ' mo\n';
+          msg += '\n**Formula:** (% of Typical Growth) × (weeks between Fall & Winter diagnostics) ÷ 4\n';
+          msg += 'Uses each scholar\'s actual diagnostic window — not a fixed 10- or 12-month year. Median is the primary metric; it is resistant to outliers from scholars with unusually long windows.';
+          return msg;
+        }
+
+        // BOY / MOY placement distribution
+        if (/boy.*moy|moy.*boy|fall.*winter.*placement|winter.*fall.*placement|boy.?placement|moy.?placement|placement.*dist|dist.*placement|placement.*bar/i.test(_lastQ||'')) {
+          var fallDist = net.fallPlacementDist || {};
+          var winDist  = net.placementDist || {};
+          var fallTot  = PL.reduce(function(s,p){ return s+(fallDist[p]||0); }, 0);
+          var winTot   = PL.reduce(function(s,p){ return s+(winDist[p]||0); }, 0);
+          var msg = '**Placement Distribution — Fall (BOY) → Winter (MOY)**\n\n';
+          PL.forEach(function(pl,i){
+            var fc = fallDist[pl]||0, wc = winDist[pl]||0;
+            var fp = fallTot ? Math.round(fc/fallTot*100) : 0;
+            var wp = winTot  ? Math.round(wc/winTot*100)  : 0;
+            var diff = wp - fp;
+            msg += '**' + PLS[i] + '**: Fall ' + fc + ' (' + fp + '%) → Winter ' + wc + ' (' + wp + '%)  ' + (diff>0?'▲ +'+diff+'%':diff<0?'▼ '+diff+'%':'→') + '\n';
+          });
+          return msg.trim();
+        }
+
+        // Band movement (moved up / held / moved down)
+        var breakdown = net.movementBreakdown || [];
+        var up   = breakdown.filter(function(m){ return m.dir==='up'; });
+        var held = breakdown.filter(function(m){ return m.dir==='held'; });
+        var down = breakdown.filter(function(m){ return m.dir==='down'; });
+        var upCt   = up.reduce(function(s,m){ return s+m.count; }, 0);
+        var heldCt = held.reduce(function(s,m){ return s+m.count; }, 0);
+        var downCt = down.reduce(function(s,m){ return s+m.count; }, 0);
+        var total  = upCt + heldCt + downCt;
+        if (!total) return 'Band movement data not yet available — open iReady Analysis Lab.';
+        var msg = '**Placement Band Movement — Fall → Winter**\n\n';
+        msg += '_(Movement = band SHIFT between BOY and MOY diagnostics — not the same as scale score regression. A scholar can gain points and still drop a band if growth was below the band threshold.)_\n\n';
+        msg += '⬆️ **Moved Up: ' + upCt + '** (' + Math.round(upCt/total*100) + '%)\n';
+        up.forEach(function(m){ msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
+        msg += '\n➡️ **Held Band: ' + heldCt + '** (' + Math.round(heldCt/total*100) + '%)\n';
+        msg += '\n⬇️ **Moved Down: ' + downCt + '** (' + Math.round(downCt/total*100) + '%)\n';
+        down.forEach(function(m){ msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
+        return msg.trim();
+      }
+    },
+
     // Scholar grade level proficiency / placement
     // ── PLACEMENT LEVEL SHIFTS — must precede grade-level distribution handler so "placement level shifts" routes here
     { match: /placement.?(level.?shift|shift|change|advanc|distribut|progress|mov|data|result|breakdown)|who.?moved.?up|who.?moved.?down|level.?change|level.?shift|base.*spring.*(placement|level)|spring.*base.*(placement|level)|placement.*advanc|level.*advanc|80%.*(scholar.*level|placement)|kpi.*placement|how.*(scholar|student).*(mov|advanc|level)|scholar.*(mov|advanc|level|shift)|iready.*(level|shift|change|placement|distribut)/i,
@@ -13446,18 +13513,21 @@
     },
     'iready-lab': {
       title: 'iReady Lab — Scholar Growth',
-      what: 'Analyze iReady diagnostic data to track scholar academic growth, placement level distribution, and progress toward reading and math targets.',
+      what: 'Analyze iReady diagnostic data to track scholar academic growth, placement level distribution (Fall BOY → Winter MOY), and progress toward reading and math targets.',
       terms: [
         ['Scale Score Gain', 'Formula: Post-diagnostic score − Pre-diagnostic score. Measured in iReady scale score points (roughly 100–800+ scale). Example: 482 → 531 = +49 pts gain.'],
         ['Typical Growth', 'iReady\'s nationally normed expected gain for each grade + placement level combination (published in iReady growth norms table). Example: A 3rd grader 1 GL below might need +15 pts for "typical." A scholar meets typical if their actual gain ≥ this threshold.'],
         ['Stretch Growth', 'A more ambitious gain target set above typical — usually 1.25–1.5× the typical threshold. Closing the grade-level gap requires stretch, not just typical growth.'],
         ['% Meeting Typical', 'Formula: (scholars with actual gain ≥ typical threshold ÷ total assessed scholars) × 100. Shown separately for Math and ELA.'],
-        ['Months of Learning Gained', 'Formula: (Actual scale score gain ÷ expected full-year gain) × 12. Example: Typical = 15 pts/yr; scholar gained 10 pts → (10÷15) × 12 = 8 months of learning.'],
-        ['Placement Level', '5 tiers relative to grade level: 3+ GL Below · 2 GL Below · 1 GL Below · On Grade Level · 1+ GL Above. Determined by iReady\'s grade-specific scale score cutoffs.'],
-        ['Median % to Typical', 'The median scholar in NJTC\'s cohort has reached this % of their typical growth target. 81% means the median scholar is 81% of the way to their annual typical growth norm.'],
-        ['Valid Pair', 'A scholar with both a baseline (pre) and end-point (post) diagnostic. Only valid pairs are used for growth calculations — unpaired records are excluded.'],
-        ['Program-Window Progress', 'Formula: Actual gain ÷ (expected yearly gain × program weeks ÷ 34) × 100. Adjusts expected growth for NJTC\'s program window length rather than a full school year.'],
-        ['Learning Velocity', 'Formula: Scale score gain ÷ tutoring hours. Measures academic efficiency — points gained per hour of instruction. Requires matching SY Pearl session data.'],
+        ['Months of Learning Gained', 'Formula: (% of Typical Growth) × (weeks between Fall and Winter diagnostics) ÷ 4. Uses each scholar\'s actual diagnostic window rather than a full school year — same approach as EOY. Example: scholar at 80% typical with a 10-week window → 0.80 × 10 ÷ 4 = 2.0 months. Median is the primary metric shown; more robust to outliers than the average.'],
+        ['BOY / MOY', 'BOY = Beginning of Year (Fall diagnostic, Sep–Oct). MOY = Mid-Year (Winter diagnostic, Jan–Feb). All growth metrics and placement movement in this lab compare BOY → MOY for the program\'s mid-year review window.'],
+        ['Placement Level', '5 tiers relative to grade level, determined by iReady\'s grade-specific scale score cutoffs: 🔴 3 or More Grade Levels Below · 🟠 2 Grade Levels Below · 🟡 1 Grade Level Below · 🟢 Early On Grade Level · 🟢 Mid or Above Grade Level.'],
+        ['Placement Distribution', 'Dual stacked bars showing the share of scholars in each placement tier — one bar for Fall (BOY) and one for Winter (MOY). Color-coded stoplight: red (3+ below) → orange (2 below) → yellow (1 below) → teal (Early On GL) → green (Mid/Above GL). Each bar includes a legend with % and count per band.'],
+        ['Moved Up / Held / Moved Down', 'Tracks whether a scholar\'s placement BAND shifted between Fall (BOY) and Winter (MOY) — not simply whether their scale score increased. A scholar can have a positive scale score gain and still "Move Down" if their growth was not large enough to maintain their starting band. "Held" = same band in both windows. Each card shows the specific FROM → TO band flows (e.g., "1 GL Below → 2 GL Below" under Moved Down).'],
+        ['Median % to Typical', 'The median scholar in NJTC\'s cohort has reached this % of their typical growth target. 81% means the median scholar is 81% of the way to their annual typical growth norm. Median is preferred over average because it is resistant to outliers (scholars with very long or very short diagnostic windows).'],
+        ['Valid Pair', 'A scholar with both a Fall (BOY) and a Winter (MOY) diagnostic. Only valid pairs are used for growth and band-movement calculations. Scholars with only one diagnostic window are excluded from growth metrics but are counted in the placement distribution for the window they have.'],
+        ['Red Rush Flag', 'iReady automatically flags diagnostics completed in an unusually short time — a potential indicator of a rushed or invalid test session. Flagged scholars are included in all growth and placement calculations but appear in a separate list for administrator review. Contact iReady support if re-administration may be needed.'],
+        ['Winter-Only Scholar', 'A scholar with a Winter (MOY) diagnostic but no matching Fall (BOY) baseline. Excluded from growth and band-movement calculations; counted in the Winter placement distribution only.'],
       ]
     },
     'talent': {
