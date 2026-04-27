@@ -6758,6 +6758,7 @@
           .replace(/\([^)]*\)/g, '')
           .replace(/\s*-\s*(sub|pilot only)\b/gi,'')
           .toLowerCase()
+          .replace(/-/g, ' ')                // treat hyphens as word separators (mirrors _hn())
           .replace(/[^a-z ]/g, '')
           .split(' ').filter(w=>w.length>1).sort().join(' ');
       }

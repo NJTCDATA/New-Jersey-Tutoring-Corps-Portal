@@ -1174,6 +1174,7 @@
       .replace(/\([^)]*\)/g, '')                 // strip parenthetical nicknames: (Mary Carmen)
       .replace(/\s*-\s*(sub|pilot only)\b/gi,'') // strip other Pearl suffixes
       .toLowerCase()
+      .replace(/-/g, ' ')                        // treat hyphens as word separators (e.g. Ramsey-Copeland)
       .replace(/[^a-z ]/g, '')                   // keep only letters+spaces
       .split(' ')
       .filter(p => p.length > 1)
@@ -1482,6 +1483,20 @@
       const tutorAttMap = po.getTutorAttendanceMap();
       if (!tutorAttMap || !Object.keys(tutorAttMap).length) return;
 
+      // Pre-build survey and session maps keyed by _hn(pearlName) for O(1) lookup
+      // once the attendance fuzzy-match has identified the canonical Pearl name.
+      const survMap = {}, sessMap = {};
+      try {
+        if (po.getTutorSurveyScores) {
+          po.getTutorSurveyScores().forEach(s => { survMap[_hn(s.name)] = s; });
+        }
+      } catch(e) { console.warn('[HR Profiles] Pearl survey pre-build error:', e); }
+      try {
+        if (po.getTutorSessionStats) {
+          po.getTutorSessionStats().forEach(s => { sessMap[_hn(s.name)] = s; });
+        }
+      } catch(e) { console.warn('[HR Profiles] Pearl session pre-build error:', e); }
+
       let matched = 0;
       for (const emp of HR_EMPS) {
         const ek = _hn(emp.n);  // sorted token key for emp name
@@ -1517,10 +1532,29 @@
         }
 
         if (!tutorData) continue;
+
         // Write live Pearl current-SY attendance to employee record
         emp._liveAtt      = tutorData.attRate;
         emp._liveAttTotal = tutorData.total;
         matched++;
+
+        // Use the matched Pearl name to do O(1) lookups for survey + session data.
+        // This avoids re-running the fuzzy match for each additional data type.
+        const pearlKey = _hn(tutorData.name);
+        const survData = survMap[pearlKey] || null;
+        const sessData = sessMap[pearlKey] || null;
+
+        // Store full survey entry — used by buildCard() (compact grid) and
+        // buildMetrics() fallback (programming view) for hyphenated-name cases.
+        if (survData) emp._liveSurveyEntry = survData;
+
+        // Store full session entry + schools array — used by buildCard() for
+        // location display and by buildMetrics() fallback.
+        if (sessData) {
+          emp._liveSessEntry  = sessData;
+          // Schools where this tutor ran ≥1 Pearl session this SY (active locations)
+          emp._liveSchools    = (sessData.schools || []).filter(Boolean);
+        }
       }
       console.log('[HR Profiles] Pearl overlay: matched', matched, 'of', Object.keys(tutorAttMap).length, 'instructors');
     } catch(e) { console.warn('[HR Profiles] Pearl overlay error:', e); }
@@ -2320,15 +2354,27 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
       const borderColor  = hasConcern ? '#fecaca' : (isActive ? cfg.color+'33' : 'var(--border)');
       const isLiveAtt    = e._liveAtt !== undefined;
 
+      // Survey: prefer static EOY upload (e.je), fall back to live Pearl enjoyment score
+      const _liveSurvEnjoy = e._liveSurveyEntry ? e._liveSurveyEntry.enjoyment : null;
+      const _survDisplay   = e.je != null ? '★' + e.je
+                           : (_liveSurvEnjoy != null ? '★' + _liveSurvEnjoy.toFixed(1) : '—');
+      const _isLiveSurv    = e.je == null && _liveSurvEnjoy != null;
+
+      // Location: prefer Pearl session schools for 2025-2026, fall back to static HR site/district
+      const _pearlSchools  = e._liveSchools && e._liveSchools.length ? e._liveSchools : null;
+      const _locDisplay    = _pearlSchools
+        ? _pearlSchools.slice(0, 2).join(' · ')
+        : ((e.si || '—') + (e.di ? ' · ' + e.di : ''));
+
       // 4 KPI tiles
       const kpiTiles = [
         { v: e.c != null ? e.c + 'cy' : '—',  l: 'Cycles',     color: 'var(--navy)' },
         { v: att != null ? att + '%' : '—',    l: isLiveAtt ? 'Att ●' : 'Attendance', color: _attColor(att) },
-        { v: e.je != null ? '★' + e.je : '—', l: 'Survey',     color: '#7c3aed' },
+        { v: _survDisplay, l: _isLiveSurv ? 'Survey ●' : 'Survey', color: '#7c3aed' },
         { v: e.mp != null ? e.mp + '/4' : '—', l: 'Perf Score', color: e.mp!=null?(e.mp>=3?'#0d6e3a':e.mp>=2?'#d97706':'#b91c1c'):'var(--muted)' },
       ].map(k => `<div style="flex:1;min-width:55px;text-align:center;padding:.4rem .2rem;background:var(--surface-2);border-radius:6px">
   <div style="font-size:.9rem;font-weight:800;color:${k.color};line-height:1.1">${esc(k.v)}</div>
-  <div style="font-size:.58rem;color:${isLiveAtt && k.l.includes('Att') ? '#0ea5e9' : 'var(--muted)'};margin-top:.1rem">${k.l}</div>
+  <div style="font-size:.58rem;color:${(isLiveAtt && k.l.includes('Att')) || (_isLiveSurv && k.l.includes('Survey')) ? '#0ea5e9' : 'var(--muted)'};margin-top:.1rem">${k.l}</div>
 </div>`).join('');
 
       // Pass/fail metric flags
@@ -2377,7 +2423,7 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
   <div style="padding:.5rem .75rem .3rem">
     <div style="font-weight:800;color:var(--navy);font-size:.83rem;line-height:1.2">${esc(e.n)}</div>
     <div style="font-size:.67rem;color:var(--text-2);margin-top:.08rem">${esc(e.r||'—')}</div>
-    <div style="font-size:.62rem;color:var(--muted);margin-top:.06rem">${esc((e.si||'—').slice(0,34))}${e.di?' · '+esc(e.di.slice(0,22)):''}</div>
+    <div style="font-size:.62rem;color:var(--muted);margin-top:.06rem">${esc(_locDisplay.slice(0,50))}${_pearlSchools?'<span style="font-size:.55rem;color:#38bdf8;font-weight:700;margin-left:.25rem">●</span>':''}</div>
   </div>
   <div style="padding:0 .75rem .4rem;display:flex;gap:.2rem">${kpiTiles}</div>
   <div style="padding:0 .75rem .5rem">${metricRow}${acadBadge}${concernBadge}${noPearlFlag}${termDetailHtml}</div>
@@ -2516,13 +2562,16 @@ ${gridClose}
 </div>` : '';
 
     // ── Employment section ───────────────────────────────────────────
+    // For 2025-2026, prefer live Pearl session schools over static HR site field.
+    const _modalPearlSchools = emp._liveSchools && emp._liveSchools.length ? emp._liveSchools : null;
     const employmentBody = `
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
   <div>
-    <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Site</div>
-    <div style="font-size:.875rem;color:var(--navy);font-weight:600">${esc(emp.si||'—')}</div>
-    ${emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,60))}</div>`:''}
-    ${emp.dis&&emp.dis.length>1?`<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">All districts: ${emp.dis.slice(0,3).map(esc).join(', ')}</div>`:''}
+    <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">Current Site${_modalPearlSchools?'&nbsp;<span style="font-size:.55rem;color:#38bdf8;font-weight:700">● Pearl Live</span>':''}</div>
+    <div style="font-size:.875rem;color:var(--navy);font-weight:600">${esc((_modalPearlSchools?_modalPearlSchools.join(', '):emp.si)||'—')}</div>
+    ${!_modalPearlSchools&&emp.di?`<div style="font-size:.7rem;color:var(--text-2)">${esc(emp.di.slice(0,60))}</div>`:''}
+    ${emp.dis&&emp.dis.length>1&&!_modalPearlSchools?`<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem">All districts: ${emp.dis.slice(0,3).map(esc).join(', ')}</div>`:''}
+    ${_modalPearlSchools&&emp.si?`<div style="font-size:.65rem;color:var(--muted);margin-top:.15rem">HR record: ${esc(emp.si)}</div>`:''}
   </div>
   <div>
     <div style="font-size:.625rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.3rem">SY History (${emp.c} cycle${emp.c!==1?'s':''})</div>
@@ -3192,23 +3241,27 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
       const nm = normName(emp.n);
 
-      // Survey scores — O(1) map lookup (pre-computed above)
-      const survEntry  = _allSurveyMap[nm] || null;
+      // Survey scores — O(1) map lookup; fall back to Pearl overlay for hyphenated names
+      // where normName() can't bridge the HR ↔ Pearl name gap.
+      const survEntry  = _allSurveyMap[nm] || emp._liveSurveyEntry || null;
       const confMed    = survEntry ? survEntry.confidence : null;
       const enjoyMed   = survEntry ? survEntry.enjoyment  : null;
       const learnMed   = survEntry ? survEntry.learning   : null;
       const returnMed  = survEntry ? survEntry.overall    : null;
       const survCount  = survEntry ? survEntry.count       : 0;
 
-      // Session stats — O(1) map lookup (pre-computed above)
-      const sessEntry  = _allSessMap[nm] || null;
+      // Session stats — O(1) map lookup; fall back to Pearl overlay for hyphenated names
+      const sessEntry  = _allSessMap[nm] || emp._liveSessEntry || null;
       const survComp      = sessEntry ? sessEntry.survComp    : null;
       const incompleteCount = sessEntry ? sessEntry.incomplete : null;
       const incompleteRate  = (sessEntry && sessEntry.total > 0)
                               ? Math.round(sessEntry.incomplete / sessEntry.total * 100) : null;
       const totalSessions   = sessEntry ? sessEntry.total : null;
       const scholarCount    = sessEntry ? (sessEntry.scholarCount || 0) : null;
-      const tutorSchools    = sessEntry ? (sessEntry.schools || []) : [];
+      // Schools: prefer Pearl overlay (_liveSchools) so region + location use active 2025-26 sites
+      const tutorSchools    = (emp._liveSchools && emp._liveSchools.length)
+                              ? emp._liveSchools
+                              : (sessEntry ? (sessEntry.schools || []) : []);
 
       // Late surveys — from precomputed lateFilerMap (only populated for ≥50% late rate)
       const _lateEntry  = lateFilerMap[nm] || null;
@@ -3547,7 +3600,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +'<div>'
             +'<div style="font-weight:700;font-size:.95rem;color:#1e293b">'+esc(emp.n)+'</div>'
             +'<div style="font-size:.75rem;color:#64748b;margin-top:2px;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap">'
-              +'<span>'+esc(emp.r||'Tutor')+' \u00B7 '+esc(emp.si||emp.di||'\u2014')+'</span>'
+              +'<span>'+esc(emp.r||'Tutor')+' \u00B7 '+(tutorSchools.length?esc(tutorSchools.slice(0,2).join(', ')):esc(emp.si||emp.di||'\u2014'))+'</span>'
+              +(tutorSchools.length?'<span style="font-size:.55rem;color:#38bdf8;font-weight:700" title="Active Pearl locations this SY">\u25CF Live</span>':'')
               +'<span style="background:#e0f2fe;color:#0369a1;padding:.1rem .35rem;border-radius:4px;font-size:.65rem;font-weight:700">'+region+'</span>'
               +(emp._apprentice==='Yes'?'<span style="background:#fef9c3;color:#854d0e;padding:.1rem .35rem;border-radius:5px;font-size:.65rem;font-weight:700;border:1px solid #fde68a">\uD83C\uDF93 Apprentice</span>':'')
               +scholarBadge
