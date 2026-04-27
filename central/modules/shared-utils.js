@@ -9991,67 +9991,97 @@
     // MOY band-movement: moved up / held / moved down (placement BAND shifts, not scale score regression)
     { match: /\b(moved.?up|moved.?down|held.?band|band.*mov|mov.*band|placement.*band|band.*placement|band.?shift|boy.*moy|moy.*boy|fall.*winter.*placement|winter.*fall.*placement|red.?rush|rush.?flag|winter.?only|boy.?placement|moy.?placement|fall.?diagnostic|winter.?diagnostic|months.?of.?learning|months.?gained|learn.*month|month.*learn)\b/i,
       respond: function() {
-        var irl = _irl();
-        if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
-        var net = irl.currentNet;
-        if (!net) return 'MOY data is not yet computed — open iReady Analysis Lab and select a school/subject.';
-        var PL = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+        // MOY data lives in getMOYData() / computeMOY() — NOT in irlab.getSummary() (that is EOY data)
+        if (!window.irlab || typeof window.irlab.getMOYData !== 'function' || typeof window.irlab.computeMOY !== 'function') {
+          return 'iReady Analysis Lab not yet initialised — open it from the left navigation.';
+        }
+        var moyData = window.irlab.getMOYData();
+        if (!moyData || !moyData.loaded) {
+          return 'MOY data not yet loaded — open iReady Analysis Lab and wait for the Winter data to finish loading.';
+        }
+        var mathRows = moyData.math || [];
+        var elaRows  = moyData.ela  || [];
+        if (!mathRows.length && !elaRows.length) {
+          return 'No MOY scholar records found. Ensure the iReady Winter CSV has been published to the Google Sheet.';
+        }
+        var mathNet = mathRows.length ? window.irlab.computeMOY(mathRows).network : null;
+        var elaNet  = elaRows.length  ? window.irlab.computeMOY(elaRows).network  : null;
+        var PL  = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
         var PLS = ['3+ GL Below','2 GL Below','1 GL Below','Early On GL','Mid/Above GL'];
 
         // Red Rush Flag
         if (/red.?rush|rush.?flag/i.test(_lastQ||'')) {
-          var rr = net.rushFlags ? net.rushFlags.red : null;
-          if (rr == null) return 'Red Rush Flag data not available — check that the iReady dataset includes the Rush Flag column.';
-          return '🚩 **Red Rush Flag — ' + rr + ' scholar' + (rr!==1?'s':'') + '** had an unusually fast Winter diagnostic completion.\n\nThese scholars are **included** in all growth and placement calculations but are listed separately for administrator review. Contact iReady support if re-administration may be needed.\n\n_A Red Rush Flag does not automatically invalidate the diagnostic — it is a signal to investigate._';
+          var rrM = mathNet && mathNet.rushFlags ? (mathNet.rushFlags.red||0) : 0;
+          var rrE = elaNet  && elaNet.rushFlags  ? (elaNet.rushFlags.red||0)  : 0;
+          var rr  = rrM + rrE;
+          return '🚩 **Red Rush Flag — ' + rr + ' scholar' + (rr!==1?'s':'') + '** had an unusually fast Winter diagnostic completion' +
+            (rrM||rrE ? ' (Math: '+rrM+' · ELA: '+rrE+')' : '') + '.\n\n' +
+            'These scholars are **included** in all growth and placement calculations but are listed separately for administrator review. ' +
+            'Contact iReady support if re-administration may be needed.\n\n' +
+            '_A Red Rush Flag does not automatically invalidate the diagnostic — it is a signal to investigate._';
         }
 
-        // Months of Learning
+        // Months of Learning — pull directly from live computeMOY results
         if (/months.?of.?learn|months.?gained|learn.*month|month.*learn/i.test(_lastQ||'')) {
-          var med = net.mathMedianMonths != null ? net.mathMedianMonths : (net.elaMedianMonths != null ? net.elaMedianMonths : null);
-          var avg = net.mathAvgMonths != null ? net.mathAvgMonths : (net.elaAvgMonths != null ? net.elaAvgMonths : null);
           var msg = '**Months of Learning Gained (MOY)**\n\n';
-          if (net.mathMedianMonths != null) msg += '📐 Math — Median: **' + net.mathMedianMonths + ' mo** · Avg: ' + (net.mathAvgMonths||'—') + ' mo\n';
-          if (net.elaMedianMonths  != null) msg += '📖 ELA  — Median: **' + net.elaMedianMonths  + ' mo** · Avg: ' + (net.elaAvgMonths ||'—') + ' mo\n';
+          if (mathNet && mathNet.medianMonthsGrowth != null)
+            msg += '📐 Math — Median: **' + mathNet.medianMonthsGrowth + ' mo** · Avg: ' + (mathNet.avgMonthsGrowth||'—') + ' mo\n';
+          if (elaNet && elaNet.medianMonthsGrowth != null)
+            msg += '📖 ELA  — Median: **' + elaNet.medianMonthsGrowth  + ' mo** · Avg: ' + (elaNet.avgMonthsGrowth ||'—') + ' mo\n';
           msg += '\n**Formula:** (% of Typical Growth) × (weeks between Fall & Winter diagnostics) ÷ 4\n';
-          msg += 'Uses each scholar\'s actual diagnostic window — not a fixed 10- or 12-month year. Median is the primary metric; it is resistant to outliers from scholars with unusually long windows.';
+          msg += 'Uses each scholar\'s actual diagnostic window. Median is the primary metric (robust to outliers); average is shown for reference and matches the Google Sheet.';
           return msg;
         }
 
-        // BOY / MOY placement distribution
+        // BOY / MOY placement distribution — show Math then ELA
         if (/boy.*moy|moy.*boy|fall.*winter.*placement|winter.*fall.*placement|boy.?placement|moy.?placement|placement.*dist|dist.*placement|placement.*bar/i.test(_lastQ||'')) {
-          var fallDist = net.fallPlacementDist || {};
-          var winDist  = net.placementDist || {};
-          var fallTot  = PL.reduce(function(s,p){ return s+(fallDist[p]||0); }, 0);
-          var winTot   = PL.reduce(function(s,p){ return s+(winDist[p]||0); }, 0);
           var msg = '**Placement Distribution — Fall (BOY) → Winter (MOY)**\n\n';
-          PL.forEach(function(pl,i){
-            var fc = fallDist[pl]||0, wc = winDist[pl]||0;
-            var fp = fallTot ? Math.round(fc/fallTot*100) : 0;
-            var wp = winTot  ? Math.round(wc/winTot*100)  : 0;
-            var diff = wp - fp;
-            msg += '**' + PLS[i] + '**: Fall ' + fc + ' (' + fp + '%) → Winter ' + wc + ' (' + wp + '%)  ' + (diff>0?'▲ +'+diff+'%':diff<0?'▼ '+diff+'%':'→') + '\n';
+          [['Math', mathNet], ['ELA', elaNet]].forEach(function(pair) {
+            var sNet = pair[1];
+            if (!sNet) return;
+            var fallDist = sNet.fallPlacementDist || {};
+            var winDist  = sNet.placementDist || {};
+            var fallTot  = PL.reduce(function(s,p){ return s+(fallDist[p]||0); }, 0);
+            var winTot   = PL.reduce(function(s,p){ return s+(winDist[p]||0); }, 0);
+            msg += '**' + pair[0] + ':**\n';
+            PL.forEach(function(pl,i){
+              var fc = fallDist[pl]||0, wc = winDist[pl]||0;
+              var fp = fallTot ? Math.round(fc/fallTot*100) : 0;
+              var wp = winTot  ? Math.round(wc/winTot*100)  : 0;
+              var diff = wp - fp;
+              msg += '  ' + PLS[i] + ': ' + fc + ' (' + fp + '%) → ' + wc + ' (' + wp + '%)  ' + (diff>0?'▲ +'+diff+'%':diff<0?'▼ '+diff+'%':'→') + '\n';
+            });
+            msg += '\n';
           });
           return msg.trim();
         }
 
-        // Band movement (moved up / held / moved down)
-        var breakdown = net.movementBreakdown || [];
-        var up   = breakdown.filter(function(m){ return m.dir==='up'; });
-        var held = breakdown.filter(function(m){ return m.dir==='held'; });
-        var down = breakdown.filter(function(m){ return m.dir==='down'; });
-        var upCt   = up.reduce(function(s,m){ return s+m.count; }, 0);
-        var heldCt = held.reduce(function(s,m){ return s+m.count; }, 0);
-        var downCt = down.reduce(function(s,m){ return s+m.count; }, 0);
-        var total  = upCt + heldCt + downCt;
-        if (!total) return 'Band movement data not yet available — open iReady Analysis Lab.';
+        // Band movement (moved up / held / moved down) — default branch, show Math then ELA
         var msg = '**Placement Band Movement — Fall → Winter**\n\n';
-        msg += '_(Movement = band SHIFT between BOY and MOY diagnostics — not the same as scale score regression. A scholar can gain points and still drop a band if growth was below the band threshold.)_\n\n';
-        msg += '⬆️ **Moved Up: ' + upCt + '** (' + Math.round(upCt/total*100) + '%)\n';
-        up.forEach(function(m){ msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
-        msg += '\n➡️ **Held Band: ' + heldCt + '** (' + Math.round(heldCt/total*100) + '%)\n';
-        msg += '\n⬇️ **Moved Down: ' + downCt + '** (' + Math.round(downCt/total*100) + '%)\n';
-        down.forEach(function(m){ msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
-        return msg.trim();
+        msg += '_(Movement = band SHIFT — a scholar can gain scale score points and still drop a band if growth stayed below the band threshold.)_\n\n';
+        var anyData = false;
+        [['Math', mathNet], ['ELA', elaNet]].forEach(function(pair) {
+          var sNet = pair[1];
+          if (!sNet) return;
+          var breakdown = sNet.movementBreakdown || [];
+          var up    = breakdown.filter(function(m){ return m.dir==='up'; });
+          var held  = breakdown.filter(function(m){ return m.dir==='held'; });
+          var down  = breakdown.filter(function(m){ return m.dir==='down'; });
+          var upCt  = up.reduce(function(s,m){ return s+m.count; }, 0);
+          var hCt   = held.reduce(function(s,m){ return s+m.count; }, 0);
+          var doCt  = down.reduce(function(s,m){ return s+m.count; }, 0);
+          var tot   = upCt + hCt + doCt;
+          if (!tot) return;
+          anyData = true;
+          msg += '**' + pair[0] + '** (' + tot + ' scholars with Fall+Winter pair):\n';
+          msg += '⬆️ Moved Up: **' + upCt + '** (' + Math.round(upCt/tot*100) + '%)\n';
+          up.forEach(function(m){ if (PL.indexOf(m.from)>=0 && PL.indexOf(m.to)>=0) msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
+          msg += '➡️ Held Band: **' + hCt + '** (' + Math.round(hCt/tot*100) + '%)\n';
+          msg += '⬇️ Moved Down: **' + doCt + '** (' + Math.round(doCt/tot*100) + '%)\n';
+          down.forEach(function(m){ if (PL.indexOf(m.from)>=0 && PL.indexOf(m.to)>=0) msg += '   ' + PLS[PL.indexOf(m.from)] + ' → ' + PLS[PL.indexOf(m.to)] + ': ' + m.count + '\n'; });
+          msg += '\n';
+        });
+        return anyData ? msg.trim() : 'Band movement data not yet available — open iReady Analysis Lab.';
       }
     },
 
