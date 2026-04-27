@@ -9112,14 +9112,14 @@
     },
 
     // KPI scoring / what does X status mean
-    { match: /what (does|is) (partially met|in progress|coming down|pipeline|has not met|met|score|weighted score)/i,
+    { match: /what (does|is).{0,10}(partially met|in progress|coming down|pipeline|has not met|met|score|weighted score)/i,
       respond: function() {
         return 'Weighted scoring per target:\n• **Met** = 100 pts (target fully achieved)\n• **Partially Met** = 50 pts\n• **In Progress** = 25 pts (active effort, not there yet)\n• **Coming Down the Pipeline** = 10 pts (planned, not started)\n• **Has Not Met** = 0 pts\n\nOrg score = total points ÷ (targets × 100) × 100%. Bands: Healthy ≥85%, Watch 65–84%, Needs Focus 40–64%, Area of Support <40%.';
       }
     },
 
-    // Pearl summary / how many scholars/sites/sessions
-    { match: /how many.*(scholars|students|sites|schools|sessions|tutors|districts)|active scholars|total sessions|site count|scholar count|how many active/i,
+    // Pearl summary / how many scholars/sites/sessions (district-specific queries route to district rule below)
+    { match: /how many.*(scholars|students|sites|schools|sessions|tutors)(?!.{0,20}district)|active scholars|total sessions|site count|scholar count(?!.{0,20}district)|how many active/i,
       respond: function() {
         var p = _pearl();
         if (!p) return 'Pearl data is still loading — open Pearl Operations to trigger a load.';
@@ -9134,7 +9134,7 @@
     },
 
     // Tutors below attendance threshold
-    { match: /tutor.? below|below.?80|low.? attendance|flagged tutor|attendance warn|who.?s struggling|poor attendance|tutor.? risk/i,
+    { match: /tutor.? below|below.?80|\blow\b.{0,3}attendance|flagged tutor|attendance warn|who.?s struggling|poor attendance|tutor.? risk/i,
       respond: function() {
         try {
           var tm = window.po && typeof window.po.getTutorAttendanceMap==='function' ? window.po.getTutorAttendanceMap() : {};
@@ -9249,17 +9249,24 @@
       }
     },
 
-    // District attendance breakdown
-    { match: /district.*(attendance|breakdown|performance|rate|compare|lowest|highest|which)|which district|district.?by.?district|by district|how many districts/i,
+    // District attendance breakdown — also handles "scholar count by district"
+    { match: /district.*(attendance|breakdown|performance|rate|compare|lowest|highest|which|scholar)|which district|district.?by.?district|by district|how many districts|scholar.{0,15}(count|number|total|how many).{0,15}(by )?district|show.{0,15}scholar.{0,15}district/i,
       respond: function() {
         try {
           var ld = window.po && typeof window.po.getLeadershipData==='function' ? window.po.getLeadershipData() : null;
           if (!ld || !ld.districts || !ld.districts.length) return 'District data not yet loaded — open Pearl Operations first.';
-          var sorted = ld.districts.slice().sort(function(a,b){ return a.scholarRate-b.scholarRate; });
-          var msg = '**Attendance by District** (' + sorted.length + ' districts):\n\n';
+          var q = (_lastQ||'').toLowerCase();
+          var byCount = /scholar.{0,20}count|scholar.{0,20}number|how many scholar|show.*scholar/i.test(q);
+          var sorted = byCount
+            ? ld.districts.slice().sort(function(a,b){ return (b.scholars||0)-(a.scholars||0); })
+            : ld.districts.slice().sort(function(a,b){ return (a.scholarRate||0)-(b.scholarRate||0); });
+          var total = sorted.reduce(function(s,d){ return s+(d.scholars||0); }, 0);
+          var msg = byCount
+            ? '**Scholar Count by District** (' + sorted.length + ' districts · ' + _n(total) + ' total):\n\n'
+            : '**Attendance by District** (' + sorted.length + ' districts):\n\n';
           msg += sorted.map(function(d){
-            var icon = d.scholarRate>=85?'✅':d.scholarRate>=75?'⚠️':'🔴';
-            return icon + ' **' + d.name + '**: Scholar ' + _pct(d.scholarRate) + ' · Tutor ' + _pct(d.tutorRate) + ' · ' + _n(d.scholars) + ' scholars';
+            var icon = (d.scholarRate||0)>=85?'✅':(d.scholarRate||0)>=75?'⚠️':'🔴';
+            return icon + ' **' + d.name + '**: **' + _n(d.scholars||0) + ' scholars** · Att ' + _pct(d.scholarRate) + ' · ' + _n(d.sessions||0) + ' sessions';
           }).join('\n');
           return msg;
         } catch(e) { return 'District data not yet loaded — open Pearl Operations first.'; }
@@ -9824,8 +9831,8 @@
       }
     },
 
-    // Staff by site / site staffing
-    { match: /staff.*(site|school|location)|how many staff.*(site|school|location)|site.*staff|tutor.*site/i,
+    // Staff by site / site staffing (NOT tutor attention/concern queries — those route to line 12016)
+    { match: /staff.*(site|school|location)|how many staff.*(site|school|location)|site.*staff|tutor(?!.{0,60}(?:need|attention|flag|concern|below|support|struggling|watch)).*site/i,
       respond: function() {
         var active = _hrActive();
         if (!active.length) return 'HR data not yet loaded. Open Talent Analytics.';
@@ -12030,11 +12037,12 @@
             return '✅ No tutors flagged in current data. All attendance rates are above 80% (with ≥3 sessions logged).';
           var msg = '**Tutors Needing Attention**\n\n';
           if (flagged.length) {
-            msg += '⚠️ **' + flagged.length + ' tutor' + (flagged.length>1?'s':'') + ' below 80% attendance:**\n';
-            msg += flagged.slice(0,7).map(function(t){
-              return (t.attRate<65?'🔴':'⚠️') + ' **' + t.name + '** — ' + t.attRate + '%' + (t.school?' · '+t.school:'');
+            msg += '⚠️ **' + flagged.length + ' tutor' + (flagged.length>1?'s':'') + ' below 80% attendance** (≥3 sessions logged):\n';
+            msg += flagged.slice(0,8).map(function(t){
+              var sessInfo = (t.attended!=null && t.total!=null) ? ' (' + t.attended + '/' + t.total + ')' : '';
+              return (t.attRate<65?'🔴':'⚠️') + ' **' + t.name + '** — ' + t.attRate + '%' + sessInfo + (t.school?' · '+t.school:'');
             }).join('\n');
-            if (flagged.length>7) msg += '\n_…and '+(flagged.length-7)+' more_';
+            if (flagged.length>8) msg += '\n_…and '+(flagged.length-8)+' more. Open Pearl Operations for full list._';
           }
           if (withAction.length) {
             msg += '\n\n🚨 **' + withAction.length + ' staff with active HR action:**\n';
@@ -12315,7 +12323,7 @@
     },
 
     // ── KB / EXECUTIVE FULL BRIEFING ──────────────────────────────────────────
-    { match: /kb.*(brief|summary|overview|update|status|report|briefing)|executive.*(brief|summary|update|overview)|what.*(kb|executive).*(need|know|see|show)|brief.*(me|kb|executive|leadership)|give me.*(briefing|full.*update|full.*summary|full.*brief|executive.*update|kb.*update)|everything.*need.*know|what.*should.*know.*(today|now|right.?now)|catch.*me.*up|show.*me.*everything|full.*picture|full.*update|complete.*picture|complete.*update|whats.*(happening|going on|the deal)|run.*me.*through|bring.*me.*up.*(speed|date)|summarize.*everything|everything.*today/i,
+    { match: /kb.*(brief|summary|overview|update|status|report|briefing)|executive.*(brief|summary|update|overview)|what.*(kb|executive|leadership).*(need|know|see|show)|brief.*(me|kb|executive|leadership)|give me.*(briefing|full.*update|full.*summary|full.*brief|executive.*update|kb.*update)|everything.*need.*know|what.*should.*know.*(today|now|right.?now)|what.*leadership.*(need|know|today)|leadership.*(need|know).*(today|now)|catch.*me.*up|show.*me.*everything|full.*picture|full.*update|complete.*picture|complete.*update|whats.*(happening|going on|the deal)|run.*me.*through|bring.*me.*up.*(speed|date)|summarize.*everything|everything.*today/i,
       respond: function() {
         var d=_kpi(), irl=_irl(), p=_pearl(), active=_hrActive(), sf=_sf(), c=_concerns();
         var apps=active.filter(function(e){return e._apprentice==='Yes';}).length;
@@ -12429,7 +12437,7 @@
 
     // ── Programming Department Briefing ───────────────────────────────────────
     {
-      match: /programming.?(brief|summary|update|status|overview|briefing)|program.?(depart|dept).*(brief|summary|status|overview)|give me.*(programming|program).*(brief|summary|update)|sites?.*(brief|summary|status|overview)/i,
+      match: /programming.*(brief|summary|update|status|overview|briefing)|program.{0,5}(depart|dept|department).*(brief|summary|status|overview)|give me.*(programming|program).*(brief|summary|update)|sites?.*(brief|summary|status|overview)/i,
       respond: function() {
         var lines = ['## 📋 Programming Department Briefing'];
         var kpi = _kpi(); var irl = _irl(); var p = _pearl(); var sf = _sf();
@@ -12490,7 +12498,7 @@
 
     // ── Training & Development Department Briefing ────────────────────────────
     {
-      match: /training.?(brief|summary|update|status|overview|briefing)|t\s*&\s*d.*(brief|summary|update|status|overview)|t\s*and\s*d.*(brief|summary)|give me.*(training|t\s*&\s*d).*(brief|summary|update)|professional.?dev.*(brief|summary|status)/i,
+      match: /training.*(brief|summary|update|status|overview|briefing)|t\s*&\s*d.*(brief|summary|update|status|overview)|t\s*and\s*d.*(brief|summary)|training\s*(&|and)\s*development.*(brief|summary|update|status|overview)|give me.*(training|t\s*&\s*d).*(brief|summary|update)|professional.?dev.*(brief|summary|status)/i,
       respond: function() {
         var lines = ['## 📚 Training & Development Briefing'];
         var kpi = _kpi(); var irl = _irl(); var active = _hrActive();
