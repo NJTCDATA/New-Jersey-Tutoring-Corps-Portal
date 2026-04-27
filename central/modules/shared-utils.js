@@ -5898,9 +5898,9 @@
         title: 'Attendance Rate Thresholds',
         intro: 'Two attendance rate measures are displayed in this portal. Tutor Session Rate (Pearl Ops) is session-weighted across all Pearl instructors including termed staff. Average Attendance Rate (Talent) is the mean of per-person rates for Active HR staff with Pearl name matches only. Both are labeled explicitly.',
         items: [
-          { icon: '🟢', label: 'Green (≥80%)', desc: 'Instructor meeting or exceeding program attendance expectations. No immediate action needed.' },
-          { icon: '🟡', label: 'Yellow (60–79%)', desc: 'Attendance below target. Site coordinator should follow up and document any contextual factors (illness, school events, etc.).' },
-          { icon: '🔴', label: 'Red (<60%)', desc: 'Significant attendance concern. Regional director escalation required. Documentation of intervention plan needed within 48 hours.' },
+          { icon: '🟢', label: 'Green (≥90%)', desc: 'Instructor meeting or exceeding the ≥90% program attendance benchmark. No immediate action needed.' },
+          { icon: '🟡', label: 'Yellow (80–89%)', desc: 'Attendance below the 90% benchmark. Site coordinator should follow up and document any contextual factors (illness, school events, etc.).' },
+          { icon: '🔴', label: 'Red (<80%)', desc: 'Significant attendance concern — well below the 90% benchmark. Regional director escalation required. Documentation of intervention plan needed within 48 hours.' },
         ],
         title2: 'HIT Compliance Flags',
         items2: [
@@ -6032,8 +6032,7 @@
           { icon: '📊', label: 'Placement Levels (5-Tier)', desc: 'iReady diagnostic placement: Mid/Above Grade Level, Early On Grade, 1 Level Below, 2 Levels Below, 3+ Levels Below. Available for Math and ELA by site, grade, and tutor.', live: true },
           { icon: '📈', label: 'Progress to Grade Level Proficiency', desc: 'Overall relative placement movement for scholars beginning at least 1 grade level below. Primary impact metric.', live: true },
           { icon: '⬆️', label: 'Progress ≥1 Grade Level', desc: 'Percentage of scholars who advanced at least one placement level from baseline to spring. Key external reporting metric.', live: true },
-          { icon: '📉', label: 'Regression Rate', desc: 'Percent of scholars who regressed from baseline placement level. Target: ≤7% for full-cycle tutors per ADP Suite benchmarks.', live: true },
-          { icon: '🎯', label: 'Program-Window Progress', desc: 'Growth relative to your program\'s actual duration, not iReady\'s 30-week annual standard. iReady pre-computes each scholar\'s % of typical annual growth; NJTC adjusts that to the median diagnostic window of your program so shorter partnerships are evaluated fairly.', live: true },
+          { icon: '📉', label: 'Placement Band Drop Rate', desc: 'Percent of scholars who dropped a placement band from baseline (BOY) to mid-year (MOY). Target: ≤7% for full-cycle tutors per ADP Suite benchmarks. Note: a scholar can have a positive scale score gain and still drop a band if growth was below the band\'s threshold.', live: true },
           { icon: '🔁', label: 'Repeat Scholar Metrics', desc: 'Multi-year scholars tracked longitudinally. Repeat cohorts demonstrate long-term effectiveness of NJTC\'s high-dosage model.', live: true },
         ],
         mission: 'We rigorously collect and analyze academic data to demonstrate the tangible impact of high-impact tutoring — particularly for scholars performing 2+ grade levels below. This data provides concrete FACTS of scholar progress for stakeholders, funders, and partners.'
@@ -8557,7 +8556,7 @@
   var RULES = [
 
     // Greeting
-    { match: /^(hi|hello|hey|good (morning|afternoon|evening)|howdy|what.?s up)/i,
+    { match: /^(hi|hello|hey|good (morning|afternoon|evening)|howdy|what.?s up|what is up)/i,
       respond: function() {
         var d = _kpi(), p = _pearl();
         var greet = ['Hey','Hi there','Hello'][Math.floor(Date.now()/2500)%3];
@@ -10112,6 +10111,7 @@
           var irl = _irl();
           if (!irl) return 'iReady data not yet loaded — open iReady Analysis Lab.';
           var pc = irl.placementCounts;
+          if (!pc || !pc.spring) return 'Grade level placement data not yet computed — open iReady Analysis Lab.';
           var PL_SHORT = ['3+ Below','2 Below','1 Below','Early GL','On/Above GL'];
           var PL_FULL  = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
           var springTotal = 0;
