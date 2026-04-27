@@ -625,18 +625,61 @@ function renderAcademic() {
       ]);
 
       if (net.withGrowth > 0) {
-        html += stacked([
-          { label: 'Met/Exceeded', pct: net.pctMetTypical  || 0, color: '#16a34a' },
-          { label: 'Progressing',  pct: net.pctProgressing || 0, color: '#0050c8' },
-          { label: 'Needs Accel.', pct: net.pctNeedsAccel  || 0, color: '#d97706' },
-          { label: 'Regression',   pct: net.pctRegressed   || 0, color: '#dc2626' },
-        ]);
+        // ── Placement distribution: Fall (BOY) + Winter (MOY) bars ────────
+        var PL_TIERS = [
+          { label: '3+ GL Below',  full: '3 or More Grade Levels Below', color: '#dc2626' },
+          { label: '2 GL Below',   full: '2 Grade Levels Below',          color: '#f97316' },
+          { label: '1 GL Below',   full: '1 Grade Level Below',           color: '#eab308' },
+          { label: 'Early On GL',  full: 'Early On Grade Level',          color: '#0d9488' },
+          { label: 'Mid/Above GL', full: 'Mid or Above Grade Level',      color: '#0d6e3a' },
+        ];
+        var PL_ORDER = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+        function mkPlBar(dist, label) {
+          if (!dist) return '';
+          var total = PL_ORDER.reduce(function(s,p){ return s+(dist[p]||0); }, 0);
+          if (!total) return '';
+          var tiers = PL_TIERS.map(function(t){ var c=dist[t.full]||0; return Object.assign({},t,{count:c,pct:Math.round(c/total*100)}); });
+          return '<div style="margin-bottom:.75rem">' +
+            '<div style="font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">' + label + ' · ' + total + ' scholars</div>' +
+            '<div style="height:16px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:.3rem">' +
+            tiers.filter(function(t){return t.count>0;}).map(function(t){
+              return '<div style="flex:' + t.count + ';background:' + t.color + '" title="' + t.full + ': ' + t.pct + '% (' + t.count + ')"></div>';
+            }).join('') + '</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:.4rem">' +
+            tiers.filter(function(t){return t.count>0;}).map(function(t){
+              return '<div style="display:flex;align-items:center;gap:.25rem;font-size:.65rem">' +
+                '<div style="width:7px;height:7px;border-radius:2px;background:' + t.color + ';flex-shrink:0"></div>' +
+                '<span style="color:var(--muted)">' + t.label + '</span>' +
+                '<strong style="color:' + t.color + '">' + t.pct + '%</strong>' +
+                '<span style="color:var(--muted);font-size:.6rem">(' + t.count + ')</span></div>';
+            }).join('') + '</div></div>';
+        }
+        html += mkPlBar(net.fallPlacementDist, 'Fall (BOY)');
+        html += mkPlBar(net.placementDist, 'Winter (MOY)');
 
-        html += '<div style="display:flex;gap:1rem;margin-top:.625rem;flex-wrap:wrap">' +
-          '<div style="font-size:.8rem"><span style="color:#16a34a;font-weight:700">↑ ' + net.movedUp + '</span> <span style="color:var(--muted)">moved up in placement</span></div>' +
-          '<div style="font-size:.8rem"><span style="color:var(--navy);font-weight:700">→ ' + net.held + '</span> <span style="color:var(--muted)">held</span></div>' +
-          '<div style="font-size:.8rem"><span style="color:#dc2626;font-weight:700">↓ ' + net.movedDown + '</span> <span style="color:var(--muted)">moved down</span></div>' +
+        // ── Band-to-band movement summary ──────────────────────────────────
+        var moves = net.movementBreakdown || [];
+        function mvGroup(dir, icon, col) {
+          var rows = moves.filter(function(m){return m.dir===dir;});
+          var tot  = rows.reduce(function(s,m){return s+m.count;},0);
+          if (!tot) return '';
+          var detail = rows.map(function(m){
+            return '<div style="display:flex;justify-content:space-between;padding:.15rem 0;border-bottom:1px solid rgba(0,0,0,.05)">' +
+              '<span style="color:var(--muted);font-size:.65rem">' + (m.from.replace('3 or More Grade Levels','3+ GL').replace('Grade Level','GL').replace('Grade Levels','GL').replace(' Below','↓').replace('Early On Grade Level','Early On GL').replace('Mid or Above Grade Level','Mid/Above GL')) +
+              ' ' + icon + ' ' +
+              (m.to.replace('3 or More Grade Levels','3+ GL').replace('Grade Level','GL').replace('Grade Levels','GL').replace(' Below','↓').replace('Early On Grade Level','Early On GL').replace('Mid or Above Grade Level','Mid/Above GL')) + '</span>' +
+              '<strong style="color:' + col + ';font-size:.7rem">' + m.count + '</strong></div>';
+          }).join('');
+          return '<div style="border:1px solid ' + col + '33;border-radius:6px;padding:.5rem .625rem;flex:1;min-width:140px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem">' +
+            '<span style="font-weight:800;font-size:1rem;color:' + col + '">' + icon + ' ' + tot + '</span>' +
+            '<span style="font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:' + col + '">' + (dir==='up'?'Moved Up':dir==='held'?'Held Band':'Moved Down') + '</span></div>' +
+            detail + '</div>';
+        }
+        html += '<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.375rem;margin-bottom:.625rem">' +
+          mvGroup('up','↑','#16a34a') + mvGroup('held','→','#0050c8') + mvGroup('down','↓','#dc2626') +
           '</div>';
+        html += '<div style="font-size:.625rem;color:var(--muted);margin-bottom:.5rem">Band movement (Fall → Winter). A positive scale score gain can still result in a band drop if growth was below the threshold — grade-level benchmarks rise through the year.</div>';
       }
 
       // Excluded scholars panel — no Fall baseline, cannot compute growth
