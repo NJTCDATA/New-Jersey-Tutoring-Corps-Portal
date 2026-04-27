@@ -3278,7 +3278,7 @@
     const MOY_2PACX     = '2PACX-1vQCMey9qbjXf7CFNbK-8Fq-qA0nn-DURIlOVjwQ-U1OwHxSo4PRVOy7eLs0w9JHGtBFwgQTzCqy_sMm';
     const MOY_MATH_URL  = `https://docs.google.com/spreadsheets/d/e/${MOY_2PACX}/pub?output=csv&gid=${MOY_MATH_GID}`;
     const MOY_ELA_URL   = `https://docs.google.com/spreadsheets/d/e/${MOY_2PACX}/pub?output=csv&gid=${MOY_ELA_GID}`;
-    const MOY_CACHE_KEY = 'njtc_moy_live_v2'; // v2 — bumped to clear stale pre-publish cache
+    const MOY_CACHE_KEY = 'njtc_moy_live_v3'; // v3 — bumped to re-fetch with fixed winterWeeks column lookup
     const MOY_CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours — matches EOY cache
 
     // ── Authoritative school → region map (built from actual MOY data, all 33 schools) ──
@@ -5149,9 +5149,17 @@
       else if (typeof _rawStretch === 'string' && _rawStretch.trim().slice(-1) === '%') pctStretch = pctStretch / 100;
       else if (pctStretch > 15) pctStretch = pctStretch / 100;
 
-      const winterWeeks = parseFloat(gv('winter_weeks_between_diagnostics')) || 0;
-      const winterRush  = gv('winter_rush_flag');
-      const baseRush    = gv('base_rush_flag');
+      // iReady Winter exports may name this "Weeks Between Diagnostics" (no winter_ prefix),
+      // same as Spring exports. Try all known variants so winterWeeks resolves correctly.
+      const winterWeeks = parseFloat(gv(
+        'winter_weeks_between_diagnostics',
+        'weeks_between_diagnostics',
+        'Weeks Between Diagnostics',
+        'Winter Weeks Between Diagnostics',
+        'weeks_between_fall_and_winter_diagnostics',
+      )) || 0;
+      const winterRush  = gv('winter_rush_flag', 'rush_flag', 'Rush Flag', 'rush flag');
+      const baseRush    = gv('base_rush_flag', 'base rush flag', 'Base Rush Flag');
       const isRedRush   = /red/i.test(winterRush);
       // Valid growth = has both Fall + Winter diagnostics (weeks > 0)
       // Red Rush scholars are flagged but INCLUDED in all calculations
