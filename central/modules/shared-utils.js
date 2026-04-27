@@ -11278,8 +11278,8 @@
       }
     },
 
-    // Scholar attendance benchmark / on track definition
-    { match: /what.{0,10}(on track|at risk|needs action)|scholar.?tier.{0,10}mean|attendance.?benchmark|benchmark.{0,10}scholar|on track.{0,10}scholar|what.?s the.?benchmark/i,
+    // Scholar attendance benchmark / on track definition (definitional queries only — site-context queries route to sites-below rule)
+    { match: /what.{0,10}(on track|at risk|needs action)|scholar.?tier.{0,10}mean|\b(what is|what.?s|define|explain).{0,20}attendance.{0,5}benchmark|attendance.{0,5}benchmark.{0,10}(mean|defined|work)|benchmark.{0,10}scholar|on track.{0,10}scholar|what.?s the.?benchmark/i,
       respond: function() {
         var p = _pearl();
         var snap = '';
@@ -12001,6 +12001,11 @@
     // Sites below attendance benchmark — programming-forward phrasing
     { match: /my sites?.{0,20}(below|under|low|fail|benchmark|concern|problem|attention|flag|struggle)|below.{0,15}benchmark.{0,15}(my site|my school)|(which|what).{0,20}(my site|site|school).{0,20}(below|low|concern|need|flag|attention|benchmark)/i,
       respond: function() {
+        // "Which tutors at my sites need attention?" catches here via 'my sites...attention' — route to tutor rule instead
+        if (/tutor/i.test(_lastQ||'')) {
+          var tr = RULES.find(function(r){ return r.match.test('my program flagged low tutor need attention'); });
+          return tr ? tr.respond() : _route('which tutors flagged low attendance need attention support');
+        }
         var sc = _schools();
         if (!sc.length)
           return 'Pearl site data not yet loaded — open Pearl Operations first.' + _navBtn('Open Pearl Ops', 'pearl-ops');
