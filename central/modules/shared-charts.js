@@ -1497,6 +1497,16 @@
 
   // ── Overlay live Pearl Ops data onto HR_EMPS ─────────────────────────────
   // Called after po data loads. Joins by tutor name → updates att, scholar counts.
+
+  // Hardcoded alias map for known HR↔Pearl name mismatches (preferred names,
+  // nicknames, legal vs. display name). Key = _hn(HR name), value = Pearl display name.
+  // Add new entries here when HR sheet "Pearl Name" column isn't an option.
+  const _PEARL_ALIAS_MAP = {
+    'davis la shanee':      'Renee Davis',       // La Shanee Davis (HR) = Renee Davis (Pearl)
+    'davis lashanee':       'Renee Davis',       // alternate compact spelling
+    'elizabeth mccafferty': 'Betsy McCafferty',  // Elizabeth McCafferty (HR) = Betsy McCafferty (Pearl)
+  };
+
   function _hrOverlayPearl() {
     if (typeof po === 'undefined' || !po || !po.getTutorAttendanceMap) return;
     try {
@@ -1523,11 +1533,13 @@
         const ek = _hn(emp.n);  // sorted token key for emp name
         const ep = new Set(ek.split(' '));
 
-        // 0. Pearl Name alias from HR sheet takes highest priority — handles cases like
-        //    "LaShanee Davis" (HR) → "Renee Davis" (Pearl) or "Elizabeth McCafferty" → "Betsy McCafferty"
-        let tutorData = (emp._pearlName && emp._pearlName.trim())
-          ? (tutorAttMap[_hn(emp._pearlName)] || null)
-          : null;
+        // 0. Pearl alias resolution — in priority order:
+        //    (a) HR sheet "Pearl Name" column (emp._pearlName set by _hrOverlayLive)
+        //    (b) Hardcoded alias map for known nickname/legal-name mismatches
+        const _pearlAlias = (emp._pearlName && emp._pearlName.trim())
+          ? emp._pearlName.trim()
+          : (_PEARL_ALIAS_MAP[ek] || null);
+        let tutorData = _pearlAlias ? (tutorAttMap[_hn(_pearlAlias)] || null) : null;
 
         // 1. Exact _hn() key match on HR name
         if (!tutorData) tutorData = tutorAttMap[ek];
@@ -2566,8 +2578,8 @@ ${_divHtml}
       <div style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:180px;padding:.4rem 0" onclick="this.style.display='none'">
         <div style="padding:.25rem .75rem .1rem;font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em">Export Scope</div>
         <button onclick="window._hrExportAggregatePDF('overall','','${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.75rem;border:none;background:none;cursor:pointer;color:#1e293b" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">📊 Organization-Wide</button>
-        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,12).map(d=>`<button onclick="window._hrExportAggregatePDF('district',${JSON.stringify(d)},'${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏫 ${d.slice(0,30)}</button>`).join('')}
-        ${[...new Set(filtered.flatMap(e=>e._liveSchools&&e._liveSchools.length?e._liveSchools:[e.si||'']).filter(Boolean))].sort().slice(0,10).map(s=>`<button onclick="window._hrExportAggregatePDF('school',${JSON.stringify(s)},'${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏢 ${s.slice(0,30)}</button>`).join('')}
+        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,12).map(d=>`<button onclick="window._hrExportAggregatePDF('district',this.dataset.v,'${curSY}')" data-v="${esc(d)}" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏫 ${esc(d.slice(0,30))}</button>`).join('')}
+        ${[...new Set(filtered.flatMap(e=>e._liveSchools&&e._liveSchools.length?e._liveSchools:[e.si||'']).filter(Boolean))].sort().slice(0,10).map(s=>`<button onclick="window._hrExportAggregatePDF('school',this.dataset.v,'${curSY}')" data-v="${esc(s)}" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏢 ${esc(s.slice(0,30))}</button>`).join('')}
       </div>
     </div>`:''}
   </div>
@@ -2788,7 +2800,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     return `
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.375rem 1.75rem;color:#fff;position:relative">
   <div style="position:absolute;top:.875rem;right:.875rem;display:flex;align-items:center;gap:.4rem">
-    ${(window.NJTC_SESSION||{}).dept==='data'?`<button onclick="window._hrExportProfilePDF(${JSON.stringify(emp.n)})" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Export this profile as a printable PDF">📄 Export PDF</button>`:''}
+    ${(window.NJTC_SESSION||{}).dept==='data'?`<button onclick="window._hrExportProfilePDF(this.dataset.n)" data-n="${esc(emp.n)}" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Export this profile as a printable PDF">📄 Export PDF</button>`:''}
     <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
   </div>
   <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · NJTC ADP Intelligence</div>
