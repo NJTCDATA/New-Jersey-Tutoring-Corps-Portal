@@ -40,8 +40,8 @@
     const fv  = (v, suf='') => (v == null || v === '' || (typeof v==='number' && isNaN(v))) ? '\u2014' : (v + suf);
     const fp  = v => (v == null || isNaN(v)) ? '\u2014' : Math.round(v) + '%';
     const fc  = v => (v == null || isNaN(v)) ? '\u2014' : Number(v).toLocaleString();
-    // Scholar benchmark: 95% (program standard). Tutor benchmark: 90%.
-    const scholAttCls = v => v >= 95 ? 'c-g' : v >= 80 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
+    // Scholar benchmark: 80% (program standard). Tutor benchmark: 90%.
+    const scholAttCls = v => v >= 80 ? 'c-g' : v >= 70 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
     const tutAttCls   = v => v >= 90 ? 'c-g' : v >= 80 ? 'c-a' : v > 0 ? 'c-r' : 'c-x';
     const att = scholAttCls; // legacy alias used by other non-attendance calcs
     const fmins = m => { if (!m) return '\u2014'; if (m >= 1000) return (m/1000).toFixed(1)+'K min'; return fc(Math.round(m))+' min'; };
@@ -272,7 +272,7 @@
       <div class="ecd-2col">
         <div class="ecd-card">
           <div class="ecd-card-title">Attendance Rates</div>
-          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruption records — those are not scholar-caused absences. Benchmark: 95%. Source: Pearl Operations.">
+          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruption records — those are not scholar-caused absences. Benchmark: 80%. Source: Pearl Operations.">
             <div class="ecd-att-lbl">Scholar</div>
             <div class="ecd-att-track"><div class="ecd-att-fill ${scholAttCls(scholAtt||0)}" style="width:${scholPct}%"></div></div>
             <div class="ecd-att-pct">${fp(scholAtt)}</div>
@@ -285,7 +285,7 @@
           ${survAvg != null ? `<div class="ecd-survey-row">Survey Avg <strong>${survAvg.toFixed(1)}/5.0</strong>${sessions != null ? ` &nbsp;&middot;&nbsp; ${fc(sessions)} sessions` : ''}${totalMins ? ` &nbsp;&middot;&nbsp; ${fmins(totalMins)}` : ''}</div>` : ''}
         </div>
         <div class="ecd-card">
-          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Service interruptions (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 95%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
+          <div class="ecd-card-title">Scholar Attendance Tiers <span style="font-size:.6rem;color:#94a3b8;font-weight:500;margin-left:.25rem" title="Tiers are calculated per unique scholar using only true scholar absences (Absent, Declined). Service interruptions (testing, school closures, holidays, tutor vacancies) are excluded — they do not count against scholars. Program benchmark: 80%. On Track ≥80% · At Risk 70–79% · Needs Action <70%.">ⓘ</span></div>
           <div class="ecd-tier">
             <div class="ecd-tier-dot" style="background:#059669"></div>
             <div class="ecd-tier-lbl">On Track (&ge;80%)</div>

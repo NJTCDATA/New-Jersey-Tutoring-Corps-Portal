@@ -3219,7 +3219,7 @@
       const checkInPct  = totalScholars > 0 ? Math.round(d.scholarNeedsAction / totalScholars * 100) : 0;
 
       // Soften the banner language for KB
-      const overallStrong = d.scholarRate >= 95 && d.tutorRate >= 90;
+      const overallStrong = d.scholarRate >= 80 && d.tutorRate >= 90;
       const overallGrowing = d.scholarRate >= 75;
       const bannerClass = overallStrong ? 'green' : overallGrowing ? 'amber' : 'amber';
       const bannerIcon = overallStrong ? '🌟' : '📈';
@@ -3232,7 +3232,7 @@
       const trend = (d.weeklyTrend || []).slice(-12);
       const trendBars = trend.map(w => {
         const h = Math.round((w.rate / 100) * 60);
-        const col = w.rate >= 95 ? '#0d6e3a' : w.rate >= 80 ? '#d97706' : '#e07a2f';
+        const col = w.rate >= 80 ? '#0d6e3a' : w.rate >= 70 ? '#d97706' : '#e07a2f';
         return `<div class="po-exec-bar-wrap" title="${w.week}: ${w.rate}%">
           <div class="po-exec-tooltip">${w.week}<br>${w.rate}%</div>
           <div class="po-exec-bar" style="height:${h}px;background:${col}"></div>
@@ -3253,8 +3253,8 @@
 
       // District rows — reframed language
       const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
-        const lvl = dt.scholarRate >= 95 ? {label:'Strong', color:'var(--met)', icon:'🌟'} :
-                    dt.scholarRate >= 80 ? {label:'Growing', color:'#d97706', icon:'📈'} :
+        const lvl = dt.scholarRate >= 80 ? {label:'Strong', color:'var(--met)', icon:'🌟'} :
+                    dt.scholarRate >= 70 ? {label:'Growing', color:'#d97706', icon:'📈'} :
                                            {label:'Developing', color:'#e07a2f', icon:'🤝'};
         const bar = `<div style="display:flex;align-items:center;gap:.5rem">
           <div style="flex:1;height:6px;background:var(--border-2);border-radius:3px;overflow:hidden"><div style="width:${dt.scholarRate}%;height:100%;background:${lvl.color};border-radius:3px"></div></div>
@@ -3297,7 +3297,7 @@
         </div>
 
         <div class="po-exec-kpi-row">
-          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=95?'var(--met)':'#d97706'}">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=80?'var(--met)':'var(--notmet)'}">
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Participation</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
@@ -3389,7 +3389,7 @@
       if (!d) { mc.innerHTML = '<div class="po-exec-empty">⏳ Loading program data…</div>'; return; }
 
       // Status determination
-      const scholarOk = d.scholarRate >= 95;
+      const scholarOk = d.scholarRate >= 80;
       const scholarWarn = d.scholarRate >= 75;
       const tutorOk = d.tutorRate >= 85;
       const totalScholars = d.scholarOnTrack + d.scholarAtRisk + d.scholarNeedsAction;
@@ -3436,7 +3436,7 @@
 
       // District rows
       const distRows = d.districts.sort((a,b) => b.scholarRate - a.scholarRate).map(dt => {
-        const rateColor = dt.scholarRate >= 95 ? 'var(--met)' : dt.scholarRate >= 80 ? '#d97706' : 'var(--notmet)';
+        const rateColor = dt.scholarRate >= 80 ? 'var(--met)' : dt.scholarRate >= 70 ? '#d97706' : 'var(--notmet)';
         const pill = `<span class="po-exec-rate-pill" style="color:${rateColor}">${dt.scholarRate}%<span class="po-exec-mini-bar" style="width:${dt.scholarRate * 0.5}px;background:${rateColor};height:6px;border-radius:3px;vertical-align:middle;display:inline-block"></span></span>`;
         const tutorColor = dt.tutorRate >= 90 ? 'var(--met)' : dt.tutorRate >= 80 ? '#d97706' : 'var(--notmet)';
         const flags = dt.ctFlag ? '<span class="po-badge po-badge-gold">⚠️ CT Pull-out</span>' : '<span class="po-badge po-badge-green">✓</span>';
@@ -3483,7 +3483,7 @@
 
         <!-- KPI ROW -->
         <div class="po-exec-kpi-row">
-          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=95?'var(--met)':d.scholarRate>=80?'#d97706':'var(--notmet)'}">
+          <div class="po-exec-kpi" style="--kpi-color:${d.scholarRate>=80?'var(--met)':'var(--notmet)'}">
             <div class="po-exec-kpi-icon">🎓</div>
             <div class="po-exec-kpi-label">Scholar Attendance</div>
             <div class="po-exec-kpi-val">${d.scholarRate}<span style="font-size:1.25rem">%</span></div>
@@ -3604,7 +3604,7 @@
       const critSchools = schools.filter(sc => sc.attRate < 75).length;
 
       const kpis = [
-        { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 95 ? '#0d6e3a' : d.scholarRate >= 80 ? '#d97706' : '#b91c1c' },
+        { lbl:'Scholar Attendance', val: d.scholarRate + '%', sub:'YTD program-wide', col: d.scholarRate >= 80 ? '#0d6e3a' : d.scholarRate >= 70 ? '#d97706' : '#b91c1c' },
         { lbl:'Tutor Attendance',   val: d.tutorRate + '%',   sub:'Staff present rate', col: d.tutorRate >= 90 ? '#0d6e3a' : d.tutorRate >= 80 ? '#d97706' : '#b91c1c' },
         { lbl:'Sessions Delivered', val: d.sessionsDelivered.toLocaleString(), sub:'Completed this period', col: '#0050c8' },
         { lbl:'Service Interruptions', val: allSI, sub:'Non-attendance disruptions', col: allSI > 20 ? '#b91c1c' : allSI > 5 ? '#d97706' : '#0d6e3a' },
@@ -3653,7 +3653,7 @@
       // School ops table rows
       const topSchools = schools.slice(0, 20);
       const tableRows = topSchools.map(sc => {
-        const attColor = sc.attRate >= 95 ? 'var(--met)' : sc.attRate >= 80 ? '#d97706' : 'var(--notmet)';
+        const attColor = sc.attRate >= 80 ? 'var(--met)' : sc.attRate >= 70 ? '#d97706' : 'var(--notmet)';
         const hasCrit = sc.flags.some(f => f.severity === 'critical');
         const hasHigh = sc.flags.some(f => f.severity === 'high');
         const flagBadge = sc.flags.length ? `<span class="po-badge ${hasCrit?'po-badge-critical':hasHigh?'po-badge-red':'po-badge-gold'}">🚩${sc.flags.length}</span>` : '<span class="po-badge po-badge-green">✓</span>';
