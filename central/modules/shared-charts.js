@@ -2579,12 +2579,15 @@ ${_divHtml}
     <span style="font-size:.62rem;color:var(--muted);font-style:italic">${src}</span>
     <button onclick="(function(){localStorage.removeItem('${HR_CACHE_KEY}');buildTalentDashboard(true);})()" style="padding:.25rem .6rem;border-radius:6px;border:1.5px solid #0ea5e9;background:#f0f9ff;color:#0369a1;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap" title="Clear cache and reload live data now">⟳ Sync Live</button>
     ${(window.NJTC_SESSION||{}).dept==='data'?`<div style="position:relative;display:inline-block">
-      <button onclick="(function(el){el.nextElementSibling.style.display=el.nextElementSibling.style.display==='block'?'none':'block'})(this)" style="padding:.25rem .6rem;border-radius:6px;border:1.5px solid #7c3aed;background:#faf5ff;color:#6d28d9;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap">📄 Export PDF ▾</button>
-      <div style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:180px;padding:.4rem 0" onclick="this.style.display='none'">
-        <div style="padding:.25rem .75rem .1rem;font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em">Export Scope</div>
-        <button onclick="window._hrExportAggregatePDF('overall','','${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.75rem;border:none;background:none;cursor:pointer;color:#1e293b" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">📊 Organization-Wide</button>
-        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,12).map(d=>`<button onclick="window._hrExportAggregatePDF('district',this.dataset.v,'${curSY}')" data-v="${esc(d)}" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏫 ${esc(d.slice(0,30))}</button>`).join('')}
-        ${[...new Set(filtered.flatMap(e=>e._liveSchools&&e._liveSchools.length?e._liveSchools:[e.si||'']).filter(Boolean))].sort().slice(0,10).map(s=>`<button onclick="window._hrExportAggregatePDF('school',this.dataset.v,'${curSY}')" data-v="${esc(s)}" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏢 ${esc(s.slice(0,30))}</button>`).join('')}
+      <button onclick="(function(el){el.nextElementSibling.style.display=el.nextElementSibling.style.display==='block'?'none':'block'})(this)" style="padding:.25rem .6rem;border-radius:6px;border:1.5px solid #7c3aed;background:#faf5ff;color:#6d28d9;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap">📄 Export ▾</button>
+      <div style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:210px;padding:.4rem 0" onclick="this.style.display='none'">
+        <div style="padding:.25rem .75rem .1rem;font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em">📄 PDF — Active + Terminated split</div>
+        <button onclick="window._hrExportAggregatePDF('overall','','${curSY}')" style="display:block;width:100%;text-align:left;padding:.35rem .75rem;font-size:.75rem;border:none;background:none;cursor:pointer;color:#1e293b" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">📊 Org-Wide PDF</button>
+        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,10).map(d=>`<button onclick="window._hrExportAggregatePDF('district',this.dataset.v,'${curSY}')" data-v="${esc(d)}" style="display:block;width:100%;text-align:left;padding:.35rem .75rem;font-size:.7rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏫 ${esc(d.slice(0,32))}</button>`).join('')}
+        ${[...new Set(filtered.flatMap(e=>e._liveSchools&&e._liveSchools.length?e._liveSchools:[e.si||'']).filter(Boolean))].sort().slice(0,8).map(s=>`<button onclick="window._hrExportAggregatePDF('school',this.dataset.v,'${curSY}')" data-v="${esc(s)}" style="display:block;width:100%;text-align:left;padding:.35rem .75rem;font-size:.7rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏢 ${esc(s.slice(0,32))}</button>`).join('')}
+        <div style="margin:.35rem .75rem 0;border-top:1px solid #e2e8f0;padding-top:.35rem;font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em">📊 CSV — all fields, all rows</div>
+        <button onclick="window._hrExportCSV('overall','','${curSY}')" style="display:block;width:100%;text-align:left;padding:.35rem .75rem;font-size:.75rem;border:none;background:none;cursor:pointer;color:#0369a1;font-weight:700" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='none'">⬇ Full Org CSV</button>
+        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,10).map(d=>`<button onclick="window._hrExportCSV('district',this.dataset.v,'${curSY}')" data-v="${esc(d)}" style="display:block;width:100%;text-align:left;padding:.3rem .75rem;font-size:.7rem;border:none;background:none;cursor:pointer;color:#0369a1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='none'">⬇ ${esc(d.slice(0,30))}</button>`).join('')}
       </div>
     </div>`:''}
   </div>
@@ -2805,7 +2808,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     return `
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.375rem 1.75rem;color:#fff;position:relative">
   <div style="position:absolute;top:.875rem;right:.875rem;display:flex;align-items:center;gap:.4rem">
-    ${(window.NJTC_SESSION||{}).dept==='data'?`<button onclick="window._hrExportProfilePDF(this.dataset.n)" data-n="${esc(emp.n)}" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Export this profile as a printable PDF">📄 Export PDF</button>`:''}
+    ${(window.NJTC_SESSION||{}).dept==='data'?`<button onclick="window._hrExportProfilePDF(this.dataset.n)" data-n="${esc(emp.n)}" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Export this profile as a printable PDF">📄 PDF</button><button onclick="window._hrExportProfileCSV(this.dataset.n)" data-n="${esc(emp.n)}" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Download this profile as a CSV row">⬇ CSV</button>`:''}
     <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
   </div>
   <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · NJTC ADP Intelligence</div>
@@ -5278,19 +5281,9 @@ ${latestHiring||hiringRecs.length?`<div class="section">
 </body></html>`;
   }
 
-  window._hrExportProfilePDF = function(empName) {
-    const emp = HR_EMPS.find(e => e.n === empName);
-    if (!emp) { alert('Employee not found: ' + empName); return; }
-    const html = _buildProfilePrintHTML(emp);
-    const w = window.open('', '_blank', 'width=850,height=1100');
-    if (!w) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
-    w.document.open(); w.document.write(html); w.document.close();
-  };
-
-  // ── Aggregate PDF (region / district / school / overall) ─────────────────
-  window._hrExportAggregatePDF = function(scope, value, sy) {
+  // ── Shared pool builder (PDF + CSV use same filter logic) ────────────────
+  function _hrBuildExportPool(scope, value, sy) {
     sy = sy || _pSY || '2025-2026';
-    // Filter base pool: SY → scope → active only for "active" summary
     let pool = HR_EMPS.filter(e => {
       if (sy !== 'all' && !((e.y||[]).includes(sy)||(e._liveYears||[]).includes(sy))) return false;
       if (sy === '2025-2026' && e._notInLive2526) return false;
@@ -5300,107 +5293,291 @@ ${latestHiring||hiringRecs.length?`<div class="section">
       pool = pool.filter(e => (e.di||'').toLowerCase() === value.toLowerCase());
     } else if (scope === 'school' && value && value !== 'all') {
       const vl = value.toLowerCase();
-      pool = pool.filter(e => {
-        if (e._liveSchools && e._liveSchools.some(s => s.toLowerCase() === vl)) return true;
-        return (e.si||'').toLowerCase() === vl;
-      });
+      pool = pool.filter(e =>
+        (e._liveSchools && e._liveSchools.some(s => s.toLowerCase() === vl)) ||
+        (e.si||'').toLowerCase() === vl
+      );
     } else if (scope === 'region' && value && value !== 'all') {
-      // Region derived from district prefix or site name prefix — best-effort match
       const vl = value.toLowerCase();
       pool = pool.filter(e => (e.di||'').toLowerCase().includes(vl) || (e.si||'').toLowerCase().includes(vl));
     }
+    return pool;
+  }
+
+  // ── CSV download helper ───────────────────────────────────────────────────
+  function _csvCell(v) {
+    if (v == null) return '';
+    const s = String(v).replace(/"/g, '""');
+    return /[,"\n\r]/.test(s) ? '"' + s + '"' : s;
+  }
+  function _csvLine(cells) { return cells.map(_csvCell).join(','); }
+  function _csvTriggerDownload(filename, rows) {
+    const content = '﻿' + rows.join('\r\n');  // BOM for Excel UTF-8
+    const blob = new Blob([content], {type: 'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 150);
+  }
+
+  // ── Individual profile PDF ────────────────────────────────────────────────
+  window._hrExportProfilePDF = function(empName) {
+    const emp = HR_EMPS.find(e => e.n === empName);
+    if (!emp) { alert('Employee not found: ' + empName); return; }
+    const html = _buildProfilePrintHTML(emp);
+    const w = window.open('', '_blank', 'width=850,height=1100');
+    if (!w) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  // ── Individual profile CSV row export ────────────────────────────────────
+  window._hrExportProfileCSV = function(empName) {
+    const e = HR_EMPS.find(x => x.n === empName);
+    if (!e) { alert('Employee not found: ' + empName); return; }
+    const _fmtDate = raw => { if(!raw||raw==='#VALUE!')return ''; const d=new Date(raw); return isNaN(d)?raw:((d.getMonth()+1)+'/'+(d.getDate())+'/'+d.getFullYear()); };
+    const isActive  = e.s === 'Active';
+    const att       = e._liveAtt??e.att;
+    const attSrc    = e._liveAtt!==undefined ? 'Pearl Live' : e.att!=null ? 'Static' : '';
+    const survEnjoy = e.je!=null ? e.je : (e._liveSurveyEntry?.enjoyment ?? null);
+    const survSrc   = e.je!=null ? 'EOY Upload' : e._liveSurveyEntry ? 'Pearl Live' : '';
+    const locs      = (e._liveSchools&&e._liveSchools.length) ? e._liveSchools.join('; ') : '';
+    const hd        = _hiringGet(e.n.replace(/\W/g,'_')).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+    const acadImprove = e._acadImproveYoY??e.acm;
+    const dataNote  = isActive
+      ? (e._liveAtt!==undefined ? 'Active · Pearl data live' : 'Active · Not yet matched in Pearl this SY')
+      : 'Inactive/Terminated · Historical data only · Real-time Pearl data not collected';
+    const header = _csvLine(['Name','Status','Role','Email','Site (HR)','District (HR)','Pearl Locations (Live)',
+      'School Year(s)','Cycles','Returning Staff','TAP Apprentice',
+      'Talent Tier','Talent Tier Source',
+      'Attendance %','Attendance Source','Survey Score','Survey Source',
+      'Perf Score (/4)','Att Target','Scholar Enjoyment','Scholar Learning','Acad Improvement',
+      'iReady % Scholars Advanced','iReady Scholar Count',
+      'Concerns Count','HR Action',
+      'Term Date','Term Reason','Term Type',
+      'Hiring Decision','Hiring Notes','Hiring By','Hiring Date',
+      'Race','Ethnicity','Data Status Note']);
+    const row = _csvLine([
+      e.n, e.s||'', e.r||'', e.e||'',
+      e.si||'', e.di||'', locs,
+      (e.y||[]).join('; '), e.c||'', e.rh||'', e._apprentice||'',
+      (e._liveT||e.t)||'', (e._liveT&&e._liveT!==e.t)?'Live-computed':'Static',
+      att!=null?att:'', attSrc,
+      survEnjoy!=null?survEnjoy:'', survSrc,
+      e.mp!=null?e.mp:'',
+      e.am!=null?e.am:'', e.em!=null?e.em:'', e.lm!=null?e.lm:'', acadImprove!=null?acadImprove:'',
+      e._acadPctMoved!=null?e._acadPctMoved:'', e._acadScholars!=null?e._acadScholars:'',
+      e._liveConcerns||0, e._liveHRAction||e.hn||'',
+      _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'',
+      hd?hd.d:'', hd?hd.n:'', hd?hd.by:'', hd?_fmtDate(hd.ts):'',
+      e._race||'', e._ethnicity||'', dataNote,
+    ]);
+    const filename = `NJTC_Profile_${(e.n||'employee').replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    _csvTriggerDownload(filename, [header, row]);
+  };
+
+  // ── Aggregate PDF (split active / terminated) ─────────────────────────────
+  window._hrExportAggregatePDF = function(scope, value, sy) {
+    sy = sy || _pSY || '2025-2026';
+    const pool = _hrBuildExportPool(scope, value, sy);
     if (!pool.length) { alert('No employees found for this filter.'); return; }
 
     const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
     const scopeLabel = scope === 'overall' ? 'Organization-Wide' : `${scope.charAt(0).toUpperCase()+scope.slice(1)}: ${value||'All'}`;
 
-    // Summary stats
-    const active = pool.filter(e => e.s === 'Active');
+    const active   = pool.filter(e => e.s === 'Active');
     const inactive = pool.filter(e => e.s !== 'Active');
-    const tierCounts = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
-    pool.forEach(e => { const t=e._liveT||e.t; if(tierCounts[t]!==undefined)tierCounts[t]++; });
-    const withAtt = pool.filter(e => (e._liveAtt??e.att)!=null);
-    const avgAtt = withAtt.length ? Math.round(withAtt.reduce((s,e)=>s+(e._liveAtt??e.att),0)/withAtt.length) : null;
-    const withSurv = pool.filter(e => e.je!=null || (e._liveSurveyEntry&&e._liveSurveyEntry.enjoyment!=null));
-    const avgSurv = withSurv.length ? (withSurv.reduce((s,e)=>s+(e.je!=null?e.je:e._liveSurveyEntry.enjoyment),0)/withSurv.length).toFixed(1) : null;
-    const totalConcerns = pool.filter(e => (e._liveConcerns||0)>0||e.co===1).length;
-    const withAcad = pool.filter(e => e._acadPctMoved!=null);
-    const avgAcad = withAcad.length ? Math.round(withAcad.reduce((s,e)=>s+e._acadPctMoved,0)/withAcad.length) : null;
 
-    // Tier color map (print-safe hex)
     const TMAP = {stellar:{bg:'#d1fae5',c:'#065f46',e:'⭐'},strong:{bg:'#dbeafe',c:'#1e40af',e:'✅'},developing:{bg:'#fef3c7',c:'#92400e',e:'📈'},needs_support:{bg:'#fee2e2',c:'#b91c1c',e:'🤝'},incomplete:{bg:'#f1f5f9',c:'#374151',e:'📋'}};
-
-    // Employee table rows — sorted by tier then name
     const tierOrder = ['stellar','strong','developing','needs_support','incomplete'];
-    const sortedPool = [...pool].sort((a,b) => {
-      const at = tierOrder.indexOf(a._liveT||a.t), bt = tierOrder.indexOf(b._liveT||b.t);
-      return at !== bt ? at - bt : a.n.localeCompare(b.n);
-    });
 
-    const tableRows = sortedPool.map(e => {
+    // Stats from active cohort only (terminated have stale/empty data)
+    const tierCounts = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
+    active.forEach(e => { const t=e._liveT||e.t; if(tierCounts[t]!==undefined)tierCounts[t]++; });
+    const withAtt  = active.filter(e => (e._liveAtt??e.att)!=null);
+    const avgAtt   = withAtt.length ? Math.round(withAtt.reduce((s,e)=>s+(e._liveAtt??e.att),0)/withAtt.length) : null;
+    const withSurv = active.filter(e => e.je!=null||(e._liveSurveyEntry&&e._liveSurveyEntry.enjoyment!=null));
+    const avgSurv  = withSurv.length ? (withSurv.reduce((s,e)=>s+(e.je!=null?e.je:e._liveSurveyEntry.enjoyment),0)/withSurv.length).toFixed(1) : null;
+    const withAcad = active.filter(e => e._acadPctMoved!=null);
+    const avgAcad  = withAcad.length ? Math.round(withAcad.reduce((s,e)=>s+e._acadPctMoved,0)/withAcad.length) : null;
+    const totalConcerns = active.filter(e => (e._liveConcerns||0)>0||e.co===1).length;
+
+    // Active table row builder
+    const activeRow = e => {
       const t = e._liveT||e.t; const tm = TMAP[t]||TMAP.incomplete;
-      const ea = e._liveAtt??e.att; const locs = e._liveSchools&&e._liveSchools.length?e._liveSchools.slice(0,2).join(', '):(e.si||'—');
+      const ea = e._liveAtt??e.att;
+      const locs = e._liveSchools&&e._liveSchools.length ? e._liveSchools.slice(0,2).join(', ') : (e.si||'—');
       const hd = _hiringGet(e.n.replace(/\W/g,'_')).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
       return `<tr>
         <td style="font-weight:600">${e.n}</td>
         <td>${e.r||'—'}</td>
-        <td><span style="background:${tm.bg};color:${tm.c};padding:1pt 4pt;border-radius:3pt;font-size:7.5pt;font-weight:700">${tm.e} ${t.replace('_',' ')}</span></td>
+        <td><span style="background:${tm.bg};color:${tm.c};padding:1pt 4pt;border-radius:3pt;font-size:7.5pt;font-weight:700">${tm.e} ${t.replace(/_/g,' ')}</span></td>
         <td style="color:${ea==null?'#94a3b8':ea>=90?'#065f46':ea>=80?'#d97706':'#b91c1c'}">${ea!=null?ea+'%':'—'}</td>
         <td>${e.je!=null?'★'+e.je:e._liveSurveyEntry&&e._liveSurveyEntry.enjoyment!=null?'★'+e._liveSurveyEntry.enjoyment.toFixed(1):'—'}</td>
         <td>${e.mp!=null?e.mp+'/4':'—'}</td>
         <td>${e._acadPctMoved!=null?e._acadPctMoved+'%':'—'}</td>
         <td>${(e._liveConcerns||0)>0?`<span style="color:#b91c1c;font-weight:700">${e._liveConcerns}</span>`:'—'}</td>
-        <td style="font-size:8pt">${locs.slice(0,40)}</td>
-        <td style="font-size:8pt">${hd?hd.d:'—'}</td>
+        <td style="font-size:7.5pt">${locs.slice(0,40)}</td>
+        <td style="font-size:7.5pt">${hd?hd.d:'—'}</td>
       </tr>`;
-    }).join('');
+    };
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Talent Aggregate — ${scopeLabel}</title><style>${_profilePrintCSS()}body{font-size:10pt}table{font-size:8pt}th,td{padding:3pt 5pt}</style></head><body>
+    // Terminated table row builder — includes term details, explains data gaps
+    const _fmtDate = raw => { if(!raw||raw==='#VALUE!')return '—'; const d=new Date(raw); return isNaN(d)?raw:((d.getMonth()+1)+'/'+(d.getDate())+'/'+d.getFullYear()); };
+    const inactiveRow = e => {
+      const ea = e._liveAtt??e.att;
+      const hd = _hiringGet(e.n.replace(/\W/g,'_')).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+      const termBg = /involuntary/i.test(e._termType||'')?'#fee2e2':/voluntary/i.test(e._termType||'')?'#ccfbf1':'#f1f5f9';
+      const termCo = /involuntary/i.test(e._termType||'')?'#b91c1c':/voluntary/i.test(e._termType||'')?'#0f766e':'#64748b';
+      return `<tr>
+        <td style="font-weight:600">${e.n}</td>
+        <td>${e.r||'—'}</td>
+        <td style="color:#64748b">${e.s||'Inactive'}</td>
+        <td style="font-size:7.5pt">${_fmtDate(e._termDate||'')}</td>
+        <td style="font-size:7.5pt">${e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'—'}</td>
+        <td>${e._termType&&e._termType!=='#VALUE!'?`<span style="background:${termBg};color:${termCo};padding:1pt 4pt;border-radius:3pt;font-size:7pt;font-weight:700">${e._termType}</span>`:'—'}</td>
+        <td style="color:${ea==null?'#94a3b8':ea>=90?'#065f46':ea>=80?'#d97706':'#b91c1c'}">${ea!=null?ea+'% *':'—'}</td>
+        <td>${e.mp!=null?e.mp+'/4 *':'—'}</td>
+        <td style="font-size:7.5pt">${(e.si||'—').slice(0,35)}</td>
+        <td style="font-size:7.5pt">${hd?hd.d:'—'}</td>
+      </tr>`;
+    };
+
+    const sortFn = (a,b) => { const at=tierOrder.indexOf(a._liveT||a.t), bt=tierOrder.indexOf(b._liveT||b.t); return at!==bt?at-bt:a.n.localeCompare(b.n); };
+    const activeRows   = [...active].sort(sortFn).map(activeRow).join('');
+    const inactiveRows = [...inactive].sort((a,b)=>a.n.localeCompare(b.n)).map(inactiveRow).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Talent Aggregate — ${scopeLabel}</title>
+<style>${_profilePrintCSS()}body{font-size:10pt}table{font-size:8pt}th,td{padding:3pt 5pt}
+.notice{padding:6pt 9pt;border-radius:4pt;font-size:8pt;margin-bottom:8pt}
+</style></head><body>
 <div class="pg-header">
   <div class="sub">New Jersey Tutoring Corps · Talent Analytics · CONFIDENTIAL — Data Department Only</div>
   <h1>Aggregate Talent Report · ${scopeLabel}</h1>
-  <div class="meta">School Year: ${sy} &nbsp;·&nbsp; ${pool.length} employees &nbsp;·&nbsp; Generated ${today}</div>
+  <div class="meta">School Year: ${sy} &nbsp;·&nbsp; ${active.length} active · ${inactive.length} inactive/terminated &nbsp;·&nbsp; Generated ${today}</div>
 </div>
 
 <div class="kpi-row">
   <div class="kpi"><div class="kpi-val" style="color:#065f46">${active.length}</div><div class="kpi-lbl">Active</div></div>
-  <div class="kpi"><div class="kpi-val" style="color:#64748b">${inactive.length}</div><div class="kpi-lbl">Inactive</div></div>
-  <div class="kpi"><div class="kpi-val" style="color:${avgAtt==null?'#94a3b8':avgAtt>=90?'#065f46':avgAtt>=80?'#d97706':'#b91c1c'}">${avgAtt!=null?avgAtt+'%':'—'}</div><div class="kpi-lbl">Avg Attendance</div></div>
-  <div class="kpi"><div class="kpi-val" style="color:#7c3aed">${avgSurv!=null?'★'+avgSurv:'—'}</div><div class="kpi-lbl">Avg Survey</div></div>
-  <div class="kpi"><div class="kpi-val" style="color:${avgAcad!=null?avgAcad>=50?'#065f46':avgAcad>=30?'#d97706':'#b91c1c':'#94a3b8'}">${avgAcad!=null?avgAcad+'%':'—'}</div><div class="kpi-lbl">Avg Acad Impact</div></div>
-  <div class="kpi"><div class="kpi-val" style="color:${totalConcerns>0?'#b91c1c':'#065f46'}">${totalConcerns>0?totalConcerns:'✓ 0'}</div><div class="kpi-lbl">With Concerns</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#64748b">${inactive.length}</div><div class="kpi-lbl">Inactive / Term.</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${avgAtt==null?'#94a3b8':avgAtt>=90?'#065f46':avgAtt>=80?'#d97706':'#b91c1c'}">${avgAtt!=null?avgAtt+'%':'—'}</div><div class="kpi-lbl">Active Avg Att</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#7c3aed">${avgSurv!=null?'★'+avgSurv:'—'}</div><div class="kpi-lbl">Active Avg Survey</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${avgAcad!=null?avgAcad>=50?'#065f46':avgAcad>=30?'#d97706':'#b91c1c':'#94a3b8'}">${avgAcad!=null?avgAcad+'%':'—'}</div><div class="kpi-lbl">Active Acad Impact</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${totalConcerns>0?'#b91c1c':'#065f46'}">${totalConcerns>0?totalConcerns:'✓ 0'}</div><div class="kpi-lbl">Active w/ Concerns</div></div>
 </div>
 
 <div class="section">
-  <div class="section-head">Tier Distribution</div>
+  <div class="section-head">Tier Distribution — Active Staff Only (${active.length})</div>
   <div class="section-body">
     <div style="display:flex;gap:8pt;flex-wrap:wrap">
-      ${Object.entries(tierCounts).map(([t,n])=>{const tm=TMAP[t];return `<div style="flex:1;min-width:70pt;text-align:center;padding:6pt;background:${tm.bg};border-radius:4pt"><div style="font-size:14pt;font-weight:800;color:${tm.c}">${n}</div><div style="font-size:7pt;color:${tm.c};font-weight:700;text-transform:uppercase">${tm.e} ${t.replace('_',' ')}</div><div style="font-size:7pt;color:${tm.c}">${pool.length>0?Math.round(n/pool.length*100)+'%':''}</div></div>`;}).join('')}
+      ${Object.entries(tierCounts).map(([t,n])=>{const tm=TMAP[t];return `<div style="flex:1;min-width:65pt;text-align:center;padding:6pt;background:${tm.bg};border-radius:4pt"><div style="font-size:14pt;font-weight:800;color:${tm.c}">${n}</div><div style="font-size:7pt;color:${tm.c};font-weight:700;text-transform:uppercase">${tm.e} ${t.replace(/_/g,' ')}</div><div style="font-size:7pt;color:${tm.c}">${active.length>0?Math.round(n/active.length*100)+'%':''}</div></div>`;}).join('')}
     </div>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-head">Employee Roster (${pool.length})</div>
+${active.length ? `
+<div class="section" style="page-break-inside:avoid">
+  <div class="section-head" style="background:#065f46;color:#fff">Section A — Active Staff (${active.length}) · Live Pearl + iReady data applies</div>
   <div class="section-body" style="padding:0">
     <table>
-      <thead><tr><th>Name</th><th>Role</th><th>Tier</th><th>Att</th><th>Survey</th><th>Perf</th><th>Acad</th><th>Concerns</th><th>Location</th><th>Hiring</th></tr></thead>
-      <tbody>${tableRows}</tbody>
+      <thead><tr><th>Name</th><th>Role</th><th>Tier</th><th>Att ●</th><th>Survey ●</th><th>Perf</th><th>Acad %</th><th>Concerns</th><th>Location ●</th><th>Hiring</th></tr></thead>
+      <tbody>${activeRows}</tbody>
     </table>
   </div>
-</div>
+</div>` : ''}
+
+${inactive.length ? `
+<div class="section" style="page-break-before:always">
+  <div class="section-head" style="background:#475569;color:#fff">Section B — Inactive / Terminated (${inactive.length}) · Historical data only</div>
+  <div class="section-body" style="padding:0 0 4pt 0">
+    <div class="notice" style="background:#f8fafc;border:1pt solid #e2e8f0;margin:6pt 8pt 4pt">
+      <strong>Why some fields are empty for these employees:</strong> Attendance (marked *) reflects the last period they were active in Pearl.
+      Performance Score (*) is from their last EOY upload. Real-time Pearl and iReady data is not collected for inactive staff.
+      Termination details (Date, Reason, Type) are sourced from the HR Master List columns N–P.
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Term Date</th><th>Reason</th><th>Type</th><th>Last Att *</th><th>Last Perf *</th><th>Last Site</th><th>Hiring</th></tr></thead>
+      <tbody>${inactiveRows}</tbody>
+    </table>
+  </div>
+</div>` : ''}
 
 <div class="footer">
-  <span>NJTC Talent Analytics · Data Department Only · Confidential</span>
+  <span>NJTC Talent Analytics · Data Department Only · Confidential &nbsp;·&nbsp; ● = Pearl Live data &nbsp;·&nbsp; * = last known value (employee no longer active)</span>
   <span>Generated ${today} · ${scopeLabel} · SY ${sy}</span>
 </div>
-
 <script>window.onload=function(){window.print();}</script>
 </body></html>`;
 
-    const w = window.open('', '_blank', 'width=1050,height=1100');
+    const w = window.open('', '_blank', 'width=1100,height=1100');
     if (!w) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
     w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  // ── Aggregate CSV export (Data dept only) ────────────────────────────────
+  window._hrExportCSV = function(scope, value, sy) {
+    sy = sy || _pSY || '2025-2026';
+    const pool = _hrBuildExportPool(scope, value, sy);
+    if (!pool.length) { alert('No employees found for this filter.'); return; }
+
+    const scopeLabel = scope === 'overall' ? 'OrgWide' : `${scope}-${(value||'all').replace(/[^a-z0-9]/gi,'_')}`;
+    const _fmtDate = raw => { if(!raw||raw==='#VALUE!')return ''; const d=new Date(raw); return isNaN(d)?raw:((d.getMonth()+1)+'/'+(d.getDate())+'/'+d.getFullYear()); };
+
+    const header = _csvLine([
+      'Name','Status','Role','Email','Site (HR)','District (HR)','Pearl Locations (Live)',
+      'School Year(s)','Cycles','Returning Staff','TAP Apprentice',
+      'Talent Tier','Talent Tier Source',
+      'Attendance %','Attendance Source',
+      'Survey Score','Survey Source',
+      'Perf Score (/4)','Att Target','Scholar Enjoyment','Scholar Learning','Acad Improvement',
+      'iReady % Scholars Advanced','iReady Scholar Count',
+      'Concerns Count','HR Action',
+      'Term Date','Term Reason','Term Type',
+      'Hiring Decision','Hiring Decision Notes','Hiring Decision By','Hiring Decision Date',
+      'Race','Ethnicity',
+      'Data Status Note',
+    ]);
+
+    // Sort: Active first, then Inactive/Terminated, each group alphabetical
+    const sorted = [...pool].sort((a,b) => {
+      if ((a.s==='Active') !== (b.s==='Active')) return a.s==='Active' ? -1 : 1;
+      return a.n.localeCompare(b.n);
+    });
+
+    const rows = sorted.map(e => {
+      const isActive  = e.s === 'Active';
+      const att       = e._liveAtt??e.att;
+      const attSrc    = e._liveAtt!==undefined ? 'Pearl Live' : e.att!=null ? 'Static' : '';
+      const survEnjoy = e.je!=null ? e.je : (e._liveSurveyEntry?.enjoyment ?? null);
+      const survSrc   = e.je!=null ? 'EOY Upload' : e._liveSurveyEntry ? 'Pearl Live' : '';
+      const tierSrc   = e._liveT && e._liveT !== e.t ? 'Live-computed' : 'Static embed';
+      const locs      = (e._liveSchools&&e._liveSchools.length) ? e._liveSchools.join('; ') : '';
+      const hd        = _hiringGet(e.n.replace(/\W/g,'_')).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+      const acadImprove = e._acadImproveYoY??e.acm;
+      const dataNote  = isActive
+        ? (e._liveAtt!==undefined ? 'Active · Pearl data live this SY' : 'Active · Not yet matched in Pearl this SY')
+        : `Inactive/Terminated · Last active data shown · Real-time Pearl data not collected`;
+
+      return _csvLine([
+        e.n, e.s||'', e.r||'', e.e||'',
+        e.si||'', e.di||'', locs,
+        (e.y||[]).join('; '), e.c||'', e.rh||'', e._apprentice||'',
+        (e._liveT||e.t)||'', tierSrc,
+        att!=null?att:'', attSrc,
+        survEnjoy!=null?survEnjoy:'', survSrc,
+        e.mp!=null?e.mp:'',
+        e.am!=null?e.am:'', e.em!=null?e.em:'', e.lm!=null?e.lm:'', acadImprove!=null?acadImprove:'',
+        e._acadPctMoved!=null?e._acadPctMoved:'', e._acadScholars!=null?e._acadScholars:'',
+        e._liveConcerns||0, e._liveHRAction||e.hn||'',
+        _fmtDate(e._termDate||''), e._termReason&&e._termReason!=='#VALUE!'?e._termReason:'', e._termType&&e._termType!=='#VALUE!'?e._termType:'',
+        hd?hd.d:'', hd?hd.n:'', hd?hd.by:'', hd?_fmtDate(hd.ts):'',
+        e._race||'', e._ethnicity||'',
+        dataNote,
+      ]);
+    });
+
+    const filename = `NJTC_Talent_${scopeLabel}_${sy.replace('-','_')}_${new Date().toISOString().slice(0,10)}.csv`;
+    _csvTriggerDownload(filename, [header, ...rows]);
   };
 
 
