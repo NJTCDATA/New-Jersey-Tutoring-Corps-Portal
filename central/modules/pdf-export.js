@@ -24,7 +24,7 @@
   };
 
   // ── Benchmarks ────────────────────────────────────────────────────────────
-  const BM = { scholAtt: 95, tutorAtt: 90, hit: 95, survey: 4.0, capture: 80 };
+  const BM = { scholAtt: 80, tutorAtt: 90, hit: 95, survey: 4.0, capture: 80 };
 
   function statusColor(rate, benchmark) {
     if (rate == null || isNaN(rate)) return C.mid;
@@ -485,7 +485,7 @@
 
     // ── Panel Row 1: Attendance Leaders + HIT Champions ───────────────────
     const attLeaderLines = [];
-    attLeaderLines.push({ type: 'subtitle', text: aboveBMCount + ' of ' + activeSch.length + ' schools at or above 95% benchmark' });
+    attLeaderLines.push({ type: 'subtitle', text: aboveBMCount + ' of ' + activeSch.length + ' schools at or above 80% benchmark' });
     attLeaderLines.push({ type: 'divider' });
     if (attLeaders.length > 0) {
       attLeaders.forEach((sc, i) => {
@@ -657,7 +657,7 @@
     // ── Panel Row 1: Attendance Concerns + HIT Violations ────────────────
     const attConcernLines = [];
     if (attConcerns.length > 0) {
-      attConcernLines.push({ type: 'subtitle', text: attConcerns.length + ' school(s) below the 95% attendance benchmark' });
+      attConcernLines.push({ type: 'subtitle', text: attConcerns.length + ' school(s) below the 80% attendance benchmark' });
       attConcernLines.push({ type: 'divider' });
       attConcerns.forEach((sc, i) => {
         const gap = (BM.scholAtt - sc.attRate).toFixed(1);
@@ -668,7 +668,7 @@
         });
       });
     } else {
-      attConcernLines.push({ type: 'subtitle', text: 'All schools meeting the 95% attendance benchmark' });
+      attConcernLines.push({ type: 'subtitle', text: 'All schools meeting the 80% attendance benchmark' });
       attConcernLines.push({ type: 'divider' });
       attConcernLines.push({ label: 'No attendance concerns identified', value: '--', valueColor: C.green });
     }
@@ -977,7 +977,7 @@
       ' sessions across ' + num(data.uniqueSchools) + ' school(s) in ' + num(data.uniqueDistricts) +
       ' district(s), serving ' + num(data.activeScholars) + ' active scholars with ' +
       num(data.activeTutors) + ' active tutors. Scholar attendance stands at ' +
-      pct(data.scholarAttRate, 1) + ' (benchmark: 95%) and tutor attendance at ' +
+      pct(data.scholarAttRate, 1) + ' (benchmark: 80%) and tutor attendance at ' +
       pct(data.tutorAttRate, 1) + ' (benchmark: 90%). HIT compliance — the requirement that each ' +
       'session maintain a 4:1 or better scholar-to-tutor ratio — is at ' + pct(data.hitRate, 0) +
       ' (' + num(data.hitSessions) + ' of ' + num(data.totalSessions) + ' sessions compliant; benchmark: 95%).';
@@ -989,7 +989,7 @@
     if (attLeaders.length > 0) {
       positiveText += 'Scholar attendance leaders include ' +
         attLeaders.map((sc, i) => trunc(sc.name, 28) + ' at ' + pct(sc.attRate, 1)).join(', ') +
-        ' — ' + aboveBMCount + ' of ' + activeSch.length + ' schools are at or above the 95% benchmark. ';
+        ' — ' + aboveBMCount + ' of ' + activeSch.length + ' schools are at or above the 80% benchmark. ';
     }
     if (topTutors5.length > 0) {
       positiveText += 'On the instructional side, ' + trunc(topTutors5[0].name, 24) + ' leads with ' + hrs(topTutors5[0].hours) +
@@ -1010,7 +1010,7 @@
     y = paraLabel('Areas Needing Attention', y);
     let growingText = '';
     if (attConcerns.length > 0) {
-      growingText += attConcerns.length + ' school(s) are below the 95% attendance benchmark: ' +
+      growingText += attConcerns.length + ' school(s) are below the 80% attendance benchmark: ' +
         attConcerns.slice(0, 3).map(sc => trunc(sc.name, 24) + ' (' + pct(sc.attRate, 1) + ')').join(', ') +
         '. Targeted outreach and attendance recovery plans are recommended for these sites. ';
     }

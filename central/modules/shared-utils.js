@@ -8854,7 +8854,7 @@
     { match: /attendance rate|how is.*(attendance|it) calculated|scholar attendance|tutor attendance|what is.*(scholar|tutor) attendance/i,
       respond: function() {
         var p = _pearl();
-        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes SI records — those aren\'t scholar absences.\n\nScholar benchmark: ≥85%. Tutor benchmark: ≥90%.';
+        var base = '**Attendance rate** = Attended ÷ (Attended + Absent) × 100. Excludes SI records — those aren\'t scholar absences.\n\nScholar benchmark: ≥80%. Tutor benchmark: ≥90%.';
         if (p && p.scholAttPct != null) {
           return base + '\n\nLive rates — Scholar: **' + _pct(p.scholAttPct) + '**, Tutor: **' + _pct(p.tutorAttPct) + '**.';
         }
@@ -11412,7 +11412,7 @@
           var ld = window.po.getLeadershipData();
           if (ld) snap = '\n\n**Live:** On Track: **' + _n(ld.scholarOnTrack) + '** · At Risk: **' + _n(ld.scholarAtRisk) + '** · Needs Action: **' + _n(ld.scholarNeedsAction) + '**';
         } catch(e) {}
-        return '**Scholar Attendance Tiers:**\n\n✅ **On Track (≥80%)** — Scholar is attending regularly; program impact is maximized\n⚠️ **At Risk (70–79%)** — Pattern of absences; intervention recommended\n🔴 **Needs Action (<70%)** — Chronic absenteeism; site leader must escalate\n\n**Tutor benchmark:** ≥90% (tutors are required attendance, not optional)\n**Scholar benchmark:** ≥85% program-wide goal' + snap;
+        return '**Scholar Attendance Tiers:**\n\n✅ **On Track (≥80%)** — Scholar is attending regularly; program impact is maximized\n⚠️ **At Risk (70–79%)** — Pattern of absences; intervention recommended\n🔴 **Needs Action (<70%)** — Chronic absenteeism; site leader must escalate\n\n**Tutor benchmark:** ≥90% (tutors are required attendance, not optional)\n**Scholar benchmark:** ≥80% program-wide goal' + snap;
       }
     },
 
