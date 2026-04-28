@@ -2940,7 +2940,16 @@
     }
 
     // ── FLAG CLEARING STORAGE ─────────────────────────────────────────────
-    const _FLAG_CLEAR_KEY = 'njtc_cleared_flags_v1';
+    // Cleared flag state is written to BOTH localStorage (fast sync) AND IndexedDB
+    // (persistent — survives "clear history" and localStorage wipes). On every page
+    // load the IDB copy is merged back into localStorage so the cleared state is
+    // always available to the sync rendering path.
+    const _FLAG_CLEAR_KEY  = 'njtc_cleared_flags_v2';  // v2 — now stores clearedMsg
+    const _FLAG_SEEN_KEY   = 'njtc_flag_seen_v1';      // firstSeenAt timestamp per key
+    const _FLAG_IDB_NAME   = 'njtc_pearl_flags';
+    const _FLAG_IDB_STORE  = 'kv';
+    const _FLAG_IDB_VER    = 1;
+
     const _FLAG_CLEAR_REASONS = [
       'N/A',
       'Discussed in Context to Data',
@@ -2949,11 +2958,68 @@
       'Program Team or Data Department override',
     ];
 
-    function _getClearedFlags() {
-      try { return JSON.parse(localStorage.getItem(_FLAG_CLEAR_KEY) || '{}'); } catch(e) { return {}; }
+    // ── IndexedDB helpers (persistent across localStorage wipes) ─────────
+    function _flagIdbOpen() {
+      return new Promise(function(res, rej) {
+        try {
+          const req = indexedDB.open(_FLAG_IDB_NAME, _FLAG_IDB_VER);
+          req.onupgradeneeded = function(e) { e.target.result.createObjectStore(_FLAG_IDB_STORE); };
+          req.onsuccess = function(e) { res(e.target.result); };
+          req.onerror   = function() { rej(req.error); };
+        } catch(e) { rej(e); }
+      });
     }
+    async function _flagIdbGet(key) {
+      try {
+        const db = await _flagIdbOpen();
+        return await new Promise(function(res) {
+          const req = db.transaction(_FLAG_IDB_STORE,'readonly').objectStore(_FLAG_IDB_STORE).get(key);
+          req.onsuccess = function() { res(req.result || null); };
+          req.onerror   = function() { res(null); };
+        });
+      } catch(e) { return null; }
+    }
+    async function _flagIdbPut(key, val) {
+      try {
+        const db = await _flagIdbOpen();
+        await new Promise(function(res) {
+          const tx = db.transaction(_FLAG_IDB_STORE,'readwrite');
+          tx.objectStore(_FLAG_IDB_STORE).put(val, key);
+          tx.oncomplete = res; tx.onerror = res;
+        });
+      } catch(e) {}
+    }
+
+    // ── localStorage helpers (fast synchronous reads for rendering) ───────
+    function _getClearedFlags()  { try { return JSON.parse(localStorage.getItem(_FLAG_CLEAR_KEY)||'{}'); } catch(e) { return {}; } }
+    function _saveToLocal(data)  { try { localStorage.setItem(_FLAG_CLEAR_KEY, JSON.stringify(data)); } catch(e) {} }
+
+    // Primary save: writes to localStorage immediately + IDB asynchronously
     function _saveClearedFlags(data) {
-      try { localStorage.setItem(_FLAG_CLEAR_KEY, JSON.stringify(data)); } catch(e) {}
+      _saveToLocal(data);
+      _flagIdbPut('cleared', data); // async fire-and-forget — ensures persistence
+    }
+
+    // On page load: merge any IDB state back into localStorage (handles localStorage wipes)
+    async function _restoreClearedFromIdb() {
+      const idbData = await _flagIdbGet('cleared');
+      if (!idbData || !Object.keys(idbData).length) return;
+      const merged = Object.assign({}, _getClearedFlags(), idbData); // IDB wins on conflict
+      _saveToLocal(merged);
+    }
+
+    // ── "First seen" tracking — records when each flagKey was first observed ──
+    function _flagGetFirstSeen() { try { return JSON.parse(localStorage.getItem(_FLAG_SEEN_KEY)||'{}'); } catch(e) { return {}; } }
+    function _flagMarkFirstSeen(key) {
+      const seen = _flagGetFirstSeen();
+      if (seen[key]) return;
+      seen[key] = Date.now();
+      try { localStorage.setItem(_FLAG_SEEN_KEY, JSON.stringify(seen)); } catch(e) {}
+    }
+    function _flagActiveDays(key) {
+      const seen = _flagGetFirstSeen();
+      if (!seen[key]) return null;
+      return Math.max(1, Math.round((Date.now() - seen[key]) / 86400000));
     }
 
     // Global helpers called from inline onclick in modal HTML
@@ -2969,7 +3035,8 @@
       const flagKey = (window._poFlagKeys || [])[i];
       if (!flagKey) return;
       const data = _getClearedFlags();
-      data[flagKey] = { reasons: checked, clearedAt: Date.now(), clearedBy: dept };
+      // Store clearedMsg so we can detect if the underlying flag data changes later
+      data[flagKey] = { reasons: checked, clearedAt: Date.now(), clearedBy: dept, clearedMsg: (window._poFlagMsgs || [])[i] || '' };
       _saveClearedFlags(data);
       updateFlagsBadge();
       openFlagsModal(_lastFlagFilter || 'critical');
@@ -2987,6 +3054,10 @@
 
     function updateFlagsBadge() {
       const cleared = _getClearedFlags();
+      // Record first-seen timestamp for every active school-level flag
+      for (const [school, sc] of Object.entries(_schoolMap)) {
+        for (const f of sc.flags) _flagMarkFirstSeen(school + '::' + f.type);
+      }
       // School-level critical flags, excluding any that have been cleared
       const schoolCritCount = Object.entries(_schoolMap)
         .flatMap(function([school, sc]){ return sc.flags.map(function(f){ return Object.assign({}, f, {school: school}); }); })
@@ -5255,17 +5326,26 @@
       const filtered = filter === 'critical' ? allFlags.filter(f => f.severity === 'critical') : allFlags;
       filtered.sort((a,b) => (sevOrder[a.severity]||2) - (sevOrder[b.severity]||2));
 
-      // Track flag keys for global clear/restore handlers
+      // Track flag keys + messages for global clear/restore handlers
       window._poFlagKeys = filtered.map(f => f.school + '::' + f.type);
+      window._poFlagMsgs = filtered.map(f => f.msg);
 
       const clearedCount = filtered.filter(f => cleared[f.school + '::' + f.type]).length;
       const activeCount  = filtered.length - clearedCount;
 
       const rows = filtered.map((f, i) => {
-        const flagKey  = f.school + '::' + f.type;
+        const flagKey   = f.school + '::' + f.type;
         const isCleared = !!cleared[flagKey];
         const clearedInfo = cleared[flagKey];
         const rowBg = isCleared ? 'background:#f0fdf4' : (f.severity==='critical'?'background:#fef2f2':f.severity==='high'?'background:#fff8f8':'');
+
+        // Age tracking
+        _flagMarkFirstSeen(flagKey);
+        const days    = _flagActiveDays(flagKey);
+        const ageStr  = days !== null ? ` · Active ${days === 1 ? '1 day' : days + ' days'}` : '';
+
+        // Detect if data has changed since the flag was cleared
+        const msgChanged = isCleared && clearedInfo.clearedMsg && clearedInfo.clearedMsg !== f.msg;
 
         const reasonChecks = _FLAG_CLEAR_REASONS.map(r =>
           `<label style="display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:#374151;cursor:pointer;padding:.15rem 0">
@@ -5283,11 +5363,19 @@
             </div>
           </div>` : '';
 
+        const clearedAtStr = clearedInfo && clearedInfo.clearedAt
+          ? new Date(clearedInfo.clearedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+          : '';
         const clearedBadge = isCleared ? `
-          <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.35rem;padding:.35rem .6rem;background:#dcfce7;border-radius:5px;border:1px solid #86efac">
-            <span style="font-size:.72rem;font-weight:700;color:#16a34a">✓ Cleared</span>
-            <span style="font-size:.7rem;color:#374151">${(clearedInfo.reasons||[]).map(r=>`<em>${esc(r)}</em>`).join(', ')}</span>
-            ${canClear ? `<button onclick="window._poFlagRestore(${i})" style="margin-left:auto;padding:.2rem .55rem;font-size:.68rem;background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;font-weight:600">Restore</button>` : ''}
+          <div style="margin-top:.35rem;padding:.35rem .6rem;background:#dcfce7;border-radius:5px;border:1px solid #86efac">
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+              <span style="font-size:.72rem;font-weight:700;color:#16a34a">✓ Cleared</span>
+              ${clearedAtStr ? `<span style="font-size:.68rem;color:#6b7280">${clearedAtStr}</span>` : ''}
+              <span style="font-size:.7rem;color:#374151">${(clearedInfo.reasons||[]).map(r=>`<em>${esc(r)}</em>`).join(', ')}</span>
+              ${clearedInfo.clearedBy ? `<span style="font-size:.68rem;color:#6b7280">by ${esc(clearedInfo.clearedBy)}</span>` : ''}
+              ${canClear ? `<button onclick="window._poFlagRestore(${i})" style="margin-left:auto;padding:.2rem .55rem;font-size:.68rem;background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;font-weight:600">Restore</button>` : ''}
+            </div>
+            ${msgChanged ? `<div style="margin-top:.3rem;font-size:.68rem;color:#b45309;background:#fef3c7;border-radius:3px;padding:.2rem .45rem;border:1px solid #fde68a">⚠️ Underlying data has changed since this was cleared — review if needed</div>` : ''}
           </div>` : '';
 
         const clearBtn = canClear && !isCleared ? `
@@ -5301,7 +5389,7 @@
               <span class="po-flag-label" style="cursor:pointer;color:var(--blue-mid)" onclick="po.drillSchool('${esc(f.school)}');document.getElementById('poFlagsModal').style.display='none'">${esc(f.school)}</span>
               ${clearBtn}
             </div>
-            <div class="po-flag-sub">${esc(f.msg)}</div>
+            <div class="po-flag-sub">${esc(f.msg)}${ageStr ? `<span style="font-size:.65rem;color:#94a3b8;margin-left:.4rem">${ageStr}</span>` : ''}</div>
             ${clearedBadge}
             ${clearPanel}
           </div>
@@ -5401,6 +5489,9 @@
     // ── INIT ──────────────────────────────────────────────────────────────
     function init() {
       if (_inited) return; _inited = true;
+      // Restore any cleared flags persisted in IndexedDB (survives localStorage wipes)
+      // then refresh the badge so the count is accurate from the first render.
+      _restoreClearedFromIdb().then(function() { updateFlagsBadge(); }).catch(function() {});
       refresh(true);
       setInterval(() => {
         const p = document.getElementById('panel-pearl-ops');
