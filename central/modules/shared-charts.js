@@ -1026,7 +1026,7 @@
   const HR_2PACX  = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID_MASTER = '911694457';  // Master List tab
   const HR_CACHE_KEY  = 'njtc_hr_live_v2';
-  const HR_TTL_MS     = 60 * 60 * 1000;  // 1-hour cache
+  const HR_TTL_MS     = 10 * 60 * 1000;  // 10-min cache — live changes visible within 10 min
 
   // ── Site Leader Observations — Apprenticeship Program Database ───────────
   // NE tab gid=1649286205 · SW tab gid=373912327
@@ -1210,6 +1210,8 @@
       role: ci('position'), site: ci('site'), district: ci('district'),
       rehire: ci('rehire'), cycles: ci('cycles'), status: ci('terminated'),
       race: ci('race'), ethnicity: ci('ethnicity'),
+      // Optional alias for Pearl login name — fill in HR sheet when HR name ≠ Pearl name
+      pearlName: ciAny('pearl name', 'pearl login', 'also known as', 'preferred name', 'aka'),
       // Column K in HR Master List — header may be "Apprentice", "Apprentice (TAP)", "DOL Apprentice", etc.
       apprentice: ciAny('apprentice', 'apprenticeship'),
       // Termination detail fields — try multiple header aliases, then positional fallback (N=13, O=14, P=15)
@@ -1228,6 +1230,7 @@
         status:     (r[C.status]      ||'').trim(),
         cycles:     (r[C.cycles]      ||'').trim(),
         rehire:     (r[C.rehire]      ||'').trim(),
+        pearlName:  C.pearlName >= 0 ? (r[C.pearlName]||'').trim() : '',
         race:       C.race       >= 0 ? (r[C.race]       ||'').trim() : '',
         ethnicity:  C.ethnicity  >= 0 ? (r[C.ethnicity]  ||'').trim() : '',
         // Apprentice indicator from col K — positional fallback at index 10
@@ -1341,7 +1344,25 @@
       const maxCyc = rows.reduce((m,r)=>Math.max(m,parseInt(r.cycles)||0),0);
       if (maxCyc > 0) emp.c = maxCyc;
       emp._live = true;
+      // Store Pearl alias name from HR sheet column so _hrOverlayPearl()
+      // can use it as the primary lookup key (e.g. "LaShanee Davis" → "Renee Davis")
+      emp._pearlName = latest.pearlName || '';
       updated++;
+    }
+
+    // ── Flag stale embedded employees absent from live 2025-2026 sheet ─────────
+    // If the live sheet loaded successfully and has 2025-2026 rows, any embedded
+    // employee that (a) carries '2025-2026' in their static y[] but (b) wasn't
+    // matched above should be hidden from the 2025-2026 view (e.g. Youngsoo Kim).
+    const liveHas2526 = liveRows.some(r => r.yr === '2025-2026');
+    if (liveHas2526) {
+      for (const emp of HR_EMPS) {
+        if (emp._live) {
+          emp._notInLive2526 = false;  // confirmed in live sheet
+        } else if ((emp.y || []).includes('2025-2026')) {
+          emp._notInLive2526 = true;   // stale embed — not in current live roster
+        }
+      }
     }
 
     // ── Add NEW employees: ONLY from 2025-2026 rows, ONLY if not already tracked ──
@@ -1502,8 +1523,14 @@
         const ek = _hn(emp.n);  // sorted token key for emp name
         const ep = new Set(ek.split(' '));
 
-        // Try exact match first, then subset token match, then nickname variants
-        let tutorData = tutorAttMap[ek];
+        // 0. Pearl Name alias from HR sheet takes highest priority — handles cases like
+        //    "LaShanee Davis" (HR) → "Renee Davis" (Pearl) or "Elizabeth McCafferty" → "Betsy McCafferty"
+        let tutorData = (emp._pearlName && emp._pearlName.trim())
+          ? (tutorAttMap[_hn(emp._pearlName)] || null)
+          : null;
+
+        // 1. Exact _hn() key match on HR name
+        if (!tutorData) tutorData = tutorAttMap[ek];
 
         if (!tutorData) {
           // Subset token match: every token in shorter name exists in longer
@@ -1909,9 +1936,15 @@
 
   function _filtered() {
     let list = HR_EMPS;
-    // SY filter: restrict to employees who have a record in the selected SY
+    // SY filter: restrict to employees who have a record in the selected SY.
+    // Also exclude stale embedded employees absent from live 2025-2026 sheet
+    // (e.g. someone removed from HR Master whose embed data hasn't been purged yet).
     if (_pSY && _pSY !== 'all') {
-      list = list.filter(e => (e.y||[]).includes(_pSY) || (e._liveYears||[]).includes(_pSY));
+      list = list.filter(e => {
+        if (!((e.y||[]).includes(_pSY) || (e._liveYears||[]).includes(_pSY))) return false;
+        if (_pSY === '2025-2026' && e._notInLive2526) return false;
+        return true;
+      });
     }
     // Tab-aware status filter: 'active' tab = Active only; 'inactive' tab = all non-Active
     if (_pViewTab === 'active')   list = list.filter(e => e.s === 'Active');
@@ -2519,14 +2552,24 @@ ${_divHtml}
   <span style="background:#f1f5f9;color:#7d8fa1;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">📋 No Score</span>
   <span style="margin-left:auto;font-size:.6rem;color:#2563eb;font-weight:700;cursor:pointer;white-space:nowrap" onclick="setTalentTab('definitions')">📖 Full definitions &rarr;</span>
 </div>
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
   <div style="font-size:.72rem;font-weight:700;color:var(--navy)">Employee Profiles</div>
-  <div style="display:flex;align-items:center;gap:.5rem">
+  <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
     <label style="font-size:.65rem;color:var(--muted);font-weight:600">School Year:</label>
     <select onchange="_hrSetSY(this.value)" style="font-size:.72rem;padding:.3rem .625rem;border:1.5px solid var(--navy);border-radius:6px;background:var(--navy);color:#fff;font-weight:700;cursor:pointer">
       ${syOpts}
     </select>
     <span style="font-size:.62rem;color:var(--muted);font-style:italic">${src}</span>
+    <button onclick="(function(){localStorage.removeItem('${HR_CACHE_KEY}');buildTalentDashboard(true);})()" style="padding:.25rem .6rem;border-radius:6px;border:1.5px solid #0ea5e9;background:#f0f9ff;color:#0369a1;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap" title="Clear cache and reload live data now">⟳ Sync Live</button>
+    ${(window.NJTC_SESSION||{}).dept==='data'?`<div style="position:relative;display:inline-block">
+      <button onclick="(function(el){el.nextElementSibling.style.display=el.nextElementSibling.style.display==='block'?'none':'block'})(this)" style="padding:.25rem .6rem;border-radius:6px;border:1.5px solid #7c3aed;background:#faf5ff;color:#6d28d9;font-size:.65rem;font-weight:700;cursor:pointer;white-space:nowrap">📄 Export PDF ▾</button>
+      <div style="display:none;position:absolute;right:0;top:110%;background:#fff;border:1.5px solid #e2e8f0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:999;min-width:180px;padding:.4rem 0" onclick="this.style.display='none'">
+        <div style="padding:.25rem .75rem .1rem;font-size:.6rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em">Export Scope</div>
+        <button onclick="window._hrExportAggregatePDF('overall','','${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.75rem;border:none;background:none;cursor:pointer;color:#1e293b" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">📊 Organization-Wide</button>
+        ${[...new Set(filtered.map(e=>e.di||'').filter(Boolean))].sort().slice(0,12).map(d=>`<button onclick="window._hrExportAggregatePDF('district',${JSON.stringify(d)},'${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏫 ${d.slice(0,30)}</button>`).join('')}
+        ${[...new Set(filtered.flatMap(e=>e._liveSchools&&e._liveSchools.length?e._liveSchools:[e.si||'']).filter(Boolean))].sort().slice(0,10).map(s=>`<button onclick="window._hrExportAggregatePDF('school',${JSON.stringify(s)},'${curSY}')" style="display:block;width:100%;text-align:left;padding:.4rem .75rem;font-size:.72rem;border:none;background:none;cursor:pointer;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='none'">🏢 ${s.slice(0,30)}</button>`).join('')}
+      </div>
+    </div>`:''}
   </div>
 </div>
 ${viewTabs}
@@ -2744,7 +2787,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     return `
 <div style="background:linear-gradient(135deg,#0a1628,#1a3a6b);padding:1.375rem 1.75rem;color:#fff;position:relative">
-  <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="position:absolute;top:.875rem;right:.875rem;background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
+  <div style="position:absolute;top:.875rem;right:.875rem;display:flex;align-items:center;gap:.4rem">
+    ${(window.NJTC_SESSION||{}).dept==='data'?`<button onclick="window._hrExportProfilePDF(${JSON.stringify(emp.n)})" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);color:#fff;padding:.3rem .65rem;border-radius:5px;font-size:.65rem;font-weight:700;cursor:pointer" title="Export this profile as a printable PDF">📄 Export PDF</button>`:''}
+    <button onclick="document.getElementById('hrEmpModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:1rem;cursor:pointer;line-height:1">✕</button>
+  </div>
   <div style="font-size:.55rem;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.4);text-transform:uppercase;margin-bottom:.375rem">Employee Profile · NJTC ADP Intelligence</div>
   <div style="font-size:1.375rem;font-weight:800;margin-bottom:.2rem">${esc(emp.n)}</div>
   ${emp.a&&emp.a.length?`<div style="font-size:.7rem;color:rgba(255,255,255,.4)">Also listed as: ${emp.a.map(esc).join(', ')}</div>`:''}
@@ -4988,6 +5034,360 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.exportKPIQuarterlySummaryPPTX = exportKPIQuarterlySummaryPPTX;
   window.KPI_Q_DATA                    = KPI_Q_DATA;
 
+  // ════════════════════════════════════════════════════════════════
+  //  TALENT PROFILE PDF EXPORT  (Data dept only)
+  //  Opens a print-ready HTML window; user uses browser Print → Save as PDF.
+  // ════════════════════════════════════════════════════════════════
+
+  function _profilePrintCSS() {
+    return `
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Segoe UI',Arial,sans-serif;font-size:11pt;color:#1a1a2e;background:#fff;padding:0}
+      @page{size:letter portrait;margin:.75in .65in .75in .65in}
+      @media print{.no-print{display:none!important}body{padding:0}}
+      .pg-header{background:#0a1628;color:#fff;padding:14pt 18pt;margin-bottom:14pt;border-radius:0}
+      .pg-header h1{font-size:15pt;font-weight:800;margin-bottom:2pt}
+      .pg-header .sub{font-size:8pt;color:rgba(255,255,255,.55);letter-spacing:.05em;text-transform:uppercase}
+      .pg-header .meta{font-size:8.5pt;color:rgba(255,255,255,.75);margin-top:6pt}
+      .section{border:1pt solid #e2e8f0;border-radius:5pt;margin-bottom:10pt;overflow:hidden}
+      .section-head{background:#f8fafc;padding:6pt 10pt;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748b;border-bottom:1pt solid #e2e8f0}
+      .section-body{padding:8pt 10pt}
+      .kpi-row{display:flex;gap:8pt;flex-wrap:wrap;margin-bottom:8pt}
+      .kpi{flex:1;min-width:70pt;text-align:center;padding:7pt 5pt;border:1pt solid #e2e8f0;border-radius:4pt;background:#f8fafc}
+      .kpi-val{font-size:15pt;font-weight:800;line-height:1.1}
+      .kpi-lbl{font-size:7pt;color:#64748b;margin-top:2pt;text-transform:uppercase;letter-spacing:.04em}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:10pt}
+      .label{font-size:7pt;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:2pt}
+      .value{font-size:9.5pt;font-weight:600;color:#1a1a2e}
+      .subval{font-size:8pt;color:#64748b;margin-top:1pt}
+      .tier-badge{display:inline-block;padding:2pt 7pt;border-radius:10pt;font-size:8.5pt;font-weight:700}
+      .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5pt;margin-bottom:6pt}
+      .metric-cell{text-align:center;padding:5pt 3pt;border-radius:4pt;border:1pt solid #e2e8f0}
+      .metric-val{font-size:13pt;font-weight:800}
+      .metric-lbl{font-size:6.5pt;color:#64748b;margin-top:1pt}
+      .signal{display:flex;align-items:flex-start;gap:5pt;padding:4pt 7pt;border-radius:3pt;margin-bottom:3pt;font-size:8pt}
+      .summary-box{background:#f0f9ff;border:1pt solid #bae6fd;border-radius:5pt;padding:9pt 11pt;font-size:9pt;line-height:1.6;color:#0c4a6e}
+      .live-dot{color:#0ea5e9;font-weight:700;font-size:7pt}
+      .concern-box{background:#fff7ed;border:1pt solid #fed7aa;border-radius:4pt;padding:6pt 9pt;margin-bottom:4pt}
+      .footer{margin-top:12pt;padding-top:6pt;border-top:1pt solid #e2e8f0;font-size:7pt;color:#94a3b8;display:flex;justify-content:space-between}
+      table{width:100%;border-collapse:collapse;font-size:8.5pt}
+      th{background:#f1f5f9;padding:4pt 6pt;text-align:left;font-size:7.5pt;font-weight:700;color:#64748b;border-bottom:1pt solid #e2e8f0}
+      td{padding:4pt 6pt;border-bottom:1pt solid #f1f5f9;color:#1e293b}
+      tr:last-child td{border-bottom:none}
+    `;
+  }
+
+  function _buildProfilePrintHTML(emp) {
+    const e = emp;
+    const cfg = _tier(e._liveT || e.t);
+    const att  = e._liveAtt !== undefined ? e._liveAtt : e.att;
+    const liveAtt = e._liveAtt !== undefined;
+    const survEnjoy = e._liveSurveyEntry ? e._liveSurveyEntry.enjoyment : null;
+    const survDisplay = e.je != null ? e.je : (survEnjoy != null ? survEnjoy.toFixed(1) : null);
+    const liveSurv = e.je == null && survEnjoy != null;
+    const pearlSchools = e._liveSchools && e._liveSchools.length ? e._liveSchools : null;
+    const concerns = e._liveConcerns || 0;
+    const hrAction = e._liveHRAction || e.hn || null;
+    const acad = e._acadPctMoved;
+    const obsTotal = (e._obsCount || 0) + (e._tndObsObserved || 0);
+    const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+    // Tier colors for print (use hex directly — no CSS vars)
+    const TIER_HEX = {stellar:{bg:'#d1fae5',color:'#065f46'},strong:{bg:'#dbeafe',color:'#1e40af'},developing:{bg:'#fef3c7',color:'#92400e'},needs_support:{bg:'#fee2e2',color:'#b91c1c'},incomplete:{bg:'#f1f5f9',color:'#374151'}};
+    const tc = TIER_HEX[e._liveT || e.t] || TIER_HEX.incomplete;
+
+    // Score strip
+    const score = (() => {
+      let s=0,f=0;
+      if(e.mp!=null){s+=e.mp*2.5;f++;}
+      if(att!=null){s+=(att>=95?10:att>=90?8:att>=85?6:att>=80?4:att>=75?2:0);f++;}
+      if(acad!=null){s+=(acad>=60?10:acad>=45?8:acad>=30?5:acad>=15?2:0);f++;}
+      if(concerns>0)s-=concerns*3;
+      if(e.c>=3)s+=3; else if(e.c>=2)s+=1;
+      const max=f*10+(e.c>=3?3:e.c>=2?1:0);
+      return max>0?Math.round(s/max*100):null;
+    })();
+
+    // Auto-generated narrative summary
+    const summaryParts = [];
+    summaryParts.push(`${e.n} is a ${e.r||'Tutor'} with ${e.c||1} cycle${e.c!==1?'s':''} at NJTC (${(e.y||[]).join(', ')||'—'}).`);
+    if (att != null) summaryParts.push(`Attendance this SY is ${att}%${att>=90?' — strong punctuality record':att>=80?' — above threshold':' — below target; warrants follow-up'}.`);
+    if (survDisplay != null) summaryParts.push(`Scholar satisfaction survey score: ★${survDisplay}${liveSurv?' (live Pearl data)':'(EOY upload)'}.`);
+    if (e.mp != null) summaryParts.push(`Performance score: ${e.mp}/4 binary metrics passed from prior SY EOY upload.`);
+    if (acad != null) summaryParts.push(`Academic impact: ${acad}% of assigned scholars advanced at least one placement level in i-Ready diagnostics.`);
+    if (pearlSchools && pearlSchools.length) summaryParts.push(`Active Pearl locations this SY: ${pearlSchools.join(', ')}.`);
+    if (concerns > 0) summaryParts.push(`${concerns} program concern${concerns>1?'s':''} on record${hrAction?' (HR action: '+hrAction+')':''}.`);
+    const hiringRecs = _hiringGet(e.n.replace(/\W/g,'_'));
+    const latestHiring = hiringRecs.sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+    if (latestHiring) summaryParts.push(`Most recent hiring decision: ${latestHiring.d} (${new Date(latestHiring.ts).toLocaleDateString()}).`);
+    if (score != null) summaryParts.push(`Overall talent tier: ${cfg.label} (${score}% composite score).`);
+
+    // Metric rows
+    const metricRows = [
+      ['Att Target', e.am, false],
+      ['Scholar Enjoyment', e.em, false],
+      ['Scholar Learning', e.lm, false],
+      ['Acad Improvement', e._acadImproveYoY ?? e.acm, e._acadImproveYoY != null],
+    ];
+
+    // Concerns list (from CONCERNS array)
+    const empConcernList = Array.isArray(window.CONCERNS)
+      ? window.CONCERNS.filter(c => _hn(c.emp||'') === _hn(e.n) || (() => {
+          const ep=new Set(_hn(e.n).split(' ')),cp=new Set(_hn(c.emp||'').split(' '));
+          return [...ep].every(p=>cp.has(p))||[...cp].every(p=>ep.has(p));
+        })())
+      : [];
+
+    // Observations list
+    const obsArr = [];
+    if (window._njtcTutorObs) {
+      const ek = _hn(e.n);
+      for (const o of window._njtcTutorObs) {
+        if (_hn(o.tutor||o.name||'') === ek) obsArr.push(o);
+      }
+    }
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Talent Profile — ${e.n}</title><style>${_profilePrintCSS()}</style></head><body>
+<div class="pg-header">
+  <div class="sub">New Jersey Tutoring Corps · Talent Analytics · CONFIDENTIAL — Data Department Only</div>
+  <h1>${e.n}</h1>
+  <div class="meta">${e.r||'Tutor'} &nbsp;·&nbsp; ${e.s||'Active'} &nbsp;·&nbsp; ${e.e||'—'} &nbsp;·&nbsp; Generated ${today}</div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-val" style="color:${tc.color}">${cfg.emoji} ${cfg.label}</div><div class="kpi-lbl">Talent Tier${score!=null?' ('+score+'%)':''}</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${e.c>2?'#065f46':'#1e293b'}">${e.c||1}</div><div class="kpi-lbl">Cycles</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${att==null?'#94a3b8':att>=90?'#065f46':att>=80?'#d97706':'#b91c1c'}">${att!=null?att+'%':'—'}</div><div class="kpi-lbl">Attendance${liveAtt?' ●':''}</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#7c3aed">${survDisplay!=null?'★'+survDisplay:'—'}</div><div class="kpi-lbl">Survey${liveSurv?' ●':''}</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${e.mp!=null?e.mp>=3?'#065f46':e.mp>=2?'#d97706':'#b91c1c':'#94a3b8'}">${e.mp!=null?e.mp+'/4':'—'}</div><div class="kpi-lbl">Perf Score</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${acad!=null?acad>=50?'#065f46':acad>=25?'#d97706':'#b91c1c':'#94a3b8'}">${acad!=null?acad+'%':'—'}</div><div class="kpi-lbl">Acad Impact</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#1e293b">${obsTotal>0?obsTotal:'—'}</div><div class="kpi-lbl">Observations</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${concerns>0?'#b91c1c':'#065f46'}">${concerns>0?concerns:'✓'}</div><div class="kpi-lbl">Concerns</div></div>
+</div>
+
+<div class="section">
+  <div class="section-head">Employment & Historical Footprint</div>
+  <div class="section-body">
+    <div class="two-col">
+      <div>
+        <div class="label">Current Site${pearlSchools?' ● Pearl Live':''}</div>
+        <div class="value">${pearlSchools?pearlSchools.join(', '):(e.si||'—')}</div>
+        ${e.di&&!pearlSchools?`<div class="subval">${e.di}</div>`:''}
+        ${pearlSchools&&e.si?`<div class="subval">HR record: ${e.si}</div>`:''}
+      </div>
+      <div>
+        <div class="label">SY History (${e.c} cycle${e.c!==1?'s':''})</div>
+        <div class="value">${(e.y||[]).join(', ')||'—'}</div>
+        ${e.rs&&e.rs.length>1?`<div class="subval">Roles: ${e.rs.slice(0,4).join(' · ')}</div>`:''}
+      </div>
+    </div>
+    ${(e.y||[]).length > 1 ? `<div style="margin-top:8pt">
+      <div class="label">Year-by-Year Record</div>
+      <table><thead><tr><th>School Year</th><th>Role</th><th>Site</th><th>District</th><th>Status</th></tr></thead><tbody>
+        ${(e.y||[]).map(yr=>`<tr><td>${yr}</td><td>${e.r||'—'}</td><td>${e.si||'—'}</td><td>${e.di||'—'}</td><td>${e.s||'—'}</td></tr>`).join('')}
+      </tbody></table>
+    </div>`:''}
+  </div>
+</div>
+
+${e.mp!=null?`<div class="section">
+  <div class="section-head">Historical Performance Metrics (${e.py||'Prior SY'} EOY Upload)</div>
+  <div class="section-body">
+    <div class="metric-grid">
+      ${metricRows.map(([l,v,isLive])=>{
+        const isYes=v==='Yes'||v===true, isNA=v==='N/A';
+        return `<div class="metric-cell" style="background:${isNA?'#fffbeb':isYes?'#f0fdf4':'#fff5f5'}">
+          <div class="metric-val" style="color:${isNA?'#d97706':isYes?'#065f46':'#b91c1c'}">${isNA?'N/A':isYes?'✓':'✗'}</div>
+          <div class="metric-lbl">${l}${isLive?' ●':''}</div>
+        </div>`;}).join('')}
+    </div>
+    ${e.pi!=null?`<div style="font-size:8.5pt;color:#1e293b"><strong>${e.pi}%</strong> improved placement · ${e.pr!=null?`<strong>${e.pr}%</strong> regressed`:''} ${e.p2!=null?`· <strong>${e.p2}%</strong> improved 2+ levels`:''}</div>`:''}
+  </div>
+</div>`:''}
+
+${acad!=null?`<div class="section">
+  <div class="section-head">i-Ready Academic Outcomes (Current SY · Live)</div>
+  <div class="section-body">
+    <div style="display:flex;gap:10pt;flex-wrap:wrap">
+      <div><div class="label">Scholars Advanced</div><div class="value" style="color:#065f46">${acad}%</div></div>
+      ${e._acadScholars!=null?`<div><div class="label">Total Scholars</div><div class="value">${e._acadScholars}</div></div>`:''}
+      ${e._liveSessions!=null?`<div><div class="label">Sessions</div><div class="value">${e._liveSessions}</div></div>`:''}
+    </div>
+  </div>
+</div>`:''}
+
+${concerns>0||empConcernList.length?`<div class="section">
+  <div class="section-head">Program Concerns &amp; HR Actions</div>
+  <div class="section-body">
+    ${hrAction?`<div style="margin-bottom:6pt"><div class="label">HR Action</div><div class="value" style="color:#b91c1c">${hrAction}</div></div>`:''}
+    ${empConcernList.length?empConcernList.slice(0,10).map(c=>`<div class="concern-box">
+      <div style="font-size:8.5pt;font-weight:700;color:#92400e">${c.type||c.category||'Concern'} ${c.date?'· '+c.date:''}</div>
+      <div style="font-size:8pt;color:#78350f;margin-top:2pt">${c.notes||c.desc||c.description||''}</div>
+    </div>`).join(''):concerns>0?`<div class="concern-box"><div style="font-size:8.5pt;color:#92400e">${concerns} concern${concerns>1?'s':''} on record</div></div>`:''}
+  </div>
+</div>`:''}
+
+${obsArr.length?`<div class="section">
+  <div class="section-head">Site Leader Observations</div>
+  <div class="section-body">
+    <table><thead><tr><th>Date</th><th>Observer</th><th>Rating</th><th>Notes</th></tr></thead><tbody>
+      ${obsArr.slice(0,8).map(o=>`<tr><td>${o.date||'—'}</td><td>${o.observer||o.sl||'—'}</td><td>${o.rating||o.score||'—'}</td><td>${(o.notes||o.comments||'').slice(0,80)}</td></tr>`).join('')}
+    </tbody></table>
+  </div>
+</div>`:''}
+
+${latestHiring||hiringRecs.length?`<div class="section">
+  <div class="section-head">Hiring Decision Record</div>
+  <div class="section-body">
+    <table><thead><tr><th>Date</th><th>Decision</th><th>By</th><th>Notes</th></tr></thead><tbody>
+      ${hiringRecs.sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,5).map(r=>`<tr><td>${new Date(r.ts).toLocaleDateString()}</td><td style="font-weight:700">${r.d}</td><td>${r.by||'—'}</td><td>${(r.n||'').slice(0,80)}</td></tr>`).join('')}
+    </tbody></table>
+  </div>
+</div>`:''}
+
+<div class="section">
+  <div class="section-head">Profile Summary</div>
+  <div class="section-body">
+    <div class="summary-box">${summaryParts.join(' ')}</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>NJTC Talent Analytics · Data Department Only · Confidential</span>
+  <span>Generated ${today} · njtc-central-portal</span>
+</div>
+
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+  }
+
+  window._hrExportProfilePDF = function(empName) {
+    const emp = HR_EMPS.find(e => e.n === empName);
+    if (!emp) { alert('Employee not found: ' + empName); return; }
+    const html = _buildProfilePrintHTML(emp);
+    const w = window.open('', '_blank', 'width=850,height=1100');
+    if (!w) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+  // ── Aggregate PDF (region / district / school / overall) ─────────────────
+  window._hrExportAggregatePDF = function(scope, value, sy) {
+    sy = sy || _pSY || '2025-2026';
+    // Filter base pool: SY → scope → active only for "active" summary
+    let pool = HR_EMPS.filter(e => {
+      if (sy !== 'all' && !((e.y||[]).includes(sy)||(e._liveYears||[]).includes(sy))) return false;
+      if (sy === '2025-2026' && e._notInLive2526) return false;
+      return true;
+    });
+    if (scope === 'district' && value && value !== 'all') {
+      pool = pool.filter(e => (e.di||'').toLowerCase() === value.toLowerCase());
+    } else if (scope === 'school' && value && value !== 'all') {
+      const vl = value.toLowerCase();
+      pool = pool.filter(e => {
+        if (e._liveSchools && e._liveSchools.some(s => s.toLowerCase() === vl)) return true;
+        return (e.si||'').toLowerCase() === vl;
+      });
+    } else if (scope === 'region' && value && value !== 'all') {
+      // Region derived from district prefix or site name prefix — best-effort match
+      const vl = value.toLowerCase();
+      pool = pool.filter(e => (e.di||'').toLowerCase().includes(vl) || (e.si||'').toLowerCase().includes(vl));
+    }
+    if (!pool.length) { alert('No employees found for this filter.'); return; }
+
+    const today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+    const scopeLabel = scope === 'overall' ? 'Organization-Wide' : `${scope.charAt(0).toUpperCase()+scope.slice(1)}: ${value||'All'}`;
+
+    // Summary stats
+    const active = pool.filter(e => e.s === 'Active');
+    const inactive = pool.filter(e => e.s !== 'Active');
+    const tierCounts = {stellar:0,strong:0,developing:0,needs_support:0,incomplete:0};
+    pool.forEach(e => { const t=e._liveT||e.t; if(tierCounts[t]!==undefined)tierCounts[t]++; });
+    const withAtt = pool.filter(e => (e._liveAtt??e.att)!=null);
+    const avgAtt = withAtt.length ? Math.round(withAtt.reduce((s,e)=>s+(e._liveAtt??e.att),0)/withAtt.length) : null;
+    const withSurv = pool.filter(e => e.je!=null || (e._liveSurveyEntry&&e._liveSurveyEntry.enjoyment!=null));
+    const avgSurv = withSurv.length ? (withSurv.reduce((s,e)=>s+(e.je!=null?e.je:e._liveSurveyEntry.enjoyment),0)/withSurv.length).toFixed(1) : null;
+    const totalConcerns = pool.filter(e => (e._liveConcerns||0)>0||e.co===1).length;
+    const withAcad = pool.filter(e => e._acadPctMoved!=null);
+    const avgAcad = withAcad.length ? Math.round(withAcad.reduce((s,e)=>s+e._acadPctMoved,0)/withAcad.length) : null;
+
+    // Tier color map (print-safe hex)
+    const TMAP = {stellar:{bg:'#d1fae5',c:'#065f46',e:'⭐'},strong:{bg:'#dbeafe',c:'#1e40af',e:'✅'},developing:{bg:'#fef3c7',c:'#92400e',e:'📈'},needs_support:{bg:'#fee2e2',c:'#b91c1c',e:'🤝'},incomplete:{bg:'#f1f5f9',c:'#374151',e:'📋'}};
+
+    // Employee table rows — sorted by tier then name
+    const tierOrder = ['stellar','strong','developing','needs_support','incomplete'];
+    const sortedPool = [...pool].sort((a,b) => {
+      const at = tierOrder.indexOf(a._liveT||a.t), bt = tierOrder.indexOf(b._liveT||b.t);
+      return at !== bt ? at - bt : a.n.localeCompare(b.n);
+    });
+
+    const tableRows = sortedPool.map(e => {
+      const t = e._liveT||e.t; const tm = TMAP[t]||TMAP.incomplete;
+      const ea = e._liveAtt??e.att; const locs = e._liveSchools&&e._liveSchools.length?e._liveSchools.slice(0,2).join(', '):(e.si||'—');
+      const hd = _hiringGet(e.n.replace(/\W/g,'_')).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+      return `<tr>
+        <td style="font-weight:600">${e.n}</td>
+        <td>${e.r||'—'}</td>
+        <td><span style="background:${tm.bg};color:${tm.c};padding:1pt 4pt;border-radius:3pt;font-size:7.5pt;font-weight:700">${tm.e} ${t.replace('_',' ')}</span></td>
+        <td style="color:${ea==null?'#94a3b8':ea>=90?'#065f46':ea>=80?'#d97706':'#b91c1c'}">${ea!=null?ea+'%':'—'}</td>
+        <td>${e.je!=null?'★'+e.je:e._liveSurveyEntry&&e._liveSurveyEntry.enjoyment!=null?'★'+e._liveSurveyEntry.enjoyment.toFixed(1):'—'}</td>
+        <td>${e.mp!=null?e.mp+'/4':'—'}</td>
+        <td>${e._acadPctMoved!=null?e._acadPctMoved+'%':'—'}</td>
+        <td>${(e._liveConcerns||0)>0?`<span style="color:#b91c1c;font-weight:700">${e._liveConcerns}</span>`:'—'}</td>
+        <td style="font-size:8pt">${locs.slice(0,40)}</td>
+        <td style="font-size:8pt">${hd?hd.d:'—'}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Talent Aggregate — ${scopeLabel}</title><style>${_profilePrintCSS()}body{font-size:10pt}table{font-size:8pt}th,td{padding:3pt 5pt}</style></head><body>
+<div class="pg-header">
+  <div class="sub">New Jersey Tutoring Corps · Talent Analytics · CONFIDENTIAL — Data Department Only</div>
+  <h1>Aggregate Talent Report · ${scopeLabel}</h1>
+  <div class="meta">School Year: ${sy} &nbsp;·&nbsp; ${pool.length} employees &nbsp;·&nbsp; Generated ${today}</div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi"><div class="kpi-val" style="color:#065f46">${active.length}</div><div class="kpi-lbl">Active</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#64748b">${inactive.length}</div><div class="kpi-lbl">Inactive</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${avgAtt==null?'#94a3b8':avgAtt>=90?'#065f46':avgAtt>=80?'#d97706':'#b91c1c'}">${avgAtt!=null?avgAtt+'%':'—'}</div><div class="kpi-lbl">Avg Attendance</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:#7c3aed">${avgSurv!=null?'★'+avgSurv:'—'}</div><div class="kpi-lbl">Avg Survey</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${avgAcad!=null?avgAcad>=50?'#065f46':avgAcad>=30?'#d97706':'#b91c1c':'#94a3b8'}">${avgAcad!=null?avgAcad+'%':'—'}</div><div class="kpi-lbl">Avg Acad Impact</div></div>
+  <div class="kpi"><div class="kpi-val" style="color:${totalConcerns>0?'#b91c1c':'#065f46'}">${totalConcerns>0?totalConcerns:'✓ 0'}</div><div class="kpi-lbl">With Concerns</div></div>
+</div>
+
+<div class="section">
+  <div class="section-head">Tier Distribution</div>
+  <div class="section-body">
+    <div style="display:flex;gap:8pt;flex-wrap:wrap">
+      ${Object.entries(tierCounts).map(([t,n])=>{const tm=TMAP[t];return `<div style="flex:1;min-width:70pt;text-align:center;padding:6pt;background:${tm.bg};border-radius:4pt"><div style="font-size:14pt;font-weight:800;color:${tm.c}">${n}</div><div style="font-size:7pt;color:${tm.c};font-weight:700;text-transform:uppercase">${tm.e} ${t.replace('_',' ')}</div><div style="font-size:7pt;color:${tm.c}">${pool.length>0?Math.round(n/pool.length*100)+'%':''}</div></div>`;}).join('')}
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head">Employee Roster (${pool.length})</div>
+  <div class="section-body" style="padding:0">
+    <table>
+      <thead><tr><th>Name</th><th>Role</th><th>Tier</th><th>Att</th><th>Survey</th><th>Perf</th><th>Acad</th><th>Concerns</th><th>Location</th><th>Hiring</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  <span>NJTC Talent Analytics · Data Department Only · Confidential</span>
+  <span>Generated ${today} · ${scopeLabel} · SY ${sy}</span>
+</div>
+
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+
+    const w = window.open('', '_blank', 'width=1050,height=1100');
+    if (!w) { alert('Pop-up blocked — please allow pop-ups for this site and try again.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  };
+
+
+
   window.buildTalentDashboard    = buildTalentDashboard;
   // ── Hiring Decision: global save handler (called from inline onclick) ─────
   window._hrSaveHiringDecision = function(ek, en, decision, notes) {
@@ -5336,7 +5736,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Section 4: Pearl Live Data ────────────────────────────────────────────
     const pearlBody =
       `<div style="font-size:.68rem;color:var(--navy);margin-bottom:.625rem;line-height:1.6">
-        For the current SY (2025-2026), the following data is pulled <b>live from Pearl Operations</b> and overlaid on each tutor's profile. A blue <span style="color:#38bdf8;font-weight:700">●</span> indicator appears next to any field using live data. Pearl data is cached and refreshes up to <b>once per hour</b>.
+        For the current SY (2025-2026), the following data is pulled <b>live from Pearl Operations</b> and overlaid on each tutor's profile. A blue <span style="color:#38bdf8;font-weight:700">●</span> indicator appears next to any field using live data. Pearl data is cached and refreshes up to <b>every 10 minutes</b>, or instantly via the <b>⟳ Sync Live</b> button on the Profiles view.
       </div>
       <div style="display:flex;flex-direction:column;gap:0;margin-bottom:.625rem">
         ${row('Att ● (Attendance)', 'Live from Pearl', 'Sessions attended ÷ sessions scheduled; only instructors with ≥1 attendance record', '#38bdf8')}
@@ -5387,7 +5787,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           </div>
         </div>
         <div>
-          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Live (Pearl Operations · hourly refresh)</div>
+          <div style="font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.3rem">Live (Pearl Operations · refreshes every 10 min)</div>
           <div style="font-size:.67rem;color:var(--navy);line-height:1.75">
             Current-SY attendance rate &amp; session count<br>
             Current-SY scholar survey scores<br>
