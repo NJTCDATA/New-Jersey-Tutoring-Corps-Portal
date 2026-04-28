@@ -6998,31 +6998,84 @@
     var ql = (origQ||'').toLowerCase();
 
     // ── Pearl Attendance ──────────────────────────────────────────────────
+    // Resolve Pearl name: pre-computed overlay → HR sheet alias col → hardcoded alias map → HR name
+    var _pieHR = entity.hr || null;
+    var _pearlLookupName = name;
+    if (_pieHR && _pieHR._resolvedPearlName) {
+      _pearlLookupName = _pieHR._resolvedPearlName;
+    } else if (_pieHR && _pieHR._pearlName) {
+      _pearlLookupName = _pieHR._pearlName;
+    } else {
+      // Check global alias map (keyed by _hn-style sorted tokens)
+      try {
+        var _aliasMap = window._njtcPearlAliasMap || {};
+        var _pieHnKey = name.toLowerCase().replace(/-/g,' ').replace(/[^a-z ]/g,'').split(' ').filter(function(p){return p.length>1;}).sort().join(' ');
+        if (_aliasMap[_pieHnKey]) _pearlLookupName = _aliasMap[_pieHnKey];
+      } catch(ea) {}
+    }
+
     var tutor = entity.tutor;
+    // If overlay already resolved Pearl data, build a synthetic tutor object so the
+    // attendance section always renders correctly for aliases (LaShanee→Renee etc.)
+    if (!tutor && _pieHR && _pieHR._liveAtt !== undefined) {
+      tutor = {
+        attRate:  _pieHR._liveAtt,
+        attended: null,
+        absent:   null,
+        total:    _pieHR._liveAttTotal || null,
+        name:     _pieHR._resolvedPearlName || name,
+        school:   (_pieHR._liveSchools && _pieHR._liveSchools[0]) || _pieHR.si || null,
+        district: _pieHR.di || null,
+        _fromOverlay: true,
+      };
+    }
     if (!tutor) {
       try {
         var tm = window.po && typeof window.po.getTutorAttendanceMap === 'function' ? window.po.getTutorAttendanceMap() : {};
         var keys = Object.keys(tm);
         for (var k = 0; k < keys.length; k++) {
-          if (_nameMatch(tm[keys[k]].name, name)) { tutor = tm[keys[k]]; break; }
+          if (_nameMatch(tm[keys[k]].name, _pearlLookupName)) { tutor = tm[keys[k]]; break; }
+        }
+        // Second pass: try original HR name if alias didn't match
+        if (!tutor && _pearlLookupName !== name) {
+          for (var k2 = 0; k2 < keys.length; k2++) {
+            if (_nameMatch(tm[keys[k2]].name, name)) { tutor = tm[keys[k2]]; break; }
+          }
         }
       } catch(e) {}
     }
     if (tutor) {
       var attIcon = tutor.attRate >= 90 ? '✅' : tutor.attRate >= 80 ? '⚠️' : '🔴';
       lines.push('\n**ATTENDANCE (Pearl)**');
-      lines.push(attIcon + ' Rate: **' + tutor.attRate + '%** (' + tutor.attended + ' attended / ' + (tutor.absent||0) + ' absent · ' + tutor.total + ' total sessions)');
-      if (tutor.school) lines.push('📍 Site: ' + tutor.school + (tutor.district ? ' · ' + tutor.district : ''));
+      var _attDetail = tutor._fromOverlay
+        ? (tutor.total ? '(' + tutor.total + ' total sessions)' : '')
+        : ('(' + tutor.attended + ' attended / ' + (tutor.absent||0) + ' absent · ' + tutor.total + ' total sessions)');
+      lines.push(attIcon + ' Rate: **' + tutor.attRate + '%** ' + _attDetail);
+      // Show Pearl live locations (schools) — prefer _liveSchools over single school field
+      var _pieLiveSch = (_pieHR && _pieHR._liveSchools && _pieHR._liveSchools.length) ? _pieHR._liveSchools : null;
+      if (_pieLiveSch) {
+        lines.push('📍 Active locations ● Pearl Live: ' + _pieLiveSch.join(', '));
+      } else if (tutor.school) {
+        lines.push('📍 Site: ' + tutor.school + (tutor.district ? ' · ' + tutor.district : ''));
+      }
 
-      // ── Scholar Survey Scores — resolved via session map join (streaming/cache strips FILLED_FOR) ──
+      // ── Scholar Survey Scores ─────────────────────────────────────────────
+      // Use alias-resolved Pearl name for API call, then fall back to overlay entry
       try {
-        var survScores = window.po && typeof window.po.getTutorSurveyScores === 'function' ? window.po.getTutorSurveyScores(name) : [];
+        var survScores = window.po && typeof window.po.getTutorSurveyScores === 'function'
+          ? window.po.getTutorSurveyScores(_pearlLookupName) : [];
+        // Overlay fallback: if Pearl API returns nothing, use _liveSurveyEntry from HR overlay
+        if ((!survScores || !survScores.length) && _pieHR && _pieHR._liveSurveyEntry) {
+          var _se = _pieHR._liveSurveyEntry;
+          survScores = [{ confidence: null, enjoyment: _se.enjoyment || null, learning: _se.learning || null,
+                          overall: _se.overall || _se.enjoyment || null, count: _se.count || _se.responses || 0 }];
+        }
         if (survScores && survScores.length) {
           var ts = survScores[0];
           if (ts.confidence != null || ts.enjoyment != null || ts.learning != null || ts.overall != null) {
             var sConf = ts.confidence, sEnjoy = ts.enjoyment, sLearn = ts.learning, sOverall = ts.overall;
             var sIcon = sOverall!=null ? (sOverall>=4?'✅':sOverall>=3?'⚠️':'🔴') : '';
-            lines.push('\n**SCHOLAR SURVEY SCORES** ' + sIcon + ' (' + ts.count + ' responses)');
+            lines.push('\n**SCHOLAR SURVEY SCORES** ' + sIcon + (ts.count?' ('+ts.count+' responses)':''));
             if (sConf    != null) lines.push('• Confidence: **' + sConf + '/5**');
             if (sEnjoy   != null) lines.push('• Enjoyment:  **' + sEnjoy + '/5**');
             if (sLearn   != null) lines.push('• Learning:   **' + sLearn + '/5**');
@@ -7079,13 +7132,42 @@
       var e = entity.hr;
       lines.push('\n**HR PROFILE**');
       if (e.r)  lines.push('👤 Role: ' + e.r);
-      if (e.s)  lines.push('Status: ' + e.s);
-      if (e.si) lines.push('📍 Site: ' + e.si + (e.di ? ' · ' + e.di : ''));
+      if (e.s)  lines.push('Status: ' + e.s + (e.c ? ' · ' + e.c + ' cycle' + (e.c !== 1 ? 's' : '') : ''));
+      // Site — prefer Pearl live schools over static HR field
+      var _hrPieSch = (e._liveSchools && e._liveSchools.length) ? e._liveSchools : null;
+      if (_hrPieSch) {
+        lines.push('📍 Active locations ● Pearl Live: ' + _hrPieSch.join(', '));
+        if (e.si) lines.push('   _(HR record: ' + e.si + (e.di ? ' · ' + e.di : '') + ')_');
+      } else if (e.si) {
+        lines.push('📍 Site: ' + e.si + (e.di ? ' · ' + e.di : ''));
+      }
+      // Live talent tier (composite score, not static embed)
+      var _liveTierPIE = e._liveT || e.t;
+      var _tierEmojiPIE = {stellar:'⭐',strong:'✅',developing:'📈',needs_support:'🤝'}[_liveTierPIE] || '📋';
+      if (_liveTierPIE && _liveTierPIE !== 'incomplete') {
+        lines.push(_tierEmojiPIE + ' Talent Tier: **' + _liveTierPIE.replace(/_/g,' ') + '**' + (e._liveT && e._liveT !== e.t ? ' _(live-computed)_' : ''));
+      }
+      // Perf Score (prior SY EOY upload)
+      if (e.mp !== null && e.mp !== undefined) {
+        var _mpLine = '📊 Perf Score: **' + e.mp + '/4**' + (e.py ? ' (' + e.py + ' EOY)' : '');
+        var _mpBits = [];
+        if (e.am === 'Yes' || e.am === true) _mpBits.push('Att ✓'); else if (e.am !== null && e.am !== undefined) _mpBits.push('Att ✗');
+        if (e.em === 'Yes' || e.em === true) _mpBits.push('Enjoyment ✓'); else if (e.em !== null && e.em !== undefined) _mpBits.push('Enjoyment ✗');
+        if (e.lm === 'Yes' || e.lm === true) _mpBits.push('Learning ✓'); else if (e.lm !== null && e.lm !== undefined) _mpBits.push('Learning ✗');
+        var _acVal = e._acadImproveYoY !== undefined && e._acadImproveYoY !== null ? e._acadImproveYoY : e.acm;
+        if (_acVal === 'Yes' || _acVal === true) _mpBits.push('Acad ✓'); else if (_acVal === 'N/A') _mpBits.push('Acad N/A'); else if (_acVal !== null && _acVal !== undefined) _mpBits.push('Acad ✗');
+        if (_mpBits.length) _mpLine += ' — ' + _mpBits.join(' · ');
+        lines.push(_mpLine);
+      }
+      // Live iReady academic impact from overlay
+      if (e._acadPctMoved !== null && e._acadPctMoved !== undefined) {
+        var _acadIcon = e._acadPctMoved >= 60 ? '✅' : e._acadPctMoved >= 35 ? '⚠️' : '🔴';
+        lines.push(_acadIcon + ' Academic Impact: **' + e._acadPctMoved + '% of scholars** advanced a placement level (iReady)');
+      }
       if (e._apprentice === 'Yes') lines.push('🎓 TAP Apprentice: Enrolled');
       if (e._race)      lines.push('Race: ' + e._race);
       if (e._ethnicity && !/prefer not|not listed/i.test(e._ethnicity)) lines.push('Ethnicity: ' + e._ethnicity);
       if (e._liveHRAction) lines.push('🚨 Active HR Action: **' + e._liveHRAction + '**');
-      if (e.t === 'stellar') lines.push('⭐ Designated: Stellar Performer');
     }
 
     // ── Concerns ──────────────────────────────────────────────────────────
