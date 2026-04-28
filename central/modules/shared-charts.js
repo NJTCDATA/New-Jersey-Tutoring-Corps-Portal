@@ -1501,11 +1501,13 @@
   // Hardcoded alias map for known HR↔Pearl name mismatches (preferred names,
   // nicknames, legal vs. display name). Key = _hn(HR name), value = Pearl display name.
   // Add new entries here when HR sheet "Pearl Name" column isn't an option.
+  // Exposed as window._njtcPearlAliasMap so PIE can resolve aliases during queries.
   const _PEARL_ALIAS_MAP = {
     'davis la shanee':      'Renee Davis',       // La Shanee Davis (HR) = Renee Davis (Pearl)
     'davis lashanee':       'Renee Davis',       // alternate compact spelling
     'elizabeth mccafferty': 'Betsy McCafferty',  // Elizabeth McCafferty (HR) = Betsy McCafferty (Pearl)
   };
+  window._njtcPearlAliasMap = _PEARL_ALIAS_MAP;
 
   function _hrOverlayPearl() {
     if (typeof po === 'undefined' || !po || !po.getTutorAttendanceMap) return;
@@ -1573,8 +1575,11 @@
         if (!tutorData) continue;
 
         // Write live Pearl current-SY attendance to employee record
-        emp._liveAtt      = tutorData.attRate;
-        emp._liveAttTotal = tutorData.total;
+        emp._liveAtt          = tutorData.attRate;
+        emp._liveAttTotal     = tutorData.total;
+        // Store the resolved Pearl display name so PIE can use it for direct lookups
+        // without re-running alias resolution (critical for LaShanee→Renee, Elizabeth→Betsy)
+        emp._resolvedPearlName = tutorData.name;
         matched++;
 
         // Use the matched Pearl name to do O(1) lookups for survey + session data.
