@@ -1928,6 +1928,13 @@
     const restored = { completed: true, score: s.quizScore, total: s.quizTotal, ts: s.quizTs };
     _lbQuizSetState(restored);
     console.log('[LB Quiz] State restored from Google Sheet for', dept, restored);
+    // Clear any false-positive missed-quiz notification that fired before the sheet loaded
+    if (localStorage.getItem(LB_QUIZ_MISSED_NOTIF_KEY)) {
+      localStorage.removeItem(LB_QUIZ_MISSED_NOTIF_KEY);
+      localStorage.removeItem(LB_QUIZ_MISSED_NOTIF_KEY + '_depts');
+      const missedCard = document.getElementById('lbnQuizMissed');
+      if (missedCard) missedCard.remove();
+    }
     // Re-render quiz area to show the completion banner instead of the prompt
     _lbQuizInit(dept);
   }
@@ -2044,6 +2051,24 @@
     }
 
     if (isPast && !state) {
+      // Verify against the sheet before flagging as missed — guards against cleared localStorage
+      // or cross-device sessions where the quiz was taken on a different browser/device.
+      const rows = await _lbFetch(false);
+      const quizRow = rows.find(r => {
+        if (_lbRowDept(r) !== dept) return false;
+        const qm = _lbQuizRowMeta(r);
+        if (!qm) return false;
+        const ts = _lbGetTs(r);
+        return ts && ts.getTime() >= LB_QUIZ_OPEN.getTime();
+      });
+      if (quizRow) {
+        // Quiz submission found in sheet — restore state and re-render completion banner
+        const qm = _lbQuizRowMeta(quizRow);
+        const rowTs = _lbGetTs(quizRow);
+        _lbQuizSetState({ completed: true, score: qm.score, total: qm.total, ts: rowTs ? rowTs.getTime() : Date.now() });
+        _lbQuizInit(dept);
+        return;
+      }
       area.style.display = '';
       area.innerHTML = `
         <div style="background:#fff7ed;border:1.5px solid #fed7aa;border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap">
@@ -6297,8 +6322,22 @@
 
   const LB_NOTIF_STORE    = 'njtc_lb_notif_dismissed_v2';
   const LB_NOTIF_DEPTS    = ['leadership', 'kb'];
-  // Show submissions from the 2 weeks leading up to the next meeting
-  const LB_NOTIF_LOOKBACK_DAYS = 14;
+  // Show org share-outs from the last 90 days — persistent until explicitly cleared
+  const LB_NOTIF_LOOKBACK_DAYS = 90;
+
+  // Track which privileged departments have seen each message
+  const LB_SEEN_STORE = 'njtc_lb_seen_v1';
+  const LB_SEEN_DEPTS = ['leadership', 'kb', 'data'];
+
+  function _lbGetSeen() { try { return JSON.parse(localStorage.getItem(LB_SEEN_STORE) || '{}'); } catch(e) { return {}; } }
+  function _lbSaveSeen(seen) { try { localStorage.setItem(LB_SEEN_STORE, JSON.stringify(seen)); } catch(e) {} }
+  function _lbMarkSeen(key, dept) {
+    if (!LB_SEEN_DEPTS.includes(dept)) return;
+    const seen = _lbGetSeen();
+    if (!seen[key]) seen[key] = {};
+    if (!seen[key][dept]) { seen[key][dept] = Date.now(); _lbSaveSeen(seen); }
+  }
+  function _lbSeenBy(key) { const seen = _lbGetSeen(); return seen[key] ? Object.keys(seen[key]) : []; }
 
   function _lbNotifGetDismissed() {
     try { return JSON.parse(localStorage.getItem(LB_NOTIF_STORE) || '[]'); } catch(e) { return []; }
@@ -6450,6 +6489,9 @@
         color:var(--muted,#64748b); font-size:.875rem; line-height:1.55;
       }
       .lbn-empty-icon { font-size:1.75rem; margin-bottom:.625rem; }
+      .lbn-seen-row   { margin-top:.5rem; display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+      .lbn-seen-lbl   { font-size:.55rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted,#64748b); flex-shrink:0; }
+      .lbn-seen-chip  { font-size:.58rem; font-weight:700; padding:.1rem .45rem; border-radius:20px; border:1px solid; }
     `;
     document.head.appendChild(css);
 
@@ -6514,46 +6556,60 @@
 
     const rows = await _lbFetch(false);
     const dismissed = _lbNotifGetDismissed();
+    const sessionDept = (window.NJTC_SESSION || {}).dept || '';
 
-    // Window: from LB_NOTIF_LOOKBACK_DAYS before next meeting up to now
-    const cutoff = new Date(LB_NEXT_MEETING);
+    // Persistent: show org share-outs from the last LB_NOTIF_LOOKBACK_DAYS days
+    const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - LB_NOTIF_LOOKBACK_DAYS);
 
     const msgs = rows
-      .filter(r => LB_NOTIF_DEPTS.includes(_lbRowDept(r)))
-      .filter(r => { const ts = _lbGetTs(r); return ts && ts >= cutoff; })
+      .filter(r => !_lbQuizRowMeta(r))                                    // exclude quiz submission records
+      .filter(r => LB_NOTIF_DEPTS.includes(_lbRowDept(r)))                // leadership & KB only
+      .filter(r => { const ts = _lbGetTs(r); return ts && ts >= cutoff; })// within lookback window
+      .filter(r => _lbCleanVal(_lbGetOrg(r)).trim())                      // must have org share-out content
       .sort((a, b) => (_lbGetTs(b) || 0) - (_lbGetTs(a) || 0));
 
     const allKeys = msgs.map(_lbNotifRowKey);
     const bell = document.getElementById('lbNotifBell');
     if (bell) bell.dataset.allKeys = JSON.stringify(allKeys);
+
+    // Auto-record current dept as having seen each displayed message
+    if (LB_SEEN_DEPTS.includes(sessionDept)) {
+      msgs.forEach(row => _lbMarkSeen(_lbNotifRowKey(row), sessionDept));
+    }
+
     _lbNotifUpdateBadge();
 
     if (!msgs.length) {
-      body.innerHTML = `<div class="lbn-empty"><div class="lbn-empty-icon">📭</div>No messages from Leadership or Executive this week yet.</div>`;
+      body.innerHTML = `<div class="lbn-empty"><div class="lbn-empty-icon">📭</div>No org share-outs from Leadership or Executive yet.</div>`;
       return;
     }
 
-    const _field = (icon, lbl, text, bg, border) => text
-      ? `<div class="lbn-field">
-           <div class="lbn-field-lbl">${icon} ${lbl}</div>
-           <div class="lbn-field-txt" style="background:${bg};border-left-color:${border}">${_lbEscHtml(text)}</div>
-         </div>`
-      : '';
+    const showSeenBy = LB_SEEN_DEPTS.includes(sessionDept);
 
     body.innerHTML = msgs.map(row => {
-      const key    = _lbNotifRowKey(row);
-      const dept   = _lbRowDept(row);
-      const cfg    = LB_DEPT_CFG[dept] || {};
-      const ts     = _lbGetTs(row);
-      const tsStr  = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-      const unread = !dismissed.includes(key);
-      const succ   = (row['What successes has your department seen this week?']            || '').trim();
-      const cross  = (row['What cross-departmental successes, if any, have you seen?']     || '').trim();
-      const goal   = (row["What is this week's goal for your department?"]                 || '').trim();
-      const org    = _lbCleanVal(_lbGetOrg(row));
+      const key     = _lbNotifRowKey(row);
+      const dept    = _lbRowDept(row);
+      const cfg     = LB_DEPT_CFG[dept] || {};
+      const ts      = _lbGetTs(row);
+      const tsStr   = ts ? ts.toLocaleString('en-US',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const unread  = !dismissed.includes(key);
+      const org     = _lbCleanVal(_lbGetOrg(row));
       const safeKey = key.replace(/[^a-z0-9]/gi, '_');
-      const col    = cfg.color || '#888';
+      const col     = cfg.color || '#888';
+
+      let seenRow = '';
+      if (showSeenBy) {
+        const seenDepts = _lbSeenBy(key);
+        const chips = LB_SEEN_DEPTS.map(d => {
+          const dc = LB_DEPT_CFG[d] || {};
+          const hasSeen = seenDepts.includes(d);
+          const chipCol = hasSeen ? (dc.color || '#888') : '#94a3b8';
+          const chipBg  = hasSeen ? (dc.color || '#888') + '1a' : '#f1f5f9';
+          return `<span class="lbn-seen-chip" style="background:${chipBg};color:${chipCol};border-color:${chipCol}33">${dc.emoji || ''} ${dc.label || d}${hasSeen ? ' ✓' : ''}</span>`;
+        }).join('');
+        seenRow = `<div class="lbn-seen-row"><span class="lbn-seen-lbl">Seen by:</span>${chips}</div>`;
+      }
 
       return `
       <div class="lbn-card ${unread ? 'lbn-unread' : ''}" id="lbnCard_${safeKey}">
@@ -6563,10 +6619,11 @@
           <span class="lbn-dept-chip" style="background:${col}1a;color:${col};border:1px solid ${col}33">${cfg.emoji || ''} ${cfg.label || dept}</span>
           <span class="lbn-ts">${tsStr}</span>
         </div>
-        ${_field('🏆','Successes',      succ,  col+'0d',   col+'66')}
-        ${_field('🤝','Cross-Dept Wins',cross, '#e0f7fa',  '#0891b2')}
-        ${_field('🎯',"This Week's Goal",goal,  '#eff6ff',  '#3b82f6')}
-        ${org ? _field('🌟','Org Share-Out', org, '#fffdf0', '#f0a500') : ''}
+        <div class="lbn-field">
+          <div class="lbn-field-lbl">🌟 Org Share-Out</div>
+          <div class="lbn-field-txt" style="background:#fffdf0;border-left-color:#f0a500">${_lbEscHtml(org)}</div>
+        </div>
+        ${seenRow}
       </div>`;
     }).join('');
 
