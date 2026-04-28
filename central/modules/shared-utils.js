@@ -5417,6 +5417,7 @@
       }
       else if (_talentTab === 'log')     el.innerHTML = renderTalentLog();
       else if (_talentTab === 'hiring')  el.innerHTML = (typeof window._hrHiringFileCabinet === 'function') ? window._hrHiringFileCabinet() : '<div style="padding:2rem;color:var(--muted)">Hiring records not available.</div>';
+      else if (_talentTab === 'definitions') el.innerHTML = (typeof window._hrViewDefinitions === 'function') ? window._hrViewDefinitions() : '<div style="padding:2rem;color:var(--muted)">Definitions not available.</div>';
     } catch(e) {
       document.getElementById('talentContent').innerHTML = `<div style="padding:2rem;color:var(--muted);text-align:center">Render error: ${e.message}</div>`;
       console.error('Talent dashboard error:', e);
@@ -5425,17 +5426,17 @@
 
   // Update tab labels and layout based on dept
   function initTalentTabsForDept(dept) {
-    // Full tab list: profiles, all (concerns), program, hr, reviews, log, hiring
-    const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring'];
+    // Full tab list: profiles, all (concerns), program, hr, reviews, log, hiring, definitions
+    const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring','definitions'];
     // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
     const TAB_MAP = {
-      kb:          ['profiles'],                                               // KB: exec summary only
-      leadership:  ['all'],                                                    // leadership: summary dashboard only
-      data:        ['profiles','all','program','hr','reviews','log','hiring'], // data: full access
-      hr:          ['profiles','all','reviews','log','hiring'],                // HR: profiles + concerns + reviews + log + hiring records
-      programming: ['profiles','all','reviews'],                               // Programming: profiles + site overview + site leader reviews
-      finance:     ['profiles','all'],                                         // Finance: their view
-      training:    ['profiles','all','reviews'],                               // Training: profiles + concerns + site leader reviews
+      kb:          ['profiles','definitions'],
+      leadership:  ['all','definitions'],
+      data:        ['profiles','all','program','hr','reviews','log','hiring','definitions'],
+      hr:          ['profiles','all','reviews','log','hiring','definitions'],
+      programming: ['profiles','all','reviews','definitions'],
+      finance:     ['profiles','all','definitions'],
+      training:    ['profiles','all','reviews','definitions'],
     };
     const allowed = new Set(TAB_MAP[dept] || ['all']);
 
