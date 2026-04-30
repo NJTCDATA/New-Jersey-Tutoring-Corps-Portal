@@ -2855,8 +2855,11 @@
         }
       </div>`;
 
-      // Pre-compute key values — use getSummary for medians to include repeat data & match exec dashboard
-      const _irlCtxSum  = getSummary(_irlYear !== 'all' ? _irlYear : 'ALL');
+      // Pre-compute key values — getSummary only covers org-wide year-level data; skip it when
+      // district, school, grade, scholarType, or search filters are active so the KPI strip
+      // reflects the filtered cohort rather than the full org.
+      const _hasNonYearFilter = _irlDistrict !== 'all' || _irlSchool !== 'all' || _irlGrade !== 'all' || _irlScholarType !== 'all' || !!_irlSearch;
+      const _irlCtxSum  = _hasNonYearFilter ? null : getSummary(_irlYear !== 'all' ? _irlYear : 'ALL');
       const _elaRaw     = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.elaMedianPctTypical  : _irlCtxSum.elaMedianPctAllYears)  : null;
       const _mathRaw    = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.mathMedianPctTypical : _irlCtxSum.mathMedianPctAllYears) : null;
       // getSummary returns integers (100 = 100%); convert to ratio (1.0) to match existing display code
