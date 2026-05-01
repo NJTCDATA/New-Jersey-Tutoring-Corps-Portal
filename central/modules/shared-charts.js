@@ -1388,12 +1388,13 @@
       }
     }
 
-    // ── Add NEW employees: ONLY from 2025-2026 rows, ONLY if not already tracked ──
+    // ── Add NEW employees not yet tracked — current SY preferred, prior SYs as fallback ──
+    // Process all live rows so prior-SY employees (e.g. a 2024-2025 terminated tutor)
+    // are also added. The most recent row's SY is used for the y[] array on the new entry.
     const embKeys = new Set(HR_EMPS.map(e => _hn(e.n)));
-    const curSYRows = liveRows.filter(r => r.yr === '2025-2026');
-    // Build unique names from current SY only
+    // Build name→rows index across ALL SYs, but prefer current-SY rows when available
     const curByKey = {};
-    for (const r of curSYRows) {
+    for (const r of liveRows) {
       const k = _hn(r.name);
       if (!curByKey[k]) curByKey[k] = [];
       curByKey[k].push(r);
@@ -1415,13 +1416,16 @@
       }
       if (found) continue;
       const latest = rows.sort((a,b)=>b.yr.localeCompare(a.yr))[0];
-      if (!latest.name || !latest.status) continue; // skip incomplete rows
+      if (!latest.name) continue; // skip rows with no name
+      // Infer status: use sheet value if present; otherwise default to Active (blank = still employed),
+      // or Terminated if a termination date is populated
+      const inferredStatus = latest.status || (latest.termDate ? 'Terminated' : 'Active');
       HR_EMPS.push({
         n: latest.name, a:[], e: latest.email||'',
-        y: ['2025-2026'],
+        y: [latest.yr||'2025-2026'],
         c: rows.reduce((m,r)=>Math.max(m,parseInt(r.cycles)||0),1),
         r: latest.role||'', rs:[], si: (latest.site||'').slice(0,45), sis:[latest.site||''],
-        di: (latest.district||'').slice(0,45), dis:[], s: latest.status||'Active', t:'incomplete',
+        di: (latest.district||'').slice(0,45), dis:[], s: inferredStatus, t:'incomplete',
         mp:null, py:'', am:null, em:null, lm:null, acm:null,
         pi:null, pr:null, p2:null, att:null, je:null, jl:null,
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
@@ -1976,10 +1980,11 @@
 
   function _filtered() {
     let list = HR_EMPS;
-    // SY filter: restrict to employees who have a record in the selected SY.
+    // SY filter: restrict active employees to those who have a record in the selected SY.
+    // The inactive tab is exempt — terminated staff from any SY should always be browseable.
     // Also exclude stale embedded employees absent from live 2025-2026 sheet
     // (e.g. someone removed from HR Master whose embed data hasn't been purged yet).
-    if (_pSY && _pSY !== 'all') {
+    if (_pSY && _pSY !== 'all' && _pViewTab !== 'inactive') {
       list = list.filter(e => {
         if (!((e.y||[]).includes(_pSY) || (e._liveYears||[]).includes(_pSY))) return false;
         if (_pSY === '2025-2026' && e._notInLive2526) return false;
