@@ -1388,13 +1388,14 @@
       }
     }
 
-    // ── Add NEW employees not yet tracked — current SY preferred, prior SYs as fallback ──
-    // Process all live rows so prior-SY employees (e.g. a 2024-2025 terminated tutor)
-    // are also added. The most recent row's SY is used for the y[] array on the new entry.
+    // ── Add NEW employees not yet tracked — current + immediately prior SY only ──
+    // Includes 2024-2025 so terminated employees from last year (e.g. Mattelyn Bullock)
+    // are visible in the inactive tab. Older SYs are excluded to avoid flooding the portal.
+    const PRIOR_SY = '2024-2025';
     const embKeys = new Set(HR_EMPS.map(e => _hn(e.n)));
-    // Build name→rows index across ALL SYs, but prefer current-SY rows when available
     const curByKey = {};
     for (const r of liveRows) {
+      if (r.yr !== '2025-2026' && r.yr !== PRIOR_SY) continue;
       const k = _hn(r.name);
       if (!curByKey[k]) curByKey[k] = [];
       curByKey[k].push(r);
