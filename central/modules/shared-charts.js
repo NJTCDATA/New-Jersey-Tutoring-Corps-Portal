@@ -2884,15 +2884,31 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const _ek = uid;
     const _en = emp.n;
     const _sy = '2025-2026';
-    const latestRec = _hiringGet(_ek).sort((a,b)=>b.ts.localeCompare(a.ts))[0];
+    const existingRecs = _hiringGet(_ek).sort((a,b)=>b.ts.localeCompare(a.ts));
+    const latestRec = existingRecs[0];
     const latestBadge = latestRec
       ? `<span style="padding:.2rem .6rem;border-radius:20px;font-size:.72rem;font-weight:700;background:${_H_BG[latestRec.d]||'#f3f4f6'};color:${_H_COLOR[latestRec.d]||'#374151'}">${esc(latestRec.d)}</span>`
       : '<span style="font-size:.72rem;color:var(--muted)">No decision yet</span>';
+    const isOverride = !!latestRec;
+    const sessionName = (window.NJTC_SESSION||{}).name || '';
+    const overrideBanner = isOverride ? `
+  <div style="margin-bottom:.625rem;padding:.5rem .625rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;font-size:.72rem;color:#92400e;line-height:1.5">
+    <strong>⚠️ Overriding existing decision</strong> — a prior decision is already on record.
+    Notes are <strong>required</strong>: explain who authorized this change and why.
+  </div>` : '';
+    const notesPlaceholder = isOverride
+      ? 'Required — who authorized this change and why is the decision being updated?'
+      : 'Notes — rationale, conditions, context...';
+    const formLabel = isOverride ? `Override Decision · SY ${_sy}` : `Record New Decision · SY ${_sy}`;
+    const byLine = sessionName
+      ? `<div style="font-size:.68rem;color:var(--muted);margin-bottom:.4rem">Recorded by: <strong>${esc(sessionName)}</strong></div>` : '';
     const body = `<div>
   <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.625rem">${latestBadge}</div>
   <div id="hiring_records_${_ek}" style="margin-bottom:.75rem">${_hiringRecordsHtml(_ek)}</div>
   <div style="padding:.75rem;background:#f8fafc;border:1px solid var(--border);border-radius:8px">
-    <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;letter-spacing:.06em">Record New Decision · SY ${_sy}</div>
+    <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;letter-spacing:.06em">${esc(formLabel)}</div>
+    ${overrideBanner}
+    ${byLine}
     <select id="hiring_sel_${_ek}" style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8125rem;margin-bottom:.5rem;font-family:inherit;background:#fff">
       <option value="">— Select Decision —</option>
       <option value="Invite Back">✅ Invite Back</option>
@@ -2900,8 +2916,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       <option value="Hold">⏸ Hold — Pending More Info</option>
       <option value="Do Not Rehire">🚫 Do Not Rehire</option>
     </select>
-    <textarea id="hiring_notes_${_ek}" rows="3" placeholder="Notes — rationale, conditions, context..." style="width:100%;padding:.4rem .6rem;border:1px solid var(--border);border-radius:6px;font-size:.8125rem;margin-bottom:.5rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
-    <button id="hiring_save_${_ek}" onclick="_hrSaveHiringDecision('${_ek}','${_en.replace(/'/g,"&#39;")}',document.getElementById('hiring_sel_${_ek}').value,document.getElementById('hiring_notes_${_ek}').value)" style="padding:.4rem 1rem;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit">Save Decision</button>
+    <textarea id="hiring_notes_${_ek}" rows="3" placeholder="${esc(notesPlaceholder)}" style="width:100%;padding:.4rem .6rem;border:1px solid ${isOverride?'#fca5a5':'var(--border)'};border-radius:6px;font-size:.8125rem;margin-bottom:.5rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+    <button id="hiring_save_${_ek}" onclick="_hrSaveHiringDecision('${_ek}','${_en.replace(/'/g,"&#39;")}',document.getElementById('hiring_sel_${_ek}').value,document.getElementById('hiring_notes_${_ek}').value,${isOverride})" style="padding:.4rem 1rem;background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:.8125rem;font-weight:700;cursor:pointer;font-family:inherit">Save Decision</button>
   </div>
 </div>`;
     return sec('🗂️ Hiring Decision Record', uid+'_hiringrec', body, true);
@@ -5620,8 +5636,19 @@ ${inactive.length ? `
 
   window.buildTalentDashboard    = buildTalentDashboard;
   // ── Hiring Decision: global save handler (called from inline onclick) ─────
-  window._hrSaveHiringDecision = function(ek, en, decision, notes) {
+  window._hrSaveHiringDecision = function(ek, en, decision, notes, isOverride) {
     if (!decision) { alert('Please select a decision before saving.'); return; }
+    if (isOverride && !(notes||'').trim()) {
+      // Notes are required when overriding an existing decision
+      const notesEl = document.getElementById('hiring_notes_' + ek);
+      if (notesEl) {
+        notesEl.style.borderColor = '#dc2626';
+        notesEl.focus();
+        notesEl.setAttribute('placeholder', 'Required — who authorized this change and why?');
+      }
+      alert('Notes are required when overriding an existing decision.\n\nPlease explain who authorized this change and why the decision is being updated.');
+      return;
+    }
     const sess = window.NJTC_SESSION || {};
     const emp  = (typeof HR_EMPS !== 'undefined' ? HR_EMPS : []).find(e => e.n.replace(/\W/g,'_') === ek);
     const empSite = (emp && emp.si) || '';
@@ -5646,7 +5673,7 @@ ${inactive.length ? `
     const txt = document.getElementById('hiring_notes_' + ek);
     const btn = document.getElementById('hiring_save_' + ek);
     if (sel) sel.value = '';
-    if (txt) txt.value = '';
+    if (txt) { txt.value = ''; txt.style.borderColor = ''; }
     if (btn) {
       const orig = btn.textContent;
       btn.textContent = '✓ Saved — export from 🗂️ Hiring Records tab to back up';
