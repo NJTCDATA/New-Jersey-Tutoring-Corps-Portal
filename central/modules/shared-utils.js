@@ -4953,7 +4953,7 @@
             const resolveCell = isRes
               ? `<div><div class="sl-res-reason" title="${(res.reason||'').replace(/"/g,'&quot;')}">"${res.reason||'—'}"</div><div class="sl-res-by">— ${res.resolved_by||'HR'}</div></div>`
               : isHR
-                ? `<button class="sl-resolve-btn" onclick="showSLResolveModal(${JSON.stringify(c.ts)})">Resolve</button>`
+                ? `<button class="sl-resolve-btn" onclick="showSLResolveModal('${c.ts.replace(/'/g,"\\'")}')">Resolve</button>`
                 : '<span class="sl-cell-muted">Pending HR</span>';
             html += `<div class="sl-row${isRes?' sl-row-resolved':''}">
               <span><span class="sl-badge ${isRes?'sl-badge-res':'sl-badge-open'}">${isRes?'✓ Resolved':'● Open'}</span></span>
@@ -5005,7 +5005,7 @@
         </div>
         <div class="sl-modal-actions">
           <button class="btn btn-secondary" onclick="document.getElementById('slResolveModal').remove()">Cancel</button>
-          <button class="btn btn-primary" onclick="submitSLResolution(${JSON.stringify(ts)})">Confirm Resolve ✓</button>
+          <button class="btn btn-primary" onclick="submitSLResolution('${ts.replace(/'/g,"\\'")}')">Confirm Resolve ✓</button>
         </div>
       </div>`;
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
