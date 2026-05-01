@@ -929,6 +929,29 @@
     // Fire all background data fetches (non-blocking)
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
     fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
+    // Sync hiring decisions from the shared Google Sheet into localStorage so decisions
+    // recorded by any team member are visible to all users on next talent load.
+    _hiringFetchSheet().then(rows => {
+      if (!rows.length) return;
+      const local = _hiringLoad();
+      const localKeys = new Set(local.map(r => (r.ts||'').slice(0,16) + '|' + (r.ek||r.en||'')));
+      let added = 0;
+      for (const r of rows) {
+        const ek = (r.en||'').replace(/\W/g,'_');
+        const k = (r.ts||'').slice(0,16) + '|' + (r.en||'');
+        if (!localKeys.has(k)) {
+          local.push({ ek, en: r.en, d: r.d, n: r.n||'', sy: r.sy||'2025-2026',
+                       ts: r.ts, by: r.by||'', role: r.role||'', loc: r.loc||'', src: 'sheet' });
+          localKeys.add(k);
+          added++;
+        }
+      }
+      if (added) {
+        _hiringSave(local);
+        window._njtcHiringDecisions = local;
+        console.log('[Hiring] Synced', added, 'decision(s) from Google Sheet');
+      }
+    }).catch(() => {});
     if (typeof irlab !== 'undefined' && irlab && irlab.fetchLive) {
       irlab.fetchLive(!!forceRefresh).catch(e=>console.warn('[irlab live]',e.message));
     }
@@ -2462,11 +2485,24 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
       const rhBadge = (e.rh==='Yes'||e.rh===true)
           ? `<span title="${_rhTipYes}" style="cursor:help;font-size:.58rem;background:#d1fae5;color:#065f46;padding:.1rem .3rem;border-radius:4px;font-weight:700">✅ Returning ⓘ</span>` : '';
 
+      // Hiring decision badge — show the latest HR decision directly on the card
+      const _empHiringRecs = _hiringGet(e.n.replace(/\W/g,'_'));
+      const _latestHiringDecision = _empHiringRecs.length
+        ? _empHiringRecs.sort((a,b) => (b.ts||'').localeCompare(a.ts||''))[0].d : '';
+      const hiringDecisionBadge = _latestHiringDecision === 'Do Not Rehire'
+        ? `<span style="font-size:.58rem;background:#fee2e2;color:#b91c1c;padding:.1rem .3rem;border-radius:4px;font-weight:700" title="HR Decision: Do Not Rehire (see full profile for details)">🚫 Do Not Rehire</span>`
+        : _latestHiringDecision === 'Conditional'
+          ? `<span style="font-size:.58rem;background:#fef3c7;color:#92400e;padding:.1rem .3rem;border-radius:4px;font-weight:700" title="HR Decision: Conditional rehire (see full profile for details)">⚠️ Conditional</span>`
+          : _latestHiringDecision === 'Hold'
+            ? `<span style="font-size:.58rem;background:#dbeafe;color:#1e40af;padding:.1rem .3rem;border-radius:4px;font-weight:700" title="HR Decision: On Hold (see full profile for details)">⏸ Hold</span>`
+            : '';
+
       return `<div onclick="window._hrShowProfile(this.getAttribute('data-empn'))" data-empn="${esc(e.n)}" style="cursor:pointer;background:var(--surface);border:1.5px solid ${borderColor};border-radius:10px;overflow:hidden;transition:.15s;display:flex;flex-direction:column;opacity:${isActive?'1':'0.72'}" onmouseenter="this.style.boxShadow='0 4px 18px rgba(10,22,40,.12)';this.style.opacity='1'" onmouseleave="this.style.boxShadow='none';this.style.opacity='${isActive?'1':'0.72'}'">
   <div style="background:linear-gradient(90deg,#0a1628,#1a3a6b);padding:.5rem .75rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.25rem">
     <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap">
       <span style="background:${cfg.bg};color:${cfg.color};padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700">${cfg.emoji} ${cfg.label}</span>
       ${e._apprentice==='Yes'?`<span style="background:#fef9c3;color:#854d0e;padding:.12rem .4rem;border-radius:6px;font-size:.58rem;font-weight:700;border:1px solid #fde68a" title="DOL Apprentice: Enrolled in the NJTC DOL-registered apprenticeship program">🎓 Apprentice</span>`:''}
+      ${hiringDecisionBadge}
     </div>
     <div style="display:flex;gap:.3rem;align-items:center">${rhBadge} <span style="font-size:.6rem;padding:.1rem .35rem;border-radius:4px;font-weight:700;background:${isActive?'#d1fae5':'#f1f5f9'};color:${isActive?'#065f46':'#64748b'}">${isActive?'Active':'Inactive'}</span></div>
   </div>
