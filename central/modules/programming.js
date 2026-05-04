@@ -479,6 +479,11 @@
       const fi = document.getElementById('syFilterInfo');
       const active = !!(fD||fC||fT||fA||fW||fS);
       if (fi) fi.textContent = active ? `${_filtered.length} site${_filtered.length!==1?'s':''} matching` : '';
+      if (_selKey && !_filtered.some(s => s.key === _selKey)) {
+        _selKey = null;
+        const card = document.getElementById('syDetailCard');
+        if (card) card.innerHTML = '';
+      }
       updateStats(); renderDistrictList(); renderTable(); updateMapMarkers();
     }
 
