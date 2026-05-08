@@ -1003,6 +1003,26 @@
   const LB_QUIZ_STATE_KEY        = 'njtc_lb_quiz_' + LB_NEXT_MEETING.toISOString().slice(0, 10);
   const LB_QUIZ_MISSED_NOTIF_KEY = LB_QUIZ_STATE_KEY + '_missed_notif_v1';
 
+  // Per-person localStorage helpers — key is base + normalized name
+  function _lbQuizNameKey(name) {
+    return LB_QUIZ_STATE_KEY + '_' + (name||'').trim().toLowerCase().replace(/\s+/g,'_');
+  }
+  function _lbQuizGetStateForName(name) {
+    if (!name) return null;
+    try { return JSON.parse(localStorage.getItem(_lbQuizNameKey(name))||'null'); } catch(e) { return null; }
+  }
+  function _lbQuizSetStateForName(s, name) {
+    if (!name) return;
+    try { localStorage.setItem(_lbQuizNameKey(name), JSON.stringify(s)); } catch(e) {}
+  }
+  // Returns array of roster member names that have a completed state in localStorage for this dept
+  function _lbQuizDeptCompletedNamesLocal(dept) {
+    return (LB_QUIZ_ROSTER[dept] || []).filter(m => {
+      const s = _lbQuizGetStateForName(m.name);
+      return s && s.completed;
+    }).map(m => m.name);
+  }
+
   // Dept display config for leaderboard
   const LB_DEPT_CFG = {
     hr:             { label: 'Human Resources',             emoji: '👔', color: '#e63946' },
@@ -1017,6 +1037,41 @@
 
   // All departments that participate (includes exec for org share-outs)
   const LB_ALL_DEPTS = ['hr','finance','programming','training','leadership','data','kb'];
+
+  // Fixed roster of individual quiz participants, keyed by department code.
+  // crossDept field stores Name; goalMissReason field stores Position on quiz submissions.
+  const LB_QUIZ_ROSTER = {
+    programming: [
+      { name: 'Andrea Bowman',      position: 'Program Team' },
+      { name: 'Tierney Tittermary', position: 'Program Team' },
+      { name: 'Taneisha Clemons',   position: 'Program Team' },
+      { name: 'Jenny Irwin',        position: 'Program Team' },
+    ],
+    hr: [
+      { name: 'Mariely Rodriguez', position: 'HR Team' },
+      { name: 'Ashley Petty',      position: 'HR Team' },
+      { name: 'Dalitza Sanchez',   position: 'HR Team' },
+    ],
+    finance: [
+      { name: 'Bertin Lefkovic', position: 'Finance Team' },
+    ],
+    data: [
+      { name: 'Amir Wallace', position: 'Data & Evaluation' },
+    ],
+    kb: [
+      { name: 'Katherine Bassett', position: 'CEO' },
+      { name: 'Rene Lintz',        position: 'Assistant to CEO' },
+    ],
+    training: [
+      { name: 'Anne Lee', position: 'Training & Development' },
+    ],
+    leadership: [
+      { name: 'Ashley Bencan',  position: 'Leadership' },
+      { name: 'Mysti Diaz',     position: 'Leadership' },
+      { name: 'Scott Oswald',   position: 'Leadership' },
+      { name: 'Anthony Scotto', position: 'Leadership' },
+    ],
+  };
 
   // Cache for live sheet data
   let _lbCache = null;
@@ -1363,43 +1418,46 @@
       // Priority: new dedicated quizScore column → goalMissReason (interim fix) → orgShareOut (legacy).
       const succVal = (row['What successes has your department seen this week?'] || '').trim();
       if (succVal.startsWith('[QUIZ_RECORD]') || succVal === 'Quiz Submission') {
-        // Try all columns that may hold the machine tag, newest location first
-        const quizScoreVal  = _lbGetQuizScoreCol(row);
-        const goalMissVal   = row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '';
-        const orgVal        = _lbGetOrg(row);
-        const tagSource = quizScoreVal.includes('[quiz_result:') ? quizScoreVal
-                        : goalMissVal.includes('[quiz_result:')  ? goalMissVal
-                        : orgVal;
+        // crossDept column carries the person's name; goalMissReason carries their position
+        const personName = (row['What cross-departmental successes, if any, have you seen?'] || '').trim();
+        const personPos  = (row['If this week\'s departmental goal wasn\'t met, what was the reason?'] || '').trim();
+
+        const quizScoreVal = _lbGetQuizScoreCol(row);
+        const orgVal       = _lbGetOrg(row);
+        // For legacy rows, goalMissReason may hold the [quiz_result:] tag rather than a position
+        const goalMissRaw  = personPos; // same column
+        const tagSource    = quizScoreVal.includes('[quiz_result:') ? quizScoreVal
+                           : goalMissRaw.includes('[quiz_result:')  ? goalMissRaw
+                           : orgVal;
         const qm = tagSource.match(/\[quiz_result:(\d+):(\d+):(\d+)\]/);
-        if (qm) {
-          const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
-          const target = byDept[dept] || byDept['unknown'];
-          if (target && (!target.quizTs || qts > target.quizTs)) {
-            target.quizScore = qs;
-            target.quizTotal = qt;
-            target.quizTs    = qts;
-            // Q&A log: orgShareOut is primary; goalMissReason is fallback (entry ID may be swapped)
-            const qaRaw = _lbGetOrg(row) || goalMissVal || '';
-            if (qaRaw && qaRaw.includes('Q1')) target.quizQA = qaRaw;
-          }
-        } else {
-          // Fallback: [quiz_result:] tag not present — extract score from [QUIZ_RECORD] Score: X/Y
-          // or from the human-readable prefix in quizScoreVal ("2/2" prefix without tag)
-          const fallbackSrc = quizScoreVal || succVal;
-          const fm = fallbackSrc.match(/(?:\[QUIZ_RECORD\]\s*Score:\s*)?(\d+)\/(\d+)/i);
-          if (fm) {
-            const qs = parseInt(fm[1]), qt = parseInt(fm[2]);
-            const rowTs = _lbGetTs(row);
-            const qts = rowTs ? rowTs.getTime() : Date.now();
-            const target = byDept[dept] || byDept['unknown'];
-            if (target && (!target.quizTs || qts > target.quizTs)) {
-              target.quizScore = qs;
-              target.quizTotal = qt;
-              target.quizTs    = qts;
-              const qaRaw = _lbGetOrg(row) || goalMissVal || '';
-              if (qaRaw && qaRaw.includes('Q1')) target.quizQA = qaRaw;
+        const target = byDept[dept] || byDept['unknown'];
+        if (target) {
+          target.quizEntries = target.quizEntries || [];
+          if (qm) {
+            const qs = parseInt(qm[1]), qt = parseInt(qm[2]), qts = parseInt(qm[3]);
+            // Deduplicate by name (keep latest submission per person)
+            const existing = target.quizEntries.findIndex(e => e.name === personName);
+            const qaRaw = orgVal || '';
+            const entry = { name: personName, position: personPos, score: qs, total: qt, ts: qts, qa: qaRaw && qaRaw.includes('Q1') ? qaRaw : '' };
+            if (existing >= 0) { if (qts > target.quizEntries[existing].ts) target.quizEntries[existing] = entry; }
+            else { target.quizEntries.push(entry); }
+          } else {
+            // Fallback: parse human-readable score prefix
+            const fallbackSrc = quizScoreVal || succVal;
+            const fm = fallbackSrc.match(/(?:\[QUIZ_RECORD\]\s*Score:\s*)?(\d+)\/(\d+)/i);
+            if (fm) {
+              const qs = parseInt(fm[1]), qt = parseInt(fm[2]);
+              const rowTs = _lbGetTs(row);
+              const qts = rowTs ? rowTs.getTime() : Date.now();
+              const existing = target.quizEntries.findIndex(e => e.name === personName);
+              const entry = { name: personName, position: personPos, score: qs, total: qt, ts: qts, qa: '' };
+              if (existing >= 0) { if (qts > target.quizEntries[existing].ts) target.quizEntries[existing] = entry; }
+              else { target.quizEntries.push(entry); }
             }
           }
+          // Keep legacy quizTs/quizScore/quizTotal for backward-compat callers (use latest entry)
+          const sorted = [...target.quizEntries].sort((a,b) => b.ts - a.ts);
+          if (sorted.length) { target.quizTs = sorted[0].ts; target.quizScore = sorted[0].score; target.quizTotal = sorted[0].total; if (sorted[0].qa) target.quizQA = sorted[0].qa; }
         }
         return; // don't count quiz records as regular submissions
       }
@@ -1438,8 +1496,16 @@
         return v.trim().length > 0;
       }).length;
 
-      // Score: 10/submission + 5/on-time + streak bonus (streak×3 when ≥2) + 2/cross-dept mention
-      s.score = (s.count * 10) + (s.metDeadline * 5) + (streak >= 2 ? streak * 3 : 0) + (crossCount * 2);
+      // Quiz bonus: up to 15 pts — avg % correct × participation rate for this dept
+      const quizEntries  = s.quizEntries || [];
+      const rosterSize   = (LB_QUIZ_ROSTER[d] || []).length || 1;
+      const participation = quizEntries.length / rosterSize;
+      const avgPct = quizEntries.length > 0
+        ? quizEntries.reduce((sum, e) => sum + (e.total > 0 ? e.score / e.total : 0), 0) / quizEntries.length
+        : 0;
+      const quizBonus = Math.round(participation * avgPct * 15);
+      // Score: 10/submission + 5/on-time + streak bonus (streak×3 when ≥2) + 2/cross-dept mention + quiz bonus
+      s.score = (s.count * 10) + (s.metDeadline * 5) + (streak >= 2 ? streak * 3 : 0) + (crossCount * 2) + quizBonus;
 
       // Achievement badges
       s.badges = [];
@@ -1832,6 +1898,29 @@
             </div>` : ''}
             ${ts ? `<div style="font-size:.6875rem;color:var(--muted);margin-top:.5rem">Submitted ${ts} · ${s.count} total submission${s.count!==1?'s':''} · ${s.score} pts</div>` : ''}
             ${s.count > 1 ? `<button onclick="_lbOpenViewModalDept('${d}')" style="margin-top:.625rem;font-size:.75rem;color:var(--blue-mid);background:none;border:none;cursor:pointer;font-family:inherit;padding:0;text-decoration:underline">View all ${s.count} submissions from ${c.label} →</button>` : ''}
+            ${(() => {
+              const qEntries = s.quizEntries || [];
+              const roster   = LB_QUIZ_ROSTER[d] || [];
+              if (!roster.length) return '';
+              const rosterSize = roster.length;
+              // Merge sheet entries with any localStorage-only completions
+              const allEntries = [...qEntries];
+              roster.forEach(m => {
+                if (!allEntries.find(e => e.name === m.name)) {
+                  const ls = _lbQuizGetStateForName(m.name);
+                  if (ls && ls.completed) allEntries.push({ name: m.name, position: m.position, score: ls.score, total: ls.total, ts: ls.ts, qa: '' });
+                }
+              });
+              const doneCount = allEntries.length;
+              const avgPct = doneCount > 0 ? Math.round(allEntries.reduce((sum,e)=>sum+(e.total>0?e.score/e.total:0),0)/doneCount*100) : null;
+              const memberRows = roster.map(m => {
+                const eff = allEntries.find(e => e.name === m.name);
+                if (!eff) return '<div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.75rem;color:var(--muted)"><span style="font-size:.65rem">⬜</span> ' + m.name + ' <span style="font-size:.65rem;color:#94a3b8">(not yet completed)</span></div>';
+                const p = Math.round(eff.score/eff.total*100);
+                return '<div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.75rem;color:var(--navy)"><span style="font-size:.65rem">' + (p===100?'✅':p>=50?'🔵':'🔴') + '</span> <strong>' + m.name + '</strong><span style="font-size:.65rem;font-weight:700;padding:.1rem .4rem;border-radius:20px;background:' + (p===100?'#dcfce7':p>=50?'#dbeafe':'#fee2e2') + ';color:' + (p===100?'#065f46':p>=50?'#1e40af':'#991b1b') + ';margin-left:.375rem">' + eff.score + '/' + eff.total + ' · ' + p + '%</span></div>';
+              }).join('');
+              return '<div style="margin-bottom:.875rem"><div style="font-size:.595rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#6366f1;margin-bottom:.3rem">📋 Quiz — ' + doneCount + '/' + rosterSize + ' completed' + (avgPct!==null?' · avg '+avgPct+'%':'') + '</div><div style="background:#f5f3ff;border-left:3px solid #6366f1;padding:.625rem .875rem;border-radius:0 8px 8px 0">' + memberRows + '</div></div>';
+            })()}
           </div>
         </div>`;
       });
@@ -2014,33 +2103,27 @@
   async function _lbQuizInit(dept) {
     const area = document.getElementById('lbQuizArea');
     if (!area) return;
-    const state   = _lbQuizGetState();
     const isOpen  = _lbQuizIsWindowOpen();
     const isPast  = _lbQuizIsWindowPast();
     const deptCfg = LB_DEPT_CFG[dept] || {};
+    const roster  = LB_QUIZ_ROSTER[dept] || [];
+    const rosterSize = roster.length || 1;
 
-    if (state && state.completed) {
-      area.style.display = '';
-      area.innerHTML = `
-        <div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-          <div style="font-size:1.5rem">✅</div>
-          <div style="flex:1">
-            <div style="font-weight:700;font-size:.9375rem;color:#065f46">Pre-Meeting Quiz Complete!</div>
-            <div style="font-size:.8125rem;color:#16a34a;margin-top:.15rem">${state.score}/${state.total} correct · Completed ${new Date(state.ts).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>
-          </div>
-          <span style="font-size:.6875rem;font-weight:700;padding:.2rem .7rem;border-radius:20px;background:#dcfce7;color:#065f46">📋 Cycle Complete</span>
-        </div>`;
-      return;
-    }
+    // Count how many roster members have a completed local state
+    const localDone = _lbQuizDeptCompletedNamesLocal(dept);
+    const allDone   = localDone.length >= rosterSize;
 
     if (isOpen) {
       area.style.display = '';
+      const progressChip = roster.length > 0
+        ? `<span style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;background:${allDone?'#d1fae5':localDone.length>0?'#dbeafe':'rgba(255,255,255,.15)'};color:${allDone?'#065f46':localDone.length>0?'#1e40af':'rgba(255,255,255,.9)'}">${localDone.length}/${rosterSize} members done</span>`
+        : '';
       area.innerHTML = `
         <div style="background:linear-gradient(135deg,#0d3b8c 0%,#1a5fb4 100%);border-radius:14px;padding:1.25rem 1.75rem;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
           <div>
             <div style="font-size:.55rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;margin-bottom:.35rem">📋 Pre-Meeting Knowledge Check</div>
-            <div style="font-size:1rem;font-weight:700;margin-bottom:.3rem">This Week's Recap Quiz is Live!</div>
-            <div style="font-size:.8125rem;color:rgba(255,255,255,.75);line-height:1.5;max-width:440px">Test your knowledge of each department's updates before Tuesday's meeting. Questions are drawn directly from live submission data.</div>
+            <div style="font-size:1rem;font-weight:700;margin-bottom:.3rem;display:flex;align-items:center;gap:.5rem">This Week's Recap Quiz is Live! ${progressChip}</div>
+            <div style="font-size:.8125rem;color:rgba(255,255,255,.75);line-height:1.5;max-width:440px">Every team member completes the quiz individually. Select your name when prompted — one attempt per person per cycle.</div>
             <div style="font-size:.7rem;color:#fbbf24;margin-top:.5rem">⏰ Open through Mon ${LB_QUIZ_CLOSE.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · ${_lbQuizCountdown()}</div>
           </div>
           <button onclick="_lbQuizOpenModal('${dept}')" style="background:#fff;color:#0d3b8c;border:none;border-radius:10px;padding:.5625rem 1.375rem;font-size:.9375rem;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.2)">
@@ -2050,23 +2133,38 @@
       return;
     }
 
-    if (isPast && !state) {
-      // Verify against the sheet before flagging as missed — guards against cleared localStorage
-      // or cross-device sessions where the quiz was taken on a different browser/device.
+    if (isPast) {
+      // Check sheet for any individual quiz submissions for this dept this cycle
       const rows = await _lbFetch(false);
-      const quizRow = rows.find(r => {
+      const cycleQuizRows = rows.filter(r => {
         if (_lbRowDept(r) !== dept) return false;
         const qm = _lbQuizRowMeta(r);
         if (!qm) return false;
         const ts = _lbGetTs(r);
         return ts && ts.getTime() >= LB_QUIZ_OPEN.getTime();
       });
-      if (quizRow) {
-        // Quiz submission found in sheet — restore state and re-render completion banner
-        const qm = _lbQuizRowMeta(quizRow);
-        const rowTs = _lbGetTs(quizRow);
-        _lbQuizSetState({ completed: true, score: qm.score, total: qm.total, ts: rowTs ? rowTs.getTime() : Date.now() });
-        _lbQuizInit(dept);
+      // Restore any names found in sheet that aren't in localStorage yet
+      cycleQuizRows.forEach(r => {
+        const nm = (r['What cross-departmental successes, if any, have you seen?'] || '').trim();
+        if (nm && !_lbQuizGetStateForName(nm)) {
+          const qm = _lbQuizRowMeta(r);
+          const rowTs = _lbGetTs(r);
+          if (qm && qm.score !== null) _lbQuizSetStateForName({ completed: true, score: qm.score, total: qm.total, ts: rowTs ? rowTs.getTime() : Date.now() }, nm);
+        }
+      });
+      const totalDone = Math.max(cycleQuizRows.length, _lbQuizDeptCompletedNamesLocal(dept).length);
+      if (totalDone > 0) {
+        area.style.display = '';
+        const allGood = totalDone >= rosterSize;
+        area.innerHTML = `
+          <div style="background:${allGood?'#f0fdf4':'#fff7ed'};border:1.5px solid ${allGood?'#bbf7d0':'#fed7aa'};border-radius:14px;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+            <div style="font-size:1.5rem">${allGood?'✅':'⚠️'}</div>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:.9375rem;color:${allGood?'#065f46':'#c2410c'}">${allGood?'All Team Members Completed the Quiz!':'Quiz Window Closed'}</div>
+              <div style="font-size:.8125rem;color:${allGood?'#16a34a':'#ea580c'};margin-top:.15rem">${totalDone}/${rosterSize} member${totalDone!==1?'s':''} completed this cycle · See the Leaderboard Details tab for individual scores.</div>
+            </div>
+            <span style="font-size:.6875rem;font-weight:700;padding:.2rem .7rem;border-radius:20px;background:${allGood?'#dcfce7':'#fef3c7'};color:${allGood?'#065f46':'#92400e'}">📋 ${totalDone}/${rosterSize} Done</span>
+          </div>`;
         return;
       }
       area.style.display = '';
@@ -2075,7 +2173,7 @@
           <div style="font-size:1.5rem;flex-shrink:0">⚠️</div>
           <div style="flex:1">
             <div style="font-weight:700;font-size:.9375rem;color:#c2410c">Quiz Deadline Missed</div>
-            <div style="font-size:.8125rem;color:#ea580c;margin-top:.2rem;line-height:1.55">The pre-meeting knowledge check closed Monday at 7:30 PM. ${deptCfg.emoji||''} <strong>${deptCfg.label||dept}</strong> did not complete this cycle's quiz. Leadership and Data departments have been notified.</div>
+            <div style="font-size:.8125rem;color:#ea580c;margin-top:.2rem;line-height:1.55">The pre-meeting knowledge check closed Monday at 7:30 PM. ${deptCfg.emoji||''} <strong>${deptCfg.label||dept}</strong> had no completions this cycle. Leadership and Data departments have been notified.</div>
             <div style="font-size:.75rem;color:var(--muted);margin-top:.375rem">Next quiz will be available the Friday before the following biweekly meeting.</div>
           </div>
         </div>`;
@@ -2103,16 +2201,113 @@
     }
   }
 
-  // ── Open quiz modal: fetch live data, generate questions, render ────────
+  // ── Step 0: name/position picker rendered inside the quiz modal body ────
+  function _lbQuizShowNamePicker(dept) {
+    const body = document.getElementById('lbQuizBody');
+    if (!body) return;
+    const roster = LB_QUIZ_ROSTER[dept] || [];
+    const deptCfg = LB_DEPT_CFG[dept] || {};
+
+    const optionsHtml = roster.map(m => {
+      const done = _lbQuizGetStateForName(m.name);
+      const label = done ? `${m.name} <span style="font-size:.65rem;color:#16a34a;font-weight:700">(already submitted)</span>` : m.name;
+      return `<option value="${m.name}" data-pos="${m.position}" ${done ? 'data-done="1"' : ''}>${m.name}${done?' ✓':''}</option>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="padding:.5rem 0 1rem">
+        <div style="text-align:center;margin-bottom:1.5rem">
+          <div style="font-size:2rem;margin-bottom:.5rem">👤</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.2rem;color:var(--navy);margin-bottom:.25rem">Who are you?</div>
+          <div style="font-size:.8125rem;color:var(--muted);line-height:1.5">Select your name to begin. Each team member gets one attempt per cycle.</div>
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.375rem;text-transform:uppercase;letter-spacing:.06em">Your Name</label>
+          <select id="lbQuizNameSel" onchange="_lbQuizOnNameChange()" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.9375rem;font-family:inherit;color:var(--navy);background:var(--surface);appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23666%22><path d=%22M7 10l5 5 5-5z%22/></svg>');background-repeat:no-repeat;background-position:right .75rem center;background-size:1.25rem">
+            <option value="">— Select your name —</option>
+            ${optionsHtml}
+          </select>
+        </div>
+        <div id="lbQuizPosRow" style="margin-bottom:1rem;display:none">
+          <label style="display:block;font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.375rem;text-transform:uppercase;letter-spacing:.06em">Your Position</label>
+          <input id="lbQuizPosIn" type="text" readonly style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;color:var(--text-2);background:var(--surface-2);box-sizing:border-box">
+        </div>
+        <div id="lbQuizAlreadyDone" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.875rem;color:#065f46;font-weight:600">
+          ✅ You've already completed this cycle's quiz. Your score is recorded — check the Leaderboard Details tab for results.
+        </div>
+        <div id="lbQuizNameErr" style="display:none;color:#dc2626;font-size:.8125rem;margin-bottom:.75rem"></div>
+        <div style="display:flex;justify-content:flex-end;gap:.625rem;padding-top:.5rem;border-top:1px solid var(--border)">
+          <button onclick="document.getElementById('lbQuizModal').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:8px;font-size:.875rem;font-family:inherit;cursor:pointer">Cancel</button>
+          <button id="lbQuizStartBtn" onclick="_lbQuizProceedFromNamePicker('${dept}')" style="padding:.5rem 1.375rem;background:linear-gradient(135deg,#0a1628,#003087);color:#fff;border:none;border-radius:8px;font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 12px rgba(0,48,135,.25)">Start Quiz →</button>
+        </div>
+      </div>`;
+  }
+
+  function _lbQuizOnNameChange() {
+    const sel = document.getElementById('lbQuizNameSel');
+    const posRow = document.getElementById('lbQuizPosRow');
+    const posIn  = document.getElementById('lbQuizPosIn');
+    const doneEl = document.getElementById('lbQuizAlreadyDone');
+    const startBtn = document.getElementById('lbQuizStartBtn');
+    if (!sel) return;
+    const opt = sel.options[sel.selectedIndex];
+    const pos = opt ? opt.getAttribute('data-pos') : '';
+    const done = opt ? opt.getAttribute('data-done') === '1' : false;
+    if (pos) { if (posRow) posRow.style.display = ''; if (posIn) posIn.value = pos; }
+    else { if (posRow) posRow.style.display = 'none'; }
+    if (doneEl) doneEl.style.display = done ? '' : 'none';
+    if (startBtn) startBtn.disabled = done;
+    if (startBtn) startBtn.style.opacity = done ? '.5' : '1';
+  }
+
+  async function _lbQuizProceedFromNamePicker(dept) {
+    const sel = document.getElementById('lbQuizNameSel');
+    const errEl = document.getElementById('lbQuizNameErr');
+    if (!sel || !sel.value) {
+      if (errEl) { errEl.textContent = 'Please select your name before starting.'; errEl.style.display = 'block'; }
+      return;
+    }
+    const selectedName = sel.value;
+    const selectedPos  = (sel.options[sel.selectedIndex] || {}).getAttribute ? sel.options[sel.selectedIndex].getAttribute('data-pos') || '' : '';
+    // Double-check completion in localStorage (in case another tab just submitted)
+    if (_lbQuizGetStateForName(selectedName)) {
+      const doneEl = document.getElementById('lbQuizAlreadyDone');
+      if (doneEl) doneEl.style.display = '';
+      const startBtn = document.getElementById('lbQuizStartBtn');
+      if (startBtn) { startBtn.disabled = true; startBtn.style.opacity = '.5'; }
+      return;
+    }
+    // Store active user for this quiz session
+    window._lbQuizActiveUser = { name: selectedName, position: selectedPos, dept };
+    // Now load questions
+    const body = document.getElementById('lbQuizBody');
+    if (body) body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.75rem">⏳</div>Generating questions from live data…</div>';
+    const rows = await _lbFetch(false);
+    _lbQuizRenderQuestions(dept, rows);
+  }
+
+  // ── Open quiz modal: show name picker first, then questions ─────────────
   async function _lbQuizOpenModal(dept) {
     let modal = document.getElementById('lbQuizModal');
     if (!modal) return;
     modal.style.display = 'flex';
     const body = document.getElementById('lbQuizBody');
-    if (body) body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.75rem">⏳</div>Generating questions from live data…</div>';
 
-    const rows = await _lbFetch(false);
+    // Preview mode skips name picker entirely
+    if (window._lbQuizPreviewMode) {
+      if (body) body.innerHTML = '<div style="text-align:center;padding:2.5rem;color:var(--muted)"><div style="font-size:2rem;margin-bottom:.75rem">⏳</div>Generating questions from live data…</div>';
+      const rows = await _lbFetch(false);
+      _lbQuizRenderQuestions(dept, rows);
+      return;
+    }
+
+    _lbQuizShowNamePicker(dept);
+  }
+
+  // ── Render questions after name is confirmed ─────────────────────────────
+  function _lbQuizRenderQuestions(dept, rows) {
     const questions = _lbQuizGenQuestions(rows);
+    const body = document.getElementById('lbQuizBody');
     if (!body) return;
 
     if (!questions.length) {
@@ -2128,7 +2323,7 @@
 
     // Show preview-mode banner inside the modal header area
     if (window._lbQuizPreviewMode) {
-      const hdr = modal.querySelector('div[style*="background:linear-gradient"]');
+      const hdr = (document.getElementById('lbQuizModal') || {}).querySelector && document.getElementById('lbQuizModal').querySelector('div[style*="background:linear-gradient"]');
       if (hdr && !hdr.querySelector('.lbQuizPreviewBadge')) {
         const badge = document.createElement('span');
         badge.className = 'lbQuizPreviewBadge';
@@ -2141,6 +2336,10 @@
 
     // Render questions with radio buttons
     let html = `<div style="padding:.25rem 0">`;
+    const activeUser = window._lbQuizActiveUser || {};
+    if (activeUser.name && !window._lbQuizPreviewMode) {
+      html += `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:.625rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;color:#1e40af;display:flex;align-items:center;gap:.5rem">👤 <strong>${activeUser.name}</strong>${activeUser.position ? ` · ${activeUser.position}` : ''} <span style="font-size:.65rem;font-weight:700;margin-left:auto;padding:.15rem .5rem;border-radius:20px;background:#dbeafe;color:#1d4ed8">1 attempt · not yet submitted</span></div>`;
+    }
     if (window._lbQuizPreviewMode) {
       html += `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:.625rem 1rem;margin-bottom:1.25rem;font-size:.8125rem;color:#3730a3;line-height:1.5">🔬 <strong>Preview Mode</strong> — Results won't be saved or posted. Scores will not affect leaderboard data for this run.</div>`;
     }
@@ -2210,15 +2409,24 @@
     const isPreview = !!window._lbQuizPreviewMode;
     window._lbQuizPreviewMode = false; // clear after grading regardless
 
-    // Save state — skipped in preview so the real quiz slot stays open
-    const state = { completed:true, score, total:questions.length, ts:Date.now() };
-    if (!isPreview) _lbQuizSetState(state);
+    // Identify the person who just submitted
+    const activeUser = window._lbQuizActiveUser || {};
+    const personName = activeUser.name || '';
+    const personPos  = activeUser.position || '';
+    window._lbQuizActiveUser = null; // clear after use
 
-    // Record quiz result to Google Sheet so Leadership/Data can see it cross-device.
+    // Save state per-person (name-keyed) — skipped in preview
+    const state = { completed:true, score, total:questions.length, ts:Date.now(), name: personName, position: personPos };
+    if (!isPreview) {
+      if (personName) _lbQuizSetStateForName(state, personName);
+      else _lbQuizSetState(state); // legacy fallback (preview mode / data dept preview)
+    }
+
+    // Record to Google Sheet — name → crossDept field, position → goalMissReason field.
     // deptSuccess → "[QUIZ_RECORD] Score: X/Y" row marker.
-    // quizScore   → dedicated field: "X/Y [quiz_result:X:Y:ts]" for display + restoration.
-    // dept        → department name so the row is attributed correctly.
-    // orgShareOut → Q&A log: each question, the dept's choice, and whether it was correct.
+    // quizScore   → dedicated field: "X/Y [quiz_result:X:Y:ts]".
+    // dept        → department name.
+    // orgShareOut → Q&A log.
     if (!isPreview) try {
       const _trunc = (s, n) => s && s.length > n ? s.slice(0, n - 1) + '…' : (s || '');
       const qaLines = results.map((r, i) => {
@@ -2240,6 +2448,9 @@
       qParams.append(LB_ENTRY.quizScore, score + '/' + questions.length + ' ' + qTag);
       qParams.append(LB_ENTRY.dept, dept);
       qParams.append(LB_ENTRY.orgShareOut, qaLog);
+      // Repurpose optional fields to carry individual identity (unused on quiz rows)
+      if (personName) qParams.append(LB_ENTRY.crossDept, personName);
+      if (personPos)  qParams.append(LB_ENTRY.goalMissReason, personPos);
       fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: qParams.toString() });
     } catch(e) { /* non-blocking */ }
 
@@ -2252,6 +2463,7 @@
       <div style="text-align:center;padding:1.25rem 0 1.5rem">
         <div style="font-size:2.5rem;margin-bottom:.5rem">${pct===100?'🏆':pct>=50?'✅':'📚'}</div>
         <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.25rem">${grade}</div>
+        ${personName ? `<div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.15rem">${personName}${personPos?' · '+personPos:''}</div>` : ''}
         <div style="font-size:.9375rem;color:var(--muted)">${score} of ${questions.length} correct</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1.5rem">`;
@@ -3142,40 +3354,68 @@
     // Quiz participation table — only show during/after the quiz window
     const now = new Date();
     if (now >= LB_QUIZ_OPEN) {
-      const quizRows = LB_ALL_DEPTS.map(d => {
+      // Build individual rows grouped by department
+      let quizRowsHtml = '';
+      let totalMembers = 0, totalDone = 0;
+      LB_ALL_DEPTS.forEach(d => {
         const s = stats[d];
         const c = LB_DEPT_CFG[d];
-        const hasScore = s.quizTs != null;
-        const pct = hasScore ? Math.round(s.quizScore / s.quizTotal * 100) : null;
-        const statusChip = hasScore
-          ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${pct===100?'#d1fae5':pct>=50?'#dbeafe':'#fee2e2'};color:${pct===100?'#065f46':pct>=50?'#1e40af':'#991b1b'}">${s.quizScore}/${s.quizTotal} (${pct}%)</span>`
-          : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#f3f4f6;color:#6b7280">Not completed</span>`;
-        const tsStr = hasScore ? new Date(s.quizTs).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
-        // Q&A detail — one line per question from the stored log
-        let qaHtml = '';
-        if (s.quizQA) {
-          const lines = s.quizQA.split('\n').filter(Boolean);
-          qaHtml = lines.map(line => {
-            const isWrong = line.includes(' ✗ ');
-            return `<div style="font-size:.6875rem;line-height:1.5;color:${isWrong?'#991b1b':'#065f46'};margin-top:.15rem">${line}</div>`;
-          }).join('');
-        } else if (hasScore) {
-          qaHtml = `<div style="font-size:.6875rem;color:#94a3b8;margin-top:.15rem;font-style:italic">Questions not recorded (pre-update submission)</div>`;
-        }
-        return `<tr style="border-top:1px solid #f1f5f9">
-          <td style="padding:.5rem .75rem;font-size:.875rem;font-weight:600;color:var(--navy);vertical-align:top">${c.emoji} ${c.label}</td>
-          <td style="padding:.5rem .75rem;vertical-align:top">${statusChip}</td>
-          <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted);vertical-align:top">${tsStr}</td>
-          <td style="padding:.5rem .75rem;vertical-align:top;max-width:340px">${qaHtml}</td>
+        const roster = LB_QUIZ_ROSTER[d] || [];
+        const entries = s.quizEntries || [];
+        const rSize = roster.length || 1;
+        const doneCount = entries.length;
+        totalMembers += rSize;
+        totalDone += doneCount;
+
+        // Section header row for this department
+        const deptAvgPct = doneCount > 0 ? Math.round(entries.reduce((sum,e) => sum + (e.total>0?e.score/e.total:0), 0) / doneCount * 100) : null;
+        const deptChip = doneCount > 0
+          ? `<span style="font-size:.6rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;background:${deptAvgPct===100?'#d1fae5':deptAvgPct>=50?'#dbeafe':'#fee2e2'};color:${deptAvgPct===100?'#065f46':deptAvgPct>=50?'#1e40af':'#991b1b'};margin-left:.375rem">avg ${deptAvgPct}% · ${doneCount}/${rSize} done</span>`
+          : `<span style="font-size:.6rem;font-weight:700;padding:.15rem .5rem;border-radius:20px;background:#f3f4f6;color:#6b7280;margin-left:.375rem">0/${rSize} completed</span>`;
+        quizRowsHtml += `<tr style="background:#f8fafc;border-top:2px solid #e2e8f0">
+          <td colspan="5" style="padding:.4rem .75rem;font-size:.75rem;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.05em">${c.emoji} ${c.label} ${deptChip}</td>
         </tr>`;
-      }).join('');
-      const completed = LB_ALL_DEPTS.filter(d => stats[d].quizTs != null).length;
-      const total = LB_ALL_DEPTS.length;
+
+        // One row per roster member
+        roster.forEach(member => {
+          const entry = entries.find(e => e.name === member.name);
+          // Also check localStorage for entries not yet in sheet
+          const localState = _lbQuizGetStateForName(member.name);
+          const effectiveEntry = entry || (localState && localState.completed ? { name: member.name, position: member.position, score: localState.score, total: localState.total, ts: localState.ts, qa: '' } : null);
+
+          const hasScore = !!effectiveEntry;
+          const pct = hasScore ? Math.round(effectiveEntry.score / effectiveEntry.total * 100) : null;
+          const statusChip = hasScore
+            ? `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${pct===100?'#d1fae5':pct>=50?'#dbeafe':'#fee2e2'};color:${pct===100?'#065f46':pct>=50?'#1e40af':'#991b1b'}">${effectiveEntry.score}/${effectiveEntry.total} (${pct}%)</span>`
+            : `<span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#f3f4f6;color:#6b7280">Not completed</span>`;
+          const tsStr = hasScore ? new Date(effectiveEntry.ts).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+
+          let qaHtml = '';
+          if (effectiveEntry && effectiveEntry.qa) {
+            const lines = effectiveEntry.qa.split('\n').filter(Boolean);
+            qaHtml = lines.map(line => {
+              const isWrong = line.includes(' ✗ ');
+              return `<div style="font-size:.6125rem;line-height:1.5;color:${isWrong?'#991b1b':'#065f46'};margin-top:.1rem">${line}</div>`;
+            }).join('');
+          } else if (hasScore) {
+            qaHtml = `<div style="font-size:.6125rem;color:#94a3b8;font-style:italic">Answers recorded</div>`;
+          }
+
+          quizRowsHtml += `<tr style="border-top:1px solid #f1f5f9">
+            <td style="padding:.45rem .75rem .45rem 1.25rem;font-size:.8125rem;font-weight:600;color:var(--navy);vertical-align:top">${member.name}</td>
+            <td style="padding:.45rem .75rem;font-size:.75rem;color:var(--muted);vertical-align:top">${member.position}</td>
+            <td style="padding:.45rem .75rem;vertical-align:top">${statusChip}</td>
+            <td style="padding:.45rem .75rem;font-size:.75rem;color:var(--muted);vertical-align:top">${tsStr}</td>
+            <td style="padding:.45rem .75rem;vertical-align:top;max-width:300px">${qaHtml}</td>
+          </tr>`;
+        });
+      });
+
       html += `<div style="margin-bottom:1.5rem;border:1.5px solid #818cf833;border-radius:12px;overflow:hidden">
         <div style="background:linear-gradient(135deg,#1e1b4b11,#3730a311);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;border-bottom:1px solid #818cf822">
           <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
             <div style="font-weight:700;color:var(--navy)">📋 Pre-Meeting Quiz — This Cycle</div>
-            <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${completed===total?'#d1fae5':'#fef3c7'};color:${completed===total?'#065f46':'#92400e'}">${completed}/${total} completed</span>
+            <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:${totalDone===totalMembers?'#d1fae5':'#fef3c7'};color:${totalDone===totalMembers?'#065f46':'#92400e'}">${totalDone}/${totalMembers} members completed</span>
           </div>
           <div style="display:flex;gap:.375rem;flex-wrap:wrap;align-items:center">
             <button onclick="_lbQuizExportPDF(window._lbLastStats||{})" style="padding:.25rem .75rem;font-size:.6875rem;font-weight:700;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;font-family:inherit">📄 PDF</button>
@@ -3184,14 +3424,15 @@
           </div>
         </div>
         <div style="padding:.25rem 0;overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;min-width:560px">
+          <table style="width:100%;border-collapse:collapse;min-width:640px">
             <thead><tr style="background:#f8fafc">
-              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Department</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Name</th>
+              <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Position</th>
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Score</th>
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Completed</th>
               <th style="padding:.5rem .75rem;text-align:left;font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Questions & Answers</th>
             </tr></thead>
-            <tbody>${quizRows}</tbody>
+            <tbody>${quizRowsHtml}</tbody>
           </table>
         </div>
       </div>`;
