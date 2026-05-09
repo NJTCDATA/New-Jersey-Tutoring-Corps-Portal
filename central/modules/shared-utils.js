@@ -6894,6 +6894,11 @@
 
     // Re-inject any missed-quiz notification cards that survived from this cycle
     _lbNotifReInjectMissed(body);
+
+    // Inject BD pipeline notifications (Active Partnership + stuck-in-stage alerts)
+    if (typeof window._bdInjectNotifs === 'function') {
+      window._bdInjectNotifs(body, dismissed).catch(() => {});
+    }
   }
 
   // Rebuild missed-quiz notification cards from localStorage state after _lbNotifPopulate overwrites the body
@@ -7134,9 +7139,11 @@
   window._lbSubmitEAForm        = _lbSubmitEAForm;
 
   // ── Leadership Inbox public API (onclick handlers need global access) ─────
-  window._lbNotifDismiss       = _lbNotifDismiss;
-  window._lbNotifDismissAll    = _lbNotifDismissAll;
+  window._lbNotifDismiss        = _lbNotifDismiss;
+  window._lbNotifDismissAll     = _lbNotifDismissAll;
   window._lbDismissWelcomeAndSubmit = _lbDismissWelcomeAndSubmit;
+  // Exposed so biz-dev-pipeline.js can update the badge after injecting BD alerts
+  window._lbNotifUpdateBadge    = _lbNotifUpdateBadge;
 
   // Allow KPI_DATA reassignment to propagate to window
   // (fetchSheetKPI reassigns KPI_DATA via var; modules reading window.KPI_DATA
