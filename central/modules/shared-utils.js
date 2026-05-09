@@ -1981,25 +1981,29 @@
     const spotEl = document.getElementById('lbSpotlight');
     if (!spotEl) return;
 
-    // Pull leadership org share-outs and all dept successes (latest per dept)
-    const orgRows = rows.filter(r => {
-      const d = _lbRowDept(r);
-      // Use cleaned value to filter — strip [dept:XXX] tag before checking if non-empty
-      return (d === 'leadership' || d === 'kb') && _lbGetOrg(r).length > 0;
-    });
+    // Real share-outs only: leadership or KB, non-empty org field, no quiz records
+    const orgRows = rows
+      .filter(r => {
+        const d = _lbRowDept(r);
+        return (d === 'leadership' || d === 'kb') && !_lbQuizRowMeta(r) && _lbCleanVal(_lbGetOrg(r)).trim().length > 0;
+      })
+      .sort((a, b) => (_lbGetTs(b) || 0) - (_lbGetTs(a) || 0)); // newest first
 
     if (!orgRows.length) { spotEl.style.display = 'none'; return; }
     spotEl.style.display = '';
 
     let html = `<div style="background:linear-gradient(135deg,#0a1628,#162347);border-radius:14px;padding:1.5rem 1.75rem;color:#fff">
       <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#f0a500;margin-bottom:.875rem">🌟 Organizational Share-Outs — From Leadership</div>
-      <div style="display:flex;flex-direction:column;gap:.75rem">`;
-    orgRows.slice(-3).reverse().forEach(r => {
-      const msg = _lbCleanVal(_lbGetOrg(r));
-      const ts = (_lbGetTs(r) || new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      <div style="display:flex;flex-direction:column;gap:.75rem;max-height:320px;overflow-y:auto;padding-right:.25rem">`;
+    orgRows.forEach(r => {
+      const msg    = _lbCleanVal(_lbGetOrg(r));
+      const dept   = _lbRowDept(r);
+      const dCfg   = LB_DEPT_CFG[dept] || {};
+      const ts     = _lbGetTs(r);
+      const tsStr  = ts ? ts.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
       html += `<div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-left:3px solid #f0a500;border-radius:8px;padding:.875rem 1rem">
-        <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6">${msg}</div>
-        ${ts ? `<div style="font-size:.6875rem;color:rgba(255,255,255,.35);margin-top:.375rem">Leadership · ${ts}</div>` : ''}
+        <div style="font-size:.8125rem;color:rgba(255,255,255,.9);line-height:1.6;white-space:pre-line">${msg}</div>
+        <div style="font-size:.6875rem;color:rgba(255,255,255,.35);margin-top:.375rem">${dCfg.emoji||'🌟'} ${dCfg.label||dept}${tsStr?' · '+tsStr:''}</div>
       </div>`;
     });
     html += `</div></div>`;
