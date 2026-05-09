@@ -2058,14 +2058,14 @@
     const latestByDept = {};
     rows.forEach(r => { const d=_lbRowDept(r); if(LB_ALL_DEPTS.includes(d)) latestByDept[d]=r; });
 
-    // Build content pools
+    // Build content pools — use full submission text, no truncation
     const pool = { success:[], goal:[], cross:[], challenge:[] };
     Object.keys(latestByDept).forEach(d => {
       const r = latestByDept[d];
-      const succ = _trunc(r['What successes has your department seen this week?']||r[Object.keys(r).find(k=>/success/i.test(k))||'']||'', 150);
-      const goal = _trunc(r["What is this week's goal for your department?"]||r[Object.keys(r).find(k=>/goal/i.test(k))||'']||'', 150);
-      const cross = _trunc(r['What cross-departmental successes, if any, have you seen?']||'', 150);
-      const miss  = _trunc(r['If this week\'s departmental goal wasn\'t met, what was the reason?']||'', 150);
+      const succ  = (r['What successes has your department seen this week?']||r[Object.keys(r).find(k=>/success/i.test(k))||'']||'').trim();
+      const goal  = (r["What is this week's goal for your department?"]||r[Object.keys(r).find(k=>/goal/i.test(k))||'']||'').trim();
+      const cross = (r['What cross-departmental successes, if any, have you seen?']||'').trim();
+      const miss  = (r['If this week\'s departmental goal wasn\'t met, what was the reason?']||'').trim();
       if (succ.length  > 15) pool.success.push({dept:d,text:succ});
       if (goal.length  > 10) pool.goal.push({dept:d,text:goal});
       if (cross.length > 10) pool.cross.push({dept:d,text:cross});
