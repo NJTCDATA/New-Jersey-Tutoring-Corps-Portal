@@ -96,6 +96,12 @@
     document.querySelectorAll('.dept-nav-data-cabinet').forEach(b =>
       b.style.display = (dept === 'data') ? '' : 'none'
     );
+
+    // Business Development Pipeline — Leadership, KB, Data
+    const BD_DEPTS = ['leadership', 'kb', 'data'];
+    document.querySelectorAll('.dept-nav-biz-dev').forEach(b =>
+      b.style.display = BD_DEPTS.includes(dept) ? '' : 'none'
+    );
   }
 
   // ── Year extraction helpers ────────────────────────────────────
