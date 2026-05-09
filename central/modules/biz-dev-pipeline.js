@@ -209,14 +209,6 @@
     s.id = 'bdPipelineCSS';
     s.textContent = `
       /* ── BD Pipeline panel ── */
-      #bdPipelineSection {
-        margin-top: 1.75rem;
-        background: var(--surface, #fff);
-        border: 1px solid var(--border, #e2e8f0);
-        border-radius: 16px;
-        box-shadow: 0 4px 24px rgba(0,0,0,.06);
-        overflow: hidden;
-      }
       .bd-header {
         background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 100%);
         padding: 1.125rem 1.5rem;
@@ -503,30 +495,30 @@
 
   // ── Full render ─────────────────────────────────────────────────────
   async function _bdRender(dept) {
-    const el = document.getElementById('bdPipelineSection');
+    const el = document.getElementById('bdPipelineRoot');
     if (!el) return;
 
     _bdInjectCSS();
 
-    const isAllowed = ['leadership','kb'].includes(dept);
-    if (!isAllowed) { el.style.display = 'none'; return; }
-    el.style.display = '';
+    const isAllowed = ['leadership','kb','data'].includes(dept);
+    if (!isAllowed) return;
+
+    // Data dept: read-only view (no submit/share-out buttons)
+    const isReadOnly = dept === 'data';
 
     el.innerHTML = `
-      <div id="bdPipelineSection" style="margin-top:1.75rem">
-        <div class="bd-header">
-          <div>
-            <div class="bd-header-title">🌱 Business Development Pipeline</div>
-            <div class="bd-header-sub">Partner outreach tracker · Growth &amp; Business Development</div>
-          </div>
-          <div class="bd-header-btns">
-            <button class="bd-btn bd-btn-ghost" onclick="window._bdOpenShareOut()">📢 Post Share-Out</button>
-            <button class="bd-btn bd-btn-primary" onclick="window._bdOpenUpdateForm()">+ Log Pipeline Update</button>
-          </div>
+      <div class="bd-header">
+        <div>
+          <div class="bd-header-title">🌱 Business Development Pipeline</div>
+          <div class="bd-header-sub">Partner outreach tracker · Growth &amp; Business Development</div>
         </div>
-        <div class="bd-body" id="bdPipelineBody">
-          <div style="text-align:center;padding:2.5rem;color:var(--muted)">⏳ Loading pipeline data…</div>
-        </div>
+        ${!isReadOnly ? `<div class="bd-header-btns">
+          <button class="bd-btn bd-btn-ghost" onclick="window._bdOpenShareOut()">📢 Post Share-Out</button>
+          <button class="bd-btn bd-btn-primary" onclick="window._bdOpenUpdateForm()">+ Log Pipeline Update</button>
+        </div>` : ''}
+      </div>
+      <div class="bd-body" id="bdPipelineBody">
+        <div style="text-align:center;padding:2.5rem;color:var(--muted)">⏳ Loading pipeline data…</div>
       </div>`;
 
     const rows  = await _bdFetch(false);
@@ -957,32 +949,9 @@
   };
 
   // ── Init ────────────────────────────────────────────────────────────
-  function _bdInit() {
-    const dept = (window.NJTC_SESSION || {}).dept || '';
-    if (!['leadership','kb'].includes(dept)) return;
-
-    // Inject placeholder div if missing (fallback; index.html should have it)
-    if (!document.getElementById('bdPipelineSection')) {
-      const ph = document.getElementById('homeFinanceLinks');
-      if (ph) {
-        const div = document.createElement('div');
-        div.id = 'bdPipelineSection';
-        ph.insertAdjacentElement('afterend', div);
-      }
-    }
-    _bdRender(dept);
-  }
-
-  // Expose _bdRender so index.html can call it after session loads
-  window._bdInit = _bdInit;
-
-  // Auto-init when DOM ready (session may already be available)
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(_bdInit, 200);
-    });
-  } else {
-    setTimeout(_bdInit, 200);
-  }
+  // The panel renders on demand via showPanel('biz-dev') → _bdRenderPipeline().
+  // _bdInjectCSS is called lazily on first render.
+  // No auto-render needed — the panel is only populated when the user navigates to it.
+  window._bdInit = function() {};  // no-op, kept for compatibility
 
 })();

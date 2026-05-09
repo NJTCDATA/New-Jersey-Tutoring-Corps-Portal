@@ -5453,6 +5453,14 @@
       </button>
     </div>
 
+    <!-- Growth & Business Development — leadership, kb, data (controlled by initDeptNav) -->
+    <div class="sidebar-group dept-nav-biz-dev" style="display:none">
+      <div class="sidebar-group-label">Growth & Biz Dev</div>
+      <button class="sidebar-link dept-nav-biz-dev" data-panel="biz-dev" onclick="showPanel('biz-dev',this)" style="display:none" title="Track partnership outreach stages, conversion funnel, and active partner pipeline">
+        <span class="sl-icon">🌱</span> BD Pipeline
+      </button>
+    </div>
+
     <!-- Survey Feedback — shown for programming, data, leadership, kb (controlled by initDeptNav) -->
     <div class="sidebar-group dept-nav-survey" style="display:none">
       <div class="sidebar-group-label">Survey Feedback</div>
@@ -5538,8 +5546,6 @@
       <div id="homeFinanceLinks" style="display:none"></div>
       <!-- Programming Resources cabinet — programming only, filled by JS -->
       <div id="homeProgrammingLinks" style="display:none"></div>
-      <!-- Business Development Pipeline — leadership / kb only, filled by biz-dev-pipeline.js -->
-      <div id="bdPipelineSection" style="display:none"></div>
     </div>
 
 
@@ -6662,6 +6668,18 @@
 
       </div><!-- end adv-body -->
     </div><!-- end panel-advocacy -->
+
+    <!-- ══ BUSINESS DEVELOPMENT PIPELINE PANEL ══════════════════════════ -->
+    <div class="panel" id="panel-biz-dev">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">Growth &amp; Business Development</div>
+          <h2 class="ph-title">BD Pipeline</h2>
+          <p class="ph-subtitle">Partner outreach stages, conversion funnel, and active partnership tracker.</p>
+        </div>
+      </div>
+      <div id="bdPipelineRoot"><!-- rendered by biz-dev-pipeline.js --></div>
+    </div>
 
     <!-- ══ KNOWTION COMMUNITY PANEL ═══════════════════════════════════ -->
     <div class="panel" id="panel-knowtion">

@@ -660,6 +660,9 @@
         el.innerHTML = window._buildDataCabinet();
       }
     }
+    if (id === "biz-dev") {
+      if (typeof window._bdRenderPipeline === 'function') window._bdRenderPipeline();
+    }
     // Note: Knowtion render is handled exclusively by the IIFE override below (no double-render)
     const panel = document.getElementById('panel-' + id);
     if (panel) panel.classList.add('active');
