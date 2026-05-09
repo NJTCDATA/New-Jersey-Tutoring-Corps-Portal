@@ -985,11 +985,25 @@
   };
   const LB_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdqsDYL9ZSepSWL0sx2ay-Flg3Bj9jBvUEJSujdcz26mhbOMw/formResponse';
 
-  // Next biweekly meeting: Tuesday April 28, 2026. Update this as meetings roll.
-  // The leaderboard checks submissions relative to the Friday before this date.
-  const LB_NEXT_MEETING = new Date('2026-04-28T09:00:00');
+  // ── Biweekly meeting cadence — auto-advances, never needs manual editing ──
+  // Anchor: Tuesday April 28, 2026. Every 14 days thereafter is the next meeting.
+  // Finds the nearest upcoming Tuesday (strictly in the future) so the quiz window
+  // and submission deadline always track the current cycle automatically.
+  (function() {
+    const ANCHOR_MS = new Date('2026-04-28T09:00:00').getTime();
+    const INTERVAL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+    const now = Date.now();
+    const elapsed = now - ANCHOR_MS;
+    const cyclesSince = Math.max(0, Math.floor(elapsed / INTERVAL_MS));
+    let candidate = ANCHOR_MS + cyclesSince * INTERVAL_MS;
+    // Advance until we land on a meeting that is still in the future
+    while (candidate <= now) candidate += INTERVAL_MS;
+    window._lbNextMeeting = new Date(candidate);
+  })();
+  const LB_NEXT_MEETING = window._lbNextMeeting;
+
   const LB_SUBMIT_DEADLINE = new Date(LB_NEXT_MEETING);
-  LB_SUBMIT_DEADLINE.setDate(LB_SUBMIT_DEADLINE.getDate() - 4); // Friday before
+  LB_SUBMIT_DEADLINE.setDate(LB_SUBMIT_DEADLINE.getDate() - 4); // Friday before the meeting
   LB_SUBMIT_DEADLINE.setHours(23, 59, 59, 0);
 
   // ── Quiz window: opens Friday 5:30 PM, closes Monday 7:30 PM (before the Tuesday meeting)
