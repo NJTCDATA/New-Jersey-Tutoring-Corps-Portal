@@ -7119,10 +7119,12 @@
   window._lbShowWelcomeModal   = _lbShowWelcomeModal;
   window._lbDismissWelcome     = _lbDismissWelcome;
   // Quiz
-  window._lbQuizOpenModal      = _lbQuizOpenModal;
-  window._lbQuizSubmit         = _lbQuizSubmit;
-  window._lbQuizOnSelect       = _lbQuizOnSelect;
-  window._lbQuizInit           = _lbQuizInit;
+  window._lbQuizOpenModal          = _lbQuizOpenModal;
+  window._lbQuizSubmit             = _lbQuizSubmit;
+  window._lbQuizOnSelect           = _lbQuizOnSelect;
+  window._lbQuizInit               = _lbQuizInit;
+  window._lbQuizOnNameChange       = _lbQuizOnNameChange;
+  window._lbQuizProceedFromNamePicker = _lbQuizProceedFromNamePicker;
   // Executive Assistant to CEO
   window._lbCreateEASubmitModal = _lbCreateEASubmitModal;
   window._lbSubmitEAForm        = _lbSubmitEAForm;
