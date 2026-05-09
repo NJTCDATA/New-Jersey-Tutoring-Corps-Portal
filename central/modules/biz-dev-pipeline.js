@@ -101,24 +101,36 @@
   }
 
   // ── GViz fetch & parse ──────────────────────────────────────────────
+  // Same extraction strategy as _lbParseGViz in shared-utils.js:
+  // strip the JSONP wrapper  /*O_o*/\ngoogle.visualization.Query.setResponse({...});
   function _bdParseGViz(text) {
-    try {
-      const clean = text.replace(/^[^\[{]*/, '').replace(/[^\]};]*$/, '');
-      const json  = JSON.parse(clean);
-      if (!json || !json.table) return [];
-      const cols = (json.table.cols || []).map(c => c.label || '');
-      const rows = (json.table.rows || []).map(row => {
-        const obj = {};
-        (row.c || []).forEach((cell, i) => {
-          obj[cols[i]] = cell ? (cell.f !== undefined && cell.f !== null ? cell.f : (cell.v !== null && cell.v !== undefined ? String(cell.v) : '')) : '';
-        });
-        return obj;
-      }).filter(r => Object.values(r).some(v => v && String(v).trim()));
-      return rows;
-    } catch(e) {
-      console.warn('[BD] GViz parse error:', e);
-      return null;
+    const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)\s*;?\s*$/);
+    if (!m) return null;
+    let data;
+    try { data = JSON.parse(m[1]); } catch(e) { console.warn('[BD] GViz JSON.parse error:', e); return null; }
+    if (!data || !data.table) return [];        // error response or empty — treat as no rows
+    if (data.status === 'error') return [];     // explicit GViz error node
+
+    const cols = (data.table.cols || []).map(c => (c.label || c.id || '').trim());
+    const rows = [];
+    for (const rowData of (data.table.rows || [])) {
+      if (!rowData || !rowData.c) continue;
+      const row = {};
+      cols.forEach((header, i) => {
+        const cell = rowData.c[i];
+        if (!cell || (cell.v === null && cell.f === undefined)) { row[header] = ''; return; }
+        row[header] = (cell.f !== undefined && cell.f !== null)
+          ? String(cell.f).trim()
+          : (cell.v !== null && cell.v !== undefined ? String(cell.v).trim() : '');
+      });
+      // Skip ghost rows (only a timestamp, nothing else)
+      const hasContent = Object.entries(row).some(([k, v]) => {
+        const norm = k.toLowerCase().replace(/^﻿/, '');
+        return v && norm !== 'timestamp';
+      });
+      if (hasContent) rows.push(row);
     }
+    return rows;
   }
 
   async function _bdFetch(force) {
@@ -134,25 +146,42 @@
     return _bdCache || [];
   }
 
+  // ── Fuzzy column finder ─────────────────────────────────────────────
+  // Matches on exact key first, then partial/substring — makes the accessors
+  // resilient to minor changes in the Google Form question wording.
+  function _bdCol(row, ...candidates) {
+    for (const c of candidates) {
+      if (row[c] !== undefined && row[c] !== '') return row[c];
+    }
+    const keys = Object.keys(row);
+    for (const c of candidates) {
+      const lc = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const found = keys.find(k => {
+        const kn = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return kn.includes(lc) || lc.includes(kn);
+      });
+      if (found && row[found] !== undefined && row[found] !== '') return row[found];
+    }
+    return '';
+  }
+
   // ── Row accessors ───────────────────────────────────────────────────
   function _bdTs(row) {
-    const v = row['Timestamp'] || Object.values(row)[0] || '';
+    const v = _bdCol(row, 'Timestamp') || Object.values(row)[0] || '';
     const d = new Date(v); return isNaN(d.getTime()) ? null : d;
   }
-  function _bdOrg(row)     { return (row['Organization Name'] || '').trim(); }
-  function _bdContact(row) { return (row['Contact Name'] || '').trim(); }
-  function _bdTitle(row)   { return (row['Contact Title'] || '').trim(); }
-  function _bdType(row)    { return (row['Partner Type'] || row['School / District'] || '').trim(); }
-  function _bdSource(row)  { return (row['How Acquired'] || row['Cold Outreach — LinkedIn / Social'] || '').trim(); }
-  function _bdUpdate(row)  { return (row['Update / What Happened?'] || row['Update / What happened?'] || row['Update'] || '').trim(); }
-  function _bdNext(row)    { return (row['Next Step?'] || row['Next Step'] || '').trim(); }
-  function _bdTargetDate(row) { return (row['Target Date'] || '').trim(); }
+  function _bdOrg(row)        { return _bdCol(row, 'Organization Name', 'Organization', 'Org Name').trim(); }
+  function _bdContact(row)    { return _bdCol(row, 'Contact Name', 'Contact').trim(); }
+  function _bdTitle(row)      { return _bdCol(row, 'Contact Title', 'Title').trim(); }
+  function _bdType(row)       { return _bdCol(row, 'Partner Type', 'School / District', 'School/District', 'Type').trim(); }
+  function _bdSource(row)     { return _bdCol(row, 'How Acquired', 'Acquisition Source', 'Source').trim(); }
+  function _bdUpdate(row)     { return _bdCol(row, 'Update / What Happened?', 'Update / What happened?', 'Update', 'What Happened').trim(); }
+  function _bdNext(row)       { return _bdCol(row, 'Next Step?', 'Next Step', 'Next Steps').trim(); }
+  function _bdTargetDate(row) { return _bdCol(row, 'Target Date', 'Date').trim(); }
 
   function _bdStage(row) {
-    const raw = (row['Current Stage'] || row['📧 Reached Out'] || '').trim();
-    if (!raw) return '';
-    const match = BD_STAGES.find(s => raw.includes(s.key) || s.key.includes(raw.replace(/^[^\w]*/,'')));
-    return match ? match.key : raw;
+    const raw = _bdCol(row, 'Current Stage', 'Stage', 'Pipeline Stage').trim();
+    return _bdNormStageKey(raw);
   }
 
   function _bdNormStageKey(raw) {
