@@ -23,7 +23,7 @@
 
   // Paste the Google Form's "formResponse" URL here once available.
   // Get it from: Form → ⋮ → Get pre-filled link → copy action URL.
-  const BD_FORM_ACTION = '';
+  const BD_FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSeBhEl3Bu-JIYP2vfaxGosjQg1iYkJoSsJxIdkur_eEyk65LA/formResponse';
 
   // Entry IDs from the BD Pipeline Google Form
   const BD_ENTRY = {
