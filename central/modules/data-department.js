@@ -6906,6 +6906,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NJTC iReady Impact Report · ${H(filterLabel)}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#edf1f7;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -6971,19 +6972,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 /* ── Footer ── */
 .rpt-footer{text-align:center;padding:1.5rem 0 .5rem;font-size:.7rem;color:#94a3b8}
 /* ── Print / PDF ── */
-@page{size:letter portrait;margin:.55in .5in .5in .5in}
+@page{size:letter portrait;margin:.55in .5in .55in .5in}
 @media print{
   body{background:#fff!important}
   .page{max-width:100%;padding:0}
   .no-print{display:none!important}
-  .sec{box-shadow:none;border-color:#dde3ef;break-inside:avoid;margin-bottom:.6rem}
-  .rpt-header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .kpi-row{grid-template-columns:repeat(6,1fr);gap:.45rem}
-  .kpi{padding:.7rem .875rem}
-  .kpi-v{font-size:1.375rem}
-  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.6rem}
-  .c-layout{grid-template-columns:1fr 180px}
-  .sec-after-pb{break-after:page}
+  .rpt-header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;border-radius:10px}
+  .accent{margin-bottom:.875rem}
+  .sec{box-shadow:none;border-color:#dde3ef;margin-bottom:.75rem;break-inside:auto;page-break-inside:auto}
+  .sec-hd{break-after:avoid;page-break-after:avoid}
+  .kpi-row{break-inside:avoid;page-break-inside:avoid;grid-template-columns:repeat(6,1fr);gap:.4rem;margin-bottom:.875rem}
+  .kpi{padding:.65rem .875rem}
+  .kpi-v{font-size:1.3rem}
+  canvas{break-inside:avoid;page-break-inside:avoid}
+  .c-layout{break-inside:avoid;page-break-inside:avoid;grid-template-columns:1fr 180px}
+  .c-wrap{break-inside:avoid;page-break-inside:avoid}
+  .c-side{break-inside:avoid;page-break-inside:avoid}
+  .sc-card{break-inside:avoid;page-break-inside:avoid}
+  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.55rem}
+  .sec-after-pb{break-before:page;page-break-before:always}
+  .legend{break-inside:avoid;page-break-inside:avoid}
 }
 @media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}.c-layout{grid-template-columns:1fr}}
 @media(max-width:540px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
@@ -7150,6 +7158,7 @@ ${scholarsHTML}
 <script>
 (function(){
   'use strict';
+  if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
   Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   Chart.defaults.color = '#475569';
 
@@ -7158,6 +7167,7 @@ ${scholarsHTML}
   var c1n = ${JSON.stringify(c1N)};
   var c1c = ${JSON.stringify(c1Colors)};
 
+  // Chart 1 — % Scholars Advanced 1+ Level · By School
   new Chart(document.getElementById('c1'), {
     type: 'bar',
     data: {
@@ -7166,9 +7176,16 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 120 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% advanced  ·  n=' + c1n[ctx.dataIndex]; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% advanced  ·  n = ' + c1n[ctx.dataIndex]; } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value, ctx){ return value + '%   n = ' + c1n[ctx.dataIndex]; }
+        }
       },
       scales: {
         x: { min:0, max:100, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% Scholars Advanced 1+ Placement Level', font:{ size:11 } } },
@@ -7177,6 +7194,7 @@ ${scholarsHTML}
     }
   });
 
+  // Chart 2 — Placement Distribution BOY vs EOY
   var c2ds = ${JSON.stringify(c2Datasets)};
   new Chart(document.getElementById('c2'), {
     type: 'bar',
@@ -7185,7 +7203,13 @@ ${scholarsHTML}
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + ctx.raw + '%'; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + ctx.raw + '%'; } } },
+        datalabels: {
+          anchor: 'center', align: 'center',
+          color: function(ctx){ var v=ctx.dataset.backgroundColor; return v==='rgba(234,179,8,.88)'?'#78350f':'#fff'; },
+          font: { size: 11.5, weight: '800' },
+          formatter: function(value){ return value >= 5 ? value + '%' : ''; }
+        }
       },
       scales: {
         x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:13, weight:'700' } } },
@@ -7194,6 +7218,7 @@ ${scholarsHTML}
     }
   });
 
+  // Chart 3 — Median % Typical Growth · By School
   var c3l = ${JSON.stringify(c3Labels)};
   var c3d = ${JSON.stringify(c3Data)};
   var c3c = ${JSON.stringify(c3Colors)};
@@ -7205,9 +7230,16 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 72 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% of typical growth'; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% of typical growth'; } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value){ return value + '%'; }
+        }
       },
       scales: {
         x: { min:0, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% of Annual Typical Growth (100% = on-pace)', font:{ size:11 } } },
@@ -7216,6 +7248,7 @@ ${scholarsHTML}
     }
   });
 
+  // Chart 4 — Months of Learning Gained · By School
   var c4l = ${JSON.stringify(c4Labels)};
   var c4d = ${JSON.stringify(c4Data)};
   var c4c = ${JSON.stringify(c4Colors)};
@@ -7227,9 +7260,16 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 72 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + ' months of learning gained'; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + ' months of learning gained'; } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value){ return value + ' mo'; }
+        }
       },
       scales: {
         x: { min:0, ticks:{ maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'Median Months of Learning Gained', font:{ size:11 } } },
