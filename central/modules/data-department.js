@@ -6600,6 +6600,32 @@
       const ws1 = XLSX.utils.json_to_sheet(exportRows);
       _aw(ws1);
 
+      // ── SYA fallback for XLSX: program-calendar weeks when springWeeks missing ─
+      const _xNorm   = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const _xFlexDt = s => {
+        if (!s) return null;
+        let d = new Date(s); if (!isNaN(d) && d.getFullYear() > 2000) return d;
+        const hit = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (hit) { let yr = parseInt(hit[3]); if (yr < 100) yr += (yr < 50 ? 2000 : 1900); const c = new Date(yr, parseInt(hit[1])-1, parseInt(hit[2])); if (!isNaN(c)) return c; }
+        return null;
+      };
+      const _xSyaMap = {};
+      try {
+        const _xRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
+        if (_xRaw) {
+          const _xs = JSON.parse(_xRaw);
+          if (_xs && Array.isArray(_xs.d)) {
+            _xs.d.forEach(site => {
+              const sd = _xFlexDt(site.startDate), ed = _xFlexDt(site.endpoint);
+              if (!sd || !ed || isNaN(sd) || isNaN(ed)) return;
+              const wks = Math.round((ed - sd) / (1000*60*60*24*7));
+              if (wks > 0 && wks <= 60 && site.school) _xSyaMap[_xNorm(site.school)] = wks;
+            });
+          }
+        }
+      } catch(_e) {}
+      const _xEffWks = r => r.springWeeks > 0 ? r.springWeeks : (_xSyaMap[_xNorm(r.school)] || 0);
+
       // ── Sheet 2: Network Summary ─────────────────────────────────────────────
       const elaTyp   = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
       const mathTyp  = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
@@ -6607,16 +6633,17 @@
       const mathMedT = medianArr(mathTyp);
       const elaMedMo = medianArr(allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const mathMedMo= medianArr(allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
-      // Window-adjusted growth (divides pctTypical by actual available weeks vs iReady's 30-week norm)
-      const _elaWkR  = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
-      const _mathWkR = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
-      const _allWkR  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
-      const elaWkAdj    = medianArr(_elaWkR.map(r  => r.pctTypical / (r.springWeeks / 30)));
-      const mathWkAdj   = medianArr(_mathWkR.map(r => r.pctTypical / (r.springWeeks / 30)));
-      const allWkAdj    = medianArr(_allWkR.map(r  => r.pctTypical / (r.springWeeks / 30)));
-      const medWeeksELA  = medianArr(_elaWkR.map(r  => r.springWeeks));
-      const medWeeksMath = medianArr(_mathWkR.map(r => r.springWeeks));
-      const medWeeksAll  = medianArr(_allWkR.map(r  => r.springWeeks));
+      // Window-adjusted growth — uses _xEffWks() so SYA calendar weeks fill in
+      // when iReady's springWeeks is unavailable, maximising scholar coverage
+      const _elaWkR  = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
+      const _mathWkR = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
+      const _allWkR  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
+      const elaWkAdj    = medianArr(_elaWkR.map(r  => r.pctTypical / (_xEffWks(r) / 30)));
+      const mathWkAdj   = medianArr(_mathWkR.map(r => r.pctTypical / (_xEffWks(r) / 30)));
+      const allWkAdj    = medianArr(_allWkR.map(r  => r.pctTypical / (_xEffWks(r) / 30)));
+      const medWeeksELA  = medianArr(_elaWkR.map(r  => _xEffWks(r)));
+      const medWeeksMath = medianArr(_mathWkR.map(r => _xEffWks(r)));
+      const medWeeksAll  = medianArr(_allWkR.map(r  => _xEffWks(r)));
       const ws2 = XLSX.utils.json_to_sheet([
         { 'Metric': 'Report Date',                       'Value': dated },
         { 'Metric': '── SCHOLARS ───────────────────',  'Value': '' },
@@ -6643,9 +6670,9 @@
         { 'Metric': '% 2+ Grade Levels Below — BOY',     'Value': m && m.n>0 ? Math.round(m.base2Below.length/m.n*100)+'%' : '—' },
         { 'Metric': '── DIAGNOSTIC WINDOW ───────────────────', 'Value': '' },
         { 'Metric': 'iReady Norm Assumes (weeks)',             'Value': '30 wks' },
-        { 'Metric': 'Median Diag. Weeks — ELA',               'Value': medWeeksELA  !== null ? Math.round(medWeeksELA)+' wks'  : '—' },
-        { 'Metric': 'Median Diag. Weeks — Math',              'Value': medWeeksMath !== null ? Math.round(medWeeksMath)+' wks' : '—' },
-        { 'Metric': 'Median Diag. Weeks — Network',           'Value': medWeeksAll  !== null ? Math.round(medWeeksAll)+' wks'  : '—' },
+        { 'Metric': 'Median Avail. Weeks — ELA',              'Value': medWeeksELA  !== null ? Math.round(medWeeksELA)+' wks (iReady or SYA)' : '—' },
+        { 'Metric': 'Median Avail. Weeks — Math',             'Value': medWeeksMath !== null ? Math.round(medWeeksMath)+' wks (iReady or SYA)' : '—' },
+        { 'Metric': 'Median Avail. Weeks — Network',          'Value': medWeeksAll  !== null ? Math.round(medWeeksAll)+' wks (iReady or SYA)'  : '—' },
         { 'Metric': 'ELA Window-Adj. Median Growth',          'Value': elaWkAdj  !== null ? (elaWkAdj*100).toFixed(1)+'%'  : '—' },
         { 'Metric': 'Math Window-Adj. Median Growth',         'Value': mathWkAdj !== null ? (mathWkAdj*100).toFixed(1)+'%' : '—' },
         { 'Metric': 'Network Window-Adj. Median Growth',      'Value': allWkAdj  !== null ? (allWkAdj*100).toFixed(1)+'%'  : '—' },
@@ -6679,16 +6706,16 @@
         const sm      = computeMetrics(s.rows);
         const typNums = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
         const moNums  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
-        const wkRows  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
+        const wkRows  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
         const medTyp  = medianArr(typNums);
         const medMo   = medianArr(moNums);
-        const sWkAdj  = medianArr(wkRows.map(r => r.pctTypical / (r.springWeeks / 30)));
-        const sWks    = medianArr(wkRows.map(r => r.springWeeks));
+        const sWkAdj  = medianArr(wkRows.map(r => r.pctTypical / (_xEffWks(r) / 30)));
+        const sWks    = medianArr(wkRows.map(r => _xEffWks(r)));
         return {
           'School':                    s.school,
           'District':                  s.district,
           'N (valid pairs)':           sm ? sm.n : 0,
-          'Median Diag. Weeks':        sWks   !== null ? Math.round(sWks)+' wks'       : '—',
+          'Median Avail. Weeks':        sWks   !== null ? Math.round(sWks)+' wks'       : '—',
           'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%'   : '—',
           'Window-Adj. Growth %':      sWkAdj !== null ? (sWkAdj*100).toFixed(1)+'%'  : '—',
           'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'        : '—',
@@ -6773,7 +6800,51 @@
       const m = computeMetrics(validRows);
       if (!m) return;
 
-      // ── Per-school aggregations ─────────────────────────────────────────────
+      // ── SYA program-calendar fallback ──────────────────────────────────────
+      // When iReady's spring_weeks_between_diagnostics is missing, look up the
+      // school's program start→endpoint from the HIT Compliance / SY Analytics
+      // cache (njtc_sya_v1) to derive actual available weeks.
+      const _norm   = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const _flexDt = s => {
+        if (!s) return null;
+        // Try direct parse first (handles clean dates like "1/20/2026")
+        let d = new Date(s); if (!isNaN(d) && d.getFullYear() > 2000) return d;
+        // Extract first M/D/YY or M/D/YYYY from noisy strings like "1/6 -Site Visit\n1/7-1/8..."
+        const hit = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+        if (hit) {
+          let yr = parseInt(hit[3]);
+          if (yr < 100) yr += (yr < 50 ? 2000 : 1900);
+          const c = new Date(yr, parseInt(hit[1]) - 1, parseInt(hit[2]));
+          if (!isNaN(c)) return c;
+        }
+        return null;
+      };
+      const _syaWkMap = {};   // normalized school name → program weeks
+      let   _syaCtx   = null; // aggregate stats for context callout
+      try {
+        const _syaRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
+        if (_syaRaw) {
+          const _sya = JSON.parse(_syaRaw);
+          if (_sya && Array.isArray(_sya.d)) {
+            _sya.d.forEach(site => {
+              const sd = _flexDt(site.startDate), ed = _flexDt(site.endpoint);
+              if (!sd || !ed || isNaN(sd) || isNaN(ed)) return;
+              const wks = Math.round((ed - sd) / (1000 * 60 * 60 * 24 * 7));
+              if (wks <= 0 || wks > 60) return;
+              if (site.school) _syaWkMap[_norm(site.school)] = wks;
+            });
+          }
+        }
+        const _wkArr = Object.values(_syaWkMap).filter(w => w > 0);
+        if (_wkArr.length) _syaCtx = {
+          medProgramWks: medianArr(_wkArr),
+          minWks:        Math.min(..._wkArr),
+          maxWks:        Math.max(..._wkArr),
+          siteCount:     _wkArr.length,
+        };
+      } catch(_e) {}
+      // Prefer iReady's own diagnostic weeks; fall back to SYA calendar weeks
+      const _effWks = r => r.springWeeks > 0 ? r.springWeeks : (_syaWkMap[_norm(r.school)] || 0);
       const _smap = {};
       validRows.forEach(r => {
         const k = r.school || 'Unknown';
@@ -6785,7 +6856,8 @@
         if (_smap[k] && r.pctTypical!==null && !isNaN(r.pctTypical)) {
           _smap[k].typR.push(r.pctTypical);
           _smap[k].moR.push(r.pctTypical * ((r.springWeeks||36)/4));
-          if (r.springWeeks > 0) _smap[k].wkR.push({ pct: r.pctTypical, weeks: r.springWeeks });
+          const ew = _effWks(r);
+          if (ew > 0) _smap[k].wkR.push({ pct: r.pctTypical, weeks: ew });
         }
       });
       const schools = Object.values(_smap).filter(s => s.rows.length >= 2).map(s => {
@@ -6820,38 +6892,16 @@
       const elaMonths  = medianArr(elaR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const mathMonths = medianArr(mathR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
-      // Window-adjusted network growth
-      const _hElaWk  = elaR.filter(r => r.springWeeks > 0);
-      const _hMathWk = mathR.filter(r => r.springWeeks > 0);
-      const _hAllWk  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
-      const netWkAdjELA  = medianArr(_hElaWk.map(r  => r.pctTypical / (r.springWeeks / 30)));
-      const netWkAdjMath = medianArr(_hMathWk.map(r => r.pctTypical / (r.springWeeks / 30)));
-      const netWkAdjAll  = medianArr(_hAllWk.map(r  => r.pctTypical / (r.springWeeks / 30)));
-      const netMedWks    = medianArr(_hAllWk.map(r  => r.springWeeks));
-      // SY Analytics program date context (best-effort from localStorage cache)
-      let _syaCtx = null;
-      try {
-        const _syaRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
-        if (_syaRaw) {
-          const _sya = JSON.parse(_syaRaw);
-          if (_sya && Array.isArray(_sya.d) && _sya.d.length) {
-            const _programWkArr = _sya.d
-              .filter(site => site.startDate && site.endpoint)
-              .map(site => {
-                const s = new Date(site.startDate), e = new Date(site.endpoint);
-                return isNaN(s) || isNaN(e) ? null : Math.round((e - s) / (1000*60*60*24*7));
-              }).filter(w => w !== null && w > 0);
-            if (_programWkArr.length) {
-              _syaCtx = {
-                medProgramWks: medianArr(_programWkArr),
-                minWks:        Math.min(..._programWkArr),
-                maxWks:        Math.max(..._programWkArr),
-                siteCount:     _programWkArr.length,
-              };
-            }
-          }
-        }
-      } catch(_e) {}
+      // Window-adjusted network growth — _effWks() fills in SYA calendar weeks
+      // when iReady's own springWeeks is absent, maximising scholar coverage
+      const _hElaWk  = elaR.filter(r => _effWks(r) > 0);
+      const _hMathWk = mathR.filter(r => _effWks(r) > 0);
+      const _hAllWk  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && _effWks(r) > 0);
+      const netWkAdjELA  = medianArr(_hElaWk.map(r  => r.pctTypical / (_effWks(r) / 30)));
+      const netWkAdjMath = medianArr(_hMathWk.map(r => r.pctTypical / (_effWks(r) / 30)));
+      const netWkAdjAll  = medianArr(_hAllWk.map(r  => r.pctTypical / (_effWks(r) / 30)));
+      const netMedWks    = medianArr(_hAllWk.map(r  => _effWks(r)));
+      // _syaCtx already built above (before _smap) — no second lookup needed
 
       // ── Strategic / partner-facing metrics ──────────────────────────────────
       // Lead with whichever subject shows stronger window-adjusted growth; fall back to raw if unavailable
