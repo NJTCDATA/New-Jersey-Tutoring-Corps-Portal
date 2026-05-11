@@ -235,12 +235,13 @@
       CONTENT:     11,  // L
       GRADES:      12,  // M
       TUTOR_TYPE:  13,  // N
-      BLOCK:       14,  // O
+      BLOCK:       14,  // O  — Block (e.g. "Spring only", "Fall and Spring")
       START:       15,  // P
       MIDPOINT:    16,  // Q
       ENDPOINT:    17,  // R
       DAYS:        18,  // S
       ASSESS:      19,  // T
+      PROG_WEEKS:  21,  // V  — # of Weeks for Programming (precomputed)
       TUTOR_POS:   23,  // X  — Tutor Positions
       TUTOR_FILL:  24,  // Y  — Filled Tutor Positions
       APPRENT:     25,  // Z  — Apprentice Tutors
@@ -334,9 +335,10 @@
           status: g(C.STATUS), county: g(C.COUNTY), pm: g(C.PM),
           act: n(C.ACT), est: n(C.EST),
           content: g(C.CONTENT), grades: g(C.GRADES),
-          tutorType: g(C.TUTOR_TYPE), startDate: g(C.START),
-          midpoint: g(C.MIDPOINT), endpoint: g(C.ENDPOINT),
+          tutorType: g(C.TUTOR_TYPE), block: g(C.BLOCK),
+          startDate: g(C.START), midpoint: g(C.MIDPOINT), endpoint: g(C.ENDPOINT),
           days: g(C.DAYS), assessModel: g(C.ASSESS),
+          progWeeks: n(C.PROG_WEEKS),
           tutorPos: n(C.TUTOR_POS), tutorFill: n(C.TUTOR_FILL),
           apprentice: n(C.APPRENT),
           scPos: n(C.SC_POS),   scFill: n(C.SC_FILL),
