@@ -6789,6 +6789,15 @@
       const mathMonths = medianArr(mathR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
 
+      // ── Strategic / partner-facing metrics ──────────────────────────────────
+      // Lead with whichever subject shows stronger growth
+      const bestSubjMedian = (elaMedian !== null && mathMedian !== null) ? Math.max(elaMedian, mathMedian) : (elaMedian !== null ? elaMedian : mathMedian);
+      const bestSubjLabel  = (elaMedian !== null && mathMedian !== null && elaMedian >= mathMedian) ? 'ELA' : 'Math';
+      const glGain = m.sprOnGL.length - m.baseOnGL.length;
+      const uniqueSchoolCount = schools.length;
+      const uniqueDistrictSet = new Set(validRows.map(r => r.district).filter(Boolean));
+      const districtCount = uniqueDistrictSet.size;
+
       // ── BOY vs EOY network placement distribution ───────────────────────────
       const boyDist = {}; const eoyDist = {};
       PLACEMENT_ORDER.forEach(p => { boyDist[p]=0; eoyDist[p]=0; });
@@ -6849,15 +6858,16 @@
           mo:    r.pctTypical * ((r.springWeeks||36)/4),
           tutor: r.instructor  || '',
         }))
+        .filter(s => s.shift > 0 || s.pct >= 0.75)   // Partner report: only positive impact stories
         .sort((a,b) => b.shift !== a.shift ? b.shift - a.shift : b.pct - a.pct)
         .slice(0, 60)
         .map(s => {
-          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : s.shift < 0 ? `${s.shift} Level${Math.abs(s.shift)>1?'s':''}` : 'Held';
-          const shiftColor = s.shift > 0 ? '#00695c' : s.shift < 0 ? '#dc2626' : '#64748b';
-          const shiftBg    = s.shift > 0 ? '#f0fdf4' : s.shift < 0 ? '#fef2f2' : '#f8fafc';
-          const shiftIcon  = s.shift > 0 ? '▲' : s.shift < 0 ? '▼' : '●';
+          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : 'Met Growth Target';
+          const shiftColor = s.shift > 0 ? '#00695c' : '#1565c0';
+          const shiftBg    = s.shift > 0 ? '#f0fdf4' : '#eff6ff';
+          const shiftIcon  = s.shift > 0 ? '▲' : '✓';
           const pctNum     = (s.pct * 100).toFixed(0);
-          const pctColor   = s.pct >= 1.0 ? '#00695c' : s.pct >= 0.5 ? '#1565c0' : '#dc2626';
+          const pctColor   = s.pct >= 1.0 ? '#00695c' : '#1565c0';
           const bc         = plcColor(s.baseP); const sc = plcColor(s.sprP);
           return `<div class="sc-card">
   <div class="sc-top">
@@ -7017,37 +7027,46 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 </div>
 <div class="accent"></div>
 
+<!-- ── Impact Banner ──────────────────────────────── -->
+<div style="background:linear-gradient(90deg,#f0fdf4 0%,#eff6ff 100%);border:1.5px solid #bbf7d0;border-radius:12px;padding:.9rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;gap:.875rem" class="no-print-fade">
+  <span style="font-size:1.25rem;flex-shrink:0">🎯</span>
+  <div>
+    <div style="font-size:.8375rem;font-weight:800;color:#0a2342;line-height:1.35">${m.moved.length.toLocaleString()} scholars made measurable academic progress this program year${_irlYear !== 'all' ? ' ('+_irlYear+')' : ''}.</div>
+    <div style="font-size:.7rem;color:#475569;margin-top:.15rem">NJTC tutoring supported scholars across ${uniqueSchoolCount} school${uniqueSchoolCount!==1?'s':''} in ${districtCount} district${districtCount!==1?'s':''} — with a median of ${allMonths !== null ? allMonths.toFixed(1) : '—'} months of academic learning gained per scholar as measured by iReady diagnostics (Curriculum Associates).</div>
+  </div>
+</div>
+
 <!-- ── KPI Strip ──────────────────────────────────── -->
 <div class="kpi-row">
   <div class="kpi g">
-    <div class="kpi-v">${m.pctMoved}%</div>
+    <div class="kpi-v">${m.moved.length.toLocaleString()}</div>
     <div class="kpi-l">Scholars Advanced</div>
-    <div class="kpi-s">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} moved 1+ level</div>
-  </div>
-  <div class="kpi b">
-    <div class="kpi-v">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div>
-    <div class="kpi-l">ELA Median Typical Growth</div>
-    <div class="kpi-s">${elaR.length.toLocaleString()} scholars</div>
-  </div>
-  <div class="kpi b">
-    <div class="kpi-v">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div>
-    <div class="kpi-l">Math Median Typical Growth</div>
-    <div class="kpi-s">${mathR.length.toLocaleString()} scholars</div>
+    <div class="kpi-s">${m.pctMoved}% moved up 1+ placement level</div>
   </div>
   <div class="kpi go">
     <div class="kpi-v">${allMonths !== null ? allMonths.toFixed(1) : '—'}</div>
-    <div class="kpi-l">Median Months of Growth</div>
-    <div class="kpi-s">All subjects combined</div>
+    <div class="kpi-l">Median Months Gained</div>
+    <div class="kpi-s">Academic learning per scholar</div>
+  </div>
+  <div class="kpi b">
+    <div class="kpi-v">${bestSubjMedian !== null ? (bestSubjMedian*100).toFixed(1)+'%' : '—'}</div>
+    <div class="kpi-l">${bestSubjLabel} Typical Growth</div>
+    <div class="kpi-s">Network median · strongest subject</div>
+  </div>
+  <div class="kpi t">
+    <div class="kpi-v">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div>
+    <div class="kpi-l">Met Growth Target</div>
+    <div class="kpi-s">Scholars at/above typical growth</div>
   </div>
   <div class="kpi n">
     <div class="kpi-v">${m.n.toLocaleString()}</div>
-    <div class="kpi-l">Scholars Assessed</div>
-    <div class="kpi-s">Valid diagnostic pairs</div>
+    <div class="kpi-l">Scholars Served</div>
+    <div class="kpi-s">With iReady diagnostic pairs</div>
   </div>
-  <div class="kpi t">
-    <div class="kpi-v">${m.pctOnGL}%</div>
+  <div class="kpi g">
+    <div class="kpi-v">${m.sprOnGL.length.toLocaleString()}</div>
     <div class="kpi-l">On/Above Grade Level</div>
-    <div class="kpi-s">Spring placement</div>
+    <div class="kpi-s">Spring · ${glGain >= 0 ? '+' + glGain : glGain} vs. BOY baseline</div>
   </div>
 </div>
 
@@ -7056,18 +7075,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <div class="sec-hd">
     <div class="sec-dot" style="background:#00695c"></div>
     <div>
-      <div class="sec-ttl">Scholars Advancing 1+ Placement Level &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Scholars who moved to a higher iReady relative placement level from BOY Baseline to EOY Spring</div>
+      <div class="sec-ttl">Partnership Impact — Placement Level Advancement &nbsp;·&nbsp; By School</div>
+      <div class="sec-sub">Percentage of scholars at each school who advanced at least one iReady relative placement level from BOY Baseline to EOY Spring — sorted by strongest performance</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c1" style="height:${ch1}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.pctMoved}%</div><div class="ck-l">Network Rate</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.pctMoved}%</div><div class="ck-l">Network Advancement Rate</div></div>
       <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.moved.length.toLocaleString()}</div><div class="ck-l">Scholars Advanced</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.n.toLocaleString()}</div><div class="ck-l">Scholars Assessed</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${m.pctHeld}%</div><div class="ck-l">Held Placement</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#dc2626">${m.pctRegress}%</div><div class="ck-l">Regressed</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.n.toLocaleString()}</div><div class="ck-l">Scholars Served</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${m.pctHeld}%</div><div class="ck-l">Held Placement Level</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.sprOnGL.length.toLocaleString()}</div><div class="ck-l">At/Above Grade Level (Spring)</div></div>
     </div>
   </div>
 </div>
@@ -7078,7 +7097,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
       <div class="sec-ttl">Overall Relative Placement Shifts &nbsp;·&nbsp; Network</div>
-      <div class="sec-sub">Distribution of scholars across all 5 iReady relative placement levels — BOY Baseline vs. EOY Spring (%)</div>
+      <div class="sec-sub">Scholar placement across all 5 iReady relative bands shifted toward grade level from BOY Baseline to EOY Spring — showing the full portfolio picture</div>
     </div>
   </div>
   <div class="c-layout wide"><canvas id="c2" height="200"></canvas></div>
@@ -7096,16 +7115,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <div class="sec-hd">
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
-      <div class="sec-ttl">Median % Typical Growth &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Median scholar progress toward iReady Annual Typical Growth benchmark &nbsp;·&nbsp; 100% = on-pace for typical annual growth</div>
+      <div class="sec-ttl">Scholar Progress — Typical Growth by School</div>
+      <div class="sec-sub">Median scholar progress toward each student's iReady Annual Typical Growth target &nbsp;·&nbsp; 100% = on-pace &nbsp;·&nbsp; Shows growth relative to each scholar's individual starting point</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c3" style="height:${ch3}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA Network Median</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math Network Median</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">% Meeting Typical</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#64748b'}">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA Network Median</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#64748b'}">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math Network Median</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">Met Growth Target</div></div>
     </div>
   </div>
 </div>
@@ -7116,7 +7135,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#f0b429"></div>
     <div>
       <div class="sec-ttl">Months of Learning Gained &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Median months of academic learning gained &nbsp;·&nbsp; 4.5+ months = strong &nbsp;·&nbsp; 3.0–4.4 = progressing &nbsp;·&nbsp; Below 3.0 = needs support</div>
+      <div class="sec-sub">Each month of academic learning gained represents real progress toward grade-level readiness — median across scholars with diagnostic pairs at each school</div>
     </div>
   </div>
   <div class="c-layout">
@@ -7129,13 +7148,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   </div>
 </div>
 
-<!-- ── Section 5: Scholar Highlights ─────────────── -->
+<!-- ── Section 5: Scholar Impact Stories ─────────── -->
 <div class="sec sec-after-pb">
   <div class="sec-hd">
     <div class="sec-dot" style="background:#f0b429"></div>
     <div>
-      <div class="sec-ttl">Scholar Highlights</div>
-      <div class="sec-sub">Scholars sorted by placement advancement, then by % typical growth &nbsp;·&nbsp; showing up to 60 scholars</div>
+      <div class="sec-ttl">Scholar Impact Stories</div>
+      <div class="sec-sub">Scholars who advanced in iReady placement level or exceeded 75% of their typical growth target — ranked by academic momentum</div>
     </div>
   </div>
   <div class="sc-grid">
@@ -7145,7 +7164,8 @@ ${scholarsHTML}
 
 <!-- ── Footer ─────────────────────────────────────── -->
 <div class="rpt-footer">
-  New Jersey Tutoring Corps &nbsp;·&nbsp; iReady Analysis Lab &nbsp;·&nbsp; Generated ${H(reportDate)} &nbsp;·&nbsp; *data source: Curriculum Associates
+  New Jersey Tutoring Corps &nbsp;·&nbsp; Academic Intelligence Report &nbsp;·&nbsp; ${H(reportDate)}<br>
+  <span style="color:#cbd5e1">Growth data from iReady diagnostics (Curriculum Associates) &nbsp;·&nbsp; Operational data from Pearl &nbsp;·&nbsp; Confidential — for partner use only</span>
 </div>
 
 </div>
