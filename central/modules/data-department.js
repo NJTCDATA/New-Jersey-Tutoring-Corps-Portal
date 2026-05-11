@@ -6609,21 +6609,36 @@
         if (hit) { let yr = parseInt(hit[3]); if (yr < 100) yr += (yr < 50 ? 2000 : 1900); const c = new Date(yr, parseInt(hit[1])-1, parseInt(hit[2])); if (!isNaN(c)) return c; }
         return null;
       };
-      const _xSyaMap = {};
+      const _xSyaEntries = {};
       try {
         const _xRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
         if (_xRaw) {
           const _xs = JSON.parse(_xRaw);
           if (_xs && Array.isArray(_xs.d)) {
             _xs.d.forEach(site => {
-              const sd = _xFlexDt(site.startDate), ed = _xFlexDt(site.endpoint);
-              if (!sd || !ed || isNaN(sd) || isNaN(ed)) return;
-              const wks = Math.round((ed - sd) / (1000*60*60*24*7));
-              if (wks > 0 && wks <= 60 && site.school) _xSyaMap[_xNorm(site.school)] = wks;
+              if (!site.school) return;
+              let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
+              if (!wks) {
+                const sd = _xFlexDt(site.startDate), ed = _xFlexDt(site.endpoint);
+                if (sd && ed && !isNaN(sd) && !isNaN(ed))
+                  wks = Math.round((ed - sd) / (1000*60*60*24*7));
+              }
+              if (wks <= 0 || wks > 60) return;
+              const blk = (site.block || '').toLowerCase();
+              const isSpring = blk.includes('spring') && !blk.includes('fall');
+              const key = _xNorm(site.school);
+              if (!_xSyaEntries[key]) _xSyaEntries[key] = [];
+              _xSyaEntries[key].push({ wks, isSpring });
             });
           }
         }
       } catch(_e) {}
+      const _xSyaMap = {};
+      Object.entries(_xSyaEntries).forEach(([key, arr]) => {
+        const preferred = arr.filter(e => e.isSpring);
+        const pool = preferred.length ? preferred : arr;
+        _xSyaMap[key] = Math.min(...pool.map(e => e.wks));
+      });
       const _xEffWks = r => r.springWeeks > 0 ? r.springWeeks : (_xSyaMap[_xNorm(r.school)] || 0);
 
       // ── Sheet 2: Network Summary ─────────────────────────────────────────────
@@ -6819,30 +6834,53 @@
         }
         return null;
       };
-      const _syaWkMap = {};   // normalized school name → program weeks
-      let   _syaCtx   = null; // aggregate stats for context callout
+      // Build school → weeks map from SYA live cache.
+      // Rules (in priority order):
+      //   1. Use site.progWeeks (col V "# of Weeks for Programming") when > 0 — authoritative
+      //   2. Else compute from startDate → endpoint dates via _flexDt()
+      //   3. When multiple rows share a school name, prefer Spring-only blocks over
+      //      Fall+Spring (avoids a full-year entry overwriting a short spring window)
+      //   4. Among remaining ties, take the minimum weeks (most conservative)
+      const _syaEntries = {};  // normalised school → [{wks, isSpring}]
+      let   _syaCtx     = null;
       try {
         const _syaRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
         if (_syaRaw) {
           const _sya = JSON.parse(_syaRaw);
           if (_sya && Array.isArray(_sya.d)) {
             _sya.d.forEach(site => {
-              const sd = _flexDt(site.startDate), ed = _flexDt(site.endpoint);
-              if (!sd || !ed || isNaN(sd) || isNaN(ed)) return;
-              const wks = Math.round((ed - sd) / (1000 * 60 * 60 * 24 * 7));
+              if (!site.school) return;
+              // Weeks: prefer column V (progWeeks), else compute from dates
+              let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
+              if (!wks) {
+                const sd = _flexDt(site.startDate), ed = _flexDt(site.endpoint);
+                if (sd && ed && !isNaN(sd) && !isNaN(ed))
+                  wks = Math.round((ed - sd) / (1000 * 60 * 60 * 24 * 7));
+              }
               if (wks <= 0 || wks > 60) return;
-              if (site.school) _syaWkMap[_norm(site.school)] = wks;
+              const blk = (site.block || '').toLowerCase();
+              const isSpring = blk.includes('spring') && !blk.includes('fall');
+              const key = _norm(site.school);
+              if (!_syaEntries[key]) _syaEntries[key] = [];
+              _syaEntries[key].push({ wks, isSpring });
             });
           }
         }
-        const _wkArr = Object.values(_syaWkMap).filter(w => w > 0);
-        if (_wkArr.length) _syaCtx = {
-          medProgramWks: medianArr(_wkArr),
-          minWks:        Math.min(..._wkArr),
-          maxWks:        Math.max(..._wkArr),
-          siteCount:     _wkArr.length,
-        };
       } catch(_e) {}
+      const _syaWkMap = {};
+      Object.entries(_syaEntries).forEach(([key, arr]) => {
+        // Prefer Spring-only entries; fall back to any entry; pick minimum
+        const preferred = arr.filter(e => e.isSpring);
+        const pool = preferred.length ? preferred : arr;
+        _syaWkMap[key] = Math.min(...pool.map(e => e.wks));
+      });
+      const _wkArr = Object.values(_syaWkMap).filter(w => w > 0);
+      if (_wkArr.length) _syaCtx = {
+        medProgramWks: medianArr(_wkArr),
+        minWks:        Math.min(..._wkArr),
+        maxWks:        Math.max(..._wkArr),
+        siteCount:     _wkArr.length,
+      };
       // Prefer iReady's own diagnostic weeks; fall back to SYA calendar weeks
       const _effWks = r => r.springWeeks > 0 ? r.springWeeks : (_syaWkMap[_norm(r.school)] || 0);
       const _smap = {};
