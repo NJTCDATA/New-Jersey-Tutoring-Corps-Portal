@@ -2903,8 +2903,11 @@
             <button onclick="irlab.downloadCSV()" title="Download filtered data as CSV (opens in Excel, Google Sheets)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:.75rem;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">
               📄 CSV
             </button>
-            <button onclick="irlab.downloadXLSX()" title="Download filtered data as Excel workbook (.xlsx)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid #16a34a;border-radius:7px;font-size:.75rem;font-weight:600;color:#15803d;cursor:pointer;font-family:inherit">
+            <button onclick="irlab.downloadXLSX()" title="Download as Excel workbook with 6 pre-built summary sheets: raw data, network summary, placement shifts, growth by school/grade/district" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid #16a34a;border-radius:7px;font-size:.75rem;font-weight:600;color:#15803d;cursor:pointer;font-family:inherit">
               📊 XLSX
+            </button>
+            <button onclick="irlab.downloadHTMLReport()" title="Generate a full NJTC-branded HTML impact report with 4 charts and scholar highlight cards — open in browser then Print → Save as PDF" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:linear-gradient(135deg,#0a2342,#1565c0);border:none;border-radius:7px;font-size:.75rem;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,35,66,.25)">
+              📈 Report
             </button>
             <span style="font-size:.685rem;color:var(--muted)">Current filters applied · ${allRows.length.toLocaleString()} rows · includes Pearl operational data</span>
           </div>` : ''}
@@ -6566,15 +6569,686 @@
 
     function downloadXLSX() {
       if (typeof XLSX === 'undefined') { downloadCSV(); return; }
-      const rows = _irlBuildExportRows();
-      if (!rows.length) { alert('No data to export with current filters.'); return; }
-      const ws = XLSX.utils.json_to_sheet(rows);
-      // Auto-width columns
-      const colWidths = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, ...rows.map(r => String(r[k] == null ? '' : r[k]).length).slice(0,200)) + 2 }));
-      ws['!cols'] = colWidths;
+      const exportRows = _irlBuildExportRows();
+      if (!exportRows.length) { alert('No data to export with current filters.'); return; }
+
+      const validRows = getRows({});
+      const allRows   = getAllRows({});
+      const m         = validRows.length ? computeMetrics(validRows) : null;
+      const dated     = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+      const _aw = ws => {
+        const ref = ws['!ref']; if (!ref) return;
+        const range = XLSX.utils.decode_range(ref);
+        const widths = [];
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          let max = 8;
+          for (let R = range.s.r; R <= range.e.r; R++) {
+            const cell = ws[XLSX.utils.encode_cell({r:R,c:C})];
+            if (cell && cell.v != null) max = Math.min(Math.max(max, String(cell.v).length + 2), 52);
+          }
+          widths.push({ wch: max });
+        }
+        ws['!cols'] = widths;
+      };
+
+      // ── Sheet 1: iReady Data (raw export) ───────────────────────────────────
+      const ws1 = XLSX.utils.json_to_sheet(exportRows);
+      _aw(ws1);
+
+      // ── Sheet 2: Network Summary ─────────────────────────────────────────────
+      const elaTyp   = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
+      const mathTyp  = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
+      const elaMedT  = medianArr(elaTyp);
+      const mathMedT = medianArr(mathTyp);
+      const elaMedMo = medianArr(allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const mathMedMo= medianArr(allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const ws2 = XLSX.utils.json_to_sheet([
+        { 'Metric': 'Report Date',                       'Value': dated },
+        { 'Metric': '── SCHOLARS ───────────────────',  'Value': '' },
+        { 'Metric': 'Total Scholars (valid pairs)',      'Value': m ? m.n : 0 },
+        { 'Metric': 'ELA Scholars (with growth data)',   'Value': elaTyp.length },
+        { 'Metric': 'Math Scholars (with growth data)',  'Value': mathTyp.length },
+        { 'Metric': '── GROWTH ──────────────────────', 'Value': '' },
+        { 'Metric': 'ELA Median % Typical Growth',       'Value': elaMedT  !== null ? (elaMedT*100).toFixed(1)+'%'  : '—' },
+        { 'Metric': 'Math Median % Typical Growth',      'Value': mathMedT !== null ? (mathMedT*100).toFixed(1)+'%' : '—' },
+        { 'Metric': 'ELA Median Months of Growth',       'Value': elaMedMo  !== null ? elaMedMo.toFixed(1)+' mo'   : '—' },
+        { 'Metric': 'Math Median Months of Growth',      'Value': mathMedMo !== null ? mathMedMo.toFixed(1)+' mo'  : '—' },
+        { 'Metric': '% Meeting Typical Growth (≥100%)',  'Value': m && m.metTypPct !== null ? m.metTypPct+'%' : '—' },
+        { 'Metric': '── PLACEMENT MOVEMENT ───────────', 'Value': '' },
+        { 'Metric': 'Scholars Advanced 1+ Level',        'Value': m ? m.moved.length : 0 },
+        { 'Metric': '% Advanced 1+ Level',               'Value': m ? m.pctMoved+'%' : '—' },
+        { 'Metric': 'Scholars Held Placement',           'Value': m ? m.held.length : 0 },
+        { 'Metric': '% Held Placement',                  'Value': m ? m.pctHeld+'%' : '—' },
+        { 'Metric': 'Scholars Regressed',                'Value': m ? m.regress.length : 0 },
+        { 'Metric': '% Regressed',                       'Value': m ? m.pctRegress+'%' : '—' },
+        { 'Metric': '── GRADE LEVEL ─────────────────',  'Value': '' },
+        { 'Metric': '% On/Above Grade Level — Spring',   'Value': m ? m.pctOnGL+'%' : '—' },
+        { 'Metric': '% On/Above Grade Level — BOY',      'Value': m && m.n>0 ? Math.round(m.baseOnGL.length/m.n*100)+'%' : '—' },
+        { 'Metric': '% 2+ Grade Levels Below — Spring',  'Value': m ? m.pct2Below+'%' : '—' },
+        { 'Metric': '% 2+ Grade Levels Below — BOY',     'Value': m && m.n>0 ? Math.round(m.base2Below.length/m.n*100)+'%' : '—' },
+      ]);
+      _aw(ws2);
+
+      // ── Sheet 3: Placement Shifts by School (BOY vs EOY counts + %) ──────────
+      const _schoolPairs = {};
+      validRows.forEach(r => {
+        const k = r.school || 'Unknown';
+        if (!_schoolPairs[k]) _schoolPairs[k] = { school:k, district:r.district||'', rows:[] };
+        _schoolPairs[k].rows.push(r);
+      });
+      const placementShiftRows = [];
+      Object.values(_schoolPairs).filter(s => s.rows.length >= 2).forEach(s => {
+        const sm = computeMetrics(s.rows);
+        if (!sm) return;
+        ['BOY (Baseline)','EOY (Spring)'].forEach((period, pi) => {
+          const dist = pi===0 ? sm.baseDist : sm.springDist;
+          const row  = { 'School': s.school, 'District': s.district, 'Period': period, 'N': sm.n };
+          PLACEMENT_ORDER.forEach(p => { row[PLC_SHORT[p]+' Count'] = dist[p]||0; });
+          PLACEMENT_ORDER.forEach(p => { row[PLC_SHORT[p]+' %']     = sm.n>0 ? ((( dist[p]||0)/sm.n)*100).toFixed(1)+'%' : '0%'; });
+          placementShiftRows.push(row);
+        });
+      });
+      const ws3 = XLSX.utils.json_to_sheet(placementShiftRows);
+      _aw(ws3);
+
+      // ── Sheet 4: Growth Summary by School ────────────────────────────────────
+      const schoolGrowthRows = Object.values(_schoolPairs).filter(s => s.rows.length >= 2).map(s => {
+        const sm      = computeMetrics(s.rows);
+        const typNums = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
+        const moNums  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const medTyp  = medianArr(typNums);
+        const medMo   = medianArr(moNums);
+        return {
+          'School':                    s.school,
+          'District':                  s.district,
+          'N (valid pairs)':           sm ? sm.n : 0,
+          'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%' : '—',
+          'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'      : '—',
+          '% Advanced 1+ Level':       sm ? sm.pctMoved+'%'   : '—',
+          '# Advanced':                sm ? sm.moved.length   : 0,
+          '% Held Placement':          sm ? sm.pctHeld+'%'    : '—',
+          '% Regressed':               sm ? sm.pctRegress+'%' : '—',
+          '% On/Above GL (Spring)':    sm ? sm.pctOnGL+'%'    : '—',
+          '% On/Above GL (BOY)':       sm && sm.n>0 ? Math.round(sm.baseOnGL.length/sm.n*100)+'%' : '—',
+        };
+      }).sort((a,b) => parseFloat(b['% Advanced 1+ Level'])-parseFloat(a['% Advanced 1+ Level']));
+      const ws4 = XLSX.utils.json_to_sheet(schoolGrowthRows);
+      _aw(ws4);
+
+      // ── Sheet 5: Growth by Grade ─────────────────────────────────────────────
+      const _gradePairs = {};
+      validRows.forEach(r => {
+        const k = r.grade || 'Unknown';
+        if (!_gradePairs[k]) _gradePairs[k] = { grade:k, rows:[] };
+        _gradePairs[k].rows.push(r);
+      });
+      const gradeRows = Object.values(_gradePairs).map(g => {
+        const sm      = computeMetrics(g.rows);
+        const typNums = allRows.filter(r => (r.grade||'Unknown')===g.grade && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
+        const moNums  = allRows.filter(r => (r.grade||'Unknown')===g.grade && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const medTyp  = medianArr(typNums);
+        const medMo   = medianArr(moNums);
+        return {
+          'Grade':                     g.grade,
+          'N':                         sm ? sm.n : 0,
+          'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%' : '—',
+          'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'      : '—',
+          '% Advanced 1+ Level':       sm ? sm.pctMoved+'%'   : '—',
+          '# Advanced':                sm ? sm.moved.length   : 0,
+          '% On/Above GL (Spring)':    sm ? sm.pctOnGL+'%'    : '—',
+        };
+      }).sort((a,b) => { const na=parseInt(a['Grade'])||999, nb=parseInt(b['Grade'])||999; return na-nb; });
+      const ws5 = XLSX.utils.json_to_sheet(gradeRows);
+      _aw(ws5);
+
+      // ── Sheet 6: Growth by District ──────────────────────────────────────────
+      const _distPairs = {};
+      validRows.forEach(r => {
+        const k = r.district || 'Unknown';
+        if (!_distPairs[k]) _distPairs[k] = { district:k, rows:[] };
+        _distPairs[k].rows.push(r);
+      });
+      const distRows = Object.values(_distPairs).map(d => {
+        const sm      = computeMetrics(d.rows);
+        const typNums = allRows.filter(r => (r.district||'Unknown')===d.district && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
+        const moNums  = allRows.filter(r => (r.district||'Unknown')===d.district && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const medTyp  = medianArr(typNums);
+        const medMo   = medianArr(moNums);
+        return {
+          'District':                  d.district,
+          'N':                         sm ? sm.n : 0,
+          'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%' : '—',
+          'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'      : '—',
+          '% Advanced 1+ Level':       sm ? sm.pctMoved+'%'   : '—',
+          '# Advanced':                sm ? sm.moved.length   : 0,
+          '% On/Above GL (Spring)':    sm ? sm.pctOnGL+'%'    : '—',
+        };
+      }).sort((a,b) => parseFloat(b['% Advanced 1+ Level'])-parseFloat(a['% Advanced 1+ Level']));
+      const ws6 = XLSX.utils.json_to_sheet(distRows);
+      _aw(ws6);
+
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'iReady Data');
+      XLSX.utils.book_append_sheet(wb, ws1, 'iReady Data');
+      XLSX.utils.book_append_sheet(wb, ws2, 'Network Summary');
+      XLSX.utils.book_append_sheet(wb, ws3, 'Placement Shifts');
+      XLSX.utils.book_append_sheet(wb, ws4, 'Growth by School');
+      XLSX.utils.book_append_sheet(wb, ws5, 'Growth by Grade');
+      XLSX.utils.book_append_sheet(wb, ws6, 'Growth by District');
       XLSX.writeFile(wb, 'njtc-iready-' + new Date().toISOString().slice(0,10) + '.xlsx');
+    }
+
+    // ── HTML Impact Report (Option B) ──────────────────────────────────────────
+    function downloadHTMLReport() {
+      const validRows = getRows({});
+      const allRows   = getAllRows({});
+      if (!validRows.length) { alert('No data to generate a report with current filters.'); return; }
+      const m = computeMetrics(validRows);
+      if (!m) return;
+
+      // ── Per-school aggregations ─────────────────────────────────────────────
+      const _smap = {};
+      validRows.forEach(r => {
+        const k = r.school || 'Unknown';
+        if (!_smap[k]) _smap[k] = { school:k, district:r.district||'', rows:[], typR:[], moR:[] };
+        _smap[k].rows.push(r);
+      });
+      allRows.forEach(r => {
+        const k = r.school || 'Unknown';
+        if (_smap[k] && r.pctTypical!==null && !isNaN(r.pctTypical)) {
+          _smap[k].typR.push(r.pctTypical);
+          _smap[k].moR.push(r.pctTypical * ((r.springWeeks||36)/4));
+        }
+      });
+      const schools = Object.values(_smap).filter(s => s.rows.length >= 2).map(s => {
+        const sm    = computeMetrics(s.rows);
+        const medT  = medianArr(s.typR);
+        const medMo = medianArr(s.moR);
+        return {
+          school:    s.school,
+          district:  s.district,
+          n:         s.rows.length,
+          pctMoved:  sm ? sm.pctMoved  : 0,
+          pctHeld:   sm ? sm.pctHeld   : 0,
+          pctReg:    sm ? sm.pctRegress: 0,
+          moved:     sm ? sm.moved.length : 0,
+          medTyp:    medT,
+          medMo:     medMo,
+          baseDist:  sm ? sm.baseDist   : {},
+          springDist:sm ? sm.springDist : {},
+          pctOnGL:   sm ? sm.pctOnGL    : 0,
+        };
+      });
+
+      // ── Network-level growth numbers ────────────────────────────────────────
+      const elaR    = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical));
+      const mathR   = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical));
+      const elaMedian  = medianArr(elaR.map(r => r.pctTypical));
+      const mathMedian = medianArr(mathR.map(r => r.pctTypical));
+      const elaMonths  = medianArr(elaR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const mathMonths = medianArr(mathR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+
+      // ── BOY vs EOY network placement distribution ───────────────────────────
+      const boyDist = {}; const eoyDist = {};
+      PLACEMENT_ORDER.forEach(p => { boyDist[p]=0; eoyDist[p]=0; });
+      validRows.forEach(r => {
+        if (boyDist[r.baseRelPlacement]   !== undefined) boyDist[r.baseRelPlacement]++;
+        if (eoyDist[r.springRelPlacement] !== undefined) eoyDist[r.springRelPlacement]++;
+      });
+      const nV = validRows.length;
+      const c2Datasets = PLACEMENT_ORDER.map((p,i) => ({
+        label: p,
+        data: [
+          nV > 0 ? parseFloat(((boyDist[p]/nV)*100).toFixed(1)) : 0,
+          nV > 0 ? parseFloat(((eoyDist[p]/nV)*100).toFixed(1)) : 0,
+        ],
+        backgroundColor: [
+          'rgba(220,38,38,0.88)',
+          'rgba(249,115,22,0.88)',
+          'rgba(234,179,8,0.88)',
+          'rgba(13,148,136,0.88)',
+          'rgba(13,110,58,0.88)',
+        ][i],
+        borderColor: '#fff',
+        borderWidth: 2,
+      }));
+
+      // ── Chart dataset arrays ────────────────────────────────────────────────
+      const byMove   = [...schools].sort((a,b) => b.pctMoved - a.pctMoved);
+      const c1Labels = byMove.map(s => s.school);
+      const c1Data   = byMove.map(s => s.pctMoved);
+      const c1N      = byMove.map(s => s.n);
+      const c1Colors = byMove.map(s => s.pctMoved >= 50 ? '#00695c' : s.pctMoved >= 25 ? '#1565c0' : '#64748b');
+
+      const byTyp    = [...schools].filter(s => s.medTyp !== null).sort((a,b) => (b.medTyp||0) - (a.medTyp||0));
+      const c3Labels = byTyp.map(s => s.school);
+      const c3Data   = byTyp.map(s => parseFloat(((s.medTyp||0)*100).toFixed(1)));
+      const c3Colors = byTyp.map(s => (s.medTyp||0) >= 1.0 ? '#00695c' : (s.medTyp||0) >= 0.5 ? '#1565c0' : '#ea580c');
+
+      const byMo     = [...schools].filter(s => s.medMo !== null).sort((a,b) => (b.medMo||0) - (a.medMo||0));
+      const c4Labels = byMo.map(s => s.school);
+      const c4Data   = byMo.map(s => parseFloat((s.medMo||0).toFixed(1)));
+      const c4Colors = byMo.map(s => (s.medMo||0) >= 4.5 ? '#00695c' : (s.medMo||0) >= 3.0 ? '#f0b429' : '#ea580c');
+
+      // ── Scholar highlight cards ─────────────────────────────────────────────
+      const H = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      const plcColor = p => p==='Mid or Above Grade Level'?'#0d6e3a':p==='Early On Grade Level'?'#0d9488':p==='1 Grade Level Below'?'#ca8a04':p==='2 Grade Levels Below'?'#ea580c':'#dc2626';
+
+      const scholarsHTML = validRows
+        .filter(r => r.pctTypical!==null && !isNaN(r.pctTypical))
+        .map(r => ({
+          name:  r.scholarName || 'Scholar',
+          school:r.school      || '—',
+          grade: r.grade       || '—',
+          subj:  r.subject     || '—',
+          baseP: r.baseRelPlacement   || '—',
+          sprP:  r.springRelPlacement || '—',
+          shift: plIdx(r.springRelPlacement) - plIdx(r.baseRelPlacement),
+          pct:   r.pctTypical,
+          mo:    r.pctTypical * ((r.springWeeks||36)/4),
+          tutor: r.instructor  || '',
+        }))
+        .sort((a,b) => b.shift !== a.shift ? b.shift - a.shift : b.pct - a.pct)
+        .slice(0, 60)
+        .map(s => {
+          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : s.shift < 0 ? `${s.shift} Level${Math.abs(s.shift)>1?'s':''}` : 'Held';
+          const shiftColor = s.shift > 0 ? '#00695c' : s.shift < 0 ? '#dc2626' : '#64748b';
+          const shiftBg    = s.shift > 0 ? '#f0fdf4' : s.shift < 0 ? '#fef2f2' : '#f8fafc';
+          const shiftIcon  = s.shift > 0 ? '▲' : s.shift < 0 ? '▼' : '●';
+          const pctNum     = (s.pct * 100).toFixed(0);
+          const pctColor   = s.pct >= 1.0 ? '#00695c' : s.pct >= 0.5 ? '#1565c0' : '#dc2626';
+          const bc         = plcColor(s.baseP); const sc = plcColor(s.sprP);
+          return `<div class="sc-card">
+  <div class="sc-top">
+    <div>
+      <div class="sc-name">${H(s.name)}</div>
+      <div class="sc-meta">${H(s.school)} &nbsp;·&nbsp; Grade ${H(s.grade)} &nbsp;·&nbsp; ${H(s.subj)}</div>
+    </div>
+    <div class="sc-badge" style="background:${shiftBg};color:${shiftColor};border-color:${shiftColor}40">${shiftIcon} ${H(shiftTxt)}</div>
+  </div>
+  <div class="sc-mid">
+    <div class="sc-pl-wrap">
+      <div class="sc-pl-label">PLACEMENT</div>
+      <div class="sc-pl-flow">
+        <span class="sc-chip" style="color:${bc};background:${bc}14;border:1px solid ${bc}30">${H(s.baseP)}</span>
+        <span class="sc-arrow" style="color:${shiftColor}">${shiftIcon}</span>
+        <span class="sc-chip" style="color:${sc};background:${sc}14;border:1px solid ${sc}30">${H(s.sprP)}</span>
+      </div>
+    </div>
+    <div class="sc-stats">
+      <div class="sc-stat"><div class="sc-sv" style="color:${pctColor}">${pctNum}%</div><div class="sc-sl">Typical Growth</div></div>
+      <div class="sc-stat"><div class="sc-sv" style="color:#0a2342">${s.mo.toFixed(1)}</div><div class="sc-sl">Months Gained</div></div>
+    </div>
+  </div>${s.tutor ? `\n  <div class="sc-tutor">Tutor: ${H(s.tutor)}</div>` : ''}
+</div>`;
+        }).join('\n');
+
+      // ── Filter label ────────────────────────────────────────────────────────
+      const filterLabel = [
+        _irlYear     !== 'all' ? _irlYear     : null,
+        _irlSubject  !== 'all' ? _irlSubject  : null,
+        _irlDistrict !== 'all' ? _irlDistrict : null,
+        _irlSchool   !== 'all' ? _irlSchool   : null,
+      ].filter(Boolean).join(' · ') || 'All Schools · All Years';
+
+      // ── Dynamic chart heights ───────────────────────────────────────────────
+      const ch1 = Math.max(300, byMove.length * 34);
+      const ch3 = Math.max(300, byTyp.length  * 34);
+      const ch4 = Math.max(300, byMo.length   * 34);
+      const reportDate = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+
+      // ── Full HTML ───────────────────────────────────────────────────────────
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NJTC iReady Impact Report · ${H(filterLabel)}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#edf1f7;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{max-width:1120px;margin:0 auto;padding:1.75rem 1.5rem}
+/* ── Header ── */
+.rpt-header{background:linear-gradient(135deg,#071829 0%,#0a2342 45%,#0d3166 100%);border-radius:16px;padding:2.25rem 2.75rem;margin-bottom:.875rem;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(10,35,66,.35)}
+.rpt-header::before{content:'';position:absolute;right:-60px;top:-60px;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(240,180,41,.12) 0%,transparent 70%);pointer-events:none}
+.rpt-header::after{content:'';position:absolute;left:-40px;bottom:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(0,105,92,.18) 0%,transparent 70%);pointer-events:none}
+.rh-inner{position:relative;z-index:1}
+.rh-badge{font-size:.625rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.42);margin-bottom:.5rem}
+.rh-title{font-size:2rem;font-weight:900;color:#fff;line-height:1.1;margin-bottom:.35rem;letter-spacing:-.02em}
+.rh-sub{font-size:.9125rem;color:rgba(255,255,255,.58)}
+.rh-right{position:relative;z-index:1;text-align:right;flex-shrink:0}
+.rh-date{font-size:.8125rem;color:rgba(255,255,255,.45);margin-bottom:.2rem}
+.rh-source{font-size:.7rem;color:rgba(255,255,255,.3)}
+/* ── Accent ── */
+.accent{height:5px;background:linear-gradient(90deg,#f0b429 0%,#00695c 40%,#1565c0 75%,#0a2342 100%);border-radius:99px;margin-bottom:1.375rem}
+/* ── KPI strip ── */
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;margin-bottom:1.375rem}
+.kpi{background:#fff;border-radius:13px;padding:1.1rem 1.25rem;border:1.5px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 13px 13px}
+.kpi.g::after{background:#00695c}.kpi.b::after{background:#1565c0}.kpi.go::after{background:#f0b429}.kpi.n::after{background:#0a2342}.kpi.r::after{background:#dc2626}.kpi.t::after{background:#0d9488}
+.kpi-v{font-size:1.875rem;font-weight:900;line-height:1;margin-bottom:.22rem;letter-spacing:-.02em}
+.kpi.g .kpi-v{color:#00695c}.kpi.b .kpi-v{color:#1565c0}.kpi.go .kpi-v{color:#d97706}.kpi.n .kpi-v{color:#0a2342}.kpi.r .kpi-v{color:#dc2626}.kpi.t .kpi-v{color:#0d9488}
+.kpi-l{font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em;line-height:1.35}
+.kpi-s{font-size:.6375rem;color:#94a3b8;margin-top:.12rem}
+/* ── Section cards ── */
+.sec{background:#fff;border-radius:14px;border:1.5px solid #e2e8f0;padding:1.625rem 1.75rem;margin-bottom:1.25rem;box-shadow:0 1px 5px rgba(0,0,0,.06)}
+.sec-hd{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:1.25rem;padding-bottom:.9rem;border-bottom:2px solid #f1f5f9}
+.sec-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;margin-top:3px}
+.sec-ttl{font-size:1.0625rem;font-weight:800;color:#0a2342;line-height:1.2}
+.sec-sub{font-size:.775rem;color:#64748b;margin-top:.2rem}
+/* ── Chart layout ── */
+.c-layout{display:grid;grid-template-columns:1fr 210px;gap:1.25rem;align-items:start}
+.c-layout.wide{grid-template-columns:1fr}
+.c-wrap{position:relative}
+.c-side{display:flex;flex-direction:column;gap:.6rem}
+.ckpi{background:#f8fafc;border-radius:11px;padding:.85rem 1rem;border:1.5px solid #e8edf4}
+.ck-v{font-size:1.4375rem;font-weight:800;line-height:1;margin-bottom:.18rem}
+.ck-l{font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+/* ── Legend ── */
+.legend{display:flex;flex-wrap:wrap;gap:.45rem .875rem;margin-top:.9rem}
+.leg-item{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#475569;font-weight:500}
+.leg-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+/* ── Scholars grid ── */
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.875rem;margin-top:.5rem}
+.sc-card{background:#f8fafc;border-radius:13px;padding:1rem 1.125rem;border:1.5px solid #e2e8f0}
+.sc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.6rem}
+.sc-name{font-size:.9375rem;font-weight:800;color:#0a2342}
+.sc-meta{font-size:.675rem;color:#64748b;margin-top:.1rem}
+.sc-badge{font-size:.7rem;font-weight:800;padding:.22rem .65rem;border-radius:99px;border:1.5px solid;white-space:nowrap;flex-shrink:0}
+.sc-mid{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem}
+.sc-pl-wrap{flex:1;min-width:0}
+.sc-pl-label{font-size:.6rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem}
+.sc-pl-flow{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
+.sc-chip{font-size:.6625rem;font-weight:700;padding:.18rem .55rem;border-radius:99px;white-space:nowrap}
+.sc-arrow{font-size:.875rem;font-weight:900}
+.sc-pl-shift{font-size:.7rem;font-weight:800;margin-top:.25rem}
+.sc-stats{display:flex;flex-direction:column;gap:.3rem;text-align:right;flex-shrink:0}
+.sc-sv{font-size:1.25rem;font-weight:900;line-height:1;letter-spacing:-.02em}
+.sc-sl{font-size:.58rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.sc-tutor{font-size:.65rem;color:#94a3b8;margin-top:.55rem;padding-top:.45rem;border-top:1px solid #f1f5f9}
+/* ── Footer ── */
+.rpt-footer{text-align:center;padding:1.5rem 0 .5rem;font-size:.7rem;color:#94a3b8}
+/* ── Print / PDF ── */
+@page{size:letter portrait;margin:.55in .5in .5in .5in}
+@media print{
+  body{background:#fff!important}
+  .page{max-width:100%;padding:0}
+  .no-print{display:none!important}
+  .sec{box-shadow:none;border-color:#dde3ef;break-inside:avoid;margin-bottom:.6rem}
+  .rpt-header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .kpi-row{grid-template-columns:repeat(6,1fr);gap:.45rem}
+  .kpi{padding:.7rem .875rem}
+  .kpi-v{font-size:1.375rem}
+  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.6rem}
+  .c-layout{grid-template-columns:1fr 180px}
+  .sec-after-pb{break-after:page}
+}
+@media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}.c-layout{grid-template-columns:1fr}}
+@media(max-width:540px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+/* ── Print button ── */
+.print-btn{position:fixed;bottom:1.5rem;right:1.5rem;display:inline-flex;align-items:center;gap:.45rem;padding:.7rem 1.25rem;background:linear-gradient(135deg,#0a2342,#1565c0);color:#fff;font-size:.8125rem;font-weight:800;border:none;border-radius:99px;cursor:pointer;box-shadow:0 4px 16px rgba(10,35,66,.35);letter-spacing:.02em;z-index:999;font-family:inherit;transition:box-shadow .15s}
+.print-btn:hover{box-shadow:0 6px 22px rgba(10,35,66,.45)}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ── Header ─────────────────────────────────────── -->
+<div class="rpt-header">
+  <div class="rh-inner">
+    <div class="rh-badge">New Jersey Tutoring Corps &nbsp;·&nbsp; Academic Intelligence Division</div>
+    <div class="rh-title">iReady Impact Report</div>
+    <div class="rh-sub">${H(filterLabel)}</div>
+  </div>
+  <div class="rh-right">
+    <div class="rh-date">${H(reportDate)}</div>
+    <div class="rh-source">*data source: Curriculum Associates</div>
+  </div>
+</div>
+<div class="accent"></div>
+
+<!-- ── KPI Strip ──────────────────────────────────── -->
+<div class="kpi-row">
+  <div class="kpi g">
+    <div class="kpi-v">${m.pctMoved}%</div>
+    <div class="kpi-l">Scholars Advanced</div>
+    <div class="kpi-s">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} moved 1+ level</div>
+  </div>
+  <div class="kpi b">
+    <div class="kpi-v">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div>
+    <div class="kpi-l">ELA Median Typical Growth</div>
+    <div class="kpi-s">${elaR.length.toLocaleString()} scholars</div>
+  </div>
+  <div class="kpi b">
+    <div class="kpi-v">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div>
+    <div class="kpi-l">Math Median Typical Growth</div>
+    <div class="kpi-s">${mathR.length.toLocaleString()} scholars</div>
+  </div>
+  <div class="kpi go">
+    <div class="kpi-v">${allMonths !== null ? allMonths.toFixed(1) : '—'}</div>
+    <div class="kpi-l">Median Months of Growth</div>
+    <div class="kpi-s">All subjects combined</div>
+  </div>
+  <div class="kpi n">
+    <div class="kpi-v">${m.n.toLocaleString()}</div>
+    <div class="kpi-l">Scholars Assessed</div>
+    <div class="kpi-s">Valid diagnostic pairs</div>
+  </div>
+  <div class="kpi t">
+    <div class="kpi-v">${m.pctOnGL}%</div>
+    <div class="kpi-l">On/Above Grade Level</div>
+    <div class="kpi-s">Spring placement</div>
+  </div>
+</div>
+
+<!-- ── Section 1: Placement Level Movement ────────── -->
+<div class="sec">
+  <div class="sec-hd">
+    <div class="sec-dot" style="background:#00695c"></div>
+    <div>
+      <div class="sec-ttl">Scholars Advancing 1+ Placement Level &nbsp;·&nbsp; By School</div>
+      <div class="sec-sub">Scholars who moved to a higher iReady relative placement level from BOY Baseline to EOY Spring</div>
+    </div>
+  </div>
+  <div class="c-layout">
+    <div class="c-wrap"><canvas id="c1" style="height:${ch1}px"></canvas></div>
+    <div class="c-side">
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.pctMoved}%</div><div class="ck-l">Network Rate</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.moved.length.toLocaleString()}</div><div class="ck-l">Scholars Advanced</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.n.toLocaleString()}</div><div class="ck-l">Scholars Assessed</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${m.pctHeld}%</div><div class="ck-l">Held Placement</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#dc2626">${m.pctRegress}%</div><div class="ck-l">Regressed</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 2: Placement Distribution Shift ────── -->
+<div class="sec">
+  <div class="sec-hd">
+    <div class="sec-dot" style="background:#1565c0"></div>
+    <div>
+      <div class="sec-ttl">Overall Relative Placement Shifts &nbsp;·&nbsp; Network</div>
+      <div class="sec-sub">Distribution of scholars across all 5 iReady relative placement levels — BOY Baseline vs. EOY Spring (%)</div>
+    </div>
+  </div>
+  <div class="c-layout wide"><canvas id="c2" height="200"></canvas></div>
+  <div class="legend">
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(220,38,38,.88)"></div>3+ Grade Levels Below</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(249,115,22,.88)"></div>2 Grade Levels Below</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(234,179,8,.88)"></div>1 Grade Level Below</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(13,148,136,.88)"></div>Early On Grade Level</div>
+    <div class="leg-item"><div class="leg-dot" style="background:rgba(13,110,58,.88)"></div>Mid or Above Grade Level</div>
+  </div>
+</div>
+
+<!-- ── Section 3: Median Typical Growth ───────────── -->
+<div class="sec">
+  <div class="sec-hd">
+    <div class="sec-dot" style="background:#1565c0"></div>
+    <div>
+      <div class="sec-ttl">Median % Typical Growth &nbsp;·&nbsp; By School</div>
+      <div class="sec-sub">Median scholar progress toward iReady Annual Typical Growth benchmark &nbsp;·&nbsp; 100% = on-pace for typical annual growth</div>
+    </div>
+  </div>
+  <div class="c-layout">
+    <div class="c-wrap"><canvas id="c3" style="height:${ch3}px"></canvas></div>
+    <div class="c-side">
+      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA Network Median</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math Network Median</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">% Meeting Typical</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 4: Months of Growth ───────────────── -->
+<div class="sec">
+  <div class="sec-hd">
+    <div class="sec-dot" style="background:#f0b429"></div>
+    <div>
+      <div class="sec-ttl">Months of Learning Gained &nbsp;·&nbsp; By School</div>
+      <div class="sec-sub">Median months of academic learning gained &nbsp;·&nbsp; 4.5+ months = strong &nbsp;·&nbsp; 3.0–4.4 = progressing &nbsp;·&nbsp; Below 3.0 = needs support</div>
+    </div>
+  </div>
+  <div class="c-layout">
+    <div class="c-wrap"><canvas id="c4" style="height:${ch4}px"></canvas></div>
+    <div class="c-side">
+      <div class="ckpi"><div class="ck-v" style="color:#d97706">${elaMonths !== null ? elaMonths.toFixed(1) : '—'}</div><div class="ck-l">ELA Median Months</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#d97706">${mathMonths !== null ? mathMonths.toFixed(1) : '—'}</div><div class="ck-l">Math Median Months</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${allMonths !== null ? allMonths.toFixed(1) : '—'}</div><div class="ck-l">Overall Network</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Section 5: Scholar Highlights ─────────────── -->
+<div class="sec sec-after-pb">
+  <div class="sec-hd">
+    <div class="sec-dot" style="background:#f0b429"></div>
+    <div>
+      <div class="sec-ttl">Scholar Highlights</div>
+      <div class="sec-sub">Scholars sorted by placement advancement, then by % typical growth &nbsp;·&nbsp; showing up to 60 scholars</div>
+    </div>
+  </div>
+  <div class="sc-grid">
+${scholarsHTML}
+  </div>
+</div>
+
+<!-- ── Footer ─────────────────────────────────────── -->
+<div class="rpt-footer">
+  New Jersey Tutoring Corps &nbsp;·&nbsp; iReady Analysis Lab &nbsp;·&nbsp; Generated ${H(reportDate)} &nbsp;·&nbsp; *data source: Curriculum Associates
+</div>
+
+</div>
+
+<!-- ── Print button ─────────────────────────────── -->
+<button class="print-btn no-print" onclick="window.print()">
+  🖨&nbsp; Print / Save as PDF
+</button>
+
+<script>
+(function(){
+  'use strict';
+  Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  Chart.defaults.color = '#475569';
+
+  var c1l = ${JSON.stringify(c1Labels)};
+  var c1d = ${JSON.stringify(c1Data)};
+  var c1n = ${JSON.stringify(c1N)};
+  var c1c = ${JSON.stringify(c1Colors)};
+
+  new Chart(document.getElementById('c1'), {
+    type: 'bar',
+    data: {
+      labels: c1l,
+      datasets: [{ data: c1d, backgroundColor: c1c, borderRadius: 5, barThickness: 24 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% advanced  ·  n=' + c1n[ctx.dataIndex]; } } }
+      },
+      scales: {
+        x: { min:0, max:100, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% Scholars Advanced 1+ Placement Level', font:{ size:11 } } },
+        y: { grid:{ display:false }, ticks:{ font:{ size:11 } } }
+      }
+    }
+  });
+
+  var c2ds = ${JSON.stringify(c2Datasets)};
+  new Chart(document.getElementById('c2'), {
+    type: 'bar',
+    data: { labels: ['BOY (Baseline)', 'EOY (Spring)'], datasets: c2ds },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + ctx.raw + '%'; } } }
+      },
+      scales: {
+        x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:13, weight:'700' } } },
+        y: { stacked:true, min:0, max:100, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' } }
+      }
+    }
+  });
+
+  var c3l = ${JSON.stringify(c3Labels)};
+  var c3d = ${JSON.stringify(c3Data)};
+  var c3c = ${JSON.stringify(c3Colors)};
+  new Chart(document.getElementById('c3'), {
+    type: 'bar',
+    data: {
+      labels: c3l,
+      datasets: [{ data: c3d, backgroundColor: c3c, borderRadius: 5, barThickness: 24 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% of typical growth'; } } }
+      },
+      scales: {
+        x: { min:0, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% of Annual Typical Growth (100% = on-pace)', font:{ size:11 } } },
+        y: { grid:{ display:false }, ticks:{ font:{ size:11 } } }
+      }
+    }
+  });
+
+  var c4l = ${JSON.stringify(c4Labels)};
+  var c4d = ${JSON.stringify(c4Data)};
+  var c4c = ${JSON.stringify(c4Colors)};
+  new Chart(document.getElementById('c4'), {
+    type: 'bar',
+    data: {
+      labels: c4l,
+      datasets: [{ data: c4d, backgroundColor: c4c, borderRadius: 5, barThickness: 24 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + ' months of learning gained'; } } }
+      },
+      scales: {
+        x: { min:0, ticks:{ maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'Median Months of Learning Gained', font:{ size:11 } } },
+        y: { grid:{ display:false }, ticks:{ font:{ size:11 } } }
+      }
+    }
+  });
+})();
+<\/script>
+</body>
+</html>`;
+
+      const blob = new Blob([html], { type:'text/html;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = 'njtc-iready-report-' + new Date().toISOString().slice(0,10) + '.html';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setSearch, setDept, setBreakdownTab, setDeepTab,
@@ -6583,7 +7257,7 @@
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
              getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive,
-             downloadCSV, downloadXLSX,
+             downloadCSV, downloadXLSX, downloadHTMLReport,
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
