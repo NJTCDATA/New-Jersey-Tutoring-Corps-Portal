@@ -6546,7 +6546,11 @@
         'Spring Relative Placement': r.springRelPlacement  || '',
         'Spring Placement':          r.springPlacement     || '',
         'Scale Score Gain':          r.springGain   != null ? r.springGain                       : '',
+        'Diagnostic Weeks (BOY→EOY)':r.springWeeks  != null ? r.springWeeks                      : '',
         'Pct of Typical Growth':     r.pctTypical   != null ? (r.pctTypical * 100).toFixed(1)+'%': '',
+        'Window-Adj. Growth %':      (r.pctTypical != null && r.springWeeks > 0)
+                                       ? ((r.pctTypical / (r.springWeeks / 30)) * 100).toFixed(1)+'%'
+                                       : '',
         'Annual Typical Growth':     r.annualTypical!= null ? r.annualTypical                    : '',
         'Annual Stretch Growth':     r.annualStretch!= null ? r.annualStretch                    : '',
         'Repeat Scholar':            r.isRepeat ? 'Yes' : 'No',
@@ -6603,6 +6607,16 @@
       const mathMedT = medianArr(mathTyp);
       const elaMedMo = medianArr(allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const mathMedMo= medianArr(allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      // Window-adjusted growth (divides pctTypical by actual available weeks vs iReady's 30-week norm)
+      const _elaWkR  = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
+      const _mathWkR = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
+      const _allWkR  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
+      const elaWkAdj    = medianArr(_elaWkR.map(r  => r.pctTypical / (r.springWeeks / 30)));
+      const mathWkAdj   = medianArr(_mathWkR.map(r => r.pctTypical / (r.springWeeks / 30)));
+      const allWkAdj    = medianArr(_allWkR.map(r  => r.pctTypical / (r.springWeeks / 30)));
+      const medWeeksELA  = medianArr(_elaWkR.map(r  => r.springWeeks));
+      const medWeeksMath = medianArr(_mathWkR.map(r => r.springWeeks));
+      const medWeeksAll  = medianArr(_allWkR.map(r  => r.springWeeks));
       const ws2 = XLSX.utils.json_to_sheet([
         { 'Metric': 'Report Date',                       'Value': dated },
         { 'Metric': '── SCHOLARS ───────────────────',  'Value': '' },
@@ -6627,6 +6641,14 @@
         { 'Metric': '% On/Above Grade Level — BOY',      'Value': m && m.n>0 ? Math.round(m.baseOnGL.length/m.n*100)+'%' : '—' },
         { 'Metric': '% 2+ Grade Levels Below — Spring',  'Value': m ? m.pct2Below+'%' : '—' },
         { 'Metric': '% 2+ Grade Levels Below — BOY',     'Value': m && m.n>0 ? Math.round(m.base2Below.length/m.n*100)+'%' : '—' },
+        { 'Metric': '── DIAGNOSTIC WINDOW ───────────────────', 'Value': '' },
+        { 'Metric': 'iReady Norm Assumes (weeks)',             'Value': '30 wks' },
+        { 'Metric': 'Median Diag. Weeks — ELA',               'Value': medWeeksELA  !== null ? Math.round(medWeeksELA)+' wks'  : '—' },
+        { 'Metric': 'Median Diag. Weeks — Math',              'Value': medWeeksMath !== null ? Math.round(medWeeksMath)+' wks' : '—' },
+        { 'Metric': 'Median Diag. Weeks — Network',           'Value': medWeeksAll  !== null ? Math.round(medWeeksAll)+' wks'  : '—' },
+        { 'Metric': 'ELA Window-Adj. Median Growth',          'Value': elaWkAdj  !== null ? (elaWkAdj*100).toFixed(1)+'%'  : '—' },
+        { 'Metric': 'Math Window-Adj. Median Growth',         'Value': mathWkAdj !== null ? (mathWkAdj*100).toFixed(1)+'%' : '—' },
+        { 'Metric': 'Network Window-Adj. Median Growth',      'Value': allWkAdj  !== null ? (allWkAdj*100).toFixed(1)+'%'  : '—' },
       ]);
       _aw(ws2);
 
@@ -6657,14 +6679,19 @@
         const sm      = computeMetrics(s.rows);
         const typNums = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
         const moNums  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const wkRows  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
         const medTyp  = medianArr(typNums);
         const medMo   = medianArr(moNums);
+        const sWkAdj  = medianArr(wkRows.map(r => r.pctTypical / (r.springWeeks / 30)));
+        const sWks    = medianArr(wkRows.map(r => r.springWeeks));
         return {
           'School':                    s.school,
           'District':                  s.district,
           'N (valid pairs)':           sm ? sm.n : 0,
-          'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%' : '—',
-          'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'      : '—',
+          'Median Diag. Weeks':        sWks   !== null ? Math.round(sWks)+' wks'       : '—',
+          'Median % Typical Growth':   medTyp !== null ? (medTyp*100).toFixed(1)+'%'   : '—',
+          'Window-Adj. Growth %':      sWkAdj !== null ? (sWkAdj*100).toFixed(1)+'%'  : '—',
+          'Median Months of Growth':   medMo  !== null ? medMo.toFixed(1)+' mo'        : '—',
           '% Advanced 1+ Level':       sm ? sm.pctMoved+'%'   : '—',
           '# Advanced':                sm ? sm.moved.length   : 0,
           '% Held Placement':          sm ? sm.pctHeld+'%'    : '—',
@@ -6750,7 +6777,7 @@
       const _smap = {};
       validRows.forEach(r => {
         const k = r.school || 'Unknown';
-        if (!_smap[k]) _smap[k] = { school:k, district:r.district||'', rows:[], typR:[], moR:[] };
+        if (!_smap[k]) _smap[k] = { school:k, district:r.district||'', rows:[], typR:[], moR:[], wkR:[] };
         _smap[k].rows.push(r);
       });
       allRows.forEach(r => {
@@ -6758,12 +6785,15 @@
         if (_smap[k] && r.pctTypical!==null && !isNaN(r.pctTypical)) {
           _smap[k].typR.push(r.pctTypical);
           _smap[k].moR.push(r.pctTypical * ((r.springWeeks||36)/4));
+          if (r.springWeeks > 0) _smap[k].wkR.push({ pct: r.pctTypical, weeks: r.springWeeks });
         }
       });
       const schools = Object.values(_smap).filter(s => s.rows.length >= 2).map(s => {
-        const sm    = computeMetrics(s.rows);
-        const medT  = medianArr(s.typR);
-        const medMo = medianArr(s.moR);
+        const sm     = computeMetrics(s.rows);
+        const medT   = medianArr(s.typR);
+        const medMo  = medianArr(s.moR);
+        const wkAdj  = medianArr(s.wkR.map(r => r.pct / (r.weeks / 30)));
+        const medWks = medianArr(s.wkR.map(r => r.weeks));
         return {
           school:    s.school,
           district:  s.district,
@@ -6774,6 +6804,8 @@
           moved:     sm ? sm.moved.length : 0,
           medTyp:    medT,
           medMo:     medMo,
+          wkAdj:     wkAdj,
+          medWks:    medWks,
           baseDist:  sm ? sm.baseDist   : {},
           springDist:sm ? sm.springDist : {},
           pctOnGL:   sm ? sm.pctOnGL    : 0,
@@ -6788,6 +6820,51 @@
       const elaMonths  = medianArr(elaR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const mathMonths = medianArr(mathR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
       const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      // Window-adjusted network growth
+      const _hElaWk  = elaR.filter(r => r.springWeeks > 0);
+      const _hMathWk = mathR.filter(r => r.springWeeks > 0);
+      const _hAllWk  = allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical) && r.springWeeks > 0);
+      const netWkAdjELA  = medianArr(_hElaWk.map(r  => r.pctTypical / (r.springWeeks / 30)));
+      const netWkAdjMath = medianArr(_hMathWk.map(r => r.pctTypical / (r.springWeeks / 30)));
+      const netWkAdjAll  = medianArr(_hAllWk.map(r  => r.pctTypical / (r.springWeeks / 30)));
+      const netMedWks    = medianArr(_hAllWk.map(r  => r.springWeeks));
+      // SY Analytics program date context (best-effort from localStorage cache)
+      let _syaCtx = null;
+      try {
+        const _syaRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
+        if (_syaRaw) {
+          const _sya = JSON.parse(_syaRaw);
+          if (_sya && Array.isArray(_sya.d) && _sya.d.length) {
+            const _programWkArr = _sya.d
+              .filter(site => site.startDate && site.endpoint)
+              .map(site => {
+                const s = new Date(site.startDate), e = new Date(site.endpoint);
+                return isNaN(s) || isNaN(e) ? null : Math.round((e - s) / (1000*60*60*24*7));
+              }).filter(w => w !== null && w > 0);
+            if (_programWkArr.length) {
+              _syaCtx = {
+                medProgramWks: medianArr(_programWkArr),
+                minWks:        Math.min(..._programWkArr),
+                maxWks:        Math.max(..._programWkArr),
+                siteCount:     _programWkArr.length,
+              };
+            }
+          }
+        }
+      } catch(_e) {}
+
+      // ── Strategic / partner-facing metrics ──────────────────────────────────
+      // Lead with whichever subject shows stronger window-adjusted growth; fall back to raw if unavailable
+      const _elaComp  = netWkAdjELA  !== null ? netWkAdjELA  : elaMedian;
+      const _mathComp = netWkAdjMath !== null ? netWkAdjMath : mathMedian;
+      const bestSubjMedian = (elaMedian !== null && mathMedian !== null) ? Math.max(elaMedian, mathMedian) : (elaMedian !== null ? elaMedian : mathMedian);
+      const bestSubjLabel  = (_elaComp !== null && _mathComp !== null && _elaComp >= _mathComp) ? 'ELA' : 'Math';
+      // Featured window-adjusted metric: pick the stronger subject's adjusted growth
+      const featWkAdj = bestSubjLabel === 'ELA' ? netWkAdjELA : netWkAdjMath;
+      const glGain = m.sprOnGL.length - m.baseOnGL.length;
+      const uniqueSchoolCount = schools.length;
+      const uniqueDistrictSet = new Set(validRows.map(r => r.district).filter(Boolean));
+      const districtCount = uniqueDistrictSet.size;
 
       // ── BOY vs EOY network placement distribution ───────────────────────────
       const boyDist = {}; const eoyDist = {};
@@ -6821,10 +6898,13 @@
       const c1N      = byMove.map(s => s.n);
       const c1Colors = byMove.map(s => s.pctMoved >= 50 ? '#00695c' : s.pctMoved >= 25 ? '#1565c0' : '#64748b');
 
-      const byTyp    = [...schools].filter(s => s.medTyp !== null).sort((a,b) => (b.medTyp||0) - (a.medTyp||0));
-      const c3Labels = byTyp.map(s => s.school);
-      const c3Data   = byTyp.map(s => parseFloat(((s.medTyp||0)*100).toFixed(1)));
-      const c3Colors = byTyp.map(s => (s.medTyp||0) >= 1.0 ? '#00695c' : (s.medTyp||0) >= 0.5 ? '#1565c0' : '#ea580c');
+      // Chart 3 uses window-adjusted growth; falls back to raw typical if no weeks data
+      const byWkAdj  = [...schools].filter(s => s.wkAdj !== null || s.medTyp !== null)
+                        .sort((a,b) => ((b.wkAdj !== null ? b.wkAdj : b.medTyp)||0) - ((a.wkAdj !== null ? a.wkAdj : a.medTyp)||0));
+      const c3Labels = byWkAdj.map(s => s.school);
+      const c3Data   = byWkAdj.map(s => parseFloat(((s.wkAdj !== null ? s.wkAdj : s.medTyp||0)*100).toFixed(1)));
+      const c3Wks    = byWkAdj.map(s => s.medWks !== null ? Math.round(s.medWks) : null);
+      const c3Colors = byWkAdj.map(s => { const v = s.wkAdj !== null ? s.wkAdj : s.medTyp||0; return v >= 1.0 ? '#00695c' : v >= 0.5 ? '#1565c0' : '#ea580c'; });
 
       const byMo     = [...schools].filter(s => s.medMo !== null).sort((a,b) => (b.medMo||0) - (a.medMo||0));
       const c4Labels = byMo.map(s => s.school);
@@ -6849,15 +6929,16 @@
           mo:    r.pctTypical * ((r.springWeeks||36)/4),
           tutor: r.instructor  || '',
         }))
+        .filter(s => s.shift > 0 || s.pct >= 0.75)   // Partner report: only positive impact stories
         .sort((a,b) => b.shift !== a.shift ? b.shift - a.shift : b.pct - a.pct)
         .slice(0, 60)
         .map(s => {
-          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : s.shift < 0 ? `${s.shift} Level${Math.abs(s.shift)>1?'s':''}` : 'Held';
-          const shiftColor = s.shift > 0 ? '#00695c' : s.shift < 0 ? '#dc2626' : '#64748b';
-          const shiftBg    = s.shift > 0 ? '#f0fdf4' : s.shift < 0 ? '#fef2f2' : '#f8fafc';
-          const shiftIcon  = s.shift > 0 ? '▲' : s.shift < 0 ? '▼' : '●';
+          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : 'Met Growth Target';
+          const shiftColor = s.shift > 0 ? '#00695c' : '#1565c0';
+          const shiftBg    = s.shift > 0 ? '#f0fdf4' : '#eff6ff';
+          const shiftIcon  = s.shift > 0 ? '▲' : '✓';
           const pctNum     = (s.pct * 100).toFixed(0);
-          const pctColor   = s.pct >= 1.0 ? '#00695c' : s.pct >= 0.5 ? '#1565c0' : '#dc2626';
+          const pctColor   = s.pct >= 1.0 ? '#00695c' : '#1565c0';
           const bc         = plcColor(s.baseP); const sc = plcColor(s.sprP);
           return `<div class="sc-card">
   <div class="sc-top">
@@ -6893,9 +6974,9 @@
       ].filter(Boolean).join(' · ') || 'All Schools · All Years';
 
       // ── Dynamic chart heights ───────────────────────────────────────────────
-      const ch1 = Math.max(300, byMove.length * 34);
-      const ch3 = Math.max(300, byTyp.length  * 34);
-      const ch4 = Math.max(300, byMo.length   * 34);
+      const ch1 = Math.max(300, byMove.length  * 34);
+      const ch3 = Math.max(300, byWkAdj.length * 34);
+      const ch4 = Math.max(300, byMo.length    * 34);
       const reportDate = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
 
       // ── Full HTML ───────────────────────────────────────────────────────────
@@ -6906,6 +6987,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NJTC iReady Impact Report · ${H(filterLabel)}</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"><\/script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;background:#edf1f7;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -6971,19 +7053,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 /* ── Footer ── */
 .rpt-footer{text-align:center;padding:1.5rem 0 .5rem;font-size:.7rem;color:#94a3b8}
 /* ── Print / PDF ── */
-@page{size:letter portrait;margin:.55in .5in .5in .5in}
+@page{size:letter portrait;margin:.55in .5in .55in .5in}
 @media print{
   body{background:#fff!important}
   .page{max-width:100%;padding:0}
   .no-print{display:none!important}
-  .sec{box-shadow:none;border-color:#dde3ef;break-inside:avoid;margin-bottom:.6rem}
-  .rpt-header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .kpi-row{grid-template-columns:repeat(6,1fr);gap:.45rem}
-  .kpi{padding:.7rem .875rem}
-  .kpi-v{font-size:1.375rem}
-  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.6rem}
-  .c-layout{grid-template-columns:1fr 180px}
-  .sec-after-pb{break-after:page}
+  .rpt-header{box-shadow:none;-webkit-print-color-adjust:exact;print-color-adjust:exact;border-radius:10px}
+  .accent{margin-bottom:.875rem}
+  .sec{box-shadow:none;border-color:#dde3ef;margin-bottom:.75rem;break-inside:auto;page-break-inside:auto}
+  .sec-hd{break-after:avoid;page-break-after:avoid}
+  .kpi-row{break-inside:avoid;page-break-inside:avoid;grid-template-columns:repeat(6,1fr);gap:.4rem;margin-bottom:.875rem}
+  .kpi{padding:.65rem .875rem}
+  .kpi-v{font-size:1.3rem}
+  canvas{break-inside:avoid;page-break-inside:avoid}
+  .c-layout{break-inside:avoid;page-break-inside:avoid;grid-template-columns:1fr 180px}
+  .c-wrap{break-inside:avoid;page-break-inside:avoid}
+  .c-side{break-inside:avoid;page-break-inside:avoid}
+  .sc-card{break-inside:avoid;page-break-inside:avoid}
+  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.55rem}
+  .sec-after-pb{break-before:page;page-break-before:always}
+  .legend{break-inside:avoid;page-break-inside:avoid}
 }
 @media(max-width:900px){.kpi-row{grid-template-columns:repeat(3,1fr)}.c-layout{grid-template-columns:1fr}}
 @media(max-width:540px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
@@ -7009,37 +7098,55 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 </div>
 <div class="accent"></div>
 
+<!-- ── Impact Banner ──────────────────────────────── -->
+<div style="background:linear-gradient(90deg,#f0fdf4 0%,#eff6ff 100%);border:1.5px solid #bbf7d0;border-radius:12px;padding:.9rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;gap:.875rem" class="no-print-fade">
+  <span style="font-size:1.25rem;flex-shrink:0">🎯</span>
+  <div>
+    <div style="font-size:.8375rem;font-weight:800;color:#0a2342;line-height:1.35">${m.moved.length.toLocaleString()} scholars made measurable academic progress this program year${_irlYear !== 'all' ? ' ('+_irlYear+')' : ''}.</div>
+    <div style="font-size:.7rem;color:#475569;margin-top:.15rem">NJTC tutoring supported scholars across ${uniqueSchoolCount} school${uniqueSchoolCount!==1?'s':''} in ${districtCount} district${districtCount!==1?'s':''} — with a median of ${allMonths !== null ? allMonths.toFixed(1) : '—'} months of academic learning gained per scholar as measured by iReady diagnostics (Curriculum Associates).</div>
+  </div>
+</div>
+
 <!-- ── KPI Strip ──────────────────────────────────── -->
 <div class="kpi-row">
   <div class="kpi g">
-    <div class="kpi-v">${m.pctMoved}%</div>
+    <div class="kpi-v">${m.moved.length.toLocaleString()}</div>
     <div class="kpi-l">Scholars Advanced</div>
-    <div class="kpi-s">${m.moved.length.toLocaleString()} of ${m.n.toLocaleString()} moved 1+ level</div>
-  </div>
-  <div class="kpi b">
-    <div class="kpi-v">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div>
-    <div class="kpi-l">ELA Median Typical Growth</div>
-    <div class="kpi-s">${elaR.length.toLocaleString()} scholars</div>
-  </div>
-  <div class="kpi b">
-    <div class="kpi-v">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div>
-    <div class="kpi-l">Math Median Typical Growth</div>
-    <div class="kpi-s">${mathR.length.toLocaleString()} scholars</div>
+    <div class="kpi-s">${m.pctMoved}% moved up 1+ placement level</div>
   </div>
   <div class="kpi go">
     <div class="kpi-v">${allMonths !== null ? allMonths.toFixed(1) : '—'}</div>
-    <div class="kpi-l">Median Months of Growth</div>
-    <div class="kpi-s">All subjects combined</div>
+    <div class="kpi-l">Median Months Gained</div>
+    <div class="kpi-s">Academic learning per scholar</div>
+  </div>
+  <div class="kpi b">
+    <div class="kpi-v">${featWkAdj !== null ? (featWkAdj*100).toFixed(1)+'%' : (bestSubjMedian !== null ? (bestSubjMedian*100).toFixed(1)+'%' : '—')}</div>
+    <div class="kpi-l">${bestSubjLabel} Growth (Adj.)</div>
+    <div class="kpi-s">Window-adjusted · ${netMedWks !== null ? Math.round(netMedWks)+'-wk' : '~'} diagnostic window</div>
+  </div>
+  <div class="kpi t">
+    <div class="kpi-v">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div>
+    <div class="kpi-l">Met Growth Target</div>
+    <div class="kpi-s">Scholars at/above typical growth</div>
   </div>
   <div class="kpi n">
     <div class="kpi-v">${m.n.toLocaleString()}</div>
-    <div class="kpi-l">Scholars Assessed</div>
-    <div class="kpi-s">Valid diagnostic pairs</div>
+    <div class="kpi-l">Scholars Served</div>
+    <div class="kpi-s">With iReady diagnostic pairs</div>
   </div>
-  <div class="kpi t">
-    <div class="kpi-v">${m.pctOnGL}%</div>
+  <div class="kpi g">
+    <div class="kpi-v">${m.sprOnGL.length.toLocaleString()}</div>
     <div class="kpi-l">On/Above Grade Level</div>
-    <div class="kpi-s">Spring placement</div>
+    <div class="kpi-s">Spring · ${glGain >= 0 ? '+' + glGain : glGain} vs. BOY baseline</div>
+  </div>
+</div>
+
+<!-- ── Program Window Context ─────────────────────── -->
+<div style="background:#f8faff;border:1.5px solid #bfdbfe;border-radius:12px;padding:.85rem 1.4rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:.75rem">
+  <span style="font-size:1.05rem;flex-shrink:0;margin-top:.05rem">📏</span>
+  <div>
+    <div style="font-size:.8rem;font-weight:800;color:#0a2342;margin-bottom:.2rem">Understanding Growth Benchmarks &nbsp;·&nbsp; Actual Diagnostic Window</div>
+    <div style="font-size:.7rem;color:#475569;line-height:1.65">iReady's 100% typical growth benchmark assumes <strong>30 instructional weeks</strong>. NJTC scholars' BOY → EOY diagnostic window averaged <strong>${netMedWks !== null ? Math.round(netMedWks) : (_syaCtx ? Math.round(_syaCtx.medProgramWks) : '~')} weeks</strong>${netMedWks !== null && netMedWks < 30 ? ' — a shorter window than iReady\'s norm' : ''}. <em>Window-adjusted growth</em> recalibrates each scholar's progress against their actual available weeks: 100% adjusted = exactly on-pace for the true diagnostic window. This provides a fairer picture of NJTC's impact.${_syaCtx ? ' Program calendar data from SY Analytics (' + _syaCtx.siteCount + ' sites, ' + Math.round(_syaCtx.minWks) + '–' + Math.round(_syaCtx.maxWks) + ' wk range).' : ''}</div>
   </div>
 </div>
 
@@ -7048,18 +7155,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <div class="sec-hd">
     <div class="sec-dot" style="background:#00695c"></div>
     <div>
-      <div class="sec-ttl">Scholars Advancing 1+ Placement Level &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Scholars who moved to a higher iReady relative placement level from BOY Baseline to EOY Spring</div>
+      <div class="sec-ttl">Partnership Impact — Placement Level Advancement &nbsp;·&nbsp; By School</div>
+      <div class="sec-sub">Percentage of scholars at each school who advanced at least one iReady relative placement level from BOY Baseline to EOY Spring — sorted by strongest performance</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c1" style="height:${ch1}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.pctMoved}%</div><div class="ck-l">Network Rate</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.pctMoved}%</div><div class="ck-l">Network Advancement Rate</div></div>
       <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.moved.length.toLocaleString()}</div><div class="ck-l">Scholars Advanced</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.n.toLocaleString()}</div><div class="ck-l">Scholars Assessed</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${m.pctHeld}%</div><div class="ck-l">Held Placement</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#dc2626">${m.pctRegress}%</div><div class="ck-l">Regressed</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${m.n.toLocaleString()}</div><div class="ck-l">Scholars Served</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${m.pctHeld}%</div><div class="ck-l">Held Placement Level</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.sprOnGL.length.toLocaleString()}</div><div class="ck-l">At/Above Grade Level (Spring)</div></div>
     </div>
   </div>
 </div>
@@ -7070,7 +7177,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
       <div class="sec-ttl">Overall Relative Placement Shifts &nbsp;·&nbsp; Network</div>
-      <div class="sec-sub">Distribution of scholars across all 5 iReady relative placement levels — BOY Baseline vs. EOY Spring (%)</div>
+      <div class="sec-sub">Scholar placement across all 5 iReady relative bands shifted toward grade level from BOY Baseline to EOY Spring — showing the full portfolio picture</div>
     </div>
   </div>
   <div class="c-layout wide"><canvas id="c2" height="200"></canvas></div>
@@ -7083,21 +7190,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   </div>
 </div>
 
-<!-- ── Section 3: Median Typical Growth ───────────── -->
+<!-- ── Section 3: Window-Adjusted Typical Growth ───── -->
 <div class="sec">
   <div class="sec-hd">
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
-      <div class="sec-ttl">Median % Typical Growth &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Median scholar progress toward iReady Annual Typical Growth benchmark &nbsp;·&nbsp; 100% = on-pace for typical annual growth</div>
+      <div class="sec-ttl">Scholar Progress — Window-Adjusted Growth by School</div>
+      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (avg. ${netMedWks !== null ? Math.round(netMedWks) : '~'} wks) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c3" style="height:${ch3}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA Network Median</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#1565c0">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math Network Median</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">% Meeting Typical</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${netMedWks !== null ? Math.round(netMedWks)+' wks' : '—'}</div><div class="ck-l">Avg. Diagnostic Window</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#64748b'}">${netWkAdjELA !== null ? (netWkAdjELA*100).toFixed(1)+'%' : (elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">ELA Adj. Growth</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#64748b'}">${netWkAdjMath !== null ? (netWkAdjMath*100).toFixed(1)+'%' : (mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">Math Adj. Growth</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">Met Growth Target</div></div>
     </div>
   </div>
 </div>
@@ -7108,7 +7216,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#f0b429"></div>
     <div>
       <div class="sec-ttl">Months of Learning Gained &nbsp;·&nbsp; By School</div>
-      <div class="sec-sub">Median months of academic learning gained &nbsp;·&nbsp; 4.5+ months = strong &nbsp;·&nbsp; 3.0–4.4 = progressing &nbsp;·&nbsp; Below 3.0 = needs support</div>
+      <div class="sec-sub">Each month of academic learning gained represents real progress toward grade-level readiness — median across scholars with diagnostic pairs at each school</div>
     </div>
   </div>
   <div class="c-layout">
@@ -7121,13 +7229,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   </div>
 </div>
 
-<!-- ── Section 5: Scholar Highlights ─────────────── -->
+<!-- ── Section 5: Scholar Impact Stories ─────────── -->
 <div class="sec sec-after-pb">
   <div class="sec-hd">
     <div class="sec-dot" style="background:#f0b429"></div>
     <div>
-      <div class="sec-ttl">Scholar Highlights</div>
-      <div class="sec-sub">Scholars sorted by placement advancement, then by % typical growth &nbsp;·&nbsp; showing up to 60 scholars</div>
+      <div class="sec-ttl">Scholar Impact Stories</div>
+      <div class="sec-sub">Scholars who advanced in iReady placement level or exceeded 75% of their typical growth target — ranked by academic momentum</div>
     </div>
   </div>
   <div class="sc-grid">
@@ -7137,7 +7245,8 @@ ${scholarsHTML}
 
 <!-- ── Footer ─────────────────────────────────────── -->
 <div class="rpt-footer">
-  New Jersey Tutoring Corps &nbsp;·&nbsp; iReady Analysis Lab &nbsp;·&nbsp; Generated ${H(reportDate)} &nbsp;·&nbsp; *data source: Curriculum Associates
+  New Jersey Tutoring Corps &nbsp;·&nbsp; Academic Intelligence Report &nbsp;·&nbsp; ${H(reportDate)}<br>
+  <span style="color:#cbd5e1">Growth data from iReady diagnostics (Curriculum Associates) &nbsp;·&nbsp; Operational data from Pearl &nbsp;·&nbsp; Confidential — for partner use only</span>
 </div>
 
 </div>
@@ -7150,6 +7259,7 @@ ${scholarsHTML}
 <script>
 (function(){
   'use strict';
+  if (typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels);
   Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   Chart.defaults.color = '#475569';
 
@@ -7158,6 +7268,7 @@ ${scholarsHTML}
   var c1n = ${JSON.stringify(c1N)};
   var c1c = ${JSON.stringify(c1Colors)};
 
+  // Chart 1 — % Scholars Advanced 1+ Level · By School
   new Chart(document.getElementById('c1'), {
     type: 'bar',
     data: {
@@ -7166,9 +7277,16 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 120 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% advanced  ·  n=' + c1n[ctx.dataIndex]; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% advanced  ·  n = ' + c1n[ctx.dataIndex]; } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value, ctx){ return value + '%   n = ' + c1n[ctx.dataIndex]; }
+        }
       },
       scales: {
         x: { min:0, max:100, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% Scholars Advanced 1+ Placement Level', font:{ size:11 } } },
@@ -7177,6 +7295,7 @@ ${scholarsHTML}
     }
   });
 
+  // Chart 2 — Placement Distribution BOY vs EOY
   var c2ds = ${JSON.stringify(c2Datasets)};
   new Chart(document.getElementById('c2'), {
     type: 'bar',
@@ -7185,7 +7304,13 @@ ${scholarsHTML}
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + ctx.raw + '%'; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.dataset.label + ': ' + ctx.raw + '%'; } } },
+        datalabels: {
+          anchor: 'center', align: 'center',
+          color: function(ctx){ var v=ctx.dataset.backgroundColor; return v==='rgba(234,179,8,.88)'?'#78350f':'#fff'; },
+          font: { size: 11.5, weight: '800' },
+          formatter: function(value){ return value >= 5 ? value + '%' : ''; }
+        }
       },
       scales: {
         x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:13, weight:'700' } } },
@@ -7194,9 +7319,11 @@ ${scholarsHTML}
     }
   });
 
+  // Chart 3 — Window-Adjusted Typical Growth · By School
   var c3l = ${JSON.stringify(c3Labels)};
   var c3d = ${JSON.stringify(c3Data)};
   var c3c = ${JSON.stringify(c3Colors)};
+  var c3w = ${JSON.stringify(c3Wks)};
   new Chart(document.getElementById('c3'), {
     type: 'bar',
     data: {
@@ -7205,17 +7332,25 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 88 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + '% of typical growth'; } } }
+        tooltip: { callbacks: { label: function(ctx){ var wks = c3w[ctx.dataIndex]; return ' ' + ctx.raw + '% window-adj. growth' + (wks ? '  ·  ' + wks + '-wk window' : ''); } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value, ctx){ return value + '%' + (c3w[ctx.dataIndex] ? ' / ' + c3w[ctx.dataIndex] + 'w' : ''); }
+        }
       },
       scales: {
-        x: { min:0, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'% of Annual Typical Growth (100% = on-pace)', font:{ size:11 } } },
+        x: { min:0, ticks:{ callback: function(v){ return v+'%'; }, maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'Window-Adjusted Growth % (100% = on-pace for actual diagnostic window)', font:{ size:11 } } },
         y: { grid:{ display:false }, ticks:{ font:{ size:11 } } }
       }
     }
   });
 
+  // Chart 4 — Months of Learning Gained · By School
   var c4l = ${JSON.stringify(c4Labels)};
   var c4d = ${JSON.stringify(c4Data)};
   var c4c = ${JSON.stringify(c4Colors)};
@@ -7227,9 +7362,16 @@ ${scholarsHTML}
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 72 } },
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + ' months of learning gained'; } } }
+        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.raw + ' months of learning gained'; } } },
+        datalabels: {
+          anchor: 'end', align: 'end', clamp: false,
+          color: '#1e293b',
+          font: { size: 11, weight: '700' },
+          formatter: function(value){ return value + ' mo'; }
+        }
       },
       scales: {
         x: { min:0, ticks:{ maxTicksLimit:6 }, grid:{ color:'#f1f5f9' }, title:{ display:true, text:'Median Months of Learning Gained', font:{ size:11 } } },
