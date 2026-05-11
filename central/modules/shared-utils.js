@@ -1004,6 +1004,9 @@
     window._lbNextMeeting = new Date(candidate);
   })();
   const LB_NEXT_MEETING = window._lbNextMeeting;
+  const _lbDays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const _lbMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const LB_NEXT_MEETING_FMT = `${_lbDays[LB_NEXT_MEETING.getDay()]} ${_lbMonths[LB_NEXT_MEETING.getMonth()]} ${LB_NEXT_MEETING.getDate()}, ${LB_NEXT_MEETING.getFullYear()}`;
 
   const LB_SUBMIT_DEADLINE = new Date(LB_NEXT_MEETING);
   LB_SUBMIT_DEADLINE.setDate(LB_SUBMIT_DEADLINE.getDate() - 4); // Friday before the meeting
@@ -1588,7 +1591,7 @@
           <div style="display:flex;gap:.625rem;flex-wrap:wrap;align-items:flex-start">
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
               <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Next Meeting</div>
-              <div style="font-size:.875rem;font-weight:700;color:#f0a500">Tue Apr 28, 2026</div>
+              <div style="font-size:.875rem;font-weight:700;color:#f0a500">${LB_NEXT_MEETING_FMT}</div>
             </div>
             <div style="background:${cdBg};border:1px solid ${cdBorder};border-radius:12px;padding:.625rem 1rem;text-align:center;min-width:110px">
               <div style="font-size:.55rem;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.35);margin-bottom:.25rem">Friday Deadline</div>
@@ -1661,7 +1664,7 @@
           <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${cfg.color},${cfg.color}88,transparent)"></div>
           <div style="font-size:.595rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.3rem">Weekly Update</div>
           <div style="font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.2rem">${cfg.emoji} ${cfg.label}</div>
-          <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · Tue Apr 28, 2026</div>
+          <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · ${LB_NEXT_MEETING_FMT}</div>
           <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
         </div>
         <div style="padding:1.75rem" id="lbFormBody">
@@ -2810,7 +2813,7 @@
         <div style="background:linear-gradient(135deg,#eff6ff,#f0f7ff);border:1.5px solid #dbeafe;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;gap:.875rem">
           <div style="font-size:1.75rem;flex-shrink:0">📅</div>
           <div>
-            <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — Tue Apr 28, 2026</div>
+            <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — ${LB_NEXT_MEETING_FMT}</div>
             <div style="font-size:.75rem;color:#1e40af;opacity:.75;margin-top:.2rem">
               ${countdown.days > 0 ? `${countdown.days} day${countdown.days!==1?'s':''} away` : 'Today!'} · Submit your weekly update by <strong>this Friday</strong>
             </div>
