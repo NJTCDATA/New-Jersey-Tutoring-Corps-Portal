@@ -6631,8 +6631,8 @@
       const mathTyp  = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
       const elaMedT  = medianArr(elaTyp);
       const mathMedT = medianArr(mathTyp);
-      const elaMedMo = medianArr(allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
-      const mathMedMo= medianArr(allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const elaMedMo = medianArr(allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10));
+      const mathMedMo= medianArr(allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10));
       // Window-adjusted growth — uses _xEffWks() so SYA calendar weeks fill in
       // when iReady's springWeeks is unavailable, maximising scholar coverage
       const _elaWkR  = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
@@ -6705,7 +6705,7 @@
       const schoolGrowthRows = Object.values(_schoolPairs).filter(s => s.rows.length >= 2).map(s => {
         const sm      = computeMetrics(s.rows);
         const typNums = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
-        const moNums  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const moNums  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10);
         const wkRows  = allRows.filter(r => (r.school||'Unknown')===s.school && r.pctTypical!==null && !isNaN(r.pctTypical) && _xEffWks(r) > 0);
         const medTyp  = medianArr(typNums);
         const medMo   = medianArr(moNums);
@@ -6740,7 +6740,7 @@
       const gradeRows = Object.values(_gradePairs).map(g => {
         const sm      = computeMetrics(g.rows);
         const typNums = allRows.filter(r => (r.grade||'Unknown')===g.grade && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
-        const moNums  = allRows.filter(r => (r.grade||'Unknown')===g.grade && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const moNums  = allRows.filter(r => (r.grade||'Unknown')===g.grade && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10);
         const medTyp  = medianArr(typNums);
         const medMo   = medianArr(moNums);
         return {
@@ -6766,7 +6766,7 @@
       const distRows = Object.values(_distPairs).map(d => {
         const sm      = computeMetrics(d.rows);
         const typNums = allRows.filter(r => (r.district||'Unknown')===d.district && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
-        const moNums  = allRows.filter(r => (r.district||'Unknown')===d.district && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4));
+        const moNums  = allRows.filter(r => (r.district||'Unknown')===d.district && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10);
         const medTyp  = medianArr(typNums);
         const medMo   = medianArr(moNums);
         return {
@@ -6855,7 +6855,7 @@
         const k = r.school || 'Unknown';
         if (_smap[k] && r.pctTypical!==null && !isNaN(r.pctTypical)) {
           _smap[k].typR.push(r.pctTypical);
-          _smap[k].moR.push(r.pctTypical * ((r.springWeeks||36)/4));
+          _smap[k].moR.push(r.pctTypical * 10);
           const ew = _effWks(r);
           if (ew > 0) _smap[k].wkR.push({ pct: r.pctTypical, weeks: ew });
         }
@@ -6889,9 +6889,9 @@
       const mathR   = allRows.filter(r => r.subject==='Math' && r.pctTypical!==null && !isNaN(r.pctTypical));
       const elaMedian  = medianArr(elaR.map(r => r.pctTypical));
       const mathMedian = medianArr(mathR.map(r => r.pctTypical));
-      const elaMonths  = medianArr(elaR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
-      const mathMonths = medianArr(mathR.map(r => r.pctTypical * ((r.springWeeks||36)/4)));
-      const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * ((r.springWeeks||36)/4)));
+      const elaMonths  = medianArr(elaR.map(r => r.pctTypical * 10));
+      const mathMonths = medianArr(mathR.map(r => r.pctTypical * 10));
+      const allMonths  = medianArr(allRows.filter(r => r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical * 10));
       // Window-adjusted network growth — _effWks() fills in SYA calendar weeks
       // when iReady's own springWeeks is absent, maximising scholar coverage
       const _hElaWk  = elaR.filter(r => _effWks(r) > 0);
@@ -6961,59 +6961,128 @@
       const c4Data   = byMo.map(s => parseFloat((s.medMo||0).toFixed(1)));
       const c4Colors = byMo.map(s => (s.medMo||0) >= 4.5 ? '#00695c' : (s.medMo||0) >= 3.0 ? '#f0b429' : '#ea580c');
 
-      // ── Scholar highlight cards ─────────────────────────────────────────────
+      // ── Scholar Impact Profiles (Top 10) ───────────────────────────────────
       const H = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
       const plcColor = p => p==='Mid or Above Grade Level'?'#0d6e3a':p==='Early On Grade Level'?'#0d9488':p==='1 Grade Level Below'?'#ca8a04':p==='2 Grade Levels Below'?'#ea580c':'#dc2626';
+      const ELA_DOM = [
+        ['elaPhonologicalScore','elaPhonologicalSpringScore','Phonological Awareness'],
+        ['elaPhonicsScore','elaPhonicsSpringScore','Phonics'],
+        ['elaHFWScore','elaHFWSpringScore','High Freq. Words'],
+        ['elaVocabScore','elaVocabSpringScore','Vocabulary'],
+        ['elaRCOverallScore','elaRCOverallSpringScore','Reading Comp.'],
+      ];
+      const MATH_DOM = [
+        ['mathNumOpsScore','mathNumOpsSpringScore','Number & Operations'],
+        ['mathAlgebraScore','mathAlgebraSpringScore','Algebra'],
+        ['mathMeasDataScore','mathMeasDataSpringScore','Measurement & Data'],
+        ['mathGeometryScore','mathGeometrySpringScore','Geometry'],
+      ];
 
-      const scholarsHTML = validRows
+      const topScholars = validRows
         .filter(r => r.pctTypical!==null && !isNaN(r.pctTypical))
-        .map(r => ({
-          name:  r.scholarName || 'Scholar',
-          school:r.school      || '—',
-          grade: r.grade       || '—',
-          subj:  r.subject     || '—',
-          baseP: r.baseRelPlacement   || '—',
-          sprP:  r.springRelPlacement || '—',
-          shift: plIdx(r.springRelPlacement) - plIdx(r.baseRelPlacement),
-          pct:   r.pctTypical,
-          mo:    r.pctTypical * ((r.springWeeks||36)/4),
-          tutor: r.instructor  || '',
-        }))
-        .filter(s => s.shift > 0 || s.pct >= 0.75)   // Partner report: only positive impact stories
+        .map(r => {
+          const shift   = plIdx(r.springRelPlacement) - plIdx(r.baseRelPlacement);
+          const domList = (r.subject === 'ELA' ? ELA_DOM : MATH_DOM)
+            .map(([bk, sk, nm]) => ({ nm, base: r[bk], spring: r[sk] }))
+            .filter(d => d.base !== null && d.base > 0 && d.spring !== null && d.spring > 0);
+          const rawGain = r.springGain != null ? r.springGain
+                        : (r.baseScore != null && r.springScore != null ? r.springScore - r.baseScore : null);
+          return {
+            name:     r.scholarName || 'Scholar',
+            school:   r.school      || '—',
+            grade:    r.grade       || '—',
+            subj:     r.subject     || '—',
+            baseP:    r.baseRelPlacement   || '—',
+            sprP:     r.springRelPlacement || '—',
+            shift,
+            pct:      r.pctTypical,
+            mo:       parseFloat((r.pctTypical * 10).toFixed(1)),
+            baseScore:r.baseScore,
+            sprScore: r.springScore,
+            gain:     rawGain,
+            tutors:   (r.tutors && r.tutors.length ? r.tutors : (r.instructor ? [r.instructor] : []))
+                        .filter(t => t && t !== 'Unidentified'),
+            tutorHrs: r._tutorHours != null ? r._tutorHours : null,
+            domains:  domList,
+          };
+        })
+        .filter(s => s.shift > 0 || s.pct >= 0.75)
         .sort((a,b) => b.shift !== a.shift ? b.shift - a.shift : b.pct - a.pct)
-        .slice(0, 60)
-        .map(s => {
-          const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : 'Met Growth Target';
-          const shiftColor = s.shift > 0 ? '#00695c' : '#1565c0';
-          const shiftBg    = s.shift > 0 ? '#f0fdf4' : '#eff6ff';
-          const shiftIcon  = s.shift > 0 ? '▲' : '✓';
-          const pctNum     = (s.pct * 100).toFixed(0);
-          const pctColor   = s.pct >= 1.0 ? '#00695c' : '#1565c0';
-          const bc         = plcColor(s.baseP); const sc = plcColor(s.sprP);
-          return `<div class="sc-card">
-  <div class="sc-top">
-    <div>
-      <div class="sc-name">${H(s.name)}</div>
-      <div class="sc-meta">${H(s.school)} &nbsp;·&nbsp; Grade ${H(s.grade)} &nbsp;·&nbsp; ${H(s.subj)}</div>
-    </div>
+        .slice(0, 10);
+
+      const scholarsHTML = topScholars.map(s => {
+        const shiftTxt   = s.shift > 0 ? `+${s.shift} Level${s.shift>1?'s':''}` : 'Met Growth Target';
+        const shiftColor = s.shift > 0 ? '#00695c' : '#1565c0';
+        const shiftBg    = s.shift > 0 ? '#f0fdf4' : '#eff6ff';
+        const shiftIcon  = s.shift > 0 ? '▲' : '✓';
+        const pctNum     = (s.pct * 100).toFixed(0);
+        const pctColor   = s.pct >= 1.0 ? '#00695c' : '#1565c0';
+        const bc = plcColor(s.baseP), sc2 = plcColor(s.sprP);
+
+        // Placement journey — 5 dots representing each band, highlighting the arc
+        const fIdx = plIdx(s.baseP), tIdx = plIdx(s.sprP);
+        const journeyDots = PLACEMENT_ORDER.map((p, i) => {
+          const col = plcColor(p);
+          if (i === tIdx) return `<span title="${p}" style="display:inline-block;width:17px;height:17px;border-radius:50%;background:${col};border:2px solid #fff;box-shadow:0 0 0 2px ${col};vertical-align:middle;margin:0 2px"></span>`;
+          if (i === fIdx) return `<span title="${p}" style="display:inline-block;width:13px;height:13px;border-radius:50%;background:${col}30;border:2px solid ${col};vertical-align:middle;margin:0 2px"></span>`;
+          const inArc = s.shift > 0 ? (i > fIdx && i < tIdx) : false;
+          if (inArc)     return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${col}50;border:1.5px solid ${col}80;vertical-align:middle;margin:0 2px"></span>`;
+          return         `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${col}15;border:1.5px solid ${col}30;vertical-align:middle;margin:0 2px"></span>`;
+        }).join('<span style="display:inline-block;width:14px;height:1.5px;background:#e2e8f0;vertical-align:middle"></span>');
+
+        // Domain bars
+        const domainHtml = s.domains.length ? `
+<div class="sc-domains">
+  <div class="sc-dl">Domain Growth &nbsp;(BOY → EOY scale scores)</div>
+  ${s.domains.map(d => {
+    const gain = Math.round(d.spring - d.base);
+    const gainColor = gain > 0 ? '#0d6e3a' : gain < 0 ? '#dc2626' : '#64748b';
+    const bW = Math.min(d.base / 800 * 100, 100).toFixed(1);
+    const sW = Math.min(d.spring / 800 * 100, 100).toFixed(1);
+    return `  <div class="sc-d-row">
+    <div class="sc-d-name">${H(d.nm)}</div>
+    <div class="sc-d-bar-wrap"><div class="sc-d-bar-base" style="width:${bW}%"></div><div class="sc-d-bar" style="width:${sW}%"></div></div>
+    <div class="sc-d-vals" style="color:${gainColor}">${gain>0?'+':''}${gain}<span style="color:#94a3b8;font-weight:400"> (${Math.round(d.base)}→${Math.round(d.spring)})</span></div>
+  </div>`;
+  }).join('')}
+</div>` : '';
+
+        // Tutor & Pearl row
+        const tutorHtml = s.tutors.length ? `
+<div class="sc-tutor-row">
+  <span style="font-size:.75rem">👤</span>
+  <span>${s.tutors.map(H).join(', ')}</span>
+  ${s.tutorHrs != null ? `<span class="sc-pearl-hrs">&#x23F1; ${Math.round(s.tutorHrs * 60)} inst. min &nbsp;(${s.tutorHrs.toFixed(1)} hrs)</span>` : ''}
+</div>` : '';
+
+        return `<div class="sc-card">
+  <div class="sc-prof-top">
     <div class="sc-badge" style="background:${shiftBg};color:${shiftColor};border-color:${shiftColor}40">${shiftIcon} ${H(shiftTxt)}</div>
+    <div style="display:flex;align-items:center;gap:.3rem">
+      <span class="sc-subj-pill" style="background:${s.subj==='ELA'?'#eff6ff':'#f0fdf4'};color:${s.subj==='ELA'?'#1e40af':'#14532d'}">${H(s.subj)}</span>
+      <span class="sc-grade-pill">Gr. ${H(s.grade)}</span>
+    </div>
   </div>
-  <div class="sc-mid">
-    <div class="sc-pl-wrap">
-      <div class="sc-pl-label">PLACEMENT</div>
-      <div class="sc-pl-flow">
-        <span class="sc-chip" style="color:${bc};background:${bc}14;border:1px solid ${bc}30">${H(s.baseP)}</span>
-        <span class="sc-arrow" style="color:${shiftColor}">${shiftIcon}</span>
-        <span class="sc-chip" style="color:${sc};background:${sc}14;border:1px solid ${sc}30">${H(s.sprP)}</span>
-      </div>
+  <div class="sc-name">${H(s.name)}</div>
+  <div class="sc-meta">${H(s.school)}</div>
+  <div class="sc-journey">
+    <div class="sc-dl">Placement Journey</div>
+    <div class="sc-journey-flow">
+      <span class="sc-chip" style="color:${bc};background:${bc}14;border:1px solid ${bc}30">${H(s.baseP)}</span>
+      <span style="color:${shiftColor};font-weight:900;font-size:.875rem">${shiftIcon}</span>
+      <span class="sc-chip" style="color:${sc2};background:${sc2}14;border:1px solid ${sc2}30">${H(s.sprP)}</span>
     </div>
-    <div class="sc-stats">
-      <div class="sc-stat"><div class="sc-sv" style="color:${pctColor}">${pctNum}%</div><div class="sc-sl">Typical Growth</div></div>
-      <div class="sc-stat"><div class="sc-sv" style="color:#0a2342">${s.mo.toFixed(1)}</div><div class="sc-sl">Months Gained</div></div>
-    </div>
-  </div>${s.tutor ? `\n  <div class="sc-tutor">Tutor: ${H(s.tutor)}</div>` : ''}
+    <div style="margin-top:.4rem;line-height:1.2">${journeyDots}</div>
+  </div>
+  <div class="sc-kpi-row">
+    <div class="sc-kpi-cell"><div class="sc-kpi-v" style="color:${pctColor}">${pctNum}%</div><div class="sc-kpi-l">Typical Growth</div></div>
+    <div class="sc-kpi-cell"><div class="sc-kpi-v" style="color:#d97706">${s.mo}</div><div class="sc-kpi-l">Months Gained</div></div>
+    ${s.gain !== null ? `<div class="sc-kpi-cell"><div class="sc-kpi-v" style="color:#0a2342">${s.gain > 0 ? '+' : ''}${s.gain}</div><div class="sc-kpi-l">Scale Score Gain</div></div>` : ''}
+    ${s.baseScore !== null && s.sprScore !== null ? `<div class="sc-kpi-cell"><div class="sc-kpi-v" style="color:#475569;font-size:.8rem">${s.baseScore}→${s.sprScore}</div><div class="sc-kpi-l">Score</div></div>` : ''}
+  </div>
+  ${domainHtml}${tutorHtml}
 </div>`;
-        }).join('\n');
+      }).join('\n');
 
       // ── Filter label ────────────────────────────────────────────────────────
       const filterLabel = [
@@ -7082,24 +7151,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
 .legend{display:flex;flex-wrap:wrap;gap:.45rem .875rem;margin-top:.9rem}
 .leg-item{display:flex;align-items:center;gap:.3rem;font-size:.7rem;color:#475569;font-weight:500}
 .leg-dot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
-/* ── Scholars grid ── */
-.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.875rem;margin-top:.5rem}
-.sc-card{background:#f8fafc;border-radius:13px;padding:1rem 1.125rem;border:1.5px solid #e2e8f0}
-.sc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.6rem}
-.sc-name{font-size:.9375rem;font-weight:800;color:#0a2342}
-.sc-meta{font-size:.675rem;color:#64748b;margin-top:.1rem}
-.sc-badge{font-size:.7rem;font-weight:800;padding:.22rem .65rem;border-radius:99px;border:1.5px solid;white-space:nowrap;flex-shrink:0}
-.sc-mid{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem}
-.sc-pl-wrap{flex:1;min-width:0}
-.sc-pl-label{font-size:.6rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem}
-.sc-pl-flow{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap}
-.sc-chip{font-size:.6625rem;font-weight:700;padding:.18rem .55rem;border-radius:99px;white-space:nowrap}
-.sc-arrow{font-size:.875rem;font-weight:900}
-.sc-pl-shift{font-size:.7rem;font-weight:800;margin-top:.25rem}
-.sc-stats{display:flex;flex-direction:column;gap:.3rem;text-align:right;flex-shrink:0}
-.sc-sv{font-size:1.25rem;font-weight:900;line-height:1;letter-spacing:-.02em}
-.sc-sl{font-size:.58rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
-.sc-tutor{font-size:.65rem;color:#94a3b8;margin-top:.55rem;padding-top:.45rem;border-top:1px solid #f1f5f9}
+/* ── Scholar profiles ── */
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;margin-top:.5rem}
+.sc-card{background:#fff;border-radius:14px;padding:1.25rem 1.375rem;border:1.5px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.sc-prof-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.sc-badge{font-size:.7rem;font-weight:800;padding:.22rem .65rem;border-radius:99px;border:1.5px solid;white-space:nowrap}
+.sc-subj-pill,.sc-grade-pill{font-size:.6rem;font-weight:800;padding:.18rem .52rem;border-radius:99px}
+.sc-grade-pill{background:#f1f5f9;color:#475569}
+.sc-name{font-size:1.0625rem;font-weight:900;color:#0a2342;margin-bottom:.1rem}
+.sc-meta{font-size:.675rem;color:#64748b;margin-bottom:.7rem}
+.sc-dl{font-size:.575rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:#94a3b8;margin-bottom:.28rem}
+.sc-journey{margin-bottom:.75rem}
+.sc-journey-flow{display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;margin-bottom:.3rem}
+.sc-chip{font-size:.6rem;font-weight:700;padding:.15rem .5rem;border-radius:99px;white-space:nowrap}
+.sc-kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:.4rem .55rem;margin-bottom:.75rem;background:#f8fafc;border-radius:10px;padding:.6rem .75rem}
+.sc-kpi-cell{text-align:center}
+.sc-kpi-v{font-size:1.0625rem;font-weight:900;line-height:1;letter-spacing:-.02em;margin-bottom:.1rem}
+.sc-kpi-l{font-size:.54rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;line-height:1.25}
+.sc-domains{margin-bottom:.65rem}
+.sc-d-row{display:flex;align-items:center;gap:.4rem;margin-bottom:.2rem}
+.sc-d-name{font-size:.6rem;color:#475569;font-weight:600;width:106px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-d-bar-wrap{flex:1;height:6px;background:#f1f5f9;border-radius:3px;position:relative}
+.sc-d-bar-base{position:absolute;top:0;left:0;height:100%;background:#cbd5e1;border-radius:3px}
+.sc-d-bar{position:absolute;top:0;left:0;height:100%;background:#1565c0;border-radius:3px;opacity:.78}
+.sc-d-vals{font-size:.6rem;font-weight:800;white-space:nowrap;width:90px;text-align:right;flex-shrink:0}
+.sc-tutor-row{display:flex;align-items:center;gap:.4rem;font-size:.65rem;color:#64748b;padding-top:.5rem;border-top:1px solid #f1f5f9;flex-wrap:wrap}
+.sc-pearl-hrs{margin-left:auto;font-size:.6rem;font-weight:700;color:#0a2342;background:#eff6ff;padding:.1rem .45rem;border-radius:99px;border:1px solid #bfdbfe}
 /* ── Footer ── */
 .rpt-footer{text-align:center;padding:1.5rem 0 .5rem;font-size:.7rem;color:#94a3b8}
 /* ── Print / PDF ── */
@@ -7119,8 +7196,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   .c-layout{break-inside:avoid;page-break-inside:avoid;grid-template-columns:1fr 180px}
   .c-wrap{break-inside:avoid;page-break-inside:avoid}
   .c-side{break-inside:avoid;page-break-inside:avoid}
-  .sc-card{break-inside:avoid;page-break-inside:avoid}
-  .sc-grid{grid-template-columns:repeat(3,1fr);gap:.55rem}
+  .sc-card{break-inside:avoid;page-break-inside:avoid;box-shadow:none;border-color:#dde3ef}
+  .sc-grid{grid-template-columns:repeat(2,1fr);gap:.7rem}
+  .sc-d-bar-wrap,.sc-d-bar-base,.sc-d-bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .sec-after-pb{break-before:page;page-break-before:always}
   .legend{break-inside:avoid;page-break-inside:avoid}
 }
@@ -7246,13 +7324,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
       <div class="sec-ttl">Scholar Progress — Window-Adjusted Growth by School</div>
-      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (avg. ${netMedWks !== null ? Math.round(netMedWks) : '~'} wks) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
+      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (avg. ${netMedWks !== null ? Math.round(netMedWks) : (_syaCtx ? '~'+Math.round(_syaCtx.medProgramWks) : '~')} wks${netMedWks === null && _syaCtx ? ' from SYA calendar' : ''}) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c3" style="height:${ch3}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${netMedWks !== null ? Math.round(netMedWks)+' wks' : '—'}</div><div class="ck-l">Avg. Diagnostic Window</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${netMedWks !== null ? Math.round(netMedWks)+' wks' : (_syaCtx ? '~'+Math.round(_syaCtx.medProgramWks)+' wks' : '—')}</div><div class="ck-l">Avg. Window${netMedWks === null && _syaCtx ? ' (SYA est.)' : ''}</div></div>
       <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#64748b'}">${netWkAdjELA !== null ? (netWkAdjELA*100).toFixed(1)+'%' : (elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">ELA Adj. Growth</div></div>
       <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#64748b'}">${netWkAdjMath !== null ? (netWkAdjMath*100).toFixed(1)+'%' : (mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">Math Adj. Growth</div></div>
       <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">Met Growth Target</div></div>
@@ -7279,17 +7357,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   </div>
 </div>
 
-<!-- ── Section 5: Scholar Impact Stories ─────────── -->
+<!-- ── Section 5: Scholar Impact Profiles ────────── -->
 <div class="sec sec-after-pb">
   <div class="sec-hd">
     <div class="sec-dot" style="background:#f0b429"></div>
     <div>
-      <div class="sec-ttl">Scholar Impact Stories</div>
-      <div class="sec-sub">Scholars who advanced in iReady placement level or exceeded 75% of their typical growth target — ranked by academic momentum</div>
+      <div class="sec-ttl">Top 10 Scholar Impact Profiles</div>
+      <div class="sec-sub">Scholars who advanced in iReady placement level or exceeded 75% of their typical growth target — ranked by placement advancement, then growth pace &nbsp;·&nbsp; Domain scores shown where available in export &nbsp;·&nbsp; Instructional minutes shown when Pearl session data is loaded</div>
     </div>
   </div>
   <div class="sc-grid">
-${scholarsHTML}
+${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">No qualifying scholars found for the selected filters.</div>'}
   </div>
 </div>
 
