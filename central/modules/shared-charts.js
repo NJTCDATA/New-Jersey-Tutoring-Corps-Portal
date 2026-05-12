@@ -1171,7 +1171,7 @@
   // HR Master List (Google Sheet) — their values are fetched via live overlay.
   // Jessica Kelly retired from role March 5, 2026 (SY 25-26); replaced by Scott Oswald.
   const CENTRAL_TEAM_STAFF = [
-    { n: 'Andrea Bowman',      _race: 'Two or More Races',          _ethnicity: '',                   s: 'Active'  },
+    { n: 'Andrea Brooks',      _race: 'Two or More Races',          _ethnicity: '',                   s: 'Active'  },
     { n: 'Tierney Tittermary', _race: '',                           _ethnicity: '',                   s: 'Active'  },
     { n: 'Rene Lintz',        _race: '',                           _ethnicity: '',                   s: 'Active'  },
     { n: 'Jessica Kelly',      _race: '',                           _ethnicity: '',                   s: 'Retired', _retiredDate: 'March 5, 2026', _retiredNote: 'Retired end of SY 25-26; role transitioned to Scott Oswald' },
