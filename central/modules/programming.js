@@ -856,7 +856,8 @@
 
     function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 
-    return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite, openChangesModal, onPanelOpen };
+    return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite, openChangesModal, onPanelOpen,
+             getSites: () => _allSites.slice() };  // read-only live snapshot for exports
   })();
 
   // SY Analytics boots via patchShowPanelModules below
