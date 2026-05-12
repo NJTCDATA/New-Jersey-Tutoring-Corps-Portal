@@ -7781,20 +7781,6 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
       desc: 'Form for Programming & Data to submit Pearl Operations data requests, context questions, and meeting requests.',
       tag:  'Pearl · Form · Escalations',
     },
-    {
-      name: 'BD Pipeline — Partner Outreach Log',
-      type: 'sheets',
-      url:  'https://docs.google.com/spreadsheets/d/13QXbzTnZMrfIlTxH9vfBnxejs1HNgPGOMpREL3-Ijnk/edit?gid=760912308#gid=760912308',
-      desc: 'Business Development pipeline responses — organization, contact, partner type, stage, acquisition source, updates, next steps, and target dates logged by Anthony Scotto.',
-      tag:  'BD Pipeline · Growth · Partnerships',
-    },
-    {
-      name: 'BD Pipeline — Update Submission Form',
-      type: 'forms',
-      url:  'https://docs.google.com/forms/d/e/1FAIpQLSeBhEl3Bu-JIYP2vfaxGosjQg1iYkJoSsJxIdkur_eEyk65LA/viewform',
-      desc: 'Form for Anthony to log every meaningful interaction, stage change, or update on a prospect or active partner.',
-      tag:  'BD Pipeline · Form · Growth',
-    },
   ];
 
   function _buildDataCabinet() {
