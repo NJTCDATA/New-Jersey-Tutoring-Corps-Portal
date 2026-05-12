@@ -6601,6 +6601,7 @@
       _aw(ws1);
 
       // ── SYA fallback for XLSX: program-calendar weeks when springWeeks missing ─
+      // Priority: window.sya.getSites() (live) → localStorage cache
       const _xNorm   = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
       const _xFlexDt = s => {
         if (!s) return null;
@@ -6609,37 +6610,62 @@
         if (hit) { let yr = parseInt(hit[3]); if (yr < 100) yr += (yr < 50 ? 2000 : 1900); const c = new Date(yr, parseInt(hit[1])-1, parseInt(hit[2])); if (!isNaN(c)) return c; }
         return null;
       };
+      const _xSyaSites = (() => {
+        try { if (typeof window !== 'undefined' && window.sya && typeof window.sya.getSites === 'function') { const live = window.sya.getSites(); if (live && live.length) return live; } } catch(_e) {}
+        try { const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null; if (raw) { const p = JSON.parse(raw); return Array.isArray(p.d) ? p.d : null; } } catch(_e) {}
+        return null;
+      })();
       const _xSyaEntries = {};
-      try {
-        const _xRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
-        if (_xRaw) {
-          const _xs = JSON.parse(_xRaw);
-          if (_xs && Array.isArray(_xs.d)) {
-            _xs.d.forEach(site => {
-              if (!site.school) return;
-              let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
-              if (!wks) {
-                const sd = _xFlexDt(site.startDate), ed = _xFlexDt(site.endpoint);
-                if (sd && ed && !isNaN(sd) && !isNaN(ed))
-                  wks = Math.round((ed - sd) / (1000*60*60*24*7));
-              }
-              if (wks <= 0 || wks > 60) return;
-              const blk = (site.block || '').toLowerCase();
-              const isSpring = blk.includes('spring') && !blk.includes('fall');
-              const key = _xNorm(site.school);
-              if (!_xSyaEntries[key]) _xSyaEntries[key] = [];
-              _xSyaEntries[key].push({ wks, isSpring });
-            });
-          }
+      (_xSyaSites || []).forEach(site => {
+        if (!site.school) return;
+        let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
+        if (!wks) {
+          const sd = _xFlexDt(site.startDate), ed = _xFlexDt(site.endpoint);
+          if (sd && ed && !isNaN(sd) && !isNaN(ed))
+            wks = Math.round((ed - sd) / (1000*60*60*24*7));
         }
-      } catch(_e) {}
+        if (wks <= 0 || wks > 60) return;
+        const blk = (site.block || '').toLowerCase();
+        const isSpring = blk.includes('spring') && !blk.includes('fall');
+        const key = _xNorm(site.school);
+        if (!_xSyaEntries[key]) _xSyaEntries[key] = [];
+        _xSyaEntries[key].push({ wks, isSpring, district: site.district || '' });
+      });
       const _xSyaMap = {};
       Object.entries(_xSyaEntries).forEach(([key, arr]) => {
         const preferred = arr.filter(e => e.isSpring);
         const pool = preferred.length ? preferred : arr;
         _xSyaMap[key] = Math.min(...pool.map(e => e.wks));
       });
-      const _xEffWks = r => r.springWeeks > 0 ? r.springWeeks : (_xSyaMap[_xNorm(r.school)] || 0);
+      // District+school combo keys for fuzzy fallback
+      const _xSyaComboMap = {};
+      (_xSyaSites || []).forEach(site => {
+        if (!site.school) return;
+        const sk = _xNorm(site.school);
+        if (!(_xSyaMap[sk] > 0)) return;
+        const ck = _xNorm((site.district || '') + ' ' + site.school);
+        if (ck !== sk) _xSyaComboMap[ck] = _xSyaMap[sk];
+      });
+      const _xStopTok = new Set(['school','elementary','middle','high','charter','the','of','at','a','and','twp','township','district','ms','es','hs','preparatory','prep','sciences','arts','science','technology','tech','for','its','an','or','k','grade','grades','campus','center']);
+      const _xTok = s => _xNorm(s).split(/\s+/).filter(t => t.length > 1 && !_xStopTok.has(t));
+      const _xAllEntries = [...Object.entries(_xSyaMap), ...Object.entries(_xSyaComboMap)];
+      const _xFuzzyLookup = schoolName => {
+        const nk = _xNorm(schoolName);
+        if (_xSyaMap[nk] > 0) return _xSyaMap[nk];
+        if (_xSyaComboMap[nk] > 0) return _xSyaComboMap[nk];
+        const toks = _xTok(schoolName);
+        if (!toks.length) return 0;
+        let bestScore = 0, bestWks = 0;
+        for (const [k, wks] of _xAllEntries) {
+          const kToks = _xTok(k);
+          if (!kToks.length) continue;
+          const overlap = toks.filter(t => kToks.includes(t)).length;
+          const score = overlap / Math.min(toks.length, kToks.length);
+          if ((overlap >= 2 || score >= 0.5) && overlap > bestScore) { bestScore = overlap; bestWks = wks; }
+        }
+        return bestWks;
+      };
+      const _xEffWks = r => r.springWeeks > 0 ? r.springWeeks : (_xFuzzyLookup(r.school || '') || 0);
 
       // ── Sheet 2: Network Summary ─────────────────────────────────────────────
       const elaTyp   = allRows.filter(r => r.subject==='ELA'  && r.pctTypical!==null && !isNaN(r.pctTypical)).map(r => r.pctTypical);
@@ -6815,74 +6841,79 @@
       const m = computeMetrics(validRows);
       if (!m) return;
 
-      // ── SYA program-calendar fallback ──────────────────────────────────────
-      // When iReady's spring_weeks_between_diagnostics is missing, look up the
-      // school's program start→endpoint from the HIT Compliance / SY Analytics
-      // cache (njtc_sya_v1) to derive actual available weeks.
+      // ── SYA program-calendar lookup ─────────────────────────────────────────
+      // Priority: window.sya.getSites() (live, always current, has new fields)
+      //        → localStorage njtc_sya_v1 (cached, may be older)
+      // Week source per site: col V progWeeks (authoritative) → date calculation
+      // Multi-row per school: prefer Spring-only block; among ties take minimum
       const _norm   = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
       const _flexDt = s => {
         if (!s) return null;
-        // Try direct parse first (handles clean dates like "1/20/2026")
         let d = new Date(s); if (!isNaN(d) && d.getFullYear() > 2000) return d;
-        // Extract first M/D/YY or M/D/YYYY from noisy strings like "1/6 -Site Visit\n1/7-1/8..."
         const hit = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-        if (hit) {
-          let yr = parseInt(hit[3]);
-          if (yr < 100) yr += (yr < 50 ? 2000 : 1900);
-          const c = new Date(yr, parseInt(hit[1]) - 1, parseInt(hit[2]));
-          if (!isNaN(c)) return c;
-        }
+        if (hit) { let yr = parseInt(hit[3]); if (yr < 100) yr += (yr < 50 ? 2000 : 1900); const c = new Date(yr, parseInt(hit[1])-1, parseInt(hit[2])); if (!isNaN(c)) return c; }
         return null;
       };
-      // Build school → weeks map from SYA live cache.
-      // Rules (in priority order):
-      //   1. Use site.progWeeks (col V "# of Weeks for Programming") when > 0 — authoritative
-      //   2. Else compute from startDate → endpoint dates via _flexDt()
-      //   3. When multiple rows share a school name, prefer Spring-only blocks over
-      //      Fall+Spring (avoids a full-year entry overwriting a short spring window)
-      //   4. Among remaining ties, take the minimum weeks (most conservative)
-      const _syaEntries = {};  // normalised school → [{wks, isSpring}]
-      let   _syaCtx     = null;
-      try {
-        const _syaRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null;
-        if (_syaRaw) {
-          const _sya = JSON.parse(_syaRaw);
-          if (_sya && Array.isArray(_sya.d)) {
-            _sya.d.forEach(site => {
-              if (!site.school) return;
-              // Weeks: prefer column V (progWeeks), else compute from dates
-              let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
-              if (!wks) {
-                const sd = _flexDt(site.startDate), ed = _flexDt(site.endpoint);
-                if (sd && ed && !isNaN(sd) && !isNaN(ed))
-                  wks = Math.round((ed - sd) / (1000 * 60 * 60 * 24 * 7));
-              }
-              if (wks <= 0 || wks > 60) return;
-              const blk = (site.block || '').toLowerCase();
-              const isSpring = blk.includes('spring') && !blk.includes('fall');
-              const key = _norm(site.school);
-              if (!_syaEntries[key]) _syaEntries[key] = [];
-              _syaEntries[key].push({ wks, isSpring });
-            });
-          }
-        }
-      } catch(_e) {}
+      const _syaSites = (() => {
+        try { if (typeof window !== 'undefined' && window.sya && typeof window.sya.getSites === 'function') { const live = window.sya.getSites(); if (live && live.length) return live; } } catch(_e) {}
+        try { const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('njtc_sya_v1') : null; if (raw) { const p = JSON.parse(raw); return Array.isArray(p.d) ? p.d : null; } } catch(_e) {}
+        return null;
+      })();
+      const _syaEntries = {};
+      (_syaSites || []).forEach(site => {
+        if (!site.school) return;
+        let wks = (site.progWeeks > 0) ? site.progWeeks : 0;
+        if (!wks) { const sd = _flexDt(site.startDate), ed = _flexDt(site.endpoint); if (sd && ed && !isNaN(sd) && !isNaN(ed)) wks = Math.round((ed - sd) / (1000*60*60*24*7)); }
+        if (wks <= 0 || wks > 60) return;
+        const blk = (site.block || '').toLowerCase();
+        const isSpring = blk.includes('spring') && !blk.includes('fall');
+        const key = _norm(site.school);
+        if (!_syaEntries[key]) _syaEntries[key] = [];
+        _syaEntries[key].push({ wks, isSpring });
+      });
       const _syaWkMap = {};
       Object.entries(_syaEntries).forEach(([key, arr]) => {
-        // Prefer Spring-only entries; fall back to any entry; pick minimum
         const preferred = arr.filter(e => e.isSpring);
         const pool = preferred.length ? preferred : arr;
         _syaWkMap[key] = Math.min(...pool.map(e => e.wks));
       });
-      const _wkArr = Object.values(_syaWkMap).filter(w => w > 0);
-      if (_wkArr.length) _syaCtx = {
-        medProgramWks: medianArr(_wkArr),
-        minWks:        Math.min(..._wkArr),
-        maxWks:        Math.max(..._wkArr),
-        siteCount:     _wkArr.length,
+      // Build district+school combo keys for fuzzy fallback
+      // (SYA col F = district e.g. "Penns Grove", col G = school e.g. "Field Street Elementary"
+      //  iReady school name may include both: "Penns Grove Field Street Elementary School")
+      const _syaComboMap = {};
+      (_syaSites || []).forEach(site => {
+        if (!site.school) return;
+        const sk = _norm(site.school);
+        if (!(_syaWkMap[sk] > 0)) return;
+        const ck = _norm((site.district || '') + ' ' + site.school);
+        if (ck !== sk) _syaComboMap[ck] = _syaWkMap[sk];
+      });
+      // Token-based fuzzy lookup: strips common education stopwords, matches on ≥2 shared tokens
+      const _stopTok = new Set(['school','elementary','middle','high','charter','the','of','at','a','and','twp','township','district','ms','es','hs','preparatory','prep','sciences','arts','science','technology','tech','for','its','an','or','k','grade','grades','campus','center']);
+      const _tok = s => _norm(s).split(/\s+/).filter(t => t.length > 1 && !_stopTok.has(t));
+      const _syaAllEntries = [...Object.entries(_syaWkMap), ...Object.entries(_syaComboMap)];
+      const _fuzzyLookup = schoolName => {
+        const nk = _norm(schoolName);
+        if (_syaWkMap[nk] > 0) return _syaWkMap[nk];      // exact school name
+        if (_syaComboMap[nk] > 0) return _syaComboMap[nk]; // exact district+school
+        const toks = _tok(schoolName);
+        if (!toks.length) return 0;
+        let bestScore = 0, bestWks = 0;
+        for (const [k, wks] of _syaAllEntries) {
+          const kToks = _tok(k);
+          if (!kToks.length) continue;
+          const overlap = toks.filter(t => kToks.includes(t)).length;
+          const score = overlap / Math.min(toks.length, kToks.length);
+          if ((overlap >= 2 || score >= 0.5) && overlap > bestScore) { bestScore = overlap; bestWks = wks; }
+        }
+        return bestWks;
       };
-      // Prefer iReady's own diagnostic weeks; fall back to SYA calendar weeks
-      const _effWks = r => r.springWeeks > 0 ? r.springWeeks : (_syaWkMap[_norm(r.school)] || 0);
+      // View-specific: only schools that actually appear in this filtered report
+      const _viewSchoolKeys = [...new Set(validRows.map(r => r.school || ''))].filter(Boolean);
+      const _viewWkArr      = _viewSchoolKeys.map(s => _fuzzyLookup(s)).filter(w => w > 0);
+      const _viewMedWks     = _viewWkArr.length ? medianArr(_viewWkArr) : null;
+      // Prefer iReady's own diagnostic weeks; fall back to fuzzy SYA calendar weeks
+      const _effWks = r => r.springWeeks > 0 ? r.springWeeks : (_fuzzyLookup(r.school || '') || 0);
       const _smap = {};
       validRows.forEach(r => {
         const k = r.school || 'Unknown';
@@ -6939,7 +6970,8 @@
       const netWkAdjMath = medianArr(_hMathWk.map(r => r.pctTypical / (_effWks(r) / 30)));
       const netWkAdjAll  = medianArr(_hAllWk.map(r  => r.pctTypical / (_effWks(r) / 30)));
       const netMedWks    = medianArr(_hAllWk.map(r  => _effWks(r)));
-      // _syaCtx already built above (before _smap) — no second lookup needed
+      // Best available diagnostic window: iReady-derived first, then SYA view-specific median
+      const _dispWks = netMedWks !== null ? netMedWks : _viewMedWks;
 
       // ── Strategic / partner-facing metrics ──────────────────────────────────
       // Lead with whichever subject shows stronger window-adjusted growth; fall back to raw if unavailable
@@ -7288,7 +7320,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <div class="kpi b">
     <div class="kpi-v">${featWkAdj !== null ? (featWkAdj*100).toFixed(1)+'%' : (bestSubjMedian !== null ? (bestSubjMedian*100).toFixed(1)+'%' : '—')}</div>
     <div class="kpi-l">${bestSubjLabel} Growth (Adj.)</div>
-    <div class="kpi-s">Window-adjusted · ${netMedWks !== null ? Math.round(netMedWks)+'-wk' : '~'} diagnostic window</div>
+    <div class="kpi-s">Window-adjusted · ${_dispWks !== null ? Math.round(_dispWks)+'-wk' : '—'} diagnostic window</div>
   </div>
   <div class="kpi t">
     <div class="kpi-v">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div>
@@ -7312,7 +7344,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <span style="font-size:1.05rem;flex-shrink:0;margin-top:.05rem">📏</span>
   <div>
     <div style="font-size:.8rem;font-weight:800;color:#0a2342;margin-bottom:.2rem">Understanding Growth Benchmarks &nbsp;·&nbsp; Actual Diagnostic Window</div>
-    <div style="font-size:.7rem;color:#475569;line-height:1.65">iReady's 100% typical growth benchmark assumes <strong>30 instructional weeks</strong>. NJTC scholars' BOY → EOY diagnostic window averaged <strong>${netMedWks !== null ? Math.round(netMedWks) : (_syaCtx ? Math.round(_syaCtx.medProgramWks) : '~')} weeks</strong>${netMedWks !== null && netMedWks < 30 ? ' — a shorter window than iReady\'s norm' : ''}. <em>Window-adjusted growth</em> recalibrates each scholar's progress against their actual available weeks: 100% adjusted = exactly on-pace for the true diagnostic window. This provides a fairer picture of NJTC's impact.${_syaCtx ? ' Program calendar data from SY Analytics (' + _syaCtx.siteCount + ' sites, ' + Math.round(_syaCtx.minWks) + '–' + Math.round(_syaCtx.maxWks) + ' wk range).' : ''}</div>
+    <div style="font-size:.7rem;color:#475569;line-height:1.65">iReady's 100% typical growth benchmark assumes <strong>30 instructional weeks</strong>. NJTC scholars' BOY → EOY diagnostic window spanned <strong>${_dispWks !== null ? Math.round(_dispWks) : '—'} weeks</strong>${_dispWks !== null && _dispWks < 30 ? ' — a shorter window than iReady\'s norm' : ''}. <em>Window-adjusted growth</em> recalibrates each scholar's progress against their actual available weeks: 100% adjusted = exactly on-pace for the true diagnostic window. This provides a fairer picture of NJTC's impact.</div>
   </div>
 </div>
 
@@ -7362,13 +7394,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
       <div class="sec-ttl">Scholar Progress — Window-Adjusted Growth by School</div>
-      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (avg. ${netMedWks !== null ? Math.round(netMedWks) : (_syaCtx ? '~'+Math.round(_syaCtx.medProgramWks) : '~')} wks${netMedWks === null && _syaCtx ? ' from SYA calendar' : ''}) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
+      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (${_dispWks !== null ? Math.round(_dispWks)+' wks' : '—'}) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
     </div>
   </div>
   <div class="c-layout">
     <div class="c-wrap"><canvas id="c3" style="height:${ch3}px"></canvas></div>
     <div class="c-side">
-      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${netMedWks !== null ? Math.round(netMedWks)+' wks' : (_syaCtx ? '~'+Math.round(_syaCtx.medProgramWks)+' wks' : '—')}</div><div class="ck-l">Avg. Window${netMedWks === null && _syaCtx ? ' (SYA est.)' : ''}</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#0a2342">${_dispWks !== null ? Math.round(_dispWks)+' wks' : '—'}</div><div class="ck-l">Diagnostic Window</div></div>
       <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#64748b'}">${netWkAdjELA !== null ? (netWkAdjELA*100).toFixed(1)+'%' : (elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">ELA Adj. Growth</div></div>
       <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#64748b'}">${netWkAdjMath !== null ? (netWkAdjMath*100).toFixed(1)+'%' : (mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—')}</div><div class="ck-l">Math Adj. Growth</div></div>
       <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">Met Growth Target</div></div>
