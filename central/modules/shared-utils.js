@@ -850,13 +850,6 @@
             ]},
             { icon: '📉', label: 'T&D Longitudinal Dashboard', desc: 'Training & development trends', c: '#f0eeff', b: '#6c63d4', url: 'https://lookerstudio.google.com/reporting/39f0c4bb-d479-43cb-8320-ce3c0d014d75', lbl: 'Open Dashboard ↗' },
           ]},
-          { hdr: '🌱 Growth & Business Development', items: [
-            { icon: '📤', label: 'Outreach', desc: 'Partner pipeline & outreach log', c: '#e0f0ff', b: '#457b9d', url: 'https://docs.google.com/spreadsheets/u/0/d/1NH0pUQYVbsJYb_2eUsGYFCOOpkxNzJKD3G6hvQlW5vE/edit', lbl: 'Open in Sheets ↗' },
-            { icon: '🎤', label: 'Pitch Deck', desc: 'NJTC program pitch presentation', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/presentation/d/1aiGeBX-3eEJ4buZnwZUgCaAf_-ldaaoi/edit?slide=id.g3a4b8ca4575_0_44#slide=id.g3a4b8ca4575_0_44', lbl: 'Open Slides ↗' },
-            { icon: '💰', label: 'Quote Builder 26-27', desc: 'Proposal & pricing tool', c: '#fff7e0', b: '#e9a825', url: 'https://docs.google.com/spreadsheets/d/12JdzpqZ87fZJOoFRiYrcof_jjpoKAU2Rf5og5Hbdts4/edit?gid=1372550430#gid=1372550430', lbl: 'Open in Sheets ↗' },
-            { icon: '📁', label: 'MOU/DSA Templates', desc: 'Contract & agreement templates', c: '#fff0e8', b: '#e76f51', url: 'https://drive.google.com/drive/u/0/folders/1iUNiwALtAHg1XyWFPoDLMhbHjgz0ZByF', lbl: 'Open in Drive ↗' },
-            { icon: '📄', label: 'NJTC One-Pager', desc: 'Program overview for partners', c: '#f0eeff', b: '#6c63d4', url: 'https://www.canva.com/design/DAG39iwj03k/aBwkuZa5tQOWzoE1L5UMGw/view?utm_content=DAG39iwj03k&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hdffb6f7651', lbl: 'Open in Canva ↗' },
-          ]},
           { hdr: '📚 Strategy & Documentation', items: [
             { icon: '🗺', label: 'Strategic Plans', desc: 'Org-wide strategic plan archive', c: '#e0f0ff', b: '#457b9d', url: 'https://drive.google.com/drive/u/0/folders/1yMxpU4FYR0lkO6Z3ybE_tAARoKvxdB2J', lbl: 'Open in Drive ↗' },
             { icon: '📅', label: 'Annual Plan (FY 26)', desc: 'Current fiscal year annual plan', c: '#e6f5ed', b: '#2a9d8f', url: 'https://docs.google.com/document/d/1AmwQNBzJh-DJALTxnVw6sN-SIJhkU122gOTWc8MUKzU/edit?tab=t.0', lbl: 'Open Doc ↗' },
