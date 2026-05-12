@@ -7319,13 +7319,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   </div>
   <div class="kpi b">
     <div class="kpi-v">${featWkAdj !== null ? (featWkAdj*100).toFixed(1)+'%' : (bestSubjMedian !== null ? (bestSubjMedian*100).toFixed(1)+'%' : '—')}</div>
-    <div class="kpi-l">${bestSubjLabel} Growth (Adj.)</div>
-    <div class="kpi-s">Window-adjusted · ${_dispWks !== null ? Math.round(_dispWks)+'-wk' : '—'} diagnostic window</div>
+    <div class="kpi-l">${bestSubjLabel} Median Typical Growth</div>
+    <div class="kpi-s">Window-adjusted to ${_dispWks !== null ? Math.round(_dispWks) : '—'}-wk actual window (÷ ${_dispWks !== null ? (Math.round(_dispWks)/30).toFixed(2) : '—'})</div>
   </div>
   <div class="kpi n">
     <div class="kpi-v" style="font-size:clamp(.95rem,2.8vw,1.55rem);letter-spacing:-.01em">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}&thinsp;/&thinsp;${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div>
-    <div class="kpi-l">ELA / Math % Typical Growth</div>
-    <div class="kpi-s">iReady direct · 30-wk standard benchmark</div>
+    <div class="kpi-l">ELA / Math Median Typical Growth</div>
+    <div class="kpi-s">iReady standard · 30-wk norm · unadjusted</div>
   </div>
   <div class="kpi t">
     <div class="kpi-v">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div>
@@ -7398,8 +7398,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
   <div class="sec-hd">
     <div class="sec-dot" style="background:#1565c0"></div>
     <div>
-      <div class="sec-ttl">Scholar Progress — Window-Adjusted Growth by School</div>
-      <div class="sec-sub">Median scholar growth calibrated against the actual BOY → EOY diagnostic window (${_dispWks !== null ? Math.round(_dispWks)+' wks' : '—'}) &nbsp;·&nbsp; 100% = on-pace for the true available weeks &nbsp;·&nbsp; A more accurate measure of NJTC impact than the standard 30-week iReady benchmark</div>
+      <div class="sec-ttl">Scholar Progress — Median % Typical Growth by School &nbsp;·&nbsp; Window-Adjusted</div>
+      <div class="sec-sub">Same iReady Median % Typical Growth metric — recalibrated to the actual ${_dispWks !== null ? Math.round(_dispWks)+'-week' : 'actual'} diagnostic window instead of iReady's assumed 30 weeks &nbsp;·&nbsp; 100% = exactly on-pace for the true available weeks &nbsp;·&nbsp; Sidebar shows both adjusted and standard (30-wk) values for direct comparison</div>
     </div>
   </div>
   <div class="c-layout">
@@ -7407,15 +7407,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica N
     <div class="c-side">
       <div class="ckpi"><div class="ck-v" style="color:#0a2342">${_dispWks !== null ? Math.round(_dispWks)+' wks' : '—'}</div><div class="ck-l">Diagnostic Window</div></div>
       <div style="border-top:1.5px solid #e2e8f0;margin:.35rem 0 .2rem;padding-top:.35rem">
-        <div style="font-size:.6rem;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Window-Adjusted (actual wks)</div>
+        <div style="font-size:.6rem;font-weight:800;color:#1565c0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Median Typical Growth — Window-Adjusted</div>
+        <div style="font-size:.58rem;color:#94a3b8;margin-bottom:.2rem">% Typical ÷ (actual wks / 30)</div>
       </div>
-      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#475569'}">${netWkAdjELA !== null ? (netWkAdjELA*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA Adj. Growth</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#475569'}">${netWkAdjMath !== null ? (netWkAdjMath*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math Adj. Growth</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='ELA'?'#1565c0':'#475569'}">${netWkAdjELA !== null ? (netWkAdjELA*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA (adj.)</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:${bestSubjLabel==='Math'?'#1565c0':'#475569'}">${netWkAdjMath !== null ? (netWkAdjMath*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math (adj.)</div></div>
       <div style="border-top:1.5px solid #e2e8f0;margin:.35rem 0 .2rem;padding-top:.35rem">
-        <div style="font-size:.6rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">iReady Standard (30-wk norm)</div>
+        <div style="font-size:.6rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.25rem">Median Typical Growth — iReady Standard</div>
+        <div style="font-size:.58rem;color:#94a3b8;margin-bottom:.2rem">% Typical as reported · 30-wk norm</div>
       </div>
-      <div class="ckpi"><div class="ck-v" style="color:#64748b;font-size:1.05rem">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA % Typical Growth</div></div>
-      <div class="ckpi"><div class="ck-v" style="color:#64748b;font-size:1.05rem">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math % Typical Growth</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#64748b;font-size:1.05rem">${elaMedian !== null ? (elaMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">ELA (standard)</div></div>
+      <div class="ckpi"><div class="ck-v" style="color:#64748b;font-size:1.05rem">${mathMedian !== null ? (mathMedian*100).toFixed(1)+'%' : '—'}</div><div class="ck-l">Math (standard)</div></div>
       <div style="border-top:1.5px solid #e2e8f0;margin:.35rem 0 .2rem"></div>
       <div class="ckpi"><div class="ck-v" style="color:#00695c">${m.metTypPct !== null ? m.metTypPct+'%' : '—'}</div><div class="ck-l">Met Growth Target</div></div>
     </div>
