@@ -1,7 +1,7 @@
 {
-  "generated": "2026-05-13T14:22:03.156Z",
+  "generated": "2026-05-13T16:38:52.149Z",
   "project": "1211431518555737",
-  "count": 31,
+  "count": 30,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -704,24 +704,6 @@
       "name": "60% annual on-site staff retention",
       "notes": "Maintaining quality on-site staff to ensure that tutoring is effective and partners are satisfied.",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555958"
-    },
-    {
-      "gid": "1211431518555960",
-      "assignee": {
-        "gid": "1205401560672729",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-05-15",
-      "followers": [
-        {
-          "gid": "1205401560672729",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Increase diversity of tutors to mirror student diversity",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555960"
     },
     {
       "gid": "1211431518555979",
