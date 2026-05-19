@@ -285,10 +285,17 @@
     const uniqueScholarIds = new Set();
     if (sessRows.length > 1) {
       const sessH = sessRows[0].map(c => (c || '').trim().toLowerCase());
-      // Find the session ID column in the sess tab header
+      // Find session ID column: try header keywords first, then data-match against myAttendedSessions
       let sessIdCol = sessH.findIndex(h => h.includes('session') && h.includes('id'));
       if (sessIdCol < 0) sessIdCol = sessH.findIndex(h => h === 'session');
-      if (sessIdCol < 0) sessIdCol = 0; // fallback: column A
+      if (sessIdCol < 0) {
+        // Probe columns 0–5: whichever has values that overlap myAttendedSessions is the ID column
+        for (let c = 0; c <= 5; c++) {
+          const hasMatch = sessRows.slice(1, 30).some(row => myAttendedSessions.has((row[c] || '').trim()));
+          if (hasMatch) { sessIdCol = c; break; }
+        }
+      }
+      if (sessIdCol < 0) sessIdCol = 0; // last-resort fallback
       for (const row of sessRows.slice(1)) {
         const sId = (row[sessIdCol] || '').trim();
         if (myAttendedSessions.has(sId)) {
