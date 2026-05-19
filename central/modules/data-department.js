@@ -722,14 +722,6 @@
         var dem = spr || win || rows[0];
         if (!dem) return;
 
-        // Debug: log pilot spring row keys+values to identify column name mismatches
-        var _pilotChk = g(dem,'Pilot Program','pilot_program','Pilot','pilot');
-        if (/yes/i.test((_pilotChk||'').trim()) && spr) {
-          var _sprKeys = Object.keys(spr).filter(function(k){ return !/^[a-z0-9_]+$/.test(k); }); // original (non-normalized) keys only
-          console.log('[irlab-pilot-cols] spr keys:', JSON.stringify(_sprKeys));
-          console.log('[irlab-pilot-vals] ScaleScore='+JSON.stringify(spr['Scale Score']||spr['Overall Scale Score']||spr['scale_score']||'NOT FOUND')+' DiagGain='+JSON.stringify(spr['Diagnostic Gain']||spr['Scale Score Gain']||spr['diagnostic_gain']||'NOT FOUND')+' PctTyp='+JSON.stringify(spr['Percent Progress to Annual Typical Growth (%)'||'% Progress Toward Typical Growth']||spr['Pct Progress Typical Growth']||'NOT FOUND'));
-        }
-
         // parseFloat helper — returns null instead of NaN
         function _pf(row) {
           var keys = Array.prototype.slice.call(arguments, 1);
@@ -853,6 +845,14 @@
           }()),
           _source2526: 'manual',  // internal tag — used for clean removal on re-fetch
         };
+        // Pilot schools lack iReady-computed Diagnostic Gain and % Progress (first-time diagnostics).
+        // Fall back to computing them from raw scale scores so KPI tiles populate correctly.
+        if (obj.springGain === null && obj.springScore !== null && obj.baseScore !== null) {
+          obj.springGain = parseFloat((obj.springScore - obj.baseScore).toFixed(1));
+        }
+        if (obj.pctTypical === null && obj.springGain !== null && obj.annualTypical !== null && obj.annualTypical > 0) {
+          obj.pctTypical = obj.springGain / obj.annualTypical;
+        }
         result.push(obj);
       });
       return result;
