@@ -310,14 +310,54 @@
       }
     }
 
+    // Student surveys about my sessions (filled_for_id = my ID)
+    const myStuSurveys = stuRows.filter(r =>
+      (r[STU.FILLED_FOR_ID] || '').trim() === pearlUserId
+    );
+
+    // Map student surveys to individual scholars by FILLED_BY_ID
+    const stuSurveyByScholar = {};
+    for (const r of myStuSurveys) {
+      const sid = (r[STU.FILLED_BY_ID] || '').trim();
+      if (!sid) continue;
+      if (!stuSurveyByScholar[sid]) stuSurveyByScholar[sid] = [];
+      stuSurveyByScholar[sid].push({
+        confidence: safeNum(r[STU.CONFIDENCE]),
+        enjoyment:  safeNum(r[STU.ENJOYMENT]),
+        learning:   safeNum(r[STU.LEARNING]),
+        overall:    safeNum(r[STU.OVERALL]),
+        comment:    (r[STU.COMMENT] || '').trim(),
+        date:       (r[STU.DATE]    || '').trim()
+      });
+    }
+
     const scholars = Object.values(scholarMap)
       .filter(s => uniqueScholarIds.size === 0 || uniqueScholarIds.has(s.id))
       .map(s => {
         const total = s.attended + s.absent;
+        const svList = stuSurveyByScholar[s.id] || [];
+        const svScores = { confidence: [], enjoyment: [], learning: [], overall: [] };
+        const svComments = [];
+        for (const sv of svList) {
+          if (sv.confidence !== null) svScores.confidence.push(sv.confidence);
+          if (sv.enjoyment  !== null) svScores.enjoyment.push(sv.enjoyment);
+          if (sv.learning   !== null) svScores.learning.push(sv.learning);
+          if (sv.overall    !== null) svScores.overall.push(sv.overall);
+          if (sv.comment) svComments.push({ text: sv.comment, date: sv.date });
+        }
+        const svAvg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : null;
         return {
           ...s,
           totalSessions: total,
-          attRate: total > 0 ? Math.round((s.attended / total) * 100) : null
+          attRate: total > 0 ? Math.round((s.attended / total) * 100) : null,
+          surveyCount: svList.length,
+          surveyScores: {
+            confidence: svAvg(svScores.confidence),
+            enjoyment:  svAvg(svScores.enjoyment),
+            learning:   svAvg(svScores.learning),
+            overall:    svAvg(svScores.overall)
+          },
+          surveyComments: svComments
         };
       });
 
@@ -395,11 +435,6 @@
       first: allDates[0] || null,
       last:  allDates[allDates.length - 1] || null
     };
-
-    // Student surveys about my sessions (filled_for_id = my ID)
-    const myStuSurveys = stuRows.filter(r =>
-      (r[STU.FILLED_FOR_ID] || '').trim() === pearlUserId
-    );
 
     const stuScores = {
       confidence: [], enjoyment: [], learning: [], overall: []

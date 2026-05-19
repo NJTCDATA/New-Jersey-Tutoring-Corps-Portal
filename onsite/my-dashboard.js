@@ -47,6 +47,7 @@
   }
 
   function scoreColor(score) {
+    if (score === null || score === undefined) return 'rgba(255,255,255,0.4)';
     if (score >= 4.0) return '#22c55e';
     if (score >= 3.0) return '#f59e0b';
     return '#ef4444';
@@ -845,6 +846,139 @@
         background: rgba(34,197,94,0.08) !important;
       }
 
+      /* ── Scholar Profile Modal ── */
+      .njtc-sp-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,8,20,0.88);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+        padding: 1rem;
+        opacity: 0; pointer-events: none;
+        transition: opacity 0.18s ease;
+      }
+      .njtc-sp-overlay.open { opacity: 1; pointer-events: all; }
+      .njtc-sp-modal {
+        background: linear-gradient(160deg, #0d1f35 0%, #132040 100%);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 1.25rem;
+        width: 100%; max-width: 680px;
+        max-height: 88vh; overflow-y: auto;
+        padding: 1.5rem 1.75rem;
+        box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+      }
+      .njtc-sp-modal::-webkit-scrollbar { width: 4px; }
+      .njtc-sp-modal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+      .njtc-sp-header {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        margin-bottom: 1.25rem;
+      }
+      .njtc-sp-header-left { display: flex; align-items: center; gap: 1rem; }
+      .njtc-sp-avatar {
+        width: 52px; height: 52px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-family: 'Epilogue', sans-serif;
+        font-size: 1.1rem; font-weight: 800; color: #fff; flex-shrink: 0;
+      }
+      .njtc-sp-name {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 1.5rem; font-weight: 800; color: #fff; line-height: 1;
+        margin-bottom: 0.3rem;
+      }
+      .njtc-sp-meta { font-size: 0.8rem; color: rgba(255,255,255,0.5); }
+      .njtc-sp-close {
+        background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 50%; width: 34px; height: 34px; cursor: pointer;
+        color: rgba(255,255,255,0.6); font-size: 1rem; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s;
+      }
+      .njtc-sp-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+      .njtc-sp-kpi-row {
+        display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem;
+      }
+      .njtc-sp-kpi {
+        flex: 1 1 120px; min-width: 100px;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.09);
+        border-radius: 0.875rem; padding: 0.75rem 1rem; text-align: center;
+      }
+      .njtc-sp-kpi-val {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 1.6rem; font-weight: 900; line-height: 1; margin-bottom: 0.2rem;
+      }
+      .njtc-sp-kpi-lbl {
+        font-size: 0.68rem; font-weight: 600;
+        color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em;
+      }
+      .njtc-sp-divider {
+        border: none; border-top: 1px solid rgba(255,255,255,0.07);
+        margin: 1rem 0;
+      }
+      .njtc-sp-section-lbl {
+        font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+        letter-spacing: 0.08em; color: rgba(255,255,255,0.35); margin-bottom: 0.6rem;
+      }
+      .njtc-sp-att-row {
+        display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+      }
+      .njtc-sp-att-chip {
+        display: flex; align-items: center; gap: 0.35rem;
+        font-size: 0.85rem; color: rgba(255,255,255,0.8);
+      }
+      .njtc-sp-miss-item {
+        display: flex; justify-content: space-between;
+        font-size: 0.82rem; color: rgba(255,255,255,0.65);
+        padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+      }
+      .njtc-sp-miss-item:last-child { border-bottom: none; }
+      .njtc-sp-score-row {
+        display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.25rem;
+      }
+      .njtc-sp-score-chip {
+        display: flex; flex-direction: column; align-items: center;
+        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 0.75rem; padding: 0.5rem 0.75rem; min-width: 72px;
+      }
+      .njtc-sp-score-val {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 1.1rem; font-weight: 800; line-height: 1; margin-bottom: 0.15rem;
+      }
+      .njtc-sp-score-lbl {
+        font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.04em; color: rgba(255,255,255,0.4);
+      }
+      .njtc-sp-comment {
+        background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 0.75rem; padding: 0.75rem 1rem; margin-bottom: 0.5rem;
+        font-size: 0.83rem; color: rgba(255,255,255,0.75); line-height: 1.5;
+      }
+      .njtc-sp-comment.support {
+        border-color: rgba(251,191,36,0.3);
+        background: rgba(251,191,36,0.06);
+      }
+      .njtc-sp-comment-meta {
+        font-size: 0.68rem; color: rgba(255,255,255,0.35); margin-top: 0.35rem;
+      }
+      .njtc-sp-support-flag {
+        display: inline-block; font-size: 0.65rem; font-weight: 700;
+        color: #fbbf24; background: rgba(251,191,36,0.15);
+        border: 1px solid rgba(251,191,36,0.3);
+        border-radius: 999px; padding: 0.1rem 0.45rem; margin-right: 0.3rem;
+      }
+      .njtc-scholar-card-clickable {
+        cursor: pointer; transition: transform 0.12s, box-shadow 0.12s;
+      }
+      .njtc-scholar-card-clickable:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+      }
+      .njtc-scholar-tap-hint {
+        font-size: 0.65rem; color: rgba(255,255,255,0.25);
+        text-align: center; margin-top: 0.4rem; letter-spacing: 0.03em;
+      }
+
       /* ── Action Items ── */
       .njtc-action-section {
         background: linear-gradient(135deg, rgba(251,191,36,0.07) 0%, rgba(245,158,11,0.04) 100%);
@@ -1024,6 +1158,136 @@
       if (isNaN(dt.getTime())) return d;
       return dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     } catch (e) { return d; }
+  }
+
+  // ── Scholar profile modal ────────────────────────────────────────────────────
+
+  const SUPPORT_KW = ['struggling', 'difficult', 'hard time', 'need help', 'behind',
+    'extra support', 'concern', 'attention', 'challenge', 'having trouble', 'extra help',
+    'not understanding', 'confused', "doesn't understand", 'worried', 'frustrat',
+    'needs more', 'needs additional', 'additional support', 'falling behind'];
+
+  function needsSupportFlag(text) {
+    const t = (text || '').toLowerCase();
+    return SUPPORT_KW.some(kw => t.includes(kw));
+  }
+
+  let _scholarProfileMap = {};
+
+  function openScholarModal(scholar) {
+    let overlay = document.getElementById('njtc-sp-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'njtc-sp-overlay';
+      overlay.className = 'njtc-sp-overlay';
+      overlay.innerHTML = '<div class="njtc-sp-modal" id="njtc-sp-modal-inner"></div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', e => {
+        if (e.target === overlay) closeScholarModal();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeScholarModal();
+      });
+    }
+
+    const inner = overlay.querySelector('#njtc-sp-modal-inner');
+    inner.innerHTML = renderScholarProfile(scholar);
+    inner.querySelector('.njtc-sp-close').addEventListener('click', closeScholarModal);
+
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeScholarModal() {
+    const overlay = document.getElementById('njtc-sp-overlay');
+    if (overlay) overlay.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function renderScholarProfile(s) {
+    const color = attColor(s.attRate);
+    const initials = toInitials(s.name);
+    const gColor = gradePillColor(s.grade);
+
+    // KPI row
+    const kpiHtml = `<div class="njtc-sp-kpi-row">
+      <div class="njtc-sp-kpi">
+        <div class="njtc-sp-kpi-val" style="color:${color};">${s.attRate !== null ? s.attRate + '%' : '—'}</div>
+        <div class="njtc-sp-kpi-lbl">Attendance</div>
+      </div>
+      <div class="njtc-sp-kpi">
+        <div class="njtc-sp-kpi-val">${s.attended}</div>
+        <div class="njtc-sp-kpi-lbl">Sessions Attended</div>
+      </div>
+      <div class="njtc-sp-kpi">
+        <div class="njtc-sp-kpi-val">${s.absent}</div>
+        <div class="njtc-sp-kpi-lbl">Sessions Missed</div>
+      </div>
+      <div class="njtc-sp-kpi">
+        <div class="njtc-sp-kpi-val">${s.surveyCount || 0}</div>
+        <div class="njtc-sp-kpi-lbl">Surveys Filed</div>
+      </div>
+    </div>`;
+
+    // Attendance detail
+    const attHtml = `<div class="njtc-sp-section-lbl">Attendance Breakdown</div>
+    <div class="njtc-sp-att-row">
+      <div class="njtc-sp-att-chip"><span style="color:#22c55e;">✅</span> ${s.attended} attended</div>
+      <div class="njtc-sp-att-chip"><span style="color:#ef4444;">❌</span> ${s.absent} missed</div>
+      ${s.si ? `<div class="njtc-sp-att-chip"><span style="color:rgba(255,255,255,0.4);">📅</span> ${s.si} school interruptions</div>` : ''}
+    </div>`;
+
+    // Miss reasons
+    const reasons = Object.entries(s.missReasons || {}).sort((a, b) => b[1] - a[1]);
+    const reasonsHtml = reasons.length ? `<hr class="njtc-sp-divider">
+    <div class="njtc-sp-section-lbl">Why They Missed</div>
+    ${reasons.map(([r, c]) => `<div class="njtc-sp-miss-item"><span>${esc(friendlyScholarReason(r))}</span><span style="color:rgba(255,255,255,0.4);">${c}×</span></div>`).join('')}` : '';
+
+    // Survey scores
+    const sv = s.surveyScores || {};
+    const hasSv = sv.confidence !== null || sv.enjoyment !== null || sv.learning !== null || sv.overall !== null;
+    const scoresHtml = hasSv ? `<hr class="njtc-sp-divider">
+    <div class="njtc-sp-section-lbl">Student Survey Scores (avg of ${s.surveyCount})</div>
+    <div class="njtc-sp-score-row">
+      ${sv.confidence !== null ? `<div class="njtc-sp-score-chip"><div class="njtc-sp-score-val" style="color:${scoreColor(sv.confidence)};">${sv.confidence}</div><div class="njtc-sp-score-lbl">Confidence</div></div>` : ''}
+      ${sv.enjoyment  !== null ? `<div class="njtc-sp-score-chip"><div class="njtc-sp-score-val" style="color:${scoreColor(sv.enjoyment)};">${sv.enjoyment}</div><div class="njtc-sp-score-lbl">Enjoyment</div></div>` : ''}
+      ${sv.learning   !== null ? `<div class="njtc-sp-score-chip"><div class="njtc-sp-score-val" style="color:${scoreColor(sv.learning)};">${sv.learning}</div><div class="njtc-sp-score-lbl">Learning</div></div>` : ''}
+      ${sv.overall    !== null ? `<div class="njtc-sp-score-chip"><div class="njtc-sp-score-val" style="color:${scoreColor(sv.overall)};">${sv.overall}</div><div class="njtc-sp-score-lbl">Overall</div></div>` : ''}
+    </div>` : '';
+
+    // Survey comments
+    const comments = s.surveyComments || [];
+    const commentsHtml = comments.length ? `<hr class="njtc-sp-divider">
+    <div class="njtc-sp-section-lbl">Survey Comments${comments.some(c => needsSupportFlag(c.text)) ? ' · <span style="color:#fbbf24;">⚠ Support flags noted</span>' : ''}</div>
+    ${comments.map(c => {
+      const flag = needsSupportFlag(c.text);
+      return `<div class="njtc-sp-comment${flag ? ' support' : ''}">
+        ${flag ? '<span class="njtc-sp-support-flag">⚠ Needs Support</span>' : ''}${esc(c.text)}
+        ${c.date ? `<div class="njtc-sp-comment-meta">${esc(fmtDate(c.date))}</div>` : ''}
+      </div>`;
+    }).join('')}` : '';
+
+    return `
+      <div class="njtc-sp-header">
+        <div class="njtc-sp-header-left">
+          <div class="njtc-sp-avatar" style="background:${gColor};">${esc(initials)}</div>
+          <div>
+            <div class="njtc-sp-name">${esc(initials)}</div>
+            <div class="njtc-sp-meta">
+              ${s.grade ? `Grade ${esc(s.grade)}` : ''} · ${esc(s.school || '—')}
+              <span style="margin-left:0.5rem;">${attLabel(s.attRate)}</span>
+            </div>
+          </div>
+        </div>
+        <button class="njtc-sp-close" aria-label="Close">✕</button>
+      </div>
+      ${kpiHtml}
+      <hr class="njtc-sp-divider">
+      ${attHtml}
+      ${reasonsHtml}
+      ${scoresHtml}
+      ${commentsHtml}
+    `;
   }
 
   // ── Section 0: Action Items ──────────────────────────────────────────────────
@@ -1210,7 +1474,8 @@
         const gradeLabel = s.grade ? 'Grade ' + s.grade : 'N/A';
         const topReason = Object.entries(s.missReasons).sort((a, b) => b[1] - a[1])[0];
         const chart = donutChart(s.attRate, color, 44);
-        return `<div class="njtc-scholar-card">
+        _scholarProfileMap[s.id] = s;
+        return `<div class="njtc-scholar-card njtc-scholar-card-clickable" data-sid="${esc(s.id)}" tabindex="0" role="button" aria-label="View ${esc(toInitials(s.name))}'s profile">
           <div class="njtc-scholar-card-top">
             <span class="njtc-grade-pill" style="background:${gColor};">${esc(gradeLabel)}</span>
           </div>
@@ -1222,6 +1487,7 @@
           </div>
           <div class="njtc-status-badge">${attLabel(s.attRate)}</div>
           ${topReason ? `<div class="njtc-scholar-miss-reason">Often: ${esc(friendlyScholarReason(topReason[0]))}</div>` : ''}
+          <div class="njtc-scholar-tap-hint">View Profile →</div>
         </div>`;
       }).join('') + `</div>`;
     }
@@ -1246,6 +1512,17 @@
         <div id="njtc-scholar-tab-good" style="display:none;">${goodHtml}</div>
       </div>
     `;
+
+    // Wire scholar card click → profile modal
+    el.querySelectorAll('.njtc-scholar-card-clickable').forEach(card => {
+      card.addEventListener('click', () => {
+        const s = _scholarProfileMap[card.dataset.sid];
+        if (s) openScholarModal(s);
+      });
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
+      });
+    });
 
     el.querySelectorAll('.njtc-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1506,13 +1783,15 @@
 
   // ── iReady: constants ─────────────────────────────────────────────────────────
 
-  const IR_LIVE_2PACX    = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
-  const IR_LIVE_MATH_GID = 127145553;
-  const IR_LIVE_ELA_GID  = 0;
+  // Longitudinal data (iReady Dashboard 22-25): instructor in column B, subject in column H
+  const IR_LONG_ID       = '16TGLCi5zCzrujBFRjOckcScYt47VKOr-RcKvu2EMiT0';
+  const IR_LONG_ELA_GID  = 0;           // ELA tab
+  const IR_LONG_MATH_GID = 394721793;   // Math tab
+  // 25-26 preliminary data: matched via Pearl scholar IDs, not tutor name
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v4';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v5';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -1608,7 +1887,7 @@
 
   // ── iReady: parse one CSV sheet into normalized row objects ──────────────────
 
-  function normalizeIRSheet(rows, subject) {
+  function normalizeIRSheet(rows, defaultSubject) {
     if (rows.length < 2) return [];
     const header = rows[0].map(h => h.trim().toLowerCase());
 
@@ -1616,17 +1895,34 @@
       return header.findIndex(h => keywords.every(k => h.includes(k)));
     }
 
-    const tutorCol  = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
-    const stuCol    = col(['first and last']);
-    const baseCol   = col(['base', 'overall', 'relative', 'placement']);
-    // Spring placement is optional — scholars without spring diagnostic still appear
-    const sprCol    = col(['spring', 'overall', 'relative', 'placement']);
+    // Instructor: column B (index 1) per longitudinal sheet spec; also try header keywords
+    let tutorCol = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
+    if (tutorCol < 0) tutorCol = 1; // Column B fallback per iReady Longitudinal Dashboard spec
+
+    // Student name: "First and Last Name" (col C, index 2) or similar
+    let stuCol = col(['first and last']) >= 0 ? col(['first and last']) : col(['student', 'name']);
+    if (stuCol < 0) stuCol = 2; // Column C fallback
+
+    // BOY placement: may be labeled Base, Fall, BOY, or Beginning
+    const baseCol =
+      col(['base', 'overall', 'relative', 'placement']) >= 0 ? col(['base', 'overall', 'relative', 'placement']) :
+      col(['fall', 'overall', 'relative', 'placement']) >= 0 ? col(['fall', 'overall', 'relative', 'placement']) :
+      col(['boy',  'overall', 'relative', 'placement']) >= 0 ? col(['boy',  'overall', 'relative', 'placement']) :
+      col(['beginning', 'overall', 'relative', 'placement']);
+
+    // Spring / EOY placement
+    const sprCol =
+      col(['spring', 'overall', 'relative', 'placement']) >= 0 ? col(['spring', 'overall', 'relative', 'placement']) :
+      col(['eoy',    'overall', 'relative', 'placement']) >= 0 ? col(['eoy',    'overall', 'relative', 'placement']) :
+      col(['end',    'overall', 'relative', 'placement']);
+
     const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
-    const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['grade']);
+    const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['student', 'grade']) >= 0 ? col(['student', 'grade']) : col(['grade']);
     const schoolCol = col(['school']);
     const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
+    // Subject embedded in data (column H in longitudinal sheet); fall back to defaultSubject param
+    const subjectCol = col(['subject']) >= 0 ? col(['subject']) : col(['program area']);
 
-    // Only tutorCol, stuCol, baseCol are required — spring data may not exist yet
     if (tutorCol < 0 || stuCol < 0 || baseCol < 0) return [];
 
     return rows.slice(1).filter(r => (r[tutorCol] || '').trim() && (r[stuCol] || '').trim() && (r[baseCol] || '').trim()).map(r => {
@@ -1643,7 +1939,7 @@
         grade:       (r[gradeCol]  || '').trim(),
         school:      (r[schoolCol] || '').trim(),
         sy:          (r[syCol]     || '').trim(),
-        subject
+        subject: subjectCol >= 0 ? ((r[subjectCol] || '').trim() || defaultSubject) : defaultSubject
       };
     });
   }
@@ -1736,20 +2032,21 @@
       } catch (e) { return []; }
     }
 
-    const liveBase = `https://docs.google.com/spreadsheets/d/e/${IR_LIVE_2PACX}/pub?output=csv&gid=`;
+    const longBase = `https://docs.google.com/spreadsheets/d/${IR_LONG_ID}/gviz/tq?tqx=out:csv&gid=`;
     const snap2526 = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
 
-    const [liveMath, liveELA, snapMath, snapELA] = await Promise.all([
-      fetchCSV(liveBase + IR_LIVE_MATH_GID),
-      fetchCSV(liveBase + IR_LIVE_ELA_GID),
+    const [longMath, longELA, snapMath, snapELA] = await Promise.all([
+      fetchCSV(longBase + IR_LONG_MATH_GID),
+      fetchCSV(longBase + IR_LONG_ELA_GID),
       fetchCSV(snap2526 + IR_2526_MATH_GID),
       fetchCSV(snap2526 + IR_2526_ELA_GID)
     ]);
 
-    // LONGITUDINAL rows (live 2PACX = all historical years): match by tutor full name
+    // LONGITUDINAL rows: iReady Dashboard 22-25, matched by tutor full name (col B)
+    // Subject is embedded in column H of the data itself
     const longitudinalRows = [
-      ...normalizeIRSheet(liveMath, 'Math'),
-      ...normalizeIRSheet(liveELA, 'ELA')
+      ...normalizeIRSheet(longMath, 'Math'),
+      ...normalizeIRSheet(longELA, 'ELA')
     ].filter(r => matchesTutor(r.tutorName));
 
     // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
