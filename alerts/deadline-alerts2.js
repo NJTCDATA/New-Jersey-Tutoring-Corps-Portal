@@ -311,6 +311,9 @@
   document.body.prepend(root);
 
   // ── Positioning: stack below the first banner ──────────────────────────────
+  // tasks2.json is tiny and may load before tasks.json, so the red banner
+  // (#njtc-alert-root) might not be in the DOM when we first render.
+  // We retry at several intervals and watch body for the banner appearing.
   function reposition() {
     const first  = document.getElementById('njtc-alert-root');
     const firstH = first ? first.offsetHeight : 0;
@@ -319,11 +322,17 @@
   }
 
   reposition();
+  // Retry in case the red banner wasn't in the DOM yet
+  [100, 300, 600, 1500].forEach(ms => setTimeout(reposition, ms));
 
+  // Watch body for the red banner being added or removed
+  new MutationObserver(reposition).observe(document.body, { childList: true });
+
+  // Watch the red banner for height changes (open/close panel)
   const firstRoot = document.getElementById('njtc-alert-root');
   if (firstRoot) {
     firstRoot.addEventListener('click', () => setTimeout(reposition, 270));
-    new MutationObserver(() => reposition()).observe(document.body, { childList: true });
+    new ResizeObserver(reposition).observe(firstRoot);
   }
 
   // ── Interactions ───────────────────────────────────────────────────────────
