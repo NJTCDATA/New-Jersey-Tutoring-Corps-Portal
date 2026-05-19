@@ -1792,7 +1792,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v6';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v7';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -2015,14 +2015,19 @@
     const needle = normIRName(userName);
     const needleWords = needle.split(' ').filter(w => w.length >= 3);
 
-    // LONGITUDINAL name match: require all name tokens to appear — NO first-name-only fallback
-    // (first-name-only matching caused wrong tutors with the same first name to be included)
+    // LONGITUDINAL name match — column B may list multiple instructors comma-separated.
+    // Split by comma and test each segment individually; never match the blob as one name
+    // (blob match caused "Yohanny Rosario, Jane Smith" to match any tutor named Yohanny).
     function matchesTutor(rawName) {
-      const norm = normIRName(rawName);
-      if (norm === needle) return true;
-      // Handle "Last, First" or reversed formats: every word in the full name must appear
-      if (needleWords.length >= 2 && needleWords.every(w => norm.includes(w))) return true;
-      return false;
+      const segments = rawName.split(',').map(s => normIRName(s.trim())).filter(Boolean);
+      return segments.some(seg => {
+        if (seg === needle) return true;
+        if (needleWords.length >= 2 && needleWords.every(w => seg.includes(w))) return true;
+        return false;
+      });
+    }
+    function isShared(rawName) {
+      return rawName.split(',').filter(s => s.trim()).length > 1;
     }
 
     async function fetchCSV(url) {
@@ -2048,7 +2053,8 @@
     const longitudinalRows = [
       ...normalizeIRSheet(longMath, 'Math'),
       ...normalizeIRSheet(longELA, 'ELA')
-    ].filter(r => matchesTutor(r.tutorName));
+    ].filter(r => matchesTutor(r.tutorName))
+     .map(r => ({ ...r, shared: isShared(r.tutorName) }));
 
     // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
     // because 25-26 data is linked via Pearl student records, not tutor attribution
@@ -2208,21 +2214,24 @@
         return headlineHtml + kpiHtml + `<div class="njtc-empty-state"><p>No data for this filter combination.</p></div>`;
       }
 
-      // Group by school then subject
-      const schoolGroups = {};
+      // Group by school year (most recent first) so tutor sees their history year-by-year
+      const yearGroups = {};
       for (const r of filtered) {
-        const school = r.school || 'Unknown School';
-        if (!schoolGroups[school]) schoolGroups[school] = [];
-        schoolGroups[school].push(r);
+        const yr = r.sy || 'Unknown Year';
+        if (!yearGroups[yr]) yearGroups[yr] = [];
+        yearGroups[yr].push(r);
       }
 
-      const schoolHtml = Object.entries(schoolGroups).sort((a, b) => a[0].localeCompare(b[0])).map(([school, rows]) => {
+      const schoolHtml = Object.entries(yearGroups)
+        .sort((a, b) => b[0].localeCompare(a[0]))   // newest year first
+        .map(([yr, rows]) => {
         const rowsHtml = rows.map(r => {
           const bColor = plcColor(r.basePLC);
           const sColor = plcColor(r.springPLC);
           const growPct = r.pctTypical !== null ? Math.min(Math.max(r.pctTypical, 0), 200) : null;
           const barFill = growPct !== null ? Math.min(growPct / 200 * 100, 100) : 0;
           const subjectTag = activeSub === 'All' ? `<span style="font-size:0.7rem;color:rgba(255,255,255,0.35);margin-left:0.25rem;">${esc(r.subject)}</span>` : '';
+          const sharedTag = r.shared ? `<span style="font-size:0.65rem;background:rgba(255,184,28,0.2);color:#FFB81C;border-radius:999px;padding:0.1rem 0.4rem;margin-left:0.3rem;vertical-align:middle;" title="Shared scholar — multiple instructors listed">shared</span>` : '';
           const hasSpring = r.springPLC && r.springPLC.trim();
           const placementHtml = hasSpring
             ? `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
@@ -2230,8 +2239,9 @@
                <span class="njtc-plc-badge" style="background:${sColor};">${esc(plcShort(r.springPLC))}</span>`
             : `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
                <span style="font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:0.35rem;">spring pending</span>`;
+          const schoolMeta = r.school ? `<div style="font-size:0.68rem;color:rgba(255,255,255,0.35);margin-top:0.1rem;">${esc(shortenSchool(r.school))}</div>` : '';
           return `<tr>
-            <td>${esc(toInitials(r.studentName))}${subjectTag}</td>
+            <td>${esc(toInitials(r.studentName))}${subjectTag}${sharedTag}${schoolMeta}</td>
             <td><span style="font-size:0.75rem;color:rgba(255,255,255,0.5);">Gr ${esc(r.grade || '?')}</span></td>
             <td>${placementHtml}</td>
             <td>
@@ -2246,7 +2256,7 @@
         }).join('');
 
         return `<div class="njtc-ir-school-group">
-          <div class="njtc-ir-school-label">${esc(school)}</div>
+          <div class="njtc-ir-school-label">${esc(yr)}</div>
           <div class="njtc-ir-scroll" style="overflow-x:auto;">
             <table class="njtc-ir-table">
               <thead><tr>
