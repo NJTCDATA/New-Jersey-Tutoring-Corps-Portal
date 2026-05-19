@@ -6,9 +6,15 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'njtc_user_v1';
-  const SESSION_HOURS = 8;
+  const STORAGE_KEY    = 'njtc_user_v1';
+  const SESSION_HOURS  = 8;
   const USERS_JSON_PATH = '/New-Jersey-Tutoring-Corps-Portal/onsite/users.json';
+
+  // Same HR sheet the central portal uses — fetched live in the user's browser
+  const HR_2PACX     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
+  const HR_GID       = '911694457';
+  const HR_CACHE_KEY = 'njtc_hr_roles_v1';
+  const HR_TTL_MS    = 60 * 60 * 1000; // 1 hour
 
   const PERSONAL_COLORS = [
     '#2563eb', '#7c3aed', '#059669', '#d97706',
@@ -29,6 +35,91 @@
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  // ─── HR: normalize name for fuzzy matching ────────────────────────────────
+  function normName(n) {
+    return (n || '').toLowerCase()
+      .replace(/\(.*?\)/g, '')   // remove parentheticals like (Roz)
+      .replace(/[-']/g, ' ')     // dashes/apostrophes → space
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // ─── HR: minimal CSV parser (mirrors central portal's _parseHRMaster) ─────
+  function parseHRCsv(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false;
+    for (const ch of text.replace(/\r\n/g, '\n').replace(/\r/g, '\n') + '\n') {
+      if (inQ) {
+        if (ch === '"') inQ = false; else cur += ch;
+      } else {
+        if      (ch === '"')  { inQ = true; }
+        else if (ch === ',')  { row.push(cur); cur = ''; }
+        else if (ch === '\n') { row.push(cur); if (row.some(c => c)) rows.push(row); row = []; cur = ''; }
+        else cur += ch;
+      }
+    }
+    const hIdx = rows.findIndex(r => (r[0] || '').toLowerCase().includes('academic'));
+    if (hIdx < 0) return [];
+    const H       = rows[hIdx].map(h => h.trim().toLowerCase());
+    const nameCol = H.findIndex(h => h.includes('full name'));
+    const roleCol = H.findIndex(h => h.includes('position'));
+    const syCol   = H.findIndex(h => h.includes('academic'));
+    if (nameCol < 0 || roleCol < 0) return [];
+    return rows.slice(hIdx + 1)
+      .filter(r => r[nameCol])
+      .map(r => ({
+        name: (r[nameCol] || '').trim(),
+        role: (r[roleCol] || '').trim(),
+        sy:   (r[syCol]   || '').trim()
+      }));
+  }
+
+  // ─── HR: fetch + cache the Master List CSV ────────────────────────────────
+  async function fetchHRRows() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(HR_CACHE_KEY) || 'null');
+      if (cached && cached.ts && (Date.now() - cached.ts) < HR_TTL_MS && cached.rows) {
+        return cached.rows;
+      }
+    } catch (e) {}
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/e/${HR_2PACX}/pub?output=csv&gid=${HR_GID}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
+      if (!res.ok) return null;
+      const rows = parseHRCsv(await res.text());
+      if (rows.length) {
+        try { localStorage.setItem(HR_CACHE_KEY, JSON.stringify({ ts: Date.now(), rows })); } catch (e) {}
+      }
+      return rows.length ? rows : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ─── HR: find the most recent role for a given name ───────────────────────
+  function findHRRole(rows, userName) {
+    if (!rows || !rows.length) return null;
+    const needle = normName(userName);
+    // Prefer current SY row, fall back to any match
+    const matches = rows.filter(r => normName(r.name) === needle);
+    if (!matches.length) return null;
+    const currentSY = matches.find(r => r.sy === '2025-2026') || matches[matches.length - 1];
+    return currentSY.role || null;
+  }
+
+  // ─── HR: map raw HR role string to friendly display label ─────────────────
+  function displayRole(hrRole) {
+    const r = (hrRole || '').trim();
+    if (!r) return 'Tutor';
+    if (r.toLowerCase().includes('site coord'))     return 'Site Coordinator';
+    if (r.toLowerCase().includes('instructional'))  return 'Instructional Coach';
+    if (r.toLowerCase().includes('sub'))            return 'Substitute';
+    if (r.toLowerCase().includes('dual'))           return 'Dual Role';
+    if (r.toLowerCase().includes('certified'))      return 'Certified Tutor';
+    if (r.toLowerCase().includes('non-cert'))       return 'Tutor';
+    return r;
   }
 
   // ─── Utility: greeting by time of day ─────────────────────────────────────
@@ -419,16 +510,25 @@
       hideError();
 
       try {
-        const resp = await fetch(USERS_JSON_PATH + '?_=' + Date.now());
-        if (!resp.ok) throw new Error('Network error');
-        const data = await resp.json();
+        // Fetch user roster + live HR roles in parallel
+        const [usersResp, hrRows] = await Promise.all([
+          fetch(USERS_JSON_PATH + '?_=' + Date.now()),
+          fetchHRRows()
+        ]);
+
+        if (!usersResp.ok) throw new Error('Network error');
+        const data = await usersResp.json();
         const user = (data.users || []).find(u => u.id === raw);
 
         if (user) {
+          // Overlay live role from HR Master List (same sheet as central portal)
+          const liveHRRole = findHRRole(hrRows, user.name);
           const now = Date.now();
           const profile = Object.assign({}, user, {
+            role:      displayRole(liveHRRole) || user.role,
+            hrRoleRaw: liveHRRole || null,
             loginTime: now,
-            expires: now + SESSION_HOURS * 60 * 60 * 1000
+            expires:   now + SESSION_HOURS * 60 * 60 * 1000
           });
           localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
 
@@ -436,7 +536,7 @@
           overlay.classList.add('njtc-fade-out');
           overlay.addEventListener('animationend', () => {
             overlay.remove();
-            onSuccess(user);
+            onSuccess(profile);
           }, { once: true });
         } else {
           showError();
@@ -564,11 +664,26 @@
 
     const existing = getProfile();
     if (existing) {
-      // Valid session — personalize immediately (DOM might not be fully ready)
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => personalizePortal(existing));
-      } else {
+      // Valid session — personalize immediately, then silently refresh role from HR
+      function runPersonalize() {
         personalizePortal(existing);
+        // Background-refresh role from live HR sheet if cache is stale
+        fetchHRRows().then(hrRows => {
+          if (!hrRows) return;
+          const liveRole = displayRole(findHRRole(hrRows, existing.name));
+          if (liveRole && liveRole !== existing.role) {
+            existing.role = liveRole;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(existing)); } catch (e) {}
+            // Update the role tag in the DOM if already rendered
+            const tag = document.querySelector('.uac-role-tag');
+            if (tag) tag.textContent = liveRole;
+          }
+        }).catch(() => {});
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', runPersonalize);
+      } else {
+        runPersonalize();
       }
       return;
     }
