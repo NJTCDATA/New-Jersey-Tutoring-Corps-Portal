@@ -5539,12 +5539,13 @@
       const tutorRate   = (instAtt + instMiss) > 0 ? Math.round(instAtt / (instAtt + instMiss) * 100) : 0;
 
       // ── Sessions delivered ──
-      const sessionsDelivered = Object.values(_sessMap).filter(s => s.isDelivered).length;
+      const sessionsDelivered = filteredSessions().filter(s => s.isDelivered).length;
 
       // ── Scholar survey avg ──
       let surveyTotal = 0, surveyCount = 0;
       const surveyCols = [STU_S.CONFIDENCE, STU_S.ENJOYMENT, STU_S.LEARNING, STU_S.OVERALL];
-      for (const r of _stuRows) {
+      const filteredStuRows = _stuRows.filter(r => matchesSchoolFilter(r[STU_S.SCHOOL], r[STU_S.DISTRICT]));
+      for (const r of filteredStuRows) {
         for (const col of surveyCols) {
           const v = parseFloat(r[col]);
           if (!isNaN(v) && v > 0) { surveyTotal += v; surveyCount++; }
@@ -5558,6 +5559,7 @@
       const scholarAtt = {};
       for (const r of _attRows) {
         if (r[ATT.ROLE] !== 'Student') continue;
+        if (!matchesSchoolFilter(r[ATT.SCHOOL], r[ATT.DISTRICT])) continue;
         const id = r[ATT.USER_ID]; if (!id) continue;
         if (!scholarAtt[id]) scholarAtt[id] = { att: 0, miss: 0 };
         const cls = classifyRecord(r);
