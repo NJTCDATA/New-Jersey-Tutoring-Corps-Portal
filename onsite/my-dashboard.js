@@ -571,6 +571,228 @@
         font-weight: 700;
         color: #fff;
       }
+
+      /* ── Logout / Switch User buttons ── */
+      .njtc-logout-strip {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 1rem 0 0;
+      }
+      .njtc-switch-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.5rem 1.1rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.25);
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.8);
+        font-family: 'Epilogue', sans-serif;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        backdrop-filter: blur(8px);
+        text-decoration: none;
+      }
+      .njtc-switch-btn:hover {
+        background: rgba(255,255,255,0.16);
+        color: #fff;
+        border-color: rgba(255,255,255,0.45);
+      }
+      .njtc-signout-btn {
+        border-color: rgba(239,68,68,0.35);
+        color: rgba(252,165,165,0.85);
+      }
+      .njtc-signout-btn:hover {
+        background: rgba(239,68,68,0.18);
+        border-color: rgba(239,68,68,0.6);
+        color: #fca5a5;
+      }
+      .njtc-floating-logout {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        z-index: 8888;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-end;
+      }
+      @media (max-width: 640px) {
+        .njtc-floating-logout { bottom: 1rem; right: 1rem; }
+      }
+      .njtc-header-switch-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.45rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.75);
+        font-family: 'Epilogue', sans-serif;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .njtc-header-switch-btn:hover {
+        background: rgba(255,255,255,0.15);
+        color: #fff;
+      }
+
+      /* ── iReady Moving the Needle ── */
+      .njtc-ir-kpi-row {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.25rem;
+      }
+      .njtc-ir-kpi {
+        flex: 1 1 100px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 0.875rem;
+        padding: 0.85rem 1rem;
+        text-align: center;
+        min-width: 90px;
+      }
+      .njtc-ir-kpi-val {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 1.75rem;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 0.2rem;
+      }
+      .njtc-ir-kpi-lbl {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: rgba(255,255,255,0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .njtc-ir-filter-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        align-items: center;
+      }
+      .njtc-ir-filter-label {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.4);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-right: 0.25rem;
+      }
+      .njtc-ir-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      .njtc-ir-table th {
+        text-align: left;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255,255,255,0.4);
+        padding: 0.4rem 0.6rem;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
+      .njtc-ir-table td {
+        padding: 0.55rem 0.6rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        vertical-align: middle;
+        color: rgba(255,255,255,0.85);
+      }
+      .njtc-ir-table tr:last-child td { border-bottom: none; }
+      .njtc-plc-badge {
+        display: inline-block;
+        padding: 0.18rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+      }
+      .njtc-plc-arrow {
+        font-size: 1rem;
+        font-weight: 800;
+        vertical-align: middle;
+        margin: 0 0.35rem;
+      }
+      .njtc-ir-growth-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .njtc-ir-growth-track {
+        flex: 1;
+        background: rgba(255,255,255,0.08);
+        border-radius: 999px;
+        height: 8px;
+        overflow: hidden;
+        min-width: 40px;
+      }
+      .njtc-ir-growth-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.8s ease;
+      }
+      .njtc-ir-growth-pct {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.7);
+        white-space: nowrap;
+        min-width: 3.5rem;
+        text-align: right;
+      }
+      .njtc-ir-school-group {
+        margin-bottom: 1.5rem;
+      }
+      .njtc-ir-school-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255,255,255,0.4);
+        margin-bottom: 0.5rem;
+        padding-left: 0.25rem;
+      }
+      .njtc-ir-explainer {
+        padding: 0.75rem 1rem;
+        background: rgba(13,148,136,0.08);
+        border-left: 3px solid #0d9488;
+        border-radius: 0 0.5rem 0.5rem 0;
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.6);
+        margin-bottom: 1.25rem;
+        line-height: 1.55;
+      }
+      .njtc-plc-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .njtc-plc-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.55);
+      }
+      .njtc-plc-legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -960,6 +1182,476 @@
     return el;
   }
 
+  // ── Logout / Switch User buttons ─────────────────────────────────────────────
+
+  function switchUser() {
+    if (window.NJTCUserAuth) window.NJTCUserAuth.logout();
+    location.reload();
+  }
+  // Expose globally so onclick="switchUser()" works from injected HTML
+  window.njtcSwitchUser = switchUser;
+
+  function injectLogoutButtons() {
+    // ── Hero area: below the assignment card ──────────────────────────────────
+    if (!document.getElementById('njtc-hero-logout-strip')) {
+      const strip = document.createElement('div');
+      strip.id = 'njtc-hero-logout-strip';
+      strip.className = 'njtc-logout-strip';
+      strip.innerHTML = `
+        <button class="njtc-switch-btn" onclick="njtcSwitchUser()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+          </svg>
+          Switch User
+        </button>
+        <button class="njtc-switch-btn njtc-signout-btn" onclick="NJTCAuth && NJTCAuth.logout()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign Out
+        </button>`;
+
+      const heroContent = document.querySelector('.hero-content');
+      const roleSelectorCard = document.querySelector('.role-selector-card');
+      if (heroContent && roleSelectorCard) {
+        heroContent.insertBefore(strip, roleSelectorCard);
+      } else if (heroContent) {
+        heroContent.appendChild(strip);
+      }
+    }
+
+    // ── Dashboard header: add Switch User next to Change Role ─────────────────
+    if (!document.getElementById('njtc-header-switch-btn')) {
+      const headerActions = document.querySelector('.header-actions');
+      if (headerActions) {
+        const btn = document.createElement('button');
+        btn.id = 'njtc-header-switch-btn';
+        btn.className = 'njtc-header-switch-btn';
+        btn.setAttribute('onclick', 'njtcSwitchUser()');
+        btn.innerHTML = `
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+          </svg>
+          Switch User`;
+        const changeRoleBtn = headerActions.querySelector('.change-role-btn');
+        if (changeRoleBtn) {
+          headerActions.insertBefore(btn, changeRoleBtn.nextSibling);
+        } else {
+          headerActions.prepend(btn);
+        }
+      }
+    }
+
+    // ── Floating bottom-right ─────────────────────────────────────────────────
+    if (!document.getElementById('njtc-floating-logout')) {
+      const floater = document.createElement('div');
+      floater.id = 'njtc-floating-logout';
+      floater.className = 'njtc-floating-logout';
+      floater.innerHTML = `
+        <button class="njtc-switch-btn njtc-signout-btn" onclick="NJTCAuth && NJTCAuth.logout()" title="Sign out of portal completely">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Sign Out
+        </button>
+        <button class="njtc-switch-btn" onclick="njtcSwitchUser()" title="Switch to a different staff account">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+          </svg>
+          Switch User
+        </button>`;
+      document.body.appendChild(floater);
+    }
+  }
+
+  // ── iReady: constants ─────────────────────────────────────────────────────────
+
+  const IR_LIVE_2PACX    = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
+  const IR_LIVE_MATH_GID = 127145553;
+  const IR_LIVE_ELA_GID  = 0;
+  const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
+  const IR_2526_ELA_GID  = 1640935949;
+  const IR_2526_MATH_GID = 1676366557;
+  const IR_CACHE_KEY     = 'njtc_od_iready';
+  const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
+
+  // ── iReady: CSV parser (standalone for this module) ──────────────────────────
+
+  function parseIRCSV(text) {
+    const rows = [];
+    const src = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let row = [], cur = '', inQ = false;
+    for (let i = 0; i <= src.length; i++) {
+      const ch = i < src.length ? src[i] : '\n';
+      if (inQ) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') { cur += '"'; i++; }
+          else inQ = false;
+        } else cur += ch;
+      } else {
+        if      (ch === '"')  { inQ = true; }
+        else if (ch === ',')  { row.push(cur); cur = ''; }
+        else if (ch === '\n') {
+          row.push(cur); cur = '';
+          if (row.some(c => c.trim())) rows.push(row);
+          row = [];
+        } else cur += ch;
+      }
+    }
+    return rows;
+  }
+
+  // ── iReady: name normalization ────────────────────────────────────────────────
+
+  function normIRName(n) {
+    return (n || '').toLowerCase()
+      .replace(/\(.*?\)/g, '')
+      .replace(/[-']/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  // ── iReady: placement helpers ─────────────────────────────────────────────────
+
+  function plcColor(placement) {
+    const p = (placement || '').toLowerCase();
+    if (p.includes('3 or more') || p.includes('3+')) return '#dc2626';
+    if (p.includes('2 grade') || p.includes('2 level')) return '#f97316';
+    if (p.includes('1 grade') || p.includes('1 level')) return '#eab308';
+    if (p.includes('early on') || p.includes('early grade')) return '#0d9488';
+    if (p.includes('mid') || p.includes('above') || p.includes('on grade')) return '#0d6e3a';
+    return '#6b7280';
+  }
+
+  function plcShort(placement) {
+    const p = (placement || '').toLowerCase();
+    if (p.includes('3 or more') || p.includes('3+')) return '3+ Below GL';
+    if (p.includes('2 grade') || p.includes('2 level')) return '2 Below GL';
+    if (p.includes('1 grade') || p.includes('1 level')) return '1 Below GL';
+    if (p.includes('early on') || p.includes('early grade')) return 'Early GL';
+    if (p.includes('mid') || p.includes('above') || p.includes('on grade')) return 'At/Above GL';
+    return placement || '—';
+  }
+
+  function plcRank(placement) {
+    const p = (placement || '').toLowerCase();
+    if (p.includes('3 or more') || p.includes('3+')) return 0;
+    if (p.includes('2 grade') || p.includes('2 level')) return 1;
+    if (p.includes('1 grade') || p.includes('1 level')) return 2;
+    if (p.includes('early on') || p.includes('early grade')) return 3;
+    if (p.includes('mid') || p.includes('above') || p.includes('on grade')) return 4;
+    return -1;
+  }
+
+  // ── iReady: parse one CSV sheet into normalized row objects ──────────────────
+
+  function normalizeIRSheet(rows, subject) {
+    if (rows.length < 2) return [];
+    const header = rows[0].map(h => h.trim().toLowerCase());
+
+    function col(keywords) {
+      return header.findIndex(h => keywords.every(k => h.includes(k)));
+    }
+
+    const tutorCol  = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
+    const stuCol    = col(['first and last']);
+    const baseCol   = col(['base', 'overall', 'relative', 'placement']);
+    const sprCol    = col(['spring', 'overall', 'relative', 'placement']);
+    const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
+    const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['grade']);
+    const schoolCol = col(['school']);
+    const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
+
+    if (tutorCol < 0 || stuCol < 0 || baseCol < 0 || sprCol < 0) return [];
+
+    return rows.slice(1).filter(r => r[tutorCol] && r[stuCol] && r[baseCol] && r[sprCol]).map(r => {
+      let pct = parseFloat(r[growthCol]);
+      if (isNaN(pct)) pct = null;
+      else if (pct > 0 && pct <= 15) pct = Math.round(pct * 100); // ratio → integer %
+      else pct = Math.round(pct);
+      return {
+        tutorName:   (r[tutorCol] || '').trim(),
+        studentName: (r[stuCol]   || '').trim(),
+        basePLC:     (r[baseCol]  || '').trim(),
+        springPLC:   (r[sprCol]   || '').trim(),
+        pctTypical:  pct,
+        grade:       (r[gradeCol]  || '').trim(),
+        school:      (r[schoolCol] || '').trim(),
+        sy:          (r[syCol]     || '').trim(),
+        subject
+      };
+    });
+  }
+
+  // ── iReady: fetch all data for this tutor ─────────────────────────────────────
+
+  async function fetchIReadyData(userName) {
+    // Check cache
+    try {
+      const cached = JSON.parse(localStorage.getItem(IR_CACHE_KEY) || 'null');
+      if (cached && cached.ts && (Date.now() - cached.ts) < IR_CACHE_TTL && cached.rows && cached.name === userName) {
+        return cached.rows;
+      }
+    } catch (e) {}
+
+    const needle = normIRName(userName);
+
+    async function fetchCSV(url) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return [];
+        return parseIRCSV(await res.text());
+      } catch (e) { return []; }
+    }
+
+    const liveBase  = `https://docs.google.com/spreadsheets/d/e/${IR_LIVE_2PACX}/pub?output=csv&gid=`;
+    const snap2526  = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
+
+    const [liveMath, liveELA, snapMath, snapELA] = await Promise.all([
+      fetchCSV(liveBase + IR_LIVE_MATH_GID),
+      fetchCSV(liveBase + IR_LIVE_ELA_GID),
+      fetchCSV(snap2526 + IR_2526_MATH_GID),
+      fetchCSV(snap2526 + IR_2526_ELA_GID)
+    ]);
+
+    const allRows = [
+      ...normalizeIRSheet(liveMath, 'Math'),
+      ...normalizeIRSheet(liveELA, 'ELA'),
+      ...normalizeIRSheet(snapMath, 'Math'),
+      ...normalizeIRSheet(snapELA, 'ELA')
+    ].filter(r => normIRName(r.tutorName) === needle);
+
+    // Deduplicate: same student + subject + sy
+    const seen = new Set();
+    const deduped = allRows.filter(r => {
+      const key = normIRName(r.studentName) + '|' + r.subject + '|' + r.sy;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    try { localStorage.setItem(IR_CACHE_KEY, JSON.stringify({ ts: Date.now(), name: userName, rows: deduped })); } catch (e) {}
+    return deduped;
+  }
+
+  // ── iReady: build the section ─────────────────────────────────────────────────
+
+  function buildIReadySection(allRows) {
+    const el = document.createElement('div');
+    el.className = 'njtc-dash-section';
+
+    if (!allRows || !allRows.length) {
+      el.innerHTML = `<span class="njtc-section-title">📈 Are Your Students Moving Forward?</span>
+        <div class="njtc-empty-state">
+          <div class="njtc-empty-icon">📈</div>
+          <p>No i-Ready placement data found for your name yet.<br>Check back after the spring diagnostic window.</p>
+        </div>`;
+      return el;
+    }
+
+    // Collect school years and subjects
+    const sySet = new Set(allRows.map(r => r.sy).filter(Boolean));
+    const syList = [...sySet].sort().reverse();
+    const subjectSet = new Set(allRows.map(r => r.subject));
+
+    let activeSY  = syList[0] || '';
+    let activeSub = 'All';
+
+    function getFiltered() {
+      return allRows.filter(r =>
+        (!activeSY || r.sy === activeSY) &&
+        (activeSub === 'All' || r.subject === activeSub)
+      );
+    }
+
+    function computeKPIs(rows) {
+      let up = 0, same = 0, down = 0, growthSum = 0, growthCount = 0;
+      for (const r of rows) {
+        const bRank = plcRank(r.basePLC);
+        const sRank = plcRank(r.springPLC);
+        if (bRank >= 0 && sRank >= 0) {
+          if (sRank > bRank)       up++;
+          else if (sRank === bRank) same++;
+          else                      down++;
+        }
+        if (r.pctTypical !== null) { growthSum += r.pctTypical; growthCount++; }
+      }
+      const total = up + same + down;
+      return {
+        up, same, down, total,
+        pctImproved: total > 0 ? Math.round((up / total) * 100) : null,
+        medianGrowth: growthCount > 0 ? Math.round(growthSum / growthCount) : null
+      };
+    }
+
+    function growthColor(pct) {
+      if (pct === null) return '#6b7280';
+      if (pct >= 100) return '#22c55e';
+      if (pct >= 50)  return '#f59e0b';
+      return '#ef4444';
+    }
+
+    function arrowHtml(basePLC, springPLC) {
+      const b = plcRank(basePLC), s = plcRank(springPLC);
+      if (b < 0 || s < 0) return '<span class="njtc-plc-arrow" style="color:rgba(255,255,255,0.3);">→</span>';
+      if (s > b) return '<span class="njtc-plc-arrow" style="color:#22c55e;">↑</span>';
+      if (s < b) return '<span class="njtc-plc-arrow" style="color:#ef4444;">↓</span>';
+      return '<span class="njtc-plc-arrow" style="color:rgba(255,255,255,0.4);">→</span>';
+    }
+
+    function renderContent() {
+      const filtered = getFiltered();
+      const kpis = computeKPIs(filtered);
+
+      // KPI row
+      const kpiHtml = `<div class="njtc-ir-kpi-row">
+        <div class="njtc-ir-kpi">
+          <div class="njtc-ir-kpi-val" style="color:#22c55e;">${kpis.up}</div>
+          <div class="njtc-ir-kpi-lbl">Moved Up</div>
+        </div>
+        <div class="njtc-ir-kpi">
+          <div class="njtc-ir-kpi-val" style="color:rgba(255,255,255,0.5);">${kpis.same}</div>
+          <div class="njtc-ir-kpi-lbl">Stayed Same</div>
+        </div>
+        <div class="njtc-ir-kpi">
+          <div class="njtc-ir-kpi-val" style="color:#ef4444;">${kpis.down}</div>
+          <div class="njtc-ir-kpi-lbl">Moved Down</div>
+        </div>
+        <div class="njtc-ir-kpi">
+          <div class="njtc-ir-kpi-val" style="color:${growthColor(kpis.pctImproved)};">${kpis.pctImproved !== null ? kpis.pctImproved + '%' : '—'}</div>
+          <div class="njtc-ir-kpi-lbl">% Improved</div>
+        </div>
+        <div class="njtc-ir-kpi">
+          <div class="njtc-ir-kpi-val" style="color:${growthColor(kpis.medianGrowth)};">${kpis.medianGrowth !== null ? kpis.medianGrowth + '%' : '—'}</div>
+          <div class="njtc-ir-kpi-lbl">Avg Growth vs Typical</div>
+        </div>
+      </div>`;
+
+      if (!filtered.length) {
+        return kpiHtml + `<div class="njtc-empty-state"><p>No data for this filter combination.</p></div>`;
+      }
+
+      // Group by school then subject
+      const schoolGroups = {};
+      for (const r of filtered) {
+        const school = r.school || 'Unknown School';
+        if (!schoolGroups[school]) schoolGroups[school] = [];
+        schoolGroups[school].push(r);
+      }
+
+      const schoolHtml = Object.entries(schoolGroups).sort((a, b) => a[0].localeCompare(b[0])).map(([school, rows]) => {
+        const rowsHtml = rows.map(r => {
+          const bColor = plcColor(r.basePLC);
+          const sColor = plcColor(r.springPLC);
+          const growPct = r.pctTypical !== null ? Math.min(Math.max(r.pctTypical, 0), 200) : null;
+          const barFill = growPct !== null ? Math.min(growPct / 200 * 100, 100) : 0;
+          const subjectTag = activeSub === 'All' ? `<span style="font-size:0.7rem;color:rgba(255,255,255,0.35);margin-left:0.25rem;">${esc(r.subject)}</span>` : '';
+          return `<tr>
+            <td>${esc(toInitials(r.studentName))}${subjectTag}</td>
+            <td><span style="font-size:0.75rem;color:rgba(255,255,255,0.5);">Gr ${esc(r.grade || '?')}</span></td>
+            <td>
+              <span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
+              ${arrowHtml(r.basePLC, r.springPLC)}
+              <span class="njtc-plc-badge" style="background:${sColor};">${esc(plcShort(r.springPLC))}</span>
+            </td>
+            <td>
+              <div class="njtc-ir-growth-bar">
+                <div class="njtc-ir-growth-track">
+                  <div class="njtc-ir-growth-fill" style="width:${barFill}%;background:${growthColor(r.pctTypical)};"></div>
+                </div>
+                <span class="njtc-ir-growth-pct">${r.pctTypical !== null ? r.pctTypical + '%' : '—'}</span>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+
+        return `<div class="njtc-ir-school-group">
+          <div class="njtc-ir-school-label">${esc(school)}</div>
+          <div style="overflow-x:auto;">
+            <table class="njtc-ir-table">
+              <thead><tr>
+                <th>Student</th>
+                <th>Grade</th>
+                <th>Placement Change</th>
+                <th>Growth vs Typical</th>
+              </tr></thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>`;
+      }).join('');
+
+      return kpiHtml + schoolHtml;
+    }
+
+    function rebuildContent() {
+      const body = el.querySelector('#njtc-ir-body');
+      if (body) body.innerHTML = renderContent();
+    }
+
+    const syTabsHtml = syList.map((sy, i) =>
+      `<button class="njtc-tab-btn${i === 0 ? ' active' : ''}" data-sy="${esc(sy)}">${esc(sy || 'All Years')}</button>`
+    ).join('');
+
+    const subjectTabsHtml = ['All', ...subjectSet].map((sub, i) =>
+      `<button class="njtc-tab-btn${i === 0 ? ' active' : ''}" data-sub="${esc(sub)}">${esc(sub)}</button>`
+    ).join('');
+
+    el.innerHTML = `
+      <span class="njtc-section-title">📈 Are Your Students Moving Forward?</span>
+      <div class="njtc-ir-explainer">
+        This shows how your students' placement level changed from the start of the year to spring.
+        "Moved Up" means they jumped to a higher reading or math level — that's your impact.
+        Growth vs Typical shows progress as a % of what we'd expect from an average student with no tutoring (100% = typical growth).
+      </div>
+      <div class="njtc-plc-legend">
+        <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#dc2626;"></span>3+ Below GL</span>
+        <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#f97316;"></span>2 Below GL</span>
+        <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#eab308;"></span>1 Below GL</span>
+        <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#0d9488;"></span>Early GL</span>
+        <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#0d6e3a;"></span>At/Above GL</span>
+      </div>
+      <div class="njtc-ir-filter-row">
+        <span class="njtc-ir-filter-label">Year:</span>
+        <div id="njtc-ir-sy-tabs">${syTabsHtml}</div>
+      </div>
+      ${subjectSet.size > 1 ? `<div class="njtc-ir-filter-row">
+        <span class="njtc-ir-filter-label">Subject:</span>
+        <div id="njtc-ir-sub-tabs">${subjectTabsHtml}</div>
+      </div>` : ''}
+      <div id="njtc-ir-body">${renderContent()}</div>
+    `;
+
+    // Wire SY tabs
+    el.querySelectorAll('#njtc-ir-sy-tabs .njtc-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('#njtc-ir-sy-tabs .njtc-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeSY = btn.dataset.sy;
+        rebuildContent();
+      });
+    });
+
+    // Wire subject tabs
+    el.querySelectorAll('#njtc-ir-sub-tabs .njtc-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('#njtc-ir-sub-tabs .njtc-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeSub = btn.dataset.sub;
+        rebuildContent();
+      });
+    });
+
+    return el;
+  }
+
   // ── Error section ────────────────────────────────────────────────────────────
 
   function buildErrorSection(msg) {
@@ -978,6 +1670,7 @@
     if (!user || !user.pearlId) return;
 
     injectStyles();
+    injectLogoutButtons();
 
     // -- KPI strip (hero area) --
     const heroContent = document.querySelector('.hero-content');
@@ -1009,11 +1702,14 @@
         sectionSkeleton() + sectionSkeleton() + sectionSkeleton();
     }
 
-    // -- Fetch data --
-    let data;
+    // -- Fetch Pearl + iReady data in parallel --
+    let data, irRows;
     try {
       if (!window.NJTCPearlData) throw new Error('NJTCPearlData not loaded');
-      data = await window.NJTCPearlData.fetchUserData(user.pearlId);
+      [data, irRows] = await Promise.all([
+        window.NJTCPearlData.fetchUserData(user.pearlId),
+        fetchIReadyData(user.name).catch(() => [])
+      ]);
     } catch (err) {
       if (kpiStrip) {
         kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
@@ -1037,6 +1733,7 @@
         buildMissedSection(data),
         buildScholarSection(data),
         buildScholarMissedSection(data),
+        buildIReadySection(irRows || []),
         buildScoresSection(data),
         buildSurveySection(data),
         buildSISection(data)
