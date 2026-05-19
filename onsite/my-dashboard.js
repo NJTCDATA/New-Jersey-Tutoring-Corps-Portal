@@ -1109,7 +1109,7 @@
     strip.innerHTML =
       kpiSkeletonCard('My Attendance', 'Goal: 90%') +
       kpiSkeletonCard('Sessions Done', 'this school year') +
-      kpiSkeletonCard('Students I Work With', 'across my sessions') +
+      kpiSkeletonCard('Unique Scholars', 'this year · Pearl ops') +
       kpiSkeletonCard('Surveys Filed', 'keep it at 100%');
     return strip;
   }
@@ -1130,8 +1130,8 @@
       </div>
       <div class="njtc-kpi-card">
         <div class="njtc-kpi-value">${data.uniqueScholarCount != null ? data.uniqueScholarCount : data.scholars.length}</div>
-        <div class="njtc-kpi-label">Students I Work With</div>
-        <div class="njtc-kpi-sub">across my sessions</div>
+        <div class="njtc-kpi-label">Unique Scholars</div>
+        <div class="njtc-kpi-sub">this year · Pearl ops</div>
       </div>
       <div class="njtc-kpi-card">
         <div class="njtc-kpi-value" style="color:${surveyColor(data.surveyRate || 0)};">${data.surveyRate !== null ? data.surveyRate + '%' : '—'}</div>
@@ -2288,13 +2288,15 @@
     ).join('');
 
     el.innerHTML = `
-      <span class="njtc-section-title">📈 Are Your Students Moving Forward?
-        <span class="njtc-eoy-pill">EOY Data</span>
+      <span class="njtc-section-title">📈 Academic Impact — iReady Diagnostics
+        <span class="njtc-eoy-pill">EOY · Historical</span>
       </span>
       <div class="njtc-ir-explainer">
-        Showing End-of-Year (EOY) diagnostic placements across all years your students have been tested.
-        "Moved Up" means they jumped to a higher placement level — that's your direct impact.
-        Growth vs Typical shows progress as a % of expected growth with no tutoring (100% = on track).
+        This section shows <strong>End-of-Year iReady diagnostic data</strong> for scholars you've worked with — this is separate from your current-year operational data (Pearl). Your live roster and attendance for <strong>this school year</strong> lives in the sections above.
+        <br><br>
+        "Moved Up" = a scholar jumped at least one placement level — that's your direct impact.
+        Growth vs Typical = progress as a % of expected growth (100% = on pace with no tutoring).
+        Scholars are grouped by school year so you can see your impact over time.
         <em style="color:rgba(255,255,255,0.35);display:block;margin-top:0.3rem;">Mid-Year (MOY) data will be integrated when available.</em>
       </div>
       <div class="njtc-plc-legend">
