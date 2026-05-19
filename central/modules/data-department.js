@@ -214,10 +214,10 @@
         ell:              g(r,'English language learner','english_language_learner'),
         sped:             g(r,'Special education','special_education'),
         ecodis:           g(r,'Economically disadvantaged','economically_disadvantaged'),
-        baseRelPlacement: g(r,'Base overall relative placement','base_overall_relative_placement'),
+        baseRelPlacement: _normPlacement(g(r,'Base overall relative placement','base_overall_relative_placement')),
         baseScore:        parseFloat(g(r,'Base overall scale score','base_overall_scale_score'))||null,
         baseRushFlag:     g(r,'Base rush flag','base_rush_flag'),
-        springRelPlacement:g(r,'Spring overall relative placement','spring_overall_relative_placement'),
+        springRelPlacement:_normPlacement(g(r,'Spring overall relative placement','spring_overall_relative_placement')),
         springScore:      parseFloat(g(r,'Spring overall scale score','spring_overall_scale_score'))||null,
         springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
@@ -722,17 +722,6 @@
         var dem = spr || win || rows[0];
         if (!dem) return;
 
-        // Debug: log pilot rows so we can diagnose pairing issues
-        var _pilotFlag = g(dem,'Pilot Program','pilot_program','Pilot','pilot') ||
-                         g(spr||{},'Pilot Program','pilot_program','Pilot','pilot') ||
-                         g(win||{},'Pilot Program','pilot_program','Pilot','pilot');
-        if (/yes/i.test((_pilotFlag||'').trim())) {
-          var _nwVals = rows.map(function(r){ return g(r,'Norming Window','norming_window')||'(blank)'; });
-          var _baseRP = g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement');
-          var _sprRP  = g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement');
-          console.log('[irlab-pilot-debug] sid='+sid+' rows='+rows.length+' norming_windows='+JSON.stringify(_nwVals)+' win='+(win?'found':'MISSING')+' spr='+(spr?'found':'MISSING')+' baseRP="'+_baseRP+'" sprRP="'+_sprRP+'"');
-        }
-
         // parseFloat helper — returns null instead of NaN
         function _pf(row) {
           var keys = Array.prototype.slice.call(arguments, 1);
@@ -802,12 +791,12 @@
           ecodis:             g(dem,'Economically Disadvantaged','economically_disadvantaged'),
           // Base (Winter) fields
           baseScore:          _pf(win,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
-          baseRelPlacement:   g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement'),
+          baseRelPlacement:   _normPlacement(g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement')),
           basePlacement:      g(win||{},'Overall Placement','overall_placement','Placement','placement'),
           baseRushFlag:       '',
           // Spring fields
           springScore:        _pf(spr,'Overall Scale Score','overall_scale_score','Scale Score','scale_score'),
-          springRelPlacement: g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement'),
+          springRelPlacement: _normPlacement(g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement')),
           springPlacement:    g(spr||{},'Overall Placement','overall_placement','Placement','placement'),
           springGain:         _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain'),
           springPercentile:   _pf(spr,'Percentile','percentile'),
@@ -1094,6 +1083,16 @@
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+    // Normalize written-out placement variants (pilot schools) to canonical PLACEMENT_ORDER strings
+    const _normPlacement = (v) => {
+      if (!v) return v;
+      switch (v.trim()) {
+        case 'Three or More Grade Levels Below': return '3 or More Grade Levels Below';
+        case 'Two Grade Levels Below':           return '2 Grade Levels Below';
+        case 'One Grade Level Below':            return '1 Grade Level Below';
+        default: return v;
+      }
+    };
     const pct   = (n,d) => d>0?Math.round(n/d*100):0;
     const avg   = arr  => arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
     const esc   = s    => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
