@@ -722,6 +722,17 @@
         var dem = spr || win || rows[0];
         if (!dem) return;
 
+        // Debug: log pilot rows so we can diagnose pairing issues
+        var _pilotFlag = g(dem,'Pilot Program','pilot_program','Pilot','pilot') ||
+                         g(spr||{},'Pilot Program','pilot_program','Pilot','pilot') ||
+                         g(win||{},'Pilot Program','pilot_program','Pilot','pilot');
+        if (/yes/i.test((_pilotFlag||'').trim())) {
+          var _nwVals = rows.map(function(r){ return g(r,'Norming Window','norming_window')||'(blank)'; });
+          var _baseRP = g(win||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement');
+          var _sprRP  = g(spr||{},'Overall Relative Placement','overall_relative_placement','Relative Placement','relative_placement');
+          console.log('[irlab-pilot-debug] sid='+sid+' rows='+rows.length+' norming_windows='+JSON.stringify(_nwVals)+' win='+(win?'found':'MISSING')+' spr='+(spr?'found':'MISSING')+' baseRP="'+_baseRP+'" sprRP="'+_sprRP+'"');
+        }
+
         // parseFloat helper — returns null instead of NaN
         function _pf(row) {
           var keys = Array.prototype.slice.call(arguments, 1);
