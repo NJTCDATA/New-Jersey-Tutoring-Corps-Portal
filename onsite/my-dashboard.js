@@ -844,6 +844,20 @@
         border-color: rgba(34,197,94,0.35) !important;
         background: rgba(34,197,94,0.08) !important;
       }
+
+      /* ── Scrollable section bodies ── */
+      .njtc-scroll-body {
+        max-height: 520px;
+        overflow-y: auto;
+        padding-right: 4px;
+      }
+      .njtc-scroll-body::-webkit-scrollbar { width: 4px; }
+      .njtc-scroll-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 2px; }
+      .njtc-scroll-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+      .njtc-ir-scroll { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+      .njtc-ir-scroll::-webkit-scrollbar { width: 4px; }
+      .njtc-ir-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 2px; }
+      .njtc-ir-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
     `;
     document.head.appendChild(style);
   }
@@ -1060,9 +1074,11 @@
         <button class="njtc-tab-btn" data-tab="needs">🎯 Need Attention</button>
         <button class="njtc-tab-btn" data-tab="good">✅ Good</button>
       </div>
-      <div id="njtc-scholar-tab-all">${allHtml}</div>
-      <div id="njtc-scholar-tab-needs" style="display:none;">${needsHtml}</div>
-      <div id="njtc-scholar-tab-good" style="display:none;">${goodHtml}</div>
+      <div class="njtc-scroll-body">
+        <div id="njtc-scholar-tab-all">${allHtml}</div>
+        <div id="njtc-scholar-tab-needs" style="display:none;">${needsHtml}</div>
+        <div id="njtc-scholar-tab-good" style="display:none;">${goodHtml}</div>
+      </div>
     `;
 
     el.querySelectorAll('.njtc-tab-btn').forEach(btn => {
@@ -1330,7 +1346,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v3';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v4';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -1466,10 +1482,66 @@
     });
   }
 
+  // ── iReady: 25-26 sheet — match by Pearl scholar ID or name (not tutor name) ────
+
+  function normalizeIRSheet2526(rows, subject, scholarIds, scholarNames) {
+    if (rows.length < 2) return [];
+    if ((!scholarIds || scholarIds.size === 0) && (!scholarNames || scholarNames.size === 0)) return [];
+
+    const header = rows[0].map(h => h.trim().toLowerCase());
+    function col(keywords) {
+      return header.findIndex(h => keywords.every(k => h.includes(k)));
+    }
+
+    // Try to find a student ID column (Pearl USER_ID may equal district student ID)
+    const stuIdCol = col(['student', 'id']) >= 0 ? col(['student', 'id']) : col(['id']);
+    const stuCol   = col(['first and last']) >= 0 ? col(['first and last']) : col(['student', 'name']);
+    const baseCol  = col(['base', 'overall', 'relative', 'placement']);
+    if (stuCol < 0 || baseCol < 0) return [];
+
+    const sprCol    = col(['spring', 'overall', 'relative', 'placement']);
+    const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
+    const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['grade']);
+    const schoolCol = col(['school']);
+    const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
+    const tutorCol  = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
+
+    return rows.slice(1).filter(r => {
+      if (!(r[stuCol] || '').trim() || !(r[baseCol] || '').trim()) return false;
+      // Primary: match by Pearl student ID = iReady student ID
+      if (stuIdCol >= 0 && scholarIds && scholarIds.size > 0) {
+        const sid = (r[stuIdCol] || '').trim();
+        if (sid && scholarIds.has(sid)) return true;
+      }
+      // Fallback: match by normalized student name
+      if (scholarNames && scholarNames.size > 0) {
+        const sName = normIRName(r[stuCol] || '');
+        if (sName.length > 2 && scholarNames.has(sName)) return true;
+      }
+      return false;
+    }).map(r => {
+      let pct = parseFloat(r[growthCol]);
+      if (isNaN(pct)) pct = null;
+      else if (pct > 0 && pct <= 15) pct = Math.round(pct * 100);
+      else pct = Math.round(pct);
+      return {
+        tutorName:   tutorCol >= 0 ? (r[tutorCol] || '').trim() : 'pearl-matched',
+        studentName: (r[stuCol]   || '').trim(),
+        basePLC:     (r[baseCol]  || '').trim(),
+        springPLC:   sprCol >= 0 ? (r[sprCol] || '').trim() : '',
+        pctTypical:  pct,
+        grade:       (r[gradeCol]  || '').trim(),
+        school:      (r[schoolCol] || '').trim(),
+        sy:          (r[syCol]     || '').trim() || '2025-2026',
+        subject
+      };
+    });
+  }
+
   // ── iReady: fetch all data for this tutor ─────────────────────────────────────
 
-  async function fetchIReadyData(userName) {
-    // Check cache
+  async function fetchIReadyData(userName, scholarIds, scholarNames) {
+    // Cache check — keyed by name; scholar IDs change how 25-26 is matched but not longtudinal
     try {
       const cached = JSON.parse(localStorage.getItem(IR_CACHE_KEY) || 'null');
       if (cached && cached.ts && (Date.now() - cached.ts) < IR_CACHE_TTL && cached.rows && cached.name === userName) {
@@ -1478,6 +1550,17 @@
     } catch (e) {}
 
     const needle = normIRName(userName);
+    const needleWords = needle.split(' ').filter(w => w.length >= 3);
+
+    // LONGITUDINAL name match: require all name tokens to appear — NO first-name-only fallback
+    // (first-name-only matching caused wrong tutors with the same first name to be included)
+    function matchesTutor(rawName) {
+      const norm = normIRName(rawName);
+      if (norm === needle) return true;
+      // Handle "Last, First" or reversed formats: every word in the full name must appear
+      if (needleWords.length >= 2 && needleWords.every(w => norm.includes(w))) return true;
+      return false;
+    }
 
     async function fetchCSV(url) {
       try {
@@ -1487,8 +1570,8 @@
       } catch (e) { return []; }
     }
 
-    const liveBase  = `https://docs.google.com/spreadsheets/d/e/${IR_LIVE_2PACX}/pub?output=csv&gid=`;
-    const snap2526  = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
+    const liveBase = `https://docs.google.com/spreadsheets/d/e/${IR_LIVE_2PACX}/pub?output=csv&gid=`;
+    const snap2526 = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
 
     const [liveMath, liveELA, snapMath, snapELA] = await Promise.all([
       fetchCSV(liveBase + IR_LIVE_MATH_GID),
@@ -1497,27 +1580,23 @@
       fetchCSV(snap2526 + IR_2526_ELA_GID)
     ]);
 
-    // Match tutor by name — try exact first, then token-based for "Last, First" formats
-    const needleWords = needle.split(' ').filter(w => w.length >= 3);
-    function matchesTutor(rawName) {
-      const norm = normIRName(rawName);
-      if (norm === needle) return true;
-      // Handle "Last, First" or partial name formats: all needle words must appear in the name
-      if (needleWords.length >= 2 && needleWords.every(w => norm.includes(w))) return true;
-      // First-name-only match (when first name is long enough to be unique, ≥5 chars)
-      const firstWord = needleWords[0] || '';
-      if (firstWord.length >= 5 && norm.split(' ').includes(firstWord)) return true;
-      return false;
-    }
-
-    const allRows = [
+    // LONGITUDINAL rows (live 2PACX = all historical years): match by tutor full name
+    const longitudinalRows = [
       ...normalizeIRSheet(liveMath, 'Math'),
-      ...normalizeIRSheet(liveELA, 'ELA'),
-      ...normalizeIRSheet(snapMath, 'Math'),
-      ...normalizeIRSheet(snapELA, 'ELA')
+      ...normalizeIRSheet(liveELA, 'ELA')
     ].filter(r => matchesTutor(r.tutorName));
 
-    // Deduplicate: same student + subject + sy
+    // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
+    // because 25-26 data is linked via Pearl student records, not tutor attribution
+    const rows2526 = [
+      ...normalizeIRSheet2526(snapMath, 'Math', scholarIds, scholarNames),
+      ...normalizeIRSheet2526(snapELA, 'ELA', scholarIds, scholarNames)
+    ];
+
+    // Combine: longitudinal first, 25-26 supplements any missing records
+    const allRows = [...longitudinalRows, ...rows2526];
+
+    // Deduplicate: same student + subject + school year
     const seen = new Set();
     const deduped = allRows.filter(r => {
       const key = normIRName(r.studentName) + '|' + r.subject + '|' + r.sy;
@@ -1704,7 +1783,7 @@
 
         return `<div class="njtc-ir-school-group">
           <div class="njtc-ir-school-label">${esc(school)}</div>
-          <div style="overflow-x:auto;">
+          <div class="njtc-ir-scroll" style="overflow-x:auto;">
             <table class="njtc-ir-table">
               <thead><tr>
                 <th>Student</th>
@@ -1823,14 +1902,15 @@
         sectionSkeleton() + sectionSkeleton() + sectionSkeleton();
     }
 
-    // -- Fetch Pearl + iReady data in parallel --
+    // -- Fetch Pearl first, then iReady using scholar IDs for 25-26 matching --
     let data, irRows;
     try {
       if (!window.NJTCPearlData) throw new Error('NJTCPearlData not loaded');
-      [data, irRows] = await Promise.all([
-        window.NJTCPearlData.fetchUserData(pearlId),
-        fetchIReadyData(user.name).catch(() => [])
-      ]);
+      data = await window.NJTCPearlData.fetchUserData(pearlId);
+      // Build scholar lookup sets so 25-26 iReady snapshot can match by student ID/name
+      const scholarIds   = new Set(data.scholars.map(s => s.id).filter(Boolean));
+      const scholarNames = new Set(data.scholars.map(s => normIRName(s.name)).filter(n => n.length > 2));
+      irRows = await fetchIReadyData(user.name, scholarIds, scholarNames).catch(() => []);
     } catch (err) {
       if (kpiStrip) {
         kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
