@@ -347,6 +347,55 @@
     const surveyCount = myInstSurveys.length;
     const surveyRate = myAttended > 0 ? Math.round((surveyCount / myAttended) * 100) : null;
 
+    // Action items: not-recorded sessions + attended sessions missing a survey
+    // "Recent" = the 2 most recent weeks by session date
+    const sortedByDate = myInstRows.slice().sort((a, b) => {
+      const da = (a[ATT.SESS_DATE] || '').trim();
+      const db = (b[ATT.SESS_DATE] || '').trim();
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    const mostRecentWeek = sortedByDate.length
+      ? (sortedByDate[sortedByDate.length - 1][ATT.WEEK] || '').trim() : null;
+    let prevWeek = null;
+    for (let i = sortedByDate.length - 1; i >= 0; i--) {
+      const w = (sortedByDate[i][ATT.WEEK] || '').trim();
+      if (w && w !== mostRecentWeek) { prevWeek = w; break; }
+    }
+    const recentWeeks = new Set([mostRecentWeek, prevWeek].filter(Boolean));
+
+    const notRecordedSessions = myInstRows
+      .filter(r => classifyRow(r, true) === 'not_recorded')
+      .map(r => ({
+        date:   (r[ATT.SESS_DATE] || '').trim(),
+        school: (r[ATT.SCHOOL]   || '').trim(),
+        week:   (r[ATT.WEEK]     || '').trim(),
+        recent: recentWeeks.has((r[ATT.WEEK] || '').trim())
+      }));
+
+    const surveyedSessionIds = new Set(
+      myInstSurveys.map(r => (r[INST.SESS_ID] || '').trim()).filter(Boolean)
+    );
+    const missingSurveys = myInstRows
+      .filter(r => {
+        if (classifyRow(r, true) !== 'attended') return false;
+        const sid = (r[ATT.SESSION] || '').trim();
+        return sid && !surveyedSessionIds.has(sid);
+      })
+      .map(r => ({
+        date:   (r[ATT.SESS_DATE] || '').trim(),
+        school: (r[ATT.SCHOOL]   || '').trim(),
+        week:   (r[ATT.WEEK]     || '').trim(),
+        recent: recentWeeks.has((r[ATT.WEEK] || '').trim())
+      }));
+
+    // Data range: first and last session dates across all instructor rows
+    const allDates = myInstRows
+      .map(r => (r[ATT.SESS_DATE] || '').trim()).filter(Boolean).sort();
+    const dataRange = {
+      first: allDates[0] || null,
+      last:  allDates[allDates.length - 1] || null
+    };
+
     // Student surveys about my sessions (filled_for_id = my ID)
     const myStuSurveys = stuRows.filter(r =>
       (r[STU.FILLED_FOR_ID] || '').trim() === pearlUserId
@@ -374,6 +423,7 @@
       scholars, uniqueScholarCount, scholarMissedReasons,
       serviceInterruptions: mySI, siReasons,
       surveyCount, surveyRate,
+      notRecordedSessions, missingSurveys, dataRange, mostRecentWeek,
       stuAvgScores: {
         confidence: toFixed1(avg(stuScores.confidence)),
         enjoyment:  toFixed1(avg(stuScores.enjoyment)),

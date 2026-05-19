@@ -845,6 +845,91 @@
         background: rgba(34,197,94,0.08) !important;
       }
 
+      /* ── Action Items ── */
+      .njtc-action-section {
+        background: linear-gradient(135deg, rgba(251,191,36,0.07) 0%, rgba(245,158,11,0.04) 100%);
+        border: 1px solid rgba(251,191,36,0.28) !important;
+      }
+      .njtc-action-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.9rem;
+      }
+      .njtc-action-title {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 0.78rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #fbbf24;
+      }
+      .njtc-action-badge {
+        background: rgba(251,191,36,0.15);
+        color: #fbbf24;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.15rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid rgba(251,191,36,0.3);
+      }
+      .njtc-action-group { margin-bottom: 0.75rem; }
+      .njtc-action-group-lbl {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.3rem;
+      }
+      .njtc-action-item {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.82rem;
+        color: rgba(255,255,255,0.7);
+        padding: 0.28rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+      }
+      .njtc-action-item:last-child { border-bottom: none; }
+      .njtc-action-item-sep { color: rgba(255,255,255,0.25); }
+      .njtc-action-footer {
+        font-size: 0.7rem;
+        color: rgba(255,255,255,0.3);
+        margin-top: 0.75rem;
+        padding-top: 0.6rem;
+        border-top: 1px solid rgba(255,255,255,0.06);
+        line-height: 1.5;
+      }
+      .njtc-data-context-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.67rem;
+        color: rgba(255,255,255,0.3);
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.07);
+        border-radius: 999px;
+        padding: 0.18rem 0.55rem;
+        margin-top: 0.6rem;
+      }
+      .njtc-eoy-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.67rem;
+        font-weight: 700;
+        color: rgba(255,184,28,0.75);
+        background: rgba(255,184,28,0.08);
+        border: 1px solid rgba(255,184,28,0.2);
+        border-radius: 999px;
+        padding: 0.2rem 0.6rem;
+        margin-left: 0.5rem;
+        vertical-align: middle;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
       /* ── Scrollable section bodies ── */
       .njtc-scroll-body {
         max-height: 520px;
@@ -921,6 +1006,79 @@
       </div>`;
   }
 
+  // ── Date formatter ───────────────────────────────────────────────────────────
+
+  function fmtDate(d) {
+    if (!d) return '';
+    try {
+      const dt = new Date(d + (d.includes('T') ? '' : 'T00:00:00'));
+      if (isNaN(dt.getTime())) return d;
+      return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (e) { return d; }
+  }
+
+  function fmtDateLong(d) {
+    if (!d) return '';
+    try {
+      const dt = new Date(d + (d.includes('T') ? '' : 'T00:00:00'));
+      if (isNaN(dt.getTime())) return d;
+      return dt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) { return d; }
+  }
+
+  // ── Section 0: Action Items ──────────────────────────────────────────────────
+
+  function buildActionSection(data) {
+    const notRecorded    = (data.notRecordedSessions || []).filter(r => r.recent);
+    const missingSurveys = (data.missingSurveys      || []).filter(r => r.recent);
+    if (!notRecorded.length && !missingSurveys.length) return null;
+
+    const total = notRecorded.length + missingSurveys.length;
+
+    function itemList(items, max) {
+      const shown = items.slice(0, max);
+      const more  = items.length - shown.length;
+      return shown.map(item =>
+        `<div class="njtc-action-item">
+          <span style="min-width:52px;color:rgba(255,255,255,0.5);">${esc(fmtDate(item.date))}</span>
+          <span class="njtc-action-item-sep">—</span>
+          <span>${esc(item.school || 'Unknown school')}</span>
+        </div>`
+      ).join('') +
+      (more > 0
+        ? `<div class="njtc-action-item" style="color:rgba(255,255,255,0.35);font-style:italic;">+${more} more</div>`
+        : '');
+    }
+
+    const rangeNote = data.dataRange && data.dataRange.last
+      ? `Your PEARL data covers sessions from ${esc(fmtDateLong(data.dataRange.first))} through ${esc(fmtDateLong(data.dataRange.last))}.`
+      : '';
+
+    const el = document.createElement('div');
+    el.className = 'njtc-dash-section njtc-action-section';
+    el.innerHTML = `
+      <div class="njtc-action-header">
+        <div class="njtc-action-title">⚡ Action Needed — This Week</div>
+        <span class="njtc-action-badge">${total} item${total !== 1 ? 's' : ''}</span>
+      </div>
+      ${notRecorded.length ? `
+        <div class="njtc-action-group">
+          <div class="njtc-action-group-lbl">📋 Attendance not recorded (${notRecorded.length})</div>
+          ${itemList(notRecorded, 6)}
+        </div>` : ''}
+      ${missingSurveys.length ? `
+        <div class="njtc-action-group">
+          <div class="njtc-action-group-lbl">📝 Session surveys not filed (${missingSurveys.length})</div>
+          ${itemList(missingSurveys, 6)}
+        </div>` : ''}
+      <div class="njtc-action-footer">
+        Data reflects sessions through the previous week — log into PEARL to complete these items.
+        ${rangeNote}
+      </div>
+    `;
+    return el;
+  }
+
   // ── Section 1: Attendance ────────────────────────────────────────────────────
 
   function buildAttendanceSection(data) {
@@ -975,6 +1133,14 @@
           </div>
         </div>
       </div>`;
+
+    // Data context pill: show full program date range
+    if (data.dataRange && data.dataRange.first && data.dataRange.last) {
+      const pill = document.createElement('div');
+      pill.className = 'njtc-data-context-pill';
+      pill.innerHTML = `📅 Showing your full program history · ${esc(fmtDateLong(data.dataRange.first))} – ${esc(fmtDateLong(data.dataRange.last))} · Data reflects the previous week`;
+      el.appendChild(pill);
+    }
 
     requestAnimationFrame(() => {
       const circles = el.querySelectorAll('circle[stroke-dasharray]');
@@ -1814,11 +1980,14 @@
     ).join('');
 
     el.innerHTML = `
-      <span class="njtc-section-title">📈 Are Your Students Moving Forward?</span>
+      <span class="njtc-section-title">📈 Are Your Students Moving Forward?
+        <span class="njtc-eoy-pill">EOY Data</span>
+      </span>
       <div class="njtc-ir-explainer">
-        This shows how your students' placement level changed from the start of the year to spring.
-        "Moved Up" means they jumped to a higher reading or math level — that's your impact.
-        Growth vs Typical shows progress as a % of what we'd expect from an average student with no tutoring (100% = typical growth).
+        Showing End-of-Year (EOY) diagnostic placements across all years your students have been tested.
+        "Moved Up" means they jumped to a higher placement level — that's your direct impact.
+        Growth vs Typical shows progress as a % of expected growth with no tutoring (100% = on track).
+        <em style="color:rgba(255,255,255,0.35);display:block;margin-top:0.3rem;">Mid-Year (MOY) data will be integrated when available.</em>
       </div>
       <div class="njtc-plc-legend">
         <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#dc2626;"></span>3+ Below GL</span>
@@ -1930,8 +2099,9 @@
       dashPlaceholder.innerHTML = '';
 
       const sections = [
+        buildActionSection(data),           // pending items this week — only shown if there are any
         buildAttendanceSection(data),
-        buildIReadySection(irRows || []),   // impact front-and-center, right after your record
+        buildIReadySection(irRows || []),
         buildMissedSection(data),
         buildScholarSection(data),
         buildScholarMissedSection(data),
