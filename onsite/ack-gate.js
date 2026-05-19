@@ -11,51 +11,33 @@ function getTodayKey() {
     const day = String(now.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 }
+function getPearlSessionId() {
+    try {
+        const p = JSON.parse(localStorage.getItem('njtc_user_v1') || 'null');
+        if (p && p.id && p.expires > Date.now()) return p.id;
+    } catch(e) {}
+    return null;
+}
 function init() {
     if (DEBUG) console.log('🚀 NJTC Acknowledgement Gate Initializing...');
-    let uid = localStorage.getItem(UID_KEY);
-    if (!uid || uid.trim().length < 3) {
-        showUIDModal();
+    // Get UID from Pearl ID session (preferred) or stored NJTC_UID
+    let uid = getPearlSessionId();
+    if (!uid) uid = localStorage.getItem(UID_KEY);
+
+    if (uid && uid.trim().length >= 3) {
+        localStorage.setItem(UID_KEY, uid); // keep in sync
+        checkDailyAcknowledgement(uid);
     } else {
-        checkDailyAcknowledgement(uid);
+        // No UID yet — wait for Pearl ID login to complete
+        document.addEventListener('userProfileReady', function onReady(e) {
+            document.removeEventListener('userProfileReady', onReady);
+            const p = e.detail;
+            if (p && p.id) {
+                localStorage.setItem(UID_KEY, p.id);
+                checkDailyAcknowledgement(p.id);
+            }
+        });
     }
-}
-function showUIDModal() {
-    const modal = document.createElement('div');
-    modal.id = 'njtc-uid-modal';
-    modal.className = 'njtc-modal-overlay';
-    modal.innerHTML = `
-        <div class="njtc-modal-content njtc-modal-small">
-            <div class="njtc-modal-header">
-                <h2>Welcome to NJTC Portal</h2>
-            </div>
-            <div class="njtc-modal-body">
-                <p class="uid-instruction">Please enter your NJTC Tutor ID to continue.</p>
-                <input type="text" id="uid-input" class="njtc-input" placeholder="e.g., T12345" required autocomplete="off"/>
-                <p class="uid-note">This will only be asked once per device.</p>
-                <button id="uid-save-btn" class="njtc-btn njtc-btn-primary">Save & Continue</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    const input = document.getElementById('uid-input');
-    const saveBtn = document.getElementById('uid-save-btn');
-    input.focus();
-    saveBtn.addEventListener('click', () => {
-        const uid = input.value.trim();
-        if (uid.length < 3) {
-            alert('Please enter a valid Tutor ID (at least 3 characters)');
-            input.focus();
-            return;
-        }
-        localStorage.setItem(UID_KEY, uid);
-        if (DEBUG) console.log('✅ UID saved:', uid);
-        modal.remove();
-        checkDailyAcknowledgement(uid);
-    });
-    input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') saveBtn.click();
-    });
 }
 function checkDailyAcknowledgement(uid) {
     const todayKey = getTodayKey();
@@ -195,6 +177,18 @@ function showAcknowledgementModal(uid, dayKey) {
         <iframe name="njtc_hidden_iframe" style="display:none;"></iframe>
     `;
     document.body.appendChild(modal);
+    // Pre-fill from Pearl ID profile
+    try {
+        const profile = JSON.parse(localStorage.getItem('njtc_user_v1') || 'null');
+        if (profile) {
+            const sigInput = modal.querySelector('#ack-signature');
+            const siteInput = modal.querySelector('#ack-site');
+            if (sigInput && profile.name) sigInput.value = profile.name;
+            if (siteInput && profile.assignments && profile.assignments[0] && profile.assignments[0].schools[0]) {
+                siteInput.value = profile.assignments[0].schools[0];
+            }
+        }
+    } catch(e) {}
     setupAcknowledgementForm(uid, dayKey, modal);
 }
 function setupAcknowledgementForm(uid, dayKey, modal) {
@@ -232,12 +226,8 @@ function setupAcknowledgementForm(uid, dayKey, modal) {
         }
         submitToGoogleForm(decision, site, signatureWithUID, dayKey, modal);
     });
-    changeUIDBtn.addEventListener('click', () => {
-        if (confirm('This will clear your Tutor ID and reload the page. Continue?')) {
-            localStorage.removeItem(UID_KEY);
-            location.reload();
-        }
-    });
+    // "Change Tutor ID" button is no longer shown/used — UID comes from Pearl ID session.
+    if (changeUIDBtn) changeUIDBtn.style.display = 'none';
 }
 function submitToGoogleForm(decision, site, signatureWithUID, dayKey, modal) {
     const submitBtn = modal.querySelector('#ack-submit-btn');

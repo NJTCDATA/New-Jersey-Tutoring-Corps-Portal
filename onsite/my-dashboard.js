@@ -206,7 +206,7 @@
         color: rgba(255,255,255,0.55);
         margin-bottom: 1.25rem;
         padding-bottom: 0.75rem;
-        border-bottom: 2px solid #2563eb;
+        border-bottom: 2px solid #FFB81C;
         display: inline-block;
       }
 
@@ -322,9 +322,9 @@
         transition: all 0.2s ease;
       }
       .njtc-tab-btn.active, .njtc-tab-btn:hover {
-        background: #2563eb;
-        border-color: #2563eb;
-        color: #fff;
+        background: #FFB81C;
+        border-color: #FFB81C;
+        color: #001a33;
       }
       .njtc-scholar-grid {
         display: grid;
@@ -1670,33 +1670,22 @@
     if (!user || !user.pearlId) return;
 
     injectStyles();
-    injectLogoutButtons();
 
-    // -- KPI strip (hero area) --
-    const heroContent = document.querySelector('.hero-content');
-    const roleSelectorCard = document.querySelector('.role-selector-card');
+    // -- KPI strip → #njtcDashTop --
+    const dashTop = document.getElementById('njtcDashTop');
     let kpiStrip = document.getElementById('njtc-kpi-strip');
-    if (!kpiStrip) {
+    if (!kpiStrip && dashTop) {
       kpiStrip = buildKPIStrip();
-      if (heroContent && roleSelectorCard) {
-        heroContent.insertBefore(kpiStrip, roleSelectorCard);
-      } else if (heroContent) {
-        heroContent.appendChild(kpiStrip);
-      }
+      dashTop.appendChild(kpiStrip);
     }
 
-    // -- Dashboard placeholder sections --
-    const dashContainer = document.querySelector('#dashboard .container');
+    // -- Section placeholder → #njtcDashContent --
+    const dashContent = document.getElementById('njtcDashContent');
     let dashPlaceholder = document.getElementById('njtc-dash-placeholder');
-    if (!dashPlaceholder && dashContainer) {
+    if (!dashPlaceholder && dashContent) {
       dashPlaceholder = document.createElement('div');
       dashPlaceholder.id = 'njtc-dash-placeholder';
-      const platformsSection = dashContainer.querySelector('.platforms-section');
-      if (platformsSection) {
-        dashContainer.insertBefore(dashPlaceholder, platformsSection);
-      } else {
-        dashContainer.prepend(dashPlaceholder);
-      }
+      dashContent.appendChild(dashPlaceholder);
       // Show loading skeletons
       dashPlaceholder.innerHTML =
         sectionSkeleton() + sectionSkeleton() + sectionSkeleton();

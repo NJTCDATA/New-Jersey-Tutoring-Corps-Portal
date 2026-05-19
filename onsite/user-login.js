@@ -625,6 +625,9 @@
       headerName.textContent = user.firstName + ' · ';
     }
 
+    // Sync Pearl ID to ack-gate UID key so ack-gate skips its own ID modal
+    try { localStorage.setItem('NJTC_UID', user.id); } catch(e) {}
+
     // Dispatch event
     document.dispatchEvent(new CustomEvent('userProfileReady', { detail: user }));
   }
