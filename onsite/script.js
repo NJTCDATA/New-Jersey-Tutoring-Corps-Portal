@@ -16,8 +16,10 @@ function njtcFullSignOut() {
   // Clears everything, redirects to portal home
   if (window.NJTCUserAuth) NJTCUserAuth.logout(); // clears njtc_user_v1
   localStorage.removeItem('NJTC_UID');
-  if (window.NJTCAuth) NJTCAuth.logout(); // clears NJTC_SESSION + redirects
-  else window.location.replace('/New-Jersey-Tutoring-Corps-Portal/index.html');
+  // auth.js uses const NJTCAuth (not window), so clear NJTC_SESSION directly
+  try { localStorage.removeItem('NJTC_SESSION'); } catch(e) {}
+  try { sessionStorage.removeItem('NJTC_SESSION'); } catch(e) {}
+  window.location.replace('/New-Jersey-Tutoring-Corps-Portal/index.html');
 }
 
 // ── Tab switching ────────────────────────────────────────────────────────────

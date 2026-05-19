@@ -475,6 +475,11 @@
         <div class="staff-id-error" id="staffIdError" role="alert" aria-live="polite">
           That ID didn&rsquo;t match. Double-check and try again.
         </div>
+        <a href="/New-Jersey-Tutoring-Corps-Portal/index.html"
+           style="display:block;margin-top:1rem;color:rgba(255,184,28,0.75);font-size:0.8rem;text-align:center;text-decoration:none;"
+           onmouseover="this.style.color='#FFB81C'" onmouseout="this.style.color='rgba(255,184,28,0.75)'">
+          &larr; Back to Portal Home
+        </a>
       </div>
     `;
 

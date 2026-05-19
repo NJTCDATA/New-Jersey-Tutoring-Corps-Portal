@@ -1667,7 +1667,9 @@
   // ── Main build function ──────────────────────────────────────────────────────
 
   async function build(user) {
-    if (!user || !user.pearlId) return;
+    if (!user) return;
+    const pearlId = user.pearlId || user.id;
+    if (!pearlId) return;
 
     injectStyles();
 
@@ -1696,7 +1698,7 @@
     try {
       if (!window.NJTCPearlData) throw new Error('NJTCPearlData not loaded');
       [data, irRows] = await Promise.all([
-        window.NJTCPearlData.fetchUserData(user.pearlId),
+        window.NJTCPearlData.fetchUserData(pearlId),
         fetchIReadyData(user.name).catch(() => [])
       ]);
     } catch (err) {
