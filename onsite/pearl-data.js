@@ -310,14 +310,54 @@
       }
     }
 
+    // Student surveys about my sessions (filled_for_id = my ID)
+    const myStuSurveys = stuRows.filter(r =>
+      (r[STU.FILLED_FOR_ID] || '').trim() === pearlUserId
+    );
+
+    // Map student surveys to individual scholars by FILLED_BY_ID
+    const stuSurveyByScholar = {};
+    for (const r of myStuSurveys) {
+      const sid = (r[STU.FILLED_BY_ID] || '').trim();
+      if (!sid) continue;
+      if (!stuSurveyByScholar[sid]) stuSurveyByScholar[sid] = [];
+      stuSurveyByScholar[sid].push({
+        confidence: safeNum(r[STU.CONFIDENCE]),
+        enjoyment:  safeNum(r[STU.ENJOYMENT]),
+        learning:   safeNum(r[STU.LEARNING]),
+        overall:    safeNum(r[STU.OVERALL]),
+        comment:    (r[STU.COMMENT] || '').trim(),
+        date:       (r[STU.DATE]    || '').trim()
+      });
+    }
+
     const scholars = Object.values(scholarMap)
       .filter(s => uniqueScholarIds.size === 0 || uniqueScholarIds.has(s.id))
       .map(s => {
         const total = s.attended + s.absent;
+        const svList = stuSurveyByScholar[s.id] || [];
+        const svScores = { confidence: [], enjoyment: [], learning: [], overall: [] };
+        const svComments = [];
+        for (const sv of svList) {
+          if (sv.confidence !== null) svScores.confidence.push(sv.confidence);
+          if (sv.enjoyment  !== null) svScores.enjoyment.push(sv.enjoyment);
+          if (sv.learning   !== null) svScores.learning.push(sv.learning);
+          if (sv.overall    !== null) svScores.overall.push(sv.overall);
+          if (sv.comment) svComments.push({ text: sv.comment, date: sv.date });
+        }
+        const svAvg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10 : null;
         return {
           ...s,
           totalSessions: total,
-          attRate: total > 0 ? Math.round((s.attended / total) * 100) : null
+          attRate: total > 0 ? Math.round((s.attended / total) * 100) : null,
+          surveyCount: svList.length,
+          surveyScores: {
+            confidence: svAvg(svScores.confidence),
+            enjoyment:  svAvg(svScores.enjoyment),
+            learning:   svAvg(svScores.learning),
+            overall:    svAvg(svScores.overall)
+          },
+          surveyComments: svComments
         };
       });
 
@@ -347,10 +387,54 @@
     const surveyCount = myInstSurveys.length;
     const surveyRate = myAttended > 0 ? Math.round((surveyCount / myAttended) * 100) : null;
 
-    // Student surveys about my sessions (filled_for_id = my ID)
-    const myStuSurveys = stuRows.filter(r =>
-      (r[STU.FILLED_FOR_ID] || '').trim() === pearlUserId
+    // Action items: not-recorded sessions + attended sessions missing a survey
+    // "Recent" = the 2 most recent weeks by session date
+    const sortedByDate = myInstRows.slice().sort((a, b) => {
+      const da = (a[ATT.SESS_DATE] || '').trim();
+      const db = (b[ATT.SESS_DATE] || '').trim();
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    const mostRecentWeek = sortedByDate.length
+      ? (sortedByDate[sortedByDate.length - 1][ATT.WEEK] || '').trim() : null;
+    let prevWeek = null;
+    for (let i = sortedByDate.length - 1; i >= 0; i--) {
+      const w = (sortedByDate[i][ATT.WEEK] || '').trim();
+      if (w && w !== mostRecentWeek) { prevWeek = w; break; }
+    }
+    const recentWeeks = new Set([mostRecentWeek, prevWeek].filter(Boolean));
+
+    const notRecordedSessions = myInstRows
+      .filter(r => classifyRow(r, true) === 'not_recorded')
+      .map(r => ({
+        date:   (r[ATT.SESS_DATE] || '').trim(),
+        school: (r[ATT.SCHOOL]   || '').trim(),
+        week:   (r[ATT.WEEK]     || '').trim(),
+        recent: recentWeeks.has((r[ATT.WEEK] || '').trim())
+      }));
+
+    const surveyedSessionIds = new Set(
+      myInstSurveys.map(r => (r[INST.SESS_ID] || '').trim()).filter(Boolean)
     );
+    const missingSurveys = myInstRows
+      .filter(r => {
+        if (classifyRow(r, true) !== 'attended') return false;
+        const sid = (r[ATT.SESSION] || '').trim();
+        return sid && !surveyedSessionIds.has(sid);
+      })
+      .map(r => ({
+        date:   (r[ATT.SESS_DATE] || '').trim(),
+        school: (r[ATT.SCHOOL]   || '').trim(),
+        week:   (r[ATT.WEEK]     || '').trim(),
+        recent: recentWeeks.has((r[ATT.WEEK] || '').trim())
+      }));
+
+    // Data range: first and last session dates across all instructor rows
+    const allDates = myInstRows
+      .map(r => (r[ATT.SESS_DATE] || '').trim()).filter(Boolean).sort();
+    const dataRange = {
+      first: allDates[0] || null,
+      last:  allDates[allDates.length - 1] || null
+    };
 
     const stuScores = {
       confidence: [], enjoyment: [], learning: [], overall: []
@@ -374,6 +458,7 @@
       scholars, uniqueScholarCount, scholarMissedReasons,
       serviceInterruptions: mySI, siReasons,
       surveyCount, surveyRate,
+      notRecordedSessions, missingSurveys, dataRange, mostRecentWeek,
       stuAvgScores: {
         confidence: toFixed1(avg(stuScores.confidence)),
         enjoyment:  toFixed1(avg(stuScores.enjoyment)),
