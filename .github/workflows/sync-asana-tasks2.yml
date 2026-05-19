@@ -1,0 +1,185 @@
+# NJTC Portal — Asana Task Sync (Project 2)
+# ─────────────────────────────────────────────────────────────────
+# WHAT THIS DOES:
+#   Calls the Asana API every 30 minutes using the same ASANA_PAT
+#   secret, writes results to /data/tasks2.json, and commits the
+#   file back so GitHub Pages can serve it statically.
+#
+# PROJECT:
+#   https://app.asana.com/1/1202967547815613/project/1213346212277384/list/1213346212277403
+#   Project ID: 1213346212277384
+#
+# REQUIRED GITHUB SECRET (already set — same as the first sync):
+#   ASANA_PAT — your Asana Personal Access Token
+#
+# ⚠️  NEVER paste the PAT value into this file — use GitHub Secrets only.
+# ─────────────────────────────────────────────────────────────────
+
+name: Sync Asana Tasks (Project 2)
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Fetch tasks from Asana project 2 and write tasks2.json
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Fetch Asana tasks and write tasks2.json
+        env:
+          ASANA_PAT: ${{ secrets.ASANA_PAT }}
+        run: |
+          node - <<'NODESCRIPT'
+          const https = require('https');
+          const fs    = require('fs');
+          const path  = require('path');
+
+          // ── Config ──────────────────────────────────────────────
+          const PROJECT_ID = '1213346212277384';
+          const FIELDS     = 'name,due_on,assignee,permalink_url,completed,notes,followers';
+          const OUT_DIR    = path.join(process.cwd(), 'data');
+          const OUT_FILE   = path.join(OUT_DIR, 'tasks2.json');
+          const PAT        = process.env.ASANA_PAT;
+
+          if (!PAT) {
+            console.error('');
+            console.error('══════════════════════════════════════════════════════');
+            console.error('ERROR: ASANA_PAT secret is not set or is empty.');
+            console.error('Fix:   Repo → Settings → Secrets → Actions →');
+            console.error('       Add or update secret named ASANA_PAT');
+            console.error('       Generate a new PAT at https://app.asana.com/0/my-apps');
+            console.error('══════════════════════════════════════════════════════');
+            process.exit(1);
+          }
+          console.log(`ASANA_PAT present (length=${PAT.length})`);
+
+          // ── Fetch from Asana ─────────────────────────────────────
+          const BASE_URL = `https://app.asana.com/api/1.0/projects/${PROJECT_ID}/tasks`
+                         + `?opt_fields=${encodeURIComponent(FIELDS)}&limit=100`;
+
+          function get(url) {
+            return new Promise((resolve, reject) => {
+              const req = https.get(url, {
+                headers: {
+                  'Authorization': `Bearer ${PAT}`,
+                  'Accept': 'application/json',
+                }
+              }, (res) => {
+                let body = '';
+                res.on('data', chunk => body += chunk);
+                res.on('end', () => {
+                  console.log(`  Asana HTTP ${res.statusCode} for ${url.slice(0,80)}`);
+                  if (res.statusCode !== 200) {
+                    console.error('  Asana error response body:');
+                    console.error('  ' + body.slice(0, 1000));
+                    if (res.statusCode === 401) {
+                      console.error('');
+                      console.error('  401 Unauthorized — your ASANA_PAT has expired or is invalid.');
+                      console.error('  Generate a new PAT at https://app.asana.com/0/my-apps');
+                      console.error('  then update the ASANA_PAT secret in GitHub → Settings → Secrets → Actions');
+                    } else if (res.statusCode === 403) {
+                      console.error('  403 Forbidden — the PAT does not have access to project ' + PROJECT_ID);
+                    } else if (res.statusCode === 404) {
+                      console.error('  404 Not Found — project ID ' + PROJECT_ID + ' may be wrong or deleted');
+                    }
+                    reject(new Error(`Asana returned HTTP ${res.statusCode}`));
+                    return;
+                  }
+                  try { resolve(JSON.parse(body)); }
+                  catch (e) { reject(new Error('Invalid JSON from Asana: ' + e.message)); }
+                });
+              });
+              req.on('error', e => {
+                console.error('  Network error reaching Asana:', e.message);
+                reject(e);
+              });
+            });
+          }
+
+          // ── Paginate through all tasks ────────────────────────────
+          async function fetchAll() {
+            let allTasks = [];
+            let nextUrl  = BASE_URL;
+            let page = 0;
+
+            while (nextUrl) {
+              page++;
+              console.log(`  Fetching page ${page}…`);
+              const data = await get(nextUrl);
+              if (Array.isArray(data.data)) {
+                allTasks = allTasks.concat(data.data);
+                console.log(`  Page ${page}: ${data.data.length} tasks (running total: ${allTasks.length})`);
+              }
+              nextUrl = data.next_page ? data.next_page.uri : null;
+            }
+
+            return allTasks;
+          }
+
+          // ── Main ──────────────────────────────────────────────────
+          (async () => {
+            try {
+              console.log(`Fetching tasks from Asana project ${PROJECT_ID}…`);
+              const tasks = await fetchAll();
+              console.log(`Retrieved ${tasks.length} total tasks.`);
+
+              const filtered = tasks.filter(t => !t.completed && t.due_on);
+              console.log(`${filtered.length} open tasks with due dates kept.`);
+
+              if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+
+              const output = {
+                generated: new Date().toISOString(),
+                project:   PROJECT_ID,
+                count:     filtered.length,
+                tasks:     filtered,
+              };
+
+              fs.writeFileSync(OUT_FILE, JSON.stringify(output, null, 2));
+              console.log(`Written to ${OUT_FILE}`);
+              console.log('Sync complete ✓');
+            } catch (err) {
+              console.error('');
+              console.error('══ Sync failed ══════════════════════════════════════');
+              console.error(err.message);
+              console.error('════════════════════════════════════════════════════');
+              process.exit(1);
+            }
+          })();
+          NODESCRIPT
+
+      - name: Commit updated tasks2.json
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add data/tasks2.json
+
+          if git diff --cached --quiet; then
+            echo "tasks2.json is unchanged — nothing to commit."
+          else
+            TASK_COUNT=$(node -e "const f=require('./data/tasks2.json'); console.log(f.count)")
+            git commit -m "chore: sync Asana tasks (project 2) [skip ci]
+
+          Tasks with open deadlines: ${TASK_COUNT}
+          Generated: $(date -u +"%Y-%m-%d %H:%M UTC")"
+            git push
+            echo "Committed and pushed updated tasks2.json."
+          fi
