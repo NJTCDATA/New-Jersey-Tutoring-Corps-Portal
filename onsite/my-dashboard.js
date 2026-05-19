@@ -2473,6 +2473,7 @@
       const scholarIds   = new Set(data.scholars.map(s => s.id).filter(Boolean));
       const scholarNames = new Set(data.scholars.map(s => normIRName(s.name)).filter(n => n.length > 2));
       irRows = await fetchIReadyData(user.name, scholarIds, scholarNames).catch(() => []);
+      window._connorIReadyData = irRows || [];
     } catch (err) {
       if (kpiStrip) {
         kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
