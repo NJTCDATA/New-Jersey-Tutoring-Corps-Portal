@@ -1077,6 +1077,29 @@
       .njtc-ir-scroll::-webkit-scrollbar { width: 4px; }
       .njtc-ir-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 2px; }
       .njtc-ir-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+      /* ── Site info line ── */
+      .njtc-site-info {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.5);
+        margin-bottom: 1rem;
+        font-weight: 500;
+      }
+
+      /* ── Weekly trend chart ── */
+      .njtc-trend-chart { display:flex; align-items:flex-end; gap:3px; height:80px; padding-bottom:1.5rem; margin-top:0.75rem; overflow-x:auto; }
+      .njtc-trend-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:28px; position:relative; }
+      .njtc-trend-bar-wrap { position:relative; width:100%; display:flex; flex-direction:column; justify-content:flex-end; height:60px; }
+      .njtc-trend-bar-sch { width:100%; border-radius:3px 3px 0 0; min-height:2px; transition:height 0.4s; }
+      .njtc-trend-dot-tut { position:absolute; left:50%; transform:translateX(-50%); width:6px; height:6px; border-radius:50%; background:#FFB81C; border:1.5px solid rgba(0,0,0,0.3); }
+      .njtc-trend-lbl { font-size:0.55rem; color:rgba(255,255,255,0.4); margin-top:0.25rem; white-space:nowrap; }
+
+      /* ── Scholar missed reasons bar (horizontal inline) ── */
+      .njtc-miss-bar-row { display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem; }
+      .njtc-miss-bar-label { font-size:0.75rem; flex:1; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+      .njtc-miss-bar-track { width:80px; height:6px; background:rgba(255,255,255,0.1); border-radius:999px; flex-shrink:0; }
+      .njtc-miss-bar-fill { height:100%; border-radius:999px; background:#457b9d; }
+      .njtc-miss-bar-count { font-size:0.75rem; font-weight:700; color:rgba(255,255,255,0.7); flex-shrink:0; width:2rem; text-align:right; }
     `;
     document.head.appendChild(style);
   }
@@ -1108,20 +1131,32 @@
     strip.className = 'njtc-kpi-strip';
     strip.innerHTML =
       kpiSkeletonCard('My Attendance', 'Goal: 90%') +
+      kpiSkeletonCard('Scholar Attendance', 'your students') +
       kpiSkeletonCard('Sessions Done', 'this school year') +
       kpiSkeletonCard('Unique Scholars', 'this year · Pearl ops') +
-      kpiSkeletonCard('Surveys Filed', 'keep it at 100%');
+      kpiSkeletonCard('Survey Completion', 'goal: 100%') +
+      kpiSkeletonCard('Scholar Survey', 'student avg');
     return strip;
   }
 
   function fillKPIStrip(strip, data) {
     const attRate = data.myAttRate;
     const color = attColor(attRate);
+    const schColor = attColor(data.scholarAttRate);
+    const schSurveyAvg = data.stuSurveyAvg;
+    const schSurveyColor = schSurveyAvg === null ? '#6b7280'
+      : schSurveyAvg >= 3.5 ? '#a855f7'
+      : '#ef4444';
     strip.innerHTML = `
       <div class="njtc-kpi-card">
         <div class="njtc-kpi-value" style="color:${color};">${attRate !== null ? attRate + '%' : '—'}</div>
         <div class="njtc-kpi-label">My Attendance</div>
         <div class="njtc-kpi-sub">Goal: 90%</div>
+      </div>
+      <div class="njtc-kpi-card">
+        <div class="njtc-kpi-value" style="color:${schColor};">${data.scholarAttRate !== null ? data.scholarAttRate + '%' : '—'}</div>
+        <div class="njtc-kpi-label">Scholar Attendance</div>
+        <div class="njtc-kpi-sub">your students</div>
       </div>
       <div class="njtc-kpi-card">
         <div class="njtc-kpi-value">${data.myAttended}</div>
@@ -1135,8 +1170,13 @@
       </div>
       <div class="njtc-kpi-card">
         <div class="njtc-kpi-value" style="color:${surveyColor(data.surveyRate || 0)};">${data.surveyRate !== null ? data.surveyRate + '%' : '—'}</div>
-        <div class="njtc-kpi-label">Surveys Filed</div>
-        <div class="njtc-kpi-sub">keep it at 100%</div>
+        <div class="njtc-kpi-label">Survey Completion</div>
+        <div class="njtc-kpi-sub">goal: 100%</div>
+      </div>
+      <div class="njtc-kpi-card">
+        <div class="njtc-kpi-value" style="color:${schSurveyColor};">${schSurveyAvg !== null ? schSurveyAvg + '/5' : '—'}</div>
+        <div class="njtc-kpi-label">Scholar Survey</div>
+        <div class="njtc-kpi-sub">student avg</div>
       </div>`;
   }
 
@@ -1370,7 +1410,41 @@
         </div>`
       : '';
 
+    const siteInfoHtml = (data.tutorSchool || data.tutorDistrict)
+      ? `<div class="njtc-site-info">📍 ${esc(data.tutorSchool || '')}${data.tutorSchool && data.tutorDistrict ? ' · ' : ''}${esc(data.tutorDistrict || '')}</div>`
+      : '';
+
+    // Weekly trend chart — last 16 weeks
+    let trendHtml = '';
+    if (data.weeklyTrend && data.weeklyTrend.length) {
+      const recent = data.weeklyTrend.slice(-16);
+      const bars = recent.map(w => {
+        const schRate = w.scholarRate;
+        const tutRate = w.tutorRate;
+        const h = schRate !== null ? Math.round((schRate / 100) * 60) : 2;
+        const tutH = tutRate !== null ? Math.round((tutRate / 100) * 60) : null;
+        const barColor = schRate === null ? 'rgba(255,255,255,0.1)'
+          : schRate >= 90 ? '#22c55e'
+          : schRate >= 80 ? '#f97316'
+          : '#ef4444';
+        const label = w.week.replace(/[^0-9]/g, '') ? 'W' + w.week.replace(/[^0-9]/g, '') : w.week;
+        const title = `${esc(w.week)}: Scholar ${schRate !== null ? schRate + '%' : '—'} · Tutor ${tutRate !== null ? tutRate + '%' : '—'}`;
+        const dotHtml = tutH !== null
+          ? `<div class="njtc-trend-dot-tut" style="bottom:${tutH}px;"></div>`
+          : '';
+        return `<div class="njtc-trend-col" title="${title}">
+          <div class="njtc-trend-bar-wrap">
+            <div class="njtc-trend-bar-sch" style="height:${h}px;background:${barColor};"></div>
+            ${dotHtml}
+          </div>
+          <div class="njtc-trend-lbl">${esc(label)}</div>
+        </div>`;
+      }).join('');
+      trendHtml = `<div class="njtc-trend-chart">${bars}</div>`;
+    }
+
     el.innerHTML = `<span class="njtc-section-title">📅 Your Attendance This Year</span>
+      ${siteInfoHtml}
       <div class="njtc-att-layout">
         <div class="njtc-att-donut-wrap">
           ${chart}
@@ -1396,7 +1470,8 @@
             <div class="njtc-att-row-count" style="color:rgba(255,255,255,0.4);">${data.mySI}</div>
           </div>
         </div>
-      </div>`;
+      </div>
+      ${trendHtml ? `<div style="margin-top:0.75rem;"><div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:0.25rem;text-transform:uppercase;letter-spacing:0.05em;">Weekly Trend — Scholar vs Tutor Rate</div>${trendHtml}</div>` : ''}`;
 
     // Data context pill: show full program date range
     if (data.dataRange && data.dataRange.first && data.dataRange.last) {
@@ -1478,6 +1553,7 @@
         return `<div class="njtc-scholar-card njtc-scholar-card-clickable" data-sid="${esc(s.id)}" tabindex="0" role="button" aria-label="View ${esc(toInitials(s.name))}'s profile">
           <div class="njtc-scholar-card-top">
             <span class="njtc-grade-pill" style="background:${gColor};">${esc(gradeLabel)}</span>
+            ${s.consecConcern ? `<span title="Consecutive absence concern" style="display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;border-radius:50%;background:rgba(251,191,36,0.18);border:1.5px solid rgba(251,191,36,0.5);font-size:0.72rem;flex-shrink:0;">⚠️</span>` : ''}
           </div>
           <div class="njtc-scholar-name">${esc(toInitials(s.name))}</div>
           <div class="njtc-scholar-school">${esc(shortenSchool(s.school))}</div>
@@ -1560,16 +1636,10 @@
 
     const bars = reasons.sort((a, b) => b[1] - a[1]).map(([r, c]) => {
       const pct = max > 0 ? Math.round((c / max) * 100) : 0;
-      const pctOfTotal = total > 0 ? Math.round((c / total) * 100) : 0;
-      return `<div class="njtc-bar-row">
-        <div class="njtc-bar-label">
-          <span>${esc(friendlyScholarReason(r))}</span>
-          <span class="njtc-bar-label-count">${c}</span>
-        </div>
-        <div class="njtc-bar-track">
-          <div class="njtc-bar-fill" style="width:${pct}%;background:#f59e0b;"></div>
-        </div>
-        <div class="njtc-bar-pct">${pctOfTotal}% of missed sessions</div>
+      return `<div class="njtc-miss-bar-row">
+        <div class="njtc-miss-bar-label">${esc(friendlyScholarReason(r))}</div>
+        <div class="njtc-miss-bar-track"><div class="njtc-miss-bar-fill" style="width:${pct}%;"></div></div>
+        <div class="njtc-miss-bar-count">${c}</div>
       </div>`;
     }).join('');
 
@@ -1577,7 +1647,7 @@
       <div class="njtc-si-note">
         School closings and interruptions are shown separately and don't affect your students' attendance record.
       </div>
-      <div class="njtc-bar-chart">${bars}</div>`;
+      <div>${bars}</div>`;
 
     return el;
   }
@@ -1645,21 +1715,31 @@
   function buildSISection(data) {
     if (!data.serviceInterruptions) return null;
 
-    const reasons = Object.entries(data.siReasons);
-    const max = reasons.length ? Math.max(...reasons.map(([, c]) => c)) : 1;
+    // Build severity-coded rows from siByLevel
+    const SI_LEVEL_CONFIG = {
+      critical: { label: 'Critical', bg: 'rgba(239,68,68,0.12)', border: '#ef4444', badge: '#ef4444', badgeTxt: '#fff' },
+      high:     { label: 'High',     bg: 'rgba(249,115,22,0.10)', border: '#f97316', badge: '#f97316', badgeTxt: '#fff' },
+      medium:   { label: 'Medium',   bg: 'rgba(234,179,8,0.10)',  border: '#eab308', badge: '#eab308', badgeTxt: '#001a33' },
+      low:      { label: 'Low',      bg: 'rgba(107,114,128,0.10)', border: '#6b7280', badge: '#6b7280', badgeTxt: '#fff' }
+    };
 
-    const bars = reasons.sort((a, b) => b[1] - a[1]).map(([r, c]) => {
-      const pct = max > 0 ? Math.round((c / max) * 100) : 0;
-      return `<div class="njtc-bar-row">
-        <div class="njtc-bar-label">
-          <span>${esc(r || 'Unknown reason')}</span>
-          <span class="njtc-bar-label-count">${c}</span>
-        </div>
-        <div class="njtc-bar-track">
-          <div class="njtc-bar-fill" style="width:${pct}%;background:#6366f1;"></div>
-        </div>
-      </div>`;
-    }).join('');
+    let siLevelHtml = '';
+    const siByLevel = data.siByLevel || {};
+    for (const level of ['critical', 'high', 'medium', 'low']) {
+      const entries = Object.entries(siByLevel[level] || {}).sort((a, b) => b[1] - a[1]);
+      if (!entries.length) continue;
+      const cfg = SI_LEVEL_CONFIG[level];
+      const rows = entries.map(([r, c]) =>
+        `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+          <span style="display:inline-block;padding:0.1rem 0.45rem;border-radius:999px;font-size:0.68rem;font-weight:700;background:${cfg.badge};color:${cfg.badgeTxt};flex-shrink:0;">${esc(cfg.label)}</span>
+          <span style="flex:1;font-size:0.82rem;color:rgba(255,255,255,0.75);">${esc(r || 'Unknown')}</span>
+          <span style="font-size:0.82rem;font-weight:700;color:rgba(255,255,255,0.6);flex-shrink:0;">${c}</span>
+        </div>`
+      ).join('');
+      siLevelHtml += `<div style="margin-bottom:0.5rem;padding:0.6rem 0.75rem;background:${cfg.bg};border-left:3px solid ${cfg.border};border-radius:0 0.5rem 0.5rem 0;">${rows}</div>`;
+    }
+
+    const bars = siLevelHtml || '<div class="njtc-empty-state"><p>No breakdown available.</p></div>';
 
     const el = document.createElement('div');
     el.className = 'njtc-dash-section';
@@ -1675,7 +1755,7 @@
       <div class="njtc-collapsible-body" id="njtc-si-body">
         <div style="margin-top:1rem;">
           <div class="njtc-si-note">These are school closings, holidays, and testing days — they are NOT counted against you or your students' attendance.</div>
-          ${bars ? `<div class="njtc-bar-chart">${bars}</div>` : '<div class="njtc-empty-state"><p>No breakdown available.</p></div>'}
+          ${bars}
         </div>
       </div>`;
 
