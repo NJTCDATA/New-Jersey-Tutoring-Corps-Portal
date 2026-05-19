@@ -2466,10 +2466,14 @@
     try {
       if (!window.NJTCPearlData) throw new Error('NJTCPearlData not loaded');
       data = await window.NJTCPearlData.fetchUserData(pearlId);
+      // Expose Pearl data globally so Connor chatbot can read it
+      window._connorPearlData = data;
+      window._connorUser = user;
       // Build scholar lookup sets so 25-26 iReady snapshot can match by student ID/name
       const scholarIds   = new Set(data.scholars.map(s => s.id).filter(Boolean));
       const scholarNames = new Set(data.scholars.map(s => normIRName(s.name)).filter(n => n.length > 2));
       irRows = await fetchIReadyData(user.name, scholarIds, scholarNames).catch(() => []);
+      window._connorIReadyData = irRows || [];
     } catch (err) {
       if (kpiStrip) {
         kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
