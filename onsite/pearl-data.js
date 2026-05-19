@@ -199,8 +199,12 @@
       };
     }
 
-    // My sessions set
+    // All sessions the tutor has a record for (used for weekly tracking)
     const mySessions = new Set(myInstRows.map(r => (r[ATT.SESSION] || '').trim()).filter(Boolean));
+
+    // Sessions where the tutor actually attended — scholar count uses this
+    // so we only count scholars the tutor was physically present with
+    const myAttendedSessions = new Set();
 
     // My attendance stats
     let myAttended = 0, myAbsent = 0, mySI = 0;
@@ -216,6 +220,8 @@
       if (cls === 'attended') {
         myAttended++;
         weeklyAtt[week].attended++;
+        const sessId = (r[ATT.SESSION] || '').trim();
+        if (sessId) myAttendedSessions.add(sessId);
       } else if (cls === 'absent') {
         myAbsent++;
         weeklyAtt[week].absent++;
@@ -232,10 +238,10 @@
     const myTotal = myAttended + myAbsent;
     const myAttRate = myTotal > 0 ? Math.round((myAttended / myTotal) * 100) : null;
 
-    // Scholar rows
+    // Scholar rows — only sessions the tutor attended, not missed/absent ones
     const scholarRows = attRows.filter(r =>
       (r[ATT.ROLE] || '').trim() === 'Student' &&
-      mySessions.has((r[ATT.SESSION] || '').trim())
+      myAttendedSessions.has((r[ATT.SESSION] || '').trim())
     );
 
     // Build scholar map
