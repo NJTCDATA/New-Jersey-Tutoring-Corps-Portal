@@ -457,6 +457,16 @@ function init() {
     loadDailyQuote();
     updateTime();
     setInterval(updateTime, 1000);
+
+    // Wire up personalization from user profile
+    const profile = window.NJTCUserAuth && window.NJTCUserAuth.getProfile();
+    if (profile) applyUserProfile(profile);
+    document.addEventListener('userProfileReady', (e) => {
+        applyUserProfile(e.detail);
+        if (window.NJTCMyDashboard) {
+            window.NJTCMyDashboard.build(e.detail);
+        }
+    });
     
     // Check if role is saved
     const savedRole = localStorage.getItem('njtc_user_role');
@@ -564,6 +574,10 @@ function selectRole(role) {
         'all': 'All Access'
     };
     document.getElementById('userRoleDisplay').textContent = roleNames[role] || 'Portal User';
+    const profile = window.NJTCUserAuth && window.NJTCUserAuth.getProfile();
+    if (profile) {
+      document.getElementById('userRoleDisplay').textContent = profile.firstName + ' · ' + (roleNames[role] || 'Portal User');
+    }
     
     // Load role-specific content
     if (role !== 'all') {
@@ -631,6 +645,35 @@ window.onclick = function(event) {
     const modal = document.getElementById('guideModal');
     if (event.target === modal) {
         closeGuide();
+    }
+}
+
+function applyUserProfile(user) {
+    // Header personalization
+    const headerName = document.getElementById('headerUserName');
+    if (headerName) {
+        headerName.textContent = user.firstName + ' · ';
+    }
+
+    // If we know their role, pre-select it and save it
+    const roleMap = { 'Tutor': 'tutor', 'Substitute': 'tutor', 'Coach': 'coach', 'Site Lead': 'site-lead', 'System': 'all' };
+    const mappedRole = roleMap[user.role];
+    if (mappedRole && !localStorage.getItem('njtc_user_role')) {
+        // Pre-highlight their role button (don't auto-select, let them choose)
+        setTimeout(() => {
+            const btn = document.querySelector(`.role-btn[data-role="${mappedRole}"]`);
+            if (btn) btn.classList.add('role-btn-suggested');
+        }, 100);
+    }
+
+    // Add subtle CSS for suggested role
+    const style = document.createElement('style');
+    style.textContent = `.role-btn-suggested { box-shadow: 0 0 0 3px var(--accent, #2563eb) !important; }`;
+    document.head.appendChild(style);
+
+    // Trigger personal dashboard build
+    if (window.NJTCMyDashboard) {
+        window.NJTCMyDashboard.build(user);
     }
 }
 
