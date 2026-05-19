@@ -822,18 +822,20 @@
     // ══ iREADY OVERVIEW ════════════════════════════════════════════════════════
     { match: /iready|i-ready|i ready/i,
       respond: function(q) {
-        if (/placement|level|where|stand/i.test(q))       return connorDef('placement_level');
-        if (/moved? up|improve.*level|growth.*level/i.test(q)) return 'iReady "Moved Up" ↓\n\n' + DEFINITIONS['moved_up'].full + '\n\nAsk me _"Which scholars moved up in iReady?"_ to see your data.';
-        if (/typical growth|100 ?%|benchmark/i.test(q))   return connorDef('typical_growth');
-        if (/boy|beginning of year/i.test(q))             return connorDef('boy');
-        if (/eoy|end of year/i.test(q))                   return connorDef('eoy');
-        if (/moy|mid.?year/i.test(q))                     return connorDef('moy');
-        if (/elas?|reading/i.test(q))                     return irSubjectSummary('ELA');
-        if (/math/i.test(q))                              return irSubjectSummary('Math');
-        if (/who.*moved|moved.*up|improve/i.test(q))      return irMovedUpAnswer();
-        if (/below|grade level|struggling/i.test(q))      return irBelowGLAnswer();
-        if (/growth|typical|pct/i.test(q))                return irTopGrowthAnswer();
-        if (/shared/i.test(q))                            return irSharedAnswer();
+        // Data queries first — check these BEFORE any definition fallbacks
+        if (/who.*moved|which.*moved|moved.*up|scholar.*improve|improve.*scholar/i.test(q)) return irMovedUpAnswer();
+        if (/below.*grade|grade.*level.*below|not at grade|grade.*gap|struggling.*iready|iready.*struggling/i.test(q)) return irBelowGLAnswer();
+        if (/most growth|top.*growth|highest growth|exceeded.*typical|best.*iready|who.*grew/i.test(q)) return irTopGrowthAnswer();
+        if (/shared.*scholar|scholar.*shared|co.?instruct|multiple tutor/i.test(q)) return irSharedAnswer();
+        if (/elas?|reading/i.test(q))  return irSubjectSummary('ELA');
+        if (/math/i.test(q))           return irSubjectSummary('Math');
+        // Definition lookups
+        if (/placement|where.*stand/i.test(q))          return connorDef('placement_level');
+        if (/typical growth|100 ?%|benchmark/i.test(q)) return connorDef('typical_growth');
+        if (/boy|beginning of year/i.test(q))           return connorDef('boy');
+        if (/eoy|end of year/i.test(q))                 return connorDef('eoy');
+        if (/moy|mid.?year/i.test(q))                   return connorDef('moy');
+        if (/moved? up|level up/i.test(q))              return connorDef('moved_up');
 
         var rows = ir();
         if (!rows.length) return '📈 **iReady** — No diagnostic data found yet for your scholars. This appears after the end-of-year diagnostic window.\n\nI can explain iReady terms: ask me about "placement levels," "moved up," "typical growth," BOY, EOY, or MOY.';
