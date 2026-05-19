@@ -81,6 +81,7 @@
     let _irlSchool      = 'all';
     let _irlGrade       = 'all';
     let _irlScholarType = 'all'; // 'all' | 'repeat' | 'nonrepeat'
+    let _irlPilot       = 'all'; // 'all' | 'pilot' | 'nonpilot'
     let _irlSearch      = '';         // free-text: tutor | school | district
     let _irlBreakdownTab = 'school';   // 'school' | 'grade' | 'district'
     let _irlDeepTab      = 'domains';  // 'domains' | 'repeat'
@@ -281,6 +282,11 @@
         mathAlgebraSpringScore:  parseFloat(g(r,'Spring algebra and algebraic thinking scale score','spring_algebra_and_algebraic_thinking_scale_score'))||null,
         mathMeasDataSpringScore: parseFloat(g(r,'Spring measurement and data scale score','spring_measurement_and_data_scale_score'))||null,
         mathGeometrySpringScore: parseFloat(g(r,'Spring geometry scale score','spring_geometry_scale_score'))||null,
+        isPilot: (function(){
+          var _pv = g(r,'Pilot Program','pilot_program','Pilot','pilot');
+          if (!_pv || _pv.trim() === '') return null;
+          return /yes/i.test(_pv.trim());
+        }()),
       };
     }
 
@@ -338,6 +344,7 @@
           baseScore:          null,
           springScore:        null,
           isRepeat:           false,
+          isPilot:            null,
         };
       });
     }
@@ -829,6 +836,13 @@
           mathAlgebraSpringScore:    isMath ? _pf(spr,'Algebra and Algebraic Thinking Scale Score','algebra_and_algebraic_thinking_scale_score') : null,
           mathMeasDataSpringScore:   isMath ? _pf(spr,'Measurement and Data Scale Score','measurement_and_data_scale_score') : null,
           mathGeometrySpringScore:   isMath ? _pf(spr,'Geometry Scale Score','geometry_scale_score') : null,
+          isPilot: (function(){
+            var _pv = g(dem,'Pilot Program','pilot_program','Pilot','pilot') ||
+                      g(spr||{},'Pilot Program','pilot_program','Pilot','pilot') ||
+                      g(win||{},'Pilot Program','pilot_program','Pilot','pilot');
+            if (!_pv || _pv.trim() === '') return null;
+            return /yes/i.test(_pv.trim());
+          }()),
           _source2526: 'manual',  // internal tag — used for clean removal on re-fetch
         };
         result.push(obj);
@@ -1174,6 +1188,7 @@
       const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
       const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
       const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
+      const pilot       = opts.pilot       !== undefined ? opts.pilot       : _irlPilot;
       // Pool all 4 sources (handles live data landing in mathRepeat/elaRepeat sheets)
       let rows = _getPooledRows();
       if (subject     !== 'all') rows = rows.filter(r => r.subject  === subject);
@@ -1184,6 +1199,9 @@
       // Repeat filter uses computed cross-year index (ID-first, name-fallback)
       if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
       if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
+      // Pilot filter: 'pilot' = only pilot schools; 'nonpilot' = exclude pilot schools
+      if (pilot === 'pilot')    rows = rows.filter(r => r.isPilot === true);
+      if (pilot === 'nonpilot') rows = rows.filter(r => r.isPilot !== true);
       if (_irlSearch) {
         const _sq = _irlSearch.toLowerCase();
         rows = rows.filter(r =>
@@ -1205,6 +1223,7 @@
       const school      = opts.school      !== undefined ? opts.school      : _irlSchool;
       const grade       = opts.grade       !== undefined ? opts.grade       : _irlGrade;
       const scholarType = opts.scholarType !== undefined ? opts.scholarType : _irlScholarType;
+      const pilot       = opts.pilot       !== undefined ? opts.pilot       : _irlPilot;
       let rows = _getPooledRows();
       if (subject     !== 'all') rows = rows.filter(r => r.subject  === subject);
       if (year        !== 'all') rows = rows.filter(r => r.year     === year);
@@ -1213,6 +1232,8 @@
       if (grade       !== 'all') rows = rows.filter(r => r.grade    === grade);
       if (scholarType === 'repeat')    rows = rows.filter(r =>  _isRepeatScholar(r));
       if (scholarType === 'nonrepeat') rows = rows.filter(r => !_isRepeatScholar(r));
+      if (pilot === 'pilot')    rows = rows.filter(r => r.isPilot === true);
+      if (pilot === 'nonpilot') rows = rows.filter(r => r.isPilot !== true);
       if (_irlSearch) {
         const _sq = _irlSearch.toLowerCase();
         rows = rows.filter(r =>
@@ -2582,6 +2603,11 @@
       const schoolOpts = ['all',...schools].map(s=>`<option value="${esc(s)}" ${_irlSchool===s?'selected':''}>${s==='all'?'All Schools':esc(s)}</option>`).join('');
       const gradeOpts  = ['all',...grades].map(g=>`<option value="${esc(g)}" ${_irlGrade===g?'selected':''}>${g==='all'?'All Grades':'Grade '+esc(g)}</option>`).join('');
       const typeOpts   = `<option value="all" ${_irlScholarType==='all'?'selected':''}>All Scholars</option><option value="repeat" ${_irlScholarType==='repeat'?'selected':''}>Repeat Only</option><option value="nonrepeat" ${_irlScholarType==='nonrepeat'?'selected':''}>Non-Repeat Only</option>`;
+      // Only show pilot filter when the data actually has tagged rows (25-26 EOY sheet)
+      const hasPilotData = allRows.some(r => r.isPilot !== null && r.isPilot !== undefined);
+      const pilotOpts  = hasPilotData
+        ? `<option value="all" ${_irlPilot==='all'?'selected':''}>All Programs</option><option value="nonpilot" ${_irlPilot==='nonpilot'?'selected':''}>Non-Pilot Only</option><option value="pilot" ${_irlPilot==='pilot'?'selected':''}>Pilot Only</option>`
+        : null;
 
       // Live data status badge
       const liveStatus = _irlLiveStatus === 'live'
@@ -2792,7 +2818,7 @@
 
         ${_irlMode==='quickcsv'
           ? renderQuickCSVMode()
-          : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts)}${_diagSection}</div>${_irlInsightHTML}</div>`
+          : `<div class="ecd-outer-grid"><div class="ecd-main-col">${renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts, pilotOpts)}${_diagSection}</div>${_irlInsightHTML}</div>`
         }
         ${(()=>{ try { return (typeof impactBuilder!=='undefined') ? impactBuilder.renderSection() : ''; } catch(e){ return ''; } })()}
         ${renderMOYSection()}
@@ -2812,7 +2838,7 @@
       try { _irlPostRender2526(); } catch(e) {}
     }
 
-    function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts) {
+    function renderAnalyticsMode(hasData, yearOpts, subOpts, distOpts, schoolOpts, gradeOpts, typeOpts, pilotOpts) {
       const sess    = window.NJTC_SESSION;
       const _sessRawDept = (sess && sess.dept) ? sess.dept : _irlDept;
       // Normalize: shared-utils uses 'training' but DEPT_CFG uses 'training_development'
@@ -2844,6 +2870,7 @@
         _irlYear!=='all'?_irlYear:null, _irlSubject!=='all'?_irlSubject:null,
         _irlDistrict!=='all'?_irlDistrict:null, _irlSchool!=='all'?_irlSchool:null,
         _irlGrade!=='all'?'Grade '+_irlGrade:null, _irlScholarType!=='all'?_irlScholarType:null,
+        _irlPilot==='pilot'?'Pilot Only':_irlPilot==='nonpilot'?'Non-Pilot Only':null,
       ].filter(Boolean);
       const totalUnique = [...new Set(allRows.map(r=>r.scholarId||r.scholarName).filter(Boolean))].length;
 
@@ -2858,7 +2885,7 @@
       // Pre-compute key values — getSummary only covers org-wide year-level data; skip it when
       // district, school, grade, scholarType, or search filters are active so the KPI strip
       // reflects the filtered cohort rather than the full org.
-      const _hasNonYearFilter = _irlDistrict !== 'all' || _irlSchool !== 'all' || _irlGrade !== 'all' || _irlScholarType !== 'all' || !!_irlSearch;
+      const _hasNonYearFilter = _irlDistrict !== 'all' || _irlSchool !== 'all' || _irlGrade !== 'all' || _irlScholarType !== 'all' || !!_irlSearch || _irlPilot !== 'all';
       const _irlCtxSum  = _hasNonYearFilter ? null : getSummary(_irlYear !== 'all' ? _irlYear : 'ALL');
       const _elaRaw     = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.elaMedianPctTypical  : _irlCtxSum.elaMedianPctAllYears)  : null;
       const _mathRaw    = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.mathMedianPctTypical : _irlCtxSum.mathMedianPctAllYears) : null;
@@ -2883,6 +2910,7 @@
             <select class="irlab-select" onchange="irlab.setSchool(this.value)">${schoolOpts}</select>
             <select class="irlab-select" onchange="irlab.setGrade(this.value)">${gradeOpts}</select>
             <select class="irlab-select" onchange="irlab.setScholarType(this.value)">${typeOpts}</select>
+            ${pilotOpts ? `<select class="irlab-select" onchange="irlab.setPilot(this.value)">${pilotOpts}</select>` : ''}
             ${activeFilt.length ? activeFilt.map(f=>`<span style="background:#dbeafe;color:#1e40af;font-size:.68rem;font-weight:700;padding:.15rem .45rem;border-radius:20px">✓ ${esc(f)}</span>`).join('') : ''}
             <span style="font-size:.725rem;color:var(--muted);margin-left:auto"><strong>${totalUnique.toLocaleString()}</strong> scholars · <strong>${rows.length.toLocaleString()}</strong> pairs</span>
           </div>
@@ -3113,10 +3141,15 @@
           </div>
           <div class="irlab-card-body" style="padding:.875rem">
             ${_irlDeepTab === 'repeat' ? renderRepeatLongitudinal() : `
+            ${_irlPilot === 'pilot' ? `
+            <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:.75rem 1rem;font-size:.8125rem;color:#92400e;display:flex;align-items:flex-start;gap:.625rem">
+              <span style="font-size:1rem;flex-shrink:0">ℹ️</span>
+              <span><strong>Domain subscores not available for Pilot Programs.</strong> Pilot sites provide Overall Relative Placement and Scale Score data only — individual domain breakdowns (Phonological Awareness, Phonics, Number &amp; Operations, Algebra, etc.) are not included in the Pilot Program extract. Switch to <em>Non-Pilot Only</em> or <em>All Programs</em> to view domain data.</span>
+            </div>` : `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
               <div style="min-width:0">${renderELADomainSubscores(rows)}</div>
               <div style="min-width:0">${renderMathDomainSubscores(rows)}</div>
-            </div>`}
+            </div>`}`}
           </div>
         </div>
 
@@ -6012,6 +6045,7 @@
     function setSchool(s)      { _irlSchool=s;       renderLab(); }
     function setGrade(g)       { _irlGrade=g;        renderLab(); }
     function setScholarType(t) { _irlScholarType=t;  renderLab(); }
+    function setPilot(p)       { _irlPilot=p;        renderLab(); }
     function setSearch(q)      { _irlSearch=q;       renderLab(); }
     function setBreakdownTab(t){ _irlBreakdownTab=t; renderLab(); }
     function setDeepTab(t)     { _irlDeepTab=t;      renderLab(); }
@@ -6357,6 +6391,7 @@
       var _fGrade       = _opts.grade       !== undefined ? _opts.grade       : (_irlGrade       !== 'all' ? _irlGrade       : '');
       var _fSubject     = _opts.subject     !== undefined ? _opts.subject     : (_irlSubject     !== 'all' ? _irlSubject     : '');
       var _fScholarType = _opts.scholarType !== undefined ? _opts.scholarType : (_irlScholarType !== 'all' ? _irlScholarType : '');
+      var _fPilot       = _opts.pilot       !== undefined ? _opts.pilot       : (_irlPilot       !== 'all' ? _irlPilot       : '');
       if (!IRLAB_DATA.loaded) loadData();
       var rows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
       if (_fYear    && _fYear    !== 'ALL') rows = rows.filter(function(r){ return r && r.year     === _fYear;    });
@@ -6366,6 +6401,8 @@
       if (_fSubject)                        rows = rows.filter(function(r){ return r && r.subject  === _fSubject;  });
       if (_fScholarType === 'repeat')    rows = rows.filter(function(r){ return r && _isRepeatScholar(r); });
       if (_fScholarType === 'nonrepeat') rows = rows.filter(function(r){ return r && !_isRepeatScholar(r); });
+      if (_fPilot === 'pilot')    rows = rows.filter(function(r){ return r && r.isPilot === true; });
+      if (_fPilot === 'nonpilot') rows = rows.filter(function(r){ return r && r.isPilot !== true; });
       // All available years from main sheets (for SY-alignment check with Pearl)
       var allSrcRows = [].concat(IRLAB_DATA.math || [], IRLAB_DATA.ela || []);
       var allYears = [];
@@ -6554,6 +6591,7 @@
         'Annual Typical Growth':     r.annualTypical!= null ? r.annualTypical                    : '',
         'Annual Stretch Growth':     r.annualStretch!= null ? r.annualStretch                    : '',
         'Repeat Scholar':            r.isRepeat ? 'Yes' : 'No',
+        'Pilot Program':             r.isPilot === true ? 'Yes' : r.isPilot === false ? 'No' : '',
       }));
     }
 
@@ -7607,7 +7645,7 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
       URL.revokeObjectURL(url);
     }
 
-    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setSearch, setDept, setBreakdownTab, setDeepTab,
+    return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setPilot, setSearch, setDept, setBreakdownTab, setDeepTab,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
