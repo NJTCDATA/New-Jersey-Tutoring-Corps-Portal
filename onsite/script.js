@@ -461,7 +461,12 @@ function init() {
     // Wire up personalization from user profile
     const profile = window.NJTCUserAuth && window.NJTCUserAuth.getProfile();
     if (profile) applyUserProfile(profile);
-    document.addEventListener('userProfileReady', (e) => applyUserProfile(e.detail));
+    document.addEventListener('userProfileReady', (e) => {
+        applyUserProfile(e.detail);
+        if (window.NJTCMyDashboard) {
+            window.NJTCMyDashboard.build(e.detail);
+        }
+    });
     
     // Check if role is saved
     const savedRole = localStorage.getItem('njtc_user_role');
@@ -665,6 +670,11 @@ function applyUserProfile(user) {
     const style = document.createElement('style');
     style.textContent = `.role-btn-suggested { box-shadow: 0 0 0 3px var(--accent, #2563eb) !important; }`;
     document.head.appendChild(style);
+
+    // Trigger personal dashboard build
+    if (window.NJTCMyDashboard) {
+        window.NJTCMyDashboard.build(user);
+    }
 }
 
 // Initialize on load
