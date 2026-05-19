@@ -18,7 +18,8 @@
   const CACHE_KEYS = {
     att:  'njtc_od_att',
     inst: 'njtc_od_inst',
-    stu:  'njtc_od_stu'
+    stu:  'njtc_od_stu',
+    sess: 'njtc_od_sess'
   };
 
   // ATT column indexes
@@ -176,10 +177,11 @@
   }
 
   async function fetchUserData(pearlUserId) {
-    const [attRows, instRows, stuRows] = await Promise.all([
+    const [attRows, instRows, stuRows, sessRows] = await Promise.all([
       fetchSheet('att'),
       fetchSheet('inst'),
-      fetchSheet('stu')
+      fetchSheet('stu'),
+      fetchSheet('sess')
     ]);
 
     // Filter my instructor attendance rows
@@ -277,14 +279,43 @@
       }
     }
 
-    const scholars = Object.values(scholarMap).map(s => {
-      const total = s.attended + s.absent;
-      return {
-        ...s,
-        totalSessions: total,
-        attRate: total > 0 ? Math.round((s.attended / total) * 100) : null
-      };
-    });
+    // Derive unique scholar count from Session Details tab (column Q = index 16)
+    // Column Q has comma-separated scholar IDs — this is the authoritative source
+    const SESS_SCHOLAR_COL = 16;
+    const uniqueScholarIds = new Set();
+    if (sessRows.length > 1) {
+      const sessH = sessRows[0].map(c => (c || '').trim().toLowerCase());
+      // Find the session ID column in the sess tab header
+      let sessIdCol = sessH.findIndex(h => h.includes('session') && h.includes('id'));
+      if (sessIdCol < 0) sessIdCol = sessH.findIndex(h => h === 'session');
+      if (sessIdCol < 0) sessIdCol = 0; // fallback: column A
+      for (const row of sessRows.slice(1)) {
+        const sId = (row[sessIdCol] || '').trim();
+        if (myAttendedSessions.has(sId)) {
+          const cell = (row[SESS_SCHOLAR_COL] || '').trim();
+          if (cell) {
+            cell.split(',').forEach(rawId => {
+              const t = rawId.trim();
+              if (t) uniqueScholarIds.add(t);
+            });
+          }
+        }
+      }
+    }
+
+    const scholars = Object.values(scholarMap)
+      .filter(s => uniqueScholarIds.size === 0 || uniqueScholarIds.has(s.id))
+      .map(s => {
+        const total = s.attended + s.absent;
+        return {
+          ...s,
+          totalSessions: total,
+          attRate: total > 0 ? Math.round((s.attended / total) * 100) : null
+        };
+      });
+
+    // Unique count: sess-tab is authoritative; fall back to scholarMap size
+    const uniqueScholarCount = uniqueScholarIds.size > 0 ? uniqueScholarIds.size : scholars.length;
 
     // Aggregated scholar missed reasons
     const scholarMissedReasons = {};
@@ -333,7 +364,7 @@
     return {
       myAttended, myAbsent, mySI,
       myTotal, myAttRate, myMissedReasons,
-      scholars, scholarMissedReasons,
+      scholars, uniqueScholarCount, scholarMissedReasons,
       serviceInterruptions: mySI, siReasons,
       surveyCount, surveyRate,
       stuAvgScores: {

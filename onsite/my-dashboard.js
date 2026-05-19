@@ -896,7 +896,7 @@
         <div class="njtc-kpi-sub">this school year</div>
       </div>
       <div class="njtc-kpi-card">
-        <div class="njtc-kpi-value">${data.scholars.length}</div>
+        <div class="njtc-kpi-value">${data.uniqueScholarCount != null ? data.uniqueScholarCount : data.scholars.length}</div>
         <div class="njtc-kpi-label">Students I Work With</div>
         <div class="njtc-kpi-sub">across my sessions</div>
       </div>
@@ -1053,7 +1053,7 @@
     el.innerHTML = `
       <div class="njtc-scholars-heading">
         <span class="njtc-section-title" style="margin-bottom:0;padding-bottom:0;border-bottom:none;">👥 Your Students</span>
-        <span class="njtc-count-badge">${data.scholars.length}</span>
+        <span class="njtc-count-badge">${data.uniqueScholarCount != null ? data.uniqueScholarCount : data.scholars.length}</span>
       </div>
       <div class="njtc-scholar-filter-tabs" style="margin-top:0.75rem;">
         <button class="njtc-tab-btn active" data-tab="all">All</button>
@@ -1330,7 +1330,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v2';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v3';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -1437,15 +1437,17 @@
     const tutorCol  = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
     const stuCol    = col(['first and last']);
     const baseCol   = col(['base', 'overall', 'relative', 'placement']);
+    // Spring placement is optional — scholars without spring diagnostic still appear
     const sprCol    = col(['spring', 'overall', 'relative', 'placement']);
     const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
     const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['grade']);
     const schoolCol = col(['school']);
     const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
 
-    if (tutorCol < 0 || stuCol < 0 || baseCol < 0 || sprCol < 0) return [];
+    // Only tutorCol, stuCol, baseCol are required — spring data may not exist yet
+    if (tutorCol < 0 || stuCol < 0 || baseCol < 0) return [];
 
-    return rows.slice(1).filter(r => r[tutorCol] && r[stuCol] && r[baseCol] && r[sprCol]).map(r => {
+    return rows.slice(1).filter(r => (r[tutorCol] || '').trim() && (r[stuCol] || '').trim() && (r[baseCol] || '').trim()).map(r => {
       let pct = parseFloat(r[growthCol]);
       if (isNaN(pct)) pct = null;
       else if (pct > 0 && pct <= 15) pct = Math.round(pct * 100); // ratio → integer %
@@ -1454,7 +1456,7 @@
         tutorName:   (r[tutorCol] || '').trim(),
         studentName: (r[stuCol]   || '').trim(),
         basePLC:     (r[baseCol]  || '').trim(),
-        springPLC:   (r[sprCol]   || '').trim(),
+        springPLC:   sprCol >= 0 ? (r[sprCol] || '').trim() : '',
         pctTypical:  pct,
         grade:       (r[gradeCol]  || '').trim(),
         school:      (r[schoolCol] || '').trim(),
@@ -1495,12 +1497,25 @@
       fetchCSV(snap2526 + IR_2526_ELA_GID)
     ]);
 
+    // Match tutor by name — try exact first, then token-based for "Last, First" formats
+    const needleWords = needle.split(' ').filter(w => w.length >= 3);
+    function matchesTutor(rawName) {
+      const norm = normIRName(rawName);
+      if (norm === needle) return true;
+      // Handle "Last, First" or partial name formats: all needle words must appear in the name
+      if (needleWords.length >= 2 && needleWords.every(w => norm.includes(w))) return true;
+      // First-name-only match (when first name is long enough to be unique, ≥5 chars)
+      const firstWord = needleWords[0] || '';
+      if (firstWord.length >= 5 && norm.split(' ').includes(firstWord)) return true;
+      return false;
+    }
+
     const allRows = [
       ...normalizeIRSheet(liveMath, 'Math'),
       ...normalizeIRSheet(liveELA, 'ELA'),
       ...normalizeIRSheet(snapMath, 'Math'),
       ...normalizeIRSheet(snapELA, 'ELA')
-    ].filter(r => normIRName(r.tutorName) === needle);
+    ].filter(r => matchesTutor(r.tutorName));
 
     // Deduplicate: same student + subject + sy
     const seen = new Set();
@@ -1665,14 +1680,17 @@
           const growPct = r.pctTypical !== null ? Math.min(Math.max(r.pctTypical, 0), 200) : null;
           const barFill = growPct !== null ? Math.min(growPct / 200 * 100, 100) : 0;
           const subjectTag = activeSub === 'All' ? `<span style="font-size:0.7rem;color:rgba(255,255,255,0.35);margin-left:0.25rem;">${esc(r.subject)}</span>` : '';
+          const hasSpring = r.springPLC && r.springPLC.trim();
+          const placementHtml = hasSpring
+            ? `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
+               ${arrowHtml(r.basePLC, r.springPLC)}
+               <span class="njtc-plc-badge" style="background:${sColor};">${esc(plcShort(r.springPLC))}</span>`
+            : `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
+               <span style="font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:0.35rem;">spring pending</span>`;
           return `<tr>
             <td>${esc(toInitials(r.studentName))}${subjectTag}</td>
             <td><span style="font-size:0.75rem;color:rgba(255,255,255,0.5);">Gr ${esc(r.grade || '?')}</span></td>
-            <td>
-              <span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
-              ${arrowHtml(r.basePLC, r.springPLC)}
-              <span class="njtc-plc-badge" style="background:${sColor};">${esc(plcShort(r.springPLC))}</span>
-            </td>
+            <td>${placementHtml}</td>
             <td>
               <div class="njtc-ir-growth-bar">
                 <div class="njtc-ir-growth-track">
@@ -1833,10 +1851,10 @@
 
       const sections = [
         buildAttendanceSection(data),
+        buildIReadySection(irRows || []),   // impact front-and-center, right after your record
         buildMissedSection(data),
         buildScholarSection(data),
         buildScholarMissedSection(data),
-        buildIReadySection(irRows || []),
         buildScoresSection(data),
         buildSurveySection(data),
         buildSISection(data)
