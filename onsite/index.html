@@ -9,140 +9,129 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@400;500;600;700;800;900&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+      /* Portal header: sticky, dark navy, glassmorphism */
+      .njtc-portal-header { position:sticky; top:0; z-index:100; background:rgba(0,26,51,0.93); backdrop-filter:blur(20px); border-bottom:1px solid rgba(255,184,28,0.15); padding:0.7rem 1.5rem; display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap; }
+
+      /* NJTC Logo badge */
+      .njtc-ph-logo { font-family:'Epilogue',sans-serif; font-weight:900; font-size:1rem; color:#FFB81C; background:rgba(255,184,28,0.12); border:1px solid rgba(255,184,28,0.3); border-radius:0.5rem; padding:0.3rem 0.65rem; }
+
+      /* Identity: name + role */
+      .njtc-ph-identity { display:flex; flex-direction:column; gap:0.05rem; }
+      .njtc-ph-name { font-family:'Epilogue',sans-serif; font-size:0.9rem; font-weight:700; color:#fff; }
+      .njtc-ph-role { font-size:0.7rem; font-weight:600; color:rgba(255,184,28,0.6); text-transform:uppercase; letter-spacing:0.07em; }
+
+      /* Tab nav centered */
+      .njtc-tab-nav { display:flex; gap:0.25rem; flex:1; justify-content:center; flex-wrap:wrap; }
+      .njtc-nav-tab { display:flex; align-items:center; gap:0.4rem; padding:0.45rem 1rem; border-radius:0.625rem; border:1px solid transparent; background:transparent; color:rgba(255,255,255,0.5); font-family:'Epilogue',sans-serif; font-size:0.82rem; font-weight:600; cursor:pointer; transition:all 0.2s ease; white-space:nowrap; }
+      .njtc-nav-tab:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.85); }
+      .njtc-nav-tab.active { background:rgba(255,184,28,0.15); border-color:rgba(255,184,28,0.4); color:#FFB81C; }
+
+      /* Time + auth buttons */
+      .njtc-ph-actions { display:flex; align-items:center; gap:0.6rem; margin-left:auto; flex-shrink:0; }
+      .njtc-ph-time { font-family:'Epilogue',sans-serif; font-size:0.75rem; color:rgba(255,255,255,0.4); text-align:right; line-height:1.4; }
+      .njtc-ph-btn { display:inline-flex; align-items:center; gap:0.35rem; padding:0.4rem 0.85rem; border-radius:999px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); font-family:'Epilogue',sans-serif; font-size:0.75rem; font-weight:600; cursor:pointer; transition:all 0.2s ease; }
+      .njtc-ph-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
+      .njtc-ph-btn-out { border-color:rgba(239,68,68,0.3); color:rgba(252,165,165,0.8); }
+      .njtc-ph-btn-out:hover { background:rgba(239,68,68,0.15); color:#fca5a5; }
+
+      /* Tab panes */
+      .njtc-tab-pane { display:none; }
+      .njtc-tab-pane.active { display:block; }
+
+      /* Dashboard tab */
+      #tab-dashboard .njtc-dash-container { max-width:1400px; margin:0 auto; padding:1.75rem 2rem 3rem; }
+      #tab-platforms .njtc-plat-container { max-width:1400px; margin:0 auto; padding:1.75rem 2rem 3rem; }
+      #tab-resources .njtc-res-container { max-width:1400px; margin:0 auto; padding:1.75rem 2rem 3rem; }
+
+      /* Platform tab section header */
+      .njtc-tab-heading { font-family:'Epilogue',sans-serif; font-size:1.35rem; font-weight:800; color:#fff; margin-bottom:1.5rem; }
+
+      /* Resources tab: override light cards for dark background */
+      #tab-resources .stat-card { background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); }
+      #tab-resources .stat-label { color:rgba(255,255,255,0.6); }
+      #tab-resources .stat-value { color:#fff; }
+      #tab-resources .support-card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,184,28,0.2); }
+      #tab-resources .support-card h3 { color:#FFB81C; }
+      #tab-resources .support-card p { color:rgba(255,255,255,0.7); }
+      #tab-resources .support-card li { color:rgba(255,255,255,0.65); }
+      #tab-resources .support-badge { background:rgba(255,184,28,0.2); color:#FFB81C; border:1px solid rgba(255,184,28,0.4); }
+      #tab-resources .section-title { color:#fff; }
+      #tab-resources .role-content-card { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); }
+      #tab-resources .role-content-card h3 { color:#FFB81C; }
+      #tab-resources .role-content-card li { color:rgba(255,255,255,0.75); }
+      #tab-resources .role-content-icon { color:#FFB81C; }
+
+      /* Mobile responsive */
+      @media (max-width:768px) {
+        .njtc-portal-header { padding:0.65rem 1rem; gap:0.75rem; }
+        .njtc-tab-nav { order:3; width:100%; overflow-x:auto; padding-bottom:0.25rem; }
+        .njtc-ph-actions { margin-left:0; }
+        .njtc-ph-time { display:none; }
+        #tab-dashboard .njtc-dash-container, #tab-platforms .njtc-plat-container, #tab-resources .njtc-res-container { padding:1.25rem 1rem 3rem; }
+      }
+      @media (max-width:480px) {
+        .njtc-nav-tab { padding:0.4rem 0.65rem; font-size:0.77rem; }
+        .njtc-ph-btn { padding:0.35rem 0.65rem; font-size:0.72rem; }
+      }
+    </style>
 </head>
 <body>
-    
-    <!-- ANIMATED HERO SECTION -->
-    <div class="hero-section">
-        <div class="hero-background">
-            <div class="animated-circles">
-                <div class="circle circle-1"></div>
-                <div class="circle circle-2"></div>
-                <div class="circle circle-3"></div>
-                <div class="circle circle-4"></div>
+
+    <!-- NJTC PORTAL (hidden until auth complete) -->
+    <div id="njtcPortal" style="display:none;">
+
+        <!-- STICKY PORTAL HEADER -->
+        <header class="njtc-portal-header">
+            <span class="njtc-ph-logo">NJTC</span>
+
+            <div class="njtc-ph-identity">
+                <span class="njtc-ph-name" id="phName">Staff Portal</span>
+                <span class="njtc-ph-role" id="phRole">Loading...</span>
             </div>
-        </div>
-        
-        <div class="hero-content">
-            <div class="hero-brand">
-                <div class="brand-logo-large">
-                    <div class="logo-glow"></div>
-                    <div class="logo-content">NJTC</div>
-                </div>
-                <h1 class="hero-title">New Jersey Tutoring Corps</h1>
-                <p class="hero-subtitle">High-Impact Tutoring Portal</p>
-            </div>
-            
-            <!-- DAILY INSPIRATION -->
-            <div class="inspiration-card">
-                <div class="inspiration-icon">✨</div>
-                <p class="inspiration-quote" id="dailyQuote">Loading inspiration...</p>
-                <div class="inspiration-author" id="quoteAuthor"></div>
-            </div>
-            
-            <!-- ROLE SELECTOR -->
-            <div class="role-selector-card">
-                <h2>Welcome! Select Your Role</h2>
-                <div class="role-buttons">
-                    <button class="role-btn" data-role="tutor" onclick="selectRole('tutor')">
-                        <div class="role-icon">📚</div>
-                        <div class="role-name">Tutor</div>
-                    </button>
-                    <button class="role-btn" data-role="coach" onclick="selectRole('coach')">
-                        <div class="role-icon">🎯</div>
-                        <div class="role-name">Coach</div>
-                    </button>
-                    <button class="role-btn" data-role="site-lead" onclick="selectRole('site-lead')">
-                        <div class="role-icon">⭐</div>
-                        <div class="role-name">Site Lead</div>
-                    </button>
-                    <button class="role-btn" data-role="all" onclick="selectRole('all')">
-                        <div class="role-icon">🚀</div>
-                        <div class="role-name">View All</div>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- MAIN DASHBOARD -->
-    <main class="dashboard" id="dashboard" style="display:none;">
-        
-        <!-- STICKY HEADER -->
-        <header class="dashboard-header">
-            <div class="container">
-                <div class="header-content">
-                    <div class="header-brand">
-                        <div class="brand-logo-small">NJTC</div>
-                        <div class="header-text">
-                            <h1>NJTC Portal</h1>
-                            <p id="userRoleDisplay"><span id="headerUserName"></span></p>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <div class="current-time" id="currentTime"></div>
-                        <button class="change-role-btn" onclick="changeRole()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                                <circle cx="9" cy="7" r="4"/>
-                                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                            </svg>
-                            Change Role
-                        </button>
-                        <button class="sign-out-btn" onclick="NJTCAuth.logout()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                                <polyline points="16 17 21 12 16 7"/>
-                                <line x1="21" y1="12" x2="9" y2="12"/>
-                            </svg>
-                            Sign Out
-                        </button>
-                    </div>
-                </div>
+
+            <nav class="njtc-tab-nav" aria-label="Portal tabs">
+                <button class="njtc-nav-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    My Dashboard
+                </button>
+                <button class="njtc-nav-tab" data-tab="platforms" onclick="switchTab('platforms')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    Platforms
+                </button>
+                <button class="njtc-nav-tab" data-tab="resources" onclick="switchTab('resources')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    Resources
+                </button>
+            </nav>
+
+            <div class="njtc-ph-actions">
+                <div class="njtc-ph-time" id="phTime"></div>
+                <button class="njtc-ph-btn" onclick="njtcSwitchUser()" title="Switch to a different staff account">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    Switch User
+                </button>
+                <button class="njtc-ph-btn njtc-ph-btn-out" onclick="njtcFullSignOut()" title="Sign out of portal completely">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sign Out
+                </button>
             </div>
         </header>
-        
-        <div class="container">
-            
-            <!-- QUICK STATS -->
-            <section class="quick-stats">
-                <div class="stat-card stat-attendance">
-                    <div class="stat-icon">📅</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Attendance Goal</div>
-                        <div class="stat-value">≥90%</div>
-                    </div>
-                </div>
-                <div class="stat-card stat-dosage">
-                    <div class="stat-icon">⏱️</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Session Length</div>
-                        <div class="stat-value">30-45 min</div>
-                    </div>
-                </div>
-                <div class="stat-card stat-ratio">
-                    <div class="stat-icon">👥</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Tutor:Student</div>
-                        <div class="stat-value">1:3 Max</div>
-                    </div>
-                </div>
-                <div class="stat-card stat-progress">
-                    <div class="stat-icon">📊</div>
-                    <div class="stat-content">
-                        <div class="stat-label">Data-Driven</div>
-                        <div class="stat-value">Weekly</div>
-                    </div>
-                </div>
-            </section>
-            
-            <!-- PLATFORM CARDS -->
-            <section class="platforms-section">
-                <h2 class="section-title">Your Platforms</h2>
-                
+
+        <!-- TAB: MY DASHBOARD -->
+        <div class="njtc-tab-pane active" id="tab-dashboard">
+            <div class="njtc-dash-container">
+                <div id="njtcDashTop"></div>
+                <div id="njtcDashContent"></div>
+            </div>
+        </div>
+
+        <!-- TAB: PLATFORMS -->
+        <div class="njtc-tab-pane" id="tab-platforms">
+            <div class="njtc-plat-container">
+                <h2 class="njtc-tab-heading">Your Platforms</h2>
                 <div class="platforms-grid">
-                    
+
                     <!-- ASK CONNOR -->
                     <div class="platform-card card-connor" data-platform="connor">
                         <div class="card-glow"></div>
@@ -159,19 +148,13 @@
                         </div>
                         <button class="card-btn" onclick="openPlatform('https://njtcdata.github.io/Ask-Connor/welcome.html')">
                             Open Ask Connor
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
                         <button class="info-btn" onclick="openGuide('connor')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </button>
                     </div>
-                    
+
                     <!-- PROGRESS MONITORING -->
                     <div class="platform-card card-progress" data-platform="progress">
                         <div class="card-glow"></div>
@@ -188,19 +171,13 @@
                         </div>
                         <button class="card-btn" onclick="openPlatform('https://njtcdata.github.io/Progress-Monitoring/')">
                             Open Progress Monitoring
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
                         <button class="info-btn" onclick="openGuide('progress')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </button>
                     </div>
-                    
+
                     <!-- PEARL -->
                     <div class="platform-card card-pearl" data-platform="pearl">
                         <div class="card-glow"></div>
@@ -217,19 +194,13 @@
                         </div>
                         <button class="card-btn" onclick="openPlatform('https://login.tutorwithpearl.com')">
                             Open PEARL
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
                         <button class="info-btn" onclick="openGuide('pearl')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </button>
                     </div>
-                    
+
                     <!-- i-READY -->
                     <div class="platform-card card-iready" data-platform="iready">
                         <div class="card-glow"></div>
@@ -246,16 +217,10 @@
                         </div>
                         <button class="card-btn" onclick="openPlatform('https://login.i-ready.com')">
                             Open i-Ready
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
                         <button class="info-btn" onclick="openGuide('iready')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </button>
                     </div>
 
@@ -275,59 +240,92 @@
                         </div>
                         <button class="card-btn" onclick="openPlatform('https://go.knowtion.online/login')">
                             Open Knowtion
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
                         <button class="info-btn" onclick="openGuide('knowtion')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
-                            </svg>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                         </button>
                     </div>
-                    
+
                 </div>
-            </section>
-            
-            <!-- ROLE-SPECIFIC CONTENT -->
-            <section class="role-content" id="roleContent">
-                <!-- Dynamically populated based on role -->
-            </section>
-            
-            <!-- SUPPORT HIERARCHY -->
-            <section class="support-section">
-                <h2 class="section-title">📞 Need Help? Know Who to Contact</h2>
-                <div class="support-grid">
-                    <div class="support-card support-primary">
-                        <div class="support-badge">1st</div>
-                        <h3>Onsite Leader</h3>
-                        <p>Your first point of contact for immediate questions, daily operations, and real-time support.</p>
-                        <ul>
-                            <li>Session questions</li>
-                            <li>Student behavior</li>
-                            <li>Materials & resources</li>
-                            <li>Schedule changes</li>
-                        </ul>
-                    </div>
-                    <div class="support-card support-secondary">
-                        <div class="support-badge">2nd</div>
-                        <h3>Program Manager</h3>
-                        <p>For escalated issues, technical problems, policy questions, and professional development.</p>
-                        <ul>
-                            <li>Technical issues</li>
-                            <li>Policy clarification</li>
-                            <li>Professional development</li>
-                            <li>Complex situations</li>
-                        </ul>
-                    </div>
-                </div>
-            </section>
-            
+            </div>
         </div>
-    </main>
-    
+
+        <!-- TAB: RESOURCES -->
+        <div class="njtc-tab-pane" id="tab-resources">
+            <div class="njtc-res-container">
+
+                <!-- QUICK STATS -->
+                <section class="quick-stats" style="margin-bottom:2rem;">
+                    <div class="stat-card stat-attendance">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Attendance Goal</div>
+                            <div class="stat-value">≥90%</div>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-dosage">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Session Length</div>
+                            <div class="stat-value">30-45 min</div>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-ratio">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Tutor:Student</div>
+                            <div class="stat-value">1:3 Max</div>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-progress">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <div class="stat-label">Data-Driven</div>
+                            <div class="stat-value">Weekly</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ROLE-SPECIFIC CONTENT -->
+                <section class="role-content" id="roleContent">
+                    <!-- Dynamically populated based on role -->
+                </section>
+
+                <!-- SUPPORT HIERARCHY -->
+                <section class="support-section">
+                    <h2 class="section-title">📞 Need Help? Know Who to Contact</h2>
+                    <div class="support-grid">
+                        <div class="support-card support-primary">
+                            <div class="support-badge">1st</div>
+                            <h3>Onsite Leader</h3>
+                            <p>Your first point of contact for immediate questions, daily operations, and real-time support.</p>
+                            <ul>
+                                <li>Session questions</li>
+                                <li>Student behavior</li>
+                                <li>Materials &amp; resources</li>
+                                <li>Schedule changes</li>
+                            </ul>
+                        </div>
+                        <div class="support-card support-secondary">
+                            <div class="support-badge">2nd</div>
+                            <h3>Program Manager</h3>
+                            <p>For escalated issues, technical problems, policy questions, and professional development.</p>
+                            <ul>
+                                <li>Technical issues</li>
+                                <li>Policy clarification</li>
+                                <li>Professional development</li>
+                                <li>Complex situations</li>
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </div>
+
+    </div><!-- /#njtcPortal -->
+
     <!-- GUIDE MODAL -->
     <div class="guide-modal" id="guideModal" style="display:none;">
         <div class="guide-modal-content">
@@ -340,11 +338,11 @@
             </div>
         </div>
     </div>
-    
+
     <script src="../auth/auth.js?v=5"></script>
     <script src="../auth/onsite-guard.js?v=5"></script>
-    <script src="ack-gate.js"></script>
     <script src="user-login.js"></script>
+    <script src="ack-gate.js"></script>
     <script src="script.js"></script>
     <script src="pearl-data.js"></script>
     <script src="my-dashboard.js"></script>
