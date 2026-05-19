@@ -240,11 +240,28 @@
     const myTotal = myAttended + myAbsent;
     const myAttRate = myTotal > 0 ? Math.round((myAttended / myTotal) * 100) : null;
 
-    // Scholar rows — only sessions the tutor attended, not missed/absent ones
-    const scholarRows = attRows.filter(r =>
-      (r[ATT.ROLE] || '').trim() === 'Student' &&
-      myAttendedSessions.has((r[ATT.SESSION] || '').trim())
-    );
+    // Determine the tutor's own school — most frequent school across their attended rows.
+    // Used to fence scholar visibility: a tutor only sees students at their site (privacy).
+    const schoolFreq = {};
+    for (const r of myInstRows) {
+      if (classifyRow(r, true) !== 'attended') continue;
+      const sc = (r[ATT.SCHOOL] || '').trim();
+      if (sc) schoolFreq[sc] = (schoolFreq[sc] || 0) + 1;
+    }
+    const tutorSchool = Object.entries(schoolFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    // Scholar rows — only sessions the tutor attended AND only students at the tutor's school.
+    // Filtering by school prevents cross-site data leakage when multiple tutors share a session
+    // block that spans several school sites in the same Pearl session ID.
+    const scholarRows = attRows.filter(r => {
+      if ((r[ATT.ROLE] || '').trim() !== 'Student') return false;
+      if (!myAttendedSessions.has((r[ATT.SESSION] || '').trim())) return false;
+      if (tutorSchool) {
+        const sc = (r[ATT.SCHOOL] || '').trim();
+        if (sc && sc !== tutorSchool) return false;
+      }
+      return true;
+    });
 
     // Build scholar map
     const scholarMap = {};
@@ -279,36 +296,9 @@
       }
     }
 
-    // Derive unique scholar count from Session Details tab (column Q = index 16)
-    // Column Q has comma-separated scholar IDs — this is the authoritative source
-    const SESS_SCHOLAR_COL = 16;
-    const uniqueScholarIds = new Set();
-    if (sessRows.length > 1) {
-      const sessH = sessRows[0].map(c => (c || '').trim().toLowerCase());
-      // Find session ID column: try header keywords first, then data-match against myAttendedSessions
-      let sessIdCol = sessH.findIndex(h => h.includes('session') && h.includes('id'));
-      if (sessIdCol < 0) sessIdCol = sessH.findIndex(h => h === 'session');
-      if (sessIdCol < 0) {
-        // Probe columns 0–5: whichever has values that overlap myAttendedSessions is the ID column
-        for (let c = 0; c <= 5; c++) {
-          const hasMatch = sessRows.slice(1, 30).some(row => myAttendedSessions.has((row[c] || '').trim()));
-          if (hasMatch) { sessIdCol = c; break; }
-        }
-      }
-      if (sessIdCol < 0) sessIdCol = 0; // last-resort fallback
-      for (const row of sessRows.slice(1)) {
-        const sId = (row[sessIdCol] || '').trim();
-        if (myAttendedSessions.has(sId)) {
-          const cell = (row[SESS_SCHOLAR_COL] || '').trim();
-          if (cell) {
-            cell.split(',').forEach(rawId => {
-              const t = rawId.trim();
-              if (t) uniqueScholarIds.add(t);
-            });
-          }
-        }
-      }
-    }
+    // uniqueScholarIds is no longer used — scholar count comes from scholarMap.size
+    // after school-based filtering above. Session Details col Q counted ALL students
+    // in a shared session block (across all tutors at the site), causing overcounting.
 
     // Student surveys about my sessions (filled_for_id = my ID)
     const myStuSurveys = stuRows.filter(r =>
@@ -332,7 +322,6 @@
     }
 
     const scholars = Object.values(scholarMap)
-      .filter(s => uniqueScholarIds.size === 0 || uniqueScholarIds.has(s.id))
       .map(s => {
         const total = s.attended + s.absent;
         const svList = stuSurveyByScholar[s.id] || [];
@@ -361,8 +350,8 @@
         };
       });
 
-    // Unique count: sess-tab is authoritative; fall back to scholarMap size
-    const uniqueScholarCount = uniqueScholarIds.size > 0 ? uniqueScholarIds.size : scholars.length;
+    // Unique scholar count = distinct scholars at this tutor's school across attended sessions
+    const uniqueScholarCount = scholars.length;
 
     // Aggregated scholar missed reasons
     const scholarMissedReasons = {};
