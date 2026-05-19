@@ -793,6 +793,57 @@
         border-radius: 50%;
         flex-shrink: 0;
       }
+
+      /* ── iReady Impact Headline ── */
+      .njtc-ir-headline {
+        background: linear-gradient(135deg, rgba(34,197,94,0.10) 0%, rgba(255,184,28,0.08) 100%);
+        border: 1px solid rgba(34,197,94,0.25);
+        border-radius: 1rem;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        text-align: center;
+      }
+      .njtc-ir-headline-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.4rem;
+      }
+      .njtc-ir-headline-stat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+      }
+      .njtc-ir-headline-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(255,255,255,0.45);
+      }
+      .njtc-ir-headline-val {
+        font-family: 'Epilogue', sans-serif;
+        font-size: 2rem;
+        font-weight: 900;
+        line-height: 1;
+      }
+      .njtc-ir-headline-arrow {
+        font-size: 1.5rem;
+        color: rgba(255,255,255,0.25);
+        flex-shrink: 0;
+      }
+      .njtc-ir-headline-sub {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.35);
+        margin-top: 0.15rem;
+      }
+      .njtc-ir-kpi-featured {
+        border-color: rgba(34,197,94,0.35) !important;
+        background: rgba(34,197,94,0.08) !important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -1279,7 +1330,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v2';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -1348,6 +1399,29 @@
     if (p.includes('early on') || p.includes('early grade')) return 3;
     if (p.includes('mid') || p.includes('above') || p.includes('on grade')) return 4;
     return -1;
+  }
+
+  // Returns numeric grade levels below grade level (used for "1¾ behind" averages)
+  function plcLevelsBehind(placement) {
+    const p = (placement || '').toLowerCase();
+    if (p.includes('3 or more') || p.includes('3+')) return 3.5;
+    if (p.includes('2 grade') || p.includes('2 level')) return 2;
+    if (p.includes('1 grade') || p.includes('1 level')) return 1;
+    if (p.includes('early on') || p.includes('early grade')) return 0.5;
+    if (p.includes('mid') || p.includes('above') || p.includes('on grade')) return 0;
+    return null;
+  }
+
+  // Format a numeric levels-behind value as a readable fraction string
+  function fmtBehind(num) {
+    if (num === null || num === undefined) return '—';
+    const rounded = Math.round(num * 4) / 4; // nearest quarter
+    const whole = Math.floor(rounded);
+    const frac = Math.round((rounded - whole) * 4);
+    const fracStr = ['', '¼', '½', '¾'][frac] || '';
+    if (whole === 0 && frac === 0) return 'At Grade Level';
+    if (whole === 0) return fracStr + ' below GL';
+    return whole + fracStr + ' below GL';
   }
 
   // ── iReady: parse one CSV sheet into normalized row objects ──────────────────
@@ -1472,7 +1546,8 @@
     }
 
     function computeKPIs(rows) {
-      let up = 0, same = 0, down = 0, growthSum = 0, growthCount = 0;
+      let up = 0, same = 0, down = 0, growthSum = 0, growthCount = 0, movedToGL = 0;
+      const boyLevels = [], sprLevels = [];
       for (const r of rows) {
         const bRank = plcRank(r.basePLC);
         const sRank = plcRank(r.springPLC);
@@ -1480,14 +1555,26 @@
           if (sRank > bRank)       up++;
           else if (sRank === bRank) same++;
           else                      down++;
+          // On-grade-level = Early GL (rank 3) or At/Above GL (rank 4)
+          if (bRank < 3 && sRank >= 3) movedToGL++;
         }
         if (r.pctTypical !== null) { growthSum += r.pctTypical; growthCount++; }
+        const bLvl = plcLevelsBehind(r.basePLC);
+        const sLvl = plcLevelsBehind(r.springPLC);
+        if (bLvl !== null) boyLevels.push(bLvl);
+        if (sLvl !== null) sprLevels.push(sLvl);
       }
       const total = up + same + down;
+      const avgBOY = boyLevels.length ? boyLevels.reduce((a, b) => a + b, 0) / boyLevels.length : null;
+      const avgSpr = sprLevels.length ? sprLevels.reduce((a, b) => a + b, 0) / sprLevels.length : null;
       return {
         up, same, down, total,
         pctImproved: total > 0 ? Math.round((up / total) * 100) : null,
-        medianGrowth: growthCount > 0 ? Math.round(growthSum / growthCount) : null
+        medianGrowth: growthCount > 0 ? Math.round(growthSum / growthCount) : null,
+        movedToGL,
+        pctMovedToGL: total > 0 ? Math.round((movedToGL / total) * 100) : null,
+        avgBOYBehind: avgBOY,
+        avgSprBehind: avgSpr
       };
     }
 
@@ -1510,8 +1597,37 @@
       const filtered = getFiltered();
       const kpis = computeKPIs(filtered);
 
+      // Impact headline — BOY average → Spring average grade levels behind
+      let headlineHtml = '';
+      if (kpis.avgBOYBehind !== null && kpis.avgSprBehind !== null) {
+        const boyStr = fmtBehind(kpis.avgBOYBehind);
+        const sprStr = fmtBehind(kpis.avgSprBehind);
+        headlineHtml = `<div class="njtc-ir-headline">
+          <div class="njtc-ir-headline-inner">
+            <div class="njtc-ir-headline-stat">
+              <div class="njtc-ir-headline-label">Start of Year Average</div>
+              <div class="njtc-ir-headline-val" style="color:#f97316;">${esc(boyStr)}</div>
+            </div>
+            <div class="njtc-ir-headline-arrow">→</div>
+            <div class="njtc-ir-headline-stat">
+              <div class="njtc-ir-headline-label">End of Year Average</div>
+              <div class="njtc-ir-headline-val" style="color:#22c55e;">${esc(sprStr)}</div>
+            </div>
+          </div>
+          <div class="njtc-ir-headline-sub">Average grade-level placement across all your scholars</div>
+        </div>`;
+      }
+
       // KPI row
       const kpiHtml = `<div class="njtc-ir-kpi-row">
+        <div class="njtc-ir-kpi njtc-ir-kpi-featured">
+          <div class="njtc-ir-kpi-val" style="color:#22c55e;">${kpis.pctImproved !== null ? kpis.pctImproved + '%' : '—'}</div>
+          <div class="njtc-ir-kpi-lbl">Moved Up ≥1 Level</div>
+        </div>
+        <div class="njtc-ir-kpi njtc-ir-kpi-featured">
+          <div class="njtc-ir-kpi-val" style="color:#22c55e;">${kpis.pctMovedToGL !== null ? kpis.pctMovedToGL + '%' : '—'}</div>
+          <div class="njtc-ir-kpi-lbl">Reached Grade Level</div>
+        </div>
         <div class="njtc-ir-kpi">
           <div class="njtc-ir-kpi-val" style="color:#22c55e;">${kpis.up}</div>
           <div class="njtc-ir-kpi-lbl">Moved Up</div>
@@ -1525,17 +1641,13 @@
           <div class="njtc-ir-kpi-lbl">Moved Down</div>
         </div>
         <div class="njtc-ir-kpi">
-          <div class="njtc-ir-kpi-val" style="color:${growthColor(kpis.pctImproved)};">${kpis.pctImproved !== null ? kpis.pctImproved + '%' : '—'}</div>
-          <div class="njtc-ir-kpi-lbl">% Improved</div>
-        </div>
-        <div class="njtc-ir-kpi">
           <div class="njtc-ir-kpi-val" style="color:${growthColor(kpis.medianGrowth)};">${kpis.medianGrowth !== null ? kpis.medianGrowth + '%' : '—'}</div>
           <div class="njtc-ir-kpi-lbl">Avg Growth vs Typical</div>
         </div>
       </div>`;
 
       if (!filtered.length) {
-        return kpiHtml + `<div class="njtc-empty-state"><p>No data for this filter combination.</p></div>`;
+        return headlineHtml + kpiHtml + `<div class="njtc-empty-state"><p>No data for this filter combination.</p></div>`;
       }
 
       // Group by school then subject
@@ -1588,7 +1700,7 @@
         </div>`;
       }).join('');
 
-      return kpiHtml + schoolHtml;
+      return headlineHtml + kpiHtml + schoolHtml;
     }
 
     function rebuildContent() {
