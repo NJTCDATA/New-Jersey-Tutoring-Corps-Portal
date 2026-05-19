@@ -2941,8 +2941,89 @@
           </div>` : ''}
         </div>
 
-        ${!m ? `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Try broadening your filters.</div></div></div>` : `
+        ${(function(){
+          // ── Pilot spring-only view: pilots have Spring data but no BOY baseline ──
+          if (!m && _irlPilot === 'pilot' && allRows.length > 0) {
+            const sprRows  = allRows.filter(r => PLACEMENT_ORDER.includes(r.springRelPlacement));
+            const pilotGains = allRows.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+            const pilotPcts  = allRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
+            const pilotMedGain = medianArr(pilotGains);
+            const pilotMedPct  = medianArr(pilotPcts);
+            // Spring placement distribution
+            const springDist = {};
+            PLACEMENT_ORDER.forEach(p=>{springDist[p]=0;});
+            sprRows.forEach(r=>{springDist[r.springRelPlacement]++;});
+            const sprTotal = sprRows.length;
+            // School × Subject breakdown
+            const schoolMap = {};
+            allRows.forEach(r=>{
+              const k = r.school||'Unknown';
+              if(!schoolMap[k]) schoolMap[k]={subj:{},n:0,gains:[],pcts:[]};
+              schoolMap[k].n++;
+              schoolMap[k].subj[r.subject] = (schoolMap[k].subj[r.subject]||0)+1;
+              if(r.springGain!==null&&!isNaN(r.springGain)) schoolMap[k].gains.push(r.springGain);
+              if(r.pctTypical!==null&&!isNaN(r.pctTypical)) schoolMap[k].pcts.push(r.pctTypical);
+            });
+            const schoolRows = Object.entries(schoolMap).sort((a,b)=>b[1].n-a[1].n).map(([nm,d])=>{
+              const medG = medianArr(d.gains); const medP = medianArr(d.pcts);
+              const subjStr = Object.entries(d.subj).map(([s,n])=>`${s} (${n})`).join(', ');
+              return `<tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:.4rem .5rem;font-size:.7rem;font-weight:600;color:#1e293b">${esc(nm)}</td>
+                <td style="padding:.4rem .5rem;font-size:.68rem;color:#64748b;text-align:center">${d.n}</td>
+                <td style="padding:.4rem .5rem;font-size:.68rem;color:#64748b">${esc(subjStr)}</td>
+                <td style="padding:.4rem .5rem;font-size:.7rem;font-weight:700;color:#0d6e3a;text-align:center">${medG!==null?(medG>=0?'+':'')+medG.toFixed(1):'—'}</td>
+                <td style="padding:.4rem .5rem;font-size:.7rem;font-weight:700;color:#1d4ed8;text-align:center">${medP!==null?Math.round(medP*100)+'%':'—'}</td>
+              </tr>`;
+            }).join('');
+            return `
+            <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:.75rem 1rem;margin-bottom:.875rem;font-size:.8125rem;color:#92400e;display:flex;align-items:flex-start;gap:.625rem">
+              <span style="font-size:1rem;flex-shrink:0">📋</span>
+              <span><strong>Spring-only diagnostic data (Pilot Program view).</strong> Pilot sites submit a single Spring assessment — no BOY baseline is available, so BOY→Spring movement metrics cannot be calculated. Showing Spring placement snapshot and available growth metrics below.</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.625rem;margin-bottom:.875rem">
+              ${[
+                {v:allRows.length.toLocaleString(), l:'Pilot Scholars', s:'Spring diagnostic', c:'#fff'},
+                {v:pilotMedGain!==null?(pilotMedGain>=0?'+':'')+pilotMedGain.toFixed(1)+' pts':'—', l:'Median Scale Gain', s:'Spring diagnostic gain', c:'#34d399'},
+                {v:pilotMedPct!==null?Math.round(pilotMedPct*100)+'%':'—', l:'Median Typical Growth', s:'Spring pct typical', c:'#60a5fa'},
+                {v:sprTotal+' placed', l:'Spring Placement Available', s:PLACEMENT_ORDER.slice(-2).filter(p=>springDist[p]>0).map(p=>pct(springDist[p],sprTotal)+'% '+PLC_SHORT[p]).join(' · ')||'—', c:'#fbbf24'},
+              ].map(k=>`<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:.625rem .75rem;border:1px solid rgba(255,255,255,.12);background:var(--surface-2);border:1px solid var(--border)">
+                <div style="font-size:1.3rem;font-weight:800;color:${k.c==='#fff'?'var(--navy)':k.c};letter-spacing:-.02em">${k.v}</div>
+                <div style="font-size:.65rem;font-weight:700;color:var(--navy);margin:.1rem 0">${k.l}</div>
+                <div style="font-size:.6rem;color:var(--muted)">${k.s}</div>
+              </div>`).join('')}
+            </div>
+            ${sprTotal > 0 ? `<div class="irlab-card" style="margin-bottom:.875rem">
+              <div class="irlab-card-hd"><div class="irlab-card-title">📊 Spring Placement Distribution</div><div class="irlab-card-meta">${sprTotal} scholars with placement data</div></div>
+              <div class="irlab-card-body">
+                ${PLACEMENT_ORDER.slice().reverse().map(p=>{
+                  const n=springDist[p]; if(!n) return '';
+                  const pctVal=pct(n,sprTotal);
+                  return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
+                    <div style="font-size:.7rem;color:var(--text);min-width:170px;font-weight:${n>0?'600':'400'}">${PLC_SHORT[p]}</div>
+                    <div style="flex:1;background:#f1f5f9;border-radius:4px;height:14px;overflow:hidden">
+                      <div style="height:100%;width:${pctVal}%;background:${PLC[p]};border-radius:4px;min-width:${n>0?'4px':'0'}"></div>
+                    </div>
+                    <div style="font-size:.7rem;font-weight:700;color:${PLC[p]};min-width:36px;text-align:right">${pctVal}%</div>
+                    <div style="font-size:.65rem;color:var(--muted);min-width:28px;text-align:right">n=${n}</div>
+                  </div>`;
+                }).join('')}
+              </div>
+            </div>` : ''}
+            ${schoolRows ? `<div class="irlab-card">
+              <div class="irlab-card-hd"><div class="irlab-card-title">🏫 By School</div></div>
+              <div class="irlab-card-body" style="overflow-x:auto">
+                <table class="irlab-rank-table">
+                  <thead><tr><th>School</th><th style="text-align:center">Scholars</th><th>Subjects</th><th style="text-align:center">Median Gain</th><th style="text-align:center">Median Typical</th></tr></thead>
+                  <tbody>${schoolRows}</tbody>
+                </table>
+              </div>
+            </div>` : ''}`;
+          }
+          if (!m) return `<div class="irlab-card"><div class="irlab-empty"><div class="irlab-empty-icon">🔍</div><div class="irlab-empty-title">No matching records</div><div class="irlab-empty-sub">Try broadening your filters.</div></div></div>`;
+          return '';
+        })()}
 
+        ${m ? `
         <!-- ── SECTION A: KPI STRIP (2-row compact) ── -->
         <div style="background:linear-gradient(135deg,#0a1628 0%,#1a3a6b 60%,#003087 100%);border-radius:12px;padding:1rem 1.25rem;margin-bottom:.875rem;position:relative;overflow:hidden">
           <div style="position:absolute;inset:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22200%22><circle cx=%22350%22 cy=%2250%22 r=%22120%22 fill=%22rgba(255,255,255,.03)%22/><circle cx=%2250%22 cy=%22150%22 r=%2280%22 fill=%22rgba(255,255,255,.02)%22/></svg>');background-size:cover;pointer-events:none"></div>
@@ -3153,7 +3234,7 @@
           </div>
         </div>
 
-        `}
+        ` : ''}
       `;
     }
 
