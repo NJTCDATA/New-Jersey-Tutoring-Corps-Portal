@@ -1783,15 +1783,16 @@
 
   // ── iReady: constants ─────────────────────────────────────────────────────────
 
-  // Longitudinal data (iReady Dashboard 22-25): instructor in column B, subject in column H
-  const IR_LONG_ID       = '16TGLCi5zCzrujBFRjOckcScYt47VKOr-RcKvu2EMiT0';
-  const IR_LONG_ELA_GID  = 0;           // ELA tab
-  const IR_LONG_MATH_GID = 394721793;   // Math tab
+  // Longitudinal data (iReady Dashboard 22-25): published via "Publish to web" CSV key
+  // Same key used by Central Team Portal (data-department.js IRLAB_LIVE_2PACX)
+  const IR_LONG_2PACX    = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
+  const IR_LONG_ELA_GID  = 0;           // ELA tab (default)
+  const IR_LONG_MATH_GID = 127145553;   // Math tab
   // 25-26 preliminary data: matched via Pearl scholar IDs, not tutor name
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v5';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v6';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -2032,7 +2033,7 @@
       } catch (e) { return []; }
     }
 
-    const longBase = `https://docs.google.com/spreadsheets/d/${IR_LONG_ID}/gviz/tq?tqx=out:csv&gid=`;
+    const longBase = `https://docs.google.com/spreadsheets/d/e/${IR_LONG_2PACX}/pub?output=csv&gid=`;
     const snap2526 = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
 
     const [longMath, longELA, snapMath, snapELA] = await Promise.all([
