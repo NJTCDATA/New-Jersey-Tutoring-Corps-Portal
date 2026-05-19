@@ -16,10 +16,10 @@
 
   const CACHE_TTL = 5 * 60 * 1000;
   const CACHE_KEYS = {
-    att:  'njtc_od_att',
-    inst: 'njtc_od_inst',
-    stu:  'njtc_od_stu',
-    sess: 'njtc_od_sess'
+    att:  'njtc_od_att_v2',
+    inst: 'njtc_od_inst_v2',
+    stu:  'njtc_od_stu_v2',
+    sess: 'njtc_od_sess_v2'
   };
 
   // ATT column indexes
@@ -29,7 +29,7 @@
     SEX: 9, RACE: 10, SCHOOL: 11, DISTRICT: 12, USER_ID: 13,
     IND_ATT_RATE: 14, SCHOLAR_ATT_PCT: 15, AVG_ATT: 16,
     STU_AVG_ATT: 17, INST_AVG: 18, STU_ATT_CNT: 19, STU_MISS_CNT: 20,
-    INST_ATT_CNT: 21, INST_MISS_CNT: 22, MISS_TAG: 23, WEEK: 26
+    INST_ATT_CNT: 21, INST_MISS_CNT: 22, MISS_TAG: 23, CONSEC_STATUS: 24, WEEK: 26
   };
 
   // Instructor Survey column indexes
@@ -63,6 +63,20 @@
     'Absent; Covered by the Instructional Coach',
     'Tutor Left Early (no sub)'
   ]);
+
+  const SI_SEVERITY = {
+    'NJTC Internal Issue/Error':                  'critical',
+    'Tutor Vacancy':                              'high',
+    'Scholar Archived - Removed from Sessions':   'high',
+    'Unscheduled School Closure/Delay/Dismissal': 'high',
+    'NJTC Diagnostic Testing':                    'medium',
+    'School-administered Testing':                'medium',
+    'School Event':                               'medium',
+    'Scheduled/Unscheduled School Drill':         'medium',
+    'HADDON TWP ONLY -- Program Redevelopment':   'medium',
+    'Half Day':                                   'low',
+    'Holiday - scheduled':                        'low',
+  };
 
   function parseCSV(text) {
     const rows = [];
@@ -197,7 +211,11 @@
         scholarMissedReasons: {}, serviceInterruptions: 0,
         siReasons: {}, surveyCount: 0, surveyRate: null,
         stuAvgScores: { confidence: null, enjoyment: null, learning: null, overall: null, count: 0 },
-        schoolsCovered: [], weeklyAtt: {}, hasData: false
+        schoolsCovered: [], weeklyAtt: {},
+        tutorSchool: null, tutorDistrict: null,
+        scholarAttRate: null, siByLevel: { critical: {}, high: {}, medium: {}, low: {} },
+        weeklyTrend: [], consecConcernIds: [], stuSurveyAvg: null,
+        hasData: false
       };
     }
 
@@ -240,6 +258,12 @@
     const myTotal = myAttended + myAbsent;
     const myAttRate = myTotal > 0 ? Math.round((myAttended / myTotal) * 100) : null;
 
+    const siByLevel = { critical: {}, high: {}, medium: {}, low: {} };
+    for (const [reason, count] of Object.entries(siReasons)) {
+      const level = SI_SEVERITY[reason] || 'medium';
+      siByLevel[level][reason] = (siByLevel[level][reason] || 0) + count;
+    }
+
     // Determine the tutor's own school — most frequent school across their attended rows.
     // Used to fence scholar visibility: a tutor only sees students at their site (privacy).
     const schoolFreq = {};
@@ -249,6 +273,14 @@
       if (sc) schoolFreq[sc] = (schoolFreq[sc] || 0) + 1;
     }
     const tutorSchool = Object.entries(schoolFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    const distFreq = {};
+    for (const r of myInstRows) {
+      if (classifyRow(r, true) !== 'attended') continue;
+      const d = (r[ATT.DISTRICT] || '').trim();
+      if (d) distFreq[d] = (distFreq[d] || 0) + 1;
+    }
+    const tutorDistrict = Object.entries(distFreq).sort((a,b) => b[1]-a[1])[0]?.[0] || null;
 
     // Scholar rows — only sessions the tutor attended AND only students at the tutor's school.
     // Filtering by school prevents cross-site data leakage when multiple tutors share a session
@@ -296,6 +328,17 @@
       }
     }
 
+    // Build per-week scholar attendance (for weeklyTrend)
+    const scholarWeekly = {};
+    for (const r of scholarRows) {
+      const week = (r[ATT.WEEK] || '').trim() || 'Unknown';
+      if (!scholarWeekly[week]) scholarWeekly[week] = { attended: 0, absent: 0, si: 0 };
+      const cls = classifyRow(r, false);
+      if (cls === 'attended') scholarWeekly[week].attended++;
+      else if (cls === 'absent') scholarWeekly[week].absent++;
+      else if (cls === 'service_interruption') scholarWeekly[week].si++;
+    }
+
     // uniqueScholarIds is no longer used — scholar count comes from scholarMap.size
     // after school-based filtering above. Session Details col Q counted ALL students
     // in a shared session block (across all tutors at the site), causing overcounting.
@@ -321,6 +364,12 @@
       });
     }
 
+    const consecConcernIds = new Set(
+      scholarRows
+        .filter(r => (r[ATT.CONSEC_STATUS] || '').trim() === 'Attendance Concern')
+        .map(r => (r[ATT.USER_ID] || '').trim())
+    );
+
     const scholars = Object.values(scholarMap)
       .map(s => {
         const total = s.attended + s.absent;
@@ -339,6 +388,7 @@
           ...s,
           totalSessions: total,
           attRate: total > 0 ? Math.round((s.attended / total) * 100) : null,
+          consecConcern: consecConcernIds.has(s.id),
           surveyCount: svList.length,
           surveyScores: {
             confidence: svAvg(svScores.confidence),
@@ -352,6 +402,11 @@
 
     // Unique scholar count = distinct scholars at this tutor's school across attended sessions
     const uniqueScholarCount = scholars.length;
+
+    let schTotalAtt = 0, schTotalAbs = 0;
+    for (const s of scholars) { schTotalAtt += s.attended; schTotalAbs += s.absent; }
+    const scholarAttRate = (schTotalAtt + schTotalAbs) > 0
+      ? Math.round(schTotalAtt / (schTotalAtt + schTotalAbs) * 100) : null;
 
     // Aggregated scholar missed reasons
     const scholarMissedReasons = {};
@@ -441,6 +496,39 @@
 
     const toFixed1 = v => v !== null ? Math.round(v * 10) / 10 : null;
 
+    // Build weeklyTrend array combining tutor and scholar weekly data
+    const allWeeks = [...new Set([...Object.keys(weeklyAtt), ...Object.keys(scholarWeekly)])]
+      .filter(w => w !== 'Unknown')
+      .sort((a, b) => {
+        const na = parseInt(a.replace(/\D/g, '')) || 0;
+        const nb = parseInt(b.replace(/\D/g, '')) || 0;
+        return na - nb;
+      });
+    const weeklyTrend = allWeeks.map(w => {
+      const t = weeklyAtt[w] || { attended: 0, absent: 0, si: 0 };
+      const s = scholarWeekly[w] || { attended: 0, absent: 0, si: 0 };
+      const tutorTotal = t.attended + t.absent;
+      const schTotal   = s.attended + s.absent;
+      return {
+        week: w,
+        tutorRate:   tutorTotal  > 0 ? Math.round(t.attended / tutorTotal  * 100) : null,
+        scholarRate: schTotal    > 0 ? Math.round(s.attended / schTotal    * 100) : null,
+        siCount: s.si || 0
+      };
+    });
+
+    // Compute a single X.X/5 student survey average for the KPI strip
+    const stuSurveyAvg = (() => {
+      const vals = [];
+      for (const r of myStuSurveys) {
+        [STU.CONFIDENCE, STU.ENJOYMENT, STU.LEARNING, STU.OVERALL].forEach(col => {
+          const v = parseFloat(r[col]);
+          if (!isNaN(v) && v > 0) vals.push(v);
+        });
+      }
+      return vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10 : null;
+    })();
+
     return {
       myAttended, myAbsent, mySI,
       myTotal, myAttRate, myMissedReasons,
@@ -456,6 +544,10 @@
         count: myStuSurveys.length
       },
       schoolsCovered, weeklyAtt,
+      tutorSchool, tutorDistrict,
+      scholarAttRate, siByLevel,
+      weeklyTrend, consecConcernIds: [...consecConcernIds],
+      stuSurveyAvg,
       hasData: true
     };
   }
