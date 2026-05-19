@@ -2,6 +2,7 @@
  * deadline-alerts2.js
  * NJTC Portal — Project 2 Asana Banner (Green)
  * Only renders for leadership, data, and kb (exec) departments.
+ * Always visible for those depts — shows "all clear" when no tasks are urgent.
  * Stacks directly below the existing #njtc-alert-root banner.
  * Depends on: asana-service2.js (NJTCAsana2)
  */
@@ -26,10 +27,16 @@
   // ── Load tasks ─────────────────────────────────────────────────────────────
   await NJTCAsana2.load();
 
+  const allTasks = NJTCAsana2.getTasks();
   const overdue  = NJTCAsana2.getOverdue();
   const upcoming = NJTCAsana2.getUpcoming(7).filter(t => !overdue.find(o => o.gid === t.gid));
+  const allAlerts = [
+    ...overdue.map(t => ({ ...t, _type: 'overdue' })),
+    ...upcoming.map(t => ({ ...t, _type: 'upcoming' })),
+  ];
 
-  if (overdue.length === 0 && upcoming.length === 0) return;
+  const hasAlerts   = allAlerts.length > 0;
+  const bannerColor = overdue.length > 0 ? '#166534' : '#166534'; // always green; first banner owns red/amber
 
   // ── Styles ─────────────────────────────────────────────────────────────────
   const style = document.createElement('style');
@@ -50,12 +57,12 @@
       color: #fff;
       font-size: .8125rem;
       font-weight: 600;
-      cursor: pointer;
+      cursor: ${hasAlerts ? 'pointer' : 'default'};
       user-select: none;
       gap: 1rem;
       transition: background .15s;
     }
-    #njtc-alert2-banner:hover { background: #14532d; }
+    #njtc-alert2-banner:hover { background: ${hasAlerts ? '#14532d' : '#166534'}; }
 
     #njtc-alert2-banner-left {
       display: flex;
@@ -134,7 +141,7 @@
       overflow: hidden;
       transition: max-height .25s ease;
     }
-    #njtc-alert2-root.open #njtc-alert2-panel { max-height: 400px; }
+    #njtc-alert2-root.open #njtc-alert2-panel { max-height: 420px; }
 
     #njtc-alert2-panel-inner { padding: .875rem 1.25rem 1rem; }
 
@@ -195,6 +202,16 @@
     }
     .njtc-task2-link:hover { background: #166534; color: #fff; }
 
+    #njtc-alert2-allclear {
+      display: flex;
+      align-items: center;
+      gap: .625rem;
+      padding: .625rem .5rem;
+      color: #166534;
+      font-size: .8125rem;
+      font-weight: 600;
+    }
+
     #njtc-alert2-panel-footer {
       margin-top: .75rem;
       padding-top: .625rem;
@@ -223,16 +240,6 @@
   document.head.appendChild(style);
 
   // ── Build HTML ─────────────────────────────────────────────────────────────
-  const parts = [];
-  if (overdue.length > 0)  parts.push(`${overdue.length} overdue task${overdue.length > 1 ? 's' : ''}`);
-  if (upcoming.length > 0) parts.push(`${upcoming.length} due within 7 days`);
-  const summaryText = parts.join(' · ');
-
-  const allAlerts = [
-    ...overdue.map(t => ({ ...t, _type: 'overdue' })),
-    ...upcoming.map(t => ({ ...t, _type: 'upcoming' })),
-  ];
-
   function formatDue(due_on, type) {
     const d = new Date(due_on + 'T00:00:00');
     const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -253,23 +260,43 @@
     </div>
   `).join('');
 
+  // Banner summary text
+  const badgeIcon    = hasAlerts ? (overdue.length > 0 ? '⚠️' : '📋') : '✅';
+  const badgeCount   = hasAlerts ? allAlerts.length : allTasks.length;
+  const summaryText  = hasAlerts
+    ? [
+        overdue.length  > 0 ? `${overdue.length} overdue task${overdue.length  > 1 ? 's' : ''}` : '',
+        upcoming.length > 0 ? `${upcoming.length} due within 7 days`                             : '',
+      ].filter(Boolean).join(' · ')
+    : `All tasks on track · ${allTasks.length} open item${allTasks.length !== 1 ? 's' : ''}`;
+
+  // Panel body: task list when alerts exist, "all clear" when quiet
+  const panelBody = hasAlerts
+    ? `<h4>${overdue.length > 0 ? 'Overdue & Upcoming Tasks' : 'Upcoming Tasks'}</h4>${taskRows}`
+    : `<div id="njtc-alert2-allclear">
+        ✅ No tasks overdue or due within the next 7 days.
+        ${allTasks.length > 0 ? `<span style="font-weight:400;color:#64748b">${allTasks.length} open task${allTasks.length !== 1 ? 's' : ''} tracked in this project.</span>` : ''}
+      </div>`;
+
   const root = document.createElement('div');
   root.id = 'njtc-alert2-root';
   root.innerHTML = `
     <div id="njtc-alert2-banner">
       <div id="njtc-alert2-banner-left">
-        <span id="njtc-alert2-badge">🟢 ${allAlerts.length}</span>
+        <span id="njtc-alert2-badge">${badgeIcon} ${badgeCount}</span>
         <span id="njtc-alert2-summary">${summaryText}</span>
       </div>
       <div id="njtc-alert2-banner-right">
-        <span id="njtc-alert2-toggle">See details <i id="njtc-alert2-chevron">▾</i></span>
+        ${hasAlerts ? '<span id="njtc-alert2-toggle">See details <i id="njtc-alert2-chevron">▾</i></span>' : ''}
+        <a style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.85);text-decoration:underline;text-underline-offset:2px;white-space:nowrap"
+           href="https://app.asana.com/1/1202967547815613/project/1213346212277384/list/1213346212277403"
+           target="_blank" rel="noopener">Open in Asana ↗</a>
         <button id="njtc-alert2-dismiss" title="Dismiss">✕</button>
       </div>
     </div>
     <div id="njtc-alert2-panel">
       <div id="njtc-alert2-panel-inner">
-        <h4>${overdue.length > 0 ? 'Overdue & Upcoming Tasks' : 'Upcoming Tasks'}</h4>
-        ${taskRows}
+        ${panelBody}
         <div id="njtc-alert2-panel-footer">
           <a id="njtc-open-asana2"
              href="https://app.asana.com/1/1202967547815613/project/1213346212277384/list/1213346212277403"
@@ -293,11 +320,9 @@
 
   reposition();
 
-  // Re-run after first banner's open/close animation (260ms) completes
   const firstRoot = document.getElementById('njtc-alert-root');
   if (firstRoot) {
     firstRoot.addEventListener('click', () => setTimeout(reposition, 270));
-    // Watch for the first banner being dismissed
     new MutationObserver(() => reposition()).observe(document.body, { childList: true });
   }
 
@@ -305,17 +330,19 @@
   const banner  = root.querySelector('#njtc-alert2-banner');
   const dismiss = root.querySelector('#njtc-alert2-dismiss');
 
-  banner.addEventListener('click', (e) => {
-    if (e.target === dismiss || dismiss.contains(e.target)) return;
-    root.classList.toggle('open');
-    setTimeout(reposition, 270);
-  });
+  if (hasAlerts) {
+    banner.addEventListener('click', (e) => {
+      if (e.target === dismiss || dismiss.contains(e.target)) return;
+      if (e.target.tagName === 'A' || e.target.closest('a')) return;
+      root.classList.toggle('open');
+      setTimeout(reposition, 270);
+    });
+  }
 
   dismiss.addEventListener('click', (e) => {
     e.stopPropagation();
     root.remove();
-    // Let the first banner reclaim the body padding
-    const first  = document.getElementById('njtc-alert-root');
+    const first = document.getElementById('njtc-alert-root');
     document.body.style.paddingTop = first ? first.offsetHeight + 'px' : '0';
   });
 
