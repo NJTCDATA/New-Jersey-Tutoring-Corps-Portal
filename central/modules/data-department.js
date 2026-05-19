@@ -2041,7 +2041,43 @@
     }
 
     // ── SECTION B: GROWTH DISTRIBUTION CHART ─────────────────────────────────
-    function renderGrowthDistChart() {
+    function renderGrowthDistChart(rows) {
+      if (_irlPilot === 'pilot') {
+        const gainRows = (rows||[]).filter(r => r.springGain !== null && !isNaN(r.springGain));
+        const bins = [
+          {l:'< 0 pts',  min:-Infinity, max:0,        col:'#ef4444'},
+          {l:'1 – 10',   min:0,         max:10,       col:'#fb923c'},
+          {l:'11 – 20',  min:10,        max:20,       col:'#fbbf24'},
+          {l:'21 – 30',  min:20,        max:30,       col:'#4ade80'},
+          {l:'31 – 40',  min:30,        max:40,       col:'#22c55e'},
+          {l:'41 – 50',  min:40,        max:50,       col:'#16a34a'},
+          {l:'> 50 pts', min:50,        max:Infinity, col:'#15803d'},
+        ];
+        const maxN = Math.max(1, ...bins.map(b => gainRows.filter(r=>r.springGain>=b.min&&r.springGain<b.max).length));
+        return `<div class="irlab-card" style="margin:0">
+          <div class="irlab-card-hd">
+            <div class="irlab-card-title">📊 Scale Gain Distribution</div>
+            <div class="irlab-card-meta">Spring − Winter scale score · ${gainRows.length} scholars</div>
+          </div>
+          <div class="irlab-card-body" style="padding:.875rem">
+            ${bins.map(b=>{
+              const n = gainRows.filter(r=>r.springGain>=b.min&&r.springGain<b.max).length;
+              const w = Math.round(n/maxN*100);
+              return `<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
+                <div style="font-size:.68rem;color:var(--text);min-width:54px;text-align:right;font-weight:500">${b.l}</div>
+                <div style="flex:1;background:#f1f5f9;border-radius:4px;height:14px;overflow:hidden">
+                  <div style="height:100%;width:${w}%;background:${b.col};border-radius:4px;min-width:${n>0?'4':'0'}px;transition:width .4s"></div>
+                </div>
+                <div style="font-size:.7rem;font-weight:700;color:${b.col};min-width:20px;text-align:right">${n}</div>
+              </div>`;
+            }).join('')}
+            <div style="font-size:.6rem;color:var(--muted);margin-top:.5rem;border-top:1px solid var(--border);padding-top:.4rem">
+              Scale gain = Spring Overall Scale Score − Winter Overall Scale Score.
+              iReady does not assign annual growth targets for first-year diagnostic programs.
+            </div>
+          </div>
+        </div>`;
+      }
       return `<div class="irlab-card" style="margin:0">
         <div class="irlab-card-hd">
           <div class="irlab-card-title">📊 Growth Distribution</div>
@@ -3002,7 +3038,7 @@
               ${[
                 {v:allRows.length.toLocaleString(), l:'Pilot Scholars', s:'Spring diagnostic', c:'#fff'},
                 {v:pilotMedGain!==null?(pilotMedGain>=0?'+':'')+pilotMedGain.toFixed(1)+' pts':'—', l:'Median Scale Gain', s:'Spring diagnostic gain', c:'#34d399'},
-                {v:pilotMedPct!==null?Math.round(pilotMedPct*100)+'%':'—', l:'Median Typical Growth', s:'Spring pct typical', c:'#60a5fa'},
+                {v:'N/A', l:'Growth Target %', s:'Not assigned · first-year program', c:'rgba(100,116,139,1)'},
                 {v:sprTotal+' placed', l:'Spring Placement Available', s:PLACEMENT_ORDER.slice(-2).filter(p=>springDist[p]>0).map(p=>pct(springDist[p],sprTotal)+'% '+PLC_SHORT[p]).join(' · ')||'—', c:'#fbbf24'},
               ].map(k=>`<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:.625rem .75rem;border:1px solid rgba(255,255,255,.12);background:var(--surface-2);border:1px solid var(--border)">
                 <div style="font-size:1.3rem;font-weight:800;color:${k.c==='#fff'?'var(--navy)':k.c};letter-spacing:-.02em">${k.v}</div>
@@ -3048,7 +3084,14 @@
           <div style="position:relative">
             <div style="font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.45);margin-bottom:.625rem">📊 NJTC · iReady Academic Impact · Live Data</div>
             <div class="irlab-kpi-strip">
-              ${[
+              ${(_irlPilot === 'pilot' ? [
+                { v: totalUnique.toLocaleString(), l: 'Pilot Scholars', s: rows.length+' valid pairs', c:'#fff' },
+                { v: avgSpringGLAll!==null?fmtGradeLevel(avgSpringGLAll):'—', l:'Avg Grade Level (Spring)', s: avgBaseGLAll!==null?'BOY: '+fmtGradeLevel(avgBaseGLAll):'BOY → Spring', c:'#fbbf24' },
+                { v: elaGainAvg!==null?(elaGainAvg>=0?'+':'')+elaGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain ELA', s:'spring minus winter score', c:'#34d399' },
+                { v: mathGainAvg!==null?(mathGainAvg>=0?'+':'')+mathGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain Math', s:'spring minus winter score', c:'#fdba74' },
+                { v: m.pctMoved+'%', l:'Placement Moved Up', s:'improved placement level', c:'#60a5fa' },
+                { v: 'N/A', l:'Growth Target %', s:'Not assigned · first-year program', c:'rgba(255,255,255,.3)', tip:'iReady does not assign annual typical growth targets for schools in their first diagnostic year. Scale gain (Spring − Winter score) is the primary growth metric for pilot programs.' },
+              ] : [
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
                 { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
                 { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · Values come directly from iReady CSV' },
@@ -3057,7 +3100,7 @@
                 { v: mathMeetPct!==null?mathMeetPct+'%':'—', l:'% Meeting Typical Math', s:'≥100% typical growth', c:'#a78bfa' },
                 { v: elaGainAvg!==null?(elaGainAvg>=0?'+':'')+elaGainAvg.toFixed(1):'—', l:'Avg Scale Gain ELA', s:'scale score points', c:'#34d399' },
                 { v: mathGainAvg!==null?(mathGainAvg>=0?'+':'')+mathGainAvg.toFixed(1):'—', l:'Avg Scale Gain Math', s:'scale score points', c:'#fdba74' },
-              ].map(k=>`<div${k.tip?` title="${k.tip.replace(/"/g,"'")}"`:''}>
+              ]).map(k=>`<div${k.tip?` title="${k.tip.replace(/"/g,"'")}"`:''}>
 
                 <div style="font-family:'DM Serif Display',Georgia,serif;font-size:1.5rem;font-weight:400;color:${k.c};line-height:1.1;margin-bottom:.2rem">${k.v}</div>
                 <div style="font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.65);line-height:1.3">${k.l}${k.tip?`<span style="font-size:.55rem;background:rgba(255,255,255,.15);border-radius:99px;padding:.05rem .25rem;margin-left:.2rem;cursor:help">ⓘ</span>`:''}</div>
@@ -3096,12 +3139,22 @@
                   return `<div style="border:1.5px solid ${color}33;border-radius:10px;padding:.875rem;background:${color}06">
                     <div style="font-size:.8125rem;font-weight:700;color:${color};margin-bottom:.625rem">${icon} ${label}</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.75rem">
+                      ${_irlPilot === 'pilot' ? `
+                      <div style="grid-column:1/-1;background:#fff8e1;border-radius:4px;padding:.25rem .4rem;font-size:.62rem;color:#92400e;margin-bottom:.2rem">
+                        Growth targets not available for first-year programs
+                      </div>
+                      <div><div style="font-size:1.25rem;font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
+                      <div><div style="font-size:1.25rem;font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.65rem">At Grade Level</div></div>
+                      <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.65rem">Moved Up</div></div>
+                      <div><div style="font-weight:700;color:var(--muted);font-size:.875rem">${fmtGradeLevel(sc.avgSpringGL)}</div><div style="color:var(--muted);font-size:.65rem">Avg GL Placement</div></div>
+                      ` : `
                       <div><div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${medT!==null?(medT*100).toFixed(1)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">Median Typical Growth</div></div>
                       <div><div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${totT.length?pct(metT.length,totT.length)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">% Meeting Typical</div></div>
                       <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
                       <div><div style="font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.65rem">At Grade Level</div></div>
                       <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.65rem">Moved Up</div></div>
                       <div><div style="font-weight:700;color:var(--muted);font-size:.875rem">${fmtGradeLevel(sc.avgSpringGL)}</div><div style="color:var(--muted);font-size:.65rem">Avg GL Placement</div></div>
+                      `}
                     </div>
                   </div>`;
                 }).join('')}
@@ -3131,7 +3184,7 @@
 
         <!-- ── ROW: CHARTS B + C (side by side) ── -->
         <div class="irlab-2col">
-          ${renderGrowthDistChart()}
+          ${renderGrowthDistChart(rows)}
           ${renderPlacementDistChart()}
         </div>
 
@@ -3147,15 +3200,15 @@
             <div style="overflow-x:auto;max-height:320px;overflow-y:auto">
               ${_irlBreakdownTab === 'school' ? `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>School</th><th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>School</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.bySchool).map(([name,srows])=>{
                   const sm=computeMetrics(srows); if(!sm) return '';
-                  const sTyp=medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const sTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const sC=sTyp!==null&&sTyp>=1.0?'#0d6e3a':sTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:sm.n,html:`<tr>
                     <td style="font-weight:600;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</td>
-                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((sTyp||0)*100,200)/2}%;height:100%;background:${sC};border-radius:3px"></div></div><span style="font-weight:700;color:${sC};font-size:.75rem">${sTyp!==null?(sTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${sm.metTypPct!==null&&sm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${sm.metTypPct!==null&&sm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${sm.metTypPct!==null?sm.metTypPct+'%':'—'}</span></td>
+                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((sTyp||0)*100,200)/2}%;height:100%;background:${sC};border-radius:3px"></div></div><span style="font-weight:700;color:${sC};font-size:.75rem">${sTyp!==null?(sTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    <td style="text-align:center"><span style="background:${sm.metTypPct!==null&&sm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${sm.metTypPct!==null&&sm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${sm.metTypPct!==null?sm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${sm.pctMoved>=50?'#0d6e3a':'#d97706'}">${sm.pctMoved}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(sm.avgSpringGL)}</td>
                     <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${sm.avgGain!==null?(sm.avgGain>=0?'+':'')+sm.avgGain.toFixed(1):'—'}</td>
@@ -3164,15 +3217,15 @@
                 }).filter(Boolean).sort((a,b)=>b.n-a.n).map(x=>x.html).join('')}</tbody>
               </table>` : _irlBreakdownTab === 'grade' ? `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>Grade</th><th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>Grade</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byGrade).map(([gr,grows])=>{
                   const gm=computeMetrics(grows); if(!gm) return '';
-                  const gTyp=medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const gTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const gC=gTyp!==null&&gTyp>=1.0?'#0d6e3a':gTyp!==null?'#b91c1c':'var(--muted)';
                   return {num:parseInt(gr)||99,html:`<tr>
                     <td style="font-weight:700">Gr. ${esc(gr)}</td>
-                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((gTyp||0)*100,200)/2}%;height:100%;background:${gC};border-radius:3px"></div></div><span style="font-weight:700;color:${gC};font-size:.75rem">${gTyp!==null?(gTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${gm.metTypPct!==null&&gm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${gm.metTypPct!==null&&gm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${gm.metTypPct!==null?gm.metTypPct+'%':'—'}</span></td>
+                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((gTyp||0)*100,200)/2}%;height:100%;background:${gC};border-radius:3px"></div></div><span style="font-weight:700;color:${gC};font-size:.75rem">${gTyp!==null?(gTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    <td style="text-align:center"><span style="background:${gm.metTypPct!==null&&gm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${gm.metTypPct!==null&&gm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${gm.metTypPct!==null?gm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${gm.pctMoved>=50?'#0d6e3a':'#d97706'}">${gm.pctMoved}%</td>
                     <td style="text-align:center;font-weight:700;color:#0d6e3a">${gm.pctOnGL}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(gm.avgSpringGL)}</td>
@@ -3182,21 +3235,21 @@
                 }).filter(Boolean).sort((a,b)=>a.num-b.num).map(x=>x.html).join('')}</tbody>
               </table>` : `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>District</th><th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th><th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>District</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
                   const dm=computeMetrics(drows); if(!dm) return '';
-                  const dTyp=medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const dTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const dC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':dTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:dm.n,medT:dTyp||0,html:`<tr>
                     <td style="font-weight:700;color:var(--navy)">${esc(name)}</td>
-                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${dC};border-radius:3px"></div></div><span style="font-weight:700;color:${dC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${dm.metTypPct!==null&&dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct!==null&&dm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>
+                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${dC};border-radius:3px"></div></div><span style="font-weight:700;color:${dC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    <td style="text-align:center"><span style="background:${dm.metTypPct!==null&&dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct!==null&&dm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${dm.pctMoved>=50?'#0d6e3a':'#d97706'}">${dm.pctMoved}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(dm.avgSpringGL)}</td>
                     <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${dm.avgGain!==null?(dm.avgGain>=0?'+':'')+dm.avgGain.toFixed(1):'—'}</td>
                     <td style="text-align:right;font-size:.7rem;color:var(--muted)">${dm.n}</td>
                   </tr>`};
-                }).filter(Boolean).sort((a,b)=>b.medT-a.medT).map(x=>x.html).join('')}</tbody>
+                }).filter(Boolean).sort((a,b)=>b.n-a.n).map(x=>x.html).join('')}</tbody>
               </table>`}
             </div>
           </div>
@@ -3209,13 +3262,16 @@
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem">
               ${Object.entries(m.byCert).map(([cert,crows])=>{
                 const cm=computeMetrics(crows); if(!cm) return '';
-                const cTyp=medianArr(getAllRows({}).filter(r=>r.certStatus===cert).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                const cTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({}).filter(r=>r.certStatus===cert).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                 const cols={'Certified':'#0d6e3a','Non Certified':'#0050c8','Mixed Cert Status':'#7b2d8b','Unidentified':'#7d8fa1'};
                 const col=cols[cert]||'#7d8fa1';
                 return `<div style="border:1.5px solid ${col}33;border-radius:8px;padding:.625rem;background:${col}07">
                   <div style="font-size:.7rem;font-weight:700;color:${col};margin-bottom:.25rem">${esc(cert)}</div>
-                  <div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${cTyp!==null?(cTyp*100).toFixed(0)+'%':'—'}</div>
-                  <div style="font-size:.6rem;color:var(--muted)">Median Typical Growth</div>
+                  ${_irlPilot==='pilot'
+                    ? `<div style="font-size:1.25rem;font-weight:700;color:var(--blue-mid)">${cm.avgGain!==null?(cm.avgGain>=0?'+':'')+cm.avgGain.toFixed(1)+' pts':'—'}</div>
+                  <div style="font-size:.6rem;color:var(--muted)">Avg Scale Gain</div>`
+                    : `<div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${cTyp!==null?(cTyp*100).toFixed(0)+'%':'—'}</div>
+                  <div style="font-size:.6rem;color:var(--muted)">Median Typical Growth</div>`}
                   <div style="font-size:.7rem;margin-top:.35rem;color:var(--text-2)">Moved up: <strong>${cm.pctMoved}%</strong> · At GL: <strong>${cm.pctOnGL}%</strong></div>
                   <div style="font-size:.65rem;color:var(--muted)">N = ${cm.n}</div>
                 </div>`;
