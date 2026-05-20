@@ -75,7 +75,7 @@
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="${strokeWidth}"/>
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
         stroke-dasharray="${fill} ${circ}" stroke-dashoffset="${circ/4}"
-        stroke-linecap="butt" style="transition:stroke-dasharray 1s ease"/>
+        stroke-linecap="butt"/>
       <text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="#fff" font-size="${size*0.18}" font-weight="700" font-family="Epilogue,sans-serif">
         ${pct != null ? pct + '%' : '—'}
       </text>
@@ -2528,12 +2528,16 @@
 
       sections.forEach(s => dashPlaceholder.appendChild(s));
 
-      // Trigger SVG animations after paint
+      // Trigger SVG fill animations: reset to 0 (instant), then animate to the real value.
+      // Transition is applied only AFTER the reset so the "disappear" step doesn't animate.
       requestAnimationFrame(() => {
         dashPlaceholder.querySelectorAll('circle[stroke-dasharray]').forEach(c => {
           const da = c.getAttribute('stroke-dasharray');
+          c.style.transition = 'none';
           c.setAttribute('stroke-dasharray', '0 9999');
-          requestAnimationFrame(() => { c.setAttribute('stroke-dasharray', da); });
+          void c.getBoundingClientRect(); // force reflow so the reset commits before transition kicks in
+          c.style.transition = 'stroke-dasharray 1s ease';
+          c.setAttribute('stroke-dasharray', da);
         });
       });
     }
