@@ -65,16 +65,17 @@
     return '#ef4444';
   }
 
-  function donutChart(pct, color, size) {
+  function donutChart(pct, color, size, strokeWidth) {
     size = size || 80;
-    const r = (size / 2) - 8;
+    strokeWidth = strokeWidth || Math.round(size * 0.14);
+    const r = (size / 2) - (strokeWidth / 2) - 1;
     const circ = 2 * Math.PI * r;
     const fill = pct != null ? (pct / 100) * circ : 0;
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${pct != null ? pct + '%' : 'No data'}">
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="${strokeWidth}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
         stroke-dasharray="${fill} ${circ}" stroke-dashoffset="${circ/4}"
-        stroke-linecap="round" style="transition:stroke-dasharray 1s ease"/>
+        stroke-linecap="butt" style="transition:stroke-dasharray 1s ease"/>
       <text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="#fff" font-size="${size*0.18}" font-weight="700" font-family="Epilogue,sans-serif">
         ${pct != null ? pct + '%' : '—'}
       </text>
@@ -1879,7 +1880,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v8';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v9';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -2090,11 +2091,12 @@
 
   // ── iReady: fetch all data for this tutor ─────────────────────────────────────
 
-  async function fetchIReadyData(userName, scholarIds, scholarNames) {
-    // Cache check — keyed by name; scholar IDs change how 25-26 is matched but not longtudinal
+  async function fetchIReadyData(userName, scholarIds, scholarNames, tutorSubject) {
+    // Cache check — keyed by name + subject; clear old caches automatically via version bump
     try {
       const cached = JSON.parse(localStorage.getItem(IR_CACHE_KEY) || 'null');
-      if (cached && cached.ts && (Date.now() - cached.ts) < IR_CACHE_TTL && cached.rows && cached.name === userName) {
+      if (cached && cached.ts && (Date.now() - cached.ts) < IR_CACHE_TTL && cached.rows &&
+          cached.name === userName && cached.subject === (tutorSubject || null)) {
         return cached.rows;
       }
     } catch (e) {}
@@ -2128,11 +2130,17 @@
     const longBase = `https://docs.google.com/spreadsheets/d/e/${IR_LONG_2PACX}/pub?output=csv&gid=`;
     const snap2526 = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
 
+    // Gate fetches to only the subject sheets this tutor is assigned to.
+    // tutorSubject='ELA' → skip Math sheets entirely; 'Math' → skip ELA; null → fetch all.
+    const fetchELA  = !tutorSubject || tutorSubject === 'ELA';
+    const fetchMath = !tutorSubject || tutorSubject === 'Math';
+    const EMPTY = Promise.resolve([]);
+
     const [longMath, longELA, snapMath, snapELA] = await Promise.all([
-      fetchCSV(longBase + IR_LONG_MATH_GID),
-      fetchCSV(longBase + IR_LONG_ELA_GID),
-      fetchCSV(snap2526 + IR_2526_MATH_GID),
-      fetchCSV(snap2526 + IR_2526_ELA_GID)
+      fetchMath ? fetchCSV(longBase + IR_LONG_MATH_GID) : EMPTY,
+      fetchELA  ? fetchCSV(longBase + IR_LONG_ELA_GID)  : EMPTY,
+      fetchMath ? fetchCSV(snap2526 + IR_2526_MATH_GID) : EMPTY,
+      fetchELA  ? fetchCSV(snap2526 + IR_2526_ELA_GID)  : EMPTY
     ]);
 
     // LONGITUDINAL rows: iReady Dashboard 22-25, matched by tutor full name (col B)
@@ -2143,25 +2151,11 @@
     ].filter(r => matchesTutor(r.tutorName))
      .map(r => ({ ...r, shared: isShared(r.tutorName) }));
 
-    // Infer tutor's primary subject(s) from non-shared (sole instructor) rows.
-    // Then filter shared rows so a tutor only sees the subjects they teach.
-    const soloRows = longitudinalRows.filter(r => !r.shared);
-    const subjectTally = {};
-    soloRows.forEach(r => { if (r.subject) subjectTally[r.subject] = (subjectTally[r.subject] || 0) + 1; });
-    const totalSolo = Object.values(subjectTally).reduce((a, b) => a + b, 0);
-    let tutorSubjects = null; // null = no restriction (not enough solo data)
-    if (totalSolo >= 3) {
-      const maxCount = Math.max(...Object.values(subjectTally));
-      const primary = Object.entries(subjectTally)
-        .filter(([, cnt]) => cnt >= maxCount * 0.25)
-        .map(([s]) => s);
-      if (primary.length) tutorSubjects = new Set(primary);
-    }
-    // For shared rows: only keep rows whose subject matches the tutor's inferred subject(s).
-    // Non-shared rows always pass.
-    const filteredLongRows = longitudinalRows.filter(r =>
-      !r.shared || !tutorSubjects || tutorSubjects.has(r.subject)
-    );
+    // When tutorSubject is known from Pearl session names, shared rows from the wrong
+    // subject sheet are already excluded because those GIDs were never fetched.
+    // When tutorSubject is null we fetched both sheets; shared rows are kept as-is
+    // because we can't reliably exclude them without subject information.
+    const filteredLongRows = longitudinalRows;
 
     // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
     // because 25-26 data is linked via Pearl student records, not tutor attribution
@@ -2182,7 +2176,7 @@
       return true;
     });
 
-    try { localStorage.setItem(IR_CACHE_KEY, JSON.stringify({ ts: Date.now(), name: userName, rows: deduped })); } catch (e) {}
+    try { localStorage.setItem(IR_CACHE_KEY, JSON.stringify({ ts: Date.now(), name: userName, subject: tutorSubject || null, rows: deduped })); } catch (e) {}
     return deduped;
   }
 
@@ -2500,7 +2494,7 @@
       // Build scholar lookup sets so 25-26 iReady snapshot can match by student ID/name
       const scholarIds   = new Set(data.scholars.map(s => s.id).filter(Boolean));
       const scholarNames = new Set(data.scholars.map(s => normIRName(s.name)).filter(n => n.length > 2));
-      irRows = await fetchIReadyData(user.name, scholarIds, scholarNames).catch(() => []);
+      irRows = await fetchIReadyData(user.name, scholarIds, scholarNames, data.tutorSubject || null).catch(() => []);
       window._connorIReadyData = irRows || [];
     } catch (err) {
       if (kpiStrip) {

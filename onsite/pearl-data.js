@@ -222,6 +222,16 @@
     // All sessions the tutor has a record for (used for weekly tracking)
     const mySessions = new Set(myInstRows.map(r => (r[ATT.SESSION] || '').trim()).filter(Boolean));
 
+    // Detect tutor's subject from session name strings (e.g. "iLearn ELA Block A", "Math Cohort 1")
+    let elaCount = 0, mathCount = 0;
+    mySessions.forEach(function(name) {
+      if (/\bela\b|reading|literacy|\benglish/i.test(name)) elaCount++;
+      if (/\bmath\b|mathemat/i.test(name)) mathCount++;
+    });
+    const tutorSubject = elaCount > 0 && mathCount === 0 ? 'ELA'
+                       : mathCount > 0 && elaCount === 0 ? 'Math'
+                       : null;
+
     // Sessions where the tutor actually attended — scholar count uses this
     // so we only count scholars the tutor was physically present with
     const myAttendedSessions = new Set();
@@ -547,7 +557,7 @@
       tutorSchool, tutorDistrict,
       scholarAttRate, siByLevel,
       weeklyTrend, consecConcernIds: [...consecConcernIds],
-      stuSurveyAvg,
+      stuSurveyAvg, tutorSubject,
       hasData: true
     };
   }
