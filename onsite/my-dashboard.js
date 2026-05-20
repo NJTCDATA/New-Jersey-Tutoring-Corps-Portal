@@ -106,7 +106,14 @@
 
   function shortenSchool(school) {
     if (!school) return '';
-    return school.replace(/elementary/gi, 'Elem.').replace(/middle school/gi, 'MS').replace(/high school/gi, 'HS').replace(/school/gi, 'Sch.');
+    return school
+      .replace(/^LEA\s*[-–]\s*/i, '')       // strip "LEA - " prefix
+      .replace(/\belementary\b/gi, 'Elem.')
+      .replace(/\bmiddle school\b/gi, 'MS')
+      .replace(/\bhigh school\b/gi, 'HS')
+      .replace(/\bcharter school\b/gi, 'Charter')
+      .replace(/\bschool\b/gi, 'Sch.')
+      .trim();
   }
 
   // ── CSS ──────────────────────────────────────────────────────────────────────
@@ -1872,7 +1879,7 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v7';
+  const IR_CACHE_KEY     = 'njtc_od_iready_v8';
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -2000,7 +2007,7 @@
     const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
     const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['student', 'grade']) >= 0 ? col(['student', 'grade']) : col(['grade']);
     const schoolCol = col(['school']);
-    const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
+    const syCol     = col(['academic', 'year']) >= 0 ? col(['academic', 'year']) : col(['school', 'year']);
     // Subject embedded in data (column H in longitudinal sheet); fall back to defaultSubject param
     const subjectCol = col(['subject']) >= 0 ? col(['subject']) : col(['program area']);
 
@@ -2046,7 +2053,7 @@
     const growthCol = col(['spring', 'pct']) >= 0 ? col(['spring', 'pct']) : col(['typical growth']);
     const gradeCol  = col(['student grade']) >= 0 ? col(['student grade']) : col(['grade']);
     const schoolCol = col(['school']);
-    const syCol     = col(['academic year']) >= 0 ? col(['academic year']) : col(['school year']);
+    const syCol     = col(['academic', 'year']) >= 0 ? col(['academic', 'year']) : col(['school', 'year']);
     const tutorCol  = col(['instructor']) >= 0 ? col(['instructor']) : col(['tutor']);
 
     return rows.slice(1).filter(r => {
@@ -2136,6 +2143,26 @@
     ].filter(r => matchesTutor(r.tutorName))
      .map(r => ({ ...r, shared: isShared(r.tutorName) }));
 
+    // Infer tutor's primary subject(s) from non-shared (sole instructor) rows.
+    // Then filter shared rows so a tutor only sees the subjects they teach.
+    const soloRows = longitudinalRows.filter(r => !r.shared);
+    const subjectTally = {};
+    soloRows.forEach(r => { if (r.subject) subjectTally[r.subject] = (subjectTally[r.subject] || 0) + 1; });
+    const totalSolo = Object.values(subjectTally).reduce((a, b) => a + b, 0);
+    let tutorSubjects = null; // null = no restriction (not enough solo data)
+    if (totalSolo >= 3) {
+      const maxCount = Math.max(...Object.values(subjectTally));
+      const primary = Object.entries(subjectTally)
+        .filter(([, cnt]) => cnt >= maxCount * 0.25)
+        .map(([s]) => s);
+      if (primary.length) tutorSubjects = new Set(primary);
+    }
+    // For shared rows: only keep rows whose subject matches the tutor's inferred subject(s).
+    // Non-shared rows always pass.
+    const filteredLongRows = longitudinalRows.filter(r =>
+      !r.shared || !tutorSubjects || tutorSubjects.has(r.subject)
+    );
+
     // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
     // because 25-26 data is linked via Pearl student records, not tutor attribution
     const rows2526 = [
@@ -2144,7 +2171,7 @@
     ];
 
     // Combine: longitudinal first, 25-26 supplements any missing records
-    const allRows = [...longitudinalRows, ...rows2526];
+    const allRows = [...filteredLongRows, ...rows2526];
 
     // Deduplicate: same student + subject + school year
     const seen = new Set();
@@ -2179,7 +2206,7 @@
     const syList = [...sySet].sort().reverse();
     const subjectSet = new Set(allRows.map(r => r.subject));
 
-    let activeSY  = syList[0] || '';
+    let activeSY  = '';   // default = all years; individual tabs let user drill down
     let activeSub = 'All';
 
     function getFiltered() {
@@ -2359,9 +2386,10 @@
       if (body) body.innerHTML = renderContent();
     }
 
-    const syTabsHtml = syList.map((sy, i) =>
-      `<button class="njtc-tab-btn${i === 0 ? ' active' : ''}" data-sy="${esc(sy)}">${esc(sy || 'All Years')}</button>`
-    ).join('');
+    const syTabsHtml = [
+      `<button class="njtc-tab-btn active" data-sy="">All Years</button>`,
+      ...syList.map(sy => `<button class="njtc-tab-btn" data-sy="${esc(sy)}">${esc(sy)}</button>`)
+    ].join('');
 
     const subjectTabsHtml = ['All', ...subjectSet].map((sub, i) =>
       `<button class="njtc-tab-btn${i === 0 ? ' active' : ''}" data-sub="${esc(sub)}">${esc(sub)}</button>`
