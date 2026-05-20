@@ -67,12 +67,12 @@
 
   function donutChart(pct, color, size, strokeWidth) {
     size = size || 80;
-    strokeWidth = strokeWidth || Math.round(size * 0.14);
-    const r = (size / 2) - (strokeWidth / 2) - 1;
+    strokeWidth = strokeWidth || Math.round(size * 0.25);
+    const r = (size / 2) - (strokeWidth / 2) - 2;
     const circ = 2 * Math.PI * r;
     const fill = pct != null ? (pct / 100) * circ : 0;
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${pct != null ? pct + '%' : 'No data'}">
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="${strokeWidth}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="${strokeWidth}"/>
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
         stroke-dasharray="${fill} ${circ}" stroke-dashoffset="${circ/4}"
         stroke-linecap="butt" style="transition:stroke-dasharray 1s ease"/>

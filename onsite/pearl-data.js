@@ -16,10 +16,10 @@
 
   const CACHE_TTL = 5 * 60 * 1000;
   const CACHE_KEYS = {
-    att:  'njtc_od_att_v2',
-    inst: 'njtc_od_inst_v2',
-    stu:  'njtc_od_stu_v2',
-    sess: 'njtc_od_sess_v2'
+    att:  'njtc_od_att_v3',
+    inst: 'njtc_od_inst_v3',
+    stu:  'njtc_od_stu_v3',
+    sess: 'njtc_od_sess_v3'
   };
 
   // ATT column indexes
@@ -222,12 +222,67 @@
     // All sessions the tutor has a record for (used for weekly tracking)
     const mySessions = new Set(myInstRows.map(r => (r[ATT.SESSION] || '').trim()).filter(Boolean));
 
-    // Detect tutor's subject from session name strings (e.g. "iLearn ELA Block A", "Math Cohort 1")
+    // Detect tutor's subject using SESS tab (structured session details) as primary source.
+    // The SESS tab has a header row; we scan it for subject/program/cert columns and match
+    // session names from the tutor's ATT rows.  Falls back to keyword-scanning ATT session
+    // name strings if SESS provides no signal.
     let elaCount = 0, mathCount = 0;
-    mySessions.forEach(function(name) {
-      if (/\bela\b|reading|literacy|\benglish/i.test(name)) elaCount++;
-      if (/\bmath\b|mathemat/i.test(name)) mathCount++;
-    });
+    (function detectSubject() {
+      // Build a session-name → subject map from the SESS tab
+      const sessSubjectMap = {};
+      if (sessRows && sessRows.length > 1) {
+        const hdr = sessRows[0].map(function(h) { return (h || '').toLowerCase().trim(); });
+        // Look for a column that holds the subject/program label
+        const subjectColIdx = (function() {
+          const keywords = ['subject', 'program type', 'cert type', 'cert', 'program'];
+          for (let ki = 0; ki < keywords.length; ki++) {
+            const idx = hdr.findIndex(function(h) { return h.includes(keywords[ki]); });
+            if (idx >= 0) return idx;
+          }
+          return -1;
+        })();
+        // Look for the session name column
+        const nameColIdx = (function() {
+          const candidates = ['session name', 'name', 'session'];
+          for (let ki = 0; ki < candidates.length; ki++) {
+            const idx = hdr.findIndex(function(h) { return h === candidates[ki]; });
+            if (idx >= 0) return idx;
+          }
+          return hdr.findIndex(function(h) { return h.includes('session') || h.includes('name'); });
+        })();
+
+        for (let ri = 1; ri < sessRows.length; ri++) {
+          const row = sessRows[ri];
+          const sessName = nameColIdx >= 0 ? (row[nameColIdx] || '').trim() : '';
+          if (!sessName) continue;
+          let subj = null;
+          if (subjectColIdx >= 0) {
+            const val = (row[subjectColIdx] || '').trim();
+            if (/\bela\b|reading|literacy|\benglish/i.test(val)) subj = 'ELA';
+            else if (/\bmath\b|mathemat/i.test(val)) subj = 'Math';
+          }
+          // Also scan the session name itself for subject keywords
+          if (!subj) {
+            if (/\bela\b|reading|literacy|\benglish/i.test(sessName)) subj = 'ELA';
+            else if (/\bmath\b|mathemat/i.test(sessName)) subj = 'Math';
+          }
+          if (subj) sessSubjectMap[sessName] = subj;
+        }
+      }
+
+      // Tally subjects for each session this tutor is assigned to
+      mySessions.forEach(function(sessName) {
+        if (sessSubjectMap[sessName]) {
+          if (sessSubjectMap[sessName] === 'ELA') elaCount++;
+          else mathCount++;
+          return;
+        }
+        // Fallback: keyword-scan the raw ATT session name string
+        if (/\bela\b|reading|literacy|\benglish/i.test(sessName)) elaCount++;
+        else if (/\bmath\b|mathemat/i.test(sessName)) mathCount++;
+      });
+    })();
+
     const tutorSubject = elaCount > 0 && mathCount === 0 ? 'ELA'
                        : mathCount > 0 && elaCount === 0 ? 'Math'
                        : null;
