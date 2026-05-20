@@ -2628,6 +2628,33 @@
         p.instSurveys = instSurveyByUser[uid] || [];
       }
 
+      // ── Per-tutor survey completion: match by Session ID ─────────────
+      // Denominator: sessions this tutor led that were delivered with ≥1 scholar present.
+      // Numerator:   those sessions that have a tutor survey where INST_S.SESS_ID matches.
+      // This is the authoritative join — Session ID is the bridge between Pearl session
+      // data and the tutor survey form response.
+      const instSurvBySessId = {};
+      for (const r of _instRows) {
+        const sid = (r[INST_S.SESS_ID] || '').trim();
+        if (!sid) continue;
+        if (!instSurvBySessId[sid]) instSurvBySessId[sid] = [];
+        instSurvBySessId[sid].push(r);
+      }
+      for (const [uid, p] of Object.entries(_personMap)) {
+        if (p.role !== 'Instructor') continue;
+        const eligSess = Object.values(_sessMap).filter(s =>
+          s.instId === uid && s.isDelivered && s.studentIds && s.studentIds.length > 0
+        );
+        const submitted = eligSess.filter(s => instSurvBySessId[s.id] && instSurvBySessId[s.id].length > 0).length;
+        p.surveyEligible  = eligSess.length;
+        p.surveySubmitted = submitted;
+        p.surveyCompRate  = eligSess.length > 0 ? Math.round(submitted / eligSess.length * 100) : null;
+        // Store IDs of eligible sessions missing a survey (for drill-down display)
+        p.surveyMissingSessIds = eligSess
+          .filter(s => !instSurvBySessId[s.id] || instSurvBySessId[s.id].length === 0)
+          .map(s => s.id);
+      }
+
       // ── Build school survey aggregates ────────────────────────────────
       for (const [school, sc] of Object.entries(_schoolMap)) {
         // Student surveys
@@ -2645,6 +2672,14 @@
         const instRows = _instRows.filter(r => r[INST_S.SCHOOL] === school);
         sc.instSurveyAvg = avgSurvey(instRows, [INST_S.ENGAGEMENT, INST_S.ENJOYMENT, INST_S.LEARNING, INST_S.OVERALL]);
         sc.instSurveyRows = instRows;
+
+        // School-level tutor survey completion rate (aggregated from per-tutor)
+        const schoolTutors = Object.values(_personMap).filter(p => p.role === 'Instructor' && p.school === school);
+        const scElig = schoolTutors.reduce((s, p) => s + (p.surveyEligible || 0), 0);
+        const scSub  = schoolTutors.reduce((s, p) => s + (p.surveySubmitted || 0), 0);
+        sc.tutorSurvEligible  = scElig;
+        sc.tutorSurvSubmitted = scSub;
+        sc.tutorSurvCompRate  = scElig > 0 ? Math.round(scSub / scElig * 100) : null;
 
         // School-level HIT flags
         sc.ratioViolations = sc.sessions.filter(s => s.ratioFlag).length;
@@ -2703,6 +2738,7 @@
         totalInstRows: 0, instAttended: 0, instAbsent: 0, instInterruptions: 0,
         sessions: [], siReasons: [], flags: [],
         stuSurveyAvg: 0, instSurveyAvg: 0, stuSurveyRows: [], instSurveyRows: [],
+        tutorSurvCompRate: null, tutorSurvEligible: 0, tutorSurvSubmitted: 0,
         attRate: 0, ratioViolations: 0,
       };
     }
@@ -3204,10 +3240,26 @@
         if (_filtSchool.length   && !_filtSchool.includes(sc.school))     return false;
         if (q) {
           const hay = ((sc.school||'') + ' ' + (sc.district||'')).toLowerCase();
-          if (!hay.includes(q)) return false;
+          // Also match if any instructor at this school has a name containing the query
+          const hasTutorMatch = Object.values(_personMap).some(p =>
+            p.role === 'Instructor' && p.school === sc.school &&
+            (p.name||'').toLowerCase().includes(q)
+          );
+          if (!hay.includes(q) && !hasTutorMatch) return false;
         }
         return true;
       });
+    }
+
+    // Returns instructors whose name matches the global search query (for quick-find panel)
+    function searchMatchedTutors() {
+      const q = (_poGlobalQ||'').toLowerCase().trim();
+      if (!q || q.length < 2) return [];
+      return Object.values(_personMap).filter(p =>
+        p.role === 'Instructor' && (p.name||'').toLowerCase().includes(q) &&
+        (!_filtDistrict.length || _filtDistrict.includes(p.district)) &&
+        (!_filtSchool.length   || _filtSchool.includes(p.school))
+      ).slice(0, 12);
     }
 
     // ── VIEW ROUTER ───────────────────────────────────────────────────────
@@ -3758,6 +3810,9 @@
           const mx = Math.max(...pts, 1);
           return '<div class="po-ops-sparkline">' + pts.map(p=>{const h=Math.max(2,Math.round(p/mx*24)); const c=p>=85?'#0d6e3a':p>=75?'#d97706':'#b91c1c'; return `<div class="po-ops-spark-bar" style="height:${h}px;background:${c}"></div>`;}).join('') + '</div>';
         })();
+        const tcr = sc.tutorSurvCompRate;
+        const tcrColor = tcr === null ? 'var(--muted)' : tcr >= 80 ? 'var(--met)' : tcr >= 60 ? '#d97706' : 'var(--notmet)';
+        const tcrStr = tcr === null ? '—' : tcr + '%';
         return `<tr onclick="po.drillSchool('${esc(sc.school)}')">
           <td><div class="school-name">${sc.school}</div><div class="dist-name">${sc.district}</div></td>
           <td style="text-align:center"><span style="font-weight:700;color:${attColor}">${sc.attRate}%</span></td>
@@ -3765,6 +3820,8 @@
           <td style="text-align:center">${siBadge}</td>
           <td style="text-align:center">${flagBadge}</td>
           <td style="text-align:center">${survStr}</td>
+          <td style="text-align:center"><span style="font-weight:700;color:${tcrColor}">${tcrStr}</span>${tcr!==null?`<div style="font-size:.6rem;color:var(--muted)">${sc.tutorSurvSubmitted}/${sc.tutorSurvEligible}</div>`:''}
+          </td>
           <td>${miniSpark}</td>
         </tr>`;
       }).join('');
@@ -3874,10 +3931,11 @@
                   <th style="text-align:center">Sessions</th>
                   <th style="text-align:center">Interruptions</th>
                   <th style="text-align:center">HIT Flags</th>
-                  <th style="text-align:center">Survey</th>
+                  <th style="text-align:center">Scholar Survey</th>
+                  <th style="text-align:center" title="Tutor survey completion rate — surveys submitted vs eligible sessions (Session ID matched)">Tutor Survey %</th>
                   <th style="text-align:center">Trend</th>
                 </tr></thead>
-                <tbody>${tableRows || '<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--muted)">Loading…</td></tr>'}</tbody>
+                <tbody>${tableRows || '<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--muted)">Loading…</td></tr>'}</tbody>
               </table>
             </div>
           </div>
@@ -3910,6 +3968,42 @@
 
             <!-- Late Survey Filers (shown only when flagged tutors exist) -->
             ${lateFilerPanelHTML}
+
+            <!-- Low Survey Completion Alert (prog/data lens) -->
+            ${(() => {
+              const LOW_THRESHOLD = 70;
+              const filteredSchoolSet = new Set(schools.map(sc => sc.school));
+              const lowTutors = Object.values(_personMap)
+                .filter(p =>
+                  p.role === 'Instructor' &&
+                  filteredSchoolSet.has(p.school) &&
+                  p.surveyEligible > 0 &&
+                  p.surveyCompRate !== null &&
+                  p.surveyCompRate < LOW_THRESHOLD
+                )
+                .sort((a, b) => (a.surveyCompRate||0) - (b.surveyCompRate||0))
+                .slice(0, 15);
+              if (!lowTutors.length) return '';
+              const rows = lowTutors.map(t => {
+                const crColor = t.surveyCompRate >= 50 ? '#d97706' : '#b91c1c';
+                return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.4rem .5rem;border-bottom:1px solid var(--border-2);font-size:.75rem">
+                  <div>
+                    <div style="font-weight:600;color:var(--navy)">${canSeeNames()?t.name:'Instructor'}</div>
+                    <div style="font-size:.68rem;color:var(--muted)">${t.school}</div>
+                  </div>
+                  <div style="text-align:right">
+                    <span style="font-weight:700;color:${crColor}">${t.surveyCompRate}%</span>
+                    <div style="font-size:.68rem;color:var(--muted)">${t.surveySubmitted} of ${t.surveyEligible} sessions</div>
+                  </div>
+                </div>`;
+              }).join('');
+              return `<div class="po-ops-panel" style="border-left:3px solid #b91c1c">
+                <div class="po-ops-panel-hd" style="color:#991b1b">📊 Low Survey Completion (&lt;${LOW_THRESHOLD}%)
+                  <span style="font-weight:400;font-size:.7rem">${lowTutors.length} tutor${lowTutors.length>1?'s':''} · matched by Session ID</span>
+                </div>
+                <div class="po-ops-panel-body" style="padding:0">${rows}</div>
+              </div>`;
+            })()}
 
           </div>
         </div>
@@ -4523,6 +4617,13 @@
           details.push(`<div class="sg-card-detail sg-card-detail-warn">⚑ ${sc.ratioViolations} over-ratio</div>`);
         if (survStr)
           details.push(`<div class="sg-card-detail">${survStr} scholar rating</div>`);
+        if (isProg() || isData()) {
+          const tcr = sc.tutorSurvCompRate;
+          if (tcr !== null) {
+            const tcrCol = tcr >= 80 ? '#0d6e3a' : tcr >= 60 ? '#d97706' : '#b91c1c';
+            details.push(`<div class="sg-card-detail" style="color:${tcrCol}">📊 ${tcr}% survey completion (${sc.tutorSurvSubmitted}/${sc.tutorSurvEligible})</div>`);
+          }
+        }
         return `<div class="sg-card ${cardCls}" onclick="po.drillSchool('${esc(sc.school)}')">
           <div class="sg-card-top">
             <div style="flex:1;min-width:0">
@@ -4550,7 +4651,40 @@
       }
       const cards = schools.map(buildCard).join('');
 
-      // ── 6. Late survey filers ────────────────────────────────────────────
+      // ── 6. Tutor quick-find panel (shown when search query matches tutor names) ──
+      const matchedTutors = searchMatchedTutors();
+      const tutorSearchHTML = matchedTutors.length > 0 ? `
+        <div class="sg-section" style="border-left:3px solid #6366f1">
+          <div class="sg-section-hd" style="color:#3730a3;background:#eef2ff;border-bottom-color:#c7d2fe">
+            <span>🔍 Tutors Matching "${esc(_poGlobalQ)}"</span>
+            <span style="font-weight:400;font-size:.7rem">${matchedTutors.length} result${matchedTutors.length!==1?'s':''} · click to open tutor profile</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem;padding:.75rem 1rem">
+            ${matchedTutors.map(p => {
+              const cr = p.surveyCompRate;
+              const crColor = cr===null?'var(--muted)':cr>=80?'#0d6e3a':cr>=60?'#d97706':'#b91c1c';
+              const crStr   = cr===null ? '—' : cr+'%';
+              const attTotal = p.attended + p.absent;
+              const attRate  = attTotal > 0 ? Math.round(p.attended/attTotal*100) : 0;
+              const attColor = attRate>=80?'#0d6e3a':attRate>=65?'#d97706':'#b91c1c';
+              return `<div onclick="po.drillPerson('${esc(p.uid)}')"
+                style="background:#fff;border:1px solid #c7d2fe;border-radius:10px;padding:.625rem .875rem;cursor:pointer;
+                       transition:box-shadow .15s" onmouseenter="this.style.boxShadow='0 0 0 2px #6366f1'"
+                onmouseleave="this.style.boxShadow=''">
+                <div style="font-weight:700;font-size:.875rem;color:#1e1b4b;margin-bottom:.2rem">${canSeeNames()?p.name:'Instructor'}</div>
+                <div style="font-size:.7rem;color:var(--muted);margin-bottom:.375rem">${p.school}</div>
+                <div style="display:flex;gap:.75rem;font-size:.75rem">
+                  <span>📋 Att: <strong style="color:${attColor}">${attRate}%</strong></span>
+                  <span>📊 Survey: <strong style="color:${crColor}">${crStr}</strong>
+                    ${cr!==null?`<span style="color:var(--muted);font-size:.68rem">(${p.surveySubmitted}/${p.surveyEligible})</span>`:''}
+                  </span>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>` : '';
+
+      // ── 7. Late survey filers ────────────────────────────────────────────
       const lf = computeTutorLateFilersStats();
       const lateFilerHTML = lf.totalFlagged ? `
         <div class="sg-section" style="border-left:3px solid #d97706">
@@ -4573,6 +4707,7 @@
       mc.innerHTML = `
         <div class="sg-wrap">
           ${summaryHTML}
+          ${tutorSearchHTML}
           ${distFlagHTML}
           ${triageHTML}
           <div class="sg-section">
@@ -4830,6 +4965,17 @@
         });
         const scholarCount = scholarIds.size;
 
+        // Survey completion cell (prog/data only)
+        const crCell = (isProg() || isData()) ? (() => {
+          const cr = p.surveyCompRate;
+          if (cr === null) return '<td style="text-align:center;color:var(--muted);padding:.5rem .875rem;font-size:.75rem">\u2014</td>';
+          const crCol = cr >= 80 ? 'var(--met)' : cr >= 60 ? '#d97706' : 'var(--notmet)';
+          return '<td style="text-align:center;padding:.5rem .875rem">'
+            + '<span style="font-weight:700;color:' + crCol + '">' + cr + '%</span>'
+            + '<div style="font-size:.65rem;color:var(--muted)">' + p.surveySubmitted + '/' + p.surveyEligible + '</div>'
+            + '</td>';
+        })() : '';
+
         return '<tr class="po-person-row" onclick="po.drillPerson(\'' + esc(p.uid) + '\')">'
           + '<td style="font-weight:600;color:var(--navy);padding:.5rem .875rem">' + name + '</td>'
           + '<td style="color:var(--muted);padding:.5rem .875rem;font-size:.75rem">' + subjList + '</td>'
@@ -4840,6 +4986,7 @@
           + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.attended + '</td>'
           + '<td style="text-align:center;color:var(--text);font-size:.8125rem;padding:.5rem .875rem">' + p.absent + '</td>'
           + '<td style="text-align:center;color:var(--muted);padding:.5rem .875rem">' + scholarCount + '</td>'
+          + crCell
           + '<td style="padding:.5rem .875rem">' + (flagCount > 0 ? '<span class="po-badge po-badge-red">\ud83d\udea9 ' + flagCount + '</span>' : '<span class="po-badge po-badge-green">\u2713 OK</span>') + adpFlag + '</td>'
           + '</tr>';
       };
@@ -4864,6 +5011,7 @@
         + '<th style="' + thStyle + ';text-align:center">Attended</th>'
         + '<th style="' + thStyle + ';text-align:center">Absent</th>'
         + '<th style="' + thStyle + ';text-align:center">Scholars</th>'
+        + ((isProg() || isData()) ? '<th style="' + thStyle + ';text-align:center" title="Survey Completion Rate — surveys submitted vs eligible delivered sessions">Survey %</th>' : '')
         + '<th style="' + thStyle + '">Flags</th>'
         + '</tr>';
 
@@ -5140,7 +5288,7 @@
       const attColor = rate >= 90 ? 'var(--met)' : rate >= 75 ? 'var(--gold)' : 'var(--notmet)';
 
       const tabs = [{ id:'attendance', label:'📋 History' }];
-      if (isTD() || isData()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
+      if (isTD() || isData() || isProg()) tabs.push({ id:'surveys', label:'⭐ Surveys' });
       if (isData() || isHR() || isProg()) tabs.push({ id:'flags', label:`🚩 Flags (${p.flags.length})` });
 
       mc.innerHTML = `
@@ -5153,6 +5301,11 @@
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.375rem">
               <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${attColor}">${rate}%</span>
               <span style="font-size:.75rem;color:var(--muted)">${p.attended} attended · ${p.absent} absent · ${p.interruptions} interrupted</span>
+              ${!isStudent && (isProg() || isData()) && p.surveyCompRate !== null && p.surveyCompRate !== undefined ? (() => {
+                const cr = p.surveyCompRate;
+                const crColor = cr >= 80 ? 'var(--met)' : cr >= 60 ? '#d97706' : 'var(--notmet)';
+                return `<span style="font-size:.75rem;font-weight:700;color:${crColor}">📊 ${cr}% survey completion &nbsp;<span style="font-weight:400;color:var(--muted)">${p.surveySubmitted} of ${p.surveyEligible} eligible sessions</span></span>`;
+              })() : ''}
               ${(isHR() || isFinance()) && rate < 70 ? '<span class="po-badge po-badge-critical">⚑ Review Attendance Context</span>' : ''}
               ${p.consecStatus === 'Attendance Concern' ? '<span class="po-badge po-badge-critical">10+ Consecutive Misses</span>' : ''}
               ${p.vacantId ? '<span class="po-badge po-badge-red">Tutor Vacancy Active</span>' : ''}
@@ -5242,7 +5395,45 @@
     function renderPersonSurveys(p) {
       const isInst = p.role === 'Instructor';
       const surveys = isInst ? p.instSurveys : p.stuSurveys;
-      if (!surveys.length) return '<div style="text-align:center;padding:2rem;color:var(--muted)">No survey responses found</div>';
+
+      // ── For instructors: show completion rate summary + missing sessions ──
+      let completionBannerHTML = '';
+      if (isInst && (isProg() || isData())) {
+        const cr = p.surveyCompRate;
+        const elig = p.surveyEligible || 0;
+        const sub  = p.surveySubmitted || 0;
+        const missing = p.surveyMissingSessIds || [];
+        if (elig > 0) {
+          const crColor = cr >= 80 ? '#0d6e3a' : cr >= 60 ? '#d97706' : '#b91c1c';
+          const crBg    = cr >= 80 ? '#f0fdf4' : cr >= 60 ? '#fffbeb' : '#fef2f2';
+          const crBdr   = cr >= 80 ? '#86efac' : cr >= 60 ? '#fde68a' : '#fecaca';
+          const missingRows = missing.slice(0, 8).map(sid => {
+            const sess = _sessMap[sid];
+            if (!sess) return '';
+            const dateStr = sess.start ? new Date(sess.start).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+            return `<div style="display:flex;align-items:center;gap:.625rem;padding:.3rem 0;border-bottom:1px solid var(--border-2);font-size:.75rem">
+              <span style="color:var(--muted);font-family:monospace;font-size:.7rem">${sid}</span>
+              <span style="color:var(--navy)">${sess.title||'Session'}</span>
+              <span style="color:var(--muted)">${dateStr}</span>
+              <span style="margin-left:auto;color:#b91c1c;font-weight:600">No survey</span>
+            </div>`;
+          }).join('');
+          completionBannerHTML = `
+            <div style="margin:.75rem 1.25rem 1rem;padding:.875rem 1.125rem;background:${crBg};border:1.5px solid ${crBdr};border-radius:12px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.375rem">
+                <span style="font-size:.6875rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:${crColor}">Survey Completion Rate</span>
+                <span style="font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:700;color:${crColor}">${cr}%</span>
+              </div>
+              <div style="font-size:.75rem;color:var(--muted);margin-bottom:${missing.length?'.75rem':'0'}">${sub} survey${sub!==1?'s':''} submitted of ${elig} eligible session${elig!==1?'s':''} (delivered with scholars present)</div>
+              ${missing.length ? `
+                <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#b91c1c;margin-bottom:.35rem">⚠ ${missing.length} Sessions Missing Survey${missing.length>8?' (showing 8)':''}</div>
+                ${missingRows}
+              ` : '<div style="font-size:.75rem;color:#0d6e3a;font-weight:600">✓ All eligible sessions have a survey on file</div>'}
+            </div>`;
+        }
+      }
+
+      if (!surveys.length) return completionBannerHTML + '<div style="text-align:center;padding:2rem;color:var(--muted)">No survey responses found</div>';
 
       const ratingCols = isInst
         ? [[INST_S.ENGAGEMENT,'Engagement'],[INST_S.ENJOYMENT,'Enjoyment'],[INST_S.LEARNING,'Scholar Learning'],[INST_S.OVERALL,'Overall']]
@@ -5276,7 +5467,7 @@
         </div>`;
       }).join('');
 
-      return `<div style="padding:1.25rem 1.5rem">
+      return completionBannerHTML + `<div style="padding:1.25rem 1.5rem">
         <div style="margin-bottom:1.25rem">${avgs}</div>
         ${comments.length > 0 ? `
           <div style="font-size:.75rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">Comments (${comments.length})</div>
@@ -6595,6 +6786,9 @@
           'Total Duration (min)': totalMins || '',
           'Active Scholars Served': uniqueStudents.size,
           'HIT Flags':           p.flags ? p.flags.length : 0,
+          'Survey Eligible Sessions': p.surveyEligible || 0,
+          'Surveys Submitted':   p.surveySubmitted || 0,
+          'Survey Completion Rate (%)': p.surveyCompRate !== null && p.surveyCompRate !== undefined ? p.surveyCompRate : '',
           'Survey Count':        survFiltered.length,
           'Survey Avg Engagement': safeAvg(survFiltered.map(r => r[INST_S.ENGAGEMENT])),
           'Survey Avg Enjoyment':  safeAvg(survFiltered.map(r => r[INST_S.ENJOYMENT])),
