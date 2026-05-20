@@ -6,7 +6,7 @@
     var _cache     = {};
     var _retryTimer = null;
     var _retryCount = 0;
-    var MAX_RETRY   = 8;
+    var MAX_RETRY   = 4;
 
     // ── Audience definitions ──────────────────────────────────────
     var AUD = {
@@ -114,7 +114,7 @@
         buildLeadershipBanner();
         if (_activeTab === 'talking-points') buildTalkingPoints();
         if (!loaded && _retryCount < MAX_RETRY) _scheduleRetry();
-      }, _retryCount <= 2 ? 1200 : _retryCount <= 4 ? 2000 : 3500);
+      }, _retryCount <= 1 ? 800 : _retryCount <= 3 ? 1500 : 2500);
     }
 
     // ── LEADERSHIP BANNER ─────────────────────────────────────────

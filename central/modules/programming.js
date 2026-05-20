@@ -1911,13 +1911,16 @@
         // att, inst, sess fetch in parallel with timeouts
         // stu (scholar survey) streams independently — does NOT block rendering
         const [attResult, instResult, sessResult] = await Promise.allSettled([
-          fetchTabWithRetry(GIDS.att,  bust, 35000, 'att',  2),
-          fetchTabWithRetry(GIDS.inst, bust, 20000, 'inst', 2),
-          fetchTabWithRetry(GIDS.sess, bust, 35000, 'sess', 2),
+          fetchTabWithRetry(GIDS.att,  bust, 15000, 'att',  2),
+          fetchTabWithRetry(GIDS.inst, bust, 12000, 'inst', 2),
+          fetchTabWithRetry(GIDS.sess, bust, 15000, 'sess', 2),
         ]);
 
         // ── Parse resolved tabs ─────────────────────────────────────────
+        // Yield to main thread before each heavy synchronous parse so the
+        // browser stays responsive and avoids "page not responding" dialogs.
         // att
+        await new Promise(r => setTimeout(r, 0));
         if (attResult.status === 'fulfilled' && attResult.value) {
           _attRows = parseCSVLimit(attResult.value, ATT_MAX_COL).slice(1);
           for (const r of _attRows) {
@@ -1930,6 +1933,7 @@
         }
 
         // sess
+        await new Promise(r => setTimeout(r, 0));
         if (sessResult.status === 'fulfilled' && sessResult.value) {
           _sessRows = parseCSVLimit(sessResult.value, SESS_MAX_COL).slice(1);
         } else {
@@ -1937,6 +1941,7 @@
         }
 
         // inst
+        await new Promise(r => setTimeout(r, 0));
         if (instResult.status === 'fulfilled' && instResult.value) {
           _instRows = parseCSVLimit(instResult.value, INST_MAX_COL).slice(1);
         } else {
@@ -2064,8 +2069,8 @@
       var url = stuCsvUrl() + (bust || '');
       console.log('[Pearl Ops] Streaming scholar survey gid=' + (GIDS.stu || STU_GID_FALLBACK) + ' url=' + url);
       try {
-        // Use no AbortSignal for streaming — we want it to run to completion
-        var res = await fetch(url);
+        // 90-second hard timeout — prevents indefinite hang on stalled network
+        var res = await fetch(url, { signal: AbortSignal.timeout(90000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         if (!res.body) {
           // Fallback: ReadableStream not supported — load full text
@@ -2366,7 +2371,7 @@
         } catch(e) {
           lastErr = e;
           if (attempt < maxAttempts) {
-            const delay = 2000 * attempt; // 2s, then 4s …
+            const delay = 1000 * attempt; // 1s, then 2s …
             console.warn('[Pearl Ops] Tab', label, 'attempt', attempt, 'failed — retrying in', delay + 'ms');
             await new Promise(res => setTimeout(res, delay));
           }
