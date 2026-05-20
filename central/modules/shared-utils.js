@@ -1655,7 +1655,7 @@
       <div style="background:#fff;border-radius:20px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 28px 80px rgba(10,22,40,.3)">
         <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:20px 20px 0 0;position:relative">
           <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,${cfg.color},${cfg.color}88,transparent)"></div>
-          <div style="font-size:.595rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.3rem">Weekly Update</div>
+          <div style="font-size:.595rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:${cfg.color};margin-bottom:.3rem">Biweekly Update</div>
           <div style="font-size:1.125rem;font-weight:700;color:#fff;margin-bottom:.2rem">${cfg.emoji} ${cfg.label}</div>
           <div style="font-size:.75rem;color:rgba(255,255,255,.4)">Due by Friday before the biweekly meeting · ${LB_NEXT_MEETING_FMT}</div>
           <button onclick="document.getElementById('lbSubmitModal').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;font-family:inherit">✕</button>
@@ -2808,7 +2808,7 @@
           <div>
             <div style="font-size:.8125rem;font-weight:700;color:#1e40af">Next Biweekly Meeting — ${LB_NEXT_MEETING_FMT}</div>
             <div style="font-size:.75rem;color:#1e40af;opacity:.75;margin-top:.2rem">
-              ${countdown.days > 0 ? `${countdown.days} day${countdown.days!==1?'s':''} away` : 'Today!'} · Submit your weekly update by <strong>this Friday</strong>
+              ${countdown.days > 0 ? `${countdown.days} day${countdown.days!==1?'s':''} away` : 'Today!'} · Submit your biweekly update by <strong>this Friday</strong>
             </div>
           </div>
         </div>
@@ -2819,7 +2819,7 @@
           <div style="display:flex;flex-direction:column;gap:.5rem">
             <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)">
               <div style="width:28px;height:28px;border-radius:8px;background:${lbCfg.color||cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:.875rem;flex-shrink:0">1</div>
-              <div style="flex:1;font-size:.875rem;color:var(--navy)"><strong>Submit your weekly update</strong> — due by Friday. The board is live now.</div>
+              <div style="flex:1;font-size:.875rem;color:var(--navy)"><strong>Submit your biweekly update</strong> — due by Friday. The board is live now.</div>
             </div>
             <div style="display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--surface-2);border-radius:10px;border:1px solid var(--border)">
               <div style="width:28px;height:28px;border-radius:8px;background:${lbCfg.color||cfg.color}22;display:flex;align-items:center;justify-content:center;font-size:.875rem;flex-shrink:0">2</div>
@@ -2860,7 +2860,12 @@
 
   function _lbDismissWelcomeAndSubmit(dept) {
     _lbDismissWelcome();
-    setTimeout(() => _lbOpenSubmitModal(dept), 200);
+    const isExec = ['leadership','data','kb'].includes(dept);
+    if (isExec) {
+      setTimeout(() => _lbCreateExecSubmitModal(dept), 200);
+    } else {
+      setTimeout(() => _lbOpenSubmitModal(dept), 200);
+    }
   }
 
   function _lbOpenSubmitModal(dept) {
@@ -3491,8 +3496,8 @@
     modal.innerHTML = `<div style="background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
       <div style="background:linear-gradient(135deg,#0a1628,#162347);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
         <div>
-          <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${cfg.color};margin-bottom:.25rem">Weekly Update</div>
-          <div style="font-size:1.125rem;font-weight:700;color:#fff">${cfg.emoji} ${cfg.label} — Submit This Week</div>
+          <div style="font-size:.625rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:${cfg.color};margin-bottom:.25rem">Biweekly Update</div>
+          <div style="font-size:1.125rem;font-weight:700;color:#fff">${cfg.emoji} ${cfg.label} — Submit Your Biweekly Update</div>
         </div>
         <button onclick="document.getElementById('lbExecSubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
       </div>
@@ -3596,7 +3601,7 @@
       <div style="background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
         <div style="background:linear-gradient(135deg,#054f6b,#0891b2);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
           <div>
-            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#a5f3fc;margin-bottom:.25rem">Weekly Update</div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#a5f3fc;margin-bottom:.25rem">Biweekly Update</div>
             <div style="font-size:1.125rem;font-weight:700;color:#fff">${eaCfg.emoji} ${eaCfg.label}</div>
             <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:.2rem">Submitted separately from department entries — tagged as Executive Assistant to CEO in the shared sheet.</div>
           </div>
@@ -3605,7 +3610,7 @@
 
         <div style="padding:1.5rem 1.75rem" id="lbEAFormBody">
           <div style="margin-bottom:1.25rem">
-            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 Weekly successes / highlights <span style="color:#e63946">*</span></label>
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 Biweekly successes / highlights <span style="color:#e63946">*</span></label>
             <textarea id="lbEAF_success" rows="3" placeholder="Key wins, progress, or highlights this week…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
           </div>
           <div style="margin-bottom:1.25rem">
@@ -3645,7 +3650,7 @@
     const errEl   = document.getElementById('lbEAFormError');
 
     if (!success.trim()) {
-      if (errEl) { errEl.textContent = 'Please fill in your weekly highlights before submitting.'; errEl.style.display = 'block'; }
+      if (errEl) { errEl.textContent = 'Please fill in your biweekly highlights before submitting.'; errEl.style.display = 'block'; }
       return;
     }
     if (!goal.trim()) {
