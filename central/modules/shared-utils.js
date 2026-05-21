@@ -1052,6 +1052,7 @@
     data:           { label: 'Data & Evaluation',           emoji: '📈', color: '#7b2d8b' },
     kb:             { label: 'Executive Overview',          emoji: '🌟', color: '#5b8dee' },
     exec_assistant: { label: 'Executive Assistant to CEO',  emoji: '🗂️', color: '#0891b2' },
+    biz_dev:        { label: 'Sales & Business Development', emoji: '💼', color: '#16a34a' },
   };
 
   // All departments that participate (includes exec for org share-outs)
@@ -1225,6 +1226,8 @@
     if (LB_ALL_DEPTS.includes(dCol)) return dCol;
     if (dCol === 'exec_assistant')               return 'exec_assistant';
     if (/exec.?assist|ea.?ceo/i.test(dCol))      return 'exec_assistant';
+    if (dCol === 'biz_dev')                       return 'biz_dev';
+    if (/biz.?dev|sales.*biz|business.*dev/i.test(dCol)) return 'biz_dev';
     if (/human.?res|hr\b/.test(dCol)) return 'hr';
     if (/financ/.test(dCol))          return 'finance';
     if (/program/.test(dCol))         return 'programming';
@@ -1241,6 +1244,7 @@
       if (!m) continue;
       const tag = m[1].toLowerCase();
       if (tag === 'exec_assistant') return 'exec_assistant';
+      if (tag === 'biz_dev')        return 'biz_dev';
       if (LB_ALL_DEPTS.includes(tag)) return tag;
       // Prefix / abbreviation resolution
       const resolved = LB_ALL_DEPTS.find(d => d.startsWith(tag) || tag.startsWith(d.slice(0, 4)));
@@ -3155,10 +3159,26 @@
         eaCard.innerHTML = `
           <div class="ql-icon-wrap" style="background:#e0f7fa">🗂️</div>
           <div class="ql-title">Executive Assistant to CEO</div>
-          <div class="ql-desc">Submit weekly updates on behalf of the Executive Assistant to the CEO — tracked separately from department submissions.</div>
+          <div class="ql-desc">Submit biweekly updates on behalf of the Executive Assistant to the CEO — tracked separately from department submissions.</div>
           <div class="ql-arrow" style="color:#0891b2">Submit update →</div>
         `;
         qlGrid.insertBefore(eaCard, qlGrid.firstChild);
+      }
+
+      // Biz Dev submit card — injected for both Leadership and KB portals
+      if (dept === 'kb' || dept === 'leadership') {
+        const bdCard = document.createElement('div');
+        bdCard.id = 'lbBizDevSubmitCard';
+        bdCard.className = 'ql-card';
+        bdCard.style.borderLeft = '3px solid #16a34a';
+        bdCard.onclick = () => _lbCreateBizDevSubmitModal();
+        bdCard.innerHTML = `
+          <div class="ql-icon-wrap" style="background:#dcfce7">💼</div>
+          <div class="ql-title">Sales & Business Development</div>
+          <div class="ql-desc">Submit biweekly updates for Sales & Business Development — tracked separately as Anthony Scotto's business professional entry.</div>
+          <div class="ql-arrow" style="color:#16a34a">Submit update →</div>
+        `;
+        qlGrid.insertBefore(bdCard, qlGrid.firstChild);
       }
     }
 
@@ -3375,6 +3395,29 @@
           ${cross ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Cross-Dept Notes</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${cross}</div></div>` : ''}
           ${goal  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Weekly Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${goal}</div></div>` : ''}
           <div style="font-size:.6875rem;color:var(--muted);margin-top:.375rem">Latest: ${ts} · ${eaEntries.length} total entry${eaEntries.length!==1?'s':''}</div>
+        </div>
+      </div>`;
+    }
+
+    // Sales & Business Development submissions — shown as a distinct section
+    const bdEntries = rows.filter(r => _lbRowDept(r) === 'biz_dev');
+    if (bdEntries.length) {
+      const bdCfg = LB_DEPT_CFG['biz_dev'];
+      const latest = bdEntries[bdEntries.length - 1];
+      const succ  = latest['What successes has your department seen this week?'] || '';
+      const goal  = latest["What is this week's goal for your department?"] || '';
+      const cross = latest['What cross-departmental successes, if any, have you seen?'] || '';
+      const ts    = (_lbGetTs(latest)||new Date(0)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      html += `<div style="margin-bottom:1.5rem;border:1.5px solid ${bdCfg.color}44;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#14532d22,#16a34a11);padding:.875rem 1.125rem;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid ${bdCfg.color}22">
+          <div style="font-weight:700;color:var(--navy)">${bdCfg.emoji} ${bdCfg.label}</div>
+          <span style="font-size:.6875rem;font-weight:700;padding:.2rem .625rem;border-radius:20px;background:#dcfce7;color:#166534">${bdEntries.length} submission${bdEntries.length!==1?'s':''}</span>
+        </div>
+        <div style="padding:1rem 1.125rem">
+          ${succ  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Highlights</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${succ}</div></div>` : ''}
+          ${cross ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Cross-Dept Notes</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${cross}</div></div>` : ''}
+          ${goal  ? `<div style="margin-bottom:.625rem"><div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.25rem">Biweekly Goal</div><div style="font-size:.875rem;color:var(--text);line-height:1.55">${goal}</div></div>` : ''}
+          <div style="font-size:.6875rem;color:var(--muted);margin-top:.375rem">Latest: ${ts} · ${bdEntries.length} total entry${bdEntries.length!==1?'s':''}</div>
         </div>
       </div>`;
     }
@@ -3684,6 +3727,107 @@
       _lbCache = null;
       const fb = document.getElementById('lbEAFormBody');    if (fb) fb.style.display = 'none';
       const fs = document.getElementById('lbEAFormSuccess'); if (fs) fs.style.display = 'block';
+    } catch(e) {
+      if (errEl) { errEl.textContent = 'Submission failed — please try again.'; errEl.style.display = 'block'; }
+    }
+  }
+
+  // ── Sales & Business Development submit modal (Anthony Scotto) ───────────
+  // Tagged as 'biz_dev' in the Department column so his entries are tracked
+  // separately from Leadership/KB exec submissions in the shared sheet.
+  function _lbCreateBizDevSubmitModal() {
+    const BD_TAG = 'biz_dev';
+    const bdCfg  = LB_DEPT_CFG[BD_TAG];
+
+    let modal = document.getElementById('lbBizDevSubmitModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'lbBizDevSubmitModal';
+      modal.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(10,22,40,.6);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;padding:1rem';
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+    }
+
+    modal.innerHTML = `
+      <div style="background:#fff;border-radius:18px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.25)">
+        <div style="background:linear-gradient(135deg,#14532d,#16a34a);padding:1.5rem 1.75rem;border-radius:18px 18px 0 0;display:flex;align-items:flex-start;justify-content:space-between">
+          <div>
+            <div style="font-size:.595rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#bbf7d0;margin-bottom:.25rem">Biweekly Update</div>
+            <div style="font-size:1.125rem;font-weight:700;color:#fff">${bdCfg.emoji} ${bdCfg.label}</div>
+            <div style="font-size:.75rem;color:rgba(255,255,255,.55);margin-top:.2rem">Submitted separately from department entries — tagged as Sales &amp; Business Development in the shared sheet.</div>
+          </div>
+          <button onclick="document.getElementById('lbBizDevSubmitModal').style.display='none'" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1rem;flex-shrink:0">✕</button>
+        </div>
+
+        <div style="padding:1.5rem 1.75rem" id="lbBDFormBody">
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🏆 Biweekly successes / highlights <span style="color:#e63946">*</span></label>
+            <textarea id="lbBDF_success" rows="3" placeholder="Key wins, pipeline updates, partnerships, or business highlights…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🤝 Cross-departmental notes</label>
+            <textarea id="lbBDF_cross" rows="2" placeholder="Any cross-team coordination or collaboration worth noting… (optional)" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">🎯 Goal for this biweekly cycle <span style="color:#e63946">*</span></label>
+            <textarea id="lbBDF_goal" rows="2" placeholder="One clear priority for the coming cycle…" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div style="margin-bottom:1.25rem">
+            <label style="display:block;font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.4rem">❓ Last cycle's missed goal — reason</label>
+            <textarea id="lbBDF_miss" rows="2" placeholder="Optional — leave blank if goal was met" style="width:100%;padding:.625rem .875rem;border:1.5px solid var(--border);border-radius:10px;font-size:.875rem;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box"></textarea>
+          </div>
+          <div id="lbBDFormError" style="display:none;background:rgba(185,28,28,.07);border:1px solid rgba(185,28,28,.2);border-radius:8px;padding:.75rem 1rem;font-size:.875rem;color:#b91c1c;margin-bottom:1rem"></div>
+          <div style="display:flex;justify-content:flex-end;gap:.75rem">
+            <button class="btn btn-secondary" onclick="document.getElementById('lbBizDevSubmitModal').style.display='none'">Cancel</button>
+            <button class="btn btn-primary" style="background:linear-gradient(135deg,#14532d,#16a34a)" onclick="_lbSubmitBizDevForm()">💼 Submit as Sales &amp; Biz Dev →</button>
+          </div>
+        </div>
+
+        <div id="lbBDFormSuccess" style="display:none;text-align:center;padding:3rem 2rem">
+          <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--navy);margin-bottom:.5rem">Submitted!</div>
+          <div style="font-size:.875rem;color:var(--muted);margin-bottom:1.5rem">Your update has been recorded as <strong>Sales &amp; Business Development</strong> in the shared leaderboard sheet.</div>
+          <button class="btn btn-secondary" onclick="document.getElementById('lbBizDevSubmitModal').style.display='none'">Close</button>
+        </div>
+      </div>`;
+
+    modal.style.display = 'flex';
+  }
+
+  async function _lbSubmitBizDevForm() {
+    const BD_TAG = 'biz_dev';
+    const success = (document.getElementById('lbBDF_success') || {}).value || '';
+    const goal    = (document.getElementById('lbBDF_goal')    || {}).value || '';
+    const errEl   = document.getElementById('lbBDFormError');
+
+    if (!success.trim()) {
+      if (errEl) { errEl.textContent = 'Please fill in your biweekly highlights before submitting.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!goal.trim()) {
+      if (errEl) { errEl.textContent = 'Please fill in your biweekly goal before submitting.'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (errEl) errEl.style.display = 'none';
+
+    const params = new URLSearchParams();
+    params.append(LB_ENTRY.deptSuccess,    success);
+    params.append(LB_ENTRY.crossDept,      (document.getElementById('lbBDF_cross') || {}).value || '');
+    params.append(LB_ENTRY.weeklyGoal,     goal);
+    params.append(LB_ENTRY.goalMissReason, (document.getElementById('lbBDF_miss')  || {}).value || '');
+    // Tag the submission as biz_dev in the Department column
+    if (LB_ENTRY.dept) {
+      params.append(LB_ENTRY.dept, BD_TAG);
+      params.append(LB_ENTRY.orgShareOut, '');
+    } else {
+      params.append(LB_ENTRY.orgShareOut, '[dept:' + BD_TAG + ']');
+    }
+
+    try {
+      await fetch(LB_FORM_ACTION, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: params.toString() });
+      _lbCache = null;
+      const fb = document.getElementById('lbBDFormBody');    if (fb) fb.style.display = 'none';
+      const fs = document.getElementById('lbBDFormSuccess'); if (fs) fs.style.display = 'block';
     } catch(e) {
       if (errEl) { errEl.textContent = 'Submission failed — please try again.'; errEl.style.display = 'block'; }
     }
@@ -7146,6 +7290,9 @@
   window._lbQuizProceedFromNamePicker = _lbQuizProceedFromNamePicker;
   // Executive Assistant to CEO
   window._lbCreateEASubmitModal = _lbCreateEASubmitModal;
+  // Sales & Business Development (Anthony Scotto)
+  window._lbCreateBizDevSubmitModal = _lbCreateBizDevSubmitModal;
+  window._lbSubmitBizDevForm        = _lbSubmitBizDevForm;
   window._lbSubmitEAForm        = _lbSubmitEAForm;
 
   // ── Leadership Inbox public API (onclick handlers need global access) ─────
