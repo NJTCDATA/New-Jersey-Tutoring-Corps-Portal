@@ -1012,6 +1012,12 @@
   const LB_QUIZ_CLOSE = new Date(LB_NEXT_MEETING);
   LB_QUIZ_CLOSE.setDate(LB_QUIZ_CLOSE.getDate() - 1); // Monday
   LB_QUIZ_CLOSE.setHours(19, 30, 0, 0);
+  // One-time holiday override: Memorial Day May 25 2026 — quiz stays open until Tue May 26 10:00 AM ET
+  // Self-expiring: only applies when the auto-computed close date lands on that Monday.
+  if (LB_QUIZ_CLOSE.getFullYear() === 2026 && LB_QUIZ_CLOSE.getMonth() === 4 && LB_QUIZ_CLOSE.getDate() === 25) {
+    LB_QUIZ_CLOSE.setDate(LB_QUIZ_CLOSE.getDate() + 1); // push to Tuesday May 26
+    LB_QUIZ_CLOSE.setHours(10, 0, 0, 0);                // 10:00 AM ET
+  }
   // localStorage keys scoped to this meeting cycle
   const LB_QUIZ_STATE_KEY        = 'njtc_lb_quiz_' + LB_NEXT_MEETING.toISOString().slice(0, 10);
   const LB_QUIZ_MISSED_NOTIF_KEY = LB_QUIZ_STATE_KEY + '_missed_notif_v1';
@@ -2141,7 +2147,7 @@
             <div style="font-size:.55rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;margin-bottom:.35rem">📋 Pre-Meeting Knowledge Check</div>
             <div style="font-size:1rem;font-weight:700;margin-bottom:.3rem;display:flex;align-items:center;gap:.5rem">This Week's Recap Quiz is Live! ${progressChip}</div>
             <div style="font-size:.8125rem;color:rgba(255,255,255,.75);line-height:1.5;max-width:440px">Every team member completes the quiz individually. Select your name when prompted — one attempt per person per cycle.</div>
-            <div style="font-size:.7rem;color:#fbbf24;margin-top:.5rem">⏰ Open through Mon ${LB_QUIZ_CLOSE.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · ${_lbQuizCountdown()}</div>
+            <div style="font-size:.7rem;color:#fbbf24;margin-top:.5rem">⏰ Open through ${LB_QUIZ_CLOSE.toLocaleDateString('en-US',{weekday:'short'})} ${LB_QUIZ_CLOSE.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · ${_lbQuizCountdown()}</div>
           </div>
           <button onclick="_lbQuizOpenModal('${dept}')" style="background:#fff;color:#0d3b8c;border:none;border-radius:10px;padding:.5625rem 1.375rem;font-size:.9375rem;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.2)">
             Take Quiz →
