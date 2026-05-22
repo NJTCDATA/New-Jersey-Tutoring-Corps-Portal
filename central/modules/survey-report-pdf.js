@@ -184,7 +184,7 @@
           plugins:{
             legend:{
               display:true, position:'right',
-              labels:{ color:'#374151', font:{size:22}, padding:20, usePointStyle:true, pointStyleWidth:18 }
+              labels:{ color:'#374151', font:{size:38, weight:'600'}, padding:28, usePointStyle:true, pointStyleWidth:30 }
             },
             tooltip:{enabled:false}
           }
