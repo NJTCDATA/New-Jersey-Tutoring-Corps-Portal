@@ -1967,7 +1967,7 @@
           const _cachePayload = {
             att:  _attRows.slice(0, 15000),
             sess: _sessRows.slice(0, 15000),
-            inst: _instRows.slice(0, 5000),
+            inst: _instRows,   // no cap — tutor surveys are not streamed; cache all rows
           };
           // Only cache stu if it loaded successfully (don't overwrite good cache with empty)
           if (stuLoaded) _cachePayload.stu = _stuRows.slice(0, 10000);
@@ -2208,12 +2208,12 @@
         setSyncState('live');
         // Save aggregated cache (compact — only entries needed for restore)
         try {
-          // Trim entries per school to last 500 (newest surveys most relevant)
+          // Trim entries per school to last 2000 (increased from 500 for accuracy)
           var cacheSchools = {};
           for (var s in streamAgg) {
             cacheSchools[s] = {
               district: streamAgg[s].district,
-              entries: streamAgg[s].entries.slice(-500),
+              entries: streamAgg[s].entries.slice(-2000),
               sum: streamAgg[s].sum,
               cnt: streamAgg[s].cnt
             };
@@ -8129,6 +8129,22 @@
       // Returns a shallow copy so callers cannot mutate internal state.
       getInstRows: function() {
         return _instRows ? _instRows.slice() : [];
+      },
+
+      // isSurveyDataComplete() — true when BOTH tutor and scholar survey data are fully loaded
+      // Scholar surveys stream progressively; this is false until the stream finishes.
+      // Use this to block PDF generation until data is authoritative.
+      isSurveyDataComplete: function() {
+        return _stuStreamComplete && _instRows.length > 0;
+      },
+
+      // getSurveyRowCounts() — live counts for status display
+      getSurveyRowCounts: function() {
+        return {
+          scholar: _stuRows  ? _stuRows.length  : 0,
+          tutor:   _instRows ? _instRows.length : 0,
+          scholarComplete: _stuStreamComplete,
+        };
       },
 
       // getFilterState() — current school/district filter arrays for external use (e.g. Survey Report PDF)
