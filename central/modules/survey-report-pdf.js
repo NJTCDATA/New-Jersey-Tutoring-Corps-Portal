@@ -84,10 +84,10 @@
               if (val > 0) {
                 ctx.save();
                 ctx.fillStyle = '#1b3a6b';
-                ctx.font = 'bold 28px system-ui,sans-serif';
+                ctx.font = 'bold 44px system-ui,sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(val.toLocaleString(), bar.x, bar.y - 8);
+                ctx.fillText(val.toLocaleString(), bar.x, bar.y - 10);
                 ctx.restore();
               }
             });
@@ -109,7 +109,7 @@
         options:{
           animation:{duration:0},
           responsive:false,
-          layout:{padding:{top:50,bottom:12,left:20,right:20}},
+          layout:{padding:{top:60,bottom:12,left:20,right:20}},
           plugins:{ legend:{display:false}, tooltip:{enabled:false} },
           scales:{
             x:{
@@ -407,20 +407,20 @@
         y += barH + 3;
       });
 
-      // Info box
+      // Info box — fixed height so it doesn't dominate the column
       y += 4;
-      var boxH = CBOT - y - 2;
+      var boxH = Math.min(CBOT - y - 2, 34);
       if (boxH > 12) {
         doc.setFillColor(26, 58, 107);
         doc.roundedRect(ML, y, LEFT_W, boxH, 3, 3, 'F');
-        doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+        doc.setFontSize(8.5); doc.setFont('helvetica','bold');
         doc.setTextColor.apply(doc, C.white);
-        doc.text(safe(infoTitle), ML+4, y+7);
-        doc.setFontSize(7); doc.setFont('helvetica','normal');
+        doc.text(safe(infoTitle), ML+4, y+8);
+        doc.setFontSize(8); doc.setFont('helvetica','normal');
         var lines = doc.splitTextToSize(safe(infoBody), LEFT_W-8);
-        var ly = y+13;
+        var ly = y+15;
         lines.forEach(function(line){
-          if (ly < y+boxH-4) { doc.text(line, ML+4, ly); ly+=4.5; }
+          if (ly < y+boxH-4) { doc.text(line, ML+4, ly); ly+=5; }
         });
         doc.setTextColor.apply(doc, C.body);
       }
