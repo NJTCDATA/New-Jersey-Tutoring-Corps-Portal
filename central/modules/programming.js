@@ -2064,6 +2064,7 @@
       if (_stuStreamRunning) return;
       _stuStreamRunning = true;
       _stuStreamComplete = false;  // mark incomplete until stream finishes
+      _stuRows = [];               // discard cache rows — live sheet data only, no duplication
       var PARTIAL_THRESHOLD = 300;  // rows before first partial render (lowered from 800)
       var ROLLING_UPDATE_EVERY = 500; // re-render survey card every N additional rows after partial
       var url = stuCsvUrl() + (bust || '');
