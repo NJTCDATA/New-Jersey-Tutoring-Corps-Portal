@@ -54,8 +54,6 @@
   }
 
   // ── Chart rendering (Chart.js → canvas → PNG dataURL) ─────────────────────
-  // Canvases are rendered at 1400×860 px (≈3× the PDF display size) so that
-  // screenshots at any zoom level remain sharp with no rasterisation blur.
   var _holder = null;
   function getHolder() {
     if (!_holder) {
@@ -76,7 +74,6 @@
       var data   = labels.map(function(l){ return counts[parseInt(l)]||0; });
       var maxVal = Math.max.apply(null,data)||1;
 
-      // Inline plugin — value labels above bars
       var valPlugin = {
         id:'srpBar',
         afterDatasetsDraw: function(chart) {
@@ -87,10 +84,10 @@
               if (val > 0) {
                 ctx.save();
                 ctx.fillStyle = '#1b3a6b';
-                ctx.font = 'bold 26px system-ui,sans-serif';
+                ctx.font = 'bold 28px system-ui,sans-serif';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'bottom';
-                ctx.fillText(val.toLocaleString(), bar.x, bar.y - 6);
+                ctx.fillText(val.toLocaleString(), bar.x, bar.y - 8);
                 ctx.restore();
               }
             });
@@ -105,23 +102,23 @@
           datasets:[{
             data:data,
             backgroundColor: C.barBlue,
-            borderRadius: 6,
+            borderRadius: 8,
             borderSkipped: false,
           }]
         },
         options:{
           animation:{duration:0},
           responsive:false,
-          layout:{padding:{top:44,bottom:8,left:16,right:16}},
+          layout:{padding:{top:50,bottom:12,left:20,right:20}},
           plugins:{ legend:{display:false}, tooltip:{enabled:false} },
           scales:{
             x:{
               grid:{display:false}, border:{display:false},
-              ticks:{ color:'#374151', font:{size:22, weight:'600'} }
+              ticks:{ color:'#374151', font:{size:24, weight:'600'} }
             },
             y:{
               display:false, beginAtZero:true,
-              suggestedMax: maxVal*1.30, grid:{display:false}
+              suggestedMax: maxVal*1.32, grid:{display:false}
             }
           }
         },
@@ -160,7 +157,7 @@
             var y   = arc.y + Math.sin(mid)*r;
             ctx.save();
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 22px system-ui,sans-serif';
+            ctx.font = 'bold 24px system-ui,sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(pct.toFixed(1)+'%', x, y);
@@ -183,11 +180,11 @@
         options:{
           animation:{duration:0},
           responsive:false,
-          layout:{padding:12},
+          layout:{padding:14},
           plugins:{
             legend:{
               display:true, position:'right',
-              labels:{ color:'#374151', font:{size:22}, padding:18, usePointStyle:true, pointStyleWidth:18 }
+              labels:{ color:'#374151', font:{size:22}, padding:20, usePointStyle:true, pointStyleWidth:18 }
             },
             tooltip:{enabled:false}
           }
@@ -284,34 +281,39 @@
 
   // ══════════════════════════════════════════════════════════════════════════
   // PDF BUILDER — 16:9 landscape (254 × 143 mm = exact Google Slides size)
+  //
+  // Layout math (all mm):
+  //   HDR_H=15  STRIP_H=5  CTOP=22  CBOT=140  CH=118
+  //   LEFT_W=82  GAP=6  RIGHT_X=96  RIGHT_W=150
+  //   CHART_COL_W=72.5  CHART_LBL_H=8  CHART_IMG_H=42  CHART_CELL=53
+  //   2×CHART_CELL=106  CHART_GAP=12  (no overflow)
   // ══════════════════════════════════════════════════════════════════════════
   function buildPDF(stuRows, instRows, filterState, chartImgs) {
     var jsPDF = window.jspdf.jsPDF;
-    // Format: [width, height] in mm — 254×143 = 10"×5.625" = Google Slides widescreen
     var doc = new jsPDF({ orientation:'landscape', unit:'mm', format:[254,143] });
 
     var PW = 254, PH = 143;
-    var ML = 8,  MR = PW-8, SW = MR-ML;   // 238 mm usable width
+    var ML = 8,  MR = PW-8;
 
     // ── Header geometry ──────────────────────────────────────────────────────
-    var HDR_H  = 19;   // navy banner
-    var STRIP_H = 7;   // light sub-strip
-    var CTOP   = HDR_H + STRIP_H + 3;   // content start y = 29
-    var CBOT   = PH - 4;                // content end y   = 139
-    var CH     = CBOT - CTOP;           // content height  = 110 mm
+    var HDR_H   = 15;
+    var STRIP_H = 5;
+    var CTOP    = HDR_H + STRIP_H + 2;   // 22 mm
+    var CBOT    = PH - 3;                 // 140 mm
+    var CH      = CBOT - CTOP;            // 118 mm
 
     // ── Column geometry ──────────────────────────────────────────────────────
-    var LEFT_W   = 86;                         // sentiment column
-    var GAP_COL  = 7;
-    var RIGHT_X  = ML + LEFT_W + GAP_COL;      // = 8+86+7 = 101
-    var RIGHT_W  = MR - RIGHT_X;               // = 246-101 = 145 mm
+    var LEFT_W  = 82;
+    var GAP_COL = 6;
+    var RIGHT_X = ML + LEFT_W + GAP_COL;  // 96 mm
+    var RIGHT_W = MR - RIGHT_X;           // 150 mm
 
     // ── Chart grid geometry ──────────────────────────────────────────────────
-    var CHART_COL_W = (RIGHT_W - 5) / 2;      // (145-5)/2 = 70 mm each
-    var CHART_LBL_H = 10;
-    var CHART_IMG_H = 45;
-    var CHART_CELL  = CHART_LBL_H + CHART_IMG_H + 3; // 58 mm per row
-    var CHART_GAP   = CH - 2*CHART_CELL;              // gap between rows
+    var CHART_COL_W = (RIGHT_W - 5) / 2;  // 72.5 mm each column
+    var CHART_LBL_H = 8;
+    var CHART_IMG_H = 42;
+    var CHART_CELL  = CHART_LBL_H + CHART_IMG_H + 3; // 53 mm
+    var CHART_GAP   = CH - 2 * CHART_CELL;            // 118-106 = 12 mm
 
     // scope label for header
     var scopeLabel = '';
@@ -329,34 +331,34 @@
 
     // ── Page header ──────────────────────────────────────────────────────────
     function pageHeader(title, count, surveyType) {
-      // Navy banner
       doc.setFillColor.apply(doc, C.navy);
       doc.rect(0, 0, PW, HDR_H, 'F');
 
-      doc.setFontSize(17); doc.setFont('helvetica','bold');
+      doc.setFontSize(14); doc.setFont('helvetica','bold');
       doc.setTextColor.apply(doc, C.white);
-      doc.text(safe(title), ML, 13);
+      doc.text(safe(title), ML, 10.5);
 
-      doc.setFontSize(9.5); doc.setFont('helvetica','normal');
-      doc.text(safe(count.toLocaleString() + ' responses'), MR, 9, {align:'right'});
-      doc.setFontSize(8.5);
-      doc.text(safe(scopeLabel), MR, 16, {align:'right'});
+      doc.setFontSize(8); doc.setFont('helvetica','normal');
+      doc.text(safe(count.toLocaleString() + ' responses'), MR, 7.5, {align:'right'});
+      doc.setFontSize(7.5);
+      doc.text(safe(scopeLabel), MR, 13.5, {align:'right'});
 
-      // Sub-strip
       doc.setFillColor.apply(doc, C.strip);
       doc.rect(0, HDR_H, PW, STRIP_H, 'F');
-      doc.setFontSize(7.5); doc.setFont('helvetica','italic');
+      doc.setFontSize(6.5); doc.setFont('helvetica','italic');
       doc.setTextColor.apply(doc, C.muted);
-      doc.text(safe('SY 2025-2026  -  ' + surveyType + '  -  Likert Scale: 4-5 = Positive, 3 = Neutral, 1-2 = Negative'), ML, HDR_H + 5);
+      doc.text(
+        safe('SY 2025-2026  \xB7  ' + surveyType + '  \xB7  Scale: 4-5 = Positive  \xB7  3 = Neutral  \xB7  1-2 = Negative'),
+        ML, HDR_H + 3.5
+      );
       doc.setTextColor.apply(doc, C.body); doc.setFont('helvetica','normal');
     }
 
     // ── Sentiment column (left side) ─────────────────────────────────────────
-    // Always renders all 3 bars (Positive / Neutral / Negative).
     function sentimentColumn(sent, infoTitle, infoBody) {
       var y = CTOP;
 
-      // ── Legend chips ────────────────────────────────────────────────────
+      // Legend chips
       var chips = [
         {label:'Positive', rgb:C.green},
         {label:'Neutral',  rgb:C.gray},
@@ -365,91 +367,85 @@
       var lx = ML;
       chips.forEach(function(ch){
         doc.setFillColor.apply(doc, ch.rgb);
-        doc.roundedRect(lx, y+0.5, 3.5, 3.5, 0.5, 0.5, 'F');
-        doc.setFontSize(7); doc.setTextColor.apply(doc, C.muted);
-        doc.text(safe(ch.label), lx+5, y+3.5);
-        lx += 22;
+        doc.roundedRect(lx, y+0.5, 3, 3, 0.5, 0.5, 'F');
+        doc.setFontSize(6.5); doc.setTextColor.apply(doc, C.muted);
+        doc.text(safe(ch.label), lx+4.5, y+3.2);
+        lx += 20;
       });
-      y += 8;
+      y += 7;
 
-      // ── Sentiment bars ──────────────────────────────────────────────────
-      var barX = ML + 24;   // leave room for label
-      var barW = LEFT_W - 25;
-      var barH = 10;
-      var rows = [
+      // Sentiment bars
+      var barX = ML + 22;
+      var barW = LEFT_W - 23;
+      var barH = 9;
+      var barRows = [
         {label:'Positive', pct:sent.posPct, rgb:C.green},
         {label:'Neutral',  pct:sent.neuPct, rgb:C.gray},
         {label:'Negative', pct:sent.negPct, rgb:C.red},
       ];
-      rows.forEach(function(row){
+      barRows.forEach(function(row){
         var fw = (row.pct/100)*barW;
-        // Track
         doc.setFillColor(228, 235, 244);
         doc.roundedRect(barX, y, barW, barH, 2, 2, 'F');
-        // Fill
         if (fw > 0.5) {
           doc.setFillColor.apply(doc, row.rgb);
           doc.roundedRect(barX, y, fw, barH, 2, 2, 'F');
         }
-        // Row label
-        doc.setFontSize(8.5); doc.setFont('helvetica','bold');
+        doc.setFontSize(7.5); doc.setFont('helvetica','bold');
         doc.setTextColor.apply(doc, C.body);
-        doc.text(safe(row.label), ML, y+7);
-        // Pct
-        var pStr = row.pct.toFixed(2)+'%';
-        doc.setFontSize(8); doc.setFont('helvetica','bold');
-        if (fw > 18) {
+        doc.text(safe(row.label), ML, y+6.5);
+        var pStr = row.pct.toFixed(2) + '%';
+        doc.setFontSize(7); doc.setFont('helvetica','bold');
+        if (fw > 16) {
           doc.setTextColor(255,255,255);
-          doc.text(safe(pStr), barX+fw-2.5, y+7, {align:'right'});
+          doc.text(safe(pStr), barX+fw-2.5, y+6.5, {align:'right'});
         } else {
           doc.setTextColor.apply(doc, C.body);
-          doc.text(safe(pStr), barX+Math.max(fw,0)+2, y+7);
+          doc.text(safe(pStr), barX+Math.max(fw,0)+2, y+6.5);
         }
         doc.setTextColor.apply(doc, C.body);
-        y += barH + 4;
+        y += barH + 3;
       });
 
-      // ── Info box ─────────────────────────────────────────────────────────
-      y += 3;
+      // Info box
+      y += 4;
       var boxH = CBOT - y - 2;
       if (boxH > 12) {
         doc.setFillColor(26, 58, 107);
         doc.roundedRect(ML, y, LEFT_W, boxH, 3, 3, 'F');
-        doc.setFontSize(8.5); doc.setFont('helvetica','bold');
+        doc.setFontSize(7.5); doc.setFont('helvetica','bold');
         doc.setTextColor.apply(doc, C.white);
-        doc.text(safe(infoTitle), ML+4, y+8);
-        doc.setFontSize(7.5); doc.setFont('helvetica','normal');
+        doc.text(safe(infoTitle), ML+4, y+7);
+        doc.setFontSize(7); doc.setFont('helvetica','normal');
         var lines = doc.splitTextToSize(safe(infoBody), LEFT_W-8);
-        var ly = y+15;
+        var ly = y+13;
         lines.forEach(function(line){
-          if (ly < y+boxH-4) { doc.text(line, ML+4, ly); ly+=5; }
+          if (ly < y+boxH-4) { doc.text(line, ML+4, ly); ly+=4.5; }
         });
         doc.setTextColor.apply(doc, C.body);
       }
     }
 
     // ── Chart grid (right side, 2×2) ─────────────────────────────────────────
-    // imgs = [topLeft, topRight, bottomLeft, bottomRight]
-    // labels = matching question strings
     function chartGrid(imgs, labels) {
       var y = CTOP;
       [[0,1],[2,3]].forEach(function(pair, row){
         pair.forEach(function(idx, col){
           var cx = RIGHT_X + col*(CHART_COL_W+5);
 
-          // Card
+          // Card background + border
           doc.setFillColor(255,255,255);
           doc.roundedRect(cx, y, CHART_COL_W, CHART_CELL, 3, 3, 'F');
-          doc.setDrawColor(215, 225, 240); doc.setLineWidth(0.3);
+          doc.setDrawColor(218, 228, 242); doc.setLineWidth(0.25);
           doc.roundedRect(cx, y, CHART_COL_W, CHART_CELL, 3, 3, 'S');
 
           // Question label
-          doc.setFontSize(7.5); doc.setFont('helvetica','bold');
+          doc.setFontSize(7); doc.setFont('helvetica','bold');
           doc.setTextColor.apply(doc, C.navy);
           var wrapped = doc.splitTextToSize(safe(labels[idx]||''), CHART_COL_W-6);
-          var lY = y+5.5;
+          var lY = y+5;
           wrapped.slice(0,2).forEach(function(line){
-            doc.text(line, cx+3, lY); lY+=4;
+            doc.text(line, cx+3, lY); lY+=3.8;
           });
           doc.setTextColor.apply(doc, C.body);
 
@@ -459,7 +455,6 @@
             catch(e){}
           }
         });
-        // space rows to fill full content height evenly
         y += CHART_CELL + Math.max(CHART_GAP, 4);
       });
     }
@@ -557,7 +552,6 @@
                 '| filter:', JSON.stringify(filterState));
 
     try {
-      // ── Render charts at 1400×860 for ultra-crisp screenshots ───────────────
       updateOverlay(
         'Rendering charts…\n'
         + stuRows.length.toLocaleString() + ' scholar  /  '
@@ -581,13 +575,11 @@
       var all = await Promise.all(stuP.concat(instP));
       var chartImgs = { stu: all.slice(0,4), inst: all.slice(4,8) };
 
-      // ── Build PDF ────────────────────────────────────────────────────────
       updateOverlay('Building PDF…');
       await loadLibs();
 
       var doc = buildPDF(stuRows, instRows, filterState, chartImgs);
 
-      // Filename
       var scope = filterState.schools.length===1
         ? filterState.schools[0].replace(/[^a-z0-9]/gi,'_').slice(0,30)
         : filterState.districts.length===1
