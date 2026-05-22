@@ -114,7 +114,7 @@
           scales:{
             x:{
               grid:{display:false}, border:{display:false},
-              ticks:{ color:'#374151', font:{size:24, weight:'600'} }
+              ticks:{ color:'#374151', font:{size:36, weight:'700'} }
             },
             y:{
               display:false, beginAtZero:true,
@@ -157,7 +157,7 @@
             var y   = arc.y + Math.sin(mid)*r;
             ctx.save();
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 24px system-ui,sans-serif';
+            ctx.font = 'bold 44px system-ui,sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(pct.toFixed(1)+'%', x, y);
