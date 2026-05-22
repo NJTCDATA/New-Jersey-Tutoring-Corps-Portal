@@ -8131,6 +8131,38 @@
         return _instRows ? _instRows.slice() : [];
       },
 
+      // getFilterState() — current school/district filter arrays for external use (e.g. Survey Report PDF)
+      getFilterState: function() {
+        return { districts: _filtDistrict.slice(), schools: _filtSchool.slice() };
+      },
+
+      // getFilteredStuRows() — scholar survey rows scoped to current district/school filter
+      // Returns all rows when no filter is active (aggregate mode)
+      getFilteredStuRows: function() {
+        if (!_stuRows || !_stuRows.length) return [];
+        if (!_filtDistrict.length && !_filtSchool.length) return _stuRows.slice();
+        return _stuRows.filter(function(r) {
+          var school   = (r[8]  || '').trim();
+          var district = (r[9]  || '').trim();
+          if (_filtDistrict.length && !_filtDistrict.includes(district)) return false;
+          if (_filtSchool.length   && !_filtSchool.includes(school))     return false;
+          return true;
+        });
+      },
+
+      // getFilteredInstRows() — tutor survey rows scoped to current district/school filter
+      getFilteredInstRows: function() {
+        if (!_instRows || !_instRows.length) return [];
+        if (!_filtDistrict.length && !_filtSchool.length) return _instRows.slice();
+        return _instRows.filter(function(r) {
+          var school   = (r[9]  || '').trim();
+          var district = (r[10] || '').trim();
+          if (_filtDistrict.length && !_filtDistrict.includes(district)) return false;
+          if (_filtSchool.length   && !_filtSchool.includes(school))     return false;
+          return true;
+        });
+      },
+
       // getTutorSurveyScores() — per-tutor aggregated survey scores, joined through _sessMap
       // The streaming/cache paths don't store FILLED_FOR (tutor name) in raw rows.
       // This method resolves tutor names via _sessMap[sessId].instructor so it works
