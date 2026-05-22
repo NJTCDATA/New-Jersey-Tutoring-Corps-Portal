@@ -114,7 +114,7 @@
           scales:{
             x:{
               grid:{display:false}, border:{display:false},
-              ticks:{ color:'#374151', font:{size:24, weight:'600'} }
+              ticks:{ color:'#374151', font:{size:36, weight:'700'} }
             },
             y:{
               display:false, beginAtZero:true,
