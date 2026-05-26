@@ -779,7 +779,16 @@
             if (_val) return _val;
             // Fuzzy: find any key containing 'district' in case column was named differently
             var _fk = Object.keys(_row).find(function(k){ return k.toLowerCase().includes('district'); });
-            return _fk ? (_row[_fk]||'') : '';
+            if (_fk && _row[_fk]) return _row[_fk];
+            // Fallback: infer district from school name for pilot rows with blank Districts column
+            var _school = (g(_row,'School','school')||'').toLowerCase();
+            if (_school.includes('penns grove') || _school.includes('carleton'))
+              return 'Penns Grove - Carneys Point Regional School District';
+            if (_school.includes('gloucester') || _school.includes('loring flemming'))
+              return 'Gloucester Township School District';
+            if (_school.includes('global leadership'))
+              return 'Global Leadership Academy Charter Schools';
+            return '';
           })(),
           school:             g(dem,'School','school'),
           grade:              g(dem,'Student Grade','student_grade','Grade'),
@@ -3013,6 +3022,11 @@
             const pilotPcts  = allRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
             const pilotMedGain = medianArr(pilotGains);
             const pilotMedPct  = medianArr(pilotPcts);
+            // ELA-specific growth % (pilot ELA students have pctTypical + pctStretch)
+            const _pilotELATyp = allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            const _pilotELAStr = allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            const pilotMedELATyp = medianArr(_pilotELATyp);
+            const pilotMedELAStr = medianArr(_pilotELAStr);
             // Spring placement distribution
             const springDist = {};
             PLACEMENT_ORDER.forEach(p=>{springDist[p]=0;});
