@@ -159,9 +159,11 @@
       const d = (r.district || '').toLowerCase();
       const s = (r.school   || '').toLowerCase();
       return d.includes('haddon township') || d.includes('haddon twp') ||
+             d.includes('haddon') ||
              s.includes('van sciver') || s.includes('strawbridge') ||
              s.includes('jennings')   || s.includes('stoy elementary') ||
-             s.includes('thomas a edison');
+             s.includes('thomas a. edison') || s.includes('thomas a edison') ||
+             s.includes('thomas edison')    || s.includes('haddon');
     },
     'Central Jersey College Prep': r => {
       const d = (r.district || '').toLowerCase();
@@ -406,6 +408,7 @@
       pctTypical:   (r.pctTypical !== undefined && r.pctTypical !== null && !isNaN(r.pctTypical))
                       ? r.pctTypical : null,
       subject:      r.subject || '',
+      _pearlId:     r._pearlId || '',  // Pearl student login ID — used for exact session joins
     };
   }
 
@@ -476,8 +479,11 @@
       // This is the primary method for tying scholars to their exact tutor.
       // Uses Pearl Session Details (SESS_GID) + Attendance Detail (ATT_GID)
       // joined on (session name + date) to produce exact scholar→tutor maps.
+      // Returns:
+      //   sets  — per-apprentice scholar name sets (for name-based matching)
+      //   idMap — Pearl student ID → canonical apprentice (for exact ID matching)
       setStatus('Building session attribution from Pearl data…'); setProgress(50);
-      const sessionSets = buildSessionAttribution(sessRows, attRows, apprLut);
+      const { sets: sessionSets, idMap: sessionIdMap } = buildSessionAttribution(sessRows, attRows, apprLut);
 
       // ── 6. Process surveys and attendance ────────────────────────────────
       setStatus('Processing scholar surveys…'); setProgress(60);
@@ -487,12 +493,30 @@
       setStatus('Processing instructor attendance…'); setProgress(68);
       const attAgg = processAttendance(attRows, apprLut);
 
-      // ── 7. Attribute scholars to apprentices ─────────────────────────────
+      // ── 7. Build MOY ID bridge then attribute scholars to apprentices ─────
+      // For iLearn schools (MOY path), the MOY CSV has no Pearl IDs.
+      // Bridge: sessionIdMap has Pearl student ID → apprentice.
+      //         IRLAB rows for iLearn schools have _pearlId + scholarName (iReady name).
+      //         Joining them gives us: iReady scholar name → apprentice (exact, no fuzzy match).
+      // This resolves Dr. Renee Davis / LaShanee Davis and similar cross-system name gaps.
+      const moyIdBridge = {}; // normalized iReady scholar name → canonical apprentice
+      [...irlabElaRows, ...irlabMathRows].forEach(r => {
+        const pid = (r._pearlId || '').trim();
+        if (!pid || !r.scholarName) return;
+        const appr = sessionIdMap[pid];
+        if (!appr) return;
+        const nn = normName(r.scholarName);
+        if (nn && !moyIdBridge[nn]) moyIdBridge[nn] = appr;
+        const fl = normNameFL(nn);
+        if (fl && fl !== nn && !moyIdBridge[fl]) moyIdBridge[fl] = appr;
+      });
+      console.log('[APIR] MOY ID bridge — entries:', Object.keys(moyIdBridge).length);
+
       setStatus('Attributing scholars to apprentices…'); setProgress(76);
-      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut);
-      const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut);
-      const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut);
-      const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut);
+      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut, moyIdBridge);
+      const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge);
+      const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
+      const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
 
       // ── 8. Build per-apprentice records ───────────────────────────────────
       setStatus('Building report…'); setProgress(85);
@@ -644,7 +668,8 @@
   //                              row (Attended/Late) identifies the tutor; all student
   //                              rows in that group are added to the tutor's scholar set.
   function buildSessionAttribution(sessRows, attRows, lut) {
-    const sets = {};
+    const sets  = {};
+    const idMap = {};  // Pearl student ID → canonical apprentice name
     TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
 
     // Helper: add a scholar name (both full-norm and first+last forms) to a set
@@ -674,6 +699,11 @@
       const stuNamesRaw = getCol(SESS_COL.STUDENTS);
       stuNamesRaw.split(',').map(s => s.trim()).filter(Boolean)
         .forEach(sn => addScholar(sets[canon], sn));
+
+      // Col 16 = comma-separated Pearl student IDs — build exact ID→apprentice map
+      const stuIdsRaw = getCol(SESS_COL.STU_IDS);
+      stuIdsRaw.split(',').map(s => s.trim()).filter(Boolean)
+        .forEach(pid => { if (!idMap[pid]) idMap[pid] = canon; });
     });
 
     // ── Pass 2: ATT session join ─────────────────────────────────────────
@@ -687,11 +717,12 @@
       if (!sessionName) return;
 
       const key = sessionName + '|' + sessionDate;
-      if (!attBySession[key]) attBySession[key] = { instructor: null, students: [] };
+      if (!attBySession[key]) attBySession[key] = { instructor: null, students: [], studentIds: [] };
 
-      const role   = (row['Role']              || row[keys[1]] || '').trim();
-      const user   = (row['User']              || row[keys[0]] || '').trim();
-      const status = (row['Attendance Status'] || row[keys[6]] || '').trim();
+      const role   = (row['Role']              || row[keys[1]]  || '').trim();
+      const user   = (row['User']              || row[keys[0]]  || '').trim();
+      const userId = (row['User ID']           || row[keys[13]] || '').trim();  // Pearl student ID
+      const status = (row['Attendance Status'] || row[keys[6]]  || '').trim();
 
       if (role === 'Instructor') {
         // Only mark instructor if they were actually there (Attended or Late)
@@ -702,15 +733,20 @@
         // Students: include regardless of their attendance status —
         // we want to know which students are ASSIGNED to this tutor,
         // not just who showed up on a specific day.
-        if (user) attBySession[key].students.push(user);
+        if (user) {
+          attBySession[key].students.push(user);
+          if (userId) attBySession[key].studentIds.push(userId);
+        }
       }
     });
 
-    Object.values(attBySession).forEach(({ instructor, students }) => {
+    Object.values(attBySession).forEach(({ instructor, students, studentIds }) => {
       if (!instructor || !students.length) return;
       const canon = resolveAppr(instructor, lut);
       if (!canon || !sets[canon]) return;
       students.forEach(sn => addScholar(sets[canon], sn));
+      // Add Pearl student IDs from ATT col 13 to idMap (backs up SESS col 16 data)
+      (studentIds || []).forEach(pid => { if (!idMap[pid]) idMap[pid] = canon; });
     });
 
     // Debug summary
@@ -718,8 +754,9 @@
       .filter(([, s]) => s.size > 0)
       .map(([n, s]) => `${n.split(' ')[0]}: ${s.size}`).join(', ');
     console.log('[APIR] Session attribution —', summary || 'no scholars found');
+    console.log('[APIR] Pearl ID map — entries:', Object.keys(idMap).length);
 
-    return sets;
+    return { sets, idMap };
   }
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
@@ -733,7 +770,7 @@
   // e.g., "iLearn Paterson" + "iLearn Paterson MS" both map to the same iReady
   // school; session sets correctly split students between Carlos Jacho, Linda Fenty,
   // and Norelis Ramirez rather than collapsing them all to one school entry.
-  function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut) {
+  function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
@@ -762,6 +799,16 @@
       // Tier 1: instructor name in MOY CSV (direct attribution)
       if (row.instructor) {
         const appr = resolveAppr(row.instructor, lut);
+        if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
+      }
+
+      // Tier 1.5: Pearl ID bridge — resolves cross-system name mismatches for iLearn.
+      // Joins: Pearl SESS STU_IDS → IRLAB _pearlId → iReady scholar name in MOY CSV.
+      // More precise than session name-set matching because it uses the IRLAB as
+      // an exact name-normalization bridge rather than fuzzy display-name comparison.
+      // (e.g. Pearl "Juan Smith" ↔ iReady "Juan M. Smith" — both share the same _pearlId)
+      if (scholarN && moyIdBridge) {
+        const appr = moyIdBridge[scholarN] || moyIdBridge[normNameFL(scholarN)];
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
@@ -812,7 +859,7 @@
   //   • Katrina Valentin gets only her ~20-30 scholars (not 300+ school-wide)
   //   • Haddon/multi-appr EOY schools resolve correctly via session attribution
   //   • Hamilton / CJCP stay at 0 until their data is in the IRLAB (expected)
-  function attributeIrlabScholars(irlabRows, sessionSets, surveyScholarSets, lut) {
+  function attributeIrlabScholars(irlabRows, sessionSets, surveyScholarSets, lut, sessionIdMap) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
@@ -828,6 +875,20 @@
         if (!filterFn(row)) return;
 
         const scholarN = normName(row.scholarName);
+
+        // ── Tier 0: Pearl ID direct join — most authoritative ────────────
+        // Uses the Pearl student login ID stored in IRLAB as _pearlId.
+        // This ID is the same as SESS col-16 STU_IDS values, so it provides
+        // an exact, name-variation-proof link between iReady data and Pearl sessions.
+        // Bypasses all name-matching (handles legal vs. display name differences,
+        // middle initials, accent marks, etc.).
+        // If the Pearl ID is in the session map: use it and stop — don't fall through.
+        // If not in the map: proceed to name-based matching below.
+        const pearlId = (row._pearlId || '').trim();
+        if (pearlId && sessionIdMap && (pearlId in sessionIdMap)) {
+          if (sessionIdMap[pearlId] === display) byAppr[display].push(row);
+          return; // Pearl ID is definitive — trust it for all apprentices
+        }
 
         // ── Path A: IRLAB instructor field is authoritative ──────────────
         const instVal = (row.instructor || '').trim();
