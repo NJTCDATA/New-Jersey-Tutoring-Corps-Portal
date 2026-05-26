@@ -100,6 +100,20 @@
     ['Theodore Mills',          'NJ2025004828', 'Long Term Sub',               'NE', 'Theodore Mills'],
   ];
 
+  // ── Pearl miss-reason classification (matches pearl-data.js exactly) ─────
+  // Only these miss reasons count as a personal tutor absence.
+  // Everything else (school closures, testing, holidays, scholar reasons) is a
+  // service interruption and is EXCLUDED from the attendance rate denominator —
+  // matching the Pearl Operations portal calculation exactly.
+  const TUTOR_MISS_REASONS = new Set([
+    'Absent; Not Covered (Tutor not available)',
+    'Absent; Covered by Sub Tutor',
+    'Absent; Covered by Dual Role',
+    'Absent; Covered by the Site Leader',
+    'Absent; Covered by the Instructional Coach',
+    'Tutor Left Early (no sub)',
+  ]);
+
   // Schools using Standards Mastery — no iReady academic section
   const STANDARDS_MASTERY_SCHOOLS = new Set(['Middlesex STEM']);
   // Schools with no iReady data available (e.g. long-term sub, untracked)
@@ -541,10 +555,16 @@
 
   // ── Process instructor attendance ─────────────────────────────────────────
   // Counts sessions per apprentice using Pearl ATT published CSV.
-  // Pearl ATT status values:
-  //   "Attended" or "Late"  → instructor was present (counts as attended)
-  //   "Missed"              → instructor absent (counts as missed)
-  //   "Not recorded"        → excluded from denominator
+  //
+  // Classification matches Pearl Operations portal logic exactly:
+  //   "Attended" or "Late"                              → attended (present)
+  //   "Missed" + reason in TUTOR_MISS_REASONS           → missed (personal absence)
+  //   "Missed" + any other reason (SI / scholar reason) → service interruption — EXCLUDED
+  //   "Not recorded"                                    → EXCLUDED from denominator
+  //
+  // Attendance rate = attended / (attended + personal_absences)
+  // Service interruptions are NOT in the denominator — this matches the Pearl
+  // Operations attendance % shown on the portal.
   function processAttendance(attRows, lut) {
     const agg = {};
     TAP_APPRENTICES.forEach(([d]) => { agg[d] = { attended: 0, missed: 0 }; });
@@ -569,9 +589,14 @@
       if (status === 'Attended' || status === 'Late') {
         agg[canon].attended++;
       } else if (status === 'Missed') {
-        // "Missed" covers both tutor-absent and service interruptions
-        // We count all missed rows so the total session count is accurate
-        agg[canon].missed++;
+        // Column 7 = Miss Reason — determines tutor absence vs service interruption
+        const missReason = (row['Miss Reason'] || row['Absence Reason'] || row[keys[7]] || '').trim();
+        if (TUTOR_MISS_REASONS.has(missReason)) {
+          // Personal tutor absence — counts against attendance rate
+          agg[canon].missed++;
+        }
+        // else: service interruption (school closure, testing, holiday, scholar reason,
+        // or blank reason) → excluded from denominator (matches Pearl Operations portal)
       }
       // "Not recorded" → excluded (don't increment either counter)
     });
@@ -1077,7 +1102,8 @@
     lines.push(row('Scholar attribution uses 5 tiers: (1) instructor name in iReady CSV, (2) single-apprentice school, (3) Pearl session join (SESS+ATT tabs), (4) survey-confirmed scholar name, (5) fallback survey match.'));
     lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
     lines.push(row('For multi-apprentice schools (Bergen MS, Passaic MS, Clifton MS, Haddon, Hamilton, CJCP), tier 3 session join is the primary attribution method.'));
-    lines.push(row('Attendance counts sessions where Pearl Attendance Status = Attended or Late; Missed = absent. Not Recorded rows are excluded from denominator.'));
+    lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
+    lines.push(row('Personal tutor absence miss reasons: Absent Not Covered; Absent Covered by Sub; Absent Covered by Dual Role; Absent Covered by Site Leader; Absent Covered by IC; Tutor Left Early. All other miss reasons are service interruptions.'));
     lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
 
     // UTF-8 BOM for Excel compatibility
