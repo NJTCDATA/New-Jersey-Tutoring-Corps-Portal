@@ -245,11 +245,15 @@
       'jasmine ramsey':         'Jasmine Ramsey-Copeland',
       'caela wilkerson':        'Micaela Wilkerson',
       'katie rose davis':       'Katherine R. Davis',
+      'katie davis':            'Katherine R. Davis',
       'mary carmen':            'Maria Del Carmen',
       'mary carmen gutierrez':  'Maria Del Carmen',
       'maria gutierrez':        'Maria Del Carmen',
       'renee davis':            'Dr. Renee Davis',
       'la shanee davis':        'Dr. Renee Davis',
+      'lashanee davis':         'Dr. Renee Davis',   // Pearl spelling variant (no space)
+      'la shanee':              'Dr. Renee Davis',
+      'lashanee':               'Dr. Renee Davis',
       'caitlyn evgeniadis':     'Caitlin Evgeniadis',
       'caitlyn evegeniadis':    'Caitlin Evgeniadis',
       'subul saadiq':           'Subul Sadiq',
@@ -720,21 +724,21 @@
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
   // Tier 1: instructor field in MOY CSV matches apprentice name
-  // Tier 2: single-apprentice school attribution (school → one apprentice)
-  // Tier 3: session-confirmed scholar name (Pearl SESS+ATT join — primary for multi-appr)
-  // Tier 4: survey-confirmed scholar name match (fallback)
+  // Tier 2: session-confirmed scholar name (Pearl SESS+ATT join — most precise)
+  // Tier 3: single-apprentice school-level fallback (only rows not claimed by
+  //         any session-set — prevents over-attribution of whole-school data)
+  // Tier 4: survey-confirmed scholar name match (last resort)
   //
-  // NOTE on school-name collisions: when two TAP keys map to the same underlying
-  // iReady school name (e.g. "iLearn Paterson" and "iLearn Paterson MS" both map
-  // to "paterson arts and science charter school middle"), the LAST entry in the
-  // TAP_APPRENTICES list wins for school attribution. More specific designations
-  // (Linda Fenty's "iLearn Paterson MS") come after Carlos Jacho's "iLearn Paterson"
-  // and therefore win. Carlos's scholars are attributed via Tier 3 (session match).
+  // Session sets run BEFORE school-level to prevent school map collisions:
+  // e.g., "iLearn Paterson" + "iLearn Paterson MS" both map to the same iReady
+  // school; session sets correctly split students between Carlos Jacho, Linda Fenty,
+  // and Norelis Ramirez rather than collapsing them all to one school entry.
   function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
-    // Build school → apprentice map (iLearn single-appr schools only)
+    // Build school → apprentice map (iLearn single-appr schools only — used as
+    // fallback only when session data doesn't cover a row)
     const schoolToAppr = {};
     TAP_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
@@ -745,29 +749,38 @@
       names.forEach(sn => { schoolToAppr[sn] = display; });
     });
 
-    moyRows.forEach(row => {
-      const schoolLc = (row.school || '').toLowerCase().trim();
+    // Pre-compute which apprentices have non-empty session sets
+    const hasSessionData = {};
+    TAP_APPRENTICES.forEach(([d]) => {
+      hasSessionData[d] = sessionSets && sessionSets[d] && sessionSets[d].size > 0;
+    });
+    const anySessionData = Object.values(hasSessionData).some(Boolean);
 
-      // Tier 1: instructor name in MOY CSV
+    moyRows.forEach(row => {
+      const scholarN = normName(row.scholarName);
+
+      // Tier 1: instructor name in MOY CSV (direct attribution)
       if (row.instructor) {
         const appr = resolveAppr(row.instructor, lut);
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 2: single-apprentice school map
-      const apprBySchool = schoolToAppr[schoolLc];
-      if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
-
-      const scholarN = normName(row.scholarName);
-
-      // Tier 3: session-confirmed scholar name (Pearl SESS+ATT join)
-      if (scholarN && sessionSets) {
-        for (const [appr, nameSet] of Object.entries(sessionSets)) {
+      // Tier 2: session-confirmed scholar name (Pearl SESS+ATT join)
+      // Runs BEFORE school-level so multi-appr school collisions are resolved
+      // by actual session data rather than last-writer-wins school map.
+      if (scholarN && anySessionData) {
+        for (const [appr, nameSet] of Object.entries(sessionSets || {})) {
           if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
         }
       }
 
-      // Tier 4: survey-confirmed scholar name (fallback for any remaining scholars)
+      // Tier 3: single-apprentice school map fallback
+      // Only used for rows not claimed by any session set above.
+      const schoolLc = (row.school || '').toLowerCase().trim();
+      const apprBySchool = schoolToAppr[schoolLc];
+      if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
+
+      // Tier 4: survey-confirmed scholar name (last resort)
       if (scholarN && surveyScholarSets) {
         for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
           if (nameSet.has(scholarN)) { byAppr[appr].push(row); return; }
@@ -778,11 +791,27 @@
   }
 
   // ── IRLAB (EOY Preliminary) scholar attribution ───────────────────────────
-  // Tier 1: instructor name field in IRLAB row
-  // Tier 2: tutors array in IRLAB row
-  // Tier 3: single-apprentice school attribution
-  // Tier 4 (multi-appr): session-confirmed scholar name (Pearl SESS+ATT join)
-  // Tier 5 (multi-appr): survey-confirmed scholar name (fallback)
+  //
+  // Attribution logic per row (in priority order):
+  //
+  // A. IRLAB instructor field is set and is NOT 'Unidentified':
+  //      → The IRLAB's Pearl session join assigned a specific teacher.
+  //        If that teacher is this apprentice → include.
+  //        Otherwise → SKIP entirely (prevents whole-school over-attribution).
+  //        Note: non-NJTC teachers (Jill Ilagan, Crysten Wood, etc.) resolve
+  //        to null here — they are also skipped.
+  //
+  // B. Instructor is empty or 'Unidentified' (no Pearl join result):
+  //    B1. Session sets: if this apprentice has Pearl session data, check the
+  //        scholar name against their session set (most precise).
+  //    B2. For single-apprentice schools with NO session data at all → school-
+  //        level (broad fallback, keeps 0 from showing when session data is absent).
+  //    B3. Multi-apprentice school + no session match → survey name fallback.
+  //
+  // This design means:
+  //   • Katrina Valentin gets only her ~20-30 scholars (not 300+ school-wide)
+  //   • Haddon/multi-appr EOY schools resolve correctly via session attribution
+  //   • Hamilton / CJCP stay at 0 until their data is in the IRLAB (expected)
   function attributeIrlabScholars(irlabRows, sessionSets, surveyScholarSets, lut) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
@@ -792,42 +821,58 @@
       if (!filterFn) return; // not an EOY school
 
       const isMulti = MULTI_APPR_SCHOOLS.has(school);
+      const sessSet  = sessionSets && sessionSets[display];
+      const hasSess  = sessSet && sessSet.size > 0;
 
       irlabRows.forEach(row => {
         if (!filterFn(row)) return;
 
-        // Tier 1: instructor name field (only present in longitudinal data rows)
-        if (row.instructor) {
-          const appr = resolveAppr(row.instructor, lut);
-          if (appr === display) { byAppr[display].push(row); return; }
+        const scholarN = normName(row.scholarName);
+
+        // ── Path A: IRLAB instructor field is authoritative ──────────────
+        const instVal = (row.instructor || '').trim();
+        if (instVal && instVal !== 'Unidentified' && instVal !== 'Unknown') {
+          // Instructor is set — honor it.  Either it matches this apprentice
+          // or it belongs to a different teacher; either way don't fall to school.
+          const resolved = resolveAppr(instVal, lut);
+          if (resolved === display) {
+            byAppr[display].push(row);
+          }
+          return;  // skip for all other instructor values (non-NJTC teachers, wrong apprentice)
         }
 
-        // Tier 2: tutors array (longitudinal data rows)
+        // ── Path B: instructor field empty / Unidentified ────────────────
+        // Try tutors array (longitudinal IRLAB rows carry an array)
         if (row.tutors && row.tutors.length) {
-          for (const t of row.tutors) {
-            const appr = resolveAppr(t, lut);
-            if (appr === display) { byAppr[display].push(row); return; }
+          const knownTutors = row.tutors.filter(t => t && t !== 'Unidentified' && t !== 'Unknown');
+          if (knownTutors.length) {
+            for (const t of knownTutors) {
+              if (resolveAppr(t, lut) === display) { byAppr[display].push(row); return; }
+            }
+            return; // tutors known but none match → skip
           }
         }
 
-        // Tier 3: school-level attribution (single-apprentice schools only)
+        // B1: session-confirmed scholar name (precise — for both single & multi)
+        if (scholarN && hasSess) {
+          if (inScholarSet(sessSet, scholarN)) {
+            byAppr[display].push(row);
+          }
+          // If session data exists for this apprentice, don't fall to school-level —
+          // that would re-introduce over-attribution.
+          return;
+        }
+
+        // B2: school-level fallback — only for single-apprentice schools
+        //     when we have NO session data for this apprentice.
+        //     (Prevents showing 0 when Pearl session coverage is absent but
+        //      the school is unambiguously served by one apprentice.)
         if (!isMulti) {
           byAppr[display].push(row);
           return;
         }
 
-        // Multi-apprentice schools: use Pearl session data to identify the right tutor
-        const scholarN = normName(row.scholarName);
-
-        // Tier 4: session-confirmed scholar name (Pearl SESS+ATT join)
-        if (scholarN && sessionSets && sessionSets[display]) {
-          if (inScholarSet(sessionSets[display], scholarN)) {
-            byAppr[display].push(row);
-            return;
-          }
-        }
-
-        // Tier 5: survey-confirmed scholar name (fallback)
+        // B3: multi-apprentice + no session data → survey name fallback
         if (scholarN && surveyScholarSets && surveyScholarSets[display]) {
           if (surveyScholarSets[display].has(scholarN)) {
             byAppr[display].push(row);
@@ -1097,11 +1142,12 @@
     lines.push(row('iLearn schools use MOY (Winter 2026) iReady diagnostic data.'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section is excluded; surveys and attendance are included.'));
-    lines.push(row('CJCP and Hamilton Township show 0 scholars until EOY Preliminary data is uploaded to the IRLAB — will auto-populate.'));
+    lines.push(row('Hamilton Township and Central Jersey College Prep show 0 scholars — their EOY Preliminary data is pending and has not yet been uploaded to the IRLAB. All other EOY schools are populated.'));
     lines.push(row('Gloucester ELA/Math data is sourced from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
-    lines.push(row('Scholar attribution uses 5 tiers: (1) instructor name in iReady CSV, (2) single-apprentice school, (3) Pearl session join (SESS+ATT tabs), (4) survey-confirmed scholar name, (5) fallback survey match.'));
+    lines.push(row('Scholar attribution (EOY/IRLAB): (A) IRLAB instructor field is authoritative — if set, non-NJTC teachers are excluded; (B) Pearl session join (SESS+ATT) matches scholars to tutors; (C) school-level fallback only when no session data.'));
+    lines.push(row('Scholar attribution (MOY): (1) instructor in MOY CSV; (2) Pearl session join (primary for multi-apprentice iLearn schools); (3) school-level fallback; (4) survey name fallback.'));
     lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
-    lines.push(row('For multi-apprentice schools (Bergen MS, Passaic MS, Clifton MS, Haddon, Hamilton, CJCP), tier 3 session join is the primary attribution method.'));
+    lines.push(row('For Haddon Township (Micaela Wilkerson + Nicholas Hoover) and other multi-apprentice EOY schools: Pearl session sets are the primary attribution method.'));
     lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
     lines.push(row('Personal tutor absence miss reasons: Absent Not Covered; Absent Covered by Sub; Absent Covered by Dual Role; Absent Covered by Site Leader; Absent Covered by IC; Tutor Left Early. All other miss reasons are service interruptions.'));
     lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
