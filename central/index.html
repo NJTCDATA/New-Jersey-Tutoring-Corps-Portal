@@ -5440,6 +5440,10 @@
       <button class="sidebar-link dept-nav-irb" data-panel="impact-report" onclick="showPanel('impact-report',this)" style="display:none" title="Generate executive-ready impact reports and export program outcomes as PDF">
         <span class="sl-icon">📊</span> Impact Report Builder
       </button>
+      <!-- Apprentice Impact Report — Data dept + leadership only -->
+      <button class="sidebar-link dept-nav-irb" data-panel="apprentice-impact" onclick="showPanel('apprentice-impact',this)" style="display:none" title="Generate a downloadable impact report for all 30 TAP apprentices — academic outcomes, survey scores, and attendance">
+        <span class="sl-icon">🎓</span> Apprentice Impact Report
+      </button>
       <!-- Data Sources Cabinet — Data dept only -->
       <button class="sidebar-link dept-nav-data-cabinet" data-panel="data-cabinet" onclick="showPanel('data-cabinet',this)" style="display:none" title="Browse all live data sources and databases used by the Data & Evaluation team">
         <span class="sl-icon">🗄️</span> Data Sources
@@ -6563,6 +6567,18 @@
       <div id="irlabContainer"><!-- rendered by irlab module --></div>
     </div>
 
+    <!-- ══ APPRENTICE IMPACT REPORT PANEL ══════════════════════════ -->
+    <div class="panel" id="panel-apprentice-impact">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2025–2026 · TAP · Data Department</div>
+          <h2 class="ph-title">🎓 TAP Apprentice Impact Report</h2>
+          <p class="ph-subtitle">Generate a downloadable CSV combining Pearl attendance &amp; scholar survey data with iReady academic outcomes for all 30 active TAP apprentices.</p>
+        </div>
+      </div>
+      <div id="apprImpactRoot"><!-- rendered by apprentice-impact-report.js --></div>
+    </div>
+
     <!-- ══ ADVOCACY & MEDIA INTELLIGENCE PANEL ══════════════════════ -->
     <div class="panel" id="panel-advocacy">
       <div class="adv-header">
@@ -6758,6 +6774,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 <script src="modules/impact-report.js?v=2"></script>
 <script src="modules/survey-feedback.js?v=9"></script>
 <script src="modules/program-data-summary.js?v=1"></script>
+<script src="modules/apprentice-impact-report.js?v=1"></script>
   <!-- ══ PIE — Portal Intelligence Engine ══════════════════════════ -->
 
   <!-- Peek notification bubble (auto-shown on load, dismisses on click or timer) -->
