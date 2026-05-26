@@ -719,6 +719,16 @@
           var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
           return nw.includes('spring');
         });
+        // Fallback for pilot/partial rows where Norming Window is blank:
+        // use iReady's Baseline Diagnostic (Y/N) and Most Recent Diagnostic YTD (Y/N) flags instead.
+        if (!win && !spr) {
+          win = rows.find(function(r){
+            return (g(r,'Baseline Diagnostic (Y/N)','baseline_diagnostic_y_n')||'').trim().toUpperCase() === 'Y';
+          });
+          spr = rows.find(function(r){
+            return (g(r,'Most Recent Diagnostic YTD (Y/N)','most_recent_diagnostic_ytd_y_n')||'').trim().toUpperCase() === 'Y';
+          });
+        }
         var dem = spr || win || rows[0];
         if (!dem) return;
 
