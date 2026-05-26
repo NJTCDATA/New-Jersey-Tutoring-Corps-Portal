@@ -2084,11 +2084,13 @@
     rows.forEach(r => {
       const d = _lbRowDept(r);
       if (!LB_ALL_DEPTS.includes(d)) return;
-      // Exclude quiz submission rows — identify them by the [QUIZ_RECORD] / "Quiz Submission" marker
-      // that is written into the deptSuccess column when a quiz is submitted.
+      // Exclude quiz submission rows — identify them by the [QUIZ_RECORD] / [Quiz Record] /
+      // "Quiz Submission" marker written into the deptSuccess column when a quiz is submitted.
+      // Check is case-insensitive to handle any capitalisation variant in the sheet.
       const succKey = Object.keys(r).find(k => /success/i.test(k)) || '';
       const succVal = (r['What successes has your department seen this week?'] || r[succKey] || '').trim();
-      if (succVal.startsWith('[QUIZ_RECORD]') || succVal === 'Quiz Submission') return;
+      const succLower = succVal.toLowerCase();
+      if (succLower.startsWith('[quiz') || succLower === 'quiz submission') return;
       latestByDept[d] = r;
     });
 
