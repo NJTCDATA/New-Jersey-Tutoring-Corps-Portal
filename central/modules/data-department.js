@@ -779,7 +779,16 @@
             if (_val) return _val;
             // Fuzzy: find any key containing 'district' in case column was named differently
             var _fk = Object.keys(_row).find(function(k){ return k.toLowerCase().includes('district'); });
-            return _fk ? (_row[_fk]||'') : '';
+            if (_fk && _row[_fk]) return _row[_fk];
+            // Fallback: infer district from school name for pilot rows with blank Districts column
+            var _school = (g(_row,'School','school')||'').toLowerCase();
+            if (_school.includes('penns grove') || _school.includes('carleton'))
+              return 'Penns Grove - Carneys Point Regional School District';
+            if (_school.includes('gloucester') || _school.includes('loring flemming'))
+              return 'Gloucester Township School District';
+            if (_school.includes('global leadership'))
+              return 'Global Leadership Academy Charter Schools';
+            return '';
           })(),
           school:             g(dem,'School','school'),
           grade:              g(dem,'Student Grade','student_grade','Grade'),
@@ -3013,6 +3022,11 @@
             const pilotPcts  = allRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
             const pilotMedGain = medianArr(pilotGains);
             const pilotMedPct  = medianArr(pilotPcts);
+            // ELA-specific growth % (pilot ELA students have pctTypical + pctStretch)
+            const _pilotELATyp = allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            const _pilotELAStr = allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+            const pilotMedELATyp = medianArr(_pilotELATyp);
+            const pilotMedELAStr = medianArr(_pilotELAStr);
             // Spring placement distribution
             const springDist = {};
             PLACEMENT_ORDER.forEach(p=>{springDist[p]=0;});
@@ -3048,8 +3062,9 @@
               ${[
                 {v:allRows.length.toLocaleString(), l:'Pilot Scholars', s:'Spring diagnostic', c:'#fff'},
                 {v:pilotMedGain!==null?(pilotMedGain>=0?'+':'')+pilotMedGain.toFixed(1)+' pts':'—', l:'Median Scale Gain', s:'Spring diagnostic gain', c:'#34d399'},
-                {v:'N/A', l:'Growth Target %', s:'Not assigned · first-year program', c:'rgba(100,116,139,1)'},
-                {v:sprTotal+' placed', l:'Spring Placement Available', s:PLACEMENT_ORDER.slice(-2).filter(p=>springDist[p]>0).map(p=>pct(springDist[p],sprTotal)+'% '+PLC_SHORT[p]).join(' · ')||'—', c:'#fbbf24'},
+                {v:pilotMedELATyp!==null?(pilotMedELATyp*100).toFixed(1)+'%':'—', l:'Median % to Typical (ELA)', s:_pilotELATyp.length+' ELA scholars · iReady pre-computed', c:'#4ade80'},
+                {v:pilotMedELAStr!==null?(pilotMedELAStr*100).toFixed(1)+'%':'—', l:'Median % to Stretch (ELA)', s:_pilotELAStr.length+' ELA scholars · iReady pre-computed', c:'#fbbf24'},
+                {v:sprTotal+' placed', l:'Spring Placement Available', s:PLACEMENT_ORDER.slice(-2).filter(p=>springDist[p]>0).map(p=>pct(springDist[p],sprTotal)+'% '+PLC_SHORT[p]).join(' · ')||'—', c:'#60a5fa'},
               ].map(k=>`<div style="background:rgba(255,255,255,.08);border-radius:8px;padding:.625rem .75rem;border:1px solid rgba(255,255,255,.12);background:var(--surface-2);border:1px solid var(--border)">
                 <div style="font-size:1.3rem;font-weight:800;color:${k.c==='#fff'?'var(--navy)':k.c};letter-spacing:-.02em">${k.v}</div>
                 <div style="font-size:.65rem;font-weight:700;color:var(--navy);margin:.1rem 0">${k.l}</div>
@@ -3100,7 +3115,8 @@
                 { v: elaGainAvg!==null?(elaGainAvg>=0?'+':'')+elaGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain ELA', s:'spring minus winter score', c:'#34d399' },
                 { v: mathGainAvg!==null?(mathGainAvg>=0?'+':'')+mathGainAvg.toFixed(1)+' pts':'—', l:'Avg Scale Gain Math', s:'spring minus winter score', c:'#fdba74' },
                 { v: m.pctMoved+'%', l:'Placement Moved Up', s:'improved placement level', c:'#60a5fa' },
-                { v: 'N/A', l:'Growth Target %', s:'Not assigned · first-year program', c:'rgba(255,255,255,.3)', tip:'iReady does not assign annual typical growth targets for schools in their first diagnostic year. Scale gain (Spring − Winter score) is the primary growth metric for pilot programs.' },
+                { v:(()=>{ const t=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Typical (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>0).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#4ade80', tip:'Median % Progress to Annual Typical Growth (ELA) · iReady pre-computed · 100% = exactly typical growth norms · >100% = above typical' },
+                { v:(()=>{ const t=allELA.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (ELA)', s:(()=>{ const n=allELA.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)&&r.pctStretch>0).length; return n+' ELA scholar'+(n!==1?'s':''); })(), c:'#fbbf24', tip:'Median % Progress to Annual Stretch Growth (ELA) · iReady pre-computed · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
               ] : [
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
                 { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
@@ -3149,15 +3165,29 @@
                   return `<div style="border:1.5px solid ${color}33;border-radius:10px;padding:.875rem;background:${color}06">
                     <div style="font-size:.8125rem;font-weight:700;color:${color};margin-bottom:.625rem">${icon} ${label}</div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.75rem">
-                      ${_irlPilot === 'pilot' ? `
-                      <div style="grid-column:1/-1;background:#fff8e1;border-radius:4px;padding:.25rem .4rem;font-size:.62rem;color:#92400e;margin-bottom:.2rem">
-                        Growth targets not available for first-year programs
-                      </div>
-                      <div><div style="font-size:1.25rem;font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
-                      <div><div style="font-size:1.25rem;font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.65rem">At Grade Level</div></div>
-                      <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.65rem">Moved Up</div></div>
-                      <div><div style="font-weight:700;color:var(--muted);font-size:.875rem">${fmtGradeLevel(sc.avgSpringGL)}</div><div style="color:var(--muted);font-size:.65rem">Avg GL Placement</div></div>
-                      ` : `
+                      ${_irlPilot === 'pilot' ? (()=>{
+                        const _pilTypArr = aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0);
+                        const _pilStrArr = aRows.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0);
+                        const _pilTypMed = medianArr(_pilTypArr);
+                        const _pilStrMed = medianArr(_pilStrArr);
+                        const _hasGrowthPct = _pilTypArr.length > 0;
+                        return (_hasGrowthPct ? `
+                        <div><div style="font-size:1.25rem;font-weight:700;color:#4ade80">${_pilTypMed!==null?(_pilTypMed*100).toFixed(1)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">Median % to Typical</div></div>
+                        <div><div style="font-size:1.25rem;font-weight:700;color:#fbbf24">${_pilStrMed!==null?(_pilStrMed*100).toFixed(1)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">Median % to Stretch</div></div>
+                        <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
+                        <div><div style="font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.65rem">At Grade Level</div></div>
+                        <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.65rem">Moved Up</div></div>
+                        <div><div style="font-weight:700;color:var(--muted);font-size:.875rem">${fmtGradeLevel(sc.avgSpringGL)}</div><div style="color:var(--muted);font-size:.65rem">Avg GL Placement</div></div>
+                        ` : `
+                        <div style="grid-column:1/-1;background:#fff8e1;border-radius:4px;padding:.25rem .4rem;font-size:.62rem;color:#92400e;margin-bottom:.2rem">
+                          Growth targets not available for first-year programs
+                        </div>
+                        <div><div style="font-size:1.25rem;font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
+                        <div><div style="font-size:1.25rem;font-weight:700;color:#0d6e3a">${sc.pctOnGL}%</div><div style="color:var(--muted);font-size:.65rem">At Grade Level</div></div>
+                        <div><div style="font-weight:700">${sc.pctMoved}%</div><div style="color:var(--muted);font-size:.65rem">Moved Up</div></div>
+                        <div><div style="font-weight:700;color:var(--muted);font-size:.875rem">${fmtGradeLevel(sc.avgSpringGL)}</div><div style="color:var(--muted);font-size:.65rem">Avg GL Placement</div></div>
+                        `);
+                      })() : `
                       <div><div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${medT!==null?(medT*100).toFixed(1)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">Median Typical Growth</div></div>
                       <div><div style="font-size:1.25rem;font-weight:700;color:var(--navy)">${totT.length?pct(metT.length,totT.length)+'%':'—'}</div><div style="color:var(--muted);font-size:.65rem">% Meeting Typical</div></div>
                       <div><div style="font-weight:700;color:var(--blue-mid)">${sc.avgGain!==null?(sc.avgGain>=0?'+':'')+sc.avgGain.toFixed(1):'—'}</div><div style="color:var(--muted);font-size:.65rem">Avg Scale Gain</div></div>
@@ -3210,15 +3240,17 @@
             <div style="overflow-x:auto;max-height:320px;overflow-y:auto">
               ${_irlBreakdownTab === 'school' ? `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>School</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>School</th><th>${_irlPilot==='pilot'?'Median % Typ. (ELA)':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.bySchool).map(([name,srows])=>{
                   const sm=computeMetrics(srows); if(!sm) return '';
-                  const sTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const sTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({school:name}).filter(r=>r.subject==='ELA').map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const sC=sTyp!==null&&sTyp>=1.0?'#0d6e3a':sTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:sm.n,html:`<tr>
                     <td style="font-weight:600;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</td>
-                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((sTyp||0)*100,200)/2}%;height:100%;background:${sC};border-radius:3px"></div></div><span style="font-weight:700;color:${sC};font-size:.75rem">${sTyp!==null?(sTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${sm.metTypPct!==null&&sm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${sm.metTypPct!==null&&sm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${sm.metTypPct!==null?sm.metTypPct+'%':'—'}</span></td>`}
+                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((sTyp||0)*100,200)/2}%;height:100%;background:${sC};border-radius:3px"></div></div><span style="font-weight:700;color:${sC};font-size:.75rem">${sTyp!==null?(sTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    ${_irlPilot==='pilot'?'':`<td style="text-align:center"><span style="background:${sm.metTypPct!==null&&sm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${sm.metTypPct!==null&&sm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${sm.metTypPct!==null?sm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${sm.pctMoved>=50?'#0d6e3a':'#d97706'}">${sm.pctMoved}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(sm.avgSpringGL)}</td>
                     <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${sm.avgGain!==null?(sm.avgGain>=0?'+':'')+sm.avgGain.toFixed(1):'—'}</td>
@@ -3227,15 +3259,17 @@
                 }).filter(Boolean).sort((a,b)=>b.n-a.n).map(x=>x.html).join('')}</tbody>
               </table>` : _irlBreakdownTab === 'grade' ? `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>Grade</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>Grade</th><th>${_irlPilot==='pilot'?'Median % Typ. (ELA)':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byGrade).map(([gr,grows])=>{
                   const gm=computeMetrics(grows); if(!gm) return '';
-                  const gTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const gTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({grade:gr}).filter(r=>r.subject==='ELA').map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const gC=gTyp!==null&&gTyp>=1.0?'#0d6e3a':gTyp!==null?'#b91c1c':'var(--muted)';
                   return {num:parseInt(gr)||99,html:`<tr>
                     <td style="font-weight:700">Gr. ${esc(gr)}</td>
-                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((gTyp||0)*100,200)/2}%;height:100%;background:${gC};border-radius:3px"></div></div><span style="font-weight:700;color:${gC};font-size:.75rem">${gTyp!==null?(gTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${gm.metTypPct!==null&&gm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${gm.metTypPct!==null&&gm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${gm.metTypPct!==null?gm.metTypPct+'%':'—'}</span></td>`}
+                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:50px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((gTyp||0)*100,200)/2}%;height:100%;background:${gC};border-radius:3px"></div></div><span style="font-weight:700;color:${gC};font-size:.75rem">${gTyp!==null?(gTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    ${_irlPilot==='pilot'?'':`<td style="text-align:center"><span style="background:${gm.metTypPct!==null&&gm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${gm.metTypPct!==null&&gm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${gm.metTypPct!==null?gm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${gm.pctMoved>=50?'#0d6e3a':'#d97706'}">${gm.pctMoved}%</td>
                     <td style="text-align:center;font-weight:700;color:#0d6e3a">${gm.pctOnGL}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(gm.avgSpringGL)}</td>
@@ -3245,15 +3279,17 @@
                 }).filter(Boolean).sort((a,b)=>a.num-b.num).map(x=>x.html).join('')}</tbody>
               </table>` : `
               <table class="irlab-rank-table" style="font-size:.78rem">
-                <thead><tr><th>District</th>${_irlPilot==='pilot'?'':'<th>Median Typ. Growth</th><th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
+                <thead><tr><th>District</th><th>${_irlPilot==='pilot'?'Median % Typ. (ELA)':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
                   const dm=computeMetrics(drows); if(!dm) return '';
-                  const dTyp=_irlPilot==='pilot'?null:medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+                  const dTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({district:name}).filter(r=>r.subject==='ELA').map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const dC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':dTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:dm.n,medT:dTyp||0,html:`<tr>
                     <td style="font-weight:700;color:var(--navy)">${esc(name)}</td>
-                    ${_irlPilot==='pilot'?'':`<td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${dC};border-radius:3px"></div></div><span style="font-weight:700;color:${dC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
-                    <td style="text-align:center"><span style="background:${dm.metTypPct!==null&&dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct!==null&&dm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>`}
+                    <td><div style="display:flex;align-items:center;gap:.4rem"><div style="width:60px;height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${Math.min((dTyp||0)*100,200)/2}%;height:100%;background:${dC};border-radius:3px"></div></div><span style="font-weight:700;color:${dC};font-size:.75rem">${dTyp!==null?(dTyp*100).toFixed(1)+'%':'—'}</span></div></td>
+                    ${_irlPilot==='pilot'?'':`<td style="text-align:center"><span style="background:${dm.metTypPct!==null&&dm.metTypPct>=50?'#dcfce7':'#fef3c7'};color:${dm.metTypPct!==null&&dm.metTypPct>=50?'#166534':'#92400e'};padding:.1rem .4rem;border-radius:10px;font-size:.72rem;font-weight:700">${dm.metTypPct!==null?dm.metTypPct+'%':'—'}</span></td>`}
                     <td style="text-align:center;font-weight:700;color:${dm.pctMoved>=50?'#0d6e3a':'#d97706'}">${dm.pctMoved}%</td>
                     <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${fmtGradeLevel(dm.avgSpringGL)}</td>
                     <td style="text-align:center;font-weight:600;color:var(--blue-mid)">${dm.avgGain!==null?(dm.avgGain>=0?'+':'')+dm.avgGain.toFixed(1):'—'}</td>
