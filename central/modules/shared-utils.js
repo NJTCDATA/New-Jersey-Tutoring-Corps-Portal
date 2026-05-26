@@ -2076,9 +2076,21 @@
     const _trunc = (s, max) => { s=(s||'').trim(); return s.length>max ? s.slice(0,max-1)+'…' : s; };
     const _shuffle = a => { const b=[...a]; for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];} return b; };
 
-    // Latest submission per dept (last entry wins)
+    // Latest *update* submission per dept (last entry wins).
+    // Quiz-record rows ([QUIZ_RECORD] / "Quiz Submission") are written back to the same
+    // sheet after submission, so without this guard they become the "latest" row and
+    // their internal markers show up as answer choices.
     const latestByDept = {};
-    rows.forEach(r => { const d=_lbRowDept(r); if(LB_ALL_DEPTS.includes(d)) latestByDept[d]=r; });
+    rows.forEach(r => {
+      const d = _lbRowDept(r);
+      if (!LB_ALL_DEPTS.includes(d)) return;
+      // Exclude quiz submission rows — identify them by the [QUIZ_RECORD] / "Quiz Submission" marker
+      // that is written into the deptSuccess column when a quiz is submitted.
+      const succKey = Object.keys(r).find(k => /success/i.test(k)) || '';
+      const succVal = (r['What successes has your department seen this week?'] || r[succKey] || '').trim();
+      if (succVal.startsWith('[QUIZ_RECORD]') || succVal === 'Quiz Submission') return;
+      latestByDept[d] = r;
+    });
 
     // Build content pools — use full submission text, no truncation
     const pool = { success:[], goal:[], cross:[], challenge:[] };
