@@ -7858,6 +7858,21 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
     return { onPanelOpen, setMode, setYear, setSubject, setDistrict, setSchool, setGrade, setScholarType, setPilot, setSearch, setDept, setBreakdownTab, setDeepTab,
              drillScholar, drillTutor, closeDrill,
              handleFileUpload, clearCsv, embedData,
+             // getAllRows exposed for cross-module use (Apprentice Impact Report, etc.)
+             // Accepts same opts as the internal function: { subject, year, district, school, grade }
+             // IMPORTANT: unlike the internal getAllRows, this version does NOT apply _irlSearch,
+             // so reports always get complete data regardless of what the user has typed in the
+             // IRLAB search box.
+             getAllRows: function(opts) {
+               opts = opts || {};
+               var rows = _getPooledRows();
+               if (opts.subject && opts.subject !== 'all') rows = rows.filter(function(r){ return r.subject === opts.subject; });
+               if (opts.year    && opts.year    !== 'all') rows = rows.filter(function(r){ return r.year    === opts.year;    });
+               if (opts.district && opts.district !== 'all') rows = rows.filter(function(r){ return r.district === opts.district; });
+               if (opts.school   && opts.school   !== 'all') rows = rows.filter(function(r){ return r.school   === opts.school;   });
+               if (opts.grade    && opts.grade    !== 'all') rows = rows.filter(function(r){ return r.grade    === opts.grade;    });
+               return rows;
+             },
              handleEmbedUpload, applyEmbeddedUpdate, clearEmbedded,
              getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive,
