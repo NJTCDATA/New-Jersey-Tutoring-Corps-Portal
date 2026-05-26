@@ -1988,14 +1988,11 @@
     // ── SECTION A: KPI CARDS ─────────────────────────────────────────────────
     function renderAnalyticsKPIs(allRowsELA, allRowsMath, rows) {
       // MEDIAN typical growth — all rows with pctTypical (not filtered to placement pairs)
-      // elaTyp/mathTyp include zeros for the "% who met" denominator; elaTypNZ/mathTypNZ exclude zeros for median
       const elaTyp  = allRowsELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
       const mathTyp = allRowsMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v));
-      const elaTypNZ  = elaTyp.filter(v=>v>0);
-      const mathTypNZ = mathTyp.filter(v=>v>0);
-      const elaMed  = medianArr(elaTypNZ);
-      const mathMed = medianArr(mathTypNZ);
-      // % meeting typical growth (pct >= 1.0) — uses full population including zeros
+      const elaMed  = medianArr(elaTyp);
+      const mathMed = medianArr(mathTyp);
+      // % meeting typical growth (pct >= 1.0)
       const elaMet  = elaTyp.length  ? pct(elaTyp.filter(v=>v>=1.0).length,  elaTyp.length)  : null;
       const mathMet = mathTyp.length ? pct(mathTyp.filter(v=>v>=1.0).length, mathTyp.length) : null;
       // Avg scale gain — use placement-pair rows
@@ -2966,8 +2963,8 @@
       const _elaRaw     = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.elaMedianPctTypical  : _irlCtxSum.elaMedianPctAllYears)  : null;
       const _mathRaw    = _irlCtxSum ? (_irlYear !== 'all' ? _irlCtxSum.mathMedianPctTypical : _irlCtxSum.mathMedianPctAllYears) : null;
       // getSummary returns integers (100 = 100%); convert to ratio (1.0) to match existing display code
-      const elaMedian   = _elaRaw  !== null && _elaRaw  !== undefined ? _elaRaw  / 100 : medianArr(allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
-      const mathMedian  = _mathRaw !== null && _mathRaw !== undefined ? _mathRaw / 100 : medianArr(allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+      const elaMedian   = _elaRaw  !== null && _elaRaw  !== undefined ? _elaRaw  / 100 : medianArr(allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
+      const mathMedian  = _mathRaw !== null && _mathRaw !== undefined ? _mathRaw / 100 : medianArr(allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
       const elaMeetPct = (()=>{ const t=allELA.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return t.length?pct(t.filter(v=>v>=1.0).length,t.length):null; })();
       const mathMeetPct= (()=>{ const t=allMath.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)); return t.length?pct(t.filter(v=>v>=1.0).length,t.length):null; })();
       const elaGainAvg = (()=>{ const g=rows.filter(r=>r.subject==='ELA').map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v)); return g.length?avg(g):null; })();
@@ -3131,8 +3128,8 @@
                 { v:(()=>{ const t=allMath.map(r=>r.pctStretch).filter(v=>v!==null&&!isNaN(v)&&v>0); const med=medianArr(t); return t.length&&med!==null?(med*100).toFixed(1)+'%':'—'; })(), l:'Median % to Stretch (Math)', s:(()=>{ const n=allMath.filter(r=>r.pctStretch!==null&&!isNaN(r.pctStretch)&&r.pctStretch>0).length; return n+' Math scholar'+(n!==1?'s':''); })(), c:'#93c5fd', tip:'Median % Progress to Annual Stretch Growth (Math) · iReady pre-computed · Stretch target is more ambitious than typical growth · values >100% = exceeded stretch goal' },
               ] : [
                 { v: totalUnique.toLocaleString(), l: 'Total Scholars', s: rows.length+' valid pairs', c:'#fff' },
-                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>0).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · excludes scholars with 0% progress · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
-                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)&&r.pctTypical>0).length+' scholars', c:'#60a5fa', tip:'Median of spring_pct_progress_typical_growth (iReady col) · excludes scholars with 0% progress · 100% = exactly typical growth norms · Values come directly from iReady CSV' },
+                { v: elaMedian!==null?(elaMedian*100).toFixed(1)+'%':'—', l:'ELA Median Typical Growth', s: allELA.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#4ade80', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · >100% = above typical · Values come directly from iReady CSV, pre-computed by iReady per scholar' },
+                { v: mathMedian!==null?(mathMedian*100).toFixed(1)+'%':'—', l:'Math Median Typical Growth', s: allMath.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical)).length+' scholars', c:'#60a5fa', tip:'Median of spring_pct_progress_typical_growth (iReady col) · 100% = exactly typical growth norms · Values come directly from iReady CSV' },
                 { v: avgSpringGLAll!==null?fmtGradeLevel(avgSpringGLAll):'—', l:'Avg Grade Level Placement', s: avgBaseGLAll!==null?'BOY: '+fmtGradeLevel(avgBaseGLAll):'Spring (BOY→Spring)', c:'#fbbf24' },
                 { v: elaMeetPct!==null?elaMeetPct+'%':'—', l:'% Meeting Typical ELA', s:'≥100% typical growth', c:'#f9a8d4' },
                 { v: mathMeetPct!==null?mathMeetPct+'%':'—', l:'% Meeting Typical Math', s:'≥100% typical growth', c:'#a78bfa' },
@@ -3171,7 +3168,7 @@
                 ${[{label:'ELA',sc:elaM,color:'#7b2d8b',icon:'📖',aRows:allELA},{label:'Math',sc:mathM,color:'#0050c8',icon:'➗',aRows:allMath}].map(({label,sc,color,icon,aRows})=>{
                   if (!sc) return `<div style="border:1.5px solid ${color}22;border-radius:10px;padding:.875rem;background:${color}07;text-align:center;color:var(--muted);font-size:.75rem">No ${label} data</div>`;
                   const _subjRaw = _irlCtxSum ? (label==='ELA' ? (_irlYear!=='all'?_irlCtxSum.elaMedianPctTypical:_irlCtxSum.elaMedianPctAllYears) : (_irlYear!=='all'?_irlCtxSum.mathMedianPctTypical:_irlCtxSum.mathMedianPctAllYears)) : null;
-                  const medT = (_subjRaw!==null&&_subjRaw!==undefined) ? _subjRaw/100 : medianArr(aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+                  const medT = (_subjRaw!==null&&_subjRaw!==undefined) ? _subjRaw/100 : medianArr(aRows.map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const totT = aRows.filter(r=>r.pctTypical!==null&&!isNaN(r.pctTypical));
                   const metT = totT.filter(v=>v.pctTypical>=1.0);
                   return `<div style="border:1.5px solid ${color}33;border-radius:10px;padding:.875rem;background:${color}06">
@@ -3255,7 +3252,9 @@
                 <thead><tr><th>School</th><th>${_irlPilot==='pilot'?'Median % Typical':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.bySchool).map(([name,srows])=>{
                   const sm=computeMetrics(srows); if(!sm) return '';
-                  const sTyp=medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+                  const sTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({school:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const sC=sTyp!==null&&sTyp>=1.0?'#0d6e3a':sTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:sm.n,html:`<tr>
                     <td style="font-weight:600;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(name)}</td>
@@ -3272,7 +3271,9 @@
                 <thead><tr><th>Grade</th><th>${_irlPilot==='pilot'?'Median % Typical':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">At GL</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byGrade).map(([gr,grows])=>{
                   const gm=computeMetrics(grows); if(!gm) return '';
-                  const gTyp=medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+                  const gTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({grade:gr}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const gC=gTyp!==null&&gTyp>=1.0?'#0d6e3a':gTyp!==null?'#b91c1c':'var(--muted)';
                   return {num:parseInt(gr)||99,html:`<tr>
                     <td style="font-weight:700">Gr. ${esc(gr)}</td>
@@ -3290,7 +3291,9 @@
                 <thead><tr><th>District</th><th>${_irlPilot==='pilot'?'Median % Typical':'Median Typ. Growth'}</th>${_irlPilot==='pilot'?'':'<th style="text-align:center">% Meet Typ.</th>'}<th style="text-align:center">% Moved Up</th><th style="text-align:center">Avg GL Spring</th><th style="text-align:center">Avg Gain</th><th style="text-align:right">N</th></tr></thead>
                 <tbody>${Object.entries(m.byDistrict).map(([name,drows])=>{
                   const dm=computeMetrics(drows); if(!dm) return '';
-                  const dTyp=medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+                  const dTyp=_irlPilot==='pilot'
+                    ? medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0))
+                    : medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
                   const dC=dTyp!==null&&dTyp>=1.0?'#0d6e3a':dTyp!==null?'#b91c1c':'var(--muted)';
                   return {n:dm.n,medT:dTyp||0,html:`<tr>
                     <td style="font-weight:700;color:var(--navy)">${esc(name)}</td>
@@ -3370,7 +3373,7 @@
       const dists = Object.entries(m.byDistrict).map(([name,drows])=>{
         const dm=computeMetrics(drows);
         if (!dm) return null;
-        const dTyp = medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)&&v>0));
+        const dTyp = medianArr(getAllRows({district:name}).map(r=>r.pctTypical).filter(v=>v!==null&&!isNaN(v)));
         return {name, ...dm, medianTyp:dTyp};
       }).filter(Boolean).sort((a,b)=>(b.medianTyp||0)-(a.medianTyp||0));
 
@@ -3418,7 +3421,7 @@
         const dm     = computeMetrics(drows); if (!dm) return null;
         const dmMath = computeMetrics(drows.filter(r => r.subject === 'Math'));
         const dmELA  = computeMetrics(drows.filter(r => r.subject === 'ELA'));
-        const dTyp   = medianArr(getAllRows({district: name}).map(r => r.pctTypical).filter(v => v !== null && !isNaN(v) && v > 0));
+        const dTyp   = medianArr(getAllRows({district: name}).map(r => r.pctTypical).filter(v => v !== null && !isNaN(v)));
         return { name, ...dm, mathPct: dmMath ? dmMath.pctMoved : null, elaPct: dmELA ? dmELA.pctMoved : null, medianTyp: dTyp };
       }).filter(Boolean).sort((a, b) => (a.pctMoved || 0) - (b.pctMoved || 0)); // worst first
 
