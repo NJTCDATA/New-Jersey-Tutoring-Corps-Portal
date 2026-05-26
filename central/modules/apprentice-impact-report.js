@@ -22,6 +22,17 @@
   const ATT_GID = 702726038;
   const STU_GID = 1245403832;
 
+  // Pearl Session Details tab
+  const SESS_GID = 625567780;
+  // SESS column positions (matches pearl-data.js + data-department.js constants):
+  //   0 = session name/title
+  //   1 = instructor name
+  //   2 = student names (comma-separated display names)
+  //   4 = session status
+  //   9 = subject
+  //  16 = student Pearl IDs (comma-separated)
+  const SESS_COL = { NAME:0, INSTRUCTOR:1, STUDENTS:2, STATUS:4, SUBJECT:9, STU_IDS:16 };
+
   // MOY iLearn sheet (Winter 2026) — published 2PACX CSV
   const MOY_2PACX    = '2PACX-1vQCMey9qbjXf7CFNbK-8Fq-qA0nn-DURIlOVjwQ-U1OwHxSo4PRVOy7eLs0w9JHGtBFwgQTzCqy_sMm';
   const MOY_ELA_GID  = '912997533';
@@ -177,6 +188,35 @@
     return n.trim().toLowerCase()
             .replace(/^dr\.?\s+/, '')
             .replace(/\s+/g, ' ');
+  }
+
+  // ── Helper: first + last name only (strips middle names / initials) ────────
+  // Used for cross-system name matching where middle names differ.
+  function normNameFL(n) {
+    if (!n) return '';
+    const base = normName(n);
+    // Drop single-character tokens that are initials (e.g. "k")
+    const parts = base.split(' ').filter(p => p.length > 1);
+    if (parts.length < 2) return base;
+    return parts[0] + ' ' + parts[parts.length - 1];
+  }
+
+  // ── Helper: check if a scholar name is in a name-set ─────────────────────
+  // Tries exact normalized match first, then first+last-only fallback,
+  // then scans the set for any entry whose first+last matches.
+  function inScholarSet(nameSet, scholarN) {
+    if (!nameSet || !scholarN) return false;
+    const n  = normName(scholarN);
+    if (nameSet.has(n)) return true;
+    const fl = normNameFL(n);
+    if (fl && nameSet.has(fl)) return true;
+    // Cross-check every stored name's first+last against our first+last
+    if (fl && fl.includes(' ')) {
+      for (const stored of nameSet) {
+        if (normNameFL(stored) === fl) return true;
+      }
+    }
+    return false;
   }
 
   // ── Build survey-name lookup: normalized name → canonical display name ────
@@ -369,35 +409,38 @@
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
 
     try {
-      // ── 1. Fetch Pearl data ─────────────────────────────────────────────
-      setStatus('Fetching Pearl attendance data…'); setProgress(5);
-      const attText = await cachedFetch(PEARL_URL(ATT_GID), 'Pearl ATT');
+      // ── 1. Fetch Pearl data (ATT + STU + SESS in parallel) ─────────────
+      setStatus('Fetching Pearl attendance, surveys & session data…'); setProgress(5);
+      const [attText, stuText, sessText] = await Promise.all([
+        cachedFetch(PEARL_URL(ATT_GID),  'Pearl ATT'),
+        cachedFetch(PEARL_URL(STU_GID),  'Pearl STU surveys'),
+        cachedFetch(PEARL_URL(SESS_GID), 'Pearl SESS'),
+      ]);
 
-      setStatus('Fetching Pearl student surveys…'); setProgress(12);
-      const stuText = await cachedFetch(PEARL_URL(STU_GID), 'Pearl STU surveys');
-
-      const attRows = parseCsv(attText);
-      const stuRows = parseCsv(stuText);
+      const attRows  = parseCsv(attText);
+      const stuRows  = parseCsv(stuText);
+      const sessRows = parseCsv(sessText);
+      console.log('[APIR] Pearl rows — ATT:', attRows.length,
+                  'STU:', stuRows.length, 'SESS:', sessRows.length);
 
       // ── 2. Fetch MOY iLearn academic data ───────────────────────────────
-      setStatus('Fetching MOY ELA data…'); setProgress(20);
+      setStatus('Fetching MOY ELA data…'); setProgress(18);
       const moyElaText  = await cachedFetch(MOY_URL(MOY_ELA_GID),  'MOY ELA');
-      setStatus('Fetching MOY Math data…'); setProgress(28);
+      setStatus('Fetching MOY Math data…'); setProgress(26);
       const moyMathText = await cachedFetch(MOY_URL(MOY_MATH_GID), 'MOY Math');
 
       const moyElaRows  = parseCsv(moyElaText).map(normMoyRow);
       const moyMathRows = parseCsv(moyMathText).map(normMoyRow);
 
       // ── 3. Load EOY Preliminary (IRLAB) data ────────────────────────────
-      setStatus('Loading EOY Preliminary data (IRLAB)…'); setProgress(40);
+      setStatus('Loading EOY Preliminary data (IRLAB)…'); setProgress(38);
       let irlabElaRows = [], irlabMathRows = [];
       if (window.irlab && typeof window.irlab.getAllRows === 'function') {
         // year:'all' bypasses the IRLAB's active year filter so we get SY 25-26 rows
         irlabElaRows  = window.irlab.getAllRows({ subject: 'ELA',  year: 'all' }).map(normIrlabRow);
         irlabMathRows = window.irlab.getAllRows({ subject: 'Math', year: 'all' }).map(normIrlabRow);
-        console.log('[APIR] IRLAB rows loaded — ELA:', irlabElaRows.length, 'Math:', irlabMathRows.length);
+        console.log('[APIR] IRLAB rows — ELA:', irlabElaRows.length, 'Math:', irlabMathRows.length);
 
-        // Debug: log unique districts / schools for EOY schools so filter can be verified
         if (window._apirDebug) {
           const eoyDistricts = [...new Set(irlabElaRows.map(r => r.district).filter(Boolean))].sort();
           const eoySchools   = [...new Set(irlabElaRows.map(r => r.school).filter(Boolean))].sort();
@@ -408,32 +451,39 @@
         console.warn('[APIR] window.irlab not available — EOY data will be empty');
       }
 
-      // ── 4. Process surveys and attendance ────────────────────────────────
-      setStatus('Processing surveys…'); setProgress(55);
-      const apprLut   = buildApprLookup();
-      const surveyAgg = processSurveys(stuRows, apprLut);
+      // ── 4. Build apprentice lookup table ────────────────────────────────
+      const apprLut = buildApprLookup();
 
-      setStatus('Processing attendance…'); setProgress(65);
+      // ── 5. Build session attribution (SESS tab + ATT session join) ──────
+      // This is the primary method for tying scholars to their exact tutor.
+      // Uses Pearl Session Details (SESS_GID) + Attendance Detail (ATT_GID)
+      // joined on (session name + date) to produce exact scholar→tutor maps.
+      setStatus('Building session attribution from Pearl data…'); setProgress(50);
+      const sessionSets = buildSessionAttribution(sessRows, attRows, apprLut);
+
+      // ── 6. Process surveys and attendance ────────────────────────────────
+      setStatus('Processing scholar surveys…'); setProgress(60);
+      const surveyAgg         = processSurveys(stuRows, apprLut);
+      const surveyScholarSets = buildSurveyScholarSets(stuRows, apprLut); // Tier 4/5 fallback
+
+      setStatus('Processing instructor attendance…'); setProgress(68);
       const attAgg = processAttendance(attRows, apprLut);
 
-      // ── 5. Build scholar attribution sets ────────────────────────────────
-      setStatus('Attributing scholars…'); setProgress(72);
-      const surveyScholarSets = buildSurveyScholarSets(stuRows, apprLut);
+      // ── 7. Attribute scholars to apprentices ─────────────────────────────
+      setStatus('Attributing scholars to apprentices…'); setProgress(76);
+      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut);
+      const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut);
+      const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut);
+      const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut);
 
-      // ── 6. Attribute scholars to apprentices ─────────────────────────────
-      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  surveyScholarSets, apprLut);
-      const moyMathByAppr = attributeMoyScholars(moyMathRows, surveyScholarSets, apprLut);
-      const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  surveyScholarSets, apprLut);
-      const irlMathByAppr = attributeIrlabScholars(irlabMathRows, surveyScholarSets, apprLut);
-
-      // ── 7. Build per-apprentice records ───────────────────────────────────
-      setStatus('Building report…'); setProgress(82);
+      // ── 8. Build per-apprentice records ───────────────────────────────────
+      setStatus('Building report…'); setProgress(85);
       const records = buildRecords(
         moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
         surveyAgg, attAgg
       );
 
-      // ── 8. Generate CSV ────────────────────────────────────────────────
+      // ── 9. Generate CSV ────────────────────────────────────────────────
       setStatus('Generating CSV…'); setProgress(93);
       const csv = buildCsv(records);
 
@@ -557,18 +607,105 @@
     return sets;
   }
 
+  // ── Build session-based scholar attribution ───────────────────────────────
+  // Primary method for tying scholars to their exact apprentice-tutor.
+  // Uses two passes:
+  //   Pass 1 — Pearl SESS tab:  each row lists instructor + student names directly.
+  //   Pass 2 — Pearl ATT join:  group ATT rows by (session name + date); instructor
+  //                              row (Attended/Late) identifies the tutor; all student
+  //                              rows in that group are added to the tutor's scholar set.
+  function buildSessionAttribution(sessRows, attRows, lut) {
+    const sets = {};
+    TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
+
+    // Helper: add a scholar name (both full-norm and first+last forms) to a set
+    function addScholar(set, raw) {
+      const nn = normName(raw);
+      if (!nn) return;
+      set.add(nn);
+      const fl = normNameFL(nn);
+      if (fl && fl !== nn) set.add(fl);
+    }
+
+    // ── Pass 1: SESS tab direct assignment ───────────────────────────────
+    sessRows.forEach(row => {
+      const keys   = Object.keys(row);
+      const getCol = pos => (row[keys[pos]] || '').trim();
+
+      const status = getCol(SESS_COL.STATUS).toLowerCase();
+      const ok = status.includes('attended') || status.includes('complete') ||
+                 status.includes('success')  || status.includes('partial');
+      if (!ok) return;
+
+      const instrRaw = getCol(SESS_COL.INSTRUCTOR);
+      const canon    = resolveAppr(instrRaw, lut);
+      if (!canon || !sets[canon]) return;
+
+      // Col 2 = comma-separated student display names
+      const stuNamesRaw = getCol(SESS_COL.STUDENTS);
+      stuNamesRaw.split(',').map(s => s.trim()).filter(Boolean)
+        .forEach(sn => addScholar(sets[canon], sn));
+    });
+
+    // ── Pass 2: ATT session join ─────────────────────────────────────────
+    // Group ATT rows by (sessionName|sessionDate) so we can find
+    // the instructor for each session instance and attribute its students.
+    const attBySession = {};
+    attRows.forEach(row => {
+      const keys        = Object.keys(row);
+      const sessionName = (row['Session']           || row[keys[2]] || '').trim();
+      const sessionDate = (row['Session Date']       || row[keys[5]] || '').trim();
+      if (!sessionName) return;
+
+      const key = sessionName + '|' + sessionDate;
+      if (!attBySession[key]) attBySession[key] = { instructor: null, students: [] };
+
+      const role   = (row['Role']              || row[keys[1]] || '').trim();
+      const user   = (row['User']              || row[keys[0]] || '').trim();
+      const status = (row['Attendance Status'] || row[keys[6]] || '').trim();
+
+      if (role === 'Instructor') {
+        // Only mark instructor if they were actually there (Attended or Late)
+        if ((status === 'Attended' || status === 'Late') && user) {
+          attBySession[key].instructor = user;
+        }
+      } else {
+        // Students: include regardless of their attendance status —
+        // we want to know which students are ASSIGNED to this tutor,
+        // not just who showed up on a specific day.
+        if (user) attBySession[key].students.push(user);
+      }
+    });
+
+    Object.values(attBySession).forEach(({ instructor, students }) => {
+      if (!instructor || !students.length) return;
+      const canon = resolveAppr(instructor, lut);
+      if (!canon || !sets[canon]) return;
+      students.forEach(sn => addScholar(sets[canon], sn));
+    });
+
+    // Debug summary
+    const summary = Object.entries(sets)
+      .filter(([, s]) => s.size > 0)
+      .map(([n, s]) => `${n.split(' ')[0]}: ${s.size}`).join(', ');
+    console.log('[APIR] Session attribution —', summary || 'no scholars found');
+
+    return sets;
+  }
+
   // ── MOY scholar attribution ───────────────────────────────────────────────
   // Tier 1: instructor field in MOY CSV matches apprentice name
   // Tier 2: single-apprentice school attribution (school → one apprentice)
-  // Tier 3: survey-confirmed scholar name match (for ambiguous/multi schools)
+  // Tier 3: session-confirmed scholar name (Pearl SESS+ATT join — primary for multi-appr)
+  // Tier 4: survey-confirmed scholar name match (fallback)
   //
   // NOTE on school-name collisions: when two TAP keys map to the same underlying
   // iReady school name (e.g. "iLearn Paterson" and "iLearn Paterson MS" both map
   // to "paterson arts and science charter school middle"), the LAST entry in the
   // TAP_APPRENTICES list wins for school attribution. More specific designations
   // (Linda Fenty's "iLearn Paterson MS") come after Carlos Jacho's "iLearn Paterson"
-  // and therefore win. Carlos's scholars are attributed via Tier 3 (survey match).
-  function attributeMoyScholars(moyRows, surveyScholarSets, lut) {
+  // and therefore win. Carlos's scholars are attributed via Tier 3 (session match).
+  function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
@@ -596,13 +733,19 @@
       const apprBySchool = schoolToAppr[schoolLc];
       if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
 
-      // Tier 3: survey-confirmed scholar name (catches multi-appr and overlap schools)
-      if (surveyScholarSets) {
-        const scholarN = normName(row.scholarName);
-        if (scholarN) {
-          for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
-            if (nameSet.has(scholarN)) { byAppr[appr].push(row); return; }
-          }
+      const scholarN = normName(row.scholarName);
+
+      // Tier 3: session-confirmed scholar name (Pearl SESS+ATT join)
+      if (scholarN && sessionSets) {
+        for (const [appr, nameSet] of Object.entries(sessionSets)) {
+          if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
+        }
+      }
+
+      // Tier 4: survey-confirmed scholar name (fallback for any remaining scholars)
+      if (scholarN && surveyScholarSets) {
+        for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
+          if (nameSet.has(scholarN)) { byAppr[appr].push(row); return; }
         }
       }
     });
@@ -610,7 +753,12 @@
   }
 
   // ── IRLAB (EOY Preliminary) scholar attribution ───────────────────────────
-  function attributeIrlabScholars(irlabRows, surveyScholarSets, lut) {
+  // Tier 1: instructor name field in IRLAB row
+  // Tier 2: tutors array in IRLAB row
+  // Tier 3: single-apprentice school attribution
+  // Tier 4 (multi-appr): session-confirmed scholar name (Pearl SESS+ATT join)
+  // Tier 5 (multi-appr): survey-confirmed scholar name (fallback)
+  function attributeIrlabScholars(irlabRows, sessionSets, surveyScholarSets, lut) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
@@ -643,10 +791,20 @@
           return;
         }
 
-        // Tier 4 (multi-appr only): survey-confirmed scholar name
-        if (surveyScholarSets && surveyScholarSets[display]) {
-          const scholarN = normName(row.scholarName);
-          if (scholarN && surveyScholarSets[display].has(scholarN)) {
+        // Multi-apprentice schools: use Pearl session data to identify the right tutor
+        const scholarN = normName(row.scholarName);
+
+        // Tier 4: session-confirmed scholar name (Pearl SESS+ATT join)
+        if (scholarN && sessionSets && sessionSets[display]) {
+          if (inScholarSet(sessionSets[display], scholarN)) {
+            byAppr[display].push(row);
+            return;
+          }
+        }
+
+        // Tier 5: survey-confirmed scholar name (fallback)
+        if (scholarN && surveyScholarSets && surveyScholarSets[display]) {
+          if (surveyScholarSets[display].has(scholarN)) {
             byAppr[display].push(row);
           }
         }
@@ -916,8 +1074,9 @@
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section is excluded; surveys and attendance are included.'));
     lines.push(row('CJCP and Hamilton Township show 0 scholars until EOY Preliminary data is uploaded to the IRLAB — will auto-populate.'));
     lines.push(row('Gloucester ELA/Math data is sourced from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
-    lines.push(row('Scholar attribution uses 3 tiers: (1) instructor name in iReady CSV, (2) single-apprentice school attribution, (3) survey-confirmed scholar name match.'));
-    lines.push(row('For schools with multiple apprentices (Bergen MS, Passaic MS, Clifton MS, Haddon, Hamilton, CJCP), attribution relies on tiers 1 and 3 — 0 means no instructor-level data available yet.'));
+    lines.push(row('Scholar attribution uses 5 tiers: (1) instructor name in iReady CSV, (2) single-apprentice school, (3) Pearl session join (SESS+ATT tabs), (4) survey-confirmed scholar name, (5) fallback survey match.'));
+    lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
+    lines.push(row('For multi-apprentice schools (Bergen MS, Passaic MS, Clifton MS, Haddon, Hamilton, CJCP), tier 3 session join is the primary attribution method.'));
     lines.push(row('Attendance counts sessions where Pearl Attendance Status = Attended or Late; Missed = absent. Not Recorded rows are excluded from denominator.'));
     lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
 
