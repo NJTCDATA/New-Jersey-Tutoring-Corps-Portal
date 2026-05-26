@@ -989,6 +989,15 @@
     const ANCHOR_MS = new Date('2026-04-28T09:00:00').getTime();
     const INTERVAL_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
     const now = Date.now();
+    // Memorial Day 2026 override: the quiz deadline was extended to Tue May 26 10:00 AM ET.
+    // Once the normal meeting anchor (May 26 09:00) passes, the cycle rolls to June 9 — but
+    // we must keep May 26 as the active meeting until the extended deadline expires.
+    const MAY26_MEETING_MS    = ANCHOR_MS + 2 * INTERVAL_MS;           // May 26 09:00 local (2 cycles after Apr 28)
+    const MAY26_QUIZ_CLOSE_MS = new Date('2026-05-26T10:00:00').getTime(); // 10:00 AM local
+    if (now >= MAY26_MEETING_MS && now < MAY26_QUIZ_CLOSE_MS) {
+      window._lbNextMeeting = new Date(MAY26_MEETING_MS);
+      return;
+    }
     const elapsed = now - ANCHOR_MS;
     const cyclesSince = Math.max(0, Math.floor(elapsed / INTERVAL_MS));
     let candidate = ANCHOR_MS + cyclesSince * INTERVAL_MS;
