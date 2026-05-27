@@ -118,6 +118,10 @@
   const STANDARDS_MASTERY_SCHOOLS = new Set(['Middlesex STEM']);
   // Schools with no iReady data available (e.g. long-term sub, untracked)
   const NO_DATA_SCHOOLS = new Set(['Long Term Sub']);
+  // Schools where EOY Preliminary data is expected but not yet uploaded to IRLAB.
+  // Show 0 / "Pending" rather than pulling stale data.  Remove a school from this
+  // set once its current-year EOY Preliminary data has been confirmed in the IRLAB.
+  const PENDING_EOY_SCHOOLS = new Set(['Hamilton-Kuser']);
 
   // iLearn schools → use MOY Google Sheet (Winter 2026)
   const ILEARN_SCHOOLS = new Set([
@@ -151,10 +155,10 @@
              (s.includes('greenwood') && (d.includes('hamilton') || !d)) ||
              (s.includes('wilson')    && (d.includes('hamilton') || !d));
     },
-    'Hamilton-Kuser': r => {
-      const s = (r.school || '').toLowerCase();
-      return s.includes('kuser');
-    },
+    // Hamilton-Kuser: filter removed — EOY Preliminary data pending upload.
+    // Added to PENDING_EOY_SCHOOLS above so the report shows "EOY Preliminary (Pending)".
+    // Restore this entry once current-year data is confirmed in the IRLAB:
+    //   'Hamilton-Kuser': r => (r.school || '').toLowerCase().includes('kuser'),
     'Haddon Township': r => {
       const d = (r.district || '').toLowerCase();
       const s = (r.school   || '').toLowerCase();
@@ -365,6 +369,8 @@
     return {
       scholarName: g('student_name', 'first_and_last_name', 'name', 'full_name'),
       scholarId:   g('student_id', 'local_student_id', 'id'),
+      // iReady "User Name" column = Pearl student login ID — enables Tier 0 exact join
+      _pearlId:    g('user_name', 'username', 'student_username', 'user_id'),
       school:      g('school'),
       district:    g('district'),
       grade:       g('student_grade', 'grade'),
@@ -513,8 +519,8 @@
       console.log('[APIR] MOY ID bridge — entries:', Object.keys(moyIdBridge).length);
 
       setStatus('Attributing scholars to apprentices…'); setProgress(76);
-      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut, moyIdBridge);
-      const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge);
+      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
+      const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
 
@@ -770,7 +776,7 @@
   // e.g., "iLearn Paterson" + "iLearn Paterson MS" both map to the same iReady
   // school; session sets correctly split students between Carlos Jacho, Linda Fenty,
   // and Norelis Ramirez rather than collapsing them all to one school entry.
-  function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge) {
+  function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge, sessionIdMap) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
@@ -795,6 +801,18 @@
 
     moyRows.forEach(row => {
       const scholarN = normName(row.scholarName);
+
+      // Tier 0: MOY CSV User Name = Pearl student login ID → sessionIdMap (exact join)
+      // The iReady "User Name" column stores the same login ID used in Pearl (SESS col 16).
+      // If the MOY export includes this column, it provides a lossless attribution with
+      // zero name-matching required — resolves Dr. Renee Davis / LaShanee Davis and all
+      // other cases where Pearl display names differ from iReady legal/assessment names.
+      if (row._pearlId && sessionIdMap) {
+        const appr = sessionIdMap[row._pearlId];
+        if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
+        // If _pearlId exists but isn't in sessionIdMap, fall through to name-based tiers
+        // (student may have had a session with a non-TAP teacher, or no session recorded)
+      }
 
       // Tier 1: instructor name in MOY CSV (direct attribution)
       if (row.instructor) {
@@ -1004,9 +1022,10 @@
       const isMidYr  = ILEARN_SCHOOLS.has(school);
       const isStdMas = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData = NO_DATA_SCHOOLS.has(school);
+      const isPending = PENDING_EOY_SCHOOLS.has(school); // EOY expected but not yet uploaded
 
       let elaAcad = null, mathAcad = null;
-      if (!isStdMas && !isNoData) {
+      if (!isStdMas && !isNoData && !isPending) {
         if (isMidYr) {
           elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
           mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
@@ -1016,9 +1035,10 @@
         }
       }
 
-      const dataNote = isStdMas ? 'Standards Mastery (no iReady)' :
-                       isNoData ? 'No iReady data' :
-                       isMidYr  ? 'MOY (Winter 2026)' : 'EOY Preliminary';
+      const dataNote = isStdMas  ? 'Standards Mastery (no iReady)' :
+                       isNoData  ? 'No iReady data' :
+                       isPending ? 'EOY Preliminary (Pending)' :
+                       isMidYr   ? 'MOY (Winter 2026)' : 'EOY Preliminary';
 
       return {
         display, njId, school, region, dataNote,
@@ -1203,10 +1223,10 @@
     lines.push(row('iLearn schools use MOY (Winter 2026) iReady diagnostic data.'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section is excluded; surveys and attendance are included.'));
-    lines.push(row('Hamilton Township and Central Jersey College Prep show 0 scholars — their EOY Preliminary data is pending and has not yet been uploaded to the IRLAB. All other EOY schools are populated.'));
+    lines.push(row('Hamilton Township, Central Jersey College Prep, and Hamilton-Kuser show "EOY Preliminary (Pending)" — their SY 25-26 EOY Preliminary data has not yet been confirmed uploaded to the IRLAB. Lilia Quintero (Hamilton-Kuser) will auto-populate once correct data arrives and the school is removed from PENDING_EOY_SCHOOLS.'));
     lines.push(row('Gloucester ELA/Math data is sourced from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
-    lines.push(row('Scholar attribution (EOY/IRLAB): (A) IRLAB instructor field is authoritative — if set, non-NJTC teachers are excluded; (B) Pearl session join (SESS+ATT) matches scholars to tutors; (C) school-level fallback only when no session data.'));
-    lines.push(row('Scholar attribution (MOY): (1) instructor in MOY CSV; (2) Pearl session join (primary for multi-apprentice iLearn schools); (3) school-level fallback; (4) survey name fallback.'));
+    lines.push(row('Scholar attribution (EOY/IRLAB): (Tier 0) Pearl student ID exact join via _pearlId; (A) IRLAB instructor field authoritative — non-NJTC teachers excluded; (B) Pearl session name sets; (C) school-level fallback only when no session data.'));
+    lines.push(row('Scholar attribution (MOY/iLearn): (Tier 0) iReady User Name = Pearl login ID direct join; (1) instructor in MOY CSV; (1.5) IRLAB-based ID bridge; (2) Pearl session name sets; (3) school-level fallback; (4) survey name fallback.'));
     lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
     lines.push(row('For Haddon Township (Micaela Wilkerson + Nicholas Hoover) and other multi-apprentice EOY schools: Pearl session sets are the primary attribution method.'));
     lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
