@@ -651,6 +651,8 @@
   // ── Build survey-confirmed scholar name sets ──────────────────────────────
   // For multi-apprentice schools where school-level attribution is ambiguous,
   // this set allows matching scholars whose names appear in Pearl surveys.
+  // Stores both full normalized name AND first+last variant so that Tier 4
+  // matches even when iReady uses a different middle name than the survey.
   function buildSurveyScholarSets(stuRows, lut) {
     const sets = {};
     TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
@@ -661,7 +663,13 @@
       const filledFor = (row['Filled For'] || row[keys[1]] || '').trim();
       const canon = resolveAppr(filledFor, lut);
       if (!canon || !sets[canon] || !filledBy) return;
-      sets[canon].add(normName(filledBy));
+      const nn = normName(filledBy);
+      sets[canon].add(nn);
+      // Also add first+last-only variant — handles cases where iReady includes
+      // a middle name or initial that the scholar omitted on their Pearl survey
+      // (e.g. iReady "Grace M. Perez" vs. survey "Grace Perez").
+      const fl = normNameFL(nn);
+      if (fl && fl !== nn) sets[canon].add(fl);
     });
     return sets;
   }
@@ -846,9 +854,12 @@
       if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
 
       // Tier 4: survey-confirmed scholar name (last resort)
+      // Uses inScholarSet (same robust helper as Tier 2) so that name
+      // variations between iReady and Pearl survey are handled consistently:
+      // exact normalized match → first+last fallback → set-scan on first+last.
       if (scholarN && surveyScholarSets) {
         for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
-          if (nameSet.has(scholarN)) { byAppr[appr].push(row); return; }
+          if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
         }
       }
     });
@@ -952,8 +963,9 @@
         }
 
         // B3: multi-apprentice + no session data → survey name fallback
+        // Uses inScholarSet for the same name-variation handling as Tier 2.
         if (scholarN && surveyScholarSets && surveyScholarSets[display]) {
-          if (surveyScholarSets[display].has(scholarN)) {
+          if (inScholarSet(surveyScholarSets[display], scholarN)) {
             byAppr[display].push(row);
           }
         }
