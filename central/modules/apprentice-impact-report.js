@@ -459,6 +459,22 @@
       const moyElaRows  = parseCsv(moyElaText).map(normMoyRow);
       const moyMathRows = parseCsv(moyMathText).map(normMoyRow);
 
+      // Diagnostic: log MOY row counts and which schools are present
+      console.log('[APIR] MOY rows fetched — ELA:', moyElaRows.length, 'Math:', moyMathRows.length);
+      {
+        const elaSchools  = [...new Set(moyElaRows.map(r => r.school).filter(Boolean))].sort();
+        const mathSchools = [...new Set(moyMathRows.map(r => r.school).filter(Boolean))].sort();
+        console.log('[APIR] MOY ELA schools in sheet:', elaSchools);
+        console.log('[APIR] MOY Math schools in sheet:', mathSchools);
+        // Specifically check for Clifton MS data
+        const cliftonEla  = moyElaRows.filter(r => (r.school || '').toLowerCase().includes('clifton'));
+        const cliftonMath = moyMathRows.filter(r => (r.school || '').toLowerCase().includes('clifton'));
+        console.log('[APIR] MOY Clifton ELA rows:', cliftonEla.length,
+                    cliftonEla.length ? '— first scholar: ' + (cliftonEla[0].scholarName || '(no name)') : '← NO DATA');
+        console.log('[APIR] MOY Clifton Math rows:', cliftonMath.length,
+                    cliftonMath.length ? '— first scholar: ' + (cliftonMath[0].scholarName || '(no name)') : '← NO DATA');
+      }
+
       // ── 3. Load EOY Preliminary (IRLAB) data ────────────────────────────
       setStatus('Loading EOY Preliminary data (IRLAB)…'); setProgress(38);
       let irlabElaRows = [], irlabMathRows = [];
@@ -491,10 +507,24 @@
       setStatus('Building session attribution from Pearl data…'); setProgress(50);
       const { sets: sessionSets, idMap: sessionIdMap } = buildSessionAttribution(sessRows, attRows, apprLut);
 
+      // Diagnostic: specifically log Dr. Renee Davis session and survey scholar counts
+      {
+        const rdSess = sessionSets['Dr. Renee Davis'];
+        console.log('[APIR] Dr. Renee Davis session set size:', rdSess ? rdSess.size : 0,
+                    rdSess && rdSess.size ? '— sample: ' + [...rdSess].slice(0, 3).join(', ') : '← NO SESSION DATA');
+      }
+
       // ── 6. Process surveys and attendance ────────────────────────────────
       setStatus('Processing scholar surveys…'); setProgress(60);
       const surveyAgg         = processSurveys(stuRows, apprLut);
       const surveyScholarSets = buildSurveyScholarSets(stuRows, apprLut); // Tier 4/5 fallback
+
+      // Diagnostic: log survey scholar set for Dr. Renee Davis
+      {
+        const rdSurv = surveyScholarSets['Dr. Renee Davis'];
+        console.log('[APIR] Dr. Renee Davis survey set size:', rdSurv ? rdSurv.size : 0,
+                    rdSurv && rdSurv.size ? '— sample: ' + [...rdSurv].slice(0, 5).join(', ') : '← NO SURVEY DATA');
+      }
 
       setStatus('Processing instructor attendance…'); setProgress(68);
       const attAgg = processAttendance(attRows, apprLut);
