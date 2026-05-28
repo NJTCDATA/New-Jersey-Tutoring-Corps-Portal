@@ -644,6 +644,29 @@
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
 
+      // Diagnostic: Alexandra Cristescu (Penns Grove — single-apprentice EOY school)
+      {
+        const alexEla  = irlElaByAppr['Alexandra Cristescu']  || [];
+        const alexMath = irlMathByAppr['Alexandra Cristescu'] || [];
+        const alexSess = sessionSets['Alexandra Cristescu'];
+        const pgEla    = irlabElaRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
+        const pgMath   = irlabMathRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
+        console.log('[APIR] Alexandra — session set size:', alexSess ? alexSess.size : 0,
+                    '| IRLAB ELA total/attributed:', pgEla.length + '/' + alexEla.length,
+                    '| IRLAB Math total/attributed:', pgMath.length + '/' + alexMath.length);
+      }
+
+      // Diagnostic: Dr. Renee Davis (iLearn Clifton MS — MOY multi-apprentice)
+      {
+        const rdEla  = moyElaByAppr['Dr. Renee Davis']  || [];
+        const rdMath = moyMathByAppr['Dr. Renee Davis'] || [];
+        console.log('[APIR] Dr. Renee Davis — MOY ELA attributed:', rdEla.length,
+                    '| MOY Math attributed:', rdMath.length,
+                    rdEla.length + rdMath.length === 0
+                      ? '← ZERO rows: check MOY URL points to live sheet'
+                      : '');
+      }
+
       // ── 8. Build per-apprentice records ───────────────────────────────────
       setStatus('Building report…'); setProgress(85);
       // Build SM attribution — match teacher names directly to TAP apprentice names
@@ -1073,16 +1096,22 @@
         if (scholarN && hasSess) {
           if (inScholarSet(sessSet, scholarN)) {
             byAppr[display].push(row);
+            return;
           }
-          // If session data exists for this apprentice, don't fall to school-level —
-          // that would re-introduce over-attribution.
-          return;
+          // Multi-apprentice: stop here — no school-level fallback.
+          // Two or more NJTC apprentices share this school, so a session miss
+          // means this scholar belongs to the other apprentice (or is unmatched).
+          if (isMulti) return;
+          // Single-apprentice: fall through to B2.
+          // There is no other NJTC apprentice at this school, so any IRLAB
+          // scholar not yet in a Pearl session still belongs to this apprentice.
+          // This ensures Math scholars appear even when only ELA sessions are
+          // recorded in Pearl (e.g. Penns Grove — Alexandra Cristescu).
         }
 
-        // B2: school-level fallback — only for single-apprentice schools
-        //     when we have NO session data for this apprentice.
-        //     (Prevents showing 0 when Pearl session coverage is absent but
-        //      the school is unambiguously served by one apprentice.)
+        // B2: school-level fallback — only for single-apprentice schools.
+        //     Reached when: (a) no session data, or (b) session data exists but
+        //     scholar name did not match (single-apprentice only — see B1 above).
         if (!isMulti) {
           byAppr[display].push(row);
           return;
