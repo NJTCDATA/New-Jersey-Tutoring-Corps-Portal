@@ -2895,6 +2895,7 @@
         }
         ${(()=>{ try { return (typeof impactBuilder!=='undefined') ? impactBuilder.renderSection() : ''; } catch(e){ return ''; } })()}
         ${renderMOYSection()}
+        ${renderSMSection()}
       </div>`;
 
       // Initialize Chart.js charts after HTML is set
@@ -5365,6 +5366,18 @@
     let _moyError    = null;
     let _moyComputed = null;
 
+    // ── Standards Mastery (SM) — Middlesex County STEM Charter School ─────────
+    const SM_SHEET_ID  = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
+    const SM_GRADES    = ['3','4','5','7','8'];
+    const SM_TAB_URL   = grade => `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Grade%20${grade}`;
+    const SM_CACHE_KEY = 'njtc_sm_v1';
+    const SM_CACHE_TTL = 2 * 60 * 60 * 1000;
+    let SM_DATA        = { rows: [], pairs: [], loaded: false, ts: null };
+    let _smLoading     = false;
+    let _smError       = null;
+    let _smFilterGrade = 'all';
+    let _smFilterAppr  = 'all';
+
     // ── MOY row normalizer — maps winter_ prefix fields ───────────────────────
     function normalizeMOYRow(r, subject) {
       // Full header normalization (same pattern as normalizeRow)
@@ -6201,6 +6214,324 @@
       renderLab(); // re-render with live data
     }
 
+    // ── Standards Mastery helpers ─────────────────────────────────────────────
+    function _smParseRow(raw, grade) {
+      const ct = raw['Class Teacher(s)'] || '';
+      const teachers = ct.split(';').map(t => {
+        const parts = t.trim().split(',');
+        return parts.length >= 2 ? (parts[1].trim() + ' ' + parts[0].trim()) : t.trim();
+      }).filter(Boolean);
+      const asmName = raw['Assessment Name'] || '';
+      const isFormA = /\bForm A\b/i.test(asmName);
+      const isFormB = /\bForm B\b/i.test(asmName);
+      const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').trim();
+      return {
+        studentId:     raw['Student ID'] || '',
+        lastName:      raw['Last Name']  || '',
+        firstName:     raw['First Name'] || '',
+        grade:         String(grade),
+        school:        raw['School']    || '',
+        asmName, asmBase, isFormA, isFormB,
+        score:         parseFloat(raw['Assessment Score (%)']) || 0,
+        placement:     raw['Relative Placement']  || '',
+        direction:     raw['Pre to Post Score']   || '',
+        date:          raw['Completion Date']      || '',
+        teachers,
+        primaryTeacher: teachers[0] || '',
+      };
+    }
+
+    function _smBuildPairs(rows) {
+      const map = {};
+      rows.forEach(r => {
+        const key = r.studentId + '|' + r.asmBase;
+        if (!map[key]) map[key] = { ...r, formA: null, formB: null };
+        if (r.isFormA) map[key].formA = r;
+        if (r.isFormB) map[key].formB = r;
+      });
+      return Object.values(map);
+    }
+
+    async function _smFetchLive(force) {
+      if (_smLoading) return;
+      if (!force && SM_DATA.loaded) return;
+      if (!force) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(SM_CACHE_KEY) || 'null');
+          if (cached && Date.now() - cached.ts < SM_CACHE_TTL) {
+            SM_DATA.rows   = cached.rows || [];
+            SM_DATA.pairs  = _smBuildPairs(SM_DATA.rows);
+            SM_DATA.loaded = true;
+            SM_DATA.ts     = cached.ts;
+            return;
+          }
+        } catch(e) {}
+      }
+      _smLoading = true;
+      _smError   = null;
+      renderLab();
+      try {
+        const results = await Promise.all(SM_GRADES.map(async grade => {
+          const url  = SM_TAB_URL(grade);
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for Grade ' + grade);
+          const text = await resp.text();
+          return parseCSV(text)
+            .filter(r => r['Student ID'])
+            .map(r  => _smParseRow(r, grade));
+        }));
+        const allRows  = results.flat().filter(r => r.isFormA || r.isFormB);
+        SM_DATA.rows   = allRows;
+        SM_DATA.pairs  = _smBuildPairs(allRows);
+        SM_DATA.loaded = true;
+        SM_DATA.ts     = Date.now();
+        try { localStorage.setItem(SM_CACHE_KEY, JSON.stringify({ rows: allRows, ts: SM_DATA.ts })); } catch(e) {}
+      } catch(err) {
+        _smError = 'Failed to load Standards Mastery data: ' + err.message;
+        console.error('[SM]', err);
+      } finally {
+        _smLoading = false;
+      }
+    }
+
+    async function smRefresh() {
+      SM_DATA.loaded = false;
+      _smLoading = false;
+      renderLab();
+      await _smFetchLive(true);
+      renderLab();
+    }
+
+    function smSetFilterGrade(g) { _smFilterGrade = g; renderLab(); }
+    function smSetFilterAppr(a)  { _smFilterAppr  = a; renderLab(); }
+
+    function smShowModal(apprName) {
+      const PLACE_COLOR = { 'Beginning':'#dc2626','Progressing':'#d97706','Proficient':'#0d6e3a' };
+      let pairs = SM_DATA.pairs;
+      if (apprName && apprName !== 'all') {
+        pairs = pairs.filter(p => {
+          const rows = [p.formA, p.formB].filter(Boolean);
+          return rows.some(r => r.teachers.some(t => t === apprName));
+        });
+      }
+      if (_smFilterGrade !== 'all') {
+        pairs = pairs.filter(p => p.grade === _smFilterGrade);
+      }
+
+      const rows = pairs.map(p => {
+        const src  = p.formA || p.formB || p;
+        const preS = p.formA ? p.formA.score : null;
+        const posS = p.formB ? p.formB.score : null;
+        const gain = (preS !== null && posS !== null) ? Math.round((posS - preS) * 10) / 10 : null;
+        return {
+          name:   src.firstName + ' ' + src.lastName,
+          grade:  p.grade,
+          asmBase: p.asmBase,
+          appr:   src.primaryTeacher,
+          preScore: preS, postScore: posS, gain,
+          prePl:  p.formA ? p.formA.placement : '',
+          postPl: p.formB ? p.formB.placement : '',
+          dir:    p.formB ? (p.formB.direction || '') : '',
+        };
+      }).sort((a,b) => (parseInt(a.grade)||99) - (parseInt(b.grade)||99) || a.name.localeCompare(b.name));
+
+      const withData   = rows.filter(r => r.gain !== null);
+      const improved   = withData.filter(r => r.gain > 0).length;
+      const avgGain    = withData.length > 0 ? Math.round(withData.reduce((s,r)=>s+r.gain,0)/withData.length*10)/10 : null;
+      const pctImp     = withData.length > 0 ? Math.round(improved/withData.length*100) : null;
+
+      const tableRows = rows.map(r => {
+        const gainColor  = r.gain === null ? '#94a3b8' : r.gain > 0 ? '#0d6e3a' : r.gain < 0 ? '#dc2626' : '#64748b';
+        const dirIcon    = r.dir === 'Increase' ? '▲' : r.dir === 'Decrease' ? '▼' : r.dir === 'Same' ? '→' : '';
+        const dirColor   = r.dir === 'Increase' ? '#0d6e3a' : r.dir === 'Decrease' ? '#dc2626' : '#64748b';
+        const prePlC     = PLACE_COLOR[r.prePl]  || '#64748b';
+        const postPlC    = PLACE_COLOR[r.postPl] || '#64748b';
+        return `<tr style="border-bottom:1px solid #f1f5f9">
+          <td style="padding:.5rem .625rem;font-weight:500">${esc(r.name)}</td>
+          <td style="padding:.5rem .625rem;text-align:center">Gr ${esc(r.grade)}</td>
+          <td style="padding:.5rem .625rem;font-size:.75rem;max-width:180px">${esc(r.asmBase)}</td>
+          <td style="padding:.5rem .625rem;font-size:.75rem">${esc(r.appr)}</td>
+          <td style="padding:.5rem .625rem;text-align:center">${r.preScore !== null ? r.preScore+'%' : '—'}</td>
+          <td style="padding:.5rem .625rem;text-align:center">${r.postScore !== null ? r.postScore+'%' : '—'}</td>
+          <td style="padding:.5rem .625rem;text-align:center;font-weight:700;color:${gainColor}">${r.gain !== null ? (r.gain>0?'+':'')+r.gain+'%' : '—'}</td>
+          <td style="padding:.5rem .625rem;text-align:center"><span style="color:${prePlC};font-size:.75rem;font-weight:600">${esc(r.prePl||'—')}</span></td>
+          <td style="padding:.5rem .625rem;text-align:center"><span style="color:${postPlC};font-size:.75rem;font-weight:600">${esc(r.postPl||'—')}</span></td>
+          <td style="padding:.5rem .625rem;text-align:center;color:${dirColor};font-weight:600;font-size:.75rem">${dirIcon}${r.dir ? ' '+esc(r.dir) : '—'}</td>
+        </tr>`;
+      }).join('');
+
+      const modalHtml = `
+<div id="smModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto" onclick="if(event.target===this)irlab.smCloseModal()">
+  <div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:1050px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem">
+      <div>
+        <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7c3aed">Standards Mastery · Middlesex County STEM Charter School</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#0a1628;margin-top:.2rem">${apprName && apprName !== 'all' ? esc(apprName) : 'All Apprentices'}</div>
+        <div style="font-size:.8125rem;color:#64748b;margin-top:.2rem">EOY SY 2025–2026 · Reading · Form A = Pre &nbsp;|&nbsp; Form B = Post</div>
+      </div>
+      <button onclick="irlab.smCloseModal()" style="background:none;border:none;font-size:1.25rem;cursor:pointer;color:#94a3b8;padding:.25rem">✕</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;margin-bottom:1.25rem">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${rows.length}</div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Assessment Pairs</div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'}</div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Improved</div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Avg Score Δ</div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+        <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${withData.length}</div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Pre &amp; Post</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Scholar</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Grade</th>
+            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Assessment</th>
+            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Apprentice</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Δ Score</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre Placement</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post Placement</th>
+            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows || '<tr><td colspan="10" style="padding:1.5rem;text-align:center;color:#94a3b8">No data for this selection.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:1rem;font-size:.6875rem;color:#94a3b8;padding-top:.75rem;border-top:1px solid #f1f5f9">
+      Source: Standards Mastery · Middlesex County STEM Charter School · SY 2025–2026 · Live from Google Sheets
+    </div>
+  </div>
+</div>`;
+      const existing = document.getElementById('smModal');
+      if (existing) existing.remove();
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    function smCloseModal() {
+      const m = document.getElementById('smModal');
+      if (m) m.remove();
+    }
+
+    function renderSMSection() {
+      const hasData = SM_DATA.loaded && SM_DATA.rows.length > 0;
+      let html = `
+      <div class="irlab-card" id="smSection" style="margin-top:1.5rem;overflow-x:auto">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.875rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:2px solid var(--border)">
+          <div>
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7c3aed;margin-bottom:.25rem">Standards Mastery · EOY SY 2025–2026</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:var(--navy)">Reading Standards Mastery</div>
+            <div style="font-size:.8125rem;color:var(--muted);margin-top:.25rem">Middlesex County STEM Charter School · Pre → Post assessment data · Live from Google Sheets</div>
+          </div>
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <button onclick="irlab.smRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
+          </div>
+        </div>`;
+
+      if (_smLoading) {
+        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
+          <div style="font-size:1.5rem;margin-bottom:.75rem">⏳</div>
+          <div style="font-size:.9375rem;font-weight:600">Loading Standards Mastery data…</div>
+          <div style="font-size:.8125rem;margin-top:.375rem">Fetching Grade 3, 4, 5, 7 &amp; 8 tabs from Google Sheets.</div>
+        </div></div>`;
+        return html;
+      }
+      if (_smError) {
+        html += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem">
+          <span>⚠️</span>
+          <div style="flex:1;font-size:.875rem;color:#991b1b">${esc(_smError)}</div>
+          <button onclick="irlab.smRefresh()" style="font-size:.8125rem;padding:.375rem .75rem;border-radius:8px;background:#b91c1c;color:#fff;border:none;cursor:pointer">Retry</button>
+        </div></div>`;
+        return html;
+      }
+      if (!hasData) {
+        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
+          <div style="font-size:1.5rem;margin-bottom:.75rem">📋</div>
+          <div style="font-size:.9375rem;font-weight:600">Standards Mastery not yet loaded</div>
+          <div style="font-size:.8125rem;margin-top:.375rem;margin-bottom:1rem">Fetch live EOY assessment data for Middlesex County STEM Charter School.</div>
+          <button onclick="irlab.smRefresh()" style="font-size:.875rem;padding:.5rem 1.25rem;border-radius:10px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;border:none;cursor:pointer;font-weight:600">⬇ Load Standards Mastery Data</button>
+        </div></div>`;
+        return html;
+      }
+
+      // Summary metrics
+      const allRows       = SM_DATA.rows;
+      const pairs         = SM_DATA.pairs;
+      const totalScholars = new Set(allRows.map(r => r.studentId)).size;
+      const bothPairs     = pairs.filter(p => p.formA && p.formB);
+      const gains         = bothPairs.map(p => p.formB.score - p.formA.score);
+      const improved      = gains.filter(g => g > 0).length;
+      const avgGain       = gains.length > 0 ? Math.round(gains.reduce((s,g)=>s+g,0)/gains.length*10)/10 : null;
+      const pctImp        = gains.length > 0 ? Math.round(improved/gains.length*100) : null;
+
+      const apprSet = new Set();
+      allRows.forEach(r => r.teachers.forEach(t => { if(t) apprSet.add(t); }));
+      const apprentices = [...apprSet].sort();
+      const grades      = [...new Set(allRows.map(r => r.grade))].sort((a,b)=>parseInt(a)-parseInt(b));
+
+      html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.875rem;margin-bottom:1.25rem">
+        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${totalScholars}</div><div class="ta-kpi-sub">Total Scholars</div></div>
+        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${bothPairs.length}</div><div class="ta-kpi-sub">Pre &amp; Post Pairs</div></div>
+        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'}</div><div class="ta-kpi-sub">Showed Improvement</div></div>
+        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</div><div class="ta-kpi-sub">Avg Score Change</div></div>
+        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${apprentices.length}</div><div class="ta-kpi-sub">Apprentices</div></div>
+      </div>`;
+
+      // Grade filter pills
+      html += `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.125rem;align-items:center">
+        <span style="font-size:.75rem;color:var(--muted);font-weight:600">Grade:</span>
+        ${['all',...grades].map(g=>`<button onclick="irlab.smSetFilterGrade('${g}')" style="font-size:.75rem;padding:.3rem .75rem;border-radius:20px;border:1.5px solid ${_smFilterGrade===g?'#7c3aed':'var(--border)'};background:${_smFilterGrade===g?'#7c3aed':'var(--surface)'};color:${_smFilterGrade===g?'#fff':'var(--text-2)'};cursor:pointer;font-weight:${_smFilterGrade===g?'700':'400'}">${g==='all'?'All Grades':'Grade '+g}</button>`).join('')}
+      </div>`;
+
+      // Apprentice breakdown cards
+      html += `<div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.625rem">By Apprentice</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.75rem;margin-bottom:1rem">`;
+
+      apprentices.forEach(appr => {
+        let aRows = allRows.filter(r => r.teachers.includes(appr));
+        if (_smFilterGrade !== 'all') aRows = aRows.filter(r => r.grade === _smFilterGrade);
+        const aScholars = new Set(aRows.map(r => r.studentId)).size;
+        const aPairs    = pairs.filter(p => {
+          const rr = [p.formA,p.formB].filter(Boolean);
+          return rr.some(r=>r.teachers.includes(appr)) && p.formA && p.formB &&
+                 (_smFilterGrade === 'all' || p.grade === _smFilterGrade);
+        });
+        const aGains    = aPairs.map(p => p.formB.score - p.formA.score);
+        const aImproved = aGains.filter(g => g > 0).length;
+        const aAvg      = aGains.length > 0 ? Math.round(aGains.reduce((s,g)=>s+g,0)/aGains.length*10)/10 : null;
+        const aPct      = aGains.length > 0 ? Math.round(aImproved/aGains.length*100) : null;
+        html += `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:1rem">
+          <div style="font-weight:700;color:var(--navy);font-size:.875rem;margin-bottom:.625rem">${esc(appr)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
+            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:var(--navy)">${aScholars}</div><div style="font-size:.6875rem;color:var(--muted)">Scholars</div></div>
+            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:${aPct!==null&&aPct>=50?'#0d6e3a':'#d97706'}">${aPct!==null?aPct+'%':'—'}</div><div style="font-size:.6875rem;color:var(--muted)">Improved</div></div>
+            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:${aAvg!==null&&aAvg>0?'#0d6e3a':aAvg!==null&&aAvg<0?'#dc2626':'#64748b'}">${aAvg!==null?(aAvg>0?'+':'')+aAvg+'%':'—'}</div><div style="font-size:.6875rem;color:var(--muted)">Avg Δ</div></div>
+          </div>
+          <button onclick="irlab.smShowModal('${esc(appr)}')" style="width:100%;font-size:.75rem;padding:.375rem .75rem;border-radius:8px;border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;cursor:pointer;font-weight:600">View Scholar Details →</button>
+        </div>`;
+      });
+
+      html += `</div>`;
+      html += `<div style="text-align:right;margin-top:.5rem">
+        <button onclick="irlab.smShowModal('all')" style="font-size:.75rem;padding:.375rem .875rem;border-radius:8px;border:1.5px solid #7c3aed;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">View All Scholars →</button>
+        ${SM_DATA.ts ? `<span style="font-size:.6875rem;color:var(--muted);margin-left:.75rem">Updated ${new Date(SM_DATA.ts).toLocaleString()}</span>` : ''}
+      </div>`;
+      html += `</div>`;
+      return html;
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
     function onPanelOpen() {
       // Always re-read session dept so dept is locked even if session was set after first open
@@ -6225,6 +6556,12 @@
             }
           }).catch(() => {});
         }, 1200); // after EOY fetch starts — staggered to avoid bandwidth contention
+        // Auto-fetch Standards Mastery data on first open
+        setTimeout(() => {
+          _smFetchLive(false).then(() => {
+            if (SM_DATA.loaded) renderLab();
+          }).catch(() => {});
+        }, 2000); // staggered after MOY fetch
       } else {
         renderLab();  // re-render on every open so dept lock persists
         if (IRLAB_LIVE_2PACX) { _irlFetchLive(false).catch(()=>{}); }
@@ -6232,6 +6569,12 @@
         if (!MOY_DATA.loaded) {
           _moyFetchLive(false).then(() => {
             if (MOY_DATA.loaded) renderLab();
+          }).catch(() => {});
+        }
+        // Re-fetch SM if not yet loaded
+        if (!SM_DATA.loaded) {
+          _smFetchLive(false).then(() => {
+            if (SM_DATA.loaded) renderLab();
           }).catch(() => {});
         }
       }
@@ -7880,6 +8223,9 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
+             // Standards Mastery public API
+             smRefresh, smSetFilterGrade, smSetFilterAppr, smShowModal, smCloseModal,
+             getSMData: () => SM_DATA,
              // Scholars truly excluded: appear in MOY sheet but have no Fall+Winter pair
              getMOYMissingScholars: (subject) => {
                const rows = subject === 'ELA' ? (MOY_DATA.ela || []) : (MOY_DATA.math || []);
