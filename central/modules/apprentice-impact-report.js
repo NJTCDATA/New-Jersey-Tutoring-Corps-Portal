@@ -33,11 +33,11 @@
   //  16 = student Pearl IDs (comma-separated)
   const SESS_COL = { NAME:0, INSTRUCTOR:1, STUDENTS:2, STATUS:4, SUBJECT:9, STU_IDS:16 };
 
-  // MOY iLearn sheet (Winter 2026) — published 2PACX CSV
-  const MOY_2PACX    = '2PACX-1vQCMey9qbjXf7CFNbK-8Fq-qA0nn-DURIlOVjwQ-U1OwHxSo4PRVOy7eLs0w9JHGtBFwgQTzCqy_sMm';
+  // MOY iLearn sheet (Winter 2026) — stable sheet ID via GViz CSV export
+  const MOY_SHEET_ID = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
   const MOY_ELA_GID  = '912997533';
   const MOY_MATH_GID = '186448147';
-  const MOY_URL      = gid => `https://docs.google.com/spreadsheets/d/e/${MOY_2PACX}/pub?output=csv&gid=${gid}`;
+  const MOY_URL      = gid => `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
 
   // ── Placement levels ──────────────────────────────────────────────────────
   const PLACEMENT_ORDER = [
