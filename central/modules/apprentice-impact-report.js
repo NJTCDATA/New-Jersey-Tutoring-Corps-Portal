@@ -449,6 +449,14 @@
   }
 
   function buildSmByAppr(smRows, tapApprSet) {
+    // Build hyphen/space-normalized lookup so "Monroy Polanco, Apollo" (no hyphen)
+    // still resolves to the canonical "Apollo Monroy-Polanco" display name.
+    const normKey  = s => s.toLowerCase().replace(/[-\s]+/g, ' ').trim();
+    const normAppr = {};
+    tapApprSet.forEach(d => { normAppr[normKey(d)] = d; });
+    const resolveTeacher = raw =>
+      tapApprSet.has(raw) ? raw : (normAppr[normKey(raw)] || null);
+
     const map = {};
     smRows.forEach(r => {
       const key = r.studentId + '|' + r.asmBase;
@@ -461,10 +469,14 @@
     pairs.forEach(p => {
       const src = p.formA || p.formB;
       if (!src) return;
-      const teacher = src.teachers.find(t => tapApprSet.has(t));
-      if (!teacher) return;
-      if (!byAppr[teacher]) byAppr[teacher] = [];
-      byAppr[teacher].push(p);
+      let canon = null;
+      for (const t of src.teachers) {
+        canon = resolveTeacher(t);
+        if (canon) break;
+      }
+      if (!canon) return;
+      if (!byAppr[canon]) byAppr[canon] = [];
+      byAppr[canon].push(p);
     });
     return byAppr;
   }
