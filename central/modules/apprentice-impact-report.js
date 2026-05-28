@@ -39,6 +39,11 @@
   const MOY_MATH_GID = '186448147';
   const MOY_URL      = gid => `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
 
+  // Standards Mastery — Middlesex County STEM Charter School
+  const SM_SHEET_ID = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
+  const SM_GRADES   = ['3','4','5','7','8'];
+  const SM_TAB_URL  = grade => `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Grade%20${grade}`;
+
   // ── Placement levels ──────────────────────────────────────────────────────
   const PLACEMENT_ORDER = [
     '3 or More Grade Levels Below',
@@ -418,6 +423,76 @@
     };
   }
 
+  // ── Standards Mastery helpers ─────────────────────────────────────────────
+  function normSmRow(raw, grade) {
+    const ct = raw['Class Teacher(s)'] || '';
+    const teachers = ct.split(';').map(t => {
+      const parts = t.trim().split(',');
+      return parts.length >= 2 ? (parts[1].trim() + ' ' + parts[0].trim()) : t.trim();
+    }).filter(Boolean);
+    const asmName = raw['Assessment Name'] || '';
+    const isFormA = /\bForm A\b/i.test(asmName);
+    const isFormB = /\bForm B\b/i.test(asmName);
+    const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').trim();
+    return {
+      studentId:  raw['Student ID'] || '',
+      lastName:   raw['Last Name']  || '',
+      firstName:  raw['First Name'] || '',
+      grade:      String(grade),
+      asmName, asmBase, isFormA, isFormB,
+      score:      parseFloat(raw['Assessment Score (%)']) || 0,
+      placement:  raw['Relative Placement']  || '',
+      direction:  raw['Pre to Post Score']   || '',
+      teachers,
+      primaryTeacher: teachers[0] || '',
+    };
+  }
+
+  function buildSmByAppr(smRows, tapApprSet) {
+    const map = {};
+    smRows.forEach(r => {
+      const key = r.studentId + '|' + r.asmBase;
+      if (!map[key]) map[key] = { ...r, formA: null, formB: null };
+      if (r.isFormA) map[key].formA = r;
+      if (r.isFormB) map[key].formB = r;
+    });
+    const pairs = Object.values(map);
+    const byAppr = {};
+    pairs.forEach(p => {
+      const src = p.formA || p.formB;
+      if (!src) return;
+      const teacher = src.teachers.find(t => tapApprSet.has(t));
+      if (!teacher) return;
+      if (!byAppr[teacher]) byAppr[teacher] = [];
+      byAppr[teacher].push(p);
+    });
+    return byAppr;
+  }
+
+  function aggregateSmAcad(pairs) {
+    if (!pairs || !pairs.length) return null;
+    const scholars  = new Set(pairs.map(p => p.studentId)).size;
+    const withBoth  = pairs.filter(p => p.formA && p.formB);
+    const gains     = withBoth.map(p => p.formB.score - p.formA.score);
+    const improved  = gains.filter(g => g > 0).length;
+    const avgGain   = gains.length > 0 ? Math.round(gains.reduce((s,g)=>s+g,0)/gains.length*10)/10 : null;
+    const pctImp    = gains.length > 0 ? Math.round(improved/gains.length*100) : null;
+    const plCount = which => {
+      const c = { Beginning: 0, Progressing: 0, Proficient: 0 };
+      withBoth.forEach(p => {
+        const pl = which === 'pre' ? p.formA.placement : p.formB.placement;
+        if (c[pl] !== undefined) c[pl]++;
+      });
+      return c;
+    };
+    return {
+      scholars, pairs: pairs.length, withBoth: withBoth.length,
+      avgGain, pctImproved: pctImp, improved, total: gains.length,
+      prePl: plCount('pre'), postPl: plCount('post'),
+      rawPairs: pairs,
+    };
+  }
+
   // ── Status / progress helpers ─────────────────────────────────────────────
   function setStatus(msg) {
     const el = document.getElementById('apirStatus');
@@ -473,6 +548,21 @@
                     cliftonEla.length ? '— first scholar: ' + (cliftonEla[0].scholarName || '(no name)') : '← NO DATA');
         console.log('[APIR] MOY Clifton Math rows:', cliftonMath.length,
                     cliftonMath.length ? '— first scholar: ' + (cliftonMath[0].scholarName || '(no name)') : '← NO DATA');
+      }
+
+      // ── 2.5. Fetch Standards Mastery data (Middlesex STEM) ──────────────
+      setStatus('Fetching Standards Mastery data…'); setProgress(32);
+      let smRows = [];
+      try {
+        const smResults = await Promise.all(SM_GRADES.map(async grade => {
+          const text = await cachedFetch(SM_TAB_URL(grade), 'SM Grade ' + grade);
+          return parseCsv(text).filter(r => r['Student ID']).map(r => normSmRow(r, grade));
+        }));
+        smRows = smResults.flat().filter(r => r.isFormA || r.isFormB);
+        console.log('[APIR] Standards Mastery rows:', smRows.length,
+          '— grades:', [...new Set(smRows.map(r=>r.grade))].sort().join(', '));
+      } catch(err) {
+        console.warn('[APIR] Standards Mastery fetch failed:', err.message);
       }
 
       // ── 3. Load EOY Preliminary (IRLAB) data ────────────────────────────
@@ -556,9 +646,15 @@
 
       // ── 8. Build per-apprentice records ───────────────────────────────────
       setStatus('Building report…'); setProgress(85);
+      // Build SM attribution — match teacher names directly to TAP apprentice names
+      const smApprSet  = new Set(TAP_APPRENTICES
+        .filter(([,, school]) => STANDARDS_MASTERY_SCHOOLS.has(school))
+        .map(([display]) => display));
+      const smByAppr   = buildSmByAppr(smRows, smApprSet);
+      console.log('[APIR] SM apprentices with data:', Object.keys(smByAppr).join(', '));
       const records = buildRecords(
         moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-        surveyAgg, attAgg
+        surveyAgg, attAgg, smByAppr
       );
 
       // ── 9. Generate CSV ────────────────────────────────────────────────
@@ -1059,15 +1155,18 @@
 
   // ── Build per-apprentice records ──────────────────────────────────────────
   function buildRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                         surveyAgg, attAgg) {
+                         surveyAgg, attAgg, smByAppr) {
+    smByAppr = smByAppr || {};
     return TAP_APPRENTICES.map(([display, njId, school, region]) => {
-      const isMidYr  = ILEARN_SCHOOLS.has(school);
-      const isStdMas = STANDARDS_MASTERY_SCHOOLS.has(school);
-      const isNoData = NO_DATA_SCHOOLS.has(school);
-      const isPending = PENDING_EOY_SCHOOLS.has(school); // EOY expected but not yet uploaded
+      const isMidYr   = ILEARN_SCHOOLS.has(school);
+      const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
+      const isNoData  = NO_DATA_SCHOOLS.has(school);
+      const isPending = PENDING_EOY_SCHOOLS.has(school);
 
-      let elaAcad = null, mathAcad = null;
-      if (!isStdMas && !isNoData && !isPending) {
+      let elaAcad = null, mathAcad = null, smAcad = null;
+      if (isStdMas) {
+        smAcad = aggregateSmAcad(smByAppr[display] || []);
+      } else if (!isNoData && !isPending) {
         if (isMidYr) {
           elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
           mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
@@ -1077,15 +1176,16 @@
         }
       }
 
-      const dataNote = isStdMas  ? 'Standards Mastery (no iReady)' :
+      const dataNote = isStdMas  ? 'Standards Mastery (EOY SY 25-26)' :
                        isNoData  ? 'No iReady data' :
                        isPending ? 'EOY Preliminary (Pending)' :
                        isMidYr   ? 'MOY (Winter 2026)' : 'EOY Preliminary';
 
       return {
-        display, njId, school, region, dataNote,
+        display, njId, school, region, dataNote, isStdMas,
         ela:    elaAcad,
         math:   mathAcad,
+        sm:     smAcad,
         survey: surveyAgg[display] || { surveyCount: 0, avgConfidence: null, avgEnjoyment: null, avgLearning: null, avgOverall: null },
         att:    attAgg[display]    || { sessionsAttended: 0, sessionsMissed: 0, totalSessions: 0, attRate: null },
       };
@@ -1129,30 +1229,32 @@
     ));
 
     records.forEach(rec => {
-      const e = rec.ela, m = rec.math, s = rec.survey, a = rec.att;
-      const noAcad = !e && !m;
+      const e = rec.ela, m = rec.math, s = rec.survey, a = rec.att, sm = rec.sm;
+      const noAcad = !e && !m && !sm;
+      // For Standards Mastery schools — summarise in ELA columns, leave Math blank
+      const smNote = rec.isStdMas ? 'See Section 4 — Standards Mastery' : rec.dataNote;
       lines.push(row(
         rec.display, rec.njId, rec.school, rec.region, rec.dataNote,
-        // ELA academic
-        noAcad ? rec.dataNote            : (e ? fmt0(e.validCount)          : '0'),
-        noAcad ? ''                      : (e ? fmt1(e.avgBoyScore)         : ''),
-        noAcad ? ''                      : (e ? fmt1(e.avgEndScore)         : ''),
-        noAcad ? ''                      : (e ? fmt1(e.avgScoreGain)        : ''),
-        noAcad ? ''                      : (e ? fmtPct(e.medianPctTypical)  : ''),
-        noAcad ? ''                      : (e ? fmtPct(e.pctMeetTypical)    : ''),
-        noAcad ? ''                      : (e ? fmt0(e.improved)            : '0'),
-        noAcad ? ''                      : (e ? fmt0(e.maintained)          : '0'),
-        noAcad ? ''                      : (e ? fmt0(e.declined)            : '0'),
-        // Math academic
-        noAcad ? rec.dataNote            : (m ? fmt0(m.validCount)          : '0'),
-        noAcad ? ''                      : (m ? fmt1(m.avgBoyScore)         : ''),
-        noAcad ? ''                      : (m ? fmt1(m.avgEndScore)         : ''),
-        noAcad ? ''                      : (m ? fmt1(m.avgScoreGain)        : ''),
-        noAcad ? ''                      : (m ? fmtPct(m.medianPctTypical)  : ''),
-        noAcad ? ''                      : (m ? fmtPct(m.pctMeetTypical)    : ''),
-        noAcad ? ''                      : (m ? fmt0(m.improved)            : '0'),
-        noAcad ? ''                      : (m ? fmt0(m.maintained)          : '0'),
-        noAcad ? ''                      : (m ? fmt0(m.declined)            : '0'),
+        // ELA academic (SM: scholar count in validCount col, % improved in placement cols)
+        noAcad  ? smNote                       : (rec.isStdMas ? (sm ? sm.scholars     : '0') : (e ? fmt0(e.validCount)         : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? (sm ? 'Pre avg—see §4' : '') : (e ? fmt1(e.avgBoyScore)        : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? (sm ? 'Post avg—see §4': '') : (e ? fmt1(e.avgEndScore)        : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? (sm && sm.avgGain !== null ? sm.avgGain + '%' : '') : (e ? fmt1(e.avgScoreGain) : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? ''                    : (e ? fmtPct(e.medianPctTypical) : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? (sm && sm.pctImproved !== null ? sm.pctImproved + '%' : '') : (e ? fmtPct(e.pctMeetTypical) : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? (sm ? sm.improved     : '') : (e ? fmt0(e.improved)          : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? ''                    : (e ? fmt0(e.maintained)        : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? ''                    : (e ? fmt0(e.declined)          : '0')),
+        // Math academic (SM: not applicable)
+        noAcad  ? smNote                       : (rec.isStdMas ? 'N/A — Standards Mastery' : (m ? fmt0(m.validCount)          : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt1(m.avgBoyScore)        : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt1(m.avgEndScore)        : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt1(m.avgScoreGain)       : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmtPct(m.medianPctTypical) : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmtPct(m.pctMeetTypical)   : '')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt0(m.improved)           : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt0(m.maintained)         : '0')),
+        noAcad  ? ''                           : (rec.isStdMas ? '' : (m ? fmt0(m.declined)           : '0')),
         // Surveys
         s.surveyCount,
         fmt1(s.avgConfidence),
@@ -1274,6 +1376,62 @@
     lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
     lines.push(row('Personal tutor absence miss reasons: Absent Not Covered; Absent Covered by Sub; Absent Covered by Dual Role; Absent Covered by Site Leader; Absent Covered by IC; Tutor Left Early. All other miss reasons are service interruptions.'));
     lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
+    lines.push(row('Standards Mastery: Class Teacher(s) field in SM CSV directly identifies the NJTC apprentice for each scholar. Non-NJTC subs (e.g. Shannon Spillane-SUB) are excluded. Form A = Pre-assessment, Form B = Post-assessment.'));
+    lines.push('');
+
+    // ─── SECTION 4: Standards Mastery ────────────────────────────────────
+    const smRecs = records.filter(r => r.isStdMas);
+    if (smRecs.length > 0) {
+      lines.push(row('SECTION 4 -- STANDARDS MASTERY (MIDDLESEX COUNTY STEM CHARTER SCHOOL)'));
+      lines.push(row(
+        'Apprentice', 'Total Scholars', 'Assessment Pairs', 'Pre & Post Pairs',
+        '% Improved', 'Avg Score Change (%)',
+        'Pre: Beginning', 'Pre: Progressing', 'Pre: Proficient',
+        'Post: Beginning', 'Post: Progressing', 'Post: Proficient'
+      ));
+      smRecs.forEach(rec => {
+        const sm = rec.sm;
+        if (!sm) { lines.push(row(rec.display, 'No data fetched', ...Array(11).fill(''))); return; }
+        lines.push(row(
+          rec.display, sm.scholars, sm.pairs, sm.withBoth,
+          sm.pctImproved !== null ? sm.pctImproved + '%' : '',
+          sm.avgGain     !== null ? sm.avgGain     + '%' : '',
+          sm.prePl.Beginning, sm.prePl.Progressing, sm.prePl.Proficient,
+          sm.postPl.Beginning, sm.postPl.Progressing, sm.postPl.Proficient
+        ));
+      });
+      lines.push('');
+
+      // Section 4b: per-scholar detail
+      lines.push(row('SECTION 4B -- STANDARDS MASTERY SCHOLAR DETAIL'));
+      lines.push(row(
+        'Apprentice', 'Scholar', 'Grade', 'Assessment',
+        'Pre Score (%)', 'Pre Placement',
+        'Post Score (%)', 'Post Placement',
+        'Score Change (%)', 'Direction'
+      ));
+      smRecs.forEach(rec => {
+        const sm = rec.sm;
+        if (!sm || !sm.rawPairs) return;
+        const detailPairs = sm.rawPairs
+          .filter(p => p.formA && p.formB)
+          .sort((a,b) => (parseInt(a.grade)||99) - (parseInt(b.grade)||99) ||
+                         ((a.formA||a.formB).lastName+'').localeCompare((b.formA||b.formB).lastName+''));
+        detailPairs.forEach(p => {
+          const src   = p.formA || p.formB;
+          const gain  = Math.round((p.formB.score - p.formA.score) * 10) / 10;
+          lines.push(row(
+            rec.display,
+            src.firstName + ' ' + src.lastName,
+            p.grade, p.asmBase,
+            p.formA.score, p.formA.placement,
+            p.formB.score, p.formB.placement,
+            gain, p.formB.direction
+          ));
+        });
+      });
+      lines.push('');
+    }
 
     // UTF-8 BOM for Excel compatibility
     return '﻿' + lines.join('\n');
