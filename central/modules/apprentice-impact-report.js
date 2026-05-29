@@ -1133,6 +1133,18 @@
       const sessSet  = sessionSets && sessionSets[display];
       const hasSess  = sessSet && sessSet.size > 0;
 
+      // Two-pass B2 gate: pre-count how many district rows match via B1 (session set).
+      // If ≥1 scholar matched by session name → sessions are active for this subject,
+      // so B2 is suppressed (prevents whole-district flooding, e.g. Katrina/Gloucester).
+      // If 0 matched → Pearl session names don't align with iReady names for this
+      // subject → B2 fires as school-level fallback (e.g. Alexandra/Penns Grove Math).
+      const b1MatchCount = hasSess ? irlabRows.filter(r => {
+        if (!filterFn(r)) return false;
+        const n = normName(r.scholarName);
+        return n && inScholarSet(sessSet, n);
+      }).length : 0;
+      const useB2 = !isMulti && (b1MatchCount === 0);
+
       irlabRows.forEach(row => {
         if (!filterFn(row)) return;
 
@@ -1197,10 +1209,11 @@
           // for Alexandra Cristescu when Pearl sessions are recorded by subject).
         }
 
-        // B2: school-level fallback — only for single-apprentice schools.
-        //     Reached when: (a) no session data, or (b) session data exists but
-        //     scholar name did not match (single-apprentice only — see B1 above).
-        if (!isMulti) {
+        // B2: school-level fallback — single-apprentice schools only, and only
+        //     when B1 matched zero scholars for this subject (useB2 pre-computed above).
+        //     Suppressed when sessions already identified real scholars (Katrina/Gloucester).
+        //     Active when Pearl names don't align with iReady names (Alexandra/Math).
+        if (useB2) {
           byAppr[display].push(row);
           return;
         }
