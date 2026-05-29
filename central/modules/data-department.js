@@ -1573,7 +1573,12 @@
         const isELA = file.name.toLowerCase().includes('ela') ||
           Object.keys(rawRows[0]||{}).some(k=>k.toLowerCase().includes('phonics')||k.toLowerCase().includes('vocabulary'));
         const subject = (key==='ela'||key==='elaRep') ? 'ELA' : isELA ? 'ELA' : 'Math';
-        const normalized = rawRows.map(r => normalizeRow(r, subject));
+        // Detect student-level multi-row format (Norming Window or Baseline Diagnostic columns)
+        const firstKeys = Object.keys(rawRows[0]||{}).map(k=>k.toLowerCase().replace(/[^a-z0-9]/g,'_'));
+        const isStudentLevel = firstKeys.some(k => k.includes('norming_window') || k.includes('baseline_diagnostic') || k.includes('overall_scale_score'));
+        const normalized = isStudentLevel
+          ? _normalize2526StudentRows(rawRows, subject)
+          : rawRows.map(r => normalizeRow(r, subject));
         _staged[key] = normalized;
 
         // Update slot UI
