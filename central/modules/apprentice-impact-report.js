@@ -1173,7 +1173,8 @@
             for (const t of knownTutors) {
               if (resolveAppr(t, lut) === display) { byAppr[display].push(row); return; }
             }
-            return; // tutors known but none match → skip
+            if (isMulti) return; // multi-appr: known tutors but none match → belongs elsewhere
+            // Single-appr: tutors are school classroom teachers (non-NJTC), fall through to B1/B2
           }
         }
 
