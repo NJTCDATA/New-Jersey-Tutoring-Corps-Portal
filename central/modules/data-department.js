@@ -934,10 +934,28 @@
       // student in the EOY tab, find their existing longitudinal row by scholarId
       // and copy baseScore/springScore if they're currently null.
       if (window._iready2526Source !== 'manual') {
-        var _eoyItem = snap2526Results.find(function(i){ return i && i.subj === 'Combined'; });
-        if (_eoyItem && _eoyItem.text) {
-          var _eoyRaw = _normalize2526StudentRows(parseCSV(_eoyItem.text), 'Math')
-                          .concat(_normalize2526StudentRows(parseCSV(_eoyItem.text), 'ELA'));
+        // Gather all snap2526 items for backfill: Combined tab, plus per-subject ELA/Math tabs
+        // (the ELA and Math student-level tabs contain Norming Window + Overall Scale Score per row)
+        var _eoyItem    = snap2526Results.find(function(i){ return i && i.subj === 'Combined'; });
+        var _elaTabItem = snap2526Results.find(function(i){ return i && i.subj === 'ELA'; });
+        var _mathTabItem= snap2526Results.find(function(i){ return i && i.subj === 'Math'; });
+        var _hasBackfillData = (_eoyItem && _eoyItem.text) ||
+                               (_elaTabItem && _elaTabItem.text) ||
+                               (_mathTabItem && _mathTabItem.text);
+        if (_hasBackfillData) {
+          var _eoyRaw = [];
+          if (_eoyItem && _eoyItem.text) {
+            _eoyRaw = _eoyRaw.concat(
+              _normalize2526StudentRows(parseCSV(_eoyItem.text), 'Math'),
+              _normalize2526StudentRows(parseCSV(_eoyItem.text), 'ELA')
+            );
+          }
+          if (_elaTabItem && _elaTabItem.text) {
+            _eoyRaw = _eoyRaw.concat(_normalize2526StudentRows(parseCSV(_elaTabItem.text), 'ELA'));
+          }
+          if (_mathTabItem && _mathTabItem.text) {
+            _eoyRaw = _eoyRaw.concat(_normalize2526StudentRows(parseCSV(_mathTabItem.text), 'Math'));
+          }
           // Build lookup maps from EOY tab: by (subject+id) primary, (subject+normname) fallback
           var _eoyById   = {};
           var _eoyByName = {};
@@ -1573,12 +1591,7 @@
         const isELA = file.name.toLowerCase().includes('ela') ||
           Object.keys(rawRows[0]||{}).some(k=>k.toLowerCase().includes('phonics')||k.toLowerCase().includes('vocabulary'));
         const subject = (key==='ela'||key==='elaRep') ? 'ELA' : isELA ? 'ELA' : 'Math';
-        // Detect student-level multi-row format (Norming Window or Baseline Diagnostic columns)
-        const firstKeys = Object.keys(rawRows[0]||{}).map(k=>k.toLowerCase().replace(/[^a-z0-9]/g,'_'));
-        const isStudentLevel = firstKeys.some(k => k.includes('norming_window') || k.includes('baseline_diagnostic') || k.includes('overall_scale_score'));
-        const normalized = isStudentLevel
-          ? _normalize2526StudentRows(rawRows, subject)
-          : rawRows.map(r => normalizeRow(r, subject));
+        const normalized = rawRows.map(r => normalizeRow(r, subject));
         _staged[key] = normalized;
 
         // Update slot UI
