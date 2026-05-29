@@ -990,21 +990,16 @@
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
   // Tier 1: instructor field in MOY CSV matches apprentice name
-  // Tier 2: session-confirmed scholar name (Pearl SESS+ATT join — most precise)
-  // Tier 3: single-apprentice school-level fallback (only rows not claimed by
-  //         any session-set — prevents over-attribution of whole-school data)
+  // Tier 2: session-confirmed scholar name — SCHOOL-SCOPED for multi-apprentice
+  //         schools (only checks session sets for apprentices at that MOY school),
+  //         then falls back to global search for single-apprentice schools.
+  // Tier 3: single-apprentice school-level fallback
   // Tier 4: survey-confirmed scholar name match (last resort)
-  //
-  // Session sets run BEFORE school-level to prevent school map collisions:
-  // e.g., "iLearn Paterson" + "iLearn Paterson MS" both map to the same iReady
-  // school; session sets correctly split students between Carlos Jacho, Linda Fenty,
-  // and Norelis Ramirez rather than collapsing them all to one school entry.
   function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge, sessionIdMap) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
-    // Build school → apprentice map (iLearn single-appr schools only — used as
-    // fallback only when session data doesn't cover a row)
+    // Build school → apprentice map (iLearn single-appr schools only — for Tier 3)
     const schoolToAppr = {};
     TAP_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
@@ -1013,6 +1008,21 @@
       if (!ILEARN_SCHOOLS.has(school))            return;
       const names = MOY_SCHOOL_MAP[school] || [];
       names.forEach(sn => { schoolToAppr[sn] = display; });
+    });
+
+    // Build school → [all apprentices] map for multi-apprentice iLearn schools.
+    // Used in Tier 2 to restrict session-name search to only the apprentices who
+    // actually work at a given school — prevents cross-school name collisions where
+    // a common name (e.g. "Grace Perez") in one school's session set would steal
+    // scholars from a different school's apprentice (e.g. Dr. Renee Davis at Clifton).
+    const schoolApprList = {}; // lowercase MOY school name → [canonical apprentice names]
+    TAP_APPRENTICES.forEach(([display,, school]) => {
+      if (!ILEARN_SCHOOLS.has(school)) return;
+      const moyNames = MOY_SCHOOL_MAP[school] || [];
+      moyNames.forEach(sn => {
+        if (!schoolApprList[sn]) schoolApprList[sn] = [];
+        if (!schoolApprList[sn].includes(display)) schoolApprList[sn].push(display);
+      });
     });
 
     // Pre-compute which apprentices have non-empty session sets
@@ -1024,17 +1034,12 @@
 
     moyRows.forEach(row => {
       const scholarN = normName(row.scholarName);
+      const schoolLc = (row.school || '').toLowerCase().trim();
 
       // Tier 0: MOY CSV User Name = Pearl student login ID → sessionIdMap (exact join)
-      // The iReady "User Name" column stores the same login ID used in Pearl (SESS col 16).
-      // If the MOY export includes this column, it provides a lossless attribution with
-      // zero name-matching required — resolves Dr. Renee Davis / LaShanee Davis and all
-      // other cases where Pearl display names differ from iReady legal/assessment names.
       if (row._pearlId && sessionIdMap) {
         const appr = sessionIdMap[row._pearlId];
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
-        // If _pearlId exists but isn't in sessionIdMap, fall through to name-based tiers
-        // (student may have had a session with a non-TAP teacher, or no session recorded)
       }
 
       // Tier 1: instructor name in MOY CSV (direct attribution)
@@ -1043,35 +1048,43 @@
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 1.5: Pearl ID bridge — resolves cross-system name mismatches for iLearn.
-      // Joins: Pearl SESS STU_IDS → IRLAB _pearlId → iReady scholar name in MOY CSV.
-      // More precise than session name-set matching because it uses the IRLAB as
-      // an exact name-normalization bridge rather than fuzzy display-name comparison.
-      // (e.g. Pearl "Juan Smith" ↔ iReady "Juan M. Smith" — both share the same _pearlId)
+      // Tier 1.5: Pearl ID bridge
       if (scholarN && moyIdBridge) {
         const appr = moyIdBridge[scholarN] || moyIdBridge[normNameFL(scholarN)];
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 2: session-confirmed scholar name (Pearl SESS+ATT join)
-      // Runs BEFORE school-level so multi-appr school collisions are resolved
-      // by actual session data rather than last-writer-wins school map.
+      // Tier 2: session-confirmed scholar name.
+      // For multi-apprentice schools: only search the session sets of apprentices
+      // assigned to THIS specific school — avoids false matches where a common name
+      // at one school steals a scholar from an apprentice at a different school.
       if (scholarN && anySessionData) {
-        for (const [appr, nameSet] of Object.entries(sessionSets || {})) {
-          if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
+        const scopedApprs = schoolApprList[schoolLc]; // apprentices at this MOY school
+        const isMultiAtSchool = scopedApprs && scopedApprs.length > 1;
+
+        if (isMultiAtSchool) {
+          // Restricted search: only check the session sets for THIS school's apprentices
+          for (const appr of scopedApprs) {
+            const nameSet = sessionSets[appr];
+            if (nameSet && inScholarSet(nameSet, scholarN)) {
+              byAppr[appr].push(row); return;
+            }
+          }
+          // Multi-apprentice school, no session match → unattributed (don't fall to global)
+          return;
+        } else {
+          // Single-apprentice school or unknown school: global search
+          for (const [appr, nameSet] of Object.entries(sessionSets || {})) {
+            if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
+          }
         }
       }
 
       // Tier 3: single-apprentice school map fallback
-      // Only used for rows not claimed by any session set above.
-      const schoolLc = (row.school || '').toLowerCase().trim();
       const apprBySchool = schoolToAppr[schoolLc];
       if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
 
       // Tier 4: survey-confirmed scholar name (last resort)
-      // Uses inScholarSet (same robust helper as Tier 2) so that name
-      // variations between iReady and Pearl survey are handled consistently:
-      // exact normalized match → first+last fallback → set-scan on first+last.
       if (scholarN && surveyScholarSets) {
         for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
           if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
