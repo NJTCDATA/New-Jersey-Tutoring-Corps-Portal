@@ -6219,11 +6219,31 @@
 
     // ── Standards Mastery helpers ─────────────────────────────────────────────
     function _smParseRow(raw) {
+      // Class Teacher(s): "Last, First; Last2, First2" — primary-teacher field,
+      // but only shows the "grading" teacher, not all instructors in the class.
       const ct = raw['Class Teacher(s)'] || '';
-      const teachers = ct.split(';').map(t => {
+      const teachersFromCT = ct.split(';').map(t => {
         const parts = t.trim().split(',');
         return parts.length >= 2 ? (parts[1].trim() + ' ' + parts[0].trim()) : t.trim();
       }).filter(Boolean);
+
+      // Class(es): "First Last - School - Grade - Subject; ..." — contains ALL
+      // instructors (including Apollo Monroy-Polanco when Class Teacher only shows Carla Borbon).
+      // Extract the name portion before the first " - ".
+      const classes = raw['Class(es)'] || '';
+      const teachersFromClasses = classes.split(';').map(entry => {
+        const dashIdx = entry.indexOf(' - ');
+        return dashIdx > 0 ? entry.slice(0, dashIdx).trim() : '';
+      }).filter(Boolean);
+
+      // Merge both sources, deduplicate by normalized name
+      const seen = new Set();
+      const teachers = [];
+      [...teachersFromClasses, ...teachersFromCT].forEach(t => {
+        const key = t.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (key && !seen.has(key)) { seen.add(key); teachers.push(t); }
+      });
+
       const asmName = raw['Assessment Name'] || '';
       const isFormA = /\bForm A\b/i.test(asmName);
       const isFormB = /\bForm B\b/i.test(asmName);
