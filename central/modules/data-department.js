@@ -938,29 +938,35 @@
         if (_eoyItem && _eoyItem.text) {
           var _eoyRaw = _normalize2526StudentRows(parseCSV(_eoyItem.text), 'Math')
                           .concat(_normalize2526StudentRows(parseCSV(_eoyItem.text), 'ELA'));
-          // Build id → {baseScore, springScore} map from EOY tab
-          var _eoyScores = {};
+          // Build lookup maps from EOY tab: by (subject+id) primary, (subject+normname) fallback
+          var _eoyById   = {};
+          var _eoyByName = {};
+          function _normN2(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
           _eoyRaw.forEach(function(r) {
-            var sid = (r.scholarId || '').trim();
-            if (!sid) return;
-            var key = r.subject + '|' + sid;
-            if (!_eoyScores[key]) _eoyScores[key] = {};
-            if (r.baseScore   !== null) _eoyScores[key].baseScore   = r.baseScore;
-            if (r.springScore !== null) _eoyScores[key].springScore = r.springScore;
+            var sid  = (r.scholarId   || '').trim();
+            var name = _normN2(r.scholarName || '');
+            var scores = {};
+            if (r.baseScore   !== null) scores.baseScore   = r.baseScore;
+            if (r.springScore !== null) scores.springScore = r.springScore;
+            if (!Object.keys(scores).length) return;
+            if (sid)  { var k = r.subject+'|'+sid;  if (!_eoyById[k])   _eoyById[k]   = scores; }
+            if (name) { var k2= r.subject+'|'+name; if (!_eoyByName[k2]) _eoyByName[k2]= scores; }
           });
-          // Backfill missing scale scores into longitudinal rows
+          // Backfill missing scale scores into longitudinal rows — try ID first, then name
           var _backfilled = 0;
           [...IRLAB_DATA.ela, ...IRLAB_DATA.math].forEach(function(r) {
             if ((r.year || '').trim() !== '2025-2026') return;
-            var sid = (r.scholarId || '').trim();
-            if (!sid) return;
-            var key = r.subject + '|' + sid;
-            var src = _eoyScores[key];
+            if (r.baseScore !== null && r.springScore !== null) return; // already complete
+            var sid  = (r.scholarId   || '').trim();
+            var name = _normN2(r.scholarName || '');
+            var src  = (sid  && _eoyById[r.subject+'|'+sid])   ||
+                       (name && _eoyByName[r.subject+'|'+name]) || null;
             if (!src) return;
             if (r.baseScore   === null && src.baseScore   !== undefined) { r.baseScore   = src.baseScore;   _backfilled++; }
             if (r.springScore === null && src.springScore !== undefined) { r.springScore = src.springScore; _backfilled++; }
           });
           if (_backfilled > 0) console.log('[irlab] Score backfill from EOY tab:', _backfilled, 'fields updated');
+          else console.warn('[irlab] Score backfill: 0 fields updated — ID/name mismatch between longitudinal and EOY tab');
         }
         return;
       }

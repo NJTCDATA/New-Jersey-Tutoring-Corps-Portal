@@ -1133,17 +1133,32 @@
       const sessSet  = sessionSets && sessionSets[display];
       const hasSess  = sessSet && sessSet.size > 0;
 
-      // Two-pass B2 gate: pre-count how many district rows match via B1 (session set).
-      // If ≥1 scholar matched by session name → sessions are active for this subject,
-      // so B2 is suppressed (prevents whole-district flooding, e.g. Katrina/Gloucester).
-      // If 0 matched → Pearl session names don't align with iReady names for this
-      // subject → B2 fires as school-level fallback (e.g. Alexandra/Penns Grove Math).
-      const b1MatchCount = hasSess ? irlabRows.filter(r => {
+      // Two-pass B2 gate: check whether ANY filtered row for this subject is captured
+      // by an early path (Tier 0, Path A instructor, tutors, or B1 session name).
+      // If ≥1 row would be captured early → B2 is suppressed (prevents whole-district
+      // flooding when sessions are working, e.g. Katrina/Gloucester ELA and Math).
+      // If 0 rows captured → Pearl data doesn't name-match iReady for this subject
+      // → B2 fires as fallback (e.g. Alexandra/Penns Grove Math).
+      const hasAnyEarlyCapture = !isMulti && irlabRows.some(r => {
         if (!filterFn(r)) return false;
+        // Tier 0: Pearl student ID
+        const pid = (r._pearlId || '').trim();
+        if (pid && sessionIdMap && sessionIdMap[pid] === display) return true;
+        // Path A: IRLAB instructor field resolves to this apprentice
+        const inst = (r.instructor || '').trim();
+        if (inst && inst !== 'Unidentified' && inst !== 'Unknown' &&
+            resolveAppr(inst, lut) === display) return true;
+        // Path B tutors array
+        if (r.tutors && r.tutors.length) {
+          const kt = r.tutors.filter(t => t && t !== 'Unidentified' && t !== 'Unknown');
+          if (kt.some(t => resolveAppr(t, lut) === display)) return true;
+        }
+        // B1: session set name match
+        if (!hasSess) return false;
         const n = normName(r.scholarName);
         return n && inScholarSet(sessSet, n);
-      }).length : 0;
-      const useB2 = !isMulti && (b1MatchCount === 0);
+      });
+      const useB2 = !isMulti && !hasAnyEarlyCapture;
 
       irlabRows.forEach(row => {
         if (!filterFn(row)) return;
