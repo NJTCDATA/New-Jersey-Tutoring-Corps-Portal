@@ -928,7 +928,42 @@
       _irlRepeatIndex = null;
       _irlManual2526Rows = [];
 
-      if (window._iready2526Source !== 'manual') return;
+      // Even when the longitudinal sheet has 25-26 data, the EOY student-level tab
+      // (IRLAB_2526_GIDS.eoy) carries per-row Overall Scale Score values that the
+      // longitudinal format may not export. Run a score-backfill pass: for each
+      // student in the EOY tab, find their existing longitudinal row by scholarId
+      // and copy baseScore/springScore if they're currently null.
+      if (window._iready2526Source !== 'manual') {
+        var _eoyItem = snap2526Results.find(function(i){ return i && i.subj === 'Combined'; });
+        if (_eoyItem && _eoyItem.text) {
+          var _eoyRaw = _normalize2526StudentRows(parseCSV(_eoyItem.text), 'Math')
+                          .concat(_normalize2526StudentRows(parseCSV(_eoyItem.text), 'ELA'));
+          // Build id → {baseScore, springScore} map from EOY tab
+          var _eoyScores = {};
+          _eoyRaw.forEach(function(r) {
+            var sid = (r.scholarId || '').trim();
+            if (!sid) return;
+            var key = r.subject + '|' + sid;
+            if (!_eoyScores[key]) _eoyScores[key] = {};
+            if (r.baseScore   !== null) _eoyScores[key].baseScore   = r.baseScore;
+            if (r.springScore !== null) _eoyScores[key].springScore = r.springScore;
+          });
+          // Backfill missing scale scores into longitudinal rows
+          var _backfilled = 0;
+          [...IRLAB_DATA.ela, ...IRLAB_DATA.math].forEach(function(r) {
+            if ((r.year || '').trim() !== '2025-2026') return;
+            var sid = (r.scholarId || '').trim();
+            if (!sid) return;
+            var key = r.subject + '|' + sid;
+            var src = _eoyScores[key];
+            if (!src) return;
+            if (r.baseScore   === null && src.baseScore   !== undefined) { r.baseScore   = src.baseScore;   _backfilled++; }
+            if (r.springScore === null && src.springScore !== undefined) { r.springScore = src.springScore; _backfilled++; }
+          });
+          if (_backfilled > 0) console.log('[irlab] Score backfill from EOY tab:', _backfilled, 'fields updated');
+        }
+        return;
+      }
 
       // ── Cert status lookup from HR Master List ────────────────────────────
       // HR_EMPS uses shorthand keys: n=name, r=role.
