@@ -158,7 +158,12 @@
     'Gloucester': r => {
       const d = (r.district || '').toLowerCase();
       const s = (r.school   || '').toLowerCase();
-      return d.includes('gloucester') || s.includes('gloucester') || s.includes('loring flemming');
+      // Require "gloucester township" specifically — avoids matching Gloucester City,
+      // Gloucester County, or other "gloucester" districts that share the county name.
+      return d.includes('gloucester township') ||
+             s.includes('loring flemming') ||
+             (s.includes('gloucester') && !d.includes('gloucester city') &&
+              !d.includes('gloucester county') && !d.includes('south gloucester'));
     },
     'Penns Grove': r => {
       const d = (r.district || '').toLowerCase();
@@ -1184,21 +1189,20 @@
             byAppr[display].push(row);
             return;
           }
-          // Multi-apprentice: stop here — no school-level fallback.
-          // Two or more NJTC apprentices share this school, so a session miss
-          // means this scholar belongs to the other apprentice (or is unmatched).
-          if (isMulti) return;
-          // Single-apprentice: fall through to B2.
-          // There is no other NJTC apprentice at this school, so any IRLAB
-          // scholar not yet in a Pearl session still belongs to this apprentice.
-          // This ensures Math scholars appear even when only ELA sessions are
-          // recorded in Pearl (e.g. Penns Grove — Alexandra Cristescu).
+          // Multi-apprentice OR single-apprentice with session data: stop here.
+          // When Pearl sessions are present, only session-confirmed scholars are
+          // attributed. A session miss means this scholar is not in this apprentice's
+          // caseload — prevents whole-school over-attribution (e.g. Gloucester/Katrina
+          // Valentin: Pearl sessions cover her ~20 scholars; the other 200+ students
+          // at the school should not fall through).
+          return;
         }
 
-        // B2: school-level fallback — only for single-apprentice schools.
-        //     Reached when: (a) no session data, or (b) session data exists but
-        //     scholar name did not match (single-apprentice only — see B1 above).
-        if (!isMulti) {
+        // B2: school-level fallback — ONLY when there is no session data at all.
+        //     Reached when hasSess is false (Pearl returned no sessions for this
+        //     apprentice). Attributes all district-filtered rows to the single
+        //     apprentice at this school as a last resort.
+        if (!isMulti && !hasSess) {
           byAppr[display].push(row);
           return;
         }
