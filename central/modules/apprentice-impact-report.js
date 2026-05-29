@@ -39,10 +39,11 @@
   const MOY_MATH_GID = '186448147';
   const MOY_URL      = gid => `https://docs.google.com/spreadsheets/d/${MOY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
 
-  // Standards Mastery — Middlesex County STEM Charter School
+  // Standards Mastery — all grades combined into one tab (gid=457164791)
   const SM_SHEET_ID = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
-  const SM_GRADES   = ['3','4','5','7','8'];
-  const SM_TAB_URL  = grade => `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Grade%20${grade}`;
+  const SM_2PACX    = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
+  const SM_ALL_GID  = '457164791';
+  const SM_ALL_URL  = `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_ALL_GID}`;
 
   // ── Placement levels ──────────────────────────────────────────────────────
   const PLACEMENT_ORDER = [
@@ -104,6 +105,21 @@
     ['Subul Sadiq',             'NJ2026000469', 'iLearn Hudson',               'NE', 'Subul Sadiq'],
     ['Theodore Mills',          'NJ2025004828', 'Long Term Sub',               'NE', 'Theodore Mills'],
   ];
+
+  // ── Hardcoded scholar seeds — supplement session attribution when Pearl ID
+  //    matching fails (e.g. iReady legal names differ from Pearl display names) ─
+  const HARDCODED_SCHOLAR_SEEDS = {
+    'Dr. Renee Davis': [
+      'adam gonzalez', 'alexandra velez', 'alison blanco', 'elias rivera',
+      'emma arriaga', 'estrella rotte', 'grace perez', 'hamza mosleh',
+      'ishmael echavarria', 'jawad alatiyat', 'jeriel del toro ortega',
+      'jonathan facundo-hernandez', 'jonathan facundo hernandez',
+      'julian alas', 'kaycee corniffe', 'kaylin grullon', 'leah cody',
+      'lujain abuhadba', 'nadeen sadeh', 'nesreen atiyat',
+      'rylein andrade-then', 'rylein andrade then',
+      'sebastian hernandez', 'sophia figuereo mendoza', 'sophia roncati', 'talia alva',
+    ],
+  };
 
   // ── Pearl miss-reason classification (matches pearl-data.js exactly) ─────
   // Only these miss reasons count as a personal tutor absence.
@@ -194,8 +210,11 @@
     'iLearn Paterson Silk City': ['paterson silk city primary'],
     'iLearn Hudson MS':          ['hudson middle school'],
     'iLearn Hudson':             ['hudson ascs elementary', 'hudson middle school'],
-    'iLearn Clifton':            ['clifton high', 'passaic clifton middle', 'passaic clifton elementary'],
-    'iLearn Clifton MS':         ['passaic clifton middle', 'clifton high'],
+    'iLearn Clifton':            ['clifton high', 'passaic clifton middle', 'passaic clifton elementary',
+                                  'clifton middle', 'clifton ms', 'passaic clifton ms'],
+    'iLearn Clifton MS':         ['passaic clifton middle', 'clifton high', 'clifton middle',
+                                  'clifton ms', 'passaic clifton ms', 'passaic clifton middle school',
+                                  'ilearn clifton ms'],
   };
 
   // Build multi-apprentice school set (TAP-key level, not MOY-school level)
@@ -271,6 +290,8 @@
       'shahzaeb ahmad':         'Shahzeeb Ahmad',
       'shazaeb ahmad':          'Shahzeeb Ahmad',
       'sharon kessel':          'Sharon K Kessel',
+      // Apollo: Pearl may omit the hyphen in "Monroy-Polanco"
+      'apollo monroy polanco':  'Apollo Monroy-Polanco',
     });
     return lut;
   }
@@ -424,7 +445,7 @@
   }
 
   // ── Standards Mastery helpers ─────────────────────────────────────────────
-  function normSmRow(raw, grade) {
+  function normSmRow(raw) {
     const ct = raw['Class Teacher(s)'] || '';
     const teachers = ct.split(';').map(t => {
       const parts = t.trim().split(',');
@@ -433,12 +454,13 @@
     const asmName = raw['Assessment Name'] || '';
     const isFormA = /\bForm A\b/i.test(asmName);
     const isFormB = /\bForm B\b/i.test(asmName);
-    const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').trim();
+    const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').replace(/:\s*Grade \d+\s*/i, '').trim();
     return {
       studentId:  raw['Student ID'] || '',
       lastName:   raw['Last Name']  || '',
       firstName:  raw['First Name'] || '',
-      grade:      String(grade),
+      grade:      String(raw['Student Grade'] || '').trim(),
+      subject:    raw['Subject'] || 'Reading',
       asmName, asmBase, isFormA, isFormB,
       score:      parseFloat(raw['Assessment Score (%)']) || 0,
       placement:  raw['Relative Placement']  || '',
@@ -563,14 +585,15 @@
       }
 
       // ── 2.5. Fetch Standards Mastery data (Middlesex STEM) ──────────────
+      // All grades combined into one tab on the live Google Sheet.
       setStatus('Fetching Standards Mastery data…'); setProgress(32);
       let smRows = [];
       try {
-        const smResults = await Promise.all(SM_GRADES.map(async grade => {
-          const text = await cachedFetch(SM_TAB_URL(grade), 'SM Grade ' + grade);
-          return parseCsv(text).filter(r => r['Student ID']).map(r => normSmRow(r, grade));
-        }));
-        smRows = smResults.flat().filter(r => r.isFormA || r.isFormB);
+        const smText = await cachedFetch(SM_ALL_URL, 'SM All Grades');
+        smRows = parseCsv(smText)
+          .filter(r => r['Student ID'])
+          .map(r => normSmRow(r))
+          .filter(r => r.isFormA || r.isFormB);
         console.log('[APIR] Standards Mastery rows:', smRows.length,
           '— grades:', [...new Set(smRows.map(r=>r.grade))].sort().join(', '));
       } catch(err) {
@@ -924,6 +947,20 @@
       (studentIds || []).forEach(pid => { if (!idMap[pid]) idMap[pid] = canon; });
     });
 
+    // Supplement session sets with hardcoded fallback seeds for apprentices where
+    // Pearl ID matching may fail due to cross-system name differences (e.g. iReady
+    // legal name vs. Pearl display name for iLearn Clifton MS scholars).
+    Object.entries(HARDCODED_SCHOLAR_SEEDS).forEach(([appr, names]) => {
+      if (!sets[appr]) return;
+      names.forEach(name => {
+        const nn = normName(name);
+        if (!nn) return;
+        sets[appr].add(nn);
+        const fl = normNameFL(nn);
+        if (fl && fl !== nn) sets[appr].add(fl);
+      });
+    });
+
     // Debug summary
     const summary = Object.entries(sets)
       .filter(([, s]) => s.size > 0)
@@ -1083,13 +1120,19 @@
         // ── Path A: IRLAB instructor field is authoritative ──────────────
         const instVal = (row.instructor || '').trim();
         if (instVal && instVal !== 'Unidentified' && instVal !== 'Unknown') {
-          // Instructor is set — honor it.  Either it matches this apprentice
-          // or it belongs to a different teacher; either way don't fall to school.
           const resolved = resolveAppr(instVal, lut);
           if (resolved === display) {
             byAppr[display].push(row);
+            return;
           }
-          return;  // skip for all other instructor values (non-NJTC teachers, wrong apprentice)
+          // Multi-apprentice school: another NJTC apprentice or non-NJTC instructor
+          // means this row belongs elsewhere — skip it entirely.
+          if (isMulti) return;
+          // Single-apprentice school: iReady stores the classroom teacher name, not
+          // the NJTC tutor. A non-NJTC instructor name does NOT exclude the scholar —
+          // fall through to session/school-level attribution below.
+          // (This fixes Penns Grove Math scholars being skipped because iReady lists
+          // the school's Math teacher rather than Alexandra Cristescu as instructor.)
         }
 
         // ── Path B: instructor field empty / Unidentified ────────────────

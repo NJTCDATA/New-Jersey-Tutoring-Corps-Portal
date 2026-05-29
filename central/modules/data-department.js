@@ -5367,16 +5367,19 @@
     let _moyComputed = null;
 
     // ── Standards Mastery (SM) — Middlesex County STEM Charter School ─────────
+    // All grade levels combined into one tab (gid=457164791) on the live sheet.
     const SM_SHEET_ID  = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
-    const SM_GRADES    = ['3','4','5','7','8'];
-    const SM_TAB_URL   = grade => `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Grade%20${grade}`;
-    const SM_CACHE_KEY = 'njtc_sm_v1';
+    const SM_2PACX     = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
+    const SM_ALL_GID   = '457164791';
+    const SM_ALL_URL   = `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_ALL_GID}`;
+    const SM_CACHE_KEY = 'njtc_sm_v2'; // bumped — grade now from data column, not tab
     const SM_CACHE_TTL = 2 * 60 * 60 * 1000;
     let SM_DATA        = { rows: [], pairs: [], loaded: false, ts: null };
     let _smLoading     = false;
     let _smError       = null;
-    let _smFilterGrade = 'all';
-    let _smFilterAppr  = 'all';
+    let _smFilterGrade    = 'all';
+    let _smFilterInstr    = 'all';
+    let _smFilterStandard = 'all';
 
     // ── MOY row normalizer — maps winter_ prefix fields ───────────────────────
     function normalizeMOYRow(r, subject) {
@@ -6215,7 +6218,7 @@
     }
 
     // ── Standards Mastery helpers ─────────────────────────────────────────────
-    function _smParseRow(raw, grade) {
+    function _smParseRow(raw) {
       const ct = raw['Class Teacher(s)'] || '';
       const teachers = ct.split(';').map(t => {
         const parts = t.trim().split(',');
@@ -6224,13 +6227,14 @@
       const asmName = raw['Assessment Name'] || '';
       const isFormA = /\bForm A\b/i.test(asmName);
       const isFormB = /\bForm B\b/i.test(asmName);
-      const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').trim();
+      const asmBase = asmName.replace(/\s*Form [AB]\s*/i, '').replace(/:\s*Grade \d+\s*/i, '').trim();
       return {
         studentId:     raw['Student ID'] || '',
         lastName:      raw['Last Name']  || '',
         firstName:     raw['First Name'] || '',
-        grade:         String(grade),
+        grade:         String(raw['Student Grade'] || '').trim(),
         school:        raw['School']    || '',
+        subject:       raw['Subject']   || 'Reading',
         asmName, asmBase, isFormA, isFormB,
         score:         parseFloat(raw['Assessment Score (%)']) || 0,
         placement:     raw['Relative Placement']  || '',
@@ -6271,16 +6275,15 @@
       _smError   = null;
       renderLab();
       try {
-        const results = await Promise.all(SM_GRADES.map(async grade => {
-          const url  = SM_TAB_URL(grade);
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for Grade ' + grade);
-          const text = await resp.text();
-          return parseCSV(text)
-            .filter(r => r['Student ID'])
-            .map(r  => _smParseRow(r, grade));
-        }));
-        const allRows  = results.flat().filter(r => r.isFormA || r.isFormB);
+        // All grades combined into one tab on the live sheet
+        const url  = SM_ALL_URL + (force ? '&t=' + Date.now() : '');
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ' fetching Standards Mastery');
+        const text = await resp.text();
+        const allRows = parseCSV(text)
+          .filter(r => r['Student ID'])
+          .map(r => _smParseRow(r))
+          .filter(r => r.isFormA || r.isFormB);
         SM_DATA.rows   = allRows;
         SM_DATA.pairs  = _smBuildPairs(allRows);
         SM_DATA.loaded = true;
@@ -6302,22 +6305,38 @@
       renderLab();
     }
 
-    function smSetFilterGrade(g) { _smFilterGrade = g; renderLab(); }
-    function smSetFilterAppr(a)  { _smFilterAppr  = a; renderLab(); }
+    function smSetFilterGrade(g)    { _smFilterGrade    = g; const m = document.getElementById('smModal'); if(m) _smRenderModalFilters(); }
+    function smSetFilterInstr(a)    { _smFilterInstr    = a; const m = document.getElementById('smModal'); if(m) _smRenderModalFilters(); }
+    function smSetFilterStandard(s) { _smFilterStandard = s; const m = document.getElementById('smModal'); if(m) _smRenderModalFilters(); }
 
-    function smShowModal(apprName) {
-      const PLACE_COLOR = { 'Beginning':'#dc2626','Progressing':'#d97706','Proficient':'#0d6e3a' };
+    function _smGetFilteredRows() {
+      const allRows = SM_DATA.rows;
+      const instrSet = new Set();
+      allRows.forEach(r => r.teachers.forEach(t => { if (t) instrSet.add(t); }));
+      const instructors = [...instrSet].sort();
+      const standardSet = new Set();
+      allRows.forEach(r => { if (r.asmBase) standardSet.add(r.asmBase); });
+      const standards = [...standardSet].sort();
+      const grades = [...new Set(allRows.map(r => r.grade))].sort((a,b)=>parseInt(a)-parseInt(b));
+
       let pairs = SM_DATA.pairs;
-      if (apprName && apprName !== 'all') {
+      if (_smFilterInstr !== 'all') {
         pairs = pairs.filter(p => {
           const rows = [p.formA, p.formB].filter(Boolean);
-          return rows.some(r => r.teachers.some(t => t === apprName));
+          return rows.some(r => r.teachers.includes(_smFilterInstr));
         });
       }
       if (_smFilterGrade !== 'all') {
         pairs = pairs.filter(p => p.grade === _smFilterGrade);
       }
+      if (_smFilterStandard !== 'all') {
+        pairs = pairs.filter(p => p.asmBase === _smFilterStandard);
+      }
+      return { pairs, instructors, standards, grades };
+    }
 
+    function _smBuildTable(pairs) {
+      const PLACE_COLOR = { 'Beginning':'#dc2626','Progressing':'#d97706','Proficient':'#0d6e3a' };
       const rows = pairs.map(p => {
         const src  = p.formA || p.formB || p;
         const preS = p.formA ? p.formA.score : null;
@@ -6327,6 +6346,7 @@
           name:   src.firstName + ' ' + src.lastName,
           grade:  p.grade,
           asmBase: p.asmBase,
+          subject: src.subject || 'Reading',
           appr:   src.primaryTeacher,
           preScore: preS, postScore: posS, gain,
           prePl:  p.formA ? p.formA.placement : '',
@@ -6335,21 +6355,22 @@
         };
       }).sort((a,b) => (parseInt(a.grade)||99) - (parseInt(b.grade)||99) || a.name.localeCompare(b.name));
 
-      const withData   = rows.filter(r => r.gain !== null);
-      const improved   = withData.filter(r => r.gain > 0).length;
-      const avgGain    = withData.length > 0 ? Math.round(withData.reduce((s,r)=>s+r.gain,0)/withData.length*10)/10 : null;
-      const pctImp     = withData.length > 0 ? Math.round(improved/withData.length*100) : null;
+      const withData = rows.filter(r => r.gain !== null);
+      const improved = withData.filter(r => r.gain > 0).length;
+      const avgGain  = withData.length > 0 ? Math.round(withData.reduce((s,r)=>s+r.gain,0)/withData.length*10)/10 : null;
+      const pctImp   = withData.length > 0 ? Math.round(improved/withData.length*100) : null;
 
       const tableRows = rows.map(r => {
-        const gainColor  = r.gain === null ? '#94a3b8' : r.gain > 0 ? '#0d6e3a' : r.gain < 0 ? '#dc2626' : '#64748b';
-        const dirIcon    = r.dir === 'Increase' ? '▲' : r.dir === 'Decrease' ? '▼' : r.dir === 'Same' ? '→' : '';
-        const dirColor   = r.dir === 'Increase' ? '#0d6e3a' : r.dir === 'Decrease' ? '#dc2626' : '#64748b';
-        const prePlC     = PLACE_COLOR[r.prePl]  || '#64748b';
-        const postPlC    = PLACE_COLOR[r.postPl] || '#64748b';
+        const gainColor = r.gain === null ? '#94a3b8' : r.gain > 0 ? '#0d6e3a' : r.gain < 0 ? '#dc2626' : '#64748b';
+        const dirIcon   = r.dir === 'Increase' ? '▲' : r.dir === 'Decrease' ? '▼' : r.dir === 'Same' ? '→' : '';
+        const dirColor  = r.dir === 'Increase' ? '#0d6e3a' : r.dir === 'Decrease' ? '#dc2626' : '#64748b';
+        const prePlC    = PLACE_COLOR[r.prePl]  || '#64748b';
+        const postPlC   = PLACE_COLOR[r.postPl] || '#64748b';
         return `<tr style="border-bottom:1px solid #f1f5f9">
           <td style="padding:.5rem .625rem;font-weight:500">${esc(r.name)}</td>
           <td style="padding:.5rem .625rem;text-align:center">Gr ${esc(r.grade)}</td>
           <td style="padding:.5rem .625rem;font-size:.75rem;max-width:180px">${esc(r.asmBase)}</td>
+          <td style="padding:.5rem .625rem;font-size:.75rem">${esc(r.subject)}</td>
           <td style="padding:.5rem .625rem;font-size:.75rem">${esc(r.appr)}</td>
           <td style="padding:.5rem .625rem;text-align:center">${r.preScore !== null ? r.preScore+'%' : '—'}</td>
           <td style="padding:.5rem .625rem;text-align:center">${r.postScore !== null ? r.postScore+'%' : '—'}</td>
@@ -6360,64 +6381,118 @@
         </tr>`;
       }).join('');
 
+      return { rows, withData, improved, avgGain, pctImp, tableRows };
+    }
+
+    function _smRenderModalFilters() {
+      const modal = document.getElementById('smModal');
+      if (!modal) return;
+      const { pairs, instructors, standards, grades } = _smGetFilteredRows();
+      const { rows, withData, avgGain, pctImp, tableRows } = _smBuildTable(pairs);
+
+      const selStyle = (active) => `font-size:.8125rem;padding:.3rem .625rem;border-radius:6px;border:1.5px solid ${active?'#7c3aed':'#e2e8f0'};background:${active?'#f5f3ff':'#fff'};color:${active?'#6d28d9':'#475569'};cursor:pointer`;
+
+      const instrSel = `<select onchange="irlab.smSetFilterInstr(this.value)" style="${selStyle(_smFilterInstr!=='all')}">
+        <option value="all"${_smFilterInstr==='all'?' selected':''}>All Instructors</option>
+        ${instructors.map(t=>`<option value="${esc(t)}"${_smFilterInstr===t?' selected':''}>${esc(t)}</option>`).join('')}
+      </select>`;
+
+      const gradeSel = `<select onchange="irlab.smSetFilterGrade(this.value)" style="${selStyle(_smFilterGrade!=='all')}">
+        <option value="all"${_smFilterGrade==='all'?' selected':''}>All Grades</option>
+        ${grades.map(g=>`<option value="${esc(g)}"${_smFilterGrade===g?' selected':''}>Grade ${esc(g)}</option>`).join('')}
+      </select>`;
+
+      const stdSel = `<select onchange="irlab.smSetFilterStandard(this.value)" style="${selStyle(_smFilterStandard!=='all')}">
+        <option value="all"${_smFilterStandard==='all'?' selected':''}>All Standards</option>
+        ${standards.map(s=>`<option value="${esc(s)}"${_smFilterStandard===s?' selected':''}>${esc(s)}</option>`).join('')}
+      </select>`;
+
+      const kpis = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.75rem;margin-bottom:1.25rem" id="smKpis">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${rows.length}</div>
+          <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Assessment Pairs</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'}</div>
+          <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Improved</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</div>
+          <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Avg Score Δ</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
+          <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${withData.length}</div>
+          <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Pre &amp; Post</div>
+        </div>
+      </div>`;
+
+      const body = modal.querySelector('#smModalBody');
+      if (body) body.innerHTML = `
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.25rem;padding:.75rem;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0" id="smFilters">
+          <span style="font-size:.75rem;font-weight:700;color:#475569;margin-right:.25rem">Filter:</span>
+          ${instrSel} ${gradeSel} ${stdSel}
+          ${(_smFilterInstr!=='all'||_smFilterGrade!=='all'||_smFilterStandard!=='all') ?
+            `<button onclick="irlab.smClearFilters()" style="font-size:.75rem;padding:.3rem .625rem;border-radius:6px;border:none;background:#fee2e2;color:#b91c1c;cursor:pointer;font-weight:600">✕ Clear</button>` : ''}
+        </div>
+        ${kpis}
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
+            <thead>
+              <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
+                <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Scholar</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Grade</th>
+                <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Standard</th>
+                <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Subject</th>
+                <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Instructor</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Δ Score</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre Placement</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post Placement</th>
+                <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Direction</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows || '<tr><td colspan="11" style="padding:1.5rem;text-align:center;color:#94a3b8">No data for this selection.</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function smShowModal() {
+      // Reset filters on fresh open so previous selections don't persist unexpectedly
+      _smFilterGrade    = 'all';
+      _smFilterInstr    = 'all';
+      _smFilterStandard = 'all';
+
+      const existing = document.getElementById('smModal');
+      if (existing) existing.remove();
+
       const modalHtml = `
 <div id="smModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto" onclick="if(event.target===this)irlab.smCloseModal()">
-  <div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:1050px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto">
+  <div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem">
       <div>
         <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7c3aed">Standards Mastery · Middlesex County STEM Charter School</div>
-        <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#0a1628;margin-top:.2rem">${apprName && apprName !== 'all' ? esc(apprName) : 'All Apprentices'}</div>
-        <div style="font-size:.8125rem;color:#64748b;margin-top:.2rem">EOY SY 2025–2026 · Reading · Form A = Pre &nbsp;|&nbsp; Form B = Post</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:#0a1628;margin-top:.2rem">All Apprentices — Scholar Details</div>
+        <div style="font-size:.8125rem;color:#64748b;margin-top:.2rem">EOY SY 2025–2026 · Form A = Pre &nbsp;|&nbsp; Form B = Post · Live from Google Sheets</div>
       </div>
       <button onclick="irlab.smCloseModal()" style="background:none;border:none;font-size:1.25rem;cursor:pointer;color:#94a3b8;padding:.25rem">✕</button>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.75rem;margin-bottom:1.25rem">
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
-        <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${rows.length}</div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Assessment Pairs</div>
-      </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
-        <div style="font-size:1.5rem;font-weight:800;color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'}</div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Improved</div>
-      </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
-        <div style="font-size:1.5rem;font-weight:800;color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Avg Score Δ</div>
-      </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem;text-align:center">
-        <div style="font-size:1.5rem;font-weight:800;color:#0a1628">${withData.length}</div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:.15rem">Pre &amp; Post</div>
-      </div>
-    </div>
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.8125rem">
-        <thead>
-          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0">
-            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Scholar</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Grade</th>
-            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Assessment</th>
-            <th style="padding:.5rem .625rem;text-align:left;color:#475569;font-size:.75rem">Apprentice</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Δ Score</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Pre Placement</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Post Placement</th>
-            <th style="padding:.5rem .625rem;text-align:center;color:#475569;font-size:.75rem">Direction</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows || '<tr><td colspan="10" style="padding:1.5rem;text-align:center;color:#94a3b8">No data for this selection.</td></tr>'}
-        </tbody>
-      </table>
-    </div>
+    <div id="smModalBody"></div>
     <div style="margin-top:1rem;font-size:.6875rem;color:#94a3b8;padding-top:.75rem;border-top:1px solid #f1f5f9">
       Source: Standards Mastery · Middlesex County STEM Charter School · SY 2025–2026 · Live from Google Sheets
+      ${SM_DATA.ts ? ' · Updated ' + new Date(SM_DATA.ts).toLocaleString() : ''}
     </div>
   </div>
 </div>`;
-      const existing = document.getElementById('smModal');
-      if (existing) existing.remove();
       document.body.insertAdjacentHTML('beforeend', modalHtml);
+      _smRenderModalFilters();
+    }
+
+    function smClearFilters() {
+      _smFilterGrade = 'all'; _smFilterInstr = 'all'; _smFilterStandard = 'all';
+      _smRenderModalFilters();
     }
 
     function smCloseModal() {
@@ -6427,108 +6502,41 @@
 
     function renderSMSection() {
       const hasData = SM_DATA.loaded && SM_DATA.rows.length > 0;
-      let html = `
-      <div class="irlab-card" id="smSection" style="margin-top:1.5rem;overflow-x:auto">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:.875rem;margin-bottom:1.25rem;padding-bottom:1rem;border-bottom:2px solid var(--border)">
+
+      let html = `<div class="irlab-card" id="smSection" style="margin-top:1.5rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem">
           <div>
-            <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7c3aed;margin-bottom:.25rem">Standards Mastery · EOY SY 2025–2026</div>
-            <div style="font-family:'DM Serif Display',serif;font-size:1.25rem;color:var(--navy)">Reading Standards Mastery</div>
-            <div style="font-size:.8125rem;color:var(--muted);margin-top:.25rem">Middlesex County STEM Charter School · Pre → Post assessment data · Live from Google Sheets</div>
+            <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7c3aed;margin-bottom:.2rem">Standards Mastery · EOY SY 2025–2026</div>
+            <div style="font-family:'DM Serif Display',serif;font-size:1.125rem;color:var(--navy)">Reading Standards Mastery</div>
+            <div style="font-size:.8125rem;color:var(--muted);margin-top:.2rem">Middlesex County STEM Charter School · All Grades · Live from Google Sheets</div>
           </div>
-          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-            <button onclick="irlab.smRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>
-          </div>
-        </div>`;
+          <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">`;
 
       if (_smLoading) {
-        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
-          <div style="font-size:1.5rem;margin-bottom:.75rem">⏳</div>
-          <div style="font-size:.9375rem;font-weight:600">Loading Standards Mastery data…</div>
-          <div style="font-size:.8125rem;margin-top:.375rem">Fetching Grade 3, 4, 5, 7 &amp; 8 tabs from Google Sheets.</div>
-        </div></div>`;
-        return html;
-      }
-      if (_smError) {
-        html += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem">
-          <span>⚠️</span>
-          <div style="flex:1;font-size:.875rem;color:#991b1b">${esc(_smError)}</div>
-          <button onclick="irlab.smRefresh()" style="font-size:.8125rem;padding:.375rem .75rem;border-radius:8px;background:#b91c1c;color:#fff;border:none;cursor:pointer">Retry</button>
-        </div></div>`;
-        return html;
-      }
-      if (!hasData) {
-        html += `<div style="padding:2.5rem;text-align:center;color:var(--muted)">
-          <div style="font-size:1.5rem;margin-bottom:.75rem">📋</div>
-          <div style="font-size:.9375rem;font-weight:600">Standards Mastery not yet loaded</div>
-          <div style="font-size:.8125rem;margin-top:.375rem;margin-bottom:1rem">Fetch live EOY assessment data for Middlesex County STEM Charter School.</div>
-          <button onclick="irlab.smRefresh()" style="font-size:.875rem;padding:.5rem 1.25rem;border-radius:10px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;border:none;cursor:pointer;font-weight:600">⬇ Load Standards Mastery Data</button>
-        </div></div>`;
-        return html;
+        html += `<span style="font-size:.8125rem;color:var(--muted)">⏳ Loading…</span>`;
+      } else if (_smError) {
+        html += `<span style="font-size:.8125rem;color:#b91c1c">⚠️ Error</span>
+          <button onclick="irlab.smRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;background:#b91c1c;color:#fff;border:none;cursor:pointer">Retry</button>`;
+      } else if (!hasData) {
+        html += `<button onclick="irlab.smRefresh()" style="font-size:.875rem;padding:.45rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;border:none;cursor:pointer;font-weight:600">⬇ Load Data</button>`;
+      } else {
+        // Summary KPIs (compact inline)
+        const allRows   = SM_DATA.rows;
+        const pairs     = SM_DATA.pairs;
+        const scholars  = new Set(allRows.map(r => r.studentId)).size;
+        const bothPairs = pairs.filter(p => p.formA && p.formB);
+        const gains     = bothPairs.map(p => p.formB.score - p.formA.score);
+        const improved  = gains.filter(g => g > 0).length;
+        const pctImp    = gains.length > 0 ? Math.round(improved/gains.length*100) : null;
+        const avgGain   = gains.length > 0 ? Math.round(gains.reduce((s,g)=>s+g,0)/gains.length*10)/10 : null;
+
+        html += `
+          <span style="font-size:.8125rem;color:var(--muted)">${scholars} scholars · ${bothPairs.length} pre/post pairs · <strong style="color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'} improved</strong> · avg <strong style="color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</strong></span>
+          <button onclick="irlab.smShowModal()" style="font-size:.875rem;padding:.45rem 1.1rem;border-radius:10px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;border:none;cursor:pointer;font-weight:600">View Scholar Details →</button>
+          <button onclick="irlab.smRefresh()" style="font-size:.75rem;padding:.35rem .75rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;color:var(--text-2)">↺ Refresh</button>`;
       }
 
-      // Summary metrics
-      const allRows       = SM_DATA.rows;
-      const pairs         = SM_DATA.pairs;
-      const totalScholars = new Set(allRows.map(r => r.studentId)).size;
-      const bothPairs     = pairs.filter(p => p.formA && p.formB);
-      const gains         = bothPairs.map(p => p.formB.score - p.formA.score);
-      const improved      = gains.filter(g => g > 0).length;
-      const avgGain       = gains.length > 0 ? Math.round(gains.reduce((s,g)=>s+g,0)/gains.length*10)/10 : null;
-      const pctImp        = gains.length > 0 ? Math.round(improved/gains.length*100) : null;
-
-      const apprSet = new Set();
-      allRows.forEach(r => r.teachers.forEach(t => { if(t) apprSet.add(t); }));
-      const apprentices = [...apprSet].sort();
-      const grades      = [...new Set(allRows.map(r => r.grade))].sort((a,b)=>parseInt(a)-parseInt(b));
-
-      html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.875rem;margin-bottom:1.25rem">
-        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${totalScholars}</div><div class="ta-kpi-sub">Total Scholars</div></div>
-        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${bothPairs.length}</div><div class="ta-kpi-sub">Pre &amp; Post Pairs</div></div>
-        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${pctImp!==null&&pctImp>=50?'#0d6e3a':'#d97706'}">${pctImp!==null?pctImp+'%':'—'}</div><div class="ta-kpi-sub">Showed Improvement</div></div>
-        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:${avgGain!==null&&avgGain>0?'#0d6e3a':avgGain!==null&&avgGain<0?'#dc2626':'#64748b'}">${avgGain!==null?(avgGain>0?'+':'')+avgGain+'%':'—'}</div><div class="ta-kpi-sub">Avg Score Change</div></div>
-        <div class="ta-card ta-kpi"><div style="font-size:2rem;font-weight:800;color:var(--navy)">${apprentices.length}</div><div class="ta-kpi-sub">Apprentices</div></div>
-      </div>`;
-
-      // Grade filter pills
-      html += `<div style="display:flex;gap:.375rem;flex-wrap:wrap;margin-bottom:1.125rem;align-items:center">
-        <span style="font-size:.75rem;color:var(--muted);font-weight:600">Grade:</span>
-        ${['all',...grades].map(g=>`<button onclick="irlab.smSetFilterGrade('${g}')" style="font-size:.75rem;padding:.3rem .75rem;border-radius:20px;border:1.5px solid ${_smFilterGrade===g?'#7c3aed':'var(--border)'};background:${_smFilterGrade===g?'#7c3aed':'var(--surface)'};color:${_smFilterGrade===g?'#fff':'var(--text-2)'};cursor:pointer;font-weight:${_smFilterGrade===g?'700':'400'}">${g==='all'?'All Grades':'Grade '+g}</button>`).join('')}
-      </div>`;
-
-      // Apprentice breakdown cards
-      html += `<div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.625rem">By Apprentice</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.75rem;margin-bottom:1rem">`;
-
-      apprentices.forEach(appr => {
-        let aRows = allRows.filter(r => r.teachers.includes(appr));
-        if (_smFilterGrade !== 'all') aRows = aRows.filter(r => r.grade === _smFilterGrade);
-        const aScholars = new Set(aRows.map(r => r.studentId)).size;
-        const aPairs    = pairs.filter(p => {
-          const rr = [p.formA,p.formB].filter(Boolean);
-          return rr.some(r=>r.teachers.includes(appr)) && p.formA && p.formB &&
-                 (_smFilterGrade === 'all' || p.grade === _smFilterGrade);
-        });
-        const aGains    = aPairs.map(p => p.formB.score - p.formA.score);
-        const aImproved = aGains.filter(g => g > 0).length;
-        const aAvg      = aGains.length > 0 ? Math.round(aGains.reduce((s,g)=>s+g,0)/aGains.length*10)/10 : null;
-        const aPct      = aGains.length > 0 ? Math.round(aImproved/aGains.length*100) : null;
-        html += `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:1rem">
-          <div style="font-weight:700;color:var(--navy);font-size:.875rem;margin-bottom:.625rem">${esc(appr)}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.75rem">
-            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:var(--navy)">${aScholars}</div><div style="font-size:.6875rem;color:var(--muted)">Scholars</div></div>
-            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:${aPct!==null&&aPct>=50?'#0d6e3a':'#d97706'}">${aPct!==null?aPct+'%':'—'}</div><div style="font-size:.6875rem;color:var(--muted)">Improved</div></div>
-            <div style="text-align:center"><div style="font-size:1.125rem;font-weight:700;color:${aAvg!==null&&aAvg>0?'#0d6e3a':aAvg!==null&&aAvg<0?'#dc2626':'#64748b'}">${aAvg!==null?(aAvg>0?'+':'')+aAvg+'%':'—'}</div><div style="font-size:.6875rem;color:var(--muted)">Avg Δ</div></div>
-          </div>
-          <button onclick="irlab.smShowModal('${esc(appr)}')" style="width:100%;font-size:.75rem;padding:.375rem .75rem;border-radius:8px;border:1.5px solid #7c3aed;background:#faf5ff;color:#7c3aed;cursor:pointer;font-weight:600">View Scholar Details →</button>
-        </div>`;
-      });
-
-      html += `</div>`;
-      html += `<div style="text-align:right;margin-top:.5rem">
-        <button onclick="irlab.smShowModal('all')" style="font-size:.75rem;padding:.375rem .875rem;border-radius:8px;border:1.5px solid #7c3aed;background:#f5f3ff;color:#6d28d9;cursor:pointer;font-weight:600">View All Scholars →</button>
-        ${SM_DATA.ts ? `<span style="font-size:.6875rem;color:var(--muted);margin-left:.75rem">Updated ${new Date(SM_DATA.ts).toLocaleString()}</span>` : ''}
-      </div>`;
-      html += `</div>`;
+      html += `</div></div></div>`;
       return html;
     }
 
@@ -8224,7 +8232,8 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
              // Standards Mastery public API
-             smRefresh, smSetFilterGrade, smSetFilterAppr, smShowModal, smCloseModal,
+             smRefresh, smSetFilterGrade, smSetFilterInstr, smSetFilterStandard,
+             smShowModal, smCloseModal, smClearFilters,
              getSMData: () => SM_DATA,
              // Scholars truly excluded: appear in MOY sheet but have no Fall+Winter pair
              getMOYMissingScholars: (subject) => {
