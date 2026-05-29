@@ -446,11 +446,28 @@
 
   // ── Standards Mastery helpers ─────────────────────────────────────────────
   function normSmRow(raw) {
+    // Class Teacher(s): "Last, First" — primary only, misses co-instructors like Apollo.
     const ct = raw['Class Teacher(s)'] || '';
-    const teachers = ct.split(';').map(t => {
+    const teachersFromCT = ct.split(';').map(t => {
       const parts = t.trim().split(',');
       return parts.length >= 2 ? (parts[1].trim() + ' ' + parts[0].trim()) : t.trim();
     }).filter(Boolean);
+
+    // Class(es): "First Last - School - Grade - Subject; ..." — all instructors.
+    const classes = raw['Class(es)'] || '';
+    const teachersFromClasses = classes.split(';').map(entry => {
+      const dashIdx = entry.indexOf(' - ');
+      return dashIdx > 0 ? entry.slice(0, dashIdx).trim() : '';
+    }).filter(Boolean);
+
+    // Merge, deduplicate
+    const seen = new Set();
+    const teachers = [];
+    [...teachersFromClasses, ...teachersFromCT].forEach(t => {
+      const key = t.toLowerCase().replace(/\s+/g, ' ').trim();
+      if (key && !seen.has(key)) { seen.add(key); teachers.push(t); }
+    });
+
     const asmName = raw['Assessment Name'] || '';
     const isFormA = /\bForm A\b/i.test(asmName);
     const isFormB = /\bForm B\b/i.test(asmName);
