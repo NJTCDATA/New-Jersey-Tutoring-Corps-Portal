@@ -114,10 +114,8 @@
     // ── 25-26 manual snapshot sheet — live, multi-tab, parallel fetch ────────
     // Direct sheet ID — sheet is shared "Anyone with the link" so the /export
     // endpoint works without a 2PACX published key.
-    // Tab GIDs: ela=1640935949 is the "25-26 Academic Report" tab (ELA).
-    // When the Math tab is added, set math to its gid and the loop handles it.
     const IRLAB_2526_SHEET_ID = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
-    const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557, eoy: 1193172756 };  // eoy = 25-26 EOY combined tab
+    const IRLAB_2526_GIDS     = { ela: 1640935949, math: 1676366557 };  // ELA + Math student-level tabs (Norming Window format)
     let   _irlManual2526Rows = [];  // normalized rows currently merged into IRLAB_DATA
 
     // ── Placement config ────────────────────────────────────────────────────
@@ -934,10 +932,19 @@
       // student in the EOY tab, find their existing longitudinal row by scholarId
       // and copy baseScore/springScore if they're currently null.
       if (window._iready2526Source !== 'manual') {
-        var _eoyItem = snap2526Results.find(function(i){ return i && i.subj === 'Combined'; });
-        if (_eoyItem && _eoyItem.text) {
-          var _eoyRaw = _normalize2526StudentRows(parseCSV(_eoyItem.text), 'Math')
-                          .concat(_normalize2526StudentRows(parseCSV(_eoyItem.text), 'ELA'));
+        // Build scale score backfill from the live ELA + Math student-level tabs
+        // (Norming Window + Overall Scale Score per row format)
+        var _elaTabItem = snap2526Results.find(function(i){ return i && i.subj === 'ELA'; });
+        var _mathTabItem= snap2526Results.find(function(i){ return i && i.subj === 'Math'; });
+        var _hasBackfillData = (_elaTabItem && _elaTabItem.text) || (_mathTabItem && _mathTabItem.text);
+        if (_hasBackfillData) {
+          var _eoyRaw = [];
+          if (_elaTabItem && _elaTabItem.text) {
+            _eoyRaw = _eoyRaw.concat(_normalize2526StudentRows(parseCSV(_elaTabItem.text), 'ELA'));
+          }
+          if (_mathTabItem && _mathTabItem.text) {
+            _eoyRaw = _eoyRaw.concat(_normalize2526StudentRows(parseCSV(_mathTabItem.text), 'Math'));
+          }
           // Build lookup maps from EOY tab: by (subject+id) primary, (subject+normname) fallback
           var _eoyById   = {};
           var _eoyByName = {};
@@ -8356,11 +8363,18 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
       tag:  'iReady · Academic',
     },
     {
-      name: 'iReady 25-26 EOY Academic Data (Manual Extract)',
+      name: 'iReady 25-26 ELA Academic Report (Student Level)',
       type: 'sheets',
-      url:  'https://docs.google.com/spreadsheets/d/1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0/edit?gid=1193172756#gid=1193172756',
-      desc: '2025-2026 End-of-Year iReady academic data — student placement, scale scores, diagnostic gains. Secondary to longitudinal report; merged automatically when longitudinal lacks 25-26 rows.',
-      tag:  'iReady · Academic · EOY · 2025-2026',
+      url:  'https://docs.google.com/spreadsheets/d/1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0/edit?gid=1640935949#gid=1640935949',
+      desc: '2025-2026 ELA student-level iReady data — Norming Window, Overall Scale Score, placement, diagnostic gains. Used for BOY/EOY score backfill into longitudinal rows.',
+      tag:  'iReady · Academic · ELA · 2025-2026',
+    },
+    {
+      name: 'iReady 25-26 Math Academic Report (Student Level)',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0/edit?gid=1676366557#gid=1676366557',
+      desc: '2025-2026 Math student-level iReady data — Norming Window, Overall Scale Score, placement, diagnostic gains. Used for BOY/EOY score backfill into longitudinal rows.',
+      tag:  'iReady · Academic · Math · 2025-2026',
     },
     {
       name: 'Annual Goal Database',
