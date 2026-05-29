@@ -708,9 +708,33 @@
         const alexSess = sessionSets['Alexandra Cristescu'];
         const pgEla    = irlabElaRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
         const pgMath   = irlabMathRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
+        const pgMathWithScores = pgMath.filter(r => r.boyScore !== null || r.eoyScore !== null);
         console.log('[APIR] Alexandra — session set size:', alexSess ? alexSess.size : 0,
                     '| IRLAB ELA total/attributed:', pgEla.length + '/' + alexEla.length,
-                    '| IRLAB Math total/attributed:', pgMath.length + '/' + alexMath.length);
+                    '| IRLAB Math total/attributed:', pgMath.length + '/' + alexMath.length,
+                    '| Math rows with scale scores:', pgMathWithScores.length + '/' + pgMath.length);
+        if (pgMath.length > 0) {
+          const s = pgMath[0];
+          console.log('[APIR] Alexandra first Math row — boyScore:', s.boyScore, 'eoyScore:', s.eoyScore,
+                      'boyPlacement:', s.boyPlacement, 'school:', s.school, 'district:', s.district);
+        }
+      }
+
+      // Diagnostic: Katrina Valentin (Gloucester — single-apprentice EOY school)
+      {
+        const katEla  = irlElaByAppr['Katrina Valentin']  || [];
+        const katMath = irlMathByAppr['Katrina Valentin'] || [];
+        const gtEla   = irlabElaRows.filter(EOY_DISTRICT_FILTERS['Gloucester']);
+        const gtMath  = irlabMathRows.filter(EOY_DISTRICT_FILTERS['Gloucester']);
+        const gtMathWithScores = gtMath.filter(r => r.boyScore !== null || r.eoyScore !== null);
+        console.log('[APIR] Katrina — IRLAB ELA total/attributed:', gtEla.length + '/' + katEla.length,
+                    '| Math total/attributed:', gtMath.length + '/' + katMath.length,
+                    '| Math rows with scale scores:', gtMathWithScores.length + '/' + gtMath.length);
+        if (gtMath.length > 0) {
+          const s = gtMath[0];
+          console.log('[APIR] Katrina first Math row — boyScore:', s.boyScore, 'eoyScore:', s.eoyScore,
+                      'boyPlacement:', s.boyPlacement, 'school:', s.school, 'district:', s.district);
+        }
       }
 
       // Diagnostic: Dr. Renee Davis (iLearn Clifton MS — MOY multi-apprentice)
