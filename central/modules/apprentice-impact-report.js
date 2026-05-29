@@ -1189,20 +1189,18 @@
             byAppr[display].push(row);
             return;
           }
-          // Multi-apprentice OR single-apprentice with session data: stop here.
-          // When Pearl sessions are present, only session-confirmed scholars are
-          // attributed. A session miss means this scholar is not in this apprentice's
-          // caseload — prevents whole-school over-attribution (e.g. Gloucester/Katrina
-          // Valentin: Pearl sessions cover her ~20 scholars; the other 200+ students
-          // at the school should not fall through).
-          return;
+          // Multi-apprentice: stop here — no school-level fallback.
+          if (isMulti) return;
+          // Single-apprentice: fall through to B2.
+          // No other NJTC apprentice at this school, so IRLAB scholars not yet
+          // in a Pearl session still belong to this apprentice (e.g. Math scholars
+          // for Alexandra Cristescu when Pearl sessions are recorded by subject).
         }
 
-        // B2: school-level fallback — ONLY when there is no session data at all.
-        //     Reached when hasSess is false (Pearl returned no sessions for this
-        //     apprentice). Attributes all district-filtered rows to the single
-        //     apprentice at this school as a last resort.
-        if (!isMulti && !hasSess) {
+        // B2: school-level fallback — only for single-apprentice schools.
+        //     Reached when: (a) no session data, or (b) session data exists but
+        //     scholar name did not match (single-apprentice only — see B1 above).
+        if (!isMulti) {
           byAppr[display].push(row);
           return;
         }
