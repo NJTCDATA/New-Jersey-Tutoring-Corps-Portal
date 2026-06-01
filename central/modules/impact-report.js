@@ -1301,6 +1301,149 @@ function attachCalendarTooltips(r) {
 }
 
 // ── CSV exports ────────────────────────────────────────────────────────────
+
+// Build pivot-style summary rows from a report object, mirroring the manual
+// pivot sheets the data team produces after each regional export.
+function _buildSummaryRows(r) {
+  var a   = r.agg;
+  var pa  = r.priorAgg;
+  var regionLabel = r.region === 'NE' ? 'North East Region'
+                  : r.region === 'SW' ? 'South West Region'
+                  : 'All Regions';
+  var rows = [];
+
+  // ── Header ──────────────────────────────────────────────────────────────
+  rows.push([regionLabel + ' | Operational Impact Report']);
+  rows.push(['Instructional Hours | Minutes Lost']);
+  rows.push(['Period', r.range.label]);
+  rows.push(['Generated', r.generatedAt.toLocaleString()]);
+  rows.push([]);
+  rows.push(['Total Hours Lost', a.hours, 'vs. prior', delta(a.hours, pa.hours)]);
+  rows.push(['Total Minutes Lost', a.mins, 'vs. prior', delta(a.mins, pa.mins)]);
+  rows.push(['Scholars Impacted', a.scholars, 'vs. prior', delta(a.scholars, pa.scholars)]);
+  rows.push(['Scholar-Session Records', a.sessions, 'vs. prior', delta(a.sessions, pa.sessions)]);
+  rows.push(['Sessions Disrupted', a.sessionsDisrupted]);
+  rows.push(['8-Week Avg (Scholars)', r.avg8Scholars]);
+  rows.push([]);
+
+  // ── All Missed Reasons ───────────────────────────────────────────────────
+  rows.push(['--- ALL MISSED REASONS ---']);
+  rows.push(['Reason', 'Scholars Impacted', 'Records', 'Minutes Lost', 'Hours Lost', '% of Total']);
+  var sortedIds = r.selectedIds.slice().sort(function(a, b) {
+    var ma = (r.agg.byReason[a] || {}).mins || 0;
+    var mb = (r.agg.byReason[b] || {}).mins || 0;
+    return mb - ma;
+  });
+  sortedIds.forEach(function(id) {
+    var rd  = a.byReason[id] || { scholarCount:0, sessions:0, mins:0 };
+    var pct = a.mins > 0 ? (rd.mins / a.mins * 100).toFixed(1) + '%' : '0%';
+    rows.push([
+      TAXONOMY[id] ? TAXONOMY[id].label : id,
+      rd.scholarCount,
+      rd.sessions,
+      rd.mins,
+      +(rd.mins / 60).toFixed(2),
+      pct
+    ]);
+  });
+  rows.push([]);
+
+  // ── School Breakdown ─────────────────────────────────────────────────────
+  rows.push(['--- SCHOOL BREAKDOWN ---']);
+  rows.push(['Rank', 'School', 'Region', 'Scholars Impacted', 'Records', 'Minutes Lost', 'Hours Lost', 'vs. Prior (Scholars)', 'Top Reason']);
+  var schoolList = Object.keys(a.bySchool).map(function(s) {
+    var sc = a.bySchool[s];
+    var topR = null, maxN = 0;
+    Object.keys(sc.byReason || {}).forEach(function(id) {
+      if (sc.byReason[id] > maxN) { maxN = sc.byReason[id]; topR = id; }
+    });
+    return { school:s, sc:sc, topR:topR, priorSc: pa.bySchool[s] || { scholarCount:0 } };
+  }).sort(function(a, b) { return b.sc.mins - a.sc.mins; });
+  schoolList.forEach(function(x, i) {
+    rows.push([
+      i + 1,
+      x.school,
+      x.sc.region || '',
+      x.sc.scholarCount,
+      x.sc.sessions,
+      x.sc.mins || 0,
+      +((x.sc.mins || 0) / 60).toFixed(2),
+      delta(x.sc.scholarCount, x.priorSc.scholarCount),
+      x.topR ? (TAXONOMY[x.topR] ? TAXONOMY[x.topR].label : x.topR) : ''
+    ]);
+  });
+  rows.push([]);
+
+  // ── Grade Level Impact ───────────────────────────────────────────────────
+  rows.push(['--- GRADE LEVEL IMPACT ---']);
+  rows.push(['Scholar Grade', 'Records', 'Minutes Lost', 'Hours Lost']);
+  var byGrade = {};
+  r.events.forEach(function(e) {
+    var g = e.grade || '(Unknown)';
+    if (!byGrade[g]) byGrade[g] = { sessions:0, mins:0 };
+    byGrade[g].sessions++;
+    byGrade[g].mins += e.mins;
+  });
+  Object.keys(byGrade).sort(function(a, b) {
+    return (byGrade[b].mins - byGrade[a].mins);
+  }).forEach(function(g) {
+    var gd = byGrade[g];
+    rows.push([g, gd.sessions, gd.mins, +(gd.mins / 60).toFixed(2)]);
+  });
+  rows.push([]);
+
+  // ── Instructor Analysis (Tutor Absences) ────────────────────────────────
+  var tutorIds = ['SI-T1', 'SI-T2', 'SI-T3'];
+  var hasTutorEvents = r.events.some(function(e) { return tutorIds.indexOf(e.canonId) !== -1; });
+  if (hasTutorEvents) {
+    rows.push(['--- INSTRUCTOR ANALYSIS (Tutor Absences & Vacancies) ---']);
+    rows.push(['Instructor Name', 'Records', 'Minutes Lost', 'Hours Lost', 'Reason']);
+    var byInstructor = {};
+    r.events.forEach(function(e) {
+      if (tutorIds.indexOf(e.canonId) === -1) return;
+      var name = e.userName || '(Unknown)';
+      if (!byInstructor[name]) byInstructor[name] = { sessions:0, mins:0, reasons:{} };
+      byInstructor[name].sessions++;
+      byInstructor[name].mins += e.mins;
+      byInstructor[name].reasons[e.canonId] = (byInstructor[name].reasons[e.canonId] || 0) + 1;
+    });
+    Object.keys(byInstructor).sort(function(a, b) {
+      return byInstructor[b].mins - byInstructor[a].mins;
+    }).forEach(function(name) {
+      var id = byInstructor[name];
+      var topReason = Object.keys(id.reasons).sort(function(a, b) {
+        return id.reasons[b] - id.reasons[a];
+      })[0];
+      rows.push([name, id.sessions, id.mins, +(id.mins / 60).toFixed(2),
+                 topReason ? (TAXONOMY[topReason] ? TAXONOMY[topReason].label : topReason) : '']);
+    });
+    rows.push([]);
+  }
+
+  // ── Scheduling Errors (NJTC Scheduling Error = SI-P2) ───────────────────
+  var schedErrEvents = r.events.filter(function(e) { return e.canonId === 'SI-P2'; });
+  if (schedErrEvents.length) {
+    rows.push(['--- SCHEDULING ERRORS (NJTC Scheduling Error) ---']);
+    rows.push(['School', 'Week', 'Records', 'Minutes Lost']);
+    var bySchedErr = {};
+    schedErrEvents.forEach(function(e) {
+      var key = e.school + '||' + (e.week || '(No Week)');
+      if (!bySchedErr[key]) bySchedErr[key] = { school:e.school, week:e.week||'(No Week)', sessions:0, mins:0 };
+      bySchedErr[key].sessions++;
+      bySchedErr[key].mins += e.mins;
+    });
+    Object.keys(bySchedErr).sort(function(a, b) {
+      return bySchedErr[b].mins - bySchedErr[a].mins;
+    }).forEach(function(k) {
+      var se = bySchedErr[k];
+      rows.push([se.school, se.week, se.sessions, se.mins]);
+    });
+    rows.push([]);
+  }
+
+  return rows;
+}
+
 function exportCSV() {
   if (!_lastReport) return;
   var r = _lastReport;
@@ -1314,8 +1457,12 @@ function exportCSV() {
   var datePart   = (fmtISO(r.range.start) + '_' + fmtISO(addDays(r.range.end,-1))).replace(/-/g,'');
   var filename   = 'NJTC_SessionDetail_' + labelPart + '_' + regionPart + '_' + datePart + '.csv';
 
-  // 26-column header — designed for direct Google Sheets import
-  var rows = [[
+  // Prepend the pivot-style summary so the data team doesn't have to rebuild it manually
+  var rows = _buildSummaryRows(r);
+
+  // ── Session Detail ───────────────────────────────────────────────────────
+  rows.push(['--- SESSION DETAIL ---']);
+  rows.push([
     'Pearl Session ID',
     'Session Title',
     'Date',
@@ -1342,7 +1489,7 @@ function exportCSV() {
     'Canonical Reason',
     'Minutes Lost',
     'Hours Lost'
-  ]];
+  ]);
 
   r.events.forEach(function(e) {
     var taxonomy = TAXONOMY[e.canonId] || {};
