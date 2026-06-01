@@ -73,6 +73,10 @@
 
   // ── Master Apprentice Roster (SY 25-26) ──────────────────────────────────
   // [displayName, njId, schoolRaw, region, surveyName]
+  // [displayName, njId, schoolRaw, region, surveyName]
+  // Synced to HR Master List + TAP program roster SY 2025-2026.
+  // Removed: Jessica Flores (NJ2025001718) — Terminated, Inactive Prior Apprentice.
+  // La Shanee Davis and Dr. Renee Davis are the same person — NJ ID NJ2025004829, known by both names.
   const TAP_APPRENTICES = [
     ['Alexandra Cristescu',     'NJ2026000468', 'Penns Grove',                 'SW', 'Alexandra Cristescu'],
     ['Aliviyah Goodson',        'NJ2025004253', 'iLearn Bergen MS',            'NE', 'Aliviyah Goodson'],
@@ -85,10 +89,10 @@
     ['Ian Anderson',            'NJ2025004964', 'iLearn Hudson MS',            'NE', 'Ian Anderson'],
     ['Jasmine Ramsey-Copeland', 'NJ2025001829', 'iLearn Passaic MS',           'NE', 'Jasmine Ramsey'],
     ['Jazmin Garcia',           'NJ2026001279', 'iLearn Bergen MS',            'NE', 'Jazmin Garcia'],
-    ['Jessica Flores',          'NJ2025001718', 'iLearn Passaic MS',           'NE', 'Jessica Flores'],
     ['Katherine R. Davis',      'NJ2025005330', 'Hamilton Township',           'SW', 'Katie Rose Davis'],
     ['Katrina Valentin',        'NJ2025001719', 'Gloucester',                  'SW', 'Katrina Valentin'],
     ['Keisha Lopez',            'NJ2026000470', 'iLearn Clifton',              'NE', 'Keisha Lopez'],
+    ['La Shanee Davis',         'NJ2025004829', 'iLearn Clifton MS',           'NE', 'La Shanee Davis'],
     ['Lilia Quintero',          'NJ2026000471', 'Hamilton-Kuser',              'SW', 'Lilia Quintero'],
     ['Linda Fenty',             'NJ2026000858', 'iLearn Paterson MS',          'NE', 'Linda Fenty'],
     ['Maria Del Carmen',        'NJ2025005329', 'iLearn Passaic ES',           'NE', 'Maria (Mary Carmen) Gutierrez'],
@@ -99,7 +103,6 @@
     ['Nicholas Hoover',         'NJ2025001712', 'Haddon Township',             'SW', 'Nicholas Hoover'],
     ['Norelis Ramirez',         'NJ2026000265', 'iLearn Paterson -ES',         'NE', 'Norelis Ramirez'],
     ['Pooja Tyagi',             'NJ2025001716', 'Central Jersey College Prep', 'NE', 'Pooja Tyagi'],
-    ['Dr. Renee Davis',         'NJ2025004829', 'iLearn Clifton MS',           'NE', 'Renee Davis'],
     ['Shahzeeb Ahmad',          'NJ2025004822', 'iLearn Bergen',               'NE', 'Shahzeeb Ahmad'],
     ['Sharon K Kessel',         'NJ2025001707', 'iLearn Paterson Silk City',   'NE', 'Sharon K Kessel'],
     ['Subul Sadiq',             'NJ2026000469', 'iLearn Hudson',               'NE', 'Subul Sadiq'],
@@ -109,7 +112,7 @@
   // ── Hardcoded scholar seeds — supplement session attribution when Pearl ID
   //    matching fails (e.g. iReady legal names differ from Pearl display names) ─
   const HARDCODED_SCHOLAR_SEEDS = {
-    'Dr. Renee Davis': [
+    'La Shanee Davis': [
       'adam gonzalez', 'alexandra velez', 'alison blanco', 'elias rivera',
       'emma arriaga', 'estrella rotte', 'grace perez', 'hamza mosleh',
       'ishmael echavarria', 'jawad alatiyat', 'jeriel del toro ortega',

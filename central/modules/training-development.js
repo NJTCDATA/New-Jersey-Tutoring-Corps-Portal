@@ -457,24 +457,28 @@
   }
 
   // ── Apprentice master lists (ADP canonical names) ─────────────────
+  // Synced to HR Master List + TAP program roster SY 2025-2026.
+  // Removed: Jessica Flores (Terminated), Monica Brown (Terminated), Jacob Leebron (Terminated).
+  // Added: Avani Jimenez, Jazmin Garcia, Melissa Mazza, Renee Davis, La Shanee Davis (was misrouted NE→stays), Lilia Quintero (moved NE→SW).
   const APPRENTICES_NE = [
     'Alexandra Cristescu','Aliviyah Goodson','Apollo Monroy-Polanco','Arelis Rodriguez',
-    'Carla Borbon','Carlos Jacho','Ian Anderson','Jasmine Ramsey-Copeland','Jessica Flores',
-    'Keisha Lopez','La Shanee Davis','Lilia Quintero','Linda Fenty','Maria Gutierrez',
-    'Monica Brown','Mushana Dunham','Naima Boutira','Norelis Ramirez','Pooja Tyagi',
+    'Avani Jimenez','Carla Borbon','Carlos Jacho','Ian Anderson','Jasmine Ramsey-Copeland',
+    'Jazmin Garcia','Keisha Lopez','La Shanee Davis','Linda Fenty','Maria Gutierrez',
+    'Melissa Mazza','Mushana Dunham','Naima Boutira','Norelis Ramirez','Pooja Tyagi',
     'Shahzeeb Ahmad','Sharon K Kessel','Subul Sadiq','Theodore Mills'
   ];
   const APPRENTICES_SW = [
-    'Caitlin Evgeniadis','Jacob Leebron','Katie Rose Davis',
-    'Katrina Valentin','Micaela Wilkerson','Nicholas Hoover'
+    'Caitlin Evgeniadis','Katie Rose Davis','Katrina Valentin',
+    'Lilia Quintero','Micaela Wilkerson','Nicholas Hoover'
   ];
   const ALL_APPRENTICES = [...APPRENTICES_NE, ...APPRENTICES_SW];
   window._njtcAllApprenticeNames = new Set(ALL_APPRENTICES.map(n => n.toLowerCase()));
 
   // Name normalization aliases: informal → ADP canonical
   const NAME_ALIASES = {
+    'dr. renee davis':      'La Shanee Davis',
+    'dr renee davis':       'La Shanee Davis',
     'renee davis':          'La Shanee Davis',
-    'dr. davis':            'La Shanee Davis',
     'la shanee davis':      'La Shanee Davis',
     'caitlyn evegeniadis':  'Caitlin Evgeniadis',
     'caitlyn evgeniadis':   'Caitlin Evgeniadis',
