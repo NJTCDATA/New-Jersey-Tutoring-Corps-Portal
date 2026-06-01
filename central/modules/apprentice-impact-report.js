@@ -1620,15 +1620,17 @@
 
     // ─── Notes ───────────────────────────────────────────────────────────
     lines.push(row('NOTES'));
-    lines.push(row('iLearn schools use MOY (Winter 2026) iReady diagnostic data.'));
+    lines.push(row('iLearn schools use MOY (Winter 2026) iReady diagnostic data (MOY Google Sheet, ELA tab gid=912997533).'));
+    lines.push(row('Hamilton Township and Haddon Township use MOY (Winter 2026) iReady diagnostic data (same MOY Google Sheet, Math tab gid=186448147).'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section is excluded; surveys and attendance are included.'));
-    lines.push(row('Hamilton Township, Central Jersey College Prep, and Hamilton-Kuser show "EOY Preliminary (Pending)" — their SY 25-26 EOY Preliminary data has not yet been confirmed uploaded to the IRLAB. Lilia Quintero (Hamilton-Kuser) will auto-populate once correct data arrives and the school is removed from PENDING_EOY_SCHOOLS.'));
+    lines.push(row('Central Jersey College Prep: EOY Preliminary data not yet uploaded to IRLAB — academic columns will populate once data arrives.'));
+    lines.push(row('Note: Hamilton/Haddon ELA data shows 0 where the MOY ELA tab does not yet contain data for Kuser Elementary or Haddon Township schools. Once ELA data is added to the sheet it will auto-populate.'));
     lines.push(row('Gloucester ELA/Math data is sourced from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
     lines.push(row('Scholar attribution (EOY/IRLAB): (Tier 0) Pearl student ID exact join via _pearlId; (A) IRLAB instructor field authoritative — non-NJTC teachers excluded; (B) Pearl session name sets; (C) school-level fallback only when no session data.'));
-    lines.push(row('Scholar attribution (MOY/iLearn): (Tier 0) iReady User Name = Pearl login ID direct join; (1) instructor in MOY CSV; (1.5) IRLAB-based ID bridge; (2) Pearl session name sets; (3) school-level fallback; (4) survey name fallback.'));
+    lines.push(row('Scholar attribution (MOY): (Tier 0) iReady User Name = Pearl login ID direct join; (1) instructor in MOY CSV; (1.5) name bridge built from ELA Pearl IDs + IRLAB — fixes Math attribution where Math tab lacks User Name column; (2) Pearl session name sets; (3) school-level fallback; (4) survey name fallback.'));
     lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
-    lines.push(row('For Haddon Township (Micaela Wilkerson + Nicholas Hoover) and other multi-apprentice EOY schools: Pearl session sets are the primary attribution method.'));
+    lines.push(row('For Hamilton Township and Haddon Township (MOY path, multi-apprentice): Pearl session sets are the primary attribution method (Tier 2 scoped search).'));
     lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
     lines.push(row('Personal tutor absence miss reasons: Absent Not Covered; Absent Covered by Sub; Absent Covered by Dual Role; Absent Covered by Site Leader; Absent Covered by IC; Tutor Left Early. All other miss reasons are service interruptions.'));
     lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
