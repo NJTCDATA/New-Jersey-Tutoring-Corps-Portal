@@ -464,8 +464,8 @@
       // Try explicit account ID column names first; fall back to detecting the Pearl ID
       // pattern (nj-<letters><digits>) in the district field if no dedicated column exists.
       districtId:  (function () {
-        const acc = g('account', 'account_id', 'district_id', 'user_account',
-                      'org_id', 'organization_id', 'account_name');
+        const acc = g('external_account_id', 'account', 'account_id', 'district_id',
+                      'user_account', 'org_id', 'organization_id', 'account_name');
         if (acc) return acc.toLowerCase().trim();
         const d = g('district', 'district_name');
         // Pearl district IDs look like 'nj-ilear99637', 'nj-hamil44973', etc.
