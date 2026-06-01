@@ -246,16 +246,14 @@
                                   'clifton ms', 'passaic clifton ms', 'passaic clifton middle school',
                                   'ilearn clifton ms'],
     // Hamilton Township (Pearl district ID: nj-hamil44973) — Caitlin, Katherine R., Lilia
-    'Hamilton Township':         ['hamilton township', 'kuser elementary', 'kuser school',
-                                  'alexander crockett elementary', 'crockett school',
-                                  'greenwood elementary', 'wilson school', 'hamilton'],
-    'Hamilton-Kuser':            ['kuser elementary', 'kuser school', 'hamilton township',
-                                  'alexander crockett elementary', 'hamilton'],
+    // Exact school names as they appear in the MOY sheet (lowercased for matching):
+    'Hamilton Township':         ['greenwood elementary school', 'kuser elementary school'],
+    'Hamilton-Kuser':            ['kuser elementary school'],
     // Haddon Township (Pearl district ID: nj-haddo65937) — Micaela, Nicholas
-    'Haddon Township':           ['haddon township', 'van sciver elementary', 'van sciver',
-                                  'strawbridge elementary', 'strawbridge', 'stoy elementary',
-                                  'thomas a. edison elementary', 'thomas a edison elementary',
-                                  'thomas edison elementary', 'jennings school', 'haddon'],
+    // Exact school names as they appear in the MOY sheet (lowercased for matching):
+    'Haddon Township':           ['clyde s jennings elem school', 'stoy elementary school',
+                                  'strawbridge elementary school', 'thomas a edison elem school',
+                                  'van sciver elementary school'],
   };
 
   // Build multi-apprentice school set (TAP-key level, not MOY-school level)
@@ -641,19 +639,23 @@
                     cliftonEla.length ? '— first scholar: ' + (cliftonEla[0].scholarName || '(no name)') : '← NO DATA');
         console.log('[APIR] MOY Clifton Math rows:', cliftonMath.length,
                     cliftonMath.length ? '— first scholar: ' + (cliftonMath[0].scholarName || '(no name)') : '← NO DATA');
-        // Check for Hamilton Township and Haddon Township rows in MOY sheet
-        const hamiltonEla  = moyElaRows.filter(r => (r.school || '').toLowerCase().includes('hamilton') || (r.district || '').toLowerCase().includes('hamilton'));
-        const hamiltonMath = moyMathRows.filter(r => (r.school || '').toLowerCase().includes('hamilton') || (r.district || '').toLowerCase().includes('hamilton'));
+        // Check Hamilton Township MOY rows (Kuser + Greenwood)
+        const hamiltonSchools = new Set(['greenwood elementary school', 'kuser elementary school']);
+        const hamiltonEla  = moyElaRows.filter(r => hamiltonSchools.has((r.school || '').toLowerCase().trim()));
+        const hamiltonMath = moyMathRows.filter(r => hamiltonSchools.has((r.school || '').toLowerCase().trim()));
         console.log('[APIR] MOY Hamilton ELA rows:', hamiltonEla.length,
-                    hamiltonEla.length ? '— schools: ' + [...new Set(hamiltonEla.map(r=>r.school))].join(', ') : '← NOT IN MOY SHEET');
+                    hamiltonEla.length ? '— schools: ' + [...new Set(hamiltonEla.map(r=>r.school))].join(', ') : '← 0 rows');
         console.log('[APIR] MOY Hamilton Math rows:', hamiltonMath.length,
-                    hamiltonMath.length ? '— schools: ' + [...new Set(hamiltonMath.map(r=>r.school))].join(', ') : '← NOT IN MOY SHEET');
-        const haddonEla  = moyElaRows.filter(r => (r.school || '').toLowerCase().includes('haddon') || (r.district || '').toLowerCase().includes('haddon'));
-        const haddonMath = moyMathRows.filter(r => (r.school || '').toLowerCase().includes('haddon') || (r.district || '').toLowerCase().includes('haddon'));
+                    hamiltonMath.length ? '— schools: ' + [...new Set(hamiltonMath.map(r=>r.school))].join(', ') : '← 0 rows');
+        // Check Haddon Township MOY rows (5 schools)
+        const haddonSchools = new Set(['clyde s jennings elem school','stoy elementary school',
+          'strawbridge elementary school','thomas a edison elem school','van sciver elementary school']);
+        const haddonEla  = moyElaRows.filter(r => haddonSchools.has((r.school || '').toLowerCase().trim()));
+        const haddonMath = moyMathRows.filter(r => haddonSchools.has((r.school || '').toLowerCase().trim()));
         console.log('[APIR] MOY Haddon ELA rows:', haddonEla.length,
-                    haddonEla.length ? '— schools: ' + [...new Set(haddonEla.map(r=>r.school))].join(', ') : '← NOT IN MOY SHEET');
+                    haddonEla.length ? '— schools: ' + [...new Set(haddonEla.map(r=>r.school))].join(', ') : '← 0 rows');
         console.log('[APIR] MOY Haddon Math rows:', haddonMath.length,
-                    haddonMath.length ? '— schools: ' + [...new Set(haddonMath.map(r=>r.school))].join(', ') : '← NOT IN MOY SHEET');
+                    haddonMath.length ? '— schools: ' + [...new Set(haddonMath.map(r=>r.school))].join(', ') : '← 0 rows');
       }
 
       // ── 2.5. Fetch Standards Mastery data (Middlesex STEM) ──────────────
