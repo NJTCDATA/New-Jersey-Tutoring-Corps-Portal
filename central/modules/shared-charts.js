@@ -2374,9 +2374,14 @@ ${_buildStaffDiversityHtml(HR_EMPS, 'All Staff (Active + Inactive) — Race & Et
     const allSYs = [...new Set(HR_EMPS.flatMap(e => e.y||[]))].sort().reverse();
     const curSY  = _pSY || '2025-2026';
 
-    // Filter to selected SY for stats
+    // Filter to selected SY for stats — mirror _hrBuildExportPool's _notInLive2526 exclusion
+    // so the portal active count matches the PDF report count.
     const syEmps    = curSY === 'all' ? HR_EMPS
-                    : HR_EMPS.filter(e => (e.y||[]).includes(curSY)||(e._liveYears||[]).includes(curSY));
+                    : HR_EMPS.filter(e => {
+                        if (!((e.y||[]).includes(curSY)||(e._liveYears||[]).includes(curSY))) return false;
+                        if (curSY === '2025-2026' && e._notInLive2526) return false;
+                        return true;
+                      });
     const allEmps   = syEmps;
     const active    = allEmps.filter(e => e.s === 'Active');
     const inactive  = allEmps.filter(e => e.s !== 'Active');
