@@ -729,23 +729,33 @@
       const attAgg = processAttendance(attRows, apprLut);
 
       // ── 7. Build MOY ID bridge then attribute scholars to apprentices ─────
-      // For iLearn schools (MOY path), the MOY CSV has no Pearl IDs.
-      // Bridge: sessionIdMap has Pearl student ID → apprentice.
-      //         IRLAB rows for iLearn schools have _pearlId + scholarName (iReady name).
-      //         Joining them gives us: iReady scholar name → apprentice (exact, no fuzzy match).
-      // This resolves Dr. Renee Davis / LaShanee Davis and similar cross-system name gaps.
+      // The MOY ELA tab has a "User Name" column (Pearl login IDs), but the MOY Math
+      // tab typically does not. Without Pearl IDs, Math rows fall through to session-name
+      // Tier 2, which silently returns 0 for multi-apprentice schools (e.g. Bergen MS with
+      // 5 apprentices) when names don't exactly match.
+      //
+      // Fix: build the bridge from BOTH IRLAB rows AND MOY ELA rows.
+      // Since the same scholars appear in both ELA and Math diagnostics, any scholar
+      // attributed via Pearl ID in ELA gets their normalized name added to the bridge here,
+      // so Math Tier 1.5 will catch them without needing a Pearl ID in the Math CSV.
       const moyIdBridge = {}; // normalized iReady scholar name → canonical apprentice
-      [...irlabElaRows, ...irlabMathRows].forEach(r => {
-        const pid = (r._pearlId || '').trim();
-        if (!pid || !r.scholarName) return;
+      const _addToBridge = (pid, scholarName) => {
+        if (!pid || !scholarName) return;
         const appr = sessionIdMap[pid];
         if (!appr) return;
-        const nn = normName(r.scholarName);
+        const nn = normName(scholarName);
         if (nn && !moyIdBridge[nn]) moyIdBridge[nn] = appr;
         const fl = normNameFL(nn);
         if (fl && fl !== nn && !moyIdBridge[fl]) moyIdBridge[fl] = appr;
-      });
-      console.log('[APIR] MOY ID bridge — entries:', Object.keys(moyIdBridge).length);
+      };
+      // Source 1: IRLAB rows (EOY schools — builds bridge for non-iLearn cross-subject use)
+      [...irlabElaRows, ...irlabMathRows].forEach(r =>
+        _addToBridge((r._pearlId || '').trim(), r.scholarName));
+      // Source 2: MOY ELA rows — ELA tab has Pearl IDs; extends bridge to iLearn Math scholars
+      moyElaRows.forEach(r =>
+        _addToBridge((r._pearlId || '').trim(), r.scholarName));
+      console.log('[APIR] MOY ID bridge — entries:', Object.keys(moyIdBridge).length,
+                  '(IRLAB + MOY ELA Pearl IDs combined)');
 
       setStatus('Attributing scholars to apprentices…'); setProgress(76);
       const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
