@@ -175,6 +175,9 @@
     'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township', 'Penns Grove',
   ]);
 
+  // Schools where the apprentice teaches Math only — ELA rows from MOY sheet are suppressed.
+  const MATH_ONLY_MOY_SCHOOLS = new Set(['Penns Grove']);
+
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
   // Matches on district name OR school name (district may be empty in some IRLAB rows)
   const EOY_DISTRICT_FILTERS = {
@@ -1596,7 +1599,8 @@
         smAcad = aggregateSmAcad(smByAppr[display] || []);
       } else if (!isNoData && !isPending) {
         if (isMidYr) {
-          elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
+          if (!MATH_ONLY_MOY_SCHOOLS.has(school))
+            elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
           mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
         } else {
           elaAcad  = aggregateAcademic(irlElaByAppr[display]  || [], 'eoy');
