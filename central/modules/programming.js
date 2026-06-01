@@ -1911,9 +1911,9 @@
         // att, inst, sess fetch in parallel with timeouts
         // stu (scholar survey) streams independently — does NOT block rendering
         const [attResult, instResult, sessResult] = await Promise.allSettled([
-          fetchTabWithRetry(GIDS.att,  bust, 15000, 'att',  2),
-          fetchTabWithRetry(GIDS.inst, bust, 12000, 'inst', 2),
-          fetchTabWithRetry(GIDS.sess, bust, 15000, 'sess', 2),
+          fetchTabWithRetry(GIDS.att,  bust, 30000, 'att',  3),
+          fetchTabWithRetry(GIDS.inst, bust, 25000, 'inst', 3),
+          fetchTabWithRetry(GIDS.sess, bust, 30000, 'sess', 3),
         ]);
 
         // ── Parse resolved tabs ─────────────────────────────────────────
@@ -2372,7 +2372,7 @@
         } catch(e) {
           lastErr = e;
           if (attempt < maxAttempts) {
-            const delay = 1000 * attempt; // 1s, then 2s …
+            const delay = 2000 * attempt; // 2s, 4s, …
             console.warn('[Pearl Ops] Tab', label, 'attempt', attempt, 'failed — retrying in', delay + 'ms');
             await new Promise(res => setTimeout(res, delay));
           }
