@@ -265,7 +265,7 @@ function getPriorRange(range) {
 // ── Core data processing ─────────────────────────────────────────────────
 var SESSION_MINS = 45;
 
-function processRows(attRows, selectedIds, region, dateRange, districtFilter, schoolFilter) {
+function processRows(attRows, selectedIds, region, dateRange, districtFilter, schoolFilter, sessIdx) {
   var events = [];
   attRows.forEach(function(r) {
     var school = r[C.SCHOOL] || '';
@@ -286,18 +286,29 @@ function processRows(attRows, selectedIds, region, dateRange, districtFilter, sc
     // District / school filters
     if (districtFilter && dist !== districtFilter) return;
     if (schoolFilter   && school !== schoolFilter)  return;
+    var uid = r[C.USER_ID] || r[C.USER] || '';
+    var sessTitle = r[C.SESSION] || '';
+    var mins = SESSION_MINS;
+    if (sessIdx) {
+      var sess = findSess(sessIdx, uid, fmtMDY(d), sessTitle);
+      if (sess) {
+        var actualDur = parseFloat(sess[S.ACTUAL_DUR]);
+        var schedDur  = parseFloat(sess[S.SCHED_DUR]);
+        mins = (actualDur > 0 ? actualDur : (schedDur > 0 ? schedDur : SESSION_MINS));
+      }
+    }
     events.push({
       date:d, dateStr:fmtMDY(d), school:school, district:dist, region:reg,
-      userId:    r[C.USER_ID] || r[C.USER] || '',
+      userId:    uid,
       userName:  r[C.USER] || '',
-      sessTitle: r[C.SESSION] || '',
+      sessTitle: sessTitle,
       grade:     r[C.GRADE]   || '',
       rawReason: rawReason,
-      canonId:canonId, week: r[C.WEEK] || '', mins:SESSION_MINS,
+      canonId:canonId, week: r[C.WEEK] || '', mins:mins,
       // Composite key that identifies a distinct tutoring session event.
       // Using school + date + sessTitle because that's what ATT rows carry —
       // a single session ID for the whole group, mapped from attendance detail.
-      sessKey: school + '|' + fmtMDY(d) + '|' + (r[C.SESSION] || '')
+      sessKey: school + '|' + fmtMDY(d) + '|' + sessTitle
     });
   });
   return events;
@@ -329,14 +340,16 @@ function aggregateEvents(events) {
     if (e.sessKey) bySchool[e.school].sessEvents[e.sessKey] = true;
 
     var dk = e.dateStr;
-    if (!byDate[dk]) byDate[dk] = { sessions:0, scholars:{}, bySchool:{}, byReason:{}, sessEvents:{}, date:e.date };
+    if (!byDate[dk]) byDate[dk] = { sessions:0, scholars:{}, mins:0, bySchool:{}, byReason:{}, sessEvents:{}, date:e.date };
     byDate[dk].sessions++;
     byDate[dk].scholars[uid] = true;
+    byDate[dk].mins += e.mins;
     byDate[dk].byReason[e.canonId] = (byDate[dk].byReason[e.canonId]||0)+1;
     if (e.sessKey) byDate[dk].sessEvents[e.sessKey] = true;
-    if (!byDate[dk].bySchool[e.school]) byDate[dk].bySchool[e.school] = { sessions:0, scholars:{}, byReason:{}, sessEvents:{}, region:e.region };
+    if (!byDate[dk].bySchool[e.school]) byDate[dk].bySchool[e.school] = { sessions:0, scholars:{}, mins:0, byReason:{}, sessEvents:{}, region:e.region };
     byDate[dk].bySchool[e.school].sessions++;
     byDate[dk].bySchool[e.school].scholars[uid] = true;
+    byDate[dk].bySchool[e.school].mins += e.mins;
     byDate[dk].bySchool[e.school].byReason[e.canonId] = (byDate[dk].bySchool[e.school].byReason[e.canonId]||0)+1;
     if (e.sessKey) byDate[dk].bySchool[e.school].sessEvents[e.sessKey] = true;
   });
@@ -359,10 +372,11 @@ function aggregateEvents(events) {
   });
 
   var total      = events.length;
+  var totalMins  = events.reduce(function(s, e) { return s + e.mins; }, 0);
   var totalDisr  = Object.keys(sessEvents).length;
   var avgPullRate = totalDisr > 0 ? +(total / totalDisr).toFixed(1) : 0;
   return { scholars:Object.keys(scholars).length, sessions:total,
-           mins:total*SESSION_MINS, hours:+((total*SESSION_MINS)/60).toFixed(1),
+           mins:totalMins, hours:+(totalMins/60).toFixed(1),
            sessionsDisrupted: totalDisr,
            avgPullRate: avgPullRate,
            byReason:byReason, bySchool:bySchool, byDate:byDate };
@@ -641,13 +655,15 @@ function _generateSync(selectedIds, region, range, label) {
   var distF = getDistrictFilterVal();
   var schF  = getSchoolFilterVal();
 
-  var rows = window.po.getAttRows();
-  var events = processRows(rows, selectedIds, region, range, distF, schF);
+  var rows     = window.po.getAttRows();
+  var sessRows = (window.po.getSessRows) ? window.po.getSessRows() : [];
+  var sessIdx  = buildSessIndex(sessRows);
+  var events = processRows(rows, selectedIds, region, range, distF, schF, sessIdx);
   var agg    = aggregateEvents(events);
 
   // Prior period
   var priorRange  = getPriorRange(range);
-  var priorEvents = processRows(rows, selectedIds, region, priorRange, distF, schF);
+  var priorEvents = processRows(rows, selectedIds, region, priorRange, distF, schF, sessIdx);
   var priorAgg    = aggregateEvents(priorEvents);
 
   // 8-week trend (always)
@@ -658,7 +674,7 @@ function _generateSync(selectedIds, region, range, label) {
     var wMon   = addDays(thisMon, -wi * 7);
     var wEnd   = addDays(wMon, 7);
     var wLabel = fmtDate(wMon, true);
-    var wRows  = processRows(rows, selectedIds, region, {start:wMon, end:wEnd}, distF, schF);
+    var wRows  = processRows(rows, selectedIds, region, {start:wMon, end:wEnd}, distF, schF, sessIdx);
     var wAgg   = aggregateEvents(wRows);
     trend8.push({ label:wLabel, scholars:wAgg.scholars, sessions:wAgg.sessions, wMon:wMon,
                   byReason: wAgg.byReason });
@@ -714,7 +730,7 @@ function buildReportHTML(r) {
     kpiCard('Scholar-Sess Records',a.sessions,           fmtDelta(a.sessions, pa.sessions),           'scholar × session records') +
     kpiCard('Sessions Disrupted',  a.sessionsDisrupted,  null,                                        'distinct session events') +
     kpiCard('Avg Pull Rate',       a.avgPullRate,        null,                                        'records ÷ events') +
-    kpiCard('Hours Lost',          a.hours,              fmtDelta(a.hours,    pa.hours),              'records × 45 min ÷ 60') +
+    kpiCard('Hours Lost',          a.hours,              fmtDelta(a.hours,    pa.hours),              'actual session minutes ÷ 60') +
     '</div>';
 
   // Contribution bar (multi-reason)
@@ -1254,7 +1270,7 @@ function attachCalendarTooltips(r) {
         'Scholar-sess records: <strong>'+((sc.sessions)||0)+'</strong><br>' +
         'Sessions disrupted: <strong>'+scDisr+'</strong>' +
         (scDisr > 0 ? ' <span style="font-size:.7em;opacity:.7">(others may have attended)</span>' : '') + '<br>' +
-        'Hrs Lost: <strong>'+(+((sc.sessions||0)*SESSION_MINS/60).toFixed(1))+'</strong>';
+        'Hrs Lost: <strong>'+(+((sc.mins != null ? sc.mins : (sc.sessions||0)*SESSION_MINS)/60).toFixed(1))+'</strong>';
 
       if (multiR && sc.byReason) {
         lines += '<hr style="margin:.35rem 0;border-color:rgba(255,255,255,.2)">';
@@ -1643,7 +1659,7 @@ function exportPDF() {
       '<strong>Scholar-Session Records:</strong> total rows where a scholar missed a session (one scholar missing two sessions = 2 records). &nbsp;' +
       '<strong>Sessions Disrupted:</strong> count of distinct session events (school + date + session title) that had \u22651 scholar pulled from them. &nbsp;' +
       '<strong>Avg Pull Rate:</strong> scholar-session records \xf7 sessions disrupted — average number of scholars pulled per disrupted session. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
+      '<strong>Hours Lost:</strong> sum of actual session minutes (per Pearl session data) \xf7 60.' +
     '</div>' +
 
     // Footer
@@ -1830,7 +1846,7 @@ function exportPDFSchool() {
       '<strong>Records:</strong> total scholar \xd7 session pairs missed. &nbsp;' +
       '<strong>Sess Disrupted:</strong> distinct session events (school + date + title) with \u22651 scholar pulled. &nbsp;' +
       '<strong>Avg Pull Rate:</strong> records \xf7 disrupted events. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60.' +
+      '<strong>Hours Lost:</strong> sum of actual session minutes (per Pearl session data) \xf7 60.' +
     '</div>' +
 
     // Footer
@@ -2000,7 +2016,7 @@ function exportPDFProgram() {
       '<strong>Scholar-Session Records:</strong> total scholar \xd7 session pairs (1 scholar missing 2 sessions = 2 records). &nbsp;' +
       '<strong>Sessions Disrupted:</strong> distinct session events (school + date + session title) that had \u22651 scholar pulled. &nbsp;' +
       '<strong>Avg Pull Rate:</strong> records \xf7 sessions disrupted. &nbsp;' +
-      '<strong>Hours Lost:</strong> records \xd7 45 min \xf7 60. &nbsp;' +
+      '<strong>Hours Lost:</strong> sum of actual session minutes (per Pearl session data) \xf7 60. &nbsp;' +
       'Data sourced live from Pearl Operations attendance sheet.' +
     '</div>' +
 
