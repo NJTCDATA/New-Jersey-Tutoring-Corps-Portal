@@ -474,13 +474,25 @@
       }()),
       grade:       g('student_grade', 'grade'),
       instructor:  g('instructor', 'tutor'),
-      boyPlacement: normPlacement(g('base_overall_relative_placement')),
-      boyScore:     safeFloat(g('base_overall_scale_score')),
-      moyPlacement: normPlacement(g('winter_overall_relative_placement')),
-      moyScore:     safeFloat(g('winter_overall_scale_score')),
+      boyPlacement: normPlacement(g('base_overall_relative_placement',
+                                    'fall_overall_relative_placement',
+                                    'boy_overall_relative_placement',
+                                    'overall_relative_placement')),
+      boyScore:     safeFloat(g('base_overall_scale_score',
+                                'fall_overall_scale_score',
+                                'boy_overall_scale_score')),
+      moyPlacement: normPlacement(g('winter_overall_relative_placement',
+                                    'mid_overall_relative_placement',
+                                    'moy_overall_relative_placement',
+                                    'overall_relative_placement')),
+      moyScore:     safeFloat(g('winter_overall_scale_score',
+                                'mid_overall_scale_score',
+                                'moy_overall_scale_score',
+                                'overall_scale_score')),
       pctTypical:   (function () {
         const raw = g('winter_pct_progress_typical_growth', 'winter_pct_toward_typical_growth',
-                      'winter_pct_typical', 'pct_progress_typical_growth');
+                      'winter_pct_typical', 'pct_progress_typical_growth',
+                      'mid_pct_progress_typical_growth', 'pct_toward_typical_growth');
         let v = parseFloat(raw);
         if (isNaN(v)) return null;
         if (typeof raw === 'string' && raw.trim().endsWith('%')) v /= 100;
@@ -655,8 +667,18 @@
       setStatus('Fetching MOY Math data…'); setProgress(26);
       const moyMathText = await cachedFetch(MOY_URL(MOY_MATH_GID), 'MOY Math');
 
-      const moyElaRows  = parseCsv(moyElaText).map(normMoyRow);
-      const moyMathRows = parseCsv(moyMathText).map(normMoyRow);
+      const moyElaRaw   = parseCsv(moyElaText);
+      const moyMathRaw  = parseCsv(moyMathText);
+      // Log raw column headers so we can verify winter placement column names
+      if (moyElaRaw.length)  console.log('[APIR] MOY ELA  CSV columns:', Object.keys(moyElaRaw[0]));
+      if (moyMathRaw.length) console.log('[APIR] MOY Math CSV columns:', Object.keys(moyMathRaw[0]));
+      const moyElaRows  = moyElaRaw.map(normMoyRow);
+      const moyMathRows = moyMathRaw.map(normMoyRow);
+      // Log how many rows have valid BOY + Winter placements
+      const elaValid  = moyElaRows.filter(r => r.boyPlacement && r.moyPlacement).length;
+      const mathValid = moyMathRows.filter(r => r.boyPlacement && r.moyPlacement).length;
+      console.log('[APIR] MOY placement coverage — ELA valid (BOY+Winter):', elaValid, '/', moyElaRows.length,
+                  '| Math valid (BOY+Winter):', mathValid, '/', moyMathRows.length);
 
       // Diagnostic: log MOY row counts and which schools are present
       console.log('[APIR] MOY rows fetched — ELA:', moyElaRows.length, 'Math:', moyMathRows.length);
