@@ -2336,7 +2336,9 @@
       return res.text();
     }
 
-    // Per-tab fetch with custom timeout — allows independent failure handling
+    // Per-tab fetch using ReadableStream — reads body in chunks to avoid body-download timeouts.
+    // The timeout covers the entire operation (connection + full body), but streaming keeps the
+    // socket alive on each chunk read so large tabs (att ~10MB+, sess ~9MB) don't abort mid-body.
     async function fetchTabTimed(gid, bust, timeoutMs, label) {
       if (gid === null) {
         console.warn('[Pearl Ops] GID null for tab:', label, '— skipping');
@@ -2346,7 +2348,21 @@
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
         if (!res.ok) throw new Error('HTTP ' + res.status + ' tab=' + label);
-        const text = await res.text();
+        let text;
+        if (res.body) {
+          const reader = res.body.getReader();
+          const dec = new TextDecoder('utf-8');
+          const parts = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            parts.push(dec.decode(value, { stream: true }));
+          }
+          parts.push(dec.decode());
+          text = parts.join('');
+        } else {
+          text = await res.text();
+        }
         console.log('[Pearl Ops] Tab', label, 'loaded:', Math.round(text.length/1024), 'KB');
         return text;
       } catch(e) {
