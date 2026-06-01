@@ -1356,7 +1356,7 @@
       emp._termType   = latest.termType   || '';
       // Apprentice indicator from col K — flag if any current SY row is marked,
       // or if the employee's canonical name is in the ALL_APPRENTICES master list
-      const anyApprent    = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1/i.test(r.apprentice));
+      const anyApprent    = rows.some(r => r.yr === '2025-2026' && r.apprentice && /yes|y|true|1|active/i.test(r.apprentice));
       const inApprList    = _apprHnSet.size > 0 && _apprHnSet.has(_hn(emp.n));
       emp._apprentice = (anyApprent || inApprList) ? 'Yes' : (emp._apprentice || '');
       // Track all SYs this person has appeared in
@@ -1431,7 +1431,7 @@
         pi:null, pr:null, p2:null, att:null, je:null, jl:null,
         rh: latest.rehire||null, re:null, co:0, ct:'', cd:'', hn:'', tr:null, ty:'',
         _race: latest.race||null, _ethnicity: latest.ethnicity||null,
-        _apprentice: ((latest.apprentice && /yes|y|true|1/i.test(latest.apprentice)) || (_apprHnSet.size > 0 && _apprHnSet.has(k))) ? 'Yes' : '',
+        _apprentice: ((latest.apprentice && /yes|y|true|1|active/i.test(latest.apprentice)) || (_apprHnSet.size > 0 && _apprHnSet.has(k))) ? 'Yes' : '',
         _termDate: latest.termDate||'', _termReason: latest.termReason||'', _termType: latest.termType||'',
         _live:true, _liveYears:['2025-2026'],
       });
@@ -1471,7 +1471,7 @@
     const _apprEthMap  = {};
     let _apprNonWhite = 0, _apprHisp = 0, _apprWithRace = 0, _apprWithEth = 0;
     for (const r of liveRows) {
-      if (r.yr !== '2025-2026' || !r.apprentice || !/yes|y|true|1/i.test(r.apprentice) || !r.name) continue;
+      if (r.yr !== '2025-2026' || !r.apprentice || !/yes|y|true|1|active/i.test(r.apprentice) || !r.name) continue;
       const nk = _hn(r.name);
       if (_rawApprSet.has(nk)) continue;  // deduplicate
       _rawApprSet.add(nk);
