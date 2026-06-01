@@ -165,12 +165,14 @@
   ]);
 
   // Additional MOY schools (not iLearn branded but use same MOY Google Sheet).
-  // These are paired via Pearl district IDs: nj-hamil44973 (Hamilton Township)
-  // and nj-haddo65937 (Haddon Township) — column G in Pearl Operations.
-  // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for these districts,
-  // remove them from this set so they fall through to the EOY path.
+  // Paired via Pearl district account IDs in Column G of the MOY sheet:
+  //   nj-hamil44973 → Hamilton Township / Hamilton-Kuser
+  //   nj-haddo65937 → Haddon Township
+  //   nj-penns90725 → Penns Grove (Field Street + Paul W Carleton)
+  // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for any of these,
+  // remove that school from this set so it falls through to the EOY path.
   const MOY_SCHOOLS = new Set([
-    'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township',
+    'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township', 'Penns Grove',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -246,14 +248,24 @@
                                   'clifton ms', 'passaic clifton ms', 'passaic clifton middle school',
                                   'ilearn clifton ms'],
     // Hamilton Township (Pearl district ID: nj-hamil44973) — Caitlin, Katherine R., Lilia
-    // Exact school names as they appear in the MOY sheet (lowercased for matching):
     'Hamilton Township':         ['greenwood elementary school', 'kuser elementary school'],
     'Hamilton-Kuser':            ['kuser elementary school'],
     // Haddon Township (Pearl district ID: nj-haddo65937) — Micaela, Nicholas
-    // Exact school names as they appear in the MOY sheet (lowercased for matching):
     'Haddon Township':           ['clyde s jennings elem school', 'stoy elementary school',
                                   'strawbridge elementary school', 'thomas a edison elem school',
                                   'van sciver elementary school'],
+    // Penns Grove (Pearl district ID: nj-penns90725) — Alexandra Cristescu
+    'Penns Grove':               ['field street elementary school', 'paul w carleton elem school'],
+  };
+
+  // Pearl district account ID (Column G in MOY sheet) → TAP school keys
+  // Used as a secondary scoping mechanism when school name matching fails or is ambiguous.
+  // nj-ilear99637 covers ALL iLearn-branded schools; individual school name narrows further.
+  const MOY_DISTRICT_ID_MAP = {
+    'nj-ilear99637': [...ILEARN_SCHOOLS],
+    'nj-hamil44973': ['Hamilton Township', 'Hamilton-Kuser'],
+    'nj-haddo65937': ['Haddon Township'],
+    'nj-penns90725': ['Penns Grove'],
   };
 
   // Build multi-apprentice school set (TAP-key level, not MOY-school level)
@@ -437,8 +449,20 @@
       scholarId:   g('student_id', 'local_student_id', 'id'),
       // iReady "User Name" column = Pearl student login ID — enables Tier 0 exact join
       _pearlId:    g('user_name', 'username', 'student_username', 'user_id'),
-      school:      g('school'),
-      district:    g('district'),
+      school:      g('school', 'school_name', 'school_attended', 'site_name'),
+      district:    g('district', 'district_name'),
+      // Column G in MOY sheet = Pearl district account ID (e.g. 'nj-ilear99637').
+      // Try explicit account ID column names first; fall back to detecting the Pearl ID
+      // pattern (nj-<letters><digits>) in the district field if no dedicated column exists.
+      districtId:  (function () {
+        const acc = g('account', 'account_id', 'district_id', 'user_account',
+                      'org_id', 'organization_id', 'account_name');
+        if (acc) return acc.toLowerCase().trim();
+        const d = g('district', 'district_name');
+        // Pearl district IDs look like 'nj-ilear99637', 'nj-hamil44973', etc.
+        if (d && /^nj-[a-z]{2,}[0-9]{4,}$/i.test(d.trim())) return d.trim().toLowerCase();
+        return '';
+      }()),
       grade:       g('student_grade', 'grade'),
       instructor:  g('instructor', 'tutor'),
       boyPlacement: normPlacement(g('base_overall_relative_placement')),
@@ -780,22 +804,24 @@
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
 
-      // Diagnostic: Alexandra Cristescu (Penns Grove — single-apprentice EOY school)
+      // Diagnostic: Alexandra Cristescu (Penns Grove — MOY path, single-apprentice)
+      // Note: Alexandra moved from EOY path to MOY path (nj-penns90725 in Column G).
+      // Attribution via Tier 3.5 (single-apprentice district fallback) since Penns Grove
+      // has exactly one TAP apprentice.
       {
-        const alexEla  = irlElaByAppr['Alexandra Cristescu']  || [];
-        const alexMath = irlMathByAppr['Alexandra Cristescu'] || [];
-        const alexSess = sessionSets['Alexandra Cristescu'];
-        const pgEla    = irlabElaRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
-        const pgMath   = irlabMathRows.filter(EOY_DISTRICT_FILTERS['Penns Grove']);
-        const pgMathWithScores = pgMath.filter(r => r.boyScore !== null || r.eoyScore !== null);
-        console.log('[APIR] Alexandra — session set size:', alexSess ? alexSess.size : 0,
-                    '| IRLAB ELA total/attributed:', pgEla.length + '/' + alexEla.length,
-                    '| IRLAB Math total/attributed:', pgMath.length + '/' + alexMath.length,
-                    '| Math rows with scale scores:', pgMathWithScores.length + '/' + pgMath.length);
-        if (pgMath.length > 0) {
-          const s = pgMath[0];
-          console.log('[APIR] Alexandra first Math row — boyScore:', s.boyScore, 'eoyScore:', s.eoyScore,
-                      'boyPlacement:', s.boyPlacement, 'school:', s.school, 'district:', s.district);
+        const pgSchools = new Set(['field street elementary school', 'paul w carleton elem school']);
+        const pgMoyEla  = moyElaRows.filter(r =>
+          pgSchools.has((r.school||'').toLowerCase().trim()) || (r.districtId||'') === 'nj-penns90725');
+        const pgMoyMath = moyMathRows.filter(r =>
+          pgSchools.has((r.school||'').toLowerCase().trim()) || (r.districtId||'') === 'nj-penns90725');
+        const alexSess  = sessionSets['Alexandra Cristescu'];
+        console.log('[APIR] Alexandra (Penns Grove MOY) — session set size:', alexSess ? alexSess.size : 0,
+                    '| MOY ELA in sheet:', pgMoyEla.length,
+                    '| MOY Math in sheet:', pgMoyMath.length);
+        if (pgMoyMath.length > 0) {
+          const s = pgMoyMath[0];
+          console.log('[APIR] Alexandra first MOY Math row — school:', s.school,
+                      'districtId:', s.districtId, 'boyScore:', s.boyScore);
         }
       }
 
@@ -825,6 +851,45 @@
                     rdEla.length + rdMath.length === 0
                       ? '← ZERO rows: check MOY URL points to live sheet'
                       : '');
+      }
+
+      // Diagnostic: iLearn district summary (all iLearn apprentices — verifies district ID attribution)
+      {
+        const iLearnApprs = TAP_APPRENTICES.filter(([,,s]) => ILEARN_SCHOOLS.has(s)).map(([d]) => d);
+        let iLearnElaTotal = 0, iLearnMathTotal = 0;
+        iLearnApprs.forEach(appr => {
+          const ela  = moyElaByAppr[appr]  ? moyElaByAppr[appr].length  : 0;
+          const math = moyMathByAppr[appr] ? moyMathByAppr[appr].length : 0;
+          iLearnElaTotal  += ela;
+          iLearnMathTotal += math;
+          if (ela + math === 0)
+            console.warn('[APIR]', appr, '(iLearn MOY) — ELA: 0, Math: 0 ← check session sets / district ID');
+        });
+        console.log('[APIR] iLearn totals — ELA scholars attributed:', iLearnElaTotal,
+                    '| Math scholars attributed:', iLearnMathTotal,
+                    iLearnMathTotal === 0 ? '← MATH STILL 0: check districtId extraction from Column G' : '');
+        // Log what district IDs and schools appeared in Math rows
+        const mathDistIds  = [...new Set(moyMathRows.map(r => r.districtId).filter(Boolean))];
+        const mathSchoolsL = [...new Set(moyMathRows.map(r => (r.school||'').toLowerCase().trim()).filter(Boolean))];
+        console.log('[APIR] Math rows — district IDs found:', mathDistIds);
+        console.log('[APIR] Math rows — schools found (lowercase):', mathSchoolsL);
+      }
+
+      // Diagnostic: Penns Grove MOY path (Alexandra Cristescu)
+      {
+        const alexEla  = moyElaByAppr['Alexandra Cristescu']  || [];
+        const alexMath = moyMathByAppr['Alexandra Cristescu'] || [];
+        const pgMoyEla  = moyElaRows.filter(r =>
+          ['field street elementary school','paul w carleton elem school']
+            .includes((r.school||'').toLowerCase().trim()) ||
+          (r.districtId||'') === 'nj-penns90725');
+        const pgMoyMath = moyMathRows.filter(r =>
+          ['field street elementary school','paul w carleton elem school']
+            .includes((r.school||'').toLowerCase().trim()) ||
+          (r.districtId||'') === 'nj-penns90725');
+        console.log('[APIR] Alexandra (Penns Grove MOY) — ELA in sheet:', pgMoyEla.length,
+                    '/ attributed:', alexEla.length,
+                    '| Math in sheet:', pgMoyMath.length, '/ attributed:', alexMath.length);
       }
 
       // Diagnostic: Hamilton Township (MOY — multi-apprentice: Caitlin, Katherine R., Lilia)
@@ -1123,15 +1188,30 @@
   }
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
-  // Tier 1: instructor field in MOY CSV matches apprentice name
-  // Tier 2: session-confirmed scholar name — SCHOOL-SCOPED for multi-apprentice
-  //         schools (only checks session sets for apprentices at that MOY school),
-  //         then falls back to global search for single-apprentice schools.
-  // Tier 3: single-apprentice school-level fallback
-  // Tier 4: survey-confirmed scholar name match (last resort)
+  // Attribution tiers (in priority order):
+  //   Tier 0:   iReady User Name = Pearl student login ID → exact join via sessionIdMap
+  //   Tier 1:   instructor field in MOY CSV matches apprentice name
+  //   Tier 1.5: Pearl ID bridge (built from ELA Pearl IDs + IRLAB; fixes Math when Math
+  //             tab lacks User Name column — scholars attributed via ELA seed the bridge)
+  //   Tier 2:   session-confirmed scholar name, scoped to the school's/district's apprentices
+  //             Multi-apprentice scope: only check sessions for apprentices at THIS school.
+  //             If school name not in map: use Pearl district account ID (Column G) to scope.
+  //             Single-apprentice scope: global session search (won't cross-pollinate).
+  //   Tier 3:   single-apprentice school-level fallback (schoolToAppr)
+  //   Tier 3.5: single-apprentice district fallback (district ID → 1 apprentice only)
+  //   Tier 4:   survey-confirmed scholar name (last resort)
   function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge, sessionIdMap) {
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
+
+    // Build district account ID → [apprentice display names] from TAP roster.
+    // Used when school name is missing/unrecognized but Column G district ID is present.
+    const distIdToApprs = {};
+    Object.entries(MOY_DISTRICT_ID_MAP).forEach(([distId, schoolKeys]) => {
+      distIdToApprs[distId] = TAP_APPRENTICES
+        .filter(([,,s]) => schoolKeys.includes(s))
+        .map(([d]) => d);
+    });
 
     // Build school → apprentice map (single-appr MOY schools only — for Tier 3)
     const schoolToAppr = {};
@@ -1144,10 +1224,9 @@
       names.forEach(sn => { schoolToAppr[sn] = display; });
     });
 
-    // Build school → [all apprentices] map for multi-apprentice MOY schools.
-    // Used in Tier 2 to restrict session-name search to only the apprentices who
-    // actually work at a given school — prevents cross-school name collisions.
-    // Includes both iLearn schools and additional MOY schools (Hamilton, Haddon).
+    // Build school → [all apprentices] for multi-apprentice MOY schools (Tier 2 scoping).
+    // Prevents cross-school collisions where a common name (e.g. "Grace Perez") in one
+    // school's session set would steal a scholar from a different school's apprentice.
     const schoolApprList = {}; // lowercase MOY school name → [canonical apprentice names]
     TAP_APPRENTICES.forEach(([display,, school]) => {
       if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
@@ -1166,47 +1245,66 @@
     const anySessionData = Object.values(hasSessionData).some(Boolean);
 
     moyRows.forEach(row => {
-      const scholarN = normName(row.scholarName);
-      const schoolLc = (row.school || '').toLowerCase().trim();
+      const scholarN   = normName(row.scholarName);
+      const schoolLc   = (row.school || '').toLowerCase().trim();
+      const districtId = (row.districtId || '').toLowerCase().trim();
 
-      // Tier 0: MOY CSV User Name = Pearl student login ID → sessionIdMap (exact join)
+      // Tier 0: Pearl student login ID → sessionIdMap direct join (most authoritative)
       if (row._pearlId && sessionIdMap) {
         const appr = sessionIdMap[row._pearlId];
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 1: instructor name in MOY CSV (direct attribution)
+      // Tier 1: instructor field in MOY CSV matches an apprentice name
       if (row.instructor) {
         const appr = resolveAppr(row.instructor, lut);
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 1.5: Pearl ID bridge
+      // Tier 1.5: Pearl ID bridge — scholar name matched from prior ELA/IRLAB attribution
       if (scholarN && moyIdBridge) {
         const appr = moyIdBridge[scholarN] || moyIdBridge[normNameFL(scholarN)];
         if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
       }
 
-      // Tier 2: session-confirmed scholar name.
-      // For multi-apprentice schools: only search the session sets of apprentices
-      // assigned to THIS specific school — avoids false matches where a common name
-      // at one school steals a scholar from an apprentice at a different school.
+      // Tier 2: session-confirmed scholar name, scoped to school's/district's apprentices.
+      // Priority: school-name scope (most precise) → district ID scope (Column G fallback
+      //   for Math CSVs where school column header differs from ELA) → global search.
       if (scholarN && anySessionData) {
-        const scopedApprs = schoolApprList[schoolLc]; // apprentices at this MOY school
-        const isMultiAtSchool = scopedApprs && scopedApprs.length > 1;
+        // Determine candidate apprentice pool for this row
+        let scopedApprs = schoolApprList[schoolLc];  // school-level (tightest scope)
 
-        if (isMultiAtSchool) {
-          // Restricted search: only check the session sets for THIS school's apprentices
+        // If school name isn't recognised but Column G district ID is known,
+        // use the district to restore scope (catches Math CSVs with different school headers).
+        if (!scopedApprs && districtId && distIdToApprs[districtId]) {
+          scopedApprs = distIdToApprs[districtId];
+        }
+
+        const isMultiScope = scopedApprs && scopedApprs.length > 1;
+
+        if (isMultiScope) {
+          // Scoped search: only check session sets for apprentices in this scope
           for (const appr of scopedApprs) {
             const nameSet = sessionSets[appr];
             if (nameSet && inScholarSet(nameSet, scholarN)) {
               byAppr[appr].push(row); return;
             }
           }
-          // Multi-apprentice school, no session match → unattributed (don't fall to global)
-          return;
+          // No session match within scope — fall through to Tier 3/4 rather than
+          // silently dropping. Tier 3 will handle single-apprentice schools;
+          // multi-apprentice schools then fall to Tier 4 (survey names).
+        } else if (scopedApprs && scopedApprs.length === 1) {
+          // Exactly one apprentice at this school/district — check their session set,
+          // then fall through to Tier 3 for direct attribution
+          const appr = scopedApprs[0];
+          const nameSet = sessionSets[appr];
+          if (nameSet && inScholarSet(nameSet, scholarN)) {
+            byAppr[appr].push(row); return;
+          }
+          // Fall through — Tier 3 or 3.5 will attribute directly
         } else {
-          // Single-apprentice school or unknown school: global search
+          // School/district unknown: global session search (no cross-school scope risk
+          // since we don't know which school this row belongs to)
           for (const [appr, nameSet] of Object.entries(sessionSets || {})) {
             if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
           }
@@ -1214,8 +1312,19 @@
       }
 
       // Tier 3: single-apprentice school map fallback
+      // Catches iLearn/MOY schools with exactly one apprentice when session matching fails.
       const apprBySchool = schoolToAppr[schoolLc];
       if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
+
+      // Tier 3.5: single-apprentice district fallback via Column G district ID.
+      // For districts with only one TAP apprentice (e.g. Penns Grove → Alexandra Cristescu),
+      // the district ID is unambiguous — attribute directly even without a school name match.
+      if (districtId && distIdToApprs[districtId]) {
+        const dApprs = distIdToApprs[districtId];
+        if (dApprs.length === 1 && byAppr[dApprs[0]]) {
+          byAppr[dApprs[0]].push(row); return;
+        }
+      }
 
       // Tier 4: survey-confirmed scholar name (last resort)
       if (scholarN && surveyScholarSets) {
@@ -1637,21 +1746,20 @@
 
     // ─── Notes ───────────────────────────────────────────────────────────
     lines.push(row('NOTES'));
-    lines.push(row('iLearn schools use MOY (Winter 2026) iReady diagnostic data (MOY Google Sheet, ELA tab gid=912997533).'));
-    lines.push(row('Hamilton Township and Haddon Township use MOY (Winter 2026) iReady diagnostic data (same MOY Google Sheet, Math tab gid=186448147).'));
+    lines.push(row('MOY (Winter 2026) data source: Google Sheet ID 1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI — ELA gid=912997533, Math gid=186448147. Live pull, 5-min cache.'));
+    lines.push(row('iLearn schools (Pearl district ID nj-ilear99637) use MOY data. All 21 school names matched via MOY_SCHOOL_MAP; school attribution scoped per apprentice using Pearl session records.'));
+    lines.push(row('Hamilton Township / Hamilton-Kuser (nj-hamil44973) and Haddon Township (nj-haddo65937) use MOY data. Remove from MOY_SCHOOLS once EOY Preliminary is confirmed in IRLAB.'));
+    lines.push(row('Penns Grove (nj-penns90725) uses MOY data — Field Street Elementary and Paul W Carleton Elem. Alexandra Cristescu is the sole Penns Grove apprentice (Tier 3.5 district fallback).'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
-    lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section is excluded; surveys and attendance are included.'));
-    lines.push(row('Central Jersey College Prep: EOY Preliminary data not yet uploaded to IRLAB — academic columns will populate once data arrives.'));
-    lines.push(row('Note: Hamilton/Haddon ELA data shows 0 where the MOY ELA tab does not yet contain data for Kuser Elementary or Haddon Township schools. Once ELA data is added to the sheet it will auto-populate.'));
-    lines.push(row('Gloucester ELA/Math data is sourced from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
-    lines.push(row('Scholar attribution (EOY/IRLAB): (Tier 0) Pearl student ID exact join via _pearlId; (A) IRLAB instructor field authoritative — non-NJTC teachers excluded; (B) Pearl session name sets; (C) school-level fallback only when no session data.'));
-    lines.push(row('Scholar attribution (MOY): (Tier 0) iReady User Name = Pearl login ID direct join; (1) instructor in MOY CSV; (1.5) name bridge built from ELA Pearl IDs + IRLAB — fixes Math attribution where Math tab lacks User Name column; (2) Pearl session name sets; (3) school-level fallback; (4) survey name fallback.'));
-    lines.push(row('Pearl Session Details (SESS) and Attendance Detail (ATT) are joined on session name+date to build exact scholar-to-tutor maps for all schools including multi-apprentice sites.'));
-    lines.push(row('For Hamilton Township and Haddon Township (MOY path, multi-apprentice): Pearl session sets are the primary attribution method (Tier 2 scoped search).'));
-    lines.push(row('Attendance rate = sessions attended / (attended + personal absences). Service interruptions (school closures, testing, holidays, scholar-caused misses, blank reason) are EXCLUDED from the denominator — matching Pearl Operations portal calculation exactly.'));
-    lines.push(row('Personal tutor absence miss reasons: Absent Not Covered; Absent Covered by Sub; Absent Covered by Dual Role; Absent Covered by Site Leader; Absent Covered by IC; Tutor Left Early. All other miss reasons are service interruptions.'));
-    lines.push(row('Academic data as of June 5 2026 — EOY diagnostics are incomplete for some sites.'));
-    lines.push(row('Standards Mastery: Class Teacher(s) field in SM CSV directly identifies the NJTC apprentice for each scholar. Non-NJTC subs (e.g. Shannon Spillane-SUB) are excluded. Form A = Pre-assessment, Form B = Post-assessment.'));
+    lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section excluded; surveys and attendance included.'));
+    lines.push(row('Central Jersey College Prep: EOY Preliminary data not yet uploaded to IRLAB — academic columns populate once data arrives.'));
+    lines.push(row('Gloucester ELA/Math from EOY Preliminary IRLAB filtered by Gloucester Township district and school name.'));
+    lines.push(row('Scholar attribution (MOY, in priority order): (0) iReady User Name = Pearl login ID exact join; (1) instructor field in MOY CSV; (1.5) name bridge from ELA Pearl IDs — fixes Math when Math tab lacks User Name column; (2) Pearl session sets scoped to school or Pearl district ID (Column G); (3) single-apprentice school fallback; (3.5) single-apprentice district ID fallback; (4) survey name fallback.'));
+    lines.push(row('Scholar attribution (EOY/IRLAB): (0) Pearl student ID; (A) IRLAB instructor field; (B) Pearl session name sets; (B2) school-level fallback when no session data; (B3) survey name fallback.'));
+    lines.push(row('Pearl district account IDs (Column G in MOY sheet) scope attribution to correct district: nj-ilear99637 (iLearn), nj-hamil44973 (Hamilton), nj-haddo65937 (Haddon), nj-penns90725 (Penns Grove).'));
+    lines.push(row('Attendance rate = attended / (attended + personal absences). Service interruptions excluded — matches Pearl Operations portal exactly.'));
+    lines.push(row('Academic data as of June 5 2026 — EOY diagnostics incomplete for some sites.'));
+    lines.push(row('Standards Mastery: Class Teacher(s) field identifies the NJTC apprentice. Form A = Pre-assessment, Form B = Post-assessment.'));
     lines.push('');
 
     // ─── SECTION 4: Standards Mastery ────────────────────────────────────
