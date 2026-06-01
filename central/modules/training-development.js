@@ -458,12 +458,13 @@
 
   // ── Apprentice master lists (ADP canonical names) ─────────────────
   // Synced to HR Master List + TAP program roster SY 2025-2026.
-  // Removed: Jessica Flores (Terminated), Monica Brown (Terminated), Jacob Leebron (Terminated).
-  // Added: Avani Jimenez, Jazmin Garcia, Melissa Mazza, Renee Davis, La Shanee Davis (was misrouted NE→stays), Lilia Quintero (moved NE→SW).
+  // All 30 apprentices retained regardless of current employment status.
+  // Terminated apprentices (Apollo, Jessica Flores) keep their SY 25-26 data.
+  // Lilia Quintero moved NE→SW. La Shanee Davis = Dr. Renee Davis (NJ2025004829).
   const APPRENTICES_NE = [
     'Alexandra Cristescu','Aliviyah Goodson','Apollo Monroy-Polanco','Arelis Rodriguez',
     'Avani Jimenez','Carla Borbon','Carlos Jacho','Ian Anderson','Jasmine Ramsey-Copeland',
-    'Jazmin Garcia','Keisha Lopez','La Shanee Davis','Linda Fenty','Maria Gutierrez',
+    'Jazmin Garcia','Jessica Flores','Keisha Lopez','La Shanee Davis','Linda Fenty','Maria Gutierrez',
     'Melissa Mazza','Mushana Dunham','Naima Boutira','Norelis Ramirez','Pooja Tyagi',
     'Shahzeeb Ahmad','Sharon K Kessel','Subul Sadiq','Theodore Mills'
   ];

@@ -1,7 +1,7 @@
 /* ============================================================================
    NJTC APPRENTICE IMPACT REPORT MODULE  (SY 25-26)
    Combines Pearl Operations Data + iReady EOY/MOY Academic Data for all
-   29 TAP apprentices.
+   30 TAP apprentices.
 
    Data source rules:
      • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
@@ -78,7 +78,8 @@
   // [displayName, njId, schoolRaw, region, surveyName]
   // [displayName, njId, schoolRaw, region, surveyName]
   // Synced to HR Master List + TAP program roster SY 2025-2026.
-  // Removed: Jessica Flores (NJ2025001718) — Terminated, Inactive Prior Apprentice.
+  // All 30 apprentices retained regardless of current employment status — terminated
+  // apprentices keep their data for the full SY 25-26 record.
   // La Shanee Davis and Dr. Renee Davis are the same person — NJ ID NJ2025004829, known by both names.
   const TAP_APPRENTICES = [
     ['Alexandra Cristescu',     'NJ2026000468', 'Penns Grove',                 'SW', 'Alexandra Cristescu'],
@@ -92,6 +93,7 @@
     ['Ian Anderson',            'NJ2025004964', 'iLearn Hudson MS',            'NE', 'Ian Anderson'],
     ['Jasmine Ramsey-Copeland', 'NJ2025001829', 'iLearn Passaic MS',           'NE', 'Jasmine Ramsey'],
     ['Jazmin Garcia',           'NJ2026001279', 'iLearn Bergen MS',            'NE', 'Jazmin Garcia'],
+    ['Jessica Flores',          'NJ2025001718', 'iLearn Passaic MS',           'NE', 'Jessica Flores'],
     ['Katherine R. Davis',      'NJ2025005330', 'Hamilton Township',           'SW', 'Katie Rose Davis'],
     ['Katrina Valentin',        'NJ2025001719', 'Gloucester',                  'SW', 'Katrina Valentin'],
     ['Keisha Lopez',            'NJ2026000470', 'iLearn Clifton',              'NE', 'Keisha Lopez'],
@@ -1452,7 +1454,7 @@
     lines.push('');
 
     // ─── SECTION 1: Apprentice Summary ────────────────────────────────────
-    lines.push(row('SECTION 1 -- APPRENTICE SUMMARY (29 APPRENTICES -- SY 25-26)'));
+    lines.push(row('SECTION 1 -- APPRENTICE SUMMARY (30 APPRENTICES -- SY 25-26)'));
     lines.push(row(
       'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
       // ELA
