@@ -175,9 +175,6 @@
     'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township', 'Penns Grove',
   ]);
 
-  // Schools where the apprentice teaches Math only — ELA rows from MOY sheet are suppressed.
-  const MATH_ONLY_MOY_SCHOOLS = new Set(['Penns Grove']);
-
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
   // Matches on district name OR school name (district may be empty in some IRLAB rows)
   const EOY_DISTRICT_FILTERS = {
@@ -777,7 +774,15 @@
       //   sets  — per-apprentice scholar name sets (for name-based matching)
       //   idMap — Pearl student ID → canonical apprentice (for exact ID matching)
       setStatus('Building session attribution from Pearl data…'); setProgress(50);
-      const { sets: sessionSets, idMap: sessionIdMap } = buildSessionAttribution(sessRows, attRows, apprLut);
+      const { sets: sessionSets, idMap: sessionIdMap, subjects: apprSubjects } = buildSessionAttribution(sessRows, attRows, apprLut);
+      // Log subject coverage so we can verify ELA/Math assignments from Pearl sessions
+      {
+        const subjSummary = TAP_APPRENTICES.map(([d]) => {
+          const s = apprSubjects[d];
+          return s && s.size ? `${d.split(' ')[0]}: [${[...s].join('/')}]` : null;
+        }).filter(Boolean).join(', ');
+        console.log('[APIR] Session subjects by apprentice:', subjSummary || '← none');
+      }
 
       // Diagnostic: specifically log La Shanee Davis session and survey scholar counts
       {
@@ -977,7 +982,7 @@
       console.log('[APIR] SM apprentices with data:', Object.keys(smByAppr).join(', '));
       const records = buildRecords(
         moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-        surveyAgg, attAgg, smByAppr
+        surveyAgg, attAgg, smByAppr, apprSubjects
       );
 
       // ── 9. Generate CSV ────────────────────────────────────────────────
@@ -1131,9 +1136,10 @@
   //                              row (Attended/Late) identifies the tutor; all student
   //                              rows in that group are added to the tutor's scholar set.
   function buildSessionAttribution(sessRows, attRows, lut) {
-    const sets  = {};
-    const idMap = {};  // Pearl student ID → canonical apprentice name
-    TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
+    const sets     = {};
+    const idMap    = {};  // Pearl student ID → canonical apprentice name
+    const subjects = {}; // canonical apprentice name → Set of subjects (e.g. 'Math', 'Reading')
+    TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); subjects[d] = new Set(); });
 
     // Helper: add a scholar name (both full-norm and first+last forms) to a set
     function addScholar(set, raw) {
@@ -1157,6 +1163,10 @@
       const instrRaw = getCol(SESS_COL.INSTRUCTOR);
       const canon    = resolveAppr(instrRaw, lut);
       if (!canon || !sets[canon]) return;
+
+      // Col 9 = subject — track which subjects each apprentice actually teaches
+      const subj = getCol(SESS_COL.SUBJECT);
+      if (subj) subjects[canon].add(subj);
 
       // Col 2 = comma-separated student display names
       const stuNamesRaw = getCol(SESS_COL.STUDENTS);
@@ -1233,7 +1243,7 @@
     console.log('[APIR] Session attribution —', summary || 'no scholars found');
     console.log('[APIR] Pearl ID map — entries:', Object.keys(idMap).length);
 
-    return { sets, idMap };
+    return { sets, idMap, subjects };
   }
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
@@ -1586,8 +1596,23 @@
 
   // ── Build per-apprentice records ──────────────────────────────────────────
   function buildRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                         surveyAgg, attAgg, smByAppr) {
-    smByAppr = smByAppr || {};
+                         surveyAgg, attAgg, smByAppr, apprSubjects) {
+    smByAppr     = smByAppr     || {};
+    apprSubjects = apprSubjects || {};
+
+    // Normalize Pearl subject values to ELA / Math buckets.
+    // Pearl uses 'Reading' or 'ELA' for literacy sessions; 'Math' for math.
+    const teachesEla  = d => {
+      const s = apprSubjects[d];
+      if (!s || !s.size) return true; // no session data → don't suppress
+      return [...s].some(v => /reading|ela|literacy/i.test(v));
+    };
+    const teachesMath = d => {
+      const s = apprSubjects[d];
+      if (!s || !s.size) return true; // no session data → don't suppress
+      return [...s].some(v => /math/i.test(v));
+    };
+
     return TAP_APPRENTICES.map(([display, njId, school, region]) => {
       const isMidYr   = ILEARN_SCHOOLS.has(school) || MOY_SCHOOLS.has(school);
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
@@ -1599,12 +1624,15 @@
         smAcad = aggregateSmAcad(smByAppr[display] || []);
       } else if (!isNoData && !isPending) {
         if (isMidYr) {
-          if (!MATH_ONLY_MOY_SCHOOLS.has(school))
+          if (teachesEla(display))
             elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
-          mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
+          if (teachesMath(display))
+            mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
         } else {
-          elaAcad  = aggregateAcademic(irlElaByAppr[display]  || [], 'eoy');
-          mathAcad = aggregateAcademic(irlMathByAppr[display] || [], 'eoy');
+          if (teachesEla(display))
+            elaAcad  = aggregateAcademic(irlElaByAppr[display]  || [], 'eoy');
+          if (teachesMath(display))
+            mathAcad = aggregateAcademic(irlMathByAppr[display] || [], 'eoy');
         }
       }
 
