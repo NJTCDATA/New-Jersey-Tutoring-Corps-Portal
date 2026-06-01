@@ -254,17 +254,15 @@
                                   // Prior school names (kept in case sheet reverts):
                                   'greenwood elementary school', 'kuser elementary school',
                                   'alexander crockett elementary', 'hamilton township'],
-    'Hamilton-Kuser':            ['kuser elementary school', 'klockner elementary school',
-                                  'hamilton-kuser elementary'],
-    // Haddon Township (Pearl district ID: nj-haddo65937) — Micaela, Nicholas
-    // User-confirmed exact names from the MOY sheet (all caps as they appear):
-    'Haddon Township':           ['clyde s jennings elem school', 'stoy elementary school',
-                                  'strawbridge elementary school', 'thomas a edison elem school',
-                                  'van sciver elementary school',
-                                  // Alternate/abbreviated forms in case export varies:
-                                  'jennings elementary', 'stoy elementary', 'strawbridge elementary',
-                                  'thomas a. edison elementary', 'thomas edison elementary',
-                                  'van sciver elementary', 'haddon township'],
+    'Hamilton-Kuser':            ['kuser elementary school'],
+    // Haddon Township (Pearl district ID: nj-haddo65937) — Micaela Wilkerson, Nicholas Hoover
+    // Confirmed exact school names from the MOY sheet (case-insensitive match applied):
+    'Haddon Township':           ['van sciver elementary school',
+                                  'strawbridge elementary school',
+                                  'stoy elementary school',
+                                  // Additional Haddon schools confirmed in Pearl data:
+                                  'clyde s jennings elem school',
+                                  'thomas a edison elem school'],
     // Penns Grove (Pearl district ID: nj-penns90725) — Alexandra Cristescu
     'Penns Grove':               ['field street elementary school', 'paul w carleton elem school'],
   };
