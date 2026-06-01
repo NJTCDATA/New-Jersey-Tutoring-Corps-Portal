@@ -4,11 +4,14 @@
    30 TAP apprentices.
 
    Data source rules:
-     • iLearn schools      → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • All other schools   → EOY Preliminary via window.irlab.getAllRows()
-     • Middlesex STEM      → Standards Mastery (no iReady data; surveys only)
-     • CJCP + Hamilton     → EOY Preliminary (auto-populates when data arrives)
-     • Gloucester          → EOY Preliminary filtered by district OR school name
+     • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
+     • Hamilton Township + Haddon Twp  → MOY (Winter 2026) Google Sheet (same sheet, district-paired)
+     • All other schools               → EOY Preliminary via window.irlab.getAllRows()
+     • Middlesex STEM                  → Standards Mastery (no iReady data; surveys only)
+     • CJCP                            → EOY Preliminary (auto-populates when data arrives)
+     • Gloucester                      → EOY Preliminary filtered by district OR school name
+     NOTE: When EOY Preliminary data is added for Hamilton Township + Haddon Township,
+     remove them from MOY_SCHOOLS so they fall through to the EOY path.
    ============================================================================ */
 
 (function () {
@@ -75,7 +78,8 @@
   // [displayName, njId, schoolRaw, region, surveyName]
   // [displayName, njId, schoolRaw, region, surveyName]
   // Synced to HR Master List + TAP program roster SY 2025-2026.
-  // Removed: Jessica Flores (NJ2025001718) — Terminated, Inactive Prior Apprentice.
+  // All 30 apprentices retained regardless of current employment status — terminated
+  // apprentices keep their data for the full SY 25-26 record.
   // La Shanee Davis and Dr. Renee Davis are the same person — NJ ID NJ2025004829, known by both names.
   const TAP_APPRENTICES = [
     ['Alexandra Cristescu',     'NJ2026000468', 'Penns Grove',                 'SW', 'Alexandra Cristescu'],
@@ -89,6 +93,7 @@
     ['Ian Anderson',            'NJ2025004964', 'iLearn Hudson MS',            'NE', 'Ian Anderson'],
     ['Jasmine Ramsey-Copeland', 'NJ2025001829', 'iLearn Passaic MS',           'NE', 'Jasmine Ramsey'],
     ['Jazmin Garcia',           'NJ2026001279', 'iLearn Bergen MS',            'NE', 'Jazmin Garcia'],
+    ['Jessica Flores',          'NJ2025001718', 'iLearn Passaic MS',           'NE', 'Jessica Flores'],
     ['Katherine R. Davis',      'NJ2025005330', 'Hamilton Township',           'SW', 'Katie Rose Davis'],
     ['Katrina Valentin',        'NJ2025001719', 'Gloucester',                  'SW', 'Katrina Valentin'],
     ['Keisha Lopez',            'NJ2026000470', 'iLearn Clifton',              'NE', 'Keisha Lopez'],
@@ -145,7 +150,11 @@
   // Schools where EOY Preliminary data is expected but not yet uploaded to IRLAB.
   // Show 0 / "Pending" rather than pulling stale data.  Remove a school from this
   // set once its current-year EOY Preliminary data has been confirmed in the IRLAB.
-  const PENDING_EOY_SCHOOLS = new Set(['Hamilton-Kuser']);
+  const PENDING_EOY_SCHOOLS = new Set([
+    // 'Hamilton-Kuser' removed — Hamilton Township and Haddon Township now use MOY path.
+    // Once EOY Preliminary data is uploaded to IRLAB for these districts, remove them
+    // from MOY_SCHOOLS below and let them fall through to the EOY path via EOY_DISTRICT_FILTERS.
+  ]);
 
   // iLearn schools → use MOY Google Sheet (Winter 2026)
   const ILEARN_SCHOOLS = new Set([
@@ -153,6 +162,15 @@
     'iLearn Paterson', 'iLearn Paterson MS', 'iLearn Paterson -ES',
     'iLearn Paterson Silk City', 'iLearn Hudson MS', 'iLearn Hudson',
     'iLearn Clifton', 'iLearn Clifton MS',
+  ]);
+
+  // Additional MOY schools (not iLearn branded but use same MOY Google Sheet).
+  // These are paired via Pearl district IDs: nj-hamil44973 (Hamilton Township)
+  // and nj-haddo65937 (Haddon Township) — column G in Pearl Operations.
+  // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for these districts,
+  // remove them from this set so they fall through to the EOY path.
+  const MOY_SCHOOLS = new Set([
+    'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -206,6 +224,10 @@
   };
 
   // MOY school name mapping: TAP school key → lowercase iReady MOY school names
+  // Hamilton Township and Haddon Township: names will be confirmed once the report
+  // is run and the diagnostic log "[APIR] MOY ELA/Math schools in sheet:" is checked.
+  // Common iReady name patterns are included as best-effort; add the exact string
+  // from the diagnostic log if attribution shows 0 scholars for these apprentices.
   const MOY_SCHOOL_MAP = {
     'iLearn Bergen MS':          ['bergen middle school'],
     'iLearn Bergen':             ['bergen middle school', 'bergen ascs elementary'],
@@ -223,6 +245,15 @@
     'iLearn Clifton MS':         ['passaic clifton middle', 'clifton high', 'clifton middle',
                                   'clifton ms', 'passaic clifton ms', 'passaic clifton middle school',
                                   'ilearn clifton ms'],
+    // Hamilton Township (Pearl district ID: nj-hamil44973) — Caitlin, Katherine R., Lilia
+    // Exact school names as they appear in the MOY sheet (lowercased for matching):
+    'Hamilton Township':         ['greenwood elementary school', 'kuser elementary school'],
+    'Hamilton-Kuser':            ['kuser elementary school'],
+    // Haddon Township (Pearl district ID: nj-haddo65937) — Micaela, Nicholas
+    // Exact school names as they appear in the MOY sheet (lowercased for matching):
+    'Haddon Township':           ['clyde s jennings elem school', 'stoy elementary school',
+                                  'strawbridge elementary school', 'thomas a edison elem school',
+                                  'van sciver elementary school'],
   };
 
   // Build multi-apprentice school set (TAP-key level, not MOY-school level)
@@ -287,11 +318,12 @@
       'mary carmen':            'Maria Del Carmen',
       'mary carmen gutierrez':  'Maria Del Carmen',
       'maria gutierrez':        'Maria Del Carmen',
-      'renee davis':            'Dr. Renee Davis',
-      'la shanee davis':        'Dr. Renee Davis',
-      'lashanee davis':         'Dr. Renee Davis',   // Pearl spelling variant (no space)
-      'la shanee':              'Dr. Renee Davis',
-      'lashanee':               'Dr. Renee Davis',
+      'renee davis':            'La Shanee Davis',
+      'dr. renee davis':        'La Shanee Davis',
+      'dr renee davis':         'La Shanee Davis',
+      'lashanee davis':         'La Shanee Davis',   // Pearl spelling variant (no space)
+      'la shanee':              'La Shanee Davis',
+      'lashanee':               'La Shanee Davis',
       'caitlyn evgeniadis':     'Caitlin Evgeniadis',
       'caitlyn evegeniadis':    'Caitlin Evgeniadis',
       'subul saadiq':           'Subul Sadiq',
@@ -607,6 +639,23 @@
                     cliftonEla.length ? '— first scholar: ' + (cliftonEla[0].scholarName || '(no name)') : '← NO DATA');
         console.log('[APIR] MOY Clifton Math rows:', cliftonMath.length,
                     cliftonMath.length ? '— first scholar: ' + (cliftonMath[0].scholarName || '(no name)') : '← NO DATA');
+        // Check Hamilton Township MOY rows (Kuser + Greenwood)
+        const hamiltonSchools = new Set(['greenwood elementary school', 'kuser elementary school']);
+        const hamiltonEla  = moyElaRows.filter(r => hamiltonSchools.has((r.school || '').toLowerCase().trim()));
+        const hamiltonMath = moyMathRows.filter(r => hamiltonSchools.has((r.school || '').toLowerCase().trim()));
+        console.log('[APIR] MOY Hamilton ELA rows:', hamiltonEla.length,
+                    hamiltonEla.length ? '— schools: ' + [...new Set(hamiltonEla.map(r=>r.school))].join(', ') : '← 0 rows');
+        console.log('[APIR] MOY Hamilton Math rows:', hamiltonMath.length,
+                    hamiltonMath.length ? '— schools: ' + [...new Set(hamiltonMath.map(r=>r.school))].join(', ') : '← 0 rows');
+        // Check Haddon Township MOY rows (5 schools)
+        const haddonSchools = new Set(['clyde s jennings elem school','stoy elementary school',
+          'strawbridge elementary school','thomas a edison elem school','van sciver elementary school']);
+        const haddonEla  = moyElaRows.filter(r => haddonSchools.has((r.school || '').toLowerCase().trim()));
+        const haddonMath = moyMathRows.filter(r => haddonSchools.has((r.school || '').toLowerCase().trim()));
+        console.log('[APIR] MOY Haddon ELA rows:', haddonEla.length,
+                    haddonEla.length ? '— schools: ' + [...new Set(haddonEla.map(r=>r.school))].join(', ') : '← 0 rows');
+        console.log('[APIR] MOY Haddon Math rows:', haddonMath.length,
+                    haddonMath.length ? '— schools: ' + [...new Set(haddonMath.map(r=>r.school))].join(', ') : '← 0 rows');
       }
 
       // ── 2.5. Fetch Standards Mastery data (Middlesex STEM) ──────────────
@@ -657,10 +706,10 @@
       setStatus('Building session attribution from Pearl data…'); setProgress(50);
       const { sets: sessionSets, idMap: sessionIdMap } = buildSessionAttribution(sessRows, attRows, apprLut);
 
-      // Diagnostic: specifically log Dr. Renee Davis session and survey scholar counts
+      // Diagnostic: specifically log La Shanee Davis session and survey scholar counts
       {
-        const rdSess = sessionSets['Dr. Renee Davis'];
-        console.log('[APIR] Dr. Renee Davis session set size:', rdSess ? rdSess.size : 0,
+        const rdSess = sessionSets['La Shanee Davis'];
+        console.log('[APIR] La Shanee Davis session set size:', rdSess ? rdSess.size : 0,
                     rdSess && rdSess.size ? '— sample: ' + [...rdSess].slice(0, 3).join(', ') : '← NO SESSION DATA');
       }
 
@@ -669,10 +718,10 @@
       const surveyAgg         = processSurveys(stuRows, apprLut);
       const surveyScholarSets = buildSurveyScholarSets(stuRows, apprLut); // Tier 4/5 fallback
 
-      // Diagnostic: log survey scholar set for Dr. Renee Davis
+      // Diagnostic: log survey scholar set for La Shanee Davis
       {
-        const rdSurv = surveyScholarSets['Dr. Renee Davis'];
-        console.log('[APIR] Dr. Renee Davis survey set size:', rdSurv ? rdSurv.size : 0,
+        const rdSurv = surveyScholarSets['La Shanee Davis'];
+        console.log('[APIR] La Shanee Davis survey set size:', rdSurv ? rdSurv.size : 0,
                     rdSurv && rdSurv.size ? '— sample: ' + [...rdSurv].slice(0, 5).join(', ') : '← NO SURVEY DATA');
       }
 
@@ -740,15 +789,41 @@
         }
       }
 
-      // Diagnostic: Dr. Renee Davis (iLearn Clifton MS — MOY multi-apprentice)
+      // Diagnostic: La Shanee Davis (iLearn Clifton MS — MOY multi-apprentice)
       {
-        const rdEla  = moyElaByAppr['Dr. Renee Davis']  || [];
-        const rdMath = moyMathByAppr['Dr. Renee Davis'] || [];
-        console.log('[APIR] Dr. Renee Davis — MOY ELA attributed:', rdEla.length,
+        const rdEla  = moyElaByAppr['La Shanee Davis']  || [];
+        const rdMath = moyMathByAppr['La Shanee Davis'] || [];
+        console.log('[APIR] La Shanee Davis — MOY ELA attributed:', rdEla.length,
                     '| MOY Math attributed:', rdMath.length,
                     rdEla.length + rdMath.length === 0
                       ? '← ZERO rows: check MOY URL points to live sheet'
                       : '');
+      }
+
+      // Diagnostic: Hamilton Township (MOY — multi-apprentice: Caitlin, Katherine R., Lilia)
+      {
+        const htAppr = TAP_APPRENTICES.filter(([,, s]) => s === 'Hamilton Township' || s === 'Hamilton-Kuser').map(([d]) => d);
+        htAppr.forEach(appr => {
+          const ela  = moyElaByAppr[appr]  || [];
+          const math = moyMathByAppr[appr] || [];
+          console.log('[APIR]', appr, '(Hamilton MOY) — ELA attributed:', ela.length,
+                      '| Math attributed:', math.length,
+                      ela.length + math.length === 0
+                        ? '← 0 rows — check MOY school names match MOY sheet for Hamilton' : '');
+        });
+      }
+
+      // Diagnostic: Haddon Township (MOY — multi-apprentice: Micaela, Nicholas)
+      {
+        const hdAppr = TAP_APPRENTICES.filter(([,, s]) => s === 'Haddon Township').map(([d]) => d);
+        hdAppr.forEach(appr => {
+          const ela  = moyElaByAppr[appr]  || [];
+          const math = moyMathByAppr[appr] || [];
+          console.log('[APIR]', appr, '(Haddon MOY) — ELA attributed:', ela.length,
+                      '| Math attributed:', math.length,
+                      ela.length + math.length === 0
+                        ? '← 0 rows — check MOY school names match MOY sheet for Haddon' : '');
+        });
       }
 
       // ── 8. Build per-apprentice records ───────────────────────────────────
@@ -1031,25 +1106,24 @@
     const byAppr = {};
     TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
-    // Build school → apprentice map (iLearn single-appr schools only — for Tier 3)
+    // Build school → apprentice map (single-appr MOY schools only — for Tier 3)
     const schoolToAppr = {};
     TAP_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
       if (STANDARDS_MASTERY_SCHOOLS.has(school))  return;
       if (NO_DATA_SCHOOLS.has(school))            return;
-      if (!ILEARN_SCHOOLS.has(school))            return;
+      if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
       const names = MOY_SCHOOL_MAP[school] || [];
       names.forEach(sn => { schoolToAppr[sn] = display; });
     });
 
-    // Build school → [all apprentices] map for multi-apprentice iLearn schools.
+    // Build school → [all apprentices] map for multi-apprentice MOY schools.
     // Used in Tier 2 to restrict session-name search to only the apprentices who
-    // actually work at a given school — prevents cross-school name collisions where
-    // a common name (e.g. "Grace Perez") in one school's session set would steal
-    // scholars from a different school's apprentice (e.g. Dr. Renee Davis at Clifton).
+    // actually work at a given school — prevents cross-school name collisions.
+    // Includes both iLearn schools and additional MOY schools (Hamilton, Haddon).
     const schoolApprList = {}; // lowercase MOY school name → [canonical apprentice names]
     TAP_APPRENTICES.forEach(([display,, school]) => {
-      if (!ILEARN_SCHOOLS.has(school)) return;
+      if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
       const moyNames = MOY_SCHOOL_MAP[school] || [];
       moyNames.forEach(sn => {
         if (!schoolApprList[sn]) schoolApprList[sn] = [];
@@ -1330,7 +1404,7 @@
                          surveyAgg, attAgg, smByAppr) {
     smByAppr = smByAppr || {};
     return TAP_APPRENTICES.map(([display, njId, school, region]) => {
-      const isMidYr   = ILEARN_SCHOOLS.has(school);
+      const isMidYr   = ILEARN_SCHOOLS.has(school) || MOY_SCHOOLS.has(school);
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData  = NO_DATA_SCHOOLS.has(school);
       const isPending = PENDING_EOY_SCHOOLS.has(school);
