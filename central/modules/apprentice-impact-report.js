@@ -748,17 +748,34 @@
         const fl = normNameFL(nn);
         if (fl && fl !== nn && !moyIdBridge[fl]) moyIdBridge[fl] = appr;
       };
-      // Source 1: IRLAB rows (EOY schools — builds bridge for non-iLearn cross-subject use)
+      // Source 1: IRLAB rows (EOY schools)
       [...irlabElaRows, ...irlabMathRows].forEach(r =>
         _addToBridge((r._pearlId || '').trim(), r.scholarName));
-      // Source 2: MOY ELA rows — ELA tab has Pearl IDs; extends bridge to iLearn Math scholars
+      // Source 2: MOY ELA Pearl IDs (if ELA tab has User Name column)
       moyElaRows.forEach(r =>
         _addToBridge((r._pearlId || '').trim(), r.scholarName));
-      console.log('[APIR] MOY ID bridge — entries:', Object.keys(moyIdBridge).length,
-                  '(IRLAB + MOY ELA Pearl IDs combined)');
+      console.log('[APIR] MOY ID bridge (pre-ELA) — entries:', Object.keys(moyIdBridge).length);
 
-      setStatus('Attributing scholars to apprentices…'); setProgress(76);
-      const moyElaByAppr  = attributeMoyScholars(moyElaRows,  sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
+      // ── ELA attribution first, then extend bridge with results ─────────────
+      // Guaranteed fix for Math attribution: same student takes ELA and Math.
+      // If they were attributed in ELA (via any tier including Tier 0 Pearl ID,
+      // Tier 2 session-name, etc.), add their name to the bridge so Math Tier 1.5
+      // catches them — regardless of whether the Math tab has a Pearl ID column.
+      setStatus('Attributing ELA scholars…'); setProgress(74);
+      const moyElaByAppr = attributeMoyScholars(moyElaRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
+
+      // Extend bridge with all ELA-attributed scholar names
+      Object.entries(moyElaByAppr).forEach(([appr, rows]) => {
+        rows.forEach(r => {
+          const nn = normName(r.scholarName);
+          if (nn && !moyIdBridge[nn]) moyIdBridge[nn] = appr;
+          const fl = normNameFL(nn);
+          if (fl && fl !== nn && !moyIdBridge[fl]) moyIdBridge[fl] = appr;
+        });
+      });
+      console.log('[APIR] MOY ID bridge (post-ELA) — entries:', Object.keys(moyIdBridge).length);
+
+      setStatus('Attributing Math scholars…'); setProgress(76);
       const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
