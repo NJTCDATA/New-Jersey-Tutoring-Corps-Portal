@@ -72,15 +72,26 @@
 
   // ── Employee normalization ────────────────────────────────────────────────────
   // Returns a unified employee object from tracker row or HR_EMPS entry.
-  function normalizeTrackerRow(row) {
+  // periodStart is the cycle start date, used as fallback when offerAccepted is "yes" (no date recorded).
+  function normalizeTrackerRow(row, periodStart) {
     // Pre-apprentices are NOT employees for DOL purposes
     if (row.isPreApp) return null;
-    const accepted = parseDate(row.offerAccepted);
-    if (!accepted) return null; // no offer date = not hired
+    const acceptedStr = (row.offerAccepted || '').trim().toLowerCase();
+    // Must have some acceptance indication
+    if (!acceptedStr || acceptedStr === 'no' || acceptedStr === 'n/a') return null;
+    // If it's a parseable date, use it; "yes" means accepted but date not recorded → use offerSent or period start
+    let startDate = parseDate(row.offerAccepted);
+    if (!startDate) {
+      if (acceptedStr === 'yes') {
+        startDate = parseDate(row.offerSent) || periodStart || new Date('2026-06-01');
+      } else {
+        return null;
+      }
+    }
     return {
       name:        row.fullName || `${row.firstName} ${row.lastName}`.trim(),
       role:        row.role || '',
-      startDate:   accepted,
+      startDate,
       termDate:    parseDate(row.termDate) || null,
       terminated:  row.isTerminated,
       resignType:  (row.resignType || '').toLowerCase(),
@@ -358,9 +369,10 @@
       const tracker = window.NJTC_ONSITE_TRACKER;
       if (!tracker || !tracker.length) return [];
       const ck = period.cycleKey;
+      const cycleMatch = ck.split(' ').slice(0, 2).join(' ');
       return tracker
-        .filter(r => (r.cycle || '').toLowerCase().includes(ck.split(' ').slice(0, 2).join(' ')))
-        .map(normalizeTrackerRow)
+        .filter(r => (r.cycle || '').toLowerCase().includes(cycleMatch))
+        .map(r => normalizeTrackerRow(r, period.start))
         .filter(Boolean);
     }
 

@@ -3261,6 +3261,108 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>`;
   }
 
+  // ── Summer 2026 Profiles (Tracker-based) ────────────────────────────────────
+  let _pSummerMode = false; // toggle between SY and Summer profiles
+
+  function _buildSummerProfiles(dept) {
+    const tracker = window.NJTC_ONSITE_TRACKER || [];
+    const sumRows = tracker.filter(r => r.isSummer);
+    if (!sumRows.length) {
+      return `<div style="padding:2rem;text-align:center;color:var(--muted)">
+        <div style="font-size:2rem;margin-bottom:.75rem">☀️</div>
+        <div style="font-weight:600;margin-bottom:.5rem">Summer 2026 tracker not loaded</div>
+        <div style="font-size:.82rem">Open <strong>SY Site Analytics</strong> → click <strong>☀️ Summer 2026</strong> to load tracker data, then return here.</div>
+      </div>`;
+    }
+
+    const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const pip = (label, val) => {
+      const ok = val && val.toLowerCase() !== 'no' && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'not eligible';
+      return `<span style="font-size:.62rem;font-weight:700;padding:.18rem .45rem;border-radius:5px;background:${ok?'#d1fae5':'#f1f5f9'};color:${ok?'#065f46':'#94a3b8'}">${ok?'✓':''} ${label}</span>`;
+    };
+
+    const showFull = ['hr','data'].includes(dept);
+    const emps     = sumRows.filter(r => !r.isPreApp);
+    const preApps  = sumRows.filter(r => r.isPreApp);
+
+    let _sumQ = '';
+    let _sumRoleFilter = '';
+
+    const buildCard = (r, isEmp) => {
+      const statusBg    = r.isTerminated ? '#fee2e2' : r.isActive ? '#d1fae5' : '#f1f5f9';
+      const statusColor = r.isTerminated ? '#b91c1c' : r.isActive ? '#065f46' : '#64748b';
+      const statusLabel = r.isTerminated ? 'Terminated' : r.isActive ? 'Active' : 'Pending';
+      const roleLabel   = isEmp ? (r.role || 'Staff') : 'Pre-Apprentice';
+      const location    = [r.location, r.county || r.district].filter(Boolean).join(' · ');
+      const termBadge   = r.isTerminated && (r.termDate || r.resignType) ? `<div style="margin-top:.35rem;padding:.25rem .5rem;background:#fff1f2;border:1px solid #fecaca;border-radius:5px;font-size:.62rem;color:#b91c1c">
+        ${r.termDate ? 'Term: ' + r.termDate + ' · ' : ''}${r.resignType || ''}${r.resignReason ? ' · ' + r.resignReason : ''}
+      </div>` : '';
+
+      return `<div style="background:var(--surface);border:1.5px solid ${r.isTerminated?'#fecaca':r.isActive?'#bbf7d0':'var(--border)'};border-radius:12px;padding:1.125rem;display:flex;flex-direction:column;gap:.5rem">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem">
+          <div>
+            <div style="font-size:.92rem;font-weight:800;color:var(--navy)">${esc(r.fullName || r.firstName + ' ' + r.lastName)}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-top:.15rem">${esc(roleLabel)}${location ? ' · ' + esc(location) : ''}</div>
+          </div>
+          <span style="font-size:.6rem;font-weight:700;padding:.18rem .5rem;border-radius:20px;background:${statusBg};color:${statusColor};white-space:nowrap">${statusLabel}</span>
+        </div>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.1rem">
+          ${pip('ADP', r.adpProfile)}
+          ${pip('Offer Sent', r.offerSent)}
+          ${pip('Accepted', r.offerAccepted)}
+          ${pip('Welcome Email', r.welcomeEmail)}
+          ${pip('I-9 Docs', r.i9Docs)}
+          ${pip('Fingerprint', r.fingerprint)}
+          ${isEmp ? '' : pip('TAP Registered', r.tapRegistered)}
+        </div>
+        ${r.email && showFull ? `<div style="font-size:.65rem;color:#6366f1">${esc(r.email)}</div>` : ''}
+        ${termBadge}
+      </div>`;
+    };
+
+    const activeEmps = emps.filter(r => r.isActive && !r.isTerminated);
+    const termEmps   = emps.filter(r => r.isTerminated);
+    const pendEmps   = emps.filter(r => !r.isActive && !r.isTerminated);
+
+    const grid = arr => arr.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.875rem">${arr.map(r=>buildCard(r,true)).join('')}</div>` : '<p style="color:var(--muted);font-size:.82rem">None</p>';
+    const preGrid = arr => arr.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.875rem">${arr.map(r=>buildCard(r,false)).join('')}</div>` : '<p style="color:var(--muted);font-size:.82rem">None</p>';
+
+    const section = (title, count, content, accent) => `
+      <div style="margin-bottom:1.75rem">
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${accent||'var(--muted)'};margin-bottom:.75rem">${title} <span style="font-weight:400;opacity:.7">(${count})</span></div>
+        ${content}
+      </div>`;
+
+    return `<div style="padding:.25rem 0">
+      <!-- Summary strip -->
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem">
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem 1.25rem;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.75rem;font-weight:800;color:#059669">${activeEmps.length}</div>
+          <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Active Employees</div>
+        </div>
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem 1.25rem;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.75rem;font-weight:800;color:#6366f1">${preApps.filter(r=>r.isActive).length}</div>
+          <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Pre-Apprentices</div>
+        </div>
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem 1.25rem;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.75rem;font-weight:800;color:#dc2626">${termEmps.length}</div>
+          <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Terminated</div>
+        </div>
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:1rem 1.25rem;text-align:center;flex:1;min-width:120px">
+          <div style="font-size:1.75rem;font-weight:800;color:#d97706">${pendEmps.length}</div>
+          <div style="font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Offer Pending</div>
+        </div>
+      </div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:.6rem .875rem;font-size:.75rem;color:#065f46;margin-bottom:1.5rem">
+        ☀️ Summer 2026 · Sourced from live Onboarding Tracker · Pearl performance data not yet available for summer
+      </div>
+      ${section('Active Employees', activeEmps.length, grid(activeEmps), '#059669')}
+      ${pendEmps.length ? section('Offer Pending / Not Yet Active', pendEmps.length, grid(pendEmps), '#d97706') : ''}
+      ${termEmps.length ? section('Terminated', termEmps.length, grid(termEmps), '#dc2626') : ''}
+      ${section('Pre-Apprentices (not employees)', preApps.filter(r=>r.isActive).length, preGrid(preApps.filter(r=>r.isActive)), '#6366f1')}
+    </div>`;
+  }
+
   function _hrBuildProfiles(dept) {
     // Pre-fetch obs maps when programming dept opens Profiles (T&D tabs may not have been visited yet)
     if (dept === 'programming' && !window._njtcTutorObs && !window._njtcSLObs) {
@@ -3278,13 +3380,28 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       _hrRecomputeTiers();
       _hrLastOverlayVersion = _hrOverlayVersion;
     }
+    // Summer mode: only HR and Data can see tracker-based summer profiles
+    if (_pSummerMode && ['hr','data'].includes(dept)) {
+      const toggle = `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+        <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Period</span>
+        <button onclick="window._hrSetSummerMode(false)" style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer;font-weight:600">📅 SY 2025-2026</button>
+        <button style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:2px solid #059669;background:#d1fae5;color:#065f46;cursor:pointer;font-weight:700">☀️ Summer 2026</button>
+      </div>`;
+      return toggle + _buildSummerProfiles(dept);
+    }
     const showFull = ['hr','data'].includes(dept);
+    // Period toggle strip — prepend to full SY view for HR and Data
+    const _syToggle = showFull ? `<div style="display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap">
+        <span style="font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em">Period</span>
+        <button style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:2px solid var(--navy);background:var(--navy);color:#fff;cursor:pointer;font-weight:700">📅 SY 2025-2026</button>
+        <button onclick="window._hrSetSummerMode(true)" style="font-size:.78rem;padding:.35rem .8rem;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--navy);cursor:pointer;font-weight:600">☀️ Summer 2026</button>
+      </div>` : '';
     if (dept==='kb')           return _hrViewKB();
     if (dept==='finance')      return _hrViewFinance();
     if (dept==='leadership')   return _hrViewLeadership();
     if (dept==='programming')  return _hrViewProgramming();
     if (dept==='training')     return _hrViewTraining();
-    if (showFull)              return _hrViewFull();
+    if (showFull)              return _syToggle + _hrViewFull();
     return '';
   }
 
@@ -3983,6 +4100,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   // ── Global handlers (onclick= safe) ──────────────────────────────────────
+  window._hrSetSummerMode = on => { _pSummerMode = !!on; _hrRebuildProfiles(); };
   window._hrSetTier    = t  => { _pTier=t;   _pPage=0; _hrRebuildProfiles(); };
   window._hrSetViewTab = tab => {
     _pViewTab = tab;
