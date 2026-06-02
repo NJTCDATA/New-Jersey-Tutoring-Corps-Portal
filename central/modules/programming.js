@@ -577,6 +577,22 @@
     // ── STATS ─────────────────────────────────────────────────────────────
     function updateStats() {
       const s = _filtered;
+      // Summer 2026: all KPI tiles derive from tracker data (Locations sheet has no summer rows)
+      if (_activePeriod === 'summer2026' && _trackerReady) {
+        const sumRows   = _trackerRows.filter(r => r.isSummer);
+        const empRows   = sumRows.filter(r => r.isActive && !r.isPreApp && !r.isTerminated);
+        const preRows   = sumRows.filter(r => r.isActive && r.isPreApp);
+        const sites     = new Set(sumRows.filter(r => r.location).map(r => r.location));
+        const districts = new Set(sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
+        setText('syStatSites',     sites.size);
+        setText('syStatDistricts', districts.size);
+        setText('syStatActual',    '—');   // No Pearl scholar data for summer
+        setText('syStatEst',       '—');
+        setText('syStatStaff',     empRows.length.toLocaleString());
+        // Notify exec dashboard
+        try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
+        return;
+      }
       setText('syStatSites',     s.length);
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
       // Active scholars: pull directly from Pearl live data (unique scholars with ≥1 Attended/Late session).
@@ -585,18 +601,11 @@
       const _pearlActive = (_poStats && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
-      // Total Staff: for Summer 2026, use tracker active headcount (offer accepted).
-      // For SY views, use HR Master List active count (authoritative), or DB sum as fallback.
-      let staffVal;
-      if (_activePeriod === 'summer2026' && _trackerReady) {
-        staffVal = _trackerRows.filter(r => r.isSummer && r.isActive).length.toLocaleString();
-      } else {
-        const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
-          ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
-        const stf = s.reduce((a,r) => a + r.totalStaff, 0);
-        staffVal = _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
-      }
-      setText('syStatStaff', staffVal);
+      // Total Staff: HR Master List (authoritative) or DB sum fallback.
+      const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+        ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
+      const stf = s.reduce((a,r) => a + r.totalStaff, 0);
+      setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
       // Notify exec dashboard — Home Schools KPI reads from syStatSites
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
@@ -927,7 +936,7 @@
         }
       }
       try {
-        const url = TRACKER_CSV_URL + (force ? '&t=' + Date.now() : '');
+        const url = TRACKER_CSV_URL; // 2PACX endpoint — no &t= cache-bust (causes HTTP 400)
         const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
@@ -983,6 +992,8 @@
             fullName:      g(r, TC.FULL_NAME) || (g(r, TC.FIRST_NAME) + ' ' + g(r, TC.LAST_NAME)).trim(),
             email:         g(r, TC.EMAIL),
             phone:         g(r, TC.PHONE),
+            adpProfile:    g(r, TC.ADP_PROFILE),
+            ivWebinar:     g(r, TC.IV_WEBINAR),
             offerSent:     g(r, TC.OFFER_SENT),
             offerAccepted: g(r, TC.OFFER_ACCEPTED),
             welcomeEmail:  g(r, TC.WELCOME_EMAIL),
