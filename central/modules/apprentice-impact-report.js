@@ -172,7 +172,7 @@
   // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for any of these,
   // remove that school from this set so it falls through to the EOY path.
   const MOY_SCHOOLS = new Set([
-    // Hamilton Township and Hamilton-Kuser removed — EOY data confirmed in IRLAB.
+    'Hamilton Township', // MOY confirmed: 80 ELA rows, 62 Math rows — IRLAB has no Hamilton EOY data
     'Haddon Township', 'Penns Grove',
   ]);
 
@@ -1603,7 +1603,7 @@
     const teachesEla  = d => {
       const s = apprSubjects[d];
       if (!s || !s.size) return true; // no session data → don't suppress
-      return [...s].some(v => /reading|ela|literacy/i.test(v));
+      return [...s].some(v => /reading|ela|literacy|english/i.test(v));
     };
     const teachesMath = d => {
       const s = apprSubjects[d];
@@ -1664,11 +1664,11 @@
 
     const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     lines.push(row('NJTC TAP Apprentice Impact Report', 'Generated: ' + now,
-                   '', 'Data snapshot: June 5 2026 (EOY Incomplete)'));
+                   '', 'Data snapshot: ' + now));
     lines.push('');
 
     // ─── SECTION 1: Apprentice Summary ────────────────────────────────────
-    lines.push(row('SECTION 1 -- APPRENTICE SUMMARY (30 APPRENTICES -- SY 25-26)'));
+    lines.push(row(`SECTION 1 -- APPRENTICE SUMMARY (${TAP_APPRENTICES.length} APPRENTICES -- SY 25-26)`));
     lines.push(row(
       'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
       // ELA
@@ -1767,7 +1767,7 @@
     lines.push('');
 
     // ─── SECTION 3: Program-Level Aggregate ──────────────────────────────
-    lines.push(row('SECTION 3 -- PROGRAM-LEVEL AGGREGATE (ALL 30 TAP APPRENTICES)'));
+    lines.push(row(`SECTION 3 -- PROGRAM-LEVEL AGGREGATE (ALL ${TAP_APPRENTICES.length} TAP APPRENTICES)`));
     lines.push(row('Metric', 'ELA', 'Math'));
 
     const elaRecs  = records.filter(r => r.ela  && r.ela.validCount  > 0);
@@ -1834,7 +1834,7 @@
     lines.push(row('Scholar attribution (EOY/IRLAB): (0) Pearl student ID; (A) IRLAB instructor field; (B) Pearl session name sets; (B2) school-level fallback when no session data; (B3) survey name fallback.'));
     lines.push(row('Pearl district account IDs (Column G in MOY sheet) scope attribution to correct district: nj-ilear99637 (iLearn), nj-hamil44973 (Hamilton), nj-haddo65937 (Haddon), nj-penns90725 (Penns Grove).'));
     lines.push(row('Attendance rate = attended / (attended + personal absences). Service interruptions excluded — matches Pearl Operations portal exactly.'));
-    lines.push(row('Academic data as of June 5 2026 — EOY diagnostics incomplete for some sites.'));
+    lines.push(row('Academic data as of ' + now + '.'));
     lines.push(row('Standards Mastery: Class Teacher(s) field identifies the NJTC apprentice. Form A = Pre-assessment, Form B = Post-assessment.'));
     lines.push('');
 
@@ -1976,7 +1976,7 @@
         <div id="apirDownloadArea" class="apir-dl-area"></div>
 
         <div class="apir-roster-section">
-          <h4>Active TAP Roster (30 Apprentices)</h4>
+          <h4>Active TAP Roster (${TAP_APPRENTICES.length} Apprentices)</h4>
           <div class="apir-roster-grid" id="apirRosterGrid"></div>
         </div>
 

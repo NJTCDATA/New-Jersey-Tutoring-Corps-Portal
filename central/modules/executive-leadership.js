@@ -1,9 +1,10 @@
 (function() {
     'use strict';
 
-    var _audience  = 'governor';
-    var _activeTab = 'talking-points';
-    var _cache     = {};
+    var _audience   = 'governor';
+    var _activeTab  = 'talking-points';
+    var _execPeriod = 'sy'; // 'sy' | 'summer'
+    var _cache      = {};
     var _retryTimer = null;
     var _retryCount = 0;
     var MAX_RETRY   = 4;
@@ -94,9 +95,23 @@
       return d;
     }
     function getSyaSites() {
-      function domNum(id){ var el=document.getElementById(id); if(!el) return null; var t=el.textContent.replace(/[★%,\s]/g,'').trim(); return (t==='—'||t==='')? null: parseInt(t)||null; }
-      var po=getPo();
-      return { sites: domNum('syStatSites') || (po&&po.schoolCount)||null, districts: domNum('syStatDistricts') || (po&&po.districtCount)||null };
+      if (_execPeriod === 'summer') {
+        // Summer: derive from onsite tracker rows
+        var rows = (window.NJTC_ONSITE_TRACKER || []).filter(function(r){ return r.isSummer; });
+        var sites = new Set(rows.filter(function(r){ return r.location; }).map(function(r){ return r.location; }));
+        var districts = new Set(rows.filter(function(r){ return r.district || r.county; }).map(function(r){ return r.district || r.county; }));
+        return { sites: sites.size || null, districts: districts.size || null, isSummer: true };
+      }
+      // SY: read directly from Pearl stats (avoids picking up summer DOM values)
+      var po = getPo();
+      return { sites: (po && po.schoolCount) || null, districts: (po && po.districtCount) || null };
+    }
+
+    function getSummerHeadcount() {
+      var rows = (window.NJTC_ONSITE_TRACKER || []).filter(function(r){
+        return r.isSummer && r.isActive && !r.isPreApp && !r.isTerminated;
+      });
+      return rows.length || null;
     }
 
     // ── Check if Pearl data is loaded ─────────────────────────────
@@ -117,99 +132,135 @@
       }, _retryCount <= 1 ? 800 : _retryCount <= 3 ? 1500 : 2500);
     }
 
+    // ── Period toggle for exec banner ─────────────────────────────
+    function _execPeriodToggleHTML() {
+      var isSummer = _execPeriod === 'summer';
+      var base = 'display:inline-flex;align-items:center;gap:.25rem;padding:.25rem .65rem;border-radius:1rem;font-size:.72rem;font-weight:600;cursor:pointer;border:none;';
+      var sy  = base + (isSummer ? 'background:rgba(255,255,255,.12);color:rgba(255,255,255,.55);' : 'background:#fff;color:#1e40af;');
+      var sum = base + (isSummer ? 'background:#fbbf24;color:#1e3a5f;'                             : 'background:rgba(255,255,255,.12);color:rgba(255,255,255,.55);');
+      return '<div style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem">'+
+        '<button style="'+sy+'" onclick="window._execSetPeriod(\'sy\')">&#127979; SY 2025-2026</button>'+
+        '<button style="'+sum+'" onclick="window._execSetPeriod(\'summer\')">&#9728; Summer 2026</button>'+
+        (isSummer ? '<span style="font-size:.64rem;color:#fbbf24;opacity:.85">&#128247; Snapshot &mdash; programs in progress</span>' : '')+
+      '</div>';
+    }
+
+    window._execSetPeriod = function(p) {
+      if (_execPeriod === p) return;
+      _execPeriod = p;
+      _cache = {};
+      buildLeadershipBanner();
+      if (_activeTab === 'impact-snapshot') buildSnapshot();
+      if (_activeTab === 'talking-points')  buildTalkingPoints();
+    };
+
     // ── LEADERSHIP BANNER ─────────────────────────────────────────
     // Shows rich multi-metric stats strip — auto-loads without visiting other panels
     function buildLeadershipBanner() {
       var el = document.getElementById('advLeadershipBanner'); if (!el) return;
-      var po  = getPo();
-      var ld  = getLD();
-      var kpi = getKPI();
-      var irl = getIRL();
-      var st  = getStella();
       var sya = getSyaSites();
+      var isSummer = _execPeriod === 'summer';
 
       var chips = [];
 
-      // ── SCALE ──
-      if (sya.sites)     chips.push({ico:'&#127960;',col:'#e0e7ff',txt:''+sya.sites,sub:'School Sites'+(sya.districts?' · '+sya.districts+' Districts':'')});
-      if (po&&po.sessions)chips.push({ico:'&#9200;', col:'#dcfce7',txt:fmtN(po.sessions),sub:'Sessions Delivered'});
-      var _hrActiveCt = (window._hrDataFetched && typeof HR_EMPS!=='undefined'&&HR_EMPS.length) ? HR_EMPS.filter(function(e){return e.s==='Active';}).length : (po?po.activeTutors:null);
-      if (_hrActiveCt) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+_hrActiveCt,sub:'Active Onsite Staff'});
-
-      // ── ATTENDANCE ──
-      if (po&&po.instAttPct!=null) {
-        var iCol = po.instAttPct>=90?'#dcfce7':po.instAttPct>=80?'#dbeafe':'#fee2e2';
-        chips.push({ico:'&#127941;',col:iCol,txt:fmtP(po.instAttPct),sub:'Tutor Attendance'});
-      }
-      if (po&&po.scholAttPct!=null) {
-        var sCol = po.scholAttPct>=80?'#dcfce7':po.scholAttPct>=70?'#dbeafe':'#fef3c7';
-        chips.push({ico:'&#128218;',col:sCol,txt:fmtP(po.scholAttPct),sub:'Scholar Attendance'});
-      }
-      if (po&&po.surveyAvg!=null) chips.push({ico:'&#11088;',col:'#fef3c7',txt:''+po.surveyAvg+'/5',sub:'Scholar Survey'});
-
-      // ── SCHOLAR TIERS (from getLeadershipData) ──
-      if (ld) {
-        var tot=(ld.scholarOnTrack||0)+(ld.scholarAtRisk||0)+(ld.scholarNeedsAction||0);
-        if (tot>0) {
-          chips.push({ico:'&#128200;',col:'#dcfce7',txt:''+ld.scholarOnTrack,sub:'Scholars On Track (80%+ att.)'});
-          if (ld.scholarAtRisk>0)      chips.push({ico:'&#9888;',col:'#fef3c7',txt:''+ld.scholarAtRisk,sub:'At Risk (70-79%)'});
-          if (ld.scholarNeedsAction>0) chips.push({ico:'&#128680;',col:'#fee2e2',txt:''+ld.scholarNeedsAction,sub:'Needs Action (<70%)'});
-        }
-      }
-
-      // ── KPI ──
-      if (kpi.total>0) {
-        var kPct=Math.round(kpi.met.length/kpi.total*100);
-        var kCol=kPct>=70?'#dcfce7':kPct>=40?'#dbeafe':'#fef3c7';
-        chips.push({ico:'&#127919;',col:kCol,txt:kpi.met.length+'/'+kpi.total,sub:'Goals Met Mid-Year ('+kPct+'%)'});
-        if (kpi.partial.length) chips.push({ico:'&#8987;',col:'#fef3c7',txt:''+kpi.partial.length,sub:'Goals Partially Met'});
-      }
-
-      // ── iREADY ──
-      if (irl&&irl.growthPct!=null) {
-        var irlSY=irl.activeSY||'Historical';
-        if (irl.mathAvgGain!==null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null) {
-          var _mPct=irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical;
-          var mCol=_mPct>=100?'#dcfce7':_mPct>=70?'#ede9fe':'#fef3c7';
-          chips.push({ico:'&#10133;',col:mCol,
-            txt:'+'+irl.mathAvgGain+' pts · '+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%',
-            sub:'Math Growth · Median % to Typical ('+irlSY+')',
-            key:'irl-math'});
-        }
-        if (irl.elaAvgGain!==null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null) {
-          var _ePct=irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical;
-          var eCol=_ePct>=100?'#dcfce7':_ePct>=70?'#ede9fe':'#fef3c7';
-          chips.push({ico:'&#128217;',col:eCol,
-            txt:'+'+irl.elaAvgGain+' pts · '+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%',
-            sub:'ELA Growth · Median % to Typical ('+irlSY+')',
-            key:'irl-ela'});
-        }
-        // Fallback if gain data absent
-        if (irl.mathAvgGain===null&&irl.elaAvgGain===null) {
-          chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
-        }
+      if (isSummer) {
+        // ── SUMMER MODE: tracker-based snapshot, no Pearl/iReady/concerns ──
+        var sumStaff = getSummerHeadcount();
+        if (sya.sites)  chips.push({ico:'&#9728;', col:'#fef3c7',txt:''+sya.sites,sub:'Summer Sites'+(sya.districts?' · '+sya.districts+' Districts':'')});
+        if (sumStaff)   chips.push({ico:'&#129489;&#8205;&#127979;',col:'#e0e7ff',txt:''+sumStaff,sub:'Active Onsite Staff'});
+        chips.push({ico:'&#128247;',col:'#f0fdf4',txt:'Snapshot',sub:'Live Pearl data begins in fall'});
+        chips.push({ico:'&#128201;',col:'#f3f4f6',txt:'—',sub:'iReady (not yet active)'});
+        chips.push({ico:'&#127919;',col:'#f3f4f6',txt:'—',sub:'KPI Goals (SY 25-26 final)'});
       } else {
-        chips.push({ico:'&#128200;',col:'#f3f4f6',txt:'—',sub:'iReady Live Data'});
+        var po  = getPo();
+        var ld  = getLD();
+        var kpi = getKPI();
+        var irl = getIRL();
+        var st  = getStella();
+
+        // ── SCALE ──
+        if (sya.sites)     chips.push({ico:'&#127960;',col:'#e0e7ff',txt:''+sya.sites,sub:'School Sites'+(sya.districts?' · '+sya.districts+' Districts':'')});
+        if (po&&po.sessions)chips.push({ico:'&#9200;', col:'#dcfce7',txt:fmtN(po.sessions),sub:'Sessions Delivered'});
+        var _hrActiveCt = (window._hrDataFetched && typeof HR_EMPS!=='undefined'&&HR_EMPS.length) ? HR_EMPS.filter(function(e){return e.s==='Active';}).length : (po?po.activeTutors:null);
+        if (_hrActiveCt) chips.push({ico:'&#129489;&#8205;&#127979;',col:'#fef3c7',txt:''+_hrActiveCt,sub:'Active Onsite Staff'});
+
+        // ── ATTENDANCE ──
+        if (po&&po.instAttPct!=null) {
+          var iCol = po.instAttPct>=90?'#dcfce7':po.instAttPct>=80?'#dbeafe':'#fee2e2';
+          chips.push({ico:'&#127941;',col:iCol,txt:fmtP(po.instAttPct),sub:'Tutor Attendance'});
+        }
+        if (po&&po.scholAttPct!=null) {
+          var sCol = po.scholAttPct>=80?'#dcfce7':po.scholAttPct>=70?'#dbeafe':'#fef3c7';
+          chips.push({ico:'&#128218;',col:sCol,txt:fmtP(po.scholAttPct),sub:'Scholar Attendance'});
+        }
+        if (po&&po.surveyAvg!=null) chips.push({ico:'&#11088;',col:'#fef3c7',txt:''+po.surveyAvg+'/5',sub:'Scholar Survey'});
+
+        // ── SCHOLAR TIERS (from getLeadershipData) ──
+        if (ld) {
+          var tot=(ld.scholarOnTrack||0)+(ld.scholarAtRisk||0)+(ld.scholarNeedsAction||0);
+          if (tot>0) {
+            chips.push({ico:'&#128200;',col:'#dcfce7',txt:''+ld.scholarOnTrack,sub:'Scholars On Track (80%+ att.)'});
+            if (ld.scholarAtRisk>0)      chips.push({ico:'&#9888;',col:'#fef3c7',txt:''+ld.scholarAtRisk,sub:'At Risk (70-79%)'});
+            if (ld.scholarNeedsAction>0) chips.push({ico:'&#128680;',col:'#fee2e2',txt:''+ld.scholarNeedsAction,sub:'Needs Action (<70%)'});
+          }
+        }
+
+        // ── KPI ──
+        if (kpi.total>0) {
+          var kPct=Math.round(kpi.met.length/kpi.total*100);
+          var kCol=kPct>=70?'#dcfce7':kPct>=40?'#dbeafe':'#fef3c7';
+          chips.push({ico:'&#127919;',col:kCol,txt:kpi.met.length+'/'+kpi.total,sub:'Goals Met Mid-Year ('+kPct+'%)'});
+          if (kpi.partial.length) chips.push({ico:'&#8987;',col:'#fef3c7',txt:''+kpi.partial.length,sub:'Goals Partially Met'});
+        }
+
+        // ── iREADY ──
+        if (irl&&irl.growthPct!=null) {
+          var irlSY=irl.activeSY||'Historical';
+          if (irl.mathAvgGain!==null&&(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)!=null) {
+            var _mPct=irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical;
+            var mCol=_mPct>=100?'#dcfce7':_mPct>=70?'#ede9fe':'#fef3c7';
+            chips.push({ico:'&#10133;',col:mCol,
+              txt:'+'+irl.mathAvgGain+' pts · '+(irl.mathMedianPctAllYears!=null?irl.mathMedianPctAllYears:irl.mathMedianPctTypical)+'%',
+              sub:'Math Growth · Median % to Typical ('+irlSY+')',
+              key:'irl-math'});
+          }
+          if (irl.elaAvgGain!==null&&(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)!=null) {
+            var _ePct=irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical;
+            var eCol=_ePct>=100?'#dcfce7':_ePct>=70?'#ede9fe':'#fef3c7';
+            chips.push({ico:'&#128217;',col:eCol,
+              txt:'+'+irl.elaAvgGain+' pts · '+(irl.elaMedianPctAllYears!=null?irl.elaMedianPctAllYears:irl.elaMedianPctTypical)+'%',
+              sub:'ELA Growth · Median % to Typical ('+irlSY+')',
+              key:'irl-ela'});
+          }
+          if (irl.mathAvgGain===null&&irl.elaAvgGain===null) {
+            chips.push({ico:'&#128201;',col:'#ede9fe',txt:fmtP(irl.growthPct),sub:'iReady Growth ('+irlSY+')'});
+          }
+        } else {
+          chips.push({ico:'&#128200;',col:'#f3f4f6',txt:'—',sub:'iReady Live Data'});
+        }
+
+        // ── SERVICE INTERRUPTIONS ──
+        if (po&&po.siCount!=null) chips.push({ico:'&#128203;',col:'#f0fdf4',txt:fmtN(po.siCount),sub:'Service Interruptions Logged'});
+
+        // ── TOP STELLAR SCHOOL ──
+        if (st&&st[0]) chips.push({ico:'&#127941;',col:'#fef3c7',txt:st[0].attRate+'%',sub:st[0].school.length>22?st[0].school.substring(0,22)+'…':st[0].school});
+
+        // ── ABSENCE DRIVERS ──
+        if (ld&&ld.absenceDrivers&&ld.absenceDrivers.controllable&&ld.absenceDrivers.controllable.total>0) {
+          chips.push({ico:'&#128683;',col:'#fee2e2',txt:fmtN(ld.absenceDrivers.controllable.total),sub:'Controllable Absences'});
+        }
       }
 
-      // ── SERVICE INTERRUPTIONS ──
-      if (po&&po.siCount!=null) chips.push({ico:'&#128203;',col:'#f0fdf4',txt:fmtN(po.siCount),sub:'Service Interruptions Logged'});
-
-      // ── TOP STELLAR SCHOOL ──
-      if (st&&st[0]) chips.push({ico:'&#127941;',col:'#fef3c7',txt:st[0].attRate+'%',sub:st[0].school.length>22?st[0].school.substring(0,22)+'…':st[0].school});
-
-      // ── ABSENCE DRIVERS (top controllable) ──
-      if (ld&&ld.absenceDrivers&&ld.absenceDrivers.controllable&&ld.absenceDrivers.controllable.total>0) {
-        chips.push({ico:'&#128683;',col:'#fee2e2',txt:fmtN(ld.absenceDrivers.controllable.total),sub:'Controllable Absences'});
-      }
-
-      var pearlOk = po && po.loaded;
+      var pearlOk = !isSummer && getPo() && getPo().loaded;
       el.innerHTML = '<div class="adv-leader-banner">'+
         '<div class="adv-leader-banner-title">'+
-          '&#9889; Live Program Highlights &nbsp;'+
-          '<span style="font-size:.67rem;font-weight:400;color:rgba(255,255,255,.55)">AUTO-LOADED &middot; PEARL + KPI + iREADY</span>'+
-          (!pearlOk ? ' <span style="font-size:.65rem;color:#fbbf24;margin-left:.5rem">&#8635; Loading Pearl data&hellip;</span>' : '')+
+          (isSummer ? '&#9728; Summer 2026 &mdash; Program Snapshot' : '&#9889; Live Program Highlights')+
+          ' &nbsp;<span style="font-size:.67rem;font-weight:400;color:rgba(255,255,255,.55)">'+
+            (isSummer ? 'TRACKER · SNAPSHOT IN TIME' : 'AUTO-LOADED &middot; PEARL + KPI + iREADY')+
+          '</span>'+
+          (!isSummer && !pearlOk ? ' <span style="font-size:.65rem;color:#fbbf24;margin-left:.5rem">&#8635; Loading Pearl data&hellip;</span>' : '')+
         '</div>'+
+        _execPeriodToggleHTML()+
         '<div class="adv-leader-stats-row">'+
           chips.map(function(c){
             var extra = c.key ? ' data-chip-key="'+c.key+'" onclick="advOpenChipDetail(\''+c.key+'\')" style="background:'+c.col+';cursor:pointer;transition:box-shadow .15s" onmouseenter="this.style.boxShadow=\'0 0 0 2px #6366f1\'" onmouseleave="this.style.boxShadow=\'\'"' : ' style="background:'+c.col+'"';
@@ -464,11 +515,31 @@
 
     // ── IMPACT SNAPSHOT ───────────────────────────────────────────
     function buildSnapshot() {
-      var po=getPo(); var kpi=getKPI(); var irl=getIRL(); var ld=getLD(); var sya=getSyaSites();
       var el=document.getElementById('advSnapGrid'); if(!el) return;
+      var sya=getSyaSites();
+      var isSummer = _execPeriod === 'summer';
       var snaps=[];
-      if(sya.sites)         snaps.push({n:sya.sites,l:'Active School Sites',s:'SYA'});
-      if(sya.districts)     snaps.push({n:sya.districts,l:'Districts Served',s:'SYA'});
+
+      // Period toggle above the grid
+      var toggleEl = document.getElementById('advSnapToggle');
+      if (toggleEl) toggleEl.innerHTML = _execPeriodToggleHTML();
+
+      if (isSummer) {
+        var sumStaff = getSummerHeadcount();
+        if (sya.sites)  snaps.push({n:sya.sites,l:'Summer Sites',s:'Tracker'});
+        if (sya.districts) snaps.push({n:sya.districts,l:'Districts',s:'Tracker'});
+        if (sumStaff)   snaps.push({n:sumStaff,l:'Active Onsite Staff',s:'Tracker'});
+        snaps.push({n:'—',l:'Sessions Delivered',s:'Pearl begins fall'});
+        snaps.push({n:'—',l:'iReady Growth',s:'Not yet active'});
+        snaps.push({n:'—',l:'Scholar Concerns',s:'Not yet active'});
+        el.innerHTML=snaps.map(function(sn){return'<div class="adv-snap-stat"><div class="adv-snap-num">'+sn.n+'</div><div class="adv-snap-lbl">'+sn.l+'</div><div style="font-size:.62rem;color:var(--muted)">'+sn.s+'</div></div>';}).join('');
+        var kwEl=document.getElementById('advSnapKPIWins'); if(kwEl) kwEl.innerHTML='';
+        return;
+      }
+
+      var po=getPo(); var kpi=getKPI(); var irl=getIRL(); var ld=getLD();
+      if(sya.sites)         snaps.push({n:sya.sites,l:'Active School Sites',s:'SY 25-26 · Pearl'});
+      if(sya.districts)     snaps.push({n:sya.districts,l:'Districts Served',s:'SY 25-26 · Pearl'});
       if(po&&po.sessions)   snaps.push({n:fmtN(po.sessions),l:'Sessions Delivered',s:'Pearl'});
       var _hrSnap=(typeof HR_EMPS!=='undefined'&&HR_EMPS.length)?HR_EMPS.filter(function(e){return e.s==='Active';}).length:(po?po.activeTutors:null);
       if(_hrSnap)           snaps.push({n:_hrSnap,l:'Active Tutors',s:'HR Roster'});
