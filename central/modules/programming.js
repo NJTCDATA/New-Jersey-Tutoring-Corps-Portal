@@ -1954,7 +1954,7 @@
       // Step 3: fetch each candidate gid as CSV — in parallel, ignore 400s
       const results = await Promise.all(probedGids.map(async gid => {
         try {
-          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(15000)});
+          const res = await fetch(csvUrl(gid) + '&t=' + Date.now(), {signal: AbortSignal.timeout(30000)});
           if (!res.ok) return null;
           const text = await res.text();
           const firstRow = text.split('\n')[0].toLowerCase().replace(/"/g, '');

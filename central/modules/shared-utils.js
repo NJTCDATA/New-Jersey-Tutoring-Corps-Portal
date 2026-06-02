@@ -6,7 +6,8 @@
   //  All modules use this for 30-min TTL data caching
   // ══════════════════════════════════════════════════════════
   const NJTC_CACHE = {
-    TTL: 30 * 60 * 1000,  // 30 minutes
+    TTL: 15 * 60 * 1000,  // 15 minutes — reduced from 30 so all users get fresher data automatically
+    _PREFIX: 'njtc_',
     get(key) {
       try {
         const raw = localStorage.getItem(key);
@@ -17,13 +18,41 @@
       } catch(e) { return null; }
     },
     set(key, data) {
-      try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), d: data })); } catch(e) {}
+      const payload = JSON.stringify({ ts: Date.now(), d: data });
+      try {
+        localStorage.setItem(key, payload);
+      } catch(e) {
+        // Quota exceeded — evict all expired njtc_ keys then retry oldest-first
+        try {
+          const now = Date.now();
+          const njtcKeys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(this._PREFIX)) {
+              try {
+                const v = JSON.parse(localStorage.getItem(k) || 'null');
+                njtcKeys.push({ k, ts: (v && v.ts) ? v.ts : 0 });
+              } catch(_) { njtcKeys.push({ k, ts: 0 }); }
+            }
+          }
+          // Evict expired first, then oldest, until we have room (up to half the njtc keys)
+          njtcKeys.sort((a, b) => a.ts - b.ts);
+          const toEvict = njtcKeys.filter(x => (now - x.ts) > this.TTL);
+          const evictList = toEvict.length ? toEvict : njtcKeys.slice(0, Math.ceil(njtcKeys.length / 2));
+          evictList.forEach(x => { try { localStorage.removeItem(x.k); } catch(_) {} });
+          // Retry once after eviction
+          try { localStorage.setItem(key, payload); } catch(_) {}
+        } catch(_) {}
+      }
     },
     bust(key) {
       try { localStorage.removeItem(key); } catch(e) {}
     },
     bustAll() {
-      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2','njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2'];
+      // Evict all known NJTC cache keys so next page load fetches fresh data
+      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2',
+                    'njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2','njtc_irlab_live_v3',
+                    'njtc_irlab_gids_v5','njtc_resolutions_v1','njtc_reviews_v1'];
       keys.forEach(k => this.bust(k));
     }
   };
@@ -5193,7 +5222,7 @@
     const cacheBust = _forceRefresh ? '?t=' + Date.now() : '';
     const url = TALENT_CSV_URL + cacheBust;
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
       if (res.ok) {
         const text = await res.text();
         const fresh = _parseConcernsCSV(text);
@@ -5559,7 +5588,7 @@
       if (_rc.fresh) return;
     }
     try {
-      const res = await fetch(TALENT_REVIEWS_URL, { signal: AbortSignal.timeout(15000) });
+      const res = await fetch(TALENT_REVIEWS_URL, { signal: AbortSignal.timeout(30000) });
       if (res.ok) {
         const text = await res.text();
         const fresh = _parseReviewsCSV(text);

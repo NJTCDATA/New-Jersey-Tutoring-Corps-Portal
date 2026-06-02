@@ -434,7 +434,7 @@
       const csvBase  = baseUrl + '/pub?output=csv';
       let probedGids = [];
       try {
-        const res = await fetch(baseUrl + '/pubhtml', { signal: AbortSignal.timeout(15000) });
+        const res = await fetch(baseUrl + '/pubhtml', { signal: AbortSignal.timeout(30000) });
         if (res.ok) {
           const html = await res.text();
           const matches = [...html.matchAll(/[?&]gid=(\d+)/g)];
@@ -580,7 +580,7 @@
             return fetch(
               'https://docs.google.com/spreadsheets/d/' + IRLAB_2526_SHEET_ID +
               '/export?format=csv&gid=' + _gid + (force ? '&t=' + Date.now() : ''),
-              { signal: AbortSignal.timeout(15000) }
+              { signal: AbortSignal.timeout(30000) }
             )
             .then(function(r){ return r.ok ? r.text() : Promise.reject('HTTP '+r.status); })
             .then(function(text){ return { subj: _subj === 'ela' ? 'ELA' : _subj === 'math' ? 'Math' : 'Combined', text: text }; })
@@ -615,7 +615,7 @@
           continue;
         }
         try {
-          const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(15000)});
+          const r = await fetch(base+'&gid='+gid+bust, {signal:AbortSignal.timeout(30000)});
           if (r.ok) {
             const text = await r.text();
             const parsedRows = parseCSV(text);
@@ -5536,8 +5536,8 @@
       try {
         const bust = force ? '&t=' + Date.now() : '';
         const [mathRes, elaRes] = await Promise.all([
-          fetch(MOY_MATH_URL + bust, { signal: AbortSignal.timeout(15000) }),
-          fetch(MOY_ELA_URL  + bust, { signal: AbortSignal.timeout(15000) }),
+          fetch(MOY_MATH_URL + bust, { signal: AbortSignal.timeout(30000) }),
+          fetch(MOY_ELA_URL  + bust, { signal: AbortSignal.timeout(30000) }),
         ]);
         const [mathText, elaText] = await Promise.all([mathRes.text(), elaRes.text()]);
         MOY_DATA.math   = parseCSV(mathText).map(r => normalizeMOYRow(r, 'Math')).filter(r => r.scholarId || r.scholarName);

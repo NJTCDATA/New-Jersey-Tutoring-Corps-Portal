@@ -1489,7 +1489,7 @@
   const ap_buildFromLive = async () => {
     try {
       // Use njtc_fetch (defined below) for consistent redirect + error handling
-      const result = await njtc_fetch(AP_HR_MASTER_URL, 15000);
+      const result = await njtc_fetch(AP_HR_MASTER_URL, 30000);
       if (!result.ok) throw new Error('HTTP ' + result.status);
       const raw = ap_parseHRMaster(result.text);
       // ── Step 1: filter to 2025-2026, non-terminated rows ──────────────────
@@ -1580,7 +1580,7 @@
     }
     window.AP_TAP_ROSTER = [];
     try {
-      const result = await njtc_fetch(AP_TAP_SHEET_URL, 15000);
+      const result = await njtc_fetch(AP_TAP_SHEET_URL, 30000);
       if (!result.ok) throw new Error('HTTP ' + result.status);
       const splitRow = row => {
         const cells = []; let cell = '', inq = false;
@@ -2634,7 +2634,7 @@
   // Sheets that are not published redirect to Google login (cross-origin),
   // which the browser reports as a CORS error; the catch block handles it.
   const njtc_fetch = async (url, timeoutMs) => {
-    timeoutMs = timeoutMs || 15000;
+    timeoutMs = timeoutMs || 30000;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
