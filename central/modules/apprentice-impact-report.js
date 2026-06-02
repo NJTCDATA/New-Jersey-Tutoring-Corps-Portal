@@ -150,9 +150,7 @@
   // Show 0 / "Pending" rather than pulling stale data.  Remove a school from this
   // set once its current-year EOY Preliminary data has been confirmed in the IRLAB.
   const PENDING_EOY_SCHOOLS = new Set([
-    // 'Hamilton-Kuser' removed — Hamilton Township and Haddon Township now use MOY path.
-    // Once EOY Preliminary data is uploaded to IRLAB for these districts, remove them
-    // from MOY_SCHOOLS below and let them fall through to the EOY path via EOY_DISTRICT_FILTERS.
+    'Central Jersey College Prep', // EOY not yet completed — data will populate automatically when uploaded
   ]);
 
   // iLearn schools → use MOY Google Sheet (Winter 2026)
@@ -949,10 +947,15 @@
         htAppr.forEach(appr => {
           const ela  = irlElaByAppr[appr]  || [];
           const math = irlMathByAppr[appr] || [];
+          // Show sample schools to confirm attribution is Kuser-only (not school flood)
+          const elaSchools  = [...new Set(ela.map(r  => r.school).filter(Boolean))].join(', ') || '—';
+          const mathSchools = [...new Set(math.map(r => r.school).filter(Boolean))].join(', ') || '—';
           console.log('[APIR]', appr, '(Hamilton EOY) — ELA attributed:', ela.length,
                       '| Math attributed:', math.length,
                       ela.length + math.length === 0
                         ? '← 0 rows — check EOY_DISTRICT_FILTERS[Hamilton Township] matches IRLAB school/district names' : '');
+          if (ela.length)  console.log('[APIR]', appr, 'EOY ELA schools:', elaSchools);
+          if (math.length) console.log('[APIR]', appr, 'EOY Math schools:', mathSchools);
         });
       }
 
@@ -1662,12 +1665,13 @@
     const lines = [];
 
     const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const csvApprCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
     lines.push(row('NJTC TAP Apprentice Impact Report', 'Generated: ' + now,
                    '', 'Data snapshot: ' + now));
     lines.push('');
 
     // ─── SECTION 1: Apprentice Summary ────────────────────────────────────
-    lines.push(row(`SECTION 1 -- APPRENTICE SUMMARY (${TAP_APPRENTICES.length} APPRENTICES -- SY 25-26)`));
+    lines.push(row(`SECTION 1 -- APPRENTICE SUMMARY (${csvApprCount} ENROLLED APPRENTICES -- SY 25-26)`));
     lines.push(row(
       'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
       // ELA
@@ -1766,7 +1770,7 @@
     lines.push('');
 
     // ─── SECTION 3: Program-Level Aggregate ──────────────────────────────
-    lines.push(row(`SECTION 3 -- PROGRAM-LEVEL AGGREGATE (ALL ${TAP_APPRENTICES.length} TAP APPRENTICES)`));
+    lines.push(row(`SECTION 3 -- PROGRAM-LEVEL AGGREGATE (ALL ${csvApprCount} ENROLLED TAP APPRENTICES)`));
     lines.push(row('Metric', 'ELA', 'Math'));
 
     const elaRecs  = records.filter(r => r.ela  && r.ela.validCount  > 0);
@@ -1943,6 +1947,7 @@
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
 
+    const _liveCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
     root.innerHTML = `
       <div class="apir-wrap">
 
@@ -1951,9 +1956,9 @@
           <div class="apir-hero-text">
             <h3>TAP Apprentice Impact Report &mdash; SY 25-26</h3>
             <p>Combines Pearl attendance &amp; scholar survey data with iReady diagnostic outcomes
-               for all <strong>30 active TAP apprentices</strong>. Generates a three-section downloadable CSV.</p>
+               for all <strong>${_liveCount} enrolled TAP apprentices</strong>. Generates a three-section downloadable CSV.</p>
             <div class="apir-source-legend">
-              <span class="apir-badge apir-badge-moy">MOY</span> iLearn schools &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-moy">MOY</span> iLearn &amp; Haddon Twp &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-eoy">EOY Prelim</span> All other schools &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-sm">Std. Mastery</span> Middlesex STEM
             </div>
@@ -1975,7 +1980,7 @@
         <div id="apirDownloadArea" class="apir-dl-area"></div>
 
         <div class="apir-roster-section">
-          <h4>Active TAP Roster (${TAP_APPRENTICES.length} Apprentices)</h4>
+          <h4>Active TAP Roster (${_liveCount} Enrolled Apprentices)</h4>
           <div class="apir-roster-grid" id="apirRosterGrid"></div>
         </div>
 
