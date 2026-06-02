@@ -5633,8 +5633,8 @@
     if (_btn) _btn.classList.add('active');
     const _fb=document.getElementById('talentFilterBar');
     const _yb=document.getElementById('talentYearBar');
-    if (_fb) _fb.style.display = tab!=='profiles' ? '' : 'none';
-    if (_yb) _yb.style.display = tab!=='profiles' ? '' : 'none';
+    if (_fb) _fb.style.display = (tab!=='profiles' && tab!=='dol') ? '' : 'none';
+    if (_yb) _yb.style.display = (tab!=='profiles' && tab!=='dol') ? '' : 'none';
     if (tab==='profiles') {
       _talentTab = 'profiles';  // ← lock state so buildTalentContent() won't overwrite
       const _el=document.getElementById('talentContent');
@@ -5882,6 +5882,10 @@
       }
       else if (_talentTab === 'log')     el.innerHTML = renderTalentLog();
       else if (_talentTab === 'hiring')  el.innerHTML = (typeof window._hrHiringFileCabinet === 'function') ? window._hrHiringFileCabinet() : '<div style="padding:2rem;color:var(--muted)">Hiring records not available.</div>';
+      else if (_talentTab === 'dol') {
+        if (typeof window.renderDOLReport === 'function') { window.renderDOLReport(el); }
+        else el.innerHTML = '<div style="padding:2rem;color:var(--muted)">DOL Report not available.</div>';
+      }
       else if (_talentTab === 'definitions') el.innerHTML = (typeof window._hrViewDefinitions === 'function') ? window._hrViewDefinitions() : '<div style="padding:2rem;color:var(--muted)">Definitions not available.</div>';
     } catch(e) {
       document.getElementById('talentContent').innerHTML = `<div style="padding:2rem;color:var(--muted);text-align:center">Render error: ${e.message}</div>`;
@@ -5892,13 +5896,13 @@
   // Update tab labels and layout based on dept
   function initTalentTabsForDept(dept) {
     // Full tab list: profiles, all (concerns), program, hr, reviews, log, hiring, definitions
-    const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring','definitions'];
+    const TAB_IDS = ['profiles','all','program','hr','reviews','log','hiring','dol','definitions'];
     // Dept → which tabs are visible (strict isolation — only leadership/data see cross-dept tabs)
     const TAB_MAP = {
       kb:          ['profiles','definitions'],
       leadership:  ['all','definitions'],
-      data:        ['profiles','all','program','hr','reviews','log','hiring','definitions'],
-      hr:          ['profiles','all','reviews','log','hiring','definitions'],
+      data:        ['profiles','all','program','hr','reviews','log','hiring','dol','definitions'],
+      hr:          ['profiles','all','reviews','log','hiring','dol','definitions'],
       programming: ['profiles','all','reviews','definitions'],
       finance:     ['profiles','all','definitions'],
       training:    ['profiles','all','reviews','definitions'],
