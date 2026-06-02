@@ -172,7 +172,8 @@
   // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for any of these,
   // remove that school from this set so it falls through to the EOY path.
   const MOY_SCHOOLS = new Set([
-    'Hamilton Township', 'Hamilton-Kuser', 'Haddon Township', 'Penns Grove',
+    // Hamilton Township and Hamilton-Kuser removed — EOY data confirmed in IRLAB.
+    'Haddon Township', 'Penns Grove',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -204,10 +205,7 @@
              (s.includes('greenwood') && (d.includes('hamilton') || !d)) ||
              (s.includes('wilson')    && (d.includes('hamilton') || !d));
     },
-    // Hamilton-Kuser: filter removed — EOY Preliminary data pending upload.
-    // Added to PENDING_EOY_SCHOOLS above so the report shows "EOY Preliminary (Pending)".
-    // Restore this entry once current-year data is confirmed in the IRLAB:
-    //   'Hamilton-Kuser': r => (r.school || '').toLowerCase().includes('kuser'),
+    'Hamilton-Kuser': r => (r.school || '').toLowerCase().includes('kuser'),
     'Haddon Township': r => {
       const d = (r.district || '').toLowerCase();
       const s = (r.school   || '').toLowerCase();
@@ -1794,7 +1792,7 @@
     lines.push(row('NOTES'));
     lines.push(row('MOY (Winter 2026) data source: Google Sheet ID 1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI — ELA gid=912997533, Math gid=186448147. Live pull, 5-min cache.'));
     lines.push(row('iLearn schools (Pearl district ID nj-ilear99637) use MOY data. All 21 school names matched via MOY_SCHOOL_MAP; school attribution scoped per apprentice using Pearl session records.'));
-    lines.push(row('Hamilton Township / Hamilton-Kuser (nj-hamil44973) and Haddon Township (nj-haddo65937) use MOY data. Remove from MOY_SCHOOLS once EOY Preliminary is confirmed in IRLAB.'));
+    lines.push(row('Hamilton Township / Hamilton-Kuser (nj-hamil44973) use EOY data from IRLAB (EOY confirmed). Haddon Township (nj-haddo65937) still uses MOY data — remove from MOY_SCHOOLS once EOY Preliminary is confirmed in IRLAB.'));
     lines.push(row('Penns Grove (nj-penns90725) uses MOY data — Field Street Elementary and Paul W Carleton Elem. Alexandra Cristescu is the sole Penns Grove apprentice (Tier 3.5 district fallback).'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section excluded; surveys and attendance included.'));
