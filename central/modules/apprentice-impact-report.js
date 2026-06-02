@@ -2077,6 +2077,19 @@
       });
       obs.observe(document.body, { childList: true, subtree: true });
     }
+
+    // Re-render panel header once AP_DATA finishes loading so live enrolled count
+    // updates from the TAP_APPRENTICES fallback (30) to the live count (27).
+    // AP_DATA is populated asynchronously by executive-leadership.js after njtc_onDataReady.
+    window._apirRefreshHeader = function() {
+      const root = document.getElementById(ROOT_ID);
+      if (!root) return;
+      const _liveCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
+      const pEl = root.querySelector('.apir-hero-text p strong');
+      if (pEl) pEl.textContent = _liveCount + ' enrolled TAP apprentices';
+      const h4 = root.querySelector('.apir-roster-section h4');
+      if (h4) h4.textContent = 'Active TAP Roster (' + _liveCount + ' Enrolled Apprentices)';
+    };
   }
 
   if (document.readyState === 'loading') {

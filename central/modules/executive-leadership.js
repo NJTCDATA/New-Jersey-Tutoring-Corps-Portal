@@ -2865,6 +2865,10 @@
   // Sole entry point into ap_initAll — removes need for standalone DOMContentLoaded hook.
   const njtc_onDataReady = () => {
     ap_initAll();
+    // Refresh APIR header once AP_DATA is live so enrolled count is accurate
+    setTimeout(function() {
+      if (typeof window._apirRefreshHeader === 'function') window._apirRefreshHeader();
+    }, 500);
   };
 
   // ── PART 8: Init Hook ─────────────────────────────────────────────────────
