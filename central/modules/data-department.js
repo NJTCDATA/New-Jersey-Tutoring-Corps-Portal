@@ -597,6 +597,7 @@
             if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
             if (typeof renderLab === 'function') renderLab();
             try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
+            try { if (typeof window._apirGenerate === 'function') window._apirGenerate(); } catch(e) {}
             return;
           }
         } catch(e) {}
@@ -668,6 +669,7 @@
         }
         if (typeof renderLab === 'function') renderLab();
         try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e) {}
+        try { if (typeof window._apirGenerate === 'function') window._apirGenerate(); } catch(e) {}
         console.log('[irlab] Live data merged — academic overlay will update on next render');
       }
     }
@@ -979,6 +981,28 @@
           });
           if (_backfilled > 0) console.log('[irlab] Score backfill from EOY tab:', _backfilled, 'fields updated');
           else console.warn('[irlab] Score backfill: 0 fields updated — ID/name mismatch between longitudinal and EOY tab');
+
+          // ── Supplemental merge: add 2526 rows for schools absent from the longitudinal sheet ──
+          // The longitudinal sheet may not include every school (e.g. Hamilton Township is only
+          // in the 2526 Norming Window sheet). Merge those "orphan school" rows so they appear
+          // in the IRLAB and are available to the Apprentice Impact Report and other modules.
+          var _longSchools2526 = new Set();
+          [...IRLAB_DATA.ela, ...IRLAB_DATA.math].forEach(function(r) {
+            if ((r.year||'').trim() === '2025-2026' && r.school)
+              _longSchools2526.add((r.school||'').trim().toLowerCase());
+          });
+          var _suppRows = _eoyRaw.filter(function(r) {
+            return r.school && !_longSchools2526.has((r.school||'').trim().toLowerCase());
+          });
+          if (_suppRows.length) {
+            var _suppEla  = _suppRows.filter(function(r){ return r.subject === 'ELA';  });
+            var _suppMath = _suppRows.filter(function(r){ return r.subject === 'Math'; });
+            if (_suppEla.length)  IRLAB_DATA.ela  = IRLAB_DATA.ela.concat(_suppEla);
+            if (_suppMath.length) IRLAB_DATA.math = IRLAB_DATA.math.concat(_suppMath);
+            _irlRepeatIndex = null;
+            console.log('[irlab] Supplemental 2526 merge (schools not in longitudinal) — ELA:',
+                        _suppEla.length, '/ Math:', _suppMath.length);
+          }
         }
         return;
       }
