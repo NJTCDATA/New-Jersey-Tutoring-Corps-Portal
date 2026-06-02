@@ -214,10 +214,11 @@
     const SY_CSV_URL_2526 =
       'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJhAQMZ8nUJ6fV03eV0-uALiqnvQ3wEZ7n03n-ZuvPSNJz9QQbjL06uVM2hnajdcLSDL3m83HfSfVM/pub?output=csv&gid=628127573';
     // SY 26-27: live — contains both Summer 2026 and School Year 26-27 rows (Cycle col).
-    const SY_SHEET_ID_2627 = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
-    const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/${SY_SHEET_ID_2627}/pub?output=csv&gid=1830091227`;
-    // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, different tab.
-    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/${SY_SHEET_ID_2627}/pub?output=csv&gid=0`;
+    // Must use 2PACX published URL — sheet-ID /pub endpoint redirects to Google login.
+    const TRACKER_2PACX   = '2PACX-1vSGZjvWI8rwCTo8QhEF7ATPeYPTYBwc8l0ufu0Xu5lrlis_Xz0IEE7-H17afwUow_V3xScU3442Scx9';
+    const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv&gid=1830091227`;
+    // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, gid=0.
+    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv`;
 
     // Active period: 'sy2526' | 'summer2026' | 'sy2627'  (default: SY 26-27)
     let _activePeriod = 'sy2627';
@@ -959,6 +960,7 @@
         PRE_APP: 18, TAP_REG: 19, RETENTION_ELIG: 20, RETENTION_EMAIL: 21,
         MID_BONUS: 22, REMAIN_BONUS: 23, I9_DOCS: 24,
         FINGERPRINT: 25, FP_REIMB: 26, BC10: 27, FULL_NAME: 28,
+        TERMINATED: 29, RESIGN_TYPE: 30, RESIGN_REASON: 31, TERM_DATE: 32,
       };
       const g = (r, i) => i >= 0 && i < r.length ? (r[i]||'').replace(/\n/g,' ').trim() : '';
 
@@ -991,10 +993,15 @@
             fingerprint:   g(r, TC.FINGERPRINT),
             fpReimb:       g(r, TC.FP_REIMB),
             bc10:          g(r, TC.BC10),
+            terminated:    g(r, TC.TERMINATED),
+            resignType:    g(r, TC.RESIGN_TYPE),
+            resignReason:  g(r, TC.RESIGN_REASON),
+            termDate:      g(r, TC.TERM_DATE),
             // computed flags
-            isSummer: cycle.toLowerCase().includes('summer'),
-            isSY:     cycle.toLowerCase().includes('school year'),
-            isActive: accepted === 'yes',
+            isSummer:    cycle.toLowerCase().includes('summer'),
+            isSY:        cycle.toLowerCase().includes('school year'),
+            isActive:    accepted === 'yes',
+            isTerminated: g(r, TC.TERMINATED).toLowerCase() === 'yes',
           };
         });
     }
@@ -2142,7 +2149,7 @@
           console.log('[Pearl Ops] Scholar survey: restored', _stuRows.length, 'rows from agg cache');
         }
         // Always stream fresh stu data in background (don't block att/inst/sess)
-        _streamStuInBackground(force ? '&t=' + Date.now() : '');
+        _streamStuInBackground(''); // 2PACX endpoint rejects &t= cache-bust params
 
         _lastFetch = new Date();
         buildIndexes();
