@@ -1,7 +1,7 @@
 {
-  "generated": "2026-06-02T09:46:52.247Z",
+  "generated": "2026-06-02T13:56:31.279Z",
   "project": "1211431518555737",
-  "count": 29,
+  "count": 28,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -280,36 +280,6 @@
       "name": "State of Apprenticeship Event with TAN",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212755283202640"
-    },
-    {
-      "gid": "1212481119258742",
-      "assignee": {
-        "gid": "1205799963499266",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-04-30",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Apply to at least 10 local/regional RFPs annually ",
-      "notes": "This tracks the annual progress of district procurement for Fee for Service partners through RFP.  Since the state has now increased the threshold for RFP procurement to $53,000, we have been able to procure two partners - PCSST and Middlesex STEM - without having to go to RFP.  Not sure how to count these. ",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212481119258742"
     },
     {
       "gid": "1211431518555860",
