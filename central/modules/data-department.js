@@ -707,24 +707,29 @@
       const result = [];
       byStudent.forEach(function(entry) {
         var rows = entry.rows, sid = entry.sid;
-        // Norming Window pivot: Fall or Winter → baseline (base_), Spring → spring_
-        // iReady exports "Fall 2025" for the first diagnostic (not "Winter"), so both strings are accepted.
-        var win = rows.find(function(r){
-          var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
-          return nw.includes('fall') || nw.includes('winter');
-        });
-        var spr = rows.find(function(r){
-          var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
-          return nw.includes('spring');
-        });
-        // Fallback for pilot/partial rows where Norming Window is blank:
-        // use iReady's Baseline Diagnostic (Y/N) and Most Recent Diagnostic YTD (Y/N) flags instead.
+        // Norming Window pivot: use iReady's Baseline and Most Recent flags as the primary
+        // source of truth so that any valid pair (Fall→Spring, Fall→Winter, Winter→Spring)
+        // is captured.  Window-name matching is a secondary fallback.
+        var _isBaseline = function(r){
+          return (g(r,'Baseline Diagnostic (Y/N)','baseline_diagnostic_y_n')||'').trim().toUpperCase() === 'Y';
+        };
+        var _isMostRecent = function(r){
+          return (g(r,'Most Recent Diagnostic YTD (Y/N)','most_recent_diagnostic_ytd_y_n')||'').trim().toUpperCase() === 'Y';
+        };
+        var win = rows.find(_isBaseline);
+        var spr = rows.find(_isMostRecent);
+        // If the most-recent row is the same as the baseline (only one diagnostic taken),
+        // treat it as baseline-only with no endpoint — same as before.
+        if (win && spr && win === spr) spr = null;
+        // Fallback for rows where the flags are blank: use norming window names.
         if (!win && !spr) {
           win = rows.find(function(r){
-            return (g(r,'Baseline Diagnostic (Y/N)','baseline_diagnostic_y_n')||'').trim().toUpperCase() === 'Y';
+            var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
+            return nw.includes('fall') || nw.includes('winter');
           });
           spr = rows.find(function(r){
-            return (g(r,'Most Recent Diagnostic YTD (Y/N)','most_recent_diagnostic_ytd_y_n')||'').trim().toUpperCase() === 'Y';
+            var nw = (g(r,'Norming Window','norming_window')||'').toLowerCase();
+            return nw.includes('spring');
           });
         }
         var dem = spr || win || rows[0];
