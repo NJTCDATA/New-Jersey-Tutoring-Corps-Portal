@@ -5,13 +5,12 @@
 
    Data source rules:
      • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • Hamilton Township + Haddon Twp  → MOY (Winter 2026) Google Sheet (same sheet, district-paired)
+     • Haddon Township                 → MOY (Winter 2026) Google Sheet (district-paired)
+     • Hamilton Township               → EOY Preliminary via window.irlab.getAllRows()
      • All other schools               → EOY Preliminary via window.irlab.getAllRows()
-     • Middlesex STEM                  → Standards Mastery (no iReady data; surveys only)
-     • CJCP                            → EOY Preliminary (auto-populates when data arrives)
+     • Middlesex STEM                  → Standards Mastery (no iReady diagnostic data; surveys only)
+     • CJCP                            → EOY Preliminary (pending — auto-populates when data arrives)
      • Gloucester                      → EOY Preliminary filtered by district OR school name
-     NOTE: When EOY Preliminary data is added for Hamilton Township + Haddon Township,
-     remove them from MOY_SCHOOLS so they fall through to the EOY path.
    ============================================================================ */
 
 (function () {
@@ -172,7 +171,7 @@
   // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for any of these,
   // remove that school from this set so it falls through to the EOY path.
   const MOY_SCHOOLS = new Set([
-    'Hamilton Township', // MOY confirmed: 80 ELA rows, 62 Math rows — IRLAB has no Hamilton EOY data
+    // Hamilton Township removed — EOY data confirmed in IRLAB; uses EOY path via EOY_DISTRICT_FILTERS.
     'Haddon Township', 'Penns Grove',
   ]);
 
@@ -944,16 +943,16 @@
                     '| Math in sheet:', pgMoyMath.length, '/ attributed:', alexMath.length);
       }
 
-      // Diagnostic: Hamilton Township (MOY — multi-apprentice: Caitlin, Katherine R., Lilia)
+      // Diagnostic: Hamilton Township (EOY via IRLAB — multi-apprentice: Caitlin, Katherine R., Lilia)
       {
         const htAppr = TAP_APPRENTICES.filter(([,, s]) => s === 'Hamilton Township' || s === 'Hamilton-Kuser').map(([d]) => d);
         htAppr.forEach(appr => {
-          const ela  = moyElaByAppr[appr]  || [];
-          const math = moyMathByAppr[appr] || [];
-          console.log('[APIR]', appr, '(Hamilton MOY) — ELA attributed:', ela.length,
+          const ela  = irlElaByAppr[appr]  || [];
+          const math = irlMathByAppr[appr] || [];
+          console.log('[APIR]', appr, '(Hamilton EOY) — ELA attributed:', ela.length,
                       '| Math attributed:', math.length,
                       ela.length + math.length === 0
-                        ? '← 0 rows — check MOY school names match MOY sheet for Hamilton' : '');
+                        ? '← 0 rows — check EOY_DISTRICT_FILTERS[Hamilton Township] matches IRLAB school/district names' : '');
         });
       }
 
@@ -1824,7 +1823,7 @@
     lines.push(row('NOTES'));
     lines.push(row('MOY (Winter 2026) data source: Google Sheet ID 1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI — ELA gid=912997533, Math gid=186448147. Live pull, 5-min cache.'));
     lines.push(row('iLearn schools (Pearl district ID nj-ilear99637) use MOY data. All 21 school names matched via MOY_SCHOOL_MAP; school attribution scoped per apprentice using Pearl session records.'));
-    lines.push(row('Hamilton Township / Hamilton-Kuser (nj-hamil44973) use EOY data from IRLAB (EOY confirmed). Haddon Township (nj-haddo65937) still uses MOY data — remove from MOY_SCHOOLS once EOY Preliminary is confirmed in IRLAB.'));
+    lines.push(row('Hamilton Township / Hamilton-Kuser (nj-hamil44973): EOY data from IRLAB. Haddon Township (nj-haddo65937): MOY (Winter 2026). iLearn schools: MOY (Winter 2026). Middlesex: Standards Mastery. CJCP: EOY Pending.'));
     lines.push(row('Penns Grove (nj-penns90725) uses MOY data — Field Street Elementary and Paul W Carleton Elem. Alexandra Cristescu is the sole Penns Grove apprentice (Tier 3.5 district fallback).'));
     lines.push(row('All other schools use EOY Preliminary data from the portal IRLAB (live data).'));
     lines.push(row('Middlesex STEM uses Standards Mastery — iReady academic section excluded; surveys and attendance included.'));
