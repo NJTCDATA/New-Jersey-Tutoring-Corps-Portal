@@ -5549,7 +5549,7 @@
     <div class="panel" id="panel-sy-analytics">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">SY 2025–2026 · Live Data</div>
+          <div class="ph-eyebrow" id="syEyebrow">SY 2026–2027 · Live Data</div>
           <h2 class="ph-title">Site Analytics Dashboard</h2>
           <p class="ph-subtitle">All active NJTC tutoring sites — scholars, staff, programming, and site map. Live from the SY Database, auto-refreshes every 5 minutes.</p>
         </div>
@@ -5561,6 +5561,14 @@
             <span id="syChangesBtnN" style="background:var(--gold);color:var(--navy);border-radius:10px;padding:1px 7px;font-size:.7rem;font-weight:700;margin-right:.3rem">0</span>Changes
           </button>
         </div>
+      </div>
+      <!-- Period selector — Summer 2026 active badge + year toggle -->
+      <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.75rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)">
+        <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">View:</span>
+        <button id="syPeriodBtn_sy2526" class="pst-tab" onclick="sya.setPeriod('sy2526')" title="Archived snapshot — no longer updated">SY 25-26 <span style="font-size:.65rem;opacity:.65">archived</span></button>
+        <button id="syPeriodBtn_summer2026" class="pst-tab" onclick="sya.setPeriod('summer2026')" title="Summer 2026 sites — live from the 26-27 tracker">☀️ Summer 2026</button>
+        <button id="syPeriodBtn_sy2627" class="pst-tab active" onclick="sya.setPeriod('sy2627')" title="School Year 2026-27 sites — live">SY 26-27</button>
+        <span id="sySummerBadge" style="display:inline;padding:.2rem .65rem;border-radius:20px;font-size:.72rem;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;margin-left:.25rem;cursor:pointer" onclick="sya.setPeriod('summer2026')" title="Summer 2026 is currently running — click to view summer sites">☀️ Summer 2026 is Active</span>
       </div>
       <div class="stats-strip">
         <div class="stat-tile" style="--accent-color:var(--blue-mid)" title="Active Sites: Total school sites listed in the SY Program Sheet. Note: Pilot schools are counted separately from the main school program — pilot site totals are tracked independently from Pearl roster data."><div class="st-icon">🏫</div><div class="st-value" id="syStatSites">—</div><div class="st-label">Active Sites <span style="font-size:.6rem;background:rgba(0,80,200,.12);color:#003087;border-radius:99px;padding:.05rem .3rem;cursor:help;font-weight:700" title="Pilot schools are counted separately from the actual school program due to Pearl roster upload. The site count reflects all sites listed in the SY Program Sheet.">ⓘ</span></div><div class="st-sub">District &amp; school data</div></div>

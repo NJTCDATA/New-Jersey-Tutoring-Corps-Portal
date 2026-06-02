@@ -209,69 +209,101 @@
 
   const sya = (() => {
 
-    // ── LIVE DATA URL ────────────────────────────────────────────────────
-    // Same 2PACX pub?output=csv pattern as SHEET_CSV_URL & TALENT_CSV_URL.
-    // The sheet is published to web — anyone with the link can access it.
-    const SY_CSV_URL =
+    // ── LIVE DATA URLS ───────────────────────────────────────────────────
+    // SY 25-26: frozen snapshot — still live/readable, no longer updated.
+    const SY_CSV_URL_2526 =
       'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJhAQMZ8nUJ6fV03eV0-uALiqnvQ3wEZ7n03n-ZuvPSNJz9QQbjL06uVM2hnajdcLSDL3m83HfSfVM/pub?output=csv&gid=628127573';
+    // SY 26-27: live — contains both Summer 2026 and School Year 26-27 rows (Cycle col).
+    const SY_SHEET_ID_2627 = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
+    const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/${SY_SHEET_ID_2627}/pub?output=csv&gid=1830091227`;
+    // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, different tab.
+    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/${SY_SHEET_ID_2627}/pub?output=csv&gid=0`;
+
+    // Active period: 'sy2526' | 'summer2026' | 'sy2627'  (default: SY 26-27)
+    let _activePeriod = 'sy2627';
 
     const SY_REFRESH_MS   = 5 * 60 * 1000;  // 5 min — matches KPI pattern
     const GEOCODE_RATE_MS = 1150;            // Nominatim ≤1 req/sec + buffer
     const GEOCODE_CACHE_KEY = 'njtc_sy_geocache_v4';
 
-    // ── COLUMN INDEXES (0-based, from CSV row 3 / sheet row 3 headers) ───
-    const C = {
-      FEE:         0,   // A  — ROLE GATED: finance, leadership
-      STATUS:      1,   // B
-      COUNTY:      2,   // C
-      PM:          3,   // D
-      LEAD_HIRING: 4,   // E
-      DISTRICT:    5,   // F  — INCLUSION: must be non-blank
-      SCHOOL:      6,   // G  — INCLUSION: must be non-blank
-      ADDRESS:     7,   // H  — geocoding only; never shown as text
-      CONFIRMED:   8,   // I
-      EST:         9,   // J  — Estimated # Scholars
-      ACT:         10,  // K  — Actual # Scholars (Pearl)
-      CONTENT:     11,  // L
-      GRADES:      12,  // M
-      TUTOR_TYPE:  13,  // N
-      BLOCK:       14,  // O  — Block (e.g. "Spring only", "Fall and Spring")
-      START:       15,  // P
-      MIDPOINT:    16,  // Q
-      ENDPOINT:    17,  // R
-      DAYS:        18,  // S
-      ASSESS:      19,  // T
-      PROG_WEEKS:  21,  // V  — # of Weeks for Programming (precomputed)
-      TUTOR_POS:   23,  // X  — Tutor Positions
-      TUTOR_FILL:  24,  // Y  — Filled Tutor Positions
-      APPRENT:     25,  // Z  — Apprentice Tutors
-      SC_POS:      26,  // AA — SC Positions
-      SC_FILL:     27,  // AB — Filled SC
-      IC_POS:      28,  // AC — IC Positions
-      IC_FILL:     29,  // AD — Filled IC
-      DR_POS:      30,  // AE — Dual Role Positions
-      DR_FILL:     31,  // AF — Filled Dual Role
-      TOTAL_STAFF: 32,  // AG — Total staffing  (authoritative → 102.0)
-      PCT_HIRED:   33,  // AH — ROLE GATED: programming, leadership, hr
-      PARTNER_NM:  37,  // AL — Partner Contact Name
-      PARTNER_EM:  38,  // AM — Partner Email
-      MOU:         39,  // AN — MOU/DSA Signed
-      DS_NAME:     40,  // AO — Data Specialist Name
-      DS_EMAIL:    41,  // AP — Data Specialist Email
-      BA_NAME:     42,  // AQ — BA/Finance Name
+    // ── COLUMN INDEXES: SY 26-27 sheet (Cycle col at position 0) ─────────
+    const C_2627 = {
+      CYCLE:        0,  // A  — Cycle (Summer 2026 / School Year 26-27)
+      FEE:          1,  // B  — ROLE GATED: finance, leadership
+      STATUS:       2,  // C
+      COUNTY:       3,  // D
+      PM:           4,  // E
+      LEAD_HIRING:  5,  // F
+      DISTRICT:     6,  // G  — INCLUSION: must be non-blank
+      SCHOOL:       7,  // H  — INCLUSION: must be non-blank
+      ADDRESS:      8,  // I  — geocoding only; never shown as text
+      CONFIRMED:    9,  // J
+      EST:         10,  // K  — Estimated # Scholars
+      ACT:         11,  // L  — Rostered Scholars in Pearl
+      CONTENT:     12,  // M
+      GRADES:      13,  // N
+      TUTOR_TYPE:  14,  // O
+      BLOCK:       15,  // P
+      START:       16,  // Q
+      MIDPOINT:    17,  // R
+      ENDPOINT:    18,  // S
+      DAYS:        19,  // T
+      ASSESS:      20,  // U
+      TUTOR_TIMES: 21,  // V  — Tutoring Times
+      PROG_WEEKS:  22,  // W  — # of Weeks for Programming
+      WEEKLY_WK:   23,  // X  — Weekly Work Time
+      PRE_APP_POS: 24,  // Y  — Pre-Apprentice Spots (new in 26-27)
+      PRE_APP_FILL:25,  // Z  — Filled Pre-App Spots (new in 26-27)
+      TUTOR_POS:   26,  // AA — Tutor Positions
+      TUTOR_FILL:  27,  // AB — Filled Tutor Positions
+      APPRENT:     28,  // AC — Apprentice Tutors
+      SC_POS:      29,  // AD — SC Positions
+      SC_FILL:     30,  // AE — Filled SC
+      IC_POS:      31,  // AF — IC Positions
+      IC_FILL:     32,  // AG — Filled IC
+      DR_POS:      33,  // AH — Dual Role Positions
+      DR_FILL:     34,  // AI — Filled Dual Role
+      TOTAL_STAFF: 35,  // AJ — Total staffing
+      PCT_HIRED:   36,  // AK — ROLE GATED: programming, leadership, hr
+      TOTAL_SL:    37,  // AL — Total site leader positions
+      PARTNER_NM:  40,  // AO — Partner Contact Name
+      PARTNER_EM:  41,  // AP — Partner Email
+      MOU:         42,  // AQ — MOU/DSA Signed
+      DS_NAME:     43,  // AR — Data Specialist Name
+      DS_EMAIL:    44,  // AS — Data Specialist Email
+      BA_NAME:     45,  // AT — BA/Finance Name
     };
+    // ── COLUMN INDEXES: SY 25-26 sheet (legacy — no Cycle col) ───────────
+    const C_2526 = {
+      CYCLE:       -1,  // not present in 25-26 sheet
+      FEE:          0,  STATUS: 1, COUNTY: 2, PM: 3, LEAD_HIRING: 4,
+      DISTRICT:     5,  SCHOOL: 6, ADDRESS: 7, CONFIRMED: 8,
+      EST:          9,  ACT: 10, CONTENT: 11, GRADES: 12, TUTOR_TYPE: 13,
+      BLOCK:       14,  START: 15, MIDPOINT: 16, ENDPOINT: 17, DAYS: 18,
+      ASSESS:      19,  TUTOR_TIMES: 20, PROG_WEEKS: 21,
+      PRE_APP_POS: -1, PRE_APP_FILL: -1, TOTAL_SL: -1,
+      TUTOR_POS:   23,  TUTOR_FILL: 24, APPRENT: 25,
+      SC_POS:      26,  SC_FILL: 27, IC_POS: 28, IC_FILL: 29,
+      DR_POS:      30,  DR_FILL: 31, TOTAL_STAFF: 32, PCT_HIRED: 33,
+      PARTNER_NM:  37,  PARTNER_EM: 38, MOU: 39,
+      DS_NAME:     40,  DS_EMAIL: 41, BA_NAME: 42,
+    };
+    // Active column map — switches when period changes
+    let C = C_2627;
 
     const ROLES_FEE   = ['finance', 'leadership'];
     const ROLES_PCTHR = ['programming', 'leadership', 'hr'];
 
     // ── STATE ─────────────────────────────────────────────────────────────
-    let _allSites  = [];
-    let _filtered  = [];
-    let _snapshot  = {};
-    let _changes   = [];
-    let _selKey    = null;
-    let _inited    = false;
-    let _lastFetch = null;
+    let _allSites     = [];
+    let _filtered     = [];
+    let _snapshot     = {};
+    let _changes      = [];
+    let _selKey       = null;
+    let _inited       = false;
+    let _lastFetch    = null;
+    let _trackerRows  = [];
+    let _trackerReady = false;
 
     // ── RFC-4180 CSV PARSER ───────────────────────────────────────────────
     // State-machine parser that correctly handles quoted fields containing
@@ -303,12 +335,13 @@
     }
 
     // ── PARSE SY ROWS ─────────────────────────────────────────────────────
-    // Headers in sheet row 3 → CSV index 2 (contains "Fee for service partner").
-    // Data from sheet row 4 → CSV index 3+.
-    // Rows missing District (col F) OR School (col G) are excluded — always.
-    function parseSYRows(text) {
-      const rows = parseCSVFull(text);
-      let hIdx = -1;
+    // Headers detected by "fee for service" in any of the first 8 rows.
+    // Accepts a column map (cols) so it works for both 25-26 and 26-27 sheets.
+    // Rows missing District OR School are always excluded.
+    function parseSYRows(text, cols) {
+      const CM    = cols || C;  // column map for this sheet version
+      const rows  = parseCSVFull(text);
+      let hIdx    = -1;
       for (let i = 0; i < Math.min(8, rows.length); i++) {
         if (rows[i].join(',').toLowerCase().includes('fee for service')) { hIdx = i; break; }
       }
@@ -316,40 +349,43 @@
 
       const sites = [];
       for (let i = hIdx + 1; i < rows.length; i++) {
-        const cols = rows[i];
-        if (!cols || cols.length < 7) continue;
-        const district = (cols[C.DISTRICT] || '').replace(/\n/g, ' ').trim();
-        const school   = (cols[C.SCHOOL]   || '').replace(/\n/g, ' ').trim();
+        const cols2 = rows[i];
+        if (!cols2 || cols2.length < 7) continue;
+        const district = (cols2[CM.DISTRICT] || '').replace(/\n/g, ' ').trim();
+        const school   = (cols2[CM.SCHOOL]   || '').replace(/\n/g, ' ').trim();
         if (!district || !school) continue;  // INCLUSION RULE — non-negotiable
 
-        const g = idx => (cols[idx] || '').replace(/\n/g, ' ').trim();
-        const n = idx => { const v = g(idx); if (!v) return 0; const f = parseFloat(v); return isNaN(f) ? 0 : f; };
+        const g = idx => idx >= 0 ? (cols2[idx] || '').replace(/\n/g, ' ').trim() : '';
+        const n = idx => { if (idx < 0) return 0; const v = g(idx); if (!v) return 0; const f = parseFloat(v); return isNaN(f) ? 0 : f; };
 
-        const agNum     = n(C.TOTAL_STAFF);
-        const filledSum = n(C.TUTOR_FILL) + n(C.SC_FILL) + n(C.IC_FILL) + n(C.DR_FILL);
-        const address   = (cols[C.ADDRESS] || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        const agNum     = n(CM.TOTAL_STAFF);
+        const filledSum = n(CM.TUTOR_FILL) + n(CM.SC_FILL) + n(CM.IC_FILL) + n(CM.DR_FILL);
+        const address   = (cols2[CM.ADDRESS] || '').replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+        const cycleRaw  = CM.CYCLE >= 0 ? g(CM.CYCLE) : '';
 
         sites.push({
           key: district + ' | ' + school,
           district, school, address,
-          status: g(C.STATUS), county: g(C.COUNTY), pm: g(C.PM),
-          act: n(C.ACT), est: n(C.EST),
-          content: g(C.CONTENT), grades: g(C.GRADES),
-          tutorType: g(C.TUTOR_TYPE), block: g(C.BLOCK),
-          startDate: g(C.START), midpoint: g(C.MIDPOINT), endpoint: g(C.ENDPOINT),
-          days: g(C.DAYS), assessModel: g(C.ASSESS),
-          progWeeks: n(C.PROG_WEEKS),
-          tutorPos: n(C.TUTOR_POS), tutorFill: n(C.TUTOR_FILL),
-          apprentice: n(C.APPRENT),
-          scPos: n(C.SC_POS),   scFill: n(C.SC_FILL),
-          icPos: n(C.IC_POS),   icFill: n(C.IC_FILL),
-          drPos: n(C.DR_POS),   drFill: n(C.DR_FILL),
+          cycle: cycleRaw,
+          status: g(CM.STATUS), county: g(CM.COUNTY), pm: g(CM.PM),
+          act: n(CM.ACT), est: n(CM.EST),
+          content: g(CM.CONTENT), grades: g(CM.GRADES),
+          tutorType: g(CM.TUTOR_TYPE), block: g(CM.BLOCK),
+          startDate: g(CM.START), midpoint: g(CM.MIDPOINT), endpoint: g(CM.ENDPOINT),
+          days: g(CM.DAYS), assessModel: g(CM.ASSESS),
+          progWeeks: n(CM.PROG_WEEKS),
+          preAppPos: n(CM.PRE_APP_POS), preAppFill: n(CM.PRE_APP_FILL),
+          tutorPos: n(CM.TUTOR_POS), tutorFill: n(CM.TUTOR_FILL),
+          apprentice: n(CM.APPRENT),
+          scPos: n(CM.SC_POS),   scFill: n(CM.SC_FILL),
+          icPos: n(CM.IC_POS),   icFill: n(CM.IC_FILL),
+          drPos: n(CM.DR_POS),   drFill: n(CM.DR_FILL),
           totalStaff: agNum || filledSum,
-          pctHired:   g(C.PCT_HIRED),   // role-gated
-          feePartner: g(C.FEE),         // role-gated
-          partnerName: g(C.PARTNER_NM), partnerEmail: g(C.PARTNER_EM),
-          mou: g(C.MOU), dsName: g(C.DS_NAME), dsEmail: g(C.DS_EMAIL),
-          baName: g(C.BA_NAME),
+          pctHired:    g(CM.PCT_HIRED),   // role-gated
+          feePartner:  g(CM.FEE),         // role-gated
+          partnerName: g(CM.PARTNER_NM), partnerEmail: g(CM.PARTNER_EM),
+          mou: g(CM.MOU), dsName: g(CM.DS_NAME), dsEmail: g(CM.DS_EMAIL),
+          baName: g(CM.BA_NAME),
           lat: null, lng: null, geocodeFailed: false, geocodeReason: '',
         });
       }
@@ -395,9 +431,16 @@
       const btn = document.getElementById('syRefreshBtn');
       if (btn) btn.disabled = true;
 
+      // Period-specific URL, column map, and cache key
+      const isLegacy  = _activePeriod === 'sy2526';
+      const fetchURL  = isLegacy ? SY_CSV_URL_2526 : SY_CSV_URL_2627;
+      const colMap    = isLegacy ? C_2526 : C_2627;
+      const cacheKey  = isLegacy ? 'njtc_sya_2526_v1' : 'njtc_sya_2627_v1';
+      C = colMap;  // update active column map
+
       // ── stale-while-revalidate: show cached data immediately ─────────
       if (!force) {
-        const _sc = NJTC_CACHE.get('njtc_sya_v1');
+        const _sc = NJTC_CACHE.get(cacheKey);
         if (_sc && _sc.data && _sc.data.length) {
           _allSites  = _sc.data;
           _snapshot  = mkSnap(_sc.data);
@@ -415,21 +458,23 @@
       setSyncState('loading');
       try {
         // Cache-bust appended as query param — same pattern as KPI fetch
-        const url = SY_CSV_URL + (force ? '&t=' + Date.now() : '');
+        const url = fetchURL + (force ? '&t=' + Date.now() : '');
         const res = await fetch(url, { signal: AbortSignal.timeout(25000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const csv = await res.text();
-        const sites = parseSYRows(csv);
+        const sites = parseSYRows(csv, colMap);
         if (!sites.length) throw new Error('Parsed 0 valid sites');
         _changes   = _allSites.length ? diffSnaps(mkSnap(_allSites), sites) : [];
         _allSites  = sites;
         _snapshot  = mkSnap(sites);
         _lastFetch = new Date();
-        NJTC_CACHE.set('njtc_sya_v1', sites);
+        NJTC_CACHE.set(cacheKey, sites);
         setSyncState('live');
         populateFilters();
         applyFilters();
         updateMapMarkers();
+        // Also kick the tracker fetch when loading 26-27 data
+        if (!isLegacy && !_trackerReady) fetchOnsiteTracker();
       } catch (e) {
         console.warn('[SY Analytics] Fetch failed:', e.message);
         setSyncState('error');
@@ -453,10 +498,14 @@
       } else if (state === 'live') {
         dot.className = 'sync-dot';
         const t = _lastFetch ? _lastFetch.toLocaleTimeString() : '—';
-        if (txt) txt.innerHTML = `<strong>Live · Google Sheet</strong>&nbsp;· ${_allSites.length} sites · Updated ${t}`;
+        const periodLabel = _activePeriod === 'sy2526' ? 'SY 25-26 (archived)' : _activePeriod === 'summer2026' ? 'Summer 2026' : 'SY 26-27';
+        if (txt) txt.innerHTML = `<strong>Live · Google Sheet</strong>&nbsp;· ${periodLabel} · ${_filtered.length} sites · Updated ${t}`;
         const hc = _changes.length > 0;
         if (cbtn) { cbtn.style.display = hc ? '' : 'none'; if (hc) document.getElementById('syChangesBtnN').textContent = _changes.length; }
         if (nbdg) { nbdg.style.display = hc ? '' : 'none'; if (hc) nbdg.textContent = _changes.length; }
+        // Summer badge: show on SY 26-27 view to remind users summer is active
+        const badge = document.getElementById('sySummerBadge');
+        if (badge) badge.style.display = _activePeriod === 'sy2627' ? 'inline' : 'none';
       } else {
         dot.className = 'sync-dot error';
         if (txt) txt.innerHTML = _lastFetch
@@ -470,7 +519,14 @@
       const v = id => (document.getElementById(id)||{}).value||'';
       const fD=v('syFDistrict'),fC=v('syFContent'),fT=v('syFType'),
             fA=v('syFAssess'),  fW=v('syFDays'),   fS=v('syFStatus');
+
+      // Cycle filter — 26-27 sheet has both Summer 2026 and SY 26-27 rows
+      const cycleLC = _activePeriod === 'summer2026' ? 'summer 2026'
+                    : _activePeriod === 'sy2627'     ? 'school year'
+                    : '';  // sy2526 has no cycle col — no filter needed
+
       _filtered = _allSites.filter(s =>
+        (!cycleLC || (s.cycle||'').toLowerCase().includes(cycleLC)) &&
         (!fD || s.district === fD) &&
         (!fC || s.content.toLowerCase().includes(fC.toLowerCase())) &&
         (!fT || s.tutorType.toLowerCase().includes(fT.toLowerCase())) &&
@@ -528,12 +584,18 @@
       const _pearlActive = (_poStats && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
-      // Total Staff: sourced from HR Master List (HR_EMPS active count) — the authoritative headcount.
-      // Falls back to SY database staff sum only if HR data hasn't loaded yet.
-      const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
-        ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
-      const stf = s.reduce((a,r) => a + r.totalStaff, 0);
-      setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
+      // Total Staff: for Summer 2026, use tracker active headcount (offer accepted).
+      // For SY views, use HR Master List active count (authoritative), or DB sum as fallback.
+      let staffVal;
+      if (_activePeriod === 'summer2026' && _trackerReady) {
+        staffVal = _trackerRows.filter(r => r.isSummer && r.isActive).length.toLocaleString();
+      } else {
+        const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+          ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
+        const stf = s.reduce((a,r) => a + r.totalStaff, 0);
+        staffVal = _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1));
+      }
+      setText('syStatStaff', staffVal);
       // Notify exec dashboard — Home Schools KPI reads from syStatSites
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
@@ -817,6 +879,126 @@
     function updateMapMarkers() { renderSVGMap(); }
     function updateUnmapped()   { renderSVGMap(); }
 
+    // ── PERIOD SELECTOR ──────────────────────────────────────────────────
+    function setPeriod(period) {
+      if (_activePeriod === period) return;
+      _activePeriod = period;
+
+      // Update eyebrow label
+      const eyebrow = document.getElementById('syEyebrow');
+      if (eyebrow) {
+        if (period === 'sy2526')     eyebrow.textContent = 'SY 2025–2026 · Archived Snapshot';
+        else if (period === 'summer2026') eyebrow.textContent = '☀️ Summer 2026 · Live Data';
+        else                         eyebrow.textContent = 'SY 2026–2027 · Live Data';
+      }
+
+      // Highlight active period button
+      ['sy2526','summer2026','sy2627'].forEach(p => {
+        const btn = document.getElementById('syPeriodBtn_' + p);
+        if (btn) btn.classList.toggle('active', p === period);
+      });
+
+      // Update Summer Active badge visibility
+      const badge = document.getElementById('sySummerBadge');
+      if (badge) badge.style.display = period === 'summer2026' ? '' : 'none';
+
+      // Clear state and re-fetch for the new period
+      _allSites = []; _filtered = []; _snapshot = {}; _changes = [];
+      _selKey = null;
+      const card = document.getElementById('syDetailCard');
+      if (card) card.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;color:var(--muted);text-align:center"><div style="font-size:2rem;margin-bottom:.75rem">📍</div><div style="font-size:.875rem;font-weight:500">Click a map pin or table row<br>to view site details</div></div>`;
+      refresh(true);
+    }
+
+    // ── ONSITE TRACKER FETCH ─────────────────────────────────────────────
+    // Parses both Summer 2026 and SY 26-27 staff rows from the tracker tab.
+    // Active summer employees = cycle contains "summer" + offerAccepted = "yes".
+    async function fetchOnsiteTracker(force = false) {
+      const cacheKey = 'njtc_tracker_2627_v1';
+      if (!force) {
+        const cached = NJTC_CACHE.get(cacheKey);
+        if (cached && cached.data && cached.data.length) {
+          _trackerRows  = cached.data;
+          _trackerReady = true;
+          window.NJTC_ONSITE_TRACKER = _trackerRows;
+          updateStats();
+          if (cached.fresh) return;
+        }
+      }
+      try {
+        const url = TRACKER_CSV_URL + (force ? '&t=' + Date.now() : '');
+        const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        const rows = parseOnsiteTracker(text);
+        if (rows.length) {
+          _trackerRows  = rows;
+          _trackerReady = true;
+          window.NJTC_ONSITE_TRACKER = rows;
+          NJTC_CACHE.set(cacheKey, rows);
+          updateStats();
+        }
+      } catch(e) {
+        console.warn('[Onsite Tracker] Fetch failed:', e.message);
+      }
+    }
+
+    function parseOnsiteTracker(text) {
+      const rows = parseCSVFull(text);
+      let hIdx = -1;
+      for (let i = 0; i < Math.min(5, rows.length); i++) {
+        if ((rows[i][0]||'').trim().toLowerCase() === 'cycle') { hIdx = i; break; }
+      }
+      if (hIdx < 0) { console.warn('[Tracker] Header not found'); return []; }
+
+      const TC = {
+        CYCLE: 0, ROLE: 1, COUNTY: 2, DISTRICT: 3, LOCATION: 4, SEC_LOC: 5,
+        TC_REVIEWER: 6, SOURCE: 7, FIRST_NAME: 8, LAST_NAME: 9, EMAIL: 10,
+        ZELLE: 11, PHONE: 12, ADP_PROFILE: 13, IV_WEBINAR: 14,
+        OFFER_SENT: 15, OFFER_ACCEPTED: 16, WELCOME_EMAIL: 17,
+        PRE_APP: 18, TAP_REG: 19, RETENTION_ELIG: 20, RETENTION_EMAIL: 21,
+        MID_BONUS: 22, REMAIN_BONUS: 23, I9_DOCS: 24,
+        FINGERPRINT: 25, FP_REIMB: 26, BC10: 27, FULL_NAME: 28,
+      };
+      const g = (r, i) => i >= 0 && i < r.length ? (r[i]||'').replace(/\n/g,' ').trim() : '';
+
+      return rows.slice(hIdx + 1)
+        .filter(r => r.length > 8 && g(r, TC.FIRST_NAME))
+        .map(r => {
+          const cycle    = g(r, TC.CYCLE);
+          const accepted = g(r, TC.OFFER_ACCEPTED).toLowerCase();
+          return {
+            cycle,
+            role:          g(r, TC.ROLE),
+            county:        g(r, TC.COUNTY),
+            district:      g(r, TC.DISTRICT),
+            location:      g(r, TC.LOCATION),
+            secLoc:        g(r, TC.SEC_LOC),
+            tcReviewer:    g(r, TC.TC_REVIEWER),
+            source:        g(r, TC.SOURCE),
+            firstName:     g(r, TC.FIRST_NAME),
+            lastName:      g(r, TC.LAST_NAME),
+            fullName:      g(r, TC.FULL_NAME) || (g(r, TC.FIRST_NAME) + ' ' + g(r, TC.LAST_NAME)).trim(),
+            email:         g(r, TC.EMAIL),
+            phone:         g(r, TC.PHONE),
+            offerSent:     g(r, TC.OFFER_SENT),
+            offerAccepted: g(r, TC.OFFER_ACCEPTED),
+            welcomeEmail:  g(r, TC.WELCOME_EMAIL),
+            isPreApp:      g(r, TC.PRE_APP).toLowerCase() === 'yes',
+            tapRegistered: g(r, TC.TAP_REG),
+            retentionElig: g(r, TC.RETENTION_ELIG),
+            i9Docs:        g(r, TC.I9_DOCS),
+            fingerprint:   g(r, TC.FINGERPRINT),
+            fpReimb:       g(r, TC.FP_REIMB),
+            bc10:          g(r, TC.BC10),
+            // computed flags
+            isSummer: cycle.toLowerCase().includes('summer'),
+            isSY:     cycle.toLowerCase().includes('school year'),
+            isActive: accepted === 'yes',
+          };
+        });
+    }
+
     // ── CHANGES MODAL ─────────────────────────────────────────────────────
     function openChangesModal() {
       let o = document.getElementById('syChangesModal');
@@ -856,7 +1038,10 @@
 
     function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 
-    return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite, openChangesModal, onPanelOpen,
+    return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite,
+             openChangesModal, onPanelOpen, setPeriod, fetchOnsiteTracker,
+             getActivePeriod: () => _activePeriod,
+             getTrackerRows:  () => _trackerRows.slice(),
              getSites: () => _allSites.slice() };  // read-only live snapshot for exports
   })();
 
