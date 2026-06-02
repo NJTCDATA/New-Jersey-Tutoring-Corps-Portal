@@ -446,6 +446,7 @@
           _allSites  = _sc.data;
           _snapshot  = mkSnap(_sc.data);
           _lastFetch = new Date(Date.now() - _sc.age);
+          window.NJTC_LOCATIONS = _sc.data;
           setSyncState(_sc.fresh ? 'live' : 'stale');
           populateFilters();
           applyFilters();
@@ -470,6 +471,8 @@
         _snapshot  = mkSnap(sites);
         _lastFetch = new Date();
         NJTC_CACHE.set(cacheKey, sites);
+        // Expose site-level position data for DOL report (both SY 25-26 and 26-27/Summer)
+        window.NJTC_LOCATIONS = sites;
         setSyncState('live');
         populateFilters();
         applyFilters();
