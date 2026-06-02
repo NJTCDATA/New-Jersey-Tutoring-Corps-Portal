@@ -219,6 +219,12 @@
     const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv&gid=1830091227`;
     // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, gid=0.
     const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv`;
+    // Locations tab (site-level position counts: Tutor Positions, Filled, SC, IC, Dual Role, etc.)
+    // GID: update this when the Locations tab GID is confirmed from the published spreadsheet URL.
+    const LOCATIONS_GID    = null; // TODO: set to the Locations tab GID (e.g. 1234567890)
+    const LOCATIONS_CSV_URL = LOCATIONS_GID
+      ? `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv&gid=${LOCATIONS_GID}`
+      : null;
 
     // Active period: 'sy2526' | 'summer2026' | 'sy2627'  (default: SY 26-27)
     let _activePeriod = 'sy2627';
@@ -474,8 +480,9 @@
         populateFilters();
         applyFilters();
         updateMapMarkers();
-        // Also kick the tracker fetch when loading 26-27 data
+        // Also kick the tracker and locations fetch when loading 26-27 data
         if (!isLegacy && !_trackerReady) fetchOnsiteTracker();
+        if (!isLegacy && !window.NJTC_LOCATIONS) fetchLocationsTab();
       } catch (e) {
         console.warn('[SY Analytics] Fetch failed:', e.message);
         setSyncState('error');
@@ -950,6 +957,51 @@
         }
       } catch(e) {
         console.warn('[Onsite Tracker] Fetch failed:', e.message);
+      }
+    }
+
+    // Fetch and parse the Locations tab (site-level authorized position counts).
+    // Sets window.NJTC_LOCATIONS for use by the DOL report positions table.
+    async function fetchLocationsTab() {
+      if (!LOCATIONS_CSV_URL) return; // GID not yet configured
+      try {
+        const res = await fetch(LOCATIONS_CSV_URL, { signal: AbortSignal.timeout(20000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        const parsed = parseCSVFull(text);
+        let hIdx = -1;
+        for (let i = 0; i < Math.min(5, parsed.length); i++) {
+          if ((parsed[i][0]||'').trim().toLowerCase() === 'cycle') { hIdx = i; break; }
+        }
+        if (hIdx < 0) return;
+        const LC = {
+          CYCLE: 0, FEE_PARTNER: 1, STATUS: 2, COUNTY: 3, DISTRICT: 6, SCHOOL: 7,
+          TUTOR_POS: 26, FILLED_TUTOR: 27, SC_POS: 29, FILLED_SC: 30,
+          IC_POS: 31, FILLED_IC: 32, DUAL_POS: 33, FILLED_DUAL: 34,
+          TOTAL_STAFF: 35, PCT_HIRED: 36,
+        };
+        const g = (r, i) => (r[i] || '').trim();
+        const locRows = parsed.slice(hIdx + 1).map(r => ({
+          cycle:              g(r, LC.CYCLE),
+          status:             g(r, LC.STATUS),
+          county:             g(r, LC.COUNTY),
+          district:           g(r, LC.DISTRICT),
+          school:             g(r, LC.SCHOOL),
+          tutorPositions:     g(r, LC.TUTOR_POS),
+          filledTutorPositions: g(r, LC.FILLED_TUTOR),
+          scPositions:        g(r, LC.SC_POS),
+          filledScPositions:  g(r, LC.FILLED_SC),
+          icPositions:        g(r, LC.IC_POS),
+          filledIcPositions:  g(r, LC.FILLED_IC),
+          dualRolePositions:  g(r, LC.DUAL_POS),
+          filledDualRolePositions: g(r, LC.FILLED_DUAL),
+          totalStaff:         g(r, LC.TOTAL_STAFF),
+          pctHired:           g(r, LC.PCT_HIRED),
+        })).filter(r => r.cycle);
+        window.NJTC_LOCATIONS = locRows;
+        console.log('[Locations] Loaded', locRows.length, 'site rows');
+      } catch(e) {
+        console.warn('[Locations] Fetch failed:', e.message);
       }
     }
 

@@ -102,22 +102,21 @@
   }
 
   function normalizeHREmps() {
-    // HR_EMPS: {name, role, cycles, termDate, termReason, termType, status}
+    // HR_EMPS field map: n=name, r=role, s=status, y=years[], py=primaryYear,
+    // _termDate, _termType (Voluntary/Involuntary), _termReason, si=site, di=district
     const arr = (typeof HR_EMPS !== 'undefined') ? HR_EMPS : [];
     return arr
-      .filter(e => e && e.name)
+      .filter(e => e && e.n && e.y && e.y.includes('2025-2026'))
       .map(e => {
-        // For 25-26 we don't have precise offer-accepted dates in HR_EMPS;
-        // we approximate start as Sep 1 2025 (cycle start) so every employee
-        // shows as active for the full SY25-26 period.
-        const termDate = e.termDate ? parseDate(e.termDate) : null;
+        const termDate = (e._termDate && e._termDate.trim()) ? parseDate(e._termDate.trim()) : null;
+        // Approximate start as Sep 1 2025 — precise offer-accepted dates not in HR_EMPS
         return {
-          name:       e.name,
-          role:       e.role || '',
+          name:       e.n,
+          role:       e.r || '',
           startDate:  new Date('2025-09-01'),
           termDate,
-          terminated: !!termDate,
-          resignType: (e.termType || '').toLowerCase(),
+          terminated: e.s === 'Terminated',
+          resignType: (e._termType || '').toLowerCase(),
           cycle:      'school year 25-26',
           isSummer:   false,
           isSY:       true,
@@ -178,27 +177,59 @@
   }
 
   // ── Open positions (from SY Locations data or fallback) ───────────────────────
-  // We compute this from window.NJTC_ONSITE_TRACKER rows if available,
-  // looking at the total positions vs filled.
+  // Positions table: reads authorized positions + filled counts from the Locations sheet
+  // data embedded in NJTC_LOCATIONS (if available) or falls back to the staff tracker.
+  // Locations sheet columns (0-indexed from col 24):
+  //   24=PreApp Spots, 25=Filled PreApp, 26=Tutor Positions, 27=Filled Tutor,
+  //   28=# Apprentice Tutors, 29=SC Positions, 30=Filled SC, 31=IC Positions,
+  //   32=Filled IC, 33=Dual Role Positions, 34=Filled Dual Role,
+  //   35=Total staffing, 36=percent hired
   function computeOpenings(period) {
-    if (!window.NJTC_ONSITE_TRACKER) return null;
+    // Prefer NJTC_LOCATIONS (parsed Locations tab) when available
+    const locRows = window.NJTC_LOCATIONS;
     const cycleKey = period.cycleKey;
-    const rows = window.NJTC_ONSITE_TRACKER.filter(r =>
-      (r.cycle || '').toLowerCase().includes(cycleKey.split(' ').slice(0, 2).join(' '))
+    const cycleMatch = cycleKey.split(' ').slice(0, 2).join(' ').toLowerCase();
+
+    if (locRows && locRows.length) {
+      const filtered = locRows.filter(r =>
+        (r.cycle || '').toLowerCase().includes(cycleMatch)
+      );
+      if (filtered.length) {
+        const buckets = {};
+        ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
+        const num = v => { const n = parseInt((v || '').toString().replace(/[^0-9.]/g, ''), 10); return isNaN(n) ? 0 : n; };
+        filtered.forEach(r => {
+          buckets['Tutor'].total           += num(r.tutorPositions);
+          buckets['Tutor'].filled          += num(r.filledTutorPositions);
+          buckets['Site Coordinator'].total  += num(r.scPositions);
+          buckets['Site Coordinator'].filled += num(r.filledScPositions);
+          buckets['Instructional Coach'].total  += num(r.icPositions);
+          buckets['Instructional Coach'].filled += num(r.filledIcPositions);
+          buckets['Dual Role'].total  += num(r.dualRolePositions);
+          buckets['Dual Role'].filled += num(r.filledDualRolePositions);
+        });
+        return buckets;
+      }
+    }
+
+    // Fallback: use staff tracker rows (each active row = 1 filled position)
+    const tracker = window.NJTC_ONSITE_TRACKER;
+    if (!tracker || !tracker.length) return null;
+    const rows = tracker.filter(r =>
+      (r.cycle || '').toLowerCase().includes(cycleMatch)
     );
     if (!rows.length) return null;
 
     const buckets = {};
     ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
-
     rows.forEach(r => {
       if (r.isPreApp) return;
       const roleKey = ROLE_BUCKETS.find(b => (r.role || '').toLowerCase().includes(b.toLowerCase()));
       if (!roleKey) return;
+      // In fallback mode, every row is a total position; active = filled
       buckets[roleKey].total++;
       if (r.isActive && !r.isTerminated) buckets[roleKey].filled++;
     });
-
     return buckets;
   }
 
@@ -248,9 +279,9 @@
         <thead>
           <tr style="border-bottom:2px solid var(--border)">
             <th style="padding:.5rem .75rem;text-align:left;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Role</th>
-            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Total</th>
+            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Positions</th>
             <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Filled</th>
-            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Open</th>
+            <th style="padding:.5rem .75rem;text-align:center;color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em">Vacancies</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -333,9 +364,9 @@
     </thead>
     <tbody>${rows}</tbody>
   </table>
-  ${openings ? `<h2>Open Positions by Role</h2>
+  ${openings ? `<h2>Positions by Role</h2>
   <table>
-    <thead><tr><th>Role</th><th>Total Positions</th><th>Filled</th><th>Open</th></tr></thead>
+    <thead><tr><th>Role</th><th>Positions</th><th>Filled</th><th>Vacancies</th></tr></thead>
     <tbody>${openRows}</tbody>
   </table>` : ''}
   <div class="footer">
