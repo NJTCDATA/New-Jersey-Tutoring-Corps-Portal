@@ -191,22 +191,25 @@
     const cycleMatch = cycleKey.split(' ').slice(0, 2).join(' ').toLowerCase();
 
     if (locRows && locRows.length) {
-      const filtered = locRows.filter(r =>
-        (r.cycle || '').toLowerCase().includes(cycleMatch)
-      );
+      // Filter to this period's cycle — for SY 25-26 there's no cycle col so all rows match
+      const filtered = locRows.filter(r => {
+        const cy = (r.cycle || '').toLowerCase();
+        return !cy || cy.includes(cycleMatch);
+      });
       if (filtered.length) {
         const buckets = {};
         ROLE_BUCKETS.forEach(r => { buckets[r] = { filled: 0, total: 0 }; });
-        const num = v => { const n = parseInt((v || '').toString().replace(/[^0-9.]/g, ''), 10); return isNaN(n) ? 0 : n; };
+        const num = v => { const n = parseFloat((v || '').toString().replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : Math.round(n); };
+        // _allSites field names: tutorPos/tutorFill, scPos/scFill, icPos/icFill, drPos/drFill
         filtered.forEach(r => {
-          buckets['Tutor'].total           += num(r.tutorPositions);
-          buckets['Tutor'].filled          += num(r.filledTutorPositions);
-          buckets['Site Coordinator'].total  += num(r.scPositions);
-          buckets['Site Coordinator'].filled += num(r.filledScPositions);
-          buckets['Instructional Coach'].total  += num(r.icPositions);
-          buckets['Instructional Coach'].filled += num(r.filledIcPositions);
-          buckets['Dual Role'].total  += num(r.dualRolePositions);
-          buckets['Dual Role'].filled += num(r.filledDualRolePositions);
+          buckets['Tutor'].total            += num(r.tutorPos);
+          buckets['Tutor'].filled           += num(r.tutorFill);
+          buckets['Site Coordinator'].total  += num(r.scPos);
+          buckets['Site Coordinator'].filled += num(r.scFill);
+          buckets['Instructional Coach'].total  += num(r.icPos);
+          buckets['Instructional Coach'].filled += num(r.icFill);
+          buckets['Dual Role'].total  += num(r.drPos);
+          buckets['Dual Role'].filled += num(r.drFill);
         });
         return buckets;
       }
@@ -412,7 +415,8 @@
       const employees = getEmployees(period);
       const months    = monthsInRange(period.start, period.end);
       const stats     = months.map(mk => computeMonthStats(employees, mk));
-      const openings  = period.source === 'tracker' ? computeOpenings(period) : null;
+      // Always compute openings — NJTC_LOCATIONS is set for both SY 25-26 and 26-27/Summer
+      const openings  = computeOpenings(period);
 
       // Period buttons
       const periodBtns = PERIODS.map(p =>
