@@ -1,7 +1,7 @@
 {
-  "generated": "2026-06-02T13:56:31.279Z",
+  "generated": "2026-06-02T18:03:36.456Z",
   "project": "1211431518555737",
-  "count": 28,
+  "count": 26,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -198,28 +198,6 @@
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555795"
     },
     {
-      "gid": "1211431732254228",
-      "assignee": {
-        "gid": "1202967483652746",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-01-16",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "40 tutor apprentices for SY 25-26 ",
-      "notes": "OJT Tracker- https://docs.google.com/spreadsheets/d/1PDYfmzk99OdPYvmTEyjsBjJeRy6P2y0CCl_rXMXkbo8/edit?gid=0#gid=0\n\nTAP Tracker- https://docs.google.com/spreadsheets/d/1wg0J1r0GJQKhZkKlrQckTZsw396q7_zMQ6rnwe_rtGo/edit?gid=1161107143#gid=1161107143",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431732254228"
-    },
-    {
       "gid": "1211431678587603",
       "assignee": {
         "gid": "1202967483652746",
@@ -262,24 +240,6 @@
       "name": "Continue to increase partnerships with additional institutions beyond NJCU for Tutor Apprentices.",
       "notes": "Ashley has met with: \n\n>     Wilmington U\n    Montclair\n    Raritan Community College\n    Rowan University\n    Felician University\n\n\n\n",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555815"
-    },
-    {
-      "gid": "1212755283202640",
-      "assignee": {
-        "gid": "1202967483652746",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-04-29",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "State of Apprenticeship Event with TAN",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212755283202640"
     },
     {
       "gid": "1211431518555860",
