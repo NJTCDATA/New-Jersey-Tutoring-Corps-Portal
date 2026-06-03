@@ -3,14 +3,14 @@
    Combines Pearl Operations Data + iReady EOY/MOY Academic Data for all
    enrolled TAP apprentices (count sourced live from TAP tracker / AP_DATA).
 
-   Data source rules:
-     • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • Haddon Township                 → MOY (Winter 2026) Google Sheet (IRLAB has no Haddon rows)
-     • Hamilton Township               → EOY Preliminary via window.irlab.getAllRows()
-     • All other schools               → EOY Preliminary via window.irlab.getAllRows()
-     • Middlesex STEM                  → Standards Mastery (no iReady diagnostic data; surveys only)
-     • CJCP                            → EOY Preliminary (pending — auto-populates when data arrives)
-     • Gloucester                      → EOY Preliminary filtered by district OR school name
+   Data source rules (dynamic — resolved at report generation time):
+     • Middlesex STEM                  → Standards Mastery only (no iReady diagnostic data)
+     • Long Term Sub / No Data schools → excluded from academic data
+     • CJCP                            → EOY Preliminary (pending — populates when data arrives)
+     • All other schools               → EOY Preliminary (IRLAB) if IRLAB has rows for that school,
+                                         otherwise MOY (Winter 2026) Google Sheet as fallback.
+                                         iLearn schools have no EOY_DISTRICT_FILTERS so always use MOY.
+                                         Hamilton has EOY rows → EOY. Haddon has no EOY rows → MOY.
    ============================================================================ */
 
 (function () {
@@ -1686,32 +1686,37 @@
     };
 
     return getActiveRoster().map(([display, njId, school, region]) => {
-      const isMidYr   = ILEARN_SCHOOLS.has(school) || MOY_SCHOOLS.has(school);
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData  = NO_DATA_SCHOOLS.has(school);
       const isPending = PENDING_EOY_SCHOOLS.has(school);
 
       let elaAcad = null, mathAcad = null, smAcad = null;
+      let usedEoy = false;
+
       if (isStdMas) {
         smAcad = aggregateSmAcad(smByAppr[display] || []);
       } else if (!isNoData && !isPending) {
-        if (isMidYr) {
-          if (teachesEla(display))
-            elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
-          if (teachesMath(display))
-            mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
-        } else {
-          if (teachesEla(display))
-            elaAcad  = aggregateAcademic(irlElaByAppr[display]  || [], 'eoy');
-          if (teachesMath(display))
-            mathAcad = aggregateAcademic(irlMathByAppr[display] || [], 'eoy');
-        }
+        // Dynamic source selection: prefer EOY (IRLAB) when data exists, fall back to MOY.
+        // Schools with no EOY_DISTRICT_FILTERS entry return [] from attributeIrlabScholars
+        // automatically, so iLearn-type schools always fall back to MOY.
+        const eoyElaRows  = teachesEla(display)  ? (irlElaByAppr[display]  || []) : [];
+        const eoyMathRows = teachesMath(display) ? (irlMathByAppr[display] || []) : [];
+        const moyElaRows  = teachesEla(display)  ? (moyElaByAppr[display]  || []) : [];
+        const moyMathRows = teachesMath(display) ? (moyMathByAppr[display] || []) : [];
+
+        usedEoy = eoyElaRows.length > 0 || eoyMathRows.length > 0;
+        const src       = usedEoy ? 'eoy' : 'moy';
+        const elaRows   = usedEoy ? eoyElaRows  : moyElaRows;
+        const mathRows  = usedEoy ? eoyMathRows : moyMathRows;
+
+        if (teachesEla(display))  elaAcad  = aggregateAcademic(elaRows,  src);
+        if (teachesMath(display)) mathAcad = aggregateAcademic(mathRows, src);
       }
 
       const dataNote = isStdMas  ? 'Standards Mastery (EOY SY 25-26)' :
                        isNoData  ? 'No iReady data' :
                        isPending ? 'EOY Preliminary (Pending)' :
-                       isMidYr   ? 'MOY (Winter 2026)' : 'EOY Preliminary';
+                       usedEoy   ? 'EOY Preliminary' : 'MOY (Winter 2026)';
 
       return {
         display, njId, school, region, dataNote, isStdMas,
@@ -2030,8 +2035,8 @@
             <p>Combines Pearl attendance &amp; scholar survey data with iReady diagnostic outcomes
                for all <strong>${_liveCount} enrolled TAP apprentices</strong>. Generates a three-section downloadable CSV.</p>
             <div class="apir-source-legend">
-              <span class="apir-badge apir-badge-moy">MOY</span> iLearn &nbsp;|&nbsp;
-              <span class="apir-badge apir-badge-eoy">EOY Prelim</span> All other schools &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-eoy">EOY Prelim</span> when available &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-moy">MOY</span> fallback &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-sm">Std. Mastery</span> Middlesex STEM
             </div>
           </div>
