@@ -677,11 +677,17 @@
     try {
       // ── 1. Fetch Pearl data (ATT + STU + SESS in parallel) ─────────────
       setStatus('Fetching Pearl attendance, surveys & session data…'); setProgress(5);
-      const [attText, stuText, sessText] = await Promise.all([
+      const [attResult, stuResult, sessResult] = await Promise.allSettled([
         cachedFetch(PEARL_URL(ATT_GID),  'Pearl ATT'),
         cachedFetch(PEARL_URL(STU_GID),  'Pearl STU surveys'),
         cachedFetch(PEARL_URL(SESS_GID), 'Pearl SESS'),
       ]);
+      const attText  = attResult.status  === 'fulfilled' ? attResult.value  : '';
+      const stuText  = stuResult.status  === 'fulfilled' ? stuResult.value  : '';
+      const sessText = sessResult.status === 'fulfilled' ? sessResult.value : '';
+      if (attResult.status  !== 'fulfilled') console.warn('[APIR] ATT tab failed — attendance data unavailable:', attResult.reason);
+      if (stuResult.status  !== 'fulfilled') console.warn('[APIR] STU tab failed — survey data unavailable:',    stuResult.reason);
+      if (sessResult.status !== 'fulfilled') console.warn('[APIR] SESS tab failed — session data unavailable:',  sessResult.reason);
 
       const attRows  = parseCsv(attText);
       const stuRows  = parseCsv(stuText);
@@ -691,9 +697,10 @@
 
       // ── 2. Fetch MOY iLearn academic data ───────────────────────────────
       setStatus('Fetching MOY ELA data…'); setProgress(18);
-      const moyElaText  = await cachedFetch(MOY_URL(MOY_ELA_GID),  'MOY ELA');
+      let moyElaText = '', moyMathText = '';
+      try { moyElaText  = await cachedFetch(MOY_URL(MOY_ELA_GID),  'MOY ELA');  } catch(e) { console.warn('[APIR] MOY ELA fetch failed:', e.message); }
       setStatus('Fetching MOY Math data…'); setProgress(26);
-      const moyMathText = await cachedFetch(MOY_URL(MOY_MATH_GID), 'MOY Math');
+      try { moyMathText = await cachedFetch(MOY_URL(MOY_MATH_GID), 'MOY Math'); } catch(e) { console.warn('[APIR] MOY Math fetch failed:', e.message); }
 
       const moyElaRaw   = parseCsv(moyElaText);
       const moyMathRaw  = parseCsv(moyMathText);
