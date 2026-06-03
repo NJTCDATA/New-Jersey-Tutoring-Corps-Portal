@@ -2781,7 +2781,10 @@
             };
             var ltHeaders = splitRow(ltDataLines[0]).map(function(h) { return h.trim(); });
             var ltOtjHdrs = ltHeaders.slice(27, 44); // AB–AR
-            // Name is in col F (index 5); detect dynamically, fallback to index 5
+            // Detect First Name + Last Name columns separately; fall back to single name col
+            var ltFirstIdx = ltHeaders.findIndex(function(h) { return /^first\s*name$/i.test(h.trim()); });
+            var ltLastIdx  = ltHeaders.findIndex(function(h) { return /^last\s*name$/i.test(h.trim()); });
+            // Fallback single-col detection
             var ltNameIdx = ltHeaders.findIndex(function(h) { return /\bname\b|tutor/i.test(h); });
             if (ltNameIdx < 0) ltNameIdx = 5;
             var ltNameCol = ltHeaders[ltNameIdx];
@@ -2799,7 +2802,15 @@
               // Only Active apprentices
               var ltStatus = (ltObj[ltStatusCol] || '').trim();
               if (ltStatus && !/active/i.test(ltStatus)) continue;
-              var rawName = (ltObj[ltNameCol] || '').trim();
+              // Build full name from separate First/Last columns if available
+              var rawName;
+              if (ltFirstIdx >= 0 && ltLastIdx >= 0) {
+                var fn = (ltCells[ltFirstIdx] || '').trim();
+                var ln = (ltCells[ltLastIdx]  || '').trim();
+                rawName = (fn + ' ' + ln).trim();
+              } else {
+                rawName = (ltObj[ltNameCol] || '').trim();
+              }
               if (!rawName || /^\d+$/.test(rawName)) continue;
               var ltKey = rawName.toLowerCase().replace(/\s+/g,' ').trim();
               var ltCount = ltOtjHdrs.filter(function(h) { return (ltObj[h] || '').trim(); }).length;
@@ -2816,7 +2827,8 @@
             }
             window.njtcLiveOtjMap  = ltMap;
             window.AP_TAP_ROSTER   = ltRoster;
-            console.log('[NJTC] Live Tracker: ' + ltRoster.length + ' active apprentices → AP_TAP_ROSTER + OTJ map (name col=' + ltNameCol + ')');
+            var ltNameMode = (ltFirstIdx >= 0 && ltLastIdx >= 0) ? 'First+Last' : ('col=' + ltNameCol);
+            console.log('[NJTC] Live Tracker: ' + ltRoster.length + ' active apprentices → AP_TAP_ROSTER + OTJ map (' + ltNameMode + ')');
           }
         } catch(e) { console.warn('[NJTC] Live Tracker parse error:', e); }
       } else {
