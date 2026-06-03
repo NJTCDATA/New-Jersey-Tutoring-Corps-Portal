@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  NJTC TAP — SY 2025-26 CAPSTONE  ·  FULLY DYNAMIC BUILD  v5            ║
+ * ║  NJTC TAP — SY 2025-26 CAPSTONE  ·  FULLY DYNAMIC BUILD  v6            ║
  * ║  Zero hardcoded data — reads 100% from "Apprentice Impact Data (RAW)"   ║
  * ║  Update raw data → re-run buildEverything() → all 8 sheets refresh      ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
@@ -59,6 +59,11 @@ var F = {
   MS:14,MBOY:15,MEND:16,MG:17,MMG:18,MPG:19,MI:20,MM:21,MD:22,
   SR:23,CF:24,EN:25,LN:26,OV:27,AT:28,MIS:29,TOT:30,RT:31
 };
+
+// ─── SAFE ALERT — works whether script is standalone or container-bound ─────
+function safeAlert(msg) {
+  try { SpreadsheetApp.getUi().alert(msg); } catch(e) { Logger.log(msg); }
+}
 
 // ─── VALUE HELPERS ─────────────────────────────────────────
 function isNum(v) {
@@ -397,7 +402,7 @@ function buildEverything() {
 
   var data = loadData(ss);
   if (data.apprentices.length === 0) {
-    SpreadsheetApp.getUi().alert('⚠ No apprentice data found. Check source sheet name and structure.');
+    safeAlert('⚠ No apprentice data found. Check source sheet name and structure.');
     return;
   }
 
@@ -410,7 +415,7 @@ function buildEverything() {
   buildCertsPartial(ss, data);
   buildCertsRecognition(ss, data);
 
-  SpreadsheetApp.getUi().alert(
+  safeAlert(
     '✅  All 8 sheets built from live data!\n\n' +
     '  ' + data.apprentices.length + ' apprentices loaded from source\n' +
     '  ' + data.placements.length + ' placement records loaded\n\n' +
@@ -568,7 +573,7 @@ function buildAcademicGrowth(ss, data) {
     'ELA\nScholars','ELA\nBOY','ELA\nEnd','ELA\nGain',
     'ELA\n% Growth','Math\nScholars','Math\nGain','Math\n% Growth'], C.NAVY, C.WHITE, 36);
 
-  var withAcad = A.filter(function(a) { return a.elaG !== null || a.mathG !== null; });
+  var withAcad = A.filter(hasAcademicData);
   withAcad.sort(function(a, b) { return (b.elaG !== null ? b.elaG : -999) - (a.elaG !== null ? a.elaG : -999); });
 
   withAcad.forEach(function(a, i) {
@@ -600,7 +605,7 @@ function buildAcademicGrowth(ss, data) {
 
   // ── CHART 1: Grouped Horizontal Bar — ELA vs Math Gain ──
   secHead(ws, tableEnd+1, 12, 'CHART 1  ·  ELA vs Math Scale Score Gain  ·  Grouped Horizontal Bar  ·  Each bar labeled with exact value', C.TEAL);
-  var gainApps = A.filter(function(a) { return a.elaG !== null || a.mathG !== null; });
+  var gainApps = A.filter(hasAcademicData);
   gainApps.sort(function(a,b){ return (b.elaG||b.mathG||0) - (a.elaG||a.mathG||0); });
   var gainRows = gainApps.map(function(a) {
     return [a.name, a.elaG !== null ? a.elaG : null, a.mathG !== null ? a.mathG : null];
@@ -618,7 +623,7 @@ function buildAcademicGrowth(ss, data) {
   // ── CHART 2: Column — % of Typical Growth with 100% benchmark ──
   var c2Start = tableEnd + gainRows.length + 6;
   secHead(ws, c2Start, 12, 'CHART 2  ·  % of Typical Annual Growth  ·  Column  ·  100% Line = On-Pace Benchmark  ·  Values Labeled', C.NAVY);
-  var grApps = A.filter(function(a) { return a.elaPG !== null || a.mathPG !== null; });
+  var grApps = A.filter(function(a) { return a.elaMG !== null || a.mathMG !== null || a.elaPG !== null || a.mathPG !== null; });
   grApps.sort(function(a,b) { return (b.elaPG||0) - (a.elaPG||0); });
   var grRows = grApps.map(function(a) {
     return [a.name,
@@ -1052,9 +1057,17 @@ function certSheetHeader(ws, title, sub, bg) {
   rh(ws, 3, 12);
 }
 
+// hasAcademicData: true if apprentice has any academic metric (gain, growth%, or placement %).
+// EOY Preliminary apprentices have elaMG/mathMG even without a scale score gain.
+// Only "Pending" rows (CJCP) have all nulls and go to Partial.
+function hasAcademicData(a) {
+  return a.elaG !== null || a.mathG !== null ||
+         a.elaMG !== null || a.mathMG !== null;
+}
+
 function buildCertsComplete(ss, data) {
   var ws = ss.insertSheet('🥇 Certificates: Complete', ss.getSheets().length);
-  var complete = data.apprentices.filter(function(a) { return a.elaG !== null || a.mathG !== null; });
+  var complete = data.apprentices.filter(hasAcademicData);
   certSheetHeader(ws, 'NJTC TAP — SY 2025–26  ·  CERTIFICATES OF ACHIEVEMENT  ·  Complete Academic Data',
     complete.length + ' Apprentices with iReady or Standards Mastery Data  ·  Print: File → Print → Letter Landscape', C.NAVY);
   var r = 4;
@@ -1063,7 +1076,7 @@ function buildCertsComplete(ss, data) {
 
 function buildCertsPartial(ss, data) {
   var ws = ss.insertSheet('📜 Certificates: Partial', ss.getSheets().length);
-  var partial = data.apprentices.filter(function(a) { return a.elaG === null && a.mathG === null; });
+  var partial = data.apprentices.filter(function(a) { return !hasAcademicData(a); });
   certSheetHeader(ws, 'NJTC TAP — SY 2025–26  ·  CERTIFICATES OF PARTICIPATION  ·  Survey & Attendance Data',
     partial.length + ' Apprentices Pending EOY Academic Data  ·  Full Achievement Certificates Follow Upon EOY Release', C.TEAL);
   var r = 4;
@@ -1087,5 +1100,5 @@ function buildAllCertificates() {
   buildCertsComplete(ss, data);
   buildCertsPartial(ss, data);
   buildCertsRecognition(ss, data);
-  SpreadsheetApp.getUi().alert('✅ All 3 certificate sheets rebuilt from live data!');
+  safeAlert('✅ All 3 certificate sheets rebuilt from live data!');
 }
