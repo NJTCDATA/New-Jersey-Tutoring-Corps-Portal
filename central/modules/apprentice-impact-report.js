@@ -810,6 +810,10 @@
           return s && s.size ? `${d.split(' ')[0]}: [${[...s].join('/')}]` : null;
         }).filter(Boolean).join(', ');
         console.log('[APIR] Session subjects by apprentice:', subjSummary || '← none');
+        // Log ALL unique raw subject values found across all apprentices
+        const allSubjs = new Set();
+        TAP_APPRENTICES.forEach(([d]) => { const s = apprSubjects[d]; if (s) s.forEach(v => allSubjs.add(v)); });
+        console.log('[APIR] All Pearl subject values:', [...allSubjs].sort().join(' | ') || '← none');
       }
 
       // Diagnostic: specifically log La Shanee Davis session and survey scholar counts
@@ -1685,7 +1689,7 @@
     const teachesEla  = d => {
       const s = apprSubjects[d];
       if (!s || !s.size) return true; // no session data → don't suppress
-      return [...s].some(v => /reading|ela|literacy|english/i.test(v));
+      return [...s].some(v => /reading|ela|literacy|english|language.?arts|writing/i.test(v));
     };
     const teachesMath = d => {
       const s = apprSubjects[d];
