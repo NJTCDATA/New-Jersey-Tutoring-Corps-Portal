@@ -2781,17 +2781,18 @@
             };
             var ltHeaders = splitRow(ltDataLines[0]).map(function(h) { return h.trim(); });
             var ltOtjHdrs = ltHeaders.slice(27, 44); // AB–AR
-            // Detect First Name + Last Name columns separately; fall back to single name col
-            var ltFirstIdx = ltHeaders.findIndex(function(h) { return /^first\s*name$/i.test(h.trim()); });
-            var ltLastIdx  = ltHeaders.findIndex(function(h) { return /^last\s*name$/i.test(h.trim()); });
-            // Fallback single-col detection
-            var ltNameIdx = ltHeaders.findIndex(function(h) { return /\bname\b|tutor/i.test(h); });
-            if (ltNameIdx < 0) ltNameIdx = 5;
-            var ltNameCol = ltHeaders[ltNameIdx];
-            // Status is in col B (index 1); detect dynamically, fallback to index 1
+            // Detect column indices dynamically
+            var ltFirstIdx  = ltHeaders.findIndex(function(h) { return /^first\s*name$/i.test(h.trim()); });
+            var ltLastIdx   = ltHeaders.findIndex(function(h) { return /^last\s*name$/i.test(h.trim()); });
+            var ltNjIdIdx   = ltHeaders.findIndex(function(h) { return /usdol|apprentice.*(id|#)|nj\s*(dol|id)/i.test(h.trim()); });
+            if (ltNjIdIdx < 0) ltNjIdIdx = 6; // col G fallback
             var ltStatusIdx = ltHeaders.findIndex(function(h) { return /\bstatus\b/i.test(h); });
             if (ltStatusIdx < 0) ltStatusIdx = 1;
             var ltStatusCol = ltHeaders[ltStatusIdx];
+            // Fallback single full-name column
+            var ltNameIdx = ltHeaders.findIndex(function(h) { return /\bname\b|tutor/i.test(h); });
+            if (ltNameIdx < 0) ltNameIdx = 5;
+            var ltNameCol = ltHeaders[ltNameIdx];
             var ltMap = {};
             var ltRoster = [];
             for (var ltR = 1; ltR < ltDataLines.length; ltR++) {
@@ -2802,7 +2803,7 @@
               // Only Active apprentices
               var ltStatus = (ltObj[ltStatusCol] || '').trim();
               if (ltStatus && !/active/i.test(ltStatus)) continue;
-              // Build full name from separate First/Last columns if available
+              // Build full name: prefer First+Last, fall back to single name col
               var rawName;
               if (ltFirstIdx >= 0 && ltLastIdx >= 0) {
                 var fn = (ltCells[ltFirstIdx] || '').trim();
@@ -2813,6 +2814,7 @@
               }
               if (!rawName || /^\d+$/.test(rawName)) continue;
               var ltKey = rawName.toLowerCase().replace(/\s+/g,' ').trim();
+              var ltNjId = (ltCells[ltNjIdIdx] || '').trim().replace(/\s+/g,'');
               var ltCount = ltOtjHdrs.filter(function(h) { return (ltObj[h] || '').trim(); }).length;
               if (!ltMap[ltKey] || ltCount > ltMap[ltKey]) ltMap[ltKey] = ltCount;
               // Collect TAP roster entry — col indices: A=0, B=1, E=4, F=5, H=7, AA=26
@@ -2821,14 +2823,16 @@
                 status:     ltStatus,
                 cohort:     (ltCells[4]  || '').trim(),
                 name:       rawName,
+                njId:       ltNjId,
                 placement:  (ltCells[7]  || '').trim(),
                 folderLink: (ltCells[26] || '').trim(),
               });
             }
             window.njtcLiveOtjMap  = ltMap;
             window.AP_TAP_ROSTER   = ltRoster;
-            var ltNameMode = (ltFirstIdx >= 0 && ltLastIdx >= 0) ? 'First+Last' : ('col=' + ltNameCol);
-            console.log('[NJTC] Live Tracker: ' + ltRoster.length + ' active apprentices → AP_TAP_ROSTER + OTJ map (' + ltNameMode + ')');
+            var ltNjIds = ltRoster.map(function(r) { return r.njId; }).filter(Boolean);
+            var ltNameMode = (ltFirstIdx >= 0 && ltLastIdx >= 0) ? 'First+Last cols' : ('col=' + ltNameCol);
+            console.log('[NJTC] Live Tracker: ' + ltRoster.length + ' active → AP_TAP_ROSTER (' + ltNameMode + ') | NJ IDs: ' + ltNjIds.length + ' | sample: ' + ltNjIds.slice(0,3).join(', '));
           }
         } catch(e) { console.warn('[NJTC] Live Tracker parse error:', e); }
       } else {

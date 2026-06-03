@@ -284,25 +284,33 @@
   // Last resort: full TAP_APPRENTICES if neither source has loaded yet.
   function getActiveRoster() {
     const nm = s => (s || '').toLowerCase().replace(/^dr\.?\s+/,'').replace(/\s+/g,' ').trim();
-    // First name + last name only (strips middle names, initials)
     const fl = s => { const p = nm(s).split(' ').filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : nm(s); };
-    const buildFiltered = names => {
-      const set = new Set(names.map(n => nm(n)));
-      const setFL = new Set(names.map(n => fl(n)));
-      const f = TAP_APPRENTICES.filter(([d]) => set.has(nm(d)) || setFL.has(fl(d)));
-      return f.length > 0 ? f : null;
-    };
+
     // Primary: AP_TAP_ROSTER (status=Active from Live Tracker — most accurate)
+    // Match by NJ DOL ID first (exact, no name-matching ambiguity), then fall back to name.
     if (window.AP_TAP_ROSTER && window.AP_TAP_ROSTER.length) {
-      const r = buildFiltered(window.AP_TAP_ROSTER.map(r => r.name));
-      if (r) return r;
+      const activeIds = new Set(
+        window.AP_TAP_ROSTER.map(r => (r.njId || '').trim().toUpperCase()).filter(Boolean)
+      );
+      const activeNames = window.AP_TAP_ROSTER.map(r => r.name);
+      const nameSet   = new Set(activeNames.map(n => nm(n)));
+      const nameSetFL = new Set(activeNames.map(n => fl(n)));
+      const byId   = activeIds.size  > 0 ? TAP_APPRENTICES.filter(([, id]) => activeIds.has((id || '').trim().toUpperCase())) : [];
+      const byName = byId.length === 0   ? TAP_APPRENTICES.filter(([d])    => nameSet.has(nm(d)) || nameSetFL.has(fl(d)))      : [];
+      const result = byId.length > 0 ? byId : byName;
+      console.log('[APIR] getActiveRoster: ' + result.length + ' apprentices (Live Tracker — ' + (byId.length > 0 ? 'NJ ID match' : 'name match') + ')');
+      if (result.length > 0) return result;
     }
-    // Fallback: AP_DATA enrolled
+    // Fallback: AP_DATA enrolled (apprentice=Yes)
     if (window.AP_DATA && window.AP_DATA.length) {
       const names = window.AP_DATA.filter(r => r.apprentice === 'Yes').map(r => r.name);
-      const r = buildFiltered(names);
-      if (r) return r;
+      const set = new Set(names.map(n => nm(n)));
+      const setFL = new Set(names.map(n => fl(n)));
+      const r = TAP_APPRENTICES.filter(([d]) => set.has(nm(d)) || setFL.has(fl(d)));
+      console.log('[APIR] getActiveRoster: ' + r.length + ' apprentices (AP_DATA fallback)');
+      if (r.length > 0) return r;
     }
+    console.log('[APIR] getActiveRoster: ' + TAP_APPRENTICES.length + ' apprentices (full roster fallback — Live Tracker not yet loaded)');
     return TAP_APPRENTICES;
   }
 
