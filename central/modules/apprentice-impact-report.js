@@ -1742,7 +1742,7 @@
     const lines = [];
 
     const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-    const csvApprCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
+    const csvApprCount = records.length;
     lines.push(row('NJTC TAP Apprentice Impact Report', 'Generated: ' + now,
                    '', 'Data snapshot: ' + now));
     lines.push('');
@@ -2024,7 +2024,7 @@
     const root = document.getElementById(ROOT_ID);
     if (!root) return;
 
-    const _liveCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
+    const _liveCount = getActiveRoster().length;
     root.innerHTML = `
       <div class="apir-wrap">
 
@@ -2161,7 +2161,7 @@
     window._apirRefreshHeader = function() {
       const root = document.getElementById(ROOT_ID);
       if (!root) return;
-      const _liveCount = (window.AP_DATA && window.AP_DATA.filter(r => r.apprentice === 'Yes').length) || TAP_APPRENTICES.length;
+      const _liveCount = getActiveRoster().length;
       const pEl = root.querySelector('.apir-hero-text p strong');
       if (pEl) pEl.textContent = _liveCount + ' enrolled TAP apprentices';
       const h4 = root.querySelector('.apir-roster-section h4');
