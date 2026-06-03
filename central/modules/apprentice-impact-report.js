@@ -5,7 +5,7 @@
 
    Data source rules:
      • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • Haddon Township                 → EOY Preliminary via window.irlab.getAllRows()
+     • Haddon Township                 → MOY (Winter 2026) Google Sheet (IRLAB has no Haddon rows)
      • Hamilton Township               → EOY Preliminary via window.irlab.getAllRows()
      • All other schools               → EOY Preliminary via window.irlab.getAllRows()
      • Middlesex STEM                  → Standards Mastery (no iReady diagnostic data; surveys only)
@@ -161,10 +161,11 @@
 
   // Additional MOY schools (not iLearn branded but use same MOY Google Sheet).
   // Paired via Pearl district account IDs in Column G of the MOY sheet:
+  //   nj-haddo65937 → Haddon Township  (MOY confirmed; IRLAB has no Haddon rows)
   //   nj-penns90725 → Penns Grove (Field Street + Paul W Carleton)
-  // Hamilton Township and Haddon Township both confirmed in IRLAB EOY — use EOY path.
+  // Hamilton Township removed — EOY data confirmed in IRLAB; uses EOY path via EOY_DISTRICT_FILTERS.
   const MOY_SCHOOLS = new Set([
-    'Penns Grove',
+    'Haddon Township', 'Penns Grove',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -276,22 +277,31 @@
   );
 
   // ── Active roster: TAP_APPRENTICES filtered to currently active apprentices ─
-  // Uses window.AP_DATA (TAP tracker, loaded by executive-leadership.js) when
-  // available. Falls back to the full TAP_APPRENTICES list if AP_DATA hasn't
-  // loaded yet (e.g. offline or timing issue).
+  // Primary source: window.AP_TAP_ROSTER — built by njtc_loadAll() from the Live
+  // Apprentice Tracker, already filtered to status=Active entries only.
+  // Fallback: window.AP_DATA enrolled (apprentice=Yes) — derived from HR Master List
+  // merged with TAP sheet.
+  // Last resort: full TAP_APPRENTICES if neither source has loaded yet.
   function getActiveRoster() {
+    const nm = s => (s || '').toLowerCase().replace(/^dr\.?\s+/,'').replace(/\s+/g,' ').trim();
+    // First name + last name only (strips middle names, initials)
+    const fl = s => { const p = nm(s).split(' ').filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : nm(s); };
+    const buildFiltered = names => {
+      const set = new Set(names.map(n => nm(n)));
+      const setFL = new Set(names.map(n => fl(n)));
+      const f = TAP_APPRENTICES.filter(([d]) => set.has(nm(d)) || setFL.has(fl(d)));
+      return f.length > 0 ? f : null;
+    };
+    // Primary: AP_TAP_ROSTER (status=Active from Live Tracker — most accurate)
+    if (window.AP_TAP_ROSTER && window.AP_TAP_ROSTER.length) {
+      const r = buildFiltered(window.AP_TAP_ROSTER.map(r => r.name));
+      if (r) return r;
+    }
+    // Fallback: AP_DATA enrolled
     if (window.AP_DATA && window.AP_DATA.length) {
-      // AP_DATA.name values may differ slightly (e.g. "Dr. Renee Davis") — normalise
-      // to first+last for the membership check, same as normNameFL below.
-      const activeNames = new Set(
-        window.AP_DATA
-          .filter(r => r.apprentice === 'Yes')
-          .map(r => (r.name || '').trim().toLowerCase().replace(/^dr\.?\s+/, '').replace(/\s+/g, ' '))
-      );
-      const filtered = TAP_APPRENTICES.filter(([display]) =>
-        activeNames.has(display.trim().toLowerCase().replace(/\s+/g, ' '))
-      );
-      if (filtered.length > 0) return filtered;
+      const names = window.AP_DATA.filter(r => r.apprentice === 'Yes').map(r => r.name);
+      const r = buildFiltered(names);
+      if (r) return r;
     }
     return TAP_APPRENTICES;
   }
@@ -1576,12 +1586,10 @@
             byAppr[display].push(row);
             return;
           }
-          // Multi-apprentice: stop here — no school-level fallback.
-          if (isMulti) return;
-          // Single-apprentice: fall through to B2.
-          // No other NJTC apprentice at this school, so IRLAB scholars not yet
-          // in a Pearl session still belong to this apprentice (e.g. Math scholars
-          // for Alexandra Cristescu when Pearl sessions are recorded by subject).
+          // B1 miss: fall through to B2 (single-appr school-level fallback, guarded by
+          // useB2) or B3 (survey scholar set). Multi-appr schools skip B2 via useB2=false
+          // but reach B3 — survey names are used as a secondary confirmation when Pearl
+          // session names differ from iReady legal names (e.g. Hamilton Township).
         }
 
         // B2: school-level fallback — single-apprentice schools only, and only
