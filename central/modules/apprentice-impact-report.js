@@ -3,14 +3,14 @@
    Combines Pearl Operations Data + iReady EOY/MOY Academic Data for all
    enrolled TAP apprentices (count sourced live from TAP tracker / AP_DATA).
 
-   Data source rules:
-     • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • Haddon Township                 → EOY Preliminary via window.irlab.getAllRows()
-     • Hamilton Township               → EOY Preliminary via window.irlab.getAllRows()
-     • All other schools               → EOY Preliminary via window.irlab.getAllRows()
-     • Middlesex STEM                  → Standards Mastery (no iReady diagnostic data; surveys only)
-     • CJCP                            → EOY Preliminary (pending — auto-populates when data arrives)
-     • Gloucester                      → EOY Preliminary filtered by district OR school name
+   Data source rules (dynamic — resolved at report generation time):
+     • Middlesex STEM                  → Standards Mastery only (no iReady diagnostic data)
+     • Long Term Sub / No Data schools → excluded from academic data
+     • CJCP                            → EOY Preliminary (pending — populates when data arrives)
+     • All other schools               → EOY Preliminary (IRLAB) if IRLAB has rows for that school,
+                                         otherwise MOY (Winter 2026) Google Sheet as fallback.
+                                         iLearn schools have no EOY_DISTRICT_FILTERS so always use MOY.
+                                         Hamilton has EOY rows → EOY. Haddon has no EOY rows → MOY.
    ============================================================================ */
 
 (function () {
@@ -161,10 +161,11 @@
 
   // Additional MOY schools (not iLearn branded but use same MOY Google Sheet).
   // Paired via Pearl district account IDs in Column G of the MOY sheet:
+  //   nj-haddo65937 → Haddon Township  (MOY confirmed; IRLAB has no Haddon rows)
   //   nj-penns90725 → Penns Grove (Field Street + Paul W Carleton)
-  // Hamilton Township and Haddon Township both confirmed in IRLAB EOY — use EOY path.
+  // Hamilton Township removed — EOY data confirmed in IRLAB; uses EOY path via EOY_DISTRICT_FILTERS.
   const MOY_SCHOOLS = new Set([
-    'Penns Grove',
+    'Haddon Township', 'Penns Grove',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -276,22 +277,31 @@
   );
 
   // ── Active roster: TAP_APPRENTICES filtered to currently active apprentices ─
-  // Uses window.AP_DATA (TAP tracker, loaded by executive-leadership.js) when
-  // available. Falls back to the full TAP_APPRENTICES list if AP_DATA hasn't
-  // loaded yet (e.g. offline or timing issue).
+  // Primary source: window.AP_TAP_ROSTER — built by njtc_loadAll() from the Live
+  // Apprentice Tracker, already filtered to status=Active entries only.
+  // Fallback: window.AP_DATA enrolled (apprentice=Yes) — derived from HR Master List
+  // merged with TAP sheet.
+  // Last resort: full TAP_APPRENTICES if neither source has loaded yet.
   function getActiveRoster() {
+    const nm = s => (s || '').toLowerCase().replace(/^dr\.?\s+/,'').replace(/\s+/g,' ').trim();
+    // First name + last name only (strips middle names, initials)
+    const fl = s => { const p = nm(s).split(' ').filter(w => w.length > 1 && !/^[a-z]\.?$/i.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : nm(s); };
+    const buildFiltered = names => {
+      const set = new Set(names.map(n => nm(n)));
+      const setFL = new Set(names.map(n => fl(n)));
+      const f = TAP_APPRENTICES.filter(([d]) => set.has(nm(d)) || setFL.has(fl(d)));
+      return f.length > 0 ? f : null;
+    };
+    // Primary: AP_TAP_ROSTER (status=Active from Live Tracker — most accurate)
+    if (window.AP_TAP_ROSTER && window.AP_TAP_ROSTER.length) {
+      const r = buildFiltered(window.AP_TAP_ROSTER.map(r => r.name));
+      if (r) return r;
+    }
+    // Fallback: AP_DATA enrolled
     if (window.AP_DATA && window.AP_DATA.length) {
-      // AP_DATA.name values may differ slightly (e.g. "Dr. Renee Davis") — normalise
-      // to first+last for the membership check, same as normNameFL below.
-      const activeNames = new Set(
-        window.AP_DATA
-          .filter(r => r.apprentice === 'Yes')
-          .map(r => (r.name || '').trim().toLowerCase().replace(/^dr\.?\s+/, '').replace(/\s+/g, ' '))
-      );
-      const filtered = TAP_APPRENTICES.filter(([display]) =>
-        activeNames.has(display.trim().toLowerCase().replace(/\s+/g, ' '))
-      );
-      if (filtered.length > 0) return filtered;
+      const names = window.AP_DATA.filter(r => r.apprentice === 'Yes').map(r => r.name);
+      const r = buildFiltered(names);
+      if (r) return r;
     }
     return TAP_APPRENTICES;
   }
@@ -1576,12 +1586,10 @@
             byAppr[display].push(row);
             return;
           }
-          // Multi-apprentice: stop here — no school-level fallback.
-          if (isMulti) return;
-          // Single-apprentice: fall through to B2.
-          // No other NJTC apprentice at this school, so IRLAB scholars not yet
-          // in a Pearl session still belong to this apprentice (e.g. Math scholars
-          // for Alexandra Cristescu when Pearl sessions are recorded by subject).
+          // B1 miss: fall through to B2 (single-appr school-level fallback, guarded by
+          // useB2) or B3 (survey scholar set). Multi-appr schools skip B2 via useB2=false
+          // but reach B3 — survey names are used as a secondary confirmation when Pearl
+          // session names differ from iReady legal names (e.g. Hamilton Township).
         }
 
         // B2: school-level fallback — single-apprentice schools only, and only
@@ -1678,32 +1686,37 @@
     };
 
     return getActiveRoster().map(([display, njId, school, region]) => {
-      const isMidYr   = ILEARN_SCHOOLS.has(school) || MOY_SCHOOLS.has(school);
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData  = NO_DATA_SCHOOLS.has(school);
       const isPending = PENDING_EOY_SCHOOLS.has(school);
 
       let elaAcad = null, mathAcad = null, smAcad = null;
+      let usedEoy = false;
+
       if (isStdMas) {
         smAcad = aggregateSmAcad(smByAppr[display] || []);
       } else if (!isNoData && !isPending) {
-        if (isMidYr) {
-          if (teachesEla(display))
-            elaAcad  = aggregateAcademic(moyElaByAppr[display]  || [], 'moy');
-          if (teachesMath(display))
-            mathAcad = aggregateAcademic(moyMathByAppr[display] || [], 'moy');
-        } else {
-          if (teachesEla(display))
-            elaAcad  = aggregateAcademic(irlElaByAppr[display]  || [], 'eoy');
-          if (teachesMath(display))
-            mathAcad = aggregateAcademic(irlMathByAppr[display] || [], 'eoy');
-        }
+        // Dynamic source selection: prefer EOY (IRLAB) when data exists, fall back to MOY.
+        // Schools with no EOY_DISTRICT_FILTERS entry return [] from attributeIrlabScholars
+        // automatically, so iLearn-type schools always fall back to MOY.
+        const eoyElaRows  = teachesEla(display)  ? (irlElaByAppr[display]  || []) : [];
+        const eoyMathRows = teachesMath(display) ? (irlMathByAppr[display] || []) : [];
+        const moyElaRows  = teachesEla(display)  ? (moyElaByAppr[display]  || []) : [];
+        const moyMathRows = teachesMath(display) ? (moyMathByAppr[display] || []) : [];
+
+        usedEoy = eoyElaRows.length > 0 || eoyMathRows.length > 0;
+        const src       = usedEoy ? 'eoy' : 'moy';
+        const elaRows   = usedEoy ? eoyElaRows  : moyElaRows;
+        const mathRows  = usedEoy ? eoyMathRows : moyMathRows;
+
+        if (teachesEla(display))  elaAcad  = aggregateAcademic(elaRows,  src);
+        if (teachesMath(display)) mathAcad = aggregateAcademic(mathRows, src);
       }
 
       const dataNote = isStdMas  ? 'Standards Mastery (EOY SY 25-26)' :
                        isNoData  ? 'No iReady data' :
                        isPending ? 'EOY Preliminary (Pending)' :
-                       isMidYr   ? 'MOY (Winter 2026)' : 'EOY Preliminary';
+                       usedEoy   ? 'EOY Preliminary' : 'MOY (Winter 2026)';
 
       return {
         display, njId, school, region, dataNote, isStdMas,
@@ -2022,8 +2035,8 @@
             <p>Combines Pearl attendance &amp; scholar survey data with iReady diagnostic outcomes
                for all <strong>${_liveCount} enrolled TAP apprentices</strong>. Generates a three-section downloadable CSV.</p>
             <div class="apir-source-legend">
-              <span class="apir-badge apir-badge-moy">MOY</span> iLearn &nbsp;|&nbsp;
-              <span class="apir-badge apir-badge-eoy">EOY Prelim</span> All other schools &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-eoy">EOY Prelim</span> when available &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-moy">MOY</span> fallback &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-sm">Std. Mastery</span> Middlesex STEM
             </div>
           </div>

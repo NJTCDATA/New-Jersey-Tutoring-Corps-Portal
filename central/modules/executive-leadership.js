@@ -1479,7 +1479,7 @@
     '/pub?output=csv&gid=911694457';
 
   // Authoritative TAP roster sheet — published CSV (live, auto-refreshes)
-  // Live Apprentice Tracker — authoritative source for enrolled apprentices (exactly 30 active).
+  // Live Apprentice Tracker — authoritative source for enrolled apprentices (count from live sheet).
   // Columns: A (Date Registered), B (Status), F (Full Name), H (Placement/School), AA (Folder Link)
   // Headers in row 5; status 'Active' = currently enrolled.
   const AP_TAP_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs/export?format=csv&gid=0';
@@ -1641,7 +1641,7 @@
     );
     // Live Tracker whitelist — source of truth for ADP-active apprentices.
     // njtcLiveOtjMap is keyed by lowercased name from the Live Apprentice Tracker sheet
-    // (1Dh1-...) which contains exactly the 30 currently ADP-active apprentices.
+    // (1Dh1-...) — contains the currently ADP-active apprentices (count varies by SY).
     // njtcLiveOtjMap is built in njtc_loadAll() before ap_mergeTAPData() is ever called.
     // Fuzzy match: try full name, first+last only, and reversed "Last, First" variants.
     const _ltMap = window.njtcLiveOtjMap || {};
