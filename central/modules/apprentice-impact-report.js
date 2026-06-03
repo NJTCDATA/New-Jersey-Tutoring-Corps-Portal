@@ -1,11 +1,11 @@
 /* ============================================================================
    NJTC APPRENTICE IMPACT REPORT MODULE  (SY 25-26)
    Combines Pearl Operations Data + iReady EOY/MOY Academic Data for all
-   30 TAP apprentices.
+   enrolled TAP apprentices (count sourced live from TAP tracker / AP_DATA).
 
    Data source rules:
      • iLearn schools                  → MOY (Winter 2026) Google Sheet (2PACX published CSV)
-     • Haddon Township                 → MOY (Winter 2026) Google Sheet (district-paired)
+     • Haddon Township                 → EOY Preliminary via window.irlab.getAllRows()
      • Hamilton Township               → EOY Preliminary via window.irlab.getAllRows()
      • All other schools               → EOY Preliminary via window.irlab.getAllRows()
      • Middlesex STEM                  → Standards Mastery (no iReady diagnostic data; surveys only)
@@ -75,10 +75,8 @@
 
   // ── Master Apprentice Roster (SY 25-26) ──────────────────────────────────
   // [displayName, njId, schoolRaw, region, surveyName]
-  // [displayName, njId, schoolRaw, region, surveyName]
   // Synced to HR Master List + TAP program roster SY 2025-2026.
-  // All 30 apprentices retained regardless of current employment status — terminated
-  // apprentices keep their data for the full SY 25-26 record.
+  // Active count is resolved live from window.AP_DATA (TAP tracker) via getActiveRoster().
   // La Shanee Davis and Dr. Renee Davis are the same person — NJ ID NJ2025004829, known by both names.
   const TAP_APPRENTICES = [
     ['Alexandra Cristescu',     'NJ2026000468', 'Penns Grove',                 'SW', 'Alexandra Cristescu'],
@@ -163,14 +161,10 @@
 
   // Additional MOY schools (not iLearn branded but use same MOY Google Sheet).
   // Paired via Pearl district account IDs in Column G of the MOY sheet:
-  //   nj-hamil44973 → Hamilton Township / Hamilton-Kuser
-  //   nj-haddo65937 → Haddon Township
   //   nj-penns90725 → Penns Grove (Field Street + Paul W Carleton)
-  // IMPORTANT: once EOY Preliminary data is uploaded to IRLAB for any of these,
-  // remove that school from this set so it falls through to the EOY path.
+  // Hamilton Township and Haddon Township both confirmed in IRLAB EOY — use EOY path.
   const MOY_SCHOOLS = new Set([
-    // Hamilton Township removed — EOY data confirmed in IRLAB; uses EOY path via EOY_DISTRICT_FILTERS.
-    'Haddon Township', 'Penns Grove',
+    'Penns Grove',
   ]);
 
   // EOY Preliminary schools → filtered from window.irlab.getAllRows()
@@ -280,6 +274,27 @@
   const MULTI_APPR_SCHOOLS = new Set(
     Object.entries(_schoolKeyCount).filter(([, n]) => n > 1).map(([s]) => s)
   );
+
+  // ── Active roster: TAP_APPRENTICES filtered to currently active apprentices ─
+  // Uses window.AP_DATA (TAP tracker, loaded by executive-leadership.js) when
+  // available. Falls back to the full TAP_APPRENTICES list if AP_DATA hasn't
+  // loaded yet (e.g. offline or timing issue).
+  function getActiveRoster() {
+    if (window.AP_DATA && window.AP_DATA.length) {
+      // AP_DATA.name values may differ slightly (e.g. "Dr. Renee Davis") — normalise
+      // to first+last for the membership check, same as normNameFL below.
+      const activeNames = new Set(
+        window.AP_DATA
+          .filter(r => r.apprentice === 'Yes')
+          .map(r => (r.name || '').trim().toLowerCase().replace(/^dr\.?\s+/, '').replace(/\s+/g, ' '))
+      );
+      const filtered = TAP_APPRENTICES.filter(([display]) =>
+        activeNames.has(display.trim().toLowerCase().replace(/\s+/g, ' '))
+      );
+      if (filtered.length > 0) return filtered;
+    }
+    return TAP_APPRENTICES;
+  }
 
   // ── Helper: normalize a name for comparison ───────────────────────────────
   function normName(n) {
@@ -852,6 +867,55 @@
       const moyMathByAppr = attributeMoyScholars(moyMathRows, sessionSets, surveyScholarSets, apprLut, moyIdBridge, sessionIdMap);
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
+
+      // Diagnostic: Hamilton Township EOY attribution (Caitlin, Katherine, Lilia)
+      {
+        const hamilApprNames = ['Caitlin Evgeniadis', 'Katherine R. Davis', 'Lilia Quintero'];
+        const hamilFilterFn  = EOY_DISTRICT_FILTERS['Hamilton Township'];
+        const kuserFilterFn  = EOY_DISTRICT_FILTERS['Hamilton-Kuser'];
+        const hamilIrlEla    = irlabElaRows.filter(hamilFilterFn);
+        const hamilIrlMath   = irlabMathRows.filter(hamilFilterFn);
+        const kuserIrlEla    = irlabElaRows.filter(kuserFilterFn);
+        const kuserIrlMath   = irlabMathRows.filter(kuserFilterFn);
+        console.log('[APIR] Hamilton Township IRLAB — ELA rows:', hamilIrlEla.length,
+                    '| Math rows:', hamilIrlMath.length,
+                    hamilIrlEla.length === 0 ? '← 0 rows: district/school filter not matching IRLAB data' : '');
+        console.log('[APIR] Hamilton-Kuser IRLAB — ELA rows:', kuserIrlEla.length,
+                    '| Math rows:', kuserIrlMath.length);
+        hamilApprNames.forEach(appr => {
+          const ela  = (irlElaByAppr[appr]  || []).length;
+          const math = (irlMathByAppr[appr] || []).length;
+          const sess = sessionSets[appr];
+          console.log(`[APIR] ${appr} IRLAB attribution — ELA: ${ela}, Math: ${math}, session set: ${sess ? sess.size : 0}`);
+        });
+        if (hamilIrlEla.length > 0) {
+          const sample = hamilIrlEla[0];
+          console.log('[APIR] Hamilton sample IRLAB row — school:', sample.school,
+                      'district:', sample.district, 'instructor:', sample.instructor);
+        }
+      }
+
+      // Diagnostic: Haddon Township EOY attribution (Micaela, Nicholas)
+      {
+        const haddonApprNames = ['Micaela Wilkerson', 'Nicholas Hoover'];
+        const haddonFilterFn  = EOY_DISTRICT_FILTERS['Haddon Township'];
+        const haddonIrlEla    = irlabElaRows.filter(haddonFilterFn);
+        const haddonIrlMath   = irlabMathRows.filter(haddonFilterFn);
+        console.log('[APIR] Haddon Township IRLAB — ELA rows:', haddonIrlEla.length,
+                    '| Math rows:', haddonIrlMath.length,
+                    haddonIrlEla.length === 0 ? '← 0 rows: district/school filter not matching IRLAB data' : '');
+        haddonApprNames.forEach(appr => {
+          const ela  = (irlElaByAppr[appr]  || []).length;
+          const math = (irlMathByAppr[appr] || []).length;
+          const sess = sessionSets[appr];
+          console.log(`[APIR] ${appr} IRLAB attribution — ELA: ${ela}, Math: ${math}, session set: ${sess ? sess.size : 0}`);
+        });
+        if (haddonIrlEla.length > 0) {
+          const sample = haddonIrlEla[0];
+          console.log('[APIR] Haddon sample IRLAB row — school:', sample.school,
+                      'district:', sample.district, 'instructor:', sample.instructor);
+        }
+      }
 
       // Diagnostic: Alexandra Cristescu (Penns Grove — MOY path, single-apprentice)
       // Note: Alexandra moved from EOY path to MOY path (nj-penns90725 in Column G).
@@ -1613,7 +1677,7 @@
       return [...s].some(v => /math/i.test(v));
     };
 
-    return TAP_APPRENTICES.map(([display, njId, school, region]) => {
+    return getActiveRoster().map(([display, njId, school, region]) => {
       const isMidYr   = ILEARN_SCHOOLS.has(school) || MOY_SCHOOLS.has(school);
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData  = NO_DATA_SCHOOLS.has(school);
@@ -1958,7 +2022,7 @@
             <p>Combines Pearl attendance &amp; scholar survey data with iReady diagnostic outcomes
                for all <strong>${_liveCount} enrolled TAP apprentices</strong>. Generates a three-section downloadable CSV.</p>
             <div class="apir-source-legend">
-              <span class="apir-badge apir-badge-moy">MOY</span> iLearn &amp; Haddon Twp &nbsp;|&nbsp;
+              <span class="apir-badge apir-badge-moy">MOY</span> iLearn &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-eoy">EOY Prelim</span> All other schools &nbsp;|&nbsp;
               <span class="apir-badge apir-badge-sm">Std. Mastery</span> Middlesex STEM
             </div>
@@ -1987,10 +2051,10 @@
       </div>
     `;
 
-    // Render roster cards
+    // Render roster cards — active apprentices only
     const grid = document.getElementById('apirRosterGrid');
     if (grid) {
-      TAP_APPRENTICES.forEach(([display, njId, school, region]) => {
+      getActiveRoster().forEach(([display, njId, school, region]) => {
         const badge = STANDARDS_MASTERY_SCHOOLS.has(school) ? 'apir-badge-sm' :
                       NO_DATA_SCHOOLS.has(school)            ? 'apir-badge-nd' :
                       ILEARN_SCHOOLS.has(school)             ? 'apir-badge-moy' : 'apir-badge-eoy';
@@ -2079,7 +2143,7 @@
     }
 
     // Re-render panel header once AP_DATA finishes loading so live enrolled count
-    // updates from the TAP_APPRENTICES fallback (30) to the live count (27).
+    // updates from the TAP_APPRENTICES fallback to the live count from the TAP tracker.
     // AP_DATA is populated asynchronously by executive-leadership.js after njtc_onDataReady.
     window._apirRefreshHeader = function() {
       const root = document.getElementById(ROOT_ID);
