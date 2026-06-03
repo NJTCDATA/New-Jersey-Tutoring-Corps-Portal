@@ -890,6 +890,53 @@
       const irlElaByAppr  = attributeIrlabScholars(irlabElaRows,  sessionSets, surveyScholarSets, apprLut, sessionIdMap);
       const irlMathByAppr = attributeIrlabScholars(irlabMathRows, sessionSets, surveyScholarSets, apprLut, sessionIdMap);
 
+      // ── MOY→IRLAB crosswalk for multi-apprentice EOY schools ──────────────
+      // When IRLAB attribution returns 0 for an apprentice at a multi-apprentice
+      // EOY school (B2 suppressed, B1 name-mismatch), but MOY attribution DID
+      // correctly split scholars between apprentices, use MOY scholar names as keys
+      // to look up EOY rows from IRLAB. This gives EOY scores for the same scholars
+      // that MOY correctly identified — getting the more current EOY data.
+      //
+      // Currently applies to: Hamilton Township (Caitlin Evgeniadis, Katherine R. Davis)
+      // Lilia Quintero (Hamilton-Kuser) is single-apprentice — already gets EOY via B2.
+      {
+        const CROSSWALK_SCHOOLS = ['Hamilton Township'];
+        CROSSWALK_SCHOOLS.forEach(school => {
+          const filterFn = EOY_DISTRICT_FILTERS[school];
+          if (!filterFn) return;
+          // Build name-indexed lookup for all IRLAB rows in this district
+          const normN = s => (s || '').toLowerCase().replace(/\s+/g,' ').trim();
+          const normFL = s => { const p = normN(s).split(' ').filter(w => w.length > 1 && !/^[a-z]\.?$/.test(w)); return p.length > 1 ? p[0]+' '+p[p.length-1] : normN(s); };
+          const irlElaMap  = new Map();
+          const irlMathMap = new Map();
+          irlabElaRows.filter(filterFn).forEach(r => {
+            const nn = normN(r.scholarName); if (nn) irlElaMap.set(nn, r);
+            const fl = normFL(r.scholarName); if (fl && fl !== nn) irlElaMap.set(fl, r);
+          });
+          irlabMathRows.filter(filterFn).forEach(r => {
+            const nn = normN(r.scholarName); if (nn) irlMathMap.set(nn, r);
+            const fl = normFL(r.scholarName); if (fl && fl !== nn) irlMathMap.set(fl, r);
+          });
+          TAP_APPRENTICES.filter(([, , s]) => s === school).forEach(([display]) => {
+            // Only crosswalk if IRLAB attribution found nothing but MOY found scholars
+            if ((irlElaByAppr[display] || []).length > 0) return; // IRLAB already working
+            const moyEla  = moyElaByAppr[display]  || [];
+            const moyMath = moyMathByAppr[display]  || [];
+            if (moyEla.length > 0) {
+              const crossed = moyEla.map(mr => irlElaMap.get(normN(mr.scholarName)) || irlElaMap.get(normFL(normN(mr.scholarName)))).filter(Boolean);
+              if (crossed.length > 0) { irlElaByAppr[display] = crossed; }
+            }
+            if (moyMath.length > 0) {
+              const crossed = moyMath.map(mr => irlMathMap.get(normN(mr.scholarName)) || irlMathMap.get(normFL(normN(mr.scholarName)))).filter(Boolean);
+              if (crossed.length > 0) { irlMathByAppr[display] = crossed; }
+            }
+            const elaGot  = (irlElaByAppr[display]  || []).length;
+            const mathGot = (irlMathByAppr[display] || []).length;
+            console.log(`[APIR] ${display} MOY→IRLAB crosswalk — MOY ELA: ${moyEla.length} → IRLAB: ${elaGot} | MOY Math: ${moyMath.length} → IRLAB: ${mathGot}`);
+          });
+        });
+      }
+
       // Diagnostic: Hamilton Township EOY attribution (Caitlin, Katherine, Lilia)
       {
         const hamilApprNames = ['Caitlin Evgeniadis', 'Katherine R. Davis', 'Lilia Quintero'];
