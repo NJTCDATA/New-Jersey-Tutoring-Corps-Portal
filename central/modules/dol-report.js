@@ -5,12 +5,14 @@
   // Each period has a label, cycle key (matches Cycle col in tracker), and
   // a date range for filtering. Month buckets within each period are derived
   // from offer-accepted / termination dates in that range.
+  // NOTE: Use new Date(y, m, d) (local time) NOT ISO strings — ISO parses as UTC
+  // which shifts the date back one day in US Eastern time.
   const PERIODS = [
     {
       id: 'sy2526',
       label: 'SY 25-26',
-      start: new Date('2025-09-01'),
-      end:   new Date('2026-06-30'),
+      start: new Date(2025, 6, 1),   // Jul 1, 2025 — captures early offer acceptances
+      end:   new Date(2026, 5, 30),  // Jun 30, 2026
       // SY 25-26 uses HR_EMPS array (embedded + overlay); no tracker
       source: 'hr_emps',
       cycleKey: 'school year 25-26',
@@ -18,32 +20,62 @@
     {
       id: 'summer2026',
       label: 'Summer 2026',
-      start: new Date('2026-06-01'),
-      end:   new Date('2026-08-31'),
+      start: new Date(2026, 4, 1),   // May 1, 2026 — captures May offer acceptances
+      end:   new Date(2026, 7, 31),  // Aug 31, 2026
       source: 'tracker',
       cycleKey: 'summer 2026',
     },
     {
       id: 'sy2627',
       label: 'SY 26-27',
-      start: new Date('2026-09-01'),
-      end:   new Date('2027-06-30'),
+      start: new Date(2026, 8, 1),   // Sep 1, 2026
+      end:   new Date(2027, 5, 30),  // Jun 30, 2027
       source: 'tracker',
       cycleKey: 'school year 26-27',
     },
   ];
 
+  // ── SY 25-26 hardcoded new hire counts by month ─────────────────────────────
+  // Derived from School Year Database 2025-2026 offer-accepted dates.
+  // Keyed as YYYY-MM → count of new hires accepted that month.
+  const SY2526_NEW_HIRE_COUNTS = {
+    '2025-07':  1,
+    '2025-08': 16,
+    '2025-09': 12,
+    '2025-10': 10,
+    '2025-11':  4,
+    '2025-12': 23,
+    '2026-01':  5,
+    '2026-02': 11,
+    '2026-03':  6,
+  };
+
   // Role categories for open-position display
   const ROLE_BUCKETS = ['Tutor', 'Site Coordinator', 'Instructional Coach', 'Dual Role'];
 
   // ── Date helpers ─────────────────────────────────────────────────────────────
+  // All dates parsed into LOCAL time to ensure month comparisons work correctly.
+  // Using new Date(str) is unreliable: ISO strings (YYYY-MM-DD) parse as UTC
+  // (shifting the date in US time zones), and M/D/YYYY support varies by browser.
   function parseDate(str) {
     if (!str) return null;
-    // Accepts M/D/YYYY, MM/DD/YYYY, YYYY-MM-DD
     const s = str.trim();
     if (!s) return null;
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? null : d;
+    // M/D/YY, M/D/YYYY, MM/DD/YY, MM/DD/YYYY
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (mdy) {
+      let yr = parseInt(mdy[3], 10);
+      if (yr < 100) yr += 2000;
+      const d = new Date(yr, parseInt(mdy[1], 10) - 1, parseInt(mdy[2], 10));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // YYYY-MM-DD — parse as local to avoid UTC offset shift
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) {
+      const d = new Date(parseInt(iso[1], 10), parseInt(iso[2], 10) - 1, parseInt(iso[3], 10));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
   }
 
   function monthKey(date) {
@@ -83,7 +115,7 @@
     let startDate = parseDate(row.offerAccepted);
     if (!startDate) {
       if (acceptedStr === 'yes') {
-        startDate = parseDate(row.offerSent) || periodStart || new Date('2026-06-01');
+        startDate = parseDate(row.offerSent) || periodStart || new Date(2026, 5, 1);
       } else {
         return null;
       }
@@ -109,11 +141,11 @@
       .filter(e => e && e.n && e.y && e.y.includes('2025-2026'))
       .map(e => {
         const termDate = (e._termDate && e._termDate.trim()) ? parseDate(e._termDate.trim()) : null;
-        // Approximate start as Sep 1 2025 — precise offer-accepted dates not in HR_EMPS
+        // Start date set to beginning of period — precise dates are overridden via SY2526_NEW_HIRE_COUNTS
         return {
           name:       e.n,
           role:       e.r || '',
-          startDate:  new Date('2025-09-01'),
+          startDate:  new Date(2025, 8, 1),   // Sep 1, 2025 local
           termDate,
           terminated: e.s === 'Terminated',
           resignType: (e._termType || '').toLowerCase(),
@@ -132,7 +164,8 @@
   //   voluntaryTerms = employees whose termDate falls in this month AND resignType includes 'volunt'
   //   involuntaryTerms = employees terminated this month AND NOT voluntary
   //   openPositions  = total authorized positions - filled (from Locations sheet, approximate)
-  function computeMonthStats(employees, mk) {
+  // newHireOverride: optional map of YYYY-MM → count, used to inject hardcoded new hire data
+  function computeMonthStats(employees, mk, newHireOverride) {
     const [yr, mo] = mk.split('-').map(Number);
     const firstDay = new Date(yr, mo - 1, 1);
     const lastDay  = new Date(yr, mo, 0);
@@ -143,18 +176,21 @@
       return true;
     });
 
-    const newHires = employees.filter(e => {
-      const s = e.startDate;
-      return s >= firstDay && s <= lastDay;
-    });
+    const newHiresCount = (newHireOverride && newHireOverride[mk] != null)
+      ? newHireOverride[mk]
+      : employees.filter(e => {
+          const s = e.startDate;
+          return s >= firstDay && s <= lastDay;
+        }).length;
 
     const termsThisMonth = employees.filter(e => {
       if (!e.termDate) return false;
+      if (!e.terminated) return false;   // only count rows flagged as terminated
       return e.termDate >= firstDay && e.termDate <= lastDay;
     });
 
-    const voluntary   = termsThisMonth.filter(e => e.resignType.includes('volunt') || e.resignType === 'voluntary');
-    const involuntary = termsThisMonth.filter(e => !e.resignType.includes('volunt') || e.resignType === 'involuntary');
+    const voluntary   = termsThisMonth.filter(e => e.resignType.includes('volunt'));
+    const involuntary = termsThisMonth.filter(e => !e.resignType.includes('volunt'));
 
     // Role breakdown of active employees
     const byRole = {};
@@ -168,7 +204,7 @@
       mk,
       label:       monthLabel(mk),
       total:       active.length,
-      newHires:    newHires.length,
+      newHires:    newHiresCount,
       voluntary:   voluntary.length,
       involuntary: involuntary.length,
       termTotal:   termsThisMonth.length,
@@ -187,8 +223,7 @@
   function computeOpenings(period) {
     // Prefer NJTC_LOCATIONS (parsed Locations tab) when available
     const locRows = window.NJTC_LOCATIONS;
-    const cycleKey = period.cycleKey;
-    const cycleMatch = cycleKey.split(' ').slice(0, 2).join(' ').toLowerCase();
+    const cycleMatch = period.cycleKey.toLowerCase();
 
     if (locRows && locRows.length) {
       // Filter to this period's cycle — for SY 25-26 there's no cycle col so all rows match
@@ -402,8 +437,7 @@
       }
       const tracker = window.NJTC_ONSITE_TRACKER;
       if (!tracker || !tracker.length) return [];
-      const ck = period.cycleKey;
-      const cycleMatch = ck.split(' ').slice(0, 2).join(' ');
+      const cycleMatch = period.cycleKey.toLowerCase();
       return tracker
         .filter(r => (r.cycle || '').toLowerCase().includes(cycleMatch))
         .map(r => normalizeTrackerRow(r, period.start))
@@ -414,7 +448,8 @@
       const period    = PERIODS.find(p => p.id === _activePeriodId);
       const employees = getEmployees(period);
       const months    = monthsInRange(period.start, period.end);
-      const stats     = months.map(mk => computeMonthStats(employees, mk));
+      const newHireOverride = period.id === 'sy2526' ? SY2526_NEW_HIRE_COUNTS : null;
+      const stats     = months.map(mk => computeMonthStats(employees, mk, newHireOverride));
       // Always compute openings — NJTC_LOCATIONS is set for both SY 25-26 and 26-27/Summer
       const openings  = computeOpenings(period);
 
