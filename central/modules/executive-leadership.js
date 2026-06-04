@@ -1656,10 +1656,18 @@
       for (const ltk of _ltKeys) { if (_fl2(ltk) === fl) return true; }
       return false;
     };
-    // Only filter when Live Tracker loaded successfully (has entries); otherwise keep all TAP entries
-    const activeRoster = _ltKeys.size > 0
-      ? tapRoster.filter(tap => _inLT(tap.name))
-      : tapRoster;
+    // Only filter when Live Tracker loaded successfully (has entries); otherwise keep all TAP entries.
+    // Safety net: if the whitelist has keys but matches 0 TAP entries (name mismatch / parse error),
+    // fall back to the unfiltered TAP roster to prevent wiping enrolled to 0.
+    let activeRoster = tapRoster;
+    if (_ltKeys.size > 0) {
+      const filtered = tapRoster.filter(tap => _inLT(tap.name));
+      if (filtered.length > 0) {
+        activeRoster = filtered;
+      } else {
+        console.warn('[AP] Live Tracker whitelist matched 0/' + tapRoster.length + ' TAP entries — name mismatch or parse error. Using full TAP roster as fallback.');
+      }
+    }
     console.log('[AP] Live Tracker whitelist: ' + _ltKeys.size + ' keys · TAP=' + tapRoster.length + ' · active=' + activeRoster.length);
     const enrolled = activeRoster.map(tap => {
       const hrMatch = hrByName[nm(tap.name)];
