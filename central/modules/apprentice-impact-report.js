@@ -1469,15 +1469,38 @@
         .map(([d]) => d);
     });
 
-    // Build school → apprentice map (single-appr MOY schools only — for Tier 3)
+    // Pre-compute: how many distinct TAP school keys map to each MOY school name.
+    // This guards Tier 3 — if a name is shared across multiple keys (e.g.
+    // 'passaic clifton middle' appears in both iLearn Clifton AND iLearn Clifton MS,
+    // 'bergen middle school' in both iLearn Bergen AND iLearn Bergen MS), Tier 3
+    // must NOT fire for it.  Doing so wrongly attributes scholars who missed session
+    // matching (Tier 2) to whichever single-key school happened to include the name.
+    const _moyNameKeyCount = {}; // lowercase MOY school name → Set of TAP school keys
+    ALL_APPRENTICES.forEach(([,, school]) => {
+      if (STANDARDS_MASTERY_SCHOOLS.has(school)) return;
+      if (NO_DATA_SCHOOLS.has(school))           return;
+      if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
+      (MOY_SCHOOL_MAP[school] || []).forEach(sn => {
+        if (!_moyNameKeyCount[sn]) _moyNameKeyCount[sn] = new Set();
+        _moyNameKeyCount[sn].add(school);
+      });
+    });
+
+    // Build school → apprentice map (Tier 3 single-apprentice fallback).
+    // A MOY school name is eligible for Tier 3 ONLY when it maps to exactly one
+    // TAP school key — guaranteeing the attribution is unambiguous.
+    // Shared names are intentionally excluded; they rely on Tier 2 session matching.
     const schoolToAppr = {};
     ALL_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
       if (STANDARDS_MASTERY_SCHOOLS.has(school))  return;
       if (NO_DATA_SCHOOLS.has(school))            return;
       if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
-      const names = MOY_SCHOOL_MAP[school] || [];
-      names.forEach(sn => { schoolToAppr[sn] = display; });
+      (MOY_SCHOOL_MAP[school] || []).forEach(sn => {
+        if (_moyNameKeyCount[sn] && _moyNameKeyCount[sn].size === 1) {
+          schoolToAppr[sn] = display;
+        }
+      });
     });
 
     // Build school → [all apprentices] for multi-apprentice MOY schools (Tier 2 scoping).
@@ -1498,6 +1521,33 @@
     });
     const anySessionData = Object.values(hasSessionData).some(Boolean);
 
+    // Diagnostic: log which MOY school names are shared (Tier 3 excluded) vs unique (Tier 3 eligible)
+    {
+      const sharedNames  = Object.entries(_moyNameKeyCount).filter(([, s]) => s.size > 1).map(([n, s]) => `"${n}" (${[...s].join(' + ')})`);
+      const uniqueNames  = Object.entries(_moyNameKeyCount).filter(([, s]) => s.size === 1).map(([n]) => n);
+      const tier3Schools = Object.keys(schoolToAppr);
+      if (sharedNames.length) console.warn('[APIR] Tier 3 EXCLUDED (shared across keys — session match required):', sharedNames.join(' | '));
+      console.log('[APIR] Tier 3 eligible school names (' + tier3Schools.length + '):', tier3Schools.slice(0, 10).join(', ') + (tier3Schools.length > 10 ? '…' : ''));
+      // Keisha-specific: log which of her MOY school names are Tier-3-eligible vs shared
+      const keishaNames  = MOY_SCHOOL_MAP['iLearn Clifton'] || [];
+      const keishaTier3  = keishaNames.filter(n => schoolToAppr[n] === 'Keisha Lopez');
+      const keishaShared = keishaNames.filter(n => _moyNameKeyCount[n] && _moyNameKeyCount[n].size > 1);
+      console.log('[APIR] Keisha Lopez — iLearn Clifton MOY names:', keishaNames.length,
+                  '| Tier 3 eligible:', keishaTier3.length, keishaTier3.join(', ') || '← NONE',
+                  '| Shared (Tier 2 only):', keishaShared.length, keishaShared.join(', ') || '← NONE');
+      // Shahzeeb-specific: same check for iLearn Bergen
+      const shahzeebNames  = MOY_SCHOOL_MAP['iLearn Bergen'] || [];
+      const shahzeebTier3  = shahzeebNames.filter(n => schoolToAppr[n] === 'Shahzeeb Ahmad');
+      const shahzeebShared = shahzeebNames.filter(n => _moyNameKeyCount[n] && _moyNameKeyCount[n].size > 1);
+      console.log('[APIR] Shahzeeb Ahmad — iLearn Bergen MOY names:', shahzeebNames.length,
+                  '| Tier 3 eligible:', shahzeebTier3.length,
+                  '| Shared (Tier 2 only):', shahzeebShared.length, shahzeebShared.join(', ') || '← NONE');
+    }
+
+    // Per-apprentice attribution counters for end-of-run diagnostic
+    const _attrTier = {}; // display → { t0:0, t1:0, t15:0, t2:0, t3:0, t35:0, t4:0 }
+    ALL_APPRENTICES.forEach(([d]) => { _attrTier[d] = { t0:0, t1:0, t15:0, t2:0, t3:0, t35:0, t4:0 }; });
+
     moyRows.forEach(row => {
       const scholarN   = normName(row.scholarName);
       const schoolLc   = (row.school || '').toLowerCase().trim();
@@ -1506,30 +1556,27 @@
       // Tier 0: Pearl student login ID → sessionIdMap direct join (most authoritative)
       if (row._pearlId && sessionIdMap) {
         const appr = sessionIdMap[row._pearlId];
-        if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
+        if (appr && byAppr[appr]) { _attrTier[appr] && _attrTier[appr].t0++; byAppr[appr].push(row); return; }
       }
 
       // Tier 1: instructor field in MOY CSV matches an apprentice name
       if (row.instructor) {
         const appr = resolveAppr(row.instructor, lut);
-        if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
+        if (appr && byAppr[appr]) { _attrTier[appr] && _attrTier[appr].t1++; byAppr[appr].push(row); return; }
       }
 
       // Tier 1.5: Pearl ID bridge — scholar name matched from prior ELA/IRLAB attribution
       if (scholarN && moyIdBridge) {
         const appr = moyIdBridge[scholarN] || moyIdBridge[normNameFL(scholarN)];
-        if (appr && byAppr[appr]) { byAppr[appr].push(row); return; }
+        if (appr && byAppr[appr]) { _attrTier[appr] && _attrTier[appr].t15++; byAppr[appr].push(row); return; }
       }
 
       // Tier 2: session-confirmed scholar name, scoped to school's/district's apprentices.
       // Priority: school-name scope (most precise) → district ID scope (Column G fallback
       //   for Math CSVs where school column header differs from ELA) → global search.
       if (scholarN && anySessionData) {
-        // Determine candidate apprentice pool for this row
-        let scopedApprs = schoolApprList[schoolLc];  // school-level (tightest scope)
+        let scopedApprs = schoolApprList[schoolLc];
 
-        // If school name isn't recognised but Column G district ID is known,
-        // use the district to restore scope (catches Math CSVs with different school headers).
         if (!scopedApprs && districtId && distIdToApprs[districtId]) {
           scopedApprs = distIdToApprs[districtId];
         }
@@ -1537,56 +1584,71 @@
         const isMultiScope = scopedApprs && scopedApprs.length > 1;
 
         if (isMultiScope) {
-          // Scoped search: only check session sets for apprentices in this scope
           for (const appr of scopedApprs) {
             const nameSet = sessionSets[appr];
             if (nameSet && inScholarSet(nameSet, scholarN)) {
-              byAppr[appr].push(row); return;
+              _attrTier[appr] && _attrTier[appr].t2++; byAppr[appr].push(row); return;
             }
           }
-          // No session match within scope — fall through to Tier 3/4 rather than
-          // silently dropping. Tier 3 will handle single-apprentice schools;
-          // multi-apprentice schools then fall to Tier 4 (survey names).
         } else if (scopedApprs && scopedApprs.length === 1) {
-          // Exactly one apprentice at this school/district — check their session set,
-          // then fall through to Tier 3 for direct attribution
           const appr = scopedApprs[0];
           const nameSet = sessionSets[appr];
           if (nameSet && inScholarSet(nameSet, scholarN)) {
-            byAppr[appr].push(row); return;
+            _attrTier[appr] && _attrTier[appr].t2++; byAppr[appr].push(row); return;
           }
-          // Fall through — Tier 3 or 3.5 will attribute directly
         } else {
-          // School/district unknown: global session search (no cross-school scope risk
-          // since we don't know which school this row belongs to)
           for (const [appr, nameSet] of Object.entries(sessionSets || {})) {
-            if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
+            if (inScholarSet(nameSet, scholarN)) {
+              _attrTier[appr] && _attrTier[appr].t2++; byAppr[appr].push(row); return;
+            }
           }
         }
       }
 
-      // Tier 3: single-apprentice school map fallback
-      // Catches iLearn/MOY schools with exactly one apprentice when session matching fails.
+      // Tier 3: single-apprentice school fallback — ONLY for school names that map to
+      // exactly one TAP school key.  Shared names are excluded to prevent cross-attribution
+      // (e.g. a La Shanee/Mushana scholar at 'passaic clifton middle' must NOT fall here
+      // and land on Keisha just because iLearn Clifton is a single-key school).
       const apprBySchool = schoolToAppr[schoolLc];
-      if (apprBySchool) { byAppr[apprBySchool].push(row); return; }
+      if (apprBySchool) { _attrTier[apprBySchool] && _attrTier[apprBySchool].t3++; byAppr[apprBySchool].push(row); return; }
 
       // Tier 3.5: single-apprentice district fallback via Column G district ID.
-      // For districts with only one TAP apprentice (e.g. Penns Grove → Alexandra Cristescu),
-      // the district ID is unambiguous — attribute directly even without a school name match.
       if (districtId && distIdToApprs[districtId]) {
         const dApprs = distIdToApprs[districtId];
         if (dApprs.length === 1 && byAppr[dApprs[0]]) {
-          byAppr[dApprs[0]].push(row); return;
+          _attrTier[dApprs[0]] && _attrTier[dApprs[0]].t35++; byAppr[dApprs[0]].push(row); return;
         }
       }
 
       // Tier 4: survey-confirmed scholar name (last resort)
       if (scholarN && surveyScholarSets) {
         for (const [appr, nameSet] of Object.entries(surveyScholarSets)) {
-          if (inScholarSet(nameSet, scholarN)) { byAppr[appr].push(row); return; }
+          if (inScholarSet(nameSet, scholarN)) {
+            _attrTier[appr] && _attrTier[appr].t4++; byAppr[appr].push(row); return;
+          }
         }
       }
     });
+
+    // Diagnostic: per-apprentice tier breakdown — helps verify no one is relying on
+    // Tier 3 for scholars they shouldn't have, and shows where session data gaps are.
+    {
+      const tierLog = ALL_APPRENTICES
+        .map(([d]) => {
+          const t = _attrTier[d];
+          if (!t) return null;
+          const total = t.t0 + t.t1 + t.t15 + t.t2 + t.t3 + t.t35 + t.t4;
+          if (!total) return null;
+          return `${d.split(' ')[0]}: ${total} [T0:${t.t0} T1:${t.t1} T1.5:${t.t15} T2:${t.t2} T3:${t.t3} T3.5:${t.t35} T4:${t.t4}]`;
+        }).filter(Boolean);
+      console.log('[APIR] MOY attribution tier breakdown:\n  ' + tierLog.join('\n  '));
+      // Flag anyone with unexpected Tier 3 hits on shared school names
+      const keishaT3 = _attrTier['Keisha Lopez'] ? _attrTier['Keisha Lopez'].t3 : 0;
+      const shahzeebT3 = _attrTier['Shahzeeb Ahmad'] ? _attrTier['Shahzeeb Ahmad'].t3 : 0;
+      if (keishaT3 > 0)   console.warn('[APIR] Keisha Lopez has', keishaT3, 'Tier-3 hits — verify these are from her unique school names only');
+      if (shahzeebT3 > 0) console.warn('[APIR] Shahzeeb Ahmad has', shahzeebT3, 'Tier-3 hits — verify these are from his unique school names only');
+    }
+
     return byAppr;
   }
 
