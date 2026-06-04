@@ -1,8 +1,8 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════╗
- * ║  NJTC TAP — SY 2025-26 CAPSTONE  ·  FULLY DYNAMIC BUILD  v7            ║
- * ║  Zero hardcoded data — reads 100% from "Apprentice Impact Data (RAW)"   ║
- * ║  Source: All Apprentices (RAW) — Active + Cancelled  ·  46 Apprentices  ║
+ * ║  NJTC TAP  -  SY 2025-26 CAPSTONE  ·  FULLY DYNAMIC BUILD  v7            ║
+ * ║  Zero hardcoded data  -  reads 100% from "Apprentice Impact Data (RAW)"   ║
+ * ║  Source: All Apprentices (RAW)  -  Active + Cancelled  ·  46 Apprentices  ║
  * ║  Update raw data → re-run buildEverything() → all 8 sheets refresh      ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  *
@@ -10,7 +10,7 @@
  *   1. Paste into Apps Script (Extensions → Apps Script) → Save
  *   2. Set KATHERINE_SIGNATURE_URL below to Katherine's signature image URL
  *   3. Run → buildEverything
- *   4. When raw data changes: run buildEverything again — everything rebuilds
+ *   4. When raw data changes: run buildEverything again  -  everything rebuilds
  *
  * SOURCE SHEET: "Apprentice Impact Data (RAW)"
  *   Supports both formats:
@@ -18,7 +18,7 @@
  *   - Active-only format:     Name, DOL ID, School… (no Status col)
  *   Script auto-detects format from Section 1 header row.
  *
- * COLUMN MAP — All Apprentices format (0-indexed):
+ * COLUMN MAP  -  All Apprentices format (0-indexed):
  *   0=Status  1=Name  2=DOL ID  3=School  4=Region  5=Source
  *   6=ELA Scholars  7=ELA BOY  8=ELA End  9=ELA Gain  10=ELA Med%Growth
  *   11=ELA %Meeting  12=ELA Improved  13=ELA Maintained  14=ELA Declined
@@ -63,7 +63,7 @@ function isNum(v) {
     var s = v.toLowerCase().trim();
     if (s.indexOf('no ') === 0 || s.indexOf('n/a') === 0 ||
         s.indexOf('pending') >= 0 || s.indexOf('see §') >= 0 ||
-        s.indexOf('pre—') >= 0 || s.indexOf('post—') >= 0 ||
+        s.indexOf('pre - ') >= 0 || s.indexOf('post - ') >= 0 ||
         s.indexOf('pre avg') >= 0 || s.indexOf('post avg') >= 0 ||
         s.indexOf('eoy preliminary') >= 0) return false;
   }
@@ -84,7 +84,7 @@ function toPct(v) {
   return null;
 }
 function fmtNum(v, d, sign) {
-  if (v === null) return '—';
+  if (v === null) return ' - ';
   d = d || 1;
   var s = Math.abs(v).toFixed(d);
   if (sign && v > 0) return '+' + s;
@@ -167,7 +167,7 @@ function writeTable(ws, startRow, startCol, headers, rows) {
 // ─── CHART BUILDER ─────────────────────────────────────────
 // Fix for grey charts: SpreadsheetApp.flush() MUST be called before
 // inserting a chart so all data is committed to the sheet first.
-// All setOption calls use dot-notation strings — object-form options
+// All setOption calls use dot-notation strings  -  object-form options
 // (e.g. {position:'top'}) are NOT reliably supported by EmbeddedChartBuilder.
 function buildChart(ws, dataRange, pos, o) {
   SpreadsheetApp.flush(); // commit all pending writes before chart reads range
@@ -185,7 +185,7 @@ function buildChart(ws, dataRange, pos, o) {
 
   if (o.title)  b.setOption('title', o.title);
 
-  // Axis titles — string only via dot-notation
+  // Axis titles  -  string only via dot-notation
   if (o.hTitle) b.setOption('hAxis.title', o.hTitle);
   if (o.vTitle) b.setOption('vAxis.title', o.vTitle);
   if (o.vMin !== undefined) b.setOption('vAxis.minValue', o.vMin);
@@ -197,10 +197,10 @@ function buildChart(ws, dataRange, pos, o) {
   if (o.colors) b.setOption('colors', o.colors);
   if (o.stacked) b.setOption('isStacked', true);
 
-  // Legend — MUST use dot-notation; object form is unreliable in EmbeddedChartBuilder
+  // Legend  -  MUST use dot-notation; object form is unreliable in EmbeddedChartBuilder
   b.setOption('legend.position', (o.legend && o.legend !== 'none') ? o.legend : 'none');
 
-  // Background — use fill sub-key
+  // Background  -  use fill sub-key
   b.setOption('backgroundColor.fill', '#F8FAFD');
 
   // Chart area
@@ -260,7 +260,7 @@ function loadData(ss) {
       var firstVal = String(r[0] || '').trim();
       if (!firstVal) continue;
       if (firstVal.toUpperCase().indexOf('SECTION') === 0) break;
-      // With status col: first col is "Active"/"Cancelled" — skip blank non-status rows
+      // With status col: first col is "Active"/"Cancelled"  -  skip blank non-status rows
       if (hasStatusCol && firstVal !== 'Active' && firstVal !== 'Cancelled') continue;
       apprentices.push({
         status: hasStatusCol ? firstVal : 'Active',
@@ -312,7 +312,7 @@ function loadData(ss) {
     }
   }
 
-  // ── Section 3: aggregate metrics (always Metric, ELA, Math columns — no status offset) ──
+  // ── Section 3: aggregate metrics (always Metric, ELA, Math columns  -  no status offset) ──
   var agg = {
     elaTotalScholars:null, mathTotalScholars:null,
     elaAvgBOY:null, mathAvgBOY:null, elaAvgEND:null, mathAvgEND:null,
@@ -474,7 +474,7 @@ function buildEverything() {
 function buildCapstoneReport() { buildEverything(); }
 
 // ══════════════════════════════════════════════════════════
-// ██  SHEET 1 — IMPACT DASHBOARD (All Apprentices)
+// ██  SHEET 1  -  IMPACT DASHBOARD (All Apprentices)
 // ══════════════════════════════════════════════════════════
 function buildDashboard(ss, data) {
   var ws = ss.insertSheet('📊 Impact Dashboard', ss.getSheets().length);
@@ -485,14 +485,14 @@ function buildDashboard(ss, data) {
   var NC = 12;
   for (var i = 1; i <= NC; i++) cw(ws, i, 110);
 
-  var prog_rate_str = AG.progRate !== null ? Math.round(AG.progRate*1000)/10+'%' : (allAgg.progRate !== null ? Math.round(allAgg.progRate*1000)/10+'%' : '—');
+  var prog_rate_str = AG.progRate !== null ? Math.round(AG.progRate*1000)/10+'%' : (allAgg.progRate !== null ? Math.round(allAgg.progRate*1000)/10+'%' : ' - ');
   var surv_total_str = AG.survTotal !== null ? Math.round(AG.survTotal).toLocaleString() : Math.round(allAgg.survTotal||0).toLocaleString();
-  var ela_gain_str  = AG.elaAvgGain !== null ? '+'+AG.elaAvgGain.toFixed(1) : '—';
-  var math_gain_str = AG.mathAvgGain !== null ? '+'+AG.mathAvgGain.toFixed(1) : '—';
+  var ela_gain_str  = AG.elaAvgGain !== null ? '+'+AG.elaAvgGain.toFixed(1) : ' - ';
+  var math_gain_str = AG.mathAvgGain !== null ? '+'+AG.mathAvgGain.toFixed(1) : ' - ';
   var avg_overall   = AG.avgOverall !== null ? AG.avgOverall : allAgg.avgOverall;
 
   banner(ws,
-    'NJTC TAP — SY 2025–26 Capstone Impact Dashboard  ·  All ' + A.length + ' Apprentices',
+    'NJTC TAP  -  SY 2025-26 Capstone Impact Dashboard  ·  All ' + A.length + ' Apprentices',
     'New Jersey Tutoring Corps  ·  Tutor Apprenticeship Program  ·  ' +
     ACT.length + ' Active  ·  ' + CAN.length + ' Cancelled  ·  Live from: Apprentice Impact Data (RAW)',
     NC);
@@ -504,7 +504,7 @@ function buildDashboard(ss, data) {
     {v:AG.totalSess !== null ? Math.round(AG.totalSess).toLocaleString() : Math.round(allAgg.totalSess||0).toLocaleString(),
                                l:'Total Sessions',      s:'Scheduled program-wide',                          bg:C.TEAL},
     {v:prog_rate_str,          l:'Attendance Rate',     s:Math.round(allAgg.totalAtt||0).toLocaleString()+' attended', bg:'#1A7A4A'},
-    {v:avg_overall !== null ? avg_overall.toFixed(1)+' / 5' : '—',
+    {v:avg_overall !== null ? avg_overall.toFixed(1)+' / 5' : ' - ',
                                l:'Scholar Rating',      s:surv_total_str+' survey responses',                bg:C.GOLD},
     {v:ela_gain_str+' pts',    l:'ELA Avg Score Gain',  s:'iReady scale score · all apprentices',            bg:C.NAVY2},
     {v:math_gain_str+' pts',   l:'Math Avg Score Gain', s:'iReady scale score · all apprentices',            bg:C.TEAL2},
@@ -532,10 +532,10 @@ function buildDashboard(ss, data) {
     mr(ws,10,g.col,1,g.span,g.label+' ('+g.n+')',{bg:g.bg,fc:g.fc,bold:true,sz:10,al:'center',va:'middle'});
     rh(ws,11,22); rh(ws,12,22); rh(ws,13,22); rh(ws,14,22);
     var rows = [
-      ['Sessions', ag.totalSess !== null ? Math.round(ag.totalSess).toLocaleString() : '—'],
-      ['Attendance', ag.progRate !== null ? Math.round(ag.progRate*1000)/10+'%' : '—'],
-      ['ELA Scholars', ag.elaScholars > 0 ? ag.elaScholars : '—'],
-      ['Math Scholars', ag.mathScholars > 0 ? ag.mathScholars : '—'],
+      ['Sessions', ag.totalSess !== null ? Math.round(ag.totalSess).toLocaleString() : ' - '],
+      ['Attendance', ag.progRate !== null ? Math.round(ag.progRate*1000)/10+'%' : ' - '],
+      ['ELA Scholars', ag.elaScholars > 0 ? ag.elaScholars : ' - '],
+      ['Math Scholars', ag.mathScholars > 0 ? ag.mathScholars : ' - '],
     ];
     rows.forEach(function(rv, ri) {
       var rr = 11 + ri;
@@ -555,35 +555,35 @@ function buildDashboard(ss, data) {
   mr(ws,17,8,1,2,'Math',             {bg:C.NAVY,fc:C.WHITE,bold:true,sz:9,al:'center',va:'middle'});
   mr(ws,17,10,1,3,'Notes / Context', {bg:C.NAVY,fc:C.WHITE,bold:true,sz:9,al:'center',va:'middle'});
 
-  var ela_med = AG.elaMedianGrowth !== null ? Math.round(AG.elaMedianGrowth*100)+'%' : '—';
-  var math_med = AG.mathMedianGrowth !== null ? Math.round(AG.mathMedianGrowth*100)+'%' : '—';
-  var ela_imp_pct = AG.elaPctImp !== null ? Math.round(AG.elaPctImp*100)+'%' : '—';
-  var math_imp_pct = AG.mathPctImp !== null ? Math.round(AG.mathPctImp*100)+'%' : '—';
+  var ela_med = AG.elaMedianGrowth !== null ? Math.round(AG.elaMedianGrowth*100)+'%' : ' - ';
+  var math_med = AG.mathMedianGrowth !== null ? Math.round(AG.mathMedianGrowth*100)+'%' : ' - ';
+  var ela_imp_pct = AG.elaPctImp !== null ? Math.round(AG.elaPctImp*100)+'%' : ' - ';
+  var math_imp_pct = AG.mathPctImp !== null ? Math.round(AG.mathPctImp*100)+'%' : ' - ';
 
   var acadRows = [
     ['Scholars w/ Placement Data',
-      AG.elaTotalScholars||'—', AG.mathTotalScholars||'—',
-      'iReady-matched — EOY pending for select sites'],
+      AG.elaTotalScholars||' - ', AG.mathTotalScholars||' - ',
+      'iReady-matched  -  EOY pending for select sites'],
     ['Avg BOY Scale Score',
-      AG.elaAvgBOY ? AG.elaAvgBOY.toFixed(1):'—', AG.mathAvgBOY ? AG.mathAvgBOY.toFixed(1):'—',
+      AG.elaAvgBOY ? AG.elaAvgBOY.toFixed(1):' - ', AG.mathAvgBOY ? AG.mathAvgBOY.toFixed(1):' - ',
       'Beginning-of-Year baseline before TAP tutoring'],
     ['Avg End Scale Score',
-      AG.elaAvgEND ? AG.elaAvgEND.toFixed(1):'—', AG.mathAvgEND ? AG.mathAvgEND.toFixed(1):'—',
-      'MOY / EOY endpoint — positive trajectory across program'],
+      AG.elaAvgEND ? AG.elaAvgEND.toFixed(1):' - ', AG.mathAvgEND ? AG.mathAvgEND.toFixed(1):' - ',
+      'MOY / EOY endpoint  -  positive trajectory across program'],
     ['Avg Scale Score Gain',
       ela_gain_str+' pts', math_gain_str+' pts',
-      'Both subjects showing strong gain — driven by TAP intervention'],
+      'Both subjects showing strong gain  -  driven by TAP intervention'],
     ['Median % of Typical Annual Growth',
       ela_med, math_med,
       'Benchmark = 100%; several apprentices exceeding benchmark'],
     ['Scholars Who Improved Placement',
-      AG.elaImpStr||'—', AG.mathImpStr||'—',
+      AG.elaImpStr||' - ', AG.mathImpStr||' - ',
       ela_imp_pct+' ELA  ·  '+math_imp_pct+' Math moved to higher iReady band'],
     ['Scholar Survey Responses',
-      surv_total_str+' total','—',
-      'Confidence '+(AG.avgConf||allAgg.avgConf||'—')+'  ·  Enjoyment '+(AG.avgEnjoy||allAgg.avgEnjoy||'—')+'  ·  Overall '+(AG.avgOverall||allAgg.avgOverall||'—')],
+      surv_total_str+' total',' - ',
+      'Confidence '+(AG.avgConf||allAgg.avgConf||' - ')+'  ·  Enjoyment '+(AG.avgEnjoy||allAgg.avgEnjoy||' - ')+'  ·  Overall '+(AG.avgOverall||allAgg.avgOverall||' - ')],
     ['Program Attendance Rate',
-      prog_rate_str,'—',
+      prog_rate_str,' - ',
       Math.round(allAgg.totalAtt||0).toLocaleString()+' attended  ·  '+Math.round((allAgg.totalSess||0)-(allAgg.totalAtt||0)).toLocaleString()+' missed'],
   ];
   acadRows.forEach(function(row, i) {
@@ -620,7 +620,7 @@ function buildDashboard(ss, data) {
   var plRange = writeTable(ws, 31, 1, plHdrs, plRows);
   buildChart(ws, plRange, [31, 7], {
     type:'COLUMN', stacked:true,
-    title:'Scholar Placement Distribution: Beginning vs. End  ·  All 46 Apprentices  ·  NJTC TAP SY 2025–26',
+    title:'Scholar Placement Distribution: Beginning vs. End  ·  All 46 Apprentices  ·  NJTC TAP SY 2025-26',
     hTitle:'Assessment Period', vTitle:'Number of Scholars',
     colors:[C.IR3, C.IR2, C.IR1, C.IREO, C.IRMID],
     legend:'top', left:60, w:640, h:340, caW:520, caH:240,
@@ -651,7 +651,7 @@ function buildDashboard(ss, data) {
      ['All ('+A.length+')', allMv[0],allMv[1],allMv[2]]]);
   buildChart(ws, mvRange, [c2Row+1, 5], {
     type:'BAR', stacked:false,
-    title:'Placement Movement by Apprentice Status  ·  Improved / Maintained / Declined  ·  NJTC TAP SY 2025–26',
+    title:'Placement Movement by Apprentice Status  ·  Improved / Maintained / Declined  ·  NJTC TAP SY 2025-26',
     hTitle:'Number of Scholars', vTitle:'Group',
     colors:[C.IRMID, C.IR1, C.IR3],
     legend:'top', left:130, w:620, h:240, caW:420, caH:160,
@@ -659,7 +659,7 @@ function buildDashboard(ss, data) {
 }
 
 // ══════════════════════════════════════════════════════════
-// ██  SHEET 2 — ACADEMIC GROWTH
+// ██  SHEET 2  -  ACADEMIC GROWTH
 // ══════════════════════════════════════════════════════════
 function buildAcademicGrowth(ss, data) {
   var ws = ss.insertSheet('📈 Academic Growth', ss.getSheets().length);
@@ -668,7 +668,7 @@ function buildAcademicGrowth(ss, data) {
   [1,2,3,4].forEach(function(i){ cw(ws,i,140); });
   for (var i=5; i<=13; i++) cw(ws,i,90);
 
-  banner(ws,'NJTC TAP — Academic Growth Analysis  ·  SY 2025–26',
+  banner(ws,'NJTC TAP  -  Academic Growth Analysis  ·  SY 2025-26',
     'Gains, Growth % & Placement Movement  ·  Active + Cancelled  ·  Live from: Apprentice Impact Data (RAW)  ·  '+A.length+' Apprentices',13);
 
   rh(ws,4,8);
@@ -698,14 +698,14 @@ function buildAcademicGrowth(ss, data) {
     sc(ws.getRange(r,3), a.school, {sz:9, al:'left', fc:C.DARK});
     sc(ws.getRange(r,4), a.region, {sz:9, al:'center'});
     sc(ws.getRange(r,5), a.source, {sz:8, al:'center', fc:C.DARK, it:true});
-    sc(ws.getRange(r,6),  a.elaS!==null&&a.elaS>0?a.elaS:'—',        {sz:10,al:'center'});
-    sc(ws.getRange(r,7),  a.elaBOY!==null?a.elaBOY.toFixed(1):'—',   {sz:10,al:'center'});
-    sc(ws.getRange(r,8),  a.elaEND!==null?a.elaEND.toFixed(1):'—',   {sz:10,al:'center'});
-    sc(ws.getRange(r,9),  a.elaG!==null?fmtNum(a.elaG,1,true)+' pts':'—',{bg:gBg(a.elaG),sz:10,al:'center',bold:a.elaG>15});
-    sc(ws.getRange(r,10), a.elaPG!==null?Math.round(a.elaPG*100)+'%':'—', {bg:grBg(a.elaPG),sz:10,al:'center'});
-    sc(ws.getRange(r,11), a.mathS!==null&&a.mathS>0?a.mathS:'—',     {sz:10,al:'center'});
-    sc(ws.getRange(r,12), a.mathG!==null?fmtNum(a.mathG,1,true)+' pts':'—',{bg:gBg(a.mathG),sz:10,al:'center',bold:a.mathG>15});
-    sc(ws.getRange(r,13), a.mathPG!==null?Math.round(a.mathPG*100)+'%':'—',{bg:grBg(a.mathPG),sz:10,al:'center'});
+    sc(ws.getRange(r,6),  a.elaS!==null&&a.elaS>0?a.elaS:' - ',        {sz:10,al:'center'});
+    sc(ws.getRange(r,7),  a.elaBOY!==null?a.elaBOY.toFixed(1):' - ',   {sz:10,al:'center'});
+    sc(ws.getRange(r,8),  a.elaEND!==null?a.elaEND.toFixed(1):' - ',   {sz:10,al:'center'});
+    sc(ws.getRange(r,9),  a.elaG!==null?fmtNum(a.elaG,1,true)+' pts':' - ',{bg:gBg(a.elaG),sz:10,al:'center',bold:a.elaG>15});
+    sc(ws.getRange(r,10), a.elaPG!==null?Math.round(a.elaPG*100)+'%':' - ', {bg:grBg(a.elaPG),sz:10,al:'center'});
+    sc(ws.getRange(r,11), a.mathS!==null&&a.mathS>0?a.mathS:' - ',     {sz:10,al:'center'});
+    sc(ws.getRange(r,12), a.mathG!==null?fmtNum(a.mathG,1,true)+' pts':' - ',{bg:gBg(a.mathG),sz:10,al:'center',bold:a.mathG>15});
+    sc(ws.getRange(r,13), a.mathPG!==null?Math.round(a.mathPG*100)+'%':' - ',{bg:grBg(a.mathPG),sz:10,al:'center'});
     // Ensure background on non-colored cells
     [6,7,8,11].forEach(function(c){ ws.getRange(r,c).setBackground(bg); });
   });
@@ -713,7 +713,7 @@ function buildAcademicGrowth(ss, data) {
   var tableEnd = 7 + withAcad.length;
   rh(ws,tableEnd,8);
 
-  // ── CHART 1: Grouped Horizontal Bar — ELA vs Math Gain ──
+  // ── CHART 1: Grouped Horizontal Bar  -  ELA vs Math Gain ──
   secHead(ws,tableEnd+1,13,'CHART 1  ·  ELA vs Math Scale Score Gain  ·  All Apprentices with Data  ·  NJTC = Navy · Cancelled = Teal',C.TEAL);
   var gainRows = withAcad.map(function(a){
     return [a.name+(a.status==='Cancelled'?' *':''), a.elaG, a.mathG];
@@ -721,7 +721,7 @@ function buildAcademicGrowth(ss, data) {
   var gainRange = writeTable(ws,tableEnd+2,1,['Apprentice','ELA Gain (pts)','Math Gain (pts)'],gainRows);
   buildChart(ws, gainRange, [tableEnd+2, 4], {
     type:'BAR',
-    title:'ELA vs. Math Scale Score Gain by Apprentice  ·  * = Cancelled  ·  NJTC TAP SY 2025–26',
+    title:'ELA vs. Math Scale Score Gain by Apprentice  ·  * = Cancelled  ·  NJTC TAP SY 2025-26',
     hTitle:'Scale Score Gain (points)', vTitle:'Apprentice',
     colors:[C.TEAL, C.GOLD], legend:'top', left:200, hMin:-20,
     w:900, h:Math.max(380, gainRows.length*26+100), caW:580, caH:Math.max(280, gainRows.length*22),
@@ -741,31 +741,31 @@ function buildAcademicGrowth(ss, data) {
   var grRange = writeTable(ws,c2Start+1,1,['Apprentice','ELA % Growth','Math % Growth','100% Benchmark'],grRows);
   buildChart(ws, grRange, [c2Start+1, 5], {
     type:'COLUMN',
-    title:'% of Typical Annual Growth  ·  100% = On-Pace  ·  * = Cancelled  ·  NJTC TAP SY 2025–26',
+    title:'% of Typical Annual Growth  ·  100% = On-Pace  ·  * = Cancelled  ·  NJTC TAP SY 2025-26',
     hTitle:'Apprentice', vTitle:'% of Typical Annual Growth',
     colors:[C.TEAL, C.GOLD, C.IR3], legend:'top', left:60, vMin:0, vMax:230,
     w:900, h:420, caW:680, caH:320,
   });
 
-  // ── CHART 3: Placement Movement — Active vs Cancelled ──
+  // ── CHART 3: Placement Movement  -  Active vs Cancelled ──
   var c3Start = c2Start + grRows.length + 5;
   secHead(ws,c3Start,13,'CHART 3  ·  Placement Level Movement  ·  Active vs Cancelled  ·  Improved / Maintained / Declined',C.TEAL);
   var PL = data.plAgg;
   var mvRows = [
-    ['ELA — All ('+(data.agg.elaTotalScholars||'—')+' scholars)', PL.elaImp, PL.elaMaint, PL.elaDec],
-    ['Math — All ('+(data.agg.mathTotalScholars||'—')+' scholars)', PL.mathImp, PL.mathMaint, PL.mathDec],
+    ['ELA  -  All ('+(data.agg.elaTotalScholars||' - ')+' scholars)', PL.elaImp, PL.elaMaint, PL.elaDec],
+    ['Math  -  All ('+(data.agg.mathTotalScholars||' - ')+' scholars)', PL.mathImp, PL.mathMaint, PL.mathDec],
   ];
   var mvRange = writeTable(ws,c3Start+1,1,['Subject','Improved','Maintained','Declined'],mvRows);
   buildChart(ws, mvRange, [c3Start+1, 5], {
     type:'BAR', stacked:true,
-    title:'Placement Level Movement  ·  Improved / Maintained / Declined  ·  NJTC TAP SY 2025–26',
+    title:'Placement Level Movement  ·  Improved / Maintained / Declined  ·  NJTC TAP SY 2025-26',
     hTitle:'Number of Scholars', vTitle:'Subject',
     colors:[C.IRMID, C.IR1, C.IR3], legend:'top', left:140, w:680, h:200, caW:460, caH:120,
   });
 }
 
 // ══════════════════════════════════════════════════════════
-// ██  SHEET 3 — SCHOLAR EXPERIENCE
+// ██  SHEET 3  -  SCHOLAR EXPERIENCE
 // ══════════════════════════════════════════════════════════
 function buildScholarExperience(ss, data) {
   var ws = ss.insertSheet('⭐ Scholar Experience', ss.getSheets().length);
@@ -775,11 +775,11 @@ function buildScholarExperience(ss, data) {
   for (var i=3; i<=11; i++) cw(ws,i,100);
 
   var surv_total_str = AG.survTotal!==null ? Math.round(AG.survTotal).toLocaleString() : Math.round(data.allSubAgg.survTotal||0).toLocaleString();
-  banner(ws,'NJTC TAP — Scholar Survey & SEL Impact  ·  SY 2025–26',
+  banner(ws,'NJTC TAP  -  Scholar Survey & SEL Impact  ·  SY 2025-26',
     'Pearl Operations  ·  '+surv_total_str+' Total Survey Responses  ·  All '+A.length+' Apprentices  ·  Sorted Highest Overall Rating',11);
 
   rh(ws,4,8);
-  secHead(ws,5,11,'SCHOLAR SURVEY SCORES BY APPRENTICE  ·  All 46  ·  Rated 1–5  ·  Sorted Highest Overall  ·  Cancelled marked with (C)');
+  secHead(ws,5,11,'SCHOLAR SURVEY SCORES BY APPRENTICE  ·  All 46  ·  Rated 1-5  ·  Sorted Highest Overall  ·  Cancelled marked with (C)');
   colHdr(ws,6,['Status','Apprentice Name','School / Site','Region','Survey\nResponses',
     'Confidence\n(1-5)','Enjoyment\n(1-5)','Learning\n(1-5)','Overall\nRating','Benchmark\nStatus'],C.TEAL,C.WHITE,36);
 
@@ -794,13 +794,13 @@ function buildScholarExperience(ss, data) {
     sc(ws.getRange(r,2), a.name,   {bold:true,sz:10,al:'left'});
     sc(ws.getRange(r,3), a.school, {sz:9,al:'left',fc:C.DARK});
     sc(ws.getRange(r,4), a.region, {sz:9,al:'center'});
-    sc(ws.getRange(r,5), a.survR!==null?Math.round(a.survR).toLocaleString():'—',{sz:10,al:'center'});
+    sc(ws.getRange(r,5), a.survR!==null?Math.round(a.survR).toLocaleString():' - ',{sz:10,al:'center'});
     [a.conf,a.enjoy,a.learn].forEach(function(v,j){
-      sc(ws.getRange(r,6+j), v!==null?v.toFixed(1):'—', {bg:svBg(v),sz:10,al:'center'});
+      sc(ws.getRange(r,6+j), v!==null?v.toFixed(1):' - ', {bg:svBg(v),sz:10,al:'center'});
     });
-    sc(ws.getRange(r,9), a.overall!==null?a.overall.toFixed(1)+' / 5.0':'—',
+    sc(ws.getRange(r,9), a.overall!==null?a.overall.toFixed(1)+' / 5.0':' - ',
        {bg:svBg(a.overall),bold:a.overall>=4.5,sz:10,al:'center'});
-    var st = a.overall>=4.5?'⭐ Excellent':a.overall>=4.0?'✓ Strong':a.overall>=3.5?'▲ Developing':'— Pending';
+    var st = a.overall>=4.5?'⭐ Excellent':a.overall>=4.0?'✓ Strong':a.overall>=3.5?'▲ Developing':' -  Pending';
     sc(ws.getRange(r,10), st, {sz:9,al:'center',fc:a.overall>=4.5?'#1A7A4A':a.overall>=4.0?'#1C7C8C':'#7B5500',bold:a.overall>=4.5});
   });
 
@@ -808,36 +808,36 @@ function buildScholarExperience(ss, data) {
   rh(ws,avgRow,26);
   mr(ws,avgRow,1,1,4,'PROGRAM AVERAGE  ·  All '+A.length+' Apprentices',
      {bg:C.NAVY,fc:C.WHITE,bold:true,sz:10,al:'left',va:'middle'});
-  [[5,surv_total_str],[6,AG.avgConf!==null?AG.avgConf.toFixed(1):'—'],
-   [7,AG.avgEnjoy!==null?AG.avgEnjoy.toFixed(1):'—'],[8,AG.avgLearn!==null?AG.avgLearn.toFixed(1):'—'],
-   [9,AG.avgOverall!==null?AG.avgOverall.toFixed(1)+' / 5.0':'—'],[10,'⭐ Excellent']]
+  [[5,surv_total_str],[6,AG.avgConf!==null?AG.avgConf.toFixed(1):' - '],
+   [7,AG.avgEnjoy!==null?AG.avgEnjoy.toFixed(1):' - '],[8,AG.avgLearn!==null?AG.avgLearn.toFixed(1):' - '],
+   [9,AG.avgOverall!==null?AG.avgOverall.toFixed(1)+' / 5.0':' - '],[10,'⭐ Excellent']]
   .forEach(function(x){
     sc(ws.getRange(avgRow,x[0]),x[1],{bg:C.NAVY,fc:C.WHITE,bold:true,sz:10,al:'center',va:'middle'});
   });
 
   rh(ws,avgRow+1,8);
 
-  // ── CHART 1: Horizontal Bar — Overall Rating ──
+  // ── CHART 1: Horizontal Bar  -  Overall Rating ──
   secHead(ws,avgRow+2,11,'CHART 1  ·  Scholar Overall Rating by Apprentice  ·  (C) = Cancelled  ·  Sorted Highest → Lowest',C.TEAL);
   var survRows = sorted.map(function(a){ return [a.name+(a.status==='Cancelled'?' (C)':''), a.overall]; });
   var survRange = writeTable(ws,avgRow+3,1,['Apprentice','Overall Rating'],survRows);
   buildChart(ws, survRange, [avgRow+3, 3], {
     type:'BAR',
-    title:'Avg Scholar Overall Rating  ·  All 46 Apprentices  ·  (C)=Cancelled  ·  NJTC TAP SY 2025–26',
-    hTitle:'Average Rating (1–5)', vTitle:'Apprentice',
+    title:'Avg Scholar Overall Rating  ·  All 46 Apprentices  ·  (C)=Cancelled  ·  NJTC TAP SY 2025-26',
+    hTitle:'Average Rating (1-5)', vTitle:'Apprentice',
     colors:[C.TEAL], legend:'none', left:200, hMin:3.0, hMax:5.3,
     w:720, h:Math.max(520, sorted.length*19+100), caW:460, caH:Math.max(400, sorted.length*16),
   });
 
-  // ── CHART 2: Multi-series Column — All 4 SEL Dimensions ──
+  // ── CHART 2: Multi-series Column  -  All 4 SEL Dimensions ──
   var c2Start = avgRow + survRows.length + 7;
   secHead(ws,c2Start,11,'CHART 2  ·  All 4 SEL Dimensions by Apprentice  ·  Confidence · Enjoyment · Learning · Overall',C.NAVY);
   var selRows = sorted.map(function(a){ return [a.name+(a.status==='Cancelled'?' (C)':''),a.conf,a.enjoy,a.learn,a.overall]; });
   var selRange = writeTable(ws,c2Start+1,1,['Apprentice','Confidence','Enjoyment','Learning','Overall'],selRows);
   buildChart(ws, selRange, [c2Start+1, 6], {
     type:'COLUMN',
-    title:'Scholar Survey: 4 SEL Dimensions by Apprentice  ·  NJTC TAP SY 2025–26',
-    hTitle:'Apprentice', vTitle:'Score (1–5)',
+    title:'Scholar Survey: 4 SEL Dimensions by Apprentice  ·  NJTC TAP SY 2025-26',
+    hTitle:'Apprentice', vTitle:'Score (1-5)',
     colors:[C.NAVY,C.TEAL,C.GOLD,C.IRMID], legend:'top', left:60, vMin:3.0, vMax:5.3,
     w:960, h:440, caW:740, caH:320,
   });
@@ -854,15 +854,15 @@ function buildScholarExperience(ss, data) {
   var pSelRange = writeTable(ws,c3Start+1,1,['Dimension','Program Average','Benchmark (4.0)'],pSelRows);
   buildChart(ws, pSelRange, [c3Start+1, 3], {
     type:'COLUMN',
-    title:'Scholar Survey Program Averages  ·  All 4 Dimensions vs 4.0 Benchmark  ·  NJTC TAP SY 2025–26',
-    hTitle:'Survey Dimension', vTitle:'Average Score (1–5)',
+    title:'Scholar Survey Program Averages  ·  All 4 Dimensions vs 4.0 Benchmark  ·  NJTC TAP SY 2025-26',
+    hTitle:'Survey Dimension', vTitle:'Average Score (1-5)',
     colors:[C.NAVY,C.GOLD], legend:'top', left:60, vMin:3.5, vMax:5.0,
     w:440, h:320, caW:300, caH:220,
   });
 }
 
 // ══════════════════════════════════════════════════════════
-// ██  SHEET 4 — ATTENDANCE RECORD
+// ██  SHEET 4  -  ATTENDANCE RECORD
 // ══════════════════════════════════════════════════════════
 function buildAttendanceRecord(ss, data) {
   var ws = ss.insertSheet('📅 Attendance Record', ss.getSheets().length);
@@ -872,8 +872,8 @@ function buildAttendanceRecord(ss, data) {
   for (var i=4; i<=9; i++) cw(ws,i,100);
 
   var allAgg = data.allSubAgg;
-  var prog_rate_str = AG.progRate!==null ? Math.round(AG.progRate*1000)/10+'%' : (allAgg.progRate!==null?Math.round(allAgg.progRate*1000)/10+'%':'—');
-  banner(ws,'NJTC TAP — Apprentice Attendance Record  ·  SY 2025–26',
+  var prog_rate_str = AG.progRate!==null ? Math.round(AG.progRate*1000)/10+'%' : (allAgg.progRate!==null?Math.round(allAgg.progRate*1000)/10+'%':' - ');
+  banner(ws,'NJTC TAP  -  Apprentice Attendance Record  ·  SY 2025-26',
     'All '+A.length+' Apprentices  ·  Sorted Highest → Lowest Rate  ·  Program Average: '+prog_rate_str+'  ·  (C) = Cancelled',9);
 
   rh(ws,4,8);
@@ -890,10 +890,10 @@ function buildAttendanceRecord(ss, data) {
     sc(ws.getRange(r,2), a.name,   {bold:true,sz:10,al:'left'});
     sc(ws.getRange(r,3), a.school, {sz:9,al:'left',fc:C.DARK});
     sc(ws.getRange(r,4), a.region, {sz:9,al:'center'});
-    sc(ws.getRange(r,5), a.att!==null?a.att:'—',  {sz:10,al:'center'});
-    sc(ws.getRange(r,6), a.miss!==null?a.miss:'—', {sz:10,al:'center',fc:a.miss>0?'#8B1A1A':C.DARK});
-    sc(ws.getRange(r,7), a.total!==null?a.total:'—',{sz:10,al:'center'});
-    sc(ws.getRange(r,8), a.rate!==null?Math.round(a.rate*1000)/10+'%':'—',
+    sc(ws.getRange(r,5), a.att!==null?a.att:' - ',  {sz:10,al:'center'});
+    sc(ws.getRange(r,6), a.miss!==null?a.miss:' - ', {sz:10,al:'center',fc:a.miss>0?'#8B1A1A':C.DARK});
+    sc(ws.getRange(r,7), a.total!==null?a.total:' - ',{sz:10,al:'center'});
+    sc(ws.getRange(r,8), a.rate!==null?Math.round(a.rate*1000)/10+'%':' - ',
        {bg:attBg(a.rate),fc:attFc(a.rate),bold:true,sz:11,al:'center'});
     var st = a.rate>=1.0?'★ Perfect':a.rate>=0.95?'✓ Excellent':a.rate>=0.85?'▲ Good':'⚠ Needs Attention';
     sc(ws.getRange(r,9), st, {sz:9,al:'center',fc:attFc(a.rate),bold:a.rate>=0.95});
@@ -913,8 +913,8 @@ function buildAttendanceRecord(ss, data) {
 
   rh(ws,tot+1,8);
   rh(ws,tot+2,22);
-  [[C.AP,'#0D5C2E','★ 100%  Perfect'],[C.AH,'#0D5C2E','✓ 95–99%  Excellent'],
-   [C.AM,'#7B5500','▲ 85–94%  Good'],[C.AL,'#8B1A1A','⚠ <85%  Needs Attention']]
+  [[C.AP,'#0D5C2E','★ 100%  Perfect'],[C.AH,'#0D5C2E','✓ 95-99%  Excellent'],
+   [C.AM,'#7B5500','▲ 85-94%  Good'],[C.AL,'#8B1A1A','⚠ <85%  Needs Attention']]
   .forEach(function(l,j){ sc(ws.getRange(tot+2,j*2+1),l[2],{bg:l[0],fc:l[1],bold:true,sz:10,al:'center',va:'middle'}); });
   rh(ws,tot+3,8);
 
@@ -928,13 +928,13 @@ function buildAttendanceRecord(ss, data) {
   var attRange = writeTable(ws,tot+5,1,['Apprentice','Attendance Rate (%)','Program Avg ('+progAvgPct+'%)'],attRows);
   buildChart(ws, attRange, [tot+5, 4], {
     type:'BAR',
-    title:'Apprentice Attendance Rate (%)  ·  NJTC TAP SY 2025–26  ·  Program Average: '+prog_rate_str,
+    title:'Apprentice Attendance Rate (%)  ·  NJTC TAP SY 2025-26  ·  Program Average: '+prog_rate_str,
     hTitle:'Attendance Rate (%)', vTitle:'Apprentice',
     colors:[C.NAVY,C.GOLD], legend:'top', left:200, hMin:50, hMax:103,
     w:760, h:Math.max(500, sorted.length*22+100), caW:480, caH:Math.max(380, sorted.length*18),
   });
 
-  // ── CHART 2: Pie — Attendance tiers ──
+  // ── CHART 2: Pie  -  Attendance tiers ──
   var pieStart = tot + attRows.length + 8;
   secHead(ws,pieStart,9,'CHART 2  ·  Attendance Tier Distribution  ·  All 46 Apprentices',C.TEAL);
   var perfect   = sorted.filter(function(a){return a.rate>=1.0;}).length;
@@ -942,16 +942,16 @@ function buildAttendanceRecord(ss, data) {
   var good      = sorted.filter(function(a){return a.rate>=0.85&&a.rate<0.95;}).length;
   var low       = sorted.filter(function(a){return a.rate<0.85;}).length;
   var pieRange  = writeTable(ws,pieStart+1,1,['Tier','# Apprentices'],
-    [['Perfect (100%)',perfect],['Excellent (95–99%)',excellent],['Good (85–94%)',good],['Needs Attention (<85%)',low]]);
+    [['Perfect (100%)',perfect],['Excellent (95-99%)',excellent],['Good (85-94%)',good],['Needs Attention (<85%)',low]]);
   buildChart(ws, pieRange, [pieStart+1, 3], {
     type:'PIE',
-    title:'Attendance Tier Distribution  ·  '+A.length+' Apprentices  ·  NJTC TAP SY 2025–26',
+    title:'Attendance Tier Distribution  ·  '+A.length+' Apprentices  ·  NJTC TAP SY 2025-26',
     colors:[C.IRMID,C.TEAL,C.GOLD,C.IR2], legend:'right', left:40, w:500, h:300, caW:300, caH:220,
   });
 }
 
 // ══════════════════════════════════════════════════════════
-// ██  SHEET 5 — TALKING POINTS
+// ██  SHEET 5  -  TALKING POINTS
 // ══════════════════════════════════════════════════════════
 function buildTalkingPoints(ss, data) {
   var ws = ss.insertSheet('🏅 Talking Points', ss.getSheets().length);
@@ -959,43 +959,43 @@ function buildTalkingPoints(ss, data) {
   hg(ws);
   for (var i=1; i<=8; i++) cw(ws,i,140);
 
-  var ela_g    = AG.elaAvgGain!==null?'+'+AG.elaAvgGain.toFixed(1):'—';
-  var math_g   = AG.mathAvgGain!==null?'+'+AG.mathAvgGain.toFixed(1):'—';
-  var ela_med  = AG.elaMedianGrowth!==null?Math.round(AG.elaMedianGrowth*100)+'%':'—';
-  var math_med = AG.mathMedianGrowth!==null?Math.round(AG.mathMedianGrowth*100)+'%':'—';
-  var prog_rate = allAgg.progRate!==null?Math.round(allAgg.progRate*1000)/10+'%':'—';
+  var ela_g    = AG.elaAvgGain!==null?'+'+AG.elaAvgGain.toFixed(1):' - ';
+  var math_g   = AG.mathAvgGain!==null?'+'+AG.mathAvgGain.toFixed(1):' - ';
+  var ela_med  = AG.elaMedianGrowth!==null?Math.round(AG.elaMedianGrowth*100)+'%':' - ';
+  var math_med = AG.mathMedianGrowth!==null?Math.round(AG.mathMedianGrowth*100)+'%':' - ';
+  var prog_rate = allAgg.progRate!==null?Math.round(allAgg.progRate*1000)/10+'%':' - ';
   var surv_total = AG.survTotal!==null?Math.round(AG.survTotal).toLocaleString():Math.round(allAgg.survTotal||0).toLocaleString();
-  var ela_imp  = AG.elaImpStr||'—';
-  var math_imp = AG.mathImpStr||'—';
-  var ela_pct  = AG.elaPctImp!==null?Math.round(AG.elaPctImp*100)+'%':'—';
-  var math_pct = AG.mathPctImp!==null?Math.round(AG.mathPctImp*100)+'%':'—';
+  var ela_imp  = AG.elaImpStr||' - ';
+  var math_imp = AG.mathImpStr||' - ';
+  var ela_pct  = AG.elaPctImp!==null?Math.round(AG.elaPctImp*100)+'%':' - ';
+  var math_pct = AG.mathPctImp!==null?Math.round(AG.mathPctImp*100)+'%':' - ';
   var perfect  = A.filter(function(a){return a.rate>=1.0;}).length;
   var tot_att  = Math.round(allAgg.totalAtt||0).toLocaleString();
   var tot_sess = Math.round(allAgg.totalSess||0).toLocaleString();
-  var avgConf  = AG.avgConf||allAgg.avgConf||'—';
-  var avgEnjoy = AG.avgEnjoy||allAgg.avgEnjoy||'—';
-  var avgLearn = AG.avgLearn||allAgg.avgLearn||'—';
-  var avgOv    = AG.avgOverall||allAgg.avgOverall||'—';
+  var avgConf  = AG.avgConf||allAgg.avgConf||' - ';
+  var avgEnjoy = AG.avgEnjoy||allAgg.avgEnjoy||' - ';
+  var avgLearn = AG.avgLearn||allAgg.avgLearn||' - ';
+  var avgOv    = AG.avgOverall||allAgg.avgOverall||' - ';
 
-  banner(ws,'NJTC TAP — SY 2025–26 Capstone Talking Points & Workforce Summary',
+  banner(ws,'NJTC TAP  -  SY 2025-26 Capstone Talking Points & Workforce Summary',
     'For Stakeholder Presentation  ·  All '+A.length+' Apprentices (Active + Cancelled)  ·  Built: '+new Date().toLocaleDateString(),8);
 
   rh(ws,4,8);
   secHead(ws,5,8,'CAPSTONE NARRATIVE TALKING POINTS  ·  For Presentation Use  ·  All data auto-computed from source');
 
   var tps = [
-    ['1. Academic Impact — Scale Score Growth',
-      'Across all '+A.length+' apprentices with available iReady diagnostic data, scholars gained an average of '+ela_g+' iReady scale score points in ELA and '+math_g+' in Math. These apprentices drove '+ela_med+' of typical annual ELA growth and '+math_med+' of Math growth — all through structured, high-impact tutoring delivered by NJ DOL Registered Apprentices. This includes data from both currently enrolled and cancelled apprentices, representing the full scope of TAP's academic reach this year.'],
-    ['2. Placement Movement — From Below Grade Level Toward Grade Level',
-      ela_imp+' ELA scholars ('+ela_pct+') and '+math_imp+' Math scholars ('+math_pct+') improved their iReady diagnostic placement level — moving from below-grade-level tiers toward Early On Grade Level or above. Every placement level gained represents measurable progress toward grade-level proficiency for a real student in New Jersey.'],
-    ['3. SEL Impact — Scholar Wellbeing and Relationship Quality',
-      'Across '+surv_total+' scholar survey responses collected through Pearl Operations: Confidence '+avgConf+'  ·  Enjoyment '+avgEnjoy+'  ·  Learning '+avgLearn+'  ·  Overall '+avgOv+' — all above the 4.0 benchmark. These scores capture something test data cannot: apprentices are building real relationships, creating psychologically safe learning environments, and developing the instructional presence that defines great educators.'],
-    ['4. Professional Commitment — Attendance as a Workforce Signal',
-      'TAP apprentices showed up: '+prog_rate+' program attendance rate across '+tot_sess+' scheduled sessions ('+tot_att+' attended). '+perfect+' apprentices achieved a perfect 100% attendance rate. This is the single most visible measure of professional disposition and workforce readiness — and it is extraordinary.'],
-    ['5. The Full Apprentice Cohort — Active and Cancelled Together',
-      'This report includes all '+A.length+' apprentices who were part of the TAP program in SY 2025–26 — including '+data.cancelledApps.length+' who cancelled during the year. Where data exists for cancelled apprentices (Pearl sessions, MOY iReady scores, survey responses), it is included in full. This report is a culmination of the year, not a status update — every apprentice who touched this program is represented.'],
-    ['6. Data Honesty — Verified, Not Projected',
-      'Several sites have full survey and attendance data but pending academic scores (EOY Preliminary status). This report uses only real, verified, available data — no projections, no estimates. The final EOY analysis will only strengthen what is already a compelling story. When the data is updated, re-run this script to refresh every sheet automatically.'],
+    ['1. Academic Impact  -  Scale Score Growth',
+      'Across all '+A.length+' apprentices with available iReady diagnostic data, scholars gained an average of '+ela_g+' iReady scale score points in ELA and '+math_g+' in Math. These apprentices drove '+ela_med+' of typical annual ELA growth and '+math_med+' of Math growth  -  all through structured, high-impact tutoring delivered by NJ DOL Registered Apprentices. This includes data from both currently enrolled and cancelled apprentices, representing the full scope of TAP\'s academic reach this year.'],
+    ['2. Placement Movement  -  From Below Grade Level Toward Grade Level',
+      ela_imp+' ELA scholars ('+ela_pct+') and '+math_imp+' Math scholars ('+math_pct+') improved their iReady diagnostic placement level  -  moving from below-grade-level tiers toward Early On Grade Level or above. Every placement level gained represents measurable progress toward grade-level proficiency for a real student in New Jersey.'],
+    ['3. SEL Impact  -  Scholar Wellbeing and Relationship Quality',
+      'Across '+surv_total+' scholar survey responses collected through Pearl Operations: Confidence '+avgConf+'  ·  Enjoyment '+avgEnjoy+'  ·  Learning '+avgLearn+'  ·  Overall '+avgOv+'  -  all above the 4.0 benchmark. These scores capture something test data cannot: apprentices are building real relationships, creating psychologically safe learning environments, and developing the instructional presence that defines great educators.'],
+    ['4. Professional Commitment  -  Attendance as a Workforce Signal',
+      'TAP apprentices showed up: '+prog_rate+' program attendance rate across '+tot_sess+' scheduled sessions ('+tot_att+' attended). '+perfect+' apprentices achieved a perfect 100% attendance rate. This is the single most visible measure of professional disposition and workforce readiness  -  and it is extraordinary.'],
+    ['5. The Full Apprentice Cohort  -  Active and Cancelled Together',
+      'This report includes all '+A.length+' apprentices who were part of the TAP program in SY 2025-26  -  including '+data.cancelledApps.length+' who cancelled during the year. Where data exists for cancelled apprentices (Pearl sessions, MOY iReady scores, survey responses), it is included in full. This report is a culmination of the year, not a status update  -  every apprentice who touched this program is represented.'],
+    ['6. Data Honesty  -  Verified, Not Projected',
+      'Several sites have full survey and attendance data but pending academic scores (EOY Preliminary status). This report uses only real, verified, available data  -  no projections, no estimates. The final EOY analysis will only strengthen what is already a compelling story. When the data is updated, re-run this script to refresh every sheet automatically.'],
   ];
 
   tps.forEach(function(tp, i) {
@@ -1014,14 +1014,14 @@ function buildTalkingPoints(ss, data) {
   A.forEach(function(a){ if(a.school&&a.school!=='No Placement') schools[a.school]=1; });
   var schoolCount = Object.keys(schools).length;
   var wfRows = [
-    ['NJ DOL Registered Apprentices — SY 2025-26', String(A.length), data.activeApps.length+' Active  ·  '+data.cancelledApps.length+' Cancelled'],
+    ['NJ DOL Registered Apprentices  -  SY 2025-26', String(A.length), data.activeApps.length+' Active  ·  '+data.cancelledApps.length+' Cancelled'],
     ['Total Tutoring Sessions Logged', tot_sess, 'Across '+schoolCount+' schools in NE and SW regions of New Jersey'],
-    ['Sessions Successfully Attended', tot_att, prog_rate+' program-wide attendance — professional standard met'],
-    ['K-12 Scholars Supported (ELA + Math)', String((data.agg.elaTotalScholars||0)+(data.agg.mathTotalScholars||0))+'+', 'Combined caseload — active + cancelled apprentices'],
+    ['Sessions Successfully Attended', tot_att, prog_rate+' program-wide attendance  -  professional standard met'],
+    ['K-12 Scholars Supported (ELA + Math)', String((data.agg.elaTotalScholars||0)+(data.agg.mathTotalScholars||0))+'+', 'Combined caseload  -  active + cancelled apprentices'],
     ['Scholar Survey Responses via Pearl', surv_total, 'Confidence · Enjoyment · Learning · Overall dimensions'],
-    ['Avg Scholar Overall Rating', (avgOv||'—')+' / 5.0', 'Exceeds 4.0 benchmark — scholars feel supported and valued'],
+    ['Avg Scholar Overall Rating', (avgOv||' - ')+' / 5.0', 'Exceeds 4.0 benchmark  -  scholars feel supported and valued'],
     ['Apprentices at 100% Attendance', String(perfect), 'Perfect professional attendance for the full academic year'],
-    ['School Sites Served Statewide', String(schoolCount), 'From Southwest NJ to Northeast NJ — full state footprint'],
+    ['School Sites Served Statewide', String(schoolCount), 'From Southwest NJ to Northeast NJ  -  full state footprint'],
   ];
   wfRows.forEach(function(row, i) {
     var r = wfRow + 2 + i;
@@ -1038,10 +1038,10 @@ function buildTalkingPoints(ss, data) {
 // ══════════════════════════════════════════════════════════
 function buildOneCert(ws, startRow, app, certType) {
   var CERT_ROWS = 28;
-  var attStr    = app.rate!==null ? Math.round(app.rate*100)+'%' : '—';
-  var sessStr   = (app.att||'—')+' of '+(app.total||'—')+' sessions';
-  var survStr   = app.overall!==null ? app.overall.toFixed(1)+' / 5.0' : '—';
-  var survCount = app.survR!==null ? Math.round(app.survR).toLocaleString() : '—';
+  var attStr    = app.rate!==null ? Math.round(app.rate*100)+'%' : ' - ';
+  var sessStr   = (app.att||' - ')+' of '+(app.total||' - ')+' sessions';
+  var survStr   = app.overall!==null ? app.overall.toFixed(1)+' / 5.0' : ' - ';
+  var survCount = app.survR!==null ? Math.round(app.survR).toLocaleString() : ' - ';
   var eg = app.elaG, mg = app.mathG;
 
   ws.getRange(startRow, 1, CERT_ROWS, 10).setBackground('#FAFBFD');
@@ -1050,14 +1050,14 @@ function buildOneCert(ws, startRow, app, certType) {
   rh(ws,startRow,6);   ws.getRange(startRow,1,1,10).merge().setBackground(C.GOLD);
   // NJTC Header
   rh(ws,startRow+1,26); mr(ws,startRow+1,1,1,10,'NEW JERSEY TUTORING CORPS',{bg:C.NAVY,fc:C.WHITE,bold:true,sz:14,al:'center',va:'middle'});
-  rh(ws,startRow+2,18); mr(ws,startRow+2,1,1,10,'Tutor Apprenticeship Program  ·  SY 2025–2026  ·  NJ Department of Labor Registered Apprenticeship',{bg:C.NAVY,fc:'#9EC5E8',sz:9,al:'center',va:'middle',it:true});
+  rh(ws,startRow+2,18); mr(ws,startRow+2,1,1,10,'Tutor Apprenticeship Program  ·  SY 2025-2026  ·  NJ Department of Labor Registered Apprenticeship',{bg:C.NAVY,fc:'#9EC5E8',sz:9,al:'center',va:'middle',it:true});
   // Gold rule
   rh(ws,startRow+3,4); ws.getRange(startRow+3,1,1,10).merge().setBackground(C.GOLD);
   // Cert type title
   var certTitle = certType==='complete'?'CERTIFICATE OF ACHIEVEMENT':certType==='partial'?'CERTIFICATE OF PARTICIPATION':'CERTIFICATE OF RECOGNITION';
   rh(ws,startRow+4,32); mr(ws,startRow+4,1,1,10,certTitle,{bg:'#FAFBFD',fc:C.NAVY,bold:true,sz:18,al:'center',va:'middle'});
   rh(ws,startRow+5,18); mr(ws,startRow+5,1,1,10,'This certificate is proudly presented to',{bg:'#FAFBFD',fc:C.DARK,sz:10,al:'center',va:'middle',it:true});
-  // Apprentice name — hero
+  // Apprentice name  -  hero
   rh(ws,startRow+6,48); mr(ws,startRow+6,1,1,10,app.name,{bg:'#FAFBFD',fc:C.NAVY,bold:true,sz:24,al:'center',va:'middle'});
   ws.getRange(startRow+6,1,1,10).setBorder(false,false,true,false,false,false,C.GOLD,SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   // School + region
@@ -1069,20 +1069,20 @@ function buildOneCert(ws, startRow, app, certType) {
   if (certType==='complete') {
     var eLine = eg!==null?'guiding scholars to an average ELA gain of '+fmtNum(eg,1,true)+' iReady scale score points':'driving measurable academic progress';
     var mLine = mg!==null?' and a Math gain of '+fmtNum(mg,1,true)+' points':'';
-    stmt = 'In recognition of exemplary service as a NJ DOL Registered Tutor Apprentice — '+eLine+mLine+', maintaining a '+attStr+' professional attendance rate across '+sessStr+', and receiving a '+survStr+' scholar satisfaction rating from '+survCount+' surveys collected through Pearl Operations.';
+    stmt = 'In recognition of exemplary service as a NJ DOL Registered Tutor Apprentice  -  '+eLine+mLine+', maintaining a '+attStr+' professional attendance rate across '+sessStr+', and receiving a '+survStr+' scholar satisfaction rating from '+survCount+' surveys collected through Pearl Operations.';
   } else if (certType==='partial') {
-    stmt = 'In recognition of dedicated service as a NJ DOL Registered Tutor Apprentice — maintaining a '+attStr+' professional attendance rate across '+sessStr+', earning a '+survStr+' scholar satisfaction rating across '+survCount+' surveys, and demonstrating the professional commitment that defines the NJTC Tutor Apprenticeship Program. Full academic impact data pending EOY submission.';
+    stmt = 'In recognition of dedicated service as a NJ DOL Registered Tutor Apprentice  -  maintaining a '+attStr+' professional attendance rate across '+sessStr+', earning a '+survStr+' scholar satisfaction rating across '+survCount+' surveys, and demonstrating the professional commitment that defines the NJTC Tutor Apprenticeship Program. Full academic impact data pending EOY submission.';
   } else {
-    stmt = 'In recognition of completing SY 2025–26 as a NJ DOL Registered Tutor Apprentice with the New Jersey Tutoring Corps — serving scholars across New Jersey with dedication, care, and professional excellence. Attendance: '+attStr+'. Scholar Rating: '+survStr+'. Total Sessions: '+(app.total||'—')+'.';
+    stmt = 'In recognition of completing SY 2025-26 as a NJ DOL Registered Tutor Apprentice with the New Jersey Tutoring Corps  -  serving scholars across New Jersey with dedication, care, and professional excellence. Attendance: '+attStr+'. Scholar Rating: '+survStr+'. Total Sessions: '+(app.total||' - ')+'.';
   }
   rh(ws,startRow+9,72); mr(ws,startRow+9,1,1,10,stmt,{bg:'#FAFBFD',fc:C.BLACK,sz:10,al:'center',va:'middle',wrap:true});
   // Stats header
   rh(ws,startRow+10,4); ws.getRange(startRow+10,1,1,10).merge().setBackground(C.MID);
-  rh(ws,startRow+11,18); mr(ws,startRow+11,1,1,10,'PERFORMANCE HIGHLIGHTS  ·  SY 2025–26',{bg:C.NAVY,fc:C.WHITE,bold:true,sz:9,al:'center',va:'middle'});
+  rh(ws,startRow+11,18); mr(ws,startRow+11,1,1,10,'PERFORMANCE HIGHLIGHTS  ·  SY 2025-26',{bg:C.NAVY,fc:C.WHITE,bold:true,sz:9,al:'center',va:'middle'});
   // Core stats
   rh(ws,startRow+12,30);
   [[1,2,'ATTENDANCE RATE\n'+attStr,          attBg(app.rate), attFc(app.rate)],
-   [3,2,'SESSIONS ATTENDED\n'+(app.att||'—')+' sessions', C.LTGRAY, C.NAVY],
+   [3,2,'SESSIONS ATTENDED\n'+(app.att||' - ')+' sessions', C.LTGRAY, C.NAVY],
    [5,2,'SCHOLAR RATING\n'+survStr,          svBg(app.overall), app.overall>=4.5?'#1A7A4A':C.NAVY],
    [7,2,'SURVEY RESPONSES\n'+survCount,      C.LTGRAY, C.NAVY],
    [9,2,'REGION\n'+app.region+'  ·  NJ',    C.NAVY, C.WHITE]].forEach(function(x){
@@ -1094,22 +1094,22 @@ function buildOneCert(ws, startRow, app, certType) {
     var acRows;
     if (eg!==null&&mg!==null) {
       acRows=[[1,3,'ELA GAIN\n'+fmtNum(eg,1,true)+' pts',gBg(eg),'#1A7A4A'],
-              [4,2,'ELA SCHOLARS\n'+(app.elaS>0?app.elaS:'—')+' students',C.LTGRAY,C.NAVY],
+              [4,2,'ELA SCHOLARS\n'+(app.elaS>0?app.elaS:' - ')+' students',C.LTGRAY,C.NAVY],
               [6,3,'MATH GAIN\n'+fmtNum(mg,1,true)+' pts',gBg(mg),'#1A7A4A'],
-              [9,2,'MATH SCHOLARS\n'+(app.mathS>0?app.mathS:'—')+' students',C.LTGRAY,C.NAVY]];
+              [9,2,'MATH SCHOLARS\n'+(app.mathS>0?app.mathS:' - ')+' students',C.LTGRAY,C.NAVY]];
     } else if (eg!==null) {
       acRows=[[1,5,'ELA GAIN\n'+fmtNum(eg,1,true)+' iReady pts',gBg(eg),'#1A7A4A'],
-              [6,5,'ELA SCHOLARS TUTORED\n'+(app.elaS>0?app.elaS:'—')+' students',C.LTGRAY,C.NAVY]];
+              [6,5,'ELA SCHOLARS TUTORED\n'+(app.elaS>0?app.elaS:' - ')+' students',C.LTGRAY,C.NAVY]];
     } else {
       acRows=[[1,5,'MATH GAIN\n'+fmtNum(mg,1,true)+' iReady pts',gBg(mg),'#1A7A4A'],
-              [6,5,'MATH SCHOLARS TUTORED\n'+(app.mathS>0?app.mathS:'—')+' students',C.LTGRAY,C.NAVY]];
+              [6,5,'MATH SCHOLARS TUTORED\n'+(app.mathS>0?app.mathS:' - ')+' students',C.LTGRAY,C.NAVY]];
     }
     acRows.forEach(function(x){ mr(ws,startRow+13,x[0],1,x[1],x[2],{bg:x[3],fc:x[4],bold:true,sz:9,al:'center',va:'middle',wrap:true}); });
     rh(ws,startRow+14,26);
-    [[1,2,'CONFIDENCE\n'+(app.conf?app.conf.toFixed(1)+'/5':'—'),svBg(app.conf),'#1A7A4A'],
-     [3,3,'ENJOYMENT\n'+(app.enjoy?app.enjoy.toFixed(1)+'/5':'—'),svBg(app.enjoy),'#1A7A4A'],
-     [6,2,'LEARNING\n'+(app.learn?app.learn.toFixed(1)+'/5':'—'),svBg(app.learn),'#1A7A4A'],
-     [8,3,'OVERALL RATING\n'+(app.overall?app.overall.toFixed(1)+'/5.0':'—'),svBg(app.overall),'#1A7A4A']]
+    [[1,2,'CONFIDENCE\n'+(app.conf?app.conf.toFixed(1)+'/5':' - '),svBg(app.conf),'#1A7A4A'],
+     [3,3,'ENJOYMENT\n'+(app.enjoy?app.enjoy.toFixed(1)+'/5':' - '),svBg(app.enjoy),'#1A7A4A'],
+     [6,2,'LEARNING\n'+(app.learn?app.learn.toFixed(1)+'/5':' - '),svBg(app.learn),'#1A7A4A'],
+     [8,3,'OVERALL RATING\n'+(app.overall?app.overall.toFixed(1)+'/5.0':' - '),svBg(app.overall),'#1A7A4A']]
     .forEach(function(x){ mr(ws,startRow+14,x[0],1,x[1],x[2],{bg:x[3],fc:x[4],bold:true,sz:9,al:'center',va:'middle',wrap:true}); });
   }
 
@@ -1117,13 +1117,13 @@ function buildOneCert(ws, startRow, app, certType) {
   rh(ws,startRow+18,5); ws.getRange(startRow+18,1,1,10).merge().setBackground(C.MID);
   rh(ws,startRow+19,52); // taller row to accommodate signature image
 
-  // Katherine's signature — image if URL configured, else text line
+  // Katherine's signature  -  image if URL configured, else text line
   if (KATHERINE_SIGNATURE_URL) {
     try {
       // Signature image floated over the left signature cell area
       ws.insertImage(KATHERINE_SIGNATURE_URL, startRow+19, 1, 8, 2);
     } catch(e) {
-      // Image failed (bad URL or permissions) — fall through to text placeholder
+      // Image failed (bad URL or permissions)  -  fall through to text placeholder
       KATHERINE_SIGNATURE_URL = '';
     }
   }
@@ -1136,7 +1136,7 @@ function buildOneCert(ws, startRow, app, certType) {
 
   // Footer
   rh(ws,startRow+23,16);
-  mr(ws,startRow+23,1,1,10,'NJ DOL Registered Apprenticeship  ·  New Jersey Tutoring Corps  ·  Tutor Apprenticeship Program  ·  Academic Year 2025–2026',{bg:C.NAVY,fc:'#9EC5E8',sz:8,al:'center',va:'middle',it:true});
+  mr(ws,startRow+23,1,1,10,'NJ DOL Registered Apprenticeship  ·  New Jersey Tutoring Corps  ·  Tutor Apprenticeship Program  ·  Academic Year 2025-2026',{bg:C.NAVY,fc:'#9EC5E8',sz:8,al:'center',va:'middle',it:true});
   rh(ws,startRow+24,6); ws.getRange(startRow+24,1,1,10).merge().setBackground(C.GOLD);
   rh(ws,startRow+25,16);
   // Borders
@@ -1163,7 +1163,7 @@ function buildCertsComplete(ss, data) {
   var ws = ss.insertSheet('🥇 Certificates: Complete', ss.getSheets().length);
   var complete = data.apprentices.filter(hasAcademicData);
   certSheetHeader(ws,
-    'NJTC TAP — SY 2025–26  ·  CERTIFICATES OF ACHIEVEMENT  ·  '+complete.length+' Apprentices with Academic Data',
+    'NJTC TAP  -  SY 2025-26  ·  CERTIFICATES OF ACHIEVEMENT  ·  '+complete.length+' Apprentices with Academic Data',
     'Active + Cancelled  ·  iReady or Standards Mastery Data Present  ·  Print: File → Print → Letter Landscape',C.NAVY);
   var r = 4;
   complete.forEach(function(app){ buildOneCert(ws,r,app,'complete'); r+=28; });
@@ -1173,7 +1173,7 @@ function buildCertsPartial(ss, data) {
   var ws = ss.insertSheet('📜 Certificates: Partial', ss.getSheets().length);
   var partial = data.apprentices.filter(function(a){ return !hasAcademicData(a); });
   certSheetHeader(ws,
-    'NJTC TAP — SY 2025–26  ·  CERTIFICATES OF PARTICIPATION  ·  '+partial.length+' Apprentices',
+    'NJTC TAP  -  SY 2025-26  ·  CERTIFICATES OF PARTICIPATION  ·  '+partial.length+' Apprentices',
     'Survey & Attendance Data Present  ·  Full Achievement Certificates Follow Upon EOY Release',C.TEAL);
   var r = 4;
   partial.forEach(function(app){ buildOneCert(ws,r,app,'partial'); r+=28; });
@@ -1182,7 +1182,7 @@ function buildCertsPartial(ss, data) {
 function buildCertsRecognition(ss, data) {
   var ws = ss.insertSheet('🌟 Certificates: Recognition', ss.getSheets().length);
   certSheetHeader(ws,
-    'NJTC TAP — SY 2025–26  ·  CERTIFICATES OF RECOGNITION  ·  All '+data.apprentices.length+' Apprentices',
+    'NJTC TAP  -  SY 2025-26  ·  CERTIFICATES OF RECOGNITION  ·  All '+data.apprentices.length+' Apprentices',
     'Active + Cancelled  ·  Celebrating Every Apprentice for Service, Dedication & Professional Development',C.GOLD);
   var r = 4;
   data.apprentices.forEach(function(app){ buildOneCert(ws,r,app,'recognition'); r+=28; });
