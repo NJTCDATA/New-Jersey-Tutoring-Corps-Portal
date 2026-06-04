@@ -35,6 +35,95 @@
     },
   ];
 
+  // ── SY 25-26 termination date overrides ────────────────────────────────────
+  // Authoritative termination dates from School Year Database 2025-2026 Terminations sheet.
+  // Used to fill missing or malformed _termDate values in HR_EMPS for SY 25-26 employees.
+  // Keyed by lowercase "firstname lastname" (spaces normalized).
+  const SY2526_TERM_DATES = {
+    'evan white':                          '8/19/2025',
+    'manuel algarin':                      '8/28/2025',
+    'clifford evan':                       '9/5/2025',
+    'janelle lee':                         '9/23/2025',
+    'michael d\'alessio':                  '9/24/2025',
+    'aleah mcwilliams':                    '9/25/2025',
+    'takiyah jackson':                     '9/25/2025',
+    'dhrupalben naseet':                   '10/3/2025',
+    'ciara cosby':                         '10/9/2025',
+    'shanice thomas':                      '10/9/2025',
+    'joann maybury':                       '10/14/2025',
+    'ka\'deasia washington':               '10/17/2025',
+    'kadeasia washington':                 '10/17/2025',
+    'laila modzelewski':                   '10/27/2025',
+    'yohanny rosario':                     '10/31/2025',
+    'claudia tumelus':                     '10/31/2025',
+    'hind hamoda':                         '10/31/2025',
+    'hendrix garcia':                      '11/3/2025',
+    'ashley garcia':                       '11/3/2025',
+    'genesis rosich':                      '11/4/2025',
+    'pankajbharathi sowmianarayanan':      '11/11/2025',
+    'gunjan pandya':                       '11/15/2025',
+    'michelle kim':                        '11/17/2025',
+    'nicole cill':                         '11/24/2025',
+    'colin camp':                          '12/3/2025',
+    'daniel diquinzio':                    '12/3/2025',
+    'lesley waszen':                       '12/3/2025',
+    'zakaria imessaoudene':                '12/8/2025',
+    'davide berardi':                      '12/18/2025',
+    'edwin montesdeoca':                   '12/18/2025',
+    'kimara ramsey':                       '12/18/2025',
+    'tanya israel-sainthilaire':           '12/18/2025',
+    'tanya israel sainthilaire':           '12/18/2025',
+    'jodi bianchi':                        '1/2/2026',
+    'laura gallucci':                      '1/2/2026',
+    'disan singleton':                     '1/7/2026',
+    'kamiah shelton':                      '1/7/2026',
+    'sharlene rahim':                      '1/21/2026',
+    'lemuer perez de jesus':               '1/22/2026',
+    'lemuer pérez de jesus':               '1/22/2026',
+    'everene williams':                    '1/22/2026',
+    'chandler talty':                      '1/28/2026',
+    'henrika hill-joseph':                 '1/28/2026',
+    'henrika hill joseph':                 '1/28/2026',
+    'angelica werts':                      '1/30/2026',
+    'kathryn hennigan':                    '2/1/2026',
+    'katie hennigan':                      '2/1/2026',
+    'jeily insuasti-torres':               '2/6/2026',
+    'jeily insuasti torres':               '2/6/2026',
+    'glenn harris':                        '2/6/2026',
+    'victoria nachimson':                  '2/17/2026',
+    'amro abdelrazek':                     '2/25/2026',
+    'maureen farrell':                     '2/25/2026',
+    'carolyn butler':                      '2/26/2026',
+    'susan dominquez':                     '2/27/2026',
+    'jenny seligman':                      '2/27/2026',
+    'janice reaves':                       '3/6/2026',
+    'alyssa deangelis':                    '3/9/2026',
+    'colleen elam':                        '3/9/2026',
+    'maria zia':                           '3/11/2026',
+    'shayla hibbert':                      '3/11/2026',
+    'lataiva balmer':                      '3/16/2026',
+    'pia walden':                          '3/17/2026',
+    'jacob leebron':                       '3/19/2026',
+    'sara gonzalez':                       '3/19/2026',
+    'monica brown':                        '3/23/2026',
+    'brittany douglas':                    '3/23/2026',
+    'daivon devard':                       '3/26/2026',
+    'shakirah miller':                     '3/26/2026',
+    'rebeka lange':                        '3/27/2026',
+    'nicole coleman-odigie':               '3/27/2026',
+    'nicole coleman odigie':               '3/27/2026',
+    'jaejin lee':                          '4/8/2026',
+    'abdallah abada':                      '4/13/2026',
+    'apollo monroy-polanco':               '4/13/2026',
+    'apollo monroy polanco':               '4/13/2026',
+    'jessica flores':                      '4/17/2026',
+    'monifa thomas-kelsey':                '4/21/2026',
+    'monifa thomas kelsey':                '4/21/2026',
+    'olga berkin':                         '4/23/2026',
+    'linda fenty':                         '4/27/2026',
+    'shannon spillane':                    '4/30/2026',
+  };
+
   // ── SY 25-26 hardcoded new hire counts by month ─────────────────────────────
   // Derived from School Year Database 2025-2026 offer-accepted dates.
   // Keyed as YYYY-MM → count of new hires accepted that month.
@@ -137,17 +226,23 @@
     // HR_EMPS field map: n=name, r=role, s=status, y=years[], py=primaryYear,
     // _termDate, _termType (Voluntary/Involuntary), _termReason, si=site, di=district
     const arr = (typeof HR_EMPS !== 'undefined') ? HR_EMPS : [];
+    const normName = n => (n || '').toLowerCase().replace(/\s+/g, ' ').trim();
     return arr
       .filter(e => e && e.n && e.y && e.y.includes('2025-2026'))
       .map(e => {
-        const termDate = (e._termDate && e._termDate.trim()) ? parseDate(e._termDate.trim()) : null;
+        // Parse termDate from HR_EMPS; fall back to authoritative lookup when missing or malformed
+        let termDate = (e._termDate && e._termDate.trim()) ? parseDate(e._termDate.trim()) : null;
+        if (!termDate) {
+          const override = SY2526_TERM_DATES[normName(e.n)];
+          if (override) termDate = parseDate(override);
+        }
         // Start date set to beginning of period — precise dates are overridden via SY2526_NEW_HIRE_COUNTS
         return {
           name:       e.n,
           role:       e.r || '',
           startDate:  new Date(2025, 8, 1),   // Sep 1, 2025 local
           termDate,
-          terminated: e.s === 'Terminated',
+          terminated: e.s === 'Terminated' || !!termDate,
           resignType: (e._termType || '').toLowerCase(),
           cycle:      'school year 25-26',
           isSummer:   false,
