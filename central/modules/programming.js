@@ -592,6 +592,9 @@
         setText('syStatActual',    '—');   // No Pearl scholar data for summer
         setText('syStatEst',       '—');
         setText('syStatStaff',     empRows.length.toLocaleString());
+        // Cache stats for Exec Dashboard period selector
+        window._syaStats = window._syaStats || {};
+        window._syaStats['summer2026'] = { sites: sites.size, districts: districts.size, staff: empRows.length };
         // Notify exec dashboard
         try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
         return;
@@ -609,7 +612,14 @@
         ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
       const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
-      // Notify exec dashboard — Home Schools KPI reads from syStatSites
+      // Cache stats for Exec Dashboard period selector
+      window._syaStats = window._syaStats || {};
+      window._syaStats[_activePeriod] = {
+        sites: s.length,
+        districts: new Set(s.map(r => r.district)).size,
+        staff: _hrStaff != null ? _hrStaff : stf,
+      };
+      // Notify exec dashboard
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
 
