@@ -245,7 +245,7 @@
     'iLearn Bergen MS':          ['bergen middle school'],
     'iLearn Bergen':             ['bergen middle school', 'bergen ascs elementary'],
     'iLearn Passaic MS':         ['passaic middle'],
-    'iLearn Passaic ES':         ['passaic elementary', 'passaic clifton elementary'],
+    'iLearn Passaic ES':         ['passaic elementary'],
     'iLearn Paterson':           ['paterson arts and science charter school middle',
                                   'paterson arts and science charter school elementary'],
     'iLearn Paterson MS':        ['paterson arts and science charter school middle'],
@@ -261,7 +261,7 @@
     // Hamilton Township (Pearl district ID: nj-hamil44973) — Caitlin, Katherine R., Lilia
     // School names currently in the MOY sheet (June 2026 export):
     'Hamilton Township':         ['crockett middle school', 'grice middle school',
-                                  'klockner elementary school',
+                                  'klockner elementary school', 'wilson elementary school',
                                   // Prior school names (kept in case sheet reverts):
                                   'greenwood elementary school', 'kuser elementary school',
                                   'alexander crockett elementary', 'hamilton township'],
