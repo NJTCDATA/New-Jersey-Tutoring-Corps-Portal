@@ -14,15 +14,23 @@
   }
   function _buildExecDashboardInner(dept, el) {
 
+    // ── Period selector state (persisted on el.dataset) ───────────────
+    const execPeriod = el.dataset.execPeriod || 'sy2526';
+    const _isLive    = execPeriod !== 'sy2526'; // Summer 2026 or SY 26-27 — Pearl/iReady not yet available
+    const _syaStats  = (window._syaStats && window._syaStats[execPeriod]) || null;
+    const _periodLabel = execPeriod === 'sy2526' ? '📁 SY 25-26 Archived' : execPeriod === 'summer2026' ? '☀️ Summer 2026' : '🎓 SY 26-27';
+    const _periodLong  = execPeriod === 'sy2526' ? 'SY 25-26 Archived Snapshot' : execPeriod === 'summer2026' ? 'Summer 2026 · Live Data' : 'SY 26-27 · Live Data';
+
     // ── Data sources ──────────────────────────────────────────────────
     const po   = (typeof window.po   !== 'undefined') ? window.po   : null;
     const irlb = (typeof window.irlab !== 'undefined') ? window.irlab : null;
 
-    const poStats = po   ? po.getStats()         : null;
-    const ldData  = po   ? po.getLeadershipData() : null;
-    const stellar = po   ? po.getStellarSchools() : null;
-    const raceRaw = po   ? po.getRaceData()       : null;
-    const irl     = irlb ? irlb.getSummary('ALL') : null;
+    // Pearl and iReady are SY 25-26 only — suppress for future periods
+    const poStats = (!_isLive && po)   ? po.getStats()         : null;
+    const ldData  = (!_isLive && po)   ? po.getLeadershipData() : null;
+    const stellar = (!_isLive && po)   ? po.getStellarSchools() : null;
+    const raceRaw = (!_isLive && po)   ? po.getRaceData()       : null;
+    const irl     = (!_isLive && irlb) ? irlb.getSummary('ALL') : null;
 
     // ── SY Drill-down state (persisted on el dataset) ─────────────────
     // Available SYs from iReady corpus
@@ -52,20 +60,22 @@
     const hrActiveTutors = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
       ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length
       : null;
-    const tutors    = hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null);
-    // Scholar counts sourced from Pearl Operations _personMap — the single authoritative Pearl roster.
-    // Active scholars:  unique students with ≥1 attended session (poStats.activeScholars).
-    // Rostered scholars: ALL unique students in Pearl regardless of attendance (poStats.rosteredScholars).
-    //   These are DIFFERENT counts — rostered is the superset. Do NOT use activeScholars for rostered.
+    // For live periods: staff/districts/schools come from SY Analytics tracker stats (period-specific).
+    // For SY 25-26: staff from HR Master List, districts/schools from Pearl + SYA.
+    const tutors = _isLive
+      ? (_syaStats ? _syaStats.staff : null)
+      : (hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null));
     const _pearlScholars = poStats ? poStats.activeScholars : null;
     const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
     const rosteredScholars = poStats ? poStats.rosteredScholars : (ldData ? ldData.rosteredScholars : null);
-    const districts = ldData  ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null);
-    // Schools: sourced from SY Analytics total sites (syStatSites DOM element — authoritative site count).
-    // Falls back to Pearl schoolCount only if SY Analytics hasn't loaded yet.
-    const _syaSitesEl = document.getElementById('syStatSites');
-    const _syaSitesVal = _syaSitesEl ? parseInt((_syaSitesEl.textContent||'').replace(/[^0-9]/g,'')) || null : null;
-    const schools   = _syaSitesVal != null ? _syaSitesVal : (poStats ? poStats.schoolCount : null);
+    const districts = _isLive
+      ? (_syaStats ? _syaStats.districts : null)
+      : (ldData ? (ldData.districts ? ldData.districts.length : null) : (poStats ? poStats.districtCount : null));
+    // Schools: sourced from SY Analytics cached stats (period-aware, breaks DOM coupling with syStatSites).
+    // Falls back to Pearl schoolCount only if SYA stats not yet cached for this period.
+    const schools = (_syaStats && _syaStats.sites != null)
+      ? _syaStats.sites
+      : (poStats ? poStats.schoolCount : null);
     const sessions  = ldData  ? ldData.sessionsDelivered : (poStats ? poStats.sessions : null);
     const siCount   = poStats ? poStats.siCount       : null;
     const totalMins       = poStats ? poStats.totalMins       : null;
@@ -202,9 +212,14 @@
     el.innerHTML = `<div class="ecd-main-col">
       <!-- ═══ HEADER ═══ -->
       <div class="ecd-header">
-        <div>
+        <div style="flex:1">
           <div class="ecd-header-title">Executive Command Center</div>
-          <div class="ecd-header-sub">Live operational snapshot · ${nowStr}</div>
+          <div class="ecd-header-sub">${_periodLong} · ${nowStr}</div>
+          <div style="display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap">
+            <button onclick="document.getElementById('execDashboard').dataset.execPeriod='sy2526';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='sy2526'?'#003087':'#dde3ec'};background:${execPeriod==='sy2526'?'#003087':'#f0f4fa'};color:${execPeriod==='sy2526'?'#fff':'#475569'};cursor:pointer">📁 SY 25-26</button>
+            <button onclick="document.getElementById('execDashboard').dataset.execPeriod='summer2026';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='summer2026'?'#d97706':'#dde3ec'};background:${execPeriod==='summer2026'?'#fef3c7':'#f0f4fa'};color:${execPeriod==='summer2026'?'#d97706':'#475569'};cursor:pointer">☀️ Summer 2026</button>
+            <button onclick="document.getElementById('execDashboard').dataset.execPeriod='sy2627';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='sy2627'?'#059669':'#dde3ec'};background:${execPeriod==='sy2627'?'#dcfce7':'#f0f4fa'};color:${execPeriod==='sy2627'?'#059669':'#475569'};cursor:pointer">🎓 SY 26-27</button>
+          </div>
         </div>
         <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap">
           <span style="font-size:.6rem;background:#f0f4fa;color:#475569;border:1px solid #dde3ec;border-radius:20px;padding:.2rem .625rem;font-weight:600">${_dataSource}</span>
@@ -216,41 +231,42 @@
       <!-- ═══ 1. PROGRAM FOOTPRINT ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Program Footprint</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-hero">
-        <div class="ecd-kpi ck-navy" title="Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet." style="position:relative">
+        <div class="ecd-kpi ck-navy" title="${_isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
           <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">Active FT staff · HR Master List</div>
-          <button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>
+          <div class="ecd-kpi-foot">${_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List'}</div>
+          ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
         </div>
-        <div class="ecd-kpi ck-gold" title="Districts: Count of unique partner districts derived from Pearl Operations attendance records.">
+        <div class="ecd-kpi ck-gold" title="Districts: ${_isLive ? 'Unique districts from SY Analytics tracker for this period.' : 'Count of unique partner districts derived from Pearl Operations attendance records.'}">
           <div class="ecd-kpi-lbl">Districts</div>
           <div class="ecd-kpi-val">${fv(districts)}</div>
-          <div class="ecd-kpi-foot">Partner districts</div>
+          <div class="ecd-kpi-foot">${_isLive ? 'SY Analytics · Partner districts' : 'Partner districts'}</div>
         </div>
-        <div class="ecd-kpi ck-blue" title="Schools: Total active sites listed in the SY Database — the authoritative source for site counts. Includes all program sites (including pilot schools). Live from SY Analytics.">
+        <div class="ecd-kpi ck-blue" title="Schools: Total active sites from SY Analytics for this period.">
           <div class="ecd-kpi-lbl">Schools</div>
           <div class="ecd-kpi-val">${fv(schools)}</div>
-          <div class="ecd-kpi-foot">Active sites · SY Database</div>
+          <div class="ecd-kpi-foot">Active sites · SY Analytics</div>
         </div>
+        ${!_isLive ? `
         <div class="ecd-kpi ck-green" title="Sessions Delivered: Total session records from Pearl Sessions tab. Counts all completed sessions (full and partial).">
           <div class="ecd-kpi-lbl">Sessions</div>
-          <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '\u2014'}</div>
+          <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '—'}</div>
           <div class="ecd-kpi-foot">Total delivered</div>
         </div>
         <div class="ecd-kpi ck-navy" title="Active Scholars: Unique students with at least 1 attended session in Pearl Operations. Live from Pearl data.">
           <div class="ecd-kpi-lbl">Active Scholars</div>
-          <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '\u2014'}</div>
+          <div class="ecd-kpi-val">${activeScholars != null ? fc(activeScholars) : '—'}</div>
           <div class="ecd-kpi-foot">Attended ≥1 session</div>
         </div>
         <div class="ecd-kpi ck-blue" title="Rostered Scholars: Unique student IDs from the Pearl Attendance tab — all scholars who appear in Pearl regardless of whether their sessions were delivered or cancelled, and regardless of attendance. Enrollment does not require attending a session. Consistent with the Scholar Demographics n= count below.">
           <div class="ecd-kpi-lbl">Rostered Scholars</div>
-          <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '\u2014'}</div>
+          <div class="ecd-kpi-val">${rosteredScholars != null ? fc(rosteredScholars) : '—'}</div>
           <div class="ecd-kpi-foot">Total Pearl enrollment</div>
         </div>
         <div class="ecd-kpi ck-teal" style="${siCount > 0 ? 'border-color:#f97316' : ''}" title="Service Interruptions: Attendance records classified as disruptions NOT caused by scholar absence — e.g. tutor no-shows, site closures, admin cancellations. Excludes scholar-initiated absences. Source: Pearl Ops — same value shown on Pearl Operations dashboard.">
           <div class="ecd-kpi-lbl">Service Interruptions</div>
-          <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '\u2014'}</div>
-          <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged \u2713' : 'Logged this period'}</div>
+          <div class="ecd-kpi-val" style="${siCount > 0 ? 'color:#f97316' : 'color:#059669'}">${siCount != null ? siCount : '—'}</div>
+          <div class="ecd-kpi-foot">${siCount === 0 ? 'None logged ✓' : 'Logged this period'}</div>
         </div>
         <div class="ecd-kpi ck-rose" data-timepop="1" title="Total Instructional Minutes: Sum of session duration in minutes across all delivered sessions. Sourced from Pearl Operations session data. Click ⓘ for breakdown." style="overflow:visible">
           <div class="ecd-kpi-lbl">Total Minutes</div>
@@ -262,13 +278,28 @@
         <div class="ecd-kpi ck-green" data-timepop="2" title="Scholar Tutored Minutes: Aggregate total instructional minutes across all scholars — each scholar's individual session minutes summed program-wide. Differs from Total Minutes: a session with multiple scholars is counted once per scholar, so this reflects total scholar contact-time (not total session time). Source: Pearl Sessions, all time. Click ⓘ for breakdown." style="overflow:visible">
           <div class="ecd-kpi-lbl">Scholar Tutored Min</div>
           <div class="ecd-kpi-val sm" style="position:relative">
-            ${totalScholarMins != null ? fmins(totalScholarMins) : '\u2014'}${totalScholarMins ? `<button data-timepop="2" onclick="event.stopPropagation();window._njtcTimePop('ecdTmBrk2')" style="font-size:.5rem;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:99px;padding:.08rem .3rem;cursor:pointer;vertical-align:super;margin-left:.2rem;font-weight:700;line-height:1.3" title="View breakdown in hours, days, months">ⓘ</button><div id="ecdTmBrk2" data-timepop="2" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + .4rem);z-index:600;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:.75rem 1rem;min-width:230px;flex-direction:column;gap:.32rem;font-size:.77rem;white-space:nowrap">${_tsmBrkHTML}</div>` : ''}
+            ${totalScholarMins != null ? fmins(totalScholarMins) : '—'}${totalScholarMins ? `<button data-timepop="2" onclick="event.stopPropagation();window._njtcTimePop('ecdTmBrk2')" style="font-size:.5rem;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:99px;padding:.08rem .3rem;cursor:pointer;vertical-align:super;margin-left:.2rem;font-weight:700;line-height:1.3" title="View breakdown in hours, days, months">ⓘ</button><div id="ecdTmBrk2" data-timepop="2" onclick="event.stopPropagation()" style="display:none;position:absolute;left:0;top:calc(100% + .4rem);z-index:600;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding:.75rem 1rem;min-width:230px;flex-direction:column;gap:.32rem;font-size:.77rem;white-space:nowrap">${_tsmBrkHTML}</div>` : ''}
           </div>
           <div class="ecd-kpi-foot">Aggregate contact-time · ⓘ breakdown</div>
-        </div>
+        </div>` : `
+        <div style="grid-column:1/-1;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:1rem 1.25rem;text-align:center;color:#64748b;font-size:.8rem">
+          <strong>Pearl operational data (sessions, scholars, attendance, time)</strong> will appear here once ${execPeriod === 'summer2026' ? 'Summer 2026' : 'SY 26-27'} is underway.<br>
+          <span style="font-size:.7rem;color:#94a3b8">This period is tracked in Pearl. New program ID and live sheet will be configured when ready.</span>
+        </div>`}
       </div>
 
-      <!-- ═══ 2. OPERATIONAL HEALTH ═══ -->
+      ${_isLive ? `
+      <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;padding:1.5rem;text-align:center;color:#64748b;margin-bottom:.75rem">
+        <div style="font-size:2rem;margin-bottom:.5rem">🔒</div>
+        <div style="font-weight:700;font-size:.875rem;margin-bottom:.35rem">Operational &amp; Academic Data — SY 25-26 Only</div>
+        <div style="font-size:.78rem;line-height:1.6;max-width:440px;margin:0 auto">
+          Attendance, scholar tiers, school leaderboard, race demographics, and iReady academic data
+          are currently available for <strong>SY 25-26</strong> only.<br>
+          ${execPeriod === 'summer2026'
+            ? 'Summer 2026 operational data will appear here once the summer program is underway and Pearl is configured.'
+            : 'SY 26-27 academic data will appear after fall diagnostics are completed.'}
+        </div>
+      </div>` : `      <!-- ═══ 2. OPERATIONAL HEALTH ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">Operational Health</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-2col">
         <div class="ecd-card">
@@ -381,6 +412,7 @@
         </div>` : '<div class="ecd-card"><div class="ecd-card-title">Scholar Demographics</div><div style="color:#94a3b8;font-size:.75rem;padding:.5rem 0">Loading attendance data&hellip;</div></div>'}
       </div>
 
+`}
       <!-- ═══ 5. KPI GOAL TRACKING ═══ -->
       <div class="ecd-divider"><div class="ecd-divider-txt">KPI Goal Tracking</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-goals">
