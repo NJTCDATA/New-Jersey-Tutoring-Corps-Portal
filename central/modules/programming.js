@@ -619,6 +619,17 @@
         districts: new Set(s.map(r => r.district)).size,
         staff: _hrStaff != null ? _hrStaff : stf,
       };
+      // Always back-fill summer2026 stats from tracker data when available —
+      // the SY Analytics default period is sy2627, so the summer branch above
+      // never runs on initial load. Computing here ensures the Exec Dashboard
+      // Summer 2026 tab has data without requiring a manual period switch.
+      if (_trackerReady && _trackerRows.length) {
+        const _sumRows   = _trackerRows.filter(r => r.isSummer);
+        const _sumEmp    = _sumRows.filter(r => r.isActive && !r.isPreApp && !r.isTerminated);
+        const _sumSites  = new Set(_sumRows.filter(r => r.location).map(r => r.location));
+        const _sumDists  = new Set(_sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
+        window._syaStats['summer2026'] = { sites: _sumSites.size, districts: _sumDists.size, staff: _sumEmp.length };
+      }
       // Notify exec dashboard
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
     }
