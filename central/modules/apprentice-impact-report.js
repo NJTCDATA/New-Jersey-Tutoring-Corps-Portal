@@ -288,11 +288,12 @@
     'nj-penns90725': ['Penns Grove'],
   };
 
-  // Build multi-apprentice school set (TAP-key level, not MOY-school level)
-  // Uses ALL_APPRENTICES so cancelled apprentices placed at real schools are counted.
+  // Build multi-apprentice school set from active apprentices only.
+  // Cancelled apprentices at the same school don't do concurrent active tutoring,
+  // so they must not block Tier-3 fallback for active apprentices at that school.
   const ALL_APPRENTICES = [...TAP_APPRENTICES, ...CANCELLED_APPRENTICES];
   const _schoolKeyCount = {};
-  ALL_APPRENTICES.forEach(([,, school]) => {
+  TAP_APPRENTICES.forEach(([,, school]) => {
     _schoolKeyCount[school] = (_schoolKeyCount[school] || 0) + 1;
   });
   const MULTI_APPR_SCHOOLS = new Set(
@@ -1476,7 +1477,10 @@
     // must NOT fire for it.  Doing so wrongly attributes scholars who missed session
     // matching (Tier 2) to whichever single-key school happened to include the name.
     const _moyNameKeyCount = {}; // lowercase MOY school name → Set of TAP school keys
-    ALL_APPRENTICES.forEach(([,, school]) => {
+    // Use active apprentices only for Tier-3 school uniqueness and attribution maps.
+    // Cancelled apprentices at a school must not influence which active apprentice
+    // "owns" a school name via Tier 3.
+    TAP_APPRENTICES.forEach(([,, school]) => {
       if (STANDARDS_MASTERY_SCHOOLS.has(school)) return;
       if (NO_DATA_SCHOOLS.has(school))           return;
       if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
@@ -1491,7 +1495,7 @@
     // TAP school key — guaranteeing the attribution is unambiguous.
     // Shared names are intentionally excluded; they rely on Tier 2 session matching.
     const schoolToAppr = {};
-    ALL_APPRENTICES.forEach(([display,, school]) => {
+    TAP_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
       if (STANDARDS_MASTERY_SCHOOLS.has(school))  return;
       if (NO_DATA_SCHOOLS.has(school))            return;
