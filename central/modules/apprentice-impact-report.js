@@ -1634,6 +1634,25 @@
       }
     });
 
+    // Targeted diagnostic: passaic clifton elementary row disposition
+    {
+      const pceRows = moyRows.filter(r => (r.school || '').toLowerCase().trim() === 'passaic clifton elementary');
+      if (pceRows.length) {
+        const dest = {};
+        Object.entries(byAppr).forEach(([appr, rows]) => {
+          const n = rows.filter(r => (r.school || '').toLowerCase().trim() === 'passaic clifton elementary').length;
+          if (n) dest[appr] = n;
+        });
+        console.log('[APIR] passaic clifton elementary rows:', pceRows.length, '— attributed to:', JSON.stringify(dest),
+                    '| unattributed:', pceRows.length - Object.values(dest).reduce((a, b) => a + b, 0));
+        const inKeishaSession = pceRows.filter(r => {
+          const n = normName(r.scholarName);
+          return n && sessionSets && sessionSets['Keisha Lopez'] && sessionSets['Keisha Lopez'].has(n);
+        });
+        console.log('[APIR] passaic clifton elementary rows in Keisha session set:', inKeishaSession.length, '/', pceRows.length);
+      }
+    }
+
     // Diagnostic: per-apprentice tier breakdown — helps verify no one is relying on
     // Tier 3 for scholars they shouldn't have, and shows where session data gaps are.
     {
