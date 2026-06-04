@@ -217,7 +217,7 @@
           <div class="ecd-header-sub">${_periodLong} · ${nowStr}</div>
           <div style="display:flex;gap:.3rem;margin-top:.5rem;flex-wrap:wrap">
             <button onclick="document.getElementById('execDashboard').dataset.execPeriod='sy2526';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='sy2526'?'#003087':'#dde3ec'};background:${execPeriod==='sy2526'?'#003087':'#f0f4fa'};color:${execPeriod==='sy2526'?'#fff':'#475569'};cursor:pointer">📁 SY 25-26</button>
-            <button onclick="document.getElementById('execDashboard').dataset.execPeriod='summer2026';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='summer2026'?'#d97706':'#dde3ec'};background:${execPeriod==='summer2026'?'#fef3c7':'#f0f4fa'};color:${execPeriod==='summer2026'?'#d97706':'#475569'};cursor:pointer">☀️ Summer 2026</button>
+            <button onclick="(function(){document.getElementById('execDashboard').dataset.execPeriod='summer2026';if(!(window._syaStats&&window._syaStats['summer2026'])){window.sya&&window.sya.fetchOnsiteTracker&&window.sya.fetchOnsiteTracker();}window._execDashRefresh&&window._execDashRefresh(true);})()" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='summer2026'?'#d97706':'#dde3ec'};background:${execPeriod==='summer2026'?'#fef3c7':'#f0f4fa'};color:${execPeriod==='summer2026'?'#d97706':'#475569'};cursor:pointer">☀️ Summer 2026</button>
             <button onclick="document.getElementById('execDashboard').dataset.execPeriod='sy2627';window._execDashRefresh&&window._execDashRefresh(true)" style="font-size:.65rem;font-weight:700;padding:.2rem .65rem;border-radius:20px;border:1px solid ${execPeriod==='sy2627'?'#059669':'#dde3ec'};background:${execPeriod==='sy2627'?'#dcfce7':'#f0f4fa'};color:${execPeriod==='sy2627'?'#059669':'#475569'};cursor:pointer">🎓 SY 26-27</button>
           </div>
         </div>
@@ -414,7 +414,7 @@
 
 `}
       <!-- ═══ 5. KPI GOAL TRACKING ═══ -->
-      <div class="ecd-divider"><div class="ecd-divider-txt">KPI Goal Tracking</div><div class="ecd-divider-line"></div></div>
+      ${!_isLive ? `<div class="ecd-divider"><div class="ecd-divider-txt">KPI Goal Tracking</div><div class="ecd-divider-line"></div></div>
       <div class="ecd-goals">
         <div class="ecd-goal g-met"><div class="ecd-goal-n">${kMet}</div><div class="ecd-goal-lbl">Met</div></div>
         <div class="ecd-goal g-prog"><div class="ecd-goal-n">${kProg}</div><div class="ecd-goal-lbl">In Progress</div></div>
@@ -492,7 +492,7 @@
         <button class="ecd-risk-cta" onclick="showPanel('talent',document.querySelector('[data-panel=talent]'))">
           View Talent Analytics &rarr;
         </button>
-      </div>
+      </div>` : ''}
     </div>
     `;
   } // end _buildExecDashboardInner
