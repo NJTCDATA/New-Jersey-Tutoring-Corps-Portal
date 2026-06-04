@@ -111,6 +111,27 @@
     ['Theodore Mills',          'NJ2025004828', 'Long Term Sub',               'NE', 'Theodore Mills'],
   ];
 
+  // ── Cancelled apprentices (seat=0 / never placed — not in TAP_APPRENTICES) ──
+  // [displayName, njId, schoolRaw, region, surveyName]
+  const CANCELLED_APPRENTICES = [
+    ['Allison Dombrowski',             'NJ2025002297', 'No Placement', 'NE', 'Allison Dombrowski'],
+    ['Chelsea Jordan',                  'NJ2025001925', 'No Placement', 'NE', 'Chelsea Jordan'],
+    ['Claudia Tumelus',                 'NJ2025004254', 'iLearn Clifton', 'NE', 'Claudia Tumelus'],
+    ['Daniel DiQuinzio',                'NJ2025001713', 'No Placement', 'NE', 'Daniel DiQuinzio'],
+    ['Elijah Brown',                    'NJ2025002412', 'No Placement', 'NE', 'Elijah Brown'],
+    ['Genesis Rosich',                  'NJ2025004826', 'No Placement', 'NE', 'Genesis Rosich'],
+    ['Heba Samhouri',                   'NJ2025002413', 'No Placement', 'NE', 'Heba Samhouri'],
+    ['Jacob Leebron',                   'NJ2025001825', 'Haddon Township', 'SW', 'Jacob Leebron'],
+    ['Janelle Lee',                     'NJ2025003240', 'No Placement', 'NE', 'Janelle Lee'],
+    ['Marina Farag',                    'NJ2025002296', 'No Placement', 'NE', 'Marina Farag'],
+    ['Michelle Kim',                    'NJ2025004252', 'No Placement', 'NE', 'Michelle Kim'],
+    ['Monica Brown',                    'NJ2025005327', 'iLearn Clifton', 'NE', 'Monica Brown'],
+    ['Nicole Cill',                     'NJ2025004251', 'No Placement', 'NE', 'Nicole Cill'],
+    ['Pankajbharathi Sowmianarayanan',  'NJ2025004823', 'No Placement', 'NE', 'Pankajbharathi Sowmianarayanan'],
+    ['Sarah Renz',                      'NJ2025001717', 'No Placement', 'NE', 'Sarah Renz'],
+    ['Theodore Kostich',                'NJ2025001824', 'No Placement', 'SW', 'Ted Kostich'],
+  ];
+
   // ── Hardcoded scholar seeds — supplement session attribution when Pearl ID
   //    matching fails (e.g. iReady legal names differ from Pearl display names) ─
   const HARDCODED_SCHOLAR_SEEDS = {
@@ -143,7 +164,7 @@
   // Schools using Standards Mastery — no iReady academic section
   const STANDARDS_MASTERY_SCHOOLS = new Set(['Middlesex STEM']);
   // Schools with no iReady data available (e.g. long-term sub, untracked)
-  const NO_DATA_SCHOOLS = new Set(['Long Term Sub']);
+  const NO_DATA_SCHOOLS = new Set(['Long Term Sub', 'No Placement']);
   // Schools where EOY Preliminary data is expected but not yet uploaded to IRLAB.
   // Show 0 / "Pending" rather than pulling stale data.  Remove a school from this
   // set once its current-year EOY Preliminary data has been confirmed in the IRLAB.
@@ -268,8 +289,10 @@
   };
 
   // Build multi-apprentice school set (TAP-key level, not MOY-school level)
+  // Uses ALL_APPRENTICES so cancelled apprentices placed at real schools are counted.
+  const ALL_APPRENTICES = [...TAP_APPRENTICES, ...CANCELLED_APPRENTICES];
   const _schoolKeyCount = {};
-  TAP_APPRENTICES.forEach(([,, school]) => {
+  ALL_APPRENTICES.forEach(([,, school]) => {
     _schoolKeyCount[school] = (_schoolKeyCount[school] || 0) + 1;
   });
   const MULTI_APPR_SCHOOLS = new Set(
@@ -314,6 +337,32 @@
     return TAP_APPRENTICES;
   }
 
+  // ── Cancelled roster: TAP_APPRENTICES entries not in active set + all CANCELLED_APPRENTICES ─
+  function getCancelledRoster() {
+    const cancelledFromMain = [];
+    if (window.AP_TAP_ROSTER && window.AP_TAP_ROSTER.length) {
+      const activeIds = new Set(
+        window.AP_TAP_ROSTER.map(r => (r.njId || '').trim().toUpperCase()).filter(Boolean)
+      );
+      TAP_APPRENTICES.forEach(entry => {
+        const id = (entry[1] || '').trim().toUpperCase();
+        if (id && !activeIds.has(id)) cancelledFromMain.push(entry);
+      });
+    } else {
+      // No live tracker data — fall back to known cancelled IDs from tracker CSV
+      const knownCancelledIds = new Set([
+        'NJ2025004828', // Theodore Mills
+        'NJ2025004827', // Apollo Monroy-Polanco
+        'NJ2026000858', // Linda Fenty
+      ]);
+      TAP_APPRENTICES.forEach(entry => {
+        if (knownCancelledIds.has((entry[1] || '').trim().toUpperCase()))
+          cancelledFromMain.push(entry);
+      });
+    }
+    return [...cancelledFromMain, ...CANCELLED_APPRENTICES];
+  }
+
   // ── Helper: normalize a name for comparison ───────────────────────────────
   function normName(n) {
     if (!n) return '';
@@ -354,7 +403,7 @@
   // ── Build survey-name lookup: normalized name → canonical display name ────
   function buildApprLookup() {
     const lut = {};
-    TAP_APPRENTICES.forEach(([display,,,, surveyName]) => {
+    ALL_APPRENTICES.forEach(([display,,,, surveyName]) => {
       lut[normName(surveyName)] = display;
       lut[normName(display)]   = display;
     });
@@ -1115,7 +1164,7 @@
       // ── 8. Build per-apprentice records ───────────────────────────────────
       setStatus('Building report…'); setProgress(85);
       // Build SM attribution — match teacher names directly to TAP apprentice names
-      const smApprSet  = new Set(TAP_APPRENTICES
+      const smApprSet  = new Set(ALL_APPRENTICES
         .filter(([,, school]) => STANDARDS_MASTERY_SCHOOLS.has(school))
         .map(([display]) => display));
       const smByAppr   = buildSmByAppr(smRows, smApprSet);
@@ -1125,13 +1174,22 @@
         surveyAgg, attAgg, smByAppr, apprSubjects
       );
 
-      // ── 9. Generate CSV ────────────────────────────────────────────────
-      setStatus('Generating CSV…'); setProgress(93);
-      const csv = buildCsv(records);
+      // ── 9. Build cancelled-apprentice records ──────────────────────────
+      setStatus('Building cancelled apprentice records…'); setProgress(90);
+      const cancelledRecords = buildCancelledRecords(
+        moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+        surveyAgg, attAgg, smByAppr, apprSubjects
+      );
+      console.log('[APIR] Cancelled records built:', cancelledRecords.length);
+
+      // ── 10. Generate CSV + XLSX ────────────────────────────────────────
+      setStatus('Generating exports…'); setProgress(95);
+      const csv         = buildCsv(records);
+      const xlsxWorkbook = buildXlsxWorkbook(records, cancelledRecords);
 
       setProgress(100);
       setStatus('Report ready — click Download.');
-      renderDownload(csv, records);
+      renderDownload(csv, xlsxWorkbook, records, cancelledRecords);
 
     } catch (err) {
       setStatus('Error: ' + err.message);
@@ -1145,7 +1203,7 @@
   // Aggregates per-session survey scores by the apprentice who was rated.
   function processSurveys(stuRows, lut) {
     const agg = {};
-    TAP_APPRENTICES.forEach(([d]) => { agg[d] = { conf: [], enj: [], learn: [], ovr: [], count: 0 }; });
+    ALL_APPRENTICES.forEach(([d]) => { agg[d] = { conf: [], enj: [], learn: [], ovr: [], count: 0 }; });
 
     stuRows.forEach(row => {
       const keys      = Object.keys(row);
@@ -1195,7 +1253,7 @@
   // Operations attendance % shown on the portal.
   function processAttendance(attRows, lut) {
     const agg = {};
-    TAP_APPRENTICES.forEach(([d]) => { agg[d] = { attended: 0, missed: 0 }; });
+    ALL_APPRENTICES.forEach(([d]) => { agg[d] = { attended: 0, missed: 0 }; });
 
     attRows.forEach(row => {
       const keys = Object.keys(row);
@@ -1249,7 +1307,7 @@
   // matches even when iReady uses a different middle name than the survey.
   function buildSurveyScholarSets(stuRows, lut) {
     const sets = {};
-    TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
+    ALL_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); });
 
     stuRows.forEach(row => {
       const keys      = Object.keys(row);
@@ -1279,7 +1337,7 @@
     const sets     = {};
     const idMap    = {};  // Pearl student ID → canonical apprentice name
     const subjects = {}; // canonical apprentice name → Set of subjects (e.g. 'Math', 'Reading')
-    TAP_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); subjects[d] = new Set(); });
+    ALL_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); subjects[d] = new Set(); });
 
     // Helper: add a scholar name (both full-norm and first+last forms) to a set
     function addScholar(set, raw) {
@@ -1401,20 +1459,19 @@
   //   Tier 4:   survey-confirmed scholar name (last resort)
   function attributeMoyScholars(moyRows, sessionSets, surveyScholarSets, lut, moyIdBridge, sessionIdMap) {
     const byAppr = {};
-    TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
+    ALL_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
-    // Build district account ID → [apprentice display names] from TAP roster.
-    // Used when school name is missing/unrecognized but Column G district ID is present.
+    // Build district account ID → [apprentice display names] from ALL_APPRENTICES.
     const distIdToApprs = {};
     Object.entries(MOY_DISTRICT_ID_MAP).forEach(([distId, schoolKeys]) => {
-      distIdToApprs[distId] = TAP_APPRENTICES
+      distIdToApprs[distId] = ALL_APPRENTICES
         .filter(([,,s]) => schoolKeys.includes(s))
         .map(([d]) => d);
     });
 
     // Build school → apprentice map (single-appr MOY schools only — for Tier 3)
     const schoolToAppr = {};
-    TAP_APPRENTICES.forEach(([display,, school]) => {
+    ALL_APPRENTICES.forEach(([display,, school]) => {
       if (MULTI_APPR_SCHOOLS.has(school))         return;
       if (STANDARDS_MASTERY_SCHOOLS.has(school))  return;
       if (NO_DATA_SCHOOLS.has(school))            return;
@@ -1424,10 +1481,8 @@
     });
 
     // Build school → [all apprentices] for multi-apprentice MOY schools (Tier 2 scoping).
-    // Prevents cross-school collisions where a common name (e.g. "Grace Perez") in one
-    // school's session set would steal a scholar from a different school's apprentice.
     const schoolApprList = {}; // lowercase MOY school name → [canonical apprentice names]
-    TAP_APPRENTICES.forEach(([display,, school]) => {
+    ALL_APPRENTICES.forEach(([display,, school]) => {
       if (!ILEARN_SCHOOLS.has(school) && !MOY_SCHOOLS.has(school)) return;
       const moyNames = MOY_SCHOOL_MAP[school] || [];
       moyNames.forEach(sn => {
@@ -1438,7 +1493,7 @@
 
     // Pre-compute which apprentices have non-empty session sets
     const hasSessionData = {};
-    TAP_APPRENTICES.forEach(([d]) => {
+    ALL_APPRENTICES.forEach(([d]) => {
       hasSessionData[d] = sessionSets && sessionSets[d] && sessionSets[d].size > 0;
     });
     const anySessionData = Object.values(hasSessionData).some(Boolean);
@@ -1559,7 +1614,7 @@
   //   • Hamilton / CJCP stay at 0 until their data is in the IRLAB (expected)
   function attributeIrlabScholars(irlabRows, sessionSets, surveyScholarSets, lut, sessionIdMap) {
     const byAppr = {};
-    TAP_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
+    ALL_APPRENTICES.forEach(([d]) => { byAppr[d] = []; });
 
     TAP_APPRENTICES.forEach(([display,, school]) => {
       const filterFn = EOY_DISTRICT_FILTERS[school];
@@ -1732,26 +1787,24 @@
     };
   }
 
-  // ── Build per-apprentice records ──────────────────────────────────────────
-  function buildRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                         surveyAgg, attAgg, smByAppr, apprSubjects) {
+  // ── Build per-apprentice records (roster-agnostic core) ──────────────────
+  function buildRecordsForRoster(roster, moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+                                  surveyAgg, attAgg, smByAppr, apprSubjects) {
     smByAppr     = smByAppr     || {};
     apprSubjects = apprSubjects || {};
 
-    // Normalize Pearl subject values to ELA / Math buckets.
-    // Pearl uses 'Reading' or 'ELA' for literacy sessions; 'Math' for math.
     const teachesEla  = d => {
       const s = apprSubjects[d];
-      if (!s || !s.size) return true; // no session data → don't suppress
+      if (!s || !s.size) return true;
       return [...s].some(v => /reading|ela|literacy|english|language.?arts|writing/i.test(v));
     };
     const teachesMath = d => {
       const s = apprSubjects[d];
-      if (!s || !s.size) return true; // no session data → don't suppress
+      if (!s || !s.size) return true;
       return [...s].some(v => /math/i.test(v));
     };
 
-    return getActiveRoster().map(([display, njId, school, region]) => {
+    return roster.map(([display, njId, school, region]) => {
       const isStdMas  = STANDARDS_MASTERY_SCHOOLS.has(school);
       const isNoData  = NO_DATA_SCHOOLS.has(school);
       const isPending = PENDING_EOY_SCHOOLS.has(school);
@@ -1793,6 +1846,227 @@
         att:    attAgg[display]    || { sessionsAttended: 0, sessionsMissed: 0, totalSessions: 0, attRate: null },
       };
     });
+  }
+
+  function buildRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+                         surveyAgg, attAgg, smByAppr, apprSubjects) {
+    return buildRecordsForRoster(getActiveRoster(),
+      moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+      surveyAgg, attAgg, smByAppr, apprSubjects);
+  }
+
+  function buildCancelledRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+                                   surveyAgg, attAgg, smByAppr, apprSubjects) {
+    return buildRecordsForRoster(getCancelledRoster(),
+      moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
+      surveyAgg, attAgg, smByAppr, apprSubjects);
+  }
+
+  // ── Build AOA (array-of-arrays) for XLSX sheet — shared by all three tabs ─
+  function buildSheetAoa(records, sectionLabel, includeStatus) {
+    const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const aoa = [];
+    aoa.push(['NJTC TAP Apprentice Impact Report', 'Generated: ' + now, '', 'Data snapshot: ' + now]);
+    aoa.push([]);
+
+    // Section 1: Summary
+    aoa.push([`SECTION 1 -- APPRENTICE SUMMARY (${records.length} ${sectionLabel} APPRENTICES -- SY 25-26)`]);
+    const hdr1 = [
+      ...(includeStatus ? ['Status'] : []),
+      'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
+      'ELA Scholars (Matched)', 'ELA BOY Avg Score', 'ELA End Avg Score', 'ELA Avg Score Gain',
+      'ELA Median % Typical Growth', 'ELA % Meeting Typical Growth',
+      'ELA Improved Placement', 'ELA Maintained Placement', 'ELA Declined Placement',
+      'Math Scholars (Matched)', 'Math BOY Avg Score', 'Math End Avg Score', 'Math Avg Score Gain',
+      'Math Median % Typical Growth', 'Math % Meeting Typical Growth',
+      'Math Improved Placement', 'Math Maintained Placement', 'Math Declined Placement',
+      'Survey Responses', 'Avg Confidence (1-5)', 'Avg Enjoyment (1-5)',
+      'Avg Learning (1-5)', 'Avg Overall (1-5)',
+      'Sessions Attended', 'Sessions Missed', 'Total Sessions', 'Attendance Rate',
+    ];
+    aoa.push(hdr1);
+
+    records.forEach(rec => {
+      const e = rec.ela, m = rec.math, s = rec.survey, a = rec.att, sm = rec.sm;
+      const noAcad = !e && !m && !sm;
+      const smNote = rec.isStdMas ? 'See Standards Mastery section' : rec.dataNote;
+      const cells = [
+        rec.display, rec.njId, rec.school, rec.region, rec.dataNote,
+        noAcad ? smNote : (rec.isStdMas ? (sm ? sm.scholars     : 0) : (e ? fmt0(e.validCount)        : 0)),
+        noAcad ? ''     : (rec.isStdMas ? (sm ? 'Pre—see SM'    : '') : (e ? fmt1(e.avgBoyScore)       : '')),
+        noAcad ? ''     : (rec.isStdMas ? (sm ? 'Post—see SM'   : '') : (e ? fmt1(e.avgEndScore)       : '')),
+        noAcad ? ''     : (rec.isStdMas ? (sm && sm.avgGain !== null ? sm.avgGain + '%' : '') : (e ? fmt1(e.avgScoreGain) : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (e ? fmtPct(e.medianPctTypical) : '')),
+        noAcad ? ''     : (rec.isStdMas ? (sm && sm.pctImproved !== null ? sm.pctImproved + '%' : '') : (e ? fmtPct(e.pctMeetTypical) : '')),
+        noAcad ? ''     : (rec.isStdMas ? (sm ? sm.improved     : '') : (e ? fmt0(e.improved)          : 0)),
+        noAcad ? ''     : (rec.isStdMas ? '' : (e ? fmt0(e.maintained)        : 0)),
+        noAcad ? ''     : (rec.isStdMas ? '' : (e ? fmt0(e.declined)          : 0)),
+        noAcad ? smNote : (rec.isStdMas ? 'N/A — Standards Mastery' : (m ? fmt0(m.validCount)          : 0)),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt1(m.avgBoyScore)        : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt1(m.avgEndScore)        : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt1(m.avgScoreGain)       : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmtPct(m.medianPctTypical) : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmtPct(m.pctMeetTypical)   : '')),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt0(m.improved)           : 0)),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt0(m.maintained)         : 0)),
+        noAcad ? ''     : (rec.isStdMas ? '' : (m ? fmt0(m.declined)           : 0)),
+        s.surveyCount, fmt1(s.avgConfidence), fmt1(s.avgEnjoyment), fmt1(s.avgLearning), fmt1(s.avgOverall),
+        a.sessionsAttended, a.sessionsMissed, a.totalSessions, fmtPct(a.attRate),
+      ];
+      if (includeStatus) cells.unshift(rec.status || 'Active');
+      aoa.push(cells);
+    });
+    aoa.push([]);
+
+    // Section 2: Placement Distribution
+    aoa.push(['SECTION 2 -- BOY TO END PLACEMENT DISTRIBUTION PER APPRENTICE']);
+    aoa.push([
+      ...(includeStatus ? ['Status'] : []),
+      'Apprentice Name', 'Subject', 'Data Source',
+      'BOY: 3+ Grade Levels Below', 'BOY: 2 Grade Levels Below',
+      'BOY: 1 Grade Level Below',   'BOY: Early On Grade Level', 'BOY: Mid/Above Grade Level',
+      'END: 3+ Grade Levels Below', 'END: 2 Grade Levels Below',
+      'END: 1 Grade Level Below',   'END: Early On Grade Level', 'END: Mid/Above Grade Level',
+      'Net Placement Shift (levels)',
+    ]);
+    const _wAvg = dist => {
+      let sum = 0, cnt = 0;
+      PLACEMENT_ORDER.forEach((p, i) => { sum += i * (dist[p] || 0); cnt += (dist[p] || 0); });
+      return cnt ? sum / cnt : null;
+    };
+    records.forEach(rec => {
+      const addDist = (subj, acad) => {
+        if (!acad || !acad.validCount) return;
+        const endLbl = acad.dataSource === 'moy' ? 'MOY Winter 2026' : 'EOY Preliminary';
+        const bd = acad.boyDist, ed = acad.endDist, po = PLACEMENT_ORDER;
+        const wb2 = _wAvg(bd), we2 = _wAvg(ed);
+        const net = (wb2 !== null && we2 !== null) ? parseFloat((we2 - wb2).toFixed(2)) : '';
+        const r = [rec.display, subj, endLbl,
+          bd[po[0]]||0, bd[po[1]]||0, bd[po[2]]||0, bd[po[3]]||0, bd[po[4]]||0,
+          ed[po[0]]||0, ed[po[1]]||0, ed[po[2]]||0, ed[po[3]]||0, ed[po[4]]||0, net];
+        if (includeStatus) r.unshift(rec.status || 'Active');
+        aoa.push(r);
+      };
+      addDist('ELA', rec.ela);
+      addDist('Math', rec.math);
+    });
+    aoa.push([]);
+
+    // Section 3: Program-Level Aggregate
+    aoa.push([`SECTION 3 -- PROGRAM-LEVEL AGGREGATE (${records.length} ${sectionLabel} APPRENTICES)`]);
+    aoa.push(['Metric', 'ELA', 'Math']);
+    const eR  = records.filter(r => r.ela  && r.ela.validCount  > 0);
+    const mR  = records.filter(r => r.math && r.math.validCount > 0);
+    const totE = eR.reduce((s, r) => s + r.ela.validCount,  0);
+    const totM = mR.reduce((s, r) => s + r.math.validCount, 0);
+    const totEI = eR.reduce((s, r) => s + r.ela.improved,  0);
+    const totMI = mR.reduce((s, r) => s + r.math.improved, 0);
+    aoa.push(['Total Scholars with Placement Data', totE, totM]);
+    aoa.push(['Avg BOY Scale Score',
+      fmt1(avg(eR.map(r => r.ela.avgBoyScore).filter(v => v !== null))),
+      fmt1(avg(mR.map(r => r.math.avgBoyScore).filter(v => v !== null)))]);
+    aoa.push(['Avg End Scale Score',
+      fmt1(avg(eR.map(r => r.ela.avgEndScore).filter(v => v !== null))),
+      fmt1(avg(mR.map(r => r.math.avgEndScore).filter(v => v !== null)))]);
+    aoa.push(['Avg Scale Score Gain',
+      fmt1(avg(eR.map(r => r.ela.avgScoreGain).filter(v => v !== null))),
+      fmt1(avg(mR.map(r => r.math.avgScoreGain).filter(v => v !== null)))]);
+    aoa.push(['% Scholars Improved Placement',
+      totE ? fmtPct(totEI / totE) : '', totM ? fmtPct(totMI / totM) : '']);
+    aoa.push([]);
+    const totSurv = records.reduce((s, r) => s + r.survey.surveyCount, 0);
+    const totAtt  = records.reduce((s, r) => s + r.att.sessionsAttended, 0);
+    const totSess = records.reduce((s, r) => s + r.att.totalSessions, 0);
+    aoa.push(['Scholar Survey Responses (total)', totSurv, '']);
+    aoa.push(['Total Sessions Attended', totAtt, '']);
+    aoa.push(['Total Sessions', totSess, '']);
+    aoa.push(['Program Attendance Rate', totSess ? fmtPct(totAtt / totSess) : '', '']);
+    aoa.push([]);
+
+    // Section 4: Standards Mastery (if any in this set)
+    const smRecs4 = records.filter(r => r.isStdMas);
+    if (smRecs4.length) {
+      aoa.push(['SECTION 4 -- STANDARDS MASTERY (MIDDLESEX COUNTY STEM CHARTER SCHOOL)']);
+      aoa.push(['Apprentice', 'Total Scholars', 'Assessment Pairs', 'Pre & Post Pairs',
+                '% Improved', 'Avg Score Change (%)',
+                'Pre: Beginning', 'Pre: Progressing', 'Pre: Proficient',
+                'Post: Beginning', 'Post: Progressing', 'Post: Proficient']);
+      smRecs4.forEach(rec => {
+        const sm = rec.sm;
+        if (!sm) { aoa.push([rec.display, 'No data']); return; }
+        aoa.push([rec.display, sm.scholars, sm.pairs, sm.withBoth,
+          sm.pctImproved !== null ? sm.pctImproved + '%' : '',
+          sm.avgGain     !== null ? sm.avgGain     + '%' : '',
+          sm.prePl.Beginning, sm.prePl.Progressing, sm.prePl.Proficient,
+          sm.postPl.Beginning, sm.postPl.Progressing, sm.postPl.Proficient]);
+      });
+      aoa.push([]);
+      aoa.push(['SECTION 4B -- STANDARDS MASTERY SCHOLAR DETAIL']);
+      aoa.push(['Apprentice', 'Scholar', 'Grade', 'Assessment',
+                'Pre Score (%)', 'Pre Placement', 'Post Score (%)', 'Post Placement',
+                'Score Change (%)', 'Direction']);
+      smRecs4.forEach(rec => {
+        const sm = rec.sm;
+        if (!sm || !sm.rawPairs) return;
+        sm.rawPairs
+          .filter(p => p.formA && p.formB)
+          .sort((a, b) => (parseInt(a.grade)||99) - (parseInt(b.grade)||99) ||
+                          ((a.formA||a.formB).lastName+'').localeCompare((b.formA||b.formB).lastName+''))
+          .forEach(p => {
+            const src  = p.formA || p.formB;
+            const gain = Math.round((p.formB.score - p.formA.score) * 10) / 10;
+            aoa.push([rec.display, src.firstName + ' ' + src.lastName, p.grade, p.asmBase,
+              p.formA.score, p.formA.placement, p.formB.score, p.formB.placement,
+              gain, p.formB.direction]);
+          });
+      });
+      aoa.push([]);
+    }
+
+    return aoa;
+  }
+
+  // ── Build XLSX workbook with three tabs ──────────────────────────────────
+  function buildXlsxWorkbook(activeRecords, cancelledRecords) {
+    if (!window.XLSX) { console.warn('[APIR] XLSX library not loaded'); return null; }
+
+    const autoWidth = ws => {
+      const ref = ws['!ref'];
+      if (!ref) return;
+      const range = window.XLSX.utils.decode_range(ref);
+      const widths = [];
+      for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+          const cell = ws[window.XLSX.utils.encode_cell({ r: R, c: C })];
+          const len  = cell ? String(cell.v || '').length : 0;
+          if (!widths[C] || len > widths[C]) widths[C] = len;
+        }
+      }
+      ws['!cols'] = widths.map(w => ({ wch: Math.min((w || 8) + 2, 60) }));
+    };
+
+    const makeSheet = aoa => {
+      const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+      autoWidth(ws);
+      return ws;
+    };
+
+    const wb = window.XLSX.utils.book_new();
+
+    // Tab 1: Active Apprentices
+    window.XLSX.utils.book_append_sheet(wb, makeSheet(buildSheetAoa(activeRecords, 'ENROLLED', false)), 'Active Apprentices');
+
+    // Tab 2: Cancelled Apprentices
+    window.XLSX.utils.book_append_sheet(wb, makeSheet(buildSheetAoa(cancelledRecords, 'CANCELLED', false)), 'Cancelled Apprentices');
+
+    // Tab 3: All Apprentices — combined with Status column
+    const allRecords = [
+      ...activeRecords.map(r => ({ ...r, status: 'Active' })),
+      ...cancelledRecords.map(r => ({ ...r, status: 'Cancelled' })),
+    ];
+    window.XLSX.utils.book_append_sheet(wb, makeSheet(buildSheetAoa(allRecords, 'ALL', true)), 'All Apprentices');
+
+    return wb;
   }
 
   // ── Build CSV output ──────────────────────────────────────────────────────
@@ -2042,46 +2316,65 @@
     return '﻿' + lines.join('\n');
   }
 
-  // ── Render download button and summary panel ──────────────────────────────
-  function renderDownload(csv, records) {
+  // ── Render download buttons and summary panel ────────────────────────────
+  function renderDownload(csv, xlsxWorkbook, records, cancelledRecords) {
     const area = document.getElementById('apirDownloadArea');
     if (!area) return;
     area.innerHTML = '';
 
-    const blob  = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url   = URL.createObjectURL(blob);
     const today = new Date().toISOString().slice(0, 10);
-    const fname = `NJTC_TAP_Apprentice_Impact_Report_${today}.csv`;
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-bottom:.75rem;';
 
-    const a = document.createElement('a');
-    a.href     = url;
-    a.download = fname;
-    a.className = 'apir-dl-btn';
-    a.innerHTML = '⬇️&nbsp; Download CSV Report';
-    area.appendChild(a);
+    // CSV button (active apprentices only — existing behaviour)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const csvUrl = URL.createObjectURL(blob);
+    const aCsv = document.createElement('a');
+    aCsv.href      = csvUrl;
+    aCsv.download  = `NJTC_TAP_Apprentice_Impact_Report_${today}.csv`;
+    aCsv.className = 'apir-dl-btn';
+    aCsv.innerHTML = '⬇️&nbsp; Download CSV (Active)';
+    btnRow.appendChild(aCsv);
 
-    // Quick stat strip
+    // XLSX button — 3-tab workbook (Active / Cancelled / All)
+    if (xlsxWorkbook) {
+      const aXlsx = document.createElement('a');
+      aXlsx.href      = '#';
+      aXlsx.className = 'apir-dl-btn apir-dl-btn-xlsx';
+      aXlsx.innerHTML = '📗&nbsp; Download XLSX (All 3 Tabs)';
+      aXlsx.addEventListener('click', e => {
+        e.preventDefault();
+        window.XLSX.writeFile(xlsxWorkbook, `NJTC_TAP_Apprentice_Impact_Report_${today}.xlsx`);
+      });
+      btnRow.appendChild(aXlsx);
+    }
+
+    area.appendChild(btnRow);
+
+    // Quick stat strip — active apprentices
+    const allRecs  = [...records, ...(cancelledRecords || [])];
     const elaRecs  = records.filter(r => r.ela  && r.ela.validCount  > 0);
     const mathRecs = records.filter(r => r.math && r.math.validCount > 0);
-    const totalEla  = elaRecs.reduce((s, r)  => s + r.ela.validCount,  0);
-    const totalMath = mathRecs.reduce((s, r) => s + r.math.validCount, 0);
-    const totalSurveys = records.reduce((s, r) => s + r.survey.surveyCount, 0);
-    const totalAtt     = records.reduce((s, r) => s + r.att.sessionsAttended, 0);
-    const totalSess    = records.reduce((s, r) => s + r.att.totalSessions, 0);
+    const totalEla      = elaRecs.reduce((s, r)  => s + r.ela.validCount,  0);
+    const totalMath     = mathRecs.reduce((s, r) => s + r.math.validCount, 0);
+    const totalSurveys  = records.reduce((s, r) => s + r.survey.surveyCount, 0);
+    const totalAtt      = records.reduce((s, r) => s + r.att.sessionsAttended, 0);
+    const totalSess     = records.reduce((s, r) => s + r.att.totalSessions, 0);
 
     const strip = document.createElement('div');
     strip.className = 'apir-stat-strip';
     strip.innerHTML = `
-      <div class="apir-stat"><span class="apir-stat-val">${totalEla}</span><span class="apir-stat-lbl">ELA scholars matched</span></div>
-      <div class="apir-stat"><span class="apir-stat-val">${totalMath}</span><span class="apir-stat-lbl">Math scholars matched</span></div>
+      <div class="apir-stat"><span class="apir-stat-val">${totalEla}</span><span class="apir-stat-lbl">ELA scholars (active)</span></div>
+      <div class="apir-stat"><span class="apir-stat-val">${totalMath}</span><span class="apir-stat-lbl">Math scholars (active)</span></div>
       <div class="apir-stat"><span class="apir-stat-val">${totalSurveys.toLocaleString()}</span><span class="apir-stat-lbl">survey responses</span></div>
       <div class="apir-stat"><span class="apir-stat-val">${totalSess > 0 ? Math.round(totalAtt / totalSess * 100) + '%' : '—'}</span><span class="apir-stat-lbl">program att. rate</span></div>
+      <div class="apir-stat"><span class="apir-stat-val">${(cancelledRecords || []).length}</span><span class="apir-stat-lbl">cancelled in XLSX</span></div>
     `;
     area.appendChild(strip);
 
     const note = document.createElement('p');
     note.className = 'apir-dl-note';
-    note.textContent = 'Three-section CSV: Apprentice Summary · Placement Distribution · Program Aggregate';
+    note.textContent = 'CSV: active apprentices only. XLSX workbook: Tab 1 Active · Tab 2 Cancelled · Tab 3 All Apprentices (with Status column).';
     area.appendChild(note);
   }
 
@@ -2188,8 +2481,10 @@
       .apir-dl-area  { margin-bottom:1.5rem; }
       .apir-dl-btn   { display:inline-flex;align-items:center;gap:.5rem;
         background:#16a34a;color:#fff;border-radius:8px;padding:.65rem 1.4rem;
-        font-size:.95rem;font-weight:700;text-decoration:none;margin-right:1rem; }
+        font-size:.95rem;font-weight:700;text-decoration:none; }
       .apir-dl-btn:hover { background:#15803d; }
+      .apir-dl-btn-xlsx { background:#166534; }
+      .apir-dl-btn-xlsx:hover { background:#14532d; }
       .apir-stat-strip { display:flex;flex-wrap:wrap;gap:.75rem;margin:.75rem 0 .5rem; }
       .apir-stat { background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
         padding:.5rem .875rem;min-width:130px;text-align:center; }
