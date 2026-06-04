@@ -220,13 +220,34 @@ function buildChart(ws, dataRange, pos, o) {
 // ██  DATA LOADING
 // ══════════════════════════════════════════════════════════
 function loadData(ss) {
-  var raw = ss.getSheetByName('Apprentice Impact Data (RAW)');
+  // Try all known sheet name variants — prefer "All Apprentices" over active-only
+  var candidateNames = [
+    'All Apprentices Impact Data (RAW)',
+    'Apprentice Impact Data (RAW)',
+    'All Apprentices (RAW)',
+    'All Apprentices Impact Data',
+  ];
+  var raw = null;
+  candidateNames.forEach(function(n) { if (!raw) raw = ss.getSheetByName(n); });
   if (!raw) {
+    // Fallback: find any sheet with "all" + "apprentice" in the name (case-insensitive)
     ss.getSheets().forEach(function(s) {
-      if (!raw && s.getName().toLowerCase().indexOf('raw') >= 0) raw = s;
+      var nm = s.getName().toLowerCase();
+      if (!raw && nm.indexOf('all') >= 0 && nm.indexOf('apprentice') >= 0) raw = s;
     });
   }
-  if (!raw) throw new Error('Source sheet "Apprentice Impact Data (RAW)" not found.');
+  if (!raw) {
+    // Last resort: any sheet with "raw" in the name that has the most rows (likely all apprentices)
+    var bestSheet = null, bestRows = 0;
+    ss.getSheets().forEach(function(s) {
+      if (s.getName().toLowerCase().indexOf('raw') >= 0) {
+        var rc = s.getLastRow();
+        if (rc > bestRows) { bestRows = rc; bestSheet = s; }
+      }
+    });
+    raw = bestSheet;
+  }
+  if (!raw) throw new Error('Source sheet not found. Rename your all-apprentices tab to "All Apprentices Impact Data (RAW)" and re-run.');
 
   var allVals = raw.getDataRange().getValues();
   var S1_START = -1, S2_START = -1, S3_START = -1, S4_START = -1;
