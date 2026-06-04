@@ -1880,7 +1880,17 @@
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
   const IR_2526_MATH_GID = 1676366557;
-  const IR_CACHE_KEY     = 'njtc_od_iready_v9';
+  // MOY (Winter 2026) — wide-format sheet, same source used by Apprentice Impact Report
+  const IR_MOY_SHEET_ID  = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
+  const IR_MOY_ELA_GID   = '912997533';
+  const IR_MOY_MATH_GID  = '186448147';
+  const IR_MOY_URL       = gid => `https://docs.google.com/spreadsheets/d/${IR_MOY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
+  // Standards Mastery — per-scholar pre/post assessment scores (Middlesex STEM + SM schools)
+  const SM_2PACX         = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
+  const SM_ALL_GID       = '457164791';
+  const SM_URL           = `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_ALL_GID}`;
+  const SM_SCHOOLS       = new Set(['middlesex stem']);
+  const IR_CACHE_KEY     = 'njtc_od_iready_v10'; // bumped: MOY + SM data added
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────
@@ -2077,6 +2087,7 @@
       else pct = Math.round(pct);
       return {
         tutorName:   tutorCol >= 0 ? (r[tutorCol] || '').trim() : 'pearl-matched',
+        pearlId:     stuIdCol >= 0 ? (r[stuIdCol] || '').trim() : '', // Pearl student USER_ID for MOY join
         studentName: (r[stuCol]   || '').trim(),
         basePLC:     (r[baseCol]  || '').trim(),
         springPLC:   sprCol >= 0 ? (r[sprCol] || '').trim() : '',
@@ -2087,6 +2098,143 @@
         subject
       };
     });
+  }
+
+  // ── iReady: MOY sheet normalization (wide-format: base_ + winter_ on same row) ──
+  // Primary join: _pearlId (user_name column) = Pearl scholar USER_ID — exact match.
+  // Fallback: scholarId (local_student_id) or normalized student name + school.
+  function normalizeMOYSheet(rows, subject, scholarIds, scholarNames) {
+    if (rows.length < 2) return [];
+    if ((!scholarIds || !scholarIds.size) && (!scholarNames || !scholarNames.size)) return [];
+
+    const rawHdr = rows[0];
+    const hIdx = {};
+    rawHdr.forEach((h, i) => {
+      const k = (h || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+      if (k) hIdx[k] = i;
+    });
+
+    function gRow(r) {
+      return function() {
+        for (let i = 0; i < arguments.length; i++) {
+          const idx = hIdx[arguments[i]];
+          if (idx !== undefined && idx >= 0 && r[idx] && (r[idx] + '').trim()) return (r[idx] + '').trim();
+        }
+        return '';
+      };
+    }
+
+    function normPLC(raw) {
+      if (!raw) return '';
+      const m = {
+        '3+ grade levels below': '3 or More Grade Levels Below',
+        '3 or more grade levels below': '3 or More Grade Levels Below',
+        '2 grade levels below': '2 Grade Levels Below',
+        '1 grade level below': '1 Grade Level Below',
+        'early on grade level': 'Early On Grade Level',
+        'mid or above grade level': 'Mid or Above Grade Level',
+        'on or above grade level': 'Mid or Above Grade Level',
+        'at or above grade level': 'Mid or Above Grade Level',
+      };
+      return m[raw.trim().toLowerCase()] || raw.trim();
+    }
+
+    return rows.slice(1).filter(r => {
+      const g = gRow(r);
+      const pId = g('user_name', 'username', 'student_username', 'user_id');
+      const sId = g('student_id', 'local_student_id', 'id');
+      const nm  = g('student_name', 'first_and_last_name', 'name', 'full_name');
+      if (pId && scholarIds && scholarIds.has(pId)) return true;
+      if (sId && scholarIds && scholarIds.has(sId))  return true;
+      if (nm  && scholarNames) { const nn = normIRName(nm); if (nn.length > 2 && scholarNames.has(nn)) return true; }
+      return false;
+    }).map(r => {
+      const g = gRow(r);
+      const rawPct = g('winter_pct_progress_typical_growth', 'winter_pct_toward_typical_growth',
+                       'winter_pct_typical', 'pct_progress_typical_growth', 'mid_pct_progress_typical_growth');
+      let pct = parseFloat(rawPct);
+      if (isNaN(pct)) pct = null;
+      else if ((rawPct + '').trim().endsWith('%')) pct = Math.round(pct);
+      else if (pct > 0 && pct <= 1) pct = Math.round(pct * 100);
+      else pct = Math.round(pct);
+
+      const moyScoreRaw = parseFloat(g('winter_overall_scale_score', 'mid_overall_scale_score', 'moy_overall_scale_score'));
+      return {
+        studentName: g('student_name', 'first_and_last_name', 'name', 'full_name'),
+        pearlId:     g('user_name', 'username', 'student_username', 'user_id'),
+        stuId:       g('student_id', 'local_student_id', 'id'),
+        school:      g('school', 'school_name', 'site_name'),
+        grade:       g('student_grade', 'grade'),
+        basePLC:     normPLC(g('base_overall_relative_placement', 'fall_overall_relative_placement', 'boy_overall_relative_placement')),
+        moyPLC:      normPLC(g('winter_overall_relative_placement', 'mid_overall_relative_placement', 'moy_overall_relative_placement')),
+        moyScore:    isNaN(moyScoreRaw) ? null : moyScoreRaw,
+        pctTypical:  pct,
+        subject,
+        sy: '2025-2026',
+      };
+    });
+  }
+
+  // ── Standards Mastery: normalize per-scholar pre/post assessment rows ─────────
+  // Matches tutors via Class(es) or Class Teacher(s); scholars via Student ID or name.
+  function normalizeSmRows(csvText, tutorNormName, scholarIds, scholarNames) {
+    const lines = csvText.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim());
+    if (lines.length < 2) return [];
+    // Simple CSV split (assume no embedded commas in SM sheet)
+    const split = line => {
+      const r = []; let cur = '', inQ = false;
+      for (let i = 0; i <= line.length; i++) {
+        const ch = i < line.length ? line[i] : ',';
+        if (inQ) { if (ch === '"') inQ = false; else cur += ch; }
+        else if (ch === '"') inQ = true;
+        else if (ch === ',') { r.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      return r;
+    };
+    const headers = split(lines[0]).map(h => h.trim());
+    const col = name => headers.findIndex(h => h.toLowerCase().includes(name.toLowerCase()));
+    const idxStuId   = col('student id');
+    const idxFirst   = col('first name');
+    const idxLast    = col('last name');
+    const idxGrade   = col('grade');
+    const idxSubject = col('subject');
+    const idxAsm     = col('assessment name');
+    const idxScore   = col('score (%)') >= 0 ? col('score (%)') : col('assessment score');
+    const idxPLC     = col('relative placement');
+    const idxPrePost = col('pre to post');
+    const idxClass   = col('class(es)');
+    const idxTeacher = col('class teacher');
+    if (idxStuId < 0 && idxFirst < 0) return [];
+
+    const normTeacher = s => (s || '').toLowerCase().replace(/[-'\s]+/g, ' ').trim();
+    const matchesTutor = row => {
+      const classStr = (row[idxClass] || '') + ';' + (row[idxTeacher] || '');
+      return classStr.split(/[;,]/).some(seg => {
+        const part = seg.includes(' - ') ? seg.slice(0, seg.indexOf(' - ')).trim() : seg.trim();
+        return normTeacher(part) === tutorNormName;
+      });
+    };
+    const matchesScholar = row => {
+      const sId = (row[idxStuId] || '').trim();
+      if (sId && scholarIds && scholarIds.has(sId)) return true;
+      const name = ((row[idxFirst] || '') + ' ' + (row[idxLast] || '')).trim();
+      if (name && scholarNames) { const nn = normIRName(name); if (nn.length > 2 && scholarNames.has(nn)) return true; }
+      return false;
+    };
+
+    return lines.slice(1).map(split).filter(row => row.length > 3 && matchesTutor(row) && matchesScholar(row)).map(row => ({
+      stuId:       (row[idxStuId]   || '').trim(),
+      studentName: ((row[idxFirst] || '') + ' ' + (row[idxLast] || '')).trim(),
+      grade:       (row[idxGrade]   || '').trim(),
+      subject:     (row[idxSubject] || '').trim(),
+      asmName:     (row[idxAsm]     || '').trim(),
+      score:       parseFloat(row[idxScore])   || 0,
+      placement:   (row[idxPLC]     || '').trim(),
+      preToPost:   (row[idxPrePost] || '').trim(),
+      isFormA:     /form a/i.test(row[idxAsm] || ''),
+      isFormB:     /form b/i.test(row[idxAsm] || ''),
+    }));
   }
 
   // ── iReady: fetch all data for this tutor ─────────────────────────────────────
@@ -2136,36 +2284,55 @@
     const fetchMath = !tutorSubject || tutorSubject === 'Math';
     const EMPTY = Promise.resolve([]);
 
-    const [longMath, longELA, snapMath, snapELA] = await Promise.all([
-      fetchMath ? fetchCSV(longBase + IR_LONG_MATH_GID) : EMPTY,
-      fetchELA  ? fetchCSV(longBase + IR_LONG_ELA_GID)  : EMPTY,
-      fetchMath ? fetchCSV(snap2526 + IR_2526_MATH_GID) : EMPTY,
-      fetchELA  ? fetchCSV(snap2526 + IR_2526_ELA_GID)  : EMPTY
+    const [longMath, longELA, snapMath, snapELA, moyMath, moyELA] = await Promise.all([
+      fetchMath ? fetchCSV(longBase + IR_LONG_MATH_GID)      : EMPTY,
+      fetchELA  ? fetchCSV(longBase + IR_LONG_ELA_GID)       : EMPTY,
+      fetchMath ? fetchCSV(snap2526 + IR_2526_MATH_GID)      : EMPTY,
+      fetchELA  ? fetchCSV(snap2526 + IR_2526_ELA_GID)       : EMPTY,
+      fetchMath ? fetchCSV(IR_MOY_URL(IR_MOY_MATH_GID))      : EMPTY,
+      fetchELA  ? fetchCSV(IR_MOY_URL(IR_MOY_ELA_GID))       : EMPTY,
     ]);
 
     // LONGITUDINAL rows: iReady Dashboard 22-25, matched by tutor full name (col B)
-    // Subject is embedded in column H of the data itself
     const longitudinalRows = [
       ...normalizeIRSheet(longMath, 'Math'),
       ...normalizeIRSheet(longELA, 'ELA')
     ].filter(r => matchesTutor(r.tutorName))
      .map(r => ({ ...r, shared: isShared(r.tutorName) }));
 
-    // When tutorSubject is known from Pearl session names, shared rows from the wrong
-    // subject sheet are already excluded because those GIDs were never fetched.
-    // When tutorSubject is null we fetched both sheets; shared rows are kept as-is
-    // because we can't reliably exclude them without subject information.
     const filteredLongRows = longitudinalRows;
 
-    // 25-26 PRELIMINARY rows: match by Pearl scholar IDs/names — not tutor name —
-    // because 25-26 data is linked via Pearl student records, not tutor attribution
+    // 25-26 EOY PRELIMINARY rows: matched by Pearl scholar ID (most accurate)
     const rows2526 = [
       ...normalizeIRSheet2526(snapMath, 'Math', scholarIds, scholarNames),
       ...normalizeIRSheet2526(snapELA, 'ELA', scholarIds, scholarNames)
     ];
 
-    // Combine: longitudinal first, 25-26 supplements any missing records
-    const allRows = [...filteredLongRows, ...rows2526];
+    // MOY (Winter 2026) rows: matched by Pearl USER_ID (user_name column = Tier 0 exact join),
+    // or by student ID / normalized name as fallbacks. Only applies to 2025-2026 scholars.
+    const moyRows = [
+      ...normalizeMOYSheet(moyMath, 'Math', scholarIds, scholarNames),
+      ...normalizeMOYSheet(moyELA,  'ELA',  scholarIds, scholarNames),
+    ];
+    // Build MOY lookup: (pearlId or normName)|subject → moyPLC, moyScore
+    const moyLookup = {};
+    moyRows.forEach(m => {
+      const subj = m.subject;
+      if (m.pearlId)  moyLookup[m.pearlId  + '|' + subj] = m;
+      if (m.stuId)    moyLookup[m.stuId    + '|' + subj] = m;
+      const nn = normIRName(m.studentName);
+      if (nn.length > 2) moyLookup[nn + '|' + subj] = m;
+    });
+    // Merge MOY into 25-26 rows: use pearlId first, then normalized name
+    const rows2526WithMOY = rows2526.map(r => {
+      const nn  = normIRName(r.studentName);
+      const moy = moyLookup[(r.pearlId || '') + '|' + r.subject]
+               || moyLookup[nn + '|' + r.subject];
+      return moy ? { ...r, moyPLC: moy.moyPLC, moyScore: moy.moyScore } : r;
+    });
+
+    // Combine: longitudinal first (22-25), then 25-26 (EOY prelim + MOY)
+    const allRows = [...filteredLongRows, ...rows2526WithMOY];
 
     // Deduplicate: same student + subject + school year
     const seen = new Set();
@@ -2178,6 +2345,17 @@
 
     try { localStorage.setItem(IR_CACHE_KEY, JSON.stringify({ ts: Date.now(), name: userName, subject: tutorSubject || null, rows: deduped })); } catch (e) {}
     return deduped;
+  }
+
+  // ── Standards Mastery: fetch and return rows for this tutor's scholars ────────
+  async function fetchSmData(userName, scholarIds, scholarNames) {
+    try {
+      const res = await fetch(SM_URL, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) return [];
+      const text = await res.text();
+      const normTutor = (userName || '').toLowerCase().replace(/[-'\s]+/g, ' ').trim();
+      return normalizeSmRows(text, normTutor, scholarIds, scholarNames);
+    } catch (e) { return []; }
   }
 
   // ── iReady: build the section ─────────────────────────────────────────────────
@@ -2333,13 +2511,37 @@
           const barFill = growPct !== null ? Math.min(growPct / 200 * 100, 100) : 0;
           const subjectTag = activeSub === 'All' ? `<span style="font-size:0.7rem;color:rgba(255,255,255,0.35);margin-left:0.25rem;">${esc(r.subject)}</span>` : '';
           const sharedTag = r.shared ? `<span style="font-size:0.65rem;background:rgba(255,184,28,0.2);color:#FFB81C;border-radius:999px;padding:0.1rem 0.4rem;margin-left:0.3rem;vertical-align:middle;" title="Shared scholar — multiple instructors listed">shared</span>` : '';
-          const hasSpring = r.springPLC && r.springPLC.trim();
-          const placementHtml = hasSpring
-            ? `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
-               ${arrowHtml(r.basePLC, r.springPLC)}
-               <span class="njtc-plc-badge" style="background:${sColor};">${esc(plcShort(r.springPLC))}</span>`
-            : `<span class="njtc-plc-badge" style="background:${bColor};">${esc(plcShort(r.basePLC))}</span>
-               <span style="font-size:0.7rem;color:rgba(255,255,255,0.3);margin-left:0.35rem;">spring pending</span>`;
+          const hasSpring = !!(r.springPLC && r.springPLC.trim());
+          const hasMOY    = !!(r.moyPLC    && r.moyPLC.trim());
+          const mColor    = plcColor(r.moyPLC || '');
+          let placementHtml;
+          if (hasSpring && hasMOY) {
+            // Full timeline: BOY → MOY → EOY
+            placementHtml =
+              `<span class="njtc-plc-badge" style="background:${bColor}" title="BOY">${esc(plcShort(r.basePLC))}</span>` +
+              arrowHtml(r.basePLC, r.moyPLC) +
+              `<span class="njtc-plc-badge" style="background:${mColor};opacity:.85" title="MOY">❄ ${esc(plcShort(r.moyPLC))}</span>` +
+              arrowHtml(r.moyPLC, r.springPLC) +
+              `<span class="njtc-plc-badge" style="background:${sColor}" title="EOY">${esc(plcShort(r.springPLC))}</span>`;
+          } else if (hasSpring) {
+            // BOY → EOY (no MOY data for this scholar)
+            placementHtml =
+              `<span class="njtc-plc-badge" style="background:${bColor}" title="BOY">${esc(plcShort(r.basePLC))}</span>` +
+              arrowHtml(r.basePLC, r.springPLC) +
+              `<span class="njtc-plc-badge" style="background:${sColor}" title="EOY">${esc(plcShort(r.springPLC))}</span>`;
+          } else if (hasMOY) {
+            // BOY → MOY (EOY not yet available)
+            placementHtml =
+              `<span class="njtc-plc-badge" style="background:${bColor}" title="BOY">${esc(plcShort(r.basePLC))}</span>` +
+              arrowHtml(r.basePLC, r.moyPLC) +
+              `<span class="njtc-plc-badge" style="background:${mColor};opacity:.85" title="MOY – Winter checkpoint">❄ ${esc(plcShort(r.moyPLC))}</span>` +
+              `<span style="font-size:.68rem;color:rgba(255,255,255,.3);margin-left:.35rem">EOY pending</span>`;
+          } else {
+            // BOY only
+            placementHtml =
+              `<span class="njtc-plc-badge" style="background:${bColor}" title="BOY">${esc(plcShort(r.basePLC))}</span>` +
+              `<span style="font-size:.7rem;color:rgba(255,255,255,.3);margin-left:.35rem">spring pending</span>`;
+          }
           const schoolMeta = r.school ? `<div style="font-size:0.68rem;color:rgba(255,255,255,0.35);margin-top:0.1rem;">${esc(shortenSchool(r.school))}</div>` : '';
           return `<tr>
             <td>${esc(toInitials(r.studentName))}${subjectTag}${sharedTag}${schoolMeta}</td>
@@ -2362,8 +2564,8 @@
             <table class="njtc-ir-table">
               <thead><tr>
                 <th>Student</th>
-                <th>Grade</th>
-                <th>Placement Change</th>
+                <th>Gr</th>
+                <th>Placement · BOY → MOY → EOY</th>
                 <th>Growth vs Typical</th>
               </tr></thead>
               <tbody>${rowsHtml}</tbody>
@@ -2391,15 +2593,14 @@
 
     el.innerHTML = `
       <span class="njtc-section-title">📈 Academic Impact — iReady Diagnostics
-        <span class="njtc-eoy-pill">EOY · Historical</span>
+        <span class="njtc-eoy-pill">BOY · MOY · EOY</span>
       </span>
       <div class="njtc-ir-explainer">
-        This section shows <strong>End-of-Year iReady diagnostic data</strong> for scholars you've worked with — this is separate from your current-year operational data (Pearl). Your live roster and attendance for <strong>this school year</strong> lives in the sections above.
+        This section shows <strong>iReady diagnostic data</strong> for scholars you've worked with — sourced directly from your Pearl scholar records. Your 2025-2026 data uses Pearl scholar IDs for exact matching; historical years (2022–2025) are matched by your name on the iReady Dashboard.
         <br><br>
+        <strong>BOY</strong> = Beginning of Year baseline · <strong>MOY</strong> = Mid-Year Winter diagnostic (when available) · <strong>EOY</strong> = End-of-Year final result.
         "Moved Up" = a scholar jumped at least one placement level — that's your direct impact.
-        Growth vs Typical = progress as a % of expected growth (100% = on pace with no tutoring).
-        Scholars are grouped by school year so you can see your impact over time.
-        <em style="color:rgba(255,255,255,0.35);display:block;margin-top:0.3rem;">Mid-Year (MOY) data will be integrated when available.</em>
+        Growth vs Typical = progress as a % of expected annual growth (100% = full typical growth).
       </div>
       <div class="njtc-plc-legend">
         <span class="njtc-plc-legend-item"><span class="njtc-plc-legend-dot" style="background:#dc2626;"></span>3+ Below GL</span>
@@ -2454,6 +2655,60 @@
     return el;
   }
 
+  // ── Standards Mastery section ────────────────────────────────────────────────
+  function buildSmSection(smRows) {
+    if (!smRows || !smRows.length) return null;
+    const el = document.createElement('div');
+    el.className = 'njtc-dash-section';
+
+    // Group by student name + assessment base name; collect Form A (pre) and Form B (post)
+    const map = {};
+    smRows.forEach(r => {
+      const base = r.asmName.replace(/\s*Form [AB]\s*/i, '').replace(/:\s*Grade \d+\s*/i, '').trim();
+      const key  = normIRName(r.studentName) + '|' + base;
+      if (!map[key]) map[key] = { name: r.studentName, grade: r.grade, subject: r.subject, base, formA: null, formB: null };
+      if (r.isFormA) map[key].formA = r;
+      if (r.isFormB) map[key].formB = r;
+    });
+
+    const pairs = Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+    const rowsHtml = pairs.map(p => {
+      const pre  = p.formA ? p.formA.score : null;
+      const post = p.formB ? p.formB.score : null;
+      const dir  = (p.formA || p.formB || {}).preToPost || '';
+      const improved = post !== null && pre !== null ? post > pre : null;
+      const postColor = improved === true ? '#22c55e' : improved === false ? '#ef4444' : '#94a3b8';
+      return `<tr>
+        <td>${esc(toInitials(p.name))}<div style="font-size:.68rem;color:rgba(255,255,255,.35)">${esc(p.base)}</div></td>
+        <td><span style="font-size:.75rem;color:rgba(255,255,255,.5)">Gr ${esc(p.grade || '?')}</span></td>
+        <td style="text-align:center">${pre !== null ? pre + '%' : '—'}</td>
+        <td style="text-align:center;font-weight:700;color:${postColor}">${post !== null ? post + '%' : '—'}</td>
+        <td style="text-align:center;font-size:.75rem;color:${postColor}">${esc(dir) || (improved === true ? '↑ Improved' : improved === false ? '↓ Declined' : '—')}</td>
+      </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+      <span class="njtc-section-title">📋 Standards Mastery
+        <span class="njtc-eoy-pill">SY 25-26</span>
+      </span>
+      <div class="njtc-ir-explainer">
+        Pre-assessment (Form A) and post-assessment (Form B) scores for your scholars.
+        Matched via Pearl scholar IDs. Progress = improvement from Form A to Form B.
+      </div>
+      <div class="njtc-ir-scroll" style="overflow-x:auto">
+        <table class="njtc-ir-table">
+          <thead><tr>
+            <th>Scholar</th><th>Gr</th>
+            <th style="text-align:center">Pre (Form A)</th>
+            <th style="text-align:center">Post (Form B)</th>
+            <th style="text-align:center">Change</th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>`;
+    return el;
+  }
+
   // ── Main build function ──────────────────────────────────────────────────────
 
   async function build(user) {
@@ -2491,11 +2746,17 @@
       // Expose Pearl data globally so Connor chatbot can read it
       window._connorPearlData = data;
       window._connorUser = user;
-      // Build scholar lookup sets so 25-26 iReady snapshot can match by student ID/name
+      // Build scholar lookup sets so 25-26 iReady snapshot and MOY can match by student ID/name
       const scholarIds   = new Set(data.scholars.map(s => s.id).filter(Boolean));
       const scholarNames = new Set(data.scholars.map(s => normIRName(s.name)).filter(n => n.length > 2));
       irRows = await fetchIReadyData(user.name, scholarIds, scholarNames, data.tutorSubject || null).catch(() => []);
       window._connorIReadyData = irRows || [];
+      // Fetch Standards Mastery data for tutors at SM schools (e.g. Middlesex STEM)
+      const tutorSchools = (user.assignments || []).flatMap(a => a.schools || []);
+      const isSmTutor = tutorSchools.some(s => SM_SCHOOLS.has((s || '').toLowerCase().trim()));
+      window._connorSmData = isSmTutor
+        ? await fetchSmData(user.name, scholarIds, scholarNames).catch(() => [])
+        : [];
     } catch (err) {
       if (kpiStrip) {
         kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
@@ -2514,10 +2775,12 @@
     if (dashPlaceholder) {
       dashPlaceholder.innerHTML = '';
 
+      const smRows = window._connorSmData || [];
       const sections = [
-        buildActionSection(data),           // pending items this week — only shown if there are any
+        buildActionSection(data),
         buildAttendanceSection(data),
         buildIReadySection(irRows || []),
+        smRows.length ? buildSmSection(smRows) : null,
         buildMissedSection(data),
         buildScholarSection(data),
         buildScholarMissedSection(data),
