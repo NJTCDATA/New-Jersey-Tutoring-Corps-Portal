@@ -18,12 +18,11 @@
   };
 
   const CACHE_TTL = 5 * 60 * 1000;
-  // Cache keys bumped (v7) — multi-URL fallback added
   const CACHE_KEYS = {
-    att:  'njtc_od_att_v7',
-    inst: 'njtc_od_inst_v7',
-    stu:  'njtc_od_stu_v7',
-    sess: 'njtc_od_sess_v7'
+    att:  'njtc_od_att_v8',
+    inst: 'njtc_od_inst_v8',
+    stu:  'njtc_od_stu_v8',
+    sess: 'njtc_od_sess_v8'
   };
 
   // ATT column indexes
@@ -156,17 +155,15 @@
 
     const gid = PEARL_GIDS[gidName];
 
-    // Three URL strategies in priority order.
-    // Any one succeeding is sufficient — browser 404/403 from earlier attempts
-    // are expected and handled; they do NOT surface in the console as errors
-    // because we catch them before the network layer reports them as uncaught.
+    // Two URL strategies in priority order.
+    // /export?format=csv is intentionally excluded — it is CORS-blocked from
+    // GitHub Pages for every cross-origin request and can never succeed there.
     const candidates = [
-      // 1. Published-to-web 2PACX key (no auth required, same key as Central portal)
+      // 1. Published-to-web 2PACX key (no auth required; sheet must be published via
+      //    File → Share → Publish to web → Entire document → CSV)
       `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`,
-      // 2. Visualization API — works when sheet is shared "Anyone with the link"
-      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
-      // 3. Direct export — last resort
-      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/export?format=csv&gid=${gid}`
+      // 2. Visualization API — works when sheet is shared "Anyone with the link can view"
+      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`
     ];
 
     let lastErr;
@@ -174,7 +171,11 @@
       try {
         const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
         if (!res.ok) { lastErr = new Error(`HTTP ${res.status} for ${gidName}`); continue; }
+        const ct = res.headers.get('content-type') || '';
+        // Reject HTML responses (Google login redirect or error page)
+        if (ct.includes('text/html')) { lastErr = new Error(`HTML response for ${gidName} — sheet not public`); continue; }
         const text = await res.text();
+        if (text.trim().startsWith('<')) { lastErr = new Error(`HTML body for ${gidName} — sheet not public`); continue; }
         const rows = parseCSV(text);
         if (rows.length > 1) {
           if (cacheKey) setCache(cacheKey, rows);
@@ -182,7 +183,7 @@
         }
       } catch (e) { lastErr = e; }
     }
-    throw lastErr || new Error(`All Pearl fetch strategies failed for ${gidName}`);
+    throw lastErr || new Error(`Pearl data unavailable — sheet not published or not shared publicly`);
   }
 
   function safeNum(val) {

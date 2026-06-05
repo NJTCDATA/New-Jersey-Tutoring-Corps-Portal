@@ -2642,7 +2642,7 @@
     el.className = 'njtc-dash-section';
     el.innerHTML = `<div class="njtc-error-state">
       <div style="font-size:1.5rem;margin-bottom:0.5rem;">⚠️</div>
-      <p>${esc(msg || 'Data temporarily unavailable — try refreshing.')}</p>
+      <p>${esc(msg || 'Pearl data is currently unavailable. The data source needs to be re-published. Please contact your administrator or try again later.')}</p>
     </div>`;
     return el;
   }
@@ -2751,7 +2751,7 @@
         : [];
     } catch (err) {
       if (kpiStrip) {
-        kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Data unavailable — try refreshing</div></div>`;
+        kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Pearl data unavailable — contact administrator</div></div>`;
       }
       if (dashPlaceholder) {
         dashPlaceholder.innerHTML = '';
