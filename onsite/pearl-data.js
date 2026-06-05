@@ -6,7 +6,8 @@
 (function () {
   'use strict';
 
-  const PEARL_BASE_ID = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+  // Direct export URL — works with "Anyone with the link can view" (no Publish-to-web required)
+  const PEARL_SHEET_ID = '1yMa4-7SJlfT-Z8ZlRwhQ0wlstkPPvHP0o61YK6MzAiA';
   const PEARL_GIDS = {
     att:  702726038,
     inst: 1955492004,
@@ -16,10 +17,10 @@
 
   const CACHE_TTL = 5 * 60 * 1000;
   const CACHE_KEYS = {
-    att:  'njtc_od_att_v3',
-    inst: 'njtc_od_inst_v3',
-    stu:  'njtc_od_stu_v3',
-    sess: 'njtc_od_sess_v3'
+    att:  'njtc_od_att_v4',
+    inst: 'njtc_od_inst_v4',
+    stu:  'njtc_od_stu_v4',
+    sess: 'njtc_od_sess_v4'
   };
 
   // ATT column indexes
@@ -151,7 +152,7 @@
     }
 
     const gid = PEARL_GIDS[gidName];
-    const url = `https://docs.google.com/spreadsheets/d/e/${PEARL_BASE_ID}/pub?output=csv&gid=${gid}`;
+    const url = `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/export?format=csv&gid=${gid}`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} for sheet ${gidName}`);
