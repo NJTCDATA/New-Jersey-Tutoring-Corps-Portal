@@ -1871,11 +1871,9 @@
 
   // ── iReady: constants ─────────────────────────────────────────────────────────
 
-  // Longitudinal data (iReady Dashboard 22-25): published via "Publish to web" CSV key
-  // Same key used by Central Team Portal (data-department.js IRLAB_LIVE_2PACX)
-  const IR_LONG_2PACX    = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
-  const IR_LONG_ELA_GID  = 0;           // ELA tab (default)
-  const IR_LONG_MATH_GID = 127145553;   // Math tab
+  // iReady 22-25 longitudinal data (IR_LONG_2PACX) removed — that published key has
+  // expired and caused console 404s on every dashboard load without providing value.
+  // Current-year data is served via snap2526 (gviz) and MOY endpoints below.
   // 25-26 preliminary data: matched via Pearl scholar IDs, not tutor name
   const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
   const IR_2526_ELA_GID  = 1640935949;
@@ -2275,7 +2273,6 @@
       } catch (e) { return []; }
     }
 
-    const longBase = `https://docs.google.com/spreadsheets/d/e/${IR_LONG_2PACX}/pub?output=csv&gid=`;
     const snap2526 = `https://docs.google.com/spreadsheets/d/${IR_2526_ID}/gviz/tq?tqx=out:csv&gid=`;
 
     // Gate fetches to only the subject sheets this tutor is assigned to.
@@ -2284,23 +2281,18 @@
     const fetchMath = !tutorSubject || tutorSubject === 'Math';
     const EMPTY = Promise.resolve([]);
 
-    const [longMath, longELA, snapMath, snapELA, moyMath, moyELA] = await Promise.all([
-      fetchMath ? fetchCSV(longBase + IR_LONG_MATH_GID)      : EMPTY,
-      fetchELA  ? fetchCSV(longBase + IR_LONG_ELA_GID)       : EMPTY,
+    // Note: IR_LONG_2PACX (22-25 longitudinal) is no longer fetched — the published key
+    // for that sheet has expired, causing console 404s on every dashboard load.
+    // The 25-26 snapshot (snap2526) and MOY data below cover current-year views.
+    const [snapMath, snapELA, moyMath, moyELA] = await Promise.all([
       fetchMath ? fetchCSV(snap2526 + IR_2526_MATH_GID)      : EMPTY,
       fetchELA  ? fetchCSV(snap2526 + IR_2526_ELA_GID)       : EMPTY,
       fetchMath ? fetchCSV(IR_MOY_URL(IR_MOY_MATH_GID))      : EMPTY,
       fetchELA  ? fetchCSV(IR_MOY_URL(IR_MOY_ELA_GID))       : EMPTY,
     ]);
 
-    // LONGITUDINAL rows: iReady Dashboard 22-25, matched by tutor full name (col B)
-    const longitudinalRows = [
-      ...normalizeIRSheet(longMath, 'Math'),
-      ...normalizeIRSheet(longELA, 'ELA')
-    ].filter(r => matchesTutor(r.tutorName))
-     .map(r => ({ ...r, shared: isShared(r.tutorName) }));
-
-    const filteredLongRows = longitudinalRows;
+    // Longitudinal 22-25 rows no longer fetched (key expired); current-year data below
+    const filteredLongRows = [];
 
     // 25-26 EOY PRELIMINARY rows: matched by Pearl scholar ID (most accurate)
     const rows2526 = [

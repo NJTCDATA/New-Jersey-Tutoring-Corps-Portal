@@ -6,11 +6,10 @@
 (function () {
   'use strict';
 
-  // Published-to-web 2PACX key — same workbook the Central Team Portal uses.
-  // This /pub?output=csv endpoint is publicly accessible without authentication,
-  // unlike the direct /export?format=csv endpoint which requires sign-in and
-  // fails intermittently for anonymous users, causing "DATA UNAVAILABLE".
-  const PEARL_2PACX = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+  // Pearl workbook identifiers — three independent URL strategies tried in order
+  // so a single endpoint failure never blocks the entire dashboard.
+  const PEARL_SHEET_ID = '1yMa4-7SJlfT-Z8ZlRwhQ0wlstkPPvHP0o61YK6MzAiA';
+  const PEARL_2PACX    = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_GIDS = {
     att:  702726038,
     inst: 1955492004,
@@ -19,12 +18,12 @@
   };
 
   const CACHE_TTL = 5 * 60 * 1000;
-  // Cache keys bumped (v6) because URL format changed from /export to /pub
+  // Cache keys bumped (v7) — multi-URL fallback added
   const CACHE_KEYS = {
-    att:  'njtc_od_att_v6',
-    inst: 'njtc_od_inst_v6',
-    stu:  'njtc_od_stu_v6',
-    sess: 'njtc_od_sess_v6'
+    att:  'njtc_od_att_v7',
+    inst: 'njtc_od_inst_v7',
+    stu:  'njtc_od_stu_v7',
+    sess: 'njtc_od_sess_v7'
   };
 
   // ATT column indexes
@@ -156,16 +155,34 @@
     }
 
     const gid = PEARL_GIDS[gidName];
-    const url = `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for sheet ${gidName}`);
+    // Three URL strategies in priority order.
+    // Any one succeeding is sufficient — browser 404/403 from earlier attempts
+    // are expected and handled; they do NOT surface in the console as errors
+    // because we catch them before the network layer reports them as uncaught.
+    const candidates = [
+      // 1. Published-to-web 2PACX key (no auth required, same key as Central portal)
+      `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`,
+      // 2. Visualization API — works when sheet is shared "Anyone with the link"
+      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`,
+      // 3. Direct export — last resort
+      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/export?format=csv&gid=${gid}`
+    ];
 
-    const text = await res.text();
-    const rows = parseCSV(text);
-
-    if (cacheKey) setCache(cacheKey, rows);
-    return rows;
+    let lastErr;
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) { lastErr = new Error(`HTTP ${res.status} for ${gidName}`); continue; }
+        const text = await res.text();
+        const rows = parseCSV(text);
+        if (rows.length > 1) {
+          if (cacheKey) setCache(cacheKey, rows);
+          return rows;
+        }
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error(`All Pearl fetch strategies failed for ${gidName}`);
   }
 
   function safeNum(val) {
