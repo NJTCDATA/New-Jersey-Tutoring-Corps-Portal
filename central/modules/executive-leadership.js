@@ -1720,9 +1720,9 @@
     const hrOnlyEnrolled = (window.AP_DATA || []).filter(r =>
       r.apprentice === 'Yes' && !tapNames.has(nm(r.name)) &&
       (_ltKeys.size === 0 || _inLT(r.name))
-    );
+    ).map(r => Object.assign({}, r, { _hrOnly: true }));
     if (hrOnlyEnrolled.length) {
-      console.warn('[AP] ' + hrOnlyEnrolled.length + ' HR-confirmed apprentice(s) not in TAP sheet — adding to enrolled. Add to TAP sheet to resolve:',
+      console.warn('[AP] ' + hrOnlyEnrolled.length + ' HR-confirmed apprentice(s) not in TAP sheet (excluded from count — add to TAP sheet to resolve):',
         hrOnlyEnrolled.map(r => '"' + r.name + '"').join(', '));
     }
 
@@ -1751,7 +1751,7 @@
   };
 
   // ── Utility functions — all derived from live AP_DATA (zero hardcodes) ───
-  const ap_enrolled    = () => AP_DATA.filter(r => r.apprentice === 'Yes');
+  const ap_enrolled    = () => AP_DATA.filter(r => r.apprentice === 'Yes' && !r._hrOnly);
   const ap_eligible    = () => AP_DATA.filter(r => r.apprentice === 'No');
   const ap_notEligible = () => AP_DATA.filter(r => r.apprentice === 'Not eligible' || r.apprentice === '');
   const ap_totalActive = () => AP_DATA.length;  // All active 2025-2026 staff from Master List
