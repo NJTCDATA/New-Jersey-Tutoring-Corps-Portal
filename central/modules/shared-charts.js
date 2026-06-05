@@ -1538,11 +1538,14 @@
   window._njtcPearlAliasMap = _PEARL_ALIAS_MAP;
 
   function _hrOverlayPearl() {
-    if (typeof po === 'undefined' || !po || !po.getTutorAttendanceMap) return;
+    const _poReady = typeof po !== 'undefined' && po && typeof po.getTutorAttendanceMap === 'function';
+    if (!_poReady) { console.warn('[HR Profiles] Pearl overlay skipped — po not ready'); return; }
     try {
       // getTutorAttendanceMap() reads live _personMap — current SY Pearl data only
       const tutorAttMap = po.getTutorAttendanceMap();
-      if (!tutorAttMap || !Object.keys(tutorAttMap).length) return;
+      console.log('[HR Profiles] Pearl overlay called — tutorAttMap size:', Object.keys(tutorAttMap||{}).length,
+        '| surveyFn:', typeof po.getTutorSurveyScores, '| sessionFn:', typeof po.getTutorSessionStats);
+      if (!tutorAttMap || !Object.keys(tutorAttMap).length) { console.warn('[HR Profiles] Pearl overlay skipped — empty tutorAttMap'); return; }
 
       // Pre-build survey and session maps keyed by _hn(pearlName) for O(1) lookup
       // once the attendance fuzzy-match has identified the canonical Pearl name.
