@@ -6,8 +6,7 @@
 (function () {
   'use strict';
 
-  // Direct export URL — works with "Anyone with the link can view" (no Publish-to-web required)
-  const PEARL_SHEET_ID = '1yMa4-7SJlfT-Z8ZlRwhQ0wlstkPPvHP0o61YK6MzAiA';
+  const PEARL_BASE_ID = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_GIDS = {
     att:  702726038,
     inst: 1955492004,
@@ -152,7 +151,7 @@
     }
 
     const gid = PEARL_GIDS[gidName];
-    const url = `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/export?format=csv&gid=${gid}`;
+    const url = `https://docs.google.com/spreadsheets/d/e/${PEARL_BASE_ID}/pub?output=csv&gid=${gid}`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} for sheet ${gidName}`);
@@ -192,12 +191,22 @@
   }
 
   async function fetchUserData(pearlUserId) {
-    const [attRows, instRows, stuRows, sessRows] = await Promise.all([
+    // Use allSettled so a single failing tab (e.g. surveys not yet published)
+    // doesn't kill the entire dashboard — attendance is always the critical path.
+    const [attRes, instRes, stuRes, sessRes] = await Promise.allSettled([
       fetchSheet('att'),
       fetchSheet('inst'),
       fetchSheet('stu'),
       fetchSheet('sess')
     ]);
+
+    // Attendance is critical — propagate its error so the dashboard shows the error state
+    if (attRes.status === 'rejected') throw attRes.reason;
+
+    const attRows  = attRes.value;
+    const instRows = instRes.status  === 'fulfilled' ? instRes.value  : [];
+    const stuRows  = stuRes.status   === 'fulfilled' ? stuRes.value   : [];
+    const sessRows = sessRes.status  === 'fulfilled' ? sessRes.value  : [];
 
     // Filter my instructor attendance rows
     const myInstRows = attRows.filter(r =>
