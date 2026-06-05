@@ -171,11 +171,18 @@
     }
 
     (async () => {
-      // Check for existing valid session
-      const existing = await NJTCAuth.currentSession();
-      if (existing) {
-        route(existing.dept, NJTCAuth.getStoredToken());
-        return;
+      // If arriving from a sign-out, clear any residual session and stay on this page
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('signout') === '1') {
+        NJTCAuth.clearSession();
+        history.replaceState(null, '', window.location.pathname);
+      } else {
+        // Check for existing valid session and auto-redirect
+        const existing = await NJTCAuth.currentSession();
+        if (existing) {
+          route(existing.dept, NJTCAuth.getStoredToken());
+          return;
+        }
       }
 
       const input  = document.getElementById('accessCode');

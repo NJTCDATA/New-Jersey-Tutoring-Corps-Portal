@@ -617,5 +617,11 @@
     };
   }
 
-  window.NJTCPearlData = { fetchUserData };
+  function clearCache() {
+    Object.values(CACHE_KEYS).forEach(k => {
+      try { localStorage.removeItem(k); } catch(e) {}
+    });
+  }
+
+  window.NJTCPearlData = { fetchUserData, clearCache };
 })();

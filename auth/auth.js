@@ -95,7 +95,7 @@ const NJTCAuth = (() => {
 
   function logout() {
     clearSession();
-    window.location.href = BASE + '/index.html';
+    window.location.href = BASE + '/index.html?signout=1';
   }
 
   return { login, currentSession, logout, clearSession, getStoredToken };
