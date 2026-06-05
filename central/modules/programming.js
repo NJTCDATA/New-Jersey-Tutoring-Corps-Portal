@@ -1925,21 +1925,12 @@
     async function resolveGids() {
       if (_gidsResolved) return true;
 
-      // ── Known-good GIDs (authoritative — confirmed from edit URL, never change) ──
-      // All four tabs are hardcoded — no discovery needed, no cache can override.
-      // att  = Missed Reasons     702726038
-      // sess = Session Details    625567780
-      // inst = Instructor Surveys 1955492004  (confirmed from edit URL)
-      // stu  = Student Surveys    1245403832  (confirmed from edit URL)
+      // att, inst, sess GIDs are confirmed from edit URL and stable.
+      // stu GID (1245403832) returns 400 — published GID differs, so we discover it.
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
-      GIDS.inst = 1955492004;       // tutor/instructor survey — confirmed from edit URL
-      GIDS.stu  = STU_GID_FALLBACK; // 1245403832 — student survey — hardcoded
-
-      // GIDs are hardcoded — skip cache and discovery entirely
-      _gidsResolved = true;
-      console.log('[Pearl Ops] GIDs hardcoded — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
-      return true;
+      GIDS.inst = 1955492004;
+      // GIDS.stu left null — will be resolved by pubhtml discovery below
 
 
       // Step 1: fetch the pubhtml index to discover real gid values
@@ -2067,17 +2058,17 @@
       // ── Apply known-good fallbacks for any tab still unresolved ─────────
       // att + sess are already set above; inst/stu use discovery or these fallbacks.
       if (!GIDS.inst) GIDS.inst = 1955492004;
-      if (!GIDS.stu)  GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — confirmed scholar survey GID
+      if (!GIDS.stu)  GIDS.stu  = STU_GID_FALLBACK;  // fallback if discovery found nothing
       // Guard: stu and inst must never share the same GID — if they do, discovery
       // mis-assigned the scholar survey to the inst slot; override with known fallback.
       if (GIDS.stu === GIDS.inst) {
         console.warn('[Pearl Ops] stu/inst GID collision — overriding stu to fallback:', STU_GID_FALLBACK);
         GIDS.stu = STU_GID_FALLBACK;
       }
-      // Always re-assert att/sess/stu to confirmed values (discovery cannot override)
+      // Always re-assert att/sess to confirmed values (discovery cannot override these)
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
-      GIDS.stu  = STU_GID_FALLBACK;  // 1245403832 — locked in, like att/sess
+      // GIDS.stu is left as discovered — do NOT re-assert to fallback here
 
       // Persist only inst to localStorage (other GIDs are always hardcoded)
       try {
