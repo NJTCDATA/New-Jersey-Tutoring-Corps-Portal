@@ -6,8 +6,7 @@
 (function () {
   'use strict';
 
-  // Apps Script proxy — runs as authenticated owner, bypasses Workspace public-access restrictions
-  const PEARL_PROXY = 'https://script.google.com/macros/s/AKfycbyTzRcf2xtE3KuRp7cuhx6rrFqdL14oyhIQ5yV7AgCAoZMzfjsUEaQp_-B0EQrHJS-iiw/exec';
+  const PEARL_BASE_ID = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_GIDS = {
     att:  702726038,
     inst: 1955492004,
@@ -152,7 +151,7 @@
     }
 
     const gid = PEARL_GIDS[gidName];
-    const url = `${PEARL_PROXY}?gid=${gid}`;
+    const url = `https://docs.google.com/spreadsheets/d/e/${PEARL_BASE_ID}/pub?output=csv&gid=${gid}`;
 
     const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) throw new Error(`HTTP ${res.status} for sheet ${gidName}`);
