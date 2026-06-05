@@ -2425,6 +2425,9 @@
         buildIndexes();
         renderView();
         setSyncState('live');
+        // Notify HR profiles to re-overlay with survey scores now available
+        if (typeof _hrInvalidateOverlay === 'function') _hrInvalidateOverlay();
+        _notifyLeadershipReady();
         // Save aggregated cache (compact — only entries needed for restore)
         try {
           // Trim entries per school to last 2000 (increased from 500 for accuracy)
@@ -2438,6 +2441,9 @@
             };
           }
           var cacheObj = { ts: Date.now(), schools: cacheSchools, totalRows: _stuRows.length };
+          // Clear older pearl cache keys to free space before saving
+          try { ['njtc_od_att_v3','njtc_od_inst_v3','njtc_od_stu_v3','njtc_od_sess_v3',
+                 'njtc_od_att_v4','njtc_od_inst_v4','njtc_od_stu_v4','njtc_od_sess_v4'].forEach(k => localStorage.removeItem(k)); } catch(_){}
           localStorage.setItem(STU_AGG_KEY, JSON.stringify(cacheObj));
           console.log('[Pearl Ops] STU agg cache saved:', _stuRows.length, 'rows,',
             Math.round(JSON.stringify(cacheObj).length / 1024), 'KB');
