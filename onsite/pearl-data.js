@@ -192,12 +192,22 @@
   }
 
   async function fetchUserData(pearlUserId) {
-    const [attRows, instRows, stuRows, sessRows] = await Promise.all([
+    // Use allSettled so a single failing tab (e.g. surveys not yet published)
+    // doesn't kill the entire dashboard — attendance is always the critical path.
+    const [attRes, instRes, stuRes, sessRes] = await Promise.allSettled([
       fetchSheet('att'),
       fetchSheet('inst'),
       fetchSheet('stu'),
       fetchSheet('sess')
     ]);
+
+    // Attendance is critical — propagate its error so the dashboard shows the error state
+    if (attRes.status === 'rejected') throw attRes.reason;
+
+    const attRows  = attRes.value;
+    const instRows = instRes.status  === 'fulfilled' ? instRes.value  : [];
+    const stuRows  = stuRes.status   === 'fulfilled' ? stuRes.value   : [];
+    const sessRows = sessRes.status  === 'fulfilled' ? sessRes.value  : [];
 
     // Filter my instructor attendance rows
     const myInstRows = attRows.filter(r =>
