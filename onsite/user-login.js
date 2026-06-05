@@ -515,23 +515,14 @@
       hideError();
 
       try {
-        // Fetch user roster + live HR roles in parallel
-        const [usersResp, hrRows] = await Promise.all([
-          fetch(USERS_JSON_PATH + '?_=' + Date.now()),
-          fetchHRRows()
-        ]);
-
+        const usersResp = await fetch(USERS_JSON_PATH + '?_=' + Date.now());
         if (!usersResp.ok) throw new Error('Network error');
         const data = await usersResp.json();
         const user = (data.users || []).find(u => u.id === raw);
 
         if (user) {
-          // Overlay live role from HR Master List (same sheet as central portal)
-          const liveHRRole = findHRRole(hrRows, user.name);
           const now = Date.now();
           const profile = Object.assign({}, user, {
-            role:      displayRole(liveHRRole) || user.role,
-            hrRoleRaw: liveHRRole || null,
             loginTime: now,
             expires:   now + SESSION_HOURS * 60 * 60 * 1000
           });
@@ -675,18 +666,6 @@
       // Valid session — personalize immediately, then silently refresh role from HR
       function runPersonalize() {
         personalizePortal(existing);
-        // Background-refresh role from live HR sheet if cache is stale
-        fetchHRRows().then(hrRows => {
-          if (!hrRows) return;
-          const liveRole = displayRole(findHRRole(hrRows, existing.name));
-          if (liveRole && liveRole !== existing.role) {
-            existing.role = liveRole;
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(existing)); } catch (e) {}
-            // Update the role tag in the DOM if already rendered
-            const tag = document.querySelector('.uac-role-tag');
-            if (tag) tag.textContent = liveRole;
-          }
-        }).catch(() => {});
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', runPersonalize);
