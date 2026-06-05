@@ -1925,12 +1925,15 @@
     async function resolveGids() {
       if (_gidsResolved) return true;
 
-      // att, inst, sess GIDs are confirmed from edit URL and stable.
-      // stu GID (1245403832) returns 400 — published GID differs, so we discover it.
+      // All four GIDs are confirmed from edit URLs — hardcoded, no discovery needed.
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
       GIDS.inst = 1955492004;
-      // GIDS.stu left null — will be resolved by pubhtml discovery below
+      GIDS.stu  = STU_GID_FALLBACK; // 1245403832
+
+      _gidsResolved = true;
+      console.log('[Pearl Ops] GIDs hardcoded — inst=' + GIDS.inst + ' stu=' + GIDS.stu);
+      return true;
 
 
       // Step 1: fetch the pubhtml index to discover real gid values
@@ -2065,10 +2068,10 @@
         console.warn('[Pearl Ops] stu/inst GID collision — overriding stu to fallback:', STU_GID_FALLBACK);
         GIDS.stu = STU_GID_FALLBACK;
       }
-      // Always re-assert att/sess to confirmed values (discovery cannot override these)
+      // Always re-assert all GIDs to confirmed values
       GIDS.att  = 702726038;
       GIDS.sess = 625567780;
-      // GIDS.stu is left as discovered — do NOT re-assert to fallback here
+      GIDS.stu  = STU_GID_FALLBACK;
 
       // Persist only inst to localStorage (other GIDs are always hardcoded)
       try {
