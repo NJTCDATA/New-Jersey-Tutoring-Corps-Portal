@@ -2578,6 +2578,7 @@
       const swMidIP   = APPRENTICES_SW.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='in-progress').length;
 
       el.innerHTML = `
+        <!-- View toggle + filters toolbar -->
         <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
           <div style="font-weight:700;color:#1B2A4A;font-size:.9rem">Region:</div>
           <button class="pst-tab active" id="apprRegAll" onclick="apprRegionFilter('all',this)" style="padding:.3rem .8rem;font-size:.8rem">All (${apps.length})</button>
@@ -2595,9 +2596,15 @@
               <option value="needs-followup">Needs Follow-Up</option>
               <option value="none">Not Started</option>
             </select>
+            <div style="display:flex;gap:.25rem;border:1px solid #d1d5db;border-radius:6px;overflow:hidden">
+              <button id="apprViewQueue" onclick="apprToggleView('queue')" style="padding:.3rem .65rem;font-size:.8rem;border:none;background:#1B2A4A;color:#fff;cursor:pointer;font-weight:600" title="Queue Card View">⊞ Queue</button>
+              <button id="apprViewTable" onclick="apprToggleView('table')" style="padding:.3rem .65rem;font-size:.8rem;border:none;background:#f9fafb;color:#6b7280;cursor:pointer" title="Table View">≡ Table</button>
+            </div>
           </div>
         </div>
-        <div style="overflow-x:auto;margin-bottom:1.5rem">
+
+        <!-- TABLE VIEW -->
+        <div id="apprTableView" style="display:none;overflow-x:auto;margin-bottom:1.5rem">
           <table id="apprMasterTable" style="width:100%;border-collapse:collapse;font-size:.85rem">
             <thead>
               <tr style="background:#1B2A4A;color:#fff">
@@ -2624,7 +2631,7 @@
                 return `<tr class="appr-row" data-region="${a.region}" data-district="${a.district}" data-beg="${otjSt}" data-mid="${otjSt}" data-end="${getOTJStatus(a.end)}"
                   style="border-bottom:1px solid #e5e7eb;border-left:3px solid ${borderColor}">
                   <td style="padding:.4rem .4rem;color:#9ca3af">${i+1}</td>
-                  <td style="padding:.4rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
+                  <td style="padding:.4rem .4rem;font-weight:600;color:#1B2A4A;cursor:pointer" onclick="apprOpenProfile(${i})">${a.name}</td>
                   <td style="padding:.4rem .4rem"><span style="background:${a.region==='NE'?'#dbeafe':'#fef3c7'};color:${a.region==='NE'?'#1e40af':'#92400e'};padding:.15rem .4rem;border-radius:4px;font-size:.75rem;font-weight:700">${a.region}</span></td>
                   <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.district||'—'}</td>
                   <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.sl||'—'}</td>
@@ -2640,6 +2647,63 @@
             </tbody>
           </table>
         </div>
+
+        <!-- QUEUE CARD VIEW -->
+        <div id="apprQueueView" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem">
+          ${apps.map((a,i) => {
+            const pct       = a.otjItems !== null ? a.otjItems / LIVE_TRACKER_OTJ_COLS : 0;
+            const circ      = 175.93;
+            const dashOff   = (circ * (1 - Math.min(pct, 1))).toFixed(1);
+            const pctLabel  = a.otjItems !== null ? Math.round(pct * 100) + '%' : '—';
+            const isInactive = (a.adp||'').includes('Terminat');
+            const regionBg  = a.region === 'NE' ? '#dbeafe' : '#fef3c7';
+            const regionClr = a.region === 'NE' ? '#1e40af' : '#92400e';
+            const obsClr    = a.obsCount >= 3 ? '#059669' : a.obsCount >= 1 ? '#d97706' : '#9ca3af';
+            const ringClr   = pct >= 1 ? '#059669' : pct >= 0.5 ? '#f59e0b' : pct > 0 ? '#3b82f6' : '#d1d5db';
+            const otjSt     = otjItemStatus(a.otjItems);
+            const phaseLabel= a.otjItems >= LIVE_TRACKER_OTJ_COLS ? '✅ Complete' : a.otjItems > 0 ? '🔄 In Progress' : '⏳ Not Started';
+            return `<div class="appr-queue-card appr-row" data-idx="${i}" data-region="${a.region}" data-district="${a.district}" data-beg="${otjSt}" data-mid="${otjSt}" data-end="${getOTJStatus(a.end)}"
+              onclick="apprOpenProfile(${i})"
+              style="background:#fff;border:1px solid ${isInactive?'#fca5a5':'#e5e7eb'};border-radius:12px;padding:1.1rem 1.1rem 1rem;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative;${isInactive?'opacity:.72':''}"
+              onmouseover="this.style.boxShadow='0 4px 16px rgba(27,42,74,.13)';this.style.transform='translateY(-2px)'"
+              onmouseout="this.style.boxShadow='';this.style.transform=''">
+              ${isInactive ? '<div style="position:absolute;top:.55rem;right:.55rem;background:#fee2e2;color:#991b1b;font-size:.62rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;letter-spacing:.04em">INACTIVE</div>' : ''}
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+                <div style="padding-right:.5rem">
+                  <div style="font-weight:700;color:#1B2A4A;font-size:.88rem;line-height:1.25">${a.name}</div>
+                  <div style="font-size:.74rem;color:#6b7280;margin-top:.15rem">${a.district||'—'}</div>
+                </div>
+                <span style="background:${regionBg};color:${regionClr};padding:.18rem .45rem;border-radius:4px;font-size:.7rem;font-weight:700;white-space:nowrap;flex-shrink:0">${a.region}</span>
+              </div>
+              <div style="font-size:.76rem;color:#374151;margin-bottom:.8rem;min-height:1.1rem">${a.school||a.district||'—'}</div>
+              <div style="display:flex;align-items:center;gap:.9rem">
+                <div style="position:relative;width:54px;height:54px;flex-shrink:0">
+                  <svg viewBox="0 0 60 60" style="width:54px;height:54px;transform:rotate(-90deg)">
+                    <circle cx="30" cy="30" r="28" fill="none" stroke="#f3f4f6" stroke-width="6"/>
+                    <circle cx="30" cy="30" r="28" fill="none" stroke="${ringClr}" stroke-width="6"
+                      stroke-dasharray="${circ}" stroke-dashoffset="${dashOff}"
+                      stroke-linecap="round"/>
+                  </svg>
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:${ringClr}">${pctLabel}</div>
+                </div>
+                <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:.2rem .5rem;align-items:center">
+                  <span style="font-size:.7rem;color:#9ca3af">OTJ</span>
+                  <span style="font-size:.76rem;font-weight:600;color:#1B2A4A">${a.otjItems !== null ? a.otjItems+'/'+LIVE_TRACKER_OTJ_COLS : '—'} <span style="font-weight:400;color:#9ca3af;font-size:.68rem">${phaseLabel}</span></span>
+                  <span style="font-size:.7rem;color:#9ca3af">Obs</span>
+                  <span style="font-size:.76rem;font-weight:600;color:${obsClr}">${a.obsCount}${a.lastObs?' <span style="font-weight:400;color:#9ca3af;font-size:.68rem">last '+a.lastObs+'</span>':''}</span>
+                  <span style="font-size:.7rem;color:#9ca3af">Leader</span>
+                  <span style="font-size:.73rem;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.sl||'—'}</span>
+                </div>
+              </div>
+              <div style="margin-top:.75rem;padding-top:.65rem;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:.7rem;color:#9ca3af">Click for full profile →</span>
+                ${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.8rem;text-decoration:none;color:#6b7280" title="OTJ Checklist">📁</a>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+
+        <!-- Program Narrative -->
         <div class="ta-card" style="padding:1.25rem;background:#f0f9ff;border-left:4px solid #1B2A4A">
           <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.95rem">Program Narrative</div>
           <p style="font-size:.9rem;color:#374151;line-height:1.6;margin:0">
@@ -2650,6 +2714,15 @@
             and ${swMidIP} are in progress.
             ${apps.filter(a=>a.obsCount===0).length > 0 ? `<strong>${apps.filter(a=>a.obsCount===0).length} apprentices</strong> have not yet received any recorded observation.` : 'All apprentices have at least one recorded observation on file.'}
           </p>
+        </div>
+
+        <!-- PROFILE PANEL OVERLAY -->
+        <div id="apprProfileOverlay" onclick="if(event.target===this)apprCloseProfile()"
+          style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9800;backdrop-filter:blur(2px)">
+          <div id="apprProfilePanel"
+            style="position:absolute;top:0;right:0;bottom:0;width:min(640px,100vw);background:#fff;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column">
+            <div id="apprProfileContent" style="flex:1;padding:1.5rem 1.75rem"></div>
+          </div>
         </div>`;
 
       // Store apps data for filter function
@@ -2667,21 +2740,377 @@
   };
 
   window.apprApplyFilter = function() {
-    const region   = window._apprRegion || 'all';
-    const dist     = (document.getElementById('apprDistFilter')  || {}).value || '';
-    const phase    = (document.getElementById('apprPhaseFilter') || {}).value || '';
+    const region = window._apprRegion || 'all';
+    const dist   = (document.getElementById('apprDistFilter')  || {}).value || '';
+    const phase  = (document.getElementById('apprPhaseFilter') || {}).value || '';
     document.querySelectorAll('.appr-row').forEach(row => {
-      const rRegion = row.dataset.region || '';
+      const rRegion = row.dataset.region   || '';
       const rDist   = row.dataset.district || '';
-      const rBeg    = row.dataset.beg || '';
-      const rMid    = row.dataset.mid || '';
-      const rEnd    = row.dataset.end || '';
+      const rBeg    = row.dataset.beg      || '';
+      const rMid    = row.dataset.mid      || '';
+      const rEnd    = row.dataset.end      || '';
       let show = true;
       if (region !== 'all' && rRegion !== region) show = false;
       if (dist && rDist !== dist) show = false;
       if (phase && rBeg !== phase && rMid !== phase && rEnd !== phase) show = false;
-      row.style.display = show ? '' : 'none';
+      // Table rows: hide with display:none; queue cards: hide but keep grid layout intact
+      if (row.classList.contains('appr-queue-card')) {
+        row.style.visibility = show ? '' : 'hidden';
+        row.style.pointerEvents = show ? '' : 'none';
+        row.style.opacity = show ? '' : '0';
+      } else {
+        row.style.display = show ? '' : 'none';
+      }
     });
+  };
+
+
+  // ══════════════════════════════════════════════════════════════════
+  //  APPRENTICE PROFILE PANEL — view toggle + per-apprentice detail
+  // ══════════════════════════════════════════════════════════════════
+
+  window.apprToggleView = function(view) {
+    const queueEl  = document.getElementById('apprQueueView');
+    const tableEl  = document.getElementById('apprTableView');
+    const queueBtn = document.getElementById('apprViewQueue');
+    const tableBtn = document.getElementById('apprViewTable');
+    if (!queueEl || !tableEl) return;
+    if (view === 'queue') {
+      queueEl.style.display = 'grid';
+      tableEl.style.display = 'none';
+      if (queueBtn) { queueBtn.style.background='#1B2A4A'; queueBtn.style.color='#fff'; queueBtn.style.fontWeight='600'; }
+      if (tableBtn) { tableBtn.style.background='#f9fafb'; tableBtn.style.color='#6b7280'; tableBtn.style.fontWeight='400'; }
+    } else {
+      queueEl.style.display = 'none';
+      tableEl.style.display = 'block';
+      if (tableBtn) { tableBtn.style.background='#1B2A4A'; tableBtn.style.color='#fff'; tableBtn.style.fontWeight='600'; }
+      if (queueBtn) { queueBtn.style.background='#f9fafb'; queueBtn.style.color='#6b7280'; queueBtn.style.fontWeight='400'; }
+    }
+    window._apprView = view;
+  };
+
+  window.apprCloseProfile = function() {
+    const ov = document.getElementById('apprProfileOverlay');
+    if (ov) ov.style.display = 'none';
+  };
+
+  // Pearl data for profile panel (shared 5-min cache keyed by GID)
+  const _APPR_PEARL_BASE = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+  const _APPR_ATT_GID    = 702726038;
+  const _APPR_STU_GID    = 1245403832;
+  const _apprPearlCache  = {};
+  const _APPR_TUTOR_MISS = new Set([
+    'Absent; Not Covered (Tutor not available)',
+    'Absent; Covered by Sub Tutor',
+    'Absent; Covered by Dual Role',
+    'Absent; Covered by the Site Leader',
+    'Absent; Covered by the Instructional Coach',
+    'Tutor Left Early (no sub)',
+  ]);
+
+  async function _apprFetchPearlRows(gid, label) {
+    const url = `https://docs.google.com/spreadsheets/d/e/${_APPR_PEARL_BASE}/pub?output=csv&gid=${gid}`;
+    const now = Date.now();
+    if (_apprPearlCache[gid] && now - _apprPearlCache[gid].ts < 300000)
+      return _apprPearlCache[gid].rows;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' fetching ' + label);
+    const text = await resp.text();
+    // Parse without skipping rows — first row = headers
+    const rows = parseCsvText(text.replace(/\r\n/g,'\n').replace(/\r/g,'\n'), 0);
+    _apprPearlCache[gid] = { rows, ts: now };
+    return rows;
+  }
+
+  function _apprNorm(n) {
+    if (!n) return '';
+    return n.trim().toLowerCase()
+      .replace(/^dr\.?\s+/,'')
+      .replace(/\(.*?\)/g,'')
+      .replace(/-/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function _apprNormFL(n) {
+    const parts = _apprNorm(n).split(' ').filter(p => p.length > 1 && !/^[a-z]\.?$/.test(p));
+    return parts.length >= 2 ? parts[0] + ' ' + parts[parts.length-1] : _apprNorm(n);
+  }
+  function _apprMatch(raw, targetName) {
+    const rn = _apprNorm(raw), tn = _apprNorm(targetName);
+    if (rn === tn) return true;
+    const rfl = _apprNormFL(raw), tfl = _apprNormFL(targetName);
+    return rfl && tfl && rfl === tfl;
+  }
+
+  function _apprRatingBar(val, max) {
+    if (val === null || val === undefined || isNaN(val)) return '<span style="color:#9ca3af">—</span>';
+    const pct = Math.round((val / max) * 100);
+    const color = pct >= 80 ? '#059669' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    return `<div style="display:flex;align-items:center;gap:.5rem">
+      <div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
+      </div>
+      <span style="font-size:.78rem;font-weight:700;color:${color};min-width:2.5rem;text-align:right">${val.toFixed(1)}/${max}</span>
+    </div>`;
+  }
+
+  function _apprSection(title, icon, content) {
+    return `<div style="margin-bottom:1.5rem">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin-bottom:.75rem;display:flex;align-items:center;gap:.35rem">
+        <span>${icon}</span> ${title}
+      </div>
+      ${content}
+    </div>`;
+  }
+
+  function _apprProgressBar(count, total, color) {
+    const pct = total > 0 ? Math.min(Math.round(count/total*100), 100) : 0;
+    return `<div style="margin-bottom:.35rem">
+      <div style="display:flex;justify-content:space-between;font-size:.75rem;color:#374151;margin-bottom:.25rem">
+        <span style="font-weight:600">${count} / ${total} items</span>
+        <span style="font-weight:700;color:${color}">${pct}%</span>
+      </div>
+      <div style="height:8px;background:#f3f4f6;border-radius:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .4s"></div>
+      </div>
+    </div>`;
+  }
+
+  window.apprOpenProfile = async function(idx) {
+    const apps = window._apprApps;
+    if (!apps || !apps[idx]) return;
+    const a = apps[idx];
+
+    const overlay  = document.getElementById('apprProfileOverlay');
+    const content  = document.getElementById('apprProfileContent');
+    if (!overlay || !content) return;
+
+    // Show overlay with loading state immediately
+    overlay.style.display = 'block';
+    const isInactive = (a.adp||'').includes('Terminat');
+    const regionBg  = a.region === 'NE' ? '#dbeafe' : '#fef3c7';
+    const regionClr = a.region === 'NE' ? '#1e40af' : '#92400e';
+
+    // Find TAP roster entry for this person
+    const tapEntry  = (window.AP_TAP_ROSTER || []).find(r => _apprMatch(r.name, a.name)) || {};
+    const otjPct    = a.otjItems !== null ? Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100) : 0;
+    const ringColor = otjPct >= 100 ? '#059669' : otjPct >= 50 ? '#f59e0b' : otjPct > 0 ? '#3b82f6' : '#d1d5db';
+
+    content.innerHTML = `
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">
+        <div>
+          <div style="font-size:1.15rem;font-weight:700;color:#1B2A4A;line-height:1.2">${a.name}</div>
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem;align-items:center">
+            <span style="background:${regionBg};color:${regionClr};padding:.2rem .55rem;border-radius:5px;font-size:.72rem;font-weight:700">${a.region}</span>
+            ${isInactive ? '<span style="background:#fee2e2;color:#991b1b;padding:.2rem .55rem;border-radius:5px;font-size:.72rem;font-weight:700">INACTIVE</span>' : '<span style="background:#d1fae5;color:#065f46;padding:.2rem .55rem;border-radius:5px;font-size:.72rem;font-weight:700">ACTIVE</span>'}
+            ${tapEntry.cohort ? `<span style="background:#f3f4f6;color:#374151;padding:.2rem .55rem;border-radius:5px;font-size:.72rem">Cohort: ${tapEntry.cohort}</span>` : ''}
+          </div>
+        </div>
+        <button onclick="apprCloseProfile()" style="background:none;border:1px solid #e5e7eb;border-radius:6px;padding:.3rem .6rem;cursor:pointer;font-size:.85rem;color:#6b7280">✕</button>
+      </div>
+
+      <!-- Identity row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem 1rem;background:#f9fafb;border-radius:8px;padding:.9rem;margin-bottom:1.5rem;font-size:.8rem">
+        <div><span style="color:#9ca3af">District</span><br><strong>${a.district||'—'}</strong></div>
+        <div><span style="color:#9ca3af">School</span><br><strong>${a.school||tapEntry.placement||'—'}</strong></div>
+        <div><span style="color:#9ca3af">Site Leader</span><br><strong>${a.sl||'—'}</strong></div>
+        <div><span style="color:#9ca3af">NJ DOL ID</span><br><strong style="font-family:monospace">${tapEntry.njId||'—'}</strong></div>
+        ${tapEntry.dateReg ? `<div><span style="color:#9ca3af">Registered</span><br><strong>${tapEntry.dateReg}</strong></div>` : ''}
+        ${tapEntry.folderLink ? `<div><span style="color:#9ca3af">Folder</span><br><a href="${tapEntry.folderLink}" target="_blank" rel="noopener" style="color:#2563eb;text-decoration:none;font-weight:600">Open 📁</a></div>` : ''}
+      </div>
+
+      <!-- TAP OTJ Progress -->
+      ${_apprSection('TAP Program Progress', '🎓', `
+        ${_apprProgressBar(a.otjItems !== null ? a.otjItems : 0, LIVE_TRACKER_OTJ_COLS, ringColor)}
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.75rem">
+          ${[['Beginning',a.beg],['Middle',a.mid],['End',a.end]].map(([label,val]) => {
+            const done = /completed|meets expectations/i.test(val||'');
+            const ip   = /in progress|partially/i.test(val||'');
+            const bg   = done ? '#d1fae5' : ip ? '#fef3c7' : '#f3f4f6';
+            const clr  = done ? '#065f46' : ip ? '#92400e' : '#9ca3af';
+            const icon = done ? '✅' : ip ? '🔄' : '⏳';
+            return `<div style="background:${bg};border-radius:6px;padding:.5rem;text-align:center">
+              <div style="font-size:.78rem;font-weight:700;color:${clr}">${icon} ${label}</div>
+              <div style="font-size:.68rem;color:${clr};margin-top:.15rem">${val||'Not Started'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        ${a.notes ? `<div style="margin-top:.75rem;padding:.6rem .75rem;background:#fffbeb;border-radius:6px;font-size:.78rem;color:#92400e"><strong>PM Notes:</strong> ${a.notes}</div>` : ''}
+      `)}
+
+      <!-- Observations -->
+      ${_apprSection('Observations', '👁️', `
+        <div style="display:flex;gap:1.25rem;align-items:center">
+          <div style="text-align:center;background:#f9fafb;border-radius:8px;padding:.75rem 1.25rem">
+            <div style="font-size:1.6rem;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</div>
+            <div style="font-size:.72rem;color:#6b7280">Total Obs</div>
+          </div>
+          ${a.lastObs ? `<div style="font-size:.82rem;color:#374151">Last observation: <strong>${a.lastObs}</strong></div>` : '<div style="font-size:.82rem;color:#9ca3af">No observations on record.</div>'}
+          ${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" style="margin-left:auto;background:#1B2A4A;color:#fff;padding:.4rem .8rem;border-radius:6px;text-decoration:none;font-size:.78rem;font-weight:600">OTJ Checklist 📁</a>` : ''}
+        </div>
+      `)}
+
+      <!-- Live data loading placeholder -->
+      <div id="apprProfileLiveData">
+        <div style="padding:1.5rem;text-align:center;color:#9ca3af;font-size:.85rem">
+          <div style="font-size:1.2rem;margin-bottom:.5rem">⏳</div>
+          Loading Pearl operations &amp; academic data…
+        </div>
+      </div>`;
+
+    overlay.style.display = 'block';
+
+    // Fetch Pearl ATT + STU in parallel, then populate live data section
+    try {
+      const [attRows, stuRows] = await Promise.all([
+        _apprFetchPearlRows(_APPR_ATT_GID, 'Pearl ATT'),
+        _apprFetchPearlRows(_APPR_STU_GID, 'Pearl STU'),
+      ]);
+
+      // ── Attendance ──────────────────────────────────────────────────
+      let attended = 0, missed = 0;
+      const missReasons = {};
+      attRows.forEach(row => {
+        const keys = Object.keys(row);
+        const role = (row['Role'] || row[keys[1]] || '').trim();
+        if (role !== 'Instructor') return;
+        const userName = (row['User'] || row[keys[0]] || '').trim();
+        if (!_apprMatch(userName, a.name)) return;
+        const status = (row['Attendance Status'] || row[keys[6]] || '').trim();
+        if (status === 'Attended' || status === 'Late') {
+          attended++;
+        } else if (status === 'Missed') {
+          const reason = (row['Miss Reason'] || row['Absence Reason'] || row[keys[7]] || '').trim();
+          if (_APPR_TUTOR_MISS.has(reason)) {
+            missed++;
+            if (reason) missReasons[reason] = (missReasons[reason] || 0) + 1;
+          }
+        }
+      });
+      const total   = attended + missed;
+      const attRate = total > 0 ? (attended / total * 100).toFixed(1) : null;
+      const attColor = attRate === null ? '#9ca3af' : attRate >= 90 ? '#059669' : attRate >= 75 ? '#f59e0b' : '#ef4444';
+
+      // ── Surveys ──────────────────────────────────────────────────────
+      const sConf = [], sEnj = [], sLearn = [], sOvr = [];
+      stuRows.forEach(row => {
+        const keys      = Object.keys(row);
+        const filledFor = (row['Filled For'] || row[keys[1]] || '').trim();
+        if (!_apprMatch(filledFor, a.name)) return;
+        const parseV = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
+        const conf  = parseV(row['How confident do you feel about what you are learning?']     || row[keys[2]]);
+        const enj   = parseV(row['How much did you enjoy this session with <aboutName>?']       || row['How much did you enjoy this session with &lt;aboutName&gt;?'] || row[keys[3]]);
+        const learn = parseV(row['How much did you learn in this session?']                      || row[keys[4]]);
+        const ovr   = parseV(row['How would you rate this session overall?']                     || row[keys[5]]);
+        if (conf  !== null) sConf.push(conf);
+        if (enj   !== null) sEnj.push(enj);
+        if (learn !== null) sLearn.push(learn);
+        if (ovr   !== null) sOvr.push(ovr);
+      });
+      const avgArr = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+      const surveyCount = sConf.length || sEnj.length || sLearn.length || sOvr.length;
+      const aConf = avgArr(sConf), aEnj = avgArr(sEnj), aLearn = avgArr(sLearn), aOvr = avgArr(sOvr);
+
+      // ── iReady from IRLAB ─────────────────────────────────────────────
+      let irlEla = [], irlMath = [];
+      if (window.irlab && typeof window.irlab.getAllRows === 'function') {
+        const normN = s => (s||'').toLowerCase().replace(/\s+/g,' ').trim();
+        const schoolKey = a.school || tapEntry.placement || '';
+        irlEla  = window.irlab.getAllRows({ subject: 'ELA',  year: 'all' }).filter(r => {
+          if (_apprMatch(r.instructor || '', a.name)) return true;
+          if (r.tutors && Array.isArray(r.tutors) && r.tutors.some(t => _apprMatch(t, a.name))) return true;
+          return false;
+        });
+        irlMath = window.irlab.getAllRows({ subject: 'Math', year: 'all' }).filter(r => {
+          if (_apprMatch(r.instructor || '', a.name)) return true;
+          if (r.tutors && Array.isArray(r.tutors) && r.tutors.some(t => _apprMatch(t, a.name))) return true;
+          return false;
+        });
+      }
+
+      function _irlAggregate(rows) {
+        if (!rows || !rows.length) return null;
+        const scholars = rows.length;
+        const withBoth = rows.filter(r => r.baseScore !== null && r.springScore !== null);
+        const gains    = withBoth.map(r => r.springScore - r.baseScore);
+        const improved = gains.filter(g => g > 0).length;
+        const avgGain  = gains.length ? gains.reduce((s,v)=>s+v,0)/gains.length : null;
+        const pctTypArr= rows.map(r => r.pctTypical).filter(v => v !== null && v !== undefined && !isNaN(v));
+        const medPct   = pctTypArr.length ? pctTypArr.sort((a,b)=>a-b)[Math.floor(pctTypArr.length/2)] : null;
+        // Placement movement
+        const placed = rows.filter(r => r.baseRelPlacement && r.springRelPlacement);
+        const placMoved = placed.filter(r => {
+          const ORDER = ['3 or More Grade Levels Below','2 Grade Levels Below','1 Grade Level Below','Early On Grade Level','Mid or Above Grade Level'];
+          return ORDER.indexOf(r.springRelPlacement) > ORDER.indexOf(r.baseRelPlacement);
+        }).length;
+        return { scholars, withBoth: withBoth.length, improved, total: gains.length,
+                 avgGain, medPct, placMoved, placed: placed.length };
+      }
+
+      const elaAgg  = _irlAggregate(irlEla);
+      const mathAgg = _irlAggregate(irlMath);
+
+      function _irlBlock(label, agg) {
+        if (!agg || agg.scholars === 0) return `<div style="background:#f9fafb;border-radius:8px;padding:.75rem;text-align:center;color:#9ca3af;font-size:.78rem">${label}: No data linked</div>`;
+        const gainColor = agg.avgGain === null ? '#9ca3af' : agg.avgGain >= 5 ? '#059669' : agg.avgGain >= 0 ? '#f59e0b' : '#ef4444';
+        const pctLabel  = agg.medPct !== null ? (agg.medPct > 0 && agg.medPct <= 2 ? Math.round(agg.medPct*100)+'%' : Math.round(agg.medPct)+'%') : '—';
+        return `<div style="background:#f9fafb;border-radius:8px;padding:.85rem;flex:1">
+          <div style="font-weight:700;color:#1B2A4A;font-size:.8rem;margin-bottom:.6rem">${label}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;font-size:.77rem">
+            <div><span style="color:#9ca3af">Scholars</span><br><strong>${agg.scholars}</strong></div>
+            <div><span style="color:#9ca3af">With BOY+EOY</span><br><strong>${agg.withBoth}</strong></div>
+            <div><span style="color:#9ca3af">Avg Scale Gain</span><br><strong style="color:${gainColor}">${agg.avgGain !== null ? agg.avgGain.toFixed(1) : '—'}</strong></div>
+            <div><span style="color:#9ca3af">Median % Typical</span><br><strong>${pctLabel}</strong></div>
+            ${agg.total > 0 ? `<div><span style="color:#9ca3af">Improved</span><br><strong style="color:#059669">${agg.improved}/${agg.total} (${Math.round(agg.improved/agg.total*100)}%)</strong></div>` : ''}
+            ${agg.placed > 0 ? `<div><span style="color:#9ca3af">Placement Moved Up</span><br><strong>${agg.placMoved}/${agg.placed}</strong></div>` : ''}
+          </div>
+        </div>`;
+      }
+
+      const liveHTML = `
+        ${_apprSection('Pearl Operations — Attendance', '📊', `
+          <div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
+            <div style="text-align:center;background:#f9fafb;border-radius:8px;padding:.7rem 1rem;min-width:90px">
+              <div style="font-size:1.5rem;font-weight:700;color:${attColor}">${attRate !== null ? attRate+'%' : '—'}</div>
+              <div style="font-size:.7rem;color:#6b7280">Att. Rate</div>
+            </div>
+            <div style="display:grid;grid-template-columns:auto auto;gap:.25rem .75rem;font-size:.8rem">
+              <span style="color:#9ca3af">Sessions Attended</span><strong>${attended}</strong>
+              <span style="color:#9ca3af">Personal Absences</span><strong style="color:${missed>0?'#f59e0b':'#374151'}">${missed}</strong>
+              <span style="color:#9ca3af">Total Countable</span><strong>${total}</strong>
+            </div>
+          </div>
+          ${Object.keys(missReasons).length ? `
+            <div style="margin-top:.75rem;font-size:.75rem">
+              <div style="color:#9ca3af;margin-bottom:.35rem">Absence Reasons</div>
+              ${Object.entries(missReasons).map(([r,n]) => `<div style="display:flex;justify-content:space-between;padding:.2rem 0;border-bottom:1px solid #f3f4f6"><span>${r}</span><strong>${n}</strong></div>`).join('')}
+            </div>` : ''}
+        `)}
+
+        ${_apprSection('Scholar Survey Scores', '⭐', surveyCount > 0 ? `
+          <div style="font-size:.72rem;color:#9ca3af;margin-bottom:.6rem">${surveyCount} survey response${surveyCount!==1?'s':''}</div>
+          <div style="display:grid;gap:.5rem">
+            <div><span style="font-size:.78rem;color:#374151">Confidence</span>${_apprRatingBar(aConf, 5)}</div>
+            <div><span style="font-size:.78rem;color:#374151">Enjoyment</span>${_apprRatingBar(aEnj, 5)}</div>
+            <div><span style="font-size:.78rem;color:#374151">Learning</span>${_apprRatingBar(aLearn, 5)}</div>
+            <div><span style="font-size:.78rem;color:#374151">Overall</span>${_apprRatingBar(aOvr, 5)}</div>
+          </div>` : '<div style="color:#9ca3af;font-size:.82rem">No survey data found for this tutor.</div>'
+        )}
+
+        ${_apprSection('iReady Academic Outcomes', '📈',
+          (elaAgg || mathAgg)
+            ? `<div style="display:flex;gap:.75rem;flex-wrap:wrap">${_irlBlock('ELA', elaAgg)}${_irlBlock('Math', mathAgg)}</div>`
+            : '<div style="color:#9ca3af;font-size:.82rem">iReady data not yet loaded. Open the iReady Analysis Lab tab first, then re-open this profile.</div>'
+        )}`;
+
+      const liveEl = document.getElementById('apprProfileLiveData');
+      if (liveEl) liveEl.innerHTML = liveHTML;
+
+    } catch (err) {
+      const liveEl = document.getElementById('apprProfileLiveData');
+      if (liveEl) liveEl.innerHTML = `<div style="padding:1rem;background:#fef2f2;border-radius:8px;font-size:.82rem;color:#991b1b">Could not load live data: ${err.message}</div>`;
+    }
   };
 
 
