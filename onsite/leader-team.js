@@ -10,6 +10,8 @@
   const IREADY_KEY = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
   const IREADY_ELA_GID  = '0';
   const IREADY_MATH_GID = '127145553';
+  // TAP Master Roster — requires the workbook to be shared "Anyone with link can view"
+  // in Google Drive. Set sharing, then the gviz URL works without auth.
   const TAP_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
   const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID     = '911694457';
@@ -244,24 +246,17 @@
     const tap      = val(tapRows);
     const concerns = val(concernRows);
 
-    // Filter Pearl ATT by leader's districts
-    const filteredAtt = att.filter(r => {
+    // Filter Pearl ATT by leader's districts or school names (HR stores school names, not district names)
+    function siteMatch(r, districts) {
       const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredStu = stu.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredEla = irEla.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredMath = irMath.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredTap = tap.filter(r => {
+      const s = r['School'] || r['Site'] || r['school'] || r['site'] || '';
+      return districts.some(ld => distMatch(d, ld) || distMatch(s, ld));
+    }
+    const filteredAtt  = att.filter(r  => siteMatch(r, leaderDistricts));
+    const filteredStu  = stu.filter(r  => siteMatch(r, leaderDistricts));
+    const filteredEla  = irEla.filter(r => siteMatch(r, leaderDistricts));
+    const filteredMath = irMath.filter(r => siteMatch(r, leaderDistricts));
+    const filteredTap  = tap.filter(r  => {
       const site = r['Site'] || r['C'] || '';
       return leaderDistricts.some(ld => distMatch(site, ld));
     });
@@ -720,21 +715,23 @@
       `;
     }
 
-    // TAP block
+    // TAP block — always show OJT log link; show full TAP details only when master roster data loaded
+    const ojtFormUrl = `https://docs.google.com/forms/d/${OJT_FORM_ID}/viewform` +
+      `?entry.1113592438=${encodeURIComponent(name)}` +
+      (tap ? `&entry.2084410404=${encodeURIComponent(tap['Phase'] || tap['I'] || '')}` : '');
+
     let tapHtml = '';
     if (tap) {
       const tapStatus = tap['Apprentice Program Status'] || tap['K'] || '';
-      const usdol = tap['USDOL ID'] || tap['B'] || '—';
-      const phase = tap['Phase'] || tap['I'] || '—';
-      const wage = tap['Current Wage'] || tap['F'] || '—';
-      const milestone = tap['Milestone'] || tap['J'] || '—';
-      const ojtHours = parseFloat(tap['OJT Hours'] || tap['G'] || 0);
-      const rtiHours = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
-      // Assume typical totals for progress bars (phase-based guesses; use 2000 OJT, 144 RTI as defaults)
-      const ojtTotal = 2000, rtiTotal = 144;
-      const ojtPct = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
-      const rtiPct = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
-      const ojtFormUrl = `https://docs.google.com/forms/d/${OJT_FORM_ID}/viewform?entry.1113592438=${encodeURIComponent(name)}&entry.2084410404=${encodeURIComponent(phase)}`;
+      const usdol     = tap['USDOL ID']      || tap['B'] || '—';
+      const phase     = tap['Phase']         || tap['I'] || '—';
+      const wage      = tap['Current Wage']  || tap['F'] || '—';
+      const milestone = tap['Milestone']     || tap['J'] || '—';
+      const ojtHours  = parseFloat(tap['OJT Hours'] || tap['G'] || 0);
+      const rtiHours  = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
+      const ojtTotal  = 4000, rtiTotal = 288;
+      const ojtPct    = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
+      const rtiPct    = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
 
       tapHtml = `
         <div class="njtc-tap-block">
@@ -754,7 +751,18 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">Log OJT Hours →</a>
+          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
+        </div>
+      `;
+    } else {
+      // No TAP master roster data — still provide OJT log access for all tutors
+      tapHtml = `
+        <div class="njtc-tap-block" style="border-color:#334155;background:rgba(30,41,59,0.6)">
+          <div class="njtc-tap-title" style="color:#94a3b8">OJT Activity Log</div>
+          <div style="font-size:0.78rem;color:#64748b;margin-bottom:10px">
+            Log an OJT activity for this tutor. If they are a TAP apprentice, this entry will be recorded and processed automatically.
+          </div>
+          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
         </div>
       `;
     }
