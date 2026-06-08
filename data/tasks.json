@@ -1,7 +1,7 @@
 {
-  "generated": "2026-06-08T10:00:28.012Z",
+  "generated": "2026-06-08T14:32:19.362Z",
   "project": "1211431518555737",
-  "count": 26,
+  "count": 25,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -248,24 +248,6 @@
       "name": "Continue to increase partnerships with additional institutions beyond NJCU for Tutor Apprentices.",
       "notes": "Ashley has met with: \n\n>     Wilmington U\n    Montclair\n    Raritan Community College\n    Rowan University\n    Felician University\n\n\n\n",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555815"
-    },
-    {
-      "gid": "1215363271818051",
-      "assignee": {
-        "gid": "1202967483652746",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-06-05",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Host Capstone event for first cohort of apprentices",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1215363271818051"
     },
     {
       "gid": "1211431518555862",
