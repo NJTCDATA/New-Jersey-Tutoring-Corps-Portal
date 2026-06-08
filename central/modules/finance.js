@@ -255,6 +255,168 @@
             +   '</div></div>';
     }
 
+    // ── TAP Apprenticeship — Wage & Milestone Tracker ─────────────
+    (function() {
+      var apps     = window._apprApps     || [];
+      var roster   = window.AP_TAP_ROSTER || [];
+      var otjMap   = window.njtcLiveOtjMap || {};
+      var OTJ_MAX  = 17;
+      // Wage milestone thresholds as % of OTJ checklist completion (proxy for hours)
+      var MILESTONES = [
+        { pct: 25, label: 'Milestone 1 (25%)', wageNote: '+5% wage increase' },
+        { pct: 50, label: 'Milestone 2 (50%)', wageNote: '+5% wage increase' },
+        { pct: 75, label: 'Milestone 3 (75%)', wageNote: '+5% wage increase' },
+        { pct: 100, label: 'Completion',        wageNote: '+$5.00/hr cert bonus' },
+      ];
+
+      if (!apps.length && !roster.length) {
+        html += '<div class="ta-card" style="margin-bottom:1rem">'
+              + '<div class="ta-card-title">🎓 TAP Apprenticeship — Wage &amp; Milestone Tracker</div>'
+              + '<div style="padding:1rem;text-align:center;color:var(--muted);font-size:.8rem">'
+              + 'Apprentice data not yet loaded. Open the Training &amp; Development → Apprentice Tracker tab first.'
+              + '</div></div>';
+        return;
+      }
+
+      var active = apps.filter(function(a){ return !(a.adp||'').includes('Terminat'); });
+      var normN  = function(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); };
+
+      // Build enriched apprentice list with milestone status
+      var enriched = active.map(function(a) {
+        var key    = normN(a.name);
+        var items  = otjMap.hasOwnProperty(key) ? otjMap[key] : (a.otjItems !== null ? a.otjItems : null);
+        var pct    = items !== null ? Math.min(Math.round(items / OTJ_MAX * 100), 100) : null;
+        var re     = roster.find(function(r){ return normN(r.name) === key || normN(r.name).split(' ').filter(function(w){return w.length>1;})[0] + ' ' + normN(r.name).split(' ').filter(function(w){return w.length>1;})[normN(r.name).split(' ').filter(function(w){return w.length>1;}).length-1] === normN(a.name).split(' ').filter(function(w){return w.length>1;})[0]+' '+normN(a.name).split(' ').filter(function(w){return w.length>1;})[normN(a.name).split(' ').filter(function(w){return w.length>1;}).length-1]; }) || null;
+
+        // Determine which milestone tier they're in
+        var milestone = 'Pre-Milestone 1';
+        var nextMilestone = MILESTONES[0];
+        var actionNeeded  = false;
+        if (pct !== null) {
+          for (var mi = MILESTONES.length - 1; mi >= 0; mi--) {
+            if (pct >= MILESTONES[mi].pct) {
+              milestone    = MILESTONES[mi].label;
+              nextMilestone= MILESTONES[mi + 1] || null;
+              actionNeeded = (pct >= MILESTONES[mi].pct);
+              break;
+            }
+          }
+        }
+
+        return {
+          name:         a.name,
+          district:     a.district || a.school || '—',
+          sl:           a.sl || '—',
+          region:       a.region || '—',
+          obsCount:     a.obsCount || 0,
+          items:        items,
+          pct:          pct,
+          milestone:    milestone,
+          nextMilestone:nextMilestone,
+          actionNeeded: actionNeeded && pct !== null && pct >= 25,
+          njId:         re ? re.njId  : '—',
+          cohort:       re ? re.cohort: '—',
+        };
+      });
+
+      // Sort: action needed first, then by OTJ% desc
+      enriched.sort(function(a, b) {
+        if (a.actionNeeded && !b.actionNeeded) return -1;
+        if (!a.actionNeeded && b.actionNeeded) return  1;
+        return (b.pct || -1) - (a.pct || -1);
+      });
+
+      var actionCount   = enriched.filter(function(a){ return a.actionNeeded; }).length;
+      var completedCount= enriched.filter(function(a){ return a.pct !== null && a.pct >= 100; }).length;
+      var m1Count       = enriched.filter(function(a){ return a.pct !== null && a.pct >= 25; }).length;
+      var m2Count       = enriched.filter(function(a){ return a.pct !== null && a.pct >= 50; }).length;
+      var m3Count       = enriched.filter(function(a){ return a.pct !== null && a.pct >= 75; }).length;
+      var noDataCount   = enriched.filter(function(a){ return a.pct === null; }).length;
+
+      html += '<div class="ta-card" style="margin-bottom:1rem">'
+            + '<div class="ta-card-title">🎓 TAP Apprenticeship — Wage &amp; Milestone Tracker</div>'
+            + '<div style="font-size:.8125rem;color:var(--muted);margin-bottom:.875rem">'
+            + 'SY 25-26 program · OTJ checklist progress used as milestone proxy · Verify exact OJT/RTI hours in the <a href="https://docs.google.com/spreadsheets/d/1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs" target="_blank" rel="noopener" style="color:var(--blue-mid)">Live Tracker</a> before processing wage changes'
+            + '</div>';
+
+      // KPI strip
+      html += '<div class="ta-grid ta-grid-4" style="margin-bottom:.875rem">'
+            + _statBox(active.length,    'Active Apprentices',       'SY 25-26 cohort',                     '#1d4ed8')
+            + _statBox(actionCount,      'Wage Actions Pending',     'At/past a milestone threshold',       actionCount > 0 ? '#d97706' : '#059669')
+            + _statBox(completedCount,   'OTJ Complete',             'All checklist items done',            completedCount > 0 ? '#059669' : '#94a3b8')
+            + _statBox(noDataCount,      'No OTJ Data Yet',          'Not yet in Live Tracker',             noDataCount > 0 ? '#e76f51' : '#059669')
+            + '</div>';
+
+      // Milestone pipeline summary
+      html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:.875rem">'
+            + [
+                ['25% Milestone', m1Count, active.length, '#f59e0b', '+5% wage'],
+                ['50% Milestone', m2Count, active.length, '#d97706', '+5% wage'],
+                ['75% Milestone', m3Count, active.length, '#92400e', '+5% wage'],
+                ['Completion',   completedCount, active.length, '#059669', '+$5.00/hr'],
+              ].map(function(row) {
+                var barPct = active.length > 0 ? Math.round(row[1]/active.length*100) : 0;
+                return '<div style="background:#f9fafb;border-radius:8px;padding:.6rem .75rem">'
+                     + '<div style="font-size:.72rem;color:#6b7280;margin-bottom:.2rem">' + row[0] + '</div>'
+                     + '<div style="font-size:1.1rem;font-weight:700;color:' + row[3] + '">' + row[1] + '<span style="font-size:.7rem;font-weight:400;color:#9ca3af"> / ' + row[2] + '</span></div>'
+                     + '<div style="height:4px;background:#e5e7eb;border-radius:2px;margin:.3rem 0;overflow:hidden"><div style="width:' + barPct + '%;height:100%;background:' + row[3] + ';border-radius:2px"></div></div>'
+                     + '<div style="font-size:.68rem;color:' + row[3] + ';font-weight:600">' + row[4] + '</div>'
+                     + '</div>';
+              }).join('')
+            + '</div>';
+
+      // Alert: pending wage actions
+      if (actionCount > 0) {
+        var actionNames = enriched.filter(function(a){ return a.actionNeeded; })
+          .map(function(a){ return '<strong>' + a.name + '</strong> (' + (a.milestone) + ')'; }).join(', ');
+        html += '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:.75rem 1rem;margin-bottom:.875rem;font-size:.8125rem;color:#92400e">'
+              + '⚠️ <strong>Wage Action Required:</strong> ' + actionCount + ' apprentice' + (actionCount!==1?'s':'') + ' at or past a milestone threshold — verify hours in the Live Tracker and process wage adjustment. ' + actionNames
+              + '</div>';
+      }
+
+      // Detailed table
+      html += '<div style="overflow-x:auto"><table class="ta-table">'
+            + '<thead><tr>'
+            + '<th>Apprentice</th><th>NJ DOL ID</th><th>District / Site</th>'
+            + '<th style="text-align:center">OTJ Items</th><th style="min-width:130px">Progress</th>'
+            + '<th>Milestone Status</th><th>Next Action</th><th style="text-align:center">Obs</th>'
+            + '</tr></thead><tbody>';
+
+      enriched.forEach(function(a) {
+        var pctNum   = a.pct !== null ? a.pct : 0;
+        var barColor = pctNum >= 100 ? '#059669' : pctNum >= 75 ? '#92400e' : pctNum >= 50 ? '#d97706' : pctNum >= 25 ? '#f59e0b' : '#3b82f6';
+        var msColor  = a.milestone === 'Completion' ? '#059669' : a.actionNeeded ? '#d97706' : '#6b7280';
+        var nextAction = a.nextMilestone
+          ? (a.pct !== null ? 'At ' + a.nextMilestone.pct + '% → ' + a.nextMilestone.wageNote : '—')
+          : (a.pct !== null && a.pct >= 100 ? '✅ Cert bonus eligible' : '—');
+
+        html += '<tr' + (a.actionNeeded ? ' style="background:#fffbeb"' : '') + '>'
+              + '<td><strong>' + a.name + '</strong>'
+              + (a.actionNeeded ? ' <span style="font-size:.65rem;background:#fef3c7;color:#92400e;padding:.05rem .3rem;border-radius:2px;font-weight:700">ACTION</span>' : '')
+              + '</td>'
+              + '<td style="font-family:monospace;font-size:.78rem;color:#6b7280">' + (a.njId||'—') + '</td>'
+              + '<td style="font-size:.78rem">' + a.district + '</td>'
+              + '<td style="text-align:center;font-weight:600">' + (a.items !== null ? a.items + '/' + OTJ_MAX : '—') + '</td>'
+              + '<td>'
+              + (a.pct !== null
+                  ? '<div style="display:flex;align-items:center;gap:.4rem"><div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden"><div style="width:' + pctNum + '%;height:100%;background:' + barColor + ';border-radius:3px"></div></div><span style="font-size:.72rem;font-weight:700;color:' + barColor + ';min-width:2.5rem">' + pctNum + '%</span></div>'
+                  : '<span style="color:#d1d5db;font-size:.75rem">No data</span>')
+              + '</td>'
+              + '<td style="font-size:.78rem;font-weight:600;color:' + msColor + '">' + a.milestone + '</td>'
+              + '<td style="font-size:.75rem;color:#374151">' + nextAction + '</td>'
+              + '<td style="text-align:center;font-weight:700;color:' + (a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af') + '">' + a.obsCount + '</td>'
+              + '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+
+      // Footnote
+      html += '<div style="margin-top:.625rem;font-size:.72rem;color:#9ca3af;font-style:italic">'
+            + '* OTJ % reflects checklist item completion (0–17 items from Live Tracker). Actual OJT hours (target: 4,000) and RTI hours (target: 288) must be verified in the Live Tracker before processing any wage change. Wage milestones per apprenticeship agreement: 25%/50%/75% OJT = +5% each; full program completion = +$5.00/hr certification bonus.'
+            + '</div>'
+            + '</div>';
+    }());
+
     // ── Financial goal alignment ──────────────────────────────────
     html += '<div class="ta-card">'
           +   '<div class="ta-card-title">\uD83C\uDFAF Financial Goal Status</div>'
