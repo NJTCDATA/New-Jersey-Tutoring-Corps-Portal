@@ -1798,9 +1798,61 @@
           <td style="text-align:center">${mvStr}</td></tr>`;
       }).join('');
 
+      // ── TAP Apprentice context panel ────────────────────────────────────────
+      const apEntry = _getApprEntry(tutorName);
+      const apApp   = _getApprApp(tutorName);
+      const otjMap  = window.njtcLiveOtjMap || {};
+      const otjKey  = (apEntry && apEntry.name) ? apEntry.name.toLowerCase().replace(/\s+/g,' ').trim() : '';
+      const otjItems= otjKey && otjMap.hasOwnProperty(otjKey) ? otjMap[otjKey] : (apApp ? apApp.otjItems : null);
+      const OTJ_TOTAL = 17;
+      const apPanel = (apEntry || apApp) ? (() => {
+        const name     = (apEntry && apEntry.name) || (apApp && apApp.name) || tutorName;
+        const njId     = (apEntry && apEntry.njId) || '—';
+        const cohort   = (apEntry && apEntry.cohort) || '—';
+        const school   = (apApp && apApp.school) || (apEntry && apEntry.placement) || '—';
+        const sl       = (apApp && apApp.sl) || '—';
+        const phase    = (apApp && (apApp.beg||apApp.mid||apApp.end)) ? [
+          apApp.beg ? 'Beg: '+apApp.beg : null,
+          apApp.mid ? 'Mid: '+apApp.mid : null,
+          apApp.end ? 'End: '+apApp.end : null,
+        ].filter(Boolean).join(' · ') : '—';
+        const obsCount = (apApp && apApp.obsCount != null) ? apApp.obsCount : '—';
+        const adp      = (apApp && apApp.adp) || '—';
+        const pct      = otjItems !== null ? Math.min(Math.round(otjItems/OTJ_TOTAL*100), 100) : null;
+        const ringClr  = pct === null ? '#d1d5db' : pct >= 100 ? '#059669' : pct >= 50 ? '#f59e0b' : '#3b82f6';
+        const circ     = 175.93;
+        const dashOff  = pct !== null ? (circ * (1 - pct/100)).toFixed(1) : circ.toFixed(1);
+        return `<div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:1rem 1.1rem;margin-bottom:1rem">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.65rem">
+            <span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:4px;font-size:.72rem;font-weight:700">🎓 TAP Apprentice</span>
+            <span style="font-size:.75rem;color:#6b7280">SY 25-26 · ${cohort !== '—' ? 'Cohort: '+cohort : ''}</span>
+            <span style="margin-left:auto;font-size:.72rem;font-weight:600;color:${adp.includes('Terminat')?'#991b1b':'#065f46'};background:${adp.includes('Terminat')?'#fee2e2':'#d1fae5'};padding:.1rem .35rem;border-radius:3px">${adp}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:.75rem;align-items:center">
+            <div style="position:relative;width:52px;height:52px">
+              <svg viewBox="0 0 60 60" style="width:52px;height:52px;transform:rotate(-90deg)">
+                <circle cx="30" cy="30" r="28" fill="none" stroke="#f3f4f6" stroke-width="6"/>
+                <circle cx="30" cy="30" r="28" fill="none" stroke="${ringClr}" stroke-width="6"
+                  stroke-dasharray="${circ}" stroke-dashoffset="${dashOff}" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:${ringClr}">${pct !== null ? pct+'%' : '—'}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem .75rem;font-size:.77rem">
+              <div><span style="color:#9ca3af;font-size:.7rem">NJ DOL ID</span><br><strong style="font-family:monospace">${njId}</strong></div>
+              <div><span style="color:#9ca3af;font-size:.7rem">OTJ Items</span><br><strong>${otjItems !== null ? otjItems+'/'+OTJ_TOTAL : '—'}</strong></div>
+              <div><span style="color:#9ca3af;font-size:.7rem">Observations</span><br><strong>${obsCount}</strong></div>
+              <div><span style="color:#9ca3af;font-size:.7rem">School</span><br><strong>${esc(school)}</strong></div>
+              <div><span style="color:#9ca3af;font-size:.7rem">Site Leader</span><br><strong>${esc(sl)}</strong></div>
+              <div><span style="color:#9ca3af;font-size:.7rem">OTJ Phases</span><br><span style="font-size:.7rem">${phase}</span></div>
+            </div>
+          </div>
+        </div>`;
+      })() : '';
+
       return `<div style="margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
         <button class="btn btn-secondary" style="font-size:.8125rem" onclick="irlab.closeDrill()">← Back</button>
-        <span class="irlab-window-badge">Tutor Profile</span></div>
+        <span class="irlab-window-badge">Tutor Profile</span>${apEntry||apApp?'<span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:4px;font-size:.72rem;font-weight:700">🎓 AP Apprentice</span>':''}</div>
+        ${apPanel}
         ${matchNote}${multiNote}
         <div class="irlab-card">
           <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 ${esc(tutorName)}</div></div>
@@ -1841,6 +1893,42 @@
     }
 
     // ── TUTOR LEADERBOARD ────────────────────────────────────────────────────
+    // ── TAP APPRENTICE HELPERS ────────────────────────────────────────────────
+    // Build normalized name set from window.AP_TAP_ROSTER (populated by executive-leadership.js)
+    function _apprNameSet() {
+      if (!window.AP_TAP_ROSTER || !window.AP_TAP_ROSTER.length) return new Set();
+      return new Set(window.AP_TAP_ROSTER.map(r => (r.name||'').trim().toLowerCase().replace(/\s+/g,' ')));
+    }
+    function _isApprTutor(name) {
+      if (!name) return false;
+      const n = name.trim().toLowerCase().replace(/\s+/g,' ');
+      const s = _apprNameSet();
+      if (s.has(n)) return true;
+      // First+last fallback
+      const parts = n.split(' ').filter(p => p.length > 1);
+      if (parts.length < 2) return false;
+      const fl = parts[0] + ' ' + parts[parts.length-1];
+      for (const k of s) {
+        const kp = k.split(' ').filter(p => p.length > 1);
+        if (kp.length >= 2 && kp[0] + ' ' + kp[kp.length-1] === fl) return true;
+      }
+      return false;
+    }
+    function _getApprEntry(name) {
+      if (!name || !window.AP_TAP_ROSTER || !window.AP_TAP_ROSTER.length) return null;
+      const n = name.trim().toLowerCase().replace(/\s+/g,' ');
+      const fl = n => { const p = n.split(' ').filter(w=>w.length>1); return p.length>=2?p[0]+' '+p[p.length-1]:n; };
+      return window.AP_TAP_ROSTER.find(r => {
+        const rn = (r.name||'').trim().toLowerCase().replace(/\s+/g,' ');
+        return rn===n || fl(rn)===fl(n);
+      }) || null;
+    }
+    function _getApprApp(name) {
+      if (!name || !window._apprApps || !window._apprApps.length) return null;
+      const n = name.trim().toLowerCase().replace(/\s+/g,' ');
+      return window._apprApps.find(a => (a.name||'').trim().toLowerCase().replace(/\s+/g,' ') === n) || null;
+    }
+
     function renderTutorLeaderboard(m, dept) {
       if(dept==='data') return '';
       const tutors=Object.values(m.tutorMap).filter(t=>t.total>=5).sort((a,b)=>b.pctMoved-a.pctMoved);
@@ -1848,16 +1936,18 @@
       const rows=tutors.slice(0,20).map((t,i)=>{
         const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':String(i+1)+'.';
         const col=t.pctMoved>=60?'#0d6e3a':t.pctMoved>=40?'#d97706':'#b91c1c';
+        const apBadge=_isApprTutor(t.name)?'<span title="TAP Apprentice (SY 25-26)" style="margin-left:.35rem;font-size:.65rem;background:#fef3c7;color:#92400e;padding:.05rem .3rem;border-radius:3px;font-weight:700;vertical-align:middle">🎓 AP</span>':'';
         return `<tr><td><span style="margin-right:.375rem">${medal}</span>
-          <button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button></td>
+          <button onclick="irlab.drillTutor('${esc(t.name)}')" style="background:none;border:none;cursor:pointer;color:var(--blue-mid);font-weight:600;font-size:.8125rem;text-align:left;padding:0">${esc(t.name)}</button>${apBadge}</td>
           <td style="min-width:160px">${renderBar(t.pctMoved,col)}</td>
           <td style="text-align:center"><span style="background:${t.pctGL>=50?'#dcfce7':'#fef3c7'};color:${t.pctGL>=50?'#166534':'#92400e'};padding:.15rem .5rem;border-radius:12px;font-size:.7rem;font-weight:700">${t.pctGL}%</span></td>
           <td style="text-align:center;font-size:.8125rem;font-weight:600;color:var(--blue-mid)">${t.avgGain!==null?'+'+t.avgGain.toFixed(1):'—'}</td>
           <td style="text-align:center;font-size:.75rem">${t.held}= · <span style="color:#b91c1c">${t.regressed}↓</span></td>
           <td style="text-align:right;font-size:.75rem;color:var(--muted)">${t.scholarCount}</td></tr>`;
       }).join('');
+      const apCount = Object.values(m.tutorMap).filter(t=>t.total>=5&&_isApprTutor(t.name)).length;
       return `<div class="irlab-card" style="margin-bottom:1.25rem">
-        <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Impact Leaderboard</div><div class="irlab-card-meta">Min 5 scholars · Click name for profile</div></div>
+        <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Tutor Impact Leaderboard</div><div class="irlab-card-meta">Min 5 scholars · Click name for profile${apCount?' · <span style="color:#92400e">🎓 '+apCount+' apprentice'+(apCount!==1?'s':'')+' in set</span>':''}</div></div>
         <div class="irlab-card-body" style="overflow-x:auto">
           <table class="irlab-rank-table">
             <thead><tr><th>Tutor</th><th>% Moved Up</th><th style="text-align:center">% At GL</th><th style="text-align:center">Avg Gain</th><th style="text-align:center">Held/Regressed</th><th style="text-align:right">Scholars</th></tr></thead>
@@ -2016,6 +2106,7 @@
           </div>
         </div>
         ${renderTutorLeaderboard(m,_irlDept)}
+        ${_irlDept==='programming'?renderLeaderCohortView():''}
         <div class="irlab-card" style="margin-bottom:1.25rem">
           <div class="irlab-card-hd"><div class="irlab-card-title">👩‍🏫 Certification Cohort</div><div class="irlab-card-meta">Observational · Not causal</div></div>
           <div class="irlab-card-body">
@@ -2028,6 +2119,165 @@
           </div>
         </div>
         ${renderRepeatSection()}`;
+    }
+
+    // ── TAP LEADER COHORT IMPACT VIEW ────────────────────────────────────────
+    // Shows each site leader's apprentice cohort: academic outcomes + OTJ + ops
+    function renderLeaderCohortView() {
+      const apps = window._apprApps;
+      if (!apps || !apps.length) return '';
+
+      // Group apprentices by site leader
+      const byLeader = {};
+      apps.forEach(a => {
+        const sl = (a.sl || 'Unassigned').trim();
+        if (!byLeader[sl]) byLeader[sl] = [];
+        byLeader[sl].push(a);
+      });
+
+      const leaders = Object.entries(byLeader).filter(([,arr]) => arr.length > 0)
+        .sort(([a],[b]) => a.localeCompare(b));
+      if (!leaders.length) return '';
+
+      const allRows = [...IRLAB_DATA.math, ...IRLAB_DATA.ela, ...IRLAB_DATA.mathRepeat, ...IRLAB_DATA.elaRepeat];
+      const OTJ_TOTAL = 17;
+      const otjMap = window.njtcLiveOtjMap || {};
+
+      const normN = s => (s||'').trim().toLowerCase().replace(/\s+/g,' ');
+      const normFL = s => { const p = normN(s).split(' ').filter(w=>w.length>1); return p.length>=2?p[0]+' '+p[p.length-1]:normN(s); };
+
+      function irlRowsForAppr(name) {
+        const n = normN(name), fl = normFL(name);
+        return allRows.filter(r => {
+          if (!r.instructor) return false;
+          return r.instructor.split(',').map(x=>normN(x.trim())).some(t =>
+            t === n || normFL(t) === fl
+          );
+        });
+      }
+
+      const leaderCards = leaders.map(([leader, cohort]) => {
+        // Aggregate academics for all apprentices in this cohort
+        const cohortRows = cohort.flatMap(a => irlRowsForAppr(a.name));
+        const validRows  = cohortRows.filter(r =>
+          r.baseRelPlacement && r.springRelPlacement &&
+          PLACEMENT_ORDER.includes(r.baseRelPlacement) &&
+          PLACEMENT_ORDER.includes(r.springRelPlacement)
+        );
+        const n          = validRows.length;
+        const moved      = validRows.filter(r => plIdx(r.springRelPlacement) > plIdx(r.baseRelPlacement));
+        const atGL       = validRows.filter(r => isOnGL(r.springRelPlacement));
+        const gains      = validRows.map(r => r.springGain).filter(v => v !== null && !isNaN(v));
+        const avgGainVal = gains.length ? gains.reduce((s,v)=>s+v,0)/gains.length : null;
+        const pctMovedVal= n > 0 ? Math.round(moved.length/n*100) : null;
+        const pctGLVal   = n > 0 ? Math.round(atGL.length/n*100) : null;
+
+        // Aggregate OTJ for cohort
+        const otjTotals  = cohort.map(a => {
+          const key = normN(a.name);
+          return otjMap.hasOwnProperty(key) ? otjMap[key] : (a.otjItems !== null ? a.otjItems : null);
+        }).filter(v => v !== null);
+        const avgOtjPct  = otjTotals.length ?
+          Math.round(otjTotals.reduce((s,v)=>s+v,0) / otjTotals.length / OTJ_TOTAL * 100) : null;
+        const completedOtj = otjTotals.filter(v => v >= OTJ_TOTAL).length;
+
+        // Aggregate obs
+        const totalObs   = cohort.reduce((s,a) => s + (a.obsCount || 0), 0);
+        const avgObs     = cohort.length ? (totalObs / cohort.length).toFixed(1) : '—';
+        const withObs    = cohort.filter(a => a.obsCount > 0).length;
+
+        // Site (first non-blank district in cohort)
+        const site       = cohort.map(a => a.district||a.school||'').filter(Boolean)[0] || '—';
+
+        const impactColor = pctMovedVal === null ? '#9ca3af' :
+                            pctMovedVal >= 65 ? '#059669' :
+                            pctMovedVal >= 45 ? '#f59e0b' : '#ef4444';
+        const impactLabel = pctMovedVal === null ? 'No data yet' :
+                            pctMovedVal >= 65 ? 'Strong Impact' :
+                            pctMovedVal >= 45 ? 'Developing' : 'Needs Support';
+
+        const apprRows = cohort.map(a => {
+          const aOtjKey = normN(a.name);
+          const aOtj    = otjMap.hasOwnProperty(aOtjKey) ? otjMap[aOtjKey] : (a.otjItems !== null ? a.otjItems : null);
+          const aOtjPct = aOtj !== null ? Math.min(Math.round(aOtj/OTJ_TOTAL*100),100) : null;
+          const aRows   = irlRowsForAppr(a.name).filter(r =>
+            r.baseRelPlacement && r.springRelPlacement &&
+            PLACEMENT_ORDER.includes(r.baseRelPlacement) &&
+            PLACEMENT_ORDER.includes(r.springRelPlacement)
+          );
+          const aMoved  = aRows.filter(r => plIdx(r.springRelPlacement) > plIdx(r.baseRelPlacement));
+          const aPctMov = aRows.length ? Math.round(aMoved.length/aRows.length*100) : null;
+          const aGains  = aRows.map(r=>r.springGain).filter(v=>v!==null&&!isNaN(v));
+          const aGain   = aGains.length ? (aGains.reduce((s,v)=>s+v,0)/aGains.length).toFixed(1) : null;
+          const isInact = (a.adp||'').includes('Terminat');
+          return `<tr style="${isInact?'opacity:.6':''}">
+            <td style="font-size:.78rem;font-weight:600;color:#1B2A4A">
+              ${esc(a.name)}${isInact?' <span style="font-size:.62rem;background:#fee2e2;color:#991b1b;padding:.05rem .25rem;border-radius:2px">Inactive</span>':''}
+            </td>
+            <td style="font-size:.75rem;color:#6b7280">${esc(a.school||a.district||'—')}</td>
+            <td style="text-align:center">
+              ${aOtjPct !== null ? `<div style="display:inline-flex;align-items:center;gap:.3rem">
+                <div style="width:40px;height:5px;background:#f3f4f6;border-radius:3px;overflow:hidden">
+                  <div style="width:${aOtjPct}%;height:100%;background:${aOtjPct>=100?'#059669':aOtjPct>=50?'#f59e0b':'#3b82f6'};border-radius:3px"></div>
+                </div>
+                <span style="font-size:.7rem;font-weight:700;color:${aOtjPct>=100?'#059669':aOtjPct>=50?'#f59e0b':'#3b82f6'}">${aOtjPct}%</span>
+              </div>` : '<span style="color:#d1d5db;font-size:.72rem">—</span>'}
+            </td>
+            <td style="text-align:center;font-size:.75rem;font-weight:600;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#f59e0b':'#9ca3af'}">${a.obsCount||0}</td>
+            <td style="text-align:center;font-size:.75rem;font-weight:600;color:${aPctMov===null?'#9ca3af':aPctMov>=65?'#059669':aPctMov>=40?'#f59e0b':'#ef4444'}">${aPctMov!==null?aPctMov+'%':'—'}</td>
+            <td style="text-align:center;font-size:.75rem;color:var(--blue-mid);font-weight:600">${aGain!==null?'+'+aGain:'—'}</td>
+            <td style="text-align:center;font-size:.75rem;color:#374151">${aRows.length||'—'}</td>
+          </tr>`;
+        }).join('');
+
+        return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1.1rem;margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.85rem;flex-wrap:wrap;gap:.5rem">
+            <div>
+              <div style="font-weight:700;color:#1B2A4A;font-size:.92rem">${esc(leader)}</div>
+              <div style="font-size:.75rem;color:#6b7280;margin-top:.15rem">${esc(site)} · ${cohort.length} apprentice${cohort.length!==1?'s':''}</div>
+            </div>
+            <span style="background:${impactColor}18;color:${impactColor};border:1px solid ${impactColor}44;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;font-weight:700">${impactLabel}</span>
+          </div>
+          <!-- Cohort aggregate KPIs -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;margin-bottom:.85rem">
+            ${[
+              [n>0?pctMovedVal+'%':'—','Scholars Moved Up',impactColor],
+              [n>0?pctGLVal+'%':'—','At Grade Level (Spring)','#0050c8'],
+              [avgGainVal!==null?'+'+avgGainVal.toFixed(1):'—','Avg Scale Gain','#7b2d8b'],
+              [avgOtjPct!==null?avgOtjPct+'%':'—','Avg OTJ Complete','#f59e0b'],
+              [totalObs,'Total Obs ('+avgObs+' avg)','#059669'],
+            ].map(([val,lbl,clr])=>`<div style="background:#f9fafb;border-radius:7px;padding:.5rem;text-align:center">
+              <div style="font-size:1.1rem;font-weight:700;color:${clr}">${val}</div>
+              <div style="font-size:.65rem;color:#6b7280;margin-top:.1rem">${lbl}</div>
+            </div>`).join('')}
+          </div>
+          <!-- Per-apprentice breakdown table -->
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+              <thead><tr style="background:#f9fafb;font-size:.68rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em">
+                <th style="padding:.3rem .4rem;text-align:left">Apprentice</th>
+                <th style="padding:.3rem .4rem;text-align:left">School</th>
+                <th style="padding:.3rem .4rem;text-align:center">OTJ %</th>
+                <th style="padding:.3rem .4rem;text-align:center">Obs</th>
+                <th style="padding:.3rem .4rem;text-align:center">% Moved</th>
+                <th style="padding:.3rem .4rem;text-align:center">Avg Gain</th>
+                <th style="padding:.3rem .4rem;text-align:center">N</th>
+              </tr></thead>
+              <tbody>${apprRows}</tbody>
+            </table>
+          </div>
+          ${completedOtj > 0 ? `<div style="margin-top:.6rem;font-size:.72rem;color:#065f46;background:#d1fae5;padding:.35rem .6rem;border-radius:5px;display:inline-block">✅ ${completedOtj}/${cohort.length} apprentice${completedOtj!==1?'s':''} completed all OTJ items</div>` : ''}
+          ${withObs < cohort.length ? `<div style="margin-top:.4rem;font-size:.72rem;color:#92400e;background:#fef3c7;padding:.35rem .6rem;border-radius:5px;display:inline-block">⚠️ ${cohort.length-withObs} apprentice${cohort.length-withObs!==1?'s':''} with no recorded observation</div>` : ''}
+        </div>`;
+      }).join('');
+
+      return `<div class="irlab-card" style="margin-bottom:1.25rem">
+        <div class="irlab-card-hd">
+          <div class="irlab-card-title">🧑‍🏫 Site Leader — TAP Cohort Performance</div>
+          <div class="irlab-card-meta">SY 25-26 · ${apps.filter(a=>!a.adp||!a.adp.includes('Terminat')).length} active apprentices · OTJ + Observations + iReady outcomes</div>
+        </div>
+        <div class="irlab-card-body">${leaderCards}</div>
+      </div>`;
     }
 
     // ── REPEAT SCHOLARS ───────────────────────────────────────────────────────
