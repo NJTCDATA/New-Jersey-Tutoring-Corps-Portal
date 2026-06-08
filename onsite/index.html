@@ -103,6 +103,11 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                     Resources
                 </button>
+                <!-- Leader-only tab — hidden until leader role confirmed by leader-team.js -->
+                <button class="njtc-nav-tab" id="njtcTeamTab" data-tab="team" onclick="switchTab('team')" style="display:none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    My Team
+                </button>
             </nav>
 
             <div class="njtc-ph-actions">
@@ -117,6 +122,11 @@
                 </button>
             </div>
         </header>
+
+        <!-- TAB: MY TEAM (leaders only — built by leader-team.js) -->
+        <div class="njtc-tab-pane" id="tab-team">
+            <div id="njtcTeamContainer"></div>
+        </div>
 
         <!-- TAB: MY DASHBOARD -->
         <div class="njtc-tab-pane active" id="tab-dashboard">
@@ -347,6 +357,7 @@
     <script src="pearl-data.js?v=10"></script>
     <script src="my-dashboard.js?v=10"></script>
     <script src="connor-bot.js?v=10"></script>
+    <script src="leader-team.js?v=1"></script>
 
 </body>
 </html>

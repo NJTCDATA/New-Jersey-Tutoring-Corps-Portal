@@ -39,9 +39,15 @@
  *   OJT_COMPLETION_HOURS  4000
  *   RTI_COMPLETION_HOURS  288
  *   ACADEMIC_YEAR         2025-2026
- *   HR_MASTER_CSV_URL     [published CSV URL for HR Master List tab]
  *   COMPLETION_SUMMARY_CSV  https://docs.google.com/.../gviz/tq?tqx=out:csv&gid=45498361
  *   OJT_LOG_CSV             https://docs.google.com/.../gviz/tq?tqx=out:csv&gid=85054416
+ *
+ * HR MASTER LIST — already published, no CSV export needed:
+ *   2PACX key: 2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8
+ *   GID:       911694457
+ *   Exact column headers: "Academic Year" | "Full Name" | "Email Address" |
+ *                         "Position / Role" | "Site / School" | "District" |
+ *                         "Active / Terminated Status" | "Apprentice Program"
  *
  * MASTER ROSTER TAB COLUMN MAP (GID 45498361) — update if sheet columns change:
  *   A = Full Name       B = USDOL ID        C = Site            D = Region
@@ -847,65 +853,93 @@ function _sendErrorEmail(fnName, err) {
 // ██  VALIDATION HELPERS
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ─── HR MASTER LIST — Published (no export needed) ───────────────────────────
+// The HR Master List is already published via the portal's 2PACX key.
+// Same source used by both portals. No HR_MASTER_CSV_URL Script Property needed.
+var HR_2PACX = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
+var HR_GID   = '911694457';
+
+// Exact column headers from HR Final Patch (case-sensitive)
+var HR_COL = {
+  YEAR:    'Academic Year',
+  NAME:    'Full Name',
+  EMAIL:   'Email Address',
+  ROLE:    'Position / Role',
+  SITE:    'Site / School',
+  DISTRICT:'District',
+  STATUS:  'Active / Terminated Status',
+  AP:      'Apprentice Program',
+};
+
 /**
  * Validates that an observer email belongs to an Active leader
  * in the HR Master List for the current academic year.
  * Returns true if valid, false if not found or not a leader.
+ *
+ * Uses the already-published HR 2PACX URL — no Script Property needed.
  */
 function _validateObserverEmail(observerEmail) {
   if (!observerEmail || observerEmail.indexOf('@') < 0) return false;
 
   try {
-    var props         = PropertiesService.getScriptProperties().getProperties();
-    var hrCsvUrl      = props.HR_MASTER_CSV_URL;
-    var academicYear  = props.ACADEMIC_YEAR || '2025-2026';
+    var props        = PropertiesService.getScriptProperties().getProperties();
+    var academicYear = props.ACADEMIC_YEAR || '2025-2026';
+    var hrUrl        = 'https://docs.google.com/spreadsheets/d/e/' + HR_2PACX +
+                       '/pub?output=csv&gid=' + HR_GID;
 
-    if (!hrCsvUrl) {
-      Logger.log('HR_MASTER_CSV_URL not set — skipping observer validation.');
-      return true; // fail open until URL is configured
-    }
-
-    var hrData = _fetchCSV(hrCsvUrl);
+    var hrData = _fetchCSV(hrUrl);
     if (!hrData || hrData.length < 2) {
-      Logger.log('HR Master List CSV empty or unreachable.');
-      return true; // fail open
+      Logger.log('HR Master List CSV empty or unreachable — failing open.');
+      return true;
     }
 
-    // Parse header row to find column indices
-    var header     = hrData[0].map(function(h) { return String(h).trim(); });
-    var colYear    = header.indexOf('Academic Year');
-    var colEmail   = header.indexOf('Email Address');
-    var colStatus  = header.indexOf('Active / Terminated Status');
-    var colRole    = header.indexOf('Position / Role');
+    // Find header row (look for a row that contains our exact column names)
+    var hIdx = -1;
+    for (var r = 0; r < Math.min(5, hrData.length); r++) {
+      if (hrData[r].indexOf(HR_COL.NAME) >= 0 || hrData[r].indexOf(HR_COL.EMAIL) >= 0) {
+        hIdx = r; break;
+      }
+    }
+    if (hIdx < 0) {
+      Logger.log('HR Master List header row not found — failing open.');
+      return true;
+    }
 
-    if (colEmail < 0 || colStatus < 0) {
-      Logger.log('HR Master List missing required columns — skipping validation.');
+    var header   = hrData[hIdx].map(function(h) { return String(h).trim(); });
+    var colYear  = header.indexOf(HR_COL.YEAR);
+    var colEmail = header.indexOf(HR_COL.EMAIL);
+    var colStatus= header.indexOf(HR_COL.STATUS);
+    var colRole  = header.indexOf(HR_COL.ROLE);
+
+    if (colEmail < 0 || colStatus < 0 || colRole < 0) {
+      Logger.log('HR Master List missing required columns. Found: ' + header.join(', '));
       return true; // fail open
     }
 
     var normalEmail = observerEmail.trim().toLowerCase();
 
-    for (var i = 1; i < hrData.length; i++) {
+    for (var i = hIdx + 1; i < hrData.length; i++) {
       var row = hrData[i];
+      if (!row || row.length < colEmail + 1) continue;
+      // Always filter to current academic year first
       if (colYear >= 0 && String(row[colYear] || '').trim() !== academicYear) continue;
       if (String(row[colStatus] || '').trim() !== 'Active') continue;
       var rowEmail = String(row[colEmail] || '').trim().toLowerCase();
       if (rowEmail !== normalEmail) continue;
 
-      // Email matched — check role
       var role = String(row[colRole] || '').trim();
       if (_isLeaderRole(role)) return true;
 
-      Logger.log('Observer email matched but role "' + role + '" is not a leader role.');
+      Logger.log('Observer email "' + observerEmail + '" matched HR row but role "' + role + '" is not a leader role.');
       return false;
     }
 
-    Logger.log('Observer email not found in HR Master List: ' + observerEmail);
+    Logger.log('Observer email not found as Active leader in HR Master List: ' + observerEmail);
     return false;
 
   } catch (err) {
     Logger.log('_validateObserverEmail error: ' + err.toString() + ' — failing open.');
-    return true; // fail open on network/parse errors
+    return true;
   }
 }
 
