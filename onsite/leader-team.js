@@ -23,9 +23,9 @@
   const SM_2PACX  = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
   const SM_GID    = '457164791';
   const SM_SCHOOLS = new Set(['middlesex stem']);
-  // TAP Master Roster — requires the workbook to be shared "Anyone with link can view"
-  // in Google Drive. Set sharing, then the gviz URL works without auth.
-  const TAP_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
+  // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
+  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylMqeqTl0SBs0PhoQsPajrSbKdIceeKIxlpW6jo76j3fpD5C4JsW1ouK2EnX7D_dBM/exec';
+  const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
   const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID     = '911694457';
   const CONCERNS_SHEET_ID = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
