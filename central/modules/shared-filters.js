@@ -41,9 +41,15 @@
     const mgmtTabs = document.querySelectorAll('.td-mgmt-tab');
     mgmtTabs.forEach(b => b.style.display = (dept === 'training') ? '' : 'none');
 
-    // Data dept: show T&D Analytics sidebar link
+    // Data + Programming dept: show T&D/Apprentice Analytics sidebar link
     const dataTDBtns = document.querySelectorAll('.dept-nav-td-data');
-    dataTDBtns.forEach(b => b.style.display = (dept === 'data') ? '' : 'none');
+    dataTDBtns.forEach(b => {
+      b.style.display = (dept === 'data' || dept === 'programming') ? '' : 'none';
+      if (dept === 'programming') {
+        b.textContent = '🎓 Apprentice Analytics';
+        b.title = 'TAP apprentice outcomes — OJT progress, academic data, attendance, and site leader cohorts';
+      }
+    });
     // T&D PDF button — visible for data, leadership, kb, and training depts
     const execPDFBtn = document.getElementById('tdExecPDFBtn');
     if (execPDFBtn) {

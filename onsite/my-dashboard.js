@@ -2098,6 +2098,78 @@
     });
   }
 
+  // ── iReady: EOY multi-row-per-diagnostic normalization ────────────────────────
+  // The 25-26 EOY Preliminary CSV has one row per diagnostic per student
+  // (BOY row: Baseline Diagnostic=Y, EOY row: Most Recent Diagnostic YTD=Y).
+  // Pairs them per student and returns the same shape as normalizeIRSheet2526.
+  function normalizeIrEoyRows(rawRows, subject, scholarIds, scholarNames) {
+    if (!rawRows || rawRows.length < 2) return [];
+    const header = rawRows[0].map(h => (h || '').trim().toLowerCase());
+    // Only handle EOY format (has "baseline diagnostic" flag column)
+    if (!header.some(h => h.includes('baseline diagnostic'))) return [];
+
+    function hIdx(keywords) {
+      return header.findIndex(h => keywords.every(k => h.includes(k)));
+    }
+    const nameCol    = hIdx(['full', 'name'])    >= 0 ? hIdx(['full', 'name'])    :
+                       hIdx(['student', 'name']) >= 0 ? hIdx(['student', 'name']) : 0;
+    const idCol      = hIdx(['student', 'id'])   >= 0 ? hIdx(['student', 'id'])   : 3;
+    const gradeCol   = hIdx(['student', 'grade'])>= 0 ? hIdx(['student', 'grade']): hIdx(['grade']) >= 0 ? hIdx(['grade']) : 4;
+    const schoolCol  = hIdx(['school'])          >= 0 ? hIdx(['school'])          : 6;
+    const syCol      = hIdx(['academic', 'year'])>= 0 ? hIdx(['academic', 'year']): 5;
+    const plcCol     = hIdx(['overall', 'relative', 'placement']);
+    const boyFlagCol = hIdx(['baseline', 'diagnostic']);
+    const eoyFlagCol = hIdx(['most', 'recent', 'diagnostic']);
+    const pctCol     = hIdx(['percent', 'progress', 'typical']) >= 0 ? hIdx(['percent', 'progress', 'typical'])
+                     : hIdx(['typical growth']);
+    if (plcCol < 0 || boyFlagCol < 0) return [];
+
+    const students = {};
+    rawRows.slice(1).forEach(r => {
+      const name = (r[nameCol] || '').trim();
+      const sid  = idCol >= 0 ? (r[idCol] || '').trim() : '';
+      if (!name) return;
+      // Match scholar
+      let matched = false;
+      if (sid && scholarIds && scholarIds.has(sid)) matched = true;
+      if (!matched && scholarNames) {
+        const nn = normIRName(name);
+        if (nn.length > 2 && scholarNames.has(nn)) matched = true;
+      }
+      if (!matched) return;
+      const key = sid || name.toLowerCase().replace(/\s+/g, ' ');
+      if (!students[key]) students[key] = { name, sid,
+        grade: (r[gradeCol] || '').trim(), school: (r[schoolCol] || '').trim(),
+        sy: (r[syCol] || '').trim(), boy: null, eoy: null, pctTypical: null };
+      const isBoy = (r[boyFlagCol] || '').trim().toUpperCase() === 'Y';
+      const isEoy = eoyFlagCol >= 0 && (r[eoyFlagCol] || '').trim().toUpperCase() === 'Y';
+      const plc   = (r[plcCol] || '').trim();
+      if (isBoy) students[key].boy = plc;
+      if (isEoy) {
+        students[key].eoy = plc;
+        if (pctCol >= 0) {
+          let pct = parseFloat(r[pctCol] || '');
+          if (!isNaN(pct)) {
+            if (pct > 0 && pct <= 15) pct = Math.round(pct * 100);
+            else pct = Math.round(pct);
+            students[key].pctTypical = pct;
+          }
+        }
+      }
+    });
+    return Object.values(students).filter(s => s.boy || s.eoy).map(s => ({
+      tutorName:   'pearl-matched',
+      studentName: s.name,
+      basePLC:     s.boy  || '',
+      springPLC:   s.eoy  || '',
+      pctTypical:  s.pctTypical,
+      grade:       s.grade,
+      school:      s.school,
+      sy:          s.sy || '2025-2026',
+      subject
+    }));
+  }
+
   // ── iReady: MOY sheet normalization (wide-format: base_ + winter_ on same row) ──
   // Primary join: _pearlId (user_name column) = Pearl scholar USER_ID — exact match.
   // Fallback: scholarId (local_student_id) or normalized student name + school.
@@ -2294,10 +2366,15 @@
     // Longitudinal 22-25 rows no longer fetched (key expired); current-year data below
     const filteredLongRows = [];
 
-    // 25-26 EOY PRELIMINARY rows: matched by Pearl scholar ID (most accurate)
+    // 25-26 EOY PRELIMINARY rows: normalizeIrEoyRows handles multi-row-per-diagnostic
+    // format (EOY export); normalizeIRSheet2526 handles longitudinal/wide format.
+    function ir2526(rows, subj) {
+      const eoy = normalizeIrEoyRows(rows, subj, scholarIds, scholarNames);
+      return eoy.length > 0 ? eoy : normalizeIRSheet2526(rows, subj, scholarIds, scholarNames);
+    }
     const rows2526 = [
-      ...normalizeIRSheet2526(snapMath, 'Math', scholarIds, scholarNames),
-      ...normalizeIRSheet2526(snapELA, 'ELA', scholarIds, scholarNames)
+      ...ir2526(snapMath, 'Math'),
+      ...ir2526(snapELA,  'ELA'),
     ];
 
     // MOY (Winter 2026) rows: matched by Pearl USER_ID (user_name column = Tier 0 exact join),
