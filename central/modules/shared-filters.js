@@ -47,31 +47,35 @@
     const TAP_VISIBLE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
     dataTDBtns.forEach(b => {
       b.style.display = TAP_VISIBLE_DEPTS.includes(dept) ? '' : 'none';
-      if (dept === 'programming') {
+      // TAP Dashboard: Leadership, KB, Finance, Data see executive-level dashboard name
+      // Apprentice Analytics: Programming, HR, Training see operational analytics name
+      if (dept === 'leadership' || dept === 'kb' || dept === 'finance' || dept === 'data') {
+        b.textContent = '📋 TAP Dashboard';
+        b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones, and program completion';
+      } else if (dept === 'programming' || dept === 'hr' || dept === 'training') {
         b.textContent = '🎓 Apprentice Analytics';
-        b.title = 'TAP apprentice outcomes — OJT progress, academic data, attendance, and site leader cohorts';
-      } else if (dept === 'finance') {
-        b.textContent = '🎓 TAP Apprenticeship';
-        b.title = 'TAP apprentice program — wage milestones, hours progress, and completion tracking';
-      } else if (dept === 'hr') {
-        b.textContent = '🎓 TAP Apprenticeship';
-        b.title = 'TAP apprentice roster — enrollment status, GAINS compliance, and program milestones';
-      } else if (dept === 'leadership' || dept === 'kb') {
-        b.textContent = '🎓 Apprenticeship Program';
-        b.title = 'TAP program overview — active apprentices, program completion, and workforce pipeline impact';
-      } else if (dept === 'training') {
-        b.textContent = '🎓 T&D Analytics';
-        b.title = 'Training and Development program performance and OJT apprenticeship data';
+        b.title = 'Apprentice Analytics — OJT activity tracking, phase completion, and program outcomes';
       } else {
-        b.textContent = '🎓 Apprentice Analytics';
-        b.title = 'TAP apprentice outcomes — OJT progress, academic data, attendance, and site leader cohorts';
+        b.textContent = '📋 TAP Dashboard';
+        b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones';
       }
     });
     // TAP Standalone Dashboard — visible to all departments that interact with the apprenticeship program
     const TAP_STANDALONE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
-    document.querySelectorAll('.dept-nav-tap-standalone').forEach(b =>
-      b.style.display = TAP_STANDALONE_DEPTS.includes(dept) ? '' : 'none'
-    );
+    document.querySelectorAll('.dept-nav-tap-standalone').forEach(b => {
+      b.style.display = TAP_STANDALONE_DEPTS.includes(dept) ? '' : 'none';
+      // Update the label span to match department context
+      const labelSpan = b.querySelector('.dept-nav-tap-standalone-label');
+      if (labelSpan) {
+        if (['programming', 'hr', 'training'].includes(dept)) {
+          labelSpan.textContent = 'Apprentice Analytics';
+          b.title = 'Apprentice Analytics — OJT activity tracking, phase completion, and program outcomes';
+        } else {
+          labelSpan.textContent = 'TAP Dashboard';
+          b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones, and program completion';
+        }
+      }
+    });
 
     // TAP sub-tab visibility rules (some tabs are dept-specific)
     const tapFinanceTabs = document.querySelectorAll('.dept-tap-finance');
