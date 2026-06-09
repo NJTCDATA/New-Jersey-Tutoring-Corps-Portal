@@ -1565,8 +1565,6 @@
           '<div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.75rem">' +
             '<span style="color:#ffffff;font-weight:700">Activities</span><span style="color:#e2e8f0">' + yCount + ' of ' + possible + ' Y</span>' +
             '<span style="color:#ffffff;font-weight:700">OJT Hours</span><span style="color:#e2e8f0">' + ojtHours.toLocaleString() + ' / 4,000</span>' +
-            '<span style="color:#ffffff;font-weight:700">RTI Hours</span><span style="color:#e2e8f0">' + rtiHours + ' / 288</span>' +
-            '<span style="color:#ffffff;font-weight:700">Wage</span><span style="color:#34d399;font-weight:700">' + (wage !== '\u2014' ? '$' + wage + '/hr' : '\u2014') + '</span>' +
           '</div>' +
         '</div>' +
 
@@ -1576,7 +1574,6 @@
 
         '<div class="njtc-tap-meta" style="margin-bottom:10px">' +
           '<div class="njtc-tap-field"><span>USDOL ID: </span>' + escHtml(usdol) + '</div>' +
-          '<div class="njtc-tap-field"><span>Milestone: </span>' + escHtml(milestone) + '</div>' +
           '<div class="njtc-tap-field"><span>Status: </span>' + escHtml(tapStatus) + '</div>' +
         '</div>' +
 
@@ -1584,11 +1581,7 @@
           '<div class="njtc-progress-label"><span>OJT Hours</span><span>' + ojtHours + ' / ' + ojtTotal + ' (' + ojtPct + '%)</span></div>' +
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:' + ojtPct + '%"></div></div>' +
         '</div>' +
-        '<div class="njtc-progress-row">' +
-          '<div class="njtc-progress-label"><span>RTI Hours</span><span>' + rtiHours + ' / ' + rtiTotal + ' (' + rtiPct + '%)</span></div>' +
-          '<div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:' + rtiPct + '%"></div></div>' +
-        '</div>' +
-      '</div>';
+              '</div>';
 
     } else {
 
@@ -1981,36 +1974,15 @@
               style="${inputStyle};resize:vertical"></textarea>
           </div>
           <div style="border-top:1px solid #334155;margin:10px 0 8px;padding-top:8px">
-            <div style="font-size:.72rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">RTI Hours (optional \u2014 log monthly)</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">
+            <div style="font-size:.72rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Session Duration (optional)</div>
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;align-items:end">
               <div>
-                <label style="${labelStyle}">Month</label>
-                <select id="ojt_rti_month_${nk}" style="${inputStyle}">
-                  <option value="">Skip RTI</option>
-                  <option value="Mar-25">Mar 2025</option><option value="Apr-25">Apr 2025</option>
-                  <option value="May-25">May 2025</option><option value="Jun-25">Jun 2025</option>
-                  <option value="Jul-25">Jul 2025</option><option value="Aug-25">Aug 2025</option>
-                  <option value="Sep-25">Sep 2025</option><option value="Oct-25">Oct 2025</option>
-                  <option value="Nov-25">Nov 2025</option><option value="Dec-25">Dec 2025</option>
-                  <option value="Jan-26">Jan 2026</option><option value="Feb-26">Feb 2026</option>
-                  <option value="Mar-26">Mar 2026</option><option value="Apr-26">Apr 2026</option>
-                  <option value="May-26">May 2026</option><option value="Jun-26">Jun 2026</option>
-                  <option value="Jul-26">Jul 2026</option>
-                </select>
+                <label style="${labelStyle}">Hours this session took</label>
+                <input id="ojt_session_duration_${nk}" type="number" min="0" max="8" step="0.5"
+                  placeholder="e.g. 1.5" style="${inputStyle}">
               </div>
-              <div>
-                <label style="${labelStyle}">Hours</label>
-                <input id="ojt_rti_hours_${nk}" type="number" min="0" max="40" step="0.5"
-                  placeholder="e.g. 8" style="${inputStyle}">
-              </div>
-              <div>
-                <label style="${labelStyle}">RTI Type</label>
-                <select id="ojt_rti_type_${nk}" style="${inputStyle}">
-                  <option value="Coaching / Professional development">Coaching / PD</option>
-                  <option value="UG/Graduate Coursework">UG/Grad Coursework</option>
-                  <option value="Praxis Exam Preparation">Praxis Prep</option>
-                  <option value="Individual RTI Sessions">Individual RTI</option>
-                </select>
+              <div style="font-size:.67rem;color:#94a3b8;padding-bottom:6px;line-height:1.5">
+                For program intelligence only.<br>RTI hours are calculated centrally — not applied here.
               </div>
             </div>
           </div>
@@ -2445,7 +2417,8 @@
   /* ─────────────────────────────────────────────
      OJT FORM SUBMISSION
      Section 1: observation info
-     Section 2: OJT activity (Section 3 RTI = Central only, not submitted here)
+     Section 2: OJT activity + optional session duration
+     RTI hours are logged separately by the Central Team portal
   ───────────────────────────────────────────── */
   async function submitOJT(tutorName, formId) {
     const k        = normName(tutorName).replace(/\s+/g, '_');
@@ -2462,9 +2435,7 @@
     const domain         = get('ojt_domain');
     const mark           = get('ojt_mark');
     const notes          = get('ojt_notes');
-    const rtiMonth       = get('ojt_rti_month');
-    const rtiHoursRaw    = get('ojt_rti_hours');
-    const rtiType        = get('ojt_rti_type');
+    const sessionDuration = get('ojt_session_duration');
 
     // Collect checked activity checkboxes
     // Guard: clear stale boxes if phase or domain is empty
@@ -2479,17 +2450,16 @@
       : [];
 
     const hasActivities = checkedBoxes.length > 0;
-    const hasRTI        = rtiMonth && rtiHoursRaw && parseFloat(rtiHoursRaw) > 0;
 
-    // Validation
-    if (!hasActivities && !hasRTI) {
+    // Validation — require at least one activity selected
+    if (!hasActivities) {
       ['ojt_phase','ojt_domain'].forEach(id => {
         const el = document.getElementById(id + '_' + k);
         if (el && !el.value) el.style.border = '2px solid #ef4444';
       });
       if (statusEl) {
         statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
-        statusEl.textContent = '\u2717 Select at least one activity, or enter RTI hours.';
+        statusEl.textContent = '\u2717 Select at least one activity to log.';
       }
       return;
     }
@@ -2523,33 +2493,16 @@
             siteLocation:   site,
             apprenticeName: apprenticeName,
             notes:          notes,
-            activities:     activities,
+            activities:      activities,
             phase,
             domain,
-            activityCode:   activities.length === 1 ? activities[0].activityCode : '',
-            status:         mark,
+            activityCode:    activities.length === 1 ? activities[0].activityCode : '',
+            status:          mark,
+            sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
           }),
         });
       }
 
-      // POST RTI hours if provided
-      if (hasRTI) {
-        await fetch(TAP_SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            logType:        'RTI Hours for a month',
-            obsDate:        dateVal,
-            observerName:   obsName,
-            observerRole:   obsRole,
-            siteLocation:   site,
-            apprenticeName: apprenticeName,
-            rtiMonth,
-            rtiHours:       parseFloat(rtiHoursRaw),
-            rtiTypes:       rtiType,
-          }),
-        });
-      }
 
     } catch(e) {
       console.warn('[NJTCTeam] submitOJT error:', e.message);
@@ -2557,10 +2510,9 @@
 
     // Success feedback
     const actCount = checkedBoxes.length;
-    const rtiNote  = hasRTI ? ' + ' + rtiHoursRaw + ' RTI hrs (' + rtiMonth + ')' : '';
     if (statusEl) {
       statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
-      statusEl.textContent = '\u2713 ' + (actCount > 0 ? actCount + ' activit' + (actCount===1?'y':'ies') : '') + rtiNote + ' logged. Updating in ~30s.';
+      statusEl.textContent = '\u2713 ' + actCount + ' activit' + (actCount===1?'y':'ies') + ' logged. Updating in ~30s.';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
 
@@ -2568,7 +2520,7 @@
     if (checklistDiv) checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
     const countSpan = document.getElementById('ojt_selected_count_' + k);
     if (countSpan) { countSpan.textContent = '0 activities selected'; countSpan.style.color = '#94a3b8'; }
-    ['ojt_phase','ojt_domain','ojt_rti_month','ojt_rti_hours','ojt_notes'].forEach(id => {
+    ['ojt_phase','ojt_domain','ojt_session_duration','ojt_notes'].forEach(id => {
       const el = document.getElementById(id + '_' + k);
       if (el) { el.value = ''; el.style.border = ''; }
     });
