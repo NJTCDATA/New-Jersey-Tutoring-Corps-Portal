@@ -2876,6 +2876,223 @@
     </div>`;
   }
 
+  // ── OJT Activity data (matches onsite portal dropdown exactly) ──────────────
+  const _APPR_OJT_DATA = [
+    {ph:'Beginning',dm:'Professionalism',c:'A',d:'Join the site visit/collaboration meeting or other event established by your site and site coordinator to introduce yourself and review school partner expectations.',lf:'Was this tutor present and engaged?'},
+    {ph:'Beginning',dm:'Professionalism',c:'B',d:'Follow the schedule provided for daily routines, including assigned duties and meetings.',lf:'Does the tutor follow and understand the schedule?'},
+    {ph:'Beginning',dm:'Professionalism',c:'C',d:'Providing information to supervisors, co-workers, and subordinates by telephone, in written form, e-mail, or in person.',lf:'Does the tutor communicate regularly and understand communication protocols?'},
+    {ph:'Beginning',dm:'Professionalism',c:'D',d:'Review and complete the Modified Danielson Self-Assessment. Identify and share goals with your instructional coach.',lf:'Did the tutor complete the required training and the self-assessment?'},
+    {ph:'Beginning',dm:'Professionalism',c:'E',d:'Utilize FERPA guidelines to ensure the separation of personal and professional relationships.',lf:'Did the tutor create a Gmail account and share data securely (if applicable)?'},
+    {ph:'Beginning',dm:'Professionalism',c:'F',d:'Follow and demonstrate the policies and procedures as outlined in the Employee Handbook, School level handbook, and agency code of ethics if applicable.',lf:'Did the tutor sign the employee handbook and any other protocols established by their school location?'},
+    {ph:'Beginning',dm:'Professionalism',c:'G',d:'Follow expectations for the creation and use of the unit planning template for collaborative and personalized instruction.',lf:'Has this tutor completed lesson plans and turned them in on time, consistently?'},
+    {ph:'Beginning',dm:'Professionalism',c:'H',d:'Actively participate in the weekly delivery of professional learning opportunities.',lf:'Has the tutor participated in professional learning opportunities? If none are available, create some.'},
+    {ph:'Beginning',dm:'Professionalism',c:'I',d:'Complete iReady training and collaborate with instructional coaches on building out your unit plan.',lf:'Did this tutor complete the iReady training and collaborate with you on building lessons informed by student data?'},
+    {ph:'Beginning',dm:'Professionalism',c:'K',d:'Follow expectations for submissions of work time through ADP.',lf:'Did this tutor complete the training on ADP? Have they submitted timecards on time?'},
+    {ph:'Beginning',dm:'Professionalism',c:'N',d:'Document by entering, transcribing, recording, storing, or maintaining information in written or electronic/magnetic form.',lf:'Does this tutor consistently turn in lesson plans electronically?'},
+    {ph:'Beginning',dm:'Professionalism',c:'Q',d:'Performing day-to-day administrative tasks such as maintaining information files and processing paperwork.',lf:'Has this tutor completed at least 90% of Pearl surveys after each session? Have they completed attendance for their scholars?'},
+    {ph:'Beginning',dm:'Professionalism',c:'R',d:'Utilize your email to respond to all communication from instructional coaches, site coordinator, classroom teachers, parents and any additional colleagues.',lf:'Does the tutor communicate regularly and understand communication protocols using Gmail account?'},
+    {ph:'Beginning',dm:'Professionalism',c:'S',d:'Attend training sessions or professional meetings to develop or maintain professional knowledge.',lf:'Has the tutor attended 80% of team meetings and 100% of training sessions?'},
+    {ph:'Beginning',dm:'Instruction',c:'B',d:'Conduct sessions that follow the teaching and learning framework (I do, We do, You do).',lf:'Lesson plans — The gradual release model is evident in the lesson plans.'},
+    {ph:'Beginning',dm:'Instruction',c:'C',d:'Choose the most effective materials to support the lesson objective, engage students, and provide opportunities for student-to-student interaction and distribute accordingly.',lf:'Did the tutor use the approved list of supplementary materials? Knowtion (See Approved Supplemental Resources Folder).'},
+    {ph:'Beginning',dm:'Instruction',c:'D',d:'Use the framework, independently plan and teach consistently for a 10-week block.',lf:'Did the tutor complete lessons over a 10-week period of time or the duration of the program?'},
+    {ph:'Beginning',dm:'Instruction',c:'I',d:'Choose the most effective materials to support the lesson objective, engage students with various learning styles and provide opportunities for student-to-student interaction.',lf:'Did the tutor adapt materials and instruction based on learning needs or outcomes?'},
+    {ph:'Beginning',dm:'Instruction',c:'L',d:'Promote equality of opportunity and anti-discriminatory practices.',lf:'If they are a new hire, did the tutor complete Social Justice training?'},
+    {ph:'Beginning',dm:'Instruction',c:'M',d:'Communicate effectively, sensitively, and confidentially with colleagues of all backgrounds.',lf:'Do they approach scholars and colleagues with an asset based mindset?'},
+    {ph:'Beginning',dm:'Instruction',c:'N',d:'Teach skills to improve academic performance, including study strategies, note-taking skills, and test-taking strategies.',lf:'All staff complete instructional training aligned to instructional framework; measured by IC observations and lesson plans.'},
+    {ph:'Beginning',dm:'Instruction',c:'O',d:'Conducting practice tests to track progress, identify areas of improvement and help set goals for exam preparation.',lf:"Does this tutor's lessons have exit tickets? Did they complete goal setting with each scholar based on BOY, MOY data?"},
+    {ph:'Beginning',dm:'Instruction',c:'Q',d:'Administer, proctor, or score academic or diagnostic assessments.',lf:'Did the tutor oversee Diagnostics?',na:true},
+    {ph:'Beginning',dm:'Environment',c:'A',d:'Support the classroom teacher in reinforcing the rules and procedures for student learning and behavior in the classroom.',lf:'Did you observe the tutor following all rules/guidelines/expectations of their school site, consistently?'},
+    {ph:'Beginning',dm:'Environment',c:'B',d:'Establishes and maintains a safe, caring, inclusive, and healthy learning environment.',lf:'Has the tutor consistently created a welcoming and inclusive environment? Have they adapted as necessary with feedback?'},
+    {ph:'Beginning',dm:'Environment',c:'C',d:'Communicate with students using positive, professional, and compassionate language and tone.',lf:'Have you observed the tutor communicating consistently in these ways?'},
+    {ph:'Beginning',dm:'Environment',c:'D',d:'Complete Modified Danielson framework for Domain 2 and discuss with the instructional coach for observations.',lf:'Have you met and discussed their responses on the self-assessment?'},
+    {ph:'Beginning',dm:'Environment',c:'F',d:'Complies with relevant federal, state, and local requirements around mandated reporting, child study, and support for children with disabilities.',lf:'Tutor completed all Praesidium training and any other relevant training.'},
+    {ph:'Beginning',dm:'Environment',c:'G',d:'Collaboration with classroom teachers regarding any behavioral issues that occur during tutoring or academic concerns.',lf:'Completed during Training component — Classroom Management (9 min).'},
+    {ph:'Beginning',dm:'Environment',c:'I',d:'Provide feedback to students, using positive reinforcement techniques to encourage, motivate, or build confidence in students.',lf:'Classroom Management Strategies — has the tutor used strategies successfully?'},
+    {ph:'Beginning',dm:'Planning',c:'A',d:'Utilize backwards design: Use iReady diagnostic data including instructional groupings, prerequisites, and scaffolding to complete Unit Planning template. Discuss with the instructional coach.',lf:'Has the tutor successfully created lessons that are data informed?'},
+    {ph:'Beginning',dm:'Planning',c:'D',d:'Complete surveys in Pearl for each instructional session completed. This includes comments with notes on how the session went.',lf:'Has the tutor completed 80%+ attendance and scholar surveys?'},
+    {ph:'Beginning',dm:'Planning',c:'E',d:'Prepare lesson materials (i.e. make copies, gather materials, set up learning stations, etc.)',lf:'Is the tutor consistently prepared for lessons with materials and any other instructional tools?'},
+    {ph:'Middle',dm:'Professionalism',c:'J',d:'Actively participate in any faculty professional learning and complete reflections.',lf:'Has the tutor participated in professional learning opportunities? If none available, create some.'},
+    {ph:'Middle',dm:'Professionalism',c:'L',d:'Review and complete the Use of Data indicator on the TEAM Professionalism rubric (progress report) and work with mentor teacher.',lf:'Has the tutor completed their progress reports using the NJTC Template?'},
+    {ph:'Middle',dm:'Professionalism',c:'O',d:'Keeping up-to-date technically and applying new knowledge to your job.',lf:"Has the tutor's lessons & instruction incorporated your feedback?"},
+    {ph:'Middle',dm:'Professionalism',c:'T',d:'Using computers and computer systems to program, write software, set up functions, enter data, or process information.',lf:'Does the tutor have a 90%+ attendance and survey completion?'},
+    {ph:'Middle',dm:'Professionalism',c:'U',d:'Review data to inform tutoring practice.',lf:'Did the tutor complete i-Ready data training? Have they completed a goal sheet with scholars post-diagnostics?'},
+    {ph:'Middle',dm:'Professionalism',c:'W',d:'Utilize technology software i.e. Microsoft Office, Google Meet, and Zoom.',lf:'Has your tutor contributed on Knowtion?'},
+    {ph:'Middle',dm:'Instruction',c:'E',d:'Receive feedback from the Instructional Coach throughout the unit of study and make instructional adjustments based on feedback.',lf:'Has this tutor made adjustments to instruction based on coaching or feedback?'},
+    {ph:'Middle',dm:'Instruction',c:'F',d:'Have scholars complete end of session surveys in Pearl and reviewed data to inform practice.',lf:'Does this tutor regularly administer Pearl surveys to scholars?'},
+    {ph:'Middle',dm:'Instruction',c:'G',d:'Replicate established transition routines when changing activities during the day.',lf:'Have you observed this tutor maintaining consistent systems and routines?'},
+    {ph:'Middle',dm:'Instruction',c:'H',d:'Demonstrates flexibility and responsiveness when delivering instruction.',lf:'Have you observed this tutor demonstrating flexibility on more than 2 occasions?'},
+    {ph:'Middle',dm:'Instruction',c:'J',d:'Observe lessons with district approval to inform instruction.',lf:'Has the tutor observed teachers when they are not scheduled for a session?'},
+    {ph:'Middle',dm:'Instruction',c:'K',d:'Create unit planning of instruction for each group of students.',lf:'Has this tutor successfully submitted lesson plans consistently? Are these lessons customized for each group?'},
+    {ph:'Middle',dm:'Instruction',c:'P',d:'Identify, develop, or implement intervention strategies, tutoring plans, or individualized education plans (IEPs) for students.',lf:'Has this tutor successfully submitted lesson plans consistently? Are these lessons customized for each group?'},
+    {ph:'Middle',dm:'Instruction',c:'R',d:'Translating or explaining what information means and how it can be used.',lf:'Does the tutor explain concepts in grade- and age-appropriate language that can be understood by scholars?'},
+    {ph:'Middle',dm:'Instruction',c:'S',d:'Identifying the underlying principles, reasons, or facts of information by breaking down information or data into separate parts.',lf:'Does the tutor explain concepts in grade- and age-appropriate language that can be understood by scholars?'},
+    {ph:'Middle',dm:'Instruction',c:'T',d:'Review class material with students by discussing text, working solutions to problems, or reviewing worksheets or other assignments.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Instruction',c:'U',d:"Assess students' progress throughout tutoring sessions.",lf:'Does the tutor use exit tickets correctly? Other formative tools?'},
+    {ph:'Middle',dm:'Instruction',c:'V',d:'Instruct students both in person and/or virtually.',lf:'Does this tutor keep scholars engaged during tutoring?'},
+    {ph:'Middle',dm:'Instruction',c:'W',d:'Work with students to help them understand key concepts, especially those learned in the classroom.',lf:'Does the tutor successfully follow lesson plans that were developed to meet individual scholar needs?'},
+    {ph:'Middle',dm:'Instruction',c:'X',d:'Assist students with homework, project, test preparation, papers, research, and other academic tasks.',lf:'When appropriate, does the tutor support scholars while observing whole class instruction?'},
+    {ph:'Middle',dm:'Instruction',c:'Y',d:'Utilize tools needed to complete tasks such as Computers, Scanners, Scientific Calculators, or a Multi-line telephone system.',lf:'Were lesson plans submitted electronically? Does the tutor use available tools appropriately?'},
+    {ph:'Middle',dm:'Instruction',c:'Z',d:'Identifying the educational needs of others, developing formal educational or training programs or classes, and teaching or instructing others.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'AA',d:'Identifying the developmental needs of others and coaching, mentoring, or otherwise helping others to improve their knowledge or skills.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'AB',d:'Translating or explaining what information means and how it can be used.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Environment',c:'E',d:'Scholars report overall enjoyment working with apprentices through session surveys on Pearl.',lf:"Is this tutor's scholar rating 4.0 or higher?"},
+    {ph:'Middle',dm:'Environment',c:'H',d:'Developing and distributing teaching materials to supplement classroom lessons, including study guides.',lf:'Does this tutor use hands-on materials from NJTC?'},
+    {ph:'Middle',dm:'Environment',c:'J',d:'Collaborate with students, parents, teachers, school administrators, or counselors to determine student needs, develop tutoring plans, or assess student progress.',lf:'Has the tutor successfully completed progress reports?'},
+    {ph:'Middle',dm:'Environment',c:'M',d:'Serves as an informed advocate for Education.',lf:'Actively participate in Knowtion; sharing resources from Knowledge page and collaborating in discussion threads.'},
+    {ph:'Middle',dm:'Planning',c:'B',d:'Attend and bring required materials to classroom, weekly coaching sessions, and team meetings.',lf:'Is the tutor prepared for both classroom instructional responsibilities as well as meetings with team and classroom teachers?'},
+    {ph:'Middle',dm:'Planning',c:'C',d:'Review and make notes on unit plans prior to collaboration (i.e. unit starters, standards, lesson plans, etc.).',lf:'Have they successfully modified lessons based on updated formative or summative assessments?'},
+    {ph:'Middle',dm:'Planning',c:'F',d:'Collaborate with classroom teacher — share unit plan and work to connect prioritized skills from iReady to current year long scope and sequence.',lf:'Has the tutor uploaded lessons correctly? Did the tutor have the opportunity to collaborate with the classroom teacher?'},
+    {ph:'Middle',dm:'Planning',c:'G',d:'In discussion with the instructional coach, review additional student achievement data to update unit planning and priorities for each student.',lf:'Has the tutor uploaded lessons correctly? Have they modified lessons based on updated assessments?'},
+    {ph:'Middle',dm:'Planning',c:'H',d:'Working with the classroom teacher to share their data related to the goals and determine the effectiveness of the intervention.',lf:'Have they modified lessons based on updated formative or summative assessments?'},
+    {ph:'Middle',dm:'Planning',c:'J',d:'Develop teaching or training materials, such as handouts, study materials, or quizzes.',lf:'Are appropriate materials linked to the lesson planning document?'},
+    {ph:'Middle',dm:'Planning',c:'L',d:'Developing, designing, or creating new applications, ideas, relationships, systems, or products, including artistic contributions.',lf:'Has the tutor been observed to have completed any of these areas: developed relationships, created tutoring group systems?'},
+    {ph:'Middle',dm:'Planning',c:'M',d:'Prepare progress reports and distribute them to individuals in charge of parent communication.',lf:'Has the tutor successfully completed progress reports? Have they shared progress with the classroom teacher or site leader?'},
+    {ph:'Middle',dm:'Planning',c:'N',d:'Estimating quantities or determining time, resources, or materials needed to perform activity.',lf:'Is the tutor allocating sufficient time to cover concepts? Have they modified lessons based on updated assessments?'},
+    {ph:'Middle',dm:'Planning',c:'R',d:'Create unit planning of instruction for each group of students.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'End',dm:'Planning',c:'K',d:'Research or recommend textbooks, software, equipment, or other learning materials to complement tutoring.',lf:'Not applicable — they can meet with IC and discuss other tools to confirm they can successfully vet materials.',na:true},
+    {ph:'End',dm:'Planning',c:'O',d:'Designing differentiated learning goals.',lf:'Lesson plan creation/submission.'},
+    {ph:'End',dm:'Planning',c:'P',d:'Choose the most effective materials to support the lesson objective, engage students with various learning styles and provide opportunities for student-to-student interaction.',lf:'Did the tutor use the most appropriate or quality materials/tools for their Lesson plan creation/submission?'},
+    {ph:'End',dm:'Planning',c:'Q',d:"Observe lessons with district approval to inform instruction.",lf:"During a designated classroom push-in time, did the tutor observe part or all of the teacher's lesson?",na:true},
+    {ph:'End',dm:'Planning',c:'S',d:'Prepare and facilitate tutoring workshops, collaborative projects, or academic support sessions for small groups of students.',lf:'Lesson plan creation/submission & IC observation.'},
+    {ph:'End',dm:'Planning',c:'T',d:"Prepare lesson plans or learning modules for tutoring sessions according to students' needs and goals.",lf:'Lesson plan creation/submission & IC observation.'},
+    {ph:'End',dm:'Planning',c:'U',d:'Analyzing information and evaluating results to choose the best solution and solve problems.',lf:'Lesson plan creation/submission based on formative assessment results.'},
+    {ph:'End',dm:'Instruction',c:'A',d:'Conduct sessions that are engaging and rigorous based on academic needs for scholars.',lf:'Based on multiple observations/coaching sessions (minimum 4).'},
+    {ph:'End',dm:'Environment',c:'O',d:'Organize a tutoring environment to promote productivity and learning.',lf:'Documented in IC observations.'},
+  ];
+
+  function _apprOjtFormHtml(a) {
+    const nk   = (a.name||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
+    const fid  = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
+    const esc  = s => (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const inp  = 'width:100%;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:.4rem .6rem;font-size:.78rem;color:#1B2A4A;';
+    const lbl  = 'display:block;font-size:.7rem;font-weight:600;color:#6b7280;margin-bottom:.2rem;text-transform:uppercase;letter-spacing:.04em;';
+    const observerInfo = window.NJTC_USER_PROFILE ? window.NJTC_USER_PROFILE.name || '' : '';
+    // Build optgroups by phase·domain
+    const groups = {};
+    _APPR_OJT_DATA.forEach(d => {
+      const gk = d.ph + ' · ' + d.dm;
+      if (!groups[gk]) groups[gk] = [];
+      groups[gk].push(d);
+    });
+    const opts = Object.entries(groups).map(([g, items]) =>
+      `<optgroup label="${esc(g)}">${items.map(d => {
+        const label = d.c + ' — ' + d.d + ' [' + d.ph + ' · ' + d.dm + ']';
+        return `<option value="${esc(label)}" data-lf="${esc(d.lf)}" data-ph="${esc(d.ph)}" data-dm="${esc(d.dm)}">${esc(label)}</option>`;
+      }).join('')}</optgroup>`
+    ).join('');
+    return `
+      <div id="apprOJTForm_${nk}" style="display:none;margin-top:1rem;padding:1rem;background:#fffbf0;border:1px solid #C9A84C44;border-radius:8px">
+        <div style="font-size:.75rem;font-weight:700;color:#C9A84C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem">📋 Log OJT Activity for ${esc(a.name)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;margin-bottom:.5rem">
+          <div>
+            <label style="${lbl}">Observer Name</label>
+            <input id="aojt_obs_${nk}" style="${inp}" value="${esc(observerInfo)}" placeholder="Your name">
+          </div>
+          <div>
+            <label style="${lbl}">Observer Role</label>
+            <select id="aojt_role_${nk}" style="${inp}">
+              <option value="">Select role…</option>
+              <option>Instructional Coach (IC)</option>
+              <option>Site Coordinator (SC)</option>
+              <option>Dual Role (IC + SC)</option>
+              <option>Regional Program Manager</option>
+            </select>
+          </div>
+          <div>
+            <label style="${lbl}">Program Phase</label>
+            <select id="aojt_phase_${nk}" style="${inp}">
+              <option value="">Select phase…</option>
+              <option>Beginning (Months 1–4)</option>
+              <option>Middle (Months 5–8)</option>
+              <option>End (Months 9–12)</option>
+            </select>
+          </div>
+          <div>
+            <label style="${lbl}">Competency Domain</label>
+            <select id="aojt_domain_${nk}" style="${inp}">
+              <option value="">Select domain…</option>
+              <option>Professionalism</option>
+              <option>Instruction</option>
+              <option>Environment</option>
+              <option>Planning</option>
+            </select>
+          </div>
+          <div style="grid-column:1/-1">
+            <label style="${lbl}">Activity — select from OJT checklist</label>
+            <select id="aojt_act_${nk}" style="${inp}"
+              onchange="(function(s){var o=s.options[s.selectedIndex];var lf=o?o.getAttribute('data-lf'):'';var ph=o?o.getAttribute('data-ph'):'';var dm=o?o.getAttribute('data-dm'):'';
+              var lfD=document.getElementById('aojt_lf_${nk}');if(lfD){lfD.innerHTML=lf?'<strong>Look For:</strong> '+lf:'';lfD.style.display=lf?'block':'none';}
+              var phS=document.getElementById('aojt_phase_${nk}');var dmS=document.getElementById('aojt_domain_${nk}');
+              if(phS&&ph){for(var i=0;i<phS.options.length;i++){if(phS.options[i].value.startsWith(ph)){phS.selectedIndex=i;break;}}}
+              if(dmS&&dm){for(var i=0;i<dmS.options.length;i++){if(dmS.options[i].value===dm){dmS.selectedIndex=i;break;}}}
+              })(this)">
+              <option value="">Select activity…</option>
+              ${opts}
+            </select>
+            <div id="aojt_lf_${nk}" style="display:none;margin-top:5px;padding:6px 8px;background:#fef3c7;border-left:3px solid #C9A84C;border-radius:0 4px 4px 0;font-size:.72rem;color:#78350f;line-height:1.4"></div>
+          </div>
+          <div style="grid-column:1/-1">
+            <label style="${lbl}">Mark This Activity As</label>
+            <select id="aojt_mark_${nk}" style="${inp}">
+              <option value="Y — Observed and completed">Y — Observed and completed</option>
+              <option value="N/A — Not applicable for this apprentice or site">N/A — Not applicable for this apprentice or site</option>
+            </select>
+          </div>
+          <div style="grid-column:1/-1">
+            <label style="${lbl}">What did you observe?</label>
+            <textarea id="aojt_notes_${nk}" rows="3" placeholder="Describe what you observed. Include specific examples of the apprentice demonstrating the competency…"
+              style="${inp}resize:vertical"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button onclick="window.apprSubmitOJT('${esc(a.name)}')"
+            style="background:#C9A84C;color:#fff;border:none;border-radius:6px;padding:.45rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer">Submit OJT Log</button>
+          <span id="aojt_status_${nk}" style="font-size:.74rem;color:#6b7280"></span>
+        </div>
+      </div>`;
+  }
+
+  window.apprSubmitOJT = async function(apprenticeName) {
+    const nk  = (apprenticeName||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
+    const get = id => { const el = document.getElementById(id+'_'+nk); return el ? el.value.trim() : ''; };
+    const st  = document.getElementById('aojt_status_'+nk);
+    const obs = get('aojt_obs'); const role = get('aojt_role'); const phase = get('aojt_phase');
+    const domain = get('aojt_domain'); const activity = get('aojt_act'); const mark = get('aojt_mark');
+    const notes = get('aojt_notes');
+    if (!obs)      { if (st) { st.style.color='#ef4444'; st.textContent='Observer name required.'; }  return; }
+    if (!activity) { if (st) { st.style.color='#ef4444'; st.textContent='Select an activity.'; }      return; }
+    if (st) { st.style.color='#6b7280'; st.textContent='Submitting…'; }
+    const fid = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
+    const today = new Date().toLocaleDateString('en-US');
+    const params = new URLSearchParams({
+      'entry.1113592438': apprenticeName,
+      'entry.338482221':  'OJT Activity completion',
+      'entry.1644446216': role,
+      'entry.1868799856': get('aojt_obs'), // site auto-derived from observer
+      'entry.2084410404': phase,
+      'entry.1916953177': domain,
+      'entry.1818518596': activity,
+      'entry.272707685':  mark,
+      'entry.1617504322': notes + (notes ? '\n\n' : '') + '[Submitted by: ' + obs + ' on ' + today + ']',
+    });
+    try {
+      await fetch('https://docs.google.com/forms/d/' + fid + '/formResponse', {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString()
+      });
+      if (st) { st.style.color='#059669'; st.textContent='✓ Submitted to OJT Activity Log.'; }
+      ['aojt_act','aojt_phase','aojt_domain','aojt_mark','aojt_notes'].forEach(id => {
+        const el = document.getElementById(id+'_'+nk); if (el) el.value = '';
+      });
+      const lfD = document.getElementById('aojt_lf_'+nk);
+      if (lfD) { lfD.innerHTML=''; lfD.style.display='none'; }
+      setTimeout(() => { if (st) st.textContent=''; }, 5000);
+    } catch(e) {
+      if (st) { st.style.color='#ef4444'; st.textContent='Submit failed — check connection.'; }
+    }
+  };
+
   window.apprOpenProfile = async function(idx) {
     const apps = window._apprApps;
     if (!apps || !apps[idx]) return;
@@ -2941,14 +3158,19 @@
 
       <!-- Observations -->
       ${_apprSection('Observations', '👁️', `
-        <div style="display:flex;gap:1.25rem;align-items:center">
+        <div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
           <div style="text-align:center;background:#f9fafb;border-radius:8px;padding:.75rem 1.25rem">
             <div style="font-size:1.6rem;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</div>
             <div style="font-size:.72rem;color:#6b7280">Total Obs</div>
           </div>
           ${a.lastObs ? `<div style="font-size:.82rem;color:#374151">Last observation: <strong>${a.lastObs}</strong></div>` : '<div style="font-size:.82rem;color:#9ca3af">No observations on record.</div>'}
-          ${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" style="margin-left:auto;background:#1B2A4A;color:#fff;padding:.4rem .8rem;border-radius:6px;text-decoration:none;font-size:.78rem;font-weight:600">OTJ Checklist 📁</a>` : ''}
+          <div style="margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            ${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" style="background:#1B2A4A;color:#fff;padding:.4rem .8rem;border-radius:6px;text-decoration:none;font-size:.78rem;font-weight:600">OTJ Checklist 📁</a>` : ''}
+            <button onclick="document.getElementById('apprOJTForm_${(a.name||'').toLowerCase().replace(/[^a-z0-9]/g,'_')}').style.display=document.getElementById('apprOJTForm_${(a.name||'').toLowerCase().replace(/[^a-z0-9]/g,'_')}').style.display==='none'?'block':'none'"
+              style="background:#C9A84C;color:#fff;border:none;border-radius:6px;padding:.4rem .8rem;font-size:.78rem;font-weight:600;cursor:pointer">📋 Log OJT Activity</button>
+          </div>
         </div>
+        ${_apprOjtFormHtml(a)}
       `)}
 
       <!-- Live data loading placeholder -->
