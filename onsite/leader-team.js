@@ -59,6 +59,8 @@
   let _leaderDistricts = [];
   let _leaderInfo = null;
   let _teamData = {};
+  let _phase2Loaded = false;        // true once iReady/TAP/SM/Concerns are in
+  let _openDetailName = null;       // tutor name currently open in detail panel
 
   /* ─────────────────────────────────────────────
      UTILS
@@ -81,6 +83,27 @@
       .replace(/-/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  // iReady sometimes stores names as "Last, First" — generate both orderings for matching
+  function normNameVariants(str) {
+    const n = normName(str);
+    if (!n) return [];
+    const variants = [n];
+    if (n.includes(',')) {
+      // "torres, xavier" → "xavier torres"
+      const parts = n.split(',').map(s => s.trim());
+      if (parts.length === 2 && parts[0] && parts[1]) variants.push(parts[1] + ' ' + parts[0]);
+    } else {
+      // "xavier torres" → "torres xavier"
+      const parts = n.split(' ');
+      if (parts.length >= 2) variants.push(parts.slice(1).join(' ') + ' ' + parts[0]);
+    }
+    return variants;
+  }
+
+  function nameInSet(nameStr, nameSet) {
+    return normNameVariants(nameStr).some(v => v.length > 2 && nameSet.has(v));
   }
 
   function normDist(str) {
@@ -1232,6 +1255,18 @@
         ? '25–26 EOY / Preliminary'
         : 'Academic Data';
       if (!metrics || metrics.total === 0) {
+        // Show spinner if Phase 2 hasn't finished yet — data may still be loading
+        if (!_phase2Loaded) {
+          return `
+            <div class="njtc-section-block">
+              <div class="njtc-section-block-title">iReady ${subject} — Academic Data</div>
+              <div style="display:flex;align-items:center;gap:8px;color:#94a3b8;font-size:0.82rem">
+                <div class="njtc-spinner" style="width:14px;height:14px;border-width:2px"></div>
+                Loading academic data…
+              </div>
+            </div>
+          `;
+        }
         return `
           <div class="njtc-section-block">
             <div class="njtc-section-block-title">iReady ${subject} — ${dataLabel}</div>
@@ -1641,6 +1676,11 @@
         ${elaHtml}
         ${mathHtml}
         ${smHtml}
+        ${!_phase2Loaded ? `
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#94a3b8;font-size:0.8rem;border-top:1px solid #1e293b;margin-top:8px">
+            <div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>
+            Academic data (iReady, Standards Mastery, TAP) is loading in the background — this panel will update automatically when ready.
+          </div>` : ''}
       </div>
     `;
   }
@@ -1695,10 +1735,11 @@
         // Header is exactly "Filled by Pearl User ID" per actual sheet
         return (r['Filled by Pearl User ID'] || r['Filled By ID'] || vals[12] || '').trim();
       }).filter(Boolean));
-      const scholarNames = new Set(myStuRows.map(r => {
+      const scholarNames = new Set();
+      myStuRows.forEach(r => {
         const vals = Object.values(r);
-        return normName(r['Filled By'] || vals[0] || '');
-      }).filter(s => s.length > 2));
+        normNameVariants(r['Filled By'] || vals[0] || '').forEach(v => { if (v.length > 2) scholarNames.add(v); });
+      });
 
       // SESS bridge: expand scholar sets with ALL session-linked scholars (not just survey submitters)
       // SESS col 1=Instructor, col 2=Students (comma-sep names), col 15=Pearl Instructor ID, col 16=Pearl Student IDs
@@ -1711,7 +1752,7 @@
       sessRows.forEach(r => {
         const vals = Object.values(r);
         const names = (r['Students'] || vals[2] || '').split(',').map(s => s.trim()).filter(Boolean);
-        names.forEach(n => { const k = normName(n); if (k.length > 2) scholarNames.add(k); });
+        names.forEach(n => { normNameVariants(n).forEach(v => { if (v.length > 2) scholarNames.add(v); }); });
         const ids = (r['Pearl Student IDs'] || vals[16] || '').split(',').map(s => s.trim()).filter(Boolean);
         ids.forEach(id => { if (id) scholarPearlIds.add(id); });
       });
@@ -1736,11 +1777,11 @@
       }
 
       // iReady uses district Student IDs (not Pearl User IDs) — name matching is primary
-      // Pearl User ID bridge only valid for Pearl-native data (ATT, STU)
+      // nameInSet handles both "First Last" and "Last, First" formats used by iReady exports
       function matchScholar(r) {
         if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
-        const snam = normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '');
-        return snam.length > 2 && scholarNames.has(snam);
+        const rawName = r['Student Name'] || r['Scholar Name'] || r['Name'] || '';
+        return nameInSet(rawName, scholarNames);
       }
 
       const myElaRows  = irEla.filter(matchScholar);
@@ -1799,6 +1840,17 @@
 
     container.innerHTML = html;
     ensureDetailDOM();
+
+    // If a detail panel is open, refresh it with the updated tutor data
+    if (_openDetailName) {
+      const updated = tutors.find(t => normName(t.name) === normName(_openDetailName));
+      if (updated) {
+        const panel = document.getElementById('njtcDetailPanel');
+        if (panel && panel.classList.contains('open')) {
+          panel.innerHTML = renderDetailPanel(updated);
+        }
+      }
+    }
   }
 
   /* ─────────────────────────────────────────────
@@ -1806,6 +1858,7 @@
   ───────────────────────────────────────────── */
   async function build(userProfile) {
     if (!userProfile) return;
+    _phase2Loaded = false;
 
     injectTeamStyles();
 
@@ -1873,9 +1926,13 @@
       loadEnhancementData().then(enh => {
         const p2Data = filterData(base.att, stuRows, sessRows, base.login, enh, _leaderDistricts, userProfile.name);
         _teamData = p2Data;
+        _phase2Loaded = true;
         sortAndRenderTutors(buildTutors(p2Data), container, enh.tap || []);
         console.log('[NJTCTeam] Phase 2: enhancement data loaded');
-      }).catch(e => console.warn('[NJTCTeam] Enhancement data failed:', e));
+      }).catch(e => {
+        _phase2Loaded = true; // mark done even on failure so UI stops showing spinner
+        console.warn('[NJTCTeam] Enhancement data failed:', e);
+      });
 
     });
   }
@@ -1903,6 +1960,7 @@
 
   function openDetail(tutorName) {
     ensureDetailDOM();
+    _openDetailName = tutorName;
     const tutors = window._njtcTeamTutors || [];
     const tutor = tutors.find(t => normName(t.name) === normName(tutorName));
     const panel = document.getElementById('njtcDetailPanel');
@@ -1919,6 +1977,7 @@
   }
 
   function closeDetail() {
+    _openDetailName = null;
     const panel = document.getElementById('njtcDetailPanel');
     const overlay = document.getElementById('njtcDetailOverlay');
     if (panel) panel.classList.remove('open');
