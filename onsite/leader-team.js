@@ -227,7 +227,7 @@
   /* ─────────────────────────────────────────────
      DATA LOADING
   ───────────────────────────────────────────── */
-  async function loadAllData(leaderDistricts) {
+  async function loadAllData(leaderDistricts, leaderName) {
     const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows] = await Promise.allSettled([
       fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att),
       fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu),
@@ -246,20 +246,59 @@
     const tap      = val(tapRows);
     const concerns = val(concernRows);
 
-    // Filter Pearl ATT by leader's districts or school names (HR stores school names, not district names)
-    function siteMatch(r, districts) {
-      const d = r['District'] || r['district'] || '';
-      const s = r['School'] || r['Site'] || r['school'] || r['site'] || '';
-      return districts.some(ld => distMatch(d, ld) || distMatch(s, ld));
+    // ── Step 1: find this leader's exact Pearl school assignments ─────────────
+    // Pearl ATT stores non-Instructor rows for Site Coordinators / ICs / Dual Roles.
+    // A Dual Role leader appears on rows for BOTH the MS and ES of their campus.
+    const leaderNorm = normName(leaderName || '');
+    const pearlLeaderSchools = new Set();
+    att.forEach(r => {
+      const role = (r['Role'] || '').trim();
+      if (role === 'Instructor') return;
+      const u = normName(r['User'] || '');
+      if (!u || u !== leaderNorm) return;
+      const school = (r['School'] || r['Site'] || '').trim();
+      if (school) pearlLeaderSchools.add(school);
+    });
+
+    // ── Step 2: expand to campus siblings (same base name, different grade suffix) ──
+    // e.g. "iLearn Paterson MS" leader also covers "iLearn Paterson ES"
+    function campusBase(s) {
+      return s.toLowerCase()
+        .replace(/\s*[-–]\s*(ms|es|hs|middle|elementary|high|k-\d+)\s*$/i, '')
+        .replace(/\s+(ms|es|hs|middle\s+school|elementary\s+school|high\s+school)\s*$/i, '')
+        .trim();
     }
-    const filteredAtt  = att.filter(r  => siteMatch(r, leaderDistricts));
-    const filteredStu  = stu.filter(r  => siteMatch(r, leaderDistricts));
-    const filteredEla  = irEla.filter(r => siteMatch(r, leaderDistricts));
-    const filteredMath = irMath.filter(r => siteMatch(r, leaderDistricts));
+    const leaderBases = new Set([...pearlLeaderSchools].map(campusBase));
+    const allPearlSchools = new Set(att.map(r => (r['School'] || r['Site'] || '').trim()).filter(Boolean));
+    const expandedSchools = new Set(pearlLeaderSchools);
+    if (leaderBases.size > 0) {
+      allPearlSchools.forEach(school => {
+        if (leaderBases.has(campusBase(school))) expandedSchools.add(school);
+      });
+    }
+
+    // ── Step 3: build site-match predicate ────────────────────────────────────
+    // Primary: exact Pearl school set (captures Dual Role MS+ES+HS automatically)
+    // Fallback: HR site field substring matching (when leader not yet in Pearl data)
+    function siteMatch(r) {
+      const school = (r['School'] || r['Site'] || '').trim();
+      const dist   = (r['District'] || r['district'] || '').trim();
+      if (expandedSchools.size > 0) return expandedSchools.has(school);
+      return leaderDistricts.some(ld => distMatch(dist, ld) || distMatch(school, ld));
+    }
+
+    // ATT: only Instructor rows for tutor cards; STU/iReady: no role filter
+    const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
+    const filteredStu  = stu.filter(r  => siteMatch(r));
+    const filteredEla  = irEla.filter(r  => siteMatch(r));
+    const filteredMath = irMath.filter(r => siteMatch(r));
     const filteredTap  = tap.filter(r  => {
       const site = r['Site'] || r['C'] || '';
       return leaderDistricts.some(ld => distMatch(site, ld));
     });
+
+    console.log('[NJTCTeam] Leader Pearl schools:', [...expandedSchools]);
+    console.log('[NJTCTeam] Filtered ATT rows:', filteredAtt.length, '| STU:', filteredStu.length);
 
     return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath, tap: filteredTap, concerns };
   }
@@ -268,9 +307,10 @@
      DATA AGGREGATION
   ───────────────────────────────────────────── */
   function buildTutorMap(attRows) {
+    // Pearl ATT uses "User" for the person's name; only Instructor rows reach here
     const map = {};
     attRows.forEach(r => {
-      const tutorName = r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '';
+      const tutorName = (r['User'] || r['Tutor Name'] || r['Staff Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!map[key]) {
@@ -278,9 +318,8 @@
           name: tutorName,
           district: r['District'] || '',
           school: r['School'] || r['Site'] || '',
-          role: r['Role'] || r['Position'] || '',
-          id: r['Tutor ID'] || r['Staff ID'] || key,
-          sessions: [],
+          role: 'Instructor',
+          id: key,
           attRows: []
         };
       }
@@ -954,7 +993,7 @@
 
     let data;
     try {
-      data = await loadAllData(_leaderDistricts);
+      data = await loadAllData(_leaderDistricts, userProfile.name);
     } catch (e) {
       console.error('[NJTCTeam] Data load error:', e);
       container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
@@ -966,9 +1005,9 @@
     // Build tutor map from ATT rows
     const tutorMap = buildTutorMap(data.att);
 
-    // Also add tutors from STU rows if missing
+    // Pearl STU uses "User" for the tutor's name — add any tutors present in STU but missing from ATT
     data.stu.forEach(r => {
-      const tutorName = r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '';
+      const tutorName = (r['User'] || r['Tutor Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!tutorMap[key]) {
@@ -976,21 +1015,22 @@
           name: tutorName,
           district: r['District'] || '',
           school: r['School'] || r['Site'] || '',
-          role: r['Role'] || r['Position'] || '',
-          id: r['Tutor ID'] || r['Staff ID'] || key,
-          attRows: [],
-          stuRows: []
+          role: 'Instructor',
+          id: key,
+          attRows: []
         };
       }
     });
 
     // Compute per-tutor metrics
     const tutors = Object.values(tutorMap).map(t => {
-      const myAttRows = data.att.filter(r => normName(r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '') === normName(t.name));
-      const myStuRows = data.stu.filter(r => normName(r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '') === normName(t.name));
+      const tn = normName(t.name);
+      const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
+      // STU sheet: "User" = tutor who ran the session; "Filled For" = scholar name
+      const myStuRows = data.stu.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
 
-      // iReady: match by scholar name cross-reference with stu rows
-      const scholarNames = new Set(myStuRows.map(r => normName(r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
+      // iReady: match by scholar name cross-reference using STU "Filled For" column
+      const scholarNames = new Set(myStuRows.map(r => normName(r['Filled For'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
       const myElaRows  = data.irEla.filter(r  => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
       const myMathRows = data.irMath.filter(r => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
 
