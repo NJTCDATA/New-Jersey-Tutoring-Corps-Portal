@@ -1183,9 +1183,9 @@
       /* Detail Panel */
       .njtc-detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9990; opacity:0; transition:opacity 0.25s; pointer-events:none; }
       .njtc-detail-overlay.open { opacity:1; pointer-events:all; }
-      .njtc-detail-panel { position:fixed; top:0; right:-640px; width:600px; max-width:100vw; height:100vh; overflow-y:auto; background:#0f172a; border-left:1px solid rgba(255,255,255,0.1); z-index:9991; transition:right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:-8px 0 40px rgba(0,0,0,0.5); padding:0; }
+      .njtc-detail-panel { position:fixed; top:0; right:-640px; width:600px; max-width:100vw; height:100vh; overflow-y:auto; background:#152238; border-left:1px solid rgba(255,255,255,0.15); z-index:9991; transition:right 0.3s cubic-bezier(0.4,0,0.2,1); box-shadow:-8px 0 40px rgba(0,0,0,0.5); padding:0; }
       .njtc-detail-panel.open { right:0; }
-      .njtc-detail-close { position:sticky; top:0; z-index:2; display:flex; justify-content:flex-end; padding:14px 16px 0; background:#0f172a; }
+      .njtc-detail-close { position:sticky; top:0; z-index:2; display:flex; justify-content:flex-end; padding:14px 16px 0; background:#152238; }
       .njtc-detail-close button { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.12); color:#e2e8f0; border-radius:8px; padding:6px 14px; cursor:pointer; font-size:0.85rem; }
       .njtc-detail-close button:hover { background:rgba(255,255,255,0.14); }
       .njtc-detail-body { padding:0 24px 48px; }
@@ -1749,7 +1749,7 @@
     const safeName    = escHtml(name).replace(/'/g,"\\'");
     const nk          = normName(name).replace(/\s+/g, '_');  // spaces invalid in HTML IDs
 
-    const inputStyle  = 'width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
+    const inputStyle  = 'width:100%;background:#1e3a5f;border:1px solid #4a6fa5;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
     const labelStyle  = 'font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px';
 
     // Map leader role to exact Observer Role values in the OJT form
@@ -1867,7 +1867,7 @@
               </select>
             </div>
           </div>
-          <div id="ojt_checklist_${nk}" style="margin-bottom:8px;max-height:200px;overflow-y:auto;border:1px solid #334155;border-radius:6px;padding:5px 7px;background:rgba(255,255,255,.03)">
+          <div id="ojt_checklist_${nk}" style="margin-bottom:8px;max-height:200px;overflow-y:auto;border:1px solid #334155;border-radius:6px;padding:5px 7px;background:rgba(255,255,255,.07)">
             <div style="color:#64748b;font-size:.73rem;padding:6px">Select a phase and domain to see activities\u2026</div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
