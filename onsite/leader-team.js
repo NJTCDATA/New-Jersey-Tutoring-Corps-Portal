@@ -388,12 +388,13 @@
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
       const reason = (r['Absence Reason'] || r['Reason'] || '').trim();
       total++;
-      if (/^(Attended|Present|Late)/i.test(status)) attended++;
-      else if (/^(Absent|Missed|Tutor Left)/i.test(status)) {
+      // Pearl ATT exact status values (confirmed from Central portal)
+      if (status === 'Attended' || status === 'Late') attended++;
+      else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) {
         absent++;
         if (reason) absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
       }
-      // Pearl-specific uncovered absence strings = service interruptions
+      // Service interruption = tutor was absent without a sub
       const SI_PATTERNS = [
         'Absent; Not Covered (Tutor not available)',
         'Tutor Left Early (no sub)',
@@ -415,42 +416,43 @@
       if (!key) return;
       if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0 };
       scholarMap[key].total++;
-      if (/^(Attended|Present|Late)/i.test(status)) scholarMap[key].attended++;
-      else if (/^(Absent|Missed)/i.test(status)) scholarMap[key].absent++;
+      if (status === 'Attended' || status === 'Late') scholarMap[key].attended++;
+      else if (status === 'Missed' || /^Absent/i.test(status)) scholarMap[key].absent++;
       const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
       if (SI_PATTERNS.some(p => status.includes(p))) scholarMap[key].si++;
     });
     const scholars = Object.values(scholarMap);
     scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
     const uniqueCount = scholars.length;
-    // survey data — Pearl STU uses full question text as column names
+    // survey data — Pearl STU uses full question text as column names;
+    // the enjoyment column may be HTML-entity-encoded in the CSV export
+    const parseV = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
     const surveyFields = {
-      confidence: r => parseFloat(r['How confident do you feel about what you are learning?'] || r['Confidence'] || r['Survey Confidence'] || 0),
-      enjoyment:  r => parseFloat(r['How much did you enjoy this session with <aboutName>?'] || r['How much did you enjoy this session?'] || r['Enjoyment'] || r['Survey Enjoyment'] || 0),
-      learning:   r => parseFloat(r['How much did you learn in this session?'] || r['Learning'] || r['Survey Learning'] || 0),
-      overall:    r => parseFloat(r['How would you rate this session overall?'] || r['Overall'] || r['Survey Overall'] || 0)
+      confidence: r => { const keys = Object.keys(r); return parseV(r['How confident do you feel about what you are learning?'] || r[keys[2]] || r['Confidence'] || null); },
+      enjoyment:  r => { const keys = Object.keys(r); return parseV(r['How much did you enjoy this session with <aboutName>?'] || r['How much did you enjoy this session with &lt;aboutName&gt;?'] || r[keys[3]] || r['Enjoyment'] || null); },
+      learning:   r => { const keys = Object.keys(r); return parseV(r['How much did you learn in this session?'] || r[keys[4]] || r['Learning'] || null); },
+      overall:    r => { const keys = Object.keys(r); return parseV(r['How would you rate this session overall?'] || r[keys[5]] || r['Overall'] || null); },
     };
-    const surveyRows = stuRows.filter(r =>
-      r['How confident do you feel about what you are learning?'] ||
-      r['How much did you enjoy this session with <aboutName>?'] ||
-      r['How much did you enjoy this session?'] ||
-      r['How much did you learn in this session?'] ||
-      r['How would you rate this session overall?'] ||
-      r['Confidence'] || r['Enjoyment'] || r['Learning'] || r['Overall']
-    );
-    let surveyScores = { confidence: 0, enjoyment: 0, learning: 0, overall: 0, count: 0 };
-    if (surveyRows.length) {
-      surveyRows.forEach(r => {
-        surveyScores.confidence += surveyFields.confidence(r);
-        surveyScores.enjoyment  += surveyFields.enjoyment(r);
-        surveyScores.learning   += surveyFields.learning(r);
-        surveyScores.overall    += surveyFields.overall(r);
-      });
-      surveyScores.count = surveyRows.length;
-      ['confidence','enjoyment','learning','overall'].forEach(k => {
-        surveyScores[k] = Math.round((surveyScores[k] / surveyRows.length) * 10) / 10;
-      });
-    }
+    // A row has survey data if any of the four fields parse to a number
+    const surveyRows = stuRows.filter(r => {
+      return surveyFields.confidence(r) !== null || surveyFields.enjoyment(r) !== null ||
+             surveyFields.learning(r) !== null   || surveyFields.overall(r)  !== null;
+    });
+    const sConf = [], sEnj = [], sLearn = [], sOvr = [];
+    surveyRows.forEach(r => {
+      const c = surveyFields.confidence(r), e = surveyFields.enjoyment(r),
+            l = surveyFields.learning(r),   o = surveyFields.overall(r);
+      if (c !== null) sConf.push(c);
+      if (e !== null) sEnj.push(e);
+      if (l !== null) sLearn.push(l);
+      if (o !== null) sOvr.push(o);
+    });
+    const avgArr = arr => arr.length ? Math.round(arr.reduce((s,v)=>s+v,0)/arr.length*10)/10 : 0;
+    const surveyScores = {
+      confidence: avgArr(sConf), enjoyment: avgArr(sEnj),
+      learning:   avgArr(sLearn), overall:  avgArr(sOvr),
+      count: Math.max(sConf.length, sEnj.length, sLearn.length, sOvr.length),
+    };
     return { scholars, uniqueCount, surveyScores };
   }
 
@@ -858,20 +860,14 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
+          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${escHtml(normName(name))}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
+            style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:8px">
+            📋 Log OJT Activity
+          </button>
         </div>
       `;
     } else {
-      // No TAP master roster data — still provide OJT log access for all tutors
-      tapHtml = `
-        <div class="njtc-tap-block" style="border-color:#334155;background:rgba(30,41,59,0.6)">
-          <div class="njtc-tap-title" style="color:#94a3b8">OJT Activity Log</div>
-          <div style="font-size:0.78rem;color:#64748b;margin-bottom:10px">
-            Log an OJT activity for this tutor. If they are a TAP apprentice, this entry will be recorded and processed automatically.
-          </div>
-          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
-        </div>
-      `;
+      tapHtml = '';
     }
 
     // Pearl Ops block
