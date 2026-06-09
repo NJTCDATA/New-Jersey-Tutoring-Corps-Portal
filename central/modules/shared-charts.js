@@ -4542,7 +4542,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   window.kqrClear           = kqrClear;
   window.kqrRestoreSnapshot = kqrRestoreSnapshot;
 
-    window.fetchAndRebuildKPI   = fetchAndRebuildKPI;
+  // fetchAndRebuildKPI is defined in shared-utils.js and exposed as window.fetchAndRebuildKPI there.
+  // Do NOT re-assign here — shared-utils.js loads first and this scope has no local definition.
   // Expose KPI data accessors for Advocacy module (read-only)
   window.advGetKPIData   = function() { return (typeof KPI_DATA !== 'undefined'        && KPI_DATA.length)        ? KPI_DATA        : []; };
   window.advGetKPIStatic = function() { return (typeof KPI_DATA_STATIC !== 'undefined' && KPI_DATA_STATIC.length) ? KPI_DATA_STATIC  : []; };
