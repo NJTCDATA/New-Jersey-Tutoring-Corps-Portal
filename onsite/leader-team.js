@@ -556,8 +556,9 @@
     let attended = 0, absent = 0, si = 0, total = 0;
     const absenceReasons = {};
     attRows.forEach(r => {
-      const status = (r['Attendance Status'] || r['Status'] || '').trim();
-      const reason = (r['Absence Reason'] || r['Reason'] || '').trim();
+      const vals   = Object.values(r);
+      const status = (r['Attendance Status'] || r['Status'] || vals[6] || '').trim();
+      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || vals[7] || '').trim();
       total++;
       // Pearl ATT exact status values (confirmed from Central portal)
       if (status === 'Attended' || status === 'Late') attended++;
@@ -565,13 +566,13 @@
         absent++;
         if (reason) absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
       }
-      // Service interruption = tutor was absent without a sub
+      // Service interruption = tutor absent without coverage (reason field, matching Central portal)
       const SI_PATTERNS = [
         'Absent; Not Covered (Tutor not available)',
         'Tutor Left Early (no sub)',
         'Absent; Not Covered',
       ];
-      if (SI_PATTERNS.some(p => status.includes(p))) si++;
+      if (SI_PATTERNS.some(p => status.includes(p) || reason.includes(p))) si++;
     });
     return { attended, absent, si, total, absenceReasons, rate: pct(attended, total) };
   }
@@ -647,14 +648,54 @@
     return { scholars, uniqueCount, surveyScores };
   }
 
-  // Extract iReady 25-26 EOY/Longitudinal columns (normalizeIRSheet2526 approach from my-dashboard)
+  // Pair BOY + EOY rows from the multi-row-per-diagnostic EOY CSV.
+  // Each student appears twice: once with Baseline Diagnostic=Y (BOY) and once with Most Recent=Y (EOY).
+  // Returns one paired object per student suitable for normalizeIr2526Row.
+  function pairIr2526Diagnostics(rows) {
+    const students = {};
+    rows.forEach(r => {
+      const name  = (r['Full Name'] || r['Student Name'] || r['Name'] || '').trim();
+      const sid   = (r['Student ID'] || '').trim();
+      const key   = sid || normName(name);
+      if (!key) return;
+      if (!students[key]) students[key] = {
+        name, sid,
+        grade:    r['Student Grade'] || r['Grade'] || '',
+        school:   r['School'] || '',
+        district: r['Districts'] || r['District'] || '',
+        boy: null, eoy: null
+      };
+      const isBoy = (r['Baseline Diagnostic (Y/N)'] || '').trim().toUpperCase() === 'Y';
+      const isEoy = (r['Most Recent Diagnostic YTD (Y/N)'] || '').trim().toUpperCase() === 'Y';
+      const placement = (r['Overall Relative Placement'] || '').trim();
+      if (isBoy) students[key].boy = placement;
+      if (isEoy) {
+        students[key].eoy = placement;
+        students[key].pctTypical = parseFloat(r['Percent Progress to Annual Typical Growth (%)'] || 0) || 0;
+        students[key].gain = parseFloat(r['Diagnostic Gain'] || 0) || null;
+      }
+    });
+    return Object.values(students).filter(s => s.boy || s.eoy).map(s => ({
+      'Full Name': s.name,
+      'Student ID': s.sid,
+      'Grade': s.grade,
+      'School': s.school,
+      'District': s.district,
+      'Base/Fall Overall Relative Placement': s.boy  || '',
+      'Spring/EOY Overall Relative Placement': s.eoy || '',
+      'Pct Progress Toward Typical Growth': s.pctTypical || 0,
+      'SS Gain': s.gain,
+    }));
+  }
+
+  // Extract iReady 25-26 EOY/Longitudinal columns (paired output from pairIr2526Diagnostics)
   function normalizeIr2526Row(r) {
     return {
-      name:      r['Student Name'] || r['Name'] || '',
+      name:      r['Full Name'] || r['Student Name'] || r['Name'] || '',
       id:        r['Student ID']   || r['Student Id'] || '',
       grade:     r['Grade']        || '',
       school:    r['School']       || '',
-      district:  r['District']     || '',
+      district:  r['District']     || r['Districts'] || '',
       basePlacement:   r['Base/Fall Overall Relative Placement']   || r['Fall Overall Relative Placement'] || r['Beginning of Year Placement'] || '',
       springPlacement: r['Spring/EOY Overall Relative Placement']  || r['Spring Overall Relative Placement'] || r['End of Year Placement'] || '',
       pctTypical:      parseFloat(r['Spring %'] || r['Pct Progress Toward Typical Growth'] || r['% Typical Growth'] || 0),
@@ -1286,7 +1327,7 @@
           mvIcon  = (bl && sl) ? (sl > bl ? '▲' : sl < bl ? '▼' : '=') : '—';
           mvColor = mvIcon === '▲' ? '#10b981' : mvIcon === '▼' ? '#ef4444' : '#94a3b8';
         } else {
-          sName   = r['Student Name'] || r['Scholar Name'] || r['Name'] || '—';
+          sName   = r['Full Name'] || r['Student Name'] || r['Scholar Name'] || r['Name'] || '—';
           sGrade  = r['Grade'] || '—';
           sBase   = r['Beginning of Year Placement'] || r['BOY Level'] || '—';
           sSpring = r['End of Year Placement'] || r['EOY Level'] || '—';
@@ -1957,14 +1998,15 @@
       // nameInSet handles both "First Last" and "Last, First" formats used by iReady exports
       function matchScholar(r) {
         if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
-        const rawName = r['Student Name'] || r['Scholar Name'] || r['Name'] || '';
+        const rawName = r['Full Name'] || r['Student Name'] || r['Scholar Name'] || r['Name'] || '';
         return nameInSet(rawName, scholarNames);
       }
 
       const myElaRows  = irEla.filter(matchScholar);
       const myMathRows = irMath.filter(matchScholar);
-      const my2526Ela  = ir2526Ela.filter(matchScholar);
-      const my2526Math = ir2526Math.filter(matchScholar);
+      // Pair BOY+EOY rows per student (EOY CSV is multi-row-per-diagnostic format)
+      const my2526Ela  = pairIr2526Diagnostics(ir2526Ela.filter(matchScholar));
+      const my2526Math = pairIr2526Diagnostics(ir2526Math.filter(matchScholar));
 
       const tutorSchoolNorm = normName(t.school || '');
       const isSMTutor = [...SM_SCHOOLS].some(s => tutorSchoolNorm.includes(s));
