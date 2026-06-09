@@ -58,7 +58,7 @@ var MR_VETERAN           = 25;  // Z: Veteran Status
 var MR_DISABILITY        = 26;  // AA: Disability Status
 
 // Section C — Credentialing (manual)
-// Total sheet width = 97 columns (A–CS, indices 0–96)
+// Total workbook width = 97 columns (A–CS, indices 0–96)
 var MR_TAN               = 27;  // AB: TAN
 var MR_CERT_TYPE         = 28;  // AC: Cert Type
 // index 29 = AD: ETS Username  (read-only — not written by script)
@@ -314,6 +314,31 @@ function onFormSubmit(e) {
     var body    = _buildIntakeEmailBody(fullName, email, nv);
     GmailApp.sendEmail(props.ADMIN_EMAIL, subject, body);
 
+    // Send confirmation email to the applicant
+    if (email) {
+      var confSubject = 'NJTC TAP — Application Received';
+      var confBody = [
+        'Hi ' + (firstName || fullName) + ',',
+        '',
+        'Thank you for submitting your application to the NJTC Tutor Apprenticeship Program.',
+        'We have received your information and your application is now under review.',
+        '',
+        '━━━━━━━━━━━━━━━━━━━━',
+        'YOUR SUBMISSION',
+        '━━━━━━━━━━━━━━━━━━━━',
+        'Name:      ' + fullName,
+        'Email:     ' + email,
+        'Submitted: ' + new Date().toLocaleString(),
+        '',
+        'Next Steps:',
+        '  Our team will review your application and reach out with next steps.',
+        '  If you have questions, please contact your Program Manager or reach out via Ask Connor.',
+        '',
+        'NJTC Impact Solutions Group · TAP Portal · Automated Notification',
+      ].join('\n');
+      GmailApp.sendEmail(email, confSubject, confBody);
+    }
+
     _logNotification('INTAKE_SUBMIT', fullName, 'New application received', props.ADMIN_EMAIL, 'onFormSubmit');
     Logger.log('Intake form processed — ' + fullName + ' | ' + email);
 
@@ -433,7 +458,7 @@ function onOJTLogSubmit(e) {
 
 /**
  * Re-reads all OJT Log rows for the given apprentice and recomputes all totals.
- * Writes results back to Master Roster cols AX:BE (indices 49–56) plus wage/milestone cols.
+ * Writes results back to Master Roster cols AY:BK (indices 50–62) plus wage/milestone cols.
  * Also updates Completion Summary tab.
  */
 function recalculateTotals(apprenticeName) {
@@ -519,7 +544,7 @@ function recalculateTotals(apprenticeName) {
     var midPct = (midPossible > 0) ? (midY / midPossible) : 0;
     var endPct = (endPossible > 0) ? (endY / endPossible) : 0;
 
-    // ── RTI Hours Total: SUM monthly RTI cols (CF:CV = indices 83–99) ─────────
+    // ── RTI Hours Total: SUM monthly RTI cols (CC:CS = indices 80–96) ─────────
     var rosterData  = rSheet.getRange(rowIndex, 1, 1, 97).getValues()[0];
     var rtiTotal    = 0;
     for (var m = 0; m < 17; m++) {
@@ -590,7 +615,7 @@ function checkMilestoneAndAlert(apprenticeName, prevHours, newHours) {
     if (!rosterRow) return;
 
     var rowIndex   = rosterRow.rowIndex;
-    var rosterData = rSheet.getRange(rowIndex, 1, 1, 104).getValues()[0];
+    var rosterData = rSheet.getRange(rowIndex, 1, 1, 97).getValues()[0];
 
     // Determine new wage tier
     var newTier  = _wageTierForHours(newHours);
@@ -1300,6 +1325,7 @@ function _handleError(fnName, err) {
 function buildOJTFormURL(apprenticeName, phase, domain, activity, completed) {
   var base = 'https://docs.google.com/forms/d/1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ/viewform';
   var params = [
+    'entry.338482221='  + encodeURIComponent('OJT Activity completion'),
     'entry.1113592438=' + encodeURIComponent(apprenticeName || ''),
     'entry.2084410404=' + encodeURIComponent(phase          || ''),
     'entry.1916953177=' + encodeURIComponent(domain         || ''),
