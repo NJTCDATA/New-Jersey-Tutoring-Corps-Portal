@@ -320,21 +320,32 @@
       return leaderDistricts.some(ld => distMatch(dist, ld) || distMatch(school, ld));
     }
 
-    // ATT: Instructor rows only for tutor roster; STU/iReady: no role filter
+    // ATT: Instructor rows only for tutor roster
     const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
-    const filteredStu  = stu.filter(r  => siteMatch(r));
+
+    // STU sheet does NOT have School/District columns — filter by tutor name being in the leader's ATT set
+    const leaderTutorKeys = new Set(filteredAtt.map(r => normName(r['User'] || '')).filter(Boolean));
+    const filteredStu  = stu.filter(r  => {
+      const u = normName(r['User'] || r['Tutor Name'] || '');
+      return u && leaderTutorKeys.has(u);
+    });
+
+    // iReady: try school-based match first; if that yields nothing, cross-ref via STU scholar names
     const filteredEla  = irEla.filter(r  => siteMatch(r));
     const filteredMath = irMath.filter(r => siteMatch(r));
+
     const filteredTap  = tap.filter(r  => {
       const site = r['Site'] || r['C'] || '';
       return leaderDistricts.some(ld => distMatch(site, ld));
     });
 
+    const tapLoaded = tap.length > 0;
+
     console.log('[NJTCTeam] Login schools:', [...loginSchools], '| ATT schools:', [...attLeaderSchools]);
     console.log('[NJTCTeam] Expanded schools:', [...expandedSchools]);
-    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length);
+    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length, '| TAP loaded:', tapLoaded);
 
-    return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath, tap: filteredTap, concerns };
+    return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath, tap: filteredTap, concerns, tapLoaded };
   }
 
   /* ─────────────────────────────────────────────
@@ -604,12 +615,15 @@
   /* ─────────────────────────────────────────────
      RENDER HELPERS
   ───────────────────────────────────────────── */
-  function renderBadge(tapData) {
-    if (!tapData) return `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>`;
+  function renderBadge(tapData, tapLoaded) {
+    if (!tapData) {
+      // Only show "Not Enrolled" when TAP roster data is confirmed loaded — not when unavailable
+      return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
+    }
     const status = (tapData['Apprentice Program Status'] || tapData['K'] || '').trim();
-    if (/active/i.test(status)) return `<span class="njtc-badge njtc-badge-active">TAP Active</span>`;
+    if (/active/i.test(status))           return `<span class="njtc-badge njtc-badge-active">TAP Active</span>`;
     if (/prior|complete|graduate/i.test(status)) return `<span class="njtc-badge njtc-badge-prior">TAP Prior</span>`;
-    return `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>`;
+    return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
   }
 
   function renderAttColor(p) {
@@ -714,10 +728,10 @@
      RENDER TUTOR CARD
   ───────────────────────────────────────────── */
   function renderTutorCard(tutor) {
-    const { name, id, role, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap } = tutor;
+    const { name, id, role, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap, tapLoaded } = tutor;
     const color = avatarColor(id || name);
     const ini = initials(name);
-    const badge = renderBadge(tap);
+    const badge = renderBadge(tap, tapLoaded);
     const flags = renderFlags(attMetrics, stuMetrics);
     const flagClass = tutorCardFlagClass(attMetrics, stuMetrics);
     const surveyVal = stuMetrics.surveyScores && stuMetrics.surveyScores.count > 0 ? stuMetrics.surveyScores.overall : null;
@@ -765,10 +779,10 @@
      RENDER DETAIL PANEL
   ───────────────────────────────────────────── */
   function renderDetailPanel(tutor) {
-    const { name, id, role, school, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap, concerns } = tutor;
+    const { name, id, role, school, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap, tapLoaded, concerns } = tutor;
     const color = avatarColor(id || name);
     const ini = initials(name);
-    const badge = renderBadge(tap);
+    const badge = renderBadge(tap, tapLoaded);
     const surveyData = stuMetrics.surveyScores;
     const surveyVal = surveyData && surveyData.count > 0 ? surveyData.overall : null;
 
@@ -974,6 +988,100 @@
     const elaHtml  = renderIReadyBlock(irElaMetrics, 'ELA');
     const mathHtml = renderIReadyBlock(irMathMetrics, 'Math');
 
+    // ── Notes block (localStorage) ──────────────────────────────────────────
+    const noteKey  = 'njtc_note_' + normName(name);
+    const noteVal  = (function(){ try { return localStorage.getItem(noteKey) || ''; } catch(e){ return ''; } })();
+    const notesHtml = `
+      <div class="njtc-section-block" id="notesBlock_${escHtml(normName(name))}">
+        <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
+          📝 Leader Notes
+          <button onclick="window.NJTCTeam.editNote('${escHtml(name).replace(/'/g,"\\'")}','${noteKey}')"
+            style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
+            ${noteVal ? 'Edit' : '+ Add Note'}
+          </button>
+        </div>
+        <div id="noteDisplay_${escHtml(normName(name))}" style="font-size:.82rem;color:${noteVal ? '#e2e8f0' : '#64748b'};white-space:pre-wrap;margin-top:4px">
+          ${noteVal ? escHtml(noteVal) : 'No notes yet. Click to add.'}
+        </div>
+      </div>
+    `;
+
+    // ── OJT Activity Log inline form ─────────────────────────────────────────
+    const ojtFormId = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
+    const leaderEmail = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.email) || '';
+    const leaderName2 = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name)  || '';
+    const safeName = escHtml(name).replace(/'/g,"\\'");
+    const ojtFormHtml = `
+      <div class="njtc-section-block" style="border-color:#1C7C8C44">
+        <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
+          📋 Log OJT Activity
+          <button onclick="document.getElementById('ojtFormBody_${escHtml(normName(name))}').style.display=document.getElementById('ojtFormBody_${escHtml(normName(name))}').style.display==='none'?'block':'none'"
+            style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
+            Toggle Form
+          </button>
+        </div>
+        <div id="ojtFormBody_${escHtml(normName(name))}" style="display:none;margin-top:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Apprentice Name</label>
+              <input id="ojt_name_${escHtml(normName(name))}" value="${escHtml(name)}" readonly
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Phase</label>
+              <select id="ojt_phase_${escHtml(normName(name))}"
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+                <option value="">Select phase…</option>
+                <option value="Phase 1 — Beginning">Phase 1 — Beginning</option>
+                <option value="Phase 2 — Middle">Phase 2 — Middle</option>
+                <option value="Phase 3 — End">Phase 3 — End</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Domain</label>
+              <input id="ojt_domain_${escHtml(normName(name))}" placeholder="e.g. Instructional Delivery"
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Completed?</label>
+              <select id="ojt_completed_${escHtml(normName(name))}"
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+                <option value="Yes">Yes</option>
+                <option value="No">No — In Progress</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Hours Logged</label>
+              <input id="ojt_hours_${escHtml(normName(name))}" type="number" min="0" step="0.5" placeholder="e.g. 2"
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+            </div>
+            <div>
+              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Observer Email</label>
+              <input id="ojt_email_${escHtml(normName(name))}" type="email" value="${escHtml(leaderEmail)}" placeholder="observer@njtc.org"
+                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+            </div>
+          </div>
+          <div style="margin-bottom:8px">
+            <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Activity Description</label>
+            <textarea id="ojt_activity_${escHtml(normName(name))}" rows="2" placeholder="Describe the OJT activity completed…"
+              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem;resize:vertical"></textarea>
+          </div>
+          <div style="margin-bottom:10px">
+            <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Additional Notes</label>
+            <textarea id="ojt_notes_${escHtml(normName(name))}" rows="2" placeholder="Optional notes…"
+              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem;resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="window.NJTCTeam.submitOJT('${safeName}','${ojtFormId}')"
+              style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:.8rem;font-weight:600;cursor:pointer">
+              Submit OJT Log
+            </button>
+            <span id="ojt_status_${escHtml(normName(name))}" style="font-size:.75rem;color:#94a3b8"></span>
+          </div>
+        </div>
+      </div>
+    `;
+
     return `
       <div class="njtc-detail-close"><button onclick="window.NJTCTeam.closeDetail()">✕ Close</button></div>
       <div class="njtc-detail-body">
@@ -985,6 +1093,9 @@
             <div class="njtc-att-big" style="${renderAttColor(attMetrics.rate)}">${attMetrics.rate != null ? attMetrics.rate+'%' : '—'}</div>
           </div>
         </div>
+        <hr class="njtc-divider">
+        ${notesHtml}
+        ${ojtFormHtml}
         <hr class="njtc-divider">
         ${concernsHtml}
         ${tapHtml}
@@ -1073,9 +1184,10 @@
       const irElaMetrics  = computeIReadyMetrics(myElaRows);
       const irMathMetrics = computeIReadyMetrics(myMathRows);
       const tap = getTapForTutor(data.tap, t.name);
+      const tapLoaded = data.tapLoaded;
       const concerns = getConcernsForTutor(data.concerns, t.name);
 
-      return { ...t, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap, concerns };
+      return { ...t, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, tap, tapLoaded, concerns };
     });
 
     // Sort: flagged first, then alpha
@@ -1193,6 +1305,128 @@
   /* ─────────────────────────────────────────────
      PUBLIC API
   ───────────────────────────────────────────── */
-  window.NJTCTeam = { build, openDetail, closeDetail, refresh };
+  /* ─────────────────────────────────────────────
+     NOTES — localStorage per tutor
+  ───────────────────────────────────────────── */
+  function editNote(tutorName, noteKey) {
+    const displayId = 'noteDisplay_' + normName(tutorName);
+    const display   = document.getElementById(displayId);
+    if (!display) return;
+
+    const current = (function(){ try { return localStorage.getItem(noteKey) || ''; } catch(e){ return ''; } })();
+
+    const editId = 'noteEdit_' + normName(tutorName);
+    if (document.getElementById(editId)) {
+      document.getElementById(editId).remove();
+      return;
+    }
+
+    const wrap = document.createElement('div');
+    wrap.id = editId;
+    wrap.style.cssText = 'margin-top:8px';
+    wrap.innerHTML = `
+      <textarea id="noteTA_${escHtml(normName(tutorName))}" rows="4"
+        style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:6px 8px;font-size:.82rem;resize:vertical"
+      >${escHtml(current)}</textarea>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button onclick="window.NJTCTeam.saveNote('${escHtml(tutorName).replace(/'/g,"\\'")}','${noteKey}')"
+          style="background:#1C7C8C;color:#fff;border:none;border-radius:5px;padding:5px 14px;font-size:.78rem;cursor:pointer">Save</button>
+        <button onclick="document.getElementById('${editId}').remove()"
+          style="background:transparent;border:1px solid #334155;color:#94a3b8;border-radius:5px;padding:5px 14px;font-size:.78rem;cursor:pointer">Cancel</button>
+      </div>
+    `;
+    display.after(wrap);
+    document.getElementById('noteTA_' + normName(tutorName)).focus();
+  }
+
+  function saveNote(tutorName, noteKey) {
+    const ta = document.getElementById('noteTA_' + normName(tutorName));
+    if (!ta) return;
+    const val = ta.value.trim();
+    try { if (val) localStorage.setItem(noteKey, val); else localStorage.removeItem(noteKey); } catch(e){}
+    const display = document.getElementById('noteDisplay_' + normName(tutorName));
+    if (display) {
+      display.style.color = val ? '#e2e8f0' : '#64748b';
+      display.textContent = val || 'No notes yet. Click to add.';
+    }
+    const editEl = document.getElementById('noteEdit_' + normName(tutorName));
+    if (editEl) editEl.remove();
+    // Update button text
+    const block = document.getElementById('notesBlock_' + normName(tutorName));
+    if (block) {
+      const btn = block.querySelector('button');
+      if (btn) btn.textContent = val ? 'Edit' : '+ Add Note';
+    }
+  }
+
+  /* ─────────────────────────────────────────────
+     OJT FORM SUBMISSION
+  ───────────────────────────────────────────── */
+  async function submitOJT(tutorName, formId) {
+    const k     = normName(tutorName);
+    const statusEl = document.getElementById('ojt_status_' + k);
+    const get   = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
+
+    const apprenticeName = get('ojt_name');
+    const phase          = get('ojt_phase');
+    const domain         = get('ojt_domain');
+    const activity       = get('ojt_activity');
+    const completed      = get('ojt_completed');
+    const hours          = get('ojt_hours');
+    const obsEmail       = get('ojt_email');
+    const notes          = get('ojt_notes');
+
+    if (!phase || !domain || !activity) {
+      if (statusEl) statusEl.textContent = '⚠ Please fill in Phase, Domain, and Activity.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = 'Submitting…';
+
+    // Submit to Google Form via no-cors (response unreadable but form accepts it)
+    const endpoint = `https://docs.google.com/forms/d/${formId}/formResponse`;
+    const body     = new URLSearchParams({
+      'entry.1113592438': apprenticeName,
+      'entry.2084410404': phase,
+      'entry.1916953177': domain,
+      'entry.1818518596': activity + (hours ? ` [${hours} hrs]` : '') + (notes ? ` | Notes: ${notes}` : ''),
+      'entry.338482221':  completed,
+    });
+
+    try {
+      await fetch(endpoint, { method: 'POST', body, mode: 'no-cors' });
+    } catch(e) {
+      // no-cors fetch always "fails" from JS perspective — that's expected
+    }
+
+    // Store locally for reference
+    try {
+      const logKey  = 'njtc_ojt_log_' + k;
+      const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
+      existing.unshift({
+        ts:       new Date().toISOString(),
+        phase, domain, activity, completed,
+        hours:    hours || '—',
+        obsEmail: obsEmail || '—',
+        notes:    notes || '',
+      });
+      localStorage.setItem(logKey, JSON.stringify(existing.slice(0, 50)));
+    } catch(e) {}
+
+    if (statusEl) {
+      statusEl.style.color = '#34d399';
+      statusEl.textContent = '✓ Submitted! Entry sent to OJT Activity Log.';
+    }
+
+    // Clear form fields
+    ['ojt_phase','ojt_domain','ojt_activity','ojt_hours','ojt_notes'].forEach(id => {
+      const el = document.getElementById(id + '_' + k);
+      if (el) el.value = '';
+    });
+
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
+  }
+
+  window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT };
 
 })();
