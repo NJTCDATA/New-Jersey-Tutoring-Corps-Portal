@@ -39,16 +39,17 @@
 
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   const CACHE_KEYS = {
-    att:        'njtc_team_att_v1',
-    stu:        'njtc_team_stu_v1',
-    irEla:      'njtc_team_ir_ela_v1',
-    irMath:     'njtc_team_ir_math_v1',
-    ir2526Ela:  'njtc_team_ir2526_ela_v1',
-    ir2526Math: 'njtc_team_ir2526_math_v1',
-    sm:         'njtc_team_sm_v1',
-    tap:        'njtc_team_tap_v1',
-    concerns:   'njtc_team_concerns_v1',
-    pearlLogin: 'njtc_team_pearl_login_v1',
+    att:        'njtc_team_att_v2',
+    stu:        'njtc_team_stu_v2',
+    irEla:      'njtc_team_ir_ela_v2',
+    irMath:     'njtc_team_ir_math_v2',
+    ir2526Ela:  'njtc_team_ir2526_ela_v2',
+    ir2526Math: 'njtc_team_ir2526_math_v2',
+    sm:         'njtc_team_sm_v2',
+    tap:        'njtc_team_tap_v2',
+    concerns:   'njtc_team_concerns_v2',
+    pearlLogin: 'njtc_team_pearl_login_v2',
+    hr:         'njtc_team_hr_v2',
   };
 
   let _stylesInjected = false;
@@ -187,15 +188,16 @@
   /* ─────────────────────────────────────────────
      FETCH HELPERS
   ───────────────────────────────────────────── */
-  async function fetchCSV(url, cacheKey) {
+  async function fetchCSV(url, cacheKey, timeoutMs) {
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
       if (cached) return cached;
     }
+    const ms = timeoutMs || 60000; // default 60s — Pearl STU is large
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+        const res = await fetch(url, { signal: AbortSignal.timeout(ms) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
         if (text.trim().startsWith('<')) throw new Error('HTML response — sheet not public');
@@ -204,7 +206,7 @@
         return data;
       } catch (e) {
         lastErr = e;
-        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
+        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
       }
     }
     throw lastErr;
@@ -238,7 +240,7 @@
   async function detectLeader(userProfile) {
     let hrRows;
     try {
-      hrRows = await fetchCSV(hrUrl(), null);
+      hrRows = await fetchCSV(hrUrl(), CACHE_KEYS.hr, 30000);
     } catch (e) {
       console.warn('[NJTCTeam] Could not fetch HR list:', e);
       return null;
@@ -268,21 +270,31 @@
        iReady 25-26 ELA/Math, legacy iReady, SM, TAP, Concerns
   ───────────────────────────────────────────── */
 
-  async function loadCriticalData() {
-    const [attResult, stuResult, loginResult] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_ATT_GID),  CACHE_KEYS.att),
-      fetchCSV(pearlUrl(PEARL_STU_GID),  CACHE_KEYS.stu),
-      fetchCSV(pearlLoginUrl(),          CACHE_KEYS.pearlLogin),
+  // Phase 1a: ATT + Login only — these are the fastest and give us the tutor roster
+  async function loadAttAndLogin() {
+    const [attResult, loginResult] = await Promise.allSettled([
+      fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att),
+      fetchCSV(pearlLoginUrl(),         CACHE_KEYS.pearlLogin),
     ]);
-    ['PearlATT','PearlSTU','PearlLogin'].forEach((lbl, i) => {
-      const r = [attResult, stuResult, loginResult][i];
-      if (r.status === 'rejected') console.warn('[NJTCTeam] Critical source failed:', lbl, r.reason);
+    ['PearlATT','PearlLogin'].forEach((lbl, i) => {
+      const r = [attResult, loginResult][i];
+      if (r.status === 'rejected') console.warn('[NJTCTeam] Phase1 source failed:', lbl, r.reason);
     });
     return {
       att:   attResult.status   === 'fulfilled' ? attResult.value   : [],
-      stu:   stuResult.status   === 'fulfilled' ? stuResult.value   : [],
+      stu:   [], // populated in Phase 1b
       login: loginResult.status === 'fulfilled' ? loginResult.value : [],
     };
+  }
+
+  // Phase 1b: STU — largest file, loads after roster is already visible
+  async function loadStu() {
+    try {
+      return await fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu);
+    } catch (e) {
+      console.warn('[NJTCTeam] STU load failed:', e);
+      return [];
+    }
   }
 
   async function loadEnhancementData() {
@@ -1503,42 +1515,36 @@
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
 
-    // ── PHASE 1: Load Pearl ATT + STU + Login (fast pub CSVs) ────────────────
-    let critical;
+    // ── PHASE 1a: ATT + Login → render roster immediately ────────────────────
+    let base;
     try {
-      critical = await loadCriticalData();
+      base = await loadAttAndLogin();
     } catch (e) {
-      console.error('[NJTCTeam] Critical data load failed:', e);
+      console.error('[NJTCTeam] ATT/Login load failed:', e);
       container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
       return;
     }
 
-    // Filter to this leader's scope, no enhancement data yet
-    const phase1Data = filterData(
-      critical.att, critical.stu, critical.login, null,
-      _leaderDistricts, userProfile.name
-    );
-    _teamData = phase1Data;
+    const p1Data = filterData(base.att, [], base.login, null, _leaderDistricts, userProfile.name);
+    _teamData = p1Data;
+    sortAndRenderTutors(buildTutors(p1Data), container, []);
+    console.log('[NJTCTeam] Phase 1a rendered:', Object.keys(buildTutorMap(p1Data.att)).length, 'tutors (ATT only)');
 
-    // Render roster immediately with Pearl data (attendance + scholars + surveys)
-    const phase1Tutors = buildTutors(phase1Data);
-    sortAndRenderTutors(phase1Tutors, container, []);
+    // ── PHASE 1b: STU (largest file) → updates scholar counts + survey scores ─
+    loadStu().then(stuRows => {
+      const p1bData = filterData(base.att, stuRows, base.login, null, _leaderDistricts, userProfile.name);
+      _teamData = p1bData;
+      sortAndRenderTutors(buildTutors(p1bData), container, []);
+      console.log('[NJTCTeam] Phase 1b: STU loaded,', stuRows.length, 'rows');
 
-    console.log('[NJTCTeam] Phase 1 rendered:', phase1Tutors.length, 'tutors');
+      // ── PHASE 2: iReady + SM + TAP + Concerns (background) ──────────────────
+      loadEnhancementData().then(enh => {
+        const p2Data = filterData(base.att, stuRows, base.login, enh, _leaderDistricts, userProfile.name);
+        _teamData = p2Data;
+        sortAndRenderTutors(buildTutors(p2Data), container, enh.tap || []);
+        console.log('[NJTCTeam] Phase 2: enhancement data loaded');
+      }).catch(e => console.warn('[NJTCTeam] Enhancement data failed:', e));
 
-    // ── PHASE 2: Load iReady + SM + TAP + Concerns in background ─────────────
-    loadEnhancementData().then(enh => {
-      const phase2Data = filterData(
-        critical.att, critical.stu, critical.login, enh,
-        _leaderDistricts, userProfile.name
-      );
-      _teamData = phase2Data;
-
-      const phase2Tutors = buildTutors(phase2Data);
-      sortAndRenderTutors(phase2Tutors, container, enh.tap || []);
-      console.log('[NJTCTeam] Phase 2 rendered with enhancement data');
-    }).catch(e => {
-      console.warn('[NJTCTeam] Enhancement data failed — roster stays with Phase 1 data:', e);
     });
   }
 
