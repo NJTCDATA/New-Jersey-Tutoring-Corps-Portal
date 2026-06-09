@@ -3055,53 +3055,85 @@
           </div>
         </div>
         <div style="display:flex;gap:.5rem;align-items:center">
-          <button onclick="window.apprSubmitOJT('${esc(a.name)}')"
+          <button id="aojt_btn_${nk}" onclick="window.apprSubmitOJT('${esc(a.name)}')"
             style="background:#C9A84C;color:#fff;border:none;border-radius:6px;padding:.45rem 1rem;font-size:.78rem;font-weight:600;cursor:pointer">Submit OJT Log</button>
-          <span id="aojt_status_${nk}" style="font-size:.74rem;color:#6b7280"></span>
+          <span id="aojt_status_${nk}" style="font-size:.74rem;display:block;margin-top:.3rem"></span>
         </div>
       </div>`;
   }
 
+  /* ── apprSubmitOJT: POST directly to Apps Script doPost() ────────────── */
+  const _APPR_TAP_WEB_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
+
   window.apprSubmitOJT = async function(apprenticeName) {
-    const nk  = (apprenticeName||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
-    const get = id => { const el = document.getElementById(id+'_'+nk); return el ? el.value.trim() : ''; };
-    const st  = document.getElementById('aojt_status_'+nk);
-    const obs = get('aojt_obs'); const role = get('aojt_role'); const site = get('aojt_site');
-    const phase = get('aojt_phase');
-    const domain = get('aojt_domain'); const activity = get('aojt_act'); const mark = get('aojt_mark');
-    const notes = get('aojt_notes');
-    if (!obs)      { if (st) { st.style.color='#ef4444'; st.textContent='Observer name required.'; }  return; }
-    if (!activity) { if (st) { st.style.color='#ef4444'; st.textContent='Select an activity.'; }      return; }
-    if (st) { st.style.color='#6b7280'; st.textContent='Submitting…'; }
-    const fid = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
-    const today = new Date().toLocaleDateString('en-US');
-    const params = new URLSearchParams({
-      'entry.1113592438': apprenticeName,
-      'entry.338482221':  'OJT Activity completion',
-      'entry.1339815889': obs,                                    // Q3: Observer Name (FIXED)
-      'entry.1644446216': role,
-      'entry.1868799856': site,                                   // Q5: Site Location (FIXED)
-      'entry.2084410404': phase,
-      'entry.1916953177': domain,
-      'entry.1818518596': activity,
-      'entry.272707685':  mark,
-      'entry.1617504322': notes + (notes ? '\n\n' : '') + '[Submitted by: ' + obs + ' on ' + today + ']',
-    });
-    try {
-      await fetch('https://docs.google.com/forms/d/' + fid + '/formResponse', {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
+    const nk   = (apprenticeName||'').toLowerCase().replace(/[^a-z0-9]/g,'_');
+    const get  = id => { const el = document.getElementById(id+'_'+nk); return el ? el.value.trim() : ''; };
+    const st   = document.getElementById('aojt_status_'+nk);
+    const btnEl= document.getElementById('aojt_btn_'+nk);
+
+    const obs      = get('aojt_obs');
+    const role     = get('aojt_role');
+    const site     = get('aojt_site');
+    const phase    = get('aojt_phase');
+    const domain   = get('aojt_domain');
+    const activity = get('aojt_act');
+    const mark     = get('aojt_mark');
+    const notes    = get('aojt_notes');
+    const today    = new Date().toISOString().split('T')[0];
+
+    // Hard validation with red borders
+    const reqFields = [
+      { id: 'aojt_phase',  val: phase,    label: 'Phase'    },
+      { id: 'aojt_domain', val: domain,   label: 'Domain'   },
+      { id: 'aojt_act',    val: activity, label: 'Activity' },
+    ];
+    const missing = reqFields.filter(f => !f.val);
+    if (missing.length) {
+      reqFields.forEach(f => {
+        const el = document.getElementById(f.id+'_'+nk);
+        if (el) el.style.border = f.val ? '' : '2px solid #ef4444';
       });
-      if (st) { st.style.color='#059669'; st.textContent='✓ Submitted to OJT Activity Log.'; }
+      if (st) { st.style.color='#ef4444'; st.style.fontWeight='700'; st.textContent='✗ Required: ' + missing.map(f=>f.label).join(', '); }
+      return;
+    }
+    reqFields.forEach(f => { const el=document.getElementById(f.id+'_'+nk); if(el) el.style.border=''; });
+
+    if (st)    { st.style.color='#6b7280'; st.style.fontWeight='400'; st.textContent='Submitting…'; }
+    if (btnEl) { btnEl.disabled=true; btnEl.textContent='Submitting…'; }
+
+    // POST JSON to Apps Script doPost() — writes directly to OTJ sheet
+    const payload = {
+      logType:       'OJT Activity completion',
+      obsDate:       today,
+      observerName:  obs,
+      observerRole:  role,
+      siteLocation:  site,
+      apprenticeName: apprenticeName,
+      phase:         phase,
+      domain:        domain,
+      activityCode:  activity,
+      status:        mark,
+      notes:         notes,
+    };
+    try {
+      await fetch(_APPR_TAP_WEB_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (st)    { st.style.color='#059669'; st.style.fontWeight='700'; st.textContent='✓ Logged. Updates in ~30s.'; }
+      if (btnEl) { btnEl.disabled=false; btnEl.textContent='Submit OJT Log'; }
       ['aojt_act','aojt_phase','aojt_domain','aojt_mark','aojt_notes'].forEach(id => {
-        const el = document.getElementById(id+'_'+nk); if (el) el.value = '';
+        const el = document.getElementById(id+'_'+nk); if (el) { el.value=''; el.style.border=''; }
       });
       const lfD = document.getElementById('aojt_lf_'+nk);
       if (lfD) { lfD.innerHTML=''; lfD.style.display='none'; }
-      setTimeout(() => { if (st) st.textContent=''; }, 5000);
+      const mk = document.getElementById('aojt_mark_'+nk);
+      if (mk) mk.value = 'Y — Observed and completed';
+      setTimeout(() => { if (st) st.textContent=''; }, 8000);
     } catch(e) {
-      if (st) { st.style.color='#ef4444'; st.textContent='Submit failed — check connection.'; }
+      if (st)    { st.style.color='#ef4444'; st.style.fontWeight='700'; st.textContent='Submit failed — check connection.'; }
+      if (btnEl) { btnEl.disabled=false; btnEl.textContent='Submit OJT Log'; }
     }
   };
 
@@ -3120,8 +3152,27 @@
     const regionBg  = a.region === 'NE' ? '#dbeafe' : '#fef3c7';
     const regionClr = a.region === 'NE' ? '#1e40af' : '#92400e';
 
-    // Find TAP roster entry for this person
-    const tapEntry  = (window.AP_TAP_ROSTER || []).find(r => _apprMatch(r.name, a.name)) || {};
+    // Find TAP roster entry — first try NJTCTapDash data (from Completion Summary CSV)
+    // then fall back to AP_TAP_ROSTER (from old 25-26 tracker)
+    const _rawTap = (window._njtcTapRoster && window._njtcTapRoster.apprentices)
+      ? window._njtcTapRoster.apprentices
+      : (window._tdApprParsed && window._tdApprParsed.apprentices)
+        ? window._tdApprParsed.apprentices
+        : (window.AP_TAP_ROSTER || []);
+    const _tapRaw  = _rawTap.find(r => _apprMatch(r.name || r['Apprentice Full Name'] || '', a.name)) || {};
+    // Normalize field names across data sources
+    const tapEntry = {
+      ojtHours: parseFloat(_tapRaw.ojtHours || _tapRaw['OJT Hours'] || 0),
+      rtiHours: parseFloat(_tapRaw.rtiHours || _tapRaw['RTI Hours'] || 0),
+      ojtPct:   parseFloat(_tapRaw.ojtPct   || _tapRaw['OJT %']     || 0) / ((_tapRaw['OJT %']||'').includes('%') ? 100 : 1),
+      begPct:   (_tapRaw.begPct || _tapRaw['Beg %'] || '0%').toString().replace(/\.?\d+\.\d+%/, p => Math.round(parseFloat(p))+'%'),
+      midPct:   (_tapRaw.midPct || _tapRaw['Mid %'] || '0%').toString().replace(/\.?\d+\.\d+%/, p => Math.round(parseFloat(p))+'%'),
+      endPct:   (_tapRaw.endPct || _tapRaw['End %'] || '0%').toString().replace(/\.?\d+\.\d+%/, p => Math.round(parseFloat(p))+'%'),
+      wage:     parseFloat(_tapRaw.wage  || _tapRaw['Current Wage'] || 30),
+      milestone:_tapRaw.milestone || _tapRaw['Next Milestone'] || _tapRaw['Wage Milestone'] || 'Base',
+      status:   _tapRaw.status  || _tapRaw['Status'] || '',
+      ..._tapRaw,
+    };
     const otjPct    = a.otjItems !== null ? Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100) : 0;
     const ringColor = otjPct >= 100 ? '#059669' : otjPct >= 50 ? '#f59e0b' : otjPct > 0 ? '#3b82f6' : '#d1d5db';
 
@@ -3151,6 +3202,30 @@
 
       <!-- TAP OTJ Progress -->
       ${_apprSection('TAP Program Progress', '🎓', `
+        <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1rem;padding:.875rem;background:#1B3A6B;border-radius:8px;color:#fff">
+          <div style="text-align:center;flex-shrink:0">
+            <div style="font-size:2rem;font-weight:800;color:${(tapEntry.ojtPct||0)>=100?'#34d399':(tapEntry.ojtPct||0)>=75?'#fbbf24':'#f97316'}">${Math.round((tapEntry.ojtPct||0)*100)}%</div>
+            <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;opacity:.7">OJT Complete</div>
+          </div>
+          <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .875rem">
+            <div style="font-size:.75rem;opacity:.7">OJT Hours</div><div style="font-size:.8rem;font-weight:700">${(tapEntry.ojtHours||0).toLocaleString()} / 4,000</div>
+            <div style="font-size:.75rem;opacity:.7">RTI Hours</div><div style="font-size:.8rem;font-weight:700">${(tapEntry.rtiHours||0)} / 288</div>
+            <div style="font-size:.75rem;opacity:.7">Current Wage</div><div style="font-size:.8rem;font-weight:700">$${(tapEntry.wage||30).toFixed(2)}/hr</div>
+            <div style="font-size:.75rem;opacity:.7">Milestone</div><div style="font-size:.8rem;font-weight:700">${tapEntry.milestone||'Base'}</div>
+          </div>
+        </div>
+        <div style="margin-bottom:.75rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:.2rem"><span style="color:#6b7280">Beginning</span><span style="font-weight:700">${tapEntry.begPct||'0%'}</span></div>
+          <div style="background:#e5e7eb;border-radius:4px;height:5px"><div style="background:#059669;width:${tapEntry.begPct||'0%'};height:5px;border-radius:4px"></div></div>
+        </div>
+        <div style="margin-bottom:.75rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:.2rem"><span style="color:#6b7280">Middle</span><span style="font-weight:700">${tapEntry.midPct||'0%'}</span></div>
+          <div style="background:#e5e7eb;border-radius:4px;height:5px"><div style="background:#1B3A6B;width:${tapEntry.midPct||'0%'};height:5px;border-radius:4px"></div></div>
+        </div>
+        <div style="margin-bottom:1rem">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:.2rem"><span style="color:#6b7280">End</span><span style="font-weight:700">${tapEntry.endPct||'0%'}</span></div>
+          <div style="background:#e5e7eb;border-radius:4px;height:5px"><div style="background:#7c3aed;width:${tapEntry.endPct||'0%'};height:5px;border-radius:4px"></div></div>
+        </div>
         ${_apprProgressBar(a.otjItems !== null ? a.otjItems : 0, LIVE_TRACKER_OTJ_COLS, ringColor)}
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.75rem">
           ${[['Beginning',a.beg],['Middle',a.mid],['End',a.end]].map(([label,val]) => {
