@@ -1200,12 +1200,12 @@
       .njtc-concerns-block { background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:14px 16px; margin-bottom:20px; }
       .njtc-concerns-title { font-size:0.78rem; color:#f59e0b; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px; }
       .njtc-concern-item { font-size:0.82rem; color:#fbbf24; border-bottom:1px solid rgba(245,158,11,0.15); padding:7px 0; }
-      .njtc-concern-item:last-child { border-bottom:none; }
+      .njtc-concern-item:last-child { border-bottom:none; } .njtc-concern-item { color:#fef08a; }
       .njtc-concern-date { font-size:0.7rem; color:#94a3b8; margin-left:8px; }
 
       /* TAP Section */
       .njtc-tap-block { background:rgba(255,184,28,0.06); border:1px solid rgba(255,184,28,0.2); border-radius:10px; padding:16px; margin-bottom:20px; }
-      .njtc-tap-title { font-size:0.78rem; color:#FFB81C; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; }
+      .njtc-tap-title { font-size:0.82rem; color:#FFB81C; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px; }
       .njtc-tap-meta { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
       .njtc-tap-field { font-size:0.8rem; }
       .njtc-tap-field span { color:#ffffff; font-weight:600; }
@@ -1220,7 +1220,7 @@
 
       /* Pearl Ops Section */
       .njtc-section-block { margin-bottom:24px; }
-      .njtc-section-block-title { font-size:0.82rem; font-weight:700; color:#1C7C8C; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.07); }
+      .njtc-section-block-title { font-size:0.82rem; font-weight:700; color:#34d399; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.12); }
       .njtc-kpi-mini-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
       .njtc-kpi-mini { background:rgba(0,0,0,0.25); border-radius:8px; padding:10px 14px; flex:1 1 80px; }
       .njtc-kpi-mini-val { font-size:1.2rem; font-weight:700; }
@@ -1228,7 +1228,7 @@
 
       .njtc-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
       .njtc-table th { text-align:left; padding:7px 10px; background:rgba(28,124,140,0.3); color:#ffffff; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
-      .njtc-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.04); }
+      .njtc-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.06); color:#e2e8f0; }
       .njtc-table tr:nth-child(even) td { background:rgba(255,255,255,0.02); }
       .njtc-table td.flag-red { color:#ef4444; }
       .njtc-table td.flag-amber { color:#f59e0b; }
@@ -1473,14 +1473,37 @@
       const rtiHours   = parseFloat(tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
       const yCount     = parseFloat(tap['OJT Activities Marked Y'] || tap['BB'] || 0);
       const possible   = parseFloat(tap['OJT Possible (excl N/A)'] || tap['BC'] || 78);
-      const begPct     = Math.round((parseFloat(tap['Beginning % Complete'] || tap['BD'] || 0)) * 100);
-      const midPct     = Math.round((parseFloat(tap['Middle % Complete']    || tap['BE'] || 0)) * 100);
-      const endPct     = Math.round((parseFloat(tap['End % Complete']       || tap['BF'] || 0)) * 100);
+      const begPct     = Math.round(parseFloat(tap['Beginning % Complete'] || tap['BD'] || 0) * 100);
+      const midPct     = Math.round(parseFloat(tap['Middle % Complete']    || tap['BE'] || 0) * 100);
+      const endPct     = Math.round(parseFloat(tap['End % Complete']       || tap['BF'] || 0) * 100);
       const ojtTotal   = 4000, rtiTotal = 288;
-      const ojtPct     = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
-      const rtiPct     = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
+      const ojtPct     = Math.min(100, Math.round(ojtHours / ojtTotal * 100));
+      const rtiPct     = Math.min(100, Math.round(rtiHours / rtiTotal * 100));
+      const ojtPctColor = ojtPct >= 100 ? '#34d399' : ojtPct >= 75 ? '#fbbf24' : '#f97316';
 
-      // Monthly OJT activity counts from the Completion Summary CSV tap row
+      // Pre-compute phase bars HTML (no nested backticks)
+      const phaseData = [
+        ['Beginning', begPct, '#059669'],
+        ['Middle',    midPct, '#1B3A6B'],
+        ['End',       endPct, '#7c3aed']
+      ];
+      let phaseBarsHtml = '';
+      for (var pi = 0; pi < phaseData.length; pi++) {
+        const pd = phaseData[pi];
+        const pdLabel = pd[0], pdPct = Math.min(100, pd[1]), pdCol = pd[2];
+        phaseBarsHtml +=
+          '<div style="margin-bottom:6px">' +
+            '<div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:3px">' +
+              '<span style="color:#ffffff;font-weight:600">' + pdLabel + '</span>' +
+              '<span style="color:' + pdCol + ';font-weight:700">' + pdPct + '%</span>' +
+            '</div>' +
+            '<div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px">' +
+              '<div style="height:6px;background:' + pdCol + ';border-radius:3px;width:' + pdPct + '%;transition:width .4s"></div>' +
+            '</div>' +
+          '</div>';
+      }
+
+      // Pre-compute monthly OJT activity count table (no nested backticks)
       const MONTH_KEYS_OJT = [
         'Mar-25 OJT','Apr-25 OJT','May-25 OJT','Jun-25 OJT','Jul-25 OJT',
         'Aug-25 OJT','Sep-25 OJT','Oct-25 OJT','Nov-25 OJT','Dec-25 OJT',
@@ -1492,89 +1515,83 @@
         'Nov-25','Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'
       ];
       let cumActs = 0;
-      const monthRowsHtml = MONTH_KEYS_OJT.map((key, i) => {
-        const hrs = parseFloat(tap[key] || 0);
+      let monthBodyHtml = '';
+      let hasMonthData = false;
+      for (var mi = 0; mi < MONTH_KEYS_OJT.length; mi++) {
+        const hrs = parseFloat(tap[MONTH_KEYS_OJT[mi]] || 0);
         const cnt = hrs > 0 ? Math.round(hrs / 50) : 0;
         cumActs += cnt;
-        if (cnt === 0 && cumActs === 0) return '';
-        const bw = Math.min(100, Math.round(cnt / 6 * 100));
-        return cnt > 0
-          ? `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
-              <td style="padding:4px 6px;font-size:.72rem;color:#e2e8f0;white-space:nowrap">${MONTH_DISP_OJT[i]}</td>
-              <td style="padding:4px 6px;font-size:.72rem;font-weight:700;color:#34d399">${cnt}</td>
-              <td style="padding:4px 6px;font-size:.72rem;color:#94a3b8">${hrs.toFixed(0)} hrs</td>
-              <td style="padding:4px 6px;font-size:.72rem;color:#1C7C8C;font-weight:700">${cumActs}</td>
-              <td style="padding:4px 6px;min-width:50px"><div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px"><div style="height:5px;background:#1C7C8C;border-radius:3px;width:${bw}%"></div></div></td>
-            </tr>`
-          : '';
-      }).join('');
+        if (cnt === 0 && cumActs === 0) continue;
+        if (cnt > 0) {
+          hasMonthData = true;
+          const bw = Math.min(100, Math.round(cnt / 6 * 100));
+          monthBodyHtml +=
+            '<tr style="border-bottom:1px solid rgba(255,255,255,.05)">' +
+              '<td style="padding:4px 6px;font-size:.72rem;color:#e2e8f0">' + MONTH_DISP_OJT[mi] + '</td>' +
+              '<td style="padding:4px 6px;font-size:.72rem;font-weight:700;color:#34d399">' + cnt + '</td>' +
+              '<td style="padding:4px 6px;font-size:.72rem;color:#94a3b8">' + hrs.toFixed(0) + ' hrs</td>' +
+              '<td style="padding:4px 6px;font-size:.72rem;color:#1C7C8C;font-weight:700">' + cumActs + '</td>' +
+              '<td style="padding:4px 6px;min-width:50px"><div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px"><div style="height:5px;background:#1C7C8C;border-radius:3px;width:' + bw + '%"></div></div></td>' +
+            '</tr>';
+        }
+      }
 
-      tapHtml = `
-        <div class="njtc-tap-block">
-          <div class="njtc-tap-title">TAP Apprenticeship${badge}</div>
+      const monthTableHtml = hasMonthData ? (
+        '<div style="margin-bottom:12px">' +
+          '<div style="font-size:.7rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Monthly OJT Activity Count</div>' +
+          '<div style="overflow-y:auto;max-height:150px">' +
+            '<table style="width:100%;border-collapse:collapse">' +
+              '<thead><tr style="background:rgba(28,124,140,.25)">' +
+                '<th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Month</th>' +
+                '<th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Y</th>' +
+                '<th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Hrs</th>' +
+                '<th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Cumul.</th>' +
+                '<th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700"></th>' +
+              '</tr></thead>' +
+              '<tbody>' + monthBodyHtml + '</tbody>' +
+            '</table>' +
+          '</div>' +
+        '</div>'
+      ) : '';
 
-          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:12px;padding:10px 12px;background:rgba(28,124,140,.2);border-radius:8px">
-            <div style="text-align:center;flex-shrink:0">
-              <div style="font-size:2rem;font-weight:800;color:${ojtPct>=100?'#34d399':ojtPct>=75?'#fbbf24':'#f97316'}">${ojtPctDisp}</div>
-              <div style="font-size:.65rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.07em">OJT Complete</div>
-            </div>
-            <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.75rem">
-              <span style="color:#ffffff;font-weight:700">Activities</span><span style="color:#e2e8f0">${yCount} of ${possible} Y</span>
-              <span style="color:#ffffff;font-weight:700">OJT Hours</span><span style="color:#e2e8f0">${ojtHours.toLocaleString()} / 4,000</span>
-              <span style="color:#ffffff;font-weight:700">RTI Hours</span><span style="color:#e2e8f0">${rtiHours} / 288</span>
-              <span style="color:#ffffff;font-weight:700">Wage</span><span style="color:#34d399;font-weight:700">${wage !== '\u2014' ? '$'+wage+'/hr' : '\u2014'}</span>
-            </div>
-          </div>
+      tapHtml = '<div class="njtc-tap-block">' +
+        '<div class="njtc-tap-title">TAP Apprenticeship' + badge + '</div>' +
 
-          <div style="margin-bottom:12px">
-            ${[['Beginning',begPct,'#059669'],['Middle',midPct,'#1B3A6B'],['End',endPct,'#7c3aed']].map(([lbl,pct,col]) => `
-              <div style="margin-bottom:6px">
-                <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:3px">
-                  <span style="color:#ffffff;font-weight:600">${lbl}</span>
-                  <span style="color:${col};font-weight:700">${pct}%</span>
-                </div>
-                <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px">
-                  <div style="height:6px;background:${col};border-radius:3px;width:${Math.min(100,pct)}%;transition:width .4s"></div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
+        '<div style="display:flex;align-items:center;gap:1rem;margin-bottom:12px;padding:10px 12px;background:rgba(28,124,140,.2);border-radius:8px">' +
+          '<div style="text-align:center;flex-shrink:0">' +
+            '<div style="font-size:2rem;font-weight:800;color:' + ojtPctColor + '">' + ojtPctDisp + '</div>' +
+            '<div style="font-size:.65rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.07em">OJT Complete</div>' +
+          '</div>' +
+          '<div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.75rem">' +
+            '<span style="color:#ffffff;font-weight:700">Activities</span><span style="color:#e2e8f0">' + yCount + ' of ' + possible + ' Y</span>' +
+            '<span style="color:#ffffff;font-weight:700">OJT Hours</span><span style="color:#e2e8f0">' + ojtHours.toLocaleString() + ' / 4,000</span>' +
+            '<span style="color:#ffffff;font-weight:700">RTI Hours</span><span style="color:#e2e8f0">' + rtiHours + ' / 288</span>' +
+            '<span style="color:#ffffff;font-weight:700">Wage</span><span style="color:#34d399;font-weight:700">' + (wage !== '\u2014' ? '$' + wage + '/hr' : '\u2014') + '</span>' +
+          '</div>' +
+        '</div>' +
 
-          ${monthRowsHtml ? `
-          <div style="margin-bottom:12px">
-            <div style="font-size:.7rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Monthly OJT Activity Count</div>
-            <div style="overflow-y:auto;max-height:150px">
-              <table style="width:100%;border-collapse:collapse">
-                <thead><tr style="background:rgba(28,124,140,.25)">
-                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Month</th>
-                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Y</th>
-                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Hrs</th>
-                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Cumul.</th>
-                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700"></th>
-                </tr></thead>
-                <tbody>${monthRowsHtml}</tbody>
-              </table>
-            </div>
-          </div>` : ''}
+        '<div style="margin-bottom:12px">' + phaseBarsHtml + '</div>' +
 
-          <div class="njtc-tap-meta" style="margin-bottom:10px">
-            <div class="njtc-tap-field"><span>USDOL ID: </span>${escHtml(usdol)}</div>
-            <div class="njtc-tap-field"><span>Milestone: </span>${escHtml(milestone)}</div>
-            <div class="njtc-tap-field"><span>Status: </span>${escHtml(tapStatus)}</div>
-          </div>
+        monthTableHtml +
 
-          <div class="njtc-progress-row">
-            <div class="njtc-progress-label"><span>OJT Hours</span><span>${ojtHours} / ${ojtTotal} (${ojtPct}%)</span></div>
-            <div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:${ojtPct}%"></div></div>
-          </div>
-          <div class="njtc-progress-row">
-            <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
-            <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
-          </div>
-        </div>
-      `;
+        '<div class="njtc-tap-meta" style="margin-bottom:10px">' +
+          '<div class="njtc-tap-field"><span>USDOL ID: </span>' + escHtml(usdol) + '</div>' +
+          '<div class="njtc-tap-field"><span>Milestone: </span>' + escHtml(milestone) + '</div>' +
+          '<div class="njtc-tap-field"><span>Status: </span>' + escHtml(tapStatus) + '</div>' +
+        '</div>' +
+
+        '<div class="njtc-progress-row">' +
+          '<div class="njtc-progress-label"><span>OJT Hours</span><span>' + ojtHours + ' / ' + ojtTotal + ' (' + ojtPct + '%)</span></div>' +
+          '<div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:' + ojtPct + '%"></div></div>' +
+        '</div>' +
+        '<div class="njtc-progress-row">' +
+          '<div class="njtc-progress-label"><span>RTI Hours</span><span>' + rtiHours + ' / ' + rtiTotal + ' (' + rtiPct + '%)</span></div>' +
+          '<div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:' + rtiPct + '%"></div></div>' +
+        '</div>' +
+      '</div>';
 
     } else {
+
       tapHtml = '';
     }
 
@@ -1609,19 +1626,19 @@
         </div>
         ${absReasonRows ? `
         <div style="margin-bottom:14px">
-          <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons</div>
+          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons</div>
           <table class="njtc-table"><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${absReasonRows}</tbody></table>
         </div>` : ''}
         ${scholarRows ? `
         <div>
-          <div style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Scholar Attendance</div>
+          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Scholar Attendance</div>
           <div style="overflow-x:auto">
             <table class="njtc-table">
               <thead><tr><th>Name</th><th>Grade</th><th>Att.</th><th>Abs.</th><th>SI</th><th>Rate</th><th>Status</th></tr></thead>
               <tbody>${scholarRows}</tbody>
             </table>
           </div>
-        </div>` : '<div style="color:#94a3b8;font-size:0.82rem">No scholar data available.</div>'}
+        </div>` : '<div style="color:#e2e8f0;font-size:0.82rem">No scholar data available.</div>'}
       </div>
     `;
 
@@ -1655,7 +1672,7 @@
       surveyHtml = `
         <div class="njtc-section-block">
           <div class="njtc-section-block-title">Scholar Surveys</div>
-          <div style="color:#94a3b8;font-size:0.82rem">No survey responses on record.</div>
+          <div style="color:#e2e8f0;font-size:0.82rem">No survey responses on record.</div>
         </div>
       `;
     }
@@ -1681,7 +1698,7 @@
         return `
           <div class="njtc-section-block">
             <div class="njtc-section-block-title">iReady ${subject} — ${dataLabel}</div>
-            <div style="color:#94a3b8;font-size:0.82rem">No iReady data linked to this tutor's scholars.</div>
+            <div style="color:#e2e8f0;font-size:0.82rem">No iReady data linked to this tutor's scholars.</div>
           </div>
         `;
       }
@@ -1777,7 +1794,7 @@
       return `
         <div class="njtc-section-block" style="border-color:#f59e0b44">
           <div class="njtc-section-block-title" style="color:#f59e0b">⚠ Scholar Feedback — Needs Attention</div>
-          <div style="font-size:.75rem;color:#94a3b8;margin-bottom:8px">Scholars averaging below 3.0/5 across survey dimensions</div>
+          <div style="font-size:.75rem;color:#e2e8f0;margin-bottom:8px">Scholars averaging below 3.0/5 across survey dimensions</div>
           <div style="overflow-x:auto"><table class="njtc-table">
             <thead><tr><th>Scholar</th><th>Avg Score</th><th>Responses</th></tr></thead>
             <tbody>${attn.map(s => `<tr>
@@ -1808,7 +1825,7 @@
             ${noteVal ? 'Edit' : '+ Add Note'}
           </button>
         </div>
-        <div id="noteDisplay_${escHtml(normName(name))}" style="font-size:.82rem;color:${noteVal ? '#e2e8f0' : '#64748b'};white-space:pre-wrap;margin-top:4px">
+        <div id="noteDisplay_${escHtml(normName(name))}" style="font-size:.82rem;color:${noteVal ? '#ffffff' : '#94a3b8'};white-space:pre-wrap;margin-top:4px">
           ${noteVal ? escHtml(noteVal) : 'No notes yet. Click to add.'}
         </div>
       </div>
@@ -1893,7 +1910,7 @@
               }
             })()"
             id="ojtToggleBtn_${nk}"
-            style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
+            style="font-size:.72rem;background:rgba(28,124,140,.25);border:1px solid #1C7C8C;color:#34d399;font-weight:600;padding:4px 12px;border-radius:5px;cursor:pointer">
             Toggle Form
           </button>
         </div>
@@ -2050,7 +2067,7 @@
         ${mathHtml}
         ${smHtml}
         ${!_phase2Loaded ? `
-          <div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#94a3b8;font-size:0.8rem;border-top:1px solid #1e293b;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#e2e8f0;font-size:0.8rem;border-top:1px solid #334155;margin-top:8px">
             <div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>
             Academic data (iReady, Standards Mastery, TAP) is loading in the background — this panel will update automatically when ready.
           </div>` : ''}
