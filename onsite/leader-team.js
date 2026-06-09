@@ -458,7 +458,8 @@
     const scholarMap = {};
     stuRows.forEach(r => {
       // Pearl STU: "User" = student login (scholar), "Filled For" = tutor name
-      const name = r['User'] || r['Scholar Name'] || r['Student Name'] || '';
+      // Pearl STU col 0 = "Filled By" (student who submitted survey), col 12 = "Filled By ID"
+      const name = r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '';
       const grade = r['Grade'] || '';
       const status = r['Attendance Status'] || r['Status'] || '';
       const key = normName(name);
@@ -620,7 +621,7 @@
     const parseV = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
     const scholarSurveys = {};
     stuRows.forEach(r => {
-      const scholar = r['User'] || r['Scholar Name'] || r['Student Name'] || '';
+      const scholar = r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '';
       const key = normName(scholar);
       if (!key) return;
       if (!scholarSurveys[key]) scholarSurveys[key] = { name: scholar, scores: [] };
@@ -1420,8 +1421,9 @@
       const myStuRows = data.stu.filter(r => normName(r['Filled For'] || r['Tutor Name'] || '') === tn);
 
       // Scholar matching: Pearl "User" (student login) for ID-based match + name-based match
-      const scholarIds   = new Set(myStuRows.map(r => (r['User'] || '').trim()).filter(Boolean));
-      const scholarNames = new Set(myStuRows.map(r => normName(r['User'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
+      // Pearl STU: "Filled By ID" = student Pearl login ID (col 12), "Filled By" = student name/login (col 0)
+      const scholarIds   = new Set(myStuRows.map(r => (r['Filled By ID'] || r['User'] || '').trim()).filter(Boolean));
+      const scholarNames = new Set(myStuRows.map(r => normName(r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
 
       function matchScholar(r) {
         const sid  = (r['Student ID'] || r['Student Id'] || '').trim();

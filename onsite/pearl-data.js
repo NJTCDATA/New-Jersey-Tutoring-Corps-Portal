@@ -218,20 +218,21 @@
   }
 
   async function fetchUserData(pearlUserId) {
-    // Only fetch att and stu — the two GIDs confirmed present in this Pearl workbook.
-    // inst (1955492004) and sess (625567780) don't exist here; fetching them caused
-    // 15+ second load delays because every retry attempt was wasted on permanent 404s.
-    const [attRes, stuRes] = await Promise.allSettled([
+    // All four GIDs confirmed published: att, inst, stu, sess.
+    // Run in parallel — each has 3-attempt retry with 30s timeout per attempt.
+    const [attRes, instRes, stuRes, sessRes] = await Promise.allSettled([
       fetchSheet('att'),
-      fetchSheet('stu')
+      fetchSheet('inst'),
+      fetchSheet('stu'),
+      fetchSheet('sess')
     ]);
 
     if (attRes.status === 'rejected') throw attRes.reason;
 
     const attRows  = attRes.value;
-    const instRows = [];   // inst sheet not available in this deployment
-    const stuRows  = stuRes.status === 'fulfilled' ? stuRes.value : [];
-    const sessRows = [];   // sess sheet not available in this deployment
+    const instRows = instRes.status === 'fulfilled' ? instRes.value : [];
+    const stuRows  = stuRes.status  === 'fulfilled' ? stuRes.value  : [];
+    const sessRows = sessRes.status === 'fulfilled' ? sessRes.value : [];
 
     // Filter my instructor attendance rows
     const myInstRows = attRows.filter(r =>
