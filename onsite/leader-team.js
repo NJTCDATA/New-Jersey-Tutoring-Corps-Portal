@@ -55,6 +55,7 @@
   let _stylesInjected = false;
   let _leaderProfile  = null;
   let _leaderDistricts = [];
+  let _leaderInfo = null;
   let _teamData = {};
 
   /* ─────────────────────────────────────────────
@@ -1321,77 +1322,109 @@
       </div>
     `;
 
-    // ── OJT Activity Log inline form ─────────────────────────────────────────
-    const ojtFormId = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
-    const leaderEmail = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.email) || '';
+    // ── OJT Activity Log inline form (Section 1 + Section 2 only) ───────────
+    // Section 3 (RTI) is Central Team only — not shown here.
+    const ojtFormId   = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
     const leaderName2 = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name)  || '';
-    const safeName = escHtml(name).replace(/'/g,"\\'");
+    const leaderRole2 = _leaderInfo ? _leaderInfo.role : '';
+    const leaderSite2 = school || (_leaderInfo && _leaderInfo.siteField) || '';
+    const todayISO    = new Date().toISOString().slice(0, 10);
+    const safeName    = escHtml(name).replace(/'/g,"\\'");
+    const nk          = escHtml(normName(name));
+
+    const inputStyle  = 'width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
+    const labelStyle  = 'font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px';
+
     const ojtFormHtml = `
       <div class="njtc-section-block" style="border-color:#1C7C8C44">
         <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
           📋 Log OJT Activity
-          <button onclick="document.getElementById('ojtFormBody_${escHtml(normName(name))}').style.display=document.getElementById('ojtFormBody_${escHtml(normName(name))}').style.display==='none'?'block':'none'"
+          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${nk}');b.style.display=b.style.display==='none'?'block':'none';})()"
             style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
-            Toggle Form
+            Open / Close
           </button>
         </div>
-        <div id="ojtFormBody_${escHtml(normName(name))}" style="display:none;margin-top:10px">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div id="ojtFormBody_${nk}" style="display:none;margin-top:12px">
+
+          <div style="font-size:.72rem;color:#FFB81C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Section 1 — Observation Info</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Apprentice Name</label>
-              <input id="ojt_name_${escHtml(normName(name))}" value="${escHtml(name)}" readonly
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+              <label style="${labelStyle}">Observer Name</label>
+              <input id="ojt_obs_name_${nk}" value="${escHtml(leaderName2)}"
+                style="${inputStyle}">
             </div>
             <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Phase</label>
-              <select id="ojt_phase_${escHtml(normName(name))}"
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
-                <option value="">Select phase…</option>
-                <option value="Phase 1 — Beginning">Phase 1 — Beginning</option>
-                <option value="Phase 2 — Middle">Phase 2 — Middle</option>
-                <option value="Phase 3 — End">Phase 3 — End</option>
-              </select>
+              <label style="${labelStyle}">Observer Role</label>
+              <input id="ojt_obs_role_${nk}" value="${escHtml(leaderRole2)}"
+                style="${inputStyle}">
             </div>
             <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Domain</label>
-              <input id="ojt_domain_${escHtml(normName(name))}" placeholder="e.g. Instructional Delivery"
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+              <label style="${labelStyle}">Site Location</label>
+              <input id="ojt_site_${nk}" value="${escHtml(leaderSite2)}"
+                style="${inputStyle}">
             </div>
             <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Completed?</label>
-              <select id="ojt_completed_${escHtml(normName(name))}"
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
-                <option value="Yes">Yes</option>
-                <option value="No">No — In Progress</option>
-              </select>
+              <label style="${labelStyle}">Date of Observation</label>
+              <input id="ojt_date_${nk}" type="date" value="${todayISO}"
+                style="${inputStyle}">
             </div>
-            <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Hours Logged</label>
-              <input id="ojt_hours_${escHtml(normName(name))}" type="number" min="0" step="0.5" placeholder="e.g. 2"
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
-            </div>
-            <div>
-              <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Observer Email</label>
-              <input id="ojt_email_${escHtml(normName(name))}" type="email" value="${escHtml(leaderEmail)}" placeholder="observer@njtc.org"
-                style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem">
+            <div style="grid-column:1/-1">
+              <label style="${labelStyle}">Apprentice Full Name</label>
+              <input id="ojt_name_${nk}" value="${escHtml(name)}" readonly
+                style="${inputStyle};opacity:.7">
             </div>
           </div>
-          <div style="margin-bottom:8px">
-            <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Activity Description</label>
-            <textarea id="ojt_activity_${escHtml(normName(name))}" rows="2" placeholder="Describe the OJT activity completed…"
-              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem;resize:vertical"></textarea>
+
+          <div style="font-size:.72rem;color:#FFB81C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Section 2 — OJT Activity</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div>
+              <label style="${labelStyle}">Program Phase</label>
+              <select id="ojt_phase_${nk}" style="${inputStyle}">
+                <option value="">Select phase…</option>
+                <option value="Phase 1">Phase 1</option>
+                <option value="Phase 2">Phase 2</option>
+                <option value="Phase 3">Phase 3</option>
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">Competency Domain</label>
+              <select id="ojt_domain_${nk}" style="${inputStyle}">
+                <option value="">Select domain…</option>
+                <option>Tutoring Practice</option>
+                <option>Scholar Relationships</option>
+                <option>Instructional Delivery</option>
+                <option>Session Planning</option>
+                <option>Professionalism</option>
+                <option>Data Literacy</option>
+                <option>Community Engagement</option>
+              </select>
+            </div>
+            <div>
+              <label style="${labelStyle}">Activity Code + Description</label>
+              <input id="ojt_activity_${nk}" placeholder="e.g. OJT-2.3: Implemented differentiation strategy"
+                style="${inputStyle}">
+            </div>
+            <div>
+              <label style="${labelStyle}">Mark Activity As</label>
+              <select id="ojt_mark_${nk}" style="${inputStyle}">
+                <option value="Y">Y — Completed</option>
+                <option value="N/A">N/A — Not Applicable</option>
+              </select>
+            </div>
           </div>
           <div style="margin-bottom:10px">
-            <label style="font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px">Additional Notes</label>
-            <textarea id="ojt_notes_${escHtml(normName(name))}" rows="2" placeholder="Optional notes…"
-              style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem;resize:vertical"></textarea>
+            <label style="${labelStyle}">Observation Notes</label>
+            <textarea id="ojt_notes_${nk}" rows="3"
+              placeholder="Describe what you observed. Include specific examples of the apprentice demonstrating the competency…"
+              style="${inputStyle};resize:vertical"></textarea>
           </div>
+
           <div style="display:flex;gap:8px;align-items:center">
             <button onclick="window.NJTCTeam.submitOJT('${safeName}','${ojtFormId}')"
               style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:.8rem;font-weight:600;cursor:pointer">
               Submit OJT Log
             </button>
-            <span id="ojt_status_${escHtml(normName(name))}" style="font-size:.75rem;color:#94a3b8"></span>
+            <span id="ojt_status_${nk}" style="font-size:.75rem;color:#94a3b8"></span>
           </div>
         </div>
       </div>
@@ -1560,6 +1593,7 @@
 
     _leaderProfile   = userProfile;
     _leaderDistricts = leaderInfo.districts;
+    _leaderInfo      = leaderInfo;
 
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
@@ -1735,68 +1769,79 @@
 
   /* ─────────────────────────────────────────────
      OJT FORM SUBMISSION
+     Section 1: observation info
+     Section 2: OJT activity (Section 3 RTI = Central only, not submitted here)
   ───────────────────────────────────────────── */
   async function submitOJT(tutorName, formId) {
-    const k     = normName(tutorName);
+    const k        = normName(tutorName);
     const statusEl = document.getElementById('ojt_status_' + k);
-    const get   = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
+    const get      = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
 
+    // Section 1 fields
+    const obsName   = get('ojt_obs_name');
+    const obsRole   = get('ojt_obs_role');
+    const site      = get('ojt_site');
+    const dateVal   = get('ojt_date');   // YYYY-MM-DD
     const apprenticeName = get('ojt_name');
-    const phase          = get('ojt_phase');
-    const domain         = get('ojt_domain');
-    const activity       = get('ojt_activity');
-    const completed      = get('ojt_completed');
-    const hours          = get('ojt_hours');
-    const obsEmail       = get('ojt_email');
-    const notes          = get('ojt_notes');
+
+    // Section 2 fields
+    const phase    = get('ojt_phase');
+    const domain   = get('ojt_domain');
+    const activity = get('ojt_activity');
+    const mark     = get('ojt_mark');
+    const notes    = get('ojt_notes');
 
     if (!phase || !domain || !activity) {
-      if (statusEl) statusEl.textContent = '⚠ Please fill in Phase, Domain, and Activity.';
+      if (statusEl) { statusEl.style.color = '#f59e0b'; statusEl.textContent = '⚠ Phase, Domain, and Activity are required.'; }
       return;
     }
 
-    if (statusEl) statusEl.textContent = 'Submitting…';
+    if (statusEl) { statusEl.style.color = '#94a3b8'; statusEl.textContent = 'Submitting…'; }
 
-    // Submit to Google Form via no-cors (response unreadable but form accepts it)
+    // Parse date for Google Form date fields (entry.1328224034_year / _month / _day)
+    const [yr, mo, dy] = dateVal ? dateVal.split('-') : ['', '', ''];
+
     const endpoint = `https://docs.google.com/forms/d/${formId}/formResponse`;
-    const body     = new URLSearchParams({
-      'entry.1113592438': apprenticeName,
-      'entry.2084410404': phase,
-      'entry.1916953177': domain,
-      'entry.1818518596': activity + (hours ? ` [${hours} hrs]` : '') + (notes ? ` | Notes: ${notes}` : ''),
-      'entry.338482221':  completed,
+    const body = new URLSearchParams({
+      // Section 1
+      'entry.338482221':           'OJT Activity',        // Log Type
+      'entry.1328224034_year':     yr,
+      'entry.1328224034_month':    mo ? String(parseInt(mo, 10)) : '',
+      'entry.1328224034_day':      dy ? String(parseInt(dy, 10)) : '',
+      'entry.1339815889':          obsName,               // Observer full name
+      'entry.1644446216':          obsRole,               // Observer role
+      'entry.1868799856':          site,                  // Site location
+      'entry.1113592438':          apprenticeName,        // Apprentice full name
+      // Section 2
+      'entry.2084410404':          phase,                 // Program phase
+      'entry.1916953177':          domain,                // Competency domain
+      'entry.1818518596':          activity,              // Activity code + description
+      'entry.272707685':           mark,                  // Mark as Y / N/A
+      'entry.1617504322':          notes,                 // Observation notes
     });
 
     try {
       await fetch(endpoint, { method: 'POST', body, mode: 'no-cors' });
-    } catch(e) {
-      // no-cors fetch always "fails" from JS perspective — that's expected
-    }
+    } catch(e) { /* no-cors — expected */ }
 
-    // Store locally for reference
+    // Mirror to localStorage for leader reference
     try {
-      const logKey  = 'njtc_ojt_log_' + k;
+      const logKey   = 'njtc_ojt_log_' + k;
       const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
-      existing.unshift({
-        ts:       new Date().toISOString(),
-        phase, domain, activity, completed,
-        hours:    hours || '—',
-        obsEmail: obsEmail || '—',
-        notes:    notes || '',
-      });
+      existing.unshift({ ts: new Date().toISOString(), obsName, obsRole, site, date: dateVal,
+                         apprenticeName, phase, domain, activity, mark, notes });
       localStorage.setItem(logKey, JSON.stringify(existing.slice(0, 50)));
     } catch(e) {}
 
-    if (statusEl) {
-      statusEl.style.color = '#34d399';
-      statusEl.textContent = '✓ Submitted! Entry sent to OJT Activity Log.';
-    }
+    if (statusEl) { statusEl.style.color = '#34d399'; statusEl.textContent = '✓ Submitted to OJT Activity Log.'; }
 
-    // Clear form fields
-    ['ojt_phase','ojt_domain','ojt_activity','ojt_hours','ojt_notes'].forEach(id => {
+    // Clear editable fields (keep observer info pre-filled for next entry)
+    ['ojt_phase','ojt_domain','ojt_activity','ojt_notes'].forEach(id => {
       const el = document.getElementById(id + '_' + k);
       if (el) el.value = '';
     });
+    const markEl = document.getElementById('ojt_mark_' + k);
+    if (markEl) markEl.value = 'Y';
 
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
   }

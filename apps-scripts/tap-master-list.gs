@@ -83,17 +83,24 @@ var MR = {
 };
 
 // ─── OJT LOG COLUMN INDICES (0-based, GID 85054416) ──────────────────────────
+// Columns match form question order (Section 1 → Section 2 → Section 3).
+// Section 3 (RTI) is submitted by Central Team only.
 var OJT = {
   TIMESTAMP:   0,   // Timestamp (auto)
-  APPRENTICE:  1,   // Apprentice Full Name   (entry.1113592438)
-  PHASE:       2,   // Phase                  (entry.2084410404)
-  DOMAIN:      3,   // Domain                 (entry.1916953177)
-  ACTIVITY:    4,   // Full Activity String   (entry.1818518596)
-  COMPLETED:   5,   // OJT Activity Completed (entry.338482221)
-  HOURS:       6,   // Hours Logged
-  OBSERVER:    7,   // Observer Full Name
-  OBS_EMAIL:   8,   // Observer Email Address
-  NOTES:       9,   // Additional Notes
+  LOG_TYPE:    1,   // Log Type — "What are you logging today?"   (entry.338482221)
+  OBS_DATE:    2,   // Date of observation                        (entry.1328224034)
+  OBSERVER:    3,   // Observer full name                         (entry.1339815889)
+  OBS_ROLE:    4,   // Observer role                              (entry.1644446216)
+  SITE:        5,   // Site location                              (entry.1868799856)
+  APPRENTICE:  6,   // Apprentice full name                       (entry.1113592438)
+  PHASE:       7,   // Program phase                              (entry.2084410404)
+  DOMAIN:      8,   // Competency domain                          (entry.1916953177)
+  ACTIVITY:    9,   // Activity code + description                (entry.1818518596)
+  MARK:        10,  // Mark activity as Y / N/A                   (entry.272707685)
+  NOTES:       11,  // Observation notes                          (entry.1617504322)
+  RTI_MONTH:   12,  // Month being reported (RTI — Central only)  (entry.815300787)
+  RTI_HOURS:   13,  // Total RTI hours (RTI — Central only)       (entry.636478943)
+  RTI_TYPES:   14,  // RTI type(s) (RTI — Central only)           (entry.190993235)
 };
 
 // ─── WAGE MILESTONE THRESHOLDS ────────────────────────────────────────────────
@@ -118,6 +125,11 @@ var WAGE_MILESTONES = [
  * Install via installTriggers() — do NOT rename this function.
  */
 function onIntakeFormSubmit(e) {
+  // Guard: e is undefined when called manually from the editor (not a real submit)
+  if (!e || (!e.values && !e.namedValues && !e.response)) {
+    Logger.log('onIntakeFormSubmit called without event object — manual test run, skipping.');
+    return;
+  }
   try {
     var props  = PropertiesService.getScriptProperties().getProperties();
     var vals   = e.values || [];
@@ -151,6 +163,11 @@ function onIntakeFormSubmit(e) {
  * Install via installTriggers() — do NOT rename this function.
  */
 function onOJTFormSubmit(e) {
+  // Guard: e is undefined when called manually from the editor (not a real submit)
+  if (!e || (!e.values && !e.namedValues && !e.response)) {
+    Logger.log('onOJTFormSubmit called without event object — manual test run, skipping.');
+    return;
+  }
   try {
     var vals = e.values || [];
     var nv   = e.namedValues || {};
@@ -159,47 +176,56 @@ function onOJTFormSubmit(e) {
       return (nv[title] && nv[title][0]) ? nv[title][0].trim() : '';
     }
 
-    var timestamp     = vals[OJT.TIMESTAMP]  || new Date().toISOString();
-    var apprenticeName= (vals[OJT.APPRENTICE] || fv('Apprentice Full Name') || '').trim();
-    var phase         = (vals[OJT.PHASE]      || fv('Phase') || '').trim();
-    var domain        = (vals[OJT.DOMAIN]     || fv('Domain') || '').trim();
-    var activity      = (vals[OJT.ACTIVITY]   || fv('Activity') || '').trim();
-    var hoursRaw      = vals[OJT.HOURS]       || fv('Hours') || '0';
-    var observerName  = (vals[OJT.OBSERVER]   || fv('Observer Name') || '').trim();
-    var observerEmail = (vals[OJT.OBS_EMAIL]  || fv('Observer Email') || '').trim().toLowerCase();
+    // Use namedValues (question text) as primary — resilient to column reordering.
+    // Fall back to positional index for bare spreadsheet triggers.
+    var timestamp      = vals[OJT.TIMESTAMP] || new Date().toISOString();
+    var logType        = fv('What are you logging today?') || (vals[OJT.LOG_TYPE] || '').trim();
+    var apprenticeName = (fv('Apprentice full name') || fv('Apprentice Full Name') || (vals[OJT.APPRENTICE] || '')).trim();
+    var phase          = (fv('Program phase') || fv('Phase') || (vals[OJT.PHASE] || '')).trim();
+    var domain         = (fv('Competency domain') || fv('Domain') || (vals[OJT.DOMAIN] || '')).trim();
+    var activity       = (fv('Activity code + description') || fv('Activity') || (vals[OJT.ACTIVITY] || '')).trim();
+    var mark           = (fv('Mark this activity as') || (vals[OJT.MARK] || 'Y')).trim();
+    var observerName   = (fv('Your full name') || fv('Observer Name') || (vals[OJT.OBSERVER] || '')).trim();
+    var obsRole        = (fv('Your role') || fv('Observer Role') || (vals[OJT.OBS_ROLE] || '')).trim();
+    var site           = (fv('Site location') || (vals[OJT.SITE] || '')).trim();
+    var obsNotes       = (fv('Observation notes') || (vals[OJT.NOTES] || '')).trim();
+    // RTI fields (Section 3 — Central Team only; may be blank for Onsite submissions)
+    var rtiMonth       = (fv('Month being reported') || (vals[OJT.RTI_MONTH] || '')).trim();
+    var rtiHoursRaw    = fv('Total RTI hours') || (vals[OJT.RTI_HOURS] || '0');
 
     if (!apprenticeName) {
       Logger.log('OJT submission missing apprentice name — skipping.');
       return;
     }
 
-    // ── 1. Validate observer against HR Master List ──
-    var validObserver = _validateObserverEmail(observerEmail);
+    // ── 1. Validate observer name against HR Master List ──
+    // (Observer email not collected in current form — validate by name only)
+    var validObserver = _validateObserverName(observerName);
     if (!validObserver) {
       _sendErrorEmail(
         'onOJTFormSubmit — Observer Validation',
         new Error(
-          'OJT log submitted by unrecognized observer email: ' + observerEmail +
+          'OJT log submitted by unrecognized observer: "' + observerName + '" (' + obsRole + ')' +
           '\nApprenticeName: ' + apprenticeName +
           '\nActivity: ' + activity +
-          '\nThis entry has been logged but the observer email is not on record as an Active leader in the HR Master List for the current academic year.'
+          '\nSite: ' + site +
+          '\nThis entry has been logged. The observer name was not found as an Active leader in the HR Master List.'
         )
       );
-      // Still log the entry — do not delete the form response.
-      // Admin is notified to review. We continue to update hours.
     }
 
-    // ── 2. Update Master Roster — add hours, update last entry date ──
-    var hoursLogged = parseFloat(hoursRaw) || 0;
-    var rosterRow   = _findRosterRow(apprenticeName);
+    // ── 2. Update Master Roster — update last OJT entry date, add RTI hours if Section 3 ──
+    var rtiHoursLogged = parseFloat(rtiHoursRaw) || 0;
+    var rosterRow      = _findRosterRow(apprenticeName);
 
     if (!rosterRow) {
       _sendErrorEmail(
         'onOJTFormSubmit — Roster Lookup',
         new Error(
-          'OJT hours logged for "' + apprenticeName + '" but this name was not found in the Master Roster tab.\n' +
-          'Hours: ' + hoursLogged + '  |  Phase: ' + phase + '  |  Domain: ' + domain + '\n\n' +
-          'Check the Master Roster for a name mismatch (see Build Brief Section 2 for known discrepancies).'
+          'OJT log submitted for "' + apprenticeName + '" but this name was not found in the Master Roster.\n' +
+          'Observer: ' + observerName + ' (' + obsRole + ')  |  Site: ' + site + '\n' +
+          'Phase: ' + phase + '  |  Domain: ' + domain + '\n\n' +
+          'Check the Master Roster for a name mismatch.'
         )
       );
       return;
@@ -207,18 +233,27 @@ function onOJTFormSubmit(e) {
 
     var ss       = _getSpreadsheet();
     var rSheet   = _getSheetByGID(ss, GID_MASTER_ROSTER);
-    var rowIndex = rosterRow.rowIndex; // 1-based row number in sheet (includes header)
+    var rowIndex = rosterRow.rowIndex;
     var row      = rosterRow.data;
 
-    var prevOJTHours = parseFloat(row[MR.OJT_HOURS]) || 0;
-    var newOJTHours  = prevOJTHours + hoursLogged;
-    var rtiHours     = parseFloat(row[MR.RTI_HOURS]) || 0;
-    var prevMilestone= String(row[MR.MILESTONE] || '').trim();
+    var prevOJTHours  = parseFloat(row[MR.OJT_HOURS]) || 0;
+    var prevRTIHours  = parseFloat(row[MR.RTI_HOURS]) || 0;
+    var prevMilestone = String(row[MR.MILESTONE] || '').trim();
 
-    rSheet.getRange(rowIndex, MR.OJT_HOURS + 1).setValue(newOJTHours);
+    // Always update last OJT entry date
     rSheet.getRange(rowIndex, MR.LAST_OJT + 1).setValue(new Date());
 
-    // ── 3. Check wage milestones ──
+    // Add RTI hours only if this is a Central RTI submission (Section 3 filled)
+    var newRTIHours = prevRTIHours;
+    if (rtiHoursLogged > 0) {
+      newRTIHours = prevRTIHours + rtiHoursLogged;
+      rSheet.getRange(rowIndex, MR.RTI_HOURS + 1).setValue(newRTIHours);
+    }
+
+    // OJT hour tracking: OJT hours are managed by Central admin, not auto-incremented per activity
+    var newOJTHours = prevOJTHours;
+
+    // ── 3. Check wage milestones (based on OJT hours — managed by admin) ──
     var props = PropertiesService.getScriptProperties().getProperties();
     var ojtMax = parseFloat(props.OJT_COMPLETION_HOURS) || 4000;
     var rtiMax = parseFloat(props.RTI_COMPLETION_HOURS) || 288;
@@ -233,8 +268,8 @@ function onOJTFormSubmit(e) {
     }
 
     if (triggeredMilestone) {
-      var prevWage   = parseFloat(row[MR.WAGE]) || 0;
-      var newWage    = Math.round((prevWage * (1 + triggeredMilestone.pctIncrease)) * 100) / 100;
+      var prevWage = parseFloat(row[MR.WAGE]) || 0;
+      var newWage  = Math.round((prevWage * (1 + triggeredMilestone.pctIncrease)) * 100) / 100;
       rSheet.getRange(rowIndex, MR.WAGE + 1).setValue(newWage);
       rSheet.getRange(rowIndex, MR.MILESTONE + 1).setValue(triggeredMilestone.label);
 
@@ -247,7 +282,7 @@ function onOJTFormSubmit(e) {
         newWage:       newWage,
         milestone:     triggeredMilestone.label,
         ojtHours:      newOJTHours,
-        rtiHours:      rtiHours,
+        rtiHours:      newRTIHours,
         effectiveDate: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy'),
       });
     }
@@ -939,6 +974,51 @@ function _validateObserverEmail(observerEmail) {
 
   } catch (err) {
     Logger.log('_validateObserverEmail error: ' + err.toString() + ' — failing open.');
+    return true;
+  }
+}
+
+/**
+ * Validates observer by name against the HR Master List.
+ * Used when observer email is not collected (Onsite portal OJT form).
+ * Fails open (returns true) if HR list is unreachable.
+ */
+function _validateObserverName(observerName) {
+  if (!observerName) return false;
+  try {
+    var props        = PropertiesService.getScriptProperties().getProperties();
+    var academicYear = props.ACADEMIC_YEAR || '2025-2026';
+    var hrUrl        = 'https://docs.google.com/spreadsheets/d/e/' + HR_2PACX +
+                       '/pub?output=csv&gid=' + HR_GID;
+    var hrData = _fetchCSV(hrUrl);
+    if (!hrData || hrData.length < 2) return true; // fail open
+
+    var hIdx = -1;
+    for (var r = 0; r < Math.min(5, hrData.length); r++) {
+      if (hrData[r].indexOf(HR_COL.NAME) >= 0) { hIdx = r; break; }
+    }
+    if (hIdx < 0) return true;
+
+    var header    = hrData[hIdx].map(function(h) { return String(h).trim(); });
+    var colName   = header.indexOf(HR_COL.NAME);
+    var colYear   = header.indexOf(HR_COL.YEAR);
+    var colStatus = header.indexOf(HR_COL.STATUS);
+    var colRole   = header.indexOf(HR_COL.ROLE);
+    if (colName < 0 || colStatus < 0 || colRole < 0) return true;
+
+    var normObs = observerName.trim().toLowerCase();
+    for (var i = hIdx + 1; i < hrData.length; i++) {
+      var row = hrData[i];
+      if (!row || row.length < colName + 1) continue;
+      if (colYear >= 0 && String(row[colYear] || '').trim() !== academicYear) continue;
+      if (String(row[colStatus] || '').trim() !== 'Active') continue;
+      if (String(row[colName] || '').trim().toLowerCase() !== normObs) continue;
+      return _isLeaderRole(String(row[colRole] || '').trim());
+    }
+    Logger.log('Observer name not found as Active leader in HR Master List: ' + observerName);
+    return false;
+  } catch (err) {
+    Logger.log('_validateObserverName error: ' + err.toString() + ' — failing open.');
     return true;
   }
 }
