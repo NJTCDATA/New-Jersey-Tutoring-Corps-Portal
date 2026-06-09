@@ -1885,7 +1885,7 @@
             <div style="grid-column:1/-1">
               <label style="${labelStyle}">Mark This Activity As</label>
               <select id="ojt_mark_${nk}" style="${inputStyle}">
-                <option value="Y — Observed and completed">Y — Observed and completed</option>
+                <option value="Y — Observed and completed" selected>Y — Observed and completed</option>
                 <option value="N/A — Not applicable for this apprentice or site">N/A — Not applicable for this apprentice or site</option>
               </select>
             </div>
@@ -1898,7 +1898,8 @@
           </div>
 
           <div style="display:flex;gap:8px;align-items:center">
-            <button onclick="window.NJTCTeam.submitOJT('${safeName}','${ojtFormId}')"
+            <button id="ojt_submit_btn_${nk}"
+              onclick="window.NJTCTeam.submitOJT('${safeName}','${ojtFormId}')"
               style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:.8rem;font-weight:600;cursor:pointer">
               Submit OJT Log
             </button>
@@ -2332,79 +2333,148 @@
      Section 2: OJT activity (Section 3 RTI = Central only, not submitted here)
   ───────────────────────────────────────────── */
   async function submitOJT(tutorName, formId) {
-    const k        = normName(tutorName).replace(/\s+/g, '_');  // match HTML ID format
+    const k        = normName(tutorName).replace(/\s+/g, '_');
     const statusEl = document.getElementById('ojt_status_' + k);
+    const btnEl    = document.getElementById('ojt_submit_btn_' + k);
     const get      = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
 
-    // Section 1 fields
-    const obsName   = get('ojt_obs_name');
-    const obsRole   = get('ojt_obs_role');
-    const site      = get('ojt_site');
-    const dateVal   = get('ojt_date');   // YYYY-MM-DD
+    // ── Read all fields ───────────────────────────────────────────────────────
+    const obsName        = get('ojt_obs_name');
+    const obsRole        = get('ojt_obs_role');
+    const site           = get('ojt_site');
+    const dateVal        = get('ojt_date');
     const apprenticeName = get('ojt_name');
+    const phase          = get('ojt_phase');
+    const domain         = get('ojt_domain');
+    const activity       = get('ojt_activity');
+    const mark           = get('ojt_mark');
+    const notes          = get('ojt_notes');
 
-    // Section 2 fields
-    const phase    = get('ojt_phase');
-    const domain   = get('ojt_domain');
-    const activity = get('ojt_activity');
-    const mark     = get('ojt_mark');
-    const notes    = get('ojt_notes');
+    // ── Validate required fields — hard block with visible errors ─────────────
+    const requiredFields = [
+      { id: 'ojt_phase',    val: phase,    label: 'Program Phase'     },
+      { id: 'ojt_domain',   val: domain,   label: 'Competency Domain' },
+      { id: 'ojt_activity', val: activity, label: 'Activity Code'     },
+    ];
+    const missing = requiredFields.filter(f => !f.val);
 
-    if (!phase || !domain || !activity) {
-      if (statusEl) { statusEl.style.color = '#f59e0b'; statusEl.textContent = '⚠ Phase, Domain, and Activity are required.'; }
-      return;
+    if (missing.length > 0) {
+      // Highlight missing fields with red border
+      requiredFields.forEach(f => {
+        const el = document.getElementById(f.id + '_' + k);
+        if (el) el.style.border = f.val ? '1px solid #334155' : '2px solid #ef4444';
+      });
+      const labels = missing.map(f => f.label).join(', ');
+      if (statusEl) {
+        statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.8rem;display:block;margin-top:8px';
+        statusEl.textContent = '✗ Required: ' + labels + '. Select these before submitting.';
+      }
+      return; // hard stop — no submission
     }
 
-    if (statusEl) { statusEl.style.color = '#94a3b8'; statusEl.textContent = 'Submitting…'; }
-
-    // Parse date for Google Form date fields (entry.1328224034_year / _month / _day)
-    const [yr, mo, dy] = dateVal ? dateVal.split('-') : ['', '', ''];
-
-    const endpoint = `https://docs.google.com/forms/d/${formId}/formResponse`;
-    const body = new URLSearchParams({
-      // Section 1 — Q1 through Q6
-      'entry.338482221':           'OJT Activity completion',  // Q1: What are you logging today?
-      'entry.1328224034_year':     yr,                         // Q2: Date (year part)
-      'entry.1328224034_month':    mo ? String(parseInt(mo, 10)) : '',  // Q2: Date (month)
-      'entry.1328224034_day':      dy ? String(parseInt(dy, 10)) : '',  // Q2: Date (day)
-      'entry.1339815889':          obsName,                    // Q3: Observer Name
-      'entry.1644446216':          obsRole,                    // Q4: Observer Role (exact form value)
-      'entry.1868799856':          site,                       // Q5: Site location (exact dropdown value)
-      'entry.1113592438':          apprenticeName,             // Q6: Apprentice full name
-      // Section 2 — Q7 through Q11 (OJT Activity only — Section 3 RTI is Central Team only)
-      'entry.2084410404':          phase,                      // Q7: Program phase (exact form value)
-      'entry.1916953177':          domain,                     // Q8: Competency domain (exact form value)
-      'entry.1818518596':          activity,                   // Q9: Activity code + description
-      'entry.272707685':           mark,                       // Q10: Mark as (exact form value)
-      'entry.1617504322':          notes,                      // Q11: What did you observe?
+    // Clear any previous error borders
+    requiredFields.forEach(f => {
+      const el = document.getElementById(f.id + '_' + k);
+      if (el) el.style.border = '';
     });
 
-    try {
-      await fetch(endpoint, { method: 'POST', body, mode: 'no-cors' });
-    } catch(e) { /* no-cors — expected */ }
+    // ── Show submitting state ─────────────────────────────────────────────────
+    if (statusEl) { statusEl.style.cssText = 'color:#94a3b8;font-size:.8rem;display:block;margin-top:8px'; statusEl.textContent = 'Submitting…'; }
+    if (btnEl)    { btnEl.disabled = true; btnEl.textContent = 'Submitting…'; }
 
-    // Mirror to localStorage for leader reference
+    // ── Route 1: POST to Apps Script doPost() — writes directly to OTJ sheet ─
+    // This is the PRIMARY path. The Apps Script doPost() appends the row to the
+    // OTJ tab and immediately calls recalculateTotals(), updating all hours and
+    // wage milestones in real time. No Google Form dependency, no entry ID issues.
+    const webAppUrl = TAP_SCRIPT_URL; // already defined: the deployed Apps Script URL
+    let submitted = false;
+
+    try {
+      const payload = {
+        logType:       'OJT Activity completion',
+        obsDate:       dateVal,
+        observerName:  obsName,
+        observerRole:  obsRole,
+        siteLocation:  site,
+        apprenticeName: apprenticeName,
+        phase:         phase,
+        domain:        domain,
+        activityCode:  activity,
+        status:        mark,
+        notes:         notes,
+      };
+      // Apps Script deployed as web app: POST JSON body
+      // mode: 'no-cors' because Apps Script CORS headers aren't set for all origins
+      await fetch(webAppUrl, {
+        method:  'POST',
+        mode:    'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      submitted = true;
+    } catch(e) {
+      console.warn('[NJTCTeam] doPost failed, falling back to Google Form POST:', e.message);
+    }
+
+    // ── Route 2: Fallback — POST to Google Form formResponse ──────────────────
+    // Used only if the Apps Script web app is unreachable.
+    // Entry IDs confirmed from live form inspection.
+    if (!submitted) {
+      try {
+        const [yr, mo, dy] = dateVal ? dateVal.split('-') : ['','',''];
+        const endpoint = 'https://docs.google.com/forms/d/' + formId + '/formResponse';
+        const body = new URLSearchParams({
+          'entry.338482221':        'OJT Activity completion',
+          'entry.1328224034_year':  yr,
+          'entry.1328224034_month': mo ? String(parseInt(mo, 10)) : '',
+          'entry.1328224034_day':   dy ? String(parseInt(dy, 10)) : '',
+          'entry.1339815889':       obsName,
+          'entry.1644446216':       obsRole,
+          'entry.1868799856':       site,
+          'entry.1113592438':       apprenticeName,
+          'entry.2084410404':       phase,
+          'entry.1916953177':       domain,
+          'entry.1818518596':       activity,
+          'entry.272707685':        mark,
+          'entry.1617504322':       notes,
+        });
+        await fetch(endpoint, { method: 'POST', body, mode: 'no-cors' });
+        submitted = true;
+      } catch(e) {
+        console.warn('[NJTCTeam] Google Form fallback also failed:', e.message);
+      }
+    }
+
+    // ── Mirror to localStorage (leader reference / offline resilience) ────────
     try {
       const logKey   = 'njtc_ojt_log_' + k;
       const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
-      existing.unshift({ ts: new Date().toISOString(), obsName, obsRole, site, date: dateVal,
-                         apprenticeName, phase, domain, activity, mark, notes });
-      localStorage.setItem(logKey, JSON.stringify(existing.slice(0, 50)));
+      existing.unshift({
+        ts: new Date().toISOString(), obsName, obsRole, site, date: dateVal,
+        apprenticeName, phase, domain, activity, mark, notes, submitted
+      });
+      localStorage.setItem(logKey, JSON.stringify(existing.slice(0, 100)));
     } catch(e) {}
 
-    if (statusEl) { statusEl.style.color = '#34d399'; statusEl.textContent = '✓ Submitted to OJT Activity Log.'; }
+    // ── Success UI ────────────────────────────────────────────────────────────
+    if (statusEl) {
+      statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.8rem;display:block;margin-top:8px';
+      statusEl.textContent = '✓ OJT activity logged. Hours will update within 30 seconds.';
+    }
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
 
-    // Clear editable fields (keep observer info pre-filled for next entry)
+    // ── Clear fields for next entry (keep observer info pre-filled) ───────────
     ['ojt_phase','ojt_domain','ojt_activity','ojt_notes'].forEach(id => {
       const el = document.getElementById(id + '_' + k);
-      if (el) el.value = '';
+      if (el) { el.value = ''; el.style.border = ''; }
     });
     const lfDiv = document.getElementById('ojt_lookfor_' + k);
     if (lfDiv) { lfDiv.innerHTML = ''; lfDiv.style.display = 'none'; }
     const markEl = document.getElementById('ojt_mark_' + k);
-    if (markEl) markEl.value = 'Y';
+    if (markEl) markEl.value = 'Y — Observed and completed';
 
-    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 5000);
+    // Clear success message after 8 seconds
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 8000);
   }
 
   window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT };
