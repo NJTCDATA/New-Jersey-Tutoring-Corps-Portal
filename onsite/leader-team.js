@@ -1895,20 +1895,7 @@
       <div class="njtc-section-block" style="border-color:#1C7C8C44">
         <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
           📋 Log OJT Activity
-          <button onclick="(function(){
-              var b=document.getElementById('ojtFormBody_${nk}');
-              var opening=b.style.display==='none'||b.style.display==='';
-              b.style.display=opening?'block':'none';
-              if(opening){
-                var ph=document.getElementById('ojt_phase_${nk}');
-                var dm=document.getElementById('ojt_domain_${nk}');
-                if(ph)ph.value='';if(dm)dm.value='';
-                var cl=document.getElementById('ojt_checklist_${nk}');
-                if(cl)cl.innerHTML='<div style="color:#64748b;font-size:.73rem;padding:6px">Select a phase and domain to see activities…</div>';
-                var cs=document.getElementById('ojt_selected_count_${nk}');
-                if(cs){cs.textContent='0 activities selected';cs.style.color='#94a3b8';}
-              }
-            })()"
+          <button onclick="window.NJTCTeam._ojtResetForm('${nk}')"
             id="ojtToggleBtn_${nk}"
             style="font-size:.72rem;background:rgba(28,124,140,.25);border:1px solid #1C7C8C;color:#34d399;font-weight:600;padding:4px 12px;border-radius:5px;cursor:pointer">
             Toggle Form
@@ -2040,6 +2027,7 @@
       </div>
     `;
 
+    const loadingSpinnerHtml = _phase2Loaded ? '' : '<div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#e2e8f0;font-size:0.8rem;border-top:1px solid #334155;margin-top:8px"><div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>Academic data is loading in the background — this panel will update automatically when ready.</div>';
     return `
       <div class="njtc-detail-close"><button onclick="window.NJTCTeam.closeDetail()">✕ Close</button></div>
       <div class="njtc-detail-body">
@@ -2066,11 +2054,7 @@
         ${elaHtml}
         ${mathHtml}
         ${smHtml}
-        ${!_phase2Loaded ? `
-          <div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#e2e8f0;font-size:0.8rem;border-top:1px solid #334155;margin-top:8px">
-            <div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>
-            Academic data (iReady, Standards Mastery, TAP) is loading in the background — this panel will update automatically when ready.
-          </div>` : ''}
+        ${loadingSpinnerHtml}
       </div>
     `;
   }
@@ -2594,6 +2578,28 @@
   }
 
 
+  function _ojtResetForm(nk) {
+    var b  = document.getElementById('ojtFormBody_' + nk);
+    var ph = document.getElementById('ojt_phase_'  + nk);
+    var dm = document.getElementById('ojt_domain_' + nk);
+    var cl = document.getElementById('ojt_checklist_' + nk);
+    var cs = document.getElementById('ojt_selected_count_' + nk);
+    var opening = !b || b.style.display === 'none' || b.style.display === '';
+    if (b) b.style.display = opening ? 'block' : 'none';
+    if (opening) {
+      if (ph) ph.value = '';
+      if (dm) dm.value = '';
+      if (cl) {
+        cl.innerHTML = '';
+        var hint = document.createElement('div');
+        hint.style.cssText = 'color:#64748b;font-size:.73rem;padding:6px';
+        hint.textContent = 'Select a phase and domain to see activities…';
+        cl.appendChild(hint);
+      }
+      if (cs) { cs.textContent = '0 activities selected'; cs.style.color = '#94a3b8'; }
+    }
+  }
+
   /* ── _ojtFilterActivities ─────────────────────────────────────────────── */
   function _ojtFilterActivities(nk) {
     var phaseSel  = document.getElementById('ojt_phase_'     + nk);
@@ -2644,6 +2650,6 @@
   }
 
   window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT,
-                      _ojtFilterActivities, _ojtCountSelected };
+                      _ojtFilterActivities, _ojtCountSelected, _ojtResetForm };
 
 })();
