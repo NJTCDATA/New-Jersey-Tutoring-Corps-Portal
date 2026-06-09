@@ -1300,6 +1300,7 @@ function _handleError(fnName, err) {
 function buildOJTFormURL(apprenticeName, phase, domain, activity, completed) {
   var base = 'https://docs.google.com/forms/d/1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ/viewform';
   var params = [
+    'entry.338482221='  + encodeURIComponent('OJT Activity completion'),
     'entry.1113592438=' + encodeURIComponent(apprenticeName || ''),
     'entry.2084410404=' + encodeURIComponent(phase          || ''),
     'entry.1916953177=' + encodeURIComponent(domain         || ''),

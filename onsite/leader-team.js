@@ -23,9 +23,9 @@
   const SM_2PACX  = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
   const SM_GID    = '457164791';
   const SM_SCHOOLS = new Set(['middlesex stem']);
-  // TAP Master Roster — requires the workbook to be shared "Anyone with link can view"
-  // in Google Drive. Set sharing, then the gviz URL works without auth.
-  const TAP_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
+  // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
+  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylMqeqTl0SBs0PhoQsPajrSbKdIceeKIxlpW6jo76j3fpD5C4JsW1ouK2EnX7D_dBM/exec';
+  const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
   const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID     = '911694457';
   const CONCERNS_SHEET_ID = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
@@ -1198,7 +1198,7 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${escHtml(normName(name))}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
+          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${normName(name).replace(/\s+/g,'_')}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
             style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:8px">
             📋 Log OJT Activity
           </button>
@@ -1452,7 +1452,7 @@
     const leaderSite2 = school || (_leaderInfo && _leaderInfo.siteField) || '';
     const todayISO    = new Date().toISOString().slice(0, 10);
     const safeName    = escHtml(name).replace(/'/g,"\\'");
-    const nk          = escHtml(normName(name));
+    const nk          = normName(name).replace(/\s+/g, '_');  // spaces invalid in HTML IDs
 
     const inputStyle  = 'width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
     const labelStyle  = 'font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px';
@@ -2292,7 +2292,7 @@
      Section 2: OJT activity (Section 3 RTI = Central only, not submitted here)
   ───────────────────────────────────────────── */
   async function submitOJT(tutorName, formId) {
-    const k        = normName(tutorName);
+    const k        = normName(tutorName).replace(/\s+/g, '_');  // match HTML ID format
     const statusEl = document.getElementById('ojt_status_' + k);
     const get      = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
 
