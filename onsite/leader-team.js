@@ -27,6 +27,32 @@
   const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
   const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
 
+  // ── Service Interruption patterns (canonical, used across all SI computations)
+  // A Service Interruption = any session where tutoring service was not delivered,
+  // whether caused by the tutor (absent/no coverage) or the school (closure/event/drill).
+  // Holidays and planned breaks are NOT service interruptions.
+  const SI_REASON_PATTERNS = [
+    // Tutor-caused
+    'Absent; Not Covered (Tutor not available)',
+    'Absent; Not Covered',
+    'Tutor Left Early (no sub)',
+    'Tutor Absent',
+    // School-caused (service interrupted regardless of tutor availability)
+    'Unscheduled School Closure',
+    'Scheduled/Unscheduled School Drill',
+    'School Event',
+    'Emergency School Closure',
+    'School Cancelled',
+    'School Closed',
+  ];
+  // Test whether a status/reason string matches any SI pattern
+  function isSI(status, reason) {
+    const s = (status || '').trim();
+    const r = (reason  || '').trim();
+    return SI_REASON_PATTERNS.some(p => s.includes(p) || r.includes(p));
+  }
+
+
   var OJT_ACTIVITY_DATA = [
     // ── Beginning · Professionalism ──────────────────────────────────────
     { phase:'Beginning', domain:'Professionalism', code:'A',
@@ -858,15 +884,14 @@
       if (status === 'Attended' || status === 'Late') attended++;
       else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) {
         absent++;
-        if (reason) absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
+        // Only add to absence reasons if this is NOT a service interruption
+        // SIs are tracked separately so the table only shows genuine absence reasons
+        if (reason && !isSI(status, reason)) {
+          absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
+        }
       }
-      // Service interruption = tutor absent without coverage (reason field, matching Central portal)
-      const SI_PATTERNS = [
-        'Absent; Not Covered (Tutor not available)',
-        'Tutor Left Early (no sub)',
-        'Absent; Not Covered',
-      ];
-      if (SI_PATTERNS.some(p => status.includes(p) || reason.includes(p))) si++;
+      // Service interruption: any session where tutoring service was not delivered
+      if (isSI(status, reason)) si++;
     });
     return { attended, absent, si, total, absenceReasons, rate: pct(attended, total) };
   }
@@ -875,7 +900,7 @@
   // stuRows        = Pearl STU survey rows scoped to this tutor (used for names + survey scores only)
   function computeStuMetrics(stuRows, attStudentRows) {
     const ATT_ROWS = attStudentRows || [];
-    const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
+    // SI detection uses module-level isSI() function
 
     // Build scholar list from STU survey rows first (names + grade)
     // STU col 0 = Filled By (scholar display name), col 8 = School, col 9 = District
@@ -906,7 +931,7 @@
       if (status === 'Attended' || status === 'Late') scholarMap[key].attended++;
       else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) scholarMap[key].absent++;
       // Service Interruption: tutor absent with no sub (tracked separately from scholar absences)
-      if (SI_PATTERNS.some(p => status.includes(p) || reason.includes(p))) scholarMap[key].si++;
+      if (isSI(status, reason)) scholarMap[key].si++;
     });
     const scholars = Object.values(scholarMap);
     scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
@@ -1080,16 +1105,26 @@
 
   // Service interruption sessions with date/reason detail
   function computeSIDetails(attRows) {
-    const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
     return attRows.filter(r => {
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
-      return SI_PATTERNS.some(p => status.includes(p));
-    }).map(r => ({
-      date:   r['Session Date'] || r['Date'] || r['Sess Date'] || '',
-      status: r['Attendance Status'] || r['Status'] || '',
-      reason: r['Absence Reason'] || r['Miss Reason'] || '',
-      school: r['School'] || r['Site'] || '',
-    }));
+      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim();
+      return isSI(status, reason);
+    }).map(r => {
+      const status = (r['Attendance Status'] || r['Status'] || '').trim();
+      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || r['Reason'] || '').trim();
+      // Categorize: tutor-caused vs school-caused
+      const tutorCaused = ['Absent; Not Covered', 'Tutor Left Early', 'Tutor Absent'];
+      const category = tutorCaused.some(p => status.includes(p) || reason.includes(p))
+        ? 'Tutor Absence'
+        : 'School Disruption';
+      return {
+        date:     r['Session Date'] || r['Date'] || r['Sess Date'] || '',
+        status:   status,
+        reason:   reason,
+        school:   r['School'] || r['Site'] || '',
+        category: category,
+      };
+    });
   }
 
   // Scholar survey rows that need attention (any dimension avg < 3.0 for a scholar)
@@ -1619,7 +1654,7 @@
         </div>
         ${absReasonRows ? `
         <div style="margin-bottom:14px">
-          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons</div>
+          <div style="font-size:0.72rem;color:#ffffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px">Absence Reasons (excl. Service Interruptions)</div>
           <table class="njtc-table"><thead><tr><th>Reason</th><th>Count</th></tr></thead><tbody>${absReasonRows}</tbody></table>
         </div>` : ''}
         ${scholarRows ? `
@@ -1766,19 +1801,37 @@
     // Service interruption detail block
     function renderSIBlock(siList) {
       if (!siList || siList.length === 0) return '';
-      return `
-        <div class="njtc-section-block" style="border-color:#ef444444">
-          <div class="njtc-section-block-title" style="color:#ef4444">⚡ Service Interruptions (${siList.length})</div>
-          <div style="overflow-x:auto"><table class="njtc-table">
-            <thead><tr><th>Date</th><th>Status</th><th>School</th></tr></thead>
-            <tbody>${siList.map(s => `<tr>
-              <td>${escHtml(s.date)}</td>
-              <td>${escHtml(s.status)}</td>
-              <td>${escHtml(s.school)}</td>
-            </tr>`).join('')}</tbody>
-          </table></div>
-        </div>
-      `;
+      // Group by category for cleaner display
+      const tutorSIs  = siList.filter(s => s.category === 'Tutor Absence');
+      const schoolSIs = siList.filter(s => s.category !== 'Tutor Absence');
+      var rows = '';
+      siList.forEach(function(s) {
+        const catColor = s.category === 'Tutor Absence' ? '#f97316' : '#fbbf24';
+        rows +=
+          '<tr>' +
+            '<td style="padding:6px 8px;font-size:.75rem;color:#e2e8f0;white-space:nowrap">' + escHtml(s.date) + '</td>' +
+            '<td style="padding:6px 8px"><span style="font-size:.68rem;font-weight:700;color:' + catColor + ';background:rgba(249,115,22,.12);border-radius:3px;padding:2px 6px">' + escHtml(s.category) + '</span></td>' +
+            '<td style="padding:6px 8px;font-size:.73rem;color:#cbd5e1">' + escHtml(s.reason || s.status) + '</td>' +
+            '<td style="padding:6px 8px;font-size:.73rem;color:#94a3b8">' + escHtml(s.school) + '</td>' +
+          '</tr>';
+      });
+      const summary = (tutorSIs.length ? tutorSIs.length + ' tutor' : '') +
+        (tutorSIs.length && schoolSIs.length ? ', ' : '') +
+        (schoolSIs.length ? schoolSIs.length + ' school' : '');
+      return '<div class="njtc-section-block" style="border-color:rgba(239,68,68,.35)">' +
+        '<div class="njtc-section-block-title" style="color:#ef4444">⚡ Service Interruptions (' + siList.length + ')' +
+          (summary ? '<span style="font-size:.68rem;color:#94a3b8;font-weight:400;margin-left:8px">— ' + summary + '</span>' : '') +
+        '</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">' +
+          '<thead><tr style="background:rgba(239,68,68,.12)">' +
+            '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Date</th>' +
+            '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Type</th>' +
+            '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Reason</th>' +
+            '<th style="padding:5px 8px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">School</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table></div>' +
+      '</div>';
     }
 
     // Survey attention block (scholars rating < 3.0)
