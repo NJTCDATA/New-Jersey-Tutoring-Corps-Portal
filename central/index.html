@@ -5431,7 +5431,7 @@
 
       <!-- TAP Apprenticeship standalone panel — visible for all TAP-relevant depts -->
       <button class="sidebar-link dept-nav-tap-standalone" data-panel="tap-standalone" onclick="showPanel('tap-standalone',this)" style="display:none" title="NJTC Tutor Apprenticeship Program — active roster, OJT progress, wage milestones, and compliance">
-        <span class="sl-icon">📋</span> TAP Dashboard
+        <span class="sl-icon">📋</span> <span class="dept-nav-tap-standalone-label">TAP Dashboard</span>
       </button>
     </div>
 
@@ -6221,7 +6221,9 @@
         <div class="ph-actions" style="display:flex;gap:.625rem;align-items:center;flex-wrap:wrap">
           <span class="live-badge" style="font-size:.7rem">LIVE DATA</span>
           <button class="btn btn-secondary btn-sm" onclick="if(window.tdRefresh)tdRefresh();if(window.NJTCTapDash)NJTCTapDash.refresh();" title="Refresh TAP data">↺ Refresh</button>
-          <a class="btn btn-primary btn-sm" href="https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
+          <button class="btn btn-secondary btn-sm" onclick="tapDownloadOJTChecklists()" title="Download OJT Checklists for all active apprentices">⬇ OJT Checklists (XLSX)</button>
+          <button class="btn btn-primary btn-sm" onclick="tapShowTab('ojt-log',document.getElementById('tapTab-ojt-log'))">📝 Log OJT Activity</button>
+          <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
         </div>
       </div>
 
@@ -6883,7 +6885,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         <div style="font-size:2rem;margin-bottom:.75rem">🎓</div>
         <div style="font-weight:700;margin-bottom:.5rem">TAP Data Loading</div>
         <div style="font-size:.85rem">The Apprenticeship panel is initializing. Visit the
-          <strong>Training &amp; Development → Apprentice Tracker</strong> tab first to trigger the data load,
+          <strong>Training &amp; Development → T&amp;D Analytics</strong> tab first to trigger the data load,
           then return here.</div>
         <div style="margin-top:1.25rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm" onclick="showPanel('training-analytics',document.querySelector('[data-panel=training-analytics]'));setTimeout(()=>{if(window.tdShowTab)window.tdShowTab('apprentice',document.getElementById('tdTab-apprentice'));},400);">
@@ -6922,6 +6924,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           ${ring(totalRTI, apps.length * 288, '#60a5fa', 'RTI (288 hrs ea.)')}
           ${ring(atMilestone, Math.max(active,1), '#fbbf24', 'At Wage Milestone')}
           ${ring(complete, Math.max(active,1), '#a78bfa', 'Program Complete')}
+          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(active,1)*100), 100, '#f97316', 'Avg OJT %')}
         </div>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.25rem">
@@ -7055,23 +7058,341 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     </div>`;
   }
 
-  function renderOJTLog(el) {
-    el.innerHTML = `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.5rem">
-      <div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">📝 Log OJT Activity</div>
-      <div style="font-size:.82rem;color:var(--muted);margin-bottom:1.25rem">
-        Use the OJT Log Form to record apprentice activity completions. The Apps Script will update the Master Roster automatically after each submission.
-      </div>
-      <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem">
-        <a class="btn btn-primary" href="https://docs.google.com/forms/d/${OJT_FORM_ID}/viewform" target="_blank" rel="noopener" style="text-decoration:none">📋 Open OJT Log Form ↗</a>
-        <a class="btn btn-secondary btn-sm" href="https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit#gid=85054416" target="_blank" rel="noopener" style="text-decoration:none">View OJT Log Sheet ↗</a>
-      </div>
-      <div style="background:#fffbf0;border:1px solid #C9A84C44;border-radius:8px;padding:1rem;font-size:.8125rem;color:#78350f;line-height:1.6">
-        <strong>Instructions:</strong> Select Log Type = "OJT Activity completion". Fill in Observer Name, Role, Site, and Apprentice Name. 
-        Choose Program Phase, Competency Domain, and Activity Code. Mark as Y (completed) or N/A (not applicable). 
-        The Apps Script fires automatically and updates OJT hours and wage milestones in real time.
-      </div>
-    </div>`;
+  /* ── Full inline OJT activity log form (mirrors onsite portal) ────────── */
+  const TAP_WEB_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
+
+  // Activity data — all 78 OJT activities
+  const _TAP_OJT_DATA = [
+    {ph:'Beginning',dm:'Professionalism',c:'A',d:'Join site visit / collaboration meeting to introduce yourself and review school partner expectations.',lf:'Was this tutor present and engaged?'},
+    {ph:'Beginning',dm:'Professionalism',c:'B',d:'Follow the daily schedule including assigned duties and meetings.',lf:'Does the tutor follow and understand the schedule?'},
+    {ph:'Beginning',dm:'Professionalism',c:'C',d:'Communicate with supervisors and co-workers by phone, email, or in person.',lf:'Does the tutor communicate regularly and understand communication protocols?'},
+    {ph:'Beginning',dm:'Professionalism',c:'D',d:'Complete the Modified Danielson Self-Assessment and share goals with IC.',lf:'Did the tutor complete the required training and the self-assessment?'},
+    {ph:'Beginning',dm:'Professionalism',c:'E',d:'Utilize FERPA guidelines to separate personal and professional relationships.',lf:'Did the tutor create a Gmail account and share data securely (if applicable)?'},
+    {ph:'Beginning',dm:'Professionalism',c:'F',d:'Follow policies in the Employee Handbook and school-level handbook.',lf:'Did the tutor sign the employee handbook and any other protocols established by their school location?'},
+    {ph:'Beginning',dm:'Professionalism',c:'G',d:'Use the unit planning template for collaborative and personalized instruction.',lf:'Has this tutor completed lesson plans and turned them in on time, consistently?'},
+    {ph:'Beginning',dm:'Professionalism',c:'H',d:'Actively participate in weekly professional learning opportunities.',lf:'Has the tutor participated in professional learning opportunities?'},
+    {ph:'Beginning',dm:'Professionalism',c:'I',d:'Complete iReady training and build unit plan with instructional coach.',lf:'Did this tutor complete the iReady training and collaborate with you on building lessons informed by student data?'},
+    {ph:'Beginning',dm:'Professionalism',c:'K',d:'Submit work time through ADP on time.',lf:'Did this tutor complete the training on ADP? Have they submitted timecards on time?'},
+    {ph:'Beginning',dm:'Professionalism',c:'N',d:'Document and maintain information in written or electronic form.',lf:'Does this tutor consistently turn in lesson plans electronically?'},
+    {ph:'Beginning',dm:'Professionalism',c:'Q',d:'Complete 90%+ Pearl surveys and attendance after each session.',lf:"Has this tutor completed at least 90% of pearl surveys after each session?"},
+    {ph:'Beginning',dm:'Professionalism',c:'R',d:'Respond to all communication via email using Gmail account.',lf:'Does the tutor communicate regularly and understand communication protocols using gmail account?'},
+    {ph:'Beginning',dm:'Professionalism',c:'S',d:'Attend training sessions and professional meetings.',lf:'Has the tutor attended 80% of team meetings and 100% of training sessions?'},
+    {ph:'Beginning',dm:'Instruction',c:'B',d:'Conduct sessions using the I Do / We Do / You Do framework.',lf:'Lesson plans — The gradual release model is evident in the lesson plans.'},
+    {ph:'Beginning',dm:'Instruction',c:'C',d:'Choose effective materials and provide student-to-student interaction opportunities.',lf:'Did the tutor use the approved list of supplementary materials?'},
+    {ph:'Beginning',dm:'Instruction',c:'D',d:'Independently plan and teach consistently for a 10-week block.',lf:'Did the tutor complete lessons over a 10-week period of time or the duration of the program?'},
+    {ph:'Beginning',dm:'Instruction',c:'I',d:'Adapt materials for various learning styles and student interaction.',lf:'Did the tutor adapt materials and instruction based on learning needs or outcomes?'},
+    {ph:'Beginning',dm:'Instruction',c:'L',d:'Promote equality of opportunity and anti-discriminatory practices.',lf:'If they are a new hire, did the tutor complete Social Justice training?'},
+    {ph:'Beginning',dm:'Instruction',c:'M',d:'Communicate effectively and confidentially with colleagues of all backgrounds.',lf:'Do they approach scholars and colleagues with an asset based mindset?'},
+    {ph:'Beginning',dm:'Instruction',c:'N',d:'Teach study strategies, note-taking, and test-taking skills.',lf:'All staff complete instructional training aligned to instructional framework.'},
+    {ph:'Beginning',dm:'Instruction',c:'O',d:'Conduct practice tests and complete goal setting with scholars using BOY/MOY data.',lf:"Does this tutor's lessons have exit tickets?"},
+    {ph:'Beginning',dm:'Instruction',c:'Q',d:'Administer, proctor, or score academic or diagnostic assessments.',lf:'Did the tutor oversee Diagnostics?'},
+    {ph:'Beginning',dm:'Environment',c:'A',d:'Support classroom teacher in reinforcing rules and procedures.',lf:'Did you observe the tutor following all rules/guidelines/expectations of their school site, consistently?'},
+    {ph:'Beginning',dm:'Environment',c:'B',d:'Establish and maintain a safe, caring, inclusive, and healthy learning environment.',lf:'Has the tutor consistently created a welcoming and inclusive environment?'},
+    {ph:'Beginning',dm:'Environment',c:'C',d:'Communicate with students using positive, professional, and compassionate language.',lf:'Have you observed the tutor communicating consistently in these ways?'},
+    {ph:'Beginning',dm:'Environment',c:'D',d:'Complete Modified Danielson Domain 2 and discuss with IC.',lf:'Have you met and discussed their responses on the self-assessment?'},
+    {ph:'Beginning',dm:'Environment',c:'F',d:'Comply with mandated reporting, child study, and disability support requirements.',lf:'Tutor completed all Praesidium training and any other relevant training.'},
+    {ph:'Beginning',dm:'Environment',c:'G',d:'Collaborate with classroom teachers on behavioral issues and academic concerns.',lf:'Completed during Training component — Classroom Management (9 min).'},
+    {ph:'Beginning',dm:'Environment',c:'I',d:'Provide feedback using positive reinforcement to encourage and motivate students.',lf:'Classroom Management Strategies — has the tutor used strategies successfully?'},
+    {ph:'Beginning',dm:'Planning',c:'A',d:'Use iReady diagnostic data and backwards design to complete Unit Planning template.',lf:'Has the tutor successfully created lessons that are data informed?'},
+    {ph:'Beginning',dm:'Planning',c:'D',d:'Complete Pearl surveys with comments after every instructional session.',lf:'Has the tutor completed 80%+ attendance and scholar surveys?'},
+    {ph:'Beginning',dm:'Planning',c:'E',d:'Prepare lesson materials including copies, supplies, and learning stations.',lf:'Is the tutor consistently prepared for lessons with materials and any other instructional tools?'},
+    {ph:'Middle',dm:'Professionalism',c:'J',d:'Actively participate in faculty professional learning and complete reflections.',lf:'Has the tutor participated in professional learning opportunities?'},
+    {ph:'Middle',dm:'Professionalism',c:'L',d:'Complete Use of Data indicator on TEAM rubric and work with mentor teacher.',lf:'Has the tutor completed their progress reports using the NJTC Template?'},
+    {ph:'Middle',dm:'Professionalism',c:'O',d:'Apply new knowledge and incorporate IC feedback into lessons.',lf:"Has the tutor's lessons & instruction incorporated your feedback?"},
+    {ph:'Middle',dm:'Professionalism',c:'T',d:'Use technology systems for data entry, survey completion, and attendance 90%+.',lf:'Does the tutor have a 90%+ attendance and survey completion?'},
+    {ph:'Middle',dm:'Professionalism',c:'U',d:'Review iReady data and complete goal sheets with scholars post-diagnostics.',lf:'Did the tutor complete i-Ready data training?'},
+    {ph:'Middle',dm:'Professionalism',c:'W',d:'Contribute to Knowtion using Microsoft Office, Google Meet, and Zoom.',lf:'Has your tutor contributed on Knowtion?'},
+    {ph:'Middle',dm:'Instruction',c:'E',d:'Receive IC feedback and make instructional adjustments throughout the unit.',lf:'Has this tutor made adjustments to instruction based on coaching or feedback?'},
+    {ph:'Middle',dm:'Instruction',c:'F',d:'Have scholars complete Pearl surveys and review session ratings.',lf:'Does this tutor regularly administer Pearl surveys to scholars?'},
+    {ph:'Middle',dm:'Instruction',c:'G',d:'Replicate consistent transition routines between activities.',lf:'Have you observed this tutor maintaining consistent systems and routines?'},
+    {ph:'Middle',dm:'Instruction',c:'H',d:'Demonstrate flexibility and responsiveness in instruction on 2+ occasions.',lf:'Have you observed this tutor demonstrating flexibility on more than 2 occasions?'},
+    {ph:'Middle',dm:'Instruction',c:'J',d:'Observe teacher lessons with district approval during non-session push-in time.',lf:'Has the tutor observed teachers when they are not scheduled for a session?'},
+    {ph:'Middle',dm:'Instruction',c:'K',d:'Create customized unit planning for each group of students.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'P',d:'Identify and implement intervention strategies and tutoring plans for students.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'R',d:'Explain information in grade- and age-appropriate language.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Instruction',c:'S',d:'Break down information into underlying principles and facts for scholars.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Instruction',c:'T',d:'Review class material through discussion, problem-solving, and worksheets.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Instruction',c:'U',d:'Assess student progress using exit tickets and other formative tools.',lf:'Does the tutor use exit tickets correctly?'},
+    {ph:'Middle',dm:'Instruction',c:'V',d:'Instruct students in person and/or virtually keeping scholars engaged.',lf:'Does this tutor keep scholars engaged during tutoring?'},
+    {ph:'Middle',dm:'Instruction',c:'W',d:'Help students understand key concepts aligned to classroom learning.',lf:'Does the tutor successfully follow lesson plans that were developed to meet individual scholar needs?'},
+    {ph:'Middle',dm:'Instruction',c:'X',d:'Assist students with homework, test prep, papers, and academic tasks.',lf:'When appropriate, does the tutor support scholars while observing whole class instruction?'},
+    {ph:'Middle',dm:'Instruction',c:'Y',d:'Utilize computers, calculators, and other tools; submit lesson plans electronically.',lf:'Were lesson plans submitted electronically?'},
+    {ph:'Middle',dm:'Instruction',c:'Z',d:'Develop formal educational programs and provide additional support upon request.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'AA',d:'Identify developmental needs and coach or mentor scholars to improve skills.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'Middle',dm:'Instruction',c:'AB',d:'Explain what information means and how it can be used in grade-appropriate language.',lf:'Does the tutor explain concepts in grade- and age-appropriate language?'},
+    {ph:'Middle',dm:'Environment',c:'E',d:'Scholars report 4.0+ enjoyment rating through Pearl session surveys.',lf:"Is this tutor's scholar rating 4.0 or higher?"},
+    {ph:'Middle',dm:'Environment',c:'H',d:'Develop and distribute supplemental teaching materials and study guides.',lf:'Does this tutor use hands-on materials from NJTC?'},
+    {ph:'Middle',dm:'Environment',c:'J',d:'Collaborate with parents, teachers, and administrators to assess student progress.',lf:'Has the tutor successfully completed progress reports?'},
+    {ph:'Middle',dm:'Environment',c:'M',d:'Serve as an informed advocate for education through Knowtion participation.',lf:'Actively participate in Knowtion; sharing resources from Knowledge page.'},
+    {ph:'Middle',dm:'Planning',c:'B',d:'Attend and bring materials to classroom, coaching sessions, and team meetings.',lf:'Is the tutor prepared for both classroom instructional responsibilities as well as meetings?'},
+    {ph:'Middle',dm:'Planning',c:'C',d:'Review and annotate unit plans prior to collaboration sessions.',lf:'Have they successfully modified lessons based on updated formative or summative assessments?'},
+    {ph:'Middle',dm:'Planning',c:'F',d:'Collaborate with classroom teacher to connect iReady skills to scope and sequence.',lf:'Has the tutor uploaded lessons correctly?'},
+    {ph:'Middle',dm:'Planning',c:'G',d:'Review student achievement data with IC and update unit planning priorities.',lf:'Has the tutor uploaded lessons correctly?'},
+    {ph:'Middle',dm:'Planning',c:'H',d:'Share intervention data with classroom teacher to determine effectiveness.',lf:'Have they modified lessons based on updated formative or summative assessments?'},
+    {ph:'Middle',dm:'Planning',c:'J',d:'Develop handouts, study materials, and quizzes for teaching.',lf:'Are appropriate materials linked to the lesson planning document?'},
+    {ph:'Middle',dm:'Planning',c:'L',d:'Create new relationships, tutoring systems, or motivational items for the tutoring area.',lf:'Has the tutor been observed to have completed any of these areas?'},
+    {ph:'Middle',dm:'Planning',c:'M',d:'Prepare and distribute progress reports to individuals in charge of parent communication.',lf:'Has the tutor successfully completed progress reports?'},
+    {ph:'Middle',dm:'Planning',c:'N',d:'Allocate sufficient time per concept and modify lessons based on assessments.',lf:'Is the tutor allocating sufficient time to cover concepts?'},
+    {ph:'Middle',dm:'Planning',c:'R',d:'Create customized unit planning for each group with additional support upon request.',lf:'Has this tutor successfully submitted lesson plans consistently?'},
+    {ph:'End',dm:'Planning',c:'K',d:'Research and recommend textbooks, software, or learning materials.',lf:'Not applicable — they can meet with IC and discuss other tools.'},
+    {ph:'End',dm:'Planning',c:'O',d:'Design differentiated learning goals through lesson plan creation and submission.',lf:'Lesson plan creation/submission.'},
+    {ph:'End',dm:'Planning',c:'P',d:'Choose the most effective and appropriate materials for each lesson objective.',lf:'Did the tutor use the most appropriate or quality materials/tools?'},
+    {ph:'End',dm:'Planning',c:'Q',d:'Observe teacher lesson during classroom push-in time to inform tutoring practice.',lf:'During a designated classroom push-in time, did the tutor observe part or all of the teacher\'s lesson?'},
+    {ph:'End',dm:'Planning',c:'S',d:'Prepare and facilitate tutoring workshops and academic support for small groups.',lf:'Lesson plan creation/submission & IC observation.'},
+    {ph:'End',dm:'Planning',c:'T',d:'Prepare lesson plans and learning modules according to student needs and goals.',lf:'Lesson plan creation/submission & IC observation.'},
+    {ph:'End',dm:'Planning',c:'U',d:'Analyze formative assessment results and choose the best instructional solution.',lf:'Lesson plan creation/submission based on formative assessment results.'},
+    {ph:'End',dm:'Instruction',c:'A',d:'Conduct engaging and rigorous sessions based on scholar academic needs (min. 4 observations).',lf:'Based on multiple observations/coaching sessions (minimum 4).'},
+    {ph:'End',dm:'Environment',c:'O',d:'Organize the tutoring environment to promote productivity and learning.',lf:'Documented in IC observations.'},
+  ];
+
+  function _tapInpStyle() {
+    return 'width:100%;padding:.45rem .6rem;font-size:.8rem;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;background:#fff;color:#1B2A4A;box-sizing:border-box';
   }
+  function _tapLblStyle() {
+    return 'display:block;font-size:.72rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem';
+  }
+
+  function renderOJTLog(el) {
+    // Build apprentice list from TAP data
+    const data  = getTapData();
+    const apps  = (data && data.apprentices) ? data.apprentices : [];
+    const activeApps = apps.filter(a => /active/i.test(a.status || ''));
+    const today = new Date().toISOString().split('T')[0];
+    const userProfile = window.NJTC_USER_PROFILE || {};
+    const userName  = userProfile.name  || userProfile.firstName || '';
+    const userRole  = userProfile.role  || '';
+    const userSite  = (userProfile.assignments && userProfile.assignments[0] && userProfile.assignments[0].schools && userProfile.assignments[0].schools[0]) ? userProfile.assignments[0].schools[0] : '';
+
+    const inp = _tapInpStyle();
+    const lbl = _tapLblStyle();
+
+    el.innerHTML = `
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.5rem">
+        <div style="font-size:.875rem;font-weight:700;color:var(--navy);margin-bottom:.25rem">📝 Log OJT Activity</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:1.25rem">
+          Record an apprentice OJT activity observation. Submits directly to the Master Workbook — no external form required.
+        </div>
+
+        <!-- SECTION 1: Observer info -->
+        <div style="background:#f8fafc;border-radius:8px;padding:1rem;margin-bottom:1rem">
+          <div style="font-size:.72rem;font-weight:700;color:#1B3A6B;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.875rem">Section 1 — Observation Info</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+            <div>
+              <label style="${lbl}">Observer Name</label>
+              <input id="taplog_obs_name" style="${inp}" value="${userName}" placeholder="Your full name">
+            </div>
+            <div>
+              <label style="${lbl}">Observer Role</label>
+              <select id="taplog_obs_role" style="${inp}">
+                <option value="Central Team — Data"${userRole.toLowerCase().includes('data')?'selected':''}>Central Team — Data</option>
+                <option value="Central Team — Leadership"${userRole.toLowerCase().includes('leader')?'selected':''}>Central Team — Leadership</option>
+                <option value="Central Team — Finance"${userRole.toLowerCase().includes('finance')?'selected':''}>Central Team — Finance</option>
+                <option value="Central Team — Programming"${userRole.toLowerCase().includes('program')?'selected':''}>Central Team — Programming</option>
+                <option value="Central Team — T&D"${userRole.toLowerCase().includes('train')?'selected':''}>Central Team — T&amp;D</option>
+                <option value="Central Team — HR"${userRole.toLowerCase().includes('hr')?'selected':''}>Central Team — HR</option>
+                <option value="Instructional Coach (IC)">Instructional Coach (IC)</option>
+                <option value="Site Coordinator (SC)">Site Coordinator (SC)</option>
+                <option value="Dual Role (IC + SC)">Dual Role (IC + SC)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+            <div>
+              <label style="${lbl}">Date of Observation</label>
+              <input id="taplog_obs_date" type="date" style="${inp}" value="${today}">
+            </div>
+            <div>
+              <label style="${lbl}">Apprentice Full Name</label>
+              <select id="taplog_apprentice" style="${inp}">
+                <option value="">Select apprentice…</option>
+                ${activeApps.map(a => `<option value="${a.name}">${a.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:.75rem">
+            <label style="${lbl}">Site Location</label>
+            <input id="taplog_site" style="${inp}" value="${userSite}" placeholder="e.g. Penns Grove, iLearn Bergen MS">
+          </div>
+        </div>
+
+        <!-- SECTION 2: OJT Activity -->
+        <div style="background:#fffbf0;border:1px solid #C9A84C33;border-radius:8px;padding:1rem;margin-bottom:1rem">
+          <div style="font-size:.72rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.875rem">Section 2 — OJT Activity</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+            <div>
+              <label style="${lbl}">Program Phase <span style="color:#ef4444">*</span></label>
+              <select id="taplog_phase" style="${inp}" onchange="taplogUpdateActivity()">
+                <option value="">Select phase…</option>
+                <option value="Beginning (Months 1–4 · September–November)">Beginning (Months 1–4)</option>
+                <option value="Middle (Months 5–8 · November–February)">Middle (Months 5–8)</option>
+                <option value="End (Months 9–12 · March–May)">End (Months 9–12)</option>
+              </select>
+            </div>
+            <div>
+              <label style="${lbl}">Competency Domain <span style="color:#ef4444">*</span></label>
+              <select id="taplog_domain" style="${inp}" onchange="taplogUpdateActivity()">
+                <option value="">Select domain…</option>
+                <option value="Professionalism">Professionalism</option>
+                <option value="Instruction">Instruction</option>
+                <option value="Environment">Environment</option>
+                <option value="Planning">Planning</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-bottom:.75rem">
+            <label style="${lbl}">Activity Code <span style="color:#ef4444">*</span></label>
+            <select id="taplog_activity" style="${inp}" onchange="taplogShowLookFor()">
+              <option value="">Select phase and domain first…</option>
+            </select>
+          </div>
+          <div id="taplog_lookfor" style="display:none;margin-bottom:.75rem;padding:.5rem .75rem;background:#fef3c7;border-left:3px solid #C9A84C;border-radius:0 6px 6px 0;font-size:.76rem;color:#78350f;line-height:1.4"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem">
+            <div>
+              <label style="${lbl}">Mark This Activity As <span style="color:#ef4444">*</span></label>
+              <select id="taplog_mark" style="${inp}">
+                <option value="Y — Observed and completed">Y — Observed and completed</option>
+                <option value="N/A — Not applicable for this apprentice or site">N/A — Not applicable</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style="${lbl}">Observation Notes (optional)</label>
+            <textarea id="taplog_notes" rows="3" style="${inp};resize:vertical" placeholder="Describe what you observed. Include specific examples of the apprentice demonstrating the competency…"></textarea>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+          <button id="taplog_submit_btn" onclick="taplogSubmit()"
+            style="background:#1B3A6B;color:#fff;border:none;border-radius:8px;padding:.625rem 1.5rem;font-size:.875rem;font-weight:700;cursor:pointer">
+            Submit OJT Log
+          </button>
+          <span id="taplog_status" style="font-size:.8rem"></span>
+        </div>
+      </div>`;
+  }
+
+  /* ── taplogUpdateActivity: filter activities by phase + domain ─────── */
+  window.taplogUpdateActivity = function() {
+    const phSel   = document.getElementById('taplog_phase');
+    const dmSel   = document.getElementById('taplog_domain');
+    const actSel  = document.getElementById('taplog_activity');
+    const lfDiv   = document.getElementById('taplog_lookfor');
+    if (!phSel || !dmSel || !actSel) return;
+    const phVal = phSel.value;
+    const dmVal = dmSel.value;
+    // Map select value back to short phase key for filtering
+    const phKey = phVal.toLowerCase().startsWith('begin') ? 'Beginning'
+                : phVal.toLowerCase().startsWith('mid')   ? 'Middle'
+                : phVal.toLowerCase().startsWith('end')   ? 'End' : '';
+    const matches = _TAP_OJT_DATA.filter(a => (!phKey || a.ph === phKey) && (!dmVal || a.dm === dmVal));
+    actSel.innerHTML = matches.length
+      ? '<option value="">Select activity…</option>' + matches.map(a =>
+          `<option value="${a.c} — ${a.d} [${a.ph} · ${a.dm}]">${a.c} — ${a.d}</option>`).join('')
+      : '<option value="">Select phase and domain first…</option>';
+    if (lfDiv) { lfDiv.style.display = 'none'; lfDiv.innerHTML = ''; }
+  };
+
+  /* ── taplogShowLookFor: display the Look For hint ──────────────────── */
+  window.taplogShowLookFor = function() {
+    const actSel = document.getElementById('taplog_activity');
+    const lfDiv  = document.getElementById('taplog_lookfor');
+    if (!actSel || !lfDiv) return;
+    const val = actSel.value;
+    // Extract code from "A — description [Phase · Domain]"
+    const code  = val.split(' — ')[0].trim();
+    const phRaw = document.getElementById('taplog_phase')  ? document.getElementById('taplog_phase').value  : '';
+    const dmRaw = document.getElementById('taplog_domain') ? document.getElementById('taplog_domain').value : '';
+    const phKey = phRaw.toLowerCase().startsWith('begin') ? 'Beginning'
+                : phRaw.toLowerCase().startsWith('mid')   ? 'Middle'
+                : phRaw.toLowerCase().startsWith('end')   ? 'End' : '';
+    const found = _TAP_OJT_DATA.find(a => a.c === code && a.ph === phKey && a.dm === dmRaw);
+    if (found && found.lf) {
+      lfDiv.innerHTML = '<strong>Look For:</strong> ' + found.lf;
+      lfDiv.style.display = 'block';
+    } else {
+      lfDiv.style.display = 'none';
+    }
+  };
+
+  /* ── taplogSubmit: POST to Apps Script doPost() ─────────────────────── */
+  window.taplogSubmit = async function() {
+    const get   = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    const stEl  = document.getElementById('taplog_status');
+    const btnEl = document.getElementById('taplog_submit_btn');
+
+    const obsName   = get('taplog_obs_name');
+    const obsRole   = get('taplog_obs_role');
+    const obsDate   = get('taplog_obs_date');
+    const apprentice= get('taplog_apprentice');
+    const site      = get('taplog_site');
+    const phase     = get('taplog_phase');
+    const domain    = get('taplog_domain');
+    const activity  = get('taplog_activity');
+    const mark      = get('taplog_mark');
+    const notes     = get('taplog_notes');
+
+    // Hard validation
+    const missing = [];
+    if (!apprentice) missing.push('Apprentice');
+    if (!phase)      missing.push('Program Phase');
+    if (!domain)     missing.push('Competency Domain');
+    if (!activity)   missing.push('Activity Code');
+
+    if (missing.length) {
+      // Highlight empty required selects
+      ['taplog_apprentice','taplog_phase','taplog_domain','taplog_activity'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.border = el.value ? '1px solid #d1d5db' : '2px solid #ef4444';
+      });
+      if (stEl) { stEl.style.color='#ef4444'; stEl.style.fontWeight='700'; stEl.textContent='✗ Required: ' + missing.join(', '); }
+      return;
+    }
+
+    // Clear error borders
+    ['taplog_apprentice','taplog_phase','taplog_domain','taplog_activity'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.border = '1px solid #d1d5db';
+    });
+
+    if (stEl)  { stEl.style.color='#6b7280'; stEl.style.fontWeight='400'; stEl.textContent='Submitting…'; }
+    if (btnEl) { btnEl.disabled=true; btnEl.textContent='Submitting…'; }
+
+    const payload = {
+      logType:       'OJT Activity completion',
+      obsDate:       obsDate,
+      observerName:  obsName,
+      observerRole:  obsRole,
+      siteLocation:  site,
+      apprenticeName: apprentice,
+      phase:         phase,
+      domain:        domain,
+      activityCode:  activity,
+      status:        mark,
+      notes:         notes,
+    };
+
+    try {
+      await fetch(TAP_WEB_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (stEl) { stEl.style.color='#059669'; stEl.style.fontWeight='700'; stEl.textContent='✓ Logged. Master Roster updates within 30 seconds.'; }
+      if (btnEl) { btnEl.disabled=false; btnEl.textContent='Submit OJT Log'; }
+      // Clear form fields (keep observer info)
+      ['taplog_phase','taplog_domain','taplog_activity','taplog_notes'].forEach(id => {
+        const el = document.getElementById(id); if (el) { el.value=''; if (el.style) el.style.border=''; }
+      });
+      const lfDiv = document.getElementById('taplog_lookfor');
+      if (lfDiv) { lfDiv.style.display='none'; lfDiv.innerHTML=''; }
+      const mk = document.getElementById('taplog_mark');
+      if (mk) mk.value = 'Y — Observed and completed';
+      setTimeout(() => { if (stEl) stEl.textContent=''; }, 8000);
+    } catch(e) {
+      if (stEl)  { stEl.style.color='#ef4444'; stEl.style.fontWeight='700'; stEl.textContent='Submit failed — check connection.'; }
+      if (btnEl) { btnEl.disabled=false; btnEl.textContent='Submit OJT Log'; }
+    }
+  };
 
   /* ── Public API ───────────────────────────────────────────────────── */
   window.NJTCTapDash = {
@@ -7102,6 +7423,197 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     }
   };
 
+
+  /* ── tapDownloadOJTChecklists: client-side XLSX export ─────────────────────
+     Generates one sheet per active apprentice matching KS-Hamilton OJT format.
+     Uses SheetJS (xlsx) loaded from CDN. Data from published CSV endpoints.   */
+  window.tapDownloadOJTChecklists = async function() {
+    var btn = event && event.target ? event.target : null;
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = 'Building\u2026'; btn.disabled = true; }
+    try {
+      if (!window.XLSX) {
+        await new Promise(function(res, rej) {
+          var scr = document.createElement('script');
+          scr.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+          scr.onload = res; scr.onerror = rej;
+          document.head.appendChild(scr);
+        });
+      }
+      var XLSX = window.XLSX;
+      var CS_URL  = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
+      var OJT_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
+
+      /* Safe CSV parser — uses charCodes to avoid escape sequence issues */
+      function safeParseCsv(text) {
+        var rows = [], row = [], field = '', inQ = false;
+        var NL = 10, CR = 13, COMMA = 44, DQ = 34;
+        for (var i = 0; i < text.length; i++) {
+          var cc = text.charCodeAt(i);
+          if (inQ) {
+            if (cc === DQ && text.charCodeAt(i+1) === DQ) { field += '"'; i++; }
+            else if (cc === DQ) { inQ = false; }
+            else { field += text.charAt(i); }
+          } else {
+            if      (cc === DQ)    { inQ = true; }
+            else if (cc === COMMA) { row.push(field); field = ''; }
+            else if (cc === NL)    { row.push(field); rows.push(row); row = []; field = ''; }
+            else if (cc !== CR)    { field += text.charAt(i); }
+          }
+        }
+        if (field || row.length) { row.push(field); rows.push(row); }
+        return rows;
+      }
+
+      function csvToObjs(text) {
+        var rows = safeParseCsv(text);
+        if (rows.length < 2) return [];
+        var hdrs = rows[0].map(function(h) { return h.trim(); });
+        return rows.slice(1).map(function(row) {
+          var obj = {};
+          hdrs.forEach(function(h, i) { obj[h] = (row[i] || '').trim(); });
+          return obj;
+        }).filter(function(r) { return Object.values(r).some(function(v) { return v; }); });
+      }
+
+      var results = await Promise.all([
+        fetch(CS_URL).then(function(r) { return r.text(); }),
+        fetch(OJT_URL).then(function(r) { return r.text(); }),
+      ]);
+      var csData  = csvToObjs(results[0]);
+      var ojtData = csvToObjs(results[1]);
+
+      /* Build per-apprentice OJT activity lookup */
+      var ojtByName = {};
+      ojtData.forEach(function(row) {
+        var name    = (row['Apprentice full name'] || '').trim();
+        if (!name) return;
+        var logType = (row['What are you logging today?'] || '').toLowerCase();
+        if (logType.indexOf('rti') >= 0) return;
+        var phase   = (row['Program phase'] || '').trim();
+        var domain  = (row['Competency domain'] || '').trim();
+        var actFull = (row['Activity code \u2014 select the letter code from the OJT checklist'] || '').trim();
+        var parts   = actFull.split(/\s*[\u2014\-]\s*/);
+        var code    = parts[0].trim().toUpperCase();
+        var status  = (row['Mark this activity as:'] || '').trim();
+        var dateRaw = (row['Date of observation or session'] || '').trim();
+        var notes   = (row["What did you observe? This appears in the apprentice's OJT report."] || '').trim();
+        if (!phase || !domain || !code || !status) return;
+        var phKey = phase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
+                  : phase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle'
+                  : phase.toLowerCase().indexOf('end')   >= 0 ? 'End' : phase;
+        if (!ojtByName[name]) ojtByName[name] = {};
+        var key = phKey + '|' + domain + '|' + code;
+        if (!ojtByName[name][key] || dateRaw > ojtByName[name][key].date) {
+          ojtByName[name][key] = { phase: phKey, domain: domain, code: code, status: status, date: dateRaw, notes: notes };
+        }
+      });
+
+      var active = csData.filter(function(r) {
+        return (r['Status'] || '').toLowerCase() === 'active';
+      });
+
+      if (!active.length) {
+        alert('No active apprentices found in Completion Summary. Run Full Resync first.');
+        if (btn) { btn.textContent = origText; btn.disabled = false; }
+        return;
+      }
+
+      var ACT_DEF = _TAP_OJT_DATA;
+      var PHASES  = ['Beginning', 'Middle', 'End'];
+      var MONTH_ORDER = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+
+      var wb = XLSX.utils.book_new();
+
+      active.forEach(function(appr) {
+        var name    = (appr['Apprentice Full Name'] || '').trim();
+        var site    = (appr['Site'] || '').trim();
+        var usdol   = (appr['USDOL ID'] || '').trim();
+        var ojtHrs  = parseFloat(appr['OJT Hours'] || 0) || 0;
+        var yPoss   = (appr['Y / Possible'] || '0 / 78').toString();
+        var yCount  = parseInt(yPoss.split('/')[0]) || 0;
+        var possible= parseInt((yPoss.split('/')[1] || '78')) || 78;
+        var pctNum  = possible > 0 ? Math.round(yCount / possible * 100) : 0;
+        if (!name) return;
+
+        /* Monthly activity counts */
+        var myLogs = ojtByName[name] || {};
+        var mCounts = {};
+        MONTH_ORDER.forEach(function(m) { mCounts[m] = 0; });
+        Object.values(myLogs).forEach(function(entry) {
+          if (!entry.date || entry.status.charAt(0).toUpperCase() !== 'Y') return;
+          var d = new Date(entry.date);
+          if (!isNaN(d.getTime())) {
+            var mLabel = d.toLocaleString('en-US', { month: 'short' });
+            if (mCounts.hasOwnProperty(mLabel)) mCounts[mLabel]++;
+          }
+        });
+        var totObs = Object.values(mCounts).reduce(function(a,b){return a+b;}, 0);
+
+        var aoa = [];
+        /* Header rows */
+        aoa.push(['Month','Count','','NJTC On-the-Job Learning Checklist \u2014 SY 2025\u20132026','','','']);
+        aoa.push([MONTH_ORDER[0], mCounts[MONTH_ORDER[0]]||0, '', name, '', site, '']);
+        aoa.push([MONTH_ORDER[1], mCounts[MONTH_ORDER[1]]||0, '', 'USDOL ID: '+usdol, '', '', '']);
+        aoa.push([MONTH_ORDER[2], mCounts[MONTH_ORDER[2]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[3], mCounts[MONTH_ORDER[3]]||0, '', pctNum+'%', 'OJT Complete', '', '']);
+        aoa.push([MONTH_ORDER[4], mCounts[MONTH_ORDER[4]]||0, '', 'NAME:', name, 'Total:', yCount]);
+        aoa.push([MONTH_ORDER[5], mCounts[MONTH_ORDER[5]]||0, '', 'Possible:', possible, '', '']);
+        aoa.push([MONTH_ORDER[6], mCounts[MONTH_ORDER[6]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[7], mCounts[MONTH_ORDER[7]]||0, '', 'Completion = 4000 OJT AND 288 RTI hrs', '', '', '']);
+        aoa.push([MONTH_ORDER[8], mCounts[MONTH_ORDER[8]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[9], mCounts[MONTH_ORDER[9]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[10],mCounts[MONTH_ORDER[10]]||0,'', '', '', '', '']);
+        aoa.push([MONTH_ORDER[11],mCounts[MONTH_ORDER[11]]||0,'','TOTAL OBSERVATIONS',totObs,'','']);
+        aoa.push(['','','','OJT HOURS',ojtHrs+' / 4000','','']);
+        aoa.push(['','','','','','','']);
+
+        /* Phase sections */
+        PHASES.forEach(function(phase) {
+          var phActs = ACT_DEF.filter(function(a) { return a.ph === phase; });
+          var domains = [];
+          phActs.forEach(function(a) { if (domains.indexOf(a.dm) < 0) domains.push(a.dm); });
+          var phLabel = phase === 'Beginning' ? 'Beginning of Program Checklist (Months 1\u20134 \u00b7 Sep\u2013Nov)'
+                      : phase === 'Middle'    ? 'Middle of Program Checklist (Months 5\u20138 \u00b7 Nov\u2013Feb)'
+                      :                         'End of Program Checklist (Months 9\u201312 \u00b7 Mar\u2013May)';
+          aoa.push(['','',phLabel,'','','','']);
+          aoa.push(['','','Site Supervisors: check the box and initial upon observation of this activity.','','','','']);
+          aoa.push(['','','Competency','Activity','Look For','Mark Y / N/A','Date']);
+          domains.forEach(function(domain) {
+            var dActs   = phActs.filter(function(a) { return a.dm === domain; });
+            var dYCount = dActs.filter(function(a) {
+              var k = phase+'|'+domain+'|'+a.c;
+              return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase() === 'Y';
+            }).length;
+            aoa.push(['','',domain+' ('+dYCount+'/'+dActs.length+')','','','','']);
+            dActs.forEach(function(act) {
+              var key    = phase+'|'+domain+'|'+act.c;
+              var log    = myLogs[key];
+              var status = log ? (log.status.charAt(0).toUpperCase() === 'Y' ? 'Y' : (log.status.toUpperCase().indexOf('N/A') >= 0 ? 'N/A' : '')) : '';
+              var dstr   = log && log.date ? log.date : '';
+              aoa.push(['','', domain, act.c+'. '+act.d, act.lf, status, dstr]);
+            });
+          });
+          aoa.push(['','','','','','','']);
+        });
+
+        var ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [{wch:6},{wch:5},{wch:18},{wch:55},{wch:45},{wch:10},{wch:12}];
+        var sheetName = name.replace(/[:\/\?\*\[\]]/g,'').substring(0,31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      var today    = new Date().toISOString().split('T')[0];
+      var filename = 'NJTC_TAP_OJT_Checklists_' + today + '.xlsx';
+      XLSX.writeFile(wb, filename);
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+
+    } catch(err) {
+      console.error('[tapDownloadOJTChecklists]', err);
+      alert('Export failed: ' + err.message);
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+  }
   /* ── Auto-init on panel show ─────────────────────────────────────── */
   // Hook into showPanel so the overview tab loads when TAP panel opens
   const _origShowPanel = window.showPanel;
