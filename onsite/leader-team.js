@@ -822,7 +822,7 @@
   }
 
   function getTapForTutor(tapRows, tutorName) {
-    return tapRows.find(r => normName(r['Full Name'] || r['A'] || '') === normName(tutorName)) || null;
+    return tapRows.find(r => normName(r['Full Name (Display)'] || r['Full Name Display'] || r['Full Name'] || '') === normName(tutorName)) || null;
   }
 
   function getConcernsForTutor(concernRows, tutorName) {
@@ -979,7 +979,7 @@
       // Only show "Not Enrolled" when TAP roster data is confirmed loaded — not when unavailable
       return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
     }
-    const status = (tapData['Apprentice Program Status'] || tapData['K'] || '').trim();
+    const status = (tapData['Status'] || tapData['Apprentice Program Status'] || '').trim();
     if (/active/i.test(status))           return `<span class="njtc-badge njtc-badge-active">TAP Active</span>`;
     if (/prior|complete|graduate/i.test(status)) return `<span class="njtc-badge njtc-badge-prior">TAP Prior</span>`;
     return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
@@ -1036,7 +1036,7 @@
         surveyCount++;
       }
       const tap = t.tap;
-      if (tap && /active/i.test(tap['Apprentice Program Status'] || tap['K'] || '')) activeApprentices++;
+      if (tap && /active/i.test(tap['Status'] || tap['Apprentice Program Status'] || '')) activeApprentices++;
     });
 
     const avgAtt = attRates.length ? Math.round(attRates.reduce((a,b)=>a+b,0)/attRates.length) : null;
@@ -1169,12 +1169,12 @@
 
     let tapHtml = '';
     if (tap) {
-      const tapStatus = tap['Apprentice Program Status'] || tap['K'] || '';
+      const tapStatus = tap['Status'] || tap['Apprentice Program Status'] || '';
       const usdol     = tap['USDOL ID']      || tap['B'] || '—';
       const phase     = tap['Phase']         || tap['I'] || '—';
       const wage      = tap['Current Wage']  || tap['F'] || '—';
       const milestone = tap['Milestone']     || tap['J'] || '—';
-      const ojtHours  = parseFloat(tap['OJT Hours'] || tap['G'] || 0);
+      const ojtHours  = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
       const rtiHours  = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
       const ojtTotal  = 4000, rtiTotal = 288;
       const ojtPct    = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
@@ -2042,7 +2042,7 @@
       (!t.stuMetrics.surveyScores || t.stuMetrics.surveyScores.count === 0) ||
       t.stuMetrics.scholars.some(s => s.rate != null && s.rate < 60)
     );
-    const apprentices = tutors.filter(t => t.tap && /active/i.test(t.tap['Apprentice Program Status'] || t.tap['K'] || ''));
+    const apprentices = tutors.filter(t => t.tap && /active/i.test(t.tap['Status'] || t.tap['Apprentice Program Status'] || ''));
 
     let html = renderKPIStrip(tutors, tapRows || []);
 
