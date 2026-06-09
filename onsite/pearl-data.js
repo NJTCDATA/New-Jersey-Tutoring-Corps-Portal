@@ -161,7 +161,7 @@
     const pubUrl = `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
 
     async function tryUrl(url) {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('text/html')) throw new Error('HTML response — sheet not public');
@@ -173,17 +173,17 @@
     }
 
     let lastErr;
-    // Retry up to 5 times — delays: 1s, 2s, 4s, 8s — to survive Google CDN
-    // warm-up latency on initial page load (first request often 404s).
-    const delays = [1000, 2000, 4000, 8000];
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // 3 attempts with 1s / 2s backoff — handles transient CDN 404s without
+    // blocking the dashboard for more than ~11s in the absolute worst case.
+    const delays = [1000, 2000];
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const rows = await tryUrl(pubUrl);
         if (cacheKey) setCache(cacheKey, rows);
         return rows;
       } catch (e) {
         lastErr = e;
-        if (attempt < 4) await new Promise(r => setTimeout(r, delays[attempt]));
+        if (attempt < 2) await new Promise(r => setTimeout(r, delays[attempt]));
       }
     }
 
@@ -218,22 +218,20 @@
   }
 
   async function fetchUserData(pearlUserId) {
-    // Use allSettled so a single failing tab (e.g. surveys not yet published)
-    // doesn't kill the entire dashboard — attendance is always the critical path.
-    const [attRes, instRes, stuRes, sessRes] = await Promise.allSettled([
+    // Only fetch att and stu — the two GIDs confirmed present in this Pearl workbook.
+    // inst (1955492004) and sess (625567780) don't exist here; fetching them caused
+    // 15+ second load delays because every retry attempt was wasted on permanent 404s.
+    const [attRes, stuRes] = await Promise.allSettled([
       fetchSheet('att'),
-      fetchSheet('inst'),
-      fetchSheet('stu'),
-      fetchSheet('sess')
+      fetchSheet('stu')
     ]);
 
-    // ATT is critical; after 3 retries above it only fails on a real publish issue
     if (attRes.status === 'rejected') throw attRes.reason;
 
     const attRows  = attRes.value;
-    const instRows = instRes.status  === 'fulfilled' ? instRes.value  : [];
-    const stuRows  = stuRes.status   === 'fulfilled' ? stuRes.value   : [];
-    const sessRows = sessRes.status  === 'fulfilled' ? sessRes.value  : [];
+    const instRows = [];   // inst sheet not available in this deployment
+    const stuRows  = stuRes.status === 'fulfilled' ? stuRes.value : [];
+    const sessRows = [];   // sess sheet not available in this deployment
 
     // Filter my instructor attendance rows
     const myInstRows = attRows.filter(r =>

@@ -195,7 +195,7 @@
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+        const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
         if (text.trim().startsWith('<')) throw new Error('HTML response — sheet not public');
@@ -204,7 +204,7 @@
         return data;
       } catch (e) {
         lastErr = e;
-        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 1200));
+        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
       }
     }
     throw lastErr;
