@@ -7,6 +7,7 @@
   const PEARL_KEY  = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_ATT_GID  = '702726038';
   const PEARL_STU_GID  = '1245403832';
+  const PEARL_SESS_GID = '625567780';
   // Pearl Login/ID sheet — holds staff name, email, Pearl username, school assignment, district
   const PEARL_LOGIN_KEY = '2PACX-1vS2fgss4HiKpr61wJ2_si8klythckgGZ3yOYer4FSAdThkQz-X1cdL83xbgPBnHbMpTGPHZCtnttKRv';
   const IREADY_KEY = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
@@ -41,6 +42,7 @@
   const CACHE_KEYS = {
     att:        'njtc_team_att_v2',
     stu:        'njtc_team_stu_v2',
+    sess:       'njtc_team_sess_v2',
     irEla:      'njtc_team_ir_ela_v2',
     irMath:     'njtc_team_ir_math_v2',
     ir2526Ela:  'njtc_team_ir2526_ela_v2',
@@ -326,14 +328,18 @@
     };
   }
 
-  // Phase 1b: STU — largest file, loads after roster is already visible
+  // Phase 1b: STU + SESS — load together; SESS is the authoritative tutor→scholar pairing
   async function loadStu() {
-    try {
-      return await fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu);
-    } catch (e) {
-      console.warn('[NJTCTeam] STU load failed:', e);
-      return [];
-    }
+    const [stuR, sessR] = await Promise.allSettled([
+      fetchCSV(pearlUrl(PEARL_STU_GID),  CACHE_KEYS.stu),
+      fetchCSV(pearlUrl(PEARL_SESS_GID), CACHE_KEYS.sess),
+    ]);
+    if (stuR.status  === 'rejected') console.warn('[NJTCTeam] STU load failed:',  stuR.reason);
+    if (sessR.status === 'rejected') console.warn('[NJTCTeam] SESS load failed:', sessR.reason);
+    return {
+      stu:  stuR.status  === 'fulfilled' ? stuR.value  : [],
+      sess: sessR.status === 'fulfilled' ? sessR.value : [],
+    };
   }
 
   async function loadEnhancementData() {
@@ -359,9 +365,10 @@
     };
   }
 
-  function filterData(rawAtt, rawStu, rawLogin, rawEnhancement, leaderDistricts, leaderName) {
+  function filterData(rawAtt, rawStu, rawSess, rawLogin, rawEnhancement, leaderDistricts, leaderName) {
     const att    = rawAtt;
     const stu    = rawStu;
+    const sess   = rawSess || [];
     const login  = rawLogin;
     const irEla     = rawEnhancement ? rawEnhancement.irEla    : [];
     const irMath    = rawEnhancement ? rawEnhancement.irMath   : [];
@@ -483,7 +490,15 @@
       console.log('[NJTCTeam] ATT student sample keys:', Object.keys(sample), '| User:', sample['User'], '| Role:', sample['Role'], '| UserID:', sample['Pearl User ID'] || sample['User ID'] || sample['User_ID']);
     }
 
-    return { att: filteredAtt, attStudents: filteredAttStudents, stu: filteredStu,
+    // SESS: filter by school — provides authoritative tutor→scholar pairing
+    // SESS col 1=Instructor, col 2=Students (comma-sep), col 11=School, col 15=Pearl Instructor ID, col 16=Pearl Student IDs
+    const filteredSess = sess.filter(r => {
+      const school = (r['School'] || Object.values(r)[11] || '').trim();
+      return expandedSchools.size > 0 ? expandedSchools.has(school)
+        : leaderDistricts.some(ld => distMatch(school, ld));
+    });
+
+    return { att: filteredAtt, attStudents: filteredAttStudents, stu: filteredStu, sess: filteredSess,
              irEla: filteredEla, irMath: filteredMath,
              ir2526Ela: filtered2526Ela, ir2526Math: filtered2526Math, sm: filteredSm,
              tap: filteredTap, concerns, tapLoaded };
@@ -1366,13 +1381,152 @@
     const inputStyle  = 'width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
     const labelStyle  = 'font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px';
 
+    // Map leader role to exact Observer Role values in the OJT form
+    function ojtObsRoleValue(r) {
+      const v = (r || '').toLowerCase();
+      if (v.includes('dual')) return 'Dual Role (IC + SC)';
+      if (v.includes('instructional coach') || v.includes('ic')) return 'Instructional Coach (IC)';
+      if (v.includes('site coord') || v.includes('sc')) return 'Site Coordinator (SC)';
+      if (v.includes('regional') || v.includes('program manager')) return 'Regional Program Manager';
+      return '';
+    }
+    // Map leader school/site to the OJT form site dropdown value
+    function ojtSiteValue(s) {
+      const v = (s || '').toLowerCase();
+      if (v.includes('bergen') && v.includes('ms')) return 'iLearn Bergen MS';
+      if (v.includes('bergen') && v.includes('hs')) return 'iLearn Bergen HS';
+      if (v.includes('paterson') && v.includes('silk')) return 'iLearn Paterson Silk City';
+      if (v.includes('paterson') && v.includes('ms')) return 'iLearn Paterson MS';
+      if (v.includes('paterson') && v.includes('es')) return 'iLearn Paterson ES';
+      if (v.includes('clifton') && v.includes('ms')) return 'iLearn Clifton MS';
+      if (v.includes('clifton') && v.includes('es')) return 'iLearn Clifton ES';
+      if (v.includes('clifton') && v.includes('hs')) return 'iLearn Clifton HS';
+      if (v.includes('passaic') && v.includes('ms')) return 'iLearn Passaic MS';
+      if (v.includes('passaic') && v.includes('es')) return 'iLearn Passaic ES';
+      if (v.includes('hudson')) return 'iLearn Hudson MS';
+      if (v.includes('hamilton') && v.includes('kuser')) return 'Hamilton-Kuser';
+      if (v.includes('hamilton')) return 'Hamilton Township';
+      if (v.includes('haddon')) return 'Haddon Township';
+      if (v.includes('middlesex')) return 'Middlesex STEM';
+      if (v.includes('penns grove') || v.includes('pennsgro')) return 'Penns Grove';
+      if (v.includes('gloucester')) return 'Gloucester';
+      if (v.includes('central jersey') || v.includes('cjcp')) return 'Central Jersey College Prep';
+      if (v.includes('pcsst') || v.includes('paterson charter')) return 'PCSST - Paterson';
+      return '';
+    }
+    const ojtObsRole = ojtObsRoleValue(leaderRole2);
+    const ojtSiteDef = ojtSiteValue(leaderSite2);
+
+    const OJT_SITES = ['iLearn Bergen MS','iLearn Bergen HS','iLearn Paterson MS','iLearn Paterson ES',
+      'iLearn Paterson Silk City','iLearn Clifton MS','iLearn Clifton ES','iLearn Clifton HS',
+      'iLearn Passaic MS','iLearn Passaic ES','iLearn Hudson MS','Hamilton Township','Hamilton-Kuser',
+      'Haddon Township','Middlesex STEM','Penns Grove','Gloucester','Central Jersey College Prep','PCSST - Paterson'];
+    const OJT_ROLES = ['Instructional Coach (IC)','Site Coordinator (SC)','Dual Role (IC + SC)','Regional Program Manager'];
+
+    const OJT_ACTIVITIES = [
+      // Beginning · Professionalism
+      'A — Join site visit / collaboration meeting to introduce yourself and review school partner expectations [Beginning · Professionalism]',
+      'B — Follow the daily schedule including assigned duties and meetings [Beginning · Professionalism]',
+      'C — Communicate with supervisors and co-workers by phone, email, or in person [Beginning · Professionalism]',
+      'D — Complete the Modified Danielson Self-Assessment and share goals with IC [Beginning · Professionalism]',
+      'E — Utilize FERPA guidelines to separate personal and professional relationships [Beginning · Professionalism]',
+      'F — Follow policies in the Employee Handbook and school-level handbook [Beginning · Professionalism]',
+      'G — Use the unit planning template for collaborative and personalized instruction [Beginning · Professionalism]',
+      'H — Actively participate in weekly professional learning opportunities [Beginning · Professionalism]',
+      'I — Complete iReady training and build unit plan with instructional coach [Beginning · Professionalism]',
+      'K — Submit work time through ADP on time [Beginning · Professionalism]',
+      'N — Document and maintain information in written or electronic form [Beginning · Professionalism]',
+      'Q — Complete 90%+ Pearl surveys and attendance after each session [Beginning · Professionalism]',
+      'R — Respond to all communication via email using Gmail account [Beginning · Professionalism]',
+      'S — Attend training sessions and professional meetings [Beginning · Professionalism]',
+      // Beginning · Instruction
+      'B — Conduct sessions using the I Do / We Do / You Do framework [Beginning · Instruction]',
+      'C — Choose effective materials and provide student-to-student interaction opportunities [Beginning · Instruction]',
+      'D — Independently plan and teach consistently for a 10-week block [Beginning · Instruction]',
+      'I — Adapt materials for various learning styles and student interaction [Beginning · Instruction]',
+      'L — Promote equality of opportunity and anti-discriminatory practices [Beginning · Instruction]',
+      'M — Communicate effectively and confidentially with colleagues of all backgrounds [Beginning · Instruction]',
+      'N — Teach study strategies, note-taking, and test-taking skills [Beginning · Instruction]',
+      'O — Conduct practice tests and complete goal setting with scholars using BOY/MOY data [Beginning · Instruction]',
+      'Q — Administer, proctor, or score academic or diagnostic assessments [Beginning · Instruction]',
+      // Beginning · Environment
+      'A — Support classroom teacher in reinforcing rules and procedures [Beginning · Environment]',
+      'B — Establish and maintain a safe, caring, inclusive, and healthy learning environment [Beginning · Environment]',
+      'C — Communicate with students using positive, professional, and compassionate language [Beginning · Environment]',
+      'D — Complete Modified Danielson Domain 2 and discuss with IC [Beginning · Environment]',
+      'F — Comply with mandated reporting, child study, and disability support requirements [Beginning · Environment]',
+      'G — Collaborate with classroom teachers on behavioral issues and academic concerns [Beginning · Environment]',
+      'I — Provide feedback using positive reinforcement to encourage and motivate students [Beginning · Environment]',
+      // Beginning · Planning
+      'A — Use iReady diagnostic data and backwards design to complete Unit Planning template [Beginning · Planning]',
+      'D — Complete Pearl surveys with comments after every instructional session [Beginning · Planning]',
+      'E — Prepare lesson materials including copies, supplies, and learning stations [Beginning · Planning]',
+      // Middle · Professionalism
+      'J — Actively participate in faculty professional learning and complete reflections [Middle · Professionalism]',
+      'L — Complete Use of Data indicator on TEAM rubric and work with mentor teacher [Middle · Professionalism]',
+      'O — Apply new knowledge and incorporate IC feedback into lessons [Middle · Professionalism]',
+      'T — Use technology systems for data entry, survey completion, and attendance 90%+ [Middle · Professionalism]',
+      'U — Review iReady data and complete goal sheets with scholars post-diagnostics [Middle · Professionalism]',
+      'W — Contribute to Knowtion using Microsoft Office, Google Meet, and Zoom [Middle · Professionalism]',
+      // Middle · Instruction
+      'E — Receive IC feedback and make instructional adjustments throughout the unit [Middle · Instruction]',
+      'F — Have scholars complete Pearl surveys and review session ratings [Middle · Instruction]',
+      'G — Replicate consistent transition routines between activities [Middle · Instruction]',
+      'H — Demonstrate flexibility and responsiveness in instruction on 2+ occasions [Middle · Instruction]',
+      'J — Observe teacher lessons with district approval during non-session push-in time [Middle · Instruction]',
+      'K — Create customized unit planning for each group of students [Middle · Instruction]',
+      'P — Identify and implement intervention strategies and tutoring plans for students [Middle · Instruction]',
+      'R — Explain information in grade- and age-appropriate language [Middle · Instruction]',
+      'S — Break down information into underlying principles and facts for scholars [Middle · Instruction]',
+      'T — Review class material through discussion, problem-solving, and worksheets [Middle · Instruction]',
+      'U — Assess student progress using exit tickets and other formative tools [Middle · Instruction]',
+      'V — Instruct students in person and/or virtually keeping scholars engaged [Middle · Instruction]',
+      'W — Help students understand key concepts aligned to classroom learning [Middle · Instruction]',
+      'X — Assist students with homework, test prep, papers, and academic tasks [Middle · Instruction]',
+      'Y — Utilize computers, calculators, and other tools; submit lesson plans electronically [Middle · Instruction]',
+      'Z — Develop formal educational programs and provide additional support upon request [Middle · Instruction]',
+      'AA — Identify developmental needs and coach or mentor scholars to improve skills [Middle · Instruction]',
+      'AB — Explain what information means and how it can be used in grade-appropriate language [Middle · Instruction]',
+      // Middle · Environment
+      'E — Scholars report 4.0+ enjoyment rating through Pearl session surveys [Middle · Environment]',
+      'H — Develop and distribute supplemental teaching materials and study guides [Middle · Environment]',
+      'J — Collaborate with parents, teachers, and administrators to assess student progress [Middle · Environment]',
+      'M — Serve as an informed advocate for education through Knowtion participation [Middle · Environment]',
+      // Middle · Planning
+      'B — Attend and bring materials to classroom, coaching sessions, and team meetings [Middle · Planning]',
+      'C — Review and annotate unit plans prior to collaboration sessions [Middle · Planning]',
+      'F — Collaborate with classroom teacher to connect iReady skills to scope and sequence [Middle · Planning]',
+      'G — Review student achievement data with IC and update unit planning priorities [Middle · Planning]',
+      'H — Share intervention data with classroom teacher to determine effectiveness [Middle · Planning]',
+      'J — Develop handouts, study materials, and quizzes for teaching [Middle · Planning]',
+      'L — Create new relationships, tutoring systems, or motivational items for the tutoring area [Middle · Planning]',
+      'M — Prepare and distribute progress reports to individuals in charge of parent communication [Middle · Planning]',
+      'N — Allocate sufficient time per concept and modify lessons based on assessments [Middle · Planning]',
+      'R — Create customized unit planning for each group with additional support upon request [Middle · Planning]',
+      // End · Planning
+      'K — Research and recommend textbooks, software, or learning materials — mark N/A if not applicable [End · Planning]',
+      'O — Design differentiated learning goals through lesson plan creation and submission [End · Planning]',
+      'P — Choose the most effective and appropriate materials for each lesson objective [End · Planning]',
+      'Q — Observe teacher lesson during classroom push-in time to inform tutoring practice [End · Planning]',
+      'S — Prepare and facilitate tutoring workshops and academic support for small groups [End · Planning]',
+      'T — Prepare lesson plans and learning modules according to student needs and goals [End · Planning]',
+      'U — Analyze formative assessment results and choose the best instructional solution [End · Planning]',
+      // End · Instruction
+      'A — Conduct engaging and rigorous sessions based on scholar academic needs — minimum 4 observations required [End · Instruction]',
+      // End · Environment
+      'O — Organize the tutoring environment to promote productivity and learning [End · Environment]',
+    ];
+
+    const selOpt = (val, cur) => `<option value="${escHtml(val)}" ${cur === val ? 'selected' : ''}>${escHtml(val)}</option>`;
+
     const ojtFormHtml = `
       <div class="njtc-section-block" style="border-color:#1C7C8C44">
         <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
           📋 Log OJT Activity
           <button onclick="(function(){var b=document.getElementById('ojtFormBody_${nk}');b.style.display=b.style.display==='none'?'block':'none';})()"
+            id="ojtToggleBtn_${nk}"
             style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
-            Open / Close
+            Toggle Form
           </button>
         </div>
         <div id="ojtFormBody_${nk}" style="display:none;margin-top:12px">
@@ -1381,28 +1535,29 @@
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
             <div>
               <label style="${labelStyle}">Observer Name</label>
-              <input id="ojt_obs_name_${nk}" value="${escHtml(leaderName2)}"
-                style="${inputStyle}">
+              <input id="ojt_obs_name_${nk}" value="${escHtml(leaderName2)}" style="${inputStyle}">
             </div>
             <div>
               <label style="${labelStyle}">Observer Role</label>
-              <input id="ojt_obs_role_${nk}" value="${escHtml(leaderRole2)}"
-                style="${inputStyle}">
+              <select id="ojt_obs_role_${nk}" style="${inputStyle}">
+                <option value="">Select role…</option>
+                ${OJT_ROLES.map(r => selOpt(r, ojtObsRole)).join('')}
+              </select>
             </div>
             <div>
               <label style="${labelStyle}">Site Location</label>
-              <input id="ojt_site_${nk}" value="${escHtml(leaderSite2)}"
-                style="${inputStyle}">
+              <select id="ojt_site_${nk}" style="${inputStyle}">
+                <option value="">Select site…</option>
+                ${OJT_SITES.map(s => selOpt(s, ojtSiteDef)).join('')}
+              </select>
             </div>
             <div>
               <label style="${labelStyle}">Date of Observation</label>
-              <input id="ojt_date_${nk}" type="date" value="${todayISO}"
-                style="${inputStyle}">
+              <input id="ojt_date_${nk}" type="date" value="${todayISO}" style="${inputStyle}">
             </div>
             <div style="grid-column:1/-1">
               <label style="${labelStyle}">Apprentice Full Name</label>
-              <input id="ojt_name_${nk}" value="${escHtml(name)}" readonly
-                style="${inputStyle};opacity:.7">
+              <input id="ojt_name_${nk}" value="${escHtml(name)}" readonly style="${inputStyle};opacity:.7">
             </div>
           </div>
 
@@ -1412,40 +1567,39 @@
               <label style="${labelStyle}">Program Phase</label>
               <select id="ojt_phase_${nk}" style="${inputStyle}">
                 <option value="">Select phase…</option>
-                <option value="Phase 1">Phase 1</option>
-                <option value="Phase 2">Phase 2</option>
-                <option value="Phase 3">Phase 3</option>
+                <option value="Beginning (Months 1–4)">Beginning (Months 1–4)</option>
+                <option value="Middle (Months 5–8)">Middle (Months 5–8)</option>
+                <option value="End (Months 9–12)">End (Months 9–12)</option>
               </select>
             </div>
             <div>
               <label style="${labelStyle}">Competency Domain</label>
               <select id="ojt_domain_${nk}" style="${inputStyle}">
                 <option value="">Select domain…</option>
-                <option>Tutoring Practice</option>
-                <option>Scholar Relationships</option>
-                <option>Instructional Delivery</option>
-                <option>Session Planning</option>
-                <option>Professionalism</option>
-                <option>Data Literacy</option>
-                <option>Community Engagement</option>
+                <option value="Professionalism">Professionalism</option>
+                <option value="Instruction">Instruction</option>
+                <option value="Environment">Environment</option>
+                <option value="Planning">Planning</option>
               </select>
             </div>
-            <div>
-              <label style="${labelStyle}">Activity Code + Description</label>
-              <input id="ojt_activity_${nk}" placeholder="e.g. OJT-2.3: Implemented differentiation strategy"
-                style="${inputStyle}">
+            <div style="grid-column:1/-1">
+              <label style="${labelStyle}">Activity Code — select from OJT checklist</label>
+              <select id="ojt_activity_${nk}" style="${inputStyle}">
+                <option value="">Select activity…</option>
+                ${OJT_ACTIVITIES.map(a => `<option value="${escHtml(a)}">${escHtml(a)}</option>`).join('')}
+              </select>
             </div>
-            <div>
-              <label style="${labelStyle}">Mark Activity As</label>
+            <div style="grid-column:1/-1">
+              <label style="${labelStyle}">Mark This Activity As</label>
               <select id="ojt_mark_${nk}" style="${inputStyle}">
-                <option value="Y">Y — Completed</option>
-                <option value="N/A">N/A — Not Applicable</option>
+                <option value="Y — Observed and completed">Y — Observed and completed</option>
+                <option value="N/A — Not applicable for this apprentice or site">N/A — Not applicable for this apprentice or site</option>
               </select>
             </div>
           </div>
           <div style="margin-bottom:10px">
-            <label style="${labelStyle}">Observation Notes</label>
-            <textarea id="ojt_notes_${nk}" rows="3"
+            <label style="${labelStyle}">What did you observe? (appears in apprentice OJT report)</label>
+            <textarea id="ojt_notes_${nk}" rows="4"
               placeholder="Describe what you observed. Include specific examples of the apprentice demonstrating the competency…"
               style="${inputStyle};resize:vertical"></textarea>
           </div>
@@ -1524,21 +1678,43 @@
         const vals = Object.values(r);
         return normName(r['User'] || vals[0] || '') === tn;
       });
+      // Tutor's own Pearl User ID — from their ATT instructor rows (col 13)
+      const tutor_pearl_id = myAttRows.length
+        ? (myAttRows[0]['Pearl User ID'] || Object.values(myAttRows[0])[13] || '').trim()
+        : '';
       const myStuRows = data.stu.filter(r => {
         const vals = Object.values(r);
         // STU col 1 = Filled For (tutor name) per Central portal STU_S.FILLED_FOR = 1
         return normName(r['Filled For'] || r['Tutor Name'] || vals[1] || '') === tn;
       });
 
-      // Pearl STU bridge: col 0=Filled By (scholar), col 1=Filled For (tutor), col 12=Filled By ID
+      // Pearl STU bridge: col 0=Filled By (scholar name), col 1=Filled For (tutor name),
+      // col 12=Filled by Pearl User ID, col 13=Filled for Pearl User ID
       const scholarPearlIds = new Set(myStuRows.map(r => {
         const vals = Object.values(r);
-        return (r['Filled By ID'] || vals[12] || '').trim();
+        // Header is exactly "Filled by Pearl User ID" per actual sheet
+        return (r['Filled by Pearl User ID'] || r['Filled By ID'] || vals[12] || '').trim();
       }).filter(Boolean));
       const scholarNames = new Set(myStuRows.map(r => {
         const vals = Object.values(r);
         return normName(r['Filled By'] || vals[0] || '');
       }).filter(s => s.length > 2));
+
+      // SESS bridge: expand scholar sets with ALL session-linked scholars (not just survey submitters)
+      // SESS col 1=Instructor, col 2=Students (comma-sep names), col 15=Pearl Instructor ID, col 16=Pearl Student IDs
+      const sessRows = (data.sess || []).filter(r => {
+        const vals = Object.values(r);
+        const instName = (r['Instructor'] || vals[1] || '').trim();
+        const instId   = (r['Pearl Instructor ID'] || vals[15] || '').trim();
+        return normName(instName) === tn || (instId && instId === tutor_pearl_id);
+      });
+      sessRows.forEach(r => {
+        const vals = Object.values(r);
+        const names = (r['Students'] || vals[2] || '').split(',').map(s => s.trim()).filter(Boolean);
+        names.forEach(n => { const k = normName(n); if (k.length > 2) scholarNames.add(k); });
+        const ids = (r['Pearl Student IDs'] || vals[16] || '').split(',').map(s => s.trim()).filter(Boolean);
+        ids.forEach(id => { if (id) scholarPearlIds.add(id); });
+      });
 
       // Scholar ATT rows: match by Pearl User ID (primary) or display name (fallback)
       // ATT col 13 = Pearl User ID; STU col 12 = Filled By ID — same Pearl ID system
@@ -1681,21 +1857,21 @@
       return;
     }
 
-    const p1Data = filterData(base.att, [], base.login, null, _leaderDistricts, userProfile.name);
+    const p1Data = filterData(base.att, [], [], base.login, null, _leaderDistricts, userProfile.name);
     _teamData = p1Data;
     sortAndRenderTutors(buildTutors(p1Data), container, []);
     console.log('[NJTCTeam] Phase 1a rendered:', Object.keys(buildTutorMap(p1Data.att)).length, 'tutors (ATT only)');
 
-    // ── PHASE 1b: STU (largest file) → updates scholar counts + survey scores ─
-    loadStu().then(stuRows => {
-      const p1bData = filterData(base.att, stuRows, base.login, null, _leaderDistricts, userProfile.name);
+    // ── PHASE 1b: STU + SESS → updates scholar counts, survey scores, pairing map ─
+    loadStu().then(({ stu: stuRows, sess: sessRows }) => {
+      const p1bData = filterData(base.att, stuRows, sessRows, base.login, null, _leaderDistricts, userProfile.name);
       _teamData = p1bData;
       sortAndRenderTutors(buildTutors(p1bData), container, []);
-      console.log('[NJTCTeam] Phase 1b: STU loaded,', stuRows.length, 'rows');
+      console.log('[NJTCTeam] Phase 1b: STU', stuRows.length, 'rows | SESS', sessRows.length, 'rows');
 
       // ── PHASE 2: iReady + SM + TAP + Concerns (background) ──────────────────
       loadEnhancementData().then(enh => {
-        const p2Data = filterData(base.att, stuRows, base.login, enh, _leaderDistricts, userProfile.name);
+        const p2Data = filterData(base.att, stuRows, sessRows, base.login, enh, _leaderDistricts, userProfile.name);
         _teamData = p2Data;
         sortAndRenderTutors(buildTutors(p2Data), container, enh.tap || []);
         console.log('[NJTCTeam] Phase 2: enhancement data loaded');
@@ -1868,21 +2044,21 @@
 
     const endpoint = `https://docs.google.com/forms/d/${formId}/formResponse`;
     const body = new URLSearchParams({
-      // Section 1
-      'entry.338482221':           'OJT Activity',        // Log Type
-      'entry.1328224034_year':     yr,
-      'entry.1328224034_month':    mo ? String(parseInt(mo, 10)) : '',
-      'entry.1328224034_day':      dy ? String(parseInt(dy, 10)) : '',
-      'entry.1339815889':          obsName,               // Observer full name
-      'entry.1644446216':          obsRole,               // Observer role
-      'entry.1868799856':          site,                  // Site location
-      'entry.1113592438':          apprenticeName,        // Apprentice full name
-      // Section 2
-      'entry.2084410404':          phase,                 // Program phase
-      'entry.1916953177':          domain,                // Competency domain
-      'entry.1818518596':          activity,              // Activity code + description
-      'entry.272707685':           mark,                  // Mark as Y / N/A
-      'entry.1617504322':          notes,                 // Observation notes
+      // Section 1 — Q1 through Q6
+      'entry.338482221':           'OJT Activity completion',  // Q1: What are you logging today?
+      'entry.1328224034_year':     yr,                         // Q2: Date (year part)
+      'entry.1328224034_month':    mo ? String(parseInt(mo, 10)) : '',  // Q2: Date (month)
+      'entry.1328224034_day':      dy ? String(parseInt(dy, 10)) : '',  // Q2: Date (day)
+      'entry.1339815889':          obsName,                    // Q3: Observer Name
+      'entry.1644446216':          obsRole,                    // Q4: Observer Role (exact form value)
+      'entry.1868799856':          site,                       // Q5: Site location (exact dropdown value)
+      'entry.1113592438':          apprenticeName,             // Q6: Apprentice full name
+      // Section 2 — Q7 through Q11 (OJT Activity only — Section 3 RTI is Central Team only)
+      'entry.2084410404':          phase,                      // Q7: Program phase (exact form value)
+      'entry.1916953177':          domain,                     // Q8: Competency domain (exact form value)
+      'entry.1818518596':          activity,                   // Q9: Activity code + description
+      'entry.272707685':           mark,                       // Q10: Mark as (exact form value)
+      'entry.1617504322':          notes,                      // Q11: What did you observe?
     });
 
     try {
