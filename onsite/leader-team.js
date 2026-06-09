@@ -7,6 +7,8 @@
   const PEARL_KEY  = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_ATT_GID  = '702726038';
   const PEARL_STU_GID  = '1245403832';
+  // Pearl Login/ID sheet — holds staff name, email, Pearl username, school assignment, district
+  const PEARL_LOGIN_KEY = '2PACX-1vS2fgss4HiKpr61wJ2_si8klythckgGZ3yOYer4FSAdThkQz-X1cdL83xbgPBnHbMpTGPHZCtnttKRv';
   const IREADY_KEY = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
   const IREADY_ELA_GID  = '0';
   const IREADY_MATH_GID = '127145553';
@@ -27,12 +29,13 @@
 
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   const CACHE_KEYS = {
-    att:      'njtc_team_att_v1',
-    stu:      'njtc_team_stu_v1',
-    irEla:    'njtc_team_ir_ela_v1',
-    irMath:   'njtc_team_ir_math_v1',
-    tap:      'njtc_team_tap_v1',
-    concerns: 'njtc_team_concerns_v1'
+    att:        'njtc_team_att_v1',
+    stu:        'njtc_team_stu_v1',
+    irEla:      'njtc_team_ir_ela_v1',
+    irMath:     'njtc_team_ir_math_v1',
+    tap:        'njtc_team_tap_v1',
+    concerns:   'njtc_team_concerns_v1',
+    pearlLogin: 'njtc_team_pearl_login_v1',
   };
 
   let _stylesInjected = false;
@@ -187,6 +190,9 @@
   function pearlUrl(gid) {
     return `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${gid}`;
   }
+  function pearlLoginUrl() {
+    return `https://docs.google.com/spreadsheets/d/e/${PEARL_LOGIN_KEY}/pub?output=csv&gid=0`;
+  }
   function ireadyUrl(gid) {
     return `https://docs.google.com/spreadsheets/d/e/${IREADY_KEY}/pub?output=csv&gid=${gid}`;
   }
@@ -228,13 +234,14 @@
      DATA LOADING
   ───────────────────────────────────────────── */
   async function loadAllData(leaderDistricts, leaderName) {
-    const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att),
-      fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu),
+    const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows, loginRows] = await Promise.allSettled([
+      fetchCSV(pearlUrl(PEARL_ATT_GID),   CACHE_KEYS.att),
+      fetchCSV(pearlUrl(PEARL_STU_GID),   CACHE_KEYS.stu),
       fetchCSV(ireadyUrl(IREADY_ELA_GID), CACHE_KEYS.irEla),
-      fetchCSV(ireadyUrl(IREADY_MATH_GID), CACHE_KEYS.irMath),
-      fetchCSV(TAP_URL, CACHE_KEYS.tap),
-      fetchCSV(concernsUrl(), CACHE_KEYS.concerns)
+      fetchCSV(ireadyUrl(IREADY_MATH_GID),CACHE_KEYS.irMath),
+      fetchCSV(TAP_URL,                   CACHE_KEYS.tap),
+      fetchCSV(concernsUrl(),             CACHE_KEYS.concerns),
+      fetchCSV(pearlLoginUrl(),           CACHE_KEYS.pearlLogin),
     ]);
 
     function val(result) { return result.status === 'fulfilled' ? result.value : []; }
@@ -245,41 +252,67 @@
     const irMath   = val(irMathRows);
     const tap      = val(tapRows);
     const concerns = val(concernRows);
+    const login    = val(loginRows);
 
-    // ── Step 1: find this leader's exact Pearl school assignments ─────────────
-    // Pearl ATT stores non-Instructor rows for Site Coordinators / ICs / Dual Roles.
-    // A Dual Role leader appears on rows for BOTH the MS and ES of their campus.
     const leaderNorm = normName(leaderName || '');
-    const pearlLeaderSchools = new Set();
+
+    // ── Step 1 (PRIMARY): Pearl Login/ID sheet ────────────────────────────────
+    // The login sheet maps every staff member to their school(s) and district.
+    // It's the most authoritative source because it's maintained by site admins.
+    // Columns vary — try common permutations for name, email, school, district.
+    const loginSchools = new Set();
+    if (login.length > 0) {
+      login.forEach(r => {
+        const rName  = normName(r['Full Name'] || r['Name'] || r['Staff Name'] || r['User'] || '');
+        const rEmail = (r['Email'] || r['Email Address'] || r['email'] || '').trim().toLowerCase();
+        const isMatch = rName === leaderNorm ||
+          (rEmail && rEmail === (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.email || '').toLowerCase());
+        if (!isMatch) return;
+        // Collect every school field on the row (may be comma-separated or multi-column)
+        ['School', 'School Name', 'Site', 'Site / School', 'Schools', 'school'].forEach(col => {
+          const val = (r[col] || '').trim();
+          if (!val) return;
+          val.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(s => loginSchools.add(s));
+        });
+      });
+    }
+
+    // ── Step 2 (SECONDARY): Pearl ATT non-Instructor rows ────────────────────
+    // Captures sessions the leader supervised — authoritative when Login sheet
+    // doesn't have separate rows per school for Dual Role leaders.
+    const attLeaderSchools = new Set();
     att.forEach(r => {
       const role = (r['Role'] || '').trim();
       if (role === 'Instructor') return;
       const u = normName(r['User'] || '');
       if (!u || u !== leaderNorm) return;
       const school = (r['School'] || r['Site'] || '').trim();
-      if (school) pearlLeaderSchools.add(school);
+      if (school) attLeaderSchools.add(school);
     });
 
-    // ── Step 2: expand to campus siblings (same base name, different grade suffix) ──
-    // e.g. "iLearn Paterson MS" leader also covers "iLearn Paterson ES"
+    // Merge both sources
+    const combinedSchools = new Set([...loginSchools, ...attLeaderSchools]);
+
+    // ── Step 3: campus sibling expansion ─────────────────────────────────────
+    // Dual Role: "iLearn Paterson MS" → also pull "iLearn Paterson ES" (same base)
     function campusBase(s) {
       return s.toLowerCase()
         .replace(/\s*[-–]\s*(ms|es|hs|middle|elementary|high|k-\d+)\s*$/i, '')
         .replace(/\s+(ms|es|hs|middle\s+school|elementary\s+school|high\s+school)\s*$/i, '')
         .trim();
     }
-    const leaderBases = new Set([...pearlLeaderSchools].map(campusBase));
+    const leaderBases = new Set([...combinedSchools].map(campusBase));
     const allPearlSchools = new Set(att.map(r => (r['School'] || r['Site'] || '').trim()).filter(Boolean));
-    const expandedSchools = new Set(pearlLeaderSchools);
+    const expandedSchools = new Set(combinedSchools);
     if (leaderBases.size > 0) {
       allPearlSchools.forEach(school => {
         if (leaderBases.has(campusBase(school))) expandedSchools.add(school);
       });
     }
 
-    // ── Step 3: build site-match predicate ────────────────────────────────────
-    // Primary: exact Pearl school set (captures Dual Role MS+ES+HS automatically)
-    // Fallback: HR site field substring matching (when leader not yet in Pearl data)
+    // ── Step 4: site-match predicate ─────────────────────────────────────────
+    // Primary: exact Pearl school name set (Login + ATT derived, Dual-Role-aware)
+    // Fallback: HR site field substring matching (leader not yet in any Pearl data)
     function siteMatch(r) {
       const school = (r['School'] || r['Site'] || '').trim();
       const dist   = (r['District'] || r['district'] || '').trim();
@@ -287,7 +320,7 @@
       return leaderDistricts.some(ld => distMatch(dist, ld) || distMatch(school, ld));
     }
 
-    // ATT: only Instructor rows for tutor cards; STU/iReady: no role filter
+    // ATT: Instructor rows only for tutor roster; STU/iReady: no role filter
     const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
     const filteredStu  = stu.filter(r  => siteMatch(r));
     const filteredEla  = irEla.filter(r  => siteMatch(r));
@@ -297,8 +330,9 @@
       return leaderDistricts.some(ld => distMatch(site, ld));
     });
 
-    console.log('[NJTCTeam] Leader Pearl schools:', [...expandedSchools]);
-    console.log('[NJTCTeam] Filtered ATT rows:', filteredAtt.length, '| STU:', filteredStu.length);
+    console.log('[NJTCTeam] Login schools:', [...loginSchools], '| ATT schools:', [...attLeaderSchools]);
+    console.log('[NJTCTeam] Expanded schools:', [...expandedSchools]);
+    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length);
 
     return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath, tap: filteredTap, concerns };
   }
