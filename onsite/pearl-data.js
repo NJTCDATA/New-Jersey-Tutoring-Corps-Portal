@@ -155,35 +155,37 @@
 
     const gid = PEARL_GIDS[gidName];
 
-    // Two URL strategies in priority order.
-    // /export?format=csv is intentionally excluded — it is CORS-blocked from
-    // GitHub Pages for every cross-origin request and can never succeed there.
-    const candidates = [
-      // 1. Published-to-web 2PACX key (no auth required; sheet must be published via
-      //    File → Share → Publish to web → Entire document → CSV)
-      `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`,
-      // 2. Visualization API — works when sheet is shared "Anyone with the link can view"
-      `https://docs.google.com/spreadsheets/d/${PEARL_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`
-    ];
+    // Primary URL: Published-to-web 2PACX key. Retry up to 3 times with
+    // backoff — Google's publish CDN occasionally returns a transient 404
+    // that resolves on a subsequent request.
+    const pubUrl = `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
+
+    async function tryUrl(url) {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) throw new Error('HTML response — sheet not public');
+      const text = await res.text();
+      if (text.trim().startsWith('<')) throw new Error('HTML body — sheet not public');
+      const rows = parseCSV(text);
+      if (rows.length < 2) throw new Error('Empty or header-only response');
+      return rows;
+    }
 
     let lastErr;
-    for (const url of candidates) {
+    // Retry the pub URL up to 3 times (1s, 2s delays) for transient CDN failures
+    for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-        if (!res.ok) { lastErr = new Error(`HTTP ${res.status} for ${gidName}`); continue; }
-        const ct = res.headers.get('content-type') || '';
-        // Reject HTML responses (Google login redirect or error page)
-        if (ct.includes('text/html')) { lastErr = new Error(`HTML response for ${gidName} — sheet not public`); continue; }
-        const text = await res.text();
-        if (text.trim().startsWith('<')) { lastErr = new Error(`HTML body for ${gidName} — sheet not public`); continue; }
-        const rows = parseCSV(text);
-        if (rows.length > 1) {
-          if (cacheKey) setCache(cacheKey, rows);
-          return rows;
-        }
-      } catch (e) { lastErr = e; }
+        const rows = await tryUrl(pubUrl);
+        if (cacheKey) setCache(cacheKey, rows);
+        return rows;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
+      }
     }
-    throw lastErr || new Error(`Pearl data unavailable — sheet not published or not shared publicly`);
+
+    throw lastErr || new Error(`Pearl data unavailable after retries`);
   }
 
   function safeNum(val) {
@@ -223,7 +225,7 @@
       fetchSheet('sess')
     ]);
 
-    // Attendance is critical — propagate its error so the dashboard shows the error state
+    // ATT is critical; after 3 retries above it only fails on a real publish issue
     if (attRes.status === 'rejected') throw attRes.reason;
 
     const attRows  = attRes.value;
