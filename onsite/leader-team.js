@@ -24,8 +24,46 @@
   const SM_GID    = '457164791';
   const SM_SCHOOLS = new Set(['middlesex stem']);
   // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
-  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylMqeqTl0SBs0PhoQsPajrSbKdIceeKIxlpW6jo76j3fpD5C4JsW1ouK2EnX7D_dBM/exec';
+  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
   const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
+
+  // fetchTapCSV: the Master Roster has 4 header rows before data.
+  // Row 0=title, Row 1=section labels, Row 2=column headers, Row 3=legend, Row 4+=data.
+  // Standard fetchCSV uses row 0 as headers — we need row 2 (index 2).
+  async function fetchTapCSV(url, cacheKey) {
+    if (cacheKey) {
+      const cached = cacheGet(cacheKey);
+      if (cached) return cached;
+    }
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(url, { signal: makeSignal(60000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('HTML — not public');
+        // Parse CSV rows
+        const rows = parseCSV(text);
+        // Row 2 (index 2) contains the real column headers in the Master Roster
+        const hdrRowIdx = rows.findIndex(r => r.some(c => c.trim() === 'Full Name (Display)' || c.trim() === 'Status'));
+        const hdrIdx = hdrRowIdx >= 0 ? hdrRowIdx : 2;
+        const headers = rows[hdrIdx].map(h => h.trim());
+        // Data rows start after headers AND the legend row (hdrIdx + 2)
+        const dataRows = rows.slice(hdrIdx + 2).filter(r => r.some(c => c.trim()));
+        const data = dataRows.map(row => {
+          const obj = {};
+          headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
+          return obj;
+        }).filter(r => r['Full Name (Display)'] || r['Full Name'] || r['Status']);
+        if (cacheKey) cacheSet(cacheKey, data);
+        return data;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+      }
+    }
+    throw lastErr;
+  }
   const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID     = '911694457';
   const CONCERNS_SHEET_ID = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
@@ -369,7 +407,7 @@
     const [irElaR, irMathR, tapR, concernR, ir2526ElaR, ir2526MathR, smR] = await Promise.allSettled([
       fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla),
       fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath),
-      fetchCSV(TAP_URL,                     CACHE_KEYS.tap),
+      fetchTapCSV(TAP_URL,                  CACHE_KEYS.tap),
       fetchCSV(concernsUrl(),               CACHE_KEYS.concerns),
       fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela),
       fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math),
@@ -499,8 +537,9 @@
     const filteredSm = sm;
 
     const filteredTap  = tap.filter(r  => {
-      const site = r['Site'] || r['C'] || '';
-      return leaderDistricts.some(ld => distMatch(site, ld));
+      const site = r['Placement (Site)'] || r['Site / School'] || r['Site'] || r['I'] || '';
+      const fname = r['Full Name (Display)'] || r['Full Name'] || '';
+      return fname.length > 0 && leaderDistricts.some(ld => distMatch(site, ld));
     });
 
     const tapLoaded = tap.length > 0;
@@ -979,7 +1018,7 @@
       // Only show "Not Enrolled" when TAP roster data is confirmed loaded — not when unavailable
       return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
     }
-    const status = (tapData['Status'] || tapData['Apprentice Program Status'] || '').trim();
+    const status = (tapData['Status'] || tapData['Apprentice Program Status'] || tapData['B'] || '').trim();
     if (/active/i.test(status))           return `<span class="njtc-badge njtc-badge-active">TAP Active</span>`;
     if (/prior|complete|graduate/i.test(status)) return `<span class="njtc-badge njtc-badge-prior">TAP Prior</span>`;
     return tapLoaded ? `<span class="njtc-badge njtc-badge-none">Not Enrolled</span>` : '';
@@ -1170,12 +1209,13 @@
     let tapHtml = '';
     if (tap) {
       const tapStatus = tap['Status'] || tap['Apprentice Program Status'] || '';
-      const usdol     = tap['USDOL ID']      || tap['B'] || '—';
-      const phase     = tap['Phase']         || tap['I'] || '—';
-      const wage      = tap['Current Wage']  || tap['F'] || '—';
-      const milestone = tap['Milestone']     || tap['J'] || '—';
+      const usdol     = tap['USDOL Apprentice ID'] || tap['USDOL ID'] || tap['G'] || '—';
+      const ojtPctDisp = tap['OJT % Complete'] || tap['BA'] || '';
+      const phase     = ojtPctDisp ? 'OJT: ' + ojtPctDisp : '—';
+      const wage      = tap['Current Wage Rate ($)'] || tap['Current Wage'] || tap['BG'] || '—';
+      const milestone = tap['Wage Milestone'] || tap['Milestone'] || tap['BH'] || '—';
       const ojtHours  = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
-      const rtiHours  = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
+      const rtiHours  = parseFloat(tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
       const ojtTotal  = 4000, rtiTotal = 288;
       const ojtPct    = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
       const rtiPct    = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
@@ -1804,9 +1844,9 @@
               <label style="${labelStyle}">Program Phase</label>
               <select id="ojt_phase_${nk}" style="${inputStyle}">
                 <option value="">Select phase…</option>
-                <option value="Beginning (Months 1–4)">Beginning (Months 1–4)</option>
-                <option value="Middle (Months 5–8)">Middle (Months 5–8)</option>
-                <option value="End (Months 9–12)">End (Months 9–12)</option>
+                <option value="Beginning (Months 1–4 · September–November)">Beginning (Months 1–4)</option>
+                <option value="Middle (Months 5–8 · November–February)">Middle (Months 5–8)</option>
+                <option value="End (Months 9–12 · March–May)">End (Months 9–12)</option>
               </select>
             </div>
             <div>
