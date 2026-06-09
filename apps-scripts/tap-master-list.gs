@@ -58,65 +58,59 @@ var MR_VETERAN           = 25;  // Z: Veteran Status
 var MR_DISABILITY        = 26;  // AA: Disability Status
 
 // Section C — Credentialing (manual)
+// Total workbook width = 97 columns (A–CS, indices 0–96)
 var MR_TAN               = 27;  // AB: TAN
 var MR_CERT_TYPE         = 28;  // AC: Cert Type
-var MR_EXAM_NAME         = 29;  // AD: Name of Exam
-var MR_CERT_TITLE        = 30;  // AE: Certification Type Title
-var MR_CERT_HOURS        = 31;  // AF: Number of Hours for Cert Training
-var MR_CERT_DATE         = 32;  // AG: Date of Certification
-var MR_COLLEGE_NAME      = 33;  // AH: Name of College
-var MR_COLLEGE_COURSE    = 34;  // AI: College Course Title
-var MR_COLLEGE_CREDITS   = 35;  // AJ: Number of College Credits
-var MR_COLLEGE_DATE      = 36;  // AK: Date of College Credit Award
+// index 29 = AD: ETS Username  (read-only — not written by script)
+// index 30 = AE: ETS Password  (read-only — not written by script)
+var MR_EXAM_NAME         = 31;  // AF: Praxis Exam Name
+var MR_CERT_DATE         = 32;  // AG: Praxis Exam Date
+var MR_CERT_AWARD_DATE   = 33;  // AH: Cert Award Date
+var MR_COLLEGE_NAME      = 34;  // AI: UG Coursework College
+var MR_COLLEGE_COURSE    = 35;  // AJ: UG Course Title
+var MR_COLLEGE_CREDITS   = 36;  // AK: UG Credits
+var MR_COLLEGE_DATE      = 37;  // AL: UG Credit Award Date
 
 // Section D — GAINS/RAPIDs Flags
-var MR_DISLOCATED_WORKER = 37;  // AL: Dislocated Worker (manual)
-var MR_POSTSEC_STUDENT   = 38;  // AM: Post-secondary Student (manual)
-var MR_EX_OFFENDER       = 39;  // AN: Ex-Offender (manual)
-var MR_SINGLE_PARENT     = 40;  // AO: Single Parent (manual)
-var MR_DISP_HOMEMAKER    = 41;  // AP: Displaced Homemaker (manual)
-var MR_HOMELESS          = 42;  // AQ: Homeless Individual (manual)
-var MR_LT_UNEMPLOYED     = 43;  // AR: LT Unemployment (manual)
-var MR_UNEMPLOYED        = 44;  // AS: Unemployed (manual)
-var MR_WOMAN_FLAG        = 45;  // AT: Woman (auto)
-var MR_VETERAN_FLAG      = 46;  // AU: Veteran (auto)
-var MR_MINORITY_FLAG     = 47;  // AV: Minority (auto)
-var MR_DISABILITY_FLAG   = 48;  // AW: Ind. w/ Disabilities (auto)
+var MR_DISLOCATED_WORKER = 38;  // AM: Dislocated Worker (manual)
+var MR_POSTSEC_STUDENT   = 39;  // AN: Post-secondary Student (manual)
+var MR_EX_OFFENDER       = 40;  // AO: Ex-Offender (manual)
+var MR_SINGLE_PARENT     = 41;  // AP: Single Parent (manual)
+var MR_DISP_HOMEMAKER    = 42;  // AQ: Displaced Homemaker (manual)
+var MR_HOMELESS          = 43;  // AR: Homeless Individual (manual)
+var MR_LT_UNEMPLOYED     = 44;  // AS: LT Unemployment (manual)
+var MR_UNEMPLOYED        = 45;  // AT: Unemployed (manual)
+var MR_WOMAN_FLAG        = 46;  // AU: Woman (auto)
+var MR_VETERAN_FLAG      = 47;  // AV: Veteran (auto)
+var MR_MINORITY_FLAG     = 48;  // AW: Minority (auto)
+var MR_DISABILITY_FLAG   = 49;  // AX: Ind. w/ Disabilities (auto)
 
 // Section E — OJT/RTI Totals (auto-calculated)
-var MR_OJT_HOURS_TOTAL   = 49;  // AX: OJT Hours Total (Y_count × 50)
-var MR_RTI_HOURS_TOTAL   = 50;  // AY: RTI Hours Total (SUM of monthly RTI cols)
-var MR_OJT_PCT           = 51;  // AZ: OJT % Complete
-var MR_OJT_Y_COUNT       = 52;  // BA: OJT Activities Marked Y
-var MR_OJT_POSSIBLE      = 53;  // BB: OJT Possible excluding N/A
-var MR_BEG_PCT           = 54;  // BC: Beginning % Complete
-var MR_MID_PCT           = 55;  // BD: Middle % Complete
-var MR_END_PCT           = 56;  // BE: End % Complete
-var MR_CURRENT_WAGE      = 57;  // BF: Current Wage Rate
-var MR_MILESTONE_LABEL   = 58;  // BG: Wage Milestone
-var MR_MILESTONE_DATE    = 59;  // BH: Milestone Date
-var MR_WAGE_INCREASE_TO  = 60;  // BI: Wage Increase To
-var MR_HOURS_COMPLETION  = 61;  // BJ: Hours for Completion (static)
-var MR_PROGRAM_COMPLETE  = 62;  // BK: Program Complete?
-var MR_COMPLETION_DATE   = 63;  // BL: Completion Date
-var MR_CANCEL_DATE       = 64;  // BM: Cancellation Date (manual)
-var MR_PERF_STATUS       = 65;  // BN: Performance Status (manual)
+var MR_OJT_HOURS_TOTAL   = 50;  // AY: OJT Hours Total (Y_count × 50)
+var MR_RTI_HOURS_TOTAL   = 51;  // AZ: RTI Hours Total (SUM of monthly RTI cols)
+var MR_OJT_PCT           = 52;  // BA: OJT % Complete
+var MR_OJT_Y_COUNT       = 53;  // BB: OJT Activities Marked Y
+var MR_OJT_POSSIBLE      = 54;  // BC: OJT Possible excluding N/A
+var MR_BEG_PCT           = 55;  // BD: Beginning % Complete
+var MR_MID_PCT           = 56;  // BE: Middle % Complete
+var MR_END_PCT           = 57;  // BF: End % Complete
+var MR_CURRENT_WAGE      = 58;  // BG: Current Wage Rate
+var MR_MILESTONE_LABEL   = 59;  // BH: Wage Milestone
+var MR_PROGRAM_COMPLETE  = 60;  // BI: Program Complete?
+var MR_COMPLETION_DATE   = 61;  // BJ: Completion Date
+var MR_PERF_STATUS       = 62;  // BK: Performance Status (manual)
 
-// Section F — OJT Monthly Hours (17 months, cols BO(66)–CE(82))
-var MR_OJT_MONTHLY_START = 66;  // BO: Mar-25 OJT
-// Mar-25=66, Apr-25=67, May-25=68, Jun-25=69, Jul-25=70, Aug-25=71,
-// Sep-25=72, Oct-25=73, Nov-25=74, Dec-25=75, Jan-26=76, Feb-26=77,
-// Mar-26=78, Apr-26=79, May-26=80, Jun-26=81, Jul-26=82
+// Section F — OJT Monthly Hours (17 months, cols BL(63)–CB(79))
+var MR_OJT_MONTHLY_START = 63;  // BL: Mar-25 OJT
+// Mar-25=63, Apr-25=64, May-25=65, Jun-25=66, Jul-25=67, Aug-25=68,
+// Sep-25=69, Oct-25=70, Nov-25=71, Dec-25=72, Jan-26=73, Feb-26=74,
+// Mar-26=75, Apr-26=76, May-26=77, Jun-26=78, Jul-26=79
 
-// Section G — RTI Monthly Hours (17 months, cols CF(83)–CV(99)) + 4 type cols
-var MR_RTI_MONTHLY_START = 83;  // CF: Mar-25 RTI
-// Mar-25=83, Apr-25=84, May-25=85, Jun-25=86, Jul-25=87, Aug-25=88,
-// Sep-25=89, Oct-25=90, Nov-25=91, Dec-25=92, Jan-26=93, Feb-26=94,
-// Mar-26=95, Apr-26=96, May-26=97, Jun-26=98, Jul-26=99
-var MR_RTI_UG            = 100; // CW: UG/Graduate Coursework hours
-var MR_RTI_COACHING      = 101; // CX: Coaching/PD hours
-var MR_RTI_PRAXIS        = 102; // CY: Praxis Exam Prep hours
-var MR_RTI_INDIVIDUAL    = 103; // CZ: Individual RTI Sessions hours
+// Section G — RTI Monthly Hours (17 months, cols CC(80)–CS(96))
+var MR_RTI_MONTHLY_START = 80;  // CC: Mar-25 RTI
+// Mar-25=80, Apr-25=81, May-25=82, Jun-25=83, Jul-25=84, Aug-25=85,
+// Sep-25=86, Oct-25=87, Nov-25=88, Dec-25=89, Jan-26=90, Feb-26=91,
+// Mar-26=92, Apr-26=93, May-26=94, Jun-26=95, Jul-26=96
 
 // ─── OJT LOG COLUMN INDICES (0-based) ────────────────────────────────────────
 var OJT_TIMESTAMP   = 0;   // A: Timestamp
@@ -273,12 +267,12 @@ function onFormSubmit(e) {
 
     if (targetRow < 0) {
       // Append new row
-      rSheet.appendRow(new Array(104).fill(''));
+      rSheet.appendRow(new Array(97).fill(''));
       targetRow = rSheet.getLastRow();
     }
 
     // Write values
-    var r = rSheet.getRange(targetRow, 1, 1, 104).getValues()[0];
+    var r = rSheet.getRange(targetRow, 1, 1, 97).getValues()[0];
 
     // Section A — Admin Metadata (only set if blank on new row)
     if (!r[MR_DATE_REGISTERED])  rSheet.getRange(targetRow, MR_DATE_REGISTERED + 1).setValue(today);
@@ -417,8 +411,6 @@ function onOJTLogSubmit(e) {
           var curRTI    = parseFloat(rSheet.getRange(rosterRow.rowIndex, rtiColIdx + 1).getValue()) || 0;
           rSheet.getRange(rosterRow.rowIndex, rtiColIdx + 1).setValue(curRTI + rtiHours);
         }
-        // Write to RTI type breakdown (CW:CZ)
-        _addRTITypeHours(rSheet, rosterRow.rowIndex, rtiTypes, rtiHours);
       }
       recalculateTotals(apprentice);
       return;
@@ -431,30 +423,6 @@ function onOJTLogSubmit(e) {
 
   } catch (err) {
     _handleError('onOJTLogSubmit', err);
-  }
-}
-
-/**
- * Writes RTI hours into the type-breakdown columns (CW:CZ) based on RTI type checkboxes.
- */
-function _addRTITypeHours(rSheet, rowIndex, rtiTypes, hours) {
-  var typesLower = rtiTypes.toLowerCase();
-  var hoursEach  = hours; // full hours go to each checked type
-  if (typesLower.indexOf('ug') >= 0 || typesLower.indexOf('graduate') >= 0 || typesLower.indexOf('coursework') >= 0) {
-    var cur = parseFloat(rSheet.getRange(rowIndex, MR_RTI_UG + 1).getValue()) || 0;
-    rSheet.getRange(rowIndex, MR_RTI_UG + 1).setValue(cur + hoursEach);
-  }
-  if (typesLower.indexOf('coaching') >= 0 || typesLower.indexOf('pd') >= 0 || typesLower.indexOf('professional') >= 0) {
-    var cur2 = parseFloat(rSheet.getRange(rowIndex, MR_RTI_COACHING + 1).getValue()) || 0;
-    rSheet.getRange(rowIndex, MR_RTI_COACHING + 1).setValue(cur2 + hoursEach);
-  }
-  if (typesLower.indexOf('praxis') >= 0) {
-    var cur3 = parseFloat(rSheet.getRange(rowIndex, MR_RTI_PRAXIS + 1).getValue()) || 0;
-    rSheet.getRange(rowIndex, MR_RTI_PRAXIS + 1).setValue(cur3 + hoursEach);
-  }
-  if (typesLower.indexOf('individual') >= 0) {
-    var cur4 = parseFloat(rSheet.getRange(rowIndex, MR_RTI_INDIVIDUAL + 1).getValue()) || 0;
-    rSheet.getRange(rowIndex, MR_RTI_INDIVIDUAL + 1).setValue(cur4 + hoursEach);
   }
 }
 
@@ -552,7 +520,7 @@ function recalculateTotals(apprenticeName) {
     var endPct = (endPossible > 0) ? (endY / endPossible) : 0;
 
     // ── RTI Hours Total: SUM monthly RTI cols (CF:CV = indices 83–99) ─────────
-    var rosterData  = rSheet.getRange(rowIndex, 1, 1, 104).getValues()[0];
+    var rosterData  = rSheet.getRange(rowIndex, 1, 1, 97).getValues()[0];
     var rtiTotal    = 0;
     for (var m = 0; m < 17; m++) {
       rtiTotal += parseFloat(rosterData[MR_RTI_MONTHLY_START + m]) || 0;
@@ -575,9 +543,6 @@ function recalculateTotals(apprenticeName) {
     rSheet.getRange(rowIndex, MR_BEG_PCT         + 1).setValue(begPct);
     rSheet.getRange(rowIndex, MR_MID_PCT         + 1).setValue(midPct);
     rSheet.getRange(rowIndex, MR_END_PCT         + 1).setValue(endPct);
-
-    // Static completion hours label
-    rSheet.getRange(rowIndex, MR_HOURS_COMPLETION + 1).setValue('4000 OJT + 288 RTI');
 
     // ── Milestone & alert ─────────────────────────────────────────────────────
     checkMilestoneAndAlert(apprenticeName, prevOJTHours, ojtHours);
@@ -625,7 +590,7 @@ function checkMilestoneAndAlert(apprenticeName, prevHours, newHours) {
     if (!rosterRow) return;
 
     var rowIndex   = rosterRow.rowIndex;
-    var rosterData = rSheet.getRange(rowIndex, 1, 1, 104).getValues()[0];
+    var rosterData = rSheet.getRange(rowIndex, 1, 1, 97).getValues()[0];
 
     // Determine new wage tier
     var newTier  = _wageTierForHours(newHours);
@@ -649,8 +614,6 @@ function checkMilestoneAndAlert(apprenticeName, prevHours, newHours) {
     // Write to Master Roster
     rSheet.getRange(rowIndex, MR_CURRENT_WAGE    + 1).setValue(newWage);
     rSheet.getRange(rowIndex, MR_MILESTONE_LABEL + 1).setValue(milestoneLabel);
-    rSheet.getRange(rowIndex, MR_MILESTONE_DATE  + 1).setValue(today);
-    rSheet.getRange(rowIndex, MR_WAGE_INCREASE_TO+ 1).setValue(newWage);
 
     // Gather context for email
     var dolId      = String(rosterData[MR_DOL_ID] || '');
