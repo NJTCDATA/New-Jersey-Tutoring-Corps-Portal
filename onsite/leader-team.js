@@ -188,16 +188,26 @@
   /* ─────────────────────────────────────────────
      FETCH HELPERS
   ───────────────────────────────────────────── */
+  // Cross-browser abort signal with timeout (AbortSignal.timeout not in older Safari/iOS)
+  function makeSignal(ms) {
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+      return AbortSignal.timeout(ms);
+    }
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), ms);
+    return ctrl.signal;
+  }
+
   async function fetchCSV(url, cacheKey, timeoutMs) {
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
       if (cached) return cached;
     }
-    const ms = timeoutMs || 60000; // default 60s — Pearl STU is large
+    const ms = timeoutMs || 60000;
     let lastErr;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(ms) });
+        const res = await fetch(url, { signal: makeSignal(ms) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
         if (text.trim().startsWith('<')) throw new Error('HTML response — sheet not public');
@@ -235,30 +245,58 @@
   }
 
   /* ─────────────────────────────────────────────
-     LEADER DETECTION (from HR Master List)
+     LEADER DETECTION
+  ─────────────────────────────────────────────
+     Primary: HR Master List (pub CSV, cached)
+     Fallback: Pearl ATT non-Instructor rows
+               (works when HR pub URL is unavailable)
   ───────────────────────────────────────────── */
   async function detectLeader(userProfile) {
-    let hrRows;
+    // Try HR list first (authoritative)
     try {
-      hrRows = await fetchCSV(hrUrl(), CACHE_KEYS.hr, 30000);
+      const hrRows = await fetchCSV(hrUrl(), CACHE_KEYS.hr, 20000);
+      const active = hrRows.filter(r =>
+        r['Academic Year'] === '2025-2026' &&
+        r['Active / Terminated Status'] === 'Active'
+      );
+      const matchRow = active.find(r =>
+        normName(r['Full Name']) === normName(userProfile.name) ||
+        (r['Email Address'] && r['Email Address'].toLowerCase() === (userProfile.email || '').toLowerCase())
+      );
+      if (matchRow) {
+        const role = (matchRow['Position / Role'] || '').trim();
+        if (LEADER_ROLES.has(role)) {
+          const siteField = matchRow['Site / School'] || '';
+          const districts = siteField.split(',').map(s => s.trim()).filter(Boolean);
+          return { role, districts, siteField, source: 'hr' };
+        }
+      }
     } catch (e) {
-      console.warn('[NJTCTeam] Could not fetch HR list:', e);
-      return null;
+      console.warn('[NJTCTeam] HR list unavailable, trying ATT fallback:', e.message);
     }
-    const active = hrRows.filter(r =>
-      r['Academic Year'] === '2025-2026' &&
-      r['Active / Terminated Status'] === 'Active'
-    );
-    const matchRow = active.find(r =>
-      normName(r['Full Name']) === normName(userProfile.name) ||
-      (r['Email Address'] && r['Email Address'].toLowerCase() === (userProfile.email || '').toLowerCase())
-    );
-    if (!matchRow) return null;
-    const role = (matchRow['Position / Role'] || '').trim();
-    if (!LEADER_ROLES.has(role)) return null;
-    const siteField = matchRow['Site / School'] || '';
-    const districts = siteField.split(',').map(s => s.trim()).filter(Boolean);
-    return { role, districts, siteField };
+
+    // Fallback: detect leader role from Pearl ATT sheet
+    // Non-Instructor rows belong to SCs / ICs / Dual Role staff
+    try {
+      const attRows = cacheGet(CACHE_KEYS.att) ||
+        await fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att, 60000);
+      const leaderNorm = normName(userProfile.name || '');
+      const leaderRows = attRows.filter(r => {
+        const role = (r['Role'] || '').trim();
+        const u    = normName(r['User'] || '');
+        return u === leaderNorm && role !== 'Instructor' && role !== 'Student';
+      });
+      if (leaderRows.length > 0) {
+        const role = leaderRows[0]['Role'] || 'Site Coordinator';
+        const schools = [...new Set(leaderRows.map(r => (r['School'] || r['Site'] || '').trim()).filter(Boolean))];
+        console.log('[NJTCTeam] Leader detected via ATT fallback:', role, schools);
+        return { role, districts: schools, siteField: schools.join(', '), source: 'att' };
+      }
+    } catch (e) {
+      console.warn('[NJTCTeam] ATT fallback also failed:', e.message);
+    }
+
+    return null;
   }
 
   /* ─────────────────────────────────────────────
@@ -1500,12 +1538,23 @@
     const container = document.getElementById('njtcTeamContainer');
     if (!container) return;
 
-    container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading team data…</div>`;
+    container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Connecting to Pearl Operations…</div>`;
 
-    // Detect leader role (uses HR list — cached after first load)
-    const leaderInfo = await detectLeader(userProfile);
+    // Detect leader role — HR list primary, Pearl ATT fallback
+    let leaderInfo;
+    try {
+      leaderInfo = await detectLeader(userProfile);
+    } catch(e) {
+      leaderInfo = null;
+    }
     if (!leaderInfo) {
-      container.innerHTML = `<div style="color:#94a3b8;padding:32px;text-align:center">You do not appear to have a leader role in the HR system for 2025–2026.</div>`;
+      container.innerHTML = `<div style="color:#94a3b8;padding:32px;text-align:center">
+        Unable to verify leader role. If you are a Site Coordinator or Instructional Coach,
+        please contact your administrator.<br><br>
+        <button onclick="window.NJTCTeam.refresh()" style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-size:.85rem">
+          Try Again
+        </button>
+      </div>`;
       return;
     }
 
@@ -1515,13 +1564,21 @@
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
 
+    container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading attendance data…</div>`;
+
     // ── PHASE 1a: ATT + Login → render roster immediately ────────────────────
     let base;
     try {
       base = await loadAttAndLogin();
     } catch (e) {
       console.error('[NJTCTeam] ATT/Login load failed:', e);
-      container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
+      container.innerHTML = `<div style="color:#ef4444;padding:32px">
+        Could not load team data. Pearl data source may be temporarily unavailable.
+        <br><br>
+        <button onclick="window.NJTCTeam.refresh()" style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:8px 20px;cursor:pointer;font-size:.85rem">
+          Refresh
+        </button>
+      </div>`;
       return;
     }
 
