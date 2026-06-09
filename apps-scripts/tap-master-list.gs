@@ -58,7 +58,7 @@ var MR_VETERAN           = 25;  // Z: Veteran Status
 var MR_DISABILITY        = 26;  // AA: Disability Status
 
 // Section C — Credentialing (manual)
-// Total workbook width = 97 columns (A–CS, indices 0–96)
+// Total sheet width = 97 columns (A–CS, indices 0–96)
 var MR_TAN               = 27;  // AB: TAN
 var MR_CERT_TYPE         = 28;  // AC: Cert Type
 // index 29 = AD: ETS Username  (read-only — not written by script)
@@ -590,7 +590,7 @@ function checkMilestoneAndAlert(apprenticeName, prevHours, newHours) {
     if (!rosterRow) return;
 
     var rowIndex   = rosterRow.rowIndex;
-    var rosterData = rSheet.getRange(rowIndex, 1, 1, 97).getValues()[0];
+    var rosterData = rSheet.getRange(rowIndex, 1, 1, 104).getValues()[0];
 
     // Determine new wage tier
     var newTier  = _wageTierForHours(newHours);
@@ -1300,7 +1300,6 @@ function _handleError(fnName, err) {
 function buildOJTFormURL(apprenticeName, phase, domain, activity, completed) {
   var base = 'https://docs.google.com/forms/d/1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ/viewform';
   var params = [
-    'entry.338482221='  + encodeURIComponent('OJT Activity completion'),
     'entry.1113592438=' + encodeURIComponent(apprenticeName || ''),
     'entry.2084410404=' + encodeURIComponent(phase          || ''),
     'entry.1916953177=' + encodeURIComponent(domain         || ''),
