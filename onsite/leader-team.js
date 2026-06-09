@@ -1142,9 +1142,9 @@
       /* KPI Strip */
       .njtc-kpi-strip { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:28px; }
       .njtc-kpi-card { flex:1 1 130px; min-width:130px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:16px 14px; }
-      .njtc-kpi-label { font-size:0.72rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; }
+      .njtc-kpi-label { font-size:0.72rem; color:#ffffff; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; }
       .njtc-kpi-value { font-size:1.6rem; font-weight:700; line-height:1; }
-      .njtc-kpi-sub { font-size:0.72rem; color:#94a3b8; margin-top:4px; }
+      .njtc-kpi-sub { font-size:0.72rem; color:#e2e8f0; margin-top:4px; }
 
       /* Section headers */
       .njtc-section-title { font-size:1rem; font-weight:700; color:#FFB81C; text-transform:uppercase; letter-spacing:0.06em; margin:24px 0 14px; border-left:3px solid #FFB81C; padding-left:10px; }
@@ -1159,7 +1159,7 @@
       .njtc-card-header { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
       .njtc-avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:700; color:#fff; flex-shrink:0; }
       .njtc-card-name { font-size:0.95rem; font-weight:600; }
-      .njtc-card-role { font-size:0.75rem; color:#94a3b8; margin-top:2px; }
+      .njtc-card-role { font-size:0.75rem; color:#e2e8f0; margin-top:2px; }
 
       .njtc-badge { display:inline-block; font-size:0.65rem; font-weight:700; border-radius:20px; padding:2px 8px; margin-left:6px; vertical-align:middle; }
       .njtc-badge-active { background:#FFB81C22; color:#FFB81C; border:1px solid #FFB81C55; }
@@ -1169,7 +1169,7 @@
       .njtc-metrics-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
       .njtc-metric { background:rgba(0,0,0,0.2); border-radius:8px; padding:8px 10px; }
       .njtc-metric-val { font-size:1.1rem; font-weight:700; }
-      .njtc-metric-label { font-size:0.65rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.04em; }
+      .njtc-metric-label { font-size:0.65rem; color:#ffffff; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
 
       .njtc-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
       .njtc-chip { font-size:0.7rem; border-radius:20px; padding:3px 9px; background:rgba(255,255,255,0.07); color:#cbd5e1; }
@@ -1193,7 +1193,7 @@
       .njtc-detail-header { display:flex; gap:16px; align-items:flex-start; margin-bottom:24px; padding-top:8px; }
       .njtc-detail-avatar { width:68px; height:68px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:700; color:#fff; flex-shrink:0; }
       .njtc-detail-name { font-size:1.3rem; font-weight:700; }
-      .njtc-detail-sub { font-size:0.82rem; color:#94a3b8; margin-top:3px; }
+      .njtc-detail-sub { font-size:0.82rem; color:#e2e8f0; margin-top:3px; }
       .njtc-att-big { font-size:2rem; font-weight:800; margin-top:6px; }
 
       /* Concerns */
@@ -1208,9 +1208,9 @@
       .njtc-tap-title { font-size:0.78rem; color:#FFB81C; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:12px; }
       .njtc-tap-meta { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
       .njtc-tap-field { font-size:0.8rem; }
-      .njtc-tap-field span { color:#94a3b8; }
+      .njtc-tap-field span { color:#ffffff; font-weight:600; }
       .njtc-progress-row { margin-bottom:10px; }
-      .njtc-progress-label { display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; margin-bottom:4px; }
+      .njtc-progress-label { display:flex; justify-content:space-between; font-size:0.75rem; color:#e2e8f0; font-weight:600; margin-bottom:4px; }
       .njtc-progress-bar { height:8px; border-radius:4px; background:rgba(255,255,255,0.07); overflow:hidden; }
       .njtc-progress-fill { height:100%; border-radius:4px; transition:width 0.4s; }
       .njtc-progress-fill.ojt { background:#1C7C8C; }
@@ -1224,10 +1224,10 @@
       .njtc-kpi-mini-row { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
       .njtc-kpi-mini { background:rgba(0,0,0,0.25); border-radius:8px; padding:10px 14px; flex:1 1 80px; }
       .njtc-kpi-mini-val { font-size:1.2rem; font-weight:700; }
-      .njtc-kpi-mini-label { font-size:0.65rem; color:#94a3b8; text-transform:uppercase; }
+      .njtc-kpi-mini-label { font-size:0.65rem; color:#ffffff; font-weight:600; text-transform:uppercase; }
 
       .njtc-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
-      .njtc-table th { text-align:left; padding:7px 10px; background:rgba(0,0,0,0.3); color:#94a3b8; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.04em; }
+      .njtc-table th { text-align:left; padding:7px 10px; background:rgba(28,124,140,0.3); color:#ffffff; font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
       .njtc-table td { padding:7px 10px; border-bottom:1px solid rgba(255,255,255,0.04); }
       .njtc-table tr:nth-child(even) td { background:rgba(255,255,255,0.02); }
       .njtc-table td.flag-red { color:#ef4444; }
@@ -1238,13 +1238,13 @@
       .njtc-survey-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px; }
       .njtc-survey-card { background:rgba(0,0,0,0.2); border-radius:8px; padding:10px 14px; text-align:center; }
       .njtc-survey-val { font-size:1.4rem; font-weight:700; }
-      .njtc-survey-label { font-size:0.68rem; color:#94a3b8; text-transform:uppercase; }
+      .njtc-survey-label { font-size:0.68rem; color:#ffffff; font-weight:600; text-transform:uppercase; }
 
       /* iReady */
       .njtc-ir-meta { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
       .njtc-ir-stat { background:rgba(0,0,0,0.2); border-radius:8px; padding:10px; text-align:center; }
       .njtc-ir-stat-val { font-size:1.1rem; font-weight:700; }
-      .njtc-ir-stat-label { font-size:0.65rem; color:#94a3b8; }
+      .njtc-ir-stat-label { font-size:0.65rem; color:#ffffff; font-weight:600; }
 
       /* Divider */
       .njtc-divider { border:none; border-top:1px solid rgba(255,255,255,0.07); margin:20px 0; }
@@ -1463,28 +1463,106 @@
 
     let tapHtml = '';
     if (tap) {
-      const tapStatus = tap['Status'] || tap['Apprentice Program Status'] || '';
-      const usdol     = tap['USDOL Apprentice ID'] || tap['USDOL ID'] || tap['G'] || '—';
-      const ojtPctDisp = tap['OJT % Complete'] || tap['BA'] || '';
-      const phase     = ojtPctDisp ? 'OJT: ' + ojtPctDisp : '—';
-      const wage      = tap['Current Wage Rate ($)'] || tap['Current Wage'] || tap['BG'] || '—';
-      const milestone = tap['Wage Milestone'] || tap['Milestone'] || tap['BH'] || '—';
-      const ojtHours  = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
-      const rtiHours  = parseFloat(tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
-      const ojtTotal  = 4000, rtiTotal = 288;
-      const ojtPct    = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
-      const rtiPct    = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
+      const tapStatus  = tap['Status'] || tap['Apprentice Program Status'] || '';
+      const usdol      = tap['USDOL Apprentice ID'] || tap['USDOL ID'] || tap['G'] || '\u2014';
+      const ojtPctRaw  = parseFloat(tap['OJT % Complete'] || tap['BA'] || 0);
+      const ojtPctDisp = Math.round(ojtPctRaw * 100) + '%';
+      const wage       = tap['Current Wage Rate ($)'] || tap['Current Wage'] || tap['BG'] || '\u2014';
+      const milestone  = tap['Wage Milestone'] || tap['Milestone'] || tap['BH'] || '\u2014';
+      const ojtHours   = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
+      const rtiHours   = parseFloat(tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
+      const yCount     = parseFloat(tap['OJT Activities Marked Y'] || tap['BB'] || 0);
+      const possible   = parseFloat(tap['OJT Possible (excl N/A)'] || tap['BC'] || 78);
+      const begPct     = Math.round((parseFloat(tap['Beginning % Complete'] || tap['BD'] || 0)) * 100);
+      const midPct     = Math.round((parseFloat(tap['Middle % Complete']    || tap['BE'] || 0)) * 100);
+      const endPct     = Math.round((parseFloat(tap['End % Complete']       || tap['BF'] || 0)) * 100);
+      const ojtTotal   = 4000, rtiTotal = 288;
+      const ojtPct     = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
+      const rtiPct     = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
+
+      // Monthly OJT activity counts from the Completion Summary CSV tap row
+      const MONTH_KEYS_OJT = [
+        'Mar-25 OJT','Apr-25 OJT','May-25 OJT','Jun-25 OJT','Jul-25 OJT',
+        'Aug-25 OJT','Sep-25 OJT','Oct-25 OJT','Nov-25 OJT','Dec-25 OJT',
+        'Jan-26 OJT','Feb-26 OJT','Mar-26 OJT','Apr-26 OJT','May-26 OJT',
+        'Jun-26 OJT','Jul-26 OJT'
+      ];
+      const MONTH_DISP_OJT = [
+        'Mar-25','Apr-25','May-25','Jun-25','Jul-25','Aug-25','Sep-25','Oct-25',
+        'Nov-25','Dec-25','Jan-26','Feb-26','Mar-26','Apr-26','May-26','Jun-26','Jul-26'
+      ];
+      let cumActs = 0;
+      const monthRowsHtml = MONTH_KEYS_OJT.map((key, i) => {
+        const hrs = parseFloat(tap[key] || 0);
+        const cnt = hrs > 0 ? Math.round(hrs / 50) : 0;
+        cumActs += cnt;
+        if (cnt === 0 && cumActs === 0) return '';
+        const bw = Math.min(100, Math.round(cnt / 6 * 100));
+        return cnt > 0
+          ? `<tr style="border-bottom:1px solid rgba(255,255,255,.05)">
+              <td style="padding:4px 6px;font-size:.72rem;color:#e2e8f0;white-space:nowrap">${MONTH_DISP_OJT[i]}</td>
+              <td style="padding:4px 6px;font-size:.72rem;font-weight:700;color:#34d399">${cnt}</td>
+              <td style="padding:4px 6px;font-size:.72rem;color:#94a3b8">${hrs.toFixed(0)} hrs</td>
+              <td style="padding:4px 6px;font-size:.72rem;color:#1C7C8C;font-weight:700">${cumActs}</td>
+              <td style="padding:4px 6px;min-width:50px"><div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px"><div style="height:5px;background:#1C7C8C;border-radius:3px;width:${bw}%"></div></div></td>
+            </tr>`
+          : '';
+      }).join('');
 
       tapHtml = `
         <div class="njtc-tap-block">
           <div class="njtc-tap-title">TAP Apprenticeship${badge}</div>
-          <div class="njtc-tap-meta">
+
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:12px;padding:10px 12px;background:rgba(28,124,140,.2);border-radius:8px">
+            <div style="text-align:center;flex-shrink:0">
+              <div style="font-size:2rem;font-weight:800;color:${ojtPct>=100?'#34d399':ojtPct>=75?'#fbbf24':'#f97316'}">${ojtPctDisp}</div>
+              <div style="font-size:.65rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.07em">OJT Complete</div>
+            </div>
+            <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.75rem">
+              <span style="color:#ffffff;font-weight:700">Activities</span><span style="color:#e2e8f0">${yCount} of ${possible} Y</span>
+              <span style="color:#ffffff;font-weight:700">OJT Hours</span><span style="color:#e2e8f0">${ojtHours.toLocaleString()} / 4,000</span>
+              <span style="color:#ffffff;font-weight:700">RTI Hours</span><span style="color:#e2e8f0">${rtiHours} / 288</span>
+              <span style="color:#ffffff;font-weight:700">Wage</span><span style="color:#34d399;font-weight:700">${wage !== '\u2014' ? '$'+wage+'/hr' : '\u2014'}</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px">
+            ${[['Beginning',begPct,'#059669'],['Middle',midPct,'#1B3A6B'],['End',endPct,'#7c3aed']].map(([lbl,pct,col]) => `
+              <div style="margin-bottom:6px">
+                <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:3px">
+                  <span style="color:#ffffff;font-weight:600">${lbl}</span>
+                  <span style="color:${col};font-weight:700">${pct}%</span>
+                </div>
+                <div style="height:6px;background:rgba(255,255,255,.08);border-radius:3px">
+                  <div style="height:6px;background:${col};border-radius:3px;width:${Math.min(100,pct)}%;transition:width .4s"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          ${monthRowsHtml ? `
+          <div style="margin-bottom:12px">
+            <div style="font-size:.7rem;color:#ffffff;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">Monthly OJT Activity Count</div>
+            <div style="overflow-y:auto;max-height:150px">
+              <table style="width:100%;border-collapse:collapse">
+                <thead><tr style="background:rgba(28,124,140,.25)">
+                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Month</th>
+                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Y</th>
+                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Hrs</th>
+                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700;text-align:left">Cumul.</th>
+                  <th style="padding:3px 6px;font-size:.67rem;color:#ffffff;font-weight:700"></th>
+                </tr></thead>
+                <tbody>${monthRowsHtml}</tbody>
+              </table>
+            </div>
+          </div>` : ''}
+
+          <div class="njtc-tap-meta" style="margin-bottom:10px">
             <div class="njtc-tap-field"><span>USDOL ID: </span>${escHtml(usdol)}</div>
-            <div class="njtc-tap-field"><span>Phase: </span>${escHtml(phase)}</div>
-            <div class="njtc-tap-field"><span>Current Wage: </span>${escHtml(wage)}</div>
             <div class="njtc-tap-field"><span>Milestone: </span>${escHtml(milestone)}</div>
             <div class="njtc-tap-field"><span>Status: </span>${escHtml(tapStatus)}</div>
           </div>
+
           <div class="njtc-progress-row">
             <div class="njtc-progress-label"><span>OJT Hours</span><span>${ojtHours} / ${ojtTotal} (${ojtPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:${ojtPct}%"></div></div>
@@ -1493,12 +1571,9 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${normName(name).replace(/\s+/g,'_')}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
-            style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:8px">
-            📋 Log OJT Activity
-          </button>
         </div>
       `;
+
     } else {
       tapHtml = '';
     }
@@ -1803,7 +1878,20 @@
       <div class="njtc-section-block" style="border-color:#1C7C8C44">
         <div class="njtc-section-block-title" style="display:flex;justify-content:space-between;align-items:center">
           📋 Log OJT Activity
-          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${nk}');b.style.display=b.style.display==='none'?'block':'none';})()"
+          <button onclick="(function(){
+              var b=document.getElementById('ojtFormBody_${nk}');
+              var opening=b.style.display==='none'||b.style.display==='';
+              b.style.display=opening?'block':'none';
+              if(opening){
+                var ph=document.getElementById('ojt_phase_${nk}');
+                var dm=document.getElementById('ojt_domain_${nk}');
+                if(ph)ph.value='';if(dm)dm.value='';
+                var cl=document.getElementById('ojt_checklist_${nk}');
+                if(cl)cl.innerHTML='<div style="color:#64748b;font-size:.73rem;padding:6px">Select a phase and domain to see activities…</div>';
+                var cs=document.getElementById('ojt_selected_count_${nk}');
+                if(cs){cs.textContent='0 activities selected';cs.style.color='#94a3b8';}
+              }
+            })()"
             id="ojtToggleBtn_${nk}"
             style="font-size:.72rem;background:rgba(28,124,140,.15);border:1px solid #1C7C8C44;color:#1C7C8C;padding:3px 10px;border-radius:5px;cursor:pointer">
             Toggle Form
@@ -2378,7 +2466,13 @@
     const rtiType        = get('ojt_rti_type');
 
     // Collect checked activity checkboxes
+    // Guard: clear stale boxes if phase or domain is empty
     const checklistDiv = document.getElementById('ojt_checklist_' + k);
+    if (checklistDiv && (!phase || !domain)) {
+      checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+      const cs = document.getElementById('ojt_selected_count_' + k);
+      if (cs) { cs.textContent = '0 activities selected'; cs.style.color = '#94a3b8'; }
+    }
     const checkedBoxes = checklistDiv
       ? Array.from(checklistDiv.querySelectorAll('input[type=checkbox]:checked'))
       : [];
