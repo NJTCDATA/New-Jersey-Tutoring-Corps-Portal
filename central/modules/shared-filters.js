@@ -42,14 +42,43 @@
     mgmtTabs.forEach(b => b.style.display = (dept === 'training') ? '' : 'none');
 
     // Data + Programming dept: show T&D/Apprentice Analytics sidebar link
+    // Also show for Finance, HR, Leadership, and KB as a dedicated TAP section
     const dataTDBtns = document.querySelectorAll('.dept-nav-td-data');
+    const TAP_VISIBLE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
     dataTDBtns.forEach(b => {
-      b.style.display = (dept === 'data' || dept === 'programming') ? '' : 'none';
+      b.style.display = TAP_VISIBLE_DEPTS.includes(dept) ? '' : 'none';
       if (dept === 'programming') {
+        b.textContent = '🎓 Apprentice Analytics';
+        b.title = 'TAP apprentice outcomes — OJT progress, academic data, attendance, and site leader cohorts';
+      } else if (dept === 'finance') {
+        b.textContent = '🎓 TAP Apprenticeship';
+        b.title = 'TAP apprentice program — wage milestones, hours progress, and completion tracking';
+      } else if (dept === 'hr') {
+        b.textContent = '🎓 TAP Apprenticeship';
+        b.title = 'TAP apprentice roster — enrollment status, GAINS compliance, and program milestones';
+      } else if (dept === 'leadership' || dept === 'kb') {
+        b.textContent = '🎓 Apprenticeship Program';
+        b.title = 'TAP program overview — active apprentices, program completion, and workforce pipeline impact';
+      } else if (dept === 'training') {
+        b.textContent = '🎓 T&D Analytics';
+        b.title = 'Training and Development program performance and OJT apprenticeship data';
+      } else {
         b.textContent = '🎓 Apprentice Analytics';
         b.title = 'TAP apprentice outcomes — OJT progress, academic data, attendance, and site leader cohorts';
       }
     });
+    // TAP Standalone Dashboard — visible to all departments that interact with the apprenticeship program
+    const TAP_STANDALONE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
+    document.querySelectorAll('.dept-nav-tap-standalone').forEach(b =>
+      b.style.display = TAP_STANDALONE_DEPTS.includes(dept) ? '' : 'none'
+    );
+
+    // TAP sub-tab visibility rules (some tabs are dept-specific)
+    const tapFinanceTabs = document.querySelectorAll('.dept-tap-finance');
+    tapFinanceTabs.forEach(b => b.style.display = ['finance', 'hr', 'leadership', 'kb', 'data'].includes(dept) ? '' : 'none');
+    const tapLogTabs = document.querySelectorAll('.dept-tap-log');
+    tapLogTabs.forEach(b => b.style.display = ['programming', 'training', 'data'].includes(dept) ? '' : 'none');
+
     // T&D PDF button — visible for data, leadership, kb, and training depts
     const execPDFBtn = document.getElementById('tdExecPDFBtn');
     if (execPDFBtn) {
@@ -175,6 +204,33 @@
 
   // ════════════════════════════════════════════════════════════════
   //  HR ANALYTICS — Escalation pipeline, risk, action queue
+
+  // ── TAP panel sub-tab switcher ─────────────────────────────
+  window.tapShowTab = function(id, btn) {
+    document.querySelectorAll('#tapTabNav .pst-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.querySelectorAll('[id^="tap-content-"]').forEach(el => el.style.display = 'none');
+    const target = document.getElementById('tap-content-' + id);
+    if (target) {
+      target.style.display = '';
+      if (!target.dataset.loaded) {
+        target.dataset.loaded = '1';
+        if (window.NJTCTapDash && typeof window.NJTCTapDash.renderTab === 'function') {
+          window.NJTCTapDash.renderTab(id, target);
+        } else {
+          // Delegate to Training & Development module which has the full TAP dataset
+          if (id === 'overview' || id === 'roster' || id === 'ojt' || id === 'milestones') {
+            target.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Loading TAP data… make sure training-development.js is loaded.</div>';
+            if (window.tdShowTab) {
+              // Re-use the apprentice tab from T&D for cross-portal consistency
+              if (id === 'ojt' || id === 'overview') window.tdShowTab('apprentice', null);
+              if (id === 'ojt-log') window.tdShowTab('otj-overview', null);
+            }
+          }
+        }
+      }
+    }
+  };
 
   // ── Expose to global scope ───────────────────────────────────────────────
   window.initDeptNav           = initDeptNav;
