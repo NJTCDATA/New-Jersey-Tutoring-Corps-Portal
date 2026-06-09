@@ -2817,9 +2817,9 @@
     if (!resp.ok) throw new Error('HTTP ' + resp.status + ' fetching ' + label);
     const text = await resp.text();
     // Parse without skipping rows — first row = headers
-    const rows = parseCsvText(text.replace(/\r\n/g,'\n').replace(/\r/g,'\n'), 0);
-    _apprPearlCache[gid] = { rows, ts: now };
-    return rows;
+    const parsed = parseCsvText(text.replace(/\r\n/g,'\n').replace(/\r/g,'\n'), 0);
+    _apprPearlCache[gid] = { rows: parsed.rows, ts: now };
+    return parsed.rows;
   }
 
   function _apprNorm(n) {

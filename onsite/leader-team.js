@@ -7,9 +7,13 @@
   const PEARL_KEY  = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const PEARL_ATT_GID  = '702726038';
   const PEARL_STU_GID  = '1245403832';
+  // Pearl Login/ID sheet — holds staff name, email, Pearl username, school assignment, district
+  const PEARL_LOGIN_KEY = '2PACX-1vS2fgss4HiKpr61wJ2_si8klythckgGZ3yOYer4FSAdThkQz-X1cdL83xbgPBnHbMpTGPHZCtnttKRv';
   const IREADY_KEY = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
   const IREADY_ELA_GID  = '0';
   const IREADY_MATH_GID = '127145553';
+  // TAP Master Roster — requires the workbook to be shared "Anyone with link can view"
+  // in Google Drive. Set sharing, then the gviz URL works without auth.
   const TAP_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
   const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
   const HR_GID     = '911694457';
@@ -25,12 +29,13 @@
 
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   const CACHE_KEYS = {
-    att:      'njtc_team_att_v1',
-    stu:      'njtc_team_stu_v1',
-    irEla:    'njtc_team_ir_ela_v1',
-    irMath:   'njtc_team_ir_math_v1',
-    tap:      'njtc_team_tap_v1',
-    concerns: 'njtc_team_concerns_v1'
+    att:        'njtc_team_att_v1',
+    stu:        'njtc_team_stu_v1',
+    irEla:      'njtc_team_ir_ela_v1',
+    irMath:     'njtc_team_ir_math_v1',
+    tap:        'njtc_team_tap_v1',
+    concerns:   'njtc_team_concerns_v1',
+    pearlLogin: 'njtc_team_pearl_login_v1',
   };
 
   let _stylesInjected = false;
@@ -185,6 +190,9 @@
   function pearlUrl(gid) {
     return `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${gid}`;
   }
+  function pearlLoginUrl() {
+    return `https://docs.google.com/spreadsheets/d/e/${PEARL_LOGIN_KEY}/pub?output=csv&gid=0`;
+  }
   function ireadyUrl(gid) {
     return `https://docs.google.com/spreadsheets/d/e/${IREADY_KEY}/pub?output=csv&gid=${gid}`;
   }
@@ -225,14 +233,15 @@
   /* ─────────────────────────────────────────────
      DATA LOADING
   ───────────────────────────────────────────── */
-  async function loadAllData(leaderDistricts) {
-    const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att),
-      fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu),
+  async function loadAllData(leaderDistricts, leaderName) {
+    const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows, loginRows] = await Promise.allSettled([
+      fetchCSV(pearlUrl(PEARL_ATT_GID),   CACHE_KEYS.att),
+      fetchCSV(pearlUrl(PEARL_STU_GID),   CACHE_KEYS.stu),
       fetchCSV(ireadyUrl(IREADY_ELA_GID), CACHE_KEYS.irEla),
-      fetchCSV(ireadyUrl(IREADY_MATH_GID), CACHE_KEYS.irMath),
-      fetchCSV(TAP_URL, CACHE_KEYS.tap),
-      fetchCSV(concernsUrl(), CACHE_KEYS.concerns)
+      fetchCSV(ireadyUrl(IREADY_MATH_GID),CACHE_KEYS.irMath),
+      fetchCSV(TAP_URL,                   CACHE_KEYS.tap),
+      fetchCSV(concernsUrl(),             CACHE_KEYS.concerns),
+      fetchCSV(pearlLoginUrl(),           CACHE_KEYS.pearlLogin),
     ]);
 
     function val(result) { return result.status === 'fulfilled' ? result.value : []; }
@@ -243,28 +252,87 @@
     const irMath   = val(irMathRows);
     const tap      = val(tapRows);
     const concerns = val(concernRows);
+    const login    = val(loginRows);
 
-    // Filter Pearl ATT by leader's districts
-    const filteredAtt = att.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
+    const leaderNorm = normName(leaderName || '');
+
+    // ── Step 1 (PRIMARY): Pearl Login/ID sheet ────────────────────────────────
+    // The login sheet maps every staff member to their school(s) and district.
+    // It's the most authoritative source because it's maintained by site admins.
+    // Columns vary — try common permutations for name, email, school, district.
+    const loginSchools = new Set();
+    if (login.length > 0) {
+      login.forEach(r => {
+        const rName  = normName(r['Full Name'] || r['Name'] || r['Staff Name'] || r['User'] || '');
+        const rEmail = (r['Email'] || r['Email Address'] || r['email'] || '').trim().toLowerCase();
+        const isMatch = rName === leaderNorm ||
+          (rEmail && rEmail === (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.email || '').toLowerCase());
+        if (!isMatch) return;
+        // Collect every school field on the row (may be comma-separated or multi-column)
+        ['School', 'School Name', 'Site', 'Site / School', 'Schools', 'school'].forEach(col => {
+          const val = (r[col] || '').trim();
+          if (!val) return;
+          val.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(s => loginSchools.add(s));
+        });
+      });
+    }
+
+    // ── Step 2 (SECONDARY): Pearl ATT non-Instructor rows ────────────────────
+    // Captures sessions the leader supervised — authoritative when Login sheet
+    // doesn't have separate rows per school for Dual Role leaders.
+    const attLeaderSchools = new Set();
+    att.forEach(r => {
+      const role = (r['Role'] || '').trim();
+      if (role === 'Instructor') return;
+      const u = normName(r['User'] || '');
+      if (!u || u !== leaderNorm) return;
+      const school = (r['School'] || r['Site'] || '').trim();
+      if (school) attLeaderSchools.add(school);
     });
-    const filteredStu = stu.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredEla = irEla.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredMath = irMath.filter(r => {
-      const d = r['District'] || r['district'] || '';
-      return leaderDistricts.some(ld => distMatch(d, ld));
-    });
-    const filteredTap = tap.filter(r => {
+
+    // Merge both sources
+    const combinedSchools = new Set([...loginSchools, ...attLeaderSchools]);
+
+    // ── Step 3: campus sibling expansion ─────────────────────────────────────
+    // Dual Role: "iLearn Paterson MS" → also pull "iLearn Paterson ES" (same base)
+    function campusBase(s) {
+      return s.toLowerCase()
+        .replace(/\s*[-–]\s*(ms|es|hs|middle|elementary|high|k-\d+)\s*$/i, '')
+        .replace(/\s+(ms|es|hs|middle\s+school|elementary\s+school|high\s+school)\s*$/i, '')
+        .trim();
+    }
+    const leaderBases = new Set([...combinedSchools].map(campusBase));
+    const allPearlSchools = new Set(att.map(r => (r['School'] || r['Site'] || '').trim()).filter(Boolean));
+    const expandedSchools = new Set(combinedSchools);
+    if (leaderBases.size > 0) {
+      allPearlSchools.forEach(school => {
+        if (leaderBases.has(campusBase(school))) expandedSchools.add(school);
+      });
+    }
+
+    // ── Step 4: site-match predicate ─────────────────────────────────────────
+    // Primary: exact Pearl school name set (Login + ATT derived, Dual-Role-aware)
+    // Fallback: HR site field substring matching (leader not yet in any Pearl data)
+    function siteMatch(r) {
+      const school = (r['School'] || r['Site'] || '').trim();
+      const dist   = (r['District'] || r['district'] || '').trim();
+      if (expandedSchools.size > 0) return expandedSchools.has(school);
+      return leaderDistricts.some(ld => distMatch(dist, ld) || distMatch(school, ld));
+    }
+
+    // ATT: Instructor rows only for tutor roster; STU/iReady: no role filter
+    const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
+    const filteredStu  = stu.filter(r  => siteMatch(r));
+    const filteredEla  = irEla.filter(r  => siteMatch(r));
+    const filteredMath = irMath.filter(r => siteMatch(r));
+    const filteredTap  = tap.filter(r  => {
       const site = r['Site'] || r['C'] || '';
       return leaderDistricts.some(ld => distMatch(site, ld));
     });
+
+    console.log('[NJTCTeam] Login schools:', [...loginSchools], '| ATT schools:', [...attLeaderSchools]);
+    console.log('[NJTCTeam] Expanded schools:', [...expandedSchools]);
+    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length);
 
     return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath, tap: filteredTap, concerns };
   }
@@ -273,9 +341,10 @@
      DATA AGGREGATION
   ───────────────────────────────────────────── */
   function buildTutorMap(attRows) {
+    // Pearl ATT uses "User" for the person's name; only Instructor rows reach here
     const map = {};
     attRows.forEach(r => {
-      const tutorName = r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '';
+      const tutorName = (r['User'] || r['Tutor Name'] || r['Staff Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!map[key]) {
@@ -283,9 +352,8 @@
           name: tutorName,
           district: r['District'] || '',
           school: r['School'] || r['Site'] || '',
-          role: r['Role'] || r['Position'] || '',
-          id: r['Tutor ID'] || r['Staff ID'] || key,
-          sessions: [],
+          role: 'Instructor',
+          id: key,
           attRows: []
         };
       }
@@ -720,21 +788,23 @@
       `;
     }
 
-    // TAP block
+    // TAP block — always show OJT log link; show full TAP details only when master roster data loaded
+    const ojtFormUrl = `https://docs.google.com/forms/d/${OJT_FORM_ID}/viewform` +
+      `?entry.1113592438=${encodeURIComponent(name)}` +
+      (tap ? `&entry.2084410404=${encodeURIComponent(tap['Phase'] || tap['I'] || '')}` : '');
+
     let tapHtml = '';
     if (tap) {
       const tapStatus = tap['Apprentice Program Status'] || tap['K'] || '';
-      const usdol = tap['USDOL ID'] || tap['B'] || '—';
-      const phase = tap['Phase'] || tap['I'] || '—';
-      const wage = tap['Current Wage'] || tap['F'] || '—';
-      const milestone = tap['Milestone'] || tap['J'] || '—';
-      const ojtHours = parseFloat(tap['OJT Hours'] || tap['G'] || 0);
-      const rtiHours = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
-      // Assume typical totals for progress bars (phase-based guesses; use 2000 OJT, 144 RTI as defaults)
-      const ojtTotal = 2000, rtiTotal = 144;
-      const ojtPct = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
-      const rtiPct = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
-      const ojtFormUrl = `https://docs.google.com/forms/d/${OJT_FORM_ID}/viewform?entry.1113592438=${encodeURIComponent(name)}&entry.2084410404=${encodeURIComponent(phase)}`;
+      const usdol     = tap['USDOL ID']      || tap['B'] || '—';
+      const phase     = tap['Phase']         || tap['I'] || '—';
+      const wage      = tap['Current Wage']  || tap['F'] || '—';
+      const milestone = tap['Milestone']     || tap['J'] || '—';
+      const ojtHours  = parseFloat(tap['OJT Hours'] || tap['G'] || 0);
+      const rtiHours  = parseFloat(tap['RTI Hours'] || tap['H'] || 0);
+      const ojtTotal  = 4000, rtiTotal = 288;
+      const ojtPct    = Math.min(100, Math.round((ojtHours / ojtTotal) * 100));
+      const rtiPct    = Math.min(100, Math.round((rtiHours / rtiTotal) * 100));
 
       tapHtml = `
         <div class="njtc-tap-block">
@@ -754,7 +824,18 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">Log OJT Hours →</a>
+          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
+        </div>
+      `;
+    } else {
+      // No TAP master roster data — still provide OJT log access for all tutors
+      tapHtml = `
+        <div class="njtc-tap-block" style="border-color:#334155;background:rgba(30,41,59,0.6)">
+          <div class="njtc-tap-title" style="color:#94a3b8">OJT Activity Log</div>
+          <div style="font-size:0.78rem;color:#64748b;margin-bottom:10px">
+            Log an OJT activity for this tutor. If they are a TAP apprentice, this entry will be recorded and processed automatically.
+          </div>
+          <a href="${escHtml(ojtFormUrl)}" target="_blank" class="njtc-ojt-link">📋 Log OJT Activity →</a>
         </div>
       `;
     }
@@ -946,7 +1027,7 @@
 
     let data;
     try {
-      data = await loadAllData(_leaderDistricts);
+      data = await loadAllData(_leaderDistricts, userProfile.name);
     } catch (e) {
       console.error('[NJTCTeam] Data load error:', e);
       container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
@@ -958,9 +1039,9 @@
     // Build tutor map from ATT rows
     const tutorMap = buildTutorMap(data.att);
 
-    // Also add tutors from STU rows if missing
+    // Pearl STU uses "User" for the tutor's name — add any tutors present in STU but missing from ATT
     data.stu.forEach(r => {
-      const tutorName = r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '';
+      const tutorName = (r['User'] || r['Tutor Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!tutorMap[key]) {
@@ -968,21 +1049,22 @@
           name: tutorName,
           district: r['District'] || '',
           school: r['School'] || r['Site'] || '',
-          role: r['Role'] || r['Position'] || '',
-          id: r['Tutor ID'] || r['Staff ID'] || key,
-          attRows: [],
-          stuRows: []
+          role: 'Instructor',
+          id: key,
+          attRows: []
         };
       }
     });
 
     // Compute per-tutor metrics
     const tutors = Object.values(tutorMap).map(t => {
-      const myAttRows = data.att.filter(r => normName(r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '') === normName(t.name));
-      const myStuRows = data.stu.filter(r => normName(r['Tutor Name'] || r['Staff Name'] || r['Tutor'] || '') === normName(t.name));
+      const tn = normName(t.name);
+      const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
+      // STU sheet: "User" = tutor who ran the session; "Filled For" = scholar name
+      const myStuRows = data.stu.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
 
-      // iReady: match by scholar name cross-reference with stu rows
-      const scholarNames = new Set(myStuRows.map(r => normName(r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
+      // iReady: match by scholar name cross-reference using STU "Filled For" column
+      const scholarNames = new Set(myStuRows.map(r => normName(r['Filled For'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
       const myElaRows  = data.irEla.filter(r  => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
       const myMathRows = data.irMath.filter(r => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
 
