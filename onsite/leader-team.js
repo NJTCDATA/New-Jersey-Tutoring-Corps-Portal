@@ -244,6 +244,10 @@
       fetchCSV(pearlLoginUrl(),           CACHE_KEYS.pearlLogin),
     ]);
 
+    const srcLabels = ['PearlATT','PearlSTU','iReadyELA','iReadyMath','TAP','Concerns','PearlLogin'];
+    [attRows,stuRows,irElaRows,irMathRows,tapRows,concernRows,loginRows].forEach((r,i) => {
+      if (r.status === 'rejected') console.warn('[NJTCTeam] Source failed:', srcLabels[i], r.reason);
+    });
     function val(result) { return result.status === 'fulfilled' ? result.value : []; }
 
     const att      = val(attRows);
@@ -323,10 +327,15 @@
     // ATT: Instructor rows only for tutor roster
     const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
 
+    // Build the set of tutor keys from the ATT-filtered roster so we can scope STU rows
+    const leaderTutorKeys = new Set(filteredAtt.map(r => normName(r['User'] || r['Tutor Name'] || '')).filter(Boolean));
+
     // STU sheet: "Filled For" = tutor name the survey/session is about (NOT "User" which is student login)
+    // If the leader has no ATT-based roster yet, fall back to school-match on STU (rare but safe)
     const filteredStu  = stu.filter(r  => {
-      const filledFor = normName(r['Filled For'] || r['User'] || r['Tutor Name'] || '');
-      return filledFor && leaderTutorKeys.has(filledFor);
+      const filledFor = normName(r['Filled For'] || r['Tutor Name'] || '');
+      if (leaderTutorKeys.size > 0) return filledFor && leaderTutorKeys.has(filledFor);
+      return siteMatch(r);
     });
 
     // iReady: try school-based match first; if that yields nothing, cross-ref via STU scholar names
