@@ -477,7 +477,11 @@
 
     console.log('[NJTCTeam] Login schools:', [...loginSchools], '| ATT schools:', [...attLeaderSchools]);
     console.log('[NJTCTeam] Expanded schools:', [...expandedSchools]);
-    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length, '| TAP loaded:', tapLoaded);
+    console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| ATT students:', filteredAttStudents.length, '| STU:', filteredStu.length, '| TAP loaded:', tapLoaded);
+    if (filteredAttStudents.length > 0) {
+      const sample = filteredAttStudents[0];
+      console.log('[NJTCTeam] ATT student sample keys:', Object.keys(sample), '| User:', sample['User'], '| Role:', sample['Role'], '| UserID:', sample['Pearl User ID'] || sample['User ID'] || sample['User_ID']);
+    }
 
     return { att: filteredAtt, attStudents: filteredAttStudents, stu: filteredStu,
              irEla: filteredEla, irMath: filteredMath,
@@ -551,20 +555,23 @@
     });
 
     // Populate attendance from ATT student rows (Role = "Student") — the real source
+    // Pearl ATT col indices (0-based): 0=User, 6=Attendance Status, 7=Missed Reason, 8=Grade
     ATT_ROWS.forEach(r => {
-      const name  = (r['User'] || r['Scholar Name'] || r['Student Name'] || '').trim();
-      const grade = r['Grade'] || '';
-      const status = (r['Attendance Status'] || r['Status'] || '').trim();
+      const vals = Object.values(r);
+      // Use header name first, fall back to column index (matches Central portal approach)
+      const name   = (r['User'] || vals[0] || '').trim();
+      const grade  = r['Grade'] || vals[8] || '';
+      const status = (r['Attendance Status'] || vals[6] || '').trim();
+      const reason = (r['Attendance Missed Reason'] || r['Missed Reason'] || r['Absence Reason'] || vals[7] || '').trim();
       const key = normName(name);
       if (!key) return;
       if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0, fromAtt: true };
       if (!scholarMap[key].grade && grade) scholarMap[key].grade = grade;
       scholarMap[key].total++;
-      // Attendance — same statuses used for tutor rows in Pearl
       if (status === 'Attended' || status === 'Late') scholarMap[key].attended++;
       else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) scholarMap[key].absent++;
-      // Service Interruption tracked separately (session was missed with no substitute)
-      if (SI_PATTERNS.some(p => status.includes(p))) scholarMap[key].si++;
+      // Service Interruption: tutor absent with no sub (tracked separately from scholar absences)
+      if (SI_PATTERNS.some(p => status.includes(p) || reason.includes(p))) scholarMap[key].si++;
     });
     const scholars = Object.values(scholarMap);
     scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
@@ -1518,14 +1525,24 @@
       const scholarPearlIds = new Set(myStuRows.map(r => (r['Filled By ID'] || '').trim()).filter(Boolean));
       const scholarNames    = new Set(myStuRows.map(r => normName(r['Filled By'] || r['Scholar Name'] || r['Student Name'] || '')).filter(s => s.length > 2));
 
-      // Scholar ATT rows: match by name to scholars discovered from STU rows
-      // Pearl ATT student rows have "User" = scholar name and "Instructor" = tutor name (where available)
+      // Scholar ATT rows: match by Pearl User ID (primary) or display name (fallback)
+      // ATT col 13 = Pearl User ID; STU col 12 = Filled By ID — same Pearl ID system
       const myAttStudents = allAttStudents.filter(r => {
-        const instructor = normName(r['Instructor'] || r['Tutor Name'] || '');
-        if (instructor && instructor === tn) return true;
-        const snam = normName(r['User'] || r['Scholar Name'] || r['Student Name'] || '');
+        // Primary: Pearl User ID (header name varies — try all known variants + col index 13)
+        const vals = Object.values(r);
+        const attUid = (r['Pearl User ID'] || r['User ID'] || r['User_ID'] || r['UserId'] || vals[13] || '').trim();
+        if (attUid && scholarPearlIds.has(attUid)) return true;
+        // Fallback: normalized display name match
+        const snam = normName(r['User'] || vals[0] || '');
         return snam.length > 2 && scholarNames.has(snam);
       });
+
+      if (allAttStudents.length > 0 && scholarNames.size > 0 && myAttStudents.length === 0) {
+        console.warn('[NJTCTeam] No ATT student rows matched for tutor', t.name,
+          '| scholarNames sample:', [...scholarNames].slice(0,3),
+          '| ATT sample user:', allAttStudents[0] && (allAttStudents[0]['User'] || ''),
+          '| ATT sample UID:', allAttStudents[0] && (allAttStudents[0]['Pearl User ID'] || allAttStudents[0]['User ID'] || ''));
+      }
 
       function matchScholar(r) {
         if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
