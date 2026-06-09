@@ -323,11 +323,10 @@
     // ATT: Instructor rows only for tutor roster
     const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
 
-    // STU sheet does NOT have School/District columns — filter by tutor name being in the leader's ATT set
-    const leaderTutorKeys = new Set(filteredAtt.map(r => normName(r['User'] || '')).filter(Boolean));
+    // STU sheet: "Filled For" = tutor name the survey/session is about (NOT "User" which is student login)
     const filteredStu  = stu.filter(r  => {
-      const u = normName(r['User'] || r['Tutor Name'] || '');
-      return u && leaderTutorKeys.has(u);
+      const filledFor = normName(r['Filled For'] || r['User'] || r['Tutor Name'] || '');
+      return filledFor && leaderTutorKeys.has(filledFor);
     });
 
     // iReady: try school-based match first; if that yields nothing, cross-ref via STU scholar names
@@ -380,12 +379,18 @@
       const status = (r['Attendance Status'] || r['Status'] || '').trim();
       const reason = (r['Absence Reason'] || r['Reason'] || '').trim();
       total++;
-      if (/present|attended/i.test(status)) attended++;
-      else if (/absent/i.test(status)) {
+      if (/^(Attended|Present|Late)/i.test(status)) attended++;
+      else if (/^(Absent|Missed|Tutor Left)/i.test(status)) {
         absent++;
         if (reason) absenceReasons[reason] = (absenceReasons[reason] || 0) + 1;
       }
-      if (/service interruption|SI/i.test(status)) si++;
+      // Pearl-specific uncovered absence strings = service interruptions
+      const SI_PATTERNS = [
+        'Absent; Not Covered (Tutor not available)',
+        'Tutor Left Early (no sub)',
+        'Absent; Not Covered',
+      ];
+      if (SI_PATTERNS.some(p => status.includes(p))) si++;
     });
     return { attended, absent, si, total, absenceReasons, rate: pct(attended, total) };
   }
@@ -393,30 +398,36 @@
   function computeStuMetrics(stuRows) {
     const scholarMap = {};
     stuRows.forEach(r => {
-      const name = r['Scholar Name'] || r['Student Name'] || '';
+      // Pearl STU: "User" = student login (scholar), "Filled For" = tutor name
+      const name = r['User'] || r['Scholar Name'] || r['Student Name'] || '';
       const grade = r['Grade'] || '';
       const status = r['Attendance Status'] || r['Status'] || '';
       const key = normName(name);
       if (!key) return;
       if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0 };
       scholarMap[key].total++;
-      if (/present|attended/i.test(status)) scholarMap[key].attended++;
-      else if (/absent/i.test(status)) scholarMap[key].absent++;
-      if (/service interruption|SI/i.test(status)) scholarMap[key].si++;
+      if (/^(Attended|Present|Late)/i.test(status)) scholarMap[key].attended++;
+      else if (/^(Absent|Missed)/i.test(status)) scholarMap[key].absent++;
+      const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
+      if (SI_PATTERNS.some(p => status.includes(p))) scholarMap[key].si++;
     });
     const scholars = Object.values(scholarMap);
     scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
     const uniqueCount = scholars.length;
-    // survey data
+    // survey data — Pearl STU uses full question text as column names
     const surveyFields = {
-      confidence: r => parseFloat(r['Confidence'] || r['Survey Confidence'] || 0),
-      enjoyment:  r => parseFloat(r['Enjoyment']  || r['Survey Enjoyment']  || 0),
-      learning:   r => parseFloat(r['Learning']   || r['Survey Learning']   || 0),
-      overall:    r => parseFloat(r['Overall']    || r['Survey Overall']    || 0)
+      confidence: r => parseFloat(r['How confident do you feel about what you are learning?'] || r['Confidence'] || r['Survey Confidence'] || 0),
+      enjoyment:  r => parseFloat(r['How much did you enjoy this session with <aboutName>?'] || r['How much did you enjoy this session?'] || r['Enjoyment'] || r['Survey Enjoyment'] || 0),
+      learning:   r => parseFloat(r['How much did you learn in this session?'] || r['Learning'] || r['Survey Learning'] || 0),
+      overall:    r => parseFloat(r['How would you rate this session overall?'] || r['Overall'] || r['Survey Overall'] || 0)
     };
     const surveyRows = stuRows.filter(r =>
-      r['Confidence'] || r['Enjoyment'] || r['Learning'] || r['Overall'] ||
-      r['Survey Confidence'] || r['Survey Enjoyment'] || r['Survey Learning'] || r['Survey Overall']
+      r['How confident do you feel about what you are learning?'] ||
+      r['How much did you enjoy this session with <aboutName>?'] ||
+      r['How much did you enjoy this session?'] ||
+      r['How much did you learn in this session?'] ||
+      r['How would you rate this session overall?'] ||
+      r['Confidence'] || r['Enjoyment'] || r['Learning'] || r['Overall']
     );
     let surveyScores = { confidence: 0, enjoyment: 0, learning: 0, overall: 0, count: 0 };
     if (surveyRows.length) {
@@ -1150,9 +1161,9 @@
     // Build tutor map from ATT rows
     const tutorMap = buildTutorMap(data.att);
 
-    // Pearl STU uses "User" for the tutor's name — add any tutors present in STU but missing from ATT
+    // Pearl STU uses "Filled For" for the tutor's name — add any tutors present in STU but missing from ATT
     data.stu.forEach(r => {
-      const tutorName = (r['User'] || r['Tutor Name'] || '').trim();
+      const tutorName = (r['Filled For'] || r['Tutor Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!tutorMap[key]) {
@@ -1171,11 +1182,11 @@
     const tutors = Object.values(tutorMap).map(t => {
       const tn = normName(t.name);
       const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
-      // STU sheet: "User" = tutor who ran the session; "Filled For" = scholar name
-      const myStuRows = data.stu.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
+      // STU sheet: "Filled For" = tutor name; "User" = student login (scholar)
+      const myStuRows = data.stu.filter(r => normName(r['Filled For'] || r['Tutor Name'] || '') === tn);
 
-      // iReady: match by scholar name cross-reference using STU "Filled For" column
-      const scholarNames = new Set(myStuRows.map(r => normName(r['Filled For'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
+      // iReady: match by scholar name cross-reference using STU "User" column (student login)
+      const scholarNames = new Set(myStuRows.map(r => normName(r['User'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
       const myElaRows  = data.irEla.filter(r  => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
       const myMathRows = data.irMath.filter(r => scholarNames.has(normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '')));
 
