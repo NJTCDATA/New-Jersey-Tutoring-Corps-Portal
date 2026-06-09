@@ -488,8 +488,8 @@ function recalculateTotals(apprenticeName) {
     var ojtData  = ojtSheet.getDataRange().getValues();
     // Build a map: phase+domain+activity → most recent non-blank status
     var activityMap = {}; // key → { status, timestamp }
-    var MAX_ACTIVITIES = 78;
-    var BEG_TOTAL = 26, MID_TOTAL = 37, END_TOTAL = 9; // per spec
+    var MAX_ACTIVITIES = 80;
+    var BEG_TOTAL = 33, MID_TOTAL = 38, END_TOTAL = 9; // per OJT Activity Schema
 
     for (var i = 1; i < ojtData.length; i++) {
       var row    = ojtData[i];

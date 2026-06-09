@@ -1888,7 +1888,7 @@
   const SM_ALL_GID       = '457164791';
   const SM_URL           = `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_ALL_GID}`;
   const SM_SCHOOLS       = new Set(['middlesex stem']);
-  const IR_CACHE_KEY     = 'njtc_od_iready_v10'; // bumped: MOY + SM data added
+  const IR_CACHE_KEY     = 'njtc_od_iready_v11'; // bumped: SESS-fallback scholar matching for site leaders
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
 
   // ── iReady: CSV parser (standalone for this module) ──────────────────────────

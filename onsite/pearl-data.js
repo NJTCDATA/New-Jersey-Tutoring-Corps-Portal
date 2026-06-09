@@ -501,6 +501,49 @@
         };
       });
 
+    // SESS fallback: when ATT-based scholar detection finds 0 scholars
+    // (e.g. site coordinators whose Pearl sessions have no student rows),
+    // use the SESS sheet instructor→student mapping to build the scholar list.
+    // This allows iReady academic data to match by scholar name for these users.
+    if (scholars.length === 0 && sessRows && sessRows.length > 1) {
+      const myNormName = myInstRows.length
+        ? (myInstRows[0][ATT.USER] || '').trim().toLowerCase().replace(/\s+/g, ' ')
+        : '';
+      const SESS_INST_NAME = 1;  // col B: Instructor display name
+      const SESS_STU_NAMES = 2;  // col C: Student names, comma-separated
+      const SESS_INST_ID   = 15; // col P: Pearl Instructor User ID
+      const SESS_STU_IDS   = 16; // col Q: Pearl Student User IDs, comma-separated
+      const sessScholarMap = {};
+      for (let ri = 1; ri < sessRows.length; ri++) {
+        const row      = sessRows[ri];
+        const instId   = (row[SESS_INST_ID]   || '').trim();
+        const instName = (row[SESS_INST_NAME] || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (instId !== pearlUserId && instName !== myNormName) continue;
+        const stuNames = (row[SESS_STU_NAMES] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const stuIds   = SESS_STU_IDS < row.length
+          ? (row[SESS_STU_IDS] || '').split(',').map(s => s.trim()).filter(Boolean) : [];
+        stuNames.forEach((name, i) => {
+          if (!name) return;
+          const sid = stuIds[i] || '';
+          const key = sid || name.toLowerCase().replace(/\s+/g, ' ');
+          if (!sessScholarMap[key]) {
+            sessScholarMap[key] = {
+              id: sid, name,
+              grade: '', school: tutorSchool || '',
+              attended: 0, absent: 0, si: 0, totalSessions: 0,
+              missReasons: {}, lastSeen: null,
+              attRate: null, consecConcern: false,
+              surveyCount: 0,
+              surveyScores: { confidence: null, enjoyment: null, learning: null, overall: null },
+              surveyComments: []
+            };
+          }
+        });
+      }
+      const sessScholars = Object.values(sessScholarMap);
+      if (sessScholars.length > 0) scholars.push(...sessScholars);
+    }
+
     // Unique scholar count = distinct scholars at this tutor's school across attended sessions
     const uniqueScholarCount = scholars.length;
 
