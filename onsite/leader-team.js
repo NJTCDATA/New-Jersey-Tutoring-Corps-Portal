@@ -376,15 +376,13 @@
       return siteMatch(r);
     });
 
-    // Legacy iReady (prior-year MOY/snapshot)
-    const filteredEla  = irEla.filter(r  => siteMatch(r));
-    const filteredMath = irMath.filter(r => siteMatch(r));
-
-    // iReady 25-26 EOY Preliminary / Longitudinal: school-match
-    // When longitudinal rows are present (Spring Score non-empty) they automatically
-    // provide richer data; preliminary and longitudinal share the same sheet/columns.
-    const filtered2526Ela  = ir2526Ela.filter(r  => siteMatch(r));
-    const filtered2526Math = ir2526Math.filter(r => siteMatch(r));
+    // iReady: DO NOT pre-filter by school — iReady school names differ from Pearl
+    // school names and siteMatch would return 0 rows. Pass all rows to build();
+    // per-tutor scholar matching (Pearl STU bridge) handles correct scoping.
+    const filteredEla    = irEla;
+    const filteredMath   = irMath;
+    const filtered2526Ela  = ir2526Ela;
+    const filtered2526Math = ir2526Math;
 
     // Standards Mastery: all rows (per-tutor filter happens in build() by Class Teacher)
     const filteredSm = sm;
@@ -1420,22 +1418,27 @@
       // STU sheet: "Filled For" = tutor name; "User" = student login (scholar Pearl ID)
       const myStuRows = data.stu.filter(r => normName(r['Filled For'] || r['Tutor Name'] || '') === tn);
 
-      // Scholar matching: Pearl "User" (student login) for ID-based match + name-based match
-      // Pearl STU: "Filled By ID" = student Pearl login ID (col 12), "Filled By" = student name/login (col 0)
-      const scholarIds   = new Set(myStuRows.map(r => (r['Filled By ID'] || r['User'] || '').trim()).filter(Boolean));
-      const scholarNames = new Set(myStuRows.map(r => normName(r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '')).filter(Boolean));
+      // ── Three-tier scholar-to-tutor matching via Pearl STU bridge ────────────
+      // Pearl STU col 0 = "Filled By" (student name), col 12 = "Filled By ID" (Pearl login ID)
+      // Tier 0: iReady Instructor column directly names this tutor
+      // Tier 1: iReady Student ID = Pearl "Filled By ID" (same Pearl login system)
+      // Tier 2: normalized iReady Student Name = normalized Pearl "Filled By"
+      const scholarPearlIds = new Set(myStuRows.map(r => (r['Filled By ID'] || '').trim()).filter(Boolean));
+      const scholarNames    = new Set(myStuRows.map(r => normName(r['Filled By'] || r['Scholar Name'] || r['Student Name'] || '')).filter(s => s.length > 2));
 
       function matchScholar(r) {
-        const sid  = (r['Student ID'] || r['Student Id'] || '').trim();
+        if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
+        const sid = (r['Student ID'] || r['Student Id'] || '').trim();
+        if (sid && scholarPearlIds.has(sid)) return true;
         const snam = normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '');
-        return (sid && scholarIds.has(sid)) || (snam && scholarNames.has(snam));
+        return snam.length > 2 && scholarNames.has(snam);
       }
 
-      // Legacy iReady (prior year) — kept for fallback
+      // Legacy iReady (prior year) — fallback for districts not yet in 25-26 sheet
       const myElaRows  = data.irEla.filter(matchScholar);
       const myMathRows = data.irMath.filter(matchScholar);
 
-      // iReady 25-26 EOY Preliminary / Longitudinal
+      // iReady 25-26 EOY Preliminary / Longitudinal — preferred over legacy
       const my2526Ela  = data.ir2526Ela.filter(matchScholar);
       const my2526Math = data.ir2526Math.filter(matchScholar);
 
