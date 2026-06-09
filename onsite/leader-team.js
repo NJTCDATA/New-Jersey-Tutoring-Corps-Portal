@@ -2242,12 +2242,23 @@
     ensureDetailDOM();
 
     // If a detail panel is open, refresh it with the updated tutor data
+    // CRITICAL: Skip rebuild if the OJT form is currently open (user is entering data).
+    // Rebuilding panel.innerHTML destroys checked checkboxes, losing the user's activity selections.
+    // The updated data (TAP card, iReady) will appear next time they open the panel.
     if (_openDetailName) {
       const updated = tutors.find(t => normName(t.name) === normName(_openDetailName));
       if (updated) {
         const panel = document.getElementById('njtcDetailPanel');
         if (panel && panel.classList.contains('open')) {
-          panel.innerHTML = renderDetailPanel(updated);
+          // Check if the OJT form body is currently visible (user is mid-entry)
+          const nk = normName(_openDetailName).replace(/\s+/g, '_');
+          const ojtFormBody = document.getElementById('ojtFormBody_' + nk);
+          const formIsOpen = ojtFormBody && ojtFormBody.style.display !== 'none' && ojtFormBody.style.display !== '';
+          if (!formIsOpen) {
+            // Form is closed — safe to rebuild the panel with updated data
+            panel.innerHTML = renderDetailPanel(updated);
+          }
+          // Form is open — do NOT rebuild; preserve the user's in-progress entry
         }
       }
     }
@@ -2528,10 +2539,21 @@
       const activities = checkedBoxes.map(cb => {
         const act = OJT_ACTIVITY_DATA.find(d => d.code === cb.value && d.phase === phaseKey && d.domain === domain);
         const fullCode = act
-          ? `${cb.value} \u2014 ${act.desc} [${phaseKey} \u00b7 ${domain}]`
+          ? cb.value + ' \u2014 ' + act.desc + ' [' + phaseKey + ' \u00b7 ' + domain + ']'
           : cb.value;
         return { phase, domain, activityCode: fullCode, status: mark };
       });
+
+      // Guard: if all activity codes are empty, the checklist was stale — abort
+      const blankCodes = activities.filter(a => !a.activityCode || !a.activityCode.trim());
+      if (blankCodes.length === activities.length && activities.length > 0) {
+        if (statusEl) {
+          statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
+          statusEl.textContent = '\u2717 Activity codes missing — please reselect phase, domain, and activities, then submit again.';
+        }
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
+        return;
+      }
 
       // POST OJT activities (batch)
       if (hasActivities) {
