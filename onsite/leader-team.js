@@ -437,14 +437,20 @@
       return leaderDistricts.some(ld => distMatch(dist, ld) || distMatch(school, ld));
     }
 
-    // ATT: Instructor rows only for tutor roster
-    const filteredAtt  = att.filter(r  => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
+    // ATT: Instructor rows → tutor roster
+    const filteredAtt  = att.filter(r => (r['Role'] || '').trim() === 'Instructor' && siteMatch(r));
+
+    // ATT: Student rows → scholar attendance (Role = "Student" in Pearl ATT)
+    // These rows have User = scholar name, Attendance Status, School, Session Date
+    const filteredAttStudents = att.filter(r => {
+      const role = (r['Role'] || '').trim();
+      return (role === 'Student' || role === 'Scholar') && siteMatch(r);
+    });
 
     // Build the set of tutor keys from the ATT-filtered roster so we can scope STU rows
     const leaderTutorKeys = new Set(filteredAtt.map(r => normName(r['User'] || r['Tutor Name'] || '')).filter(Boolean));
 
-    // STU sheet: "Filled For" = tutor name the survey/session is about (NOT "User" which is student login)
-    // If the leader has no ATT-based roster yet, fall back to school-match on STU (rare but safe)
+    // STU sheet: "Filled For" = tutor name; used for survey scores + scholar name list
     const filteredStu  = stu.filter(r  => {
       const filledFor = normName(r['Filled For'] || r['Tutor Name'] || '');
       if (leaderTutorKeys.size > 0) return filledFor && leaderTutorKeys.has(filledFor);
@@ -473,7 +479,8 @@
     console.log('[NJTCTeam] Expanded schools:', [...expandedSchools]);
     console.log('[NJTCTeam] Filtered tutors (ATT):', filteredAtt.length, '| STU:', filteredStu.length, '| TAP loaded:', tapLoaded);
 
-    return { att: filteredAtt, stu: filteredStu, irEla: filteredEla, irMath: filteredMath,
+    return { att: filteredAtt, attStudents: filteredAttStudents, stu: filteredStu,
+             irEla: filteredEla, irMath: filteredMath,
              ir2526Ela: filtered2526Ela, ir2526Math: filtered2526Math, sm: filteredSm,
              tap: filteredTap, concerns, tapLoaded };
   }
@@ -527,21 +534,36 @@
     return { attended, absent, si, total, absenceReasons, rate: pct(attended, total) };
   }
 
-  function computeStuMetrics(stuRows) {
+  // attStudentRows = Pearl ATT rows where Role = "Student" scoped to this tutor's scholars
+  // stuRows        = Pearl STU survey rows scoped to this tutor (used for names + survey scores only)
+  function computeStuMetrics(stuRows, attStudentRows) {
+    const ATT_ROWS = attStudentRows || [];
+    const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
+
+    // Build scholar list from STU survey rows first (names + grade)
     const scholarMap = {};
     stuRows.forEach(r => {
-      // Pearl STU: "User" = student login (scholar), "Filled For" = tutor name
-      // Pearl STU col 0 = "Filled By" (student who submitted survey), col 12 = "Filled By ID"
       const name = r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '';
       const grade = r['Grade'] || '';
-      const status = r['Attendance Status'] || r['Status'] || '';
       const key = normName(name);
       if (!key) return;
-      if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0 };
+      if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0, fromAtt: false };
+    });
+
+    // Populate attendance from ATT student rows (Role = "Student") — the real source
+    ATT_ROWS.forEach(r => {
+      const name  = (r['User'] || r['Scholar Name'] || r['Student Name'] || '').trim();
+      const grade = r['Grade'] || '';
+      const status = (r['Attendance Status'] || r['Status'] || '').trim();
+      const key = normName(name);
+      if (!key) return;
+      if (!scholarMap[key]) scholarMap[key] = { name, grade, attended: 0, absent: 0, si: 0, total: 0, fromAtt: true };
+      if (!scholarMap[key].grade && grade) scholarMap[key].grade = grade;
       scholarMap[key].total++;
+      // Attendance — same statuses used for tutor rows in Pearl
       if (status === 'Attended' || status === 'Late') scholarMap[key].attended++;
-      else if (status === 'Missed' || /^Absent/i.test(status)) scholarMap[key].absent++;
-      const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
+      else if (status === 'Missed' || /^Absent/i.test(status) || /^Tutor Left/i.test(status)) scholarMap[key].absent++;
+      // Service Interruption tracked separately (session was missed with no substitute)
       if (SI_PATTERNS.some(p => status.includes(p))) scholarMap[key].si++;
     });
     const scholars = Object.values(scholarMap);
@@ -1485,6 +1507,8 @@
     const ir2526Ela  = data.ir2526Ela || [];
     const ir2526Math = data.ir2526Math|| [];
 
+    const allAttStudents = data.attStudents || [];
+
     return Object.values(tutorMap).map(t => {
       const tn = normName(t.name);
       const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
@@ -1493,6 +1517,15 @@
       // Three-tier scholar matching via Pearl STU bridge
       const scholarPearlIds = new Set(myStuRows.map(r => (r['Filled By ID'] || '').trim()).filter(Boolean));
       const scholarNames    = new Set(myStuRows.map(r => normName(r['Filled By'] || r['Scholar Name'] || r['Student Name'] || '')).filter(s => s.length > 2));
+
+      // Scholar ATT rows: match by name to scholars discovered from STU rows
+      // Pearl ATT student rows have "User" = scholar name and "Instructor" = tutor name (where available)
+      const myAttStudents = allAttStudents.filter(r => {
+        const instructor = normName(r['Instructor'] || r['Tutor Name'] || '');
+        if (instructor && instructor === tn) return true;
+        const snam = normName(r['User'] || r['Scholar Name'] || r['Student Name'] || '');
+        return snam.length > 2 && scholarNames.has(snam);
+      });
 
       function matchScholar(r) {
         if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
@@ -1511,7 +1544,7 @@
       const isSMTutor = [...SM_SCHOOLS].some(s => tutorSchoolNorm.includes(s));
 
       const attMetrics    = computeAttMetrics(myAttRows);
-      const stuMetrics    = computeStuMetrics(myStuRows);
+      const stuMetrics    = computeStuMetrics(myStuRows, myAttStudents);
       const irElaMetrics  = computeIReadyMetrics(my2526Ela.length  ? my2526Ela  : myElaRows,  !!my2526Ela.length);
       const irMathMetrics = computeIReadyMetrics(my2526Math.length ? my2526Math : myMathRows, !!my2526Math.length);
       const smMetrics     = isSMTutor ? computeSmMetrics(data.sm || [], t.name) : null;
