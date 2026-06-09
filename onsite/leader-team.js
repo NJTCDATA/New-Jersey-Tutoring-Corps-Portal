@@ -496,14 +496,13 @@
     const scholars = Object.values(scholarMap);
     scholars.forEach(s => { s.rate = pct(s.attended, s.total); });
     const uniqueCount = scholars.length;
-    // survey data — Pearl STU uses full question text as column names;
-    // the enjoyment column may be HTML-entity-encoded in the CSV export
+    // Survey scores — index-primary matching Central portal (STU: col2=Conf, col3=Enjoy, col4=Learn, col5=Overall)
     const parseV = v => { const n = parseFloat(v); return isNaN(n) ? null : n; };
     const surveyFields = {
-      confidence: r => { const keys = Object.keys(r); return parseV(r['How confident do you feel about what you are learning?'] || r[keys[2]] || r['Confidence'] || null); },
-      enjoyment:  r => { const keys = Object.keys(r); return parseV(r['How much did you enjoy this session with <aboutName>?'] || r['How much did you enjoy this session with &lt;aboutName&gt;?'] || r[keys[3]] || r['Enjoyment'] || null); },
-      learning:   r => { const keys = Object.keys(r); return parseV(r['How much did you learn in this session?'] || r[keys[4]] || r['Learning'] || null); },
-      overall:    r => { const keys = Object.keys(r); return parseV(r['How would you rate this session overall?'] || r[keys[5]] || r['Overall'] || null); },
+      confidence: r => { const k = Object.keys(r); return parseV(r[k[2]] ?? r['Confidence'] ?? r['How confident do you feel about what you are learning?'] ?? null); },
+      enjoyment:  r => { const k = Object.keys(r); return parseV(r[k[3]] ?? r['Enjoyment'] ?? r['How much did you enjoy this session with <aboutName>?'] ?? r['How much did you enjoy this session with &lt;aboutName&gt;?'] ?? null); },
+      learning:   r => { const k = Object.keys(r); return parseV(r[k[4]] ?? r['Learning'] ?? r['How much did you learn in this session?'] ?? null); },
+      overall:    r => { const k = Object.keys(r); return parseV(r[k[5]] ?? r['Overall'] ?? r['How would you rate this session overall?'] ?? null); },
     };
     // A row has survey data if any of the four fields parse to a number
     const surveyRows = stuRows.filter(r => {
@@ -647,10 +646,11 @@
       const key = normName(scholar);
       if (!key) return;
       if (!scholarSurveys[key]) scholarSurveys[key] = { name: scholar, scores: [] };
-      const conf  = parseV(r['How confident do you feel about what you are learning?']);
-      const enj   = parseV(r['How much did you enjoy this session with <aboutName>?'] || r['How much did you enjoy this session with &lt;aboutName&gt;?']);
-      const learn = parseV(r['How much did you learn in this session?']);
-      const ovr   = parseV(r['How would you rate this session overall?']);
+      const k = Object.keys(r);
+      const conf  = parseV(r[k[2]] ?? r['Confidence'] ?? r['How confident do you feel about what you are learning?'] ?? null);
+      const enj   = parseV(r[k[3]] ?? r['Enjoyment']  ?? r['How much did you enjoy this session with <aboutName>?']  ?? r['How much did you enjoy this session with &lt;aboutName&gt;?'] ?? null);
+      const learn = parseV(r[k[4]] ?? r['Learning']   ?? r['How much did you learn in this session?'] ?? null);
+      const ovr   = parseV(r[k[5]] ?? r['Overall']    ?? r['How would you rate this session overall?'] ?? null);
       const vals  = [conf, enj, learn, ovr].filter(v => v !== null);
       if (vals.length) scholarSurveys[key].scores.push(...vals);
     });
