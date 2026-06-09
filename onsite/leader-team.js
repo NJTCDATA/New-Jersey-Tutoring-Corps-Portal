@@ -545,9 +545,11 @@
     const SI_PATTERNS = ['Absent; Not Covered (Tutor not available)', 'Tutor Left Early (no sub)', 'Absent; Not Covered'];
 
     // Build scholar list from STU survey rows first (names + grade)
+    // STU col 0 = Filled By (scholar display name), col 8 = School, col 9 = District
     const scholarMap = {};
     stuRows.forEach(r => {
-      const name = r['Filled By'] || r['User'] || r['Scholar Name'] || r['Student Name'] || '';
+      const vals = Object.values(r);
+      const name = r['Filled By'] || vals[0] || r['User'] || r['Scholar Name'] || r['Student Name'] || '';
       const grade = r['Grade'] || '';
       const key = normName(name);
       if (!key) return;
@@ -1518,12 +1520,25 @@
 
     return Object.values(tutorMap).map(t => {
       const tn = normName(t.name);
-      const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
-      const myStuRows = data.stu.filter(r => normName(r['Filled For'] || r['Tutor Name'] || '') === tn);
+      const myAttRows = data.att.filter(r => {
+        const vals = Object.values(r);
+        return normName(r['User'] || vals[0] || '') === tn;
+      });
+      const myStuRows = data.stu.filter(r => {
+        const vals = Object.values(r);
+        // STU col 1 = Filled For (tutor name) per Central portal STU_S.FILLED_FOR = 1
+        return normName(r['Filled For'] || r['Tutor Name'] || vals[1] || '') === tn;
+      });
 
-      // Three-tier scholar matching via Pearl STU bridge
-      const scholarPearlIds = new Set(myStuRows.map(r => (r['Filled By ID'] || '').trim()).filter(Boolean));
-      const scholarNames    = new Set(myStuRows.map(r => normName(r['Filled By'] || r['Scholar Name'] || r['Student Name'] || '')).filter(s => s.length > 2));
+      // Pearl STU bridge: col 0=Filled By (scholar), col 1=Filled For (tutor), col 12=Filled By ID
+      const scholarPearlIds = new Set(myStuRows.map(r => {
+        const vals = Object.values(r);
+        return (r['Filled By ID'] || vals[12] || '').trim();
+      }).filter(Boolean));
+      const scholarNames = new Set(myStuRows.map(r => {
+        const vals = Object.values(r);
+        return normName(r['Filled By'] || vals[0] || '');
+      }).filter(s => s.length > 2));
 
       // Scholar ATT rows: match by Pearl User ID (primary) or display name (fallback)
       // ATT col 13 = Pearl User ID; STU col 12 = Filled By ID — same Pearl ID system
@@ -1544,10 +1559,10 @@
           '| ATT sample UID:', allAttStudents[0] && (allAttStudents[0]['Pearl User ID'] || allAttStudents[0]['User ID'] || ''));
       }
 
+      // iReady uses district Student IDs (not Pearl User IDs) — name matching is primary
+      // Pearl User ID bridge only valid for Pearl-native data (ATT, STU)
       function matchScholar(r) {
         if (normName(r['Instructor'] || r['Teacher'] || '') === tn) return true;
-        const sid = (r['Student ID'] || r['Student Id'] || '').trim();
-        if (sid && scholarPearlIds.has(sid)) return true;
         const snam = normName(r['Student Name'] || r['Scholar Name'] || r['Name'] || '');
         return snam.length > 2 && scholarNames.has(snam);
       }
