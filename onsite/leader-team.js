@@ -260,41 +260,65 @@
   }
 
   /* ─────────────────────────────────────────────
-     DATA LOADING
+     DATA LOADING  (two-phase progressive)
+  ─────────────────────────────────────────────
+     Phase 1 — CRITICAL (blocks roster render):
+       Pearl ATT + STU + Login (pub CSVs, same CDN, fast)
+     Phase 2 — ENHANCEMENT (background, non-blocking):
+       iReady 25-26 ELA/Math, legacy iReady, SM, TAP, Concerns
   ───────────────────────────────────────────── */
-  async function loadAllData(leaderDistricts, leaderName) {
-    const [attRows, stuRows, irElaRows, irMathRows, tapRows, concernRows, loginRows,
-           ir2526ElaRows, ir2526MathRows, smRows] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_ATT_GID),     CACHE_KEYS.att),
-      fetchCSV(pearlUrl(PEARL_STU_GID),     CACHE_KEYS.stu),
+
+  async function loadCriticalData() {
+    const [attResult, stuResult, loginResult] = await Promise.allSettled([
+      fetchCSV(pearlUrl(PEARL_ATT_GID),  CACHE_KEYS.att),
+      fetchCSV(pearlUrl(PEARL_STU_GID),  CACHE_KEYS.stu),
+      fetchCSV(pearlLoginUrl(),          CACHE_KEYS.pearlLogin),
+    ]);
+    ['PearlATT','PearlSTU','PearlLogin'].forEach((lbl, i) => {
+      const r = [attResult, stuResult, loginResult][i];
+      if (r.status === 'rejected') console.warn('[NJTCTeam] Critical source failed:', lbl, r.reason);
+    });
+    return {
+      att:   attResult.status   === 'fulfilled' ? attResult.value   : [],
+      stu:   stuResult.status   === 'fulfilled' ? stuResult.value   : [],
+      login: loginResult.status === 'fulfilled' ? loginResult.value : [],
+    };
+  }
+
+  async function loadEnhancementData() {
+    const [irElaR, irMathR, tapR, concernR, ir2526ElaR, ir2526MathR, smR] = await Promise.allSettled([
       fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla),
       fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath),
       fetchCSV(TAP_URL,                     CACHE_KEYS.tap),
       fetchCSV(concernsUrl(),               CACHE_KEYS.concerns),
-      fetchCSV(pearlLoginUrl(),             CACHE_KEYS.pearlLogin),
       fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela),
       fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math),
       fetchCSV(smUrl(),                     CACHE_KEYS.sm),
     ]);
-
-    const srcLabels = ['PearlATT','PearlSTU','iReadyELA','iReadyMath','TAP','Concerns','PearlLogin',
-                       'iReady2526ELA','iReady2526Math','SM'];
-    [attRows,stuRows,irElaRows,irMathRows,tapRows,concernRows,loginRows,
-     ir2526ElaRows,ir2526MathRows,smRows].forEach((r,i) => {
-      if (r.status === 'rejected') console.warn('[NJTCTeam] Source failed:', srcLabels[i], r.reason);
+    ['iReadyELA','iReadyMath','TAP','Concerns','iReady2526ELA','iReady2526Math','SM'].forEach((lbl, i) => {
+      const r = [irElaR,irMathR,tapR,concernR,ir2526ElaR,ir2526MathR,smR][i];
+      if (r.status === 'rejected') console.warn('[NJTCTeam] Enhancement source failed:', lbl, r.reason);
     });
-    function val(result) { return result.status === 'fulfilled' ? result.value : []; }
+    const v = r => r.status === 'fulfilled' ? r.value : [];
+    return {
+      irEla: v(irElaR), irMath: v(irMathR),
+      tap: v(tapR), concerns: v(concernR),
+      ir2526Ela: v(ir2526ElaR), ir2526Math: v(ir2526MathR),
+      sm: v(smR),
+    };
+  }
 
-    const att       = val(attRows);
-    const stu       = val(stuRows);
-    const irEla     = val(irElaRows);
-    const irMath    = val(irMathRows);
-    const tap       = val(tapRows);
-    const concerns  = val(concernRows);
-    const login     = val(loginRows);
-    const ir2526Ela  = val(ir2526ElaRows);
-    const ir2526Math = val(ir2526MathRows);
-    const sm         = val(smRows);
+  function filterData(rawAtt, rawStu, rawLogin, rawEnhancement, leaderDistricts, leaderName) {
+    const att    = rawAtt;
+    const stu    = rawStu;
+    const login  = rawLogin;
+    const irEla     = rawEnhancement ? rawEnhancement.irEla    : [];
+    const irMath    = rawEnhancement ? rawEnhancement.irMath   : [];
+    const tap       = rawEnhancement ? rawEnhancement.tap      : [];
+    const concerns  = rawEnhancement ? rawEnhancement.concerns : [];
+    const ir2526Ela  = rawEnhancement ? rawEnhancement.ir2526Ela  : [];
+    const ir2526Math = rawEnhancement ? rawEnhancement.ir2526Math : [];
+    const sm         = rawEnhancement ? rawEnhancement.sm         : [];
 
     const leaderNorm = normName(leaderName || '');
 
@@ -1354,75 +1378,36 @@
   }
 
   /* ─────────────────────────────────────────────
-     MAIN BUILD FUNCTION
+     TUTOR OBJECT BUILDER (shared between phases)
   ───────────────────────────────────────────── */
-  async function build(userProfile) {
-    if (!userProfile) return;
-
-    injectTeamStyles();
-
-    const container = document.getElementById('njtcTeamContainer');
-    if (!container) return;
-
-    container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading team data…</div>`;
-
-    // Detect leader role
-    const leaderInfo = await detectLeader(userProfile);
-    if (!leaderInfo) {
-      container.innerHTML = `<div style="color:#94a3b8;padding:32px;text-align:center">You do not appear to have a leader role in the HR system for 2025–2026.</div>`;
-      return;
-    }
-
-    _leaderProfile  = userProfile;
-    _leaderDistricts = leaderInfo.districts;
-
-    // Unhide "My Team" tab
-    const teamTab = document.getElementById('njtcTeamTab');
-    if (teamTab) teamTab.style.display = 'flex';
-
-    let data;
-    try {
-      data = await loadAllData(_leaderDistricts, userProfile.name);
-    } catch (e) {
-      console.error('[NJTCTeam] Data load error:', e);
-      container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
-      return;
-    }
-
-    _teamData = data;
-
-    // Build tutor map from ATT rows
+  function buildTutors(data) {
     const tutorMap = buildTutorMap(data.att);
 
-    // Pearl STU uses "Filled For" for the tutor's name — add any tutors present in STU but missing from ATT
+    // Pearl STU "Filled For" = tutor name — merge any tutors missing from ATT
     data.stu.forEach(r => {
       const tutorName = (r['Filled For'] || r['Tutor Name'] || '').trim();
       if (!tutorName) return;
       const key = normName(tutorName);
       if (!tutorMap[key]) {
         tutorMap[key] = {
-          name: tutorName,
-          district: r['District'] || '',
+          name: tutorName, district: r['District'] || '',
           school: r['School'] || r['Site'] || '',
-          role: 'Instructor',
-          id: key,
-          attRows: []
+          role: 'Instructor', id: key, attRows: [],
         };
       }
     });
 
-    // Compute per-tutor metrics
-    const tutors = Object.values(tutorMap).map(t => {
+    const irEla      = data.irEla     || [];
+    const irMath     = data.irMath    || [];
+    const ir2526Ela  = data.ir2526Ela || [];
+    const ir2526Math = data.ir2526Math|| [];
+
+    return Object.values(tutorMap).map(t => {
       const tn = normName(t.name);
       const myAttRows = data.att.filter(r => normName(r['User'] || r['Tutor Name'] || '') === tn);
-      // STU sheet: "Filled For" = tutor name; "User" = student login (scholar Pearl ID)
       const myStuRows = data.stu.filter(r => normName(r['Filled For'] || r['Tutor Name'] || '') === tn);
 
-      // ── Three-tier scholar-to-tutor matching via Pearl STU bridge ────────────
-      // Pearl STU col 0 = "Filled By" (student name), col 12 = "Filled By ID" (Pearl login ID)
-      // Tier 0: iReady Instructor column directly names this tutor
-      // Tier 1: iReady Student ID = Pearl "Filled By ID" (same Pearl login system)
-      // Tier 2: normalized iReady Student Name = normalized Pearl "Filled By"
+      // Three-tier scholar matching via Pearl STU bridge
       const scholarPearlIds = new Set(myStuRows.map(r => (r['Filled By ID'] || '').trim()).filter(Boolean));
       const scholarNames    = new Set(myStuRows.map(r => normName(r['Filled By'] || r['Scholar Name'] || r['Student Name'] || '')).filter(s => s.length > 2));
 
@@ -1434,34 +1419,30 @@
         return snam.length > 2 && scholarNames.has(snam);
       }
 
-      // Legacy iReady (prior year) — fallback for districts not yet in 25-26 sheet
-      const myElaRows  = data.irEla.filter(matchScholar);
-      const myMathRows = data.irMath.filter(matchScholar);
+      const myElaRows  = irEla.filter(matchScholar);
+      const myMathRows = irMath.filter(matchScholar);
+      const my2526Ela  = ir2526Ela.filter(matchScholar);
+      const my2526Math = ir2526Math.filter(matchScholar);
 
-      // iReady 25-26 EOY Preliminary / Longitudinal — preferred over legacy
-      const my2526Ela  = data.ir2526Ela.filter(matchScholar);
-      const my2526Math = data.ir2526Math.filter(matchScholar);
-
-      // Standards Mastery (Middlesex STEM)
       const tutorSchoolNorm = normName(t.school || '');
       const isSMTutor = [...SM_SCHOOLS].some(s => tutorSchoolNorm.includes(s));
 
       const attMetrics    = computeAttMetrics(myAttRows);
       const stuMetrics    = computeStuMetrics(myStuRows);
-      // Prefer 25-26 data; fall back to legacy if 25-26 is empty
       const irElaMetrics  = computeIReadyMetrics(my2526Ela.length  ? my2526Ela  : myElaRows,  !!my2526Ela.length);
       const irMathMetrics = computeIReadyMetrics(my2526Math.length ? my2526Math : myMathRows, !!my2526Math.length);
-      const smMetrics     = isSMTutor ? computeSmMetrics(data.sm, t.name) : null;
+      const smMetrics     = isSMTutor ? computeSmMetrics(data.sm || [], t.name) : null;
       const siDetails     = computeSIDetails(myAttRows);
       const surveyAttn    = computeSurveyAttention(myStuRows);
-      const tap           = getTapForTutor(data.tap, t.name);
-      const tapLoaded     = data.tapLoaded;
-      const concerns      = getConcernsForTutor(data.concerns, t.name);
+      const tap           = getTapForTutor(data.tap || [], t.name);
+      const tapLoaded     = !!(data.tapLoaded);
+      const concerns      = getConcernsForTutor(data.concerns || [], t.name);
 
       return { ...t, attMetrics, stuMetrics, irElaMetrics, irMathMetrics, smMetrics, siDetails, surveyAttn, tap, tapLoaded, concerns };
     });
+  }
 
-    // Sort: flagged first, then alpha
+  function sortAndRenderTutors(tutors, container, tapRows) {
     tutors.sort((a, b) => {
       const aFlag = (a.attMetrics.rate != null && a.attMetrics.rate < 80) || a.attMetrics.si >= 5 ? 0 : 1;
       const bFlag = (b.attMetrics.rate != null && b.attMetrics.rate < 80) || b.attMetrics.si >= 5 ? 0 : 1;
@@ -1469,7 +1450,6 @@
       return a.name.localeCompare(b.name);
     });
 
-    // Store for openDetail
     window._njtcTeamTutors = tutors;
 
     const needsAttention = tutors.filter(t =>
@@ -1480,25 +1460,86 @@
     );
     const apprentices = tutors.filter(t => t.tap && /active/i.test(t.tap['Apprentice Program Status'] || t.tap['K'] || ''));
 
-    let html = renderKPIStrip(tutors, data.tap);
+    let html = renderKPIStrip(tutors, tapRows || []);
 
     if (needsAttention.length > 0) {
       html += `<div class="njtc-section-title">⚠️ Needs Attention (${needsAttention.length})</div>`;
       html += `<div class="njtc-tutor-grid">${needsAttention.map(renderTutorCard).join('')}</div>`;
     }
-
     if (apprentices.length > 0) {
       html += `<div class="njtc-section-title">🎓 TAP Apprentices (${apprentices.length})</div>`;
       html += `<div class="njtc-tutor-grid">${apprentices.map(renderTutorCard).join('')}</div>`;
     }
-
     html += `<div class="njtc-section-title">Full Team Roster (${tutors.length})</div>`;
     html += `<div class="njtc-tutor-grid">${tutors.map(renderTutorCard).join('')}</div>`;
 
     container.innerHTML = html;
-
-    // Ensure overlay/panel exist in DOM
     ensureDetailDOM();
+  }
+
+  /* ─────────────────────────────────────────────
+     MAIN BUILD FUNCTION  (progressive)
+  ───────────────────────────────────────────── */
+  async function build(userProfile) {
+    if (!userProfile) return;
+
+    injectTeamStyles();
+
+    const container = document.getElementById('njtcTeamContainer');
+    if (!container) return;
+
+    container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading team data…</div>`;
+
+    // Detect leader role (uses HR list — cached after first load)
+    const leaderInfo = await detectLeader(userProfile);
+    if (!leaderInfo) {
+      container.innerHTML = `<div style="color:#94a3b8;padding:32px;text-align:center">You do not appear to have a leader role in the HR system for 2025–2026.</div>`;
+      return;
+    }
+
+    _leaderProfile   = userProfile;
+    _leaderDistricts = leaderInfo.districts;
+
+    const teamTab = document.getElementById('njtcTeamTab');
+    if (teamTab) teamTab.style.display = 'flex';
+
+    // ── PHASE 1: Load Pearl ATT + STU + Login (fast pub CSVs) ────────────────
+    let critical;
+    try {
+      critical = await loadCriticalData();
+    } catch (e) {
+      console.error('[NJTCTeam] Critical data load failed:', e);
+      container.innerHTML = `<div style="color:#ef4444;padding:32px">Error loading team data. Please refresh and try again.</div>`;
+      return;
+    }
+
+    // Filter to this leader's scope, no enhancement data yet
+    const phase1Data = filterData(
+      critical.att, critical.stu, critical.login, null,
+      _leaderDistricts, userProfile.name
+    );
+    _teamData = phase1Data;
+
+    // Render roster immediately with Pearl data (attendance + scholars + surveys)
+    const phase1Tutors = buildTutors(phase1Data);
+    sortAndRenderTutors(phase1Tutors, container, []);
+
+    console.log('[NJTCTeam] Phase 1 rendered:', phase1Tutors.length, 'tutors');
+
+    // ── PHASE 2: Load iReady + SM + TAP + Concerns in background ─────────────
+    loadEnhancementData().then(enh => {
+      const phase2Data = filterData(
+        critical.att, critical.stu, critical.login, enh,
+        _leaderDistricts, userProfile.name
+      );
+      _teamData = phase2Data;
+
+      const phase2Tutors = buildTutors(phase2Data);
+      sortAndRenderTutors(phase2Tutors, container, enh.tap || []);
+      console.log('[NJTCTeam] Phase 2 rendered with enhancement data');
+    }).catch(e => {
+      console.warn('[NJTCTeam] Enhancement data failed — roster stays with Phase 1 data:', e);
+    });
   }
 
   /* ─────────────────────────────────────────────
@@ -1548,9 +1589,8 @@
   }
 
   async function refresh() {
-    // Clear cache
     Object.values(CACHE_KEYS).forEach(k => { try { sessionStorage.removeItem(k); } catch (e) {} });
-    if (_leaderProfile) await build(_leaderProfile);
+    if (_leaderProfile) build(_leaderProfile);
   }
 
   /* ─────────────────────────────────────────────
