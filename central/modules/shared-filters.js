@@ -47,18 +47,10 @@
     const TAP_VISIBLE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
     dataTDBtns.forEach(b => {
       b.style.display = TAP_VISIBLE_DEPTS.includes(dept) ? '' : 'none';
-      // TAP Dashboard: Leadership, KB, Finance, Data see executive-level dashboard name
-      // Apprentice Analytics: Programming, HR, Training see operational analytics name
-      if (dept === 'leadership' || dept === 'kb' || dept === 'finance' || dept === 'data') {
-        b.textContent = '📋 TAP Dashboard';
-        b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones, and program completion';
-      } else if (dept === 'programming' || dept === 'hr' || dept === 'training') {
-        b.textContent = '🎓 Apprentice Analytics';
-        b.title = 'Apprentice Analytics — OJT activity tracking, phase completion, and program outcomes';
-      } else {
-        b.textContent = '📋 TAP Dashboard';
-        b.title = 'TAP Apprenticeship Dashboard — active roster, OJT progress, wage milestones';
-      }
+      // dept-nav-td-data always points to T&D Analytics panel (training-analytics)
+      // It should ALWAYS be labeled T&D Analytics — it is the T&D section, not TAP
+      b.textContent = '🎓 T&D Analytics';
+      b.title = 'Training and Development program performance and staff outcome data';
     });
     // TAP Standalone Dashboard — visible to all departments that interact with the apprenticeship program
     const TAP_STANDALONE_DEPTS = ['data', 'programming', 'training', 'finance', 'hr', 'leadership', 'kb'];
