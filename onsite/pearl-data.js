@@ -173,15 +173,17 @@
     }
 
     let lastErr;
-    // Retry the pub URL up to 3 times (1s, 2s delays) for transient CDN failures
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // Retry up to 5 times — delays: 1s, 2s, 4s, 8s — to survive Google CDN
+    // warm-up latency on initial page load (first request often 404s).
+    const delays = [1000, 2000, 4000, 8000];
+    for (let attempt = 0; attempt < 5; attempt++) {
       try {
         const rows = await tryUrl(pubUrl);
         if (cacheKey) setCache(cacheKey, rows);
         return rows;
       } catch (e) {
         lastErr = e;
-        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 1000));
+        if (attempt < 4) await new Promise(r => setTimeout(r, delays[attempt]));
       }
     }
 

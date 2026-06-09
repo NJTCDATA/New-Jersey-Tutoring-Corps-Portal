@@ -2750,12 +2750,24 @@
         ? await fetchSmData(user.name, scholarIds, scholarNames).catch(() => [])
         : [];
     } catch (err) {
+      // pearl-data.js already retried up to 5× with backoff. If still failing,
+      // schedule one final auto-retry after 10 seconds before showing hard error.
+      const alreadyRetried = user._dashRetried;
+      if (!alreadyRetried) {
+        user._dashRetried = true;
+        if (kpiStrip) kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:#94a3b8">Connecting to Pearl… retrying in 10s</div></div>`;
+        if (dashPlaceholder) dashPlaceholder.innerHTML = `<div style="padding:32px;text-align:center;color:#94a3b8;font-size:.9rem">Establishing connection to Pearl Operations data…</div>`;
+        if (window.NJTCPearlData && window.NJTCPearlData.clearCache) window.NJTCPearlData.clearCache();
+        setTimeout(() => build(user), 10000);
+        return;
+      }
+      // Hard failure after second attempt — show actionable error
       if (kpiStrip) {
-        kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Pearl data unavailable — contact administrator</div></div>`;
+        kpiStrip.innerHTML = `<div class="njtc-kpi-card"><div class="njtc-kpi-label" style="color:rgba(252,165,165,0.8);">Pearl data unavailable — try refreshing the page</div></div>`;
       }
       if (dashPlaceholder) {
         dashPlaceholder.innerHTML = '';
-        dashPlaceholder.appendChild(buildErrorSection());
+        dashPlaceholder.appendChild(buildErrorSection('Pearl data is temporarily unavailable. Please refresh the page or try again in a moment.'));
       }
       return;
     }
