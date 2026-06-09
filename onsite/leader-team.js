@@ -1198,7 +1198,7 @@
             <div class="njtc-progress-label"><span>RTI Hours</span><span>${rtiHours} / ${rtiTotal} (${rtiPct}%)</span></div>
             <div class="njtc-progress-bar"><div class="njtc-progress-fill rti" style="width:${rtiPct}%"></div></div>
           </div>
-          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${escHtml(normName(name))}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
+          <button onclick="(function(){var b=document.getElementById('ojtFormBody_${normName(name).replace(/\s+/g,'_')}');if(b)b.style.display=b.style.display==='none'?'block':'none';})()"
             style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.78rem;font-weight:600;cursor:pointer;margin-top:8px">
             📋 Log OJT Activity
           </button>
@@ -1452,7 +1452,7 @@
     const leaderSite2 = school || (_leaderInfo && _leaderInfo.siteField) || '';
     const todayISO    = new Date().toISOString().slice(0, 10);
     const safeName    = escHtml(name).replace(/'/g,"\\'");
-    const nk          = escHtml(normName(name));
+    const nk          = normName(name).replace(/\s+/g, '_');  // spaces invalid in HTML IDs
 
     const inputStyle  = 'width:100%;background:#0f172a;border:1px solid #334155;border-radius:5px;color:#e2e8f0;padding:5px 8px;font-size:.8rem';
     const labelStyle  = 'font-size:.7rem;color:#94a3b8;display:block;margin-bottom:2px';
@@ -2292,7 +2292,7 @@
      Section 2: OJT activity (Section 3 RTI = Central only, not submitted here)
   ───────────────────────────────────────────── */
   async function submitOJT(tutorName, formId) {
-    const k        = normName(tutorName);
+    const k        = normName(tutorName).replace(/\s+/g, '_');  // match HTML ID format
     const statusEl = document.getElementById('ojt_status_' + k);
     const get      = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
 
