@@ -1838,72 +1838,95 @@
             </div>
           </div>
 
-          <div style="font-size:.72rem;color:#FFB81C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Section 2 — OJT Activity</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <!-- Section 2: Multi-activity OJT checklist -->
+          <div style="font-size:.72rem;color:#FFB81C;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Section 2 — OJT Activities</div>
+          <div style="font-size:.71rem;color:#94a3b8;margin-bottom:10px">Select phase and domain, then check all activities observed this session. One submit logs them all.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
             <div>
-              <label style="${labelStyle}">Program Phase</label>
-              <select id="ojt_phase_${nk}" style="${inputStyle}">
-                <option value="">Select phase…</option>
-                <option value="Beginning (Months 1–4 · September–November)">Beginning (Months 1–4)</option>
-                <option value="Middle (Months 5–8 · November–February)">Middle (Months 5–8)</option>
-                <option value="End (Months 9–12 · March–May)">End (Months 9–12)</option>
+              <label style="${labelStyle}">Program Phase <span style="color:#ef4444">*</span></label>
+              <select id="ojt_phase_${nk}" style="${inputStyle}"
+                onchange="window.NJTCTeam._ojtFilterActivities('${nk}')">
+                <option value="">Select phase\u2026</option>
+                <option value="Beginning (Months 1\u20134 \u00b7 September\u2013November)">Beginning (Months 1\u20134)</option>
+                <option value="Middle (Months 5\u20138 \u00b7 November\u2013February)">Middle (Months 5\u20138)</option>
+                <option value="End (Months 9\u201312 \u00b7 March\u2013May)">End (Months 9\u201312)</option>
               </select>
             </div>
             <div>
-              <label style="${labelStyle}">Competency Domain</label>
-              <select id="ojt_domain_${nk}" style="${inputStyle}">
-                <option value="">Select domain…</option>
+              <label style="${labelStyle}">Competency Domain <span style="color:#ef4444">*</span></label>
+              <select id="ojt_domain_${nk}" style="${inputStyle}"
+                onchange="window.NJTCTeam._ojtFilterActivities('${nk}')">
+                <option value="">Select domain\u2026</option>
                 <option value="Professionalism">Professionalism</option>
                 <option value="Instruction">Instruction</option>
                 <option value="Environment">Environment</option>
                 <option value="Planning">Planning</option>
               </select>
             </div>
-            <div style="grid-column:1/-1">
-              <label style="${labelStyle}">Activity Code — select from OJT checklist</label>
-              <select id="ojt_activity_${nk}" style="${inputStyle}"
-                onchange="(function(s){
-                  var o=s.options[s.selectedIndex];
-                  var lf=o?o.getAttribute('data-lookfor'):'';
-                  var ph=o?o.getAttribute('data-phase'):'';
-                  var dm=o?o.getAttribute('data-domain'):'';
-                  var lfDiv=document.getElementById('ojt_lookfor_${nk}');
-                  if(lfDiv){lfDiv.innerHTML=lf?'<strong style=\\'color:#1C7C8C\\'>Look For:</strong> '+lf:'';lfDiv.style.display=lf?'block':'none';}
-                  var phSel=document.getElementById('ojt_phase_${nk}');
-                  var dmSel=document.getElementById('ojt_domain_${nk}');
-                  if(phSel&&ph){for(var i=0;i<phSel.options.length;i++){if(phSel.options[i].value.startsWith(ph)){phSel.selectedIndex=i;break;}}}
-                  if(dmSel&&dm){for(var i=0;i<dmSel.options.length;i++){if(dmSel.options[i].value===dm){dmSel.selectedIndex=i;break;}}}
-                })(this)">
-                <option value="">Select activity…</option>
-                ${OJT_ACTIVITY_DATA.map(d => {
-                  const label = `${d.code} — ${d.desc} [${d.phase} · ${d.domain}]`;
-                  return `<option value="${escHtml(label)}" data-lookfor="${escHtml(d.lookFor)}" data-phase="${escHtml(d.phase)}" data-domain="${escHtml(d.domain)}">${escHtml(label)}</option>`;
-                }).join('')}
-              </select>
-              <div id="ojt_lookfor_${nk}" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(28,124,140,.12);border-left:3px solid #1C7C8C;border-radius:0 4px 4px 0;font-size:.75rem;color:#cbd5e1;line-height:1.5"></div>
-            </div>
-            <div style="grid-column:1/-1">
-              <label style="${labelStyle}">Mark This Activity As</label>
+          </div>
+          <div id="ojt_checklist_${nk}" style="margin-bottom:8px;max-height:200px;overflow-y:auto;border:1px solid #334155;border-radius:6px;padding:5px 7px;background:rgba(255,255,255,.03)">
+            <div style="color:#64748b;font-size:.73rem;padding:6px">Select a phase and domain to see activities\u2026</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label style="${labelStyle}">Mark All Selected As</label>
               <select id="ojt_mark_${nk}" style="${inputStyle}">
-                <option value="Y — Observed and completed" selected>Y — Observed and completed</option>
-                <option value="N/A — Not applicable for this apprentice or site">N/A — Not applicable for this apprentice or site</option>
+                <option value="Y \u2014 Observed and completed" selected>Y \u2014 Observed and completed</option>
+                <option value="N/A \u2014 Not applicable for this apprentice or site">N/A \u2014 Not applicable</option>
               </select>
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <span id="ojt_selected_count_${nk}" style="font-size:.73rem;color:#94a3b8;font-weight:600;padding-bottom:6px">0 activities selected</span>
             </div>
           </div>
           <div style="margin-bottom:10px">
-            <label style="${labelStyle}">What did you observe? (appears in apprentice OJT report)</label>
-            <textarea id="ojt_notes_${nk}" rows="4"
-              placeholder="Describe what you observed. Include specific examples of the apprentice demonstrating the competency…"
+            <label style="${labelStyle}">Observation Notes (optional)</label>
+            <textarea id="ojt_notes_${nk}" rows="3"
+              placeholder="Describe what you observed\u2026"
               style="${inputStyle};resize:vertical"></textarea>
           </div>
-
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="border-top:1px solid #334155;margin:10px 0 8px;padding-top:8px">
+            <div style="font-size:.72rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">RTI Hours (optional \u2014 log monthly)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px">
+              <div>
+                <label style="${labelStyle}">Month</label>
+                <select id="ojt_rti_month_${nk}" style="${inputStyle}">
+                  <option value="">Skip RTI</option>
+                  <option value="Mar-25">Mar 2025</option><option value="Apr-25">Apr 2025</option>
+                  <option value="May-25">May 2025</option><option value="Jun-25">Jun 2025</option>
+                  <option value="Jul-25">Jul 2025</option><option value="Aug-25">Aug 2025</option>
+                  <option value="Sep-25">Sep 2025</option><option value="Oct-25">Oct 2025</option>
+                  <option value="Nov-25">Nov 2025</option><option value="Dec-25">Dec 2025</option>
+                  <option value="Jan-26">Jan 2026</option><option value="Feb-26">Feb 2026</option>
+                  <option value="Mar-26">Mar 2026</option><option value="Apr-26">Apr 2026</option>
+                  <option value="May-26">May 2026</option><option value="Jun-26">Jun 2026</option>
+                  <option value="Jul-26">Jul 2026</option>
+                </select>
+              </div>
+              <div>
+                <label style="${labelStyle}">Hours</label>
+                <input id="ojt_rti_hours_${nk}" type="number" min="0" max="40" step="0.5"
+                  placeholder="e.g. 8" style="${inputStyle}">
+              </div>
+              <div>
+                <label style="${labelStyle}">RTI Type</label>
+                <select id="ojt_rti_type_${nk}" style="${inputStyle}">
+                  <option value="Coaching / Professional development">Coaching / PD</option>
+                  <option value="UG/Graduate Coursework">UG/Grad Coursework</option>
+                  <option value="Praxis Exam Preparation">Praxis Prep</option>
+                  <option value="Individual RTI Sessions">Individual RTI</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <button id="ojt_submit_btn_${nk}"
               onclick="window.NJTCTeam.submitOJT('${safeName}','${ojtFormId}')"
               style="background:#1C7C8C;color:#fff;border:none;border-radius:6px;padding:7px 18px;font-size:.8rem;font-weight:600;cursor:pointer">
               Submit OJT Log
             </button>
-            <span id="ojt_status_${nk}" style="font-size:.75rem;color:#94a3b8"></span>
+            <span id="ojt_status_${nk}" style="font-size:.75rem;display:block"></span>
+          </div>
           </div>
         </div>
       </div>
@@ -2338,7 +2361,6 @@
     const btnEl    = document.getElementById('ojt_submit_btn_' + k);
     const get      = id => { const el = document.getElementById(id + '_' + k); return el ? el.value.trim() : ''; };
 
-    // ── Read all fields ───────────────────────────────────────────────────────
     const obsName        = get('ojt_obs_name');
     const obsRole        = get('ojt_obs_role');
     const site           = get('ojt_site');
@@ -2346,137 +2368,119 @@
     const apprenticeName = get('ojt_name');
     const phase          = get('ojt_phase');
     const domain         = get('ojt_domain');
-    const activity       = get('ojt_activity');
     const mark           = get('ojt_mark');
     const notes          = get('ojt_notes');
+    const rtiMonth       = get('ojt_rti_month');
+    const rtiHoursRaw    = get('ojt_rti_hours');
+    const rtiType        = get('ojt_rti_type');
 
-    // ── Validate required fields — hard block with visible errors ─────────────
-    const requiredFields = [
-      { id: 'ojt_phase',    val: phase,    label: 'Program Phase'     },
-      { id: 'ojt_domain',   val: domain,   label: 'Competency Domain' },
-      { id: 'ojt_activity', val: activity, label: 'Activity Code'     },
-    ];
-    const missing = requiredFields.filter(f => !f.val);
+    // Collect checked activity checkboxes
+    const checklistDiv = document.getElementById('ojt_checklist_' + k);
+    const checkedBoxes = checklistDiv
+      ? Array.from(checklistDiv.querySelectorAll('input[type=checkbox]:checked'))
+      : [];
 
-    if (missing.length > 0) {
-      // Highlight missing fields with red border
-      requiredFields.forEach(f => {
-        const el = document.getElementById(f.id + '_' + k);
-        if (el) el.style.border = f.val ? '1px solid #334155' : '2px solid #ef4444';
+    const hasActivities = checkedBoxes.length > 0;
+    const hasRTI        = rtiMonth && rtiHoursRaw && parseFloat(rtiHoursRaw) > 0;
+
+    // Validation
+    if (!hasActivities && !hasRTI) {
+      ['ojt_phase','ojt_domain'].forEach(id => {
+        const el = document.getElementById(id + '_' + k);
+        if (el && !el.value) el.style.border = '2px solid #ef4444';
       });
-      const labels = missing.map(f => f.label).join(', ');
       if (statusEl) {
-        statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.8rem;display:block;margin-top:8px';
-        statusEl.textContent = '✗ Required: ' + labels + '. Select these before submitting.';
+        statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
+        statusEl.textContent = '\u2717 Select at least one activity, or enter RTI hours.';
       }
-      return; // hard stop — no submission
+      return;
     }
 
-    // Clear any previous error borders
-    requiredFields.forEach(f => {
-      const el = document.getElementById(f.id + '_' + k);
-      if (el) el.style.border = '';
-    });
-
-    // ── Show submitting state ─────────────────────────────────────────────────
-    if (statusEl) { statusEl.style.cssText = 'color:#94a3b8;font-size:.8rem;display:block;margin-top:8px'; statusEl.textContent = 'Submitting…'; }
-    if (btnEl)    { btnEl.disabled = true; btnEl.textContent = 'Submitting…'; }
-
-    // ── Route 1: POST to Apps Script doPost() — writes directly to OTJ sheet ─
-    // This is the PRIMARY path. The Apps Script doPost() appends the row to the
-    // OTJ tab and immediately calls recalculateTotals(), updating all hours and
-    // wage milestones in real time. No Google Form dependency, no entry ID issues.
-    const webAppUrl = TAP_SCRIPT_URL; // already defined: the deployed Apps Script URL
-    let submitted = false;
+    if (statusEl) { statusEl.style.cssText = 'color:#94a3b8;font-size:.79rem;display:block;margin-top:6px'; statusEl.textContent = 'Submitting\u2026'; }
+    if (btnEl)    { btnEl.disabled = true; btnEl.textContent = 'Submitting\u2026'; }
 
     try {
-      const payload = {
-        logType:       'OJT Activity completion',
-        obsDate:       dateVal,
-        observerName:  obsName,
-        observerRole:  obsRole,
-        siteLocation:  site,
-        apprenticeName: apprenticeName,
-        phase:         phase,
-        domain:        domain,
-        activityCode:  activity,
-        status:        mark,
-        notes:         notes,
-      };
-      // Apps Script deployed as web app: POST JSON body
-      // mode: 'no-cors' because Apps Script CORS headers aren't set for all origins
-      await fetch(webAppUrl, {
-        method:  'POST',
-        mode:    'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      submitted = true;
-    } catch(e) {
-      console.warn('[NJTCTeam] doPost failed, falling back to Google Form POST:', e.message);
-    }
+      // Build activities array from checked boxes
+      const phaseKey = phase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
+                     : phase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle' : 'End';
 
-    // ── Route 2: Fallback — POST to Google Form formResponse ──────────────────
-    // Used only if the Apps Script web app is unreachable.
-    // Entry IDs confirmed from live form inspection.
-    if (!submitted) {
-      try {
-        const [yr, mo, dy] = dateVal ? dateVal.split('-') : ['','',''];
-        const endpoint = 'https://docs.google.com/forms/d/' + formId + '/formResponse';
-        const body = new URLSearchParams({
-          'entry.338482221':        'OJT Activity completion',
-          'entry.1328224034_year':  yr,
-          'entry.1328224034_month': mo ? String(parseInt(mo, 10)) : '',
-          'entry.1328224034_day':   dy ? String(parseInt(dy, 10)) : '',
-          'entry.1339815889':       obsName,
-          'entry.1644446216':       obsRole,
-          'entry.1868799856':       site,
-          'entry.1113592438':       apprenticeName,
-          'entry.2084410404':       phase,
-          'entry.1916953177':       domain,
-          'entry.1818518596':       activity,
-          'entry.272707685':        mark,
-          'entry.1617504322':       notes,
+      const activities = checkedBoxes.map(cb => {
+        const act = OJT_ACTIVITY_DATA.find(d => d.code === cb.value && d.phase === phaseKey && d.domain === domain);
+        const fullCode = act
+          ? `${cb.value} \u2014 ${act.desc} [${phaseKey} \u00b7 ${domain}]`
+          : cb.value;
+        return { phase, domain, activityCode: fullCode, status: mark };
+      });
+
+      // POST OJT activities (batch)
+      if (hasActivities) {
+        await fetch(TAP_SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            logType:        'OJT Activity completion',
+            obsDate:        dateVal,
+            observerName:   obsName,
+            observerRole:   obsRole,
+            siteLocation:   site,
+            apprenticeName: apprenticeName,
+            notes:          notes,
+            activities:     activities,
+            phase,
+            domain,
+            activityCode:   activities.length === 1 ? activities[0].activityCode : '',
+            status:         mark,
+          }),
         });
-        await fetch(endpoint, { method: 'POST', body, mode: 'no-cors' });
-        submitted = true;
-      } catch(e) {
-        console.warn('[NJTCTeam] Google Form fallback also failed:', e.message);
       }
+
+      // POST RTI hours if provided
+      if (hasRTI) {
+        await fetch(TAP_SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            logType:        'RTI Hours for a month',
+            obsDate:        dateVal,
+            observerName:   obsName,
+            observerRole:   obsRole,
+            siteLocation:   site,
+            apprenticeName: apprenticeName,
+            rtiMonth,
+            rtiHours:       parseFloat(rtiHoursRaw),
+            rtiTypes:       rtiType,
+          }),
+        });
+      }
+
+    } catch(e) {
+      console.warn('[NJTCTeam] submitOJT error:', e.message);
     }
 
-    // ── Mirror to localStorage (leader reference / offline resilience) ────────
-    try {
-      const logKey   = 'njtc_ojt_log_' + k;
-      const existing = JSON.parse(localStorage.getItem(logKey) || '[]');
-      existing.unshift({
-        ts: new Date().toISOString(), obsName, obsRole, site, date: dateVal,
-        apprenticeName, phase, domain, activity, mark, notes, submitted
-      });
-      localStorage.setItem(logKey, JSON.stringify(existing.slice(0, 100)));
-    } catch(e) {}
-
-    // ── Success UI ────────────────────────────────────────────────────────────
+    // Success feedback
+    const actCount = checkedBoxes.length;
+    const rtiNote  = hasRTI ? ' + ' + rtiHoursRaw + ' RTI hrs (' + rtiMonth + ')' : '';
     if (statusEl) {
-      statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.8rem;display:block;margin-top:8px';
-      statusEl.textContent = '✓ OJT activity logged. Hours will update within 30 seconds.';
+      statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
+      statusEl.textContent = '\u2713 ' + (actCount > 0 ? actCount + ' activit' + (actCount===1?'y':'ies') : '') + rtiNote + ' logged. Updating in ~30s.';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
 
-    // ── Clear fields for next entry (keep observer info pre-filled) ───────────
-    ['ojt_phase','ojt_domain','ojt_activity','ojt_notes'].forEach(id => {
+    // Reset form
+    if (checklistDiv) checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+    const countSpan = document.getElementById('ojt_selected_count_' + k);
+    if (countSpan) { countSpan.textContent = '0 activities selected'; countSpan.style.color = '#94a3b8'; }
+    ['ojt_phase','ojt_domain','ojt_rti_month','ojt_rti_hours','ojt_notes'].forEach(id => {
       const el = document.getElementById(id + '_' + k);
       if (el) { el.value = ''; el.style.border = ''; }
     });
-    const lfDiv = document.getElementById('ojt_lookfor_' + k);
-    if (lfDiv) { lfDiv.innerHTML = ''; lfDiv.style.display = 'none'; }
     const markEl = document.getElementById('ojt_mark_' + k);
-    if (markEl) markEl.value = 'Y — Observed and completed';
-
-    // Clear success message after 8 seconds
-    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 8000);
+    if (markEl) markEl.value = 'Y \u2014 Observed and completed';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 9000);
   }
 
-  window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT };
+
+  window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT,
+                      _ojtFilterActivities, _ojtCountSelected };
 
 })();
