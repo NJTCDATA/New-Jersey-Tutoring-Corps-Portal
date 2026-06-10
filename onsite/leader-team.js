@@ -2507,6 +2507,7 @@
     // Collect selected activity codes from in-memory store first (DOM-rebuild safe)
     // Fall back to live DOM query if store has no entry for this tutor
     const stored = _ojtSelectionStore[k];
+    console.log('[NJTCTeam] submitOJT fired | k=' + k + ' | store:', stored ? stored.codes : 'EMPTY', '| phase:', phase, '| domain:', domain);
     const checklistDiv = document.getElementById('ojt_checklist_' + k);
 
     // Prefer store (survives phase2 panel rebuild); fall back to live DOM
@@ -2557,6 +2558,7 @@
       const phaseKey = effectivePhase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
                      : effectivePhase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle' : 'End';
 
+      console.log('[NJTCTeam] Building activities | selectedCodes:', selectedCodes, '| phaseKey:', phaseKey, '| domain:', effectiveDomain);
       const activities = selectedCodes.map(code => {
         const act = OJT_ACTIVITY_DATA.find(d => d.code === code && d.phase === phaseKey && d.domain === effectiveDomain);
         const fullCode = act
@@ -2578,7 +2580,8 @@
 
       // POST OJT activities (batch)
       if (hasActivities) {
-        await fetch(TAP_SCRIPT_URL, {
+        console.log('[NJTCTeam] POSTing to doPost | activities count:', activities.length, '| payload:', JSON.stringify({activities: activities.map(a => a.activityCode)}));
+      await fetch(TAP_SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2605,7 +2608,7 @@
     }
 
     // Success feedback
-    const actCount = checkedBoxes.length;
+    const actCount = selectedCodes.length;
     if (statusEl) {
       statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
       statusEl.textContent = '\u2713 ' + actCount + ' activit' + (actCount===1?'y':'ies') + ' logged. Updating in ~30s.';
@@ -2708,6 +2711,7 @@
     checkedBoxes.forEach(function(cb) { if (cb.value) codes.push(cb.value); });
     if (phase && domain) {
       _ojtSelectionStore[nk] = { phase: phase, domain: domain, codes: codes };
+      console.log('[NJTCTeam] _ojtSelectionStore updated | nk=' + nk + ' | codes:', codes);
     } else {
       delete _ojtSelectionStore[nk];
     }
