@@ -161,7 +161,16 @@
     const pubUrl = `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
 
     async function tryUrl(url) {
-      const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      // Use AbortController + setTimeout — AbortSignal.timeout() has Safari/iOS bugs
+      // where concurrent fetches share abort state and cancel each other.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      let res;
+      try {
+        res = await fetch(url, { signal: ctrl.signal });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const ct = res.headers.get('content-type') || '';
       if (ct.includes('text/html')) throw new Error('HTML response — sheet not public');
