@@ -675,62 +675,38 @@
 
   // Phase 1b: STU + SESS — load together; SESS is the authoritative tutor→scholar pairing
   async function loadStu() {
-    // Hard 8-second wall-clock timeout on the entire STU+SESS load.
-    // If Pearl is slow or a GID is broken, Phase 1b renders with whatever arrived
-    // rather than making the user wait for individual fetch retries.
-    const WALL_TIMEOUT = 50000;
-    const wall = new Promise(resolve =>
-      setTimeout(() => resolve({ stu: [], sess: [] }), WALL_TIMEOUT)
-    );
-    const load = Promise.allSettled([
+    const [stuR, sessR] = await Promise.allSettled([
       fetchCSV(pearlUrl(PEARL_STU_GID),  CACHE_KEYS.stu),
       fetchCSV(pearlUrl(PEARL_SESS_GID), CACHE_KEYS.sess),
-    ]).then(([stuR, sessR]) => {
-      if (stuR.status  === 'rejected') console.warn('[NJTCTeam] STU load failed:',  stuR.reason?.message);
-      if (sessR.status === 'rejected') console.warn('[NJTCTeam] SESS load failed:', sessR.reason?.message);
-      return {
-        stu:  stuR.status  === 'fulfilled' ? stuR.value  : [],
-        sess: sessR.status === 'fulfilled' ? sessR.value : [],
-      };
-    });
-    return Promise.race([load, wall]);
+    ]);
+    if (stuR.status  === 'rejected') console.warn('[NJTCTeam] STU load failed:',  stuR.reason?.message);
+    if (sessR.status === 'rejected') console.warn('[NJTCTeam] SESS load failed:', sessR.reason?.message);
+    return {
+      stu:  stuR.status  === 'fulfilled' ? stuR.value  : [],
+      sess: sessR.status === 'fulfilled' ? sessR.value : [],
+    };
   }
 
   async function loadEnhancementData() {
     // TAP + Concerns load first — these drive the tutor card badges and TAP block.
     // iReady and SM are optional enrichment — load concurrently but don't block.
     console.log('[NJTCTeam] Phase 2: fetching TAP + Concerns...');
-    const tapWall = new Promise(resolve => setTimeout(() => resolve([
-      { status: 'rejected', reason: 'wall-clock timeout' },
-      { status: 'rejected', reason: 'wall-clock timeout' },
-    ]), 12000));
-    const [tapR, concernR] = await Promise.race([
-      Promise.allSettled([
-        fetchTapCSV(TAP_URL, CACHE_KEYS.tap),
-        fetchCSV(concernsUrl(), CACHE_KEYS.concerns),
-      ]),
-      tapWall,
-    ]);
+    const [tapR, concernR] = await Promise.allSettled([
+      fetchTapCSV(TAP_URL, CACHE_KEYS.tap),
+      fetchCSV(concernsUrl(), CACHE_KEYS.concerns),
+    ]);;
     if (tapR.status     === 'rejected') console.warn('[NJTCTeam] TAP load failed:', tapR.reason);
     if (concernR.status === 'rejected') console.warn('[NJTCTeam] Concerns load failed:', concernR.reason);
 
     // iReady + SM: load with shorter timeout — return empty if unavailable
     console.log('[NJTCTeam] Phase 2: fetching iReady + SM...');
-    const irWall = new Promise(resolve => setTimeout(() => resolve([
-      {status:'rejected',reason:'wall'},{status:'rejected',reason:'wall'},
-      {status:'rejected',reason:'wall'},{status:'rejected',reason:'wall'},
-      {status:'rejected',reason:'wall'},
-    ]), 10000));
-    const [irElaR, irMathR, ir2526ElaR, ir2526MathR, smR] = await Promise.race([
-      Promise.allSettled([
-        fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla,      15000),
-        fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath,     15000),
-        fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela,  15000),
-        fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math, 15000),
-        fetchCSV(smUrl(),                     CACHE_KEYS.sm,         15000),
-      ]),
-      irWall,
-    ]);
+    const [irElaR, irMathR, ir2526ElaR, ir2526MathR, smR] = await Promise.allSettled([
+      fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla,      30000),
+      fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath,     30000),
+      fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela,  30000),
+      fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math, 30000),
+      fetchCSV(smUrl(),                     CACHE_KEYS.sm,         30000),
+    ]);;
     ['iReadyELA','iReadyMath','iReady2526ELA','iReady2526Math','SM'].forEach((lbl, i) => {
       const r = [irElaR,irMathR,ir2526ElaR,ir2526MathR,smR][i];
       if (r.status === 'rejected') console.warn('[NJTCTeam] Enhancement source unavailable:', lbl, r.reason?.message || r.reason);
