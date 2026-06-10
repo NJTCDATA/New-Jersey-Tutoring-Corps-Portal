@@ -2613,28 +2613,31 @@
         return;
       }
 
-      // POST OJT activities (batch)
+      // POST each activity as its own request — one row per activity in the OTJ sheet.
+      // Sending individually ensures activityCode is ALWAYS set in each request,
+      // compatible with any version of the Apps Script backend.
       if (hasActivities) {
-        console.log('[NJTCTeam] POSTing to doPost | activities count:', activities.length, '| payload:', JSON.stringify({activities: activities.map(a => a.activityCode)}));
-      await fetch(TAP_SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            logType:        'OJT Activity completion',
-            obsDate:        dateVal,
-            observerName:   obsName,
-            observerRole:   obsRole,
-            siteLocation:   site,
-            apprenticeName: apprenticeName,
-            notes:          notes,
-            activities:      activities,
-            phase:           effectivePhase,
-            domain:          effectiveDomain,
-            activityCode:    activities.length === 1 ? activities[0].activityCode : '',
-            status:          mark,
-            sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
-          }),
-        });
+        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' individually:', activities.map(a => a.activityCode));
+        for (const act of activities) {
+          await fetch(TAP_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logType:        'OJT Activity completion',
+              obsDate:        dateVal,
+              observerName:   obsName,
+              observerRole:   obsRole,
+              siteLocation:   site,
+              apprenticeName: apprenticeName,
+              notes:          notes,
+              phase:          act.phase,
+              domain:         act.domain,
+              activityCode:   act.activityCode,
+              status:         act.status || mark,
+              sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
+            }),
+          });
+        }
       }
 
 
