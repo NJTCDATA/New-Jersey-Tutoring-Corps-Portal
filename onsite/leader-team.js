@@ -320,9 +320,9 @@
       if (cached) return cached;
     }
     let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const res = await fetch(url, { signal: makeSignal(60000) });
+        const res = await fetch(url, { signal: makeSignal(15000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
         if (text.trim().startsWith('<')) throw new Error('HTML — not public');
@@ -551,9 +551,9 @@
       const cached = cacheGet(cacheKey);
       if (cached) return cached;
     }
-    const ms = timeoutMs || 60000;
+    const ms = timeoutMs || 12000;
     let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetch(url, { signal: makeSignal(ms) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -688,23 +688,34 @@
   }
 
   async function loadEnhancementData() {
-    const [irElaR, irMathR, tapR, concernR, ir2526ElaR, ir2526MathR, smR] = await Promise.allSettled([
-      fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla),
-      fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath),
-      fetchTapCSV(TAP_URL,                  CACHE_KEYS.tap),
-      fetchCSV(concernsUrl(),               CACHE_KEYS.concerns),
-      fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela),
-      fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math),
-      fetchCSV(smUrl(),                     CACHE_KEYS.sm),
+    // TAP + Concerns load first — these drive the tutor card badges and TAP block.
+    // iReady and SM are optional enrichment — load concurrently but don't block.
+    console.log('[NJTCTeam] Phase 2: fetching TAP + Concerns...');
+    const [tapR, concernR] = await Promise.allSettled([
+      fetchTapCSV(TAP_URL, CACHE_KEYS.tap),
+      fetchCSV(concernsUrl(), CACHE_KEYS.concerns),
     ]);
-    ['iReadyELA','iReadyMath','TAP','Concerns','iReady2526ELA','iReady2526Math','SM'].forEach((lbl, i) => {
-      const r = [irElaR,irMathR,tapR,concernR,ir2526ElaR,ir2526MathR,smR][i];
-      if (r.status === 'rejected') console.warn('[NJTCTeam] Enhancement source failed:', lbl, r.reason);
+    if (tapR.status     === 'rejected') console.warn('[NJTCTeam] TAP load failed:', tapR.reason);
+    if (concernR.status === 'rejected') console.warn('[NJTCTeam] Concerns load failed:', concernR.reason);
+
+    // iReady + SM: load with shorter timeout — return empty if unavailable
+    console.log('[NJTCTeam] Phase 2: fetching iReady + SM...');
+    const [irElaR, irMathR, ir2526ElaR, ir2526MathR, smR] = await Promise.allSettled([
+      fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla,      10000),
+      fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath,     10000),
+      fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela,  10000),
+      fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math, 10000),
+      fetchCSV(smUrl(),                     CACHE_KEYS.sm,         10000),
+    ]);
+    ['iReadyELA','iReadyMath','iReady2526ELA','iReady2526Math','SM'].forEach((lbl, i) => {
+      const r = [irElaR,irMathR,ir2526ElaR,ir2526MathR,smR][i];
+      if (r.status === 'rejected') console.warn('[NJTCTeam] Enhancement source unavailable:', lbl, r.reason?.message || r.reason);
     });
     const v = r => r.status === 'fulfilled' ? r.value : [];
     return {
       irEla: v(irElaR), irMath: v(irMathR),
-      tap: v(tapR), concerns: v(concernR),
+      tap: tapR.status === 'fulfilled' ? tapR.value : [],
+      concerns: concernR.status === 'fulfilled' ? concernR.value : [],
       ir2526Ela: v(ir2526ElaR), ir2526Math: v(ir2526MathR),
       sm: v(smR),
     };
