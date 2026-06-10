@@ -551,7 +551,7 @@
       const cached = cacheGet(cacheKey);
       if (cached) return cached;
     }
-    const ms = timeoutMs || 12000;
+    const ms = timeoutMs || 45000;
     let lastErr;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -678,7 +678,7 @@
     // Hard 8-second wall-clock timeout on the entire STU+SESS load.
     // If Pearl is slow or a GID is broken, Phase 1b renders with whatever arrived
     // rather than making the user wait for individual fetch retries.
-    const WALL_TIMEOUT = 8000;
+    const WALL_TIMEOUT = 50000;
     const wall = new Promise(resolve =>
       setTimeout(() => resolve({ stu: [], sess: [] }), WALL_TIMEOUT)
     );
@@ -723,11 +723,11 @@
     ]), 10000));
     const [irElaR, irMathR, ir2526ElaR, ir2526MathR, smR] = await Promise.race([
       Promise.allSettled([
-        fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla,      8000),
-        fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath,     8000),
-        fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela,  8000),
-        fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math, 8000),
-        fetchCSV(smUrl(),                     CACHE_KEYS.sm,         8000),
+        fetchCSV(ireadyUrl(IREADY_ELA_GID),   CACHE_KEYS.irEla,      15000),
+        fetchCSV(ireadyUrl(IREADY_MATH_GID),  CACHE_KEYS.irMath,     15000),
+        fetchCSV(ir2526Url(IR_2526_ELA_GID),  CACHE_KEYS.ir2526Ela,  15000),
+        fetchCSV(ir2526Url(IR_2526_MATH_GID), CACHE_KEYS.ir2526Math, 15000),
+        fetchCSV(smUrl(),                     CACHE_KEYS.sm,         15000),
       ]),
       irWall,
     ]);
