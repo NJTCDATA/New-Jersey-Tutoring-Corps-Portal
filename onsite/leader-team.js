@@ -27,6 +27,9 @@
   const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
   const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
 
+  // In-memory OJT activity selection store — survives panel DOM rebuilds
+  var _ojtSelectionStore = {}; // keyed by tutor nk
+
   // ── Service Interruption patterns (canonical, used across all SI computations)
   // A Service Interruption = any session where tutoring service was not delivered,
   // whether caused by the tutor (absent/no coverage) or the school (closure/event/drill).
@@ -2501,19 +2504,35 @@
     const notes          = get('ojt_notes');
     const sessionDuration = get('ojt_session_duration');
 
-    // Collect checked activity checkboxes
-    // Guard: clear stale boxes if phase or domain is empty
+    // Collect selected activity codes from in-memory store first (DOM-rebuild safe)
+    // Fall back to live DOM query if store has no entry for this tutor
+    const stored = _ojtSelectionStore[k];
     const checklistDiv = document.getElementById('ojt_checklist_' + k);
-    if (checklistDiv && (!phase || !domain)) {
-      checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
-      const cs = document.getElementById('ojt_selected_count_' + k);
-      if (cs) { cs.textContent = '0 activities selected'; cs.style.color = '#94a3b8'; }
-    }
-    const checkedBoxes = checklistDiv
-      ? Array.from(checklistDiv.querySelectorAll('input[type=checkbox]:checked'))
-      : [];
 
-    const hasActivities = checkedBoxes.length > 0;
+    // Prefer store (survives phase2 panel rebuild); fall back to live DOM
+    let selectedCodes = [];
+    let storedPhase  = phase;
+    let storedDomain = domain;
+
+    if (stored && stored.codes && stored.codes.length > 0) {
+      // Use the persisted selection — immune to DOM destruction
+      selectedCodes = stored.codes;
+      storedPhase   = stored.phase  || phase;
+      storedDomain  = stored.domain || domain;
+    } else {
+      // Fall back to DOM
+      if (checklistDiv && (!phase || !domain)) {
+        checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
+        const cs = document.getElementById('ojt_selected_count_' + k);
+        if (cs) { cs.textContent = '0 activities selected'; cs.style.color = '#94a3b8'; }
+      }
+      const liveCBs = checklistDiv
+        ? Array.from(checklistDiv.querySelectorAll('input[type=checkbox]:checked'))
+        : [];
+      selectedCodes = liveCBs.map(cb => cb.value).filter(Boolean);
+    }
+
+    const hasActivities = selectedCodes.length > 0;
 
     // Validation — require at least one activity selected
     if (!hasActivities) {
@@ -2533,20 +2552,22 @@
 
     try {
       // Build activities array from checked boxes
-      const phaseKey = phase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
-                     : phase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle' : 'End';
+      const effectivePhase  = storedPhase  || phase;
+      const effectiveDomain = storedDomain || domain;
+      const phaseKey = effectivePhase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
+                     : effectivePhase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle' : 'End';
 
-      const activities = checkedBoxes.map(cb => {
-        const act = OJT_ACTIVITY_DATA.find(d => d.code === cb.value && d.phase === phaseKey && d.domain === domain);
+      const activities = selectedCodes.map(code => {
+        const act = OJT_ACTIVITY_DATA.find(d => d.code === code && d.phase === phaseKey && d.domain === effectiveDomain);
         const fullCode = act
-          ? cb.value + ' \u2014 ' + act.desc + ' [' + phaseKey + ' \u00b7 ' + domain + ']'
-          : cb.value;
-        return { phase, domain, activityCode: fullCode, status: mark };
+          ? code + ' \u2014 ' + act.desc + ' [' + phaseKey + ' \u00b7 ' + effectiveDomain + ']'
+          : code;
+        return { phase: effectivePhase, domain: effectiveDomain, activityCode: fullCode, status: mark };
       });
 
       // Guard: if all activity codes are empty, the checklist was stale — abort
       const blankCodes = activities.filter(a => !a.activityCode || !a.activityCode.trim());
-      if (blankCodes.length === activities.length && activities.length > 0) {
+      if (blankCodes.length === activities.length && activities.length > 0 && !stored) {
         if (statusEl) {
           statusEl.style.cssText = 'color:#ef4444;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
           statusEl.textContent = '\u2717 Activity codes missing — please reselect phase, domain, and activities, then submit again.';
@@ -2569,8 +2590,8 @@
             apprenticeName: apprenticeName,
             notes:          notes,
             activities:      activities,
-            phase,
-            domain,
+            phase:           effectivePhase,
+            domain:          effectiveDomain,
             activityCode:    activities.length === 1 ? activities[0].activityCode : '',
             status:          mark,
             sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
@@ -2591,7 +2612,8 @@
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
 
-    // Reset form
+    // Clear in-memory store and reset form
+    delete _ojtSelectionStore[k];
     if (checklistDiv) checklistDiv.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = false; });
     const countSpan = document.getElementById('ojt_selected_count_' + k);
     if (countSpan) { countSpan.textContent = '0 activities selected'; countSpan.style.color = '#94a3b8'; }
@@ -2624,6 +2646,8 @@
         cl.appendChild(hint);
       }
       if (cs) { cs.textContent = '0 activities selected'; cs.style.color = '#94a3b8'; }
+      // Clear in-memory store when form is reset
+      delete _ojtSelectionStore[nk];
     }
   }
 
@@ -2670,10 +2694,23 @@
     var listDiv   = document.getElementById('ojt_checklist_' + nk);
     var countSpan = document.getElementById('ojt_selected_count_' + nk);
     if (!listDiv || !countSpan) return;
-    var checked = listDiv.querySelectorAll('input[type=checkbox]:checked').length;
-    var total   = listDiv.querySelectorAll('input[type=checkbox]').length;
-    countSpan.textContent = checked + ' of ' + total + ' selected';
-    countSpan.style.color = checked > 0 ? '#34d399' : '#94a3b8';
+    var checkedBoxes = listDiv.querySelectorAll('input[type=checkbox]:checked');
+    var total        = listDiv.querySelectorAll('input[type=checkbox]').length;
+    countSpan.textContent = checkedBoxes.length + ' of ' + total + ' selected';
+    countSpan.style.color = checkedBoxes.length > 0 ? '#34d399' : '#94a3b8';
+
+    // Persist selections to in-memory store — survives panel DOM rebuild
+    var phaseSel  = document.getElementById('ojt_phase_'  + nk);
+    var domainSel = document.getElementById('ojt_domain_' + nk);
+    var phase  = phaseSel  ? phaseSel.value  : '';
+    var domain = domainSel ? domainSel.value : '';
+    var codes = [];
+    checkedBoxes.forEach(function(cb) { if (cb.value) codes.push(cb.value); });
+    if (phase && domain) {
+      _ojtSelectionStore[nk] = { phase: phase, domain: domain, codes: codes };
+    } else {
+      delete _ojtSelectionStore[nk];
+    }
   }
 
   window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT,
