@@ -2044,7 +2044,7 @@
             <div style="font-size:.72rem;color:#a78bfa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Session Duration (optional)</div>
             <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;align-items:end">
               <div>
-                <label style="${labelStyle}">Hours this session took</label>
+                <label style="${labelStyle}">Total hours for this observation session</label>
                 <input id="ojt_session_duration_${nk}" type="number" min="0" max="8" step="0.5"
                   placeholder="e.g. 1.5" style="${inputStyle}">
               </div>
@@ -2589,31 +2589,30 @@
         return;
       }
 
-      // POST each activity as its own request — one row per activity in the OTJ sheet.
-      // Sending individually ensures activityCode is ALWAYS set in each request,
-      // compatible with any version of the Apps Script backend.
+      // POST all activities in ONE batch request.
+      // Apps Script writes one row per activity and runs recalculateTotals ONCE.
+      // sessionDuration is the TOTAL hours for the session (not per activity).
       if (hasActivities) {
-        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' individually:', activities.map(a => a.activityCode));
-        for (const act of activities) {
-          await fetch(TAP_SCRIPT_URL, {
-            method: 'POST', mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              logType:        'OJT Activity completion',
-              obsDate:        dateVal,
-              observerName:   obsName,
-              observerRole:   obsRole,
-              siteLocation:   site,
-              apprenticeName: apprenticeName,
-              notes:          notes,
-              phase:          act.phase,
-              domain:         act.domain,
-              activityCode:   act.activityCode,
-              status:         act.status || mark,
-              sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
-            }),
-          });
-        }
+        const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
+        console.log('[NJTCTeam] Batch POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies'), '| sessionDuration:', dur, 'hrs');
+        await fetch(TAP_SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            logType:         'OJT Activity completion',
+            obsDate:         dateVal,
+            observerName:    obsName,
+            observerRole:    obsRole,
+            siteLocation:    site,
+            apprenticeName:  apprenticeName,
+            notes:           notes,
+            phase:           effectivePhase,
+            domain:          effectiveDomain,
+            status:          mark,
+            sessionDuration: dur,
+            activities:      activities,
+          }),
+        });
       }
 
 
