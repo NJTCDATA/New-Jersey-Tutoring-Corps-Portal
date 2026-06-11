@@ -6868,38 +6868,128 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     </div>`;
   }
 
-  /* ── Data access: pull from T&D module cache ─────────────────────────── */
+  /* ── Live TAP data — fetched directly from Apps Script Master Roster ────
+     TAP_ROSTER_URL uses doGet(?tab=master_roster) which returns a clean CSV
+     with correct column headers regardless of the sheet's header row layout.
+     This is completely independent of the T&D module — no visit to T&D
+     Analytics required. Data is cached in window._njtcTapRoster for 2 minutes
+     so repeat tab-switches don't refetch, but every new panel open gets
+     fresh data within that window.                                          */
+
+  const TAP_ROSTER_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec?tab=master_roster';
+  const TAP_OJT_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
+  const TAP_CACHE_MS   = 2 * 60 * 1000; // 2-minute cache
+  let   _tapCacheTs    = 0;
+  let   _tapFetchPromise = null; // deduplicate concurrent fetches
+
+  function _parseCsv(text) {
+    const rows = []; let row = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const cc = text.charCodeAt(i);
+      if (inQ) {
+        if (cc === 34 && text.charCodeAt(i+1) === 34) { field += '"'; i++; }
+        else if (cc === 34) { inQ = false; }
+        else { field += text.charAt(i); }
+      } else {
+        if      (cc === 34) { inQ = true; }
+        else if (cc === 44) { row.push(field); field = ''; }
+        else if (cc === 10) { row.push(field); rows.push(row); row = []; field = ''; }
+        else if (cc !== 13) { field += text.charAt(i); }
+      }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function _csvToObjs(text) {
+    const rows = _parseCsv(text);
+    if (rows.length < 2) return [];
+    const hdrs = rows[0].map(h => h.trim());
+    return rows.slice(1)
+      .map(row => { const o = {}; hdrs.forEach((h,i) => { o[h] = (row[i]||'').trim(); }); return o; })
+      .filter(r => Object.values(r).some(Boolean));
+  }
+
+  // Parse a Master Roster CSV row into the apprentice object shape all render functions use
+  function _mrRowToAppr(r) {
+    const name = (r['Full Name (Display)'] || ((r['First Name']||'')+' '+(r['Last Name']||'')).trim()).trim();
+    if (!name) return null;
+    const ojtHours = parseFloat(r['OJT Hours (Total)'] || r['AY'] || 0) || 0;
+    const rtiHours = parseFloat(r['RTI Hours (Total)'] || r['AZ'] || 0) || 0;
+    const yCount   = parseFloat(r['OJT Activities Marked Y'] || r['BB'] || 0) || 0;
+    const possible = parseFloat(r['OJT Possible (excl N/A)'] || r['BC'] || 78) || 78;
+    const ojtPct   = possible > 0 ? yCount / possible : 0;
+    const begPct   = parseFloat(r['Beginning % Complete'] || r['BD'] || 0) || 0;
+    const midPct   = parseFloat(r['Middle % Complete']    || r['BE'] || 0) || 0;
+    const endPct   = parseFloat(r['End % Complete']       || r['BF'] || 0) || 0;
+    return {
+      name,
+      status:    r['Status'] || 'Active',
+      site:      r['Placement (Site)'] || r['Site'] || '',
+      region:    r['Region'] || '',
+      cohort:    r['Cohort Seat #'] || '',
+      sy:        r['SY'] || '',
+      usdol:     r['USDOL Apprentice ID'] || '',
+      ojtHours,
+      rtiHours,
+      ojtPct,
+      yCount,
+      possible,
+      begPct,
+      midPct,
+      endPct,
+      wage:      r['Current Wage Rate ($)'] || r['Current Wage'] || '',
+      milestone: r['Wage Milestone'] || '',
+      complete:  r['Program Complete?'] || r['Program Complete'] || '',
+    };
+  }
+
+  async function fetchTapRoster(force) {
+    // Return cached data if fresh
+    if (!force && window._njtcTapRoster && (Date.now() - _tapCacheTs) < TAP_CACHE_MS) {
+      return window._njtcTapRoster;
+    }
+    // Deduplicate: if a fetch is already in flight, wait for it
+    if (_tapFetchPromise) return _tapFetchPromise;
+
+    _tapFetchPromise = (async () => {
+      try {
+        const res  = await fetch(TAP_ROSTER_URL);
+        const text = await res.text();
+        const rows = _csvToObjs(text);
+        const apprentices = rows
+          .map(_mrRowToAppr)
+          .filter(a => a && a.name && /active|reinstated/i.test(a.status));
+        window._njtcTapRoster = { apprentices };
+        _tapCacheTs = Date.now();
+        return window._njtcTapRoster;
+      } catch(e) {
+        console.error('[NJTCTap] fetchTapRoster failed:', e);
+        return window._njtcTapRoster || null;
+      } finally {
+        _tapFetchPromise = null;
+      }
+    })();
+    return _tapFetchPromise;
+  }
+
+  /* ── getTapData: sync check, returns cached data or null ────────────── */
   function getTapData() {
-    // T&D module exposes _apprParsed after its first load
-    if (window._tdApprParsed) return window._tdApprParsed;
-    // Fallback: read from global if T&D stored it differently
-    if (window._njtcTapRoster) return window._njtcTapRoster;
+    if (window._njtcTapRoster && window._njtcTapRoster.apprentices) return window._njtcTapRoster;
     return null;
+  }
+
+  /* ── loadAndRender: fetch live data then call a render function ──────── */
+  function loadAndRender(el, renderFn) {
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div><div style="font-size:.85rem">Loading live TAP data…</div></div>';
+    fetchTapRoster().then(() => renderFn(el)).catch(() => renderFn(el));
   }
 
   /* ── Tab renderers ────────────────────────────────────────────────────── */
   function renderOverview(el) {
-    // Only the data dept gets direct workbook access
     const isDataDept = (window.NJTC_SESSION||{}).dept === 'data';
-
     const data = getTapData();
-    if (!data || !data.apprentices) {
-      // Auto-trigger data load rather than making the user navigate away
-      el.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">
-        <div style="font-size:2rem;margin-bottom:.75rem">🎓</div>
-        <div style="font-weight:700;margin-bottom:.5rem">Loading TAP Data…</div>
-        <div style="font-size:.85rem;margin-bottom:1.25rem">Fetching live data from the Master Roster.</div>
-        <div class="td-spinner" style="margin:0 auto"></div>
-      </div>`;
-      // Silently trigger T&D data load then re-render
-      if (window.tdShowTab) {
-        setTimeout(() => {
-          try { window.tdShowTab('apprentice', document.getElementById('tdTab-apprentice')); } catch(e) {}
-          setTimeout(() => renderOverview(el), 3000);
-        }, 200);
-      }
-      return;
-    }
+    if (!data || !data.apprentices) { loadAndRender(el, renderOverview); return; }
     const apps = data.apprentices;
     const active = apps.filter(a => /active/i.test(a.status || '')).length;
     const totalOJT = apps.reduce((s,a) => s + (a.ojtHours||0), 0);
@@ -6944,7 +7034,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
   function renderRoster(el) {
     const data = getTapData();
-    if (!data || !data.apprentices) { el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Load the T&amp;D Apprentice tab first to populate roster data.</div>'; return; }
+    if (!data || !data.apprentices) { loadAndRender(el, renderRoster); return; }
     const apps = data.apprentices;
     el.innerHTML = `
       <div style="overflow-x:auto">
@@ -6986,28 +7076,48 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   }
 
   function renderOJT(el) {
-    // Delegate to T&D apprentice tab rendering
-    el.innerHTML = '<div style="padding:1rem 0"><div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">OJT progress data is shared with the Training &amp; Development module. Loading now…</div></div>';
-    if (window.tdShowTab) {
-      // Clone the T&D apprentice tab content into this panel
-      setTimeout(() => {
-        const tdEl = document.getElementById('td-content-apprentice');
-        if (tdEl && tdEl.innerHTML && tdEl.innerHTML.length > 100) {
-          el.innerHTML = tdEl.innerHTML;
-        } else {
-          window.tdShowTab('apprentice', document.getElementById('tdTab-apprentice'));
-          setTimeout(() => {
-            const tdEl2 = document.getElementById('td-content-apprentice');
-            if (tdEl2) el.innerHTML = tdEl2.innerHTML || el.innerHTML;
-          }, 2000);
-        }
-      }, 300);
-    }
+    const data = getTapData();
+    if (!data || !data.apprentices) { loadAndRender(el, renderOJT); return; }
+    const apps = data.apprentices;
+    el.innerHTML = `
+      <div style="margin-bottom:1.25rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.875rem">
+        ${apps.map(a => {
+          const ojtPct  = Math.round((a.ojtPct||0)*100);
+          const begPct  = Math.round((a.begPct||0)*100);
+          const midPct  = Math.round((a.midPct||0)*100);
+          const endPct  = Math.round((a.endPct||0)*100);
+          const isActive = /active/i.test(a.status||'');
+          return `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+            <div style="font-weight:700;font-size:.9rem;color:#1B2A4A;margin-bottom:.25rem">${a.name}</div>
+            <div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">${a.site||'—'} · ${a.sy||''}</div>
+            <div style="margin-bottom:.5rem">
+              <div style="display:flex;justify-content:space-between;font-size:.72rem;font-weight:600;margin-bottom:.25rem">
+                <span style="color:#1B3A6B">OJT Overall</span><span style="color:#1B3A6B">${ojtPct}%</span>
+              </div>
+              <div style="background:#e5e7eb;border-radius:4px;height:7px">
+                <div style="background:${ojtPct>=100?'#059669':ojtPct>=50?'#1B3A6B':'#f0a500'};width:${Math.min(100,ojtPct)}%;height:7px;border-radius:4px"></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.375rem;margin-bottom:.625rem">
+              ${[['Beg',begPct,'#457b9d'],['Mid',midPct,'#1B3A6B'],['End',endPct,'#059669']].map(([lbl,p,col]) =>
+                `<div style="text-align:center;background:#f8fafc;border-radius:6px;padding:.3rem">
+                  <div style="font-size:.95rem;font-weight:800;color:${col}">${p}%</div>
+                  <div style="font-size:.6rem;color:var(--muted);font-weight:600">${lbl}</div>
+                </div>`).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)">
+              <span>⏱ ${(a.ojtHours||0).toLocaleString()} / 4,000 hrs</span>
+              <span>📚 ${(a.rtiHours||0)} / 288 RTI</span>
+            </div>
+            <div style="margin-top:.375rem;font-size:.72rem;font-weight:700;color:#065f46">Y: ${a.yCount||0} / ${a.possible||78} activities</div>
+          </div>`;
+        }).join('')}
+      </div>`;
   }
 
   function renderMilestones(el) {
     const data = getTapData();
-    if (!data || !data.apprentices) { el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Load T&amp;D Apprentice tab first.</div>'; return; }
+    if (!data || !data.apprentices) { loadAndRender(el, renderMilestones); return; }
     const apps = data.apprentices;
     const tierGroups = {};
     WAGE_TIERS.forEach(t => { tierGroups[t.label] = []; });
@@ -7057,7 +7167,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           </div>`).join('')}
       </div>
       <div style="margin-top:1.25rem">
-        ${(window.NJTC_SESSION||{}).dept === 'data' ? `<a class="btn btn-primary btn-sm" href="https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit" target="_blank" rel="noopener" style="text-decoration:none">Open Master Workbook ↗</a>` : ''}
+        ${(window.NJTC_SESSION||{}).dept === "data" ? `<a class="btn btn-primary btn-sm" href="https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit" target="_blank" rel="noopener" style="text-decoration:none">Open Master Workbook ↗</a>` : ""}
       </div>
     </div>`;
   }
@@ -7157,9 +7267,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   }
 
   function renderOJTLog(el) {
-    // Build apprentice list from TAP data
+    // Build apprentice list from TAP data — fetch live if not yet cached
     const data  = getTapData();
-    const apps  = (data && data.apprentices) ? data.apprentices : [];
+    if (!data || !data.apprentices) { loadAndRender(el, renderOJTLog); return; }
+    const apps  = data.apprentices;
     const activeApps = apps.filter(a => /active/i.test(a.status || ''));
     const today = new Date().toISOString().split('T')[0];
     const userProfile = window.NJTC_USER_PROFILE || {};
@@ -7413,6 +7524,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       }
     },
     refresh: function() {
+      // Bust the live TAP roster cache so next render fetches fresh data
+      window._njtcTapRoster = null;
       // Clear all loaded flags so tabs re-render on next visit
       document.querySelectorAll('[id^="tap-content-"]').forEach(el => {
         delete el.dataset.loaded;
@@ -7428,12 +7541,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   };
 
 
-  /* ── tapDownloadOJTChecklists ──────────────────────────────────────────────
-     Builds one sheet per active apprentice.
-     Data: Master Roster CSV (aggregate totals) + OTJ tab CSV (individual activities).
-     Format: mirrors the OJT Activity Schema — one row per activity, grouped by
-     phase → domain, with logged status, date, observer, and notes populated live.
-     NJTC logo encoded inline — no external image dependency.                   */
+  /* ── tapDownloadOJTChecklists: client-side XLSX export ─────────────────────
+     Generates one sheet per active apprentice matching KS-Hamilton OJT format.
+     Uses SheetJS (xlsx) loaded from CDN. Data from published CSV endpoints.   */
   window.tapDownloadOJTChecklists = async function() {
     var btn = event && event.target ? event.target : null;
     var origText = btn ? btn.textContent : '';
@@ -7448,48 +7558,49 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         });
       }
       var XLSX = window.XLSX;
-
-      // ── Fetch Master Roster and OTJ tab ──────────────────────────────────
-      // Use the Apps Script doGet endpoint for Master Roster (clean CSV, correct headers)
       var MR_URL  = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec?tab=master_roster';
       var OJT_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
 
+      /* Safe CSV parser — uses charCodes to avoid escape sequence issues */
       function safeParseCsv(text) {
         var rows = [], row = [], field = '', inQ = false;
+        var NL = 10, CR = 13, COMMA = 44, DQ = 34;
         for (var i = 0; i < text.length; i++) {
           var cc = text.charCodeAt(i);
           if (inQ) {
-            if (cc === 34 && text.charCodeAt(i+1) === 34) { field += '"'; i++; }
-            else if (cc === 34) { inQ = false; }
+            if (cc === DQ && text.charCodeAt(i+1) === DQ) { field += '"'; i++; }
+            else if (cc === DQ) { inQ = false; }
             else { field += text.charAt(i); }
           } else {
-            if      (cc === 34) { inQ = true; }
-            else if (cc === 44) { row.push(field); field = ''; }
-            else if (cc === 10) { row.push(field); rows.push(row); row = []; field = ''; }
-            else if (cc !== 13) { field += text.charAt(i); }
+            if      (cc === DQ)    { inQ = true; }
+            else if (cc === COMMA) { row.push(field); field = ''; }
+            else if (cc === NL)    { row.push(field); rows.push(row); row = []; field = ''; }
+            else if (cc !== CR)    { field += text.charAt(i); }
           }
         }
         if (field || row.length) { row.push(field); rows.push(row); }
         return rows;
       }
+
       function csvToObjs(text) {
         var rows = safeParseCsv(text);
         if (rows.length < 2) return [];
         var hdrs = rows[0].map(function(h) { return h.trim(); });
         return rows.slice(1).map(function(row) {
-          var obj = {}; hdrs.forEach(function(h,i) { obj[h] = (row[i]||'').trim(); });
+          var obj = {};
+          hdrs.forEach(function(h, i) { obj[h] = (row[i] || '').trim(); });
           return obj;
-        }).filter(function(r) { return Object.values(r).some(Boolean); });
+        }).filter(function(r) { return Object.values(r).some(function(v) { return v; }); });
       }
 
       var results = await Promise.all([
         fetch(MR_URL).then(function(r) { return r.text(); }),
         fetch(OJT_URL).then(function(r) { return r.text(); }),
       ]);
-      var mrData  = csvToObjs(results[0]);
+      var csData  = csvToObjs(results[0]);
       var ojtData = csvToObjs(results[1]);
 
-      // ── Build per-apprentice OJT activity lookup (deduped, most-recent wins) ─
+      /* Build per-apprentice OJT activity lookup */
       var ojtByName = {};
       ojtData.forEach(function(row) {
         var name    = (row['Apprentice full name'] || '').trim();
@@ -7499,214 +7610,115 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         var phase   = (row['Program phase'] || '').trim();
         var domain  = (row['Competency domain'] || '').trim();
         var actFull = (row['Activity code \u2014 select the letter code from the OJT checklist'] || '').trim();
+        var parts   = actFull.split(/\s*[\u2014\-]\s*/);
+        var code    = parts[0].trim().toUpperCase();
         var status  = (row['Mark this activity as:'] || '').trim();
         var dateRaw = (row['Date of observation or session'] || '').trim();
         var notes   = (row["What did you observe? This appears in the apprentice's OJT report."] || '').trim();
-        var observer= (row['Observer Name'] || '').trim();
-        if (!phase || !domain || !actFull || !status) return;
-        var parts = actFull.split(/\s*[\u2014\-]\s*/);
-        var code  = parts[0].trim().toUpperCase();
+        if (!phase || !domain || !code || !status) return;
         var phKey = phase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
                   : phase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle'
                   : phase.toLowerCase().indexOf('end')   >= 0 ? 'End' : phase;
         if (!ojtByName[name]) ojtByName[name] = {};
         var key = phKey + '|' + domain + '|' + code;
-        if (!ojtByName[name][key] || dateRaw > (ojtByName[name][key].date||'')) {
-          ojtByName[name][key] = { phase:phKey, domain:domain, code:code, status:status, date:dateRaw, notes:notes, observer:observer };
+        if (!ojtByName[name][key] || dateRaw > ojtByName[name][key].date) {
+          ojtByName[name][key] = { phase: phKey, domain: domain, code: code, status: status, date: dateRaw, notes: notes };
         }
       });
 
-      // ── Active apprentices from Master Roster ─────────────────────────────
-      var active = mrData.filter(function(r) {
-        return (r['Status'] || '').toLowerCase() === 'active' &&
-               (r['Full Name (Display)'] || r['First Name'] || '').trim();
+      var active = csData.filter(function(r) {
+        return (r['Status'] || '').toLowerCase() === 'active';
       });
+
       if (!active.length) {
-        alert('No active apprentices found. Run Full Resync in Apps Script first.');
+        alert('No active apprentices found in Completion Summary. Run Full Resync first.');
         if (btn) { btn.textContent = origText; btn.disabled = false; }
         return;
       }
 
-      // ── NJTC logo — inline SVG converted to data URI (no external dependency) ─
-      // Renders in Excel as a text-based logo block using cell values + formatting
-      // SheetJS community edition does not support images; we embed identity info in header cells instead.
-
-      var ACT_DEF = _TAP_OJT_DATA;  // all 78 activities from inline data
+      var ACT_DEF = _TAP_OJT_DATA;
       var PHASES  = ['Beginning', 'Middle', 'End'];
-      var PHASE_LABELS = {
-        'Beginning': 'Beginning of Program (Months 1\u20134 \u00b7 Sep\u2013Nov)',
-        'Middle':    'Middle of Program (Months 5\u20138 \u00b7 Nov\u2013Feb)',
-        'End':       'End of Program (Months 9\u201312 \u00b7 Mar\u2013May)'
-      };
       var MONTH_ORDER = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
 
       var wb = XLSX.utils.book_new();
-      var generatedDate = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
       active.forEach(function(appr) {
-        var name   = (appr['Full Name (Display)'] || (appr['First Name']||'') + ' ' + (appr['Last Name']||'')).trim();
-        var site   = (appr['Placement (Site)'] || appr['Site'] || '').trim();
-        var usdol  = (appr['USDOL Apprentice ID'] || appr['USDOL ID'] || '').trim();
-        var region = (appr['Region'] || '').trim();
-        var sy     = (appr['SY'] || '2025-26').trim();
-        var ojtHrs = parseFloat(appr['OJT Hours (Total)'] || appr['OJT Hours'] || 0) || 0;
-        var rtiHrs = parseFloat(appr['RTI Hours (Total)'] || appr['RTI Hours'] || 0) || 0;
-        var yCount = parseFloat(appr['OJT Activities Marked Y'] || appr['Y Count'] || 0) || 0;
-        var possible = parseFloat(appr['OJT Possible (excl N/A)'] || 78) || 78;
-        var ojtPct = possible > 0 ? Math.round(yCount / possible * 100) : 0;
-        var wage   = appr['Current Wage Rate ($)'] || appr['Current Wage'] || '';
-        var milestone = appr['Wage Milestone'] || '';
-        var begPct = Math.round(parseFloat(appr['Beginning % Complete'] || 0) * 100);
-        var midPct = Math.round(parseFloat(appr['Middle % Complete']    || 0) * 100);
-        var endPct = Math.round(parseFloat(appr['End % Complete']       || 0) * 100);
+        var name    = (appr['Apprentice Full Name'] || '').trim();
+        var site    = (appr['Site'] || '').trim();
+        var usdol   = (appr['USDOL ID'] || '').trim();
+        var ojtHrs  = parseFloat(appr['OJT Hours'] || 0) || 0;
+        var yPoss   = (appr['Y / Possible'] || '0 / 78').toString();
+        var yCount  = parseInt(yPoss.split('/')[0]) || 0;
+        var possible= parseInt((yPoss.split('/')[1] || '78')) || 78;
+        var pctNum  = possible > 0 ? Math.round(yCount / possible * 100) : 0;
         if (!name) return;
 
+        /* Monthly activity counts */
         var myLogs = ojtByName[name] || {};
-
-        // Monthly OJT activity counts
-        var mCounts = {}; MONTH_ORDER.forEach(function(m){mCounts[m]=0;});
+        var mCounts = {};
+        MONTH_ORDER.forEach(function(m) { mCounts[m] = 0; });
         Object.values(myLogs).forEach(function(entry) {
           if (!entry.date || entry.status.charAt(0).toUpperCase() !== 'Y') return;
           var d = new Date(entry.date);
           if (!isNaN(d.getTime())) {
-            var ml = d.toLocaleString('en-US',{month:'short'});
-            if (mCounts.hasOwnProperty(ml)) mCounts[ml]++;
+            var mLabel = d.toLocaleString('en-US', { month: 'short' });
+            if (mCounts.hasOwnProperty(mLabel)) mCounts[mLabel]++;
           }
         });
-        var totObs = Object.values(mCounts).reduce(function(a,b){return a+b;},0);
+        var totObs = Object.values(mCounts).reduce(function(a,b){return a+b;}, 0);
 
         var aoa = [];
+        /* Header rows */
+        aoa.push(['Month','Count','','NJTC On-the-Job Learning Checklist \u2014 SY 2025\u20132026','','','']);
+        aoa.push([MONTH_ORDER[0], mCounts[MONTH_ORDER[0]]||0, '', name, '', site, '']);
+        aoa.push([MONTH_ORDER[1], mCounts[MONTH_ORDER[1]]||0, '', 'USDOL ID: '+usdol, '', '', '']);
+        aoa.push([MONTH_ORDER[2], mCounts[MONTH_ORDER[2]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[3], mCounts[MONTH_ORDER[3]]||0, '', pctNum+'%', 'OJT Complete', '', '']);
+        aoa.push([MONTH_ORDER[4], mCounts[MONTH_ORDER[4]]||0, '', 'NAME:', name, 'Total:', yCount]);
+        aoa.push([MONTH_ORDER[5], mCounts[MONTH_ORDER[5]]||0, '', 'Possible:', possible, '', '']);
+        aoa.push([MONTH_ORDER[6], mCounts[MONTH_ORDER[6]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[7], mCounts[MONTH_ORDER[7]]||0, '', 'Completion = 4000 OJT AND 288 RTI hrs', '', '', '']);
+        aoa.push([MONTH_ORDER[8], mCounts[MONTH_ORDER[8]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[9], mCounts[MONTH_ORDER[9]]||0, '', '', '', '', '']);
+        aoa.push([MONTH_ORDER[10],mCounts[MONTH_ORDER[10]]||0,'', '', '', '', '']);
+        aoa.push([MONTH_ORDER[11],mCounts[MONTH_ORDER[11]]||0,'','TOTAL OBSERVATIONS',totObs,'','']);
+        aoa.push(['','','','OJT HOURS',ojtHrs+' / 4000','','']);
+        aoa.push(['','','','','','','']);
 
-        // ── NJTC Identity Header Block ──────────────────────────────────────
-        aoa.push(['NJTC','','','New Jersey Tutoring Corps','','','','']);
-        aoa.push(['','','','Tutor Apprenticeship Program — On-the-Job Training Checklist','','','','']);
-        aoa.push(['','','','SY ' + sy + '  \u00b7  Generated: ' + generatedDate,'','','','']);
-        aoa.push(['','','','','','','','']);
-        // Apprentice identity row
-        aoa.push(['APPRENTICE','',name,'','SITE',site,'REGION',region]);
-        aoa.push(['USDOL ID','',usdol,'','WAGE',wage ? '$'+wage+'/hr' : '\u2014','MILESTONE',milestone||'\u2014']);
-        aoa.push(['OJT HOURS','',ojtHrs + ' / 4,000','OJT %',ojtPct+'%','RTI HOURS',rtiHrs + ' / 288','']);
-        aoa.push(['BEG %',begPct+'%','MID %',midPct+'%','END %',endPct+'%','','']);
-        aoa.push(['','','','','','','','']);
-
-        // ── Monthly Activity Count Summary ─────────────────────────────────
-        aoa.push(['MONTHLY ACTIVITY LOG','','','','','','','']);
-        aoa.push(['Month','Jul','Aug','Sep','Oct','Nov','Dec','']);
-        aoa.push(['Count',mCounts['Jul'],mCounts['Aug'],mCounts['Sep'],mCounts['Oct'],mCounts['Nov'],mCounts['Dec'],'']);
-        aoa.push(['Month','Jan','Feb','Mar','Apr','May','Jun','']);
-        aoa.push(['Count',mCounts['Jan'],mCounts['Feb'],mCounts['Mar'],mCounts['Apr'],mCounts['May'],mCounts['Jun'],'']);
-        aoa.push(['TOTAL OBSERVATIONS',totObs,'','Y ACTIVITIES',yCount,'','OJT HOURS',ojtHrs]);
-        aoa.push(['','','','','','','','']);
-
-        // ── OJT Activity Checklist — Phase / Domain / Activity rows ────────
+        /* Phase sections */
         PHASES.forEach(function(phase) {
-          var phActs  = ACT_DEF.filter(function(a) { return a.ph === phase; });
-          var domains = []; phActs.forEach(function(a) { if (domains.indexOf(a.dm)<0) domains.push(a.dm); });
-          var phDone  = phActs.filter(function(a) {
-            var k = phase+'|'+a.dm+'|'+a.c; return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase()==='Y';
-          }).length;
-          var phNA    = phActs.filter(function(a) {
-            var k = phase+'|'+a.dm+'|'+a.c; return myLogs[k] && myLogs[k].status.toUpperCase().indexOf('N/A')>=0;
-          }).length;
-          var phPoss  = phActs.length - phNA;
-          var phPct   = phPoss > 0 ? Math.round(phDone/phPoss*100) : 0;
-
-          // Phase header
-          aoa.push([PHASE_LABELS[phase],'','','','','DONE: '+phDone+'/'+phPoss,'',''+phPct+'% complete']);
-          aoa.push(['Site supervisors: check activity box and initial upon observation.','','','','','','','']);
-          aoa.push(['Code','Activity Description','Look For (Observed Indicator)','Status','Date Observed','Observer','Notes','Competency Domain']);
-
+          var phActs = ACT_DEF.filter(function(a) { return a.ph === phase; });
+          var domains = [];
+          phActs.forEach(function(a) { if (domains.indexOf(a.dm) < 0) domains.push(a.dm); });
+          var phLabel = phase === 'Beginning' ? 'Beginning of Program Checklist (Months 1\u20134 \u00b7 Sep\u2013Nov)'
+                      : phase === 'Middle'    ? 'Middle of Program Checklist (Months 5\u20138 \u00b7 Nov\u2013Feb)'
+                      :                         'End of Program Checklist (Months 9\u201312 \u00b7 Mar\u2013May)';
+          aoa.push(['','',phLabel,'','','','']);
+          aoa.push(['','','Site Supervisors: check the box and initial upon observation of this activity.','','','','']);
+          aoa.push(['','','Competency','Activity','Look For','Mark Y / N/A','Date']);
           domains.forEach(function(domain) {
             var dActs   = phActs.filter(function(a) { return a.dm === domain; });
-            var dDone   = dActs.filter(function(a) { var k=phase+'|'+domain+'|'+a.c; return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase()==='Y'; }).length;
-            var dNA     = dActs.filter(function(a) { var k=phase+'|'+domain+'|'+a.c; return myLogs[k] && myLogs[k].status.toUpperCase().indexOf('N/A')>=0; }).length;
-
-            // Domain sub-header
-            aoa.push(['','--- ' + domain.toUpperCase() + ' ('+dDone+'/'+(dActs.length-dNA)+') ---','','','','','','']);
-
+            var dYCount = dActs.filter(function(a) {
+              var k = phase+'|'+domain+'|'+a.c;
+              return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase() === 'Y';
+            }).length;
+            aoa.push(['','',domain+' ('+dYCount+'/'+dActs.length+')','','','','']);
             dActs.forEach(function(act) {
-              var key    = phase + '|' + domain + '|' + act.c;
+              var key    = phase+'|'+domain+'|'+act.c;
               var log    = myLogs[key];
-              var status = '';
-              if (log) {
-                if (log.status.charAt(0).toUpperCase() === 'Y')            status = 'Y \u2713';
-                else if (log.status.toUpperCase().indexOf('N/A') >= 0)     status = 'N/A';
-                else                                                        status = log.status.charAt(0);
-              }
-              var dateStr = '';
-              if (log && log.date) {
-                try { var d = new Date(log.date); dateStr = isNaN(d.getTime()) ? log.date : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
-                catch(e) { dateStr = log.date; }
-              }
-              aoa.push([
-                act.c,
-                act.d,
-                act.lf,
-                status,
-                dateStr,
-                log ? (log.observer || '') : '',
-                log ? (log.notes   || '') : '',
-                domain
-              ]);
+              var status = log ? (log.status.charAt(0).toUpperCase() === 'Y' ? 'Y' : (log.status.toUpperCase().indexOf('N/A') >= 0 ? 'N/A' : '')) : '';
+              var dstr   = log && log.date ? log.date : '';
+              aoa.push(['','', domain, act.c+'. '+act.d, act.lf, status, dstr]);
             });
           });
-          aoa.push(['','','','','','','','']); // spacer between phases
+          aoa.push(['','','','','','','']);
         });
 
-        // ── Sign-off block ─────────────────────────────────────────────────
-        aoa.push(['PROGRAM COMPLETION REQUIREMENTS','','','','','','','']);
-        aoa.push(['4,000 OJT hours','AND','288 RTI hours','=','Program Complete','','','']);
-        aoa.push(['Current OJT: '+ojtHrs,'','Current RTI: '+rtiHrs,'','Status: '+(ojtHrs>=4000&&rtiHrs>=288?'COMPLETE \u2713':'In Progress'),'','','']);
-        aoa.push(['','','','','','','','']);
-        aoa.push(['Apprentice Signature','','','','Date','','','']);
-        aoa.push(['_____________________________','','','','____________','','','']);
-        aoa.push(['Program Director Signature','','','','Date','','','']);
-        aoa.push(['_____________________________','','','','____________','','','']);
-
-        // ── Sheet column widths ────────────────────────────────────────────
         var ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [
-          {wch:8},   // A: Code
-          {wch:52},  // B: Activity Description
-          {wch:42},  // C: Look For
-          {wch:8},   // D: Status
-          {wch:14},  // E: Date
-          {wch:20},  // F: Observer
-          {wch:40},  // G: Notes
-          {wch:18},  // H: Domain
-        ];
-
-        var sheetName = name.replace(/[:\\/\?\*\[\]]/g,'').substring(0,31);
+        ws['!cols'] = [{wch:6},{wch:5},{wch:18},{wch:55},{wch:45},{wch:10},{wch:12}];
+        var sheetName = name.replace(/[:\/\?\*\[\]]/g,'').substring(0,31);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
-
-      // ── Summary sheet — all apprentices at a glance ────────────────────
-      var sumAoa = [];
-      sumAoa.push(['NJTC TAP — OJT Checklist Summary','','','','','','','','','Generated: '+generatedDate]);
-      sumAoa.push(['']);
-      sumAoa.push(['Apprentice','Site','Region','USDOL ID','Status','OJT Hrs','OJT %','RTI Hrs','Y Count','Wage','Milestone','Beg %','Mid %','End %']);
-      active.forEach(function(appr) {
-        var name = (appr['Full Name (Display)'] || '').trim(); if (!name) return;
-        sumAoa.push([
-          name,
-          appr['Placement (Site)'] || appr['Site'] || '',
-          appr['Region'] || '',
-          appr['USDOL Apprentice ID'] || '',
-          appr['Status'] || '',
-          parseFloat(appr['OJT Hours (Total)'] || 0) || 0,
-          Math.round(parseFloat(appr['OJT % Complete'] || appr['OJT%'] || 0) * 100) + '%',
-          parseFloat(appr['RTI Hours (Total)'] || 0) || 0,
-          parseFloat(appr['OJT Activities Marked Y'] || 0) || 0,
-          appr['Current Wage Rate ($)'] ? '$' + appr['Current Wage Rate ($)'] + '/hr' : '\u2014',
-          appr['Wage Milestone'] || '\u2014',
-          Math.round(parseFloat(appr['Beginning % Complete'] || 0) * 100) + '%',
-          Math.round(parseFloat(appr['Middle % Complete']    || 0) * 100) + '%',
-          Math.round(parseFloat(appr['End % Complete']       || 0) * 100) + '%',
-        ]);
-      });
-      var sumWs = XLSX.utils.aoa_to_sheet(sumAoa);
-      sumWs['!cols'] = [{wch:24},{wch:20},{wch:12},{wch:16},{wch:10},{wch:10},{wch:8},{wch:10},{wch:8},{wch:12},{wch:18},{wch:8},{wch:8},{wch:8}];
-      XLSX.utils.book_append_sheet(wb, sumWs, 'Summary');
 
       var today    = new Date().toISOString().split('T')[0];
       var filename = 'NJTC_TAP_OJT_Checklists_' + today + '.xlsx';
@@ -7719,18 +7731,21 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if (btn) { btn.textContent = origText; btn.disabled = false; }
     }
   }
-
   /* ── Auto-init on panel show ─────────────────────────────────────── */
   // Hook into showPanel so the overview tab loads when TAP panel opens
   const _origShowPanel = window.showPanel;
   window.showPanel = function(panelId, btn) {
     if (_origShowPanel) _origShowPanel(panelId, btn);
     if (panelId === 'tap-standalone') {
-      const overviewEl = document.getElementById('tap-content-overview');
-      if (overviewEl && !overviewEl.dataset.loaded) {
-        overviewEl.dataset.loaded = '1';
-        window.NJTCTapDash.renderTab('overview', overviewEl);
-      }
+      // Pre-fetch live roster immediately on panel open.
+      // fetchTapRoster populates window._njtcTapRoster so all tabs have data ready.
+      fetchTapRoster().then(() => {
+        const overviewEl = document.getElementById('tap-content-overview');
+        if (overviewEl && !overviewEl.dataset.loaded) {
+          overviewEl.dataset.loaded = '1';
+          window.NJTCTapDash.renderTab('overview', overviewEl);
+        }
+      });
     }
   };
 
