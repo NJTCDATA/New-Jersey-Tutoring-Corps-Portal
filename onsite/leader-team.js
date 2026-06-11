@@ -360,7 +360,8 @@
     'Instructional Coach/ Site Coordinator Dual', 'Master Trainer', 'Central Team'
   ]);
 
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes — Pearl/iReady (large, slow-changing)
+  const TAP_CACHE_TTL = 0;             // TAP master roster — always fresh (small CSV, live writes)
   const CACHE_KEYS = {
     att:        'njtc_team_att_v2',
     stu:        'njtc_team_stu_v2',
@@ -524,7 +525,9 @@
       const raw = sessionStorage.getItem(key);
       if (!raw) return null;
       const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts > CACHE_TTL) { sessionStorage.removeItem(key); return null; }
+      // TAP master roster uses TTL=0 — always re-fetch so OJT hours are live
+      const ttl = (key === CACHE_KEYS.tap) ? TAP_CACHE_TTL : CACHE_TTL;
+      if (Date.now() - ts > ttl) { sessionStorage.removeItem(key); return null; }
       return data;
     } catch (e) { return null; }
   }
@@ -2590,15 +2593,20 @@
       }
 
       // POST each activity as its own request — one row per activity in the OTJ sheet.
-      // All activity fetches fire in parallel (Promise.all) so 18 activities take the
-      // same wall-clock time as 1 (~2-3s) instead of 18 × sequential (~2 minutes).
-      // Each request is still a flat JSON object — the proven working pattern.
-      // RTI fires after all activity rows are confirmed dispatched.
+      // Staggered in batches of 3 with a 300ms pause between batches.
+      // Pure Promise.all (all at once) causes Apps Script appendRow() race conditions —
+      // GAS is not thread-safe; simultaneous writes lose rows under contention.
+      // Sequential await is reliable but slow (18 × ~10s = 3 min).
+      // Batches of 3 with 300ms gaps: 18 activities = 6 batches × 300ms = ~2s total,
+      // while giving GAS enough breathing room to finish each appendRow cleanly.
       if (hasActivities) {
-        const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
-        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' in parallel | RTI hrs:', dur);
+        const dur        = sessionDuration ? parseFloat(sessionDuration) : 0;
+        const BATCH_SIZE = 3;
+        const BATCH_GAP  = 300; // ms between batches — enough for GAS appendRow to settle
+        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies'),
+          'in batches of', BATCH_SIZE, '| RTI hrs:', dur);
 
-        const activityFetches = activities.map(act => fetch(TAP_SCRIPT_URL, {
+        const makeActivityFetch = act => fetch(TAP_SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2615,11 +2623,18 @@
             status:          act.status || mark,
             sessionDuration: dur,
           }),
-        }));
+        });
 
-        await Promise.all(activityFetches);
+        for (let i = 0; i < activities.length; i += BATCH_SIZE) {
+          const batch = activities.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(makeActivityFetch));
+          // Pause between batches (skip after the last batch)
+          if (i + BATCH_SIZE < activities.length) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_GAP));
+          }
+        }
 
-        // RTI POST fires after all activity rows are dispatched.
+        // RTI POST fires after all activity rows are confirmed written.
         // Apps Script writes one RTI row (col N = hours, col M = month) and
         // recalculateTotals sums all RTI rows for this apprentice → AZ cumulatively.
         if (dur > 0) {
@@ -2657,6 +2672,26 @@
       statusEl.textContent = '\u2713 ' + actCount + ' activit' + (actCount===1?'y':'ies') + ' logged' + rtiNote + ' Updating in ~30s.';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
+
+    // Bust the TAP cache so the next detail-panel open re-fetches the master roster.
+    // Apps Script needs ~15-30s to finish recalculateTotals after the last write.
+    // We clear the cache now so the stale value is gone, then the auto-refresh below
+    // fires after 35s to pull the updated AY/AZ/BB values from the sheet.
+    try { sessionStorage.removeItem(CACHE_KEYS.tap); } catch(e) {}
+
+    // Auto-refresh the TAP block in the open detail panel after GAS has time to recalculate
+    setTimeout(() => {
+      try { sessionStorage.removeItem(CACHE_KEYS.tap); } catch(e) {}
+      if (statusEl) {
+        statusEl.style.cssText = 'color:#34d399;font-size:.79rem;display:block;margin-top:6px';
+        statusEl.textContent = '\u2713 Logged. Refreshing hours\u2026';
+      }
+      // Re-render the open detail panel with fresh TAP data
+      if (_openDetailName) {
+        openDetail(_openDetailName);
+      }
+      setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 4000);
+    }, 35000);
 
     // Clear in-memory store and reset form
     delete _ojtSelectionStore[k];
