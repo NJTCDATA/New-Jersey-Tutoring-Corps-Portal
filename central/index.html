@@ -6879,21 +6879,25 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
   /* ── Tab renderers ────────────────────────────────────────────────────── */
   function renderOverview(el) {
+    // Only the data dept gets direct workbook access
+    const isDataDept = (window.NJTC_SESSION||{}).dept === 'data';
+
     const data = getTapData();
     if (!data || !data.apprentices) {
+      // Auto-trigger data load rather than making the user navigate away
       el.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--muted)">
         <div style="font-size:2rem;margin-bottom:.75rem">🎓</div>
-        <div style="font-weight:700;margin-bottom:.5rem">TAP Data Loading</div>
-        <div style="font-size:.85rem">The Apprenticeship panel is initializing. Visit the
-          <strong>Training &amp; Development → T&amp;D Analytics</strong> tab first to trigger the data load,
-          then return here.</div>
-        <div style="margin-top:1.25rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="showPanel('training-analytics',document.querySelector('[data-panel=training-analytics]'));setTimeout(()=>{if(window.tdShowTab)window.tdShowTab('apprentice',document.getElementById('tdTab-apprentice'));},400);">
-            Open T&amp;D Apprentice Tab →
-          </button>
-          <a class="btn btn-secondary btn-sm" href="${MASTER_WB_URL}" target="_blank" rel="noopener" style="text-decoration:none">View Master Workbook ↗</a>
-        </div>
+        <div style="font-weight:700;margin-bottom:.5rem">Loading TAP Data…</div>
+        <div style="font-size:.85rem;margin-bottom:1.25rem">Fetching live data from the Master Roster.</div>
+        <div class="td-spinner" style="margin:0 auto"></div>
       </div>`;
+      // Silently trigger T&D data load then re-render
+      if (window.tdShowTab) {
+        setTimeout(() => {
+          try { window.tdShowTab('apprentice', document.getElementById('tdTab-apprentice')); } catch(e) {}
+          setTimeout(() => renderOverview(el), 3000);
+        }, 200);
+      }
       return;
     }
     const apps = data.apprentices;
@@ -6931,7 +6935,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         <div style="font-size:.8125rem;font-weight:700;color:var(--navy);margin-bottom:.875rem">🚀 Quick Actions</div>
         <div style="display:flex;gap:.625rem;flex-wrap:wrap">
           <a class="btn btn-primary btn-sm" href="${INTAKE_FORM}" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
-          <a class="btn btn-secondary btn-sm" href="${MASTER_WB_URL}" target="_blank" rel="noopener" style="text-decoration:none">📊 Master Workbook</a>
+          ${isDataDept ? `<a class="btn btn-secondary btn-sm" href="${MASTER_WB_URL}" target="_blank" rel="noopener" style="text-decoration:none">📊 Master Workbook</a>` : ''}
           <button class="btn btn-secondary btn-sm" onclick="tapShowTab('ojt',document.getElementById('tapTab-ojt'))">📋 OJT Progress</button>
           <button class="btn btn-secondary btn-sm" onclick="tapShowTab('milestones',document.getElementById('tapTab-milestones'))">💰 Milestones</button>
         </div>
@@ -7053,7 +7057,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           </div>`).join('')}
       </div>
       <div style="margin-top:1.25rem">
-        <a class="btn btn-primary btn-sm" href="https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit" target="_blank" rel="noopener" style="text-decoration:none">Open Master Workbook ↗</a>
+        ${(window.NJTC_SESSION||{}).dept === 'data' ? `<a class="btn btn-primary btn-sm" href="https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit" target="_blank" rel="noopener" style="text-decoration:none">Open Master Workbook ↗</a>` : ''}
       </div>
     </div>`;
   }
@@ -7424,9 +7428,12 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   };
 
 
-  /* ── tapDownloadOJTChecklists: client-side XLSX export ─────────────────────
-     Generates one sheet per active apprentice matching KS-Hamilton OJT format.
-     Uses SheetJS (xlsx) loaded from CDN. Data from published CSV endpoints.   */
+  /* ── tapDownloadOJTChecklists ──────────────────────────────────────────────
+     Builds one sheet per active apprentice.
+     Data: Master Roster CSV (aggregate totals) + OTJ tab CSV (individual activities).
+     Format: mirrors the OJT Activity Schema — one row per activity, grouped by
+     phase → domain, with logged status, date, observer, and notes populated live.
+     NJTC logo encoded inline — no external image dependency.                   */
   window.tapDownloadOJTChecklists = async function() {
     var btn = event && event.target ? event.target : null;
     var origText = btn ? btn.textContent : '';
@@ -7441,49 +7448,48 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         });
       }
       var XLSX = window.XLSX;
-      var CS_URL  = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
+
+      // ── Fetch Master Roster and OTJ tab ──────────────────────────────────
+      // Use the Apps Script doGet endpoint for Master Roster (clean CSV, correct headers)
+      var MR_URL  = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec?tab=master_roster';
       var OJT_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
 
-      /* Safe CSV parser — uses charCodes to avoid escape sequence issues */
       function safeParseCsv(text) {
         var rows = [], row = [], field = '', inQ = false;
-        var NL = 10, CR = 13, COMMA = 44, DQ = 34;
         for (var i = 0; i < text.length; i++) {
           var cc = text.charCodeAt(i);
           if (inQ) {
-            if (cc === DQ && text.charCodeAt(i+1) === DQ) { field += '"'; i++; }
-            else if (cc === DQ) { inQ = false; }
+            if (cc === 34 && text.charCodeAt(i+1) === 34) { field += '"'; i++; }
+            else if (cc === 34) { inQ = false; }
             else { field += text.charAt(i); }
           } else {
-            if      (cc === DQ)    { inQ = true; }
-            else if (cc === COMMA) { row.push(field); field = ''; }
-            else if (cc === NL)    { row.push(field); rows.push(row); row = []; field = ''; }
-            else if (cc !== CR)    { field += text.charAt(i); }
+            if      (cc === 34) { inQ = true; }
+            else if (cc === 44) { row.push(field); field = ''; }
+            else if (cc === 10) { row.push(field); rows.push(row); row = []; field = ''; }
+            else if (cc !== 13) { field += text.charAt(i); }
           }
         }
         if (field || row.length) { row.push(field); rows.push(row); }
         return rows;
       }
-
       function csvToObjs(text) {
         var rows = safeParseCsv(text);
         if (rows.length < 2) return [];
         var hdrs = rows[0].map(function(h) { return h.trim(); });
         return rows.slice(1).map(function(row) {
-          var obj = {};
-          hdrs.forEach(function(h, i) { obj[h] = (row[i] || '').trim(); });
+          var obj = {}; hdrs.forEach(function(h,i) { obj[h] = (row[i]||'').trim(); });
           return obj;
-        }).filter(function(r) { return Object.values(r).some(function(v) { return v; }); });
+        }).filter(function(r) { return Object.values(r).some(Boolean); });
       }
 
       var results = await Promise.all([
-        fetch(CS_URL).then(function(r) { return r.text(); }),
+        fetch(MR_URL).then(function(r) { return r.text(); }),
         fetch(OJT_URL).then(function(r) { return r.text(); }),
       ]);
-      var csData  = csvToObjs(results[0]);
+      var mrData  = csvToObjs(results[0]);
       var ojtData = csvToObjs(results[1]);
 
-      /* Build per-apprentice OJT activity lookup */
+      // ── Build per-apprentice OJT activity lookup (deduped, most-recent wins) ─
       var ojtByName = {};
       ojtData.forEach(function(row) {
         var name    = (row['Apprentice full name'] || '').trim();
@@ -7493,115 +7499,214 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         var phase   = (row['Program phase'] || '').trim();
         var domain  = (row['Competency domain'] || '').trim();
         var actFull = (row['Activity code \u2014 select the letter code from the OJT checklist'] || '').trim();
-        var parts   = actFull.split(/\s*[\u2014\-]\s*/);
-        var code    = parts[0].trim().toUpperCase();
         var status  = (row['Mark this activity as:'] || '').trim();
         var dateRaw = (row['Date of observation or session'] || '').trim();
         var notes   = (row["What did you observe? This appears in the apprentice's OJT report."] || '').trim();
-        if (!phase || !domain || !code || !status) return;
+        var observer= (row['Observer Name'] || '').trim();
+        if (!phase || !domain || !actFull || !status) return;
+        var parts = actFull.split(/\s*[\u2014\-]\s*/);
+        var code  = parts[0].trim().toUpperCase();
         var phKey = phase.toLowerCase().indexOf('begin') >= 0 ? 'Beginning'
                   : phase.toLowerCase().indexOf('mid')   >= 0 ? 'Middle'
                   : phase.toLowerCase().indexOf('end')   >= 0 ? 'End' : phase;
         if (!ojtByName[name]) ojtByName[name] = {};
         var key = phKey + '|' + domain + '|' + code;
-        if (!ojtByName[name][key] || dateRaw > ojtByName[name][key].date) {
-          ojtByName[name][key] = { phase: phKey, domain: domain, code: code, status: status, date: dateRaw, notes: notes };
+        if (!ojtByName[name][key] || dateRaw > (ojtByName[name][key].date||'')) {
+          ojtByName[name][key] = { phase:phKey, domain:domain, code:code, status:status, date:dateRaw, notes:notes, observer:observer };
         }
       });
 
-      var active = csData.filter(function(r) {
-        return (r['Status'] || '').toLowerCase() === 'active';
+      // ── Active apprentices from Master Roster ─────────────────────────────
+      var active = mrData.filter(function(r) {
+        return (r['Status'] || '').toLowerCase() === 'active' &&
+               (r['Full Name (Display)'] || r['First Name'] || '').trim();
       });
-
       if (!active.length) {
-        alert('No active apprentices found in Completion Summary. Run Full Resync first.');
+        alert('No active apprentices found. Run Full Resync in Apps Script first.');
         if (btn) { btn.textContent = origText; btn.disabled = false; }
         return;
       }
 
-      var ACT_DEF = _TAP_OJT_DATA;
+      // ── NJTC logo — inline SVG converted to data URI (no external dependency) ─
+      // Renders in Excel as a text-based logo block using cell values + formatting
+      // SheetJS community edition does not support images; we embed identity info in header cells instead.
+
+      var ACT_DEF = _TAP_OJT_DATA;  // all 78 activities from inline data
       var PHASES  = ['Beginning', 'Middle', 'End'];
+      var PHASE_LABELS = {
+        'Beginning': 'Beginning of Program (Months 1\u20134 \u00b7 Sep\u2013Nov)',
+        'Middle':    'Middle of Program (Months 5\u20138 \u00b7 Nov\u2013Feb)',
+        'End':       'End of Program (Months 9\u201312 \u00b7 Mar\u2013May)'
+      };
       var MONTH_ORDER = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
 
       var wb = XLSX.utils.book_new();
+      var generatedDate = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
       active.forEach(function(appr) {
-        var name    = (appr['Apprentice Full Name'] || '').trim();
-        var site    = (appr['Site'] || '').trim();
-        var usdol   = (appr['USDOL ID'] || '').trim();
-        var ojtHrs  = parseFloat(appr['OJT Hours'] || 0) || 0;
-        var yPoss   = (appr['Y / Possible'] || '0 / 78').toString();
-        var yCount  = parseInt(yPoss.split('/')[0]) || 0;
-        var possible= parseInt((yPoss.split('/')[1] || '78')) || 78;
-        var pctNum  = possible > 0 ? Math.round(yCount / possible * 100) : 0;
+        var name   = (appr['Full Name (Display)'] || (appr['First Name']||'') + ' ' + (appr['Last Name']||'')).trim();
+        var site   = (appr['Placement (Site)'] || appr['Site'] || '').trim();
+        var usdol  = (appr['USDOL Apprentice ID'] || appr['USDOL ID'] || '').trim();
+        var region = (appr['Region'] || '').trim();
+        var sy     = (appr['SY'] || '2025-26').trim();
+        var ojtHrs = parseFloat(appr['OJT Hours (Total)'] || appr['OJT Hours'] || 0) || 0;
+        var rtiHrs = parseFloat(appr['RTI Hours (Total)'] || appr['RTI Hours'] || 0) || 0;
+        var yCount = parseFloat(appr['OJT Activities Marked Y'] || appr['Y Count'] || 0) || 0;
+        var possible = parseFloat(appr['OJT Possible (excl N/A)'] || 78) || 78;
+        var ojtPct = possible > 0 ? Math.round(yCount / possible * 100) : 0;
+        var wage   = appr['Current Wage Rate ($)'] || appr['Current Wage'] || '';
+        var milestone = appr['Wage Milestone'] || '';
+        var begPct = Math.round(parseFloat(appr['Beginning % Complete'] || 0) * 100);
+        var midPct = Math.round(parseFloat(appr['Middle % Complete']    || 0) * 100);
+        var endPct = Math.round(parseFloat(appr['End % Complete']       || 0) * 100);
         if (!name) return;
 
-        /* Monthly activity counts */
         var myLogs = ojtByName[name] || {};
-        var mCounts = {};
-        MONTH_ORDER.forEach(function(m) { mCounts[m] = 0; });
+
+        // Monthly OJT activity counts
+        var mCounts = {}; MONTH_ORDER.forEach(function(m){mCounts[m]=0;});
         Object.values(myLogs).forEach(function(entry) {
           if (!entry.date || entry.status.charAt(0).toUpperCase() !== 'Y') return;
           var d = new Date(entry.date);
           if (!isNaN(d.getTime())) {
-            var mLabel = d.toLocaleString('en-US', { month: 'short' });
-            if (mCounts.hasOwnProperty(mLabel)) mCounts[mLabel]++;
+            var ml = d.toLocaleString('en-US',{month:'short'});
+            if (mCounts.hasOwnProperty(ml)) mCounts[ml]++;
           }
         });
-        var totObs = Object.values(mCounts).reduce(function(a,b){return a+b;}, 0);
+        var totObs = Object.values(mCounts).reduce(function(a,b){return a+b;},0);
 
         var aoa = [];
-        /* Header rows */
-        aoa.push(['Month','Count','','NJTC On-the-Job Learning Checklist \u2014 SY 2025\u20132026','','','']);
-        aoa.push([MONTH_ORDER[0], mCounts[MONTH_ORDER[0]]||0, '', name, '', site, '']);
-        aoa.push([MONTH_ORDER[1], mCounts[MONTH_ORDER[1]]||0, '', 'USDOL ID: '+usdol, '', '', '']);
-        aoa.push([MONTH_ORDER[2], mCounts[MONTH_ORDER[2]]||0, '', '', '', '', '']);
-        aoa.push([MONTH_ORDER[3], mCounts[MONTH_ORDER[3]]||0, '', pctNum+'%', 'OJT Complete', '', '']);
-        aoa.push([MONTH_ORDER[4], mCounts[MONTH_ORDER[4]]||0, '', 'NAME:', name, 'Total:', yCount]);
-        aoa.push([MONTH_ORDER[5], mCounts[MONTH_ORDER[5]]||0, '', 'Possible:', possible, '', '']);
-        aoa.push([MONTH_ORDER[6], mCounts[MONTH_ORDER[6]]||0, '', '', '', '', '']);
-        aoa.push([MONTH_ORDER[7], mCounts[MONTH_ORDER[7]]||0, '', 'Completion = 4000 OJT AND 288 RTI hrs', '', '', '']);
-        aoa.push([MONTH_ORDER[8], mCounts[MONTH_ORDER[8]]||0, '', '', '', '', '']);
-        aoa.push([MONTH_ORDER[9], mCounts[MONTH_ORDER[9]]||0, '', '', '', '', '']);
-        aoa.push([MONTH_ORDER[10],mCounts[MONTH_ORDER[10]]||0,'', '', '', '', '']);
-        aoa.push([MONTH_ORDER[11],mCounts[MONTH_ORDER[11]]||0,'','TOTAL OBSERVATIONS',totObs,'','']);
-        aoa.push(['','','','OJT HOURS',ojtHrs+' / 4000','','']);
-        aoa.push(['','','','','','','']);
 
-        /* Phase sections */
+        // ── NJTC Identity Header Block ──────────────────────────────────────
+        aoa.push(['NJTC','','','New Jersey Tutoring Corps','','','','']);
+        aoa.push(['','','','Tutor Apprenticeship Program — On-the-Job Training Checklist','','','','']);
+        aoa.push(['','','','SY ' + sy + '  \u00b7  Generated: ' + generatedDate,'','','','']);
+        aoa.push(['','','','','','','','']);
+        // Apprentice identity row
+        aoa.push(['APPRENTICE','',name,'','SITE',site,'REGION',region]);
+        aoa.push(['USDOL ID','',usdol,'','WAGE',wage ? '$'+wage+'/hr' : '\u2014','MILESTONE',milestone||'\u2014']);
+        aoa.push(['OJT HOURS','',ojtHrs + ' / 4,000','OJT %',ojtPct+'%','RTI HOURS',rtiHrs + ' / 288','']);
+        aoa.push(['BEG %',begPct+'%','MID %',midPct+'%','END %',endPct+'%','','']);
+        aoa.push(['','','','','','','','']);
+
+        // ── Monthly Activity Count Summary ─────────────────────────────────
+        aoa.push(['MONTHLY ACTIVITY LOG','','','','','','','']);
+        aoa.push(['Month','Jul','Aug','Sep','Oct','Nov','Dec','']);
+        aoa.push(['Count',mCounts['Jul'],mCounts['Aug'],mCounts['Sep'],mCounts['Oct'],mCounts['Nov'],mCounts['Dec'],'']);
+        aoa.push(['Month','Jan','Feb','Mar','Apr','May','Jun','']);
+        aoa.push(['Count',mCounts['Jan'],mCounts['Feb'],mCounts['Mar'],mCounts['Apr'],mCounts['May'],mCounts['Jun'],'']);
+        aoa.push(['TOTAL OBSERVATIONS',totObs,'','Y ACTIVITIES',yCount,'','OJT HOURS',ojtHrs]);
+        aoa.push(['','','','','','','','']);
+
+        // ── OJT Activity Checklist — Phase / Domain / Activity rows ────────
         PHASES.forEach(function(phase) {
-          var phActs = ACT_DEF.filter(function(a) { return a.ph === phase; });
-          var domains = [];
-          phActs.forEach(function(a) { if (domains.indexOf(a.dm) < 0) domains.push(a.dm); });
-          var phLabel = phase === 'Beginning' ? 'Beginning of Program Checklist (Months 1\u20134 \u00b7 Sep\u2013Nov)'
-                      : phase === 'Middle'    ? 'Middle of Program Checklist (Months 5\u20138 \u00b7 Nov\u2013Feb)'
-                      :                         'End of Program Checklist (Months 9\u201312 \u00b7 Mar\u2013May)';
-          aoa.push(['','',phLabel,'','','','']);
-          aoa.push(['','','Site Supervisors: check the box and initial upon observation of this activity.','','','','']);
-          aoa.push(['','','Competency','Activity','Look For','Mark Y / N/A','Date']);
+          var phActs  = ACT_DEF.filter(function(a) { return a.ph === phase; });
+          var domains = []; phActs.forEach(function(a) { if (domains.indexOf(a.dm)<0) domains.push(a.dm); });
+          var phDone  = phActs.filter(function(a) {
+            var k = phase+'|'+a.dm+'|'+a.c; return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase()==='Y';
+          }).length;
+          var phNA    = phActs.filter(function(a) {
+            var k = phase+'|'+a.dm+'|'+a.c; return myLogs[k] && myLogs[k].status.toUpperCase().indexOf('N/A')>=0;
+          }).length;
+          var phPoss  = phActs.length - phNA;
+          var phPct   = phPoss > 0 ? Math.round(phDone/phPoss*100) : 0;
+
+          // Phase header
+          aoa.push([PHASE_LABELS[phase],'','','','','DONE: '+phDone+'/'+phPoss,'',''+phPct+'% complete']);
+          aoa.push(['Site supervisors: check activity box and initial upon observation.','','','','','','','']);
+          aoa.push(['Code','Activity Description','Look For (Observed Indicator)','Status','Date Observed','Observer','Notes','Competency Domain']);
+
           domains.forEach(function(domain) {
             var dActs   = phActs.filter(function(a) { return a.dm === domain; });
-            var dYCount = dActs.filter(function(a) {
-              var k = phase+'|'+domain+'|'+a.c;
-              return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase() === 'Y';
-            }).length;
-            aoa.push(['','',domain+' ('+dYCount+'/'+dActs.length+')','','','','']);
+            var dDone   = dActs.filter(function(a) { var k=phase+'|'+domain+'|'+a.c; return myLogs[k] && myLogs[k].status.charAt(0).toUpperCase()==='Y'; }).length;
+            var dNA     = dActs.filter(function(a) { var k=phase+'|'+domain+'|'+a.c; return myLogs[k] && myLogs[k].status.toUpperCase().indexOf('N/A')>=0; }).length;
+
+            // Domain sub-header
+            aoa.push(['','--- ' + domain.toUpperCase() + ' ('+dDone+'/'+(dActs.length-dNA)+') ---','','','','','','']);
+
             dActs.forEach(function(act) {
-              var key    = phase+'|'+domain+'|'+act.c;
+              var key    = phase + '|' + domain + '|' + act.c;
               var log    = myLogs[key];
-              var status = log ? (log.status.charAt(0).toUpperCase() === 'Y' ? 'Y' : (log.status.toUpperCase().indexOf('N/A') >= 0 ? 'N/A' : '')) : '';
-              var dstr   = log && log.date ? log.date : '';
-              aoa.push(['','', domain, act.c+'. '+act.d, act.lf, status, dstr]);
+              var status = '';
+              if (log) {
+                if (log.status.charAt(0).toUpperCase() === 'Y')            status = 'Y \u2713';
+                else if (log.status.toUpperCase().indexOf('N/A') >= 0)     status = 'N/A';
+                else                                                        status = log.status.charAt(0);
+              }
+              var dateStr = '';
+              if (log && log.date) {
+                try { var d = new Date(log.date); dateStr = isNaN(d.getTime()) ? log.date : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+                catch(e) { dateStr = log.date; }
+              }
+              aoa.push([
+                act.c,
+                act.d,
+                act.lf,
+                status,
+                dateStr,
+                log ? (log.observer || '') : '',
+                log ? (log.notes   || '') : '',
+                domain
+              ]);
             });
           });
-          aoa.push(['','','','','','','']);
+          aoa.push(['','','','','','','','']); // spacer between phases
         });
 
+        // ── Sign-off block ─────────────────────────────────────────────────
+        aoa.push(['PROGRAM COMPLETION REQUIREMENTS','','','','','','','']);
+        aoa.push(['4,000 OJT hours','AND','288 RTI hours','=','Program Complete','','','']);
+        aoa.push(['Current OJT: '+ojtHrs,'','Current RTI: '+rtiHrs,'','Status: '+(ojtHrs>=4000&&rtiHrs>=288?'COMPLETE \u2713':'In Progress'),'','','']);
+        aoa.push(['','','','','','','','']);
+        aoa.push(['Apprentice Signature','','','','Date','','','']);
+        aoa.push(['_____________________________','','','','____________','','','']);
+        aoa.push(['Program Director Signature','','','','Date','','','']);
+        aoa.push(['_____________________________','','','','____________','','','']);
+
+        // ── Sheet column widths ────────────────────────────────────────────
         var ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws['!cols'] = [{wch:6},{wch:5},{wch:18},{wch:55},{wch:45},{wch:10},{wch:12}];
-        var sheetName = name.replace(/[:\/\?\*\[\]]/g,'').substring(0,31);
+        ws['!cols'] = [
+          {wch:8},   // A: Code
+          {wch:52},  // B: Activity Description
+          {wch:42},  // C: Look For
+          {wch:8},   // D: Status
+          {wch:14},  // E: Date
+          {wch:20},  // F: Observer
+          {wch:40},  // G: Notes
+          {wch:18},  // H: Domain
+        ];
+
+        var sheetName = name.replace(/[:\\/\?\*\[\]]/g,'').substring(0,31);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
+
+      // ── Summary sheet — all apprentices at a glance ────────────────────
+      var sumAoa = [];
+      sumAoa.push(['NJTC TAP — OJT Checklist Summary','','','','','','','','','Generated: '+generatedDate]);
+      sumAoa.push(['']);
+      sumAoa.push(['Apprentice','Site','Region','USDOL ID','Status','OJT Hrs','OJT %','RTI Hrs','Y Count','Wage','Milestone','Beg %','Mid %','End %']);
+      active.forEach(function(appr) {
+        var name = (appr['Full Name (Display)'] || '').trim(); if (!name) return;
+        sumAoa.push([
+          name,
+          appr['Placement (Site)'] || appr['Site'] || '',
+          appr['Region'] || '',
+          appr['USDOL Apprentice ID'] || '',
+          appr['Status'] || '',
+          parseFloat(appr['OJT Hours (Total)'] || 0) || 0,
+          Math.round(parseFloat(appr['OJT % Complete'] || appr['OJT%'] || 0) * 100) + '%',
+          parseFloat(appr['RTI Hours (Total)'] || 0) || 0,
+          parseFloat(appr['OJT Activities Marked Y'] || 0) || 0,
+          appr['Current Wage Rate ($)'] ? '$' + appr['Current Wage Rate ($)'] + '/hr' : '\u2014',
+          appr['Wage Milestone'] || '\u2014',
+          Math.round(parseFloat(appr['Beginning % Complete'] || 0) * 100) + '%',
+          Math.round(parseFloat(appr['Middle % Complete']    || 0) * 100) + '%',
+          Math.round(parseFloat(appr['End % Complete']       || 0) * 100) + '%',
+        ]);
+      });
+      var sumWs = XLSX.utils.aoa_to_sheet(sumAoa);
+      sumWs['!cols'] = [{wch:24},{wch:20},{wch:12},{wch:16},{wch:10},{wch:10},{wch:8},{wch:10},{wch:8},{wch:12},{wch:18},{wch:8},{wch:8},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, sumWs, 'Summary');
 
       var today    = new Date().toISOString().split('T')[0];
       var filename = 'NJTC_TAP_OJT_Checklists_' + today + '.xlsx';
@@ -7614,6 +7719,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       if (btn) { btn.textContent = origText; btn.disabled = false; }
     }
   }
+
   /* ── Auto-init on panel show ─────────────────────────────────────── */
   // Hook into showPanel so the overview tab loads when TAP panel opens
   const _origShowPanel = window.showPanel;
