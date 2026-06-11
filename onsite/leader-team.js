@@ -2590,35 +2590,38 @@
       }
 
       // POST each activity as its own request — one row per activity in the OTJ sheet.
-      // Sending individually ensures activityCode is ALWAYS set in each request,
-      // compatible with any version of the Apps Script backend.
+      // All activity fetches fire in parallel (Promise.all) so 18 activities take the
+      // same wall-clock time as 1 (~2-3s) instead of 18 × sequential (~2 minutes).
+      // Each request is still a flat JSON object — the proven working pattern.
+      // RTI fires after all activity rows are confirmed dispatched.
       if (hasActivities) {
-        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' individually:', activities.map(a => a.activityCode));
-        for (const act of activities) {
-          await fetch(TAP_SCRIPT_URL, {
-            method: 'POST', mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              logType:        'OJT Activity completion',
-              obsDate:        dateVal,
-              observerName:   obsName,
-              observerRole:   obsRole,
-              siteLocation:   site,
-              apprenticeName: apprenticeName,
-              notes:          notes,
-              phase:          act.phase,
-              domain:         act.domain,
-              activityCode:   act.activityCode,
-              status:         act.status || mark,
-              sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
-            }),
-          });
-        }
-
-        // After all activity rows are written, POST RTI hours as a separate row
-        // if the leader entered a duration. Apps Script writes one RTI row (col N = hours,
-        // col M = month derived from observation date) and recalculateTotals sums → AZ.
         const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
+        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' in parallel | RTI hrs:', dur);
+
+        const activityFetches = activities.map(act => fetch(TAP_SCRIPT_URL, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            logType:         'OJT Activity completion',
+            obsDate:         dateVal,
+            observerName:    obsName,
+            observerRole:    obsRole,
+            siteLocation:    site,
+            apprenticeName:  apprenticeName,
+            notes:           notes,
+            phase:           act.phase,
+            domain:          act.domain,
+            activityCode:    act.activityCode,
+            status:          act.status || mark,
+            sessionDuration: dur,
+          }),
+        }));
+
+        await Promise.all(activityFetches);
+
+        // RTI POST fires after all activity rows are dispatched.
+        // Apps Script writes one RTI row (col N = hours, col M = month) and
+        // recalculateTotals sums all RTI rows for this apprentice → AZ cumulatively.
         if (dur > 0) {
           const obsDateObj  = dateVal ? new Date(dateVal + 'T12:00:00') : new Date();
           const monthNames  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
