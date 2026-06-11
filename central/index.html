@@ -6868,19 +6868,24 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     </div>`;
   }
 
-  /* ── Live TAP data — fetched directly from Apps Script Master Roster ────
-     TAP_ROSTER_URL uses doGet(?tab=master_roster) which returns a clean CSV
-     with correct column headers regardless of the sheet's header row layout.
-     This is completely independent of the T&D module — no visit to T&D
-     Analytics required. Data is cached in window._njtcTapRoster for 2 minutes
-     so repeat tab-switches don't refetch, but every new panel open gets
-     fresh data within that window.                                          */
+  /* ── Live TAP data — fetched via Google Sheets gviz/tq CSV endpoint ─────
+     gviz/tq works when the sheet is shared "Anyone with link can view".
+     No "Publish to web" required. No CORS issues from any browser.
+     No Apps Script dependency — reads directly from the spreadsheet.
 
-  const TAP_ROSTER_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec?tab=master_roster';
-  const TAP_OJT_URL    = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
+     IMPORTANT — before this works, in Google Sheets:
+       Share → General access → "Anyone with the link" → Viewer
+
+     The Master Roster has 4 header rows before data:
+       Row 1: title, Row 2: section labels, Row 3: column headers, Row 4: legend
+     We detect the real header row by looking for "Status" or "Full Name".       */
+
+  const _TAP_SHEET_ID  = '14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU';
+  const TAP_ROSTER_URL = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=45498361`;
+  const TAP_OJT_URL    = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=85054416`;
   const TAP_CACHE_MS   = 2 * 60 * 1000; // 2-minute cache
   let   _tapCacheTs    = 0;
-  let   _tapFetchPromise = null; // deduplicate concurrent fetches
+  let   _tapFetchPromise = null;
 
   function _parseCsv(text) {
     const rows = []; let row = [], field = '', inQ = false;
@@ -6901,70 +6906,125 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     return rows;
   }
 
-  function _csvToObjs(text) {
+  // Master Roster has 4 header rows — find the real one by scanning for known column names
+  // Exact 0-based column positions in the Master Roster (verified from workbook)
+  // Used as fallback when gviz/tq skips header rows (happens with frozen rows)
+  const _MR_POS = {
+    status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
+    ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
+    begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60,
+  };
+
+  function _mrCsvToObjs(text) {
     const rows = _parseCsv(text);
-    if (rows.length < 2) return [];
-    const hdrs = rows[0].map(h => h.trim());
-    return rows.slice(1)
-      .map(row => { const o = {}; hdrs.forEach((h,i) => { o[h] = (row[i]||'').trim(); }); return o; })
-      .filter(r => Object.values(r).some(Boolean));
+    if (!rows.length) return [];
+
+    // Strategy 1: find a header row containing both 'Status' and a name column
+    let hdrIdx = -1;
+    for (let i = 0; i < Math.min(8, rows.length); i++) {
+      const s = rows[i].join('|').toLowerCase();
+      if (s.includes('status') && (s.includes('full name') || s.includes('first name'))) {
+        hdrIdx = i; break;
+      }
+    }
+
+    if (hdrIdx >= 0) {
+      const hdrs = rows[hdrIdx].map(h => h.trim());
+      let dataStart = hdrIdx + 2;
+      if (hdrIdx + 1 < rows.length) {
+        const nextVal = ((rows[hdrIdx+1]||[])[1]||'').trim();
+        if (/^(active|pending|reinstated|cancelled)$/i.test(nextVal)) dataStart = hdrIdx + 1;
+      }
+      return rows.slice(dataStart).map(row => {
+        const o = {}; hdrs.forEach((h,i) => { if (h) o[h] = (row[i]||'').trim(); }); return o;
+      }).filter(r => (r['Full Name (Display)']||r['First Name']||'').trim() && (r['Status']||'').trim());
+    }
+
+    // Strategy 2 (positional fallback): no header row found — gviz skipped them
+    // Row 0 is the first data row. Map every column by known fixed position.
+    console.log('[NJTCTap] Using positional column mapping (no header row in CSV)');
+    const get = (row, i) => (row[i] || '').trim();
+    return rows.filter(row => {
+      const nm = get(row, _MR_POS.fullName) || (get(row, _MR_POS.firstName)+' '+get(row, _MR_POS.lastName)).trim();
+      return nm.length > 0 && get(row, _MR_POS.status).length > 0;
+    }).map(row => ({
+      'Full Name (Display)':    get(row,_MR_POS.fullName) || (get(row,_MR_POS.firstName)+' '+get(row,_MR_POS.lastName)).trim(),
+      'Status':                 get(row,_MR_POS.status),
+      'First Name':             get(row,_MR_POS.firstName),
+      'Last Name':              get(row,_MR_POS.lastName),
+      'Cohort Seat #':          get(row,_MR_POS.cohort),
+      'USDOL Apprentice ID':    get(row,_MR_POS.usdol),
+      'SY':                     get(row,_MR_POS.sy),
+      'Placement (Site)':       get(row,_MR_POS.site),
+      'Region':                 get(row,_MR_POS.region),
+      'OJT Hours (Total)':      get(row,_MR_POS.ojtHours),
+      'RTI Hours (Total)':      get(row,_MR_POS.rtiHours),
+      'OJT % Complete':         get(row,_MR_POS.ojtPct),
+      'OJT Activities Marked Y':get(row,_MR_POS.yCount),
+      'OJT Possible (excl N/A)':get(row,_MR_POS.possible),
+      'Beginning % Complete':   get(row,_MR_POS.begPct),
+      'Middle % Complete':      get(row,_MR_POS.midPct),
+      'End % Complete':         get(row,_MR_POS.endPct),
+      'Current Wage Rate ($)':  get(row,_MR_POS.wage),
+      'Wage Milestone':         get(row,_MR_POS.milestone),
+      'Program Complete?':      get(row,_MR_POS.complete),
+    }));
   }
 
-  // Parse a Master Roster CSV row into the apprentice object shape all render functions use
   function _mrRowToAppr(r) {
     const name = (r['Full Name (Display)'] || ((r['First Name']||'')+' '+(r['Last Name']||'')).trim()).trim();
     if (!name) return null;
-    const ojtHours = parseFloat(r['OJT Hours (Total)'] || r['AY'] || 0) || 0;
-    const rtiHours = parseFloat(r['RTI Hours (Total)'] || r['AZ'] || 0) || 0;
-    const yCount   = parseFloat(r['OJT Activities Marked Y'] || r['BB'] || 0) || 0;
-    const possible = parseFloat(r['OJT Possible (excl N/A)'] || r['BC'] || 78) || 78;
-    const ojtPct   = possible > 0 ? yCount / possible : 0;
-    const begPct   = parseFloat(r['Beginning % Complete'] || r['BD'] || 0) || 0;
-    const midPct   = parseFloat(r['Middle % Complete']    || r['BE'] || 0) || 0;
-    const endPct   = parseFloat(r['End % Complete']       || r['BF'] || 0) || 0;
+    const parseRatio = v => { const n = parseFloat(v||0)||0; return n > 1 ? n/100 : n; };
+    const ojtHours = parseFloat(r['OJT Hours (Total)']||0)||0;
+    const rtiHours = parseFloat(r['RTI Hours (Total)']||0)||0;
+    const yCount   = parseFloat(r['OJT Activities Marked Y']||0)||0;
+    const possible = parseFloat(r['OJT Possible (excl N/A)']||78)||78;
+    const ojtPct   = possible > 0 ? yCount/possible : parseRatio(r['OJT % Complete']);
     return {
       name,
-      status:    r['Status'] || 'Active',
-      site:      r['Placement (Site)'] || r['Site'] || '',
-      region:    r['Region'] || '',
-      cohort:    r['Cohort Seat #'] || '',
-      sy:        r['SY'] || '',
-      usdol:     r['USDOL Apprentice ID'] || '',
-      ojtHours,
-      rtiHours,
-      ojtPct,
-      yCount,
-      possible,
-      begPct,
-      midPct,
-      endPct,
-      wage:      r['Current Wage Rate ($)'] || r['Current Wage'] || '',
-      milestone: r['Wage Milestone'] || '',
-      complete:  r['Program Complete?'] || r['Program Complete'] || '',
+      status:    r['Status']||'Active',
+      site:      r['Placement (Site)']||'',
+      region:    r['Region']||'',
+      cohort:    r['Cohort Seat #']||'',
+      sy:        r['SY']||'',
+      usdol:     r['USDOL Apprentice ID']||'',
+      ojtHours, rtiHours, ojtPct, yCount, possible,
+      begPct:    parseRatio(r['Beginning % Complete']),
+      midPct:    parseRatio(r['Middle % Complete']),
+      endPct:    parseRatio(r['End % Complete']),
+      wage:      r['Current Wage Rate ($)']||'',
+      milestone: r['Wage Milestone']||'',
+      complete:  r['Program Complete?']||'',
     };
   }
 
   async function fetchTapRoster(force) {
-    // Return cached data if fresh
     if (!force && window._njtcTapRoster && (Date.now() - _tapCacheTs) < TAP_CACHE_MS) {
       return window._njtcTapRoster;
     }
-    // Deduplicate: if a fetch is already in flight, wait for it
     if (_tapFetchPromise) return _tapFetchPromise;
 
     _tapFetchPromise = (async () => {
       try {
+        console.log('[NJTCTap] Fetching live Master Roster…');
         const res  = await fetch(TAP_ROSTER_URL);
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' — ensure sheet is shared "Anyone with link can view"');
         const text = await res.text();
-        const rows = _csvToObjs(text);
+        // Detect 403/HTML error page
+        if (text.trim().startsWith('<')) throw new Error('Sheet not publicly accessible. Share as "Anyone with link can view".');
+        const rows = _mrCsvToObjs(text);
+        console.log('[NJTCTap] Master Roster rows parsed:', rows.length, '| sample Status values:', rows.slice(0,3).map(r=>r['Status']));
         const apprentices = rows
           .map(_mrRowToAppr)
           .filter(a => a && a.name && /active|reinstated/i.test(a.status));
+        console.log('[NJTCTap] Active apprentices found:', apprentices.length, apprentices.map(a=>a.name));
         window._njtcTapRoster = { apprentices };
         _tapCacheTs = Date.now();
         return window._njtcTapRoster;
       } catch(e) {
-        console.error('[NJTCTap] fetchTapRoster failed:', e);
+        console.error('[NJTCTap] fetchTapRoster failed:', e.message);
+        // Show permission error in the panel
+        window._njtcTapRosterError = e.message;
         return window._njtcTapRoster || null;
       } finally {
         _tapFetchPromise = null;
@@ -6973,16 +7033,33 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     return _tapFetchPromise;
   }
 
-  /* ── getTapData: sync check, returns cached data or null ────────────── */
   function getTapData() {
     if (window._njtcTapRoster && window._njtcTapRoster.apprentices) return window._njtcTapRoster;
     return null;
   }
 
-  /* ── loadAndRender: fetch live data then call a render function ──────── */
   function loadAndRender(el, renderFn) {
-    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div><div style="font-size:.85rem">Loading live TAP data…</div></div>';
-    fetchTapRoster().then(() => renderFn(el)).catch(() => renderFn(el));
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div><div style="font-size:.85rem">Fetching live TAP data…</div></div>';
+    fetchTapRoster().then(() => {
+      // If fetch failed with a permission error, show a helpful message
+      if (!getTapData() && window._njtcTapRosterError) {
+        el.innerHTML = `<div style="padding:2rem;max-width:560px;margin:0 auto">
+          <div style="font-size:1.5rem;text-align:center;margin-bottom:.75rem">🔒</div>
+          <div style="font-weight:700;font-size:1rem;margin-bottom:.75rem;text-align:center">Sheet Access Required</div>
+          <p style="font-size:.875rem;color:var(--muted);margin-bottom:1rem">${window._njtcTapRosterError}</p>
+          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:1rem;font-size:.8125rem;line-height:1.8">
+            <strong>To fix:</strong><br>
+            1. Open the <a href="https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/edit" target="_blank" style="color:#1d4ed8">Master Workbook ↗</a><br>
+            2. Click <strong>Share</strong> (top-right)<br>
+            3. Under <em>General access</em> → change to <strong>"Anyone with the link"</strong><br>
+            4. Set role to <strong>Viewer</strong> → click <strong>Done</strong><br>
+            5. Click <strong>↺ Refresh</strong> above
+          </div>
+        </div>`;
+        return;
+      }
+      renderFn(el);
+    }).catch(() => renderFn(el));
   }
 
   /* ── Tab renderers ────────────────────────────────────────────────────── */
@@ -7558,7 +7635,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         });
       }
       var XLSX = window.XLSX;
-      var MR_URL  = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec?tab=master_roster';
+      var MR_URL  = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
       var OJT_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
 
       /* Safe CSV parser — uses charCodes to avoid escape sequence issues */
@@ -7582,22 +7659,62 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         return rows;
       }
 
+      // csvToObjs: simple parser for OTJ tab (single header row)
       function csvToObjs(text) {
         var rows = safeParseCsv(text);
         if (rows.length < 2) return [];
         var hdrs = rows[0].map(function(h) { return h.trim(); });
         return rows.slice(1).map(function(row) {
-          var obj = {};
-          hdrs.forEach(function(h, i) { obj[h] = (row[i] || '').trim(); });
-          return obj;
-        }).filter(function(r) { return Object.values(r).some(function(v) { return v; }); });
+          var obj = {}; hdrs.forEach(function(h,i){ obj[h]=(row[i]||'').trim(); }); return obj;
+        }).filter(function(r){ return Object.values(r).some(Boolean); });
+      }
+
+      // mrCsvToObjs: dual-mode parser for Master Roster (multi-row header OR positional)
+      var MR_POS = {
+        status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
+        ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
+        begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60
+      };
+      function mrCsvToObjs(text) {
+        var rows = safeParseCsv(text); if (!rows.length) return [];
+        var hdrIdx = -1;
+        for (var i = 0; i < Math.min(8, rows.length); i++) {
+          var s = rows[i].join('|').toLowerCase();
+          if (s.indexOf('status') >= 0 && (s.indexOf('full name') >= 0 || s.indexOf('first name') >= 0)) { hdrIdx = i; break; }
+        }
+        if (hdrIdx >= 0) {
+          var hdrs = rows[hdrIdx].map(function(h){ return h.trim(); });
+          var ds = hdrIdx + 2;
+          if (hdrIdx+1 < rows.length && /^(active|pending|reinstated|cancelled)$/i.test(((rows[hdrIdx+1]||[])[1]||'').trim())) ds = hdrIdx+1;
+          return rows.slice(ds).map(function(row){
+            var o={}; hdrs.forEach(function(h,i){ if(h) o[h]=(row[i]||'').trim(); }); return o;
+          }).filter(function(r){ return (r['Full Name (Display)']||r['First Name']||'').trim() && (r['Status']||'').trim(); });
+        }
+        // Positional fallback
+        function g(row,i){ return (row[i]||'').trim(); }
+        return rows.filter(function(row){
+          return (g(row,MR_POS.fullName)||g(row,MR_POS.firstName)).length > 0 && g(row,MR_POS.status).length > 0;
+        }).map(function(row){
+          return {
+            'Full Name (Display)': g(row,MR_POS.fullName)||(g(row,MR_POS.firstName)+' '+g(row,MR_POS.lastName)).trim(),
+            'Status': g(row,MR_POS.status), 'First Name': g(row,MR_POS.firstName), 'Last Name': g(row,MR_POS.lastName),
+            'Cohort Seat #': g(row,MR_POS.cohort), 'USDOL Apprentice ID': g(row,MR_POS.usdol), 'SY': g(row,MR_POS.sy),
+            'Placement (Site)': g(row,MR_POS.site), 'Region': g(row,MR_POS.region),
+            'OJT Hours (Total)': g(row,MR_POS.ojtHours), 'RTI Hours (Total)': g(row,MR_POS.rtiHours),
+            'OJT % Complete': g(row,MR_POS.ojtPct), 'OJT Activities Marked Y': g(row,MR_POS.yCount),
+            'OJT Possible (excl N/A)': g(row,MR_POS.possible), 'Beginning % Complete': g(row,MR_POS.begPct),
+            'Middle % Complete': g(row,MR_POS.midPct), 'End % Complete': g(row,MR_POS.endPct),
+            'Current Wage Rate ($)': g(row,MR_POS.wage), 'Wage Milestone': g(row,MR_POS.milestone),
+            'Program Complete?': g(row,MR_POS.complete),
+          };
+        });
       }
 
       var results = await Promise.all([
         fetch(MR_URL).then(function(r) { return r.text(); }),
         fetch(OJT_URL).then(function(r) { return r.text(); }),
       ]);
-      var csData  = csvToObjs(results[0]);
+      var mrData  = mrCsvToObjs(results[0]);
       var ojtData = csvToObjs(results[1]);
 
       /* Build per-apprentice OJT activity lookup */
@@ -7626,8 +7743,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         }
       });
 
-      var active = csData.filter(function(r) {
-        return (r['Status'] || '').toLowerCase() === 'active';
+      var active = mrData.filter(function(r) {
+        return /active|reinstated/i.test(r['Status'] || '');
       });
 
       if (!active.length) {
