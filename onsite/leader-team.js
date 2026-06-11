@@ -2066,7 +2066,6 @@
       </div>
     `;
 
-
     const loadingSpinnerHtml = _phase2Loaded ? '' : '<div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#e2e8f0;font-size:0.8rem;border-top:1px solid #334155;margin-top:8px"><div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>Academic data is loading in the background — this panel will update automatically when ready.</div>';
     return `
       <div class="njtc-detail-close"><button onclick="window.NJTCTeam.closeDetail()">✕ Close</button></div>
@@ -2590,55 +2589,53 @@
         return;
       }
 
-      // POST all activities in ONE batch request.
-      // Apps Script writes one row per activity and runs recalculateTotals ONCE.
-      //
-      // IMPORTANT: fetch with mode:'no-cors' only allows "simple" content types.
-      // application/x-www-form-urlencoded is a simple type; application/json is not.
-      // We serialize the activities array as activitiesJson for Apps Script to parse.
+      // POST each activity as its own request — one row per activity in the OTJ sheet.
+      // Sending individually ensures activityCode is ALWAYS set in each request,
+      // compatible with any version of the Apps Script backend.
       if (hasActivities) {
-        const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
-        console.log('[NJTCTeam] Batch POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies'), '| RTI hrs:', dur);
-        const formParams = new URLSearchParams();
-        formParams.set('logType',         'OJT Activity completion');
-        formParams.set('obsDate',         dateVal);
-        formParams.set('observerName',    obsName);
-        formParams.set('observerRole',    obsRole);
-        formParams.set('siteLocation',    site);
-        formParams.set('apprenticeName',  apprenticeName);
-        formParams.set('notes',           notes);
-        formParams.set('phase',           effectivePhase);
-        formParams.set('domain',          effectiveDomain);
-        formParams.set('status',          mark);
-        formParams.set('sessionDuration', String(dur));
-        formParams.set('activitiesJson',  JSON.stringify(activities));
-        await fetch(TAP_SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: formParams.toString(),
-        });
+        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies') + ' individually:', activities.map(a => a.activityCode));
+        for (const act of activities) {
+          await fetch(TAP_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logType:        'OJT Activity completion',
+              obsDate:        dateVal,
+              observerName:   obsName,
+              observerRole:   obsRole,
+              siteLocation:   site,
+              apprenticeName: apprenticeName,
+              notes:          notes,
+              phase:          act.phase,
+              domain:         act.domain,
+              activityCode:   act.activityCode,
+              status:         act.status || mark,
+              sessionDuration: sessionDuration ? parseFloat(sessionDuration) : 0,
+            }),
+          });
+        }
 
-        // If the leader entered RTI hours, fire a second POST to log them to the OTJ tab.
-        // Apps Script writes one RTI row (col N = hours, col M = month) and
-        // recalculateTotals sums all RTI rows for this apprentice → AZ cumulatively.
+        // After all activity rows are written, POST RTI hours as a separate row
+        // if the leader entered a duration. Apps Script writes one RTI row (col N = hours,
+        // col M = month derived from observation date) and recalculateTotals sums → AZ.
+        const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
         if (dur > 0) {
-          // Derive month label from the observation date (e.g. "Jun-26")
           const obsDateObj  = dateVal ? new Date(dateVal + 'T12:00:00') : new Date();
           const monthNames  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
           const rtiMonthLbl = monthNames[obsDateObj.getMonth()] + '-' + String(obsDateObj.getFullYear()).slice(2);
-          console.log('[NJTCTeam] RTI POST | apprentice:', apprenticeName, '| month:', rtiMonthLbl, '| hours:', dur);
-          const rtiParams = new URLSearchParams();
-          rtiParams.set('logType',        'RTI Hours for a month');
-          rtiParams.set('obsDate',        dateVal);
-          rtiParams.set('observerName',   obsName);
-          rtiParams.set('apprenticeName', apprenticeName);
-          rtiParams.set('rtiMonth',       rtiMonthLbl);
-          rtiParams.set('rtiHours',       String(dur));
-          rtiParams.set('rtiTypes',       'Coaching / Professional development');
+          console.log('[NJTCTeam] POSTing RTI | month:', rtiMonthLbl, '| hours:', dur);
           await fetch(TAP_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: rtiParams.toString(),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logType:        'RTI Hours for a month',
+              obsDate:        dateVal,
+              observerName:   obsName,
+              apprenticeName: apprenticeName,
+              rtiMonth:       rtiMonthLbl,
+              rtiHours:       dur,
+              rtiTypes:       'Coaching / Professional development',
+            }),
           });
         }
       }
@@ -2649,7 +2646,7 @@
     }
 
     // Success feedback
-    const actCount = selectedCodes.length;
+    const actCount  = selectedCodes.length;
     const durLogged = sessionDuration ? parseFloat(sessionDuration) : 0;
     const rtiNote   = durLogged > 0 ? ' + ' + durLogged + ' RTI hrs.' : '.';
     if (statusEl) {
