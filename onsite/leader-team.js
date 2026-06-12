@@ -311,9 +311,12 @@
   ];
 
 
-  // fetchTapCSV: the Master Roster has 4 header rows before data.
-  // Row 0=title, Row 1=section labels, Row 2=column headers, Row 3=legend, Row 4+=data.
-  // Standard fetchCSV uses row 0 as headers — we need row 2 (index 2).
+  // fetchTapCSV: tolerant Master Roster parser.
+  // The Apps Script doGet (?tab=master_roster) serves a CLEAN CSV: row 0 = column
+  // headers, row 1+ = data. Older deployments served the raw sheet (title, section
+  // labels, headers, legend, then data). The old fixed `slice(hdrIdx + 2)` assumed
+  // the raw layout — against the clean format it silently DROPPED THE FIRST
+  // APPRENTICE ROW. Detect data rows by content (name + status) instead.
   async function fetchTapCSV(url, cacheKey) {
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
@@ -328,12 +331,18 @@
         if (text.trim().startsWith('<')) throw new Error('HTML — not public');
         // Parse CSV rows
         const rows = parseCSV(text);
-        // Row 2 (index 2) contains the real column headers in the Master Roster
         const hdrRowIdx = rows.findIndex(r => r.some(c => c.trim() === 'Full Name (Display)' || c.trim() === 'Status'));
-        const hdrIdx = hdrRowIdx >= 0 ? hdrRowIdx : 2;
+        const hdrIdx = hdrRowIdx >= 0 ? hdrRowIdx : 0;
         const headers = rows[hdrIdx].map(h => h.trim());
-        // Data rows start after headers AND the legend row (hdrIdx + 2)
-        const dataRows = rows.slice(hdrIdx + 2).filter(r => r.some(c => c.trim()));
+        const nameCol   = Math.max(0, headers.indexOf('Full Name (Display)'));
+        const statusCol = Math.max(0, headers.indexOf('Status'));
+        // Content-based filter: keep only rows that carry both a name and a status —
+        // works for clean (data at hdrIdx+1) AND raw (legend row has neither) formats.
+        const dataRows = rows.slice(hdrIdx + 1).filter(r => {
+          const nm = (r[nameCol] || '').trim();
+          const st = (r[statusCol] || '').trim();
+          return nm.length > 0 && st.length > 0 && nm !== 'Full Name (Display)';
+        });
         const data = dataRows.map(row => {
           const obj = {};
           headers.forEach((h, i) => { obj[h] = (row[i] || '').trim(); });
@@ -1460,9 +1469,9 @@
             <div class="njtc-metric-val" style="${renderAttColor(attMetrics.rate)}">${attMetrics.rate != null ? attMetrics.rate+'%' : '—'}</div>
             <div class="njtc-metric-label">Attendance</div>
           </div>
-          <div class="njtc-metric">
+          <div class="njtc-metric" title="${stuMetrics.bySubject ? 'Unique scholars from delivered Pearl sessions — Math: ' + stuMetrics.bySubject.Math + ' · ELA: ' + stuMetrics.bySubject.ELA : 'Unique scholars'}">
             <div class="njtc-metric-val">${stuMetrics.uniqueCount}</div>
-            <div class="njtc-metric-label">Scholars</div>
+            <div class="njtc-metric-label">Scholars${stuMetrics.bySubject && stuMetrics.subjects && stuMetrics.subjects.length === 1 ? ' (' + stuMetrics.subjects[0] + ')' : ''}</div>
           </div>
           <div class="njtc-metric">
             <div class="njtc-metric-val" style="${attMetrics.si >= 5 ? 'color:#ef4444' : ''}">${attMetrics.si}</div>
@@ -2144,34 +2153,94 @@
         return normName(r['Filled For'] || r['Tutor Name'] || vals[1] || '') === tn;
       });
 
-      // Pearl STU bridge: col 0=Filled By (scholar name), col 1=Filled For (tutor name),
-      // col 12=Filled by Pearl User ID, col 13=Filled for Pearl User ID
-      const scholarPearlIds = new Set(myStuRows.map(r => {
+      // ════════════════════════════════════════════════════════════════════
+      //  CANONICAL SCHOLAR ATTRIBUTION (Session Details first — by subject)
+      //  Pairing record of truth = Pearl SESS tab: each DELIVERED session row
+      //  carries Instructor (+Pearl Instructor ID col 15), Subject (col 9),
+      //  Pearl Session ID (col 14), and the exact scholar roster as Pearl
+      //  Student IDs (col 16) + display names (col 2).
+      //  · Scholar identity is keyed by Pearl User ID (names only as fallback)
+      //    — eliminates double-counting from display-name variants.
+      //  · Surveys are scoped by Session ID (STU col 11) ∈ this tutor's
+      //    sessions — the authoritative survey↔session join.
+      //  · Cancelled / not-delivered sessions no longer contribute scholars.
+      //  This replaces the old name-soup union (STU names + all SESS rows)
+      //  that inflated scholar counts (e.g. 36 shown vs ~28 actually paired).
+      // ════════════════════════════════════════════════════════════════════
+      const SUBJ_NORM = s => {
+        const v = String(s || '').toLowerCase();
+        if (!v) return '';
+        return (v.includes('ela') || v.includes('english') || v.includes('literacy') || v.includes('reading') || v.includes('language')) ? 'ELA' : 'Math';
+      };
+      const SESS_DELIVERED = s => {
+        const v = String(s || '').toLowerCase();
+        return v.includes('attended') || v.includes('complete') || v.includes('success') || v.includes('partial');
+      };
+
+      const scholarPearlIds  = new Set();   // canonical: Pearl Student IDs from delivered SESS rows
+      const scholarNames     = new Set();   // fallback name variants (for rows with no IDs)
+      const mySessionIds     = new Set();   // Pearl Session IDs (col 14) for survey scoping
+      const scholarsBySubject = { Math: new Set(), ELA: new Set() }; // per-subject identity keys
+      const tutorSubjects    = new Set();
+      let   sessNoIdRows     = 0;
+
+      const sessRows = (data.sess || []).filter(r => {
         const vals = Object.values(r);
-        // Header is exactly "Filled by Pearl User ID" per actual sheet
-        return (r['Filled by Pearl User ID'] || r['Filled By ID'] || vals[12] || '').trim();
-      }).filter(Boolean));
-      const scholarNames = new Set();
-      myStuRows.forEach(r => {
+        if (!SESS_DELIVERED(r['Status'] || vals[4])) return false;
+        const instName = (r['Instructor'] || vals[1] || '').trim();
+        const instId   = (r['Pearl Instructor ID'] || vals[15] || '').trim();
+        return (tutor_pearl_id && instId === tutor_pearl_id) || normName(instName) === tn;
+      });
+
+      sessRows.forEach(r => {
+        const vals  = Object.values(r);
+        const subj  = SUBJ_NORM(r['Subject'] || vals[9]);
+        if (subj) tutorSubjects.add(subj);
+        const sid   = (r['Pearl Session ID'] || vals[14] || '').trim();
+        if (sid) mySessionIds.add(sid);
+
+        const ids   = (r['Pearl Student IDs'] || vals[16] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const names = (r['Students'] || vals[2] || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        ids.forEach(id => {
+          scholarPearlIds.add(id);
+          if (subj) scholarsBySubject[subj].add(id);
+        });
+        if (ids.length === 0 && names.length > 0) sessNoIdRows++;
+        names.forEach((n, i) => {
+          // Name variants kept for ATT/iReady fallback joins; identity counting
+          // only uses a name when that scholar has no Pearl ID on any session.
+          normNameVariants(n).forEach(v => { if (v.length > 2) scholarNames.add(v); });
+          if (ids.length === 0 && subj) {
+            const nn = normName(n);
+            if (nn.length > 2) scholarsBySubject[subj].add('name:' + nn);
+          }
+        });
+      });
+
+      // Survey rows for this tutor — Session ID join primary, Filled For fallback
+      const myStuRowsScoped = myStuRows.filter(r => {
         const vals = Object.values(r);
+        const sid  = (r['Pearl Session ID'] || r['Session ID'] || vals[11] || '').trim();
+        return !sid || !mySessionIds.size || mySessionIds.has(sid);
+      });
+      // Add survey-submitter IDs ONLY when their session is verifiably this tutor's
+      myStuRowsScoped.forEach(r => {
+        const vals = Object.values(r);
+        const sid  = (r['Pearl Session ID'] || r['Session ID'] || vals[11] || '').trim();
+        if (!sid || !mySessionIds.has(sid)) return;
+        const uid = (r['Filled by Pearl User ID'] || r['Filled By ID'] || vals[12] || '').trim();
+        if (uid) scholarPearlIds.add(uid);
         normNameVariants(r['Filled By'] || vals[0] || '').forEach(v => { if (v.length > 2) scholarNames.add(v); });
       });
 
-      // SESS bridge: expand scholar sets with ALL session-linked scholars (not just survey submitters)
-      // SESS col 1=Instructor, col 2=Students (comma-sep names), col 15=Pearl Instructor ID, col 16=Pearl Student IDs
-      const sessRows = (data.sess || []).filter(r => {
-        const vals = Object.values(r);
-        const instName = (r['Instructor'] || vals[1] || '').trim();
-        const instId   = (r['Pearl Instructor ID'] || vals[15] || '').trim();
-        return normName(instName) === tn || (instId && instId === tutor_pearl_id);
-      });
-      sessRows.forEach(r => {
-        const vals = Object.values(r);
-        const names = (r['Students'] || vals[2] || '').split(',').map(s => s.trim()).filter(Boolean);
-        names.forEach(n => { normNameVariants(n).forEach(v => { if (v.length > 2) scholarNames.add(v); }); });
-        const ids = (r['Pearl Student IDs'] || vals[16] || '').split(',').map(s => s.trim()).filter(Boolean);
-        ids.forEach(id => { if (id) scholarPearlIds.add(id); });
-      });
+      // Canonical scholar counts — UID-first identity, per subject and total
+      const scholarCountBySubject = {
+        Math: scholarsBySubject.Math.size,
+        ELA:  scholarsBySubject.ELA.size,
+      };
+      const pairedScholarCount = new Set([...scholarsBySubject.Math, ...scholarsBySubject.ELA]).size
+        || scholarPearlIds.size;
 
       // Scholar ATT rows: match by Pearl User ID (primary) or display name (fallback)
       // ATT col 13 = Pearl User ID; STU col 12 = Filled By ID — same Pearl ID system
@@ -2192,6 +2261,18 @@
           '| ATT sample UID:', allAttStudents[0] && (allAttStudents[0]['Pearl User ID'] || allAttStudents[0]['User ID'] || ''));
       }
 
+      // Reconciliation diagnostic — explains any gap vs. Apprentice Impact Report
+      // ("paired" = unique Pearl scholars across delivered sessions; the report's
+      // "Matched" figure is the iReady-matched SUBSET of these paired scholars).
+      if (sessRows.length > 0) {
+        console.log('[NJTCTeam] Scholar pairing —', t.name + ':',
+          'paired', pairedScholarCount,
+          '(Math ' + scholarCountBySubject.Math + ' · ELA ' + scholarCountBySubject.ELA + ')',
+          '| delivered sessions:', sessRows.length,
+          '| subjects:', [...tutorSubjects].join('/') || 'n/a',
+          sessNoIdRows ? '| ' + sessNoIdRows + ' session(s) missing Pearl Student IDs (name fallback used)' : '');
+      }
+
       // iReady uses district Student IDs (not Pearl User IDs) — name matching is primary
       // nameInSet handles both "First Last" and "Last, First" formats used by iReady exports
       function matchScholar(r) {
@@ -2210,7 +2291,16 @@
       const isSMTutor = [...SM_SCHOOLS].some(s => tutorSchoolNorm.includes(s));
 
       const attMetrics    = computeAttMetrics(myAttRows);
-      const stuMetrics    = computeStuMetrics(myStuRows, myAttStudents);
+      const stuMetrics    = computeStuMetrics(myStuRowsScoped, myAttStudents);
+      // Displayed scholar count = canonical SESS pairing when session data exists.
+      // The name-keyed scholarMap stays as the attendance drill-down list, but the
+      // headline number must match the Apprentice Impact Report / Pearl Operations.
+      if (sessRows.length > 0 && pairedScholarCount > 0) {
+        stuMetrics.nameListCount = stuMetrics.uniqueCount; // keep for diagnostics
+        stuMetrics.uniqueCount   = pairedScholarCount;
+        stuMetrics.bySubject     = scholarCountBySubject;
+        stuMetrics.subjects      = [...tutorSubjects];
+      }
       const irElaMetrics  = computeIReadyMetrics(my2526Ela.length  ? my2526Ela  : myElaRows,  !!my2526Ela.length);
       const irMathMetrics = computeIReadyMetrics(my2526Math.length ? my2526Math : myMathRows, !!my2526Math.length);
       const smMetrics     = isSMTutor ? computeSmMetrics(data.sm || [], t.name) : null;
@@ -2592,21 +2682,23 @@
         return;
       }
 
-      // POST each activity as its own request — one row per activity in the OTJ sheet.
-      // Staggered in batches of 3 with a 300ms pause between batches.
-      // Pure Promise.all (all at once) causes Apps Script appendRow() race conditions —
-      // GAS is not thread-safe; simultaneous writes lose rows under contention.
-      // Sequential await is reliable but slow (18 × ~10s = 3 min).
-      // Batches of 3 with 300ms gaps: 18 activities = 6 batches × 300ms = ~2s total,
-      // while giving GAS enough breathing room to finish each appendRow cleanly.
+      // ── v6: ONE batch POST instead of N staggered requests ───────────────
+      // The Apps Script doPost supports an activities[] array natively and now
+      // holds a LockService script lock, so a single request writes every row
+      // in one bulk setValues call and triggers exactly ONE recalculation.
+      // (The old batches-of-3 approach fired N posts → N concurrent recalcs →
+      // appendRow race conditions and occasional lost rows.)
       if (hasActivities) {
-        const dur        = sessionDuration ? parseFloat(sessionDuration) : 0;
-        const BATCH_SIZE = 3;
-        const BATCH_GAP  = 300; // ms between batches — enough for GAS appendRow to settle
-        console.log('[NJTCTeam] POSTing', activities.length, 'activit' + (activities.length===1?'y':'ies'),
-          'in batches of', BATCH_SIZE, '| RTI hrs:', dur);
+        const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
+        // Per-activity guard: drop any stale/blank codes instead of writing
+        // unidentifiable rows (the server now rejects them anyway).
+        const cleanActivities = activities.filter(a => a.activityCode && a.activityCode.trim());
+        const dropped = activities.length - cleanActivities.length;
+        if (dropped > 0) console.warn('[NJTCTeam] Dropped', dropped, 'activity row(s) with blank codes before submit');
+        console.log('[NJTCTeam] POSTing', cleanActivities.length, 'activit' + (cleanActivities.length===1?'y':'ies'),
+          'in ONE batch request | RTI hrs:', dur);
 
-        const makeActivityFetch = act => fetch(TAP_SCRIPT_URL, {
+        await fetch(TAP_SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2617,24 +2709,12 @@
             siteLocation:    site,
             apprenticeName:  apprenticeName,
             notes:           notes,
-            phase:           act.phase,
-            domain:          act.domain,
-            activityCode:    act.activityCode,
-            status:          act.status || mark,
+            activities:      cleanActivities,
             sessionDuration: dur,
           }),
         });
 
-        for (let i = 0; i < activities.length; i += BATCH_SIZE) {
-          const batch = activities.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map(makeActivityFetch));
-          // Pause between batches (skip after the last batch)
-          if (i + BATCH_SIZE < activities.length) {
-            await new Promise(resolve => setTimeout(resolve, BATCH_GAP));
-          }
-        }
-
-        // RTI POST fires after all activity rows are confirmed written.
+        // RTI POST fires after the activity batch.
         // Apps Script writes one RTI row (col N = hours, col M = month) and
         // recalculateTotals sums all RTI rows for this apprentice → AZ cumulatively.
         if (dur > 0) {
@@ -2669,7 +2749,7 @@
     const rtiNote   = durLogged > 0 ? ' + ' + durLogged + ' RTI hrs.' : '.';
     if (statusEl) {
       statusEl.style.cssText = 'color:#34d399;font-weight:700;font-size:.79rem;display:block;margin-top:6px';
-      statusEl.textContent = '\u2713 ' + actCount + ' activit' + (actCount===1?'y':'ies') + ' logged' + rtiNote + ' Updating in ~30s.';
+      statusEl.textContent = '\u2713 ' + actCount + ' activit' + (actCount===1?'y':'ies') + ' logged' + rtiNote + ' Updating in ~20s.';
     }
     if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Submit OJT Log'; }
 
@@ -2691,7 +2771,7 @@
         openDetail(_openDetailName);
       }
       setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 4000);
-    }, 35000);
+    }, 20000);
 
     // Clear in-memory store and reset form
     delete _ojtSelectionStore[k];
