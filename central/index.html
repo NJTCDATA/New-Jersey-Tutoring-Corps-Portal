@@ -7909,45 +7909,77 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
      per apprentice, with Y/N-A marks and dates injected from the live OTJ log.
      Used verbatim by index.html (browser) and the Node verification harness.
      ════════════════════════════════════════════════════════════════════════ */
-  function buildOJTTemplateSheet(XLSX, appr, myLogs) {
-    // appr  = { name, site, usdol, ojtHours }
-    // myLogs= { 'Phase|domain|CODE': { status:'Y'|'N/A', dateStr, observer } }
+  /* ════════════════════════════════════════════════════════════════════════
+     NJTC OJT CHECKLIST — OFFICIAL TEMPLATE BUILDER v2 (xlsx-js-style)
+     OJT_Template.xlsx layout to a T, enhanced:
+     · Navy NJTC banner + gold rule — official record header
+     · Observer + Notes columns (G/H) on every activity row, from the OTJ log
+     · RTI HOURS LOG section — observer-logged hours, explicitly differentiated
+       from OJT activity Y-counts (completion)
+     · Live COUNTIF/SUM formulas, thin borders, footer
+     ════════════════════════════════════════════════════════════════════════ */
+  function buildOJTTemplateSheet(XLSX, appr, myLogs, rtiRows) {
+    // appr   = { name, site, usdol, ojtHours, rtiHours }
+    // myLogs = { 'Phase|domain|CODE': { status, dateStr, observer, notes } }
+    // rtiRows= [ { month, hours, observer, dateStr, types } ]
+    rtiRows = rtiRows || [];
   
-    var NAVY = 'FF1C3459', GRAY_HDR = 'FFD9D9D9', BLUE_DOM = 'FFCFE2F3',
-        YEL_TOT = 'FFFFF2CC', YEL_NA = 'FFFFFF00', GRAY_NAME = 'FFF3F3F3';
+    var NAVY = 'FF1B2A4A', NAVY2 = 'FF1C3459', GOLD = 'FFC9A84C',
+        GRAY_HDR = 'FFD9D9D9', BLUE_DOM = 'FFCFE2F3', YEL_TOT = 'FFFFF2CC',
+        YEL_NA = 'FFFFFF00', GRAY_NAME = 'FFF3F3F3', WHITE = 'FFFFFFFF';
+    var THIN = { style:'thin', color:{ rgb:'FFB7C2D0' } };
+    var BOX  = { top:THIN, bottom:THIN, left:THIN, right:THIN };
   
-    var S = {  // style presets
-      title:    { font:{ name:'Calibri', sz:23, bold:true } },
+    var S = {
+      banner:   { font:{ name:'Calibri', sz:13, bold:true, color:{ rgb:WHITE } },
+                  fill:{ fgColor:{ rgb:NAVY } }, alignment:{ vertical:'center', wrapText:true } },
+      goldRule: { fill:{ fgColor:{ rgb:GOLD } } },
+      title:    { font:{ name:'Calibri', sz:23, bold:true, color:{ rgb:NAVY2 } } },
       note:     { font:{ name:'Calibri', sz:11 }, alignment:{ wrapText:true, vertical:'top' } },
       noteBold: { font:{ name:'Calibri', sz:11, bold:true }, alignment:{ wrapText:true, vertical:'top' } },
-      meta:     { font:{ name:'Calibri', sz:9, color:{ rgb:'FF6B7280' } } },
-      nameLbl:  { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:GRAY_NAME } } },
-      pct:      { font:{ name:'Calibri', sz:14, bold:true, color:{ rgb:NAVY } }, numFmt:'0%',
+      metaLbl:  { font:{ name:'Calibri', sz:10, bold:true, color:{ rgb:'FF6B7280' } },
+                  alignment:{ horizontal:'right' } },
+      metaVal:  { font:{ name:'Calibri', sz:10, bold:true, color:{ rgb:NAVY2 } } },
+      nameLbl:  { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:GRAY_NAME } }, border:BOX },
+      pct:      { font:{ name:'Calibri', sz:14, bold:true, color:{ rgb:NAVY2 } }, numFmt:'0%',
                   alignment:{ horizontal:'center' } },
       totLbl:   { font:{ name:'Calibri', sz:11, bold:true } },
       totVal:   { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:YEL_TOT } },
-                  alignment:{ horizontal:'center' } },
-      phase20:  { font:{ name:'Calibri', sz:20, bold:true, color:{ rgb:NAVY } } },
-      phase21:  { font:{ name:'Calibri', sz:21, bold:true, color:{ rgb:NAVY } } },
+                  alignment:{ horizontal:'center' }, border:BOX },
+      phase20:  { font:{ name:'Calibri', sz:20, bold:true, color:{ rgb:NAVY2 } } },
+      phase21:  { font:{ name:'Calibri', sz:21, bold:true, color:{ rgb:NAVY2 } } },
       phaseTot: { fill:{ fgColor:{ rgb:YEL_TOT } }, font:{ name:'Calibri', sz:11, bold:true },
-                  alignment:{ horizontal:'center' } },
-      hdr:      { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:GRAY_HDR } },
-                  alignment:{ wrapText:true, vertical:'center' },
-                  border:{ bottom:{ style:'thin', color:{ rgb:'FF999999' } } } },
-      domRow:   { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:BLUE_DOM } } },
+                  alignment:{ horizontal:'center' }, border:BOX },
+      hdr:      { font:{ name:'Calibri', sz:11, bold:true, color:{ rgb:WHITE } },
+                  fill:{ fgColor:{ rgb:NAVY2 } },
+                  alignment:{ wrapText:true, vertical:'center', horizontal:'center' }, border:BOX },
+      domRow:   { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:BLUE_DOM } }, border:BOX },
       domCnt:   { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:BLUE_DOM } },
-                  alignment:{ horizontal:'center' } },
-      actDom:   { font:{ name:'Calibri', sz:11, bold:true }, alignment:{ vertical:'top' } },
-      actTxt:   { font:{ name:'Calibri', sz:11 }, alignment:{ wrapText:true, vertical:'top' } },
+                  alignment:{ horizontal:'center' }, border:BOX },
+      actDom:   { font:{ name:'Calibri', sz:11, bold:true }, alignment:{ vertical:'top' }, border:BOX },
+      actTxt:   { font:{ name:'Calibri', sz:11 }, alignment:{ wrapText:true, vertical:'top' }, border:BOX },
       mark:     { font:{ name:'Calibri', sz:11, bold:true, color:{ rgb:'FF1E7E34' } },
-                  alignment:{ horizontal:'center', vertical:'top' } },
+                  alignment:{ horizontal:'center', vertical:'top' }, border:BOX },
       markNA:   { font:{ name:'Calibri', sz:11, bold:true }, fill:{ fgColor:{ rgb:YEL_NA } },
-                  alignment:{ horizontal:'center', vertical:'top' } },
+                  alignment:{ horizontal:'center', vertical:'top' }, border:BOX },
       naCell:   { fill:{ fgColor:{ rgb:YEL_NA } }, font:{ name:'Calibri', sz:11 },
-                  alignment:{ wrapText:true, vertical:'top' } },
+                  alignment:{ wrapText:true, vertical:'top' }, border:BOX },
       naDom:    { fill:{ fgColor:{ rgb:YEL_NA } }, font:{ name:'Calibri', sz:11, bold:true },
-                  alignment:{ vertical:'top' } },
-      dateC:    { font:{ name:'Calibri', sz:11 }, alignment:{ horizontal:'center', vertical:'top' } },
+                  alignment:{ vertical:'top' }, border:BOX },
+      dateC:    { font:{ name:'Calibri', sz:11 }, alignment:{ horizontal:'center', vertical:'top' }, border:BOX },
+      obsC:     { font:{ name:'Calibri', sz:10 }, alignment:{ vertical:'top', wrapText:true }, border:BOX },
+      notesC:   { font:{ name:'Calibri', sz:10, italic:true, color:{ rgb:'FF374151' } },
+                  alignment:{ wrapText:true, vertical:'top' }, border:BOX },
+      rtiTitle: { font:{ name:'Calibri', sz:16, bold:true, color:{ rgb:NAVY2 } } },
+      rtiNote:  { font:{ name:'Calibri', sz:10, italic:true, color:{ rgb:'FF374151' } },
+                  alignment:{ wrapText:true, vertical:'top' } },
+      rtiCell:  { font:{ name:'Calibri', sz:11 }, alignment:{ vertical:'top' }, border:BOX },
+      rtiCellC: { font:{ name:'Calibri', sz:11 }, alignment:{ horizontal:'center', vertical:'top' }, border:BOX },
+      rtiTotal: { font:{ name:'Calibri', sz:12, bold:true, color:{ rgb:NAVY2 } },
+                  fill:{ fgColor:{ rgb:YEL_TOT } }, border:BOX },
+      rtiTotalC:{ font:{ name:'Calibri', sz:12, bold:true, color:{ rgb:NAVY2 } },
+                  fill:{ fgColor:{ rgb:YEL_TOT } }, alignment:{ horizontal:'center' }, border:BOX },
+      footer:   { font:{ name:'Calibri', sz:9, italic:true, color:{ rgb:'FF9CA3AF' } } },
     };
   
     var ws = {};
@@ -7961,21 +7993,33 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     function M(r1,c1,r2,c2){ merges.push({ s:{ r:r1-1, c:c1-1 }, e:{ r:r2-1, c:c2-1 } }); }
   
     var T  = _OJT_TEMPLATE_TEXT;
-    var BY = {};  // phase -> domain -> [acts in template order]
+    var BY = {};
     _OJT_TEMPLATE_ACTS.forEach(function(a){
       if (!BY[a.ph]) BY[a.ph] = {};
       if (!BY[a.ph][a.dm]) BY[a.ph][a.dm] = [];
       BY[a.ph][a.dm].push(a);
     });
   
-    // ── Header block (template rows 1–9; row 1 carries the live-data strip) ──
-    put('B1', 'Site: ' + (appr.site||'\u2014') + '   \u00b7   USDOL ID: ' + (appr.usdol||'\u2014') +
-              '   \u00b7   OJT Hours: ' + (appr.ojtHours||0).toLocaleString() + ' / 4,000' +
-              '   \u00b7   Updated: ' + new Date().toLocaleDateString('en-US'), S.meta);
-    M(1,2,1,6);
-    put('B2', T.title, S.title);                    M(2,2,2,7);
+    // ── Row 1: OFFICIAL NJTC BANNER (live data inline) ────────────────────────
+    var bannerText = 'NEW JERSEY TUTORING CORPS  \u00b7  TUTOR APPRENTICESHIP PROGRAM  \u2014  OFFICIAL ON-THE-JOB TRAINING RECORD' +
+              '          Site: ' + (appr.site||'\u2014') + '    \u00b7    USDOL ID: ' + (appr.usdol||'\u2014') +
+              '    \u00b7    Updated: ' + new Date().toLocaleDateString('en-US');
+    // Anchor the text at A1 — merged ranges keep only the top-left cell's content
+    put('A1', bannerText, Object.assign({}, S.banner, { alignment:{ vertical:'center', wrapText:true, indent:1 } }));
+    for (var bc = 2; bc <= 8; bc++) put(String.fromCharCode(64+bc) + '1', '', S.banner);
+    M(1,1,1,8);
+  
+    // ── Template header block (rows 2–9) + live metrics in G/H ───────────────
+    put('B2', T.title, S.title);                    M(2,2,2,6);
     put('B3', T.tutorNote, S.noteBold);             M(3,2,3,6);
     put('B4', T.directions, S.note);                M(4,2,6,6);
+    put('G2', 'OJT Hours (Activity \u00d7 50):', S.metaLbl);
+    put('H2', (appr.ojtHours||0).toLocaleString() + ' / 4,000', S.metaVal);
+    put('G3', 'RTI Hours (Observer-Logged):', S.metaLbl);
+    put('H3', (appr.rtiHours||0).toLocaleString() + ' / 288', S.metaVal);
+    put('G4', 'OJT Completion = Y counts below', S.metaLbl);
+    put('G5', 'RTI Hours = log at bottom of sheet', S.metaLbl);
+  
     put('B7', T.name_label + appr.name, S.nameLbl); M(7,2,7,3);
     put('D7', null, S.pct, 'IFERROR(F7/F8,0)');
     put('E7', T.total_label, S.totLbl);
@@ -7985,7 +8029,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     put('F8', null, S.totVal, 'SUM(F10,F52,F98)');
     put('B9', T.beg_note, S.note);                  M(9,2,9,6);
   
-    var rowHeights = { 2:30, 4:46, 7:20, 8:26, 9:28, 50:26, 51:28, 96:26, 97:28 };
+    var rowHeights = { 1:34, 2:30, 4:46, 7:20, 8:26, 9:28, 50:26, 51:28, 96:26, 97:28 };
     var PHASES = [
       { ph:'Beginning', titleRow:null, totRow:10, hdrRow:11, doms:['Professionalism','Instruction','Environment','Planning'] },
       { ph:'Middle',    titleRow:50,   totRow:52, hdrRow:53, doms:['Professionalism','Instruction','Environment','Planning'],
@@ -7993,6 +8037,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       { ph:'End',       titleRow:96,   totRow:98, hdrRow:99, doms:['Planning','Instruction','Environment'],
         title:T.end_title, note:T.end_note, noteRow:97, style:S.phase21 },
     ];
+    var HDR8 = T.hdr.concat(['Observed By', 'Notes']);   // B..F template headers + G, H
   
     PHASES.forEach(function(P){
       if (P.titleRow) {
@@ -8001,48 +8046,83 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         M(P.noteRow,2,P.noteRow,6);
         rowHeights[P.noteRow] = 28;
       }
-      // Header row
       var hr = P.hdrRow;
-      put('B'+hr, T.hdr[0], S.hdr); put('C'+hr, T.hdr[1], S.hdr);
-      put('D'+hr, T.hdr[2], S.hdr); put('E'+hr, T.hdr[3], S.hdr); put('F'+hr, T.hdr[4], S.hdr);
+      HDR8.forEach(function(h, hc){ put(String.fromCharCode(66+hc)+hr, h, S.hdr); });
   
       var r = hr + 1;
-      var domTotCells = [], domPossCells = [];
+      var domTot = [], domPoss = [];
       P.doms.forEach(function(dm){
         var acts = BY[P.ph][dm];
         var domRow = r;
         var lo = domRow + 1, hi = domRow + acts.length;
-        // possible = activities minus permanently-N/A rows (template convention → 78 grand)
         var possible = acts.filter(function(a){ return !a.na; }).length;
         put('B'+domRow, dm, S.domRow);
         put('C'+domRow, '', S.domRow); put('D'+domRow, '', S.domRow);
         put('E'+domRow, null, S.domCnt, 'COUNTIF(E'+lo+':E'+hi+',"Y")');
         put('F'+domRow, possible, S.domCnt);
-        domTotCells.push('E'+domRow); domPossCells.push('F'+domRow);
+        put('G'+domRow, '', S.domRow); put('H'+domRow, '', S.domRow);
+        domTot.push('E'+domRow); domPoss.push('F'+domRow);
         r++;
         acts.forEach(function(a){
           var key = P.ph + '|' + dm.toLowerCase() + '|' + String(a.c).toUpperCase();
           var log = myLogs[key];
           var isY  = !!(log && log.status && log.status.charAt(0).toUpperCase() === 'Y');
           var isNA = !isY && (!!(log && /N\/A/i.test(log.status||'')) || (a.na && !log));
-          var dom_s = isNA ? S.naDom  : S.actDom;
-          var txt_s = isNA ? S.naCell : S.actTxt;
-          put('B'+r, dm,     dom_s);
-          put('C'+r, a.act,  txt_s);
-          put('D'+r, a.look, txt_s);
+          put('B'+r, dm,     isNA ? S.naDom  : S.actDom);
+          put('C'+r, a.act,  isNA ? S.naCell : S.actTxt);
+          put('D'+r, a.look, isNA ? S.naCell : S.actTxt);
           put('E'+r, isY ? 'Y' : (isNA ? 'N/A' : ''), isNA ? S.markNA : S.mark);
           put('F'+r, isY ? (log.dateStr||'') : (isNA ? 'N/A' : ''), isNA ? S.markNA : S.dateC);
+          put('G'+r, (log && log.observer) ? log.observer : '', isNA ? S.naCell : S.obsC);
+          put('H'+r, (log && log.notes)    ? log.notes    : '', isNA ? S.naCell : S.notesC);
           r++;
         });
       });
-      // Phase totals row (above the header in the template layout)
-      put('E'+P.totRow, null, S.phaseTot, 'SUM(' + domTotCells.join(',') + ')');
-      put('F'+P.totRow, null, S.phaseTot, 'SUM(' + domPossCells.join(',') + ')');
+      put('E'+P.totRow, null, S.phaseTot, 'SUM(' + domTot.join(',') + ')');
+      put('F'+P.totRow, null, S.phaseTot, 'SUM(' + domPoss.join(',') + ')');
     });
   
-    ws['!ref']    = 'A1:G111';
+    // ── RTI HOURS LOG — observer-reported hours (separate from Y-counts) ──────
+    var rr = 113;
+    put('B'+rr, 'RTI HOURS LOG \u2014 Observer-Reported Hours', S.rtiTitle); M(rr,2,rr,6);
+    rowHeights[rr] = 24; rr++;
+    put('B'+rr, 'RTI (Related Technical Instruction) hours are LOGGED BY OBSERVERS and count toward the 288-hour ' +
+                'RTI requirement. They are separate from the OJT ACTIVITY COMPLETION above, where each "Y" mark ' +
+                'is an observed activity (Y count \u00d7 50 = OJT hours toward 4,000).', S.rtiNote);
+    M(rr,2,rr,8); rowHeights[rr] = 30; rr++;
+    var rtiHdrRow = rr;
+    ['Month','Hours','Observer','Date Logged','RTI Type(s)'].forEach(function(h, i){
+      put(String.fromCharCode(66+i)+rr, h, S.hdr);
+    });
+    rr++;
+    var rtiFirst = rr;
+    if (rtiRows.length === 0) {
+      put('B'+rr, 'No RTI hours logged yet.', S.rtiCell);
+      for (var ec = 3; ec <= 6; ec++) put(String.fromCharCode(64+ec)+rr, '', S.rtiCell);
+      rr++;
+    } else {
+      rtiRows.forEach(function(e){
+        put('B'+rr, e.month   || '', S.rtiCellC);
+        put('C'+rr, Number(e.hours) || 0, S.rtiCellC);
+        put('D'+rr, e.observer|| '', S.rtiCell);
+        put('E'+rr, e.dateStr || '', S.rtiCellC);
+        put('F'+rr, e.types   || '', S.rtiCell);
+        rr++;
+      });
+    }
+    var rtiLast = rr - 1;
+    put('B'+rr, 'TOTAL RTI HOURS', S.rtiTotal);
+    put('C'+rr, null, S.rtiTotalC, rtiRows.length ? 'SUM(C'+rtiFirst+':C'+rtiLast+')' : 'SUM(0)');
+    put('D'+rr, 'of 288 required', S.rtiTotal);
+    put('E'+rr, '', S.rtiTotal); put('F'+rr, '', S.rtiTotal);
+    rr += 2;
+    put('B'+rr, 'Generated by the NJTC TAP Portal  \u00b7  New Jersey Tutoring Corps  \u00b7  njtcdata.github.io', S.footer);
+    M(rr,2,rr,8);
+    var LAST = rr;
+  
+    ws['!ref']    = 'A1:H' + LAST;
     ws['!merges'] = merges;
-    ws['!cols']   = [ {wch:3.9},{wch:18.2},{wch:41.5},{wch:51.5},{wch:11},{wch:12},{wch:2} ];
+    ws['!cols']   = [ {wch:1.5},{wch:18.2},{wch:41.5},{wch:51.5},{wch:11},{wch:12},{wch:16},{wch:34} ];
     ws['!rows']   = [];
     Object.keys(rowHeights).forEach(function(rn){ ws['!rows'][rn-1] = { hpt: rowHeights[rn] }; });
     return ws;
@@ -8078,10 +8158,28 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       /* Per-apprentice deduped activity lookup — latest entry wins (same rule
          as the Apps Script recalculation): 'Phase|domain|CODE' → {status, dateStr} */
       var ojtByName = {};
+      var rtiByName = {};   // observer-logged RTI hours per apprentice
       ojtData.forEach(function(row, idx) {
         var name = (row['Apprentice full name'] || '').trim();
         if (!name) return;
-        if ((row['What are you logging today?'] || '').toLowerCase().indexOf('rti') >= 0) return;
+        var nKey = name.toLowerCase().replace(/\s+/g, ' ');
+        if ((row['What are you logging today?'] || '').toLowerCase().indexOf('rti') >= 0) {
+          var hrs = parseFloat(row['Total RTI hours completed this month for this apprentice'] || 0) || 0;
+          if (hrs > 0) {
+            var mRaw = (row['Month being reported'] || '').trim();
+            var mD = new Date(mRaw);
+            var month = /^[A-Za-z]{3}-\d{2}$/.test(mRaw) ? mRaw
+                      : (!isNaN(mD.getTime()) ? mD.toLocaleString('en-US',{month:'short'}) + '-' + String(mD.getFullYear()).slice(2) : mRaw);
+            if (!rtiByName[nKey]) rtiByName[nKey] = [];
+            rtiByName[nKey].push({
+              month: month, hours: hrs,
+              observer: (row['Observer Name'] || '').trim(),
+              dateStr:  (row['Date of observation or session'] || '').trim(),
+              types:    (row['RTI type(s) included \u2014 select all that apply'] || '').trim(),
+            });
+          }
+          return;
+        }
         var phase  = (row['Program phase'] || '').trim();
         var domain = (row['Competency domain'] || '').trim();
         var actRaw = (row['Activity code \u2014 select the letter code from the OJT checklist'] || '').trim();
@@ -8090,10 +8188,15 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         var code = actRaw.split(/\s*[\u2014\-]\s*/)[0].trim().toUpperCase();
         if (!code) return;
         var phKey = /begin/i.test(phase) ? 'Beginning' : /mid/i.test(phase) ? 'Middle' : /end/i.test(phase) ? 'End' : phase;
-        var nKey  = name.toLowerCase().replace(/\s+/g, ' ');
         if (!ojtByName[nKey]) ojtByName[nKey] = {};
         var key = phKey + '|' + domain.toLowerCase() + '|' + code;
-        var entry = { status: status, dateStr: (row['Date of observation or session'] || '').trim(), idx: idx };
+        var entry = {
+          status: status,
+          dateStr:  (row['Date of observation or session'] || '').trim(),
+          observer: (row['Observer Name'] || '').trim(),
+          notes:    (row["What did you observe? This appears in the apprentice's OJT report."] || '').trim(),
+          idx: idx
+        };
         if (!ojtByName[nKey][key] || idx > ojtByName[nKey][key].idx) ojtByName[nKey][key] = entry;
       });
 
@@ -8108,12 +8211,14 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       active.forEach(function(appr) {
         var name = (appr['Full Name (Display)'] || '').trim();
         if (!name) return;
+        var nKey = name.toLowerCase().replace(/\s+/g, ' ');
         var ws = buildOJTTemplateSheet(XLSX, {
           name:     name,
           site:     (appr['Placement (Site)'] || '').trim(),
           usdol:    (appr['USDOL Apprentice ID'] || '').trim(),
           ojtHours: parseFloat(appr['OJT Hours (Total)'] || 0) || 0,
-        }, ojtByName[name.toLowerCase().replace(/\s+/g, ' ')] || {});
+          rtiHours: parseFloat(appr['RTI Hours (Total)'] || 0) || 0,
+        }, ojtByName[nKey] || {}, rtiByName[nKey] || []);
         var sheetName = name.replace(/[:\/\?\*\[\]]/g, '').substring(0, 31);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
