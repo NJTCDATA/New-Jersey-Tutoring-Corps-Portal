@@ -2586,6 +2586,60 @@
   }
 
   /* ─────────────────────────────────────────────
+     OJT WRITE VERIFICATION
+     Reads the OTJ tab back from the Apps Script ~8s after a submission and
+     confirms every submitted activity code exists for the apprentice. The
+     portal posts with mode:'no-cors' (the response is invisible), so this
+     read-back is the ONLY way to guarantee nothing was silently dropped —
+     e.g. if the web app deployment is running an older script version.
+  ───────────────────────────────────────────── */
+  async function _verifyOJTWrite(apprenticeName, phaseKey, domain, codes, statusEl) {
+    const wanted = [...new Set(codes.filter(Boolean))];
+    if (!wanted.length) return;
+    const tgt = normName(apprenticeName);
+    const setMsg = (msg, color, weight) => {
+      if (!statusEl) return;
+      statusEl.style.cssText = 'color:' + color + ';font-weight:' + (weight||'700') + ';font-size:.79rem;display:block;margin-top:6px';
+      statusEl.textContent = msg;
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await new Promise(r => setTimeout(r, attempt === 1 ? 8000 : 7000));
+      try {
+        const res  = await fetch(TAP_SCRIPT_URL + '?tab=ojt_log&_=' + Date.now(), { signal: makeSignal(15000) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('non-CSV response');
+        const rows = parseCSV(text);
+        // OTJ fixed columns: 6=apprentice, 7=phase, 9=activity code
+        const found = new Set();
+        rows.forEach(r => {
+          if (normName(r[6] || '') !== tgt) return;
+          const ph = String(r[7] || '');
+          if (phaseKey && ph && ph.toLowerCase().indexOf(phaseKey.toLowerCase().slice(0,3)) < 0) return;
+          const code = String(r[9] || '').split(/\s*[\u2014\-]\s*/)[0].trim().toUpperCase();
+          if (code) found.add(code);
+        });
+        const missing = wanted.filter(c => !found.has(c));
+        if (missing.length === 0) {
+          console.log('[NJTCTeam] \u2713 Write verified in Google Sheet \u2014', wanted.join(', '), 'present for', apprenticeName);
+          setMsg('\u2713 Verified in Google Sheet: ' + wanted.length + ' activit' + (wanted.length===1?'y':'ies') + ' logged (' + wanted.join(', ') + ').', '#34d399');
+          return true;
+        }
+        console.warn('[NJTCTeam] Verification attempt', attempt, '\u2014 missing codes:', missing.join(', '));
+        if (attempt < 3) setMsg('Verifying write\u2026 (' + (wanted.length - missing.length) + '/' + wanted.length + ' confirmed)', '#94a3b8', '400');
+        else {
+          setMsg('\u26a0 NOT CONFIRMED in Google Sheet: ' + missing.join(', ') + ' \u2014 please re-submit these activities. If this repeats, the Apps Script web app must be redeployed (Deploy \u2192 Manage deployments \u2192 \u270e \u2192 Version: New version \u2192 Deploy).', '#ef4444');
+          return false;
+        }
+      } catch (e) {
+        console.warn('[NJTCTeam] Verification fetch failed (attempt ' + attempt + '):', e.message);
+        if (attempt === 3) setMsg('\u26a0 Could not verify the write (connection issue). Open the OTJ tab in the Master Workbook to confirm your ' + wanted.length + ' activities are there.', '#f59e0b');
+      }
+    }
+    return false;
+  }
+
+  /* ─────────────────────────────────────────────
      OJT FORM SUBMISSION
      Section 1: observation info
      Section 2: OJT activity + optional session duration
@@ -2682,21 +2736,21 @@
         return;
       }
 
-      // ── v6: ONE batch POST instead of N staggered requests ───────────────
-      // The Apps Script doPost supports an activities[] array natively and now
-      // holds a LockService script lock, so a single request writes every row
-      // in one bulk setValues call and triggers exactly ONE recalculation.
-      // (The old batches-of-3 approach fired N posts → N concurrent recalcs →
-      // appendRow race conditions and occasional lost rows.)
+      // ── v6.1: ONE batch request, compatible with BOTH script versions ─────
+      // The payload carries the activities[] array (v6 batch mode) AND the
+      // same activities as a comma-joined top-level activityCode (v5's
+      // smart-split path writes one row per code from it). v6 prefers
+      // activities[] and ignores the top-level field in batch mode, so there
+      // is no double-write — whichever script version is deployed, every
+      // selected activity lands as its own OTJ row.
       if (hasActivities) {
         const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
-        // Per-activity guard: drop any stale/blank codes instead of writing
-        // unidentifiable rows (the server now rejects them anyway).
         const cleanActivities = activities.filter(a => a.activityCode && a.activityCode.trim());
         const dropped = activities.length - cleanActivities.length;
         if (dropped > 0) console.warn('[NJTCTeam] Dropped', dropped, 'activity row(s) with blank codes before submit');
+        const joinedCodes = cleanActivities.map(a => a.activityCode).join(', ');
         console.log('[NJTCTeam] POSTing', cleanActivities.length, 'activit' + (cleanActivities.length===1?'y':'ies'),
-          'in ONE batch request | RTI hrs:', dur);
+          'in ONE dual-compatible batch | RTI hrs:', dur);
 
         await fetch(TAP_SCRIPT_URL, {
           method: 'POST', mode: 'no-cors',
@@ -2709,14 +2763,16 @@
             siteLocation:    site,
             apprenticeName:  apprenticeName,
             notes:           notes,
-            activities:      cleanActivities,
+            activities:      cleanActivities,          // v6 batch mode (preferred)
+            phase:           effectivePhase,           // v5 fallback fields —
+            domain:          effectiveDomain,          // v5 smart-splits the joined
+            activityCode:    joinedCodes,              // codes into one row each
+            status:          mark,
             sessionDuration: dur,
           }),
         });
 
         // RTI POST fires after the activity batch.
-        // Apps Script writes one RTI row (col N = hours, col M = month) and
-        // recalculateTotals sums all RTI rows for this apprentice → AZ cumulatively.
         if (dur > 0) {
           const obsDateObj  = dateVal ? new Date(dateVal + 'T12:00:00') : new Date();
           const monthNames  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2736,6 +2792,14 @@
             }),
           });
         }
+
+        // ── WRITE VERIFICATION — never trust a no-cors POST blindly ─────────
+        // ~8s after submitting, read the OTJ log back from the Apps Script and
+        // confirm each submitted code exists for this apprentice. The leader
+        // sees ✓ verified-in-sheet or an explicit red retry warning.
+        _verifyOJTWrite(apprenticeName, phaseKey, effectiveDomain,
+          cleanActivities.map(a => (a.activityCode.split(/\s*[\u2014\-]\s*/)[0] || '').trim().toUpperCase()),
+          statusEl);
       }
 
 
