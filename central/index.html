@@ -6929,7 +6929,31 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     }
 
     if (hdrIdx >= 0) {
-      const hdrs = rows[hdrIdx].map(h => h.trim());
+      // gviz/tq CONCATENATES the sheet's multi-row headers (title, section labels,
+      // column names, legend) into one string per column — e.g. AY arrives as
+      // "SECTION E — OJT & RTI TOTALS (auto-calculated…) OJT Hours (Total)" and
+      // AZ as "RTI Hours (Total) ↳ Auto-calculated by Apps Script (GREEN)".
+      // Exact-match header keys then miss those columns, which is why OJT Hours,
+      // RTI Hours, and SY showed 0/blank while clean columns worked.
+      // Fix: map every polluted header back to its canonical row-3 name using
+      // token-boundary matching (exact | endsWith | startsWith | contains-word).
+      const _MR_CANON = [
+        'Date Registered','Status','First Name','Last Name','Cohort Seat #',
+        'Full Name (Display)','USDOL Apprentice ID','SY','Placement (Site)','Region',
+        'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
+        'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
+        'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
+        'Program Complete?','Completion Date','Performance Status'
+      ].sort((a,b) => b.length - a.length); // longest first so 'SY' can't shadow longer names
+      const _canonHdr = raw => {
+        const t = String(raw||'').replace(/\s+/g,' ').trim();
+        if (!t) return t;
+        for (const c of _MR_CANON) {
+          if (t === c || t.endsWith(' ' + c) || t.startsWith(c + ' ') || t.includes(' ' + c + ' ')) return c;
+        }
+        return t;
+      };
+      const hdrs = rows[hdrIdx].map(_canonHdr);
       let dataStart = hdrIdx + 2;
       if (hdrIdx + 1 < rows.length) {
         const nextVal = ((rows[hdrIdx+1]||[])[1]||'').trim();
@@ -7124,6 +7148,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           <tbody>
             ${apps.map((a,i) => {
               const tier = wageTier(a.ojtHours||0);
+              // Sheet wage/milestone (BG/BH — written by the Apps Script milestone
+              // engine) is authoritative when present; computed tier is the fallback.
+              const sheetWage = parseFloat(String(a.wage||'').replace(/[^0-9.]/g,'')) || 0;
+              const dispWage  = sheetWage > 0 ? sheetWage : tier.wage;
               const nextTier = WAGE_TIERS.slice().reverse().find(t => (a.ojtHours||0) < t.threshold);
               const ojtPct = pct(a.ojtHours||0, 4000);
               const isActive = /active/i.test(a.status||'');
@@ -7143,7 +7171,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
                     <span style="font-size:.72rem;font-weight:700;white-space:nowrap">${ojtPct}%</span>
                   </div>
                 </td>
-                <td style="padding:.5rem .75rem;font-weight:700;color:#065f46">$${tier.wage.toFixed(2)}/hr</td>
+                <td style="padding:.5rem .75rem;font-weight:700;color:#065f46">$${dispWage.toFixed(2)}/hr</td>
                 <td style="padding:.5rem .75rem;font-size:.75rem;color:var(--muted)">${nextTier ? nextTier.label + ' ($' + nextTier.wage.toFixed(2) + ')' : '🎉 Complete'}</td>
               </tr>`;
             }).join('')}
@@ -7164,7 +7192,10 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
           const midPct  = Math.round((a.midPct||0)*100);
           const endPct  = Math.round((a.endPct||0)*100);
           const isActive = /active/i.test(a.status||'');
-          return `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+          const nameEnc  = encodeURIComponent(a.name);
+          return `<div onclick="tapShowActivityDetail('${nameEnc}')" title="Click to see completed vs. open activities"
+            style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;box-shadow:0 1px 4px rgba(0,0,0,.04);cursor:pointer;transition:box-shadow .15s"
+            onmouseover="this.style.boxShadow='0 3px 10px rgba(27,58,107,.18)'" onmouseout="this.style.boxShadow='0 1px 4px rgba(0,0,0,.04)'">
             <div style="font-weight:700;font-size:.9rem;color:#1B2A4A;margin-bottom:.25rem">${a.name}</div>
             <div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">${a.site||'—'} · ${a.sy||''}</div>
             <div style="margin-bottom:.5rem">
@@ -7186,11 +7217,134 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
               <span>⏱ ${(a.ojtHours||0).toLocaleString()} / 4,000 hrs</span>
               <span>📚 ${(a.rtiHours||0)} / 288 RTI</span>
             </div>
-            <div style="margin-top:.375rem;font-size:.72rem;font-weight:700;color:#065f46">Y: ${a.yCount||0} / ${a.possible||78} activities</div>
+            <div style="margin-top:.375rem;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:.72rem;font-weight:700;color:#065f46">Y: ${a.yCount||0} / ${a.possible||80} activities</span>
+              <span style="font-size:.66rem;color:#1B3A6B;font-weight:600">Detail ▾</span>
+            </div>
           </div>`;
         }).join('')}
-      </div>`;
+      </div>
+      <div id="tapOjtDrill"></div>`;
   }
+
+  /* ── OJT activity drill-down: completed vs open per apprentice ──────────
+     Fetches the OTJ log tab (gviz CSV), dedupes by phase|domain|code with
+     latest-entry-wins (same rule as the Apps Script), and renders each
+     phase/domain with ✓ completed (date + observer), N/A, and ◯ open
+     activities from the canonical 80-activity schema (_TAP_OJT_DATA).     */
+  let _tapOjtLogCache = null, _tapOjtLogTs = 0;
+
+  async function _fetchTapOjtLog() {
+    if (_tapOjtLogCache && (Date.now() - _tapOjtLogTs) < TAP_CACHE_MS) return _tapOjtLogCache;
+    const res  = await fetch(TAP_OJT_URL);
+    if (!res.ok) throw new Error('OTJ log fetch failed: HTTP ' + res.status);
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error('OTJ tab not publicly accessible.');
+    const rows = _parseCsv(text);
+    if (!rows.length) return [];
+    const hdrs = rows[0].map(h => String(h||'').replace(/\s+/g,' ').trim());
+    _tapOjtLogCache = rows.slice(1).map(r => {
+      const o = {}; hdrs.forEach((h,i) => { if (h) o[h] = (r[i]||'').trim(); }); return o;
+    }).filter(r => Object.values(r).some(Boolean));
+    _tapOjtLogTs = Date.now();
+    return _tapOjtLogCache;
+  }
+
+  window.tapShowActivityDetail = async function(nameEnc) {
+    const name  = decodeURIComponent(nameEnc);
+    const drill = document.getElementById('tapOjtDrill');
+    if (!drill) return;
+    const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    drill.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto .75rem"></div><div style="font-size:.82rem">Loading activity log for ${esc(name)}…</div></div>`;
+    drill.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+    let log;
+    try { log = await _fetchTapOjtLog(); }
+    catch(e) {
+      drill.innerHTML = `<div style="padding:1.25rem;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:.82rem;color:#991b1b">Could not load the OTJ activity log: ${esc(e.message)}</div>`;
+      return;
+    }
+
+    // Dedup this apprentice's OJT rows by phase|domain|code — latest wins
+    const normN = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const tgt   = normN(name);
+    const byKey = {};
+    log.forEach((r, idx) => {
+      if (normN(r['Apprentice full name']) !== tgt) return;
+      if ((r['What are you logging today?']||'').toLowerCase().includes('rti')) return;
+      const ph  = (r['Program phase']||'').trim();
+      const dom = (r['Competency domain']||'').trim();
+      const act = (r['Activity code \u2014 select the letter code from the OJT checklist'] || r['Activity code'] || '').trim();
+      const st  = (r['Mark this activity as:']||'').trim();
+      if (!ph || !dom || !act || !st) return;
+      const code = act.split(/\s*[\u2014\-]\s*/)[0].trim().toUpperCase();
+      if (!code) return;
+      const phKey = /begin/i.test(ph) ? 'Beginning' : /mid/i.test(ph) ? 'Middle' : /end/i.test(ph) ? 'End' : ph;
+      const key   = phKey + '|' + dom.toLowerCase() + '|' + code;
+      const entry = {
+        status:   st,
+        date:     (r['Date of observation or session']||'').trim(),
+        observer: (r['Observer Name']||'').trim(),
+        idx
+      };
+      if (!byKey[key] || idx > byKey[key].idx) byKey[key] = entry;
+    });
+
+    const PHASES = ['Beginning','Middle','End'];
+    const PH_COLORS = { Beginning:'#457b9d', Middle:'#1B3A6B', End:'#059669' };
+    let totY = 0, totNA = 0, totOpen = 0;
+
+    const phaseHtml = PHASES.map(phase => {
+      const phActs  = _TAP_OJT_DATA.filter(a => a.ph === phase);
+      const domains = [...new Set(phActs.map(a => a.dm))];
+      const domHtml = domains.map(dm => {
+        const dActs = phActs.filter(a => a.dm === dm);
+        const items = dActs.map(a => {
+          const k   = phase + '|' + dm.toLowerCase() + '|' + String(a.c).toUpperCase();
+          const log = byKey[k];
+          const isY  = log && log.status.charAt(0).toUpperCase() === 'Y';
+          const isNA = log && !isY && log.status.toUpperCase().includes('N/A');
+          if (isY) totY++; else if (isNA) totNA++; else totOpen++;
+          const icon = isY ? '✅' : isNA ? '➖' : '◯';
+          const meta = isY  ? `<span style="color:#059669;font-weight:600">${esc(log.date||'')}${log.observer ? ' · ' + esc(log.observer) : ''}</span>`
+                     : isNA ? `<span style="color:#9ca3af">N/A</span>`
+                            : `<span style="color:#b45309">Open</span>`;
+          return `<div style="display:flex;gap:.5rem;align-items:baseline;padding:.3rem 0;border-bottom:1px solid #f1f5f9;font-size:.76rem">
+            <span>${icon}</span>
+            <span style="flex:1;color:${isY ? '#1B2A4A' : isNA ? '#9ca3af' : '#374151'};${isNA ? 'text-decoration:line-through;' : ''}"><strong>${esc(a.c)}</strong> — ${esc(a.d)}</span>
+            <span style="white-space:nowrap;font-size:.7rem">${meta}</span>
+          </div>`;
+        }).join('');
+        const dY = dActs.filter(a => {
+          const k = phase + '|' + dm.toLowerCase() + '|' + String(a.c).toUpperCase();
+          return byKey[k] && byKey[k].status.charAt(0).toUpperCase() === 'Y';
+        }).length;
+        return `<div style="margin-bottom:.875rem">
+          <div style="font-size:.72rem;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem">${esc(dm)} <span style="color:var(--muted);font-weight:600">(${dY}/${dActs.length} complete)</span></div>
+          ${items}
+        </div>`;
+      }).join('');
+      return `<details style="background:#fff;border:1px solid var(--border);border-radius:10px;margin-bottom:.75rem" ${phase==='Beginning'?'open':''}>
+        <summary style="padding:.875rem 1rem;cursor:pointer;font-weight:700;font-size:.85rem;color:${PH_COLORS[phase]}">${phase} Phase — ${phActs.length} activities</summary>
+        <div style="padding:0 1rem 1rem">${domHtml}</div>
+      </details>`;
+    }).join('');
+
+    drill.innerHTML = `
+      <div style="background:linear-gradient(135deg,#1B3A6B,#274690);color:#fff;border-radius:12px 12px 0 0;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem">
+        <div>
+          <div style="font-weight:800;font-size:.95rem">📋 ${esc(name)} — OJT Activity Detail</div>
+          <div style="font-size:.72rem;opacity:.75">Deduplicated from the live OTJ log · latest entry wins per activity</div>
+        </div>
+        <div style="display:flex;gap:.875rem;font-size:.78rem;font-weight:700">
+          <span style="color:#34d399">✅ ${totY} complete</span>
+          <span style="color:#cbd5e1">➖ ${totNA} N/A</span>
+          <span style="color:#fbbf24">◯ ${totOpen} open</span>
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:1rem">${phaseHtml}</div>`;
+  };
+
 
   function renderMilestones(el) {
     const data = getTapData();
@@ -7669,52 +7823,15 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         }).filter(function(r){ return Object.values(r).some(Boolean); });
       }
 
-      // mrCsvToObjs: dual-mode parser for Master Roster (multi-row header OR positional)
-      var MR_POS = {
-        status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
-        ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
-        begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60
-      };
-      function mrCsvToObjs(text) {
-        var rows = safeParseCsv(text); if (!rows.length) return [];
-        var hdrIdx = -1;
-        for (var i = 0; i < Math.min(8, rows.length); i++) {
-          var s = rows[i].join('|').toLowerCase();
-          if (s.indexOf('status') >= 0 && (s.indexOf('full name') >= 0 || s.indexOf('first name') >= 0)) { hdrIdx = i; break; }
-        }
-        if (hdrIdx >= 0) {
-          var hdrs = rows[hdrIdx].map(function(h){ return h.trim(); });
-          var ds = hdrIdx + 2;
-          if (hdrIdx+1 < rows.length && /^(active|pending|reinstated|cancelled)$/i.test(((rows[hdrIdx+1]||[])[1]||'').trim())) ds = hdrIdx+1;
-          return rows.slice(ds).map(function(row){
-            var o={}; hdrs.forEach(function(h,i){ if(h) o[h]=(row[i]||'').trim(); }); return o;
-          }).filter(function(r){ return (r['Full Name (Display)']||r['First Name']||'').trim() && (r['Status']||'').trim(); });
-        }
-        // Positional fallback
-        function g(row,i){ return (row[i]||'').trim(); }
-        return rows.filter(function(row){
-          return (g(row,MR_POS.fullName)||g(row,MR_POS.firstName)).length > 0 && g(row,MR_POS.status).length > 0;
-        }).map(function(row){
-          return {
-            'Full Name (Display)': g(row,MR_POS.fullName)||(g(row,MR_POS.firstName)+' '+g(row,MR_POS.lastName)).trim(),
-            'Status': g(row,MR_POS.status), 'First Name': g(row,MR_POS.firstName), 'Last Name': g(row,MR_POS.lastName),
-            'Cohort Seat #': g(row,MR_POS.cohort), 'USDOL Apprentice ID': g(row,MR_POS.usdol), 'SY': g(row,MR_POS.sy),
-            'Placement (Site)': g(row,MR_POS.site), 'Region': g(row,MR_POS.region),
-            'OJT Hours (Total)': g(row,MR_POS.ojtHours), 'RTI Hours (Total)': g(row,MR_POS.rtiHours),
-            'OJT % Complete': g(row,MR_POS.ojtPct), 'OJT Activities Marked Y': g(row,MR_POS.yCount),
-            'OJT Possible (excl N/A)': g(row,MR_POS.possible), 'Beginning % Complete': g(row,MR_POS.begPct),
-            'Middle % Complete': g(row,MR_POS.midPct), 'End % Complete': g(row,MR_POS.endPct),
-            'Current Wage Rate ($)': g(row,MR_POS.wage), 'Wage Milestone': g(row,MR_POS.milestone),
-            'Program Complete?': g(row,MR_POS.complete),
-          };
-        });
-      }
+      // Master Roster parsing reuses the module-level _mrCsvToObjs (same closure),
+      // which canonicalizes gviz-concatenated headers and falls back to positional
+      // mapping — keeping the export and the dashboard tabs on identical parsing.
 
       var results = await Promise.all([
         fetch(MR_URL).then(function(r) { return r.text(); }),
         fetch(OJT_URL).then(function(r) { return r.text(); }),
       ]);
-      var mrData  = mrCsvToObjs(results[0]);
+      var mrData  = _mrCsvToObjs(results[0]);
       var ojtData = csvToObjs(results[1]);
 
       /* Build per-apprentice OJT activity lookup */
@@ -7748,7 +7865,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       });
 
       if (!active.length) {
-        alert('No active apprentices found in Completion Summary. Run Full Resync first.');
+        alert('No active apprentices found in the Master Roster. Run Full Resync in the workbook first.');
         if (btn) { btn.textContent = origText; btn.disabled = false; }
         return;
       }
@@ -7760,13 +7877,17 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       var wb = XLSX.utils.book_new();
 
       active.forEach(function(appr) {
-        var name    = (appr['Apprentice Full Name'] || '').trim();
-        var site    = (appr['Site'] || '').trim();
-        var usdol   = (appr['USDOL ID'] || '').trim();
-        var ojtHrs  = parseFloat(appr['OJT Hours'] || 0) || 0;
-        var yPoss   = (appr['Y / Possible'] || '0 / 78').toString();
-        var yCount  = parseInt(yPoss.split('/')[0]) || 0;
-        var possible= parseInt((yPoss.split('/')[1] || '78')) || 78;
+        // ── v6 FIX: these objects come from the MASTER ROSTER, not the Completion
+        // Summary. The old code read Completion Summary field names ('Apprentice
+        // Full Name', 'Site', 'OJT Hours', 'Y / Possible') which never exist on
+        // roster objects — name was always blank, every apprentice was skipped,
+        // and the export downloaded as an empty workbook.
+        var name    = (appr['Full Name (Display)'] || '').trim();
+        var site    = (appr['Placement (Site)'] || '').trim();
+        var usdol   = (appr['USDOL Apprentice ID'] || '').trim();
+        var ojtHrs  = parseFloat(appr['OJT Hours (Total)'] || 0) || 0;
+        var yCount  = parseInt(appr['OJT Activities Marked Y'] || 0) || 0;
+        var possible= parseInt(appr['OJT Possible (excl N/A)'] || 80) || 80;
         var pctNum  = possible > 0 ? Math.round(yCount / possible * 100) : 0;
         if (!name) return;
 
