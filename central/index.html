@@ -6915,63 +6915,14 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60,
   };
 
+  // Status words that identify a real data row in column B
+  const _MR_STATUS_RE = /^(active|pending|reinstated|cancelled|canceled|terminated|completed|complete|inactive|on hold|paused|withdrawn)$/i;
+
   function _mrCsvToObjs(text) {
     const rows = _parseCsv(text);
     if (!rows.length) return [];
-
-    // Strategy 1: find a header row containing both 'Status' and a name column
-    let hdrIdx = -1;
-    for (let i = 0; i < Math.min(8, rows.length); i++) {
-      const s = rows[i].join('|').toLowerCase();
-      if (s.includes('status') && (s.includes('full name') || s.includes('first name'))) {
-        hdrIdx = i; break;
-      }
-    }
-
-    if (hdrIdx >= 0) {
-      // gviz/tq CONCATENATES the sheet's multi-row headers (title, section labels,
-      // column names, legend) into one string per column — e.g. AY arrives as
-      // "SECTION E — OJT & RTI TOTALS (auto-calculated…) OJT Hours (Total)" and
-      // AZ as "RTI Hours (Total) ↳ Auto-calculated by Apps Script (GREEN)".
-      // Exact-match header keys then miss those columns, which is why OJT Hours,
-      // RTI Hours, and SY showed 0/blank while clean columns worked.
-      // Fix: map every polluted header back to its canonical row-3 name using
-      // token-boundary matching (exact | endsWith | startsWith | contains-word).
-      const _MR_CANON = [
-        'Date Registered','Status','First Name','Last Name','Cohort Seat #',
-        'Full Name (Display)','USDOL Apprentice ID','SY','Placement (Site)','Region',
-        'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
-        'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
-        'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
-        'Program Complete?','Completion Date','Performance Status'
-      ].sort((a,b) => b.length - a.length); // longest first so 'SY' can't shadow longer names
-      const _canonHdr = raw => {
-        const t = String(raw||'').replace(/\s+/g,' ').trim();
-        if (!t) return t;
-        for (const c of _MR_CANON) {
-          if (t === c || t.endsWith(' ' + c) || t.startsWith(c + ' ') || t.includes(' ' + c + ' ')) return c;
-        }
-        return t;
-      };
-      const hdrs = rows[hdrIdx].map(_canonHdr);
-      let dataStart = hdrIdx + 2;
-      if (hdrIdx + 1 < rows.length) {
-        const nextVal = ((rows[hdrIdx+1]||[])[1]||'').trim();
-        if (/^(active|pending|reinstated|cancelled)$/i.test(nextVal)) dataStart = hdrIdx + 1;
-      }
-      return rows.slice(dataStart).map(row => {
-        const o = {}; hdrs.forEach((h,i) => { if (h) o[h] = (row[i]||'').trim(); }); return o;
-      }).filter(r => (r['Full Name (Display)']||r['First Name']||'').trim() && (r['Status']||'').trim());
-    }
-
-    // Strategy 2 (positional fallback): no header row found — gviz skipped them
-    // Row 0 is the first data row. Map every column by known fixed position.
-    console.log('[NJTCTap] Using positional column mapping (no header row in CSV)');
-    const get = (row, i) => (row[i] || '').trim();
-    return rows.filter(row => {
-      const nm = get(row, _MR_POS.fullName) || (get(row, _MR_POS.firstName)+' '+get(row, _MR_POS.lastName)).trim();
-      return nm.length > 0 && get(row, _MR_POS.status).length > 0;
-    }).map(row => ({
+    const get = (row, i) => String(row[i] == null ? '' : row[i]).trim();
+    const _rowToObj = row => ({
       'Full Name (Display)':    get(row,_MR_POS.fullName) || (get(row,_MR_POS.firstName)+' '+get(row,_MR_POS.lastName)).trim(),
       'Status':                 get(row,_MR_POS.status),
       'First Name':             get(row,_MR_POS.firstName),
@@ -6992,7 +6943,83 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Current Wage Rate ($)':  get(row,_MR_POS.wage),
       'Wage Milestone':         get(row,_MR_POS.milestone),
       'Program Complete?':      get(row,_MR_POS.complete),
-    }));
+    });
+
+    // ── STRATEGY 1 (PRIMARY): POSITIONAL with content-detected data rows ──
+    // Column positions are the fixed contract shared with the Apps Script
+    // (which reads/writes the roster by index), so they are exactly as stable
+    // as the system itself. gviz header TEXT is not stable — it concatenates
+    // the sheet's four header rows (title/sections/columns/legend)
+    // unpredictably, which is what blanked the dashboard. A data row is any
+    // row whose col B holds a known status word and that carries a name.
+    const dataRows = rows.filter(row => {
+      if (!_MR_STATUS_RE.test(get(row, _MR_POS.status))) return false;
+      const nm = get(row, _MR_POS.fullName) || (get(row, _MR_POS.firstName)+' '+get(row, _MR_POS.lastName)).trim();
+      return nm.length > 1;
+    });
+    if (dataRows.length > 0) {
+      console.log('[NJTCTap] Positional parse: ' + dataRows.length + ' data row(s) | statuses: ' +
+        dataRows.map(r => get(r, _MR_POS.status)).join(', '));
+      return dataRows.map(_rowToObj);
+    }
+
+    // ── STRATEGY 2 (FALLBACK): header-based, only if columns were reordered ──
+    console.warn('[NJTCTap] Positional parse found 0 data rows — falling back to header matching');
+    let hdrIdx = -1;
+    for (let i = 0; i < Math.min(8, rows.length); i++) {
+      const s = rows[i].join('|').toLowerCase();
+      if (s.includes('status') && (s.includes('full name') || s.includes('first name'))) { hdrIdx = i; break; }
+    }
+    if (hdrIdx < 0) return [];
+    const _MR_CANON = [
+      'Date Registered','Status','First Name','Last Name','Cohort Seat #',
+      'Full Name (Display)','USDOL Apprentice ID','SY','Placement (Site)','Region',
+      'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
+      'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
+      'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
+      'Program Complete?','Completion Date','Performance Status'
+    ].sort((a,b) => b.length - a.length);
+    const _canonHdr = raw => {
+      const t = String(raw||'').replace(/\s+/g,' ').trim();
+      if (!t) return t;
+      for (const c of _MR_CANON) {
+        if (t === c || t.endsWith(' ' + c) || t.startsWith(c + ' ') || t.includes(' ' + c + ' ')) return c;
+      }
+      return t;
+    };
+    const hdrs = rows[hdrIdx].map(_canonHdr);
+    let dataStart = hdrIdx + 2;
+    if (hdrIdx + 1 < rows.length) {
+      const nextVal = ((rows[hdrIdx+1]||[])[1]||'').trim();
+      if (_MR_STATUS_RE.test(nextVal)) dataStart = hdrIdx + 1;
+    }
+    return rows.slice(dataStart).map(row => {
+      const o = {}; hdrs.forEach((h,i) => { if (h) o[h] = (row[i]||'').trim(); }); return o;
+    }).filter(r => (r['Full Name (Display)']||r['First Name']||'').trim() && (r['Status']||'').trim());
+  }
+
+  // OTJ tab — fixed column contract (matches the Apps Script OJT_* indices)
+  const _OTJ_KEYS = [
+    'Timestamp','What are you logging today?','Date of observation or session',
+    'Observer Name','Observer Role','Site location','Apprentice full name',
+    'Program phase','Competency domain',
+    'Activity code \u2014 select the letter code from the OJT checklist',
+    'Mark this activity as:',
+    "What did you observe? This appears in the apprentice's OJT report.",
+    'Month being reported','Total RTI hours completed this month for this apprentice',
+    'RTI type(s) included \u2014 select all that apply','Session duration'
+  ];
+  function _otjCsvToObjs(text) {
+    const rows = _parseCsv(text);
+    if (!rows.length) return [];
+    // Header row: col 0 says Timestamp or col 6 mentions apprentice. Data rows never do.
+    const hdrIdx = rows.findIndex(r =>
+      /timestamp/i.test(String(r[0]||'')) || /apprentice/i.test(String(r[6]||'')));
+    return rows.slice(hdrIdx >= 0 ? hdrIdx + 1 : 0).map(row => {
+      const o = {};
+      _OTJ_KEYS.forEach((k,i) => { o[k] = String(row[i] == null ? '' : row[i]).trim(); });
+      return o;
+    }).filter(r => r['Apprentice full name']);
   }
 
   function _mrRowToAppr(r) {
@@ -7037,11 +7064,11 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         // Detect 403/HTML error page
         if (text.trim().startsWith('<')) throw new Error('Sheet not publicly accessible. Share as "Anyone with link can view".');
         const rows = _mrCsvToObjs(text);
-        console.log('[NJTCTap] Master Roster rows parsed:', rows.length, '| sample Status values:', rows.slice(0,3).map(r=>r['Status']));
+        console.log('[NJTCTap] Master Roster rows parsed: ' + rows.length + ' | statuses: ' + rows.slice(0,5).map(r=>r['Status']).join(', ') + ' | names: ' + rows.slice(0,5).map(r=>r['Full Name (Display)']).join(', '));
         const apprentices = rows
           .map(_mrRowToAppr)
           .filter(a => a && a.name && /active|reinstated/i.test(a.status));
-        console.log('[NJTCTap] Active apprentices found:', apprentices.length, apprentices.map(a=>a.name));
+        console.log('[NJTCTap] Active apprentices found: ' + apprentices.length + (apprentices.length ? ' — ' + apprentices.map(a=>a.name).join(', ') : ''));
         window._njtcTapRoster = { apprentices };
         _tapCacheTs = Date.now();
         return window._njtcTapRoster;
@@ -7240,12 +7267,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     if (!res.ok) throw new Error('OTJ log fetch failed: HTTP ' + res.status);
     const text = await res.text();
     if (text.trim().startsWith('<')) throw new Error('OTJ tab not publicly accessible.');
-    const rows = _parseCsv(text);
-    if (!rows.length) return [];
-    const hdrs = rows[0].map(h => String(h||'').replace(/\s+/g,' ').trim());
-    _tapOjtLogCache = rows.slice(1).map(r => {
-      const o = {}; hdrs.forEach((h,i) => { if (h) o[h] = (r[i]||'').trim(); }); return o;
-    }).filter(r => Object.values(r).some(Boolean));
+    _tapOjtLogCache = _otjCsvToObjs(text);
     _tapOjtLogTs = Date.now();
     return _tapOjtLogCache;
   }
@@ -7792,36 +7814,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       var MR_URL  = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=45498361';
       var OJT_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/gviz/tq?tqx=out:csv&gid=85054416';
 
-      /* Safe CSV parser — uses charCodes to avoid escape sequence issues */
-      function safeParseCsv(text) {
-        var rows = [], row = [], field = '', inQ = false;
-        var NL = 10, CR = 13, COMMA = 44, DQ = 34;
-        for (var i = 0; i < text.length; i++) {
-          var cc = text.charCodeAt(i);
-          if (inQ) {
-            if (cc === DQ && text.charCodeAt(i+1) === DQ) { field += '"'; i++; }
-            else if (cc === DQ) { inQ = false; }
-            else { field += text.charAt(i); }
-          } else {
-            if      (cc === DQ)    { inQ = true; }
-            else if (cc === COMMA) { row.push(field); field = ''; }
-            else if (cc === NL)    { row.push(field); rows.push(row); row = []; field = ''; }
-            else if (cc !== CR)    { field += text.charAt(i); }
-          }
-        }
-        if (field || row.length) { row.push(field); rows.push(row); }
-        return rows;
-      }
 
-      // csvToObjs: simple parser for OTJ tab (single header row)
-      function csvToObjs(text) {
-        var rows = safeParseCsv(text);
-        if (rows.length < 2) return [];
-        var hdrs = rows[0].map(function(h) { return h.trim(); });
-        return rows.slice(1).map(function(row) {
-          var obj = {}; hdrs.forEach(function(h,i){ obj[h]=(row[i]||'').trim(); }); return obj;
-        }).filter(function(r){ return Object.values(r).some(Boolean); });
-      }
 
       // Master Roster parsing reuses the module-level _mrCsvToObjs (same closure),
       // which canonicalizes gviz-concatenated headers and falls back to positional
@@ -7832,7 +7825,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         fetch(OJT_URL).then(function(r) { return r.text(); }),
       ]);
       var mrData  = _mrCsvToObjs(results[0]);
-      var ojtData = csvToObjs(results[1]);
+      var ojtData = _otjCsvToObjs(results[1]);  // positional — immune to gviz header text
 
       /* Build per-apprentice OJT activity lookup */
       var ojtByName = {};
