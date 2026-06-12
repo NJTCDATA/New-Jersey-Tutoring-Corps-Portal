@@ -33,7 +33,7 @@
   //   4 = session status
   //   9 = subject
   //  16 = student Pearl IDs (comma-separated)
-  const SESS_COL = { NAME:0, INSTRUCTOR:1, STUDENTS:2, STATUS:4, SUBJECT:9, STU_IDS:16 };
+  const SESS_COL = { NAME:0, INSTRUCTOR:1, STUDENTS:2, STATUS:4, SUBJECT:9, SESS_ID:14, INST_ID:15, STU_IDS:16 };
 
   // MOY iLearn sheet (Winter 2026) — stable sheet ID via GViz CSV export
   const MOY_SHEET_ID = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
@@ -859,7 +859,8 @@
       //   sets  — per-apprentice scholar name sets (for name-based matching)
       //   idMap — Pearl student ID → canonical apprentice (for exact ID matching)
       setStatus('Building session attribution from Pearl data…'); setProgress(50);
-      const { sets: sessionSets, idMap: sessionIdMap, subjects: apprSubjects } = buildSessionAttribution(sessRows, attRows, apprLut);
+      const { sets: sessionSets, idMap: sessionIdMap, subjects: apprSubjects,
+              paired: apprPaired, sessionIds: apprSessionIds } = buildSessionAttribution(sessRows, attRows, apprLut);
       // Log subject coverage so we can verify ELA/Math assignments from Pearl sessions
       {
         const subjSummary = TAP_APPRENTICES.map(([d]) => {
@@ -882,7 +883,7 @@
 
       // ── 6. Process surveys and attendance ────────────────────────────────
       setStatus('Processing scholar surveys…'); setProgress(60);
-      const surveyAgg         = processSurveys(stuRows, apprLut);
+      const surveyAgg         = processSurveys(stuRows, apprLut, apprSessionIds);
       const surveyScholarSets = buildSurveyScholarSets(stuRows, apprLut); // Tier 4/5 fallback
 
       // Diagnostic: log survey scholar set for La Shanee Davis
@@ -1172,14 +1173,14 @@
       console.log('[APIR] SM apprentices with data:', Object.keys(smByAppr).join(', '));
       const records = buildRecords(
         moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-        surveyAgg, attAgg, smByAppr, apprSubjects
+        surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired
       );
 
       // ── 9. Build cancelled-apprentice records ──────────────────────────
       setStatus('Building cancelled apprentice records…'); setProgress(90);
       const cancelledRecords = buildCancelledRecords(
         moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-        surveyAgg, attAgg, smByAppr, apprSubjects
+        surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired
       );
       console.log('[APIR] Cancelled records built:', cancelledRecords.length);
 
@@ -1202,14 +1203,33 @@
 
   // ── Process student surveys ───────────────────────────────────────────────
   // Aggregates per-session survey scores by the apprentice who was rated.
-  function processSurveys(stuRows, lut) {
+  function processSurveys(stuRows, lut, apprSessionIds) {
     const agg = {};
     ALL_APPRENTICES.forEach(([d]) => { agg[d] = { conf: [], enj: [], learn: [], ovr: [], count: 0 }; });
 
+    // Reverse index: Pearl Session ID → canonical apprentice. Scholar surveys carry
+    // the Session ID (STU col 11) — joining on it is authoritative and survives any
+    // tutor display-name differences between Pearl surveys and the roster.
+    const sessIdToAppr = {};
+    if (apprSessionIds) {
+      Object.entries(apprSessionIds).forEach(([appr, ids]) => {
+        (ids || new Set()).forEach(sid => { if (sid && !sessIdToAppr[sid]) sessIdToAppr[sid] = appr; });
+      });
+    }
+    let sidJoined = 0, nameJoined = 0;
+
     stuRows.forEach(row => {
       const keys      = Object.keys(row);
-      const filledFor = (row['Filled For'] || row[keys[1]] || '').trim();
-      const canon     = resolveAppr(filledFor, lut);
+      // Primary: Session ID join (STU col 11)
+      const sid   = (row['Pearl Session ID'] || row['Session ID'] || row[keys[11]] || '').trim();
+      let   canon = sid && sessIdToAppr[sid] ? sessIdToAppr[sid] : null;
+      if (canon) sidJoined++;
+      // Fallback: Filled For tutor name (col 1)
+      if (!canon) {
+        const filledFor = (row['Filled For'] || row[keys[1]] || '').trim();
+        canon = resolveAppr(filledFor, lut);
+        if (canon) nameJoined++;
+      }
       if (!canon || !agg[canon]) return;
 
       // Try named headers first; fall back to column-index keys
@@ -1226,6 +1246,10 @@
       if (ovr   !== null) agg[canon].ovr.push(ovr);
       agg[canon].count++;
     });
+
+    if (sidJoined || nameJoined) {
+      console.log('[APIR] Survey joins — Session ID:', sidJoined, '| Filled For name fallback:', nameJoined);
+    }
 
     const out = {};
     for (const [name, d] of Object.entries(agg)) {
@@ -1338,7 +1362,19 @@
     const sets     = {};
     const idMap    = {};  // Pearl student ID → canonical apprentice name
     const subjects = {}; // canonical apprentice name → Set of subjects (e.g. 'Math', 'Reading')
-    ALL_APPRENTICES.forEach(([d]) => { sets[d] = new Set(); subjects[d] = new Set(); });
+    const sessionIds = {};   // canonical apprentice → Set of Pearl Session IDs (col 14)
+    const pairedIds  = {};   // canonical apprentice → { Math:Set, ELA:Set } of UID-first identity keys
+    ALL_APPRENTICES.forEach(([d]) => {
+      sets[d] = new Set(); subjects[d] = new Set();
+      sessionIds[d] = new Set();
+      pairedIds[d]  = { Math: new Set(), ELA: new Set() };
+    });
+    const SUBJ_BUCKET = raw => {
+      const v = String(raw || '').toLowerCase();
+      if (!v) return '';
+      return (v.includes('ela') || v.includes('english') || v.includes('literacy') ||
+              v.includes('reading') || v.includes('language')) ? 'ELA' : 'Math';
+    };
 
     // Helper: add a scholar name (both full-norm and first+last forms) to a set
     function addScholar(set, raw) {
@@ -1366,16 +1402,30 @@
       // Col 9 = subject — track which subjects each apprentice actually teaches
       const subj = getCol(SESS_COL.SUBJECT);
       if (subj) subjects[canon].add(subj);
+      const bucket = SUBJ_BUCKET(subj);
+
+      // Col 14 = Pearl Session ID — the authoritative survey↔session join key
+      const sid = getCol(SESS_COL.SESS_ID);
+      if (sid) sessionIds[canon].add(sid);
 
       // Col 2 = comma-separated student display names
       const stuNamesRaw = getCol(SESS_COL.STUDENTS);
-      stuNamesRaw.split(',').map(s => s.trim()).filter(Boolean)
-        .forEach(sn => addScholar(sets[canon], sn));
+      const stuNames = stuNamesRaw.split(',').map(s => s.trim()).filter(Boolean);
+      stuNames.forEach(sn => addScholar(sets[canon], sn));
 
       // Col 16 = comma-separated Pearl student IDs — build exact ID→apprentice map
+      // and the UID-first per-subject paired-identity sets (the canonical count).
       const stuIdsRaw = getCol(SESS_COL.STU_IDS);
-      stuIdsRaw.split(',').map(s => s.trim()).filter(Boolean)
-        .forEach(pid => { if (!idMap[pid]) idMap[pid] = canon; });
+      const stuIds = stuIdsRaw.split(',').map(s => s.trim()).filter(Boolean);
+      stuIds.forEach(pid => { if (!idMap[pid]) idMap[pid] = canon; });
+      if (bucket) {
+        if (stuIds.length > 0) {
+          stuIds.forEach(pid => pairedIds[canon][bucket].add(pid));
+        } else {
+          // No Pearl IDs on this session row — fall back to normalized names
+          stuNames.forEach(sn => { const nn = normName(sn); if (nn) pairedIds[canon][bucket].add('name:' + nn); });
+        }
+      }
     });
 
     // ── Pass 2: ATT session join ─────────────────────────────────────────
@@ -1435,14 +1485,30 @@
       });
     });
 
+    // ── Canonical paired scholar counts (matches the onsite portal) ───────
+    // paired[appr] = unique Pearl scholars across DELIVERED sessions, by subject.
+    // The 'Matched' columns elsewhere in the report are the iReady-matched SUBSET
+    // of these paired scholars — paired ≥ matched is expected.
+    const paired = {};
+    Object.entries(pairedIds).forEach(([appr, by]) => {
+      paired[appr] = {
+        Math:  by.Math.size,
+        ELA:   by.ELA.size,
+        total: new Set([...by.Math, ...by.ELA]).size,
+      };
+    });
+
     // Debug summary
     const summary = Object.entries(sets)
       .filter(([, s]) => s.size > 0)
       .map(([n, s]) => `${n.split(' ')[0]}: ${s.size}`).join(', ');
     console.log('[APIR] Session attribution —', summary || 'no scholars found');
     console.log('[APIR] Pearl ID map — entries:', Object.keys(idMap).length);
+    console.log('[APIR] Paired scholar counts (canonical) —',
+      Object.entries(paired).filter(([,p]) => p.total > 0)
+        .map(([n,p]) => `${n.split(' ')[0]}: ${p.total} (M${p.Math}/E${p.ELA})`).join(', ') || 'none');
 
-    return { sets, idMap, subjects };
+    return { sets, idMap, subjects, paired, sessionIds };
   }
 
   // ── MOY scholar attribution ───────────────────────────────────────────────
@@ -1855,9 +1921,10 @@
 
   // ── Build per-apprentice records (roster-agnostic core) ──────────────────
   function buildRecordsForRoster(roster, moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                                  surveyAgg, attAgg, smByAppr, apprSubjects) {
+                                  surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired) {
     smByAppr     = smByAppr     || {};
     apprSubjects = apprSubjects || {};
+    apprPaired   = apprPaired   || {};
 
     const teachesEla  = d => {
       const s = apprSubjects[d];
@@ -1905,6 +1972,11 @@
 
       return {
         display, njId, school, region, dataNote, isStdMas,
+        // Canonical Pearl pairing — unique scholars across DELIVERED sessions,
+        // by subject (UID-first). The 'Matched' figures below are the iReady-
+        // matched SUBSET of these paired scholars; paired ≥ matched is expected.
+        paired:   apprPaired[display] || { Math: 0, ELA: 0, total: 0 },
+        subjects: apprSubjects[display] ? [...apprSubjects[display]].join(' / ') : '',
         ela:    elaAcad,
         math:   mathAcad,
         sm:     smAcad,
@@ -1915,17 +1987,17 @@
   }
 
   function buildRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                         surveyAgg, attAgg, smByAppr, apprSubjects) {
+                         surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired) {
     return buildRecordsForRoster(getActiveRoster(),
       moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-      surveyAgg, attAgg, smByAppr, apprSubjects);
+      surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired);
   }
 
   function buildCancelledRecords(moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-                                   surveyAgg, attAgg, smByAppr, apprSubjects) {
+                                   surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired) {
     return buildRecordsForRoster(getCancelledRoster(),
       moyElaByAppr, moyMathByAppr, irlElaByAppr, irlMathByAppr,
-      surveyAgg, attAgg, smByAppr, apprSubjects);
+      surveyAgg, attAgg, smByAppr, apprSubjects, apprPaired);
   }
 
   // ── Build AOA (array-of-arrays) for XLSX sheet — shared by all three tabs ─
@@ -1940,6 +2012,7 @@
     const hdr1 = [
       ...(includeStatus ? ['Status'] : []),
       'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
+      'Pearl Scholars Paired (Sessions)', 'Subjects (Pearl)',
       'ELA Scholars (Matched)', 'ELA BOY Avg Score', 'ELA End Avg Score', 'ELA Avg Score Gain',
       'ELA Median % Typical Growth', 'ELA % Meeting Typical Growth',
       'ELA Improved Placement', 'ELA Maintained Placement', 'ELA Declined Placement',
@@ -1956,8 +2029,14 @@
       const e = rec.ela, m = rec.math, s = rec.survey, a = rec.att, sm = rec.sm;
       const noAcad = !e && !m && !sm;
       const smNote = rec.isStdMas ? 'See Standards Mastery section' : rec.dataNote;
+      const p = rec.paired || { Math: 0, ELA: 0, total: 0 };
+      const pairedCell = p.total > 0
+        ? p.total + (p.Math && p.ELA ? ' (Math ' + p.Math + ' / ELA ' + p.ELA + ')'
+                    : p.Math ? ' (Math)' : p.ELA ? ' (ELA)' : '')
+        : 'No session data';
       const cells = [
         rec.display, rec.njId, rec.school, rec.region, rec.dataNote,
+        pairedCell, rec.subjects || '\u2014',
         noAcad ? smNote : (rec.isStdMas ? (sm ? sm.scholars     : 0) : (e ? fmt0(e.validCount)        : 0)),
         noAcad ? ''     : (rec.isStdMas ? (sm ? 'Pre—see SM'    : '') : (e ? fmt1(e.avgBoyScore)       : '')),
         noAcad ? ''     : (rec.isStdMas ? (sm ? 'Post—see SM'   : '') : (e ? fmt1(e.avgEndScore)       : '')),
@@ -2157,6 +2236,7 @@
     lines.push(row(`SECTION 1 -- APPRENTICE SUMMARY (${csvApprCount} ENROLLED APPRENTICES -- SY 25-26)`));
     lines.push(row(
       'Apprentice Name', 'NJ DOL ID', 'School / Site', 'Region', 'Data Source',
+      'Pearl Scholars Paired (Sessions)', 'Subjects (Pearl)',
       // ELA
       'ELA Scholars (Matched)', 'ELA BOY Avg Score', 'ELA End Avg Score', 'ELA Avg Score Gain',
       'ELA Median % Typical Growth', 'ELA % Meeting Typical Growth',
@@ -2177,8 +2257,14 @@
       const noAcad = !e && !m && !sm;
       // For Standards Mastery schools — summarise in ELA columns, leave Math blank
       const smNote = rec.isStdMas ? 'See Section 4 — Standards Mastery' : rec.dataNote;
+      const _p = rec.paired || { Math: 0, ELA: 0, total: 0 };
+      const _pairedCell = _p.total > 0
+        ? _p.total + (_p.Math && _p.ELA ? ' (Math ' + _p.Math + ' / ELA ' + _p.ELA + ')'
+                     : _p.Math ? ' (Math)' : _p.ELA ? ' (ELA)' : '')
+        : 'No session data';
       lines.push(row(
         rec.display, rec.njId, rec.school, rec.region, rec.dataNote,
+        _pairedCell, rec.subjects || '\u2014',
         // ELA academic (SM: scholar count in validCount col, % improved in placement cols)
         noAcad  ? smNote                       : (rec.isStdMas ? (sm ? sm.scholars     : '0') : (e ? fmt0(e.validCount)         : '0')),
         noAcad  ? ''                           : (rec.isStdMas ? (sm ? 'Pre avg—see §4' : '') : (e ? fmt1(e.avgBoyScore)        : '')),
