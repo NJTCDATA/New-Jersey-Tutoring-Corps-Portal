@@ -1884,9 +1884,11 @@
   const IR_MOY_MATH_GID  = '186448147';
   const IR_MOY_URL       = gid => `https://docs.google.com/spreadsheets/d/${IR_MOY_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
   // Standards Mastery — per-scholar pre/post assessment scores (Middlesex STEM + SM schools)
-  const SM_2PACX         = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
+  // 404 FIX: truncated published key replaced with the direct sheet-ID gviz
+  // endpoint (same access path the Central portal uses for this sheet).
+  const SM_SHEET_ID      = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
   const SM_ALL_GID       = '457164791';
-  const SM_URL           = `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_ALL_GID}`;
+  const SM_URL           = `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SM_ALL_GID}`;
   const SM_SCHOOLS       = new Set(['middlesex stem']);
   const IR_CACHE_KEY     = 'njtc_od_iready_v11'; // bumped: SESS-fallback scholar matching for site leaders
   const IR_CACHE_TTL     = 2 * 60 * 60 * 1000;
