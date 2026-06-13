@@ -942,6 +942,13 @@
       _selKey = null;
       const card = document.getElementById('syDetailCard');
       if (card) card.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:260px;color:var(--muted);text-align:center"><div style="font-size:2rem;margin-bottom:.75rem">📍</div><div style="font-size:.875rem;font-weight:500">Click a map pin or table row<br>to view site details</div></div>`;
+      // Summer 2026 KPI tiles (Total Staff) come from the onsite tracker.
+      // Kick a tracker fetch whenever switching to summer if not already loaded —
+      // previously this only fired during SY 26-27 data load, so staff was 0
+      // if the user opened Summer 2026 before ever loading SY 26-27.
+      if ((period === 'summer2026' || period === 'sy2627') && !_trackerReady) {
+        fetchOnsiteTracker();
+      }
       refresh(true);
     }
 
