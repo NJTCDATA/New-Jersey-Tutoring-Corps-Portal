@@ -20,7 +20,11 @@
   const IR_2526_ELA_GID   = '1640935949';
   const IR_2526_MATH_GID  = '1676366557';
   // Standards Mastery (Middlesex STEM only)
-  const SM_2PACX  = '2PACX-1vTs5uDk0bg_E4rorRHadFm5i_1lerAlgj5HfSJ3NQPLMDaCbHju0VeEdbaN_mDDzA';
+  // 404 FIX: the old published-to-web key for this sheet was truncated (66 chars
+  // vs the required 80) so /pub returned 404 on every load. Fetch via the direct
+  // sheet-ID gviz endpoint instead — the exact access path the Central portal
+  // modules already use successfully for this same sheet/tab.
+  const SM_SHEET_ID = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
   const SM_GID    = '457164791';
   const SM_SCHOOLS = new Set(['middlesex stem']);
   // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
@@ -595,7 +599,7 @@
     return `https://docs.google.com/spreadsheets/d/${IR_2526_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
   }
   function smUrl() {
-    return `https://docs.google.com/spreadsheets/d/e/${SM_2PACX}/pub?output=csv&gid=${SM_GID}`;
+    return `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SM_GID}`;
   }
   function hrUrl() {
     return `https://docs.google.com/spreadsheets/d/e/${HR_KEY}/pub?output=csv&gid=${HR_GID}`;
