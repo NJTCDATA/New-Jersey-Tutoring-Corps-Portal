@@ -215,10 +215,11 @@
       'https://docs.google.com/spreadsheets/d/e/2PACX-1vQJhAQMZ8nUJ6fV03eV0-uALiqnvQ3wEZ7n03n-ZuvPSNJz9QQbjL06uVM2hnajdcLSDL3m83HfSfVM/pub?output=csv&gid=628127573';
     // SY 26-27: live — contains both Summer 2026 and School Year 26-27 rows (Cycle col).
     // Must use 2PACX published URL — sheet-ID /pub endpoint redirects to Google login.
-    const TRACKER_2PACX   = '2PACX-1vSGZjvWI8rwCTo8QhEF7ATPeYPTYBwc8l0ufu0Xu5lrlis_Xz0IEE7-H17afwUow_V3xScU3442Scx9';
-    const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv&gid=1830091227`;
+    // 404 FIX: truncated 2PACX key (86 chars, needs 80) → gviz sheet-ID endpoint
+    const TRACKER_SHEET_ID = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
+    const SY_CSV_URL_2627  = `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=1830091227`;
     // Onsite Tracker (Summer 2026 + SY 26-27 staff pipeline) — same workbook, gid=0.
-    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/e/${TRACKER_2PACX}/pub?output=csv`;
+    const TRACKER_CSV_URL  = `https://docs.google.com/spreadsheets/d/${TRACKER_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
 
     // Active period: 'sy2526' | 'summer2026' | 'sy2627'  (default: SY 26-27)
     let _activePeriod = 'sy2627';
@@ -960,7 +961,7 @@
         }
       }
       try {
-        const url = TRACKER_CSV_URL; // 2PACX endpoint — no &t= cache-bust (causes HTTP 400)
+        const url = TRACKER_CSV_URL; // gviz direct sheet-ID endpoint (sheet: 1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU)
         const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const text = await res.text();
