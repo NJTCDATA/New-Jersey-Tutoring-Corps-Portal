@@ -2740,31 +2740,26 @@
         return;
       }
 
-      // ── ONE POST PER ACTIVITY — guaranteed one row per activity in OTJ ──────
-      // Root cause of the comma-joined row problem: any approach that puts
-      // multiple activities in one request body relies on the Apps Script's
-      // doPost (v6) to split them. The live deployed script is v4 — it has
-      // NO doPost. All portal POSTs are silently ignored by v4, and the only
-      // write path that actually works with v4 is via the Google Form trigger
-      // (onOJTLogSubmit). Until v6 is deployed, the ONLY reliable method is
-      // one sequential POST per activity — each carrying a single activityCode
-      // in the top-level field. This matches exactly how the system worked
-      // originally and why it was working before. v6 doPost also handles this
-      // correctly (single-mode path), so there is no regression when v6 deploys.
+      // ── SEQUENTIAL POSTS: one per activity → one OTJ row per activity ──────
+      // Each activity is its own POST carrying a single activityCode string.
+      // The live Apps Script (v4) writes one appendRow per onFormSubmit call.
+      // A single POST with comma-joined codes in one field = one row with all
+      // codes in one cell. Sequential individual POSTs = N separate rows.
+      // 400ms gap between each gives GAS time to complete appendRow before
+      // the next request arrives, preventing interleaved writes.
       if (hasActivities) {
         const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
         const cleanActivities = activities.filter(a => a.activityCode && a.activityCode.trim());
-        const dropped = activities.length - cleanActivities.length;
-        if (dropped > 0) console.warn('[NJTCTeam] Dropped', dropped, 'activity row(s) with blank codes');
+        if (activities.length > cleanActivities.length) {
+          console.warn('[NJTCTeam] Dropped', activities.length - cleanActivities.length, 'blank-code activity(ies)');
+        }
 
         console.log('[NJTCTeam] POSTing', cleanActivities.length,
           'activit' + (cleanActivities.length === 1 ? 'y' : 'ies') +
-          ' as ' + cleanActivities.length + ' sequential single-activity POST(s) | RTI hrs:', dur);
+          ' — ' + cleanActivities.length + ' sequential POST(s), one row each | RTI hrs:', dur);
 
-        // Sequential: await each POST before the next so GAS appendRow calls
-        // never race each other and every activity gets its own OTJ sheet row.
-        for (let actIdx = 0; actIdx < cleanActivities.length; actIdx++) {
-          const act = cleanActivities[actIdx];
+        for (let i = 0; i < cleanActivities.length; i++) {
+          const act = cleanActivities[i];
           await fetch(TAP_SCRIPT_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
@@ -2776,21 +2771,19 @@
               siteLocation:    site,
               apprenticeName:  apprenticeName,
               notes:           notes,
-              phase:           act.phase   || effectivePhase,
-              domain:          act.domain  || effectiveDomain,
-              activityCode:    act.activityCode,   // single code — one OTJ row
-              status:          act.status  || mark,
-              sessionDuration: actIdx === 0 && dur > 0 ? dur : 0,
+              phase:           act.phase  || effectivePhase,
+              domain:          act.domain || effectiveDomain,
+              activityCode:    act.activityCode,
+              status:          act.status || mark,
+              sessionDuration: i === 0 && dur > 0 ? dur : 0,
             }),
           });
-          // 400ms gap between posts: enough for GAS appendRow to complete
-          // before the next arrives — prevents row interleaving on v4.
-          if (actIdx < cleanActivities.length - 1) {
-            await new Promise(r => setTimeout(r, 400));
+          if (i < cleanActivities.length - 1) {
+            await new Promise(res => setTimeout(res, 400));
           }
         }
 
-        // RTI POST fires after all activity POSTs complete.
+        // RTI post fires after all activity rows are written.
         if (dur > 0) {
           const obsDateObj  = dateVal ? new Date(dateVal + 'T12:00:00') : new Date();
           const monthNames  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2811,7 +2804,6 @@
           });
         }
 
-        // ── WRITE VERIFICATION ────────────────────────────────────────────────
         _verifyOJTWrite(apprenticeName, phaseKey, effectiveDomain,
           cleanActivities.map(a => (a.activityCode.split(/\s*[\u2014\-]\s*/)[0] || '').trim().toUpperCase()),
           statusEl);
