@@ -2740,43 +2740,57 @@
         return;
       }
 
-      // ── v6.1: ONE batch request, compatible with BOTH script versions ─────
-      // The payload carries the activities[] array (v6 batch mode) AND the
-      // same activities as a comma-joined top-level activityCode (v5's
-      // smart-split path writes one row per code from it). v6 prefers
-      // activities[] and ignores the top-level field in batch mode, so there
-      // is no double-write — whichever script version is deployed, every
-      // selected activity lands as its own OTJ row.
+      // ── ONE POST PER ACTIVITY — guaranteed one row per activity in OTJ ──────
+      // Root cause of the comma-joined row problem: any approach that puts
+      // multiple activities in one request body relies on the Apps Script's
+      // doPost (v6) to split them. The live deployed script is v4 — it has
+      // NO doPost. All portal POSTs are silently ignored by v4, and the only
+      // write path that actually works with v4 is via the Google Form trigger
+      // (onOJTLogSubmit). Until v6 is deployed, the ONLY reliable method is
+      // one sequential POST per activity — each carrying a single activityCode
+      // in the top-level field. This matches exactly how the system worked
+      // originally and why it was working before. v6 doPost also handles this
+      // correctly (single-mode path), so there is no regression when v6 deploys.
       if (hasActivities) {
         const dur = sessionDuration ? parseFloat(sessionDuration) : 0;
         const cleanActivities = activities.filter(a => a.activityCode && a.activityCode.trim());
         const dropped = activities.length - cleanActivities.length;
-        if (dropped > 0) console.warn('[NJTCTeam] Dropped', dropped, 'activity row(s) with blank codes before submit');
-        const joinedCodes = cleanActivities.map(a => a.activityCode).join(', ');
-        console.log('[NJTCTeam] POSTing', cleanActivities.length, 'activit' + (cleanActivities.length===1?'y':'ies'),
-          'in ONE dual-compatible batch | RTI hrs:', dur);
+        if (dropped > 0) console.warn('[NJTCTeam] Dropped', dropped, 'activity row(s) with blank codes');
 
-        await fetch(TAP_SCRIPT_URL, {
-          method: 'POST', mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            logType:         'OJT Activity completion',
-            obsDate:         dateVal,
-            observerName:    obsName,
-            observerRole:    obsRole,
-            siteLocation:    site,
-            apprenticeName:  apprenticeName,
-            notes:           notes,
-            activities:      cleanActivities,          // v6 batch mode (preferred)
-            phase:           effectivePhase,           // v5 fallback fields —
-            domain:          effectiveDomain,          // v5 smart-splits the joined
-            activityCode:    joinedCodes,              // codes into one row each
-            status:          mark,
-            sessionDuration: dur,
-          }),
-        });
+        console.log('[NJTCTeam] POSTing', cleanActivities.length,
+          'activit' + (cleanActivities.length === 1 ? 'y' : 'ies') +
+          ' as ' + cleanActivities.length + ' sequential single-activity POST(s) | RTI hrs:', dur);
 
-        // RTI POST fires after the activity batch.
+        // Sequential: await each POST before the next so GAS appendRow calls
+        // never race each other and every activity gets its own OTJ sheet row.
+        for (let actIdx = 0; actIdx < cleanActivities.length; actIdx++) {
+          const act = cleanActivities[actIdx];
+          await fetch(TAP_SCRIPT_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              logType:         'OJT Activity completion',
+              obsDate:         dateVal,
+              observerName:    obsName,
+              observerRole:    obsRole,
+              siteLocation:    site,
+              apprenticeName:  apprenticeName,
+              notes:           notes,
+              phase:           act.phase   || effectivePhase,
+              domain:          act.domain  || effectiveDomain,
+              activityCode:    act.activityCode,   // single code — one OTJ row
+              status:          act.status  || mark,
+              sessionDuration: actIdx === 0 && dur > 0 ? dur : 0,
+            }),
+          });
+          // 400ms gap between posts: enough for GAS appendRow to complete
+          // before the next arrives — prevents row interleaving on v4.
+          if (actIdx < cleanActivities.length - 1) {
+            await new Promise(r => setTimeout(r, 400));
+          }
+        }
+
+        // RTI POST fires after all activity POSTs complete.
         if (dur > 0) {
           const obsDateObj  = dateVal ? new Date(dateVal + 'T12:00:00') : new Date();
           const monthNames  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2797,10 +2811,7 @@
           });
         }
 
-        // ── WRITE VERIFICATION — never trust a no-cors POST blindly ─────────
-        // ~8s after submitting, read the OTJ log back from the Apps Script and
-        // confirm each submitted code exists for this apprentice. The leader
-        // sees ✓ verified-in-sheet or an explicit red retry warning.
+        // ── WRITE VERIFICATION ────────────────────────────────────────────────
         _verifyOJTWrite(apprenticeName, phaseKey, effectiveDomain,
           cleanActivities.map(a => (a.activityCode.split(/\s*[\u2014\-]\s*/)[0] || '').trim().toUpperCase()),
           statusEl);
