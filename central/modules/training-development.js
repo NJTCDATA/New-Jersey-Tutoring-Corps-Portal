@@ -2160,133 +2160,61 @@
   //  TAB 3 (new): OTJ OVERVIEW
   // ══════════════════════════════════════════════════════════════════
 
-  // ── SY 25-26 Historical Cohort — constants & live fetch ────────────────────
-  const SY2526_SHEET_ID  = '1wg0J1r0GJQKhZkKlrQckTZsw396q7_zMQ6rnwe_rtGo';
-  const SY2526_GID       = '1101483637'; // Apprentice_GAINS REPORTING tab
-  const SY2526_CSV_URL   = 'https://docs.google.com/spreadsheets/d/' + SY2526_SHEET_ID + '/export?format=csv&gid=' + SY2526_GID;
+  // ── SY 25-26 Static Cohort Data ────────────────────────────────────────────
+  // Embedded directly from the GAINS REPORTING xlsx snapshot.
+  // The source Google Sheet (1wg0J1r0...) uses IMPORTRANGE and is not publicly
+  // shared, so a live CSV fetch is not possible. This data is authoritative as
+  // of the end-of-year snapshot and does not require a network call.
   const SY2526_OJT_TARGET = 4000;
   const SY2526_RTI_TARGET = 288;
   const SY2526_OJT_MONTHS = ['Mar-24','Apr-24','May-24','Jun-24','Jul-24','Aug-24','Sep-24','Oct-24','Nov-24','Dec-24','Jan-25','Feb-25','Mar-25','Apr-25'];
   const SY2526_RTI_MONTHS = ['Mar-24','Apr-24','May-24','Jun-24','Jul-24','Aug-24','Sep-24','Oct-24','Nov-24','Dec-24','Jan-25','Feb-25','Mar-25','Apr-25','May-25','Jun-25'];
 
-  let _sy2526Cache = null;
-  const _SY2526_TTL = 5 * 60 * 1000;
+  const SY2526_DATA = [{"name":"Alexandra Cristescu","status":"active","placement":"Penns Grove","usdolId":"NJ2026000468","pctOjt":0.9,"ojtReported":3655,"ojtTotalCalc":70,"ojtAprHrs":87,"ojtMayHrs":55,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,6,20,15,6],"wage":32.99,"completedProg":"n","notes":"no longer working","rtiHours":81,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,false,false,true,false,false],"coaching":"N","praxis":""},{"name":"Allison Dombrowski","status":"cancelled","placement":"","usdolId":"NJ2025002297","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Apollo Monroy-Polanco","status":"cancelled","placement":"Middlesex STEM","usdolId":"NJ2025004827","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":38,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,18,0],"wage":0,"completedProg":"","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":"Y"},{"name":"Carla Borbon","status":"active","placement":"Middlesex STEM","usdolId":"NJ2026000857","pctOjt":1.0,"ojtReported":4066,"ojtTotalCalc":39,"ojtAprHrs":40,"ojtMayHrs":66,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,16,15],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete - check on site database","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,true,true,true,false],"coaching":"N","praxis":""},{"name":"Chelsea Jordan","status":"cancelled","placement":"","usdolId":"NJ2025001925","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,true,false,false,true,true,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Claudia Tumelus","status":"cancelled","placement":"iLearn Clifton HS","usdolId":"NJ2025004254","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Daniel DiQuinzio","status":"cancelled","placement":"","usdolId":"NJ2025001713","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,11,7,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":80,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,true,true,true,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Renee Davis","status":"active","placement":"iLearn Clifton MS","usdolId":"NJ2025004829","pctOjt":0.96,"ojtReported":3840,"ojtTotalCalc":71,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,25,22,5,4,7,2],"wage":33.99,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":189,"rtiSessions":7,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,false,false],"coaching":"Y","praxis":"Y"},{"name":"Elijah Brown","status":"cancelled","placement":"","usdolId":"NJ2025002412","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Genesis Rosich","status":"cancelled","placement":"","usdolId":"NJ2025004826","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Heba Samhouri","status":"cancelled","placement":"","usdolId":"NJ2025002413","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Jacob Leebron","status":"cancelled","placement":"Haddon Township","usdolId":"NJ2025001825","pctOjt":0.94,"ojtReported":3760,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,17,6,0,7,26,5,1,0,3,0],"wage":35.0,"completedProg":"n","notes":"quit","rtiHours":80,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,false,true,true,false,true,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Janelle lee","status":"cancelled","placement":"","usdolId":"NJ2025003240","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,57,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Jazmin Daliza Garcia","status":"active","placement":"iLearn Bergen MS","usdolId":"NJ2026001279","pctOjt":0.95,"ojtReported":3894,"ojtTotalCalc":22,"ojtAprHrs":90,"ojtMayHrs":94,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,15,3],"wage":35.0,"completedProg":"n- rti","notes":"quit","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,false,false],"coaching":"","praxis":""},{"name":"Jessica Flores","status":"active","placement":"iLearn Passaic MS","usdolId":"NJ2025001718","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":72,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,5,22,25,7,12,0,0],"wage":32.99,"completedProg":"n- rti","notes":"quit","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,false,true,false,false,false,true,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Katie Rose Davis","status":"active","placement":"Hamilton Township","usdolId":"NJ2025005330","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":72,"ojtAprHrs":11,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,29,24,2,8,1],"wage":40.0,"completedProg":"n- rti","notes":"June participation should count for RTI- July completer","rtiHours":189,"rtiSessions":7,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Katrina Valentin","status":"active","placement":"Gloucester","usdolId":"NJ2025001719","pctOjt":0.87,"ojtReported":3480,"ojtTotalCalc":50,"ojtAprHrs":48,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,23,4,23,0],"wage":0,"completedProg":"","notes":"","rtiHours":81,"rtiSessions":3,"rtiMonthly":[false,false,true,false,false,false,true,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Keisha Lopez","status":"active","placement":"ilearn Clifton","usdolId":"NJ2026000470","pctOjt":1.0,"ojtReported":4094,"ojtTotalCalc":76,"ojtAprHrs":107,"ojtMayHrs":94,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,8,53],"wage":33.99,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":135,"rtiSessions":5,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false],"coaching":"Y","praxis":""},{"name":"Lilia Quintero","status":"active","placement":"Hamilton-Kuser","usdolId":"NJ2026000471","pctOjt":0.99,"ojtReported":4011,"ojtTotalCalc":57,"ojtAprHrs":81,"ojtMayHrs":53,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,22,25,9,0],"wage":35.0,"completedProg":"n- both","notes":"working this summer","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,false,false],"coaching":"","praxis":""},{"name":"linda Fenty","status":"cancelled","placement":"iLearn Paterson MS","usdolId":"NJ2026000858","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":64,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,12,3,2],"wage":0,"completedProg":"","notes":"","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"maria del carmen gutierrez colin","status":"active","placement":"iLearn Passaic ES","usdolId":"NJ2025005329","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":75,"ojtAprHrs":38,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,25,30,8,8],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,false,true,false],"coaching":"Y","praxis":""},{"name":"Marina Farag","status":"cancelled","placement":"","usdolId":"NJ2025002296","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,true,false,true,true,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Melissa Mazza","status":"active","placement":"iLearn Bergen MS","usdolId":"NJ2026001277","pctOjt":1.0,"ojtReported":4114,"ojtTotalCalc":85,"ojtAprHrs":108,"ojtMayHrs":88,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,65,5,7],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Micaela Wilkerson","status":"active","placement":"Haddon Township","usdolId":"NJ2025004825","pctOjt":0.91,"ojtReported":3640,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,1,21,8,22,3,2,6,4],"wage":35.0,"completedProg":"n- both","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,true,false],"coaching":"","praxis":""},{"name":"Michelle Kim","status":"cancelled","placement":"","usdolId":"NJ2025004252","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":20,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Monica Brown","status":"cancelled","placement":"iLEarn Clifton ES","usdolId":"NJ2025005327","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,5,6,14,2,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Mushana Dunham","status":"active","placement":"iLearn Clifton MS","usdolId":"NJ2025005331","pctOjt":0.9359,"ojtReported":3846,"ojtTotalCalc":48,"ojtAprHrs":98,"ojtMayHrs":102,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,3,15,8,3],"wage":35.0,"completedProg":"n- both","notes":"June participation should count for RTI- July completer","rtiHours":243,"rtiSessions":9,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Nicole Cill","status":"cancelled","placement":"","usdolId":"NJ2025004251","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Norelis Ramirez","status":"active","placement":"iLearn Paterson -ES","usdolId":"NJ2026000265","pctOjt":0.9103,"ojtReported":3723,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":82,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,41,5,7,2],"wage":35.0,"completedProg":"n- both","notes":"needs follow up to complete","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,true,false,true,false,false],"coaching":"N","praxis":""},{"name":"Pankajbharathi Sowmianarayanan","status":"cancelled","placement":"","usdolId":"NJ2025004823","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":20,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Sarah Renz","status":"cancelled","placement":"","usdolId":"NJ2025001717","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Subul Sadiq","status":"active","placement":"iLearn Hudson","usdolId":"NJ2026000469","pctOjt":1.0,"ojtReported":4094,"ojtTotalCalc":79,"ojtAprHrs":55,"ojtMayHrs":94,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,7,14],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,true,true,true,true,false],"coaching":"Y","praxis":"Y"},{"name":"Theodore (Ted) Kostich","status":"cancelled","placement":"","usdolId":"NJ2025001824","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Theodore Mills","status":"cancelled","placement":"Long Term Sub","usdolId":"NJ2025004828","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":87,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Aliviyah Goodson","status":"completed","placement":"iLearn Bergen MS","usdolId":"NJ2025004253","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":87,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,32,20,7,7,0,0],"wage":33.99,"completedProg":"y","notes":"","rtiHours":324,"rtiSessions":12,"rtiMonthly":[false,false,false,false,false,false,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Arelis Rodriguez","status":"completed","placement":"iLearn Bergen MS","usdolId":"NJ2025003378","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":95,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,41,0,9,4,24,3,0,3,3],"wage":35.0,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,true,true,false,true,true,true,false,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Avani Jimenez","status":"completed","placement":"Middlesex STEM","usdolId":"NJ2026001278","pctOjt":1.0,"ojtReported":4067,"ojtTotalCalc":47,"ojtAprHrs":48,"ojtMayHrs":67,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,16,18],"wage":35.0,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,false,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Caitlin Evgeniadis","status":"completed","placement":"Hamilton Township","usdolId":"NJ2025001715","pctOjt":1.0,"ojtReported":4026,"ojtTotalCalc":63,"ojtAprHrs":77,"ojtMayHrs":26,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,6,11,27,5,11,3],"wage":32.99,"completedProg":"y","notes":"","rtiHours":351,"rtiSessions":13,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Carlos Jacho","status":"completed","placement":"iLearn Paterson","usdolId":"NJ2025004966","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":84,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,10,28,23,2,4,9,0],"wage":32.99,"completedProg":"y","notes":"","rtiHours":243,"rtiSessions":9,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,false,true,true,true],"coaching":"Y","praxis":""},{"name":"Ian Anderson","status":"completed","placement":"iLearn Hudson MS","usdolId":"NJ2025004964","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":95,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,22,5,40,6,1,7,4],"wage":35.0,"completedProg":"y","notes":"","rtiHours":270,"rtiSessions":10,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":"Y"},{"name":"Jasmine Ramsey","status":"completed","placement":"iLearn Passaic MS","usdolId":"NJ2025001829","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":91,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,24,0,0,5,3,39,1,1,6,4],"wage":40.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Naima Boutira","status":"completed","placement":"Central Jersey College Prep","usdolId":"NJ2025005328","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":85,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,23,1,25,5,4,16],"wage":32.99,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Nicholas Hoover","status":"completed","placement":"Haddon Township","usdolId":"NJ2025001712","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":75,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,24,0,0,4,14,10,4,2,4,4],"wage":40.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Pooja Tyagi","status":"completed","placement":"Central Jersey College Prep","usdolId":"NJ2025001716","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":76,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,20,1,19,10,9,5],"wage":35.0,"completedProg":"y","notes":"","rtiHours":324,"rtiSessions":12,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Shahzeeb Ahmad","status":"completed","placement":"iLearn Bergen","usdolId":"NJ2025004822","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,6,16,18,19,0,0,2],"wage":45.0,"completedProg":"y","notes":"","rtiHours":270,"rtiSessions":10,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"sharon kessel","status":"completed","placement":"iLearn Paterson Silk City","usdolId":"NJ2025001707","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":86,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,41,0,0,9,6,8,2,2,5,4],"wage":35.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""}];
 
-  async function fetchSY2526Data() {
-    const now = Date.now();
-    if (_sy2526Cache && (now - _sy2526Cache.ts) < _SY2526_TTL) return _sy2526Cache.rows;
-    const text = await fetchCSV(SY2526_CSV_URL);
-    if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
-      throw new Error('ACCESS_DENIED — SY 25-26 sheet must be shared as "Anyone with the link — Viewer".');
+  // ── SY 25-26 render — synchronous, no fetch, no CORS ───────────────────────
+  function render2526OtjOverview(container) {
+    const rows        = SY2526_DATA;
+    const total       = rows.length;
+    const active      = rows.filter(r => r.status === 'active');
+    const cancelled   = rows.filter(r => r.status === 'cancelled');
+    const completed   = rows.filter(r => r.status === 'completed');
+    const programRows = rows.filter(r => r.status !== 'cancelled');
+    const totalOjtHrs = programRows.reduce((s, r) => s + (r.ojtReported || 0), 0);
+    const totalRtiHrs = programRows.reduce((s, r) => s + (r.rtiHours || 0), 0);
+    const fullComplete = completed.filter(r => r.completedProg === 'y').length;
+    const at100pct    = programRows.filter(r => r.pctOjt >= 1.0).length;
+    const needsRti    = active.filter(r => (r.completedProg || '').includes('rti')).length;
+    const needsBoth   = active.filter(r => (r.completedProg || '').includes('both')).length;
+    const ojtMonthTotals = SY2526_OJT_MONTHS.map((_, idx) =>
+      programRows.reduce((s, r) => s + ((r.ojtMonthlyHrs && r.ojtMonthlyHrs[idx]) || 0), 0)
+    );
+    const rtiMonthTotals = SY2526_RTI_MONTHS.map((_, idx) =>
+      programRows.filter(r => r.rtiMonthly && r.rtiMonthly[idx]).length
+    );
+    const maxOjt = Math.max(...ojtMonthTotals, 1);
+
+    function syKpi(val, label, color) {
+      return `<div class="ta-card ta-kpi" style="border-top:3px solid ${color}"><div class="ta-kpi-val" style="color:${color}">${val}</div><div class="ta-kpi-sub">${label}</div></div>`;
     }
-    // RFC-4180 CSV split respecting quoted fields
-    const rawLines = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (ch === '"') { inQ = !inQ; cur += ch; }
-      else if ((ch === '\n' || ch === '\r') && !inQ) {
-        if (ch === '\r' && text[i+1] === '\n') i++;
-        rawLines.push(cur); cur = '';
-      } else cur += ch;
-    }
-    if (cur) rawLines.push(cur);
+    const sorted = [...rows].sort((a, b) => {
+      const o = { completed:0, active:1, cancelled:2 };
+      const d = ((o[a.status] ?? 3) - (o[b.status] ?? 3));
+      return d !== 0 ? d : a.name.localeCompare(b.name);
+    });
 
-    function parseLine(line) {
-      const f = []; let i = 0;
-      while (i < line.length) {
-        if (line[i] === '"') {
-          let s = ''; i++;
-          while (i < line.length) {
-            if (line[i] === '"') { if (line[i+1] === '"') { s += '"'; i += 2; } else { i++; break; } }
-            else s += line[i++];
-          }
-          f.push(s); if (line[i] === ',') i++;
-        } else {
-          let st = i; while (i < line.length && line[i] !== ',') i++;
-          f.push(line.slice(st, i)); if (line[i] === ',') i++;
-        }
-      }
-      return f;
-    }
-
-    // Rows 0-4 are header/metadata; row 4 (index 4) = column headers; rows 5+ = data
-    const dataLines = rawLines.slice(5);
-    const rows = [];
-    for (const line of dataLines) {
-      const c = parseLine(line);
-      const v = (i) => (c[i] || '').trim();
-      const n = (i) => { const x = parseFloat(v(i)); return isNaN(x) ? 0 : x; };
-      const fname = v(2); if (!fname) continue;
-      rows.push({
-        name          : (fname + ' ' + v(3)).trim(),
-        status        : v(1).toLowerCase(),
-        placement     : v(7),
-        usdolId       : v(6),
-        pctOjt        : n(8),
-        ojtReported   : n(9),
-        ojtTotalCalc  : n(38),
-        ojtAprHrs     : n(32), ojtMayHrs: n(34), ojtJunHrs: n(36),
-        ojtMonthlyHrs : SY2526_OJT_MONTHS.map((_, idx) => n(18 + idx)),
-        wage          : n(10),
-        completedProg : v(11).toLowerCase(),
-        notes         : v(12),
-        rtiHours      : n(60),
-        rtiSessions   : n(59),
-        rtiMonthly    : SY2526_RTI_MONTHS.map((_, idx) => { const t = v(40 + idx).toUpperCase(); return t === 'Y' || t === 'X'; }),
-        coaching      : v(57).toUpperCase(),
-        praxis        : v(58).toUpperCase(),
-      });
-    }
-    _sy2526Cache = { ts: now, rows };
-    return rows;
-  }
-
-  // ── SY 25-26 OTJ Overview render (into a passed container element) ─────────
-  async function render2526OtjOverview(container) {
-    container.innerHTML = loadingHTML('Loading SY 25-26 cohort data…');
-    try {
-      const rows = await fetchSY2526Data();
-      const total       = rows.length;
-      const active      = rows.filter(r => r.status === 'active');
-      const cancelled   = rows.filter(r => r.status === 'cancelled');
-      const completed   = rows.filter(r => r.status === 'completed');
-      const programRows = rows.filter(r => r.status !== 'cancelled');
-      const totalOjtHrs = programRows.reduce((s, r) => s + (r.ojtReported || r.ojtTotalCalc || 0), 0);
-      const totalRtiHrs = programRows.reduce((s, r) => s + (r.rtiHours || 0), 0);
-      const fullComplete = completed.filter(r => r.completedProg === 'y').length;
-      const at100pct    = programRows.filter(r => r.pctOjt >= 1.0).length;
-      const needsRti    = active.filter(r => (r.completedProg || '').includes('rti')).length;
-      const needsBoth   = active.filter(r => (r.completedProg || '').includes('both')).length;
-      const ojtMonthTotals = SY2526_OJT_MONTHS.map((_, idx) =>
-        programRows.reduce((s, r) => s + ((r.ojtMonthlyHrs && r.ojtMonthlyHrs[idx]) || 0), 0)
-      );
-      const rtiMonthTotals = SY2526_RTI_MONTHS.map((_, idx) =>
-        programRows.filter(r => r.rtiMonthly && r.rtiMonthly[idx]).length
-      );
-      const maxOjt = Math.max(...ojtMonthTotals, 1);
-
-      function syKpi(val, label, color) {
-        return `<div class="ta-card ta-kpi" style="border-top:3px solid ${color}"><div class="ta-kpi-val" style="color:${color}">${val}</div><div class="ta-kpi-sub">${label}</div></div>`;
-      }
-      const sorted = [...rows].sort((a, b) => {
-        const o = { completed:0, active:1, cancelled:2 };
-        const d = ((o[a.status]??3) - (o[b.status]??3));
-        return d !== 0 ? d : a.name.localeCompare(b.name);
-      });
-
-      container.innerHTML = `
+    container.innerHTML = `
 <div class="ta-grid ta-grid-4" style="margin-bottom:1rem">
-  ${syKpi(total,              'Total Enrolled',        '#1B2A4A')}
-  ${syKpi(completed.length,   'Program Completers',    '#059669')}
-  ${syKpi(active.length,      'Active / In Progress',  '#1d4ed8')}
-  ${syKpi(cancelled.length,   'Cancelled / Exited',    '#9ca3af')}
+  ${syKpi(total,            'Total Enrolled',        '#1B2A4A')}
+  ${syKpi(completed.length, 'Program Completers',    '#059669')}
+  ${syKpi(active.length,    'Active / In Progress',  '#1d4ed8')}
+  ${syKpi(cancelled.length, 'Cancelled / Exited',    '#9ca3af')}
 </div>
 <div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
-  ${syKpi(totalOjtHrs.toLocaleString(), 'Total OJT Hrs Logged', '#059669')}
-  ${syKpi(totalRtiHrs.toLocaleString(), 'Total RTI Hrs Logged', '#7c3aed')}
+  ${syKpi(totalOjtHrs.toLocaleString(), 'Total OJT Hrs Logged',  '#059669')}
+  ${syKpi(totalRtiHrs.toLocaleString(), 'Total RTI Hrs Logged',   '#7c3aed')}
   ${syKpi(at100pct + ' / ' + programRows.length, '100% OJT Complete', at100pct === programRows.length ? '#059669' : '#d97706')}
-  ${syKpi(fullComplete,        'Fully Completed (OJT+RTI)', fullComplete >= completed.length ? '#059669' : '#d97706')}
+  ${syKpi(fullComplete,     'Fully Completed (OJT+RTI)', fullComplete >= completed.length ? '#059669' : '#d97706')}
 </div>
 <div class="ta-card" style="margin-bottom:1rem">
   <div class="ta-card-title">📊 Completion Pipeline — SY 2025-26 Cohort</div>
@@ -2318,20 +2246,20 @@
     </tr></thead>
     <tbody>
       ${sorted.map(r => {
-        const hrs       = r.ojtReported || r.ojtTotalCalc || 0;
+        const hrs       = r.ojtReported || 0;
         const pct       = r.pctOjt || (hrs / SY2526_OJT_TARGET);
         const remaining = Math.max(0, SY2526_OJT_TARGET - hrs);
         const pctClr    = pct >= 1 ? '#059669' : pct >= 0.9 ? '#d97706' : '#ef4444';
         const bdrClr    = r.status === 'completed' ? '#bbf7d0' : r.status === 'active' ? '#bfdbfe' : '#fca5a5';
-        const stPill    = { active: '<span style="background:#dcfce7;color:#166534;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Active</span>', completed: '<span style="background:#dbeafe;color:#1e3a8a;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Completed</span>', cancelled: '<span style="background:#fee2e2;color:#991b1b;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Cancelled</span>' }[r.status] || r.status;
-        const compLabel = r.completedProg === 'y' ? '✅ Yes' : r.completedProg.includes('rti') ? '⚠️ RTI Pend.' : r.completedProg.includes('both') ? '🔴 Both Pend.' : r.status === 'cancelled' ? '❌ Cancelled' : '—';
+        const stPill    = { active:'<span style="background:#dcfce7;color:#166534;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Active</span>', completed:'<span style="background:#dbeafe;color:#1e3a8a;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Completed</span>', cancelled:'<span style="background:#fee2e2;color:#991b1b;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Cancelled</span>' }[r.status] || r.status;
+        const compLabel = r.completedProg === 'y' ? '✅ Yes' : (r.completedProg || '').includes('rti') ? '⚠️ RTI Pend.' : (r.completedProg || '').includes('both') ? '🔴 Both Pend.' : r.status === 'cancelled' ? '❌ Cancelled' : '—';
         return `<tr style="border-bottom:1px solid #f3f4f6;border-left:3px solid ${bdrClr}">
           <td style="padding:.35rem .5rem;font-weight:700;color:#1B2A4A">${r.name}</td>
           <td style="padding:.35rem .4rem;text-align:center">${stPill}</td>
           <td style="padding:.35rem .4rem;font-size:.73rem;color:#374151">${r.placement||'—'}</td>
-          <td style="padding:.35rem .4rem;text-align:center;font-weight:700;color:${pctClr}">${r.status==='cancelled'?'—':Math.round(pct*100)+'%'}</td>
-          <td style="padding:.35rem .4rem;text-align:center;font-weight:600">${r.status==='cancelled'?'—':hrs.toLocaleString()}</td>
-          <td style="padding:.35rem .4rem;text-align:center;color:${remaining>0?'#ef4444':'#059669'};font-weight:600">${r.status==='cancelled'?'—':remaining>0?remaining.toLocaleString():'✅'}</td>
+          <td style="padding:.35rem .4rem;text-align:center;font-weight:700;color:${pctClr}">${r.status==='cancelled'&&!r.ojtReported?'—':Math.round(pct*100)+'%'}</td>
+          <td style="padding:.35rem .4rem;text-align:center;font-weight:600">${!hrs&&r.status==='cancelled'?'—':hrs.toLocaleString()}</td>
+          <td style="padding:.35rem .4rem;text-align:center;color:${remaining>0?'#ef4444':'#059669'};font-weight:600">${!hrs&&r.status==='cancelled'?'—':remaining>0?remaining.toLocaleString():'✅'}</td>
           <td style="padding:.35rem .4rem;text-align:center;font-weight:600;color:${(r.rtiHours||0)>=SY2526_RTI_TARGET?'#059669':'#d97706'}">${r.rtiHours||'—'}</td>
           <td style="padding:.35rem .4rem;text-align:center">${r.wage?'$'+r.wage.toFixed(2):'—'}</td>
           <td style="padding:.35rem .5rem;text-align:center;font-size:.73rem">${compLabel}</td>
@@ -2347,15 +2275,11 @@
   <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:.75rem">
     ${SY2526_RTI_MONTHS.map((lbl, idx) => { const cnt = rtiMonthTotals[idx]; const pctR = programRows.length ? Math.round(cnt/programRows.length*100) : 0; const clr = pctR>=70?'#059669':pctR>=40?'#d97706':cnt>0?'#6b7280':'#e5e7eb'; return `<div style="text-align:center;min-width:42px"><div style="height:${Math.max(4,Math.round(pctR*.55))}px;background:${clr};border-radius:3px 3px 0 0;margin-bottom:2px"></div><div style="font-size:.67rem;font-weight:700;color:${clr}">${cnt>0?cnt:''}</div><div style="font-size:.54rem;color:#9ca3af;margin-top:.1rem">${lbl}</div></div>`; }).join('')}
   </div>
-  <div style="margin-top:.75rem;font-size:.72rem;color:#9ca3af">Bar height = % of program apprentices with RTI attendance (Y or X) that month</div>
+  <div style="margin-top:.75rem;font-size:.72rem;color:#9ca3af">Bar height = % of program apprentices with RTI attendance that month</div>
 </div>`;
-    } catch(e) {
-      container.innerHTML = errorHTML(e.message, 'window._otjSY2526Retry()');
-      window._otjSY2526Retry = () => { _sy2526Cache = null; render2526OtjOverview(container); };
-    }
   }
 
-  // ── Year toggle state ────────────────────────────────────────────────────
+  // ── Year toggle state ─────────────────────────────────────────────────────
   let _otjActiveSY = '2627';
 
   function _otjSetToggleActive(sy) {
@@ -2370,17 +2294,17 @@
     } else {
       b2526.style.background = '#fff';        b2526.style.color = '#1B2A4A';
       b2627.style.background = 'transparent'; b2627.style.color = 'rgba(255,255,255,.7)';
-      if (sub) sub.textContent = 'SY 2025-26 · Historical cohort — live from GAINS reporting sheet';
+      if (sub) sub.textContent = 'SY 2025-26 · Historical cohort — 46 apprentices · end-of-year snapshot';
     }
   }
 
-  window._otjSwitchSY = async function(sy) {
+  window._otjSwitchSY = function(sy) {
     _otjActiveSY = sy;
     _otjSetToggleActive(sy);
     const slot = document.getElementById('otjSyContent');
     if (!slot) return;
     if (sy === '2526') {
-      await render2526OtjOverview(slot);
+      render2526OtjOverview(slot);
     } else {
       if (window._otjCaptured2627) {
         slot.innerHTML = window._otjCaptured2627;
@@ -2663,7 +2587,8 @@
         </div>`;
       }
 
-      // Wrap in year toggle banner so user can switch between SY 26-27 and SY 25-26
+      // Wrap in year toggle — captures 26-27 HTML for instant toggle-back
+      window._otjCaptured2627 = html;
       el.innerHTML = `
 <div id="otjSyToggle" style="display:flex;align-items:center;gap:.625rem;padding:.75rem 1rem;background:linear-gradient(135deg,#1B2A4A,#274690);border-radius:10px;margin-bottom:1.25rem;flex-wrap:wrap">
   <div style="flex:1;min-width:0">
@@ -2676,8 +2601,6 @@
   </div>
 </div>
 <div id="otjSyContent"></div>`;
-      // Capture the 26-27 content so toggle back is instant
-      window._otjCaptured2627 = html;
       document.getElementById('otjSyContent').innerHTML = html;
       _otjActiveSY = '2627';
 
