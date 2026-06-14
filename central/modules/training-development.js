@@ -2160,6 +2160,238 @@
   //  TAB 3 (new): OTJ OVERVIEW
   // ══════════════════════════════════════════════════════════════════
 
+  // ── SY 25-26 Historical Cohort — constants & live fetch ────────────────────
+  const SY2526_SHEET_ID  = '1wg0J1r0GJQKhZkKlrQckTZsw396q7_zMQ6rnwe_rtGo';
+  const SY2526_GID       = '1101483637'; // Apprentice_GAINS REPORTING tab
+  const SY2526_CSV_URL   = 'https://docs.google.com/spreadsheets/d/' + SY2526_SHEET_ID + '/export?format=csv&gid=' + SY2526_GID;
+  const SY2526_OJT_TARGET = 4000;
+  const SY2526_RTI_TARGET = 288;
+  const SY2526_OJT_MONTHS = ['Mar-24','Apr-24','May-24','Jun-24','Jul-24','Aug-24','Sep-24','Oct-24','Nov-24','Dec-24','Jan-25','Feb-25','Mar-25','Apr-25'];
+  const SY2526_RTI_MONTHS = ['Mar-24','Apr-24','May-24','Jun-24','Jul-24','Aug-24','Sep-24','Oct-24','Nov-24','Dec-24','Jan-25','Feb-25','Mar-25','Apr-25','May-25','Jun-25'];
+
+  let _sy2526Cache = null;
+  const _SY2526_TTL = 5 * 60 * 1000;
+
+  async function fetchSY2526Data() {
+    const now = Date.now();
+    if (_sy2526Cache && (now - _sy2526Cache.ts) < _SY2526_TTL) return _sy2526Cache.rows;
+    const text = await fetchCSV(SY2526_CSV_URL);
+    if (text.trimStart().startsWith('<!DOCTYPE') || text.trimStart().startsWith('<html')) {
+      throw new Error('ACCESS_DENIED — SY 25-26 sheet must be shared as "Anyone with the link — Viewer".');
+    }
+    // RFC-4180 CSV split respecting quoted fields
+    const rawLines = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { inQ = !inQ; cur += ch; }
+      else if ((ch === '\n' || ch === '\r') && !inQ) {
+        if (ch === '\r' && text[i+1] === '\n') i++;
+        rawLines.push(cur); cur = '';
+      } else cur += ch;
+    }
+    if (cur) rawLines.push(cur);
+
+    function parseLine(line) {
+      const f = []; let i = 0;
+      while (i < line.length) {
+        if (line[i] === '"') {
+          let s = ''; i++;
+          while (i < line.length) {
+            if (line[i] === '"') { if (line[i+1] === '"') { s += '"'; i += 2; } else { i++; break; } }
+            else s += line[i++];
+          }
+          f.push(s); if (line[i] === ',') i++;
+        } else {
+          let st = i; while (i < line.length && line[i] !== ',') i++;
+          f.push(line.slice(st, i)); if (line[i] === ',') i++;
+        }
+      }
+      return f;
+    }
+
+    // Rows 0-4 are header/metadata; row 4 (index 4) = column headers; rows 5+ = data
+    const dataLines = rawLines.slice(5);
+    const rows = [];
+    for (const line of dataLines) {
+      const c = parseLine(line);
+      const v = (i) => (c[i] || '').trim();
+      const n = (i) => { const x = parseFloat(v(i)); return isNaN(x) ? 0 : x; };
+      const fname = v(2); if (!fname) continue;
+      rows.push({
+        name          : (fname + ' ' + v(3)).trim(),
+        status        : v(1).toLowerCase(),
+        placement     : v(7),
+        usdolId       : v(6),
+        pctOjt        : n(8),
+        ojtReported   : n(9),
+        ojtTotalCalc  : n(38),
+        ojtAprHrs     : n(32), ojtMayHrs: n(34), ojtJunHrs: n(36),
+        ojtMonthlyHrs : SY2526_OJT_MONTHS.map((_, idx) => n(18 + idx)),
+        wage          : n(10),
+        completedProg : v(11).toLowerCase(),
+        notes         : v(12),
+        rtiHours      : n(60),
+        rtiSessions   : n(59),
+        rtiMonthly    : SY2526_RTI_MONTHS.map((_, idx) => { const t = v(40 + idx).toUpperCase(); return t === 'Y' || t === 'X'; }),
+        coaching      : v(57).toUpperCase(),
+        praxis        : v(58).toUpperCase(),
+      });
+    }
+    _sy2526Cache = { ts: now, rows };
+    return rows;
+  }
+
+  // ── SY 25-26 OTJ Overview render (into a passed container element) ─────────
+  async function render2526OtjOverview(container) {
+    container.innerHTML = loadingHTML('Loading SY 25-26 cohort data…');
+    try {
+      const rows = await fetchSY2526Data();
+      const total       = rows.length;
+      const active      = rows.filter(r => r.status === 'active');
+      const cancelled   = rows.filter(r => r.status === 'cancelled');
+      const completed   = rows.filter(r => r.status === 'completed');
+      const programRows = rows.filter(r => r.status !== 'cancelled');
+      const totalOjtHrs = programRows.reduce((s, r) => s + (r.ojtReported || r.ojtTotalCalc || 0), 0);
+      const totalRtiHrs = programRows.reduce((s, r) => s + (r.rtiHours || 0), 0);
+      const fullComplete = completed.filter(r => r.completedProg === 'y').length;
+      const at100pct    = programRows.filter(r => r.pctOjt >= 1.0).length;
+      const needsRti    = active.filter(r => (r.completedProg || '').includes('rti')).length;
+      const needsBoth   = active.filter(r => (r.completedProg || '').includes('both')).length;
+      const ojtMonthTotals = SY2526_OJT_MONTHS.map((_, idx) =>
+        programRows.reduce((s, r) => s + ((r.ojtMonthlyHrs && r.ojtMonthlyHrs[idx]) || 0), 0)
+      );
+      const rtiMonthTotals = SY2526_RTI_MONTHS.map((_, idx) =>
+        programRows.filter(r => r.rtiMonthly && r.rtiMonthly[idx]).length
+      );
+      const maxOjt = Math.max(...ojtMonthTotals, 1);
+
+      function syKpi(val, label, color) {
+        return `<div class="ta-card ta-kpi" style="border-top:3px solid ${color}"><div class="ta-kpi-val" style="color:${color}">${val}</div><div class="ta-kpi-sub">${label}</div></div>`;
+      }
+      const sorted = [...rows].sort((a, b) => {
+        const o = { completed:0, active:1, cancelled:2 };
+        const d = ((o[a.status]??3) - (o[b.status]??3));
+        return d !== 0 ? d : a.name.localeCompare(b.name);
+      });
+
+      container.innerHTML = `
+<div class="ta-grid ta-grid-4" style="margin-bottom:1rem">
+  ${syKpi(total,              'Total Enrolled',        '#1B2A4A')}
+  ${syKpi(completed.length,   'Program Completers',    '#059669')}
+  ${syKpi(active.length,      'Active / In Progress',  '#1d4ed8')}
+  ${syKpi(cancelled.length,   'Cancelled / Exited',    '#9ca3af')}
+</div>
+<div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
+  ${syKpi(totalOjtHrs.toLocaleString(), 'Total OJT Hrs Logged', '#059669')}
+  ${syKpi(totalRtiHrs.toLocaleString(), 'Total RTI Hrs Logged', '#7c3aed')}
+  ${syKpi(at100pct + ' / ' + programRows.length, '100% OJT Complete', at100pct === programRows.length ? '#059669' : '#d97706')}
+  ${syKpi(fullComplete,        'Fully Completed (OJT+RTI)', fullComplete >= completed.length ? '#059669' : '#d97706')}
+</div>
+<div class="ta-card" style="margin-bottom:1rem">
+  <div class="ta-card-title">📊 Completion Pipeline — SY 2025-26 Cohort</div>
+  <div style="display:flex;gap:2px;border-radius:8px;overflow:hidden;margin:.75rem 0">
+    ${[['🏆 Fully Completed','#dcfce7','#166534',fullComplete],['⚠️ RTI Pending','#dbeafe','#1e40af',needsRti],['🔴 Both Pending','#fef3c7','#92400e',needsBoth],['❌ Cancelled','#f3f4f6','#6b7280',cancelled.length]]
+      .map(([lbl,bg,clr,cnt]) => `<div style="flex:${cnt||0.5};background:${bg};padding:.75rem .5rem;text-align:center;min-width:54px"><div style="font-size:1.4rem;font-weight:800;color:${clr}">${cnt}</div><div style="font-size:.64rem;color:${clr};font-weight:700;line-height:1.3">${lbl}</div><div style="font-size:.61rem;color:${clr};opacity:.7">${cnt && total ? Math.round(cnt/total*100)+'%' : ''}</div></div>`).join('<div style="width:2px;background:#fff"></div>')}
+  </div>
+</div>
+<div class="ta-card" style="margin-bottom:1rem">
+  <div class="ta-card-title">📅 Monthly OJT Hours — Program Total (Mar-24 → Apr-25)</div>
+  <div style="display:flex;align-items:flex-end;gap:3px;height:96px;margin-top:.875rem;padding:0 .25rem">
+    ${SY2526_OJT_MONTHS.map((lbl, idx) => { const v2 = ojtMonthTotals[idx]; const h = Math.round((v2/maxOjt)*78); return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div style="font-size:.54rem;color:#6b7280;font-weight:600;min-height:.8rem">${v2>0?v2:''}</div><div style="width:100%;height:${h}px;background:${v2>0?'#1B2A4A':'#e5e7eb'};border-radius:3px 3px 0 0;min-height:2px"></div><div style="font-size:.5rem;color:#9ca3af;transform:rotate(-45deg);transform-origin:top left;white-space:nowrap;margin-left:.25rem;margin-top:.15rem">${lbl}</div></div>`; }).join('')}
+  </div>
+</div>
+<div class="ta-card" style="margin-bottom:1rem">
+  <div class="ta-card-title">👥 Full SY 25-26 Cohort Roster</div>
+  <div style="overflow-x:auto;margin-top:.75rem">
+  <table class="ta-table" style="font-size:.78rem">
+    <thead><tr style="background:#1B2A4A;color:#fff">
+      <th style="padding:.4rem .5rem;text-align:left">Name</th>
+      <th style="padding:.4rem .4rem;text-align:center">Status</th>
+      <th style="padding:.4rem .4rem;text-align:left">Site</th>
+      <th style="padding:.4rem .4rem;text-align:center">OJT %</th>
+      <th style="padding:.4rem .4rem;text-align:center">OJT Hrs</th>
+      <th style="padding:.4rem .4rem;text-align:center">Hrs Left</th>
+      <th style="padding:.4rem .4rem;text-align:center">RTI Hrs</th>
+      <th style="padding:.4rem .4rem;text-align:center">Wage</th>
+      <th style="padding:.4rem .5rem;text-align:center">Completed</th>
+    </tr></thead>
+    <tbody>
+      ${sorted.map(r => {
+        const hrs       = r.ojtReported || r.ojtTotalCalc || 0;
+        const pct       = r.pctOjt || (hrs / SY2526_OJT_TARGET);
+        const remaining = Math.max(0, SY2526_OJT_TARGET - hrs);
+        const pctClr    = pct >= 1 ? '#059669' : pct >= 0.9 ? '#d97706' : '#ef4444';
+        const bdrClr    = r.status === 'completed' ? '#bbf7d0' : r.status === 'active' ? '#bfdbfe' : '#fca5a5';
+        const stPill    = { active: '<span style="background:#dcfce7;color:#166534;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Active</span>', completed: '<span style="background:#dbeafe;color:#1e3a8a;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Completed</span>', cancelled: '<span style="background:#fee2e2;color:#991b1b;font-size:.63rem;font-weight:700;padding:.1rem .35rem;border-radius:3px">Cancelled</span>' }[r.status] || r.status;
+        const compLabel = r.completedProg === 'y' ? '✅ Yes' : r.completedProg.includes('rti') ? '⚠️ RTI Pend.' : r.completedProg.includes('both') ? '🔴 Both Pend.' : r.status === 'cancelled' ? '❌ Cancelled' : '—';
+        return `<tr style="border-bottom:1px solid #f3f4f6;border-left:3px solid ${bdrClr}">
+          <td style="padding:.35rem .5rem;font-weight:700;color:#1B2A4A">${r.name}</td>
+          <td style="padding:.35rem .4rem;text-align:center">${stPill}</td>
+          <td style="padding:.35rem .4rem;font-size:.73rem;color:#374151">${r.placement||'—'}</td>
+          <td style="padding:.35rem .4rem;text-align:center;font-weight:700;color:${pctClr}">${r.status==='cancelled'?'—':Math.round(pct*100)+'%'}</td>
+          <td style="padding:.35rem .4rem;text-align:center;font-weight:600">${r.status==='cancelled'?'—':hrs.toLocaleString()}</td>
+          <td style="padding:.35rem .4rem;text-align:center;color:${remaining>0?'#ef4444':'#059669'};font-weight:600">${r.status==='cancelled'?'—':remaining>0?remaining.toLocaleString():'✅'}</td>
+          <td style="padding:.35rem .4rem;text-align:center;font-weight:600;color:${(r.rtiHours||0)>=SY2526_RTI_TARGET?'#059669':'#d97706'}">${r.rtiHours||'—'}</td>
+          <td style="padding:.35rem .4rem;text-align:center">${r.wage?'$'+r.wage.toFixed(2):'—'}</td>
+          <td style="padding:.35rem .5rem;text-align:center;font-size:.73rem">${compLabel}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+  </div>
+  <div style="margin-top:.5rem;font-size:.72rem;color:#9ca3af">${total} apprentices · OJT target: ${SY2526_OJT_TARGET.toLocaleString()} hrs · RTI target: ${SY2526_RTI_TARGET} hrs</div>
+</div>
+<div class="ta-card">
+  <div class="ta-card-title">🎓 RTI Monthly Attendance (Mar-24 → Jun-25)</div>
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:.75rem">
+    ${SY2526_RTI_MONTHS.map((lbl, idx) => { const cnt = rtiMonthTotals[idx]; const pctR = programRows.length ? Math.round(cnt/programRows.length*100) : 0; const clr = pctR>=70?'#059669':pctR>=40?'#d97706':cnt>0?'#6b7280':'#e5e7eb'; return `<div style="text-align:center;min-width:42px"><div style="height:${Math.max(4,Math.round(pctR*.55))}px;background:${clr};border-radius:3px 3px 0 0;margin-bottom:2px"></div><div style="font-size:.67rem;font-weight:700;color:${clr}">${cnt>0?cnt:''}</div><div style="font-size:.54rem;color:#9ca3af;margin-top:.1rem">${lbl}</div></div>`; }).join('')}
+  </div>
+  <div style="margin-top:.75rem;font-size:.72rem;color:#9ca3af">Bar height = % of program apprentices with RTI attendance (Y or X) that month</div>
+</div>`;
+    } catch(e) {
+      container.innerHTML = errorHTML(e.message, 'window._otjSY2526Retry()');
+      window._otjSY2526Retry = () => { _sy2526Cache = null; render2526OtjOverview(container); };
+    }
+  }
+
+  // ── Year toggle state ────────────────────────────────────────────────────
+  let _otjActiveSY = '2627';
+
+  function _otjSetToggleActive(sy) {
+    const b2627 = document.getElementById('otjSyBtn2627');
+    const b2526 = document.getElementById('otjSyBtn2526');
+    const sub   = document.getElementById('otjSySubtitle');
+    if (!b2627 || !b2526) return;
+    if (sy === '2627') {
+      b2627.style.background = '#fff';        b2627.style.color = '#1B2A4A';
+      b2526.style.background = 'transparent'; b2526.style.color = 'rgba(255,255,255,.7)';
+      if (sub) sub.textContent = 'SY 2026-27 · Active cohort — live from TAP Tracker';
+    } else {
+      b2526.style.background = '#fff';        b2526.style.color = '#1B2A4A';
+      b2627.style.background = 'transparent'; b2627.style.color = 'rgba(255,255,255,.7)';
+      if (sub) sub.textContent = 'SY 2025-26 · Historical cohort — live from GAINS reporting sheet';
+    }
+  }
+
+  window._otjSwitchSY = async function(sy) {
+    _otjActiveSY = sy;
+    _otjSetToggleActive(sy);
+    const slot = document.getElementById('otjSyContent');
+    if (!slot) return;
+    if (sy === '2526') {
+      await render2526OtjOverview(slot);
+    } else {
+      if (window._otjCaptured2627) {
+        slot.innerHTML = window._otjCaptured2627;
+      } else {
+        slot.innerHTML = loadingHTML('Reloading SY 26-27 data…');
+        _tdLoaded['otj-overview'] = false;
+        renderOTJOverviewTab();
+      }
+    }
+  };
+
   async function renderOTJOverviewTab() {
     const el = document.getElementById('td-content-otj-overview');
     if (!el) return;
@@ -2431,7 +2663,23 @@
         </div>`;
       }
 
-      el.innerHTML = html;
+      // Wrap in year toggle banner so user can switch between SY 26-27 and SY 25-26
+      el.innerHTML = `
+<div id="otjSyToggle" style="display:flex;align-items:center;gap:.625rem;padding:.75rem 1rem;background:linear-gradient(135deg,#1B2A4A,#274690);border-radius:10px;margin-bottom:1.25rem;flex-wrap:wrap">
+  <div style="flex:1;min-width:0">
+    <div style="font-size:.7rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Apprenticeship Program Year</div>
+    <div style="font-size:.82rem;color:rgba(255,255,255,.85)" id="otjSySubtitle">SY 2026-27 · Active cohort — live from TAP Tracker</div>
+  </div>
+  <div style="display:flex;gap:3px;background:rgba(255,255,255,.1);border-radius:7px;padding:3px">
+    <button id="otjSyBtn2627" onclick="window._otjSwitchSY('2627')" style="padding:.35rem .9rem;border:none;border-radius:5px;font-size:.8rem;font-weight:700;cursor:pointer;background:#fff;color:#1B2A4A">SY 26-27</button>
+    <button id="otjSyBtn2526" onclick="window._otjSwitchSY('2526')" style="padding:.35rem .9rem;border:none;border-radius:5px;font-size:.8rem;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.7)">SY 25-26</button>
+  </div>
+</div>
+<div id="otjSyContent"></div>`;
+      // Capture the 26-27 content so toggle back is instant
+      window._otjCaptured2627 = html;
+      document.getElementById('otjSyContent').innerHTML = html;
+      _otjActiveSY = '2627';
 
       // Render charts
       setTimeout(() => {
@@ -4585,6 +4833,7 @@
   window.tdShowTab               = tdShowTab;
   window.tdRefresh               = tdRefresh;
   window.tdGenerateExecPDF       = tdGenerateExecPDF;
+  window.render2526OtjOverview   = render2526OtjOverview;
 
   // ── Pre-fetch obs maps for programming dept profiles view ──────────────────
   // Called by shared-charts.js when programming dept opens the Profiles tab,
