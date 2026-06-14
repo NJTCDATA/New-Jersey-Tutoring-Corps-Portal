@@ -6235,6 +6235,7 @@
         <button class="pst-tab"        id="tapTab-milestones" onclick="tapShowTab('milestones',this)">💰 Wage Milestones</button>
         <button class="pst-tab dept-tap-finance" id="tapTab-compliance" onclick="tapShowTab('compliance',this)" style="display:none">🗂️ GAINS Compliance</button>
         <button class="pst-tab dept-tap-log"    id="tapTab-ojt-log" onclick="tapShowTab('ojt-log',this)" style="display:none">📝 Log OJT Activity</button>
+        <button class="pst-tab"                 id="tapTab-sy2526"  onclick="tapShowTab('sy2526',this)">🗂️ SY 25-26</button>
       </div>
 
       <!-- TAP sub-tab content areas -->
@@ -6244,6 +6245,7 @@
       <div id="tap-content-milestones"  class="td-tab-content" style="display:none"></div>
       <div id="tap-content-compliance"  class="td-tab-content" style="display:none"></div>
       <div id="tap-content-ojt-log"     class="td-tab-content" style="display:none"></div>
+      <div id="tap-content-sy2526"      class="td-tab-content" style="display:none"></div>
     </div>
 
     <!-- ══ UPLOAD / DRIVE PANEL ══════════════════════════════ -->
@@ -7762,6 +7764,18 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     }
   };
 
+  /* ── SY 25-26 Historical Tab ──────────────────────────────────────
+     Delegates to render2526OtjOverview() defined in training-development.js,
+     which owns the fetch, cache, and full render for the 25-26 cohort.        */
+  function renderSY2526Tab(el) {
+    if (typeof window.render2526OtjOverview === 'function') {
+      window.render2526OtjOverview(el);
+    } else {
+      el.innerHTML = '<div style="padding:2rem;background:#fff1f2;border:1px solid #fca5a5;border-radius:10px;color:#991b1b">' +
+        '<strong>⚠️ SY 25-26 renderer not available.</strong> Ensure training-development.js is fully loaded.</div>';
+    }
+  }
+
   /* ── Public API ───────────────────────────────────────────────────── */
   window.NJTCTapDash = {
     renderTab: function(id, el) {
@@ -7773,6 +7787,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         case 'milestones':  renderMilestones(el);  break;
         case 'compliance':  renderCompliance(el);  break;
         case 'ojt-log':     renderOJTLog(el);      break;
+        case 'sy2526':      renderSY2526Tab(el);   break;
         default: el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Section not found.</div>';
       }
     },
