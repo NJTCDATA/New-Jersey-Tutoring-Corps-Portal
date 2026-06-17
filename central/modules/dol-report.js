@@ -284,8 +284,8 @@
       return e.termDate >= firstDay && e.termDate <= lastDay;
     });
 
-    const voluntary   = termsThisMonth.filter(e => e.resignType.includes('volunt'));
-    const involuntary = termsThisMonth.filter(e => !e.resignType.includes('volunt'));
+    const voluntary   = termsThisMonth.filter(e => e.resignType === 'voluntary' || e.resignType.startsWith('voluntary'));
+    const involuntary = termsThisMonth.filter(e => e.resignType === 'involuntary' || (!e.resignType.startsWith('voluntary') && e.resignType !== ''));
 
     // Role breakdown of active employees
     const byRole = {};
