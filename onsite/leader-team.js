@@ -1479,7 +1479,6 @@
         <div class="narr-field"><label class="narr-label">Environment <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_env" placeholder="Record feedback related to the tutoring environment…">${escHtml(s.env||'')}</textarea></div>
         <div class="narr-field"><label class="narr-label">Planning <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_plan" placeholder="Record feedback related to tutoring planning…">${escHtml(s.plan||'')}</textarea></div>
         <div class="narr-field"><label class="narr-label">Instruction <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_instr" placeholder="Record feedback related to instruction and delivery…">${escHtml(s.instr||'')}</textarea></div>
-        <div class="narr-field"><label class="narr-label">Tutor Reflection <span style="font-weight:400;color:#64748b">— tutor may complete during conference</span></label><textarea class="narr-textarea" id="${pfx}_reflection" placeholder="Tutor's reflections, actionable steps, or additional notes…">${escHtml(s.reflection||'')}</textarea></div>
         <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">
           <button class="narr-save-btn" id="${pfx}_btn" data-uid="${uid}" data-apprentice="${escHtml(apprenticeName)}" data-observer="${escHtml(observerName)}" onclick="window.NJTCTeam._narrSave('${escHtml(ph)}','${uid}')">💾 Save ${escHtml(ph)} Narrative</button>
           <span class="narr-status" id="${pfx}_status"></span>
@@ -1524,7 +1523,7 @@
       environment:      gv(pfx+'_env'),
       planning:         gv(pfx+'_plan'),
       instruction:      gv(pfx+'_instr'),
-      tutorReflection:  gv(pfx+'_reflection'),
+      tutorReflection:  '',
     };
     if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
     if (status) { status.textContent=''; status.className='narr-status'; }
