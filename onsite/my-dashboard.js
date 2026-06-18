@@ -68,14 +68,17 @@
   function donutChart(pct, color, size, strokeWidth) {
     size = size || 80;
     strokeWidth = strokeWidth || Math.round(size * 0.25);
-    const r = (size / 2) - (strokeWidth / 2) - 2;
+    const r    = (size / 2) - (strokeWidth / 2) - 2;
     const circ = 2 * Math.PI * r;
-    const fill = pct != null ? (pct / 100) * circ : 0;
+    // At 100%, use a tiny gap (0.01) so the stroke visually closes completely
+    // without floating-point artifacts leaving a sliver of background visible
+    const fill = pct != null ? Math.min((pct / 100) * circ, circ - 0.01) : 0;
+    const gap  = pct != null && pct >= 100 ? 0 : circ;
     return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="${pct != null ? pct + '%' : 'No data'}">
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="${strokeWidth}"/>
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
-        stroke-dasharray="${fill} ${circ}" stroke-dashoffset="${circ/4}"
-        stroke-linecap="butt"/>
+        stroke-dasharray="${fill} ${gap}" stroke-dashoffset="${circ/4}"
+        stroke-linecap="round"/>
       <text x="50%" y="50%" text-anchor="middle" dy=".35em" fill="#fff" font-size="${size*0.18}" font-weight="700" font-family="Epilogue,sans-serif">
         ${pct != null ? pct + '%' : '—'}
       </text>
@@ -263,6 +266,29 @@
       .mp-notes-block { background: rgba(255,184,28,0.06); border: 1px solid rgba(255,184,28,0.2); border-radius: 10px; padding: 1rem 1.125rem; margin-bottom: 0.75rem; }
       .mp-notes-meta { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 0.375rem; }
       .mp-notes-text { font-size: 0.82rem; color: rgba(255,255,255,0.75); line-height: 1.5; white-space: pre-wrap; }
+
+      /* ── Tutor Reflection styles ── */
+      .mp-reflection-card { background: rgba(28,124,140,0.07); border: 1.5px solid rgba(28,124,140,0.2); border-radius: 12px; padding: 1.25rem 1.375rem; margin-bottom: 1rem; }
+      .mp-reflection-phase { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #1C7C8C; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+      .mp-reflection-phase .mp-refl-badge { background: rgba(28,124,140,0.15); border: 1px solid rgba(28,124,140,0.3); border-radius: 12px; padding: 0.2rem 0.625rem; font-size: 0.68rem; }
+      .mp-reflection-phase .mp-refl-saved { background: rgba(5,150,105,0.15); border-color: rgba(5,150,105,0.3); color: #34d399; }
+      .mp-narr-leader-block { margin-bottom: 1rem; }
+      .mp-narr-leader-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(255,255,255,0.35); margin-bottom: 0.375rem; }
+      .mp-narr-leader-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+      .mp-narr-field-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 0.625rem 0.75rem; }
+      .mp-narr-field-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.35); margin-bottom: 0.3rem; }
+      .mp-narr-field-text { font-size: 0.8rem; color: rgba(255,255,255,0.7); line-height: 1.5; white-space: pre-wrap; }
+      .mp-narr-assessment { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.72rem; font-weight: 700; background: rgba(255,184,28,0.12); border: 1px solid rgba(255,184,28,0.25); color: #FFB81C; margin-bottom: 0.875rem; }
+      .mp-refl-divider { border: none; border-top: 1px dashed rgba(255,255,255,0.1); margin: 1rem 0; }
+      .mp-refl-textarea { width: 100%; min-height: 90px; padding: 0.625rem 0.875rem; font-size: 0.875rem; border: 1.5px solid rgba(28,124,140,0.3); border-radius: 8px; font-family: inherit; color: #e2e8f0; background: rgba(28,124,140,0.06); box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s; resize: vertical; }
+      .mp-refl-textarea:focus { outline: none; border-color: #1C7C8C; box-shadow: 0 0 0 3px rgba(28,124,140,0.15); }
+      .mp-refl-save-btn { background: #1C7C8C; color: #fff; border: none; border-radius: 8px; padding: 0.55rem 1.375rem; font-size: 0.8375rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s; margin-top: 0.5rem; }
+      .mp-refl-save-btn:hover:not(:disabled) { background: #155e6b; }
+      .mp-refl-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .mp-refl-status { font-size: 0.775rem; font-weight: 600; margin-left: 0.75rem; }
+      .mp-refl-status.ok { color: #34d399; } .mp-refl-status.err { color: #f87171; }
+      .mp-no-narr { font-size: 0.82rem; color: rgba(255,255,255,0.3); padding: 1rem 0; text-align: center; }
+      @media (max-width: 640px) { .mp-narr-leader-grid { grid-template-columns: 1fr; } }
       .mp-empty { text-align: center; padding: 2.5rem 1rem; color: rgba(255,255,255,0.3); font-size: 0.875rem; }
 
       /* ── Career Progression form ── */
@@ -3049,13 +3075,14 @@
 
     const myNorm = _normN(user.name);
 
-    // Fetch OJT log + Master Roster in parallel
-    let ojtRows = [], mrRow = null, savedCareer = {};
+    // Fetch OJT log + Master Roster + career + narratives in parallel
+    let ojtRows = [], mrRow = null, savedCareer = {}, savedNarratives = {};
     try {
-      const [ojtRes, mrRes, careerRes] = await Promise.allSettled([
+      const [ojtRes, mrRes, careerRes, narrRes] = await Promise.allSettled([
         fetch(_OJT_CSV_URL + '&_=' + Date.now(), { signal: AbortSignal.timeout(20000) }).then(r => r.text()),
         fetch(_MR_CSV_URL  + '&_=' + Date.now(), { signal: AbortSignal.timeout(20000) }).then(r => r.text()),
         fetch(_TAP_GAS_URL + '?tab=career_latest&_=' + Date.now(), { signal: AbortSignal.timeout(12000) }).then(r => r.json()),
+        fetch(_TAP_GAS_URL + '?tab=narrative_latest&_=' + Date.now(), { signal: AbortSignal.timeout(12000) }).then(r => r.json()),
       ]);
 
       if (ojtRes.status === 'fulfilled') {
@@ -3079,6 +3106,12 @@
       }
       if (careerRes.status === 'fulfilled' && careerRes.value?.rows) {
         savedCareer = careerRes.value.rows.find(r => _normN(r.apprentice) === myNorm) || {};
+      }
+      if (narrRes.status === 'fulfilled' && narrRes.value?.rows) {
+        // Build map: phase → narrative row (leader's entry for this tutor)
+        (narrRes.value.rows || [])
+          .filter(r => _normN(r.apprentice) === myNorm)
+          .forEach(r => { savedNarratives[r.phase] = r; });
       }
     } catch(e) {}
 
@@ -3181,6 +3214,65 @@
         </div>`).join('')
       : `<div class="mp-empty" style="padding:1rem 0">No observation notes have been logged yet.</div>`;
 
+    // ── Tutor Reflection section (one card per phase with saved leader narratives) ──
+    const NARR_PHASES = ['Beginning', 'Middle', 'End'];
+    const reflectionHtml = (() => {
+      const hasAny = NARR_PHASES.some(ph => savedNarratives[ph]);
+      if (!hasAny) return `<div class="mp-no-narr">No observation narratives have been submitted by your site leader yet. This section will populate once your leader completes an observation.</div>`;
+
+      return NARR_PHASES.filter(ph => savedNarratives[ph]).map(ph => {
+        const n = savedNarratives[ph];
+        const hasSavedRefl = !!(n.reflection && n.reflection.trim());
+        const fields = [
+          { label: 'Professionalism', val: n.prof },
+          { label: 'Environment',     val: n.env  },
+          { label: 'Planning',        val: n.plan },
+          { label: 'Instruction',     val: n.instr },
+        ].filter(f => f.val && f.val.trim());
+
+        const fieldHtml = fields.length
+          ? `<div class="mp-narr-leader-grid">${fields.map(f =>
+              `<div class="mp-narr-field-box">
+                <div class="mp-narr-field-label">${esc(f.label)}</div>
+                <div class="mp-narr-field-text">${esc(f.val)}</div>
+              </div>`
+            ).join('')}</div>`
+          : `<div style="font-size:.8rem;color:rgba(255,255,255,.35);font-style:italic">No narrative text recorded yet.</div>`;
+
+        return `<div class="mp-reflection-card">
+          <div class="mp-reflection-phase">
+            <span class="mp-refl-badge">${esc(ph)}</span>
+            ${n.observer ? `<span style="color:rgba(255,255,255,.45);font-weight:400;text-transform:none;letter-spacing:0;font-size:.7rem">by ${esc(n.observer)}</span>` : ''}
+            ${n.obsDate ? `<span style="color:rgba(255,255,255,.3);font-weight:400;text-transform:none;letter-spacing:0;font-size:.7rem">· ${esc(n.obsDate)}</span>` : ''}
+            ${hasSavedRefl ? `<span class="mp-refl-badge mp-refl-saved">✓ Reflection saved</span>` : ''}
+          </div>
+
+          ${n.assessment ? `<div class="mp-narr-assessment">Overall: ${esc(n.assessment)}</div>` : ''}
+
+          <div class="mp-narr-leader-block">
+            <div class="mp-narr-leader-label">📋 Leader Observation Notes</div>
+            ${fieldHtml}
+          </div>
+
+          <hr class="mp-refl-divider">
+
+          <div class="mp-narr-leader-label" style="margin-bottom:.5rem">✍️ Your Reflection</div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,.4);margin-bottom:.625rem;line-height:1.5">
+            Review what your site leader observed above, then write your reflection. What did you notice? What will you work on?
+          </div>
+          <textarea class="mp-refl-textarea" id="mp-refl-${ph.toLowerCase()}"
+            placeholder="Add your reflection on this observation period…">${esc(hasSavedRefl ? n.reflection : '')}</textarea>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:.25rem">
+            <button class="mp-refl-save-btn" id="mp-refl-btn-${ph.toLowerCase()}"
+              onclick="window._mpSaveReflection('${esc(user.name)}','${esc(ph)}')">
+              💾 Save ${esc(ph)} Reflection
+            </button>
+            <span class="mp-refl-status" id="mp-refl-status-${ph.toLowerCase()}"></span>
+          </div>
+        </div>`;
+      }).join('');
+    })();
+
     // ── Career Progression form ───────────────────────────────────────────────
     const sv  = f => esc(savedCareer[f] || '');
     const savedTs = savedCareer.ts ? new Date(savedCareer.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : null;
@@ -3218,6 +3310,14 @@
     pane.innerHTML = `
 
       <!-- ── STATS ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem">
+        <div style="font-size:.7rem;color:rgba(255,255,255,.35)">Live data from your TAP record · updates after each observation</div>
+        <button onclick="window._mpExportWorkbook('${esc(user.name)}')" style="background:rgba(28,124,140,0.15);border:1.5px solid #1C7C8C;color:#34d399;border-radius:8px;padding:.45rem 1rem;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s" onmouseover="this.style.background='rgba(28,124,140,0.3)'" onmouseout="this.style.background='rgba(28,124,140,0.15)'">
+          ⬇️ Download My OJT Workbook
+        </button>
+      </div>
+      <div id="mp-export-status" style="font-size:.78rem;text-align:right;min-height:1.25rem;margin-bottom:.5rem"></div>
+
       <div class="mp-stat-row">
         <div class="mp-stat">
           <div class="mp-stat-val" style="color:${hoursColor}">${ojtHours.toLocaleString()}</div>
@@ -3260,6 +3360,15 @@
       <div class="njtc-dash-section" style="margin-bottom:1rem">
         <span class="njtc-section-title">📝 Site Leader Observation Notes</span>
         ${notesHtml}
+      </div>
+
+      <!-- ── TUTOR REFLECTIONS ── -->
+      <div class="njtc-dash-section" style="margin-bottom:1rem">
+        <span class="njtc-section-title">✍️ My Reflections</span>
+        <p style="font-size:.8rem;color:rgba(255,255,255,.4);margin-bottom:1.25rem;line-height:1.6">
+          Your site leader's observations appear below. Read each section, then write your own reflection. Saved reflections become part of your official OJT record.
+        </p>
+        ${reflectionHtml}
       </div>
 
       <!-- ── ACTIVITY DETAIL ── -->
@@ -3474,6 +3583,76 @@
     } catch(err) {
       if (status) { status.textContent = 'Save failed — please try again.'; status.className = 'cp-status err'; }
       if (btn) { btn.disabled=false; btn.textContent='💾 Save Career Progression'; }
+    }
+  };
+
+  // ── Export full OJT workbook for this tutor ──────────────────────────────
+  window._mpExportWorkbook = async function(apprenticeName) {
+    const btn    = document.querySelector('[onclick*="_mpExportWorkbook"]');
+    const status = document.getElementById('mp-export-status');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Building workbook…'; }
+    if (status) { status.textContent = ''; status.style.color = 'rgba(255,255,255,.4)'; }
+    try {
+      const res  = await fetch(
+        _TAP_GAS_URL + '?action=exportWorkbook&apprentice=' + encodeURIComponent(apprenticeName) + '&_=' + Date.now(),
+        { signal: AbortSignal.timeout(60000) }
+      );
+      const json = await res.json();
+      if (json.success && json.url) {
+        window.open(json.url, '_blank');
+        if (status) { status.textContent = '✓ Workbook ready — opened in new tab'; status.style.color = '#34d399'; }
+      } else {
+        if (status) { status.textContent = 'Export failed: ' + (json.error || 'unknown error'); status.style.color = '#f87171'; }
+      }
+    } catch(err) {
+      if (status) { status.textContent = 'Export failed — please try again.'; status.style.color = '#f87171'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '⬇️ Download My OJT Workbook'; }
+      setTimeout(() => { if (status) status.textContent = ''; }, 8000);
+    }
+  };
+
+  // ── Tutor Reflection save ─────────────────────────────────────────────────
+  window._mpSaveReflection = async function(apprenticeName, phase) {
+    const phL   = phase.toLowerCase();
+    const btn   = document.getElementById('mp-refl-btn-'    + phL);
+    const stat  = document.getElementById('mp-refl-status-' + phL);
+    const ta    = document.getElementById('mp-refl-'        + phL);
+    const text  = ta ? ta.value.trim() : '';
+
+    if (!text) {
+      if (stat) { stat.textContent = 'Please write your reflection first.'; stat.className = 'mp-refl-status err'; }
+      setTimeout(() => { if (stat) stat.textContent = ''; }, 3000);
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    if (stat) { stat.textContent = ''; stat.className = 'mp-refl-status'; }
+
+    const form = new URLSearchParams({
+      logType:        'NarrativeReflection',
+      apprenticeName: apprenticeName,
+      phase:          phase,
+      tutorReflection:text,
+    });
+    try {
+      await fetch(_TAP_GAS_URL, { method: 'POST', mode: 'no-cors', body: form });
+      if (stat) { stat.textContent = '✓ Saved'; stat.className = 'mp-refl-status ok'; }
+      // Update the badge in the card to show saved
+      const card = document.getElementById('mp-refl-btn-' + phL)?.closest('.mp-reflection-card');
+      if (card) {
+        const phaseDiv = card.querySelector('.mp-reflection-phase');
+        if (phaseDiv && !phaseDiv.querySelector('.mp-refl-saved')) {
+          const badge = document.createElement('span');
+          badge.className = 'mp-refl-badge mp-refl-saved';
+          badge.textContent = '✓ Reflection saved';
+          phaseDiv.appendChild(badge);
+        }
+      }
+      setTimeout(() => { if (stat) stat.textContent = ''; }, 5000);
+    } catch(err) {
+      if (stat) { stat.textContent = 'Save failed — try again.'; stat.className = 'mp-refl-status err'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = `💾 Save ${phase} Reflection`; }
     }
   };
 
