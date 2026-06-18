@@ -219,51 +219,84 @@
         display: inline-block;
       }
 
-      /* ── Career Progression Section ── */
-      .cp-intro { font-size: 0.82rem; color: rgba(255,255,255,0.55); margin-bottom: 1.5rem; line-height: 1.6; }
-      .cp-saved-badge { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(5,150,105,0.15); border: 1px solid rgba(5,150,105,0.35); color: #34d399; font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.75rem; border-radius: 20px; margin-left: 0.75rem; vertical-align: middle; }
-      .cp-section-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #FFB81C; margin: 1.5rem 0 0.875rem; padding: 0.45rem 0.875rem; background: rgba(255,184,28,0.07); border-left: 3px solid #FFB81C; border-radius: 0 6px 6px 0; }
+      /* ── Portal Tab Nav (My Dashboard / My Progress) ── */
+      .njtc-portal-tab-nav {
+        display: flex; gap: 0.375rem; margin: 0 0 1.5rem;
+        border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 0;
+      }
+      .njtc-portal-tab-btn {
+        padding: 0.625rem 1.25rem; font-size: 0.875rem; font-weight: 700;
+        font-family: 'Epilogue', sans-serif; border: none; background: none;
+        cursor: pointer; color: rgba(255,255,255,0.45);
+        border-bottom: 3px solid transparent; margin-bottom: -2px;
+        transition: color 0.15s, border-color 0.15s; border-radius: 6px 6px 0 0;
+      }
+      .njtc-portal-tab-btn:hover:not(.active) { color: rgba(255,255,255,0.75); background: rgba(255,255,255,0.04); }
+      .njtc-portal-tab-btn.active { color: #FFB81C; border-bottom-color: #FFB81C; }
+      .njtc-portal-tab-pane { display: none; }
+      .njtc-portal-tab-pane.active { display: block; }
+
+      /* ── My Progress panel ── */
+      .mp-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+      .mp-stat { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1.125rem 1.25rem; text-align: center; }
+      .mp-stat-val { font-size: 1.75rem; font-weight: 800; font-family: 'Epilogue', sans-serif; line-height: 1; }
+      .mp-stat-lbl { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.5); margin-top: 0.375rem; }
+      .mp-stat-sub { font-size: 0.68rem; color: rgba(255,255,255,0.3); margin-top: 0.2rem; }
+      .mp-progress-bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin-top: 0.5rem; }
+      .mp-progress-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+      .mp-phase-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+      .mp-phase { background: rgba(255,255,255,0.04); border: 1.5px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1rem; text-align: center; }
+      .mp-phase-name { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: rgba(255,255,255,0.5); margin-bottom: 0.5rem; }
+      .mp-phase-pct { font-size: 1.25rem; font-weight: 800; font-family: 'Epilogue', sans-serif; }
+      .mp-phase-sub { font-size: 0.68rem; color: rgba(255,255,255,0.35); margin-top: 0.2rem; }
+      .mp-section-hdr { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.4); margin: 1.25rem 0 0.625rem; padding-bottom: 0.375rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+      .mp-activity-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0.5rem; }
+      .mp-act { display: flex; align-items: flex-start; gap: 0.625rem; padding: 0.625rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.03); font-size: 0.8rem; }
+      .mp-act.done { background: rgba(5,150,105,0.08); border-color: rgba(5,150,105,0.22); }
+      .mp-act.na   { opacity: 0.6; }
+      .mp-act-badge { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; }
+      .mp-act-badge.done { background: rgba(5,150,105,0.2); color: #34d399; }
+      .mp-act-badge.na   { background: rgba(234,179,8,0.15); color: #fbbf24; }
+      .mp-act-badge.open { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.3); }
+      .mp-act-meta { font-size: 0.68rem; color: rgba(255,255,255,0.35); margin-top: 0.15rem; }
+      .mp-domain-hdr { grid-column: 1 / -1; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #1C7C8C; margin-top: 0.625rem; margin-bottom: 0.25rem; padding-bottom: 0.25rem; border-bottom: 1px solid rgba(28,124,140,0.25); }
+      .mp-notes-block { background: rgba(255,184,28,0.06); border: 1px solid rgba(255,184,28,0.2); border-radius: 10px; padding: 1rem 1.125rem; margin-bottom: 0.75rem; }
+      .mp-notes-meta { font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-bottom: 0.375rem; }
+      .mp-notes-text { font-size: 0.82rem; color: rgba(255,255,255,0.75); line-height: 1.5; white-space: pre-wrap; }
+      .mp-empty { text-align: center; padding: 2.5rem 1rem; color: rgba(255,255,255,0.3); font-size: 0.875rem; }
+
+      /* ── Career Progression form ── */
+      .cp-intro { font-size: 0.82rem; color: rgba(255,255,255,0.5); margin-bottom: 1.5rem; line-height: 1.6; }
+      .cp-saved-badge { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(5,150,105,0.15); border: 1px solid rgba(5,150,105,0.35); color: #34d399; font-size: 0.72rem; font-weight: 700; padding: 0.25rem 0.7rem; border-radius: 20px; margin-left: 0.75rem; vertical-align: middle; }
+      .cp-section-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #FFB81C; margin: 1.5rem 0 0.875rem; padding: 0.4rem 0.875rem; background: rgba(255,184,28,0.07); border-left: 3px solid #FFB81C; border-radius: 0 6px 6px 0; }
       .cp-field { margin-bottom: 1rem; }
-      .cp-label { display: block; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.75); margin-bottom: 0.375rem; }
+      .cp-label { display: block; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.7); margin-bottom: 0.35rem; }
       .cp-input, .cp-select, .cp-textarea {
         width: 100%; padding: 0.6rem 0.875rem; font-size: 0.875rem;
         border: 1.5px solid rgba(255,255,255,0.12); border-radius: 8px;
         font-family: inherit; color: #e2e8f0; background: rgba(255,255,255,0.06);
         box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s;
       }
-      .cp-input:focus, .cp-select:focus, .cp-textarea:focus {
-        outline: none; border-color: #1C7C8C; box-shadow: 0 0 0 3px rgba(28,124,140,0.15);
-      }
+      .cp-input:focus, .cp-select:focus, .cp-textarea:focus { outline: none; border-color: #1C7C8C; box-shadow: 0 0 0 3px rgba(28,124,140,0.15); }
       .cp-select option { background: #1a2a3a; color: #e2e8f0; }
       .cp-textarea { min-height: 85px; resize: vertical; }
       .cp-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
       .cp-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
-      .cp-radio-group { display: flex; gap: 0.625rem; flex-wrap: wrap; }
-      .cp-radio-btn {
-        padding: 0.4rem 0.875rem; border: 1.5px solid rgba(255,255,255,0.15);
-        border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
-        color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.04);
-        transition: all 0.15s; user-select: none; font-family: inherit;
-      }
+      .cp-radio-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .cp-radio-btn { padding: 0.375rem 0.875rem; border: 1.5px solid rgba(255,255,255,0.15); border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.04); transition: all 0.15s; user-select: none; font-family: inherit; }
       .cp-radio-btn.selected { border-color: #1C7C8C; background: rgba(28,124,140,0.15); color: #34d399; }
       .cp-course-row { display: grid; grid-template-columns: 1fr 90px auto; gap: 0.5rem; align-items: center; margin-bottom: 0.375rem; }
       .cp-course-row input { padding: 0.45rem 0.75rem; font-size: 0.8rem; border: 1.5px solid rgba(255,255,255,0.12); border-radius: 6px; color: #e2e8f0; background: rgba(255,255,255,0.06); font-family: inherit; box-sizing: border-box; width: 100%; }
       .cp-course-row input:focus { outline: none; border-color: #1C7C8C; }
       .cp-add-btn { background: rgba(28,124,140,0.2); border: 1px solid #1C7C8C; color: #34d399; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
-      .cp-remove-btn { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; line-height: 1; }
-      .cp-save-btn {
-        width: 100%; padding: 0.825rem; background: #1C7C8C; color: #fff;
-        border: none; border-radius: 10px; font-size: 0.9375rem; font-weight: 700;
-        cursor: pointer; font-family: inherit; transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
-        margin-top: 0.5rem;
-      }
+      .cp-remove-btn { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #f87171; border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; line-height: 1; }
+      .cp-save-btn { width: 100%; padding: 0.8rem; background: #1C7C8C; color: #fff; border: none; border-radius: 10px; font-size: 0.9375rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.2s, transform 0.15s, box-shadow 0.15s; margin-top: 0.5rem; }
       .cp-save-btn:hover:not(:disabled) { background: #155e6b; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(28,124,140,0.4); }
       .cp-save-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
       .cp-status { font-size: 0.8rem; font-weight: 600; text-align: center; margin-top: 0.75rem; min-height: 1.25rem; }
-      .cp-status.ok  { color: #34d399; }
-      .cp-status.err { color: #f87171; }
-      .cp-last-saved { font-size: 0.72rem; color: rgba(255,255,255,0.35); text-align: center; margin-top: 0.25rem; }
-      @media (max-width: 640px) { .cp-grid-2, .cp-grid-3 { grid-template-columns: 1fr; } }
+      .cp-status.ok  { color: #34d399; } .cp-status.err { color: #f87171; }
+      .cp-last-saved { font-size: 0.7rem; color: rgba(255,255,255,0.3); text-align: center; margin-top: 0.25rem; }
+      @media (max-width: 640px) { .mp-phase-row { grid-template-columns: 1fr; } .cp-grid-2, .cp-grid-3 { grid-template-columns: 1fr; } }
 
       /* ── Attendance section ── */
       .njtc-att-layout {
@@ -2900,6 +2933,9 @@
     // -- Fill KPI strip --
     fillKPIStrip(kpiStrip, data);
 
+    // -- Inject portal tab nav (My Dashboard | My Progress) --
+    _injectPortalTabNav();
+
     // -- Build dashboard sections --
     if (dashPlaceholder) {
       dashPlaceholder.innerHTML = '';
@@ -2915,358 +2951,498 @@
         buildScholarMissedSection(data),
         buildScoresSection(data),
         buildSurveySection(data),
-        buildSISection(data),
-        await buildCareerProgressionSection(user),
+        buildSISection(data)
       ].filter(Boolean);
 
       sections.forEach(s => dashPlaceholder.appendChild(s));
 
-      // Trigger SVG fill animations: reset to 0 (instant), then animate to the real value.
-      // Transition is applied only AFTER the reset so the "disappear" step doesn't animate.
+      // Trigger SVG fill animations
       requestAnimationFrame(() => {
         dashPlaceholder.querySelectorAll('circle[stroke-dasharray]').forEach(c => {
           const da = c.getAttribute('stroke-dasharray');
           c.style.transition = 'none';
           c.setAttribute('stroke-dasharray', '0 9999');
-          void c.getBoundingClientRect(); // force reflow so the reset commits before transition kicks in
+          void c.getBoundingClientRect();
           c.style.transition = 'stroke-dasharray 1s ease';
           c.setAttribute('stroke-dasharray', da);
         });
       });
     }
+
+    // -- Load My Progress pane async (non-blocking, runs after dashboard renders) --
+    buildMyProgressPane(user).catch(() => {
+      const pane = document.getElementById('njtc-ptab-progress');
+      if (pane) pane.innerHTML = `<div class="mp-empty">Could not load progress data — please refresh the page.</div>`;
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ██  CAREER PROGRESSION SECTION — TAP Apprentice self-service
-  //     Mirrors the "Career Progression & Support" tab of OJT_Template.xlsx.
-  //     Pulls saved data from doGet?tab=career_latest, saves via doPost.
-  //     Output lands in Career_Progress tab of the TAP workbook — same data
-  //     the Central Team downloads in the OJT workbook.
+  // ██  MY PROGRESS TAB — OJT Activity Details, Hours, Leader Notes,
+  //     and Career Progression form.
+  //     Data: live OTJ sheet + Career_Progress tab via TAP GAS endpoint.
+  //     Available to ALL tutors — not TAP-specific naming.
   // ══════════════════════════════════════════════════════════════════════════
 
   const _TAP_GAS_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
+  const _TAP_SHEET_ID = '14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU';
+  const _OJT_CSV_URL  = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=85054416`;
+  const _MR_CSV_URL   = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=45498361`;
 
-  async function buildCareerProgressionSection(user) {
-    const el = document.createElement('div');
-    el.className = 'njtc-dash-section';
+  function _normN(s) { return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
-    // Load any previously saved data
-    let saved = {};
+  function _parseCsv(text) {
+    const rows=[]; let row=[],field='',inQ=false;
+    for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(inQ){if(c==='"'&&n==='"'){field+='"';i++;}else if(c==='"'){inQ=false;}else field+=c;}else{if(c==='"'){inQ=true;}else if(c===','){row.push(field);field='';}else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}else if(c!=='\r')field+=c;}}
+    if(field||row.length){row.push(field);rows.push(row);}
+    return rows;
+  }
+  function _csvObjs(text) {
+    const rows=_parseCsv(text); if(rows.length<2) return [];
+    const hdrs=rows[0].map(h=>h.trim());
+    return rows.slice(1).map(row=>{const o={};hdrs.forEach((h,i)=>{o[h]=(row[i]||'').trim();});return o;});
+  }
+
+  // ── Inject tab nav between #njtcDashTop and #njtcDashContent ─────────────
+  function _injectPortalTabNav() {
+    if (document.getElementById('njtc-portal-tab-nav')) return;
+    const dashTop     = document.getElementById('njtcDashTop');
+    const dashContent = document.getElementById('njtcDashContent');
+    if (!dashTop || !dashContent) return;
+
+    const nav = document.createElement('div');
+    nav.id = 'njtc-portal-tab-nav';
+    nav.className = 'njtc-portal-tab-nav';
+    nav.innerHTML = `
+      <button class="njtc-portal-tab-btn active" data-ptab="dashboard" onclick="window._ptSwitch('dashboard',this)">📊 My Dashboard</button>
+      <button class="njtc-portal-tab-btn"         data-ptab="progress"  onclick="window._ptSwitch('progress',this)">📋 My Progress</button>
+    `;
+
+    // Wrap existing dashContent into a pane
+    const dashPane = document.createElement('div');
+    dashPane.id = 'njtc-ptab-dashboard';
+    dashPane.className = 'njtc-portal-tab-pane active';
+    // Move all children of dashContent into the pane
+    while (dashContent.firstChild) dashPane.appendChild(dashContent.firstChild);
+    dashContent.appendChild(dashPane);
+
+    // Create My Progress pane
+    const progressPane = document.createElement('div');
+    progressPane.id = 'njtc-ptab-progress';
+    progressPane.className = 'njtc-portal-tab-pane';
+    progressPane.innerHTML = `<div class="mp-empty"><div style="font-size:1.5rem;margin-bottom:.5rem">📋</div>Loading your progress data…</div>`;
+    dashContent.appendChild(progressPane);
+
+    // Insert nav between dashTop and dashContent
+    dashContent.parentNode.insertBefore(nav, dashContent);
+  }
+
+  window._ptSwitch = function(tabId, btn) {
+    document.querySelectorAll('.njtc-portal-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.ptab === tabId));
+    document.querySelectorAll('.njtc-portal-tab-pane').forEach(p => p.classList.toggle('active', p.id === 'njtc-ptab-' + tabId));
+  };
+
+  // ── Build My Progress pane ────────────────────────────────────────────────
+  async function buildMyProgressPane(user) {
+    const pane = document.getElementById('njtc-ptab-progress');
+    if (!pane) return;
+
+    pane.innerHTML = `<div class="mp-empty"><div class="njtc-skeleton" style="width:60px;height:60px;border-radius:50%;margin:0 auto 1rem"></div>Loading your on-the-job details…</div>`;
+
+    const myNorm = _normN(user.name);
+
+    // Fetch OJT log + Master Roster in parallel
+    let ojtRows = [], mrRow = null, savedCareer = {};
     try {
-      const res  = await fetch(_TAP_GAS_URL + '?tab=career_latest&_=' + Date.now(), { signal: AbortSignal.timeout(12000) });
-      const json = await res.json();
-      const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
-      const row  = (json.rows || []).find(r => norm(r.apprentice) === norm(user.name));
-      if (row) saved = row;
-    } catch(e) { /* non-fatal — form renders blank */ }
+      const [ojtRes, mrRes, careerRes] = await Promise.allSettled([
+        fetch(_OJT_CSV_URL + '&_=' + Date.now(), { signal: AbortSignal.timeout(20000) }).then(r => r.text()),
+        fetch(_MR_CSV_URL  + '&_=' + Date.now(), { signal: AbortSignal.timeout(20000) }).then(r => r.text()),
+        fetch(_TAP_GAS_URL + '?tab=career_latest&_=' + Date.now(), { signal: AbortSignal.timeout(12000) }).then(r => r.json()),
+      ]);
 
-    const sv = (field) => esc(saved[field] || '');
-    const savedTs = saved.ts ? new Date(saved.ts).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : null;
-
-    // ── Radio button helper ───────────────────────────────────────────────
-    function radioGroup(fieldName, options, savedVal) {
-      return `<div class="cp-radio-group" id="cp-rg-${fieldName}">
-        ${options.map(opt =>
-          `<button type="button" class="cp-radio-btn${savedVal === opt ? ' selected' : ''}"
-            data-field="${fieldName}" data-value="${esc(opt)}"
-            onclick="window._cpRadio(this)">${esc(opt)}</button>`
-        ).join('')}
-      </div><input type="hidden" id="cp-${fieldName}" value="${esc(savedVal || '')}">`;
-    }
-
-    // ── Reconstruct saved courses list ────────────────────────────────────
-    let savedCourses = [];
-    try {
-      if (saved.coursesCompleted) {
-        savedCourses = saved.coursesCompleted.split('|').map(c => {
-          const parts = c.split('::');
-          return { title: parts[0] || '', credits: parts[1] || '' };
-        }).filter(c => c.title);
+      if (ojtRes.status === 'fulfilled') {
+        ojtRows = _csvObjs(ojtRes.value).filter(r => _normN(r['Apprentice'] || r['apprentice'] || '') === myNorm);
+      }
+      if (mrRes.status === 'fulfilled') {
+        mrRow = _csvObjs(mrRes.value).find(r => _normN(r['Full Name (Display)'] || r['Full Name'] || '') === myNorm) || null;
+      }
+      if (careerRes.status === 'fulfilled' && careerRes.value?.rows) {
+        savedCareer = careerRes.value.rows.find(r => _normN(r.apprentice) === myNorm) || {};
       }
     } catch(e) {}
-    if (!savedCourses.length) savedCourses = [{ title: '', credits: '' }];
 
-    const courseRowsHtml = savedCourses.map((c, i) =>
+    // ── OJT analytics ────────────────────────────────────────────────────────
+    const actMap = {};   // 'Phase|Domain|Code' → {status, date, observer, notes, ts}
+    const notesList = [];
+
+    ojtRows.forEach(r => {
+      const lt = (r['Log Type'] || '').toLowerCase();
+      if (lt.includes('rti')) return;
+
+      const ph  = (r['Phase']    || '').trim();
+      const dm  = (r['Domain']   || '').trim();
+      const act = (r['Activity'] || '').trim();
+      const st  = (r['Status']   || '').trim();
+      const obs = (r['Observer'] || '').trim();
+      const nts = (r['Notes']    || '').trim();
+      const dt  = (r['Observation Date'] || r['Obs Date'] || '').trim();
+
+      if (nts) notesList.push({ observer: obs, date: dt, note: nts, phase: ph });
+
+      if (!ph || !dm || !act || !st) return;
+      const code = act.split(/\s*[—\-]\s*/)[0].trim().toUpperCase();
+      const phK  = ph.toLowerCase().includes('begin') ? 'Beginning' : ph.toLowerCase().includes('mid') ? 'Middle' : 'End';
+      const key  = phK + '|' + dm + '|' + code;
+      const ts   = new Date(r['Timestamp'] || 0).getTime();
+      if (!actMap[key] || ts > actMap[key].ts) {
+        actMap[key] = { status: st, date: dt, observer: obs, notes: nts, ts };
+      }
+    });
+
+    const yCount  = Object.values(actMap).filter(e => e.status.charAt(0).toUpperCase() === 'Y').length;
+    const naCount = Object.values(actMap).filter(e => /N\/A/i.test(e.status)).length;
+    const possible = 80 - naCount;
+    const ojtPct   = possible > 0 ? Math.round(yCount / possible * 100) : 0;
+    const ojtHours = mrRow ? parseFloat(mrRow['OJT Hours (Total)'] || mrRow['OJT Hours'] || 0) || yCount * 50 : yCount * 50;
+    const rtiHours = mrRow ? parseFloat(mrRow['RTI Hours (Total)'] || mrRow['RTI Hours'] || mrRow['LMS Hours'] || 0) || 0 : 0;
+
+    const PHASE_TOTALS = { Beginning: 33, Middle: 38, End: 9 };
+    const phaseStats = {};
+    ['Beginning','Middle','End'].forEach(ph => {
+      const phY  = Object.entries(actMap).filter(([k,v]) => k.startsWith(ph+'|') && v.status.charAt(0).toUpperCase() === 'Y').length;
+      const phNA = Object.entries(actMap).filter(([k,v]) => k.startsWith(ph+'|') && /N\/A/i.test(v.status)).length;
+      const phPoss = PHASE_TOTALS[ph] - phNA;
+      phaseStats[ph] = { y: phY, possible: phPoss, pct: phPoss > 0 ? Math.round(phY / phPoss * 100) : 0 };
+    });
+
+    const ojtColor   = ojtPct >= 100 ? '#34d399' : ojtPct >= 60 ? '#FFB81C' : '#f87171';
+    const hoursColor = ojtHours >= 3000 ? '#34d399' : ojtHours >= 1500 ? '#FFB81C' : '#94a3b8';
+    const phColor    = p => phaseStats[p].pct >= 100 ? '#34d399' : phaseStats[p].pct >= 60 ? '#FFB81C' : '#1C7C8C';
+
+    const DOMAINS = ['Professionalism','Instruction','Environment','Planning'];
+
+    // ── Build activity detail HTML ────────────────────────────────────────────
+    let actDetailHtml = '';
+    ['Beginning','Middle','End'].forEach(ph => {
+      const phActs = Object.entries(actMap).filter(([k]) => k.startsWith(ph + '|'));
+      if (!phActs.length) return;
+
+      actDetailHtml += `<div class="njtc-dash-section" style="margin-bottom:1rem">
+        <span class="njtc-section-title">${ph} of Program</span>`;
+
+      DOMAINS.forEach(dm => {
+        const dmActs = phActs.filter(([k]) => k.split('|')[1] === dm);
+        if (!dmActs.length) return;
+        actDetailHtml += `<div class="mp-activity-list" style="margin-bottom:.75rem">
+          <div class="mp-domain-hdr">${esc(dm)}</div>`;
+        dmActs.sort((a,b) => a[0].split('|')[2].localeCompare(b[0].split('|')[2])).forEach(([key, v]) => {
+          const code  = key.split('|')[2];
+          const isY   = v.status.charAt(0).toUpperCase() === 'Y';
+          const isNA  = /N\/A/i.test(v.status);
+          actDetailHtml += `<div class="mp-act${isY?' done':isNA?' na':''}">
+            <div class="mp-act-badge ${isY?'done':isNA?'na':'open'}">${isY?'✓':isNA?'—':esc(code)}</div>
+            <div>
+              <div style="font-weight:${isY?700:400};color:${isY?'#e2e8f0':'rgba(255,255,255,.5)'}">
+                ${esc(ph + ' · ' + dm + ' · ' + code)}
+              </div>
+              ${isY ? `<div class="mp-act-meta">${v.date ? esc(v.date) + ' · ' : ''}${v.observer ? 'Observed by ' + esc(v.observer) : 'Observed'}</div>` : ''}
+              ${isNA ? `<div class="mp-act-meta">N/A — not applicable at this site</div>` : ''}
+            </div>
+          </div>`;
+        });
+        actDetailHtml += '</div>';
+      });
+      actDetailHtml += '</div>';
+    });
+
+    if (!Object.keys(actMap).length) {
+      actDetailHtml = `<div class="mp-empty">No OJT activities have been logged yet. Your site leader records activities as you complete them during observations.</div>`;
+    }
+
+    // ── Notes from site leader ────────────────────────────────────────────────
+    const uniqueNotes = notesList.filter((n,i,a) => n.note && a.findIndex(x => x.note === n.note) === i).slice(0, 10);
+    const notesHtml = uniqueNotes.length
+      ? uniqueNotes.map(n => `<div class="mp-notes-block">
+          <div class="mp-notes-meta">${n.observer ? esc(n.observer) + ' · ' : ''}${n.date ? esc(n.date) + ' · ' : ''}${n.phase ? esc(n.phase) : ''}</div>
+          <div class="mp-notes-text">${esc(n.note)}</div>
+        </div>`).join('')
+      : `<div class="mp-empty" style="padding:1rem 0">No observation notes have been logged yet.</div>`;
+
+    // ── Career Progression form ───────────────────────────────────────────────
+    const sv  = f => esc(savedCareer[f] || '');
+    const savedTs = savedCareer.ts ? new Date(savedCareer.ts).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : null;
+
+    function radioGroup(field, options, savedVal) {
+      return `<div class="cp-radio-group" id="cp-rg-${field}">
+        ${options.map(o => `<button type="button" class="cp-radio-btn${savedVal===o?' selected':''}" data-field="${field}" data-value="${esc(o)}" onclick="window._cpRadio(this)">${esc(o)}</button>`).join('')}
+      </div><input type="hidden" id="cp-${field}" value="${esc(savedVal||'')}">`;
+    }
+
+    let savedCourses = [];
+    try {
+      if (savedCareer.coursesCompleted) {
+        savedCourses = savedCareer.coursesCompleted.split('|').map(c => { const p=c.split('::'); return {title:p[0]||'',credits:p[1]||''}; }).filter(c=>c.title);
+      }
+    } catch(e) {}
+    if (!savedCourses.length) savedCourses = [{title:'',credits:''}];
+
+    const courseRowsHtml = savedCourses.map((c,i) =>
       `<div class="cp-course-row" id="cp-course-row-${i}">
         <input type="text" class="cp-course-title" placeholder="Course title" value="${esc(c.title)}">
-        <input type="text" class="cp-course-credits" placeholder="Credits">
+        <input type="text" class="cp-course-credits" placeholder="Credits" value="${esc(c.credits)}">
         <button type="button" class="cp-remove-btn" onclick="window._cpRemoveCourse(${i})">✕</button>
       </div>`
     ).join('');
 
-    // ── Parse saved progress checkboxes ───────────────────────────────────
-    const prog = {};
-    try { if (saved.progressFlags) JSON.parse(saved.progressFlags).forEach(k => { prog[k] = true; }); } catch(e) {}
-    function chk(key) { return prog[key] ? 'checked' : ''; }
-    function chkBox(key, label) {
-      return `<label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.82rem;color:rgba(255,255,255,.7)">
-        <input type="checkbox" id="cp-${key}" ${chk(key)} style="accent-color:#1C7C8C;width:15px;height:15px">
-        ${esc(label)}
+    function chkBox(key, label, saved) {
+      const checked = saved === 'Yes' ? 'checked' : '';
+      return `<label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.82rem;color:rgba(255,255,255,.65);margin-bottom:.375rem">
+        <input type="checkbox" id="cp-${key}" ${checked} style="accent-color:#1C7C8C;width:15px;height:15px;flex-shrink:0">&nbsp;${esc(label)}
       </label>`;
     }
 
-    el.innerHTML = `
-      <span class="njtc-section-title">🎓 Career Progression &amp; Support${savedTs ? `<span class="cp-saved-badge">✓ Last saved ${esc(savedTs)}</span>` : ''}</span>
+    // ── Assemble full My Progress pane ────────────────────────────────────────
+    pane.innerHTML = `
 
-      <p class="cp-intro">
-        Complete the sections below before your first 1:1 coaching call. Your coach will use this alongside
-        your OJT progress to support your path toward certification. Your responses are saved directly to
-        your TAP workbook record — the Central Team can download your complete OJT workbook at any time.
-      </p>
-
-      <!-- Section A: Career Goals -->
-      <div class="cp-section-label">Section A — Career Goals</div>
-
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">Do you want support completing your bachelor's degree?</label>
-          ${radioGroup('wantsDegreeSupport', ['Yes', 'No'], saved.wantsDegreeSupport || '')}
+      <!-- ── STATS ── -->
+      <div class="mp-stat-row">
+        <div class="mp-stat">
+          <div class="mp-stat-val" style="color:${hoursColor}">${ojtHours.toLocaleString()}</div>
+          <div class="mp-stat-lbl">OJT Hours</div>
+          <div class="mp-stat-sub">of 4,000 required</div>
+          <div class="mp-progress-bar"><div class="mp-progress-fill" style="width:${Math.min(100,Math.round(ojtHours/40))}%;background:${hoursColor}"></div></div>
         </div>
-        <div class="cp-field">
-          <label class="cp-label">Do you want to pursue a certification in teaching?</label>
-          ${radioGroup('wantsCertification', ['Yes', 'No'], saved.wantsCertification || '')}
+        <div class="mp-stat">
+          <div class="mp-stat-val" style="color:${rtiHours>=288?'#34d399':rtiHours>=100?'#FFB81C':'#94a3b8'}">${rtiHours}</div>
+          <div class="mp-stat-lbl">LMS Hours</div>
+          <div class="mp-stat-sub">of 288 required</div>
+          <div class="mp-progress-bar"><div class="mp-progress-fill" style="width:${Math.min(100,Math.round(rtiHours/2.88))}%;background:#7c3aed"></div></div>
         </div>
+        <div class="mp-stat">
+          <div class="mp-stat-val" style="color:${ojtColor}">${yCount} <span style="font-size:1rem;font-weight:600;color:rgba(255,255,255,.35)">/ ${possible}</span></div>
+          <div class="mp-stat-lbl">Activities Observed</div>
+          <div class="mp-stat-sub">${ojtPct}% complete</div>
+        </div>
+        ${mrRow && parseFloat(mrRow['Current Wage']||0) > 0 ? `
+        <div class="mp-stat">
+          <div class="mp-stat-val" style="color:#34d399">$${parseFloat(mrRow['Current Wage']).toFixed(2)}</div>
+          <div class="mp-stat-lbl">Current Wage</div>
+          <div class="mp-stat-sub">${esc(mrRow['Milestone Label']||mrRow['Wage Milestone']||'Base')}</div>
+        </div>` : ''}
       </div>
 
-      <div class="cp-field">
-        <label class="cp-label">What do you hope to gain from the Tutor Apprenticeship Experience?</label>
-        <textarea class="cp-textarea" id="cp-apprenticeshipGoal"
-          placeholder="Share your goals and aspirations for this apprenticeship…">${sv('apprenticeshipGoal')}</textarea>
+      <!-- ── PHASE RINGS ── -->
+      <div class="mp-phase-row">
+        ${['Beginning','Middle','End'].map(ph => `
+          <div class="mp-phase" style="border-color:${phColor(ph)}33">
+            <div class="mp-phase-name">${ph}</div>
+            <div class="mp-phase-pct" style="color:${phColor(ph)}">${phaseStats[ph].pct}%</div>
+            <div class="mp-phase-sub">${phaseStats[ph].y} of ${phaseStats[ph].possible} activities</div>
+            <div class="mp-progress-bar" style="margin-top:.625rem"><div class="mp-progress-fill" style="width:${phaseStats[ph].pct}%;background:${phColor(ph)}"></div></div>
+          </div>
+        `).join('')}
       </div>
 
-      <!-- Section B: Education Background -->
-      <div class="cp-section-label">Section B — Education Background</div>
-
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">Do you have your bachelor's degree?</label>
-          ${radioGroup('hasBachelors', ['Yes', 'No', 'In Progress'], saved.hasBachelors || '')}
-        </div>
-        <div class="cp-field">
-          <label class="cp-label">What was your major?</label>
-          <input class="cp-input" type="text" id="cp-major" placeholder="e.g. Education, Biology…" value="${sv('major')}">
-        </div>
+      <!-- ── SITE LEADER NOTES ── -->
+      <div class="njtc-dash-section" style="margin-bottom:1rem">
+        <span class="njtc-section-title">📝 Site Leader Observation Notes</span>
+        ${notesHtml}
       </div>
 
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">Did you ever enroll in post-secondary classes or programs?</label>
-          ${radioGroup('postSecondaryEnrolled', ['Yes', 'No'], saved.postSecondaryEnrolled || '')}
-        </div>
-        <div class="cp-field">
-          <label class="cp-label">What was your GPA?</label>
-          <input class="cp-input" type="text" id="cp-gpa" placeholder="e.g. 3.5" value="${sv('gpa')}">
-        </div>
+      <!-- ── ACTIVITY DETAIL ── -->
+      <div style="margin-bottom:1rem">
+        <div class="mp-section-hdr">Activity Detail — All Logged Observations</div>
+        ${actDetailHtml}
       </div>
 
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">Did you complete your degree in the US or internationally?</label>
-          ${radioGroup('degreeUSorIntl', ['US', 'Internationally', 'N/A'], saved.degreeUSorIntl || '')}
-        </div>
-        <div class="cp-field">
-          <label class="cp-label">Link your transcripts (Google Drive URL)</label>
-          <input class="cp-input" type="url" id="cp-transcriptLink" placeholder="https://drive.google.com/…" value="${sv('transcriptLink')}">
-        </div>
-      </div>
+      <!-- ── CAREER PROGRESSION FORM ── -->
+      <div class="njtc-dash-section">
+        <span class="njtc-section-title">🎓 Career Progression &amp; Support${savedTs ? `<span class="cp-saved-badge">✓ Saved ${esc(savedTs)}</span>` : ''}</span>
 
-      <div class="cp-field">
-        <label class="cp-label">Any other details about your previous post-secondary education experience</label>
-        <textarea class="cp-textarea" id="cp-educationNotes"
-          placeholder="Optional — share any relevant background about your education…">${sv('educationNotes')}</textarea>
-      </div>
+        <p class="cp-intro">Complete the sections below before your first 1:1 coaching call. Your coach uses this alongside your OJT progress to support your path toward certification. Responses are saved to your TAP record — the Central Team can download your complete workbook at any time.</p>
 
-      <!-- Section C: Certification Questions -->
-      <div class="cp-section-label">Section C — Certification Questions</div>
-
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">What age of students do you prefer to work with?</label>
-          <select class="cp-select" id="cp-agePreference">
-            <option value="">Select…</option>
-            ${['Elementary (K–5)', 'Middle School (6–8)', 'High School (9–12)', 'No preference'].map(o =>
-              `<option value="${esc(o)}" ${saved.agePreference === o ? 'selected' : ''}>${esc(o)}</option>`
-            ).join('')}
-          </select>
-        </div>
-        <div class="cp-field">
-          <label class="cp-label">Did you complete any teacher preparation coursework?</label>
-          ${radioGroup('teacherPrepCoursework', ['Yes', 'No'], saved.teacherPrepCoursework || '')}
-        </div>
-      </div>
-
-      <div class="cp-grid-2">
-        <div class="cp-field">
-          <label class="cp-label">Did you ever have a teaching certificate from another state or country?</label>
-          ${radioGroup('certOtherState', ['Yes', 'No'], saved.certOtherState || '')}
-        </div>
-        <div class="cp-field">
-          <label class="cp-label">Have you created your ETS account?</label>
-          ${radioGroup('etsAccountCreated', ['Yes', 'No'], saved.etsAccountCreated || '')}
-        </div>
-      </div>
-
-      <!-- Section D: Progress -->
-      <div class="cp-section-label">Section D — Progress</div>
-
-      <div class="cp-grid-3" style="margin-bottom:1rem">
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:1rem">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem">Content Exam (Praxis)</div>
-          <div style="display:flex;flex-direction:column;gap:.5rem">
-            ${chkBox('praxisScheduled', 'Praxis scheduled')}
-            ${chkBox('praxisPassed', 'Praxis passed')}
-            ${chkBox('needRetake', 'Need to retake')}
+        <div class="cp-section-label">Section A — Career Goals</div>
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">Do you want support completing your bachelor's degree?</label>
+            ${radioGroup('wantsDegreeSupport', ['Yes','No'], savedCareer.wantsDegreeSupport||'')}
+          </div>
+          <div class="cp-field">
+            <label class="cp-label">Do you want to pursue a certification in teaching?</label>
+            ${radioGroup('wantsCertification', ['Yes','No'], savedCareer.wantsCertification||'')}
           </div>
         </div>
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:1rem">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem">Certificate of Eligibility (CE)</div>
-          <div style="display:flex;flex-direction:column;gap:.5rem">
-            ${chkBox('appliedCE', 'Applied for CE')}
-            ${chkBox('receivedCE', 'Received CE')}
+        <div class="cp-field">
+          <label class="cp-label">What do you hope to gain from the Tutor Apprenticeship Experience?</label>
+          <textarea class="cp-textarea" id="cp-apprenticeshipGoal" placeholder="Share your goals and aspirations…">${sv('apprenticeshipGoal')}</textarea>
+        </div>
+
+        <div class="cp-section-label">Section B — Education Background</div>
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">Do you have your bachelor's degree?</label>
+            ${radioGroup('hasBachelors', ['Yes','No','In Progress'], savedCareer.hasBachelors||'')}
+          </div>
+          <div class="cp-field">
+            <label class="cp-label">What was your major?</label>
+            <input class="cp-input" type="text" id="cp-major" placeholder="e.g. Education, Biology…" value="${sv('major')}">
           </div>
         </div>
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:1rem">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem">Alt Route Program</div>
-          <div style="display:flex;flex-direction:column;gap:.5rem">
-            ${chkBox('enrolledAltRoute', 'Enrolled in Alt Route')}
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">Did you ever enroll in post-secondary classes or programs?</label>
+            ${radioGroup('postSecondaryEnrolled', ['Yes','No'], savedCareer.postSecondaryEnrolled||'')}
           </div>
-          <div class="cp-field" style="margin-top:.75rem;margin-bottom:0">
-            <select class="cp-select" id="cp-altRouteProgram" style="font-size:.8rem;padding:.4rem .65rem">
+          <div class="cp-field">
+            <label class="cp-label">What was your GPA?</label>
+            <input class="cp-input" type="text" id="cp-gpa" placeholder="e.g. 3.5" value="${sv('gpa')}">
+          </div>
+        </div>
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">Did you complete your degree in the US or internationally?</label>
+            ${radioGroup('degreeUSorIntl', ['US','Internationally','N/A'], savedCareer.degreeUSorIntl||'')}
+          </div>
+          <div class="cp-field">
+            <label class="cp-label">Link your transcripts (Google Drive URL)</label>
+            <input class="cp-input" type="url" id="cp-transcriptLink" placeholder="https://drive.google.com/…" value="${sv('transcriptLink')}">
+          </div>
+        </div>
+        <div class="cp-field">
+          <label class="cp-label">Any other details about your post-secondary education</label>
+          <textarea class="cp-textarea" id="cp-educationNotes" placeholder="Optional…">${sv('educationNotes')}</textarea>
+        </div>
+
+        <div class="cp-section-label">Section C — Certification Questions</div>
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">What age of students do you prefer to work with?</label>
+            <select class="cp-select" id="cp-agePreference">
+              <option value="">Select…</option>
+              ${['Elementary (K–5)','Middle School (6–8)','High School (9–12)','No preference'].map(o =>
+                `<option value="${esc(o)}" ${savedCareer.agePreference===o?'selected':''}>${esc(o)}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="cp-field">
+            <label class="cp-label">Did you complete any teacher preparation coursework?</label>
+            ${radioGroup('teacherPrepCoursework', ['Yes','No'], savedCareer.teacherPrepCoursework||'')}
+          </div>
+        </div>
+        <div class="cp-grid-2">
+          <div class="cp-field">
+            <label class="cp-label">Teaching certificate from another state or country?</label>
+            ${radioGroup('certOtherState', ['Yes','No'], savedCareer.certOtherState||'')}
+          </div>
+          <div class="cp-field">
+            <label class="cp-label">Have you created your ETS account?</label>
+            ${radioGroup('etsAccountCreated', ['Yes','No'], savedCareer.etsAccountCreated||'')}
+          </div>
+        </div>
+
+        <div class="cp-section-label">Section D — Progress</div>
+        <div class="cp-grid-3" style="margin-bottom:1rem">
+          <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:.625rem">Content Exam (Praxis)</div>
+            ${chkBox('praxisScheduled','Praxis scheduled',savedCareer.praxisScheduled)}
+            ${chkBox('praxisPassed','Praxis passed',savedCareer.praxisPassed)}
+            ${chkBox('needRetake','Need to retake',savedCareer.needRetake)}
+          </div>
+          <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:.625rem">Certificate of Eligibility</div>
+            ${chkBox('appliedCE','Applied for CE',savedCareer.appliedCE)}
+            ${chkBox('receivedCE','Received CE',savedCareer.receivedCE)}
+          </div>
+          <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:.875rem">
+            <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:.625rem">Alt Route Program</div>
+            ${chkBox('enrolledAltRoute','Enrolled in Alt Route',savedCareer.enrolledAltRoute)}
+            <select class="cp-select" id="cp-altRouteProgram" style="font-size:.8rem;padding:.4rem .65rem;margin-top:.5rem">
               <option value="">Select program…</option>
-              ${['Rutgers NB', 'iTeach', 'Other', 'N/A'].map(o =>
-                `<option value="${esc(o)}" ${saved.altRouteProgram === o ? 'selected' : ''}>${esc(o)}</option>`
+              ${['Rutgers NB','iTeach','Other','N/A'].map(o =>
+                `<option value="${esc(o)}" ${savedCareer.altRouteProgram===o?'selected':''}>${esc(o)}</option>`
               ).join('')}
             </select>
           </div>
         </div>
-      </div>
 
-      <!-- Undergraduate Programming / Courses -->
-      <div class="cp-field">
-        <label class="cp-label">Completed Courses <span style="font-weight:400;color:rgba(255,255,255,.4)">— list each course title and credit hours</span></label>
-        <div id="cp-courses-list">${courseRowsHtml}</div>
-        <button type="button" class="cp-add-btn" onclick="window._cpAddCourse()" style="margin-top:.375rem">+ Add Course</button>
-      </div>
+        <div class="cp-field">
+          <label class="cp-label">Completed Courses <span style="font-weight:400;color:rgba(255,255,255,.35)">— title and credits</span></label>
+          <div id="cp-courses-list">${courseRowsHtml}</div>
+          <button type="button" class="cp-add-btn" onclick="window._cpAddCourse()" style="margin-top:.375rem">+ Add Course</button>
+        </div>
 
-      <!-- Save -->
-      <button class="cp-save-btn" id="cp-save-btn" onclick="window._cpSave('${esc(user.name)}')">
-        💾 Save Career Progression
-      </button>
-      <div class="cp-status" id="cp-status"></div>
-      <div class="cp-last-saved" id="cp-last-saved">${savedTs ? `✓ Previously saved on ${esc(savedTs)} — saving again will update your record.` : ''}</div>
+        <button class="cp-save-btn" id="cp-save-btn" onclick="window._cpSave('${esc(user.name)}')">
+          💾 Save Career Progression
+        </button>
+        <div class="cp-status" id="cp-status"></div>
+        <div class="cp-last-saved" id="cp-last-saved">${savedTs ? `✓ Previously saved on ${esc(savedTs)} — saving again will update your record.` : ''}</div>
+      </div>
     `;
-
-    return el;
   }
 
-  // ── Career Progression helpers (global so onclick works) ─────────────────
+  // ── Global helpers for Career Progression form ────────────────────────────
 
   window._cpRadio = function(btn) {
-    const field = btn.dataset.field;
-    const val   = btn.dataset.value;
-    const group = document.getElementById('cp-rg-' + field);
-    if (group) group.querySelectorAll('.cp-radio-btn').forEach(b => b.classList.remove('selected'));
+    const field = btn.dataset.field, val = btn.dataset.value;
+    const grp   = document.getElementById('cp-rg-' + field);
+    if (grp) grp.querySelectorAll('.cp-radio-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     const hidden = document.getElementById('cp-' + field);
     if (hidden) hidden.value = val;
   };
 
   window._cpAddCourse = function() {
-    const list  = document.getElementById('cp-courses-list');
-    if (!list) return;
-    const idx   = list.querySelectorAll('.cp-course-row').length;
-    const row   = document.createElement('div');
-    row.className = 'cp-course-row';
-    row.id = 'cp-course-row-' + idx;
-    row.innerHTML = `
-      <input type="text" class="cp-course-title" placeholder="Course title">
-      <input type="text" class="cp-course-credits" placeholder="Credits">
-      <button type="button" class="cp-remove-btn" onclick="window._cpRemoveCourse(${idx})">✕</button>
-    `;
+    const list = document.getElementById('cp-courses-list'); if (!list) return;
+    const idx  = list.querySelectorAll('.cp-course-row').length;
+    const row  = document.createElement('div');
+    row.className = 'cp-course-row'; row.id = 'cp-course-row-' + idx;
+    row.innerHTML = `<input type="text" class="cp-course-title" placeholder="Course title"><input type="text" class="cp-course-credits" placeholder="Credits"><button type="button" class="cp-remove-btn" onclick="window._cpRemoveCourse(${idx})">✕</button>`;
     list.appendChild(row);
   };
 
   window._cpRemoveCourse = function(idx) {
-    const row = document.getElementById('cp-course-row-' + idx);
-    if (row) row.remove();
+    const row = document.getElementById('cp-course-row-' + idx); if (row) row.remove();
   };
 
   window._cpSave = async function(apprenticeName) {
-    const btn    = document.getElementById('cp-save-btn');
-    const status = document.getElementById('cp-status');
-    const lastSv = document.getElementById('cp-last-saved');
-
+    const btn = document.getElementById('cp-save-btn'), status = document.getElementById('cp-status'), lastSv = document.getElementById('cp-last-saved');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     if (status) { status.textContent = ''; status.className = 'cp-status'; }
-
-    const gv = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-    const gc = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
-
-    // Collect courses
-    const courseRows = document.querySelectorAll('#cp-courses-list .cp-course-row');
+    const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    const gc = id => { const el = document.getElementById(id); return el ? el.checked : false; };
     const courses = [];
-    courseRows.forEach(row => {
-      const title   = (row.querySelector('.cp-course-title')?.value || '').trim();
-      const credits = (row.querySelector('.cp-course-credits')?.value || '').trim();
-      if (title) courses.push(title + '::' + credits);
+    document.querySelectorAll('#cp-courses-list .cp-course-row').forEach(row => {
+      const t = (row.querySelector('.cp-course-title')?.value||'').trim();
+      const c = (row.querySelector('.cp-course-credits')?.value||'').trim();
+      if (t) courses.push(t + '::' + c);
     });
-
-    // Collect progress checkboxes
-    const progressFlags = ['praxisScheduled','praxisPassed','needRetake','appliedCE','receivedCE','enrolledAltRoute']
-      .filter(gc).map(k => 'cp-' + k).map(id => id.replace('cp-',''));
-    // re-map to match GAS field names
-    const pfMap = {
-      praxisScheduled: gc('cp-praxisScheduled'),
-      praxisPassed:    gc('cp-praxisPassed'),
-      needRetake:      gc('cp-needRetake'),
-      appliedCE:       gc('cp-appliedCE'),
-      receivedCE:      gc('cp-receivedCE'),
-      enrolledAltRoute:gc('cp-enrolledAltRoute'),
-    };
-
     const payload = {
-      logType:               'CareerProgression',
-      apprenticeName:        apprenticeName,
-      wantsDegreeSupport:    gv('cp-wantsDegreeSupport'),
-      wantsCertification:    gv('cp-wantsCertification'),
-      apprenticeshipGoal:    gv('cp-apprenticeshipGoal'),
-      hasBachelors:          gv('cp-hasBachelors'),
-      major:                 gv('cp-major'),
-      postSecondaryEnrolled: gv('cp-postSecondaryEnrolled'),
-      gpa:                   gv('cp-gpa'),
-      degreeUSorIntl:        gv('cp-degreeUSorIntl'),
-      educationNotes:        gv('cp-educationNotes'),
-      transcriptLink:        gv('cp-transcriptLink'),
-      agePreference:         gv('cp-agePreference'),
-      teacherPrepCoursework: gv('cp-teacherPrepCoursework'),
-      certOtherState:        gv('cp-certOtherState'),
-      etsAccountCreated:     gv('cp-etsAccountCreated'),
-      praxisScheduled:       pfMap.praxisScheduled ? 'Yes' : 'No',
-      praxisPassed:          pfMap.praxisPassed    ? 'Yes' : 'No',
-      needRetake:            pfMap.needRetake       ? 'Yes' : 'No',
-      appliedCE:             pfMap.appliedCE        ? 'Yes' : 'No',
-      receivedCE:            pfMap.receivedCE       ? 'Yes' : 'No',
-      enrolledAltRoute:      pfMap.enrolledAltRoute ? 'Yes' : 'No',
-      altRouteProgram:       gv('cp-altRouteProgram'),
-      coursesCompleted:      courses.join('|'),
-      additionalNotes:       '',
+      logType:'CareerProgression', apprenticeName,
+      wantsDegreeSupport:gv('cp-wantsDegreeSupport'), wantsCertification:gv('cp-wantsCertification'),
+      apprenticeshipGoal:gv('cp-apprenticeshipGoal'), hasBachelors:gv('cp-hasBachelors'),
+      major:gv('cp-major'), postSecondaryEnrolled:gv('cp-postSecondaryEnrolled'), gpa:gv('cp-gpa'),
+      degreeUSorIntl:gv('cp-degreeUSorIntl'), educationNotes:gv('cp-educationNotes'),
+      transcriptLink:gv('cp-transcriptLink'), agePreference:gv('cp-agePreference'),
+      teacherPrepCoursework:gv('cp-teacherPrepCoursework'), certOtherState:gv('cp-certOtherState'),
+      etsAccountCreated:gv('cp-etsAccountCreated'),
+      praxisScheduled: gc('cp-praxisScheduled') ? 'Yes':'No',
+      praxisPassed:    gc('cp-praxisPassed')    ? 'Yes':'No',
+      needRetake:      gc('cp-needRetake')       ? 'Yes':'No',
+      appliedCE:       gc('cp-appliedCE')        ? 'Yes':'No',
+      receivedCE:      gc('cp-receivedCE')       ? 'Yes':'No',
+      enrolledAltRoute:gc('cp-enrolledAltRoute') ? 'Yes':'No',
+      altRouteProgram: gv('cp-altRouteProgram'),
+      coursesCompleted:courses.join('|'), additionalNotes:'',
     };
-
     try {
-      await fetch(_TAP_GAS_URL, {
-        method: 'POST',
-        mode:   'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify(payload),
-      });
-      if (status) { status.textContent = '✓ Saved! Your career progression has been recorded.'; status.className = 'cp-status ok'; }
-      const nowStr = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
-      if (lastSv) lastSv.textContent = '✓ Last saved: ' + nowStr;
-      if (btn)   { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = '💾 Save Career Progression'; btn.disabled = false; }, 3000); }
-      setTimeout(() => { if (status) status.textContent = ''; }, 6000);
+      await fetch(_TAP_GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      if (status) { status.textContent = '✓ Saved successfully!'; status.className = 'cp-status ok'; }
+      const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      if (lastSv) lastSv.textContent = '✓ Last saved: ' + ts;
+      if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>{ btn.textContent='💾 Save Career Progression'; btn.disabled=false; }, 3000); }
+      setTimeout(()=>{ if(status) status.textContent=''; }, 6000);
     } catch(err) {
       if (status) { status.textContent = 'Save failed — please try again.'; status.className = 'cp-status err'; }
-      if (btn)   { btn.disabled = false; btn.textContent = '💾 Save Career Progression'; }
+      if (btn) { btn.disabled=false; btn.textContent='💾 Save Career Progression'; }
     }
   };
 
