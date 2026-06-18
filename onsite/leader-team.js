@@ -28,7 +28,7 @@
   const SM_GID    = '457164791';
   const SM_SCHOOLS = new Set(['middlesex stem']);
   // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
-  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyFNwhXOBJ4fbmHxRyiMykx-oZyQd2BPuTHf7GLA9nhFhgBo7EBODEYOmcvbz7FErod/exec';
+  const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxxdY3SnRA3mEQPUOcOH9J47uXh9hfc8w-7VlTY2ZrR3jSJJuFBJuDJcyB15Oz_32yc/exec';
   const TAP_URL        = TAP_SCRIPT_URL + '?tab=master_roster';
 
   // In-memory OJT activity selection store — survives panel DOM rebuilds
