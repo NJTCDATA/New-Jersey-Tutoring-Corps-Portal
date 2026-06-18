@@ -373,6 +373,9 @@
     'Instructional Coach/ Site Coordinator Dual', 'Master Trainer', 'Central Team'
   ]);
 
+  // TAP apprentices get the tutor self-service view instead of the leader dashboard
+  const APPRENTICE_ROLE = 'Apprentice';
+
   const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes — Pearl/iReady (large, slow-changing)
   const TAP_CACHE_TTL = 0;             // TAP master roster — always fresh (small CSV, live writes)
   const CACHE_KEYS = {
@@ -388,6 +391,8 @@
     concerns:   'njtc_team_concerns_v2',
     pearlLogin: 'njtc_team_pearl_login_v2',
     hr:         'njtc_team_hr_v2',
+    narrative:  'njtc_team_narrative_v1',  // Narrative_Log latest-per-phase JSON
+    career:     'njtc_team_career_v1',     // Career_Progress latest-per-apprentice JSON
   };
 
   let _stylesInjected = false;
@@ -606,6 +611,29 @@
   }
   function concernsUrl() {
     return `https://docs.google.com/spreadsheets/d/${CONCERNS_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${CONCERNS_GID}`;
+  }
+
+  /* ─────────────────────────────────────────────
+     NARRATIVE + CAREER JSON FETCHERS
+     Serve structured latest-per-apprentice data
+     from the new Narrative_Log / Career_Progress
+     tabs via doGet?tab=narrative_latest|career_latest
+  ───────────────────────────────────────────── */
+  async function fetchNarrativeLatest() {
+    return fetchJSON(TAP_SCRIPT_URL + '?tab=narrative_latest&_=' + Date.now(), CACHE_KEYS.narrative, 12000);
+  }
+  async function fetchCareerLatest() {
+    return fetchJSON(TAP_SCRIPT_URL + '?tab=career_latest&_=' + Date.now(), CACHE_KEYS.career, 12000);
+  }
+  async function fetchJSON(url, cacheKey, timeoutMs) {
+    if (cacheKey) { const cached = cacheGet(cacheKey); if (cached) return cached; }
+    try {
+      const res = await fetch(url, { signal: makeSignal(timeoutMs || 15000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (cacheKey) cacheSet(cacheKey, data);
+      return data;
+    } catch(e) { return null; }
   }
 
   /* ─────────────────────────────────────────────
@@ -1323,6 +1351,34 @@
         .njtc-ir-meta { grid-template-columns:1fr 1fr; }
         .njtc-survey-grid { grid-template-columns:1fr 1fr; }
       }
+
+      /* ── Narrative Observation Styles ── */
+      .narr-wrapper{margin-top:1.5rem;border-top:2px solid rgba(255,255,255,0.1);padding-top:1.25rem;}
+      .narr-header{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:.875rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+      .narr-tabs{display:flex;gap:.375rem;margin-bottom:1rem;flex-wrap:wrap;}
+      .narr-tab{padding:.425rem .875rem;font-size:.8rem;font-weight:700;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;background:rgba(255,255,255,0.05);color:#94a3b8;cursor:pointer;font-family:inherit;transition:.15s;}
+      .narr-tab.active{background:#1B2A4A;color:#fff;border-color:#1B2A4A;}
+      .narr-tab.saved{border-color:#059669;color:#34d399;background:rgba(5,150,105,.08);}
+      .narr-tab.saved.active{background:#059669;color:#fff;border-color:#059669;}
+      .narr-panel{display:none;}
+      .narr-panel.active{display:block;}
+      .narr-field{margin-bottom:.875rem;}
+      .narr-label{display:block;font-size:.775rem;font-weight:700;color:#cbd5e1;margin-bottom:.325rem;}
+      .narr-textarea{width:100%;min-height:75px;padding:.55rem .75rem;font-size:.8125rem;border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-family:inherit;color:#e2e8f0;background:rgba(255,255,255,0.05);box-sizing:border-box;resize:vertical;transition:.15s;}
+      .narr-textarea:focus{outline:none;border-color:#1C7C8C;box-shadow:0 0 0 2px rgba(28,124,140,.15);}
+      .narr-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;}
+      .narr-input,.narr-select{width:100%;padding:.5rem .75rem;font-size:.8125rem;border:1.5px solid rgba(255,255,255,0.12);border-radius:8px;font-family:inherit;color:#e2e8f0;background:rgba(255,255,255,0.05);box-sizing:border-box;transition:.15s;}
+      .narr-input:focus,.narr-select:focus{outline:none;border-color:#1C7C8C;}
+      .narr-select option{background:#152238;color:#e2e8f0;}
+      .narr-save-btn{background:#1C7C8C;color:#fff;border:none;border-radius:8px;padding:.575rem 1.375rem;font-size:.8375rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;margin-top:.375rem;}
+      .narr-save-btn:hover:not(:disabled){background:#155e6b;}
+      .narr-save-btn:disabled{opacity:.5;cursor:not-allowed;}
+      .narr-status{font-size:.775rem;font-weight:600;margin-left:.75rem;}
+      .narr-status.ok{color:#34d399;}
+      .narr-status.err{color:#ef4444;}
+      .narr-history{font-size:.72rem;color:#94a3b8;margin-bottom:.75rem;padding:.5rem .75rem;background:rgba(255,255,255,.04);border-radius:6px;border:1px solid rgba(255,255,255,.08);}
+      .narr-history strong{color:#cbd5e1;}
+      @media(max-width:640px){.narr-row{grid-template-columns:1fr;}}
     `;
     const style = document.createElement('style');
     style.id = 'njtc-team-styles';
@@ -1373,6 +1429,404 @@
     if (mv.includes('improv') || mv === '▲' || mv === 'up') return '▲';
     if (mv.includes('declin') || mv === '▼' || mv === 'down') return '▼';
     return '=';
+  }
+
+  /* ─────────────────────────────────────────────
+     NARRATIVE MODULE
+     Site leader observation forms inside tutor
+     detail panel. Beg/Mid/End tabs, saves to
+     Narrative_Log via doPost logType:'Narrative'.
+     Pre-populates from narrative_latest endpoint.
+  ───────────────────────────────────────────── */
+  const NARR_PHASES = ['Beginning','Middle','End'];
+  const NARR_ASSESSMENT_OPTS = [
+    'Exceeds Expectations','Meets Expectations',
+    'Approaching Expectations','Does Not Meet Expectations',
+  ];
+
+  async function _narrativeFetchSaved(apprenticeName) {
+    try {
+      const json = await fetchNarrativeLatest();
+      if (!json || !json.rows) return {};
+      const norm = normName(apprenticeName);
+      const map = {};
+      (json.rows || []).filter(r => normName(r.apprentice||'') === norm).forEach(r => { map[r.phase] = r; });
+      return map;
+    } catch(e) { return {}; }
+  }
+
+  function _narrativeBuildSection(apprenticeName, observerName, saved) {
+    saved = saved || {};
+    const hasSaved = NARR_PHASES.filter(p => saved[p]);
+    const uid = normName(apprenticeName).replace(/\s+/g,'').slice(0,12) + '_n' + Date.now();
+
+    const tabHtml = NARR_PHASES.map(ph => {
+      const isSaved = !!saved[ph];
+      return `<button class="narr-tab${ph==='Beginning'?' active':''} ${isSaved?'saved':''}" id="narrTab_${uid}_${ph.toLowerCase()}" onclick="window.NJTCTeam._narrSwitch('${ph}','${uid}')">${isSaved?'✓ ':''}${ph}</button>`;
+    }).join('');
+
+    const formsHtml = NARR_PHASES.map(ph => {
+      const s = saved[ph] || {};
+      const pfx = `narr_${uid}_${ph.toLowerCase()}`;
+      const selOpts = NARR_ASSESSMENT_OPTS.map(o => `<option value="${escHtml(o)}" ${s.assessment===o?'selected':''}>${escHtml(o)}</option>`).join('');
+      return `<div class="narr-panel${ph==='Beginning'?' active':''}" id="${pfx}_panel">
+        ${s.observer?`<div class="narr-history"><strong>Last saved:</strong> ${escHtml(s.obsDate||'')} by ${escHtml(s.observer)} &bull; <em>${escHtml(s.assessment||'')}</em></div>`:''}
+        <div class="narr-row" style="margin-bottom:.875rem">
+          <div class="narr-field"><label class="narr-label">Date of Observation</label><input class="narr-input" type="date" id="${pfx}_date" value="${escHtml(s.obsDate||'')}"></div>
+          <div class="narr-field"><label class="narr-label">Overall Assessment</label><select class="narr-select" id="${pfx}_assessment"><option value="">Select…</option>${selOpts}</select></div>
+        </div>
+        <div class="narr-field"><label class="narr-label">Professionalism <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_prof" placeholder="Record feedback related to professionalism competencies…">${escHtml(s.prof||'')}</textarea></div>
+        <div class="narr-field"><label class="narr-label">Environment <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_env" placeholder="Record feedback related to the tutoring environment…">${escHtml(s.env||'')}</textarea></div>
+        <div class="narr-field"><label class="narr-label">Planning <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_plan" placeholder="Record feedback related to tutoring planning…">${escHtml(s.plan||'')}</textarea></div>
+        <div class="narr-field"><label class="narr-label">Instruction <span style="font-weight:400;color:#64748b">— observational narrative</span></label><textarea class="narr-textarea" id="${pfx}_instr" placeholder="Record feedback related to instruction and delivery…">${escHtml(s.instr||'')}</textarea></div>
+        <div class="narr-field"><label class="narr-label">Tutor Reflection <span style="font-weight:400;color:#64748b">— tutor may complete during conference</span></label><textarea class="narr-textarea" id="${pfx}_reflection" placeholder="Tutor's reflections, actionable steps, or additional notes…">${escHtml(s.reflection||'')}</textarea></div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.5rem">
+          <button class="narr-save-btn" id="${pfx}_btn" data-uid="${uid}" data-apprentice="${escHtml(apprenticeName)}" data-observer="${escHtml(observerName)}" onclick="window.NJTCTeam._narrSave('${escHtml(ph)}','${uid}')">💾 Save ${escHtml(ph)} Narrative</button>
+          <span class="narr-status" id="${pfx}_status"></span>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="narr-wrapper" data-uid="${uid}" data-apprentice="${escHtml(apprenticeName)}" data-observer="${escHtml(observerName)}">
+      <div class="narr-header">
+        📝 Observation Narratives
+        <span style="font-weight:400;color:#64748b;text-transform:none;font-size:.7rem;letter-spacing:0">— ${escHtml(apprenticeName)}</span>
+        ${hasSaved.length?`<span style="background:rgba(5,150,105,.15);color:#34d399;font-size:.65rem;font-weight:700;padding:.2rem .55rem;border-radius:12px">${hasSaved.length}/3 phases saved</span>`:''}
+      </div>
+      <div class="narr-tabs">${tabHtml}</div>
+      ${formsHtml}
+    </div>`;
+  }
+
+  function _narrSwitch(phase, uid) {
+    NARR_PHASES.forEach(ph => {
+      const pfx = `narr_${uid}_${ph.toLowerCase()}`;
+      const panel = document.getElementById(pfx+'_panel');
+      const tab   = document.getElementById(`narrTab_${uid}_${ph.toLowerCase()}`);
+      if (panel) panel.classList.toggle('active', ph===phase);
+      if (tab)   tab.classList.toggle('active', ph===phase);
+    });
+  }
+
+  async function _narrSave(phase, uid) {
+    const pfx    = `narr_${uid}_${phase.toLowerCase()}`;
+    const btn    = document.getElementById(pfx+'_btn');
+    const status = document.getElementById(pfx+'_status');
+    const wrapper      = document.querySelector(`[data-uid="${uid}"]`);
+    const apprenticeName = wrapper ? wrapper.dataset.apprentice : '';
+    const observerName   = wrapper ? wrapper.dataset.observer   : ((window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name) || '');
+    const gv = id => { const el=document.getElementById(id); return el?el.value.trim():''; };
+    const payload = {
+      logType:'Narrative', apprenticeName, phase, observerName,
+      observationDate:  gv(pfx+'_date'),
+      overallAssessment:gv(pfx+'_assessment'),
+      professionalism:  gv(pfx+'_prof'),
+      environment:      gv(pfx+'_env'),
+      planning:         gv(pfx+'_plan'),
+      instruction:      gv(pfx+'_instr'),
+      tutorReflection:  gv(pfx+'_reflection'),
+    };
+    if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
+    if (status) { status.textContent=''; status.className='narr-status'; }
+    try {
+      await fetch(TAP_SCRIPT_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      if (status) { status.textContent='✓ Saved'; status.className='narr-status ok'; }
+      setTimeout(() => { if (status) status.textContent=''; }, 4000);
+      const tabEl = document.getElementById(`narrTab_${uid}_${phase.toLowerCase()}`);
+      if (tabEl && !tabEl.classList.contains('saved')) { tabEl.classList.add('saved'); tabEl.textContent='✓ '+phase; }
+      try { sessionStorage.removeItem(CACHE_KEYS.narrative); } catch(e) {}
+    } catch(err) {
+      if (status) { status.textContent='Error — try again'; status.className='narr-status err'; }
+    } finally {
+      if (btn) { btn.disabled=false; btn.textContent=`💾 Save ${phase} Narrative`; }
+    }
+  }
+
+  /* ─────────────────────────────────────────────
+     TUTOR SELF-SERVICE VIEW (role = 'Apprentice')
+     Shown instead of the leader dashboard.
+     Tab 1: OJT Progress (read-only, live data)
+     Tab 2: Career Progression (form the tutor fills)
+  ───────────────────────────────────────────── */
+  function injectTutorStyles() {
+    if (document.getElementById('njtc-tutor-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'njtc-tutor-styles';
+    s.textContent = `
+      #njtcTutorPortal{font-family:'Epilogue',sans-serif;color:#e2e8f0;max-width:900px;margin:0 auto;padding:1.5rem 1rem;}
+      .tp-header{background:#1B2A4A;border-radius:14px;padding:1.5rem 1.75rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;}
+      .tp-header-title{color:#fff;font-size:1.375rem;font-weight:800;}
+      .tp-header-sub{color:rgba(255,255,255,.65);font-size:.825rem;margin-top:.25rem;}
+      .tp-tabs{display:flex;gap:.5rem;border-bottom:2px solid rgba(255,255,255,0.1);margin-bottom:1.5rem;}
+      .tp-tab{padding:.625rem 1.125rem;font-size:.875rem;font-weight:700;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s;border-radius:6px 6px 0 0;font-family:inherit;}
+      .tp-tab.active{color:#FFB81C;border-bottom-color:#FFB81C;background:rgba(255,184,28,.05);}
+      .tp-tab:hover:not(.active){color:#e2e8f0;background:rgba(255,255,255,.05);}
+      .tp-panel{display:none;} .tp-panel.active{display:block;}
+      .tp-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:1.375rem 1.5rem;margin-bottom:1.25rem;}
+      .tp-card-title{font-size:.8125rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#94a3b8;margin-bottom:1rem;}
+      .tp-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.25rem;}
+      .tp-kpi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:1.125rem 1.25rem;text-align:center;}
+      .tp-kpi-val{font-size:1.75rem;font-weight:800;}
+      .tp-kpi-lbl{font-size:.75rem;color:#94a3b8;margin-top:.25rem;font-weight:600;}
+      .tp-phase-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.25rem;}
+      .tp-phase{background:rgba(255,255,255,.04);border:1.5px solid rgba(255,255,255,.08);border-radius:12px;padding:1rem;text-align:center;}
+      .tp-phase-name{font-size:.75rem;font-weight:700;color:#e2e8f0;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;}
+      .tp-phase-pct{font-size:1.25rem;font-weight:800;margin-top:.25rem;}
+      .tp-domain-hdr{font-size:.75rem;font-weight:700;color:#1C7C8C;text-transform:uppercase;letter-spacing:.06em;margin:.875rem 0 .4rem;padding-bottom:.25rem;border-bottom:1.5px solid rgba(255,255,255,.08);}
+      .tp-act{display:flex;align-items:flex-start;gap:.625rem;padding:.5rem .75rem;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);font-size:.8125rem;margin-bottom:.3rem;}
+      .tp-act.done{background:rgba(5,150,105,.08);border-color:rgba(5,150,105,.25);}
+      .tp-act.na{background:rgba(234,179,8,.05);border-color:rgba(234,179,8,.2);opacity:.75;}
+      .tp-act-badge{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;}
+      .tp-act-badge.done{background:rgba(5,150,105,.2);color:#34d399;}
+      .tp-act-badge.na{background:rgba(234,179,8,.15);color:#fbbf24;}
+      .tp-act-badge.open{background:rgba(255,255,255,.08);color:#64748b;}
+      .tp-act-date{font-size:.7rem;color:#64748b;margin-top:.15rem;}
+      .tp-progress-bar{height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin-top:.5rem;}
+      .tp-progress-fill{height:100%;border-radius:4px;transition:width .4s ease;}
+      .tp-form-section{margin-bottom:1.75rem;}
+      .tp-form-section-title{font-size:.875rem;font-weight:700;color:#FFB81C;margin-bottom:.875rem;padding:.5rem .875rem;background:rgba(255,184,28,.06);border-radius:8px;border-left:3px solid #FFB81C;}
+      .tp-field{margin-bottom:1rem;}
+      .tp-label{display:block;font-size:.8125rem;font-weight:600;color:#cbd5e1;margin-bottom:.375rem;}
+      .tp-input,.tp-select,.tp-textarea{width:100%;padding:.625rem .875rem;font-size:.875rem;border:1.5px solid rgba(255,255,255,.12);border-radius:8px;font-family:inherit;color:#e2e8f0;background:rgba(255,255,255,.05);box-sizing:border-box;transition:.15s;}
+      .tp-input:focus,.tp-select:focus,.tp-textarea:focus{outline:none;border-color:#1C7C8C;box-shadow:0 0 0 3px rgba(28,124,140,.15);}
+      .tp-select option{background:#152238;color:#e2e8f0;}
+      .tp-textarea{min-height:90px;resize:vertical;}
+      .tp-radio-group{display:flex;gap:.75rem;flex-wrap:wrap;}
+      .tp-radio-btn{display:flex;align-items:center;gap:.375rem;padding:.45rem .875rem;border:1.5px solid rgba(255,255,255,.12);border-radius:8px;cursor:pointer;font-size:.8125rem;font-weight:600;transition:.15s;background:rgba(255,255,255,.04);user-select:none;color:#94a3b8;}
+      .tp-radio-btn.selected{border-color:#1C7C8C;background:rgba(28,124,140,.12);color:#34d399;}
+      .tp-save-btn{background:#1C7C8C;color:#fff;border:none;border-radius:10px;padding:.75rem 2rem;font-size:.9375rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;width:100%;margin-top:.5rem;}
+      .tp-save-btn:hover:not(:disabled){background:#155e6b;transform:translateY(-1px);box-shadow:0 4px 12px rgba(28,124,140,.3);}
+      .tp-save-btn:disabled{opacity:.5;cursor:not-allowed;}
+      .tp-status{font-size:.8125rem;font-weight:600;text-align:center;margin-top:.75rem;min-height:1.25rem;}
+      .tp-status.ok{color:#34d399;} .tp-status.err{color:#ef4444;}
+      .tp-last-saved{font-size:.75rem;color:#64748b;text-align:center;margin-top:.375rem;}
+      @media(max-width:600px){.tp-phase-row{grid-template-columns:1fr;}}
+    `;
+    document.head.appendChild(s);
+  }
+
+  function _tpRing(pctVal, color, size) {
+    size = size||72; const r=size/2-7, circ=2*Math.PI*r, dash=Math.min(pctVal/100,1)*circ;
+    return `<svg width="${size}" height="${size}" style="transform:rotate(-90deg)"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="6"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}"/></svg>`;
+  }
+
+  async function buildTutorView(userProfile) {
+    injectTeamStyles();
+    injectTutorStyles();
+    const container = document.getElementById('njtcTeamContainer');
+    if (!container) return;
+    const apprenticeName = userProfile.name;
+
+    container.innerHTML = `<div id="njtcTutorPortal">
+      <div class="tp-header">
+        <div>
+          <div class="tp-header-title">👋 Welcome, ${escHtml(userProfile.firstName||userProfile.name)}</div>
+          <div class="tp-header-sub">NJTC Tutor Apprenticeship Program &bull; Your Personal Dashboard</div>
+        </div>
+        <div style="display:flex;gap:.75rem;align-items:center">
+          <span style="background:rgba(255,184,28,.15);color:#FFB81C;font-size:.75rem;font-weight:700;padding:.35rem .875rem;border-radius:20px">TAP Apprentice</span>
+          <button onclick="window.NJTCUserAuth&&NJTCUserAuth.logout();location.reload()" style="background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:.4rem .875rem;font-size:.8rem;cursor:pointer;font-family:inherit">Sign Out</button>
+        </div>
+      </div>
+      <div class="tp-tabs">
+        <button class="tp-tab active" onclick="window._tpSwitch('ojt',this)">📋 My OJT Progress</button>
+        <button class="tp-tab" onclick="window._tpSwitch('career',this)">🎓 Career Progression</button>
+      </div>
+      <div id="tp-panel-ojt" class="tp-panel active">
+        <div style="display:flex;align-items:center;gap:10px;padding:2rem;color:#94a3b8"><div class="njtc-spinner"></div> Loading your OJT progress…</div>
+      </div>
+      <div id="tp-panel-career" class="tp-panel">
+        <div style="display:flex;align-items:center;gap:10px;padding:2rem;color:#94a3b8"><div class="njtc-spinner"></div> Loading career form…</div>
+      </div>
+    </div>`;
+
+    window._tpSwitch = (id, btn) => {
+      document.querySelectorAll('.tp-tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.tp-panel').forEach(p=>p.classList.remove('active'));
+      const t=document.getElementById('tp-panel-'+id); if(t) t.classList.add('active');
+    };
+
+    _tpRenderOJT(apprenticeName);
+    _tpRenderCareer(apprenticeName);
+  }
+
+  async function _tpRenderOJT(apprenticeName) {
+    const panel = document.getElementById('tp-panel-ojt'); if (!panel) return;
+    try {
+      const [rRes, oRes] = await Promise.allSettled([
+        fetch(TAP_SCRIPT_URL+'?tab=master_roster&_='+Date.now(),{signal:makeSignal(20000)}).then(r=>r.text()),
+        fetch(TAP_SCRIPT_URL+'?tab=ojt_log&_='+Date.now(),{signal:makeSignal(20000)}).then(r=>r.text()),
+      ]);
+      const myNorm = normName(apprenticeName);
+      const roster = rRes.status==='fulfilled'?csvToObjects(rRes.value):[];
+      const myRow  = roster.find(r=>normName(r['Full Name (Display)']||r['Full Name']||'')===myNorm);
+      const allOJT = oRes.status==='fulfilled'?csvToObjects(oRes.value):[];
+      const myOJT  = allOJT.filter(r=>normName(r['Apprentice']||r['Apprentice Name']||'')===myNorm&&!((r['Log Type']||'').toLowerCase().includes('rti')));
+      const actMap = {};
+      myOJT.forEach(r=>{
+        const ph=(r['Phase']||'').trim(),dm=(r['Domain']||'').trim(),act=(r['Activity']||'').trim(),st=(r['Status']||'').trim();
+        if(!ph||!dm||!act||!st)return;
+        const code=act.split(/\s*[—\-]\s*/)[0].trim().toUpperCase();
+        const phK=ph.toLowerCase().includes('begin')?'Beginning':ph.toLowerCase().includes('mid')?'Middle':'End';
+        const key=phK+'|'+dm+'|'+code;
+        const ts=new Date(r['Timestamp']||0).getTime();
+        if(!actMap[key]||ts>actMap[key].ts) actMap[key]={status:st,date:r['Observation Date']||'',observer:r['Observer']||'',ts};
+      });
+      const PHASE_TOTALS={Beginning:33,Middle:38,End:9};
+      const yCount=Object.values(actMap).filter(e=>e.status.charAt(0).toUpperCase()==='Y').length;
+      const naCount=Object.values(actMap).filter(e=>/N\/A/i.test(e.status)).length;
+      const possible=80-naCount;
+      const ojtPctNum=possible>0?Math.round(yCount/possible*100):0;
+      const phases=['Beginning','Middle','End'];
+      const phaseData={};
+      phases.forEach(ph=>{
+        const total=PHASE_TOTALS[ph];
+        const phY=Object.entries(actMap).filter(([k,v])=>k.startsWith(ph+'|')&&v.status.charAt(0).toUpperCase()==='Y').length;
+        const phNA=Object.entries(actMap).filter(([k,v])=>k.startsWith(ph+'|')&&/N\/A/i.test(v.status)).length;
+        const phPoss=total-phNA;
+        phaseData[ph]={y:phY,possible:phPoss,pct:phPoss>0?Math.round(phY/phPoss*100):0};
+      });
+      const mrOJT=myRow?parseFloat(myRow['OJT Hours']||myRow['OJT_HOURS_TOTAL']||0)||0:0;
+      const mrLMS=myRow?parseFloat(myRow['LMS Hours']||myRow['RTI Hours']||myRow['RTI_HOURS_TOTAL']||0)||0:0;
+      const mrWage=myRow?parseFloat(myRow['Current Wage']||0)||0:0;
+      const mrMilestone=myRow?(myRow['Milestone Label']||myRow['MR_MILESTONE_LABEL']||'Base'):'Base';
+      const ojtColor=mrOJT>=4000?'#34d399':mrOJT>=3000?'#fbbf24':'#ef4444';
+      const lmsColor=mrLMS>=288?'#34d399':mrLMS>=144?'#fbbf24':'#ef4444';
+      const phColor=p=>phaseData[p].pct>=100?'#34d399':phaseData[p].pct>=75?'#fbbf24':'#1C7C8C';
+
+      let html=`<div class="tp-kpi-row">
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${ojtColor}">${mrOJT.toLocaleString()}</div><div class="tp-kpi-lbl">OJT Hours<br><span style="color:#64748b;font-weight:400">of 4,000</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrOJT/40))}%;background:${ojtColor}"></div></div></div>
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${lmsColor}">${mrLMS}</div><div class="tp-kpi-lbl">LMS Hours<br><span style="color:#64748b;font-weight:400">of 288 required</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrLMS/2.88))}%;background:${lmsColor}"></div></div></div>
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:#FFB81C">${yCount} / ${possible}</div><div class="tp-kpi-lbl">Activities Observed<br><span style="color:#64748b;font-weight:400">${ojtPctNum}% complete</span></div></div>
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${mrWage>0?'#34d399':'#64748b'}">${mrWage>0?'$'+mrWage.toFixed(2):'—'}</div><div class="tp-kpi-lbl">Current Wage<br><span style="color:#64748b;font-weight:400">${escHtml(mrMilestone)}</span></div></div>
+      </div>
+      <div class="tp-phase-row">${phases.map(ph=>`<div class="tp-phase"><div class="tp-phase-name">${ph}</div><div style="display:flex;justify-content:center">${_tpRing(phaseData[ph].pct,phColor(ph),80)}</div><div class="tp-phase-pct" style="color:${phColor(ph)}">${phaseData[ph].pct}%</div><div style="font-size:.7rem;color:#64748b;margin-top:.2rem">${phaseData[ph].y} of ${phaseData[ph].possible} activities</div></div>`).join('')}</div>`;
+
+      const DOMAINS=['Professionalism','Instruction','Environment','Planning'];
+      phases.forEach(ph=>{
+        const phActs=Object.entries(actMap).filter(([k])=>k.startsWith(ph+'|'));
+        if(!phActs.length)return;
+        html+=`<div class="tp-card"><div class="tp-card-title">${ph} of Program — Activity Detail</div>`;
+        DOMAINS.forEach(dm=>{
+          const dmActs=phActs.filter(([k])=>k.split('|')[1]===dm);
+          if(!dmActs.length)return;
+          html+=`<div class="tp-domain-hdr">${dm}</div>`;
+          dmActs.sort((a,b)=>a[0].split('|')[2].localeCompare(b[0].split('|')[2])).forEach(([k,v])=>{
+            const code=k.split('|')[2];const isY=v.status.charAt(0).toUpperCase()==='Y';const isNA=/N\/A/i.test(v.status);
+            html+=`<div class="tp-act${isY?' done':isNA?' na':''}"><div class="tp-act-badge ${isY?'done':isNA?'na':'open'}">${isY?'✓':isNA?'—':code}</div><div><div style="font-weight:${isY?'700':'500'}">${escHtml(ph+' · '+dm+' · '+code)}</div>${isY?`<div class="tp-act-date">✓ Observed${v.date?' · '+escHtml(v.date):''}${v.observer?' by '+escHtml(v.observer):''}</div>`:''}${isNA?`<div class="tp-act-date">N/A — not applicable</div>`:''}</div></div>`;
+          });
+        });
+        html+='</div>';
+      });
+      if(!Object.keys(actMap).length) html+=`<div class="tp-card" style="text-align:center;color:#64748b;padding:2rem">No OJT activities have been logged yet. Your site leader records observations during sessions.</div>`;
+      panel.innerHTML=html;
+    } catch(err) {
+      panel.innerHTML=`<div class="tp-card" style="color:#ef4444;text-align:center;padding:2rem">Could not load OJT data: ${escHtml(err.message)}<br><button onclick="window.NJTCTeam._tpReloadOJT&&window.NJTCTeam._tpReloadOJT()" style="margin-top:1rem;background:#1C7C8C;color:#fff;border:none;border-radius:8px;padding:.5rem 1.25rem;cursor:pointer;font-family:inherit">Try Again</button></div>`;
+    }
+  }
+
+  async function _tpRenderCareer(apprenticeName) {
+    const panel = document.getElementById('tp-panel-career'); if (!panel) return;
+    let saved = {};
+    try {
+      const json = await fetchCareerLatest();
+      if (json && json.rows) {
+        const norm = normName(apprenticeName);
+        const row = (json.rows||[]).find(r=>normName(r.apprentice||'')===norm);
+        if (row) saved = row;
+      }
+    } catch(e) {}
+    const sv = (f,fb) => escHtml(saved[f]||fb||'');
+    const selOpt = (val,cur,label) => `<option value="${escHtml(val)}" ${cur===val?'selected':''}>${escHtml(label||val)}</option>`;
+    function radioGroup(fieldName,options,savedVal){
+      return `<div class="tp-radio-group" id="rg_${fieldName}">${options.map(opt=>`<div class="tp-radio-btn${savedVal===opt?' selected':''}" onclick="window._tpRadio(this,'${fieldName}','${escHtml(opt)}')">${escHtml(opt)}</div>`).join('')}</div><input type="hidden" id="cp_${fieldName}" value="${sv(fieldName)}">`;
+    }
+    panel.innerHTML=`<div class="tp-card">
+      <div class="tp-card-title">Career Progression &amp; Support</div>
+      <p style="font-size:.8125rem;color:#94a3b8;margin:0 0 1.25rem">Complete this form to share your career goals with your apprenticeship coach. Your responses are saved to your TAP record.${saved.apprentice?` <strong style="color:#34d399">Last saved ${saved.ts?new Date(saved.ts).toLocaleDateString():''}.</strong>`:''}</p>
+      <div class="tp-form-section"><div class="tp-form-section-title">Section A — Career Goals</div>
+        <div class="tp-field"><label class="tp-label">Do you want support completing your bachelor's degree?</label>${radioGroup('wantsDegreeSupport',['Yes','No'],saved.wantsDegreeSupport||'')}</div>
+        <div class="tp-field"><label class="tp-label">Do you want to pursue a certification in teaching?</label>${radioGroup('wantsCertification',['Yes','No'],saved.wantsCertification||'')}</div>
+        <div class="tp-field"><label class="tp-label">What do you hope to gain from the Tutor Apprenticeship Experience?</label><textarea class="tp-textarea" id="cp_apprenticeshipGoal" placeholder="Share your goals and aspirations…">${sv('apprenticeshipGoal')}</textarea></div>
+      </div>
+      <div class="tp-form-section"><div class="tp-form-section-title">Section B — Education Background</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div class="tp-field"><label class="tp-label">Do you have your bachelor's degree?</label>${radioGroup('hasBachelors',['Yes','No','In Progress'],saved.hasBachelors||'')}</div>
+          <div class="tp-field"><label class="tp-label">What was your major?</label><input class="tp-input" id="cp_major" type="text" placeholder="e.g. Education, Biology…" value="${sv('major')}"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div class="tp-field"><label class="tp-label">Did you ever enroll in post-secondary classes?</label>${radioGroup('postSecondaryEnrolled',['Yes','No'],saved.postSecondaryEnrolled||'')}</div>
+          <div class="tp-field"><label class="tp-label">What was your GPA?</label><input class="tp-input" id="cp_gpa" type="text" placeholder="e.g. 3.5" value="${sv('gpa')}"></div>
+        </div>
+        <div class="tp-field"><label class="tp-label">Did you complete your degree in the US or internationally?</label>${radioGroup('degreeUSorIntl',['US','Internationally','N/A'],saved.degreeUSorIntl||'')}</div>
+        <div class="tp-field"><label class="tp-label">Any other details about your post-secondary education</label><textarea class="tp-textarea" id="cp_educationNotes" placeholder="Optional…">${sv('educationNotes')}</textarea></div>
+      </div>
+      <div class="tp-form-section"><div class="tp-form-section-title">Section C — Certification Questions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div class="tp-field"><label class="tp-label">What age of students do you prefer to work with?</label><select class="tp-select" id="cp_agePreference"><option value="">Select…</option>${['Elementary (K–5)','Middle School (6–8)','High School (9–12)','No preference'].map(o=>selOpt(o,saved.agePreference||'',o)).join('')}</select></div>
+          <div class="tp-field"><label class="tp-label">Did you complete any teacher preparation coursework?</label>${radioGroup('teacherPrepCoursework',['Yes','No'],saved.teacherPrepCoursework||'')}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div class="tp-field"><label class="tp-label">Teaching certificate from another state or country?</label>${radioGroup('certOtherState',['Yes','No'],saved.certOtherState||'')}</div>
+          <div class="tp-field"><label class="tp-label">Have you created your ETS account?</label>${radioGroup('etsAccountCreated',['Yes','No'],saved.etsAccountCreated||'')}</div>
+        </div>
+        <div class="tp-field"><label class="tp-label">Link your transcripts (Google Drive URL)</label><input class="tp-input" id="cp_transcriptLink" type="url" placeholder="https://…" value="${sv('transcriptLink')}"></div>
+      </div>
+      <div class="tp-form-section"><div class="tp-form-section-title">Section D — Progress</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem">
+          <div class="tp-field"><label class="tp-label">Praxis Scheduled?</label>${radioGroup('praxisScheduled',['Yes','No'],saved.praxisScheduled||'')}</div>
+          <div class="tp-field"><label class="tp-label">Praxis Passed?</label>${radioGroup('praxisPassed',['Yes','No','N/A'],saved.praxisPassed||'')}</div>
+          <div class="tp-field"><label class="tp-label">Need to Retake?</label>${radioGroup('needRetake',['Yes','No'],saved.needRetake||'')}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem">
+          <div class="tp-field"><label class="tp-label">Applied for CE?</label>${radioGroup('appliedCE',['Yes','No'],saved.appliedCE||'')}</div>
+          <div class="tp-field"><label class="tp-label">Received CE?</label>${radioGroup('receivedCE',['Yes','No','Pending'],saved.receivedCE||'')}</div>
+          <div class="tp-field"><label class="tp-label">Enrolled in Alt Route Program?</label>${radioGroup('enrolledAltRoute',['Yes','No'],saved.enrolledAltRoute||'')}</div>
+        </div>
+        <div class="tp-field"><label class="tp-label">Alt Route Program (if enrolled)</label><select class="tp-select" id="cp_altRouteProgram"><option value="">Select or N/A…</option>${['Rutgers NB','iTeach','Other','N/A'].map(o=>selOpt(o,saved.altRouteProgram||'',o)).join('')}</select></div>
+        <div class="tp-field"><label class="tp-label">List completed courses (title and credits)</label><textarea class="tp-textarea" id="cp_coursesCompleted" placeholder="e.g. Child Development — 3 credits, Fall 2025…">${sv('coursesCompleted')}</textarea></div>
+        <div class="tp-field"><label class="tp-label">Additional Notes</label><textarea class="tp-textarea" id="cp_additionalNotes" placeholder="Anything else you'd like your coach to know…">${sv('additionalNotes')}</textarea></div>
+      </div>
+      <button class="tp-save-btn" id="cpSaveBtn" onclick="window.NJTCTeam._tpSaveCareer('${escHtml(apprenticeName)}')">💾 Save Career Progression</button>
+      <div class="tp-status" id="cpStatus"></div>
+      <div class="tp-last-saved" id="cpLastSaved">${saved.apprentice?'✓ Previously saved — updating will replace with your latest answers.':''}</div>
+    </div>`;
+    window._tpRadio = (el,field,val) => {
+      el.closest('.tp-radio-group').querySelectorAll('.tp-radio-btn').forEach(b=>b.classList.remove('selected'));
+      el.classList.add('selected');
+      const h=document.getElementById('cp_'+field); if(h) h.value=val;
+    };
+  }
+
+  async function _tpSaveCareer(apprenticeName) {
+    const btn=document.getElementById('cpSaveBtn'),status=document.getElementById('cpStatus'),lastSv=document.getElementById('cpLastSaved');
+    if(btn){btn.disabled=true;btn.textContent='Saving…';}
+    if(status){status.textContent='';status.className='tp-status';}
+    const gv=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+    const payload={logType:'CareerProgression',apprenticeName,
+      wantsDegreeSupport:gv('cp_wantsDegreeSupport'),wantsCertification:gv('cp_wantsCertification'),
+      apprenticeshipGoal:gv('cp_apprenticeshipGoal'),hasBachelors:gv('cp_hasBachelors'),
+      major:gv('cp_major'),postSecondaryEnrolled:gv('cp_postSecondaryEnrolled'),gpa:gv('cp_gpa'),
+      degreeUSorIntl:gv('cp_degreeUSorIntl'),educationNotes:gv('cp_educationNotes'),
+      agePreference:gv('cp_agePreference'),teacherPrepCoursework:gv('cp_teacherPrepCoursework'),
+      certOtherState:gv('cp_certOtherState'),etsAccountCreated:gv('cp_etsAccountCreated'),
+      transcriptLink:gv('cp_transcriptLink'),praxisScheduled:gv('cp_praxisScheduled'),
+      praxisPassed:gv('cp_praxisPassed'),needRetake:gv('cp_needRetake'),appliedCE:gv('cp_appliedCE'),
+      receivedCE:gv('cp_receivedCE'),enrolledAltRoute:gv('cp_enrolledAltRoute'),
+      altRouteProgram:gv('cp_altRouteProgram'),coursesCompleted:gv('cp_coursesCompleted'),
+      additionalNotes:gv('cp_additionalNotes'),
+    };
+    try {
+      await fetch(TAP_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(status){status.textContent='✓ Saved successfully!';status.className='tp-status ok';}
+      if(lastSv){lastSv.textContent='✓ Last saved: '+new Date().toLocaleString();}
+      if(btn){btn.textContent='✓ Saved';setTimeout(()=>{btn.textContent='💾 Save Career Progression';btn.disabled=false;},3000);}
+      try{sessionStorage.removeItem(CACHE_KEYS.career);}catch(e){}
+    } catch(err) {
+      if(status){status.textContent='Save failed: '+err.message+' — please try again.';status.className='tp-status err';}
+      if(btn){btn.disabled=false;btn.textContent='💾 Save Career Progression';}
+    }
   }
 
   /* ─────────────────────────────────────────────
@@ -1496,7 +1950,7 @@
   /* ─────────────────────────────────────────────
      RENDER DETAIL PANEL
   ───────────────────────────────────────────── */
-  function renderDetailPanel(tutor) {
+  function renderDetailPanel(tutor, narrativeSaved) {
     const { name, id, role, school, attMetrics, stuMetrics, irElaMetrics, irMathMetrics,
             smMetrics, siDetails, surveyAttn, tap, tapLoaded, concerns } = tutor;
     const color = avatarColor(id || name);
@@ -1535,15 +1989,15 @@
       const wage       = tap['Current Wage Rate ($)'] || tap['Current Wage'] || tap['BG'] || '\u2014';
       const milestone  = tap['Wage Milestone'] || tap['Milestone'] || tap['BH'] || '\u2014';
       const ojtHours   = parseFloat(tap['OJT Hours (Total)'] || tap['OJT Hours'] || 0);
-      const rtiHours   = parseFloat(tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
+      const lmsHours   = parseFloat(tap['LMS Hours'] || tap['RTI Hours (Total)'] || tap['RTI Hours'] || tap['AZ'] || 0);
       const yCount     = parseFloat(tap['OJT Activities Marked Y'] || tap['BB'] || 0);
       const possible   = parseFloat(tap['OJT Possible (excl N/A)'] || tap['BC'] || 78);
       const begPct     = Math.round(parseFloat(tap['Beginning % Complete'] || tap['BD'] || 0) * 100);
       const midPct     = Math.round(parseFloat(tap['Middle % Complete']    || tap['BE'] || 0) * 100);
       const endPct     = Math.round(parseFloat(tap['End % Complete']       || tap['BF'] || 0) * 100);
-      const ojtTotal   = 4000, rtiTotal = 288;
+      const ojtTotal   = 4000, lmsTotal = 288;
       const ojtPct     = Math.min(100, Math.round(ojtHours / ojtTotal * 100));
-      const rtiPct     = Math.min(100, Math.round(rtiHours / rtiTotal * 100));
+      const lmsPct     = Math.min(100, Math.round(lmsHours / lmsTotal * 100));
       const ojtPctColor = ojtPct >= 100 ? '#34d399' : ojtPct >= 75 ? '#fbbf24' : '#f97316';
 
       // Pre-compute phase bars HTML (no nested backticks)
@@ -1645,6 +2099,10 @@
         '<div class="njtc-progress-row">' +
           '<div class="njtc-progress-label"><span>OJT Hours</span><span>' + ojtHours + ' / ' + ojtTotal + ' (' + ojtPct + '%)</span></div>' +
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:' + ojtPct + '%"></div></div>' +
+        '</div>' +
+        '<div class="njtc-progress-row">' +
+          '<div class="njtc-progress-label"><span>LMS Hours</span><span>' + lmsHours + ' / ' + lmsTotal + ' (' + lmsPct + '%)</span></div>' +
+          '<div class="njtc-progress-bar"><div class="njtc-progress-fill" style="width:' + lmsPct + '%;background:#7c3aed"></div></div>' +
         '</div>' +
               '</div>';
 
@@ -2083,6 +2541,11 @@
     `;
 
     const loadingSpinnerHtml = _phase2Loaded ? '' : '<div style="display:flex;align-items:center;gap:10px;padding:14px 0;color:#e2e8f0;font-size:0.8rem;border-top:1px solid #334155;margin-top:8px"><div class="njtc-spinner" style="width:14px;height:14px;border-width:2px;flex-shrink:0"></div>Academic data is loading in the background — this panel will update automatically when ready.</div>';
+
+    // Narrative section: inject with saved data (populated async in openDetail)
+    const leaderNameForNarr = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name) || '';
+    const narrativeHtml = _narrativeBuildSection(name, leaderNameForNarr, narrativeSaved || {});
+
     return `
       <div class="njtc-detail-close"><button onclick="window.NJTCTeam.closeDetail()">✕ Close</button></div>
       <div class="njtc-detail-body">
@@ -2097,6 +2560,7 @@
         <hr class="njtc-divider">
         ${notesHtml}
         ${ojtFormHtml}
+        ${narrativeHtml}
         <hr class="njtc-divider">
         ${concernsHtml}
         ${tapHtml}
@@ -2382,6 +2846,12 @@
     if (!userProfile) return;
     _phase2Loaded = false;
 
+    // ── TAP Apprentice: tutor self-service view (no leader data needed) ───────
+    if ((userProfile.role || '').trim() === APPRENTICE_ROLE) {
+      buildTutorView(userProfile);
+      return;
+    }
+
     injectTeamStyles();
 
     const container = document.getElementById('njtcTeamContainer');
@@ -2489,13 +2959,28 @@
     const overlay = document.getElementById('njtcDetailOverlay');
     if (!panel || !overlay) return;
 
+    // Render immediately with empty narrativeSaved — panel is usable right away
     panel.innerHTML = tutor
-      ? renderDetailPanel(tutor)
+      ? renderDetailPanel(tutor, {})
       : `<div class="njtc-detail-close"><button onclick="window.NJTCTeam.closeDetail()">✕ Close</button></div><div style="padding:32px;color:#94a3b8">Tutor not found.</div>`;
 
     overlay.classList.add('open');
     panel.classList.add('open');
     document.body.style.overflow = 'hidden';
+
+    // Non-blocking: fetch saved narratives and patch the narr-wrapper in place
+    if (tutor) {
+      _narrativeFetchSaved(tutorName).then(saved => {
+        const currentPanel = document.getElementById('njtcDetailPanel');
+        if (!currentPanel || !currentPanel.classList.contains('open')) return;
+        if (_openDetailName !== tutorName) return; // panel was replaced
+        const wrapper = currentPanel.querySelector('.narr-wrapper');
+        if (!wrapper) return;
+        const leaderName = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name) || '';
+        const newHtml = _narrativeBuildSection(tutorName, leaderName, saved);
+        wrapper.outerHTML = newHtml;
+      }).catch(() => {});
+    }
   }
 
   function closeDetail() {
@@ -2947,6 +3432,10 @@
   }
 
   window.NJTCTeam = { build, openDetail, closeDetail, refresh, editNote, saveNote, submitOJT,
-                      _ojtFilterActivities, _ojtCountSelected, _ojtResetForm };
+                      _ojtFilterActivities, _ojtCountSelected, _ojtResetForm,
+                      _narrSwitch, _narrSave,
+                      _tpSaveCareer,
+                      _tpReloadOJT: () => { const p = window.NJTC_USER_PROFILE; if (p) _tpRenderOJT(p.name); },
+                    };
 
 })();
