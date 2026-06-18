@@ -2984,9 +2984,8 @@
   // ══════════════════════════════════════════════════════════════════════════
 
   const _TAP_GAS_URL = 'https://script.google.com/macros/s/AKfycbwdmNCbZ4pTRBImdSNGzkeIh3dGiowT24Ms-NwwYY8RlVgbGzZvBRjIn6tPMsuvyCWd/exec';
-  const _TAP_SHEET_ID = '14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU';
-  const _OJT_CSV_URL  = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=85054416`;
-  const _MR_CSV_URL   = `https://docs.google.com/spreadsheets/d/${_TAP_SHEET_ID}/gviz/tq?tqx=out:csv&gid=45498361`;
+  const _OJT_CSV_URL = _TAP_GAS_URL + '?tab=ojt_log';
+  const _MR_CSV_URL  = _TAP_GAS_URL + '?tab=master_roster';
 
   function _normN(s) { return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 
@@ -3060,10 +3059,23 @@
       ]);
 
       if (ojtRes.status === 'fulfilled') {
-        ojtRows = _csvObjs(ojtRes.value).filter(r => _normN(r['Apprentice'] || r['apprentice'] || '') === myNorm);
+        const text = ojtRes.value.trim();
+        if (!text.startsWith('<')) {
+          // Parse by column INDEX matching GAS OTJ constants — header names are unreliable
+          // Col: 0=Timestamp, 1=LogType, 2=ObsDate, 3=Observer, 4=ObsRole, 5=Site
+          //      6=Apprentice, 7=Phase, 8=Domain, 9=Activity, 10=Status, 11=Notes
+          //      12=RTI_Month, 13=RTI_Hours, 14=RTI_Types, 15=SessionDur
+          const rawRows = _parseCsv(text);
+          ojtRows = rawRows.slice(1).filter(r => _normN(r[6] || '') === myNorm);
+        }
       }
       if (mrRes.status === 'fulfilled') {
-        mrRow = _csvObjs(mrRes.value).find(r => _normN(r['Full Name (Display)'] || r['Full Name'] || '') === myNorm) || null;
+        const text = mrRes.value.trim();
+        if (!text.startsWith('<')) {
+          mrRow = _csvObjs(text).find(r =>
+            _normN(r['Full Name (Display)'] || r['Full Name'] || '') === myNorm
+          ) || null;
+        }
       }
       if (careerRes.status === 'fulfilled' && careerRes.value?.rows) {
         savedCareer = careerRes.value.rows.find(r => _normN(r.apprentice) === myNorm) || {};
@@ -3075,16 +3087,18 @@
     const notesList = [];
 
     ojtRows.forEach(r => {
-      const lt = (r['Log Type'] || '').toLowerCase();
+      // r is a raw array — indices match GAS OTJ column constants
+      // 1=LogType, 2=ObsDate, 3=Observer, 7=Phase, 8=Domain, 9=Activity, 10=Status, 11=Notes, 0=Timestamp
+      const lt = (r[1] || '').toLowerCase();
       if (lt.includes('rti')) return;
 
-      const ph  = (r['Phase']    || '').trim();
-      const dm  = (r['Domain']   || '').trim();
-      const act = (r['Activity'] || '').trim();
-      const st  = (r['Status']   || '').trim();
-      const obs = (r['Observer'] || '').trim();
-      const nts = (r['Notes']    || '').trim();
-      const dt  = (r['Observation Date'] || r['Obs Date'] || '').trim();
+      const ph  = (r[7]  || '').trim();
+      const dm  = (r[8]  || '').trim();
+      const act = (r[9]  || '').trim();
+      const st  = (r[10] || '').trim();
+      const obs = (r[3]  || '').trim();
+      const nts = (r[11] || '').trim();
+      const dt  = (r[2]  || '').trim();
 
       if (nts) notesList.push({ observer: obs, date: dt, note: nts, phase: ph });
 
@@ -3092,7 +3106,7 @@
       const code = act.split(/\s*[—\-]\s*/)[0].trim().toUpperCase();
       const phK  = ph.toLowerCase().includes('begin') ? 'Beginning' : ph.toLowerCase().includes('mid') ? 'Middle' : 'End';
       const key  = phK + '|' + dm + '|' + code;
-      const ts   = new Date(r['Timestamp'] || 0).getTime();
+      const ts   = new Date(r[0] || 0).getTime();
       if (!actMap[key] || ts > actMap[key].ts) {
         actMap[key] = { status: st, date: dt, observer: obs, notes: nts, ts };
       }
