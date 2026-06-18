@@ -3430,26 +3430,43 @@
       if (t) courses.push(t + '::' + c);
     });
     const payload = {
-      logType:'CareerProgression', apprenticeName,
-      wantsDegreeSupport:gv('cp-wantsDegreeSupport'), wantsCertification:gv('cp-wantsCertification'),
-      apprenticeshipGoal:gv('cp-apprenticeshipGoal'), hasBachelors:gv('cp-hasBachelors'),
-      major:gv('cp-major'), postSecondaryEnrolled:gv('cp-postSecondaryEnrolled'), gpa:gv('cp-gpa'),
-      degreeUSorIntl:gv('cp-degreeUSorIntl'), educationNotes:gv('cp-educationNotes'),
-      transcriptLink:gv('cp-transcriptLink'), agePreference:gv('cp-agePreference'),
-      teacherPrepCoursework:gv('cp-teacherPrepCoursework'), certOtherState:gv('cp-certOtherState'),
-      etsAccountCreated:gv('cp-etsAccountCreated'),
-      praxisScheduled: gc('cp-praxisScheduled') ? 'Yes':'No',
-      praxisPassed:    gc('cp-praxisPassed')    ? 'Yes':'No',
-      needRetake:      gc('cp-needRetake')       ? 'Yes':'No',
-      appliedCE:       gc('cp-appliedCE')        ? 'Yes':'No',
-      receivedCE:      gc('cp-receivedCE')       ? 'Yes':'No',
-      enrolledAltRoute:gc('cp-enrolledAltRoute') ? 'Yes':'No',
-      altRouteProgram: gv('cp-altRouteProgram'),
-      coursesCompleted:courses.join('|'), additionalNotes:'',
+      logType:               'CareerProgression',
+      apprenticeName:        apprenticeName,
+      wantsDegreeSupport:    gv('cp-wantsDegreeSupport'),
+      wantsCertification:    gv('cp-wantsCertification'),
+      apprenticeshipGoal:    gv('cp-apprenticeshipGoal'),
+      hasBachelors:          gv('cp-hasBachelors'),
+      major:                 gv('cp-major'),
+      postSecondaryEnrolled: gv('cp-postSecondaryEnrolled'),
+      gpa:                   gv('cp-gpa'),
+      degreeUSorIntl:        gv('cp-degreeUSorIntl'),
+      educationNotes:        gv('cp-educationNotes'),
+      transcriptLink:        gv('cp-transcriptLink'),
+      agePreference:         gv('cp-agePreference'),
+      teacherPrepCoursework: gv('cp-teacherPrepCoursework'),
+      certOtherState:        gv('cp-certOtherState'),
+      etsAccountCreated:     gv('cp-etsAccountCreated'),
+      praxisScheduled:       gc('cp-praxisScheduled') ? 'Yes' : 'No',
+      praxisPassed:          gc('cp-praxisPassed')    ? 'Yes' : 'No',
+      needRetake:            gc('cp-needRetake')       ? 'Yes' : 'No',
+      appliedCE:             gc('cp-appliedCE')        ? 'Yes' : 'No',
+      receivedCE:            gc('cp-receivedCE')       ? 'Yes' : 'No',
+      enrolledAltRoute:      gc('cp-enrolledAltRoute') ? 'Yes' : 'No',
+      altRouteProgram:       gv('cp-altRouteProgram'),
+      coursesCompleted:      courses.join('|'),
+      additionalNotes:       '',
     };
     try {
-      await fetch(_TAP_GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-      if (status) { status.textContent = '✓ Saved successfully!'; status.className = 'cp-status ok'; }
+      // Use URLSearchParams so the body is application/x-www-form-urlencoded —
+      // no-cors strips Content-Type:application/json, causing GAS JSON.parse to fail.
+      // Form-encoded body is always readable by GAS via e.parameter without any header.
+      const form = new URLSearchParams(payload);
+      await fetch(_TAP_GAS_URL, {
+        method:  'POST',
+        mode:    'no-cors',
+        body:    form,
+      });
+      if (status) { status.textContent = '✓ Saved! Your career progression has been recorded.'; status.className = 'cp-status ok'; }
       const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       if (lastSv) lastSv.textContent = '✓ Last saved: ' + ts;
       if (btn) { btn.textContent = '✓ Saved'; setTimeout(()=>{ btn.textContent='💾 Save Career Progression'; btn.disabled=false; }, 3000); }
