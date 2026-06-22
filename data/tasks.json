@@ -1,5 +1,5 @@
 {
-  "generated": "2026-06-22T07:33:53.815Z",
+  "generated": "2026-06-22T13:30:22.102Z",
   "project": "1211431518555737",
   "count": 23,
   "tasks": [
@@ -330,7 +330,7 @@
         "resource_type": "user"
       },
       "completed": false,
-      "due_on": "2026-06-26",
+      "due_on": "2026-08-31",
       "followers": [
         {
           "gid": "1205203775091388",
@@ -345,7 +345,7 @@
           "resource_type": "user"
         }
       ],
-      "name": "Annual Budgeting process completed by August 1, 2026",
+      "name": "Annual Budgeting process completed by August 31, 2026",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555926"
     },
