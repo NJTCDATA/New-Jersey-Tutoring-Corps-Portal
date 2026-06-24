@@ -23,6 +23,12 @@
   let _csvMeta = { headers: [], totalRaw: 0 };
 
   // ── CSV Parser — RFC 4180 compliant (shared pattern) ──────────────────
+  // Returns { headers: string[], rows: string[][] } — values stay positional
+  // (never collapsed into a header-keyed object) so that duplicate column
+  // names (e.g. when Google's auto-dedup suffix is stripped, missing, or
+  // changes format) can never silently overwrite each other. This module
+  // needs positional access for the role-conditional question blocks, so
+  // position is the source of truth, not the header text.
   function parseCSV(text) {
     const rows = [];
     let row = [], cell = '', inQ = false;
@@ -44,27 +50,27 @@
       }
     }
     if (cell || row.length) { row.push(cell); if (row.some(c => c.trim())) rows.push(row); }
-    if (!rows.length) return [];
+    if (!rows.length) return { headers: [], rows: [] };
     const headers = rows[0].map(h => h.trim());
-    return rows.slice(1).map(vals => {
-      const obj = {};
-      headers.forEach((h, idx) => { obj[h] = (vals[idx] !== undefined ? vals[idx].trim() : ''); });
-      return obj;
-    });
+    const dataRows = rows.slice(1).map(vals => headers.map((h, idx) => (vals[idx] !== undefined ? vals[idx].trim() : '')));
+    return { headers, rows: dataRows };
   }
 
-  function pickField(raw, exactNames, partialRe) {
+  // Find a column's index by regex against the header row (first unique match).
+  function findColByRegex(headers, re) {
+    for (let i = 0; i < headers.length; i++) { if (re.test(headers[i])) return i; }
+    return -1;
+  }
+  // pickField equivalent for positional rows: tries exact header names first,
+  // then a partial regex across all headers.
+  function pickFieldPos(headers, valsRow, exactNames, partialRe) {
     for (const n of exactNames) {
-      const v = (raw[n] || '').trim();
-      if (v) return v;
+      const idx = headers.indexOf(n);
+      if (idx >= 0 && (valsRow[idx] || '').trim()) return valsRow[idx].trim();
     }
     if (partialRe) {
-      for (const k of Object.keys(raw)) {
-        if (partialRe.test(k)) {
-          const v = (raw[k] || '').trim();
-          if (v) return v;
-        }
-      }
+      const idx = findColByRegex(headers, partialRe);
+      if (idx >= 0) return (valsRow[idx] || '').trim();
     }
     return '';
   }
@@ -74,84 +80,69 @@
   function isAnswered(v) { const t = (v || '').trim(); return !!t && t.toLowerCase() !== 'n/a'; }
 
   // ── Role-conditional column lookup ──────────────────────────────────
-  // Each role has its own satisfaction + agreement question block in the form.
-  const ROLE_BLOCKS = {
-    'Site Coordinator': {
-      satisfaction: /satisfaction with your role as a Site Coordinator/i,
-      managingExpected: /Managing site coordinator responsibilities has been what I expected/i,
-      supportingRewarding: /Supporting the tutors has been rewarding\]$/i,
-      siteStaffEasy: /Working with the site staff has been easy\]$/i,
-      madeDifference: /I feel like I have made a difference\]$/i,
-      commConsistent: /Communicating with my site team has been consistent\]$/i,
-      grewProfessionally: /I feel like I have grown professionally\]$/i,
-    },
-    'Coach': {
-      satisfaction: /satisfaction with your role as a Coach/i,
-      managingExpected: /Managing Coaching responsibilities has been what I expected\]$/i,
-      supportingRewarding: /Supporting the tutors has been rewarding\] 2$/i,
-      siteStaffEasy: /Working with the site staff has been easy\] 2$/i,
-      madeDifference: /I feel like I have made a difference\] 2$/i,
-      commConsistent: /Communicating with my site team has been consistent\] 2$/i,
-      grewProfessionally: /I feel like I have grown professionally\] 2$/i,
-    },
-    'SC/IC Dual Role': {
-      satisfaction: /satisfaction with your role as a\s+Dual Role SC\/IC/i,
-      managingExpected: /Managing Coaching responsibilities has been what I expected\] 2$/i,
-      supportingRewarding: /Supporting the tutors has been rewarding\] 3$/i,
-      siteStaffEasy: /Working with the site staff has been easy\] 3$/i,
-      madeDifference: /I feel like I have made a difference\] 3$/i,
-      commConsistent: /Communicating with my site team has been consistent\] 3$/i,
-      grewProfessionally: /I feel like I have grown professionally\] 3$/i,
-    },
-    'Tutor': {
-      satisfaction: /satisfaction with your role as a Tutor/i,
-      managingExpected: /Managing tutoring responsibilities has been what I expected/i,
-      supportingRewarding: /Supporting the scholars has been rewarding/i,
-      siteStaffEasy: /Working with the site staff has been easy\] 4$/i,
-      madeDifference: /I feel like I have made a difference\] 4$/i,
-      commConsistent: /Communicating with my site team has been consistent\] 4$/i,
-      grewProfessionally: /I feel like I have grown professionally\] 4$/i,
-    },
+  // Each role has its own satisfaction question, immediately followed by 6
+  // agreement-statement columns in a FIXED relative order:
+  //   [0] satisfaction (the anchor)
+  //   [1] Managing ___ responsibilities has been what I expected
+  //   [2] Supporting the tutors/scholars has been rewarding
+  //   [3] Working with the site staff has been easy
+  //   [4] I feel like I have made a difference
+  //   [5] Communicating with my site team has been consistent
+  //   [6] I feel like I have grown professionally
+  // Google Forms appends an auto-dedup suffix (" 2", " 3", " 4") to columns
+  // that collide with an earlier identical question — but the exact suffix
+  // text isn't guaranteed stable across re-publishes or CSV export changes.
+  // Matching by POSITION relative to the role's own satisfaction column (the
+  // anchor, which has unique role-name text and is never ambiguous) is far
+  // more robust than matching each of the 6 follow-up columns by suffix text.
+  const ROLE_ANCHORS = {
+    'Site Coordinator':  /satisfaction with your role as a Site Coordinator/i,
+    'Coach':             /satisfaction with your role as a Coach\b/i,
+    'SC/IC Dual Role':   /satisfaction with your role as a\s+Dual Role SC\/IC/i,
+    'Tutor':             /satisfaction with your role as a Tutor/i,
+  };
+  const FOLLOWUP_OFFSETS = {
+    managingExpected: 1, supportingRewarding: 2, siteStaffEasy: 3,
+    madeDifference: 4, commConsistent: 5, grewProfessionally: 6,
   };
 
-  function findKeyByRegex(raw, re) {
-    for (const k of Object.keys(raw)) { if (re.test(k)) return k; }
-    return null;
-  }
 
   // ── Row normalization ────────────────────────────────────────────────
-  function normalizeRow(raw) {
-    const name = pickField(raw, ['Please write your name'], /write your name/i);
-    const site = pickField(raw, ['Please identify the site(s) you have supported this year'], /site\(s\) you have supported/i);
-    const role = pickField(raw, ['Select your role'], /^select your role$/i);
-    const region = pickField(raw, ['Region Assigned: ', 'Region Assigned:', 'Region Assigned'], /region assigned/i);
-    const wouldWorkAgain = pickField(raw, ['Would you be interested in working with us again? ', 'Would you be interested in working with us again?'], /interested in working with us again/i);
-    const raceEthnicity = pickField(raw, [], /race\/ethnicity/i);
-    const email = raw['Email Address'] || '';
+  function normalizeRow(headers, valsRow) {
+    const name = pickFieldPos(headers, valsRow, ['Please write your name'], /write your name/i);
+    const site = pickFieldPos(headers, valsRow, ['Please identify the site(s) you have supported this year'], /site\(s\) you have supported/i);
+    const role = pickFieldPos(headers, valsRow, ['Select your role'], /^select your role$/i);
+    const region = pickFieldPos(headers, valsRow, ['Region Assigned: ', 'Region Assigned:', 'Region Assigned'], /region assigned/i);
+    const wouldWorkAgain = pickFieldPos(headers, valsRow, ['Would you be interested in working with us again? ', 'Would you be interested in working with us again?'], /interested in working with us again/i);
+    const raceEthnicity = pickFieldPos(headers, valsRow, [], /race\/ethnicity/i);
+    const emailIdx = headers.indexOf('Email Address');
+    const email = emailIdx >= 0 ? (valsRow[emailIdx] || '') : '';
+    const tsIdx = headers.indexOf('Timestamp');
+    const timestamp = tsIdx >= 0 ? (valsRow[tsIdx] || '') : '';
 
-    const block = ROLE_BLOCKS[role];
+    const anchorRe = ROLE_ANCHORS[role];
     let satisfaction = null, managingExpected = '', supportingRewarding = '',
         siteStaffEasy = '', madeDifference = '', commConsistent = '', grewProfessionally = '';
 
-    if (block) {
-      const satKey = findKeyByRegex(raw, block.satisfaction);
-      satisfaction = satKey ? (parseInt(raw[satKey]) || null) : null;
-      const meKey = findKeyByRegex(raw, block.managingExpected);
-      managingExpected = meKey ? raw[meKey] : '';
-      const srKey = findKeyByRegex(raw, block.supportingRewarding);
-      supportingRewarding = srKey ? raw[srKey] : '';
-      const sseKey = findKeyByRegex(raw, block.siteStaffEasy);
-      siteStaffEasy = sseKey ? raw[sseKey] : '';
-      const mdKey = findKeyByRegex(raw, block.madeDifference);
-      madeDifference = mdKey ? raw[mdKey] : '';
-      const ccKey = findKeyByRegex(raw, block.commConsistent);
-      commConsistent = ccKey ? raw[ccKey] : '';
-      const gpKey = findKeyByRegex(raw, block.grewProfessionally);
-      grewProfessionally = gpKey ? raw[gpKey] : '';
+    if (anchorRe) {
+      const anchorIdx = findColByRegex(headers, anchorRe);
+      if (anchorIdx >= 0) {
+        satisfaction = parseInt(valsRow[anchorIdx]) || null;
+        const at = offset => {
+          const v = valsRow[anchorIdx + offset];
+          return v !== undefined ? v : '';
+        };
+        managingExpected    = at(FOLLOWUP_OFFSETS.managingExpected);
+        supportingRewarding = at(FOLLOWUP_OFFSETS.supportingRewarding);
+        siteStaffEasy       = at(FOLLOWUP_OFFSETS.siteStaffEasy);
+        madeDifference      = at(FOLLOWUP_OFFSETS.madeDifference);
+        commConsistent      = at(FOLLOWUP_OFFSETS.commConsistent);
+        grewProfessionally  = at(FOLLOWUP_OFFSETS.grewProfessionally);
+      }
     }
 
     return {
-      timestamp: raw['Timestamp'] || '',
+      timestamp,
       email, name, site, role,
       region: (region || '').replace(/\s*Region\s*$/i, '').trim() || region,
       regionRaw: region,
@@ -233,9 +224,9 @@
       const resp = await fetch(CSV_URL, { signal: AbortSignal.timeout(20000) });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const text = await resp.text();
-      const rawRows = parseCSV(text);
-      _csvMeta = { headers: rawRows.length ? Object.keys(rawRows[0]) : [], totalRaw: rawRows.length };
-      _allData = rawRows.map(normalizeRow).filter(r => r.role);
+      const { headers, rows: dataRows } = parseCSV(text);
+      _csvMeta = { headers, totalRaw: dataRows.length };
+      _allData = dataRows.map(valsRow => normalizeRow(headers, valsRow)).filter(r => r.role);
       _loaded = true;
       renderShell();
       renderBody();
