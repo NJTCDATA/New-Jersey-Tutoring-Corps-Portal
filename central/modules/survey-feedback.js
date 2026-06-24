@@ -1,12 +1,15 @@
 /* ══════════════════════════════════════════════════════════════════════
-   NJTC Partner Satisfaction — Survey Feedback Module
-   sf-* namespace | Three views: Program, Leadership, Data
+   NJTC Partner Satisfaction — Quarterly & EOY — Survey Feedback Module
+   sf-* namespace | Three role-locked views: Program, Leadership, Data
+   Plus an always-visible "Quarterly vs. EOY" comparison tab (eoy-* helpers).
    NPS scale: 1–5 | Promoters=4–5, Passives=3, Detractors=1–2
 ══════════════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
+  // EOY Program Partner Survey — separate form/sheet, published independently.
+  const EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSQHdOk6z90iRupqKDm9vVlNvC0auO6dsyX3wTPx3NDzaVm93mKlatPPY59UqdORi9hAB6cT0gWoUWw/pub?gid=1027437551&single=true&output=csv';
 
   const DISTRICT_MAP = {
     // iLearn CMO — Bergen, Paterson, Passaic, AND Hudson schools all roll up under one CMO label
@@ -35,6 +38,11 @@
   let _charts = {};
   let _rawSortCol = 'timestamp', _rawSortDir = -1;
   let _csvMeta = { headers: [], totalRaw: 0, quartersFound: [], rowsWithQuarter: 0 };
+
+  // ── EOY state — separate, independent data source ─────────────────────
+  let _eoyData = [];
+  let _eoyLoading = false, _eoyLoaded = false;
+  let _eoyCsvMeta = { headers: [], totalRaw: 0 };
 
   // ── CSV Parser — RFC 4180 compliant ──────────────────────────────────────
   // Handles quoted fields with embedded commas, newlines, and "" escape sequences.
@@ -232,6 +240,120 @@
     return DISTRICT_MAP[d] || DISTRICT_MAP[trimmed] || trimmed;
   }
 
+  // ══════════════════════════════════════════════════════════════════
+  // EOY PARTNER SURVEY — separate question set, separate form/sheet.
+  // Matched against Quarterly responses by email for trajectory analysis.
+  // ══════════════════════════════════════════════════════════════════
+
+  // District / Region classification — email domain is the primary signal
+  // (school-issued addresses are unambiguous); free-text site name is the
+  // fallback for the few respondents using personal email addresses.
+  // Verified against the EOY workbook's "Cleaned Sheet" reference tab.
+  const EOY_DOMAIN_MAP = {
+    'passaiccharter.org':     ['iLearn CMO', 'NE'],
+    'hudsoncharter.org':      ['iLearn CMO', 'NE'],
+    'bergencharter.org':      ['iLearn CMO', 'NE'],
+    'patersoncharter.org':    ['iLearn CMO', 'NE'],
+    'middlesexcharter.org':   ['Middlesex Charter STEM', 'NE'],
+    'htsd.us':                ['Haddon Township', 'SW'],
+    'htsdnj.org':             ['Hamilton', 'SW'],
+    'ga-schools.org':         ['GLAW', 'SW'],
+    'pgcpschools.org':        ['Penns Grove', 'SW'],
+    'stringtheoryschools.org':['String Theory', 'SW'],
+  };
+  const EOY_SITE_DISTRICT = [
+    [/global leadership academy/i,             'GLAW',                    'SW'],
+    [/stoy|jennings|van ?sciver|thomas edison|haddon/i, 'Haddon Township','SW'],
+    [/grice|wilson elementary|hamilton/i,      'Hamilton',                 'SW'],
+    [/paul w\.? carleton|penns grove/i,        'Penns Grove',              'SW'],
+    [/string theory/i,                          'String Theory',           'SW'],
+    [/bergen/i,                                  'iLearn CMO',              'NE'],
+    [/passaic|clifton|pascs/i,                   'iLearn CMO',              'NE'],
+    [/hudson/i,                                   'iLearn CMO',              'NE'],
+    [/paterson|silk city/i,                       'iLearn CMO',              'NE'],
+    [/middlesex|perth amboy|mechanic street/i,    'Middlesex Charter STEM',  'NE'],
+  ];
+  function eoyClassifySite(site, email) {
+    if (email && email.includes('@')) {
+      const dom = email.split('@')[1].toLowerCase();
+      if (EOY_DOMAIN_MAP[dom]) return { district: EOY_DOMAIN_MAP[dom][0], region: EOY_DOMAIN_MAP[dom][1] };
+    }
+    const s = (site || '').trim();
+    for (const [re, district, region] of EOY_SITE_DISTRICT) {
+      if (re.test(s)) return { district, region };
+    }
+    return { district: s || 'Unknown', region: 'Unknown' };
+  }
+  function eoyParseRole(nameRole) {
+    // Form field combines Name + Role as free text, e.g. "Christopher Tobin - Teacher"
+    // or sometimes just a bare role with no name ("ADA", "Program Director").
+    const t = (nameRole || '').trim();
+    if (!t) return { name: '', role: 'Unknown' };
+    const parts = t.split(' - ');
+    if (parts.length >= 2) return { name: parts[0].trim(), role: parts.slice(1).join(' - ').trim() };
+    // No separator — could be a bare role or a bare name; treat known role tokens as role-only
+    const KNOWN_ROLES = /^(teacher|principal|ada|ado|program director|instructional coach|curriculum director|site coordinator)$/i;
+    if (KNOWN_ROLES.test(t)) return { name: '', role: t };
+    return { name: t, role: 'Unknown' };
+  }
+
+  function normalizeEoyRow(raw) {
+    const nameRole = pickField(raw, ['Provide your Name and Role:', 'Provide your Name and Role'], /provide your name and role/i);
+    const { name, role } = eoyParseRole(nameRole);
+    const site = pickField(raw, ['Provide your site location:', 'Provide your site location'], /provide your site location/i);
+    const email = raw['Email Address'] || '';
+    const { district, region } = eoyClassifySite(site, email);
+
+    const npsRaw = pickField(raw,
+      ['How likely is it that you would recommend New Jersey Tutoring Corps (NJTC) to an\norganization in need of tutoring services?'],
+      /recommend new jersey tutoring corps|likely.*recommend.*njtc/i);
+    const needsMet = pickField(raw, [], /overall, how well has njtc met your needs/i);
+    const respect = pickField(raw, [], /how often do staff at njtc treat you with respect/i);
+    const communication = pickField(raw, [], /satisfied are you with your communication with njtc staff/i);
+    const professionalism = pickField(raw, [], /rate the professionalism of the nj ?tutoring corps program staff/i);
+    const scholarConfidence = pickField(raw, [], /our scholars are more confident in math and.?or literacy/i);
+    const goodAt = pickField(raw, [], /what is njtc good at/i);
+    const couldImprove = pickField(raw, [], /what could njtc do better/i);
+
+    return {
+      timestamp: raw['Timestamp'] || '',
+      email,
+      name, role,
+      district: normalizeDistrict(district), region, site,
+      npsScore: parseInt(npsRaw) || 0,
+      needsMet, respect, communication, professionalism, scholarConfidence,
+      goodAt, couldImprove,
+    };
+  }
+
+  async function loadEoyData() {
+    if (_eoyLoaded || _eoyLoading) return;
+    _eoyLoading = true;
+    try {
+      const resp = await fetch(EOY_CSV_URL, { signal: AbortSignal.timeout(20000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      const rawRows = parseCSV(text);
+      _eoyCsvMeta = { headers: rawRows.length ? Object.keys(rawRows[0]) : [], totalRaw: rawRows.length };
+      // Dedupe by email — keep the most recent submission per respondent
+      const byEmail = {};
+      rawRows.map(normalizeEoyRow).forEach(r => {
+        if (!r.email) { byEmail['__noemail_' + Math.random()] = r; return; }
+        const existing = byEmail[r.email];
+        if (!existing || new Date(r.timestamp) >= new Date(existing.timestamp)) byEmail[r.email] = r;
+      });
+      _eoyData = Object.values(byEmail).filter(r => r.npsScore >= 1 && r.npsScore <= 5);
+      _eoyLoaded = true;
+    } catch (err) {
+      _eoyData = [];
+      _eoyLoaded = false;
+      console.error('[SF/EOY] Failed to load EOY survey data:', err.message);
+      throw err;
+    } finally {
+      _eoyLoading = false;
+    }
+  }
+
   // ── NPS Calculation ────────────────────────────────────────────────
   // Promoters=4–5 | Passives=3 | Detractors=1–2 | NPS=((P−D)/N)×100
   function calcNPS(rows) {
@@ -294,6 +416,47 @@
 
   function getRoles() {
     return [...new Set(_allData.map(r => r.role).filter(Boolean))].sort();
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // QUARTERLY vs EOY — cross-survey trajectory matching by email
+  // ══════════════════════════════════════════════════════════════════
+
+  // Most-recent Quarterly response per respondent (by email)
+  function latestQuarterlyByEmail() {
+    const map = {};
+    _allData.forEach(r => {
+      if (!r.email) return;
+      const existing = map[r.email];
+      if (!existing || (r.quarter || '').localeCompare(existing.quarter || '') >= 0) map[r.email] = r;
+    });
+    return map;
+  }
+
+  // Respondents present in both surveys, matched by email
+  function getMatchedRespondents() {
+    if (!_eoyLoaded) return [];
+    const qMap = latestQuarterlyByEmail();
+    const matched = [];
+    _eoyData.forEach(eoyRow => {
+      if (!eoyRow.email) return;
+      const qRow = qMap[eoyRow.email];
+      if (!qRow) return;
+      const delta = eoyRow.npsScore - qRow.npsScore;
+      matched.push({
+        email: eoyRow.email,
+        name: eoyRow.name || qRow.name || '',
+        role: eoyRow.role || qRow.role || '',
+        district: eoyRow.district || qRow.district || '',
+        school: qRow.school || eoyRow.site || '',
+        quarterlyScore: qRow.npsScore, quarterlyQuarter: qRow.quarter,
+        eoyScore: eoyRow.npsScore,
+        delta,
+        trend: delta > 0 ? 'improving' : delta < 0 ? 'declining' : 'stable',
+        qCategory: scoreCategory(qRow.npsScore), eoyCategory: scoreCategory(eoyRow.npsScore),
+      });
+    });
+    return matched;
   }
 
   function applyBaseFilters(rows, f) {
@@ -463,10 +626,15 @@
 
   function detectView() {
     const dept = (window.NJTC_SESSION || {}).dept || 'data';
-    if (dept === 'programming') _view = 'program';
-    else if (['leadership', 'kb'].includes(dept)) _view = 'leadership';
-    else _view = 'data';
-    _lockedView = _view;  // lock permanently to role
+    let roleView;
+    if (dept === 'programming') roleView = 'program';
+    else if (['leadership', 'kb'].includes(dept)) roleView = 'leadership';
+    else roleView = 'data';
+    _lockedView = roleView;  // lock permanently to role
+    // Preserve the current tab across a refresh — only default to the role view
+    // on first load (when _view hasn't been set away from its initial value yet)
+    // or when the person is on a now-invalid role tab.
+    if (_view !== 'eoy-compare') _view = roleView;
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -530,9 +698,9 @@
       <div class="page-header">
         <div class="ph-text">
           <div class="ph-eyebrow">Survey Feedback</div>
-          <div class="ph-title">Partner Satisfaction</div>
+          <div class="ph-title">Partner Satisfaction — Quarterly &amp; EOY</div>
           <div class="ph-subtitle">
-            Quarterly NPS-equivalent survey for partner schools, ADAs, Principals, and Teachers.
+            Quarterly NPS-equivalent survey for partner schools, ADAs, Principals, and Teachers — plus the SY 25-26 End-of-Year Partner Survey.
             <span style="color:var(--muted);font-size:.8em"> &middot; Adapted NPS (1&ndash;5 Scale)</span>
           </div>
         </div>
@@ -549,12 +717,15 @@
         </div>
       </div>
       <div class="sf-view-tabs" role="tablist">
-        <button class="sf-tab active" data-view="${locked}" role="tab" aria-selected="true" style="cursor:default;pointer-events:none">
+        <button class="sf-tab${_view !== 'eoy-compare' ? ' active' : ''}" data-view="${locked}" role="tab" aria-selected="${_view !== 'eoy-compare'}" style="cursor:default;pointer-events:none">
           <span>${meta.icon}</span> ${meta.label}
         </button>
         <span style="display:inline-flex;align-items:center;margin-left:.5rem;padding:.35rem .75rem;font-size:.72rem;font-weight:600;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:20px;gap:.3rem;letter-spacing:.01em" title="View access is determined by your department role">
           &#128274; Role-locked view
         </span>
+        <button class="sf-tab${_view === 'eoy-compare' ? ' active' : ''}" data-view="eoy-compare" role="tab" aria-selected="${_view === 'eoy-compare'}" onclick="sfSetView('eoy-compare',this)" style="margin-left:.75rem">
+          <span>&#128202;</span> Quarterly vs. EOY
+        </button>
       </div>
       <div id="sfViewContent"></div>
       ${_buildDiagBanner()}`;
@@ -562,8 +733,8 @@
   }
 
   window.sfSetView = function (v, btn) {
-    // Enforce role-based lens lock — silently ignore unauthorized view changes
-    if (_lockedView && v !== _lockedView) return;
+    // The eoy-compare tab is open to every role; the three role-locked tabs are not switchable.
+    if (v !== 'eoy-compare' && _lockedView && v !== _lockedView) return;
     _view = v;
     document.querySelectorAll('.sf-tab').forEach(b => b.classList.toggle('active', b.dataset.view === v));
     renderCurrentView();
@@ -571,6 +742,7 @@
 
   window.sfRefresh = function () {
     _loaded = false;
+    _eoyLoaded = false; // also refresh EOY data so the single Refresh button covers both sources
     destroyAll();
     loadData();
   };
@@ -579,6 +751,7 @@
     const el = document.getElementById('sfViewContent');
     if (!el) return;
     destroyAll();
+    if (_view === 'eoy-compare') { renderEoyCompareView(el); return; }
     if (_view === 'program') renderProgramView(el);
     else if (_view === 'leadership') renderLeadershipView(el);
     else renderDataView(el);
@@ -726,6 +899,111 @@
     renderCurrentView();
   };
 
+  // ══════════════════════════════════════════════════════════════════
+  // VIEW D — QUARTERLY vs. EOY (always visible, open to every role)
+  // ══════════════════════════════════════════════════════════════════
+
+  function renderEoyCompareView(el) {
+    if (!_eoyLoaded) {
+      el.innerHTML = `
+        <div class="sf-loading">
+          <div class="sf-spinner"></div>
+          Loading EOY Partner Survey data…
+        </div>`;
+      loadEoyData()
+        .then(() => { if (_view === 'eoy-compare') renderEoyCompareView(document.getElementById('sfViewContent')); })
+        .catch(err => {
+          el.innerHTML = `
+            <div class="sf-error">
+              <strong>Failed to load EOY Partner Survey data.</strong><br>
+              ${err.message}<br><br>
+              <button class="btn btn-secondary" onclick="sfRetryEoy()">↻ Retry</button>
+            </div>`;
+        });
+      return;
+    }
+
+    const qAll = pubData(_allData);
+    const qNPS = calcNPS(qAll);
+    const eoyNPS = calcNPS(_eoyData);
+    const matched = getMatchedRespondents();
+    const improving = matched.filter(m => m.trend === 'improving').length;
+    const declining = matched.filter(m => m.trend === 'declining').length;
+    const stable = matched.filter(m => m.trend === 'stable').length;
+    const avgDelta = matched.length ? (matched.reduce((s, m) => s + m.delta, 0) / matched.length) : null;
+
+    el.innerHTML = `
+      <!-- Summary banner -->
+      <div class="sf-section">
+        <div class="sf-section-hdr">
+          <div class="sf-section-title">Quarterly vs. EOY — Aggregate Comparison</div>
+          <div class="sf-method">All respondents, each survey on its own terms (not limited to matched respondents). Adapted NPS, 1&ndash;5 scale.</div>
+        </div>
+        <div class="sf-charts-row" style="margin-bottom:1rem">
+          <div class="sf-chart-card" style="flex:1;min-width:220px">
+            <div class="sf-chart-title">Quarterly Survey (all quarters, latest per respondent)</div>
+            <div class="sf-nps-score" style="color:${npsColor(qNPS.nps)}">${fmtNPS(qNPS.nps)}</div>
+            <div class="sf-nps-n">n = ${qNPS.total}</div>
+          </div>
+          <div class="sf-chart-card" style="flex:1;min-width:220px">
+            <div class="sf-chart-title">EOY Partner Survey (SY 25-26)</div>
+            <div class="sf-nps-score" style="color:${npsColor(eoyNPS.nps)}">${fmtNPS(eoyNPS.nps)}</div>
+            <div class="sf-nps-n">n = ${eoyNPS.total}</div>
+          </div>
+          <div class="sf-chart-card" style="flex:1;min-width:220px">
+            <div class="sf-chart-title">Matched Respondents (both surveys)</div>
+            <div class="sf-nps-score" style="color:var(--navy)">${matched.length}</div>
+            <div class="sf-nps-n">${avgDelta !== null ? 'Avg change: ' + (avgDelta > 0 ? '+' : '') + avgDelta.toFixed(2) : 'n/a'}</div>
+          </div>
+        </div>
+        <div class="ta-grid ta-grid-3">
+          <div class="ta-card ta-kpi ok"><div class="ta-kpi-val">${improving}</div><div class="ta-kpi-sub">Improved EOY vs. Quarterly</div></div>
+          <div class="ta-card ta-kpi"><div class="ta-kpi-val">${stable}</div><div class="ta-kpi-sub">Stayed the Same</div></div>
+          <div class="ta-card ta-kpi warning"><div class="ta-kpi-val">${declining}</div><div class="ta-kpi-sub">Declined EOY vs. Quarterly</div></div>
+        </div>
+      </div>
+
+      <!-- Detail: individual trajectory -->
+      <div class="sf-section">
+        <div class="sf-section-hdr">
+          <div class="sf-section-title">Individual Trajectory — Matched by Email</div>
+          <div class="sf-method">Only respondents who completed both the Quarterly and EOY surveys appear here. Sorted by largest decline first.</div>
+        </div>
+        ${matched.length ? trajectoryTableHTML(matched) : '<div class="sf-empty">No respondents completed both the Quarterly and EOY surveys this cycle.</div>'}
+      </div>`;
+  }
+
+  window.sfRetryEoy = function () {
+    _eoyLoaded = false;
+    renderCurrentView();
+  };
+
+  function trajectoryTableHTML(matched) {
+    const rows = matched.slice().sort((a, b) => a.delta - b.delta);
+    const dCol = d => d > 0 ? '#0d6e3a' : d < 0 ? '#b91c1c' : '#7d8fa1';
+    const rowBg = t => t === 'improving' ? '#f0fdf4' : t === 'declining' ? '#fff7ed' : '';
+    return `<div style="overflow-x:auto"><table class="sf-table">
+      <thead><tr>
+        <th>Role</th><th>District</th><th>School</th>
+        <th>Quarterly (${rows[0] ? rows[0].quarterlyQuarter || '—' : '—'})</th><th>EOY</th>
+        <th>Change</th><th>Category Shift</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(m => {
+          const catChange = m.qCategory === m.eoyCategory ? m.eoyCategory : `${m.qCategory} &rarr; ${m.eoyCategory}`;
+          return `<tr style="background:${rowBg(m.trend)}">
+            <td>${m.role || '—'}</td>
+            <td>${m.district || '—'}</td>
+            <td class="sf-cell-sm">${m.school || '—'}</td>
+            <td style="text-align:center;font-weight:600">${m.quarterlyScore}</td>
+            <td style="text-align:center;font-weight:600">${m.eoyScore}</td>
+            <td style="font-weight:700;color:${dCol(m.delta)}">${m.delta > 0 ? '+' : ''}${m.delta}</td>
+            <td class="sf-cell-muted">${catChange}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+  }
 
   // ══════════════════════════════════════════════════════════════════
   // VIEW A — PROGRAM TEAM
