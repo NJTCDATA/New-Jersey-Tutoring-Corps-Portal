@@ -8,8 +8,12 @@
   'use strict';
 
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
-  // EOY Program Partner Survey — separate form/sheet, published independently.
-  const EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSQHdOk6z90iRupqKDm9vVlNvC0auO6dsyX3wTPx3NDzaVm93mKlatPPY59UqdORi9hAB6cT0gWoUWw/pub?gid=1027437551&single=true&output=csv';
+  // EOY Program Partner Survey — separate form/sheet, switched to direct sheet-ID
+  // export (more reliable than Publish-to-web, which silently breaks if the
+  // publish session is stopped or the gid changes). gid corrected from the
+  // live "edit" URL — the earlier Publish-to-web link had a stale gid (1027437551
+  // vs. the correct 1455158458), which was the root cause of the prior 404.
+  const EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/export?format=csv&gid=1455158458';
 
   const DISTRICT_MAP = {
     // iLearn CMO — Bergen, Paterson, Passaic, AND Hudson schools all roll up under one CMO label
@@ -611,7 +615,8 @@
       if (el2) el2.innerHTML = `
         <div class="sf-error">
           <strong>Failed to load survey data.</strong><br>
-          ${err.message}<br><br>
+          ${err.message}<br>
+          <span style="font-size:.75rem;color:var(--muted);word-break:break-all">${CSV_URL}</span><br><br>
           <button class="btn btn-secondary" onclick="sfRetry()">↻ Retry</button>
         </div>`;
     } finally {
@@ -916,7 +921,8 @@
           el.innerHTML = `
             <div class="sf-error">
               <strong>Failed to load EOY Partner Survey data.</strong><br>
-              ${err.message}<br><br>
+              ${err.message}<br>
+              <span style="font-size:.75rem;color:var(--muted);word-break:break-all">${EOY_CSV_URL}</span><br><br>
               <button class="btn btn-secondary" onclick="sfRetryEoy()">↻ Retry</button>
             </div>`;
         });
