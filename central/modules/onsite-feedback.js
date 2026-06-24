@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTOGUuxRmOMR9PVMJNCc7rsLuueqY8Onc-79jm4pYT-J_7jkyzvCDzllxuLA8CAZ__x1_qBdKMtT9z-/pub?gid=1560652927&single=true&output=csv';
+  const CSV_URL = 'https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/export?format=csv&gid=1560652927';
 
   // Goal targets (literal annual goal metrics, per the source workbook)
   const GOAL_GREW_PROF_PCT = 80;
@@ -244,7 +244,8 @@
       if (el2) el2.innerHTML = `
         <div class="sf-error">
           <strong>Failed to load on-site staff feedback data.</strong><br>
-          ${err.message}<br><br>
+          ${err.message}<br>
+          <span style="font-size:.75rem;color:var(--muted);word-break:break-all">${CSV_URL}</span><br><br>
           <button class="btn btn-secondary" onclick="osfRetry()">↻ Retry</button>
         </div>`;
     } finally {
