@@ -6,7 +6,7 @@
 (function () {
   'use strict';
 
-  const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQaRWhNJSvskmG8bbO9eJ7Fd9TVYvZcLZLwQFtBU4u4LSjkBbz9_XS4mUSJgIhNZWR8uBjM_1HvoJtL/pub?gid=1733049715&single=true&output=csv';
+  const CSV_URL = 'https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/export?format=csv&gid=1733049715';
 
   // ── Site → Region map ──────────────────────────────────────────────
   // Built and verified directly against the SY 25-26 Scholar Survey roster
@@ -227,7 +227,8 @@
       if (el2) el2.innerHTML = `
         <div class="sf-error">
           <strong>Failed to load scholar survey data.</strong><br>
-          ${err.message}<br><br>
+          ${err.message}<br>
+          <span style="font-size:.75rem;color:var(--muted);word-break:break-all">${CSV_URL}</span><br><br>
           <button class="btn btn-secondary" onclick="schfRetry()">↻ Retry</button>
         </div>`;
     } finally {
