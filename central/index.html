@@ -5464,18 +5464,16 @@
 
     <!-- Survey Feedback — shown for programming, data, leadership, kb (controlled by initDeptNav) -->
     <div class="sidebar-group dept-nav-survey" style="display:none">
-      <div class="sidebar-group-label">Survey Feedback</div>
-      <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)" title="Review satisfaction survey results from partner schools and program sites">
-        <span class="sl-icon">📋</span> Partner Satisfaction (Q)
+      <div class="sidebar-group-label">Partner Satisfaction — Quarterly &amp; EOY</div>
+      <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)" title="Review quarterly and end-of-year satisfaction survey results from partner schools and program sites">
+        <span class="sl-icon">📋</span> Partner Satisfaction
       </button>
-      <div class="sf-nav-coming" title="Launching Q4 2026.">
-        <span class="sl-icon" style="opacity:.3">🏫</span> Onsite Feedback
-        <span class="sf-cs-badge">SOON</span>
-      </div>
-      <div class="sf-nav-coming" title="Launching Q4 2026.">
-        <span class="sl-icon" style="opacity:.3">🎓</span> Scholar Feedback
-        <span class="sf-cs-badge">SOON</span>
-      </div>
+      <button class="sidebar-link dept-nav-survey" data-panel="onsite-feedback" onclick="showPanel('onsite-feedback',this)" title="Review NJTC on-site staff (tutors, site coordinators, instructional coaches) program feedback">
+        <span class="sl-icon">🏫</span> Onsite Feedback
+      </button>
+      <button class="sidebar-link dept-nav-survey" data-panel="scholar-feedback" onclick="showPanel('scholar-feedback',this)" title="Review scholar self-reported confidence and program satisfaction survey results">
+        <span class="sl-icon">🎓</span> Scholar Feedback
+      </button>
     </div>
 
     <div class="sidebar-group">
@@ -6741,6 +6739,16 @@
       <div id="sfContainer"><!-- rendered by survey-feedback module --></div>
     </div>
 
+    <!-- ══ ONSITE FEEDBACK PANEL ════════════════════════════════════════ -->
+    <div class="panel" id="panel-onsite-feedback">
+      <div id="osfContainer"><!-- rendered by onsite-feedback module --></div>
+    </div>
+
+    <!-- ══ SCHOLAR FEEDBACK PANEL ═══════════════════════════════════════ -->
+    <div class="panel" id="panel-scholar-feedback">
+      <div id="schfContainer"><!-- rendered by scholar-feedback module --></div>
+    </div>
+
   </main>
 </div>
 
@@ -6827,6 +6835,8 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 <script src="modules/executive-leadership.js?v=10"></script>
 <script src="modules/impact-report.js?v=2"></script>
 <script src="modules/survey-feedback.js?v=9"></script>
+<script src="modules/scholar-feedback.js?v=1"></script>
+<script src="modules/onsite-feedback.js?v=1"></script>
 <script src="modules/program-data-summary.js?v=1"></script>
 <script src="modules/apprentice-impact-report.js?v=11"></script>
 
