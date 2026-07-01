@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-01T16:02:51.007Z",
+  "generated": "2026-07-01T18:22:38.940Z",
   "project": "1211431518555737",
-  "count": 23,
+  "count": 20,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -30,6 +30,10 @@
         },
         {
           "gid": "1213327755449997",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1208833157453193",
           "resource_type": "user"
         }
       ],
@@ -118,84 +122,6 @@
       "name": "Gap Closing: 35% decrease in scholars 2+ grade levels below.",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555741"
-    },
-    {
-      "gid": "1211431518555742",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-07",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "80% scholars self-report that they increased confidence post-session in ELA",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555742"
-    },
-    {
-      "gid": "1211431518555793",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-07",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "80% scholars self-report that they increased confidence post-session in Math",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555793"
-    },
-    {
-      "gid": "1211431518555795",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-07",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "92% of onsite staff observe scholar growth ",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555795"
     },
     {
       "gid": "1211431518555862",
