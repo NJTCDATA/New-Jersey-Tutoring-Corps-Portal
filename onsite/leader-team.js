@@ -314,20 +314,6 @@
       lookFor:'Documented in IC observations.' },
   ];
 
-  // ── NEW: expose a Phase|Domain|Code -> {desc, lookFor} lookup globally ──────
-  // Purpose: the tutor "My Progress" panel (my-dashboard.js) marks each activity
-  // Y/N/A using the SAME OTJ log data, but has no local copy of the activity
-  // text. Rather than duplicate this ~80-row schema in another file, we build
-  // a lookup here (from the array above) and hang it on window so any script
-  // loaded on the same page can read it. This does NOT change how Y/N/A status
-  // is computed anywhere — it only adds descriptive text for already-Y items.
-  var OJT_ACTIVITY_LOOKUP = {};
-  OJT_ACTIVITY_DATA.forEach(function(a) {
-    OJT_ACTIVITY_LOOKUP[a.phase + '|' + a.domain + '|' + String(a.code).toUpperCase()] = {
-      desc: a.desc, lookFor: a.lookFor
-    };
-  });
-  window.NJTC_OJT_ACTIVITY_LOOKUP = OJT_ACTIVITY_LOOKUP;
 
   // fetchTapCSV: tolerant Master Roster parser.
   // The Apps Script doGet (?tab=master_roster) serves a CLEAN CSV: row 0 = column
@@ -389,6 +375,79 @@
 
   // TAP apprentices get the tutor self-service view instead of the leader dashboard
   const APPRENTICE_ROLE = 'Apprentice';
+
+  // ── NEW: CENTRAL TEAM DATA BRIDGE ──────────────────────────────────────────
+  // The onsite portal has NO access to the Central Team Portal's code/data
+  // (confirmed by Amir — shared-utils.js is Central-only). Both portals are
+  // served from the SAME origin though (njtcdata.github.io/New-Jersey-
+  // Tutoring-Corps-Portal/{central,onsite}/...), so a same-origin fetch of
+  // the raw shared-utils.js file works without any CORS issue — no new
+  // deployment, no duplicated data file to keep in sync. We fetch the file
+  // as TEXT and regex out the HR_EMPS array (which is valid JSON), rather
+  // than executing the file, so this never runs Central Team code here.
+  const CENTRAL_SHARED_UTILS_URL = '/New-Jersey-Tutoring-Corps-Portal/central/shared-utils.js';
+  const HR_EMPS_CACHE_KEY = 'njtc_hr_emps_bridge_v1';
+  const HR_EMPS_CACHE_TTL = 20 * 60 * 1000; // 20 min — this data changes rarely (cycles/cert, not daily attendance)
+  let _hrEmpsLookup = null; // { byName: {normName: entry} } — resolved once, reused
+
+  // Cert type is embedded in the role text itself in HR_EMPS (e.g. "Certified
+  // Tutor" vs "Non-cert Tutor" vs "Certified Sub- Tutor") — there is no
+  // separate clean field, so we parse it the same way Central Team's own
+  // display logic implies (see leadership.js "Non-Cert" badge).
+  function _parseCertTypeFromRole(roleStr) {
+    const r = String(roleStr || '');
+    if (/non-?cert/i.test(r)) return 'Non-Certified';
+    if (/certified/i.test(r)) return 'Certified';
+    return 'Not Specified';
+  }
+
+  async function _fetchHrEmpsLookup() {
+    if (_hrEmpsLookup) return _hrEmpsLookup;
+    try {
+      const cachedRaw = localStorage.getItem(HR_EMPS_CACHE_KEY);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        if (cached && cached.ts && (Date.now() - cached.ts) < HR_EMPS_CACHE_TTL) {
+          _hrEmpsLookup = cached.data;
+          return _hrEmpsLookup;
+        }
+      }
+    } catch (e) { /* corrupt cache — ignore, refetch below */ }
+
+    try {
+      const res = await fetch(CENTRAL_SHARED_UTILS_URL);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const m = text.match(/HR_EMPS\s*=\s*(\[[\s\S]*?\]);/);
+      if (!m) throw new Error('HR_EMPS array not found in shared-utils.js — Central Team may have renamed it');
+      const arr = JSON.parse(m[1]);
+      const byName = {};
+      arr.forEach(function (p) {
+        if (!p || !p.n) return;
+        const key = normName(p.n);
+        const cyclesWorked = Array.isArray(p.y) ? p.y.length : (parseInt(p.c, 10) || 0);
+        const entry = {
+          cyclesWorked: cyclesWorked,
+          years: p.y || [],
+          certType: _parseCertTypeFromRole(p.r),
+          mostRecentRole: p.r || '',
+          roleHistory: p.rs || [],
+          status: p.s || '',
+        };
+        // Multiple HR_EMPS rows can exist per person (one per year/role change) —
+        // keep the one with the MOST cycles (most complete history) if duplicates.
+        if (!byName[key] || byName[key].cyclesWorked < entry.cyclesWorked) byName[key] = entry;
+      });
+      _hrEmpsLookup = { byName: byName };
+      try {
+        localStorage.setItem(HR_EMPS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: _hrEmpsLookup }));
+      } catch (e) { /* storage full/unavailable — non-fatal, just skip caching */ }
+      return _hrEmpsLookup;
+    } catch (err) {
+      console.warn('[NJTCTeam] Could not load Central Team tenure/cert data (non-fatal):', err);
+      return { byName: {} };
+    }
+  }
 
   const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes — Pearl/iReady (large, slow-changing)
   const TAP_CACHE_TTL = 0;             // TAP master roster — always fresh (small CSV, live writes)
@@ -1710,7 +1769,7 @@
 
       let html=`<div class="tp-kpi-row">
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:${ojtColor}">${mrOJT.toLocaleString()}</div><div class="tp-kpi-lbl">OJT Hours<br><span style="color:#64748b;font-weight:400">of 4,000</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrOJT/40))}%;background:${ojtColor}"></div></div></div>
-        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${lmsColor}">${mrLMS}</div><div class="tp-kpi-lbl">RTI Hours<br><span style="color:#64748b;font-weight:400">of 288 required</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrLMS/2.88))}%;background:${lmsColor}"></div></div></div>
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${lmsColor}">${mrLMS}</div><div class="tp-kpi-lbl">LMS Hours<br><span style="color:#64748b;font-weight:400">of 288 required</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrLMS/2.88))}%;background:${lmsColor}"></div></div></div>
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:#FFB81C">${yCount} / ${possible}</div><div class="tp-kpi-lbl">Activities Observed<br><span style="color:#64748b;font-weight:400">${ojtPctNum}% complete</span></div></div>
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:${mrWage>0?'#34d399':'#64748b'}">${mrWage>0?'$'+mrWage.toFixed(2):'—'}</div><div class="tp-kpi-lbl">Current Wage<br><span style="color:#64748b;font-weight:400">${escHtml(mrMilestone)}</span></div></div>
       </div>
@@ -1972,7 +2031,31 @@
     const surveyData = stuMetrics.surveyScores;
     const surveyVal = surveyData && surveyData.count > 0 ? surveyData.overall : null;
 
-    // Concerns block
+    // ── NEW: Program Tenure & Certification block ─────────────────────────
+    // Subject(s) taught is already computed from Pearl Session Details
+    // (stuMetrics.subjects) — no new fetch needed for that part. Cycles
+    // worked + certification type come from the Central Team bridge, which
+    // is async, so this renders a placeholder here and openDetail() patches
+    // it in place once the bridge data resolves (same pattern as the
+    // narrative section below).
+    const subjectsTaught = (stuMetrics.subjects && stuMetrics.subjects.length)
+      ? stuMetrics.subjects.join(' & ')
+      : 'Not yet determined from Pearl sessions';
+    const tenureHtml = `
+      <div class="njtc-tenure-block" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.85rem 1rem;margin-bottom:.75rem">
+        <div style="font-size:.7rem;font-weight:800;color:#FFB81C;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem">📋 Program Tenure &amp; Certification</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem">
+          <div>
+            <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Subject(s) Taught</div>
+            <div style="font-size:.85rem;font-weight:700;color:#e2e8f0;margin-top:.15rem">${escHtml(subjectsTaught)}</div>
+          </div>
+          <div class="njtc-tenure-wrapper" data-tenure-name="${escHtml(name)}">
+            <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div>
+            <div style="font-size:.85rem;font-weight:700;color:#e2e8f0;margin-top:.15rem">Loading…</div>
+          </div>
+        </div>
+      </div>
+    `;
     let concernsHtml = '';
     if (concerns && concerns.length > 0) {
       const items = concerns.map(c => {
@@ -2114,7 +2197,7 @@
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:' + ojtPct + '%"></div></div>' +
         '</div>' +
         '<div class="njtc-progress-row">' +
-          '<div class="njtc-progress-label"><span>RTI Hours</span><span>' + lmsHours + ' / ' + lmsTotal + ' (' + lmsPct + '%)</span></div>' +
+          '<div class="njtc-progress-label"><span>LMS Hours</span><span>' + lmsHours + ' / ' + lmsTotal + ' (' + lmsPct + '%)</span></div>' +
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill" style="width:' + lmsPct + '%;background:#7c3aed"></div></div>' +
         '</div>' +
               '</div>';
@@ -2571,6 +2654,7 @@
           </div>
         </div>
         <hr class="njtc-divider">
+        ${tenureHtml}
         ${notesHtml}
         ${ojtFormHtml}
         ${narrativeHtml}
@@ -2853,40 +2937,6 @@
   }
 
   /* ─────────────────────────────────────────────
-     NEW: NAV PRIORITIZATION FOR LEADER ROLES
-     Team Progress is the priority view for Dual Role / Site Leader staff.
-     This only reorders/hides tabs — it never removes access to the personal
-     dashboard, and it never touches OJT/attendance/completion calculations.
-  ───────────────────────────────────────────── */
-  function _prioritizeTeamNav() {
-    try {
-      const nav = document.querySelector('.njtc-tab-nav');
-      const teamBtn = document.getElementById('njtcTeamTab');
-      const dashBtn = nav && nav.querySelector('[data-tab="dashboard"]');
-      if (nav && teamBtn) nav.insertBefore(teamBtn, nav.firstChild); // Team first
-      if (nav && dashBtn) nav.appendChild(dashBtn);                   // Dashboard last
-
-      // Hide the "My Progress" sub-tab (inside My Dashboard) for leader roles —
-      // if my-dashboard.js has already built it. If it hasn't yet (race with
-      // async loads), the NJTC_IS_LEADER_ROLE flag set by the caller makes
-      // _injectPortalTabNav skip creating it in the first place.
-      const mpBtn  = document.querySelector('[data-ptab="progress"]');
-      if (mpBtn) mpBtn.style.display = 'none';
-      const mpPane = document.getElementById('njtc-ptab-progress');
-      if (mpPane) mpPane.classList.remove('active');
-
-      // Default the active tab to My Team — only once per page load, so we
-      // never yank the user back to Team if they've already navigated away.
-      if (!window._njtcDefaultTeamTabSet) {
-        window._njtcDefaultTeamTabSet = true;
-        if (typeof window.switchTab === 'function') window.switchTab('team');
-      }
-    } catch (e) {
-      console.warn('[NJTCTeam] _prioritizeTeamNav failed (non-fatal):', e);
-    }
-  }
-
-  /* ─────────────────────────────────────────────
      MAIN BUILD FUNCTION  (progressive)
   ───────────────────────────────────────────── */
   async function build(userProfile) {
@@ -2930,14 +2980,6 @@
 
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
-
-    // NEW: For Dual Role / Site Leader staff, Team Progress is the priority view.
-    // Flag it globally (my-dashboard.js checks this before rendering the "My
-    // Progress" sub-tab) and reorder the top nav so My Team shows first and the
-    // personal My Dashboard tab moves last. Personal dashboard access is kept —
-    // only its position and the My Progress sub-tab are affected.
-    window.NJTC_IS_LEADER_ROLE = true;
-    _prioritizeTeamNav();
 
     container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading attendance data…</div>`;
 
@@ -3034,6 +3076,28 @@
         const leaderName = (window.NJTC_USER_PROFILE && window.NJTC_USER_PROFILE.name) || '';
         const newHtml = _narrativeBuildSection(tutorName, leaderName, saved);
         wrapper.outerHTML = newHtml;
+      }).catch(() => {});
+
+      // Non-blocking: fetch Central Team tenure/cert data and patch the
+      // njtc-tenure-wrapper in place. Same guard pattern as narratives above.
+      _fetchHrEmpsLookup().then(lookup => {
+        const currentPanel = document.getElementById('njtcDetailPanel');
+        if (!currentPanel || !currentPanel.classList.contains('open')) return;
+        if (_openDetailName !== tutorName) return;
+        const wrapper = currentPanel.querySelector('.njtc-tenure-wrapper');
+        if (!wrapper) return;
+        const entry = lookup.byName[normName(tutorName)];
+        if (!entry) {
+          wrapper.innerHTML = `<div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div><div style="font-size:.8rem;color:#64748b;margin-top:.15rem">Not found in Central Team records</div>`;
+          return;
+        }
+        const yearsList = entry.years.length ? entry.years.join(', ') : '';
+        wrapper.innerHTML = `
+          <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div>
+          <div style="font-size:.85rem;font-weight:700;color:#e2e8f0;margin-top:.15rem" title="${escHtml(yearsList)}">${entry.cyclesWorked} cycle${entry.cyclesWorked === 1 ? '' : 's'}</div>
+          <div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-top:.5rem">Certification</div>
+          <div style="font-size:.85rem;font-weight:700;color:${entry.certType === 'Certified' ? '#34d399' : entry.certType === 'Non-Certified' ? '#fbbf24' : '#94a3b8'};margin-top:.15rem">${escHtml(entry.certType)}</div>
+        `;
       }).catch(() => {});
     }
   }
