@@ -484,6 +484,131 @@ function renderTrends(d) {
 }
 
 // ── TAB: Regional ──────────────────────────────────────────────────────────
+// ── NEW: Weekly Recaps tab — most current submission per person ────────────
+// Reads the same live Google Sheet the onsite portal's Weekly Recap feature
+// writes to (see weekly-recap.js RECAP_HISTORY_URL / shared-charts.js
+// _WR_HISTORY_URL — keep all three in sync if the Sheet ever moves).
+var _WR_SHEET_ID = '1y9d9cLn6-EBLSiCuCrf_6iKd0qq9xAzogCaCVUD0mpY';
+var _WR_SHEET_GID = '540898531';
+var _WR_HISTORY_URL = 'https://docs.google.com/spreadsheets/d/' + _WR_SHEET_ID + '/export?format=csv&gid=' + _WR_SHEET_GID;
+var _wrPulseCache = null; // { ts, rows }
+var _WR_PULSE_CACHE_TTL = 2 * 60 * 1000;
+
+function _wrPulseParseCsv(text) {
+  var rows = [], row = [], field = '', inQ = false;
+  for (var i = 0; i < text.length; i++) {
+    var c = text[i], n = text[i+1];
+    if (inQ) { if (c === '"' && n === '"') { field += '"'; i++; } else if (c === '"') { inQ = false; } else field += c; }
+    else { if (c === '"') inQ = true; else if (c === ',') { row.push(field); field = ''; } else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; } else if (c !== '\r') field += c; }
+  }
+  if (field || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+function _wrPulseCsvToObjects(text) {
+  var rows = _wrPulseParseCsv(text);
+  if (rows.length < 2) return [];
+  var headers = rows[0].map(function(h){ return h.trim(); });
+  return rows.slice(1).map(function(r) { var o = {}; headers.forEach(function(h,i){ o[h] = (r[i]||'').trim(); }); return o; });
+}
+function _wrPulseFindCol(row, candidates) {
+  var keys = Object.keys(row);
+  for (var i = 0; i < keys.length; i++) {
+    var kl = keys[i].toLowerCase();
+    for (var j = 0; j < candidates.length; j++) if (kl.indexOf(candidates[j]) >= 0) return row[keys[i]];
+  }
+  return '';
+}
+// Extract the submitter's name from the "[Portal: Name · Site · Week of ...]"
+// context tag weekly-recap.js embeds in the discuss field. Rows without the
+// tag (submitted directly via the Google Form) are grouped under "Unknown
+// submitter" rather than silently dropped.
+function _wrPulseExtractName(discuss) {
+  var m = String(discuss||'').match(/\[Portal:\s*([^·\]]+)/i);
+  return m ? m[1].trim() : 'Unknown submitter';
+}
+
+function _fetchWeeklyRecapRows() {
+  var now = Date.now();
+  if (_wrPulseCache && (now - _wrPulseCache.ts) < _WR_PULSE_CACHE_TTL) {
+    return Promise.resolve(_wrPulseCache.rows);
+  }
+  return fetch(_WR_HISTORY_URL)
+    .then(function(res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+    .then(function(text) {
+      var rows = _wrPulseCsvToObjects(text);
+      _wrPulseCache = { ts: Date.now(), rows: rows };
+      return rows;
+    });
+}
+
+function _buildWeeklyRecapsHtml(rows) {
+  if (!rows.length) return '<div class="pds-loading">No weekly recaps have been submitted yet.</div>';
+
+  // Group by submitter name, keep only the MOST CURRENT submission per person —
+  // per requirement, this view always shows the latest, not full history.
+  var latestByName = {};
+  rows.forEach(function(r) {
+    var discuss = _wrPulseFindCol(r, ['discuss']);
+    var name = _wrPulseExtractName(discuss);
+    var ts = _wrPulseFindCol(r, ['timestamp']);
+    var tsMs = new Date(ts).getTime() || 0;
+    if (!latestByName[name] || latestByName[name]._tsMs < tsMs) {
+      latestByName[name] = {
+        name: name, ts: ts, _tsMs: tsMs,
+        group: _wrPulseFindCol(r, ['which group']),
+        discuss: discuss.replace(/\[Portal:[^\]]*\]\s*/i, ''), // strip the tag itself from display
+        roadblocks: _wrPulseFindCol(r, ['roadblock']),
+        accomplishments: _wrPulseFindCol(r, ['accomplishment']),
+        assistance: _wrPulseFindCol(r, ['assistance']),
+      };
+    }
+  });
+
+  var people = Object.values(latestByName).sort(function(a,b){ return b._tsMs - a._tsMs; });
+  var now = Date.now();
+
+  var rowsHtml = people.map(function(p) {
+    var d = new Date(p.ts);
+    var dateStr = isNaN(d.getTime()) ? p.ts : (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear();
+    var daysAgo = isNaN(d.getTime()) ? null : Math.floor((now - d.getTime()) / (24*60*60*1000));
+    var staleness = daysAgo === null ? '' : daysAgo <= 7
+      ? '<span style="color:#059669;font-weight:700">Current</span>'
+      : '<span style="color:#d97706;font-weight:700">' + daysAgo + ' days ago</span>';
+    return '<div style="background:var(--surface,#fff);border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:.75rem .9rem;margin-bottom:.6rem">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.4rem;flex-wrap:wrap">' +
+        '<span style="font-weight:700;font-size:.85rem">' + escHtmlPds(p.name) + '</span>' +
+        '<span style="font-size:.72rem">' + escHtmlPds(dateStr) + (p.group ? ' · ' + escHtmlPds(p.group) : '') + ' · ' + staleness + '</span>' +
+      '</div>' +
+      (p.discuss ? '<div style="font-size:.78rem;margin-bottom:.2rem"><b>Discussed:</b> ' + escHtmlPds(p.discuss) + '</div>' : '') +
+      (p.roadblocks ? '<div style="font-size:.78rem;margin-bottom:.2rem"><b>Roadblocks:</b> ' + escHtmlPds(p.roadblocks) + '</div>' : '') +
+      (p.assistance ? '<div style="font-size:.78rem"><b>Needs from Central:</b> ' + escHtmlPds(p.assistance) + '</div>' : '') +
+    '</div>';
+  }).join('');
+
+  return '<div class="pds-loading" style="display:none"></div>' +
+    '<div style="font-size:.72rem;color:var(--muted);margin-bottom:.75rem">Most recent recap per site leader / dual role staff — always shows current, not full history.</div>' +
+    rowsHtml;
+}
+
+function escHtmlPds(s) {
+  return String(s||'').replace(/[&<>"']/g, function(c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]; });
+}
+
+function renderWeeklyRecaps() {
+  _fetchWeeklyRecapRows().then(function(rows) {
+    if (_activeTab !== 'recaps') return; // user switched tabs before this resolved
+    var body = document.getElementById('pdsBody');
+    if (!body) return;
+    body.innerHTML = _buildWeeklyRecapsHtml(rows);
+  }).catch(function(err) {
+    console.warn('[ProgramPulse] Weekly recap fetch failed:', err);
+    if (_activeTab !== 'recaps') return;
+    var body = document.getElementById('pdsBody');
+    if (body) body.innerHTML = '<div class="pds-loading">Could not load weekly recaps right now.</div>';
+  });
+  return '<div class="pds-loading">Loading weekly recaps…</div>';
+}
+
 function renderRegional(d) {
   var ne = d.regional.NE, sw = d.regional.SW;
   if (!ne && !sw) return '<div class="pds-empty"><div class="pds-empty-icon">🗺</div>Regional data not yet available.</div>';
@@ -911,6 +1036,7 @@ var TABS = [
   { id: 'regional', label: '🗺 Regional' },
   { id: 'academic', label: '📚 Academic' },
   { id: 'discrepancies', label: '🔍 Data Health' },
+  { id: 'recaps', label: '📝 Weekly Recaps' },
 ];
 
 // ── Open / Close ───────────────────────────────────────────────────────────
@@ -965,6 +1091,7 @@ function renderActiveTab() {
   else if (_activeTab === 'regional')      html = renderRegional(d);
   else if (_activeTab === 'academic')      html = renderAcademic();
   else if (_activeTab === 'discrepancies') html = renderDiscrepancies(d);
+  else if (_activeTab === 'recaps')        html = renderWeeklyRecaps();
 
   body.innerHTML = html;
   body.scrollTop = 0;
