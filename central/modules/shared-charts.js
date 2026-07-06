@@ -3851,6 +3851,18 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         ? '<span style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:.1rem .4rem;border-radius:5px;font-size:.65rem;font-weight:700">'+scholarCount+' scholars</span>'
         : '';
 
+      // ── NEW: Weekly Recap button (reuses the existing concern-log expand
+      // pattern for consistency). Content is fetched lazily on first open —
+      // see window._hrShowRecaps below — from the same live Google Sheet the
+      // onsite portal's Weekly Recap feature writes to.
+      const wrId = 'ppwr_'+emp.n.replace(/\W/g,'_');
+      const weeklyRecapSection = '<div style="margin-top:.5rem;border-top:1px solid #f1f5f9;padding-top:.4rem">'
+        +'<button onclick="window._hrShowRecaps(\''+esc(emp.n).replace(/'/g,"\\'")+'\',\''+wrId+'\')" '
+        +'style="font-size:.72rem;font-weight:700;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;padding:.3rem .65rem;border-radius:6px;cursor:pointer">'
+        +'📋 Weekly Recaps</button>'
+        +'<div id="'+wrId+'" style="display:none;margin-top:.5rem"></div>'
+        +'</div>';
+
       const bl = borderColorMap[level]||'#10b981';
       return '<div style="background:#fff;border:1px solid #e2e8f0;border-left:4px solid '+bl+';border-radius:10px;padding:1rem 1.1rem;margin-bottom:.75rem;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
         // Header
@@ -3898,6 +3910,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           +otjBadges(emp)
         +'</div>'
         +concernHtml
+        +weeklyRecapSection
         +'</div>';
     });
 
@@ -4136,6 +4149,95 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     el.style.display = isOpen ? 'none' : '';
     if (btn) btn.textContent = isOpen ? '▶ Show' : '▼ Hide';
   };
+
+  // ── NEW: Weekly Recap viewer for Talent Analytics profile cards ──────────
+  // Reads the SAME live Google Sheet the onsite portal's "Weekly Recap"
+  // feature writes to (see weekly-recap.js RECAP_HISTORY_URL — keep these in
+  // sync if the Sheet ever moves). Matches by name since Central Team's HR
+  // records are the authoritative name source here (not email).
+  const _WR_SHEET_ID = '1y9d9cLn6-EBLSiCuCrf_6iKd0qq9xAzogCaCVUD0mpY';
+  const _WR_SHEET_GID = '540898531';
+  const _WR_HISTORY_URL = 'https://docs.google.com/spreadsheets/d/' + _WR_SHEET_ID + '/export?format=csv&gid=' + _WR_SHEET_GID;
+  let _wrCache = null; // { ts, rows }
+  const _WR_CACHE_TTL = 2 * 60 * 1000;
+
+  function _wrParseCsv(text) {
+    const rows = []; let row = [], field = '', inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i], n = text[i+1];
+      if (inQ) { if (c === '"' && n === '"') { field += '"'; i++; } else if (c === '"') { inQ = false; } else field += c; }
+      else { if (c === '"') inQ = true; else if (c === ',') { row.push(field); field = ''; } else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; } else if (c !== '\r') field += c; }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+  function _wrCsvToObjects(text) {
+    const rows = _wrParseCsv(text);
+    if (rows.length < 2) return [];
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => { const o = {}; headers.forEach((h,i) => { o[h] = (r[i]||'').trim(); }); return o; });
+  }
+  function _wrFindCol(row, candidates) {
+    const keys = Object.keys(row);
+    for (let i = 0; i < keys.length; i++) {
+      const kl = keys[i].toLowerCase();
+      for (let j = 0; j < candidates.length; j++) if (kl.indexOf(candidates[j]) >= 0) return row[keys[i]];
+    }
+    return '';
+  }
+
+  window._hrShowRecaps = (empName, containerId) => {
+    window._hrToggle(containerId);
+    const el = document.getElementById(containerId);
+    if (!el || el.style.display === 'none') return; // just collapsed — nothing to load
+    if (el.dataset.loaded === '1') return; // already populated once — don't refetch every toggle
+    el.innerHTML = '<div style="font-size:.75rem;color:#94a3b8;padding:.5rem 0">Loading weekly recaps…</div>';
+
+    const now = Date.now();
+    const renderFor = (rows) => {
+      const targetNorm = String(empName||'').trim().toLowerCase().replace(/\s+/g,' ');
+      // Prefer the precise "[Portal: Name ·" context tag the onsite portal's
+      // weekly-recap.js embeds — falls back to a plain substring match only
+      // if nothing tagged is found (covers submissions made directly via the
+      // Google Form, bypassing the portal, which have no context tag).
+      const tagged = rows.filter(r => _wrFindCol(r, ['discuss']).toLowerCase().indexOf('[portal: '+targetNorm) >= 0);
+      const mine = (tagged.length ? tagged : rows.filter(r => _wrFindCol(r, ['discuss']).toLowerCase().indexOf(targetNorm) >= 0))
+        .sort((a,b) => new Date(_wrFindCol(b,['timestamp'])) - new Date(_wrFindCol(a,['timestamp'])));
+
+      if (!mine.length) {
+        el.innerHTML = '<div style="font-size:.75rem;color:#94a3b8;font-style:italic;padding:.4rem 0">No weekly recaps found for '+esc(empName)+' yet.</div>';
+        el.dataset.loaded = '1';
+        return;
+      }
+      el.innerHTML = mine.map(r => {
+        const ts = _wrFindCol(r, ['timestamp']);
+        const d = new Date(ts);
+        const dateStr = isNaN(d.getTime()) ? ts : (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear();
+        const group = _wrFindCol(r, ['which group']);
+        const discuss = _wrFindCol(r, ['discuss']);
+        const roadblocks = _wrFindCol(r, ['roadblock']);
+        const accomplishments = _wrFindCol(r, ['accomplishment']);
+        const assistance = _wrFindCol(r, ['assistance']);
+        return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;margin-bottom:.5rem;font-size:.75rem">'
+          +'<div style="font-weight:700;color:#1d4ed8;margin-bottom:.3rem">'+esc(dateStr)+(group?' · '+esc(group):'')+'</div>'
+          +(discuss?'<div style="margin-bottom:.2rem"><b>Discussed:</b> '+esc(discuss)+'</div>':'')
+          +(roadblocks?'<div style="margin-bottom:.2rem"><b>Roadblocks:</b> '+esc(roadblocks)+'</div>':'')
+          +(accomplishments?'<div style="margin-bottom:.2rem"><b>Accomplishments:</b> '+esc(accomplishments)+'</div>':'')
+          +(assistance?'<div><b>Needed from Central:</b> '+esc(assistance)+'</div>':'')
+          +'</div>';
+      }).join('');
+      el.dataset.loaded = '1';
+    };
+
+    if (_wrCache && (now - _wrCache.ts) < _WR_CACHE_TTL) { renderFor(_wrCache.rows); return; }
+    fetch(_WR_HISTORY_URL).then(res => { if (!res.ok) throw new Error('HTTP '+res.status); return res.text(); })
+      .then(text => { const rows = _wrCsvToObjects(text); _wrCache = { ts: Date.now(), rows: rows }; renderFor(rows); })
+      .catch(err => {
+        console.warn('[HR] Weekly recap fetch failed:', err);
+        el.innerHTML = '<div style="font-size:.75rem;color:#b91c1c;padding:.4rem 0">Could not load recaps right now.</div>';
+      });
+  };
+
   window._hrShowProfile= nm => {
     const emp = HR_EMPS.find(e=>e.n===nm);
     if (!emp) return;
