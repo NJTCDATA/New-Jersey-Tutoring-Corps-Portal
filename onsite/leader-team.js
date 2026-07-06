@@ -415,11 +415,13 @@
     } catch (e) { /* corrupt cache — ignore, refetch below */ }
 
     try {
+      console.log('[NJTCTeam] Fetching Central Team tenure/cert data from:', CENTRAL_SHARED_UTILS_URL);
       const res = await fetch(CENTRAL_SHARED_UTILS_URL);
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      console.log('[NJTCTeam] shared-utils.js fetch response:', res.status, res.ok);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching ' + CENTRAL_SHARED_UTILS_URL);
       const text = await res.text();
       const m = text.match(/HR_EMPS\s*=\s*(\[[\s\S]*?\]);/);
-      if (!m) throw new Error('HR_EMPS array not found in shared-utils.js — Central Team may have renamed it');
+      if (!m) throw new Error('HR_EMPS array not found in shared-utils.js (' + text.length + ' bytes fetched) — Central Team may have renamed/moved it');
       const arr = JSON.parse(m[1]);
       const byName = {};
       arr.forEach(function (p) {
@@ -438,14 +440,15 @@
         // keep the one with the MOST cycles (most complete history) if duplicates.
         if (!byName[key] || byName[key].cyclesWorked < entry.cyclesWorked) byName[key] = entry;
       });
+      console.log('[NJTCTeam] Central Team tenure/cert data loaded —', Object.keys(byName).length, 'people found in HR_EMPS');
       _hrEmpsLookup = { byName: byName };
       try {
         localStorage.setItem(HR_EMPS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: _hrEmpsLookup }));
       } catch (e) { /* storage full/unavailable — non-fatal, just skip caching */ }
       return _hrEmpsLookup;
     } catch (err) {
-      console.warn('[NJTCTeam] Could not load Central Team tenure/cert data (non-fatal):', err);
-      return { byName: {} };
+      console.warn('[NJTCTeam] Could not load Central Team tenure/cert data — check the URL/path above and the Network tab for the actual failure:', err);
+      return { byName: {}, fetchFailed: true, fetchError: String(err && err.message || err) };
     }
   }
 
@@ -2937,6 +2940,40 @@
   }
 
   /* ─────────────────────────────────────────────
+     NAV PRIORITIZATION FOR LEADER ROLES
+     Team Progress is the priority view for Dual Role / Site Leader staff.
+     This only reorders/hides tabs — it never removes access to the personal
+     dashboard, and it never touches OJT/attendance/completion calculations.
+  ───────────────────────────────────────────── */
+  function _prioritizeTeamNav() {
+    try {
+      const nav = document.querySelector('.njtc-tab-nav');
+      const teamBtn = document.getElementById('njtcTeamTab');
+      const dashBtn = nav && nav.querySelector('[data-tab="dashboard"]');
+      if (nav && teamBtn) nav.insertBefore(teamBtn, nav.firstChild); // Team first
+      if (nav && dashBtn) nav.appendChild(dashBtn);                   // Dashboard last
+
+      // Hide the "My Progress" sub-tab (inside My Dashboard) for leader roles —
+      // if my-dashboard.js has already built it. If it hasn't yet (race with
+      // async loads), the NJTC_IS_LEADER_ROLE flag set by the caller makes
+      // _injectPortalTabNav skip creating it in the first place.
+      const mpBtn  = document.querySelector('[data-ptab="progress"]');
+      if (mpBtn) mpBtn.style.display = 'none';
+      const mpPane = document.getElementById('njtc-ptab-progress');
+      if (mpPane) mpPane.classList.remove('active');
+
+      // Default the active tab to My Team — only once per page load, so we
+      // never yank the user back to Team if they've already navigated away.
+      if (!window._njtcDefaultTeamTabSet) {
+        window._njtcDefaultTeamTabSet = true;
+        if (typeof window.switchTab === 'function') window.switchTab('team');
+      }
+    } catch (e) {
+      console.warn('[NJTCTeam] _prioritizeTeamNav failed (non-fatal):', e);
+    }
+  }
+
+  /* ─────────────────────────────────────────────
      MAIN BUILD FUNCTION  (progressive)
   ───────────────────────────────────────────── */
   async function build(userProfile) {
@@ -2980,6 +3017,14 @@
 
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
+
+    // For Dual Role / Site Leader staff, Team Progress is the priority view.
+    // Flag it globally (my-dashboard.js checks this before rendering the "My
+    // Progress" sub-tab) and reorder the top nav so My Team shows first and
+    // the personal My Dashboard tab moves last. Personal dashboard access is
+    // kept — only its position and the My Progress sub-tab are affected.
+    window.NJTC_IS_LEADER_ROLE = true;
+    _prioritizeTeamNav();
 
     container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading attendance data…</div>`;
 
@@ -3086,9 +3131,13 @@
         if (_openDetailName !== tutorName) return;
         const wrapper = currentPanel.querySelector('.njtc-tenure-wrapper');
         if (!wrapper) return;
+        if (lookup.fetchFailed) {
+          wrapper.innerHTML = `<div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div><div style="font-size:.8rem;color:#f87171;margin-top:.15rem">Could not reach Central Team data — check browser console for details</div>`;
+          return;
+        }
         const entry = lookup.byName[normName(tutorName)];
         if (!entry) {
-          wrapper.innerHTML = `<div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div><div style="font-size:.8rem;color:#64748b;margin-top:.15rem">Not found in Central Team records</div>`;
+          wrapper.innerHTML = `<div style="font-size:.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Cycles Worked</div><div style="font-size:.8rem;color:#64748b;margin-top:.15rem">No record for "${escHtml(tutorName)}" in Central Team HR_EMPS</div>`;
           return;
         }
         const yearsList = entry.years.length ? entry.years.join(', ') : '';
