@@ -2996,10 +2996,14 @@
     }
 
     // -- Load My Progress pane async (non-blocking, runs after dashboard renders) --
-    buildMyProgressPane(user).catch(() => {
-      const pane = document.getElementById('njtc-ptab-progress');
-      if (pane) pane.innerHTML = `<div class="mp-empty">Could not load progress data — please refresh the page.</div>`;
-    });
+    // NEW: skip entirely for leader roles — their sub-tab is hidden and Team
+    // Progress (My Team tab) is their priority view instead.
+    if (!window.NJTC_IS_LEADER_ROLE) {
+      buildMyProgressPane(user).catch(() => {
+        const pane = document.getElementById('njtc-ptab-progress');
+        if (pane) pane.innerHTML = `<div class="mp-empty">Could not load progress data — please refresh the page.</div>`;
+      });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -3034,12 +3038,18 @@
     const dashContent = document.getElementById('njtcDashContent');
     if (!dashTop || !dashContent) return;
 
+    // NEW: Dual Role / Site Leader staff get Team Progress as their priority
+    // view (set by leader-team.js). For them, skip the My Progress sub-tab —
+    // their personal My Dashboard tab is still available, just without this
+    // sub-tab. Pure tutors (no leader flag) are unaffected.
+    const _hideMyProgress = !!window.NJTC_IS_LEADER_ROLE;
+
     const nav = document.createElement('div');
     nav.id = 'njtc-portal-tab-nav';
     nav.className = 'njtc-portal-tab-nav';
     nav.innerHTML = `
       <button class="njtc-portal-tab-btn active" data-ptab="dashboard" onclick="window._ptSwitch('dashboard',this)">📊 My Dashboard</button>
-      <button class="njtc-portal-tab-btn"         data-ptab="progress"  onclick="window._ptSwitch('progress',this)">📋 My Progress</button>
+      ${_hideMyProgress ? '' : '<button class="njtc-portal-tab-btn" data-ptab="progress" onclick="window._ptSwitch(\'progress\',this)">📋 My Progress</button>'}
     `;
 
     // Wrap existing dashContent into a pane
@@ -3185,12 +3195,18 @@
           const code  = key.split('|')[2];
           const isY   = v.status.charAt(0).toUpperCase() === 'Y';
           const isNA  = /N\/A/i.test(v.status);
+          // NEW: look up the activity's description + "look for" text so a tutor
+          // knows exactly which activity a Y-marked competency refers to. This is
+          // purely additive — it does not change how isY/isNA are determined above.
+          const schema = (window.NJTC_OJT_ACTIVITY_LOOKUP && window.NJTC_OJT_ACTIVITY_LOOKUP[ph + '|' + dm + '|' + code]) || null;
           actDetailHtml += `<div class="mp-act${isY?' done':isNA?' na':''}">
             <div class="mp-act-badge ${isY?'done':isNA?'na':'open'}">${isY?'✓':isNA?'—':esc(code)}</div>
             <div>
               <div style="font-weight:${isY?700:400};color:${isY?'#e2e8f0':'rgba(255,255,255,.5)'}">
                 ${esc(ph + ' · ' + dm + ' · ' + code)}
               </div>
+              ${isY && schema && schema.desc ? `<div class="mp-act-meta" style="color:rgba(255,255,255,.55);margin-top:.25rem;line-height:1.4">${esc(schema.desc)}</div>` : ''}
+              ${isY && schema && schema.lookFor ? `<div class="mp-act-meta" style="color:rgba(255,255,255,.4);margin-top:.15rem;font-style:italic">"${esc(schema.lookFor)}"</div>` : ''}
               ${isY ? `<div class="mp-act-meta">${v.date ? esc(v.date) + ' · ' : ''}${v.observer ? 'Observed by ' + esc(v.observer) : 'Observed'}</div>` : ''}
               ${isNA ? `<div class="mp-act-meta">N/A — not applicable at this site</div>` : ''}
             </div>
@@ -3327,7 +3343,7 @@
         </div>
         <div class="mp-stat">
           <div class="mp-stat-val" style="color:${rtiHours>=288?'#34d399':rtiHours>=100?'#FFB81C':'#94a3b8'}">${rtiHours}</div>
-          <div class="mp-stat-lbl">LMS Hours</div>
+          <div class="mp-stat-lbl">RTI Hours</div>
           <div class="mp-stat-sub">of 288 required</div>
           <div class="mp-progress-bar"><div class="mp-progress-fill" style="width:${Math.min(100,Math.round(rtiHours/2.88))}%;background:#7c3aed"></div></div>
         </div>
