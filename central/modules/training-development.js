@@ -3034,6 +3034,38 @@
     </div>`;
   }
 
+  // ── NEW: Wage/payout calculator from OJT hours + the TAP wage tier schedule ──
+  // Mirrors WAGE_TIERS exactly from the TAP Tracker Apps Script (non-cert
+  // track). This data source has no cert-eligibility flag, so the cert-track
+  // ($10/hr premium) rates are NOT applied here — flagged in the UI rather
+  // than silently guessed. Computes an EXACT piecewise total across the tier
+  // bands the apprentice has actually crossed — this is a calculation from
+  // the documented pay schedule, not an estimate, but it can only be as
+  // accurate as that schedule having been followed exactly; always reconcile
+  // against actual payroll for state/grant reporting.
+  const _APPR_WAGE_TIERS = [
+    { from: 0,    to: 1100, rate: 30.00 },
+    { from: 1100, to: 2200, rate: 30.98 },
+    { from: 2200, to: 3300, rate: 31.99 },
+    { from: 3300, to: 3800, rate: 32.99 },
+    { from: 3800, to: 4000, rate: 33.99 },
+    { from: 4000, to: 4000, rate: 35.00 }, // Program Complete milestone rate (applies going forward, not retroactively)
+  ];
+  function _apprComputePayout(ojtHours) {
+    const hours = Math.min(Math.max(parseFloat(ojtHours) || 0, 0), 4000);
+    let total = 0;
+    const bands = [];
+    _APPR_WAGE_TIERS.forEach(function (tier) {
+      if (tier.from === tier.to) return; // the 4000+ marker row, no band width
+      const hoursInBand = Math.max(0, Math.min(hours, tier.to) - tier.from);
+      if (hoursInBand <= 0) return;
+      const bandPay = hoursInBand * tier.rate;
+      total += bandPay;
+      bands.push({ label: tier.from.toLocaleString() + '–' + tier.to.toLocaleString() + ' hrs', hours: hoursInBand, rate: tier.rate, pay: bandPay });
+    });
+    return { totalHours: hours, totalPay: total, bands: bands };
+  }
+
   function _apprProgressBar(count, total, color) {
     const pct = total > 0 ? Math.min(Math.round(count/total*100), 100) : 0;
     return `<div style="margin-bottom:.35rem">
@@ -3413,6 +3445,43 @@
         </div>
         ${a.notes ? `<div style="margin-top:.75rem;padding:.6rem .75rem;background:#fffbeb;border-radius:6px;font-size:.78rem;color:#92400e"><strong>PM Notes:</strong> ${a.notes}</div>` : ''}
       `)}
+
+      <!-- NEW: Wage & Payout Summary -->
+      ${(function() {
+        const payout = _apprComputePayout(tapEntry.ojtHours || 0);
+        const hasMilestone = (tapEntry.milestone || 'Base') !== 'Base';
+        return _apprSection('Wage &amp; Payout Summary', '💰', `
+          <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1rem;padding:.875rem;background:#166534;border-radius:8px;color:#fff">
+            <div style="text-align:center;flex-shrink:0">
+              <div style="font-size:1.6rem;font-weight:800">$${payout.totalPay.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+              <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;opacity:.75">Est. Total Paid to Date</div>
+            </div>
+            <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:.4rem .875rem">
+              <div style="font-size:.75rem;opacity:.75">OJT Hours Completed</div><div style="font-size:.8rem;font-weight:700">${payout.totalHours.toLocaleString()} hrs</div>
+              <div style="font-size:.75rem;opacity:.75">Milestone Status</div><div style="font-size:.8rem;font-weight:700">${hasMilestone ? '✅ ' + (tapEntry.milestone||'') : '— No increase yet (Base rate)'}</div>
+            </div>
+          </div>
+          <div style="font-size:.68rem;color:#9ca3af;font-style:italic;margin-bottom:.6rem">
+            ⚠️ Calculated from the documented wage tier schedule ($30 → $30.98 → $31.99 → $32.99 → $33.99 → $35/hr at 0/1,100/2,200/3,300/3,800/4,000 hrs). Cert-track ($10/hr premium) is NOT distinguished in this data source — reconcile against payroll before using for grant/state reporting.
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+            <thead><tr style="border-bottom:1px solid #e5e7eb">
+              <th style="text-align:left;padding:.35rem .2rem;color:#6b7280;font-weight:600">Tier Band</th>
+              <th style="text-align:right;padding:.35rem .2rem;color:#6b7280;font-weight:600">Hours in Band</th>
+              <th style="text-align:right;padding:.35rem .2rem;color:#6b7280;font-weight:600">Rate</th>
+              <th style="text-align:right;padding:.35rem .2rem;color:#6b7280;font-weight:600">Pay</th>
+            </tr></thead>
+            <tbody>
+              ${payout.bands.length ? payout.bands.map(b => `<tr style="border-bottom:1px solid #f3f4f6">
+                <td style="padding:.35rem .2rem">${b.label}</td>
+                <td style="padding:.35rem .2rem;text-align:right">${b.hours.toLocaleString()}</td>
+                <td style="padding:.35rem .2rem;text-align:right">$${b.rate.toFixed(2)}</td>
+                <td style="padding:.35rem .2rem;text-align:right;font-weight:700">$${b.pay.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+              </tr>`).join('') : '<tr><td colspan="4" style="padding:.5rem .2rem;color:#9ca3af;text-align:center">No OJT hours logged yet</td></tr>'}
+            </tbody>
+          </table>
+        `);
+      })()}
 
       <!-- Observations -->
       ${_apprSection('Observations', '👁️', `
