@@ -314,6 +314,20 @@
       lookFor:'Documented in IC observations.' },
   ];
 
+  // ── NEW: expose a Phase|Domain|Code -> {desc, lookFor} lookup globally ──────
+  // Purpose: the tutor "My Progress" panel (my-dashboard.js) marks each activity
+  // Y/N/A using the SAME OTJ log data, but has no local copy of the activity
+  // text. Rather than duplicate this ~80-row schema in another file, we build
+  // a lookup here (from the array above) and hang it on window so any script
+  // loaded on the same page can read it. This does NOT change how Y/N/A status
+  // is computed anywhere — it only adds descriptive text for already-Y items.
+  var OJT_ACTIVITY_LOOKUP = {};
+  OJT_ACTIVITY_DATA.forEach(function(a) {
+    OJT_ACTIVITY_LOOKUP[a.phase + '|' + a.domain + '|' + String(a.code).toUpperCase()] = {
+      desc: a.desc, lookFor: a.lookFor
+    };
+  });
+  window.NJTC_OJT_ACTIVITY_LOOKUP = OJT_ACTIVITY_LOOKUP;
 
   // fetchTapCSV: tolerant Master Roster parser.
   // The Apps Script doGet (?tab=master_roster) serves a CLEAN CSV: row 0 = column
@@ -1696,7 +1710,7 @@
 
       let html=`<div class="tp-kpi-row">
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:${ojtColor}">${mrOJT.toLocaleString()}</div><div class="tp-kpi-lbl">OJT Hours<br><span style="color:#64748b;font-weight:400">of 4,000</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrOJT/40))}%;background:${ojtColor}"></div></div></div>
-        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${lmsColor}">${mrLMS}</div><div class="tp-kpi-lbl">LMS Hours<br><span style="color:#64748b;font-weight:400">of 288 required</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrLMS/2.88))}%;background:${lmsColor}"></div></div></div>
+        <div class="tp-kpi"><div class="tp-kpi-val" style="color:${lmsColor}">${mrLMS}</div><div class="tp-kpi-lbl">RTI Hours<br><span style="color:#64748b;font-weight:400">of 288 required</span></div><div class="tp-progress-bar"><div class="tp-progress-fill" style="width:${Math.min(100,Math.round(mrLMS/2.88))}%;background:${lmsColor}"></div></div></div>
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:#FFB81C">${yCount} / ${possible}</div><div class="tp-kpi-lbl">Activities Observed<br><span style="color:#64748b;font-weight:400">${ojtPctNum}% complete</span></div></div>
         <div class="tp-kpi"><div class="tp-kpi-val" style="color:${mrWage>0?'#34d399':'#64748b'}">${mrWage>0?'$'+mrWage.toFixed(2):'—'}</div><div class="tp-kpi-lbl">Current Wage<br><span style="color:#64748b;font-weight:400">${escHtml(mrMilestone)}</span></div></div>
       </div>
@@ -2100,7 +2114,7 @@
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill ojt" style="width:' + ojtPct + '%"></div></div>' +
         '</div>' +
         '<div class="njtc-progress-row">' +
-          '<div class="njtc-progress-label"><span>LMS Hours</span><span>' + lmsHours + ' / ' + lmsTotal + ' (' + lmsPct + '%)</span></div>' +
+          '<div class="njtc-progress-label"><span>RTI Hours</span><span>' + lmsHours + ' / ' + lmsTotal + ' (' + lmsPct + '%)</span></div>' +
           '<div class="njtc-progress-bar"><div class="njtc-progress-fill" style="width:' + lmsPct + '%;background:#7c3aed"></div></div>' +
         '</div>' +
               '</div>';
@@ -2839,6 +2853,40 @@
   }
 
   /* ─────────────────────────────────────────────
+     NEW: NAV PRIORITIZATION FOR LEADER ROLES
+     Team Progress is the priority view for Dual Role / Site Leader staff.
+     This only reorders/hides tabs — it never removes access to the personal
+     dashboard, and it never touches OJT/attendance/completion calculations.
+  ───────────────────────────────────────────── */
+  function _prioritizeTeamNav() {
+    try {
+      const nav = document.querySelector('.njtc-tab-nav');
+      const teamBtn = document.getElementById('njtcTeamTab');
+      const dashBtn = nav && nav.querySelector('[data-tab="dashboard"]');
+      if (nav && teamBtn) nav.insertBefore(teamBtn, nav.firstChild); // Team first
+      if (nav && dashBtn) nav.appendChild(dashBtn);                   // Dashboard last
+
+      // Hide the "My Progress" sub-tab (inside My Dashboard) for leader roles —
+      // if my-dashboard.js has already built it. If it hasn't yet (race with
+      // async loads), the NJTC_IS_LEADER_ROLE flag set by the caller makes
+      // _injectPortalTabNav skip creating it in the first place.
+      const mpBtn  = document.querySelector('[data-ptab="progress"]');
+      if (mpBtn) mpBtn.style.display = 'none';
+      const mpPane = document.getElementById('njtc-ptab-progress');
+      if (mpPane) mpPane.classList.remove('active');
+
+      // Default the active tab to My Team — only once per page load, so we
+      // never yank the user back to Team if they've already navigated away.
+      if (!window._njtcDefaultTeamTabSet) {
+        window._njtcDefaultTeamTabSet = true;
+        if (typeof window.switchTab === 'function') window.switchTab('team');
+      }
+    } catch (e) {
+      console.warn('[NJTCTeam] _prioritizeTeamNav failed (non-fatal):', e);
+    }
+  }
+
+  /* ─────────────────────────────────────────────
      MAIN BUILD FUNCTION  (progressive)
   ───────────────────────────────────────────── */
   async function build(userProfile) {
@@ -2882,6 +2930,14 @@
 
     const teamTab = document.getElementById('njtcTeamTab');
     if (teamTab) teamTab.style.display = 'flex';
+
+    // NEW: For Dual Role / Site Leader staff, Team Progress is the priority view.
+    // Flag it globally (my-dashboard.js checks this before rendering the "My
+    // Progress" sub-tab) and reorder the top nav so My Team shows first and the
+    // personal My Dashboard tab moves last. Personal dashboard access is kept —
+    // only its position and the My Progress sub-tab are affected.
+    window.NJTC_IS_LEADER_ROLE = true;
+    _prioritizeTeamNav();
 
     container.innerHTML = `<div class="njtc-team-loading"><div class="njtc-spinner"></div> Loading attendance data…</div>`;
 
