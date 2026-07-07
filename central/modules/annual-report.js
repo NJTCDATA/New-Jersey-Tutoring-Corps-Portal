@@ -389,17 +389,21 @@ function topBy(counterObj, n) {
     var biggestContributors = topBy(groupCount(partnerRows, 'district'), 5)
       .map(function(pair){ return { name: pair[0], n: pair[1], nps: byDistrict[pair[0]].nps }; });
 
-    // Positives: highest-NPS districts with n>=3, + sample of real highlight comments
+    // Positives: districts with n>=3 AND an actually-good NPS (>=40, promoter-heavy) —
+    // rank order alone previously let a strongly negative NPS get labeled "top
+    // performing" whenever nothing else qualified. A district only appears here if
+    // its score is genuinely good, not merely "the best of a bad set."
     var districtsWithN = Object.entries(byDistrict).filter(function(e){ return e[1].n >= 3; });
-    var bestDistricts = districtsWithN.slice().sort(function(a,b){ return (b[1].nps||-999)-(a[1].nps||-999); }).slice(0,3)
+    var bestDistricts = districtsWithN.filter(function(e){ return e[1].nps !== null && e[1].nps >= 40; })
+      .sort(function(a,b){ return b[1].nps-a[1].nps; }).slice(0,3)
       .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
     var highlightComments = partnerRows.filter(function(r){ return r.highlightComment && r.highlightComment.length > 15; })
       .slice(0, 6).map(function(r){ return { text: r.highlightComment, district: r.district }; });
 
-    // Negatives: lowest-NPS districts with n>=3, dissatisfaction reason frequency
-    var worstDistrictsRaw = districtsWithN.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,3)
+    // Negatives: districts with n>=3 AND a genuinely concerning NPS (<20).
+    var worstDistricts = districtsWithN.filter(function(e){ return e[1].nps !== null && e[1].nps < 20; })
+      .sort(function(a,b){ return a[1].nps-b[1].nps; }).slice(0,3)
       .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
-    var worstDistricts = dedupeWorst(bestDistricts, worstDistrictsRaw);
     var dissatFreq = {};
     partnerRows.forEach(function(r){ r.dissatisfactionReasons.forEach(function(reason){ if (reason) dissatFreq[reason]=(dissatFreq[reason]||0)+1; }); });
     var topDissatReasons = topBy(dissatFreq, 5).map(function(p){ return { reason: p[0], count: p[1] }; });
@@ -447,9 +451,10 @@ function topBy(counterObj, n) {
     var biggestContributors = topBy(groupCount(onsiteRows, 'role'), 5).map(function(p){ return { name: p[0], n: p[1], nps: byRole[p[0]].nps }; });
 
     var roleEntries = Object.entries(byRole).filter(function(e){ return e[1].n>=3; });
-    var bestRoles = roleEntries.slice().sort(function(a,b){ return (b[1].nps||-999)-(a[1].nps||-999); }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
-    var worstRolesRaw = roleEntries.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
-    var worstRoles = dedupeWorst(bestRoles, worstRolesRaw);
+    var bestRoles = roleEntries.filter(function(e){ return e[1].nps !== null && e[1].nps >= 40; })
+      .sort(function(a,b){ return b[1].nps-a[1].nps; }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
+    var worstRoles = roleEntries.filter(function(e){ return e[1].nps !== null && e[1].nps < 20; })
+      .sort(function(a,b){ return a[1].nps-b[1].nps; }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
 
     return {
       n: onsiteRows.length, overall: overall,
@@ -491,9 +496,10 @@ function topBy(counterObj, n) {
 
     var siteEntries = Object.entries(bySite).filter(function(e){ return e[1].mathN>=3 && e[1].litN>=3; });
     function avgSiteNPS(e) { return ((e[1].mathNPS||0)+(e[1].litNPS||0))/2; }
-    var bestSites = siteEntries.slice().sort(function(a,b){ return avgSiteNPS(b)-avgSiteNPS(a); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
-    var worstSitesRaw = siteEntries.slice().sort(function(a,b){ return avgSiteNPS(a)-avgSiteNPS(b); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
-    var worstSites = dedupeWorst(bestSites, worstSitesRaw);
+    var bestSites = siteEntries.filter(function(e){ return avgSiteNPS(e) >= 40; })
+      .sort(function(a,b){ return avgSiteNPS(b)-avgSiteNPS(a); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
+    var worstSites = siteEntries.filter(function(e){ return avgSiteNPS(e) < 20; })
+      .sort(function(a,b){ return avgSiteNPS(a)-avgSiteNPS(b); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
 
     var mathEnjoyPct = pct1(mathRows.filter(function(r){return r.mathEnjoyTutor;}).length, mathRows.length);
     var litEnjoyPct = pct1(litRows.filter(function(r){return r.litEnjoyTutor;}).length, litRows.length);
@@ -1225,18 +1231,29 @@ function topBy(counterObj, n) {
 
       function npsClass(nps){ if(nps===null||nps===undefined) return 'muted'; if(nps>=50) return 'green'; if(nps>=20) return 'amber'; return 'red'; }
       function fmtNPS(nps){ return nps===null?'N/A':(nps>0?'+':'')+nps; }
+      function barRow(name, n, nps, maxN) {
+        var pct = maxN ? Math.round(n/maxN*100) : 0;
+        return '<div class="bar-row"><div class="bar-label">' + esc(name) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
+          + '<div class="bar-n">' + n + '</div><div class="bar-nps ' + npsClass(nps) + '">' + fmtNPS(nps) + '</div></div>';
+      }
+      function card(name, n, scoreLabel, cls) {
+        return '<div class="mini-card ' + cls + '"><span>' + esc(name) + ' <i>(n=' + n + ')</i></span><b>' + esc(scoreLabel) + '</b></div>';
+      }
 
       var slides = [];
+
+      // 1 — COVER
       slides.push('<section class="slide cover"><div class="ring-bg"></div><div class="brand">\uD83C\uDF93 NEW JERSEY TUTORING CORPS</div>'
         + '<h1>Annual Impact &amp; Satisfaction Report</h1><div class="sub">Goals \u00B7 Partner Satisfaction \u00B7 Onsite Staff \u00B7 Scholar Feedback</div>'
         + '<div class="meta">Live as of ' + esc(tsStr) + '</div>'
         + '<div class="cover-tiles">'
         + '<div class="tile"><div class="tv">' + (goalsNarrative?goalsNarrative.latestSC.score+'%':'N/A') + '</div><div class="tl">GOAL HEALTH</div></div>'
-        + '<div class="tile"><div class="tv">' + fmtNPS(partnerSec.overall.nps) + '</div><div class="tl">PARTNER NPS</div></div>'
+        + '<div class="tile"><div class="tv">' + fmtNPS(partnerSec.overall.nps) + '</div><div class="tl">PARTNER NPS (Q)</div></div>'
         + '<div class="tile"><div class="tv">' + onsiteSec.n + '</div><div class="tl">ONSITE STAFF N</div></div>'
         + '<div class="tile"><div class="tv">' + scholarSec.n + '</div><div class="tl">SCHOLAR VOICES N</div></div>'
         + '</div></section>');
 
+      // 2 — WHERE WE STAND
       slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDCC8</div><div><h2>Where We Stand</h2><div class="hsub">The full picture, in one place</div></div></div>'
         + '<div class="headline-card">' + synthesis.map(esc).join('<br><br>') + '</div>'
         + '<table class="voice-table"><thead><tr><th>Source</th><th>n</th><th>Score</th></tr></thead><tbody>'
@@ -1248,60 +1265,120 @@ function topBy(counterObj, n) {
         + '<tr><td>Scholar Confidence \u2014 Literacy</td><td>' + scholarSec.litN + '</td><td class="' + npsClass(scholarSec.litNPS.nps) + '">' + fmtNPS(scholarSec.litNPS.nps) + '</td></tr>'
         + '</tbody></table></section>');
 
+      // 3 — PARTNER OVERVIEW
+      var maxDistN = Math.max.apply(null, partnerSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
       slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83E\uDD1D</div><div><h2>Partner Satisfaction</h2><div class="hsub">Quarterly n=' + partnerSec.n + ' \u00B7 EOY n=' + partnerSec.eoyN + '</div></div></div>'
-        + '<div class="two-col"><div><h3>Biggest Contributors</h3><ul class="bar-list">' + partnerSec.biggestContributors.map(function(c){ return '<li><span>' + esc(c.name) + '</span><b class="' + npsClass(c.nps) + '">' + fmtNPS(c.nps) + ' (n=' + c.n + ')</b></li>'; }).join('') + '</ul></div>'
-        + '<div><h3 class="green">What\u2019s Working</h3>' + partnerSec.positives.bestDistricts.map(function(d){ return '<div class="mini-card green">' + esc(d.name) + ' \u2014 NPS ' + fmtNPS(d.nps) + ' (n=' + d.n + ')</div>'; }).join('')
-        + '<h3 class="red">Needs Attention</h3>' + partnerSec.negatives.worstDistricts.map(function(d){ return '<div class="mini-card red">' + esc(d.name) + ' \u2014 NPS ' + fmtNPS(d.nps) + ' (n=' + d.n + ')</div>'; }).join('') + '</div></div></section>');
+        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by District</h3>'
+        + '<div class="bar-chart">' + partnerSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxDistN); }).join('') + '</div></section>');
 
+      // 4 — PARTNER WHAT'S WORKING
+      slides.push('<section class="slide light"><div class="head"><div class="hicon green">\u2705</div><div><h2>Partner Satisfaction \u2014 What\u2019s Working</h2><div class="hsub">Highest-performing districts and direct partner feedback</div></div></div>'
+        + (partnerSec.positives.bestDistricts.length
+            ? partnerSec.positives.bestDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'green'); }).join('')
+            : '<div class="empty-note">No districts cleared the positive-NPS threshold this cycle.</div>')
+        + (partnerSec.positives.highlightComments.length ? '<h3 class="sub-h" style="margin-top:22px">Direct Feedback</h3><div class="quote-list">'
+            + partnerSec.positives.highlightComments.slice(0,4).map(function(c){ return '<div class="quote">\u201C' + esc(c.text) + '\u201D<span>\u2014 ' + esc(c.district) + '</span></div>'; }).join('') + '</div>' : '')
+        + '</section>');
+
+      // 5 — PARTNER NEEDS ATTENTION
+      slides.push('<section class="slide light"><div class="head"><div class="hicon red">\u26A0\uFE0F</div><div><h2>Partner Satisfaction \u2014 Needs Attention</h2><div class="hsub">Lowest-performing districts and dissatisfaction themes</div></div></div>'
+        + (partnerSec.negatives.worstDistricts.length
+            ? partnerSec.negatives.worstDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'red'); }).join('')
+            : '<div class="empty-note">No districts fell below the concern threshold this cycle.</div>')
+        + (partnerSec.negatives.topDissatReasons.length ? '<h3 class="sub-h" style="margin-top:22px">Dissatisfaction Reasons</h3><div class="bar-chart">'
+            + (function(){ var maxD=Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;})); return partnerSec.negatives.topDissatReasons.map(function(r){ return '<div class="bar-row"><div class="bar-label">'+esc(r.reason)+'</div><div class="bar-track"><div class="bar-fill red" style="width:'+Math.round(r.count/maxD*100)+'%"></div></div><div class="bar-n">'+r.count+'</div></div>'; }).join(''); })()
+            + '</div>' : '')
+        + '</section>');
+
+      // 6 — ONSITE OVERVIEW
+      var maxRoleN = Math.max.apply(null, onsiteSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
       slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff Feedback</h2><div class="hsub">n=' + onsiteSec.n + '</div></div></div>'
-        + '<table class="voice-table"><thead><tr><th>Role</th><th>n</th><th>Sat-NPS</th><th>% Grew Prof.</th><th>% Made Diff.</th></tr></thead><tbody>'
-        + Object.keys(onsiteSec.byRole).sort(function(a,b){return onsiteSec.byRole[b].n-onsiteSec.byRole[a].n;}).map(function(rl){
-            var d=onsiteSec.byRole[rl];
-            return '<tr><td>' + esc(rl) + '</td><td>' + d.n + '</td><td class="' + npsClass(d.nps) + '">' + fmtNPS(d.nps) + '</td><td>' + (d.grewPct===null?'N/A':d.grewPct+'%') + '</td><td>' + (d.diffPct===null?'N/A':d.diffPct+'%') + '</td></tr>';
-          }).join('') + '</tbody></table></section>');
+        + '<div class="two-col"><div class="stat-block"><div class="sv">' + (onsiteSec.grewProfessionallyPct===null?'N/A':onsiteSec.grewProfessionallyPct+'%') + '</div><div class="sl">Grew Professionally (n=' + onsiteSec.grewProfessionallyN + ', goal 80%)</div></div>'
+        + '<div class="stat-block"><div class="sv">' + (onsiteSec.madeDifferencePct===null?'N/A':onsiteSec.madeDifferencePct+'%') + '</div><div class="sl">Made a Difference (n=' + onsiteSec.madeDifferenceN + ', goal 80%)</div></div></div>'
+        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by Role</h3>'
+        + '<div class="bar-chart">' + onsiteSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxRoleN); }).join('') + '</div></section>');
 
+      // 7 — ONSITE BY ROLE (best/worst)
+      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff \u2014 By Role</h2><div class="hsub">Highest and lowest satisfaction-NPS roles</div></div></div>'
+        + '<h3 class="sub-h green">Strongest Roles</h3>'
+        + (onsiteSec.positives.bestRoles.length ? onsiteSec.positives.bestRoles.map(function(r){ return card(r.name, r.n, 'Sat-NPS ' + fmtNPS(r.nps), 'green'); }).join('') : '<div class="empty-note">No roles cleared the positive threshold this cycle.</div>')
+        + '<h3 class="sub-h red" style="margin-top:18px">Roles Needing Support</h3>'
+        + (onsiteSec.negatives.worstRoles.length ? onsiteSec.negatives.worstRoles.map(function(r){ return card(r.name, r.n, 'Sat-NPS ' + fmtNPS(r.nps), 'red'); }).join('') : '<div class="empty-note">Too few distinct roles this cycle to separate top and bottom performers.</div>')
+        + '</section>');
+
+      // 8 — SCHOLAR OVERVIEW
+      var maxSiteN = Math.max.apply(null, scholarSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
       slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback</h2><div class="hsub">Math n=' + scholarSec.mathN + ' \u00B7 Literacy n=' + scholarSec.litN + '</div></div></div>'
-        + '<table class="voice-table"><thead><tr><th>Site</th><th>n</th><th>Math NPS</th><th>Literacy NPS</th></tr></thead><tbody>'
-        + scholarSec.biggestContributors.map(function(c){ var d=scholarSec.bySite[c.name]; return '<tr><td>' + esc(c.name) + '</td><td>' + c.n + '</td><td class="' + npsClass(d.mathNPS) + '">' + fmtNPS(d.mathNPS) + '</td><td class="' + npsClass(d.litNPS) + '">' + fmtNPS(d.litNPS) + '</td></tr>'; }).join('')
-        + '</tbody></table></section>');
+        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by Site</h3>'
+        + '<div class="bar-chart">' + scholarSec.biggestContributors.map(function(c){ return '<div class="bar-row"><div class="bar-label">'+esc(c.name)+'</div><div class="bar-track"><div class="bar-fill gold" style="width:'+Math.round(c.n/maxSiteN*100)+'%"></div></div><div class="bar-n">'+c.n+'</div></div>'; }).join('') + '</div></section>');
 
+      // 9 — SCHOLAR BY SITE (best/worst)
+      slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback \u2014 By Site</h2><div class="hsub">Highest and lowest confidence sites (3+ respondents, both subjects)</div></div></div>'
+        + '<h3 class="sub-h green">Strongest Sites</h3>'
+        + (scholarSec.positives.bestSites.length ? scholarSec.positives.bestSites.map(function(s){ return card(s.name, s.n, 'Math '+fmtNPS(s.mathNPS)+' \u00B7 Lit '+fmtNPS(s.litNPS), 'green'); }).join('') : '<div class="empty-note">No sites cleared the positive threshold this cycle.</div>')
+        + '<h3 class="sub-h red" style="margin-top:18px">Sites Needing Support</h3>'
+        + (scholarSec.negatives.worstSites.length ? scholarSec.negatives.worstSites.map(function(s){ return card(s.name, s.n, 'Math '+fmtNPS(s.mathNPS)+' \u00B7 Lit '+fmtNPS(s.litNPS), 'red'); }).join('') : '<div class="empty-note">No sites fell below the concern threshold this cycle.</div>')
+        + '</section>');
+
+      // 10 — SYNTHESIS + NEXT STEPS
       var nextSteps = [];
       if (partnerSec.negatives.worstDistricts.length) nextSteps.push('Follow up with ' + partnerSec.negatives.worstDistricts.map(function(d){return d.name;}).join(', ') + ' \u2014 lowest partner NPS.');
+      if (partnerSec.negatives.topDissatReasons.length) nextSteps.push('Address the top dissatisfaction driver: \u201C' + partnerSec.negatives.topDissatReasons[0].reason + '\u201D (' + partnerSec.negatives.topDissatReasons[0].count + ' mentions).');
       if (onsiteSec.negatives.worstRoles.length) nextSteps.push('Check in with ' + onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ') + ' \u2014 lowest onsite satisfaction.');
       if (scholarSec.negatives.worstSites.length) nextSteps.push('Review confidence outcomes at ' + scholarSec.negatives.worstSites.map(function(s){return s.name;}).join(', ') + '.');
       nextSteps.push('Share strongest districts/roles/sites as models for next cycle.');
-      slides.push('<section class="slide cover dark-alt"><div class="head light-head"><div class="hicon gold">\uD83D\uDEA9</div><div><h2 class="white">Recommended Next Steps</h2></div></div>'
+      slides.push('<section class="slide cover dark-alt"><div class="head light-head"><div class="hicon gold">\uD83D\uDEA9</div><div><h2 class="white">What the Data Is Telling Us</h2><div class="hsub light">Cross-cutting synthesis &amp; recommended next steps</div></div></div>'
+        + '<ol class="steps synth-steps">' + synthesis.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>'
+        + '<h3 class="sub-h gold" style="margin-top:10px">Recommended Next Steps</h3>'
         + '<ol class="steps">' + nextSteps.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></section>');
 
       var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Annual Impact & Satisfaction Report</title><style>'
         + ':root{--navy:#1B2A4A;--gold:#E8A838;--ink:#1E293B;--muted:#64748B;--green:#16A34A;--red:#DC2626;--amber:#D97706;}'
-        + '*{box-sizing:border-box;margin:0;padding:0;} body{font-family:Calibri,Arial,sans-serif;background:#0a1220;overflow:hidden;}'
+        + '*{box-sizing:border-box;margin:0;padding:0;} html,body{width:100%;height:100%;} body{font-family:Calibri,Arial,sans-serif;background:#0a1220;overflow:hidden;}'
         + '.deck{width:100vw;height:100vh;position:relative;}'
-        + '.slide{position:absolute;inset:0;display:none;padding:56px 64px;background:#fff;flex-direction:column;overflow:auto;}'
+        + '.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:5vh 5vw 9vh 5vw;background:#fff;overflow-y:auto;}'
         + '.slide.active{display:flex;} .slide.cover{background:linear-gradient(135deg,#0f1c38,#1B2A4A);color:#fff;justify-content:center;}'
-        + '.ring-bg{position:absolute;top:-160px;right:-120px;width:480px;height:480px;border-radius:50%;background:#13203A;}'
-        + '.brand{font-weight:700;letter-spacing:2px;color:var(--gold);font-size:14px;margin-bottom:28px;}'
-        + '.slide.cover h1{font-family:Cambria,Georgia,serif;font-size:44px;font-weight:700;margin-bottom:14px;max-width:900px;}'
-        + '.slide.cover .sub{font-size:18px;color:var(--gold);margin-bottom:10px;} .slide.cover .meta{font-size:12px;color:#A9B4C9;margin-bottom:36px;}'
-        + '.cover-tiles{display:flex;gap:24px;flex-wrap:wrap;} .tile{background:#1F3159;border-radius:10px;padding:16px 22px;min-width:140px;}'
-        + '.tile .tv{font-family:Cambria,Georgia,serif;font-size:28px;font-weight:700;} .tile .tl{font-size:10px;color:#A9B4C9;letter-spacing:1px;margin-top:4px;}'
-        + '.head{display:flex;align-items:center;gap:18px;margin-bottom:24px;}'
-        + '.hicon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--navy);}'
-        + '.hicon.gold{background:var(--gold);}'
-        + 'h2{font-family:Cambria,Georgia,serif;font-size:26px;color:var(--navy);} h2.white{color:#fff;}'
-        + '.hsub{font-size:12px;color:var(--muted);margin-top:2px;}'
-        + '.headline-card{background:#EEF2F9;border-radius:10px;padding:18px 22px;font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:20px;}'
+        + '.ring-bg{position:absolute;top:-160px;right:-120px;width:480px;height:480px;border-radius:50%;background:#13203A;pointer-events:none;}'
+        + '.brand{font-weight:700;letter-spacing:2px;color:var(--gold);font-size:14px;margin-bottom:24px;}'
+        + '.slide.cover h1{font-family:Cambria,Georgia,serif;font-size:clamp(28px,4vw,44px);font-weight:700;margin-bottom:14px;max-width:900px;}'
+        + '.slide.cover .sub{font-size:18px;color:var(--gold);margin-bottom:10px;} .slide.cover .meta{font-size:12px;color:#A9B4C9;margin-bottom:32px;}'
+        + '.cover-tiles{display:flex;gap:20px;flex-wrap:wrap;} .tile{background:#1F3159;border-radius:10px;padding:16px 22px;min-width:150px;flex:1 1 150px;}'
+        + '.tile .tv{font-family:Cambria,Georgia,serif;font-size:26px;font-weight:700;} .tile .tl{font-size:10px;color:#A9B4C9;letter-spacing:1px;margin-top:4px;}'
+        + '.head{display:flex;align-items:center;gap:18px;margin-bottom:22px;flex-shrink:0;}'
+        + '.hicon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--navy);color:#fff;}'
+        + '.hicon.green{background:var(--green);} .hicon.red{background:var(--red);} .hicon.gold{background:var(--gold);}'
+        + 'h2{font-family:Cambria,Georgia,serif;font-size:clamp(20px,2.4vw,26px);color:var(--navy);} h2.white{color:#fff;}'
+        + '.hsub{font-size:12px;color:var(--muted);margin-top:2px;} .hsub.light{color:#A9B4C9;}'
+        + '.headline-card{background:#EEF2F9;border-radius:10px;padding:18px 22px;font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:20px;flex-shrink:0;}'
         + '.voice-table{width:100%;border-collapse:collapse;font-size:12px;} .voice-table th{background:var(--navy);color:#fff;text-align:left;padding:8px 10px;}'
         + '.voice-table td{padding:7px 10px;border-bottom:1px solid #EEF1F5;}'
         + '.voice-table td.green{color:var(--green);font-weight:700;} .voice-table td.amber{color:var(--amber);font-weight:700;} .voice-table td.red{color:var(--red);font-weight:700;} .voice-table td.muted{color:var(--muted);}'
-        + '.two-col{display:flex;gap:32px;} .two-col>div{flex:1;} .two-col h3{font-size:13px;color:var(--navy);margin-bottom:10px;}'
-        + '.two-col h3.green{color:var(--green);} .two-col h3.red{color:var(--red);margin-top:16px;}'
-        + '.bar-list{list-style:none;} .bar-list li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #EEF1F5;font-size:12.5px;}'
-        + '.bar-list b.green{color:var(--green);} .bar-list b.amber{color:var(--amber);} .bar-list b.red{color:var(--red);}'
-        + '.mini-card{border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:12px;}'
-        + '.mini-card.green{background:#EAF7EE;} .mini-card.red{background:#FCEAEA;}'
-        + '.steps{list-style:none;counter-reset:step;margin-top:20px;} .steps li{counter-increment:step;position:relative;padding:14px 0 14px 46px;font-size:15px;color:#fff;line-height:1.4;}'
-        + '.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:30px;height:30px;background:var(--gold);color:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:Cambria,Georgia,serif;}'
+        + '.sub-h{font-size:14px;color:var(--navy);margin-bottom:12px;font-weight:700;} .sub-h.green{color:var(--green);} .sub-h.red{color:var(--red);} .sub-h.gold{color:var(--gold);}'
+        + '.bar-chart{display:flex;flex-direction:column;gap:10px;}'
+        + '.bar-row{display:flex;align-items:center;gap:12px;font-size:12px;}'
+        + '.bar-label{width:min(38%,280px);flex-shrink:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+        + '.bar-track{flex:1;height:16px;background:#F0F2F6;border-radius:4px;overflow:hidden;min-width:60px;}'
+        + '.bar-fill{height:100%;background:var(--navy);border-radius:4px;} .bar-fill.gold{background:var(--gold);} .bar-fill.red{background:var(--red);}'
+        + '.bar-n{width:32px;text-align:right;font-weight:700;color:var(--ink);flex-shrink:0;}'
+        + '.bar-nps{width:64px;text-align:right;font-weight:700;flex-shrink:0;}'
+        + '.bar-nps.green{color:var(--green);} .bar-nps.amber{color:var(--amber);} .bar-nps.red{color:var(--red);} .bar-nps.muted{color:var(--muted);}'
+        + '.mini-card{border-radius:8px;padding:12px 16px;margin-bottom:10px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}'
+        + '.mini-card span i{color:var(--muted);font-style:normal;font-size:11px;}'
+        + '.mini-card b{white-space:nowrap;}'
+        + '.mini-card.green{background:#EAF7EE;} .mini-card.green b{color:var(--green);}'
+        + '.mini-card.red{background:#FCEAEA;} .mini-card.red b{color:var(--red);}'
+        + '.empty-note{font-size:11.5px;color:var(--muted);font-style:italic;padding:8px 0;}'
+        + '.quote-list{display:flex;flex-direction:column;gap:8px;}'
+        + '.quote{background:#FAFBFC;border-radius:8px;padding:10px 14px;font-size:11.5px;font-style:italic;color:var(--ink);line-height:1.45;}'
+        + '.quote span{display:block;margin-top:4px;font-size:10px;font-style:normal;color:var(--muted);}'
+        + '.two-col{display:flex;gap:20px;margin-bottom:22px;flex-shrink:0;}'
+        + '.stat-block{flex:1;background:#F7F9FC;border-radius:10px;padding:16px 20px;}'
+        + '.stat-block .sv{font-family:Cambria,Georgia,serif;font-size:26px;font-weight:700;color:var(--navy);}'
+        + '.stat-block .sl{font-size:11px;color:var(--muted);margin-top:4px;}'
+        + '.steps{list-style:none;counter-reset:step;} .steps li{counter-increment:step;position:relative;padding:8px 0 8px 38px;font-size:13px;color:var(--ink);line-height:1.4;}'
+        + '.steps li::before{content:counter(step);position:absolute;left:0;top:6px;width:24px;height:24px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;}'
+        + '.dark-alt .steps li{color:#fff;} .dark-alt .steps li::before{background:var(--gold);color:var(--navy);}'
+        + '.dark-alt .synth-steps li::before{background:#3A4A73;color:#fff;}'
         + '.light-head{color:#fff;}'
         + '.navbar{position:fixed;bottom:0;left:0;right:0;height:52px;background:rgba(10,18,32,.92);display:flex;align-items:center;justify-content:center;gap:18px;z-index:10;}'
         + '.navbar button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;}'
