@@ -217,10 +217,12 @@
     var email = raw['Email Address']||'';
     var district = eoyClassifyDistrict(site, email);
     var npsRaw = pickField(raw, [], /recommend new jersey tutoring corps|likely.*recommend.*njtc/i);
+    var needsMet = pickField(raw, [], /overall.{0,10}how well has njtc met your needs/i);
     return {
       timestamp: raw['Timestamp']||'', email: email, name: parsed.name, role: parsed.role,
       district: normalizePartnerDistrict(district), site: site,
       npsScore: parseInt(npsRaw)||0,
+      needsMet: (needsMet||'').trim(),
       goodAt: pickField(raw, [], /what is njtc good at/i),
       couldImprove: pickField(raw, [], /what could njtc do better/i),
     };
@@ -300,6 +302,13 @@
   var FOLLOWUP_OFFSETS = { managingExpected:1, supportingRewarding:2, siteStaffEasy:3, madeDifference:4, commConsistent:5, grewProfessionally:6 };
   function findColByRegex(headers, re) { for (var i=0;i<headers.length;i++) { if (re.test(headers[i])) return i; } return -1; }
   function isAgree(v) { return /^(strongly agree|agree)$/i.test((v||'').trim()); }
+  function normalizeOnsiteRegion(region) {
+    var t = (region||'').replace(/\s*Region\s*$/i,'').trim();
+    var low = t.toLowerCase().replace(/[\s-]+/g,'');
+    if (low === 'northeast') return 'NE';
+    if (low === 'southwest') return 'SW';
+    return t || region;
+  }
   function isAnswered(v) { var t=(v||'').trim(); return !!t && t.toLowerCase()!=='n/a'; }
   function normalizeOnsiteRow(headers, valsRow) {
     var name = pickFieldPos(headers, valsRow, ['Please write your name'], /write your name/i);
@@ -324,7 +333,7 @@
     return {
       timestamp: emailIdx>=0?(valsRow[headers.indexOf('Timestamp')]||''):'',
       email: email, name: name, site: site, role: role,
-      region: (region||'').replace(/\s*Region\s*$/i,'').trim() || region,
+      region: normalizeOnsiteRegion(region),
       wouldWorkAgain: wouldWorkAgain,
       satisfaction: satisfaction,
       grewProfessionally: grewProfessionally, grewProfessionallyAgree: isAgree(grewProfessionally), grewProfessionallyAnswered: isAnswered(grewProfessionally),
@@ -346,6 +355,15 @@
   
 function topBy(counterObj, n) {
     return Object.entries(counterObj).sort(function(a,b){ return b[1]-a[1]; }).slice(0, n);
+  }
+  // When there are too few qualifying segments, "best" and "worst" can end up
+  // showing the same items. Given a sorted-best and sorted-worst list, drop any
+  // worst-list item that's already in the best list — a "top / bottom" framing
+  // is misleading when there are only 2-3 segments total to compare.
+  function dedupeWorst(bestList, worstList) {
+    var bestNames = {};
+    bestList.forEach(function(b){ bestNames[b.name] = true; });
+    return worstList.filter(function(w){ return !bestNames[w.name]; });
   }
   function groupCount(rows, key) {
     var c = {};
@@ -379,17 +397,24 @@ function topBy(counterObj, n) {
       .slice(0, 6).map(function(r){ return { text: r.highlightComment, district: r.district }; });
 
     // Negatives: lowest-NPS districts with n>=3, dissatisfaction reason frequency
-    var worstDistricts = districtsWithN.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,3)
+    var worstDistrictsRaw = districtsWithN.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,3)
       .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
+    var worstDistricts = dedupeWorst(bestDistricts, worstDistrictsRaw);
     var dissatFreq = {};
     partnerRows.forEach(function(r){ r.dissatisfactionReasons.forEach(function(reason){ if (reason) dissatFreq[reason]=(dissatFreq[reason]||0)+1; }); });
     var topDissatReasons = topBy(dissatFreq, 5).map(function(p){ return { reason: p[0], count: p[1] }; });
 
     var eoyOverall = eoyRows.length ? calcNPS(eoyRows) : null;
+    // Top-2-box "needs met" — Extremely Well + Very Well combined (distinct from the
+    // recommend-a-friend NPS question; this is a separate satisfaction question).
+    var needsMetAnswered = eoyRows.filter(function(r){ return r.needsMet; });
+    var needsMetTop2 = needsMetAnswered.filter(function(r){ return /^extremely well$|^very well$/i.test(r.needsMet); }).length;
+    var eoyNeedsMetPct = needsMetAnswered.length ? +(needsMetTop2/needsMetAnswered.length*100).toFixed(1) : null;
 
     return {
       n: partnerRows.length, eoyN: eoyRows.length,
       overall: overall, eoyOverall: eoyOverall,
+      eoyNeedsMetPct: eoyNeedsMetPct, eoyNeedsMetN: needsMetAnswered.length,
       byDistrict: byDistrict, byRole: byRole,
       biggestContributors: biggestContributors,
       positives: { bestDistricts: bestDistricts, highlightComments: highlightComments },
@@ -423,7 +448,8 @@ function topBy(counterObj, n) {
 
     var roleEntries = Object.entries(byRole).filter(function(e){ return e[1].n>=3; });
     var bestRoles = roleEntries.slice().sort(function(a,b){ return (b[1].nps||-999)-(a[1].nps||-999); }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
-    var worstRoles = roleEntries.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
+    var worstRolesRaw = roleEntries.slice().sort(function(a,b){ return (a[1].nps===null?999:a[1].nps)-(b[1].nps===null?999:b[1].nps); }).slice(0,2).map(function(e){ return {name:e[0], nps:e[1].nps, n:e[1].n}; });
+    var worstRoles = dedupeWorst(bestRoles, worstRolesRaw);
 
     return {
       n: onsiteRows.length, overall: overall,
@@ -466,7 +492,8 @@ function topBy(counterObj, n) {
     var siteEntries = Object.entries(bySite).filter(function(e){ return e[1].mathN>=3 && e[1].litN>=3; });
     function avgSiteNPS(e) { return ((e[1].mathNPS||0)+(e[1].litNPS||0))/2; }
     var bestSites = siteEntries.slice().sort(function(a,b){ return avgSiteNPS(b)-avgSiteNPS(a); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
-    var worstSites = siteEntries.slice().sort(function(a,b){ return avgSiteNPS(a)-avgSiteNPS(b); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
+    var worstSitesRaw = siteEntries.slice().sort(function(a,b){ return avgSiteNPS(a)-avgSiteNPS(b); }).slice(0,3).map(function(e){ return {name:e[0], mathNPS:e[1].mathNPS, litNPS:e[1].litNPS, n:e[1].n}; });
+    var worstSites = dedupeWorst(bestSites, worstSitesRaw);
 
     var mathEnjoyPct = pct1(mathRows.filter(function(r){return r.mathEnjoyTutor;}).length, mathRows.length);
     var litEnjoyPct = pct1(litRows.filter(function(r){return r.litEnjoyTutor;}).length, litRows.length);
@@ -529,7 +556,13 @@ function topBy(counterObj, n) {
       var onsiteParsed = parseCSVPositional(results[3]);
 
       var partner = partnerRaw.map(normalizePartnerRow).filter(function(r){ return (r.npsScore>=1&&r.npsScore<=5) || SAT_LEVEL_SET[r.satisfactionLevel]; });
-      var eoy = eoyRaw.map(normalizeEoyRow).filter(function(r){ return r.npsScore>=1 && r.npsScore<=5; });
+      var eoyByEmail = {};
+      eoyRaw.map(normalizeEoyRow).forEach(function(r) {
+        if (!r.email) { eoyByEmail['__noemail_' + Math.random()] = r; return; }
+        var existing = eoyByEmail[r.email];
+        if (!existing || new Date(r.timestamp) >= new Date(existing.timestamp)) eoyByEmail[r.email] = r;
+      });
+      var eoy = Object.keys(eoyByEmail).map(function(k){ return eoyByEmail[k]; }).filter(function(r){ return r.npsScore>=1 && r.npsScore<=5; });
       var scholar = scholarRaw.map(normalizeScholarRow).filter(function(r){ return r.site; });
       var onsite = onsiteParsed.rows.map(function(v){ return normalizeOnsiteRow(onsiteParsed.headers, v); }).filter(function(r){ return r.role; });
 
@@ -747,12 +780,13 @@ function topBy(counterObj, n) {
         text('Biggest Contributors \u2014 Respondents by District', M, y, {size:12, bold:true, color:NAVY}); y += 16;
         if (partnerSec.biggestContributors.length) {
           var maxN = Math.max.apply(null, partnerSec.biggestContributors.map(function(c){return c.n;}));
+          var barTrackW1 = W-2*M-190-120;
           partnerSec.biggestContributors.forEach(function(c){
             paragraph(c.name, M, y+11, 170, {size:8.75, color:INK, lineHeightFactor:1.1});
-            var barW = (W-2*M-190-60) * (c.n/maxN);
-            fillRect(M+190, y, W-2*M-190-60, 16, [240,242,246], 3);
+            var barW = barTrackW1 * (c.n/maxN);
+            fillRect(M+190, y, barTrackW1, 16, [240,242,246], 3);
             fillRect(M+190, y, barW, 16, NAVY, 3);
-            text(String(c.n), M+190+barW+6, y+12, {size:8.5, bold:true, color:INK});
+            text(String(c.n), M+190+barTrackW1+6, y+12, {size:8.5, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor.apply(doc,npsColorArr(c.nps));
             doc.text('NPS ' + (c.nps===null?'N/A':(c.nps>0?'+':'')+c.nps), W-M, y+12, {align:'right'});
             y += 24;
@@ -763,13 +797,12 @@ function topBy(counterObj, n) {
         doc.addPage(); fillRect(0,0,W,H,WHITE);
         pageHeader('Partner Satisfaction \u2014 What\u2019s Working', 'Highest-performing districts and direct partner feedback', 'check_green', GREEN);
         y = 96;
-        text('Top-Performing Districts (n \u2265 3 respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
+        text('Top-Performing Districts (3+ respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
         partnerSec.positives.bestDistricts.forEach(function(d){
           fillRect(M, y, W-2*M, 34, GREEN_BG, 6);
-          text(d.name, M+14, y+21, {size:10, bold:true, color:INK});
+          text(d.name + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
           doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc,GREEN);
-          doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-90, y+21);
-          text('n=' + d.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
+          doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-14, y+21, {align:'right'});
           y += 42;
         });
         y += 12;
@@ -787,15 +820,18 @@ function topBy(counterObj, n) {
         doc.addPage(); fillRect(0,0,W,H,WHITE);
         pageHeader('Partner Satisfaction \u2014 Needs Attention', 'Lowest-performing districts and dissatisfaction themes', 'warning_white', RED);
         y = 96;
-        text('Lowest-Performing Districts (n \u2265 3 respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
-        partnerSec.negatives.worstDistricts.forEach(function(d){
-          fillRect(M, y, W-2*M, 34, RED_BG, 6);
-          text(d.name, M+14, y+21, {size:10, bold:true, color:INK});
-          doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, d.nps<20?RED:AMBER);
-          doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-90, y+21);
-          text('n=' + d.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
-          y += 42;
-        });
+        text('Lowest-Performing Districts (3+ respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
+        if (partnerSec.negatives.worstDistricts.length) {
+          partnerSec.negatives.worstDistricts.forEach(function(d){
+            fillRect(M, y, W-2*M, 34, RED_BG, 6);
+            text(d.name + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, d.nps<20?RED:AMBER);
+            doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-14, y+21, {align:'right'});
+            y += 42;
+          });
+        } else {
+          text('Too few distinct districts this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+        }
         y += 12;
         if (partnerSec.negatives.topDissatReasons.length) {
           text('Dissatisfaction Reasons \u2014 Frequency', M, y, {size:11.5, bold:true, color:NAVY}); y += 18;
@@ -836,12 +872,13 @@ function topBy(counterObj, n) {
         text('Biggest Contributors — Respondents by Role', M, y, {size:12, bold:true, color:NAVY}); y += 16;
         if (onsiteSec.biggestContributors.length) {
           var maxNRole = Math.max.apply(null, onsiteSec.biggestContributors.map(function(c){return c.n;}));
+          var barTrackW2 = W-2*M-170-130;
           onsiteSec.biggestContributors.forEach(function(c){
             paragraph(c.name, M, y+11, 150, {size:8.75, color:INK});
-            var barW = (W-2*M-170-60) * (c.n/maxNRole);
-            fillRect(M+170, y, W-2*M-170-60, 16, [240,242,246], 3);
+            var barW = barTrackW2 * (c.n/maxNRole);
+            fillRect(M+170, y, barTrackW2, 16, [240,242,246], 3);
             fillRect(M+170, y, barW, 16, NAVY, 3);
-            text(String(c.n), M+170+barW+6, y+12, {size:8.5, bold:true, color:INK});
+            text(String(c.n), M+170+barTrackW2+6, y+12, {size:8.5, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor.apply(doc,npsColorArr(c.nps));
             doc.text('Sat-NPS ' + (c.nps===null?'N/A':(c.nps>0?'+':'')+c.nps), W-M, y+12, {align:'right'});
             y += 24;
@@ -867,22 +904,24 @@ function topBy(counterObj, n) {
         text('Strongest Roles', M, y, {size:11.5, bold:true, color:GREEN}); y += 16;
         onsiteSec.positives.bestRoles.forEach(function(r){
           fillRect(M, y, W-2*M, 34, GREEN_BG, 6);
-          text(r.name, M+14, y+21, {size:10, bold:true, color:INK});
+          text(r.name + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
           doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc,GREEN);
-          doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-90, y+21);
-          text('n=' + r.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
+          doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+21, {align:'right'});
           y += 42;
         });
         y += 16;
         text('Roles Needing Support', M, y, {size:11.5, bold:true, color:RED}); y += 16;
-        onsiteSec.negatives.worstRoles.forEach(function(r){
-          fillRect(M, y, W-2*M, 34, r.nps<20?RED_BG:AMBER_BG, 6);
-          text(r.name, M+14, y+21, {size:10, bold:true, color:INK});
-          doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, r.nps<20?RED:AMBER);
-          doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-90, y+21);
-          text('n=' + r.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
-          y += 42;
-        });
+        if (onsiteSec.negatives.worstRoles.length) {
+          onsiteSec.negatives.worstRoles.forEach(function(r){
+            fillRect(M, y, W-2*M, 34, r.nps<20?RED_BG:AMBER_BG, 6);
+            text(r.name + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, r.nps<20?RED:AMBER);
+            doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+21, {align:'right'});
+            y += 42;
+          });
+        } else {
+          text('Too few distinct roles this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+        }
 
         // PAGE 8 — SCHOLAR OVERVIEW
         doc.addPage(); fillRect(0,0,W,H,WHITE);
@@ -907,12 +946,13 @@ function topBy(counterObj, n) {
         text('Biggest Contributors — Respondents by Site', M, y, {size:12, bold:true, color:NAVY}); y+=16;
         if (scholarSec.biggestContributors.length) {
           var maxNSite = Math.max.apply(null, scholarSec.biggestContributors.map(function(c){return c.n;}));
+          var barTrackW3 = W-2*M-260-50;
           scholarSec.biggestContributors.forEach(function(c){
             paragraph(c.name, M, y+11, 240, {size:8.25, color:INK, lineHeightFactor:1.1});
-            var barW = (W-2*M-260-40) * (c.n/maxNSite);
-            fillRect(M+260, y, W-2*M-260-40, 16, [240,242,246], 3);
+            var barW = barTrackW3 * (c.n/maxNSite);
+            fillRect(M+260, y, barTrackW3, 16, [240,242,246], 3);
             fillRect(M+260, y, barW, 16, GOLD, 3);
-            text(String(c.n), M+260+barW+6, y+12, {size:8.5, bold:true, color:INK});
+            text(String(c.n), M+260+barTrackW3+6, y+12, {size:8.5, bold:true, color:INK});
             y += 24;
           });
         }
@@ -933,27 +973,29 @@ function topBy(counterObj, n) {
 
         // PAGE 9 — SCHOLAR POSITIVES/NEGATIVES
         doc.addPage(); fillRect(0,0,W,H,WHITE);
-        pageHeader('Scholar Feedback — By Site', 'Highest and lowest confidence sites (n ≥ 3 both subjects)', 'grad_gold', GOLD);
+        pageHeader('Scholar Feedback — By Site', 'Highest and lowest confidence sites (3+ respondents, both subjects)', 'grad_gold', GOLD);
         y = 96;
         text('Strongest Sites', M, y, {size:11.5, bold:true, color:GREEN}); y+=16;
         scholarSec.positives.bestSites.forEach(function(s){
           fillRect(M, y, W-2*M, 34, GREEN_BG, 6);
-          paragraph(s.name, M+14, y+15, 300, {size:9, bold:true, color:INK, lineHeightFactor:1.1});
+          paragraph(s.name + '  (n=' + s.n + ')', M+14, y+15, 300, {size:9, bold:true, color:INK, lineHeightFactor:1.1});
           doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,GREEN);
-          doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  ·  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-90, y+21);
-          text('n='+s.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
+          doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  ·  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-14, y+21, {align:'right'});
           y += 42;
         });
         y += 16;
         text('Sites Needing Support', M, y, {size:11.5, bold:true, color:RED}); y+=16;
-        scholarSec.negatives.worstSites.forEach(function(s){
-          fillRect(M, y, W-2*M, 34, AMBER_BG, 6);
-          paragraph(s.name, M+14, y+15, 300, {size:9, bold:true, color:INK, lineHeightFactor:1.1});
-          doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,AMBER);
-          doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  ·  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-90, y+21);
-          text('n='+s.n, W-M-14, y+21, {size:8.5, color:MUTED, align:'right'});
-          y += 42;
-        });
+        if (scholarSec.negatives.worstSites.length) {
+          scholarSec.negatives.worstSites.forEach(function(s){
+            fillRect(M, y, W-2*M, 34, AMBER_BG, 6);
+            paragraph(s.name + '  (n=' + s.n + ')', M+14, y+15, 300, {size:9, bold:true, color:INK, lineHeightFactor:1.1});
+            doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,AMBER);
+            doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  ·  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-14, y+21, {align:'right'});
+            y += 42;
+          });
+        } else {
+          text('Too few distinct sites this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+        }
 
         // PAGE 10 — SYNTHESIS + NEXT STEPS (dark closing)
         doc.addPage(); fillRect(0,0,W,H,NAVY);
