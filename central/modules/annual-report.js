@@ -515,15 +515,95 @@ function topBy(counterObj, n) {
   }
 
   // ── Cross-cutting synthesis ─────────────────────────────────────────────
+  function npsVerdict(nps) {
+    if (nps === null) return { label: 'no data', flag: 'muted' };
+    if (nps >= 70) return { label: 'exceptionally strong', flag: 'good' };
+    if (nps >= 50) return { label: 'strong', flag: 'good' };
+    if (nps >= 20) return { label: 'solid, with room to grow', flag: 'watch' };
+    if (nps >= 0) return { label: 'mixed \u2014 promoters and detractors are roughly balanced', flag: 'watch' };
+    return { label: 'a genuine concern \u2014 detractors currently outnumber promoters', flag: 'concern' };
+  }
+  function pctVsGoalVerdict(pct, goal) {
+    if (pct === null) return { label: 'no data', flag: 'muted' };
+    if (pct >= goal) return { label: 'meeting or exceeding the ' + goal + '% target', flag: 'good' };
+    if (pct >= goal - 10) return { label: 'just under the ' + goal + '% target', flag: 'watch' };
+    return { label: 'well short of the ' + goal + '% target \u2014 warrants a closer look', flag: 'concern' };
+  }
   function buildSynthesis(goalsNarrative, partner, onsite, scholar) {
-    var lines = [];
+    var domains = [];
+
     if (goalsNarrative) {
-      lines.push('Organizational goal health is at ' + goalsNarrative.latestSC.score + '% (' + goalsNarrative.latestSC.health.label + ') for the latest tracked quarter.');
+      var gs = goalsNarrative.latestSC;
+      var goalFlag = gs.score>=85?'good':gs.score>=65?'watch':'concern';
+      domains.push({
+        label: 'Annual Goal Progress', metric: gs.score + '% (' + gs.health.label + ')', flag: goalFlag,
+        text: gs.counts.met + ' of ' + gs.counts.total + ' organizational targets are fully Met' + (gs.counts.notmet ? ', while ' + gs.counts.notmet + ' remain Not Met and need continued attention' : ', with no targets currently Not Met') + '.'
+      });
     }
-    lines.push('Partner satisfaction stands at ' + (partner.overall.nps===null?'N/A':(partner.overall.nps>0?'+':'')+partner.overall.nps) + ' NPS across ' + partner.n + ' quarterly respondents' + (partner.eoyOverall ? ' (' + (partner.eoyOverall.nps>0?'+':'')+partner.eoyOverall.nps + ' on the separate EOY survey, n=' + partner.eoyN + ')' : '') + '.');
-    lines.push('Onsite staff report ' + (onsite.grewProfessionallyPct===null?'N/A':onsite.grewProfessionallyPct+'%') + ' agreement that NJTC helped them grow professionally, and ' + (onsite.madeDifferencePct===null?'N/A':onsite.madeDifferencePct+'%') + ' agreement that they made a difference in scholars\u2019 lives (n=' + onsite.n + ').');
-    lines.push('Scholars report confidence NPS of ' + (scholar.mathNPS.nps===null?'N/A':(scholar.mathNPS.nps>0?'+':'')+scholar.mathNPS.nps) + ' in Math (n=' + scholar.mathN + ') and ' + (scholar.litNPS.nps===null?'N/A':(scholar.litNPS.nps>0?'+':'')+scholar.litNPS.nps) + ' in Literacy (n=' + scholar.litN + ').');
-    return lines;
+
+    var qv = npsVerdict(partner.overall.nps);
+    var eoyv = partner.eoyOverall ? npsVerdict(partner.eoyOverall.nps) : null;
+    domains.push({
+      label: 'Partner Satisfaction', metric: (partner.overall.nps===null?'N/A':(partner.overall.nps>0?'+':'')+partner.overall.nps) + ' NPS (Q)' + (partner.eoyOverall ? ' / ' + (partner.eoyOverall.nps>0?'+':'')+partner.eoyOverall.nps + ' (EOY)' : ''),
+      flag: qv.flag,
+      text: 'District and school partners rate NJTC ' + qv.label + ' this cycle (n=' + partner.n + ' quarterly' + (partner.eoyN ? ', n=' + partner.eoyN + ' EOY' : '') + ').' +
+        (partner.negatives.worstDistricts.length ? ' ' + partner.negatives.worstDistricts.map(function(d){return d.name;}).join(' and ') + ' scored notably lower and should be reviewed directly.' : '')
+    });
+
+    var grewV = pctVsGoalVerdict(onsite.grewProfessionallyPct, 80);
+    var diffV = pctVsGoalVerdict(onsite.madeDifferencePct, 80);
+    domains.push({
+      label: 'Onsite Staff Experience', metric: (onsite.grewProfessionallyPct===null?'N/A':onsite.grewProfessionallyPct+'%') + ' grew professionally / ' + (onsite.madeDifferencePct===null?'N/A':onsite.madeDifferencePct+'%') + ' made a difference',
+      flag: (grewV.flag==='concern'||diffV.flag==='concern') ? 'concern' : (grewV.flag==='watch'||diffV.flag==='watch') ? 'watch' : 'good',
+      text: 'Staff professional growth is ' + grewV.label + ', and sense of impact is ' + diffV.label + ' (n=' + onsite.n + ').' +
+        (onsite.negatives.worstRoles.length ? ' ' + onsite.negatives.worstRoles.map(function(r){return r.name;}).join(' and ') + ' report lower satisfaction and may need direct check-ins.' : '')
+    });
+
+    var mv = npsVerdict(scholar.mathNPS.nps), lv = npsVerdict(scholar.litNPS.nps);
+    domains.push({
+      label: 'Scholar Confidence', metric: (scholar.mathNPS.nps===null?'N/A':(scholar.mathNPS.nps>0?'+':'')+scholar.mathNPS.nps) + ' Math / ' + (scholar.litNPS.nps===null?'N/A':(scholar.litNPS.nps>0?'+':'')+scholar.litNPS.nps) + ' Literacy',
+      flag: (mv.flag==='concern'||lv.flag==='concern') ? 'concern' : (mv.flag==='watch'||lv.flag==='watch') ? 'watch' : 'good',
+      text: 'Scholars self-report ' + mv.label + ' confidence gains in Math (n=' + scholar.mathN + ') and ' + lv.label + ' gains in Literacy (n=' + scholar.litN + ').' +
+        (scholar.negatives.worstSites.length ? ' ' + scholar.negatives.worstSites.map(function(s){return s.name;}).join(', ') + ' show comparatively lower confidence gains.' : '')
+    });
+
+    var concernCount = domains.filter(function(d){ return d.flag==='concern'; }).length;
+    var watchCount = domains.filter(function(d){ return d.flag==='watch'; }).length;
+    var overallFlag = concernCount ? 'concern' : watchCount ? 'watch' : 'good';
+    var headline = concernCount
+      ? 'Overall, this was a mixed cycle: most measures are healthy, but ' + concernCount + ' area' + (concernCount>1?'s need':' needs') + ' direct leadership attention before next cycle.'
+      : watchCount
+      ? 'Overall, this was a solid cycle across the board, with ' + watchCount + ' area' + (watchCount>1?'s':'') + ' worth watching but nothing urgent.'
+      : 'Overall, this was a strong cycle across every measure we track \u2014 goals, partners, staff, and scholars all trending well.';
+
+    // Back-compat flat lines (still used by a couple of simple render paths)
+    var lines = domains.map(function(d){ return d.label + ': ' + d.metric + '. ' + d.text; });
+
+    return { headline: headline, overallFlag: overallFlag, domains: domains, lines: lines };
+  }
+
+  // Next steps with a clear owner attached to each — so a CEO/COS/EDP/EDO
+  // reading this without anyone in the room knows who should act, not just
+  // what happened.
+  function buildNextSteps(partnerSec, onsiteSec, scholarSec) {
+    var steps = [];
+    if (partnerSec.negatives.worstDistricts.length) {
+      steps.push({ owner: 'Partner Relations', text: 'Schedule a direct check-in with ' + partnerSec.negatives.worstDistricts.map(function(d){return d.name + ' (NPS ' + (d.nps>0?'+':'')+d.nps + ')';}).join(', ') + ' \u2014 lowest partner satisfaction this cycle.' });
+    }
+    if (partnerSec.negatives.topDissatReasons.length) {
+      steps.push({ owner: 'Program Leadership', text: 'Address the top dissatisfaction driver across partner feedback: \u201C' + partnerSec.negatives.topDissatReasons[0].reason + '\u201D (' + partnerSec.negatives.topDissatReasons[0].count + ' mentions this cycle).' });
+    }
+    if (onsiteSec.negatives.worstRoles.length) {
+      steps.push({ owner: 'People & Talent', text: 'Follow up directly with ' + onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ') + ' \u2014 the lowest onsite satisfaction-NPS roles this cycle.' });
+    }
+    if (onsiteSec.grewProfessionallyPct !== null && onsiteSec.grewProfessionallyPct < 80) {
+      steps.push({ owner: 'People & Talent', text: 'Professional growth satisfaction (' + onsiteSec.grewProfessionallyPct + '%) is below the 80% goal \u2014 review what development support onsite staff say they\u2019re missing.' });
+    }
+    if (scholarSec.negatives.worstSites.length) {
+      steps.push({ owner: 'Program Evaluation', text: 'Review confidence outcomes at ' + scholarSec.negatives.worstSites.map(function(s){return s.name;}).join(', ') + ' with the assigned tutors/coaches \u2014 lowest scholar confidence gains this cycle.' });
+    }
+    steps.push({ owner: 'Data & Evaluation', text: 'Document and share what\u2019s driving the strongest districts, roles, and sites this cycle so those practices can be repeated elsewhere before the next review.' });
+    return steps;
   }
 
   
@@ -611,12 +691,13 @@ function topBy(counterObj, n) {
         ? window._buildQuarterlyNarrative(qd) : null;
 
       var synthesis = buildSynthesis(goalsNarrative, partnerSec, onsiteSec, scholarSec);
+      var nextSteps = buildNextSteps(partnerSec, onsiteSec, scholarSec);
 
       cb({
         generatedAt: Date.now(),
         goalsNarrative: goalsNarrative,
         partner: partnerSec, onsite: onsiteSec, scholar: scholarSec,
-        synthesis: synthesis,
+        synthesis: synthesis, nextSteps: nextSteps,
         diagnostics: diagnostics,
       });
     }).catch(function(err) {
@@ -744,15 +825,30 @@ function topBy(counterObj, n) {
 
         // PAGE 2 — WHERE WE STAND
         doc.addPage(); fillRect(0,0,W,H,WHITE);
-        pageHeader('Where We Stand', 'The full picture, in one place', 'chartline_white', NAVY);
+        pageHeader('Where We Stand', 'Executive summary \u2014 what the data means, not just what it says', 'chartline_white', NAVY);
         y = 96;
-        fillRect(M, y, W-2*M, 130, ICEBLUE, 8);
-        var sy = y + 20;
-        synthesis.forEach(function(line){ sy = paragraph(line, M+16, sy, W-2*M-32, {size:9.5, lineHeightFactor:1.35}) + 6; });
-        y += 148;
-        text('Annual Goal Progress', M, y, {size:12.5, bold:true, color:NAVY}); y += 6;
-        text('Full detail lives in the standalone Quarterly Goal Summary report \u2014 this is the headline.', M, y+10, {size:8.5, italic:true, color:MUTED});
-        y += 22;
+        var verdictColor = synthesis.overallFlag==='good'?GREEN:synthesis.overallFlag==='watch'?AMBER:RED;
+        var verdictBg = synthesis.overallFlag==='good'?GREEN_BG:synthesis.overallFlag==='watch'?AMBER_BG:RED_BG;
+        fillRect(M, y, W-2*M, 46, verdictBg, 8);
+        paragraph(synthesis.headline, M+16, y+18, W-2*M-32, {size:10, bold:true, color:verdictColor, lineHeightFactor:1.3});
+        y += 60;
+
+        synthesis.domains.forEach(function(d) {
+          var dColor = d.flag==='good'?GREEN:d.flag==='watch'?AMBER:d.flag==='concern'?RED:MUTED;
+          var rowH = doc.splitTextToSize(_safe(d.text), W-2*M-190).length * 8.5 * 1.3 + 26;
+          fillRect(M, y, 5, rowH, dColor);
+          fillRect(M+5, y, W-2*M-5, rowH, [251,252,253]);
+          text(d.label, M+16, y+16, {size:9.5, bold:true, color:NAVY});
+          doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,dColor);
+          doc.text(d.metric, W-M-12, y+16, {align:'right'});
+          paragraph(d.text, M+16, y+29, W-2*M-28, {size:8.25, color:INK, lineHeightFactor:1.3});
+          y += rowH + 8;
+        });
+
+        y += 6;
+        text('Annual Goal Progress', M, y, {size:11.5, bold:true, color:NAVY}); y += 6;
+        text('Full detail lives in the standalone Quarterly Goal Summary report.', M, y+10, {size:8, italic:true, color:MUTED});
+        y += 20;
         if (goalsNarrative) {
           var goalTiles = [
             {label:'Health Score', val: goalsNarrative.latestSC.score+'%', color: npsColorArr(goalsNarrative.latestSC.score>=65?50:goalsNarrative.latestSC.score>=40?10:-10)},
@@ -761,34 +857,14 @@ function topBy(counterObj, n) {
           ];
           goalTiles.forEach(function(t,i){
             var tx = M + i*170;
-            fillRect(tx, y, 155, 54, [247,249,252], 6);
-            text(t.val, tx+14, y+34, {size:22, bold:true, color:t.color});
-            text(t.label, tx+14, y+47, {size:8, color:MUTED});
+            fillRect(tx, y, 155, 48, [247,249,252], 6);
+            text(t.val, tx+14, y+30, {size:19, bold:true, color:t.color});
+            text(t.label, tx+14, y+42, {size:8, color:MUTED});
           });
-          y += 78;
+          y += 60;
         } else {
           text('Quarterly goal data not loaded in this session.', M, y, {size:9, italic:true, color:MUTED}); y += 24;
         }
-        text('Four Voices at a Glance', M, y, {size:12.5, bold:true, color:NAVY}); y += 14;
-        var voiceRows = [
-          {label:'Partner Satisfaction (Quarterly)', n: partnerSec.n, score: partnerSec.overall.nps, unit:'NPS'},
-          {label:'Partner Satisfaction (EOY)', n: partnerSec.eoyN, score: partnerSec.eoyOverall?partnerSec.eoyOverall.nps:null, unit:'NPS'},
-          {label:'Onsite Staff \u2014 Grew Professionally', n: onsiteSec.grewProfessionallyN, score: onsiteSec.grewProfessionallyPct, unit:'%'},
-          {label:'Onsite Staff \u2014 Made a Difference', n: onsiteSec.madeDifferenceN, score: onsiteSec.madeDifferencePct, unit:'%'},
-          {label:'Scholar Confidence \u2014 Math', n: scholarSec.mathN, score: scholarSec.mathNPS.nps, unit:'NPS'},
-          {label:'Scholar Confidence \u2014 Literacy', n: scholarSec.litN, score: scholarSec.litNPS.nps, unit:'NPS'},
-        ];
-        voiceRows.forEach(function(v){
-          fillRect(M, y, W-2*M, 26, [252,253,254]);
-          doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
-          text(v.label, M+8, y+17, {size:9, color:INK});
-          text('n = ' + v.n, M+280, y+17, {size:8.5, color:MUTED});
-          var scoreColor = v.unit==='%' ? (v.score>=80?GREEN:v.score>=60?AMBER:RED) : npsColorArr(v.score);
-          var scoreStr = v.score===null ? 'N/A' : (v.unit==='NPS' ? (v.score>0?'+':'')+v.score : v.score+'%');
-          doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc,scoreColor);
-          doc.text(scoreStr, W-M-8, y+17, {align:'right'});
-          y += 26;
-        });
 
         // PAGE 3 — PARTNER OVERVIEW
         doc.addPage(); fillRect(0,0,W,H,WHITE);
@@ -1085,21 +1161,20 @@ function topBy(counterObj, n) {
         text('What the Data Is Telling Us', M+56, 52, {size:19, bold:true, color:WHITE});
         text('Cross-cutting synthesis across goals and all three surveys', M+56, 68, {size:9.5, color:[170,180,200]});
         y = 104;
-        synthesis.forEach(function(line, i){
+        synthesis.domains.forEach(function(d, i){
           circle(M+13, y+13, 13, GOLD);
           doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor.apply(doc,NAVY);
           doc.text(String(i+1), M+13, y+17, {align:'center'});
-          y = paragraph(line, M+40, y+8, W-2*M-40, {size:10.5, color:WHITE, lineHeightFactor:1.3}) + 14;
+          y = paragraph(d.label + ' \u2014 ' + d.text, M+40, y+8, W-2*M-40, {size:10, color:WHITE, lineHeightFactor:1.3}) + 12;
         });
-        var nextSteps = [];
-        if (partnerSec.negatives.worstDistricts.length) nextSteps.push('Follow up with ' + partnerSec.negatives.worstDistricts.map(function(d){return d.name;}).join(', ') + ' — lowest partner NPS this cycle.');
-        if (partnerSec.negatives.topDissatReasons.length) nextSteps.push('Address the top dissatisfaction driver: “' + partnerSec.negatives.topDissatReasons[0].reason + '” (' + partnerSec.negatives.topDissatReasons[0].count + ' mentions).');
-        if (onsiteSec.negatives.worstRoles.length) nextSteps.push('Check in with ' + onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ') + ' — lowest onsite satisfaction-NPS roles.');
-        if (scholarSec.negatives.worstSites.length) nextSteps.push('Review confidence outcomes at ' + scholarSec.negatives.worstSites.map(function(s){return s.name;}).join(', ') + '.');
-        nextSteps.push('Share strongest districts/roles/sites as models — document what’s working before the next cycle.');
-        y += 12;
+        y += 10;
         text('Recommended Next Steps', M, y, {size:14, bold:true, color:GOLD}); y += 22;
-        nextSteps.forEach(function(step, i){ y = paragraph((i+1)+'.  ' + step, M, y, W-2*M, {size:9.5, color:WHITE, lineHeightFactor:1.3}) + 10; });
+        data.nextSteps.forEach(function(step, i){
+          doc.setFillColor.apply(doc, [232,168,56]); doc.roundedRect(M, y-11, 88, 16, 3, 3, 'F');
+          doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor.apply(doc, NAVY);
+          doc.text(step.owner.toUpperCase(), M+44, y, {align:'center'});
+          y = paragraph(step.text, M+98, y-4, W-2*M-98, {size:9.5, color:WHITE, lineHeightFactor:1.3}) + 14;
+        });
 
         // APPENDIX A/B/C
         doc.addPage(); fillRect(0,0,W,42,NAVY);
@@ -1213,18 +1288,19 @@ function topBy(counterObj, n) {
 
         // SLIDE 2 — WHERE WE STAND
         var s2 = pptx.addSlide(); s2.background={color:WHITE};
-        slideHeader(s2,'Where We Stand','The full picture, in one place','chartline_white',NAVY);
-        s2.addShape(pptx.shapes.ROUNDED_RECTANGLE,{x:0.6,y:1.5,w:12.1,h:1.5,fill:{color:ICEBLUE},rectRadius:0.08});
-        s2.addText(synthesis.join('  \u2022  '),{x:0.8,y:1.62,w:11.7,h:1.3,fontSize:10.5,color:'1E293B',fontFace:'Calibri',valign:'top',lineSpacingMultiple:1.2});
-        var voiceRows=[['Source','n','Score']];
-        voiceRows.push(['Partner Satisfaction (Quarterly)', String(partnerSec.n), (partnerSec.overall.nps===null?'N/A':(partnerSec.overall.nps>0?'+':'')+partnerSec.overall.nps+' NPS')]);
-        voiceRows.push(['Partner Satisfaction (EOY)', String(partnerSec.eoyN), partnerSec.eoyOverall?((partnerSec.eoyOverall.nps>0?'+':'')+partnerSec.eoyOverall.nps+' NPS'):'N/A']);
-        voiceRows.push(['Onsite \u2014 Grew Professionally', String(onsiteSec.grewProfessionallyN), (onsiteSec.grewProfessionallyPct===null?'N/A':onsiteSec.grewProfessionallyPct+'%')]);
-        voiceRows.push(['Onsite \u2014 Made a Difference', String(onsiteSec.madeDifferenceN), (onsiteSec.madeDifferencePct===null?'N/A':onsiteSec.madeDifferencePct+'%')]);
-        voiceRows.push(['Scholar Confidence \u2014 Math', String(scholarSec.mathN), (scholarSec.mathNPS.nps===null?'N/A':(scholarSec.mathNPS.nps>0?'+':'')+scholarSec.mathNPS.nps+' NPS')]);
-        voiceRows.push(['Scholar Confidence \u2014 Literacy', String(scholarSec.litN), (scholarSec.litNPS.nps===null?'N/A':(scholarSec.litNPS.nps>0?'+':'')+scholarSec.litNPS.nps+' NPS')]);
-        s2.addTable(voiceRows,{x:0.6,y:3.2,w:12.1,colW:[7,2.5,2.6],border:{type:'solid',color:'E2E8F0',pt:0.5},
-          headFontSize:10,headBold:true,headFill:{color:NAVY},headColor:WHITE,bodyFontSize:10,bodyColor:'1E293B',bodyFill:{color:'F7F9FC'}});
+        slideHeader(s2,'Where We Stand','Executive summary \u2014 what the data means, not just what it says','chartline_white',NAVY);
+        var verdictHex = synthesis.overallFlag==='good'?GREEN:synthesis.overallFlag==='watch'?AMBER:RED;
+        var verdictBgHex = synthesis.overallFlag==='good'?GREEN_BG:synthesis.overallFlag==='watch'?AMBER_BG:RED_BG;
+        s2.addShape(pptx.shapes.ROUNDED_RECTANGLE,{x:0.6,y:1.45,w:12.1,h:0.55,fill:{color:verdictBgHex},rectRadius:0.06});
+        s2.addText(synthesis.headline,{x:0.8,y:1.45,w:11.7,h:0.55,fontSize:11,bold:true,color:verdictHex,fontFace:'Calibri',valign:'middle',margin:0});
+        var domY = 2.15;
+        synthesis.domains.forEach(function(d){
+          var dHex = d.flag==='good'?GREEN:d.flag==='watch'?AMBER:d.flag==='concern'?RED:'6B7280';
+          s2.addShape(pptx.shapes.RECTANGLE,{x:0.6,y:domY,w:0.05,h:0.62,fill:{color:dHex}});
+          s2.addText([{text:d.label+'  ',options:{bold:true,color:NAVY,fontSize:9.5}},{text:d.metric,options:{bold:true,color:dHex,fontSize:9.5}}],{x:0.72,y:domY,w:11.9,h:0.22,fontFace:'Calibri',valign:'top',margin:0});
+          s2.addText(d.text,{x:0.72,y:domY+0.22,w:11.9,h:0.4,fontSize:8,color:'475569',fontFace:'Calibri',valign:'top',margin:0,lineSpacingMultiple:1.1});
+          domY += 0.72;
+        });
 
         // SLIDE 3 — PARTNER SATISFACTION
         var s3 = pptx.addSlide(); s3.background={color:WHITE};
@@ -1273,19 +1349,14 @@ function topBy(counterObj, n) {
 
         // SLIDE 6 — NEXT STEPS (dark)
         var s6 = pptx.addSlide(); s6.background={color:NAVY};
-        var nextSteps=[];
-        if (partnerSec.negatives.worstDistricts.length) nextSteps.push('Follow up with '+partnerSec.negatives.worstDistricts.map(function(d){return d.name;}).join(', ')+' \u2014 lowest partner NPS.');
-        if (onsiteSec.negatives.worstRoles.length) nextSteps.push('Check in with '+onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ')+' \u2014 lowest onsite satisfaction.');
-        if (scholarSec.negatives.worstSites.length) nextSteps.push('Review confidence outcomes at '+scholarSec.negatives.worstSites.map(function(s){return s.name;}).join(', ')+'.');
-        nextSteps.push('Share strongest districts/roles/sites as models for next cycle.');
         iconCircle(s6,'flag_navy',0.85,0.85,0.62,GOLD);
         s6.addText('Recommended Next Steps',{x:1.35,y:0.5,w:9,h:0.5,fontSize:24,bold:true,color:WHITE,fontFace:'Cambria',margin:0});
         var ny=1.7;
-        nextSteps.forEach(function(step,i){
-          s6.addShape(pptx.shapes.OVAL,{x:0.7,y:ny,w:0.5,h:0.5,fill:{color:GOLD}});
-          s6.addText(String(i+1),{x:0.7,y:ny,w:0.5,h:0.5,fontSize:15,bold:true,color:NAVY,align:'center',valign:'middle',fontFace:'Cambria',margin:0});
-          s6.addText(step,{x:1.4,y:ny-0.05,w:11,h:0.75,fontSize:12,color:WHITE,fontFace:'Calibri',valign:'middle',lineSpacingMultiple:1.15});
-          ny+=1.0;
+        data.nextSteps.forEach(function(step,i){
+          s6.addShape(pptx.shapes.ROUNDED_RECTANGLE,{x:0.7,y:ny,w:1.5,h:0.32,fill:{color:GOLD},rectRadius:0.05});
+          s6.addText(step.owner.toUpperCase(),{x:0.7,y:ny,w:1.5,h:0.32,fontSize:7.5,bold:true,color:NAVY,align:'center',valign:'middle',fontFace:'Calibri',margin:0});
+          s6.addText(step.text,{x:2.35,y:ny-0.1,w:10.1,h:0.75,fontSize:11.5,color:WHITE,fontFace:'Calibri',valign:'middle',lineSpacingMultiple:1.15});
+          ny+=0.92;
         });
 
         pptx.writeFile({fileName:'NJTC_Annual_Impact_Satisfaction_Report.pptx'})
@@ -1301,23 +1372,51 @@ function topBy(counterObj, n) {
     buildAnnualReportData(function(data) {
       var esc = function(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; };
       var partnerSec=data.partner, onsiteSec=data.onsite, scholarSec=data.scholar;
-      var goalsNarrative=data.goalsNarrative, synthesis=data.synthesis;
+      var goalsNarrative=data.goalsNarrative, synthesis=data.synthesis, nextSteps=data.nextSteps;
       var tsStr = new Date(data.generatedAt).toLocaleString('en-US',{month:'long',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
 
       function npsClass(nps){ if(nps===null||nps===undefined) return 'muted'; if(nps>=50) return 'green'; if(nps>=20) return 'amber'; return 'red'; }
+      function flagHex(flag){ return flag==='good'?'#16A34A':flag==='watch'?'#D97706':flag==='concern'?'#DC2626':'#64748B'; }
       function fmtNPS(nps){ return nps===null?'N/A':(nps>0?'+':'')+nps; }
-      function barRow(name, n, nps, maxN) {
+
+      // ── Inline SVG chart builders (self-contained, no external deps) ──
+      function svgGauge(pct, hex, trackHex, size, labelTop, labelBottom) {
+        size = size || 190;
+        var r = size/2 - 15, c = size/2, circ = 2*Math.PI*r;
+        var clamped = Math.max(0, Math.min(100, pct));
+        var dash = circ * clamped/100;
+        return '<div class="gauge-wrap" style="width:'+size+'px;height:'+size+'px">'
+          + '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+          + '<circle cx="'+c+'" cy="'+c+'" r="'+r+'" fill="none" stroke="'+(trackHex||'#E5E9F0')+'" stroke-width="14"/>'
+          + '<circle cx="'+c+'" cy="'+c+'" r="'+r+'" fill="none" stroke="'+hex+'" stroke-width="14" '
+          + 'stroke-dasharray="'+dash.toFixed(1)+' '+circ.toFixed(1)+'" stroke-linecap="round" transform="rotate(-90 '+c+' '+c+')"/></svg>'
+          + '<div class="gauge-label"><div class="gauge-val" style="color:'+hex+'">'+labelTop+'</div><div class="gauge-sub">'+labelBottom+'</div></div></div>';
+      }
+      function svgDonut(segments, size) {
+        size = size || 190;
+        var r = size/2 - 20, c = size/2, circ = 2*Math.PI*r, cum = 0;
+        var total = segments.reduce(function(a,s){ return a+s.val; }, 0) || 1;
+        var arcs = segments.filter(function(s){ return s.val>0; }).map(function(s){
+          var dash = circ*s.val/total, offset = -circ*cum/total; cum += s.val;
+          return '<circle cx="'+c+'" cy="'+c+'" r="'+r+'" fill="none" stroke="'+s.color+'" stroke-width="22" stroke-dasharray="'+dash.toFixed(1)+' '+circ.toFixed(1)+'" stroke-dashoffset="'+offset.toFixed(1)+'" transform="rotate(-90 '+c+' '+c+')"/>';
+        }).join('');
+        return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+arcs+'</svg>';
+      }
+      function barRow(name, n, nps, maxN, barHex) {
         var pct = maxN ? Math.round(n/maxN*100) : 0;
-        return '<div class="bar-row"><div class="bar-label">' + esc(name) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>'
-          + '<div class="bar-n">' + n + '</div><div class="bar-nps ' + npsClass(nps) + '">' + fmtNPS(nps) + '</div></div>';
+        return '<div class="bar-row"><div class="bar-label">' + esc(name) + '</div><div class="bar-track"><div class="bar-fill" style="width:' + pct + '%;background:' + (barHex||'#1B2A4A') + '"></div></div>'
+          + '<div class="bar-n">' + n + '</div>' + (nps!==undefined ? '<div class="bar-nps ' + npsClass(nps) + '">' + fmtNPS(nps) + '</div>' : '') + '</div>';
       }
       function card(name, n, scoreLabel, cls) {
         return '<div class="mini-card ' + cls + '"><span>' + esc(name) + ' <i>(n=' + n + ')</i></span><b>' + esc(scoreLabel) + '</b></div>';
       }
+      function ownerPill(owner) {
+        return '<span class="owner-pill">' + esc(owner.toUpperCase()) + '</span>';
+      }
 
       var slides = [];
 
-      // 1 — COVER
+      // ══════════════════════════ 1 — COVER ══════════════════════════
       slides.push('<section class="slide cover"><div class="ring-bg"></div><div class="brand">\uD83C\uDF93 NEW JERSEY TUTORING CORPS</div>'
         + '<h1>Annual Impact &amp; Satisfaction Report</h1><div class="sub">Goals \u00B7 Partner Satisfaction \u00B7 Onsite Staff \u00B7 Scholar Feedback</div>'
         + '<div class="meta">Live as of ' + esc(tsStr) + '</div>'
@@ -1328,132 +1427,150 @@ function topBy(counterObj, n) {
         + '<div class="tile"><div class="tv">' + scholarSec.n + '</div><div class="tl">SCHOLAR VOICES N</div></div>'
         + '</div></section>');
 
-      // 2 — WHERE WE STAND
-      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDCC8</div><div><h2>Where We Stand</h2><div class="hsub">The full picture, in one place</div></div></div>'
-        + '<div class="headline-card">' + synthesis.map(esc).join('<br><br>') + '</div>'
-        + '<table class="voice-table"><thead><tr><th>Source</th><th>n</th><th>Score</th></tr></thead><tbody>'
-        + '<tr><td>Partner Satisfaction (Quarterly)</td><td>' + partnerSec.n + '</td><td class="' + npsClass(partnerSec.overall.nps) + '">' + fmtNPS(partnerSec.overall.nps) + '</td></tr>'
-        + '<tr><td>Partner Satisfaction (EOY)</td><td>' + partnerSec.eoyN + '</td><td class="' + npsClass(partnerSec.eoyOverall?partnerSec.eoyOverall.nps:null) + '">' + (partnerSec.eoyOverall?fmtNPS(partnerSec.eoyOverall.nps):'N/A') + '</td></tr>'
-        + '<tr><td>Onsite \u2014 Grew Professionally</td><td>' + onsiteSec.grewProfessionallyN + '</td><td>' + (onsiteSec.grewProfessionallyPct===null?'N/A':onsiteSec.grewProfessionallyPct+'%') + '</td></tr>'
-        + '<tr><td>Onsite \u2014 Made a Difference</td><td>' + onsiteSec.madeDifferenceN + '</td><td>' + (onsiteSec.madeDifferencePct===null?'N/A':onsiteSec.madeDifferencePct+'%') + '</td></tr>'
-        + '<tr><td>Scholar Confidence \u2014 Math</td><td>' + scholarSec.mathN + '</td><td class="' + npsClass(scholarSec.mathNPS.nps) + '">' + fmtNPS(scholarSec.mathNPS.nps) + '</td></tr>'
-        + '<tr><td>Scholar Confidence \u2014 Literacy</td><td>' + scholarSec.litN + '</td><td class="' + npsClass(scholarSec.litNPS.nps) + '">' + fmtNPS(scholarSec.litNPS.nps) + '</td></tr>'
-        + '</tbody></table></section>');
+      // ══════════════════════════ 2 — WHERE WE STAND ══════════════════════════
+      var verdictHex = flagHex(synthesis.overallFlag);
+      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDCC8</div><div><h2>Where We Stand</h2><div class="hsub">Executive summary \u2014 what the data means, not just what it says</div></div></div>'
+        + '<div class="verdict-banner" style="background:' + verdictHex + '1A;color:' + verdictHex + '">' + esc(synthesis.headline) + '</div>'
+        + '<div class="domain-list">' + synthesis.domains.map(function(d){
+            var dHex = flagHex(d.flag);
+            return '<div class="domain-card" style="border-left-color:' + dHex + '"><div class="domain-top"><span class="domain-label">' + esc(d.label) + '</span><span class="domain-metric" style="color:' + dHex + '">' + esc(d.metric) + '</span></div><div class="domain-text">' + esc(d.text) + '</div></div>';
+          }).join('') + '</div></section>');
 
-      // 3 — PARTNER OVERVIEW
+      // ══════════════════════════ 3 — PARTNER OVERVIEW ══════════════════════════
       var maxDistN = Math.max.apply(null, partnerSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
-      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83E\uDD1D</div><div><h2>Partner Satisfaction</h2><div class="hsub">Quarterly n=' + partnerSec.n + ' \u00B7 EOY n=' + partnerSec.eoyN + '</div></div></div>'
-        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by District</h3>'
-        + '<div class="bar-chart">' + partnerSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxDistN); }).join('') + '</div></section>');
+      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83E\uDD1D</div><div><h2>Partner Satisfaction</h2><div class="hsub">District &amp; school partner voice \u2014 Quarterly + End-of-Year surveys</div></div></div>'
+        + '<div class="gauge-row">'
+        + '<div class="gauge-block">' + svgGauge(Math.max(0,((partnerSec.overall.nps||0)+100)/2), npsClass(partnerSec.overall.nps)==='green'?'#16A34A':npsClass(partnerSec.overall.nps)==='amber'?'#D97706':'#DC2626', '#E5E9F0', 160, fmtNPS(partnerSec.overall.nps), 'QUARTERLY NPS \u00B7 n='+partnerSec.n) + '</div>'
+        + (partnerSec.eoyOverall ? '<div class="gauge-block">' + svgGauge(Math.max(0,(partnerSec.eoyOverall.nps+100)/2), npsClass(partnerSec.eoyOverall.nps)==='green'?'#16A34A':npsClass(partnerSec.eoyOverall.nps)==='amber'?'#D97706':'#DC2626', '#E5E9F0', 160, fmtNPS(partnerSec.eoyOverall.nps), 'EOY NPS \u00B7 n='+partnerSec.eoyN) + '</div>' : '')
+        + '<div class="gauge-side-text"><h3 class="sub-h">Biggest Contributors</h3><div class="bar-chart">' + partnerSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxDistN); }).join('') + '</div></div>'
+        + '</div></section>');
 
-      // 4 — PARTNER WHAT'S WORKING
+      // ══════════════════════════ 4 — PARTNER WHAT'S WORKING ══════════════════════════
       slides.push('<section class="slide light"><div class="head"><div class="hicon green">\u2705</div><div><h2>Partner Satisfaction \u2014 What\u2019s Working</h2><div class="hsub">Highest-performing districts and direct partner feedback</div></div></div>'
-        + (partnerSec.positives.bestDistricts.length
-            ? partnerSec.positives.bestDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'green'); }).join('')
-            : '<div class="empty-note">No districts cleared the positive-NPS threshold this cycle.</div>')
-        + (partnerSec.positives.highlightComments.length ? '<h3 class="sub-h" style="margin-top:22px">Direct Feedback</h3><div class="quote-list">'
-            + partnerSec.positives.highlightComments.slice(0,4).map(function(c){ return '<div class="quote">\u201C' + esc(c.text) + '\u201D<span>\u2014 ' + esc(c.district) + '</span></div>'; }).join('') + '</div>' : '')
-        + '</section>');
+        + '<div class="two-col-even"><div>'
+        + '<h3 class="sub-h green">Top-Performing Districts</h3>'
+        + (partnerSec.positives.bestDistricts.length ? partnerSec.positives.bestDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'green'); }).join('') : '<div class="empty-note">No districts cleared the positive-NPS threshold this cycle.</div>')
+        + '</div><div>'
+        + '<h3 class="sub-h">Direct Feedback</h3><div class="quote-list">' + partnerSec.positives.highlightComments.slice(0,4).map(function(c){ return '<div class="quote">\u201C' + esc(c.text.length>140?c.text.slice(0,140)+'\u2026':c.text) + '\u201D<span>\u2014 ' + esc(c.district) + '</span></div>'; }).join('') + '</div>'
+        + '</div></div></section>');
 
-      // 5 — PARTNER NEEDS ATTENTION
+      // ══════════════════════════ 5 — PARTNER NEEDS ATTENTION ══════════════════════════
       slides.push('<section class="slide light"><div class="head"><div class="hicon red">\u26A0\uFE0F</div><div><h2>Partner Satisfaction \u2014 Needs Attention</h2><div class="hsub">Lowest-performing districts and dissatisfaction themes</div></div></div>'
-        + (partnerSec.negatives.worstDistricts.length
-            ? partnerSec.negatives.worstDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'red'); }).join('')
-            : '<div class="empty-note">No districts fell below the concern threshold this cycle.</div>')
-        + (partnerSec.negatives.topDissatReasons.length ? '<h3 class="sub-h" style="margin-top:22px">Dissatisfaction Reasons</h3><div class="bar-chart">'
-            + (function(){ var maxD=Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;})); return partnerSec.negatives.topDissatReasons.map(function(r){ return '<div class="bar-row"><div class="bar-label">'+esc(r.reason)+'</div><div class="bar-track"><div class="bar-fill red" style="width:'+Math.round(r.count/maxD*100)+'%"></div></div><div class="bar-n">'+r.count+'</div></div>'; }).join(''); })()
-            + '</div>' : '')
-        + '</section>');
+        + '<div class="two-col-even"><div>'
+        + '<h3 class="sub-h red">Lowest-Performing Districts</h3>'
+        + (partnerSec.negatives.worstDistricts.length ? partnerSec.negatives.worstDistricts.map(function(d){ return card(d.name, d.n, 'NPS ' + fmtNPS(d.nps), 'red'); }).join('') : '<div class="empty-note">No districts fell below the concern threshold this cycle.</div>')
+        + '</div><div>'
+        + '<h3 class="sub-h">Dissatisfaction Reasons</h3>'
+        + (partnerSec.negatives.topDissatReasons.length ? '<div class="bar-chart">' + (function(){ var maxD=Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;})); return partnerSec.negatives.topDissatReasons.map(function(r){ return '<div class="bar-row"><div class="bar-label">'+esc(r.reason)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(r.count/maxD*100)+'%;background:#DC2626"></div></div><div class="bar-n">'+r.count+'</div></div>'; }).join(''); })() + '</div>' : '<div class="empty-note">No dissatisfaction reasons recorded this cycle.</div>')
+        + '</div></div></section>');
 
-      // 6 — ONSITE OVERVIEW
+      // ══════════════════════════ 6 — ONSITE OVERVIEW ══════════════════════════
       var maxRoleN = Math.max.apply(null, onsiteSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
-      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff Feedback</h2><div class="hsub">n=' + onsiteSec.n + '</div></div></div>'
-        + '<div class="two-col"><div class="stat-block"><div class="sv">' + (onsiteSec.grewProfessionallyPct===null?'N/A':onsiteSec.grewProfessionallyPct+'%') + '</div><div class="sl">Grew Professionally (n=' + onsiteSec.grewProfessionallyN + ', goal 80%)</div></div>'
-        + '<div class="stat-block"><div class="sv">' + (onsiteSec.madeDifferencePct===null?'N/A':onsiteSec.madeDifferencePct+'%') + '</div><div class="sl">Made a Difference (n=' + onsiteSec.madeDifferenceN + ', goal 80%)</div></div></div>'
-        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by Role</h3>'
-        + '<div class="bar-chart">' + onsiteSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxRoleN); }).join('') + '</div></section>');
+      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff Feedback</h2><div class="hsub">Site Coordinators, Coaches, Dual-Role staff, and Tutors \u2014 n=' + onsiteSec.n + '</div></div></div>'
+        + '<div class="gauge-row">'
+        + '<div class="gauge-block">' + svgGauge(onsiteSec.grewProfessionallyPct||0, (onsiteSec.grewProfessionallyPct>=80?'#16A34A':'#D97706'), '#E5E9F0', 160, (onsiteSec.grewProfessionallyPct===null?'N/A':onsiteSec.grewProfessionallyPct+'%'), 'GREW PROFESSIONALLY \u00B7 goal 80%') + '</div>'
+        + '<div class="gauge-block">' + svgGauge(onsiteSec.madeDifferencePct||0, (onsiteSec.madeDifferencePct>=80?'#16A34A':'#D97706'), '#E5E9F0', 160, (onsiteSec.madeDifferencePct===null?'N/A':onsiteSec.madeDifferencePct+'%'), 'MADE A DIFFERENCE \u00B7 goal 80%') + '</div>'
+        + '<div class="gauge-side-text"><h3 class="sub-h">Biggest Contributors \u2014 by Role</h3><div class="bar-chart">' + onsiteSec.biggestContributors.map(function(c){ return barRow(c.name, c.n, c.nps, maxRoleN); }).join('') + '</div></div>'
+        + '</div></section>');
 
-      // 7 — ONSITE BY ROLE (best/worst)
-      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff \u2014 By Role</h2><div class="hsub">Highest and lowest satisfaction-NPS roles</div></div></div>'
+      // ══════════════════════════ 7 — ONSITE BY ROLE ══════════════════════════
+      slides.push('<section class="slide light"><div class="head"><div class="hicon navy">\uD83D\uDC65</div><div><h2>Onsite Staff \u2014 By Role &amp; Region</h2><div class="hsub">Highest and lowest satisfaction-NPS roles</div></div></div>'
+        + '<div class="two-col-even"><div>'
         + '<h3 class="sub-h green">Strongest Roles</h3>'
         + (onsiteSec.positives.bestRoles.length ? onsiteSec.positives.bestRoles.map(function(r){ return card(r.name, r.n, 'Sat-NPS ' + fmtNPS(r.nps), 'green'); }).join('') : '<div class="empty-note">No roles cleared the positive threshold this cycle.</div>')
-        + '<h3 class="sub-h red" style="margin-top:18px">Roles Needing Support</h3>'
-        + (onsiteSec.negatives.worstRoles.length ? onsiteSec.negatives.worstRoles.map(function(r){ return card(r.name, r.n, 'Sat-NPS ' + fmtNPS(r.nps), 'red'); }).join('') : '<div class="empty-note">Too few distinct roles this cycle to separate top and bottom performers.</div>')
-        + '</section>');
+        + '<h3 class="sub-h red" style="margin-top:16px">Roles Needing Support</h3>'
+        + (onsiteSec.negatives.worstRoles.length ? onsiteSec.negatives.worstRoles.map(function(r){ return card(r.name, r.n, 'Sat-NPS ' + fmtNPS(r.nps), 'red'); }).join('') : '<div class="empty-note">No roles fell below the concern threshold this cycle.</div>')
+        + '</div><div>'
+        + '<h3 class="sub-h">By Region</h3>' + Object.keys(onsiteSec.byRegion).map(function(rg){ var d=onsiteSec.byRegion[rg]; return card(rg + ' Region', d.n, 'Sat-NPS ' + fmtNPS(d.nps), npsClass(d.nps)==='green'?'green':'amber'); }).join('')
+        + '</div></div></section>');
 
-      // 8 — SCHOLAR OVERVIEW
+      // ══════════════════════════ 8 — SCHOLAR OVERVIEW ══════════════════════════
       var maxSiteN = Math.max.apply(null, scholarSec.biggestContributors.map(function(c){return c.n;}).concat([1]));
-      slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback</h2><div class="hsub">Math n=' + scholarSec.mathN + ' \u00B7 Literacy n=' + scholarSec.litN + '</div></div></div>'
-        + '<h3 class="sub-h">Biggest Contributors \u2014 Respondents by Site</h3>'
-        + '<div class="bar-chart">' + scholarSec.biggestContributors.map(function(c){ return '<div class="bar-row"><div class="bar-label">'+esc(c.name)+'</div><div class="bar-track"><div class="bar-fill gold" style="width:'+Math.round(c.n/maxSiteN*100)+'%"></div></div><div class="bar-n">'+c.n+'</div></div>'; }).join('') + '</div></section>');
+      slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback</h2><div class="hsub">Self-reported confidence \u2014 Math &amp; Literacy \u2014 n=' + scholarSec.n + '</div></div></div>'
+        + '<div class="gauge-row">'
+        + '<div class="gauge-block">' + svgGauge(Math.max(0,((scholarSec.mathNPS.nps||0)+100)/2), npsClass(scholarSec.mathNPS.nps)==='green'?'#16A34A':'#D97706', '#E5E9F0', 160, fmtNPS(scholarSec.mathNPS.nps), 'MATH \u00B7 n='+scholarSec.mathN) + '</div>'
+        + '<div class="gauge-block">' + svgGauge(Math.max(0,((scholarSec.litNPS.nps||0)+100)/2), npsClass(scholarSec.litNPS.nps)==='green'?'#16A34A':'#D97706', '#E5E9F0', 160, fmtNPS(scholarSec.litNPS.nps), 'LITERACY \u00B7 n='+scholarSec.litN) + '</div>'
+        + '<div class="gauge-side-text"><h3 class="sub-h">Biggest Contributors \u2014 by Site</h3><div class="bar-chart">' + scholarSec.biggestContributors.map(function(c){ return '<div class="bar-row"><div class="bar-label">'+esc(c.name)+'</div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(c.n/maxSiteN*100)+'%;background:#E8A838"></div></div><div class="bar-n">'+c.n+'</div></div>'; }).join('') + '</div></div>'
+        + '</div></section>');
 
-      // 9 — SCHOLAR BY SITE (best/worst)
-      slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback \u2014 By Site</h2><div class="hsub">Highest and lowest confidence sites (3+ respondents, both subjects)</div></div></div>'
+      // ══════════════════════════ 9 — SCHOLAR BY SITE ══════════════════════════
+      slides.push('<section class="slide light"><div class="head"><div class="hicon gold">\uD83C\uDF93</div><div><h2>Scholar Feedback \u2014 By Site &amp; Region</h2><div class="hsub">Highest and lowest confidence sites (3+ respondents, both subjects)</div></div></div>'
+        + '<div class="two-col-even"><div>'
         + '<h3 class="sub-h green">Strongest Sites</h3>'
         + (scholarSec.positives.bestSites.length ? scholarSec.positives.bestSites.map(function(s){ return card(s.name, s.n, 'Math '+fmtNPS(s.mathNPS)+' \u00B7 Lit '+fmtNPS(s.litNPS), 'green'); }).join('') : '<div class="empty-note">No sites cleared the positive threshold this cycle.</div>')
-        + '<h3 class="sub-h red" style="margin-top:18px">Sites Needing Support</h3>'
+        + '<h3 class="sub-h red" style="margin-top:16px">Sites Needing Support</h3>'
         + (scholarSec.negatives.worstSites.length ? scholarSec.negatives.worstSites.map(function(s){ return card(s.name, s.n, 'Math '+fmtNPS(s.mathNPS)+' \u00B7 Lit '+fmtNPS(s.litNPS), 'red'); }).join('') : '<div class="empty-note">No sites fell below the concern threshold this cycle.</div>')
-        + '</section>');
+        + '</div><div>'
+        + '<h3 class="sub-h">By Region</h3>' + Object.keys(scholarSec.byRegion).map(function(rg){ var d=scholarSec.byRegion[rg]; return '<div class="mini-card muted"><span>' + esc(rg) + ' Region <i>(n=' + d.n + ')</i></span><b>Math ' + fmtNPS(d.mathNPS) + ' \u00B7 Lit ' + fmtNPS(d.litNPS) + '</b></div>'; }).join('')
+        + '</div></div></section>');
 
-      // 10 — SYNTHESIS + NEXT STEPS
-      var nextSteps = [];
-      if (partnerSec.negatives.worstDistricts.length) nextSteps.push('Follow up with ' + partnerSec.negatives.worstDistricts.map(function(d){return d.name;}).join(', ') + ' \u2014 lowest partner NPS.');
-      if (partnerSec.negatives.topDissatReasons.length) nextSteps.push('Address the top dissatisfaction driver: \u201C' + partnerSec.negatives.topDissatReasons[0].reason + '\u201D (' + partnerSec.negatives.topDissatReasons[0].count + ' mentions).');
-      if (onsiteSec.negatives.worstRoles.length) nextSteps.push('Check in with ' + onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ') + ' \u2014 lowest onsite satisfaction.');
-      if (scholarSec.negatives.worstSites.length) nextSteps.push('Review confidence outcomes at ' + scholarSec.negatives.worstSites.map(function(s){return s.name;}).join(', ') + '.');
-      nextSteps.push('Share strongest districts/roles/sites as models for next cycle.');
+      // ══════════════════════════ 10 — SYNTHESIS + NEXT STEPS ══════════════════════════
       slides.push('<section class="slide cover dark-alt"><div class="head light-head"><div class="hicon gold">\uD83D\uDEA9</div><div><h2 class="white">What the Data Is Telling Us</h2><div class="hsub light">Cross-cutting synthesis &amp; recommended next steps</div></div></div>'
-        + '<ol class="steps synth-steps">' + synthesis.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>'
-        + '<h3 class="sub-h gold" style="margin-top:10px">Recommended Next Steps</h3>'
-        + '<ol class="steps">' + nextSteps.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></section>');
+        + '<div class="synth-grid">' + synthesis.domains.map(function(d){ return '<div class="synth-item"><span class="synth-label">' + esc(d.label) + '</span> \u2014 ' + esc(d.text) + '</div>'; }).join('') + '</div>'
+        + '<h3 class="sub-h gold" style="margin-top:16px">Recommended Next Steps</h3>'
+        + '<div class="steps-owner-list">' + nextSteps.map(function(s){ return '<div class="step-owner-row">' + ownerPill(s.owner) + '<span>' + esc(s.text) + '</span></div>'; }).join('') + '</div></section>');
 
       var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>NJTC Annual Impact & Satisfaction Report</title><style>'
         + ':root{--navy:#1B2A4A;--gold:#E8A838;--ink:#1E293B;--muted:#64748B;--green:#16A34A;--red:#DC2626;--amber:#D97706;}'
         + '*{box-sizing:border-box;margin:0;padding:0;} html,body{width:100%;height:100%;} body{font-family:Calibri,Arial,sans-serif;background:#0a1220;overflow:hidden;}'
         + '.deck{width:100vw;height:100vh;position:relative;}'
-        + '.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:5vh 5vw 9vh 5vw;background:#fff;overflow-y:auto;}'
+        + '.slide{position:absolute;inset:0;display:none;flex-direction:column;padding:4.5vh 4.5vw 9vh 4.5vw;background:#fff;overflow-y:auto;}'
         + '.slide.active{display:flex;} .slide.cover{background:linear-gradient(135deg,#0f1c38,#1B2A4A);color:#fff;justify-content:center;}'
         + '.ring-bg{position:absolute;top:-160px;right:-120px;width:480px;height:480px;border-radius:50%;background:#13203A;pointer-events:none;}'
         + '.brand{font-weight:700;letter-spacing:2px;color:var(--gold);font-size:14px;margin-bottom:24px;}'
         + '.slide.cover h1{font-family:Cambria,Georgia,serif;font-size:clamp(28px,4vw,44px);font-weight:700;margin-bottom:14px;max-width:900px;}'
         + '.slide.cover .sub{font-size:18px;color:var(--gold);margin-bottom:10px;} .slide.cover .meta{font-size:12px;color:#A9B4C9;margin-bottom:32px;}'
-        + '.cover-tiles{display:flex;gap:20px;flex-wrap:wrap;} .tile{background:#1F3159;border-radius:10px;padding:16px 22px;min-width:150px;flex:1 1 150px;}'
-        + '.tile .tv{font-family:Cambria,Georgia,serif;font-size:26px;font-weight:700;} .tile .tl{font-size:10px;color:#A9B4C9;letter-spacing:1px;margin-top:4px;}'
-        + '.head{display:flex;align-items:center;gap:18px;margin-bottom:22px;flex-shrink:0;}'
-        + '.hicon{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;background:var(--navy);color:#fff;}'
+        + '.cover-tiles{display:flex;gap:20px;flex-wrap:wrap;} .tile{background:#1F3159;border-radius:10px;padding:18px 26px;min-width:160px;flex:1 1 160px;}'
+        + '.tile .tv{font-family:Cambria,Georgia,serif;font-size:30px;font-weight:700;} .tile .tl{font-size:10px;color:#A9B4C9;letter-spacing:1px;margin-top:4px;}'
+        + '.head{display:flex;align-items:center;gap:18px;margin-bottom:20px;flex-shrink:0;}'
+        + '.hicon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--navy);color:#fff;}'
         + '.hicon.green{background:var(--green);} .hicon.red{background:var(--red);} .hicon.gold{background:var(--gold);}'
-        + 'h2{font-family:Cambria,Georgia,serif;font-size:clamp(20px,2.4vw,26px);color:var(--navy);} h2.white{color:#fff;}'
-        + '.hsub{font-size:12px;color:var(--muted);margin-top:2px;} .hsub.light{color:#A9B4C9;}'
-        + '.headline-card{background:#EEF2F9;border-radius:10px;padding:18px 22px;font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:20px;flex-shrink:0;}'
-        + '.voice-table{width:100%;border-collapse:collapse;font-size:12px;} .voice-table th{background:var(--navy);color:#fff;text-align:left;padding:8px 10px;}'
-        + '.voice-table td{padding:7px 10px;border-bottom:1px solid #EEF1F5;}'
-        + '.voice-table td.green{color:var(--green);font-weight:700;} .voice-table td.amber{color:var(--amber);font-weight:700;} .voice-table td.red{color:var(--red);font-weight:700;} .voice-table td.muted{color:var(--muted);}'
+        + 'h2{font-family:Cambria,Georgia,serif;font-size:clamp(22px,2.6vw,30px);color:var(--navy);} h2.white{color:#fff;}'
+        + '.hsub{font-size:13px;color:var(--muted);margin-top:2px;} .hsub.light{color:#A9B4C9;}'
+        // Where We Stand
+        + '.verdict-banner{border-radius:10px;padding:16px 20px;font-size:14px;font-weight:700;margin-bottom:18px;flex-shrink:0;}'
+        + '.domain-list{display:flex;flex-direction:column;gap:12px;overflow-y:auto;}'
+        + '.domain-card{border-left:5px solid; background:#FAFBFC;border-radius:0 8px 8px 0;padding:12px 18px;}'
+        + '.domain-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;flex-wrap:wrap;gap:6px;}'
+        + '.domain-label{font-size:13px;font-weight:700;color:var(--navy);}'
+        + '.domain-metric{font-size:13px;font-weight:700;}'
+        + '.domain-text{font-size:11.5px;color:#334155;line-height:1.5;}'
+        // gauges
+        + '.gauge-row{display:flex;align-items:center;gap:32px;flex-wrap:wrap;}'
+        + '.gauge-block{flex-shrink:0;}'
+        + '.gauge-wrap{position:relative;} .gauge-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}'
+        + '.gauge-val{font-family:Cambria,Georgia,serif;font-size:26px;font-weight:700;}'
+        + '.gauge-sub{font-size:8.5px;color:var(--muted);letter-spacing:.5px;margin-top:4px;text-align:center;max-width:120px;}'
+        + '.gauge-side-text{flex:1;min-width:280px;}'
+        // bar chart
         + '.sub-h{font-size:14px;color:var(--navy);margin-bottom:12px;font-weight:700;} .sub-h.green{color:var(--green);} .sub-h.red{color:var(--red);} .sub-h.gold{color:var(--gold);}'
-        + '.bar-chart{display:flex;flex-direction:column;gap:10px;}'
-        + '.bar-row{display:flex;align-items:center;gap:12px;font-size:12px;}'
-        + '.bar-label{width:min(38%,280px);flex-shrink:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
-        + '.bar-track{flex:1;height:16px;background:#F0F2F6;border-radius:4px;overflow:hidden;min-width:60px;}'
-        + '.bar-fill{height:100%;background:var(--navy);border-radius:4px;} .bar-fill.gold{background:var(--gold);} .bar-fill.red{background:var(--red);}'
-        + '.bar-n{width:32px;text-align:right;font-weight:700;color:var(--ink);flex-shrink:0;}'
-        + '.bar-nps{width:64px;text-align:right;font-weight:700;flex-shrink:0;}'
+        + '.bar-chart{display:flex;flex-direction:column;gap:9px;}'
+        + '.bar-row{display:flex;align-items:center;gap:10px;font-size:11.5px;}'
+        + '.bar-label{width:min(40%,220px);flex-shrink:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+        + '.bar-track{flex:1;height:14px;background:#F0F2F6;border-radius:4px;overflow:hidden;min-width:50px;}'
+        + '.bar-fill{height:100%;border-radius:4px;}'
+        + '.bar-n{width:28px;text-align:right;font-weight:700;color:var(--ink);flex-shrink:0;}'
+        + '.bar-nps{width:56px;text-align:right;font-weight:700;flex-shrink:0;font-size:10.5px;}'
         + '.bar-nps.green{color:var(--green);} .bar-nps.amber{color:var(--amber);} .bar-nps.red{color:var(--red);} .bar-nps.muted{color:var(--muted);}'
+        // cards
+        + '.two-col-even{display:flex;gap:28px;flex:1;min-height:0;} .two-col-even>div{flex:1;overflow-y:auto;}'
         + '.mini-card{border-radius:8px;padding:12px 16px;margin-bottom:10px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}'
         + '.mini-card span i{color:var(--muted);font-style:normal;font-size:11px;}'
         + '.mini-card b{white-space:nowrap;}'
         + '.mini-card.green{background:#EAF7EE;} .mini-card.green b{color:var(--green);}'
         + '.mini-card.red{background:#FCEAEA;} .mini-card.red b{color:var(--red);}'
+        + '.mini-card.muted{background:#F1F5F9;} .mini-card.muted b{color:var(--navy);}'
         + '.empty-note{font-size:11.5px;color:var(--muted);font-style:italic;padding:8px 0;}'
-        + '.quote-list{display:flex;flex-direction:column;gap:8px;}'
-        + '.quote{background:#FAFBFC;border-radius:8px;padding:10px 14px;font-size:11.5px;font-style:italic;color:var(--ink);line-height:1.45;}'
-        + '.quote span{display:block;margin-top:4px;font-size:10px;font-style:normal;color:var(--muted);}'
-        + '.two-col{display:flex;gap:20px;margin-bottom:22px;flex-shrink:0;}'
-        + '.stat-block{flex:1;background:#F7F9FC;border-radius:10px;padding:16px 20px;}'
-        + '.stat-block .sv{font-family:Cambria,Georgia,serif;font-size:26px;font-weight:700;color:var(--navy);}'
-        + '.stat-block .sl{font-size:11px;color:var(--muted);margin-top:4px;}'
-        + '.steps{list-style:none;counter-reset:step;} .steps li{counter-increment:step;position:relative;padding:8px 0 8px 38px;font-size:13px;color:var(--ink);line-height:1.4;}'
-        + '.steps li::before{content:counter(step);position:absolute;left:0;top:6px;width:24px;height:24px;background:var(--navy);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;}'
-        + '.dark-alt .steps li{color:#fff;} .dark-alt .steps li::before{background:var(--gold);color:var(--navy);}'
-        + '.dark-alt .synth-steps li::before{background:#3A4A73;color:#fff;}'
+        + '.quote-list{display:flex;flex-direction:column;gap:9px;}'
+        + '.quote{background:#FAFBFC;border-radius:8px;padding:11px 15px;font-size:11.5px;font-style:italic;color:var(--ink);line-height:1.45;border:1px solid #EEF1F5;}'
+        + '.quote span{display:block;margin-top:5px;font-size:10px;font-style:normal;color:var(--muted);}'
+        // synthesis / next steps (dark)
+        + '.synth-grid{display:flex;flex-direction:column;gap:10px;}'
+        + '.synth-item{font-size:13px;color:#fff;line-height:1.5;background:rgba(255,255,255,.06);border-radius:8px;padding:10px 16px;}'
+        + '.synth-label{font-weight:700;color:var(--gold);}'
+        + '.steps-owner-list{display:flex;flex-direction:column;gap:10px;}'
+        + '.step-owner-row{display:flex;align-items:center;gap:14px;font-size:13px;color:#fff;line-height:1.4;}'
+        + '.owner-pill{background:var(--gold);color:var(--navy);font-size:9px;font-weight:700;letter-spacing:.5px;padding:5px 10px;border-radius:12px;flex-shrink:0;min-width:110px;text-align:center;}'
         + '.light-head{color:#fff;}'
         + '.navbar{position:fixed;bottom:0;left:0;right:0;height:52px;background:rgba(10,18,32,.92);display:flex;align-items:center;justify-content:center;gap:18px;z-index:10;}'
         + '.navbar button{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;}'
@@ -1480,6 +1597,7 @@ function topBy(counterObj, n) {
   function renderAnnualReportPanel() {
     var el = document.getElementById('annualReportRoot');
     if (!el) return;
+    var isDataDept = (window.NJTC_SESSION||{}).dept === 'data';
     el.innerHTML = '<div style="max-width:640px;margin:2rem auto;text-align:center;padding:2rem;border:1px solid var(--border);border-radius:14px;background:var(--surface-2)">'
       + '<div style="font-size:2rem;margin-bottom:.75rem">\uD83D\uDCD8</div>'
       + '<div style="font-size:1.1rem;font-weight:800;color:var(--navy);margin-bottom:.5rem">Annual Impact & Satisfaction Report</div>'
@@ -1489,12 +1607,13 @@ function topBy(counterObj, n) {
       + '<button onclick="exportAnnualReportPPTX()" class="btn btn-secondary">\uD83D\uDCCA Download PPTX Slides</button>'
       + '<button onclick="openAnnualReportLivePresentation()" class="btn btn-secondary">\uD83C\uDFA5 Open Live Presentation</button>'
       + '</div>'
-      + '<div style="margin-top:1.25rem;font-size:.75rem;color:var(--muted)">Source workbooks: '
+      + (isDataDept ? ('<div style="margin-top:1.25rem;font-size:.75rem;color:var(--muted)">Source workbooks (Data dept only): '
       + '<a href="https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/edit#gid=616402823" target="_blank">Partner (Q)</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/edit#gid=1455158458" target="_blank">Partner (EOY)</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/edit#gid=1560652927" target="_blank">Onsite</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/edit#gid=1733049715" target="_blank">Scholar</a>'
-      + '</div></div>';
+      + '</div>') : '')
+      + '</div>';
   }
 
   window.exportAnnualReportPDF = exportAnnualReportPDF;
