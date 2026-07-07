@@ -161,6 +161,51 @@
       /if you.?re satisfied|highlight comment|positive comment/i);
     var school = (raw['School Name:'] || raw['School Name'] || pickField(raw, [], /school name/i) || '').trim();
     var role = (raw['Role:'] || raw['Role'] || pickField(raw, [], /^role$/i) || '').trim();
+
+    // ── Fallbacks for a differently-structured live sheet ──────────────────
+    // Some partner survey exports use the same question format as the EOY
+    // form (combined "Name and Role" + "site location" instead of separate
+    // District/School/Role fields). If the primary fields above came back
+    // empty, fall back to those question patterns so district/role/comments
+    // still populate rather than silently going blank.
+    if (!district && !school) {
+      var siteRaw = pickField(raw, ['Provide your site location:','Provide your site location'], /provide your site location|site location/i);
+      if (siteRaw) {
+        var emailForDist = raw['Email Address'] || raw['email'] || '';
+        var classified = eoyClassifyDistrict(siteRaw, emailForDist);
+        // If email-domain classification didn't resolve it, catch the common
+        // iLearn CMO campus naming patterns (Bergen/Hudson/Passaic/Clifton/
+        // Paterson + charter/arts/science) so near-duplicate site names don't
+        // fragment into dozens of one-off "districts" in the rollup.
+        if (classified === siteRaw.trim()) {
+          var lowSite = siteRaw.toLowerCase();
+          var looksLikeCharter = /charter|arts|science|silk city/i.test(lowSite);
+          var cmoCity = /bergen|hudson|passaic|clifton|paterson/i.test(lowSite);
+          if (looksLikeCharter && cmoCity) classified = 'iLearn CMO';
+        }
+        district = normalizePartnerDistrict(classified);
+        school = siteRaw.trim();
+      }
+    }
+    if (!role) {
+      var nameRoleRaw = pickField(raw, ['Provide your Name and Role:','Provide your Name and Role'], /provide your name and role/i);
+      if (nameRoleRaw) { var parsedNR = eoyParseRole(nameRoleRaw); role = parsedNR.role; }
+    }
+    if (!highlightComment) {
+      highlightComment = pickField(raw, [], /what is njtc good at/i);
+    }
+    if (!dissatRaw && parseInt(npsRaw) > 0 && parseInt(npsRaw) <= 3) {
+      dissatRaw = pickField(raw, [], /what could njtc do better/i);
+    }
+    if (!satisfactionLevel) {
+      var needsMetRaw = pickField(raw, [], /overall.{0,10}how well has njtc met your needs/i);
+      if (/^extremely well$/i.test(needsMetRaw)) satisfactionLevel = 'Very Satisfied';
+      else if (/^very well$/i.test(needsMetRaw)) satisfactionLevel = 'Satisfied';
+      else if (/^fairly well$/i.test(needsMetRaw)) satisfactionLevel = 'Neutral';
+      else if (/^a little bit$/i.test(needsMetRaw)) satisfactionLevel = 'Dissatisfied';
+      else if (/^not well at all$/i.test(needsMetRaw)) satisfactionLevel = 'Very Dissatisfied';
+    }
+
     return {
       timestamp: raw['Timestamp']||raw['timestamp']||'',
       email: raw['Email Address']||raw['email']||'',
@@ -948,19 +993,27 @@ function topBy(counterObj, n) {
             y += 42;
           });
         } else {
-          text('No district fell below the concern threshold this cycle \u2014 full breakdown below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
-          Object.keys(partnerSec.byDistrict).filter(function(k){ return partnerSec.byDistrict[k].n>=3; })
-            .sort(function(a,b){ var na=partnerSec.byDistrict[a].nps, nb=partnerSec.byDistrict[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
-            .forEach(function(k){
-              var d = partnerSec.byDistrict[k];
-              fillRect(M, y, W-2*M, 26, [252,253,254]);
-              doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
-              text(k + '  (n=' + d.n + ')', M+8, y+17, {size:9, color:INK});
-              doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(d.nps));
-              doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-8, y+17, {align:'right'});
-              y += 26;
-            });
-          y += 8;
+          var qualifyingDistKeys = Object.keys(partnerSec.byDistrict).filter(function(k){ return partnerSec.byDistrict[k].n>=3; });
+          var bestDistNames = {}; partnerSec.positives.bestDistricts.forEach(function(d){ bestDistNames[d.name]=true; });
+          var extraDistKeys = qualifyingDistKeys.filter(function(k){ return !bestDistNames[k]; });
+          if (extraDistKeys.length) {
+            text('No district fell below the concern threshold this cycle \u2014 remaining districts below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+            extraDistKeys.sort(function(a,b){ var na=partnerSec.byDistrict[a].nps, nb=partnerSec.byDistrict[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
+              .forEach(function(k){
+                var d = partnerSec.byDistrict[k];
+                fillRect(M, y, W-2*M, 26, [252,253,254]);
+                doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
+                text(k + '  (n=' + d.n + ')', M+8, y+17, {size:9, color:INK});
+                doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(d.nps));
+                doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-8, y+17, {align:'right'});
+                y += 26;
+              });
+            y += 8;
+          } else if (qualifyingDistKeys.length) {
+            text('Every district with enough responses to compare is already shown above as top-performing \u2014 nothing needs attention this cycle.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          } else {
+            text('No district reached the 3+ respondent threshold this cycle.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          }
         }
         y += 12;
         if (partnerSec.negatives.topDissatReasons.length) {
@@ -1050,18 +1103,24 @@ function topBy(counterObj, n) {
             y += 42;
           });
         } else {
-          text('No role fell below the concern threshold this cycle \u2014 full breakdown below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
-          Object.keys(onsiteSec.byRole).filter(function(k){ return onsiteSec.byRole[k].n>=3; })
-            .sort(function(a,b){ var na=onsiteSec.byRole[a].nps, nb=onsiteSec.byRole[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
-            .forEach(function(k){
-              var r = onsiteSec.byRole[k];
-              fillRect(M, y, W-2*M, 26, [252,253,254]);
-              doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
-              text(k + '  (n=' + r.n + ')', M+8, y+17, {size:9, color:INK});
-              doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(r.nps));
-              doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-8, y+17, {align:'right'});
-              y += 26;
-            });
+          var qualifyingRoleKeys = Object.keys(onsiteSec.byRole).filter(function(k){ return onsiteSec.byRole[k].n>=3; });
+          var bestRoleNames = {}; onsiteSec.positives.bestRoles.forEach(function(r){ bestRoleNames[r.name]=true; });
+          var extraRoleKeys = qualifyingRoleKeys.filter(function(k){ return !bestRoleNames[k]; });
+          if (extraRoleKeys.length) {
+            text('No role fell below the concern threshold this cycle \u2014 remaining roles below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+            extraRoleKeys.sort(function(a,b){ var na=onsiteSec.byRole[a].nps, nb=onsiteSec.byRole[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
+              .forEach(function(k){
+                var r = onsiteSec.byRole[k];
+                fillRect(M, y, W-2*M, 26, [252,253,254]);
+                doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
+                text(k + '  (n=' + r.n + ')', M+8, y+17, {size:9, color:INK});
+                doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(r.nps));
+                doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-8, y+17, {align:'right'});
+                y += 26;
+              });
+          } else {
+            text('Every role with enough responses to compare is already shown above as a strongest role \u2014 nothing needs support this cycle.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          }
         }
 
         // PAGE 8 — SCHOLAR OVERVIEW
@@ -1135,8 +1194,9 @@ function topBy(counterObj, n) {
             y += 42;
           });
         } else {
-          text('No site fell below the concern threshold this cycle \u2014 full breakdown below (top 10 by combined score).', M, y, {size:9, italic:true, color:MUTED}); y += 18;
-          var scholarSiteKeys = Object.keys(scholarSec.bySite).filter(function(k){ var d=scholarSec.bySite[k]; return d.mathN>=3 && d.litN>=3; });
+          text('No site fell below the concern threshold this cycle \u2014 remaining sites below (top 10 by combined score).', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+          var bestSiteNames = {}; scholarSec.positives.bestSites.forEach(function(s){ bestSiteNames[s.name]=true; });
+          var scholarSiteKeys = Object.keys(scholarSec.bySite).filter(function(k){ var d=scholarSec.bySite[k]; return d.mathN>=3 && d.litN>=3 && !bestSiteNames[k]; });
           scholarSiteKeys.sort(function(a,b){
             var da=scholarSec.bySite[a], db=scholarSec.bySite[b];
             var avgA=((da.mathNPS||0)+(da.litNPS||0))/2, avgB=((db.mathNPS||0)+(db.litNPS||0))/2;
