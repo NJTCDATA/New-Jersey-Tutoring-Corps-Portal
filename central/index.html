@@ -5465,6 +5465,9 @@
     <!-- Survey Feedback — shown for programming, data, leadership, kb (controlled by initDeptNav) -->
     <div class="sidebar-group dept-nav-survey" style="display:none">
       <div class="sidebar-group-label">Partner Satisfaction — Quarterly &amp; EOY</div>
+      <button class="sidebar-link dept-nav-survey" data-panel="annual-report" onclick="showPanel('annual-report',this)" title="Combined Annual Impact & Satisfaction Report — Goals, Partner Satisfaction, Onsite Staff, and Scholar Feedback in one place">
+        <span class="sl-icon">📘</span> Annual Impact Report
+      </button>
       <button class="sidebar-link dept-nav-survey" data-panel="survey-feedback" onclick="showPanel('survey-feedback',this)" title="Review quarterly and end-of-year satisfaction survey results from partner schools and program sites">
         <span class="sl-icon">📋</span> Partner Satisfaction
       </button>
@@ -5811,6 +5814,20 @@
       </div>
       <div id="dataCabinetRoot">
         <div style="padding:3rem;text-align:center;color:#94a3b8;font-size:.9rem">Loading data sources…</div>
+      </div>
+    </div>
+
+    <!-- ══ ANNUAL IMPACT & SATISFACTION REPORT PANEL ══════════════════════ -->
+    <div class="panel" id="panel-annual-report">
+      <div class="page-header">
+        <div class="ph-text">
+          <div class="ph-eyebrow">SY 2025–2026 · Goals + Partner + Onsite + Scholar</div>
+          <h2 class="ph-title">📘 Annual Impact & Satisfaction Report</h2>
+          <p class="ph-subtitle">Combines Annual Goal Progress with Partner Satisfaction, Onsite Staff Feedback, and Scholar Feedback into one leadership-ready report — generated fresh from live data every time.</p>
+        </div>
+      </div>
+      <div id="annualReportRoot">
+        <div style="padding:3rem;text-align:center;color:#94a3b8;font-size:.9rem">Loading…</div>
       </div>
     </div>
 
@@ -6837,6 +6854,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 <script src="modules/survey-feedback.js?v=10"></script>
 <script src="modules/scholar-feedback.js?v=2"></script>
 <script src="modules/onsite-feedback.js?v=3"></script>
+<script src="modules/annual-report.js?v=1"></script>
 <script src="modules/program-data-summary.js?v=1"></script>
 <script src="modules/apprentice-impact-report.js?v=11"></script>
 
