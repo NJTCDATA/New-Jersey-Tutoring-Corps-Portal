@@ -12,7 +12,7 @@
 
 
 
-  var PARTNER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
+  var PARTNER_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/export?format=csv&gid=616402823';
   var PARTNER_EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/export?format=csv&gid=1455158458';
   var SCHOLAR_CSV_URL = 'https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/export?format=csv&gid=1733049715';
   var ONSITE_CSV_URL = 'https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/export?format=csv&gid=1560652927';
@@ -547,6 +547,15 @@ function topBy(counterObj, n) {
     return fetch(url, { signal: AbortSignal.timeout(20000) }).then(function(r){
       if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
       return r.text();
+    }).then(function(text) {
+      // Google's "publish to web" CSV endpoints occasionally serve an HTML
+      // error/redirect page instead of CSV (stale publish, auth hiccup, etc).
+      // Catch that here instead of silently parsing it into 0 useful rows.
+      var trimmed = text.trim();
+      if (trimmed.slice(0, 15).toLowerCase().indexOf('<!doctype') === 0 || trimmed.slice(0, 6).toLowerCase() === '<html>' || trimmed.slice(0,5) === '<html') {
+        throw new Error('Non-CSV response from ' + url + ' (got HTML instead — the published sheet link may need to be re-published or is temporarily unavailable)');
+      }
+      return text;
     });
   }
   function buildAnnualReportData(cb, errCb) {
@@ -572,6 +581,27 @@ function topBy(counterObj, n) {
       var scholar = scholarRaw.map(normalizeScholarRow).filter(function(r){ return r.site; });
       var onsite = onsiteParsed.rows.map(function(v){ return normalizeOnsiteRow(onsiteParsed.headers, v); }).filter(function(r){ return r.role; });
 
+      // Diagnostics: raw parsed rows vs. rows that survived filtering, per
+      // source. If raw is non-zero but filtered is 0, the sheet fetched fine
+      // but nothing matched the expected columns — a header/mapping problem,
+      // not a "no data yet" situation. Logged to console and carried on the
+      // data object so the report can flag it instead of quietly showing N/A.
+      var diagnostics = {
+        partnerQuarterly: { rawRows: partnerRaw.length, usableRows: partner.length, headers: partnerRaw.length ? Object.keys(partnerRaw[0]) : [] },
+        partnerEoy: { rawRows: eoyRaw.length, usableRows: eoy.length, headers: eoyRaw.length ? Object.keys(eoyRaw[0]) : [] },
+        scholar: { rawRows: scholarRaw.length, usableRows: scholar.length },
+        onsite: { rawRows: onsiteParsed.rows.length, usableRows: onsite.length },
+      };
+      console.log('[AnnualReport] Source diagnostics:', diagnostics);
+      Object.keys(diagnostics).forEach(function(key) {
+        var d = diagnostics[key];
+        if (d.rawRows > 0 && d.usableRows === 0) {
+          console.warn('[AnnualReport] ' + key + ': fetched ' + d.rawRows + ' raw rows but 0 passed filtering — likely a header/column mismatch, not an empty sheet.' + (d.headers ? ' Headers seen: ' + JSON.stringify(d.headers) : ''));
+        } else if (d.rawRows === 0) {
+          console.warn('[AnnualReport] ' + key + ': fetch returned 0 raw rows. Sheet may be genuinely empty, or the publish link needs attention.');
+        }
+      });
+
       var partnerSec = buildPartnerSection(partner, eoy);
       var onsiteSec = buildOnsiteSection(onsite);
       var scholarSec = buildScholarSection(scholar);
@@ -587,6 +617,7 @@ function topBy(counterObj, n) {
         goalsNarrative: goalsNarrative,
         partner: partnerSec, onsite: onsiteSec, scholar: scholarSec,
         synthesis: synthesis,
+        diagnostics: diagnostics,
       });
     }).catch(function(err) {
       console.error('[AnnualReport] fetch failed:', err);
@@ -763,6 +794,11 @@ function topBy(counterObj, n) {
         doc.addPage(); fillRect(0,0,W,H,WHITE);
         pageHeader('Partner Satisfaction', 'District & school partner voice \u2014 Quarterly + End-of-Year surveys', 'handshake_navy', NAVY);
         y = 96;
+        if (data.diagnostics && data.diagnostics.partnerQuarterly.rawRows === 0) {
+          fillRect(M, y, W-2*M, 44, [253,230,138], 5);
+          paragraph('\u26A0 Live fetch for the Quarterly Partner Survey returned 0 rows this generation \u2014 this section is likely incomplete. Re-run the report, and check the browser console for details if it persists.', M+10, y+16, W-2*M-20, {size:8, bold:true, color:[120,53,15], lineHeightFactor:1.3});
+          y += 56;
+        }
         fillRect(M, y, 170, 130, ICEBLUE, 8);
         text('n = ' + partnerSec.n, M+16, y+28, {size:16, bold:true, color:NAVY});
         text('Quarterly Respondents', M+16, y+44, {size:8.5, color:MUTED});
@@ -836,7 +872,19 @@ function topBy(counterObj, n) {
             y += 42;
           });
         } else {
-          text('Too few distinct districts this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          text('No district fell below the concern threshold this cycle \u2014 full breakdown below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+          Object.keys(partnerSec.byDistrict).filter(function(k){ return partnerSec.byDistrict[k].n>=3; })
+            .sort(function(a,b){ var na=partnerSec.byDistrict[a].nps, nb=partnerSec.byDistrict[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
+            .forEach(function(k){
+              var d = partnerSec.byDistrict[k];
+              fillRect(M, y, W-2*M, 26, [252,253,254]);
+              doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
+              text(k + '  (n=' + d.n + ')', M+8, y+17, {size:9, color:INK});
+              doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(d.nps));
+              doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-8, y+17, {align:'right'});
+              y += 26;
+            });
+          y += 8;
         }
         y += 12;
         if (partnerSec.negatives.topDissatReasons.length) {
@@ -926,7 +974,18 @@ function topBy(counterObj, n) {
             y += 42;
           });
         } else {
-          text('Too few distinct roles this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          text('No role fell below the concern threshold this cycle \u2014 full breakdown below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+          Object.keys(onsiteSec.byRole).filter(function(k){ return onsiteSec.byRole[k].n>=3; })
+            .sort(function(a,b){ var na=onsiteSec.byRole[a].nps, nb=onsiteSec.byRole[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
+            .forEach(function(k){
+              var r = onsiteSec.byRole[k];
+              fillRect(M, y, W-2*M, 26, [252,253,254]);
+              doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
+              text(k + '  (n=' + r.n + ')', M+8, y+17, {size:9, color:INK});
+              doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,npsColorArr(r.nps));
+              doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-8, y+17, {align:'right'});
+              y += 26;
+            });
         }
 
         // PAGE 8 — SCHOLAR OVERVIEW
@@ -948,7 +1007,7 @@ function topBy(counterObj, n) {
         doc.text((scholarSec.litNPS.nps===null?'N/A':(scholarSec.litNPS.nps>0?'+':'')+scholarSec.litNPS.nps), sgx2, sgy+5, {align:'center'});
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc,MUTED);
         doc.text('LITERACY n='+scholarSec.litN, sgx2, sgy+19, {align:'center'});
-        y += 108;
+        y += 140;
         text('Biggest Contributors — Respondents by Site', M, y, {size:12, bold:true, color:NAVY}); y+=16;
         if (scholarSec.biggestContributors.length) {
           var maxNSite = Math.max.apply(null, scholarSec.biggestContributors.map(function(c){return c.n;}));
@@ -996,11 +1055,27 @@ function topBy(counterObj, n) {
             fillRect(M, y, W-2*M, 34, AMBER_BG, 6);
             paragraph(s.name + '  (n=' + s.n + ')', M+14, y+15, 300, {size:9, bold:true, color:INK, lineHeightFactor:1.1});
             doc.setFont('helvetica','bold'); doc.setFontSize(9.5); doc.setTextColor.apply(doc,AMBER);
-            doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  ·  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-14, y+21, {align:'right'});
+            doc.text('Math '+(s.mathNPS>0?'+':'')+s.mathNPS+'  \u00B7  Lit '+(s.litNPS>0?'+':'')+s.litNPS, W-M-14, y+21, {align:'right'});
             y += 42;
           });
         } else {
-          text('Too few distinct sites this cycle to separate top and bottom performers.', M, y, {size:9, italic:true, color:MUTED}); y += 20;
+          text('No site fell below the concern threshold this cycle \u2014 full breakdown below (top 10 by combined score).', M, y, {size:9, italic:true, color:MUTED}); y += 18;
+          var scholarSiteKeys = Object.keys(scholarSec.bySite).filter(function(k){ var d=scholarSec.bySite[k]; return d.mathN>=3 && d.litN>=3; });
+          scholarSiteKeys.sort(function(a,b){
+            var da=scholarSec.bySite[a], db=scholarSec.bySite[b];
+            var avgA=((da.mathNPS||0)+(da.litNPS||0))/2, avgB=((db.mathNPS||0)+(db.litNPS||0))/2;
+            return avgA-avgB;
+          });
+          scholarSiteKeys.slice(0,10).forEach(function(k){
+            var d = scholarSec.bySite[k];
+            fillRect(M, y, W-2*M, 26, [252,253,254]);
+            doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
+            paragraph(k + '  (n=' + d.n + ')', M+8, y+17, 340, {size:8.5, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor.apply(doc,NAVY);
+            doc.text('Math '+(d.mathNPS===null?'N/A':(d.mathNPS>0?'+':'')+d.mathNPS)+'  \u00B7  Lit '+(d.litNPS===null?'N/A':(d.litNPS>0?'+':'')+d.litNPS), W-M-8, y+17, {align:'right'});
+            y += 26;
+          });
+          if (scholarSiteKeys.length > 10) { text('+ ' + (scholarSiteKeys.length-10) + ' more \u2014 see Appendix C for the full list.', M, y+10, {size:8, italic:true, color:MUTED}); y += 20; }
         }
 
         // PAGE 10 — SYNTHESIS + NEXT STEPS (dark closing)
@@ -1415,7 +1490,7 @@ function topBy(counterObj, n) {
       + '<button onclick="openAnnualReportLivePresentation()" class="btn btn-secondary">\uD83C\uDFA5 Open Live Presentation</button>'
       + '</div>'
       + '<div style="margin-top:1.25rem;font-size:.75rem;color:var(--muted)">Source workbooks: '
-      + '<a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823" target="_blank">Partner (Q)</a> \u00B7 '
+      + '<a href="https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/edit#gid=616402823" target="_blank">Partner (Q)</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/edit#gid=1455158458" target="_blank">Partner (EOY)</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/edit#gid=1560652927" target="_blank">Onsite</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/edit#gid=1733049715" target="_blank">Scholar</a>'
