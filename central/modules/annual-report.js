@@ -12,10 +12,10 @@
 
 
 
-  var PARTNER_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/export?format=csv&gid=616402823';
-  var PARTNER_EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/export?format=csv&gid=1455158458';
-  var SCHOLAR_CSV_URL = 'https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/export?format=csv&gid=1733049715';
-  var ONSITE_CSV_URL = 'https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/export?format=csv&gid=1560652927';
+  var PARTNER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRDXSqdNLRz053Y3hmA2S8QqgLqUW5oN-YpaB-U74V2_DK2fcCva4q9Yan0YUgmpKSxHTrWlBYGpAfn/pub?gid=616402823&single=true&output=csv';
+  var PARTNER_EOY_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSQHdOk6z90iRupqKDm9vVlNvC0auO6dsyX3wTPx3NDzaVm93mKIatPPY59UqdORi9hAB6cT0gWoUWw/pub?gid=1027437551&single=true&output=csv';
+  var SCHOLAR_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQaRWhNJSvskmG8bb09eJ7Fd9TVYvZcLZLwQFtBU4u4LSjkBbz9_XS4mUSJgIhNZWR8uBjM_1HvoJtL/pub?gid=1733049715&single=true&output=csv';
+  var ONSITE_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTOGUuxRmOMR9PVMJNCc7rsLuueqY80nc-79jm4pYT-J_7jkyzvCDzllxuLA8CAZ__x1_qBdKMtT9z-/pub?gid=1560652927&single=true&output=csv';
 
   // ── Shared CSV parsers (identical to source modules) ────────────────────
   function parseCSVKeyed(text) {
@@ -728,6 +728,20 @@ function topBy(counterObj, n) {
         throw new Error('Non-CSV response from ' + url + ' (got HTML instead — the published sheet link may need to be re-published or is temporarily unavailable)');
       }
       return text;
+    }).catch(function(err) {
+      // A bare "fetch failed" / "Load failed" with no HTTP status usually
+      // means the request never got a real response at all — most commonly
+      // because Google redirected it to a sign-in page (accounts.google.com)
+      // and the browser's CORS policy blocked following that redirect. That
+      // happens specifically when a sheet is NOT shared as "Anyone with the
+      // link," unlike a normal HTTP error or a stale publish link. Surface
+      // that distinction instead of a bare "Load failed."
+      if (err && /load failed|failed to fetch|networkerror/i.test(err.message||'')) {
+        var idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        var sheetId = idMatch ? idMatch[1] : url;
+        throw new Error('Could not reach Google Sheet ' + sheetId + ' — this usually means the sheet isn\u2019t shared as "Anyone with the link can view." Open it in Google Sheets, click Share, and set General access to "Anyone with the link," the same way the other source sheets are shared.');
+      }
+      throw err;
     });
   }
   function buildAnnualReportData(cb, errCb) {
@@ -1802,7 +1816,7 @@ function topBy(counterObj, n) {
       + '</div>'
       + (isDataDept ? ('<div style="margin-top:1.25rem;font-size:.75rem;color:var(--muted)">Source workbooks (Data dept only): '
       + '<a href="https://docs.google.com/spreadsheets/d/1wp50xdBU7dRcJBzh4-sr5BJ7wn6lrOyFiHUUIG8XNrY/edit#gid=616402823" target="_blank">Partner (Q)</a> \u00B7 '
-      + '<a href="https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/edit#gid=1455158458" target="_blank">Partner (EOY)</a> \u00B7 '
+      + '<a href="https://docs.google.com/spreadsheets/d/1wZj1cfqr73jgnEZBhJ44C6ekOtGMhOIUAr-yqsDEsKY/edit#gid=1027437551" target="_blank">Partner (EOY)</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/1C6LmYxJZOF-iCV9KPpbHOY76GFvmLlbqDtMhynVbKYI/edit#gid=1560652927" target="_blank">Onsite</a> \u00B7 '
       + '<a href="https://docs.google.com/spreadsheets/d/19Ox5UtW9BgJoMYSXH7ybDCSwS0vmOKGUmxkozm7rk9A/edit#gid=1733049715" target="_blank">Scholar</a>'
       + '</div>') : '')
