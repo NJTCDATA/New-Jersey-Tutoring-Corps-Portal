@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-07T12:23:49.670Z",
+  "generated": "2026-07-07T15:23:30.532Z",
   "project": "1211431518555737",
-  "count": 20,
+  "count": 18,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -269,6 +269,14 @@
         {
           "gid": "1202953622354860",
           "resource_type": "user"
+        },
+        {
+          "gid": "1202967483652746",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1208833157453193",
+          "resource_type": "user"
         }
       ],
       "name": "Annual Budgeting process completed by August 31, 2026",
@@ -340,36 +348,6 @@
       "name": "HR, Recruitment & Selection",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555803"
-    },
-    {
-      "gid": "1211431518555943",
-      "assignee": {
-        "gid": "1213327755449997",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-05-01",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        }
-      ],
-      "name": "90% customer satisfaction reported at the end of the school year 25/26\n",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555943"
     },
     {
       "gid": "1211431518555947",
@@ -492,28 +470,6 @@
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555979"
     },
     {
-      "gid": "1211431518555981",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-04-10",
-      "followers": [
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Meet with at least 7 education organizations across New Jersey\n",
-      "notes": "Met with :\n\nSJCC\nTAN\nNJPSA\nNJAEL\n\n",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555981"
-    },
-    {
       "gid": "1211431518555989",
       "assignee": {
         "gid": "1202953622354860",
@@ -548,7 +504,7 @@
         }
       ],
       "name": "Complete meetings with 60 Schools or Districts Pitching NJTC  business with 10 meetings being in-person. ",
-      "notes": "Meet with current and potential partner districts to maintain/win business\n\n    American Paradigm Schools - won pilot\n    Hamilton Township (in-person) - won RFP\n    Gloucester Township - 'won'\n    Penns Grove/Carneys Point - won RFP\n    Lawrence Township - no money\n    HOLA (in person) - won RFP\n    Haddon (in-person) - won RFP\n    GLAW - reupped\n    CJCP (in-person) - won RFP\n    Middlesex STEM - won RFP but delayed until next year\n    Monmouth BGC (in-person)\n    i-Learn (in-person) - re-upped\n    String Theory Schools - won pilot\n    Bridgeton Schools - \n    South Huntingdon -\n16. Florence Township\n17. Gloucester Township redux\n18. Lawrence Township redux\n19. Penns Grove/Carneys Point redux\n20.  Cliffside Park \n21. Newton\n22. PCSST\n23. Middlesex STEM redux - won short program\n24. Pitman\n25. Hillside\n26. Pennsauken\n27. Gateway Regional\n28. Buena\n29. Delran\n30. Vernon\n31. PG/CP NGO\n32. Delsea/Elk \n33. Berlin \n34. Berlin borough\n35. Asbury Park\n36. Pemberton\n37. Palmyra\n38.  Wildwood School District\n39. Gloucester redux\n40. Newton redux\n41. Quinton\n42. Middlesex STEM in person\n43. \n\n\n",
+      "notes": "Meet with current and potential partner districts to maintain/win business\n\n    American Paradigm Schools - won pilot\n    Hamilton Township (in-person) - won RFP\n    Gloucester Township - 'won'\n    Penns Grove/Carneys Point - won RFP\n    Lawrence Township - no money\n    HOLA (in person) - won RFP\n    Haddon (in-person) - won RFP\n    GLAW - reupped\n    CJCP (in-person) - won RFP\n    Middlesex STEM - won RFP but delayed until next year\n    Monmouth BGC (in-person)\n    i-Learn (in-person) - re-upped\n    String Theory Schools - won pilot\n    Bridgeton Schools - \n    South Huntingdon -\n16. Florence Township\n17. Gloucester Township redux\n18. Lawrence Township redux\n19. Penns Grove/Carneys Point redux\n20.  Cliffside Park \n21. Newton\n22. PCSST\n23. Middlesex STEM redux - won short program\n24. Pitman\n25. Hillside\n26. Pennsauken\n27. Gateway Regional\n28. Buena\n29. Delran\n30. Vernon\n31. PG/CP NGO\n32. Delsea/Elk \n33. Berlin \n34. Berlin borough\n35. Asbury Park\n36. Pemberton\n37. Palmyra\n38.  Wildwood School District\n39. Gloucester redux\n40. Newton redux\n41. Quinton\n42. Middlesex STEM in person\n43. Lyndhurst\n44. Tabernacle\n\n\n",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555989"
     }
   ]
