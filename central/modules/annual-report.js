@@ -114,6 +114,7 @@
     'Passaic Arts And Science Charter School': 'iLearn CMO', 'Passaic Arts and Science Charter School': 'iLearn CMO',
     'Passaic Clifton Arts and Science Charter School': 'iLearn CMO', 'Passaic Arts & Science Charter School': 'iLearn CMO',
     'Haddon Township ': 'Haddon Township',
+    'GLAW': 'Global Leadership Academy', 'Hamilton': 'Hamilton Township',
   };
   function normalizePartnerDistrict(d) { var t=d.trim(); return PARTNER_DISTRICT_MAP[d] || PARTNER_DISTRICT_MAP[t] || t; }
   var SAT_LEVELS = ['Very Satisfied','Satisfied','Neutral','Dissatisfied','Very Dissatisfied'];
@@ -169,8 +170,12 @@
     // empty, fall back to those question patterns so district/role/comments
     // still populate rather than silently going blank.
     if (!district && !school) {
+      var explicitDist2 = pickField(raw, ['District:','District'], /^district:?$/i);
       var siteRaw = pickField(raw, ['Provide your site location:','Provide your site location'], /provide your site location|site location/i);
-      if (siteRaw) {
+      if (explicitDist2) {
+        district = normalizePartnerDistrict(explicitDist2);
+        school = siteRaw ? siteRaw.trim() : explicitDist2;
+      } else if (siteRaw) {
         var emailForDist = raw['Email Address'] || raw['email'] || '';
         var classified = eoyClassifyDistrict(siteRaw, emailForDist);
         // If email-domain classification didn't resolve it, catch the common
@@ -188,15 +193,23 @@
       }
     }
     if (!role) {
+      var explicitRole2 = pickField(raw, ['Role Only:','Role Only'], /^role only:?$/i);
+      if (explicitRole2) { role = explicitRole2; }
+    }
+    if (!role) {
       var nameRoleRaw = pickField(raw, ['Provide your Name and Role:','Provide your Name and Role'], /provide your name and role/i);
       if (nameRoleRaw) { var parsedNR = eoyParseRole(nameRoleRaw); role = parsedNR.role; }
     }
     if (!highlightComment) {
       highlightComment = pickField(raw, [], /what is njtc good at/i);
     }
-    if (!dissatRaw && parseInt(npsRaw) > 0 && parseInt(npsRaw) <= 3) {
-      dissatRaw = pickField(raw, [], /what could njtc do better/i);
-    }
+    // NOTE: deliberately NOT falling back to "What could NJTC do better?" for
+    // dissatisfactionReasons — that question is open-ended free text (full
+    // paragraphs), not the short categorical tags the original quarterly form
+    // collects ("Scheduling conflicts", etc). Treating a paragraph as a
+    // comma-split categorical tag breaks the bar-chart rendering and produces
+    // nonsense like "(1 mentions)" on a full sentence. It's captured below as
+    // improvementComment instead, shown as a verbatim quote.
     if (!satisfactionLevel) {
       var needsMetRaw = pickField(raw, [], /overall.{0,10}how well has njtc met your needs/i);
       if (/^extremely well$/i.test(needsMetRaw)) satisfactionLevel = 'Very Satisfied';
@@ -216,7 +229,7 @@
       dissatisfactionReasons: dissatRaw.split(',').map(function(s){return s.trim();}).filter(Boolean),
       improvementComment: pickField(raw,
         ['How can we offer more support...','How can we offer more support\u2026','Improvement Suggestions'],
-        /more support|improvement/i),
+        /more support|improvement/i) || pickField(raw, [], /what could njtc do better/i),
       quarter: pickPartnerQuarter(raw),
     };
   }
@@ -260,12 +273,21 @@
     var parsed = eoyParseRole(nameRole);
     var site = pickField(raw, ['Provide your site location:','Provide your site location'], /provide your site location/i);
     var email = raw['Email Address']||'';
-    var district = eoyClassifyDistrict(site, email);
+    // Prefer the explicit, pre-cleaned "District:" / "Role Only:" / "Region:"
+    // columns when the source sheet provides them (these exist on the
+    // workbook's "Cleaned Sheet" tab) — they're concrete and already
+    // deduplicated by the team, so they beat inferring district from a raw
+    // site name string.
+    var explicitDistrict = pickField(raw, ['District:','District'], /^district:?$/i);
+    var explicitRole = pickField(raw, ['Role Only:','Role Only'], /^role only:?$/i);
+    var explicitRegion = pickField(raw, ['Region:','Region'], /^region:?$/i);
+    var district = explicitDistrict || eoyClassifyDistrict(site, email);
+    var role = explicitRole || parsed.role;
     var npsRaw = pickField(raw, [], /recommend new jersey tutoring corps|likely.*recommend.*njtc/i);
     var needsMet = pickField(raw, [], /overall.{0,10}how well has njtc met your needs/i);
     return {
-      timestamp: raw['Timestamp']||'', email: email, name: parsed.name, role: parsed.role,
-      district: normalizePartnerDistrict(district), site: site,
+      timestamp: raw['Timestamp']||'', email: email, name: parsed.name, role: role,
+      district: normalizePartnerDistrict(district), site: site, region: explicitRegion || '',
       npsScore: parseInt(npsRaw)||0,
       needsMet: (needsMet||'').trim(),
       goodAt: pickField(raw, [], /what is njtc good at/i),
@@ -452,6 +474,11 @@ function topBy(counterObj, n) {
     var dissatFreq = {};
     partnerRows.forEach(function(r){ r.dissatisfactionReasons.forEach(function(reason){ if (reason) dissatFreq[reason]=(dissatFreq[reason]||0)+1; }); });
     var topDissatReasons = topBy(dissatFreq, 5).map(function(p){ return { reason: p[0], count: p[1] }; });
+    // Open-ended "what could be better" feedback — kept as verbatim quotes,
+    // never bar-chart tags, since these are full sentences, not short
+    // categorical selections.
+    var improvementComments = partnerRows.filter(function(r){ return r.improvementComment && r.improvementComment.length > 10; })
+      .slice(0, 6).map(function(r){ return { text: r.improvementComment, district: r.district }; });
 
     var eoyOverall = eoyRows.length ? calcNPS(eoyRows) : null;
     // Top-2-box "needs met" — Extremely Well + Very Well combined (distinct from the
@@ -467,7 +494,7 @@ function topBy(counterObj, n) {
       byDistrict: byDistrict, byRole: byRole,
       biggestContributors: biggestContributors,
       positives: { bestDistricts: bestDistricts, highlightComments: highlightComments },
-      negatives: { worstDistricts: worstDistricts, topDissatReasons: topDissatReasons },
+      negatives: { worstDistricts: worstDistricts, topDissatReasons: topDissatReasons, improvementComments: improvementComments },
     };
   }
 
@@ -637,6 +664,8 @@ function topBy(counterObj, n) {
     }
     if (partnerSec.negatives.topDissatReasons.length) {
       steps.push({ owner: 'Program Leadership', text: 'Address the top dissatisfaction driver across partner feedback: \u201C' + partnerSec.negatives.topDissatReasons[0].reason + '\u201D (' + partnerSec.negatives.topDissatReasons[0].count + ' mentions this cycle).' });
+    } else if (partnerSec.negatives.improvementComments.length) {
+      steps.push({ owner: 'Program Leadership', text: partnerSec.negatives.improvementComments.length + ' partner' + (partnerSec.negatives.improvementComments.length>1?'s':'') + ' submitted specific improvement suggestions this cycle \u2014 review the verbatim feedback on the Needs Attention page.' });
     }
     if (onsiteSec.negatives.worstRoles.length) {
       steps.push({ owner: 'People & Talent', text: 'Follow up directly with ' + onsiteSec.negatives.worstRoles.map(function(r){return r.name;}).join(', ') + ' \u2014 the lowest onsite satisfaction-NPS roles this cycle.' });
@@ -1020,17 +1049,35 @@ function topBy(counterObj, n) {
           text('Dissatisfaction Reasons \u2014 Frequency', M, y, {size:11.5, bold:true, color:NAVY}); y += 18;
           var maxD = Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;}));
           partnerSec.negatives.topDissatReasons.forEach(function(r){
-            paragraph(r.reason, M, y+11, 200, {size:8.75, color:INK});
+            // Height-aware: these are meant to be short categorical tags, but
+            // computing actual wrapped height here means a longer-than-expected
+            // value still can't overlap the next row, whatever comes through.
+            var reasonLines = doc.splitTextToSize(_safe(r.reason), 200);
+            var rowH = Math.max(24, reasonLines.length * 8.75 * 1.3 + 8);
+            doc.setFont('helvetica','normal'); doc.setFontSize(8.75); doc.setTextColor.apply(doc,INK);
+            doc.text(reasonLines, M, y+11, {lineHeightFactor:1.3});
             var barW = (W-2*M-220) * (r.count/maxD);
             fillRect(M+220, y, barW, 16, RED, 3);
             text(String(r.count), M+220+barW+6, y+12, {size:8.5, bold:true, color:INK});
-            y += 24;
+            y += rowH;
           });
         } else {
-          text('No dissatisfaction reasons recorded this cycle.', M, y, {size:9.5, color:MUTED, italic:true});
+          text('No categorized dissatisfaction reasons recorded this cycle.', M, y, {size:9.5, color:MUTED, italic:true}); y += 20;
         }
 
-        
+        if (partnerSec.negatives.improvementComments.length) {
+          y += 10;
+          text('What Partners Say Could Improve', M, y, {size:11.5, bold:true, color:NAVY}); y += 6;
+          text('Verbatim improvement suggestions submitted this cycle (unedited):', M, y+10, {size:8.5, italic:true, color:MUTED}); y += 24;
+          partnerSec.negatives.improvementComments.forEach(function(c){
+            var textH = doc.splitTextToSize(_safe('\u201C'+c.text+'\u201D'), W-2*M-28).length * 9 * 1.3 + 16;
+            fillRect(M, y, W-2*M, textH, [252,253,254], 5);
+            var ny3 = paragraph('\u201C'+c.text+'\u201D', M+14, y+16, W-2*M-28, {size:9, italic:true, color:INK, lineHeightFactor:1.3});
+            text('\u2014 ' + c.district, M+14, ny3+2, {size:7.5, color:MUTED});
+            y += textH + 10;
+          });
+        }
+
         // PAGE 6 — ONSITE OVERVIEW
         doc.addPage(); fillRect(0,0,W,H,WHITE);
         pageHeader('Onsite Staff Feedback', 'Site Coordinators, Coaches, Dual-Role staff, and Tutors', 'users_white', NAVY);
