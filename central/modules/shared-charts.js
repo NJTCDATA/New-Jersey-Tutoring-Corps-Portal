@@ -528,9 +528,9 @@
     // Regressed: last move was 'down'
     var regressed = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.dir==='down'; });
     // Big wins: any move from ≤ In Progress → Met
-    var bigWins   = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Met' && _Q_RANK[m.from] <= 2; }); });
+    var bigWins   = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.to==='Met' && _Q_RANK[lm.from] <= 2; });
     // Critical: any move to Has Not Met
-    var critical  = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
+    var critical  = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.to==='Has Not Met'; });
 
     var tsStr = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
     var qLabel = 'Q' + latestQ + ' \u2014 SY 2025\u20132026';
@@ -627,10 +627,12 @@
         <div style="display:flex;flex-direction:column;gap:.5rem">`;
       topImprovements.forEach(function(d) {
         var lm = d.moves[d.moves.length-1];
+        var mStr = _deltaMetricStr(d);
         html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #bbf7d0;background:#f0fdf4">
           <div style="flex:1;min-width:0">
             <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.3rem">${d.target}</div>
             <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+            ${mStr?`<div style="font-size:.7rem;color:#15803d;font-weight:700;margin-top:.25rem">📊 ${mStr}</div>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:.35rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
             <span style="background:#fee2e2;color:#991b1b;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.from}</span>
@@ -653,12 +655,14 @@
         </div>
         <div style="display:flex;flex-direction:column;gap:.5rem">`;
       critical.forEach(function(d) {
-        var critMove = d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0];
+        var critMove = d.moves[d.moves.length-1];
+        var mStr = _deltaMetricStr(d);
         html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #fca5a5;background:#fef2f2">
           <div style="font-size:1.125rem;flex-shrink:0">🔴</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.3rem">${d.target}</div>
             <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+            ${mStr?`<div style="font-size:.7rem;color:#991b1b;font-weight:700;margin-top:.25rem">📊 ${mStr}</div>`:''}
           </div>
           ${critMove?`<div style="flex-shrink:0;text-align:right">
             <span style="background:#fef2f2;color:#991b1b;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${critMove.from} → Has Not Met</span>
@@ -680,10 +684,12 @@
         <div style="display:flex;flex-direction:column;gap:.5rem">`;
       otherRegressed.slice(0, 6).forEach(function(d) {
         var lm = d.moves[d.moves.length-1];
+        var mStr = _deltaMetricStr(d);
         html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.625rem .75rem;border-radius:9px;border:1px solid #fed7aa;background:#fff7ed">
           <div style="flex:1;min-width:0">
             <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.2rem">${d.target}</div>
             <div style="font-size:.7rem;color:var(--muted)">${d.goal}${d.owner?' · '+d.owner:''}</div>
+            ${mStr?`<div style="font-size:.7rem;color:#9a3412;font-weight:700;margin-top:.2rem">📊 ${mStr}</div>`:''}
           </div>
           <div style="flex-shrink:0;display:flex;align-items:center;gap:.3rem;flex-wrap:wrap;justify-content:flex-end">
             <span style="background:#dcfce7;color:#15803d;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${lm.from}</span>
@@ -746,8 +752,11 @@
           var lm2 = deltaD.moves[deltaD.moves.length-1];
           deltaStr = ' <span style="font-size:.65rem;color:'+(lm2.dir==='up'?'#16a34a':'#dc2626')+';">'+(lm2.dir==='up'?'↑':'↓')+'</span>';
         }
+        // Captured Metric / Goal Target trend line — pulled live from columns G/I/K/M
+        var trend = _quarterMetricTrend(r, activeQs);
+        var trendLine = trend ? `<div style="font-size:.7rem;color:var(--muted);margin-top:.2rem;font-weight:600" title="Live from Quarterly Goal Tracking tab">📊 ${trend}</div>` : '';
         html += `<div style="display:grid;grid-template-columns:1fr${activeQs.map(function(){ return ' minmax(72px,80px)'; }).join('')};gap:.5rem .75rem;align-items:start;padding:.375rem 0;border-bottom:1px solid var(--border-2)">
-          <div style="font-size:.8rem;color:var(--navy);line-height:1.4">${tText}${deltaStr}</div>
+          <div style="font-size:.8rem;color:var(--navy);line-height:1.4">${tText}${deltaStr}${trendLine}</div>
           ${qPills}
         </div>`;
       });
@@ -4394,6 +4403,76 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   var _Q_RANK = {'Met':4,'Partially Met':3,'In Progress':2,'Coming Down the Pipeline':1,'Has Not Met':0};
   var _Q_SCORE = {'Met':1,'Partially Met':0.5,'In Progress':0.25,'Coming Down the Pipeline':0.1,'Has Not Met':0};
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  GOAL / CAPTURED METRIC PARSER
+  //  Each Q1–Q4 "data" cell (columns G, I, K, M in the Quarterly Goal Tracking
+  //  tab) contains a combined text block, e.g.:
+  //    "Goal: 2,000\n\nCaptured Metric: 1,047"
+  //    "Goal:\n80%\nCaptured Metric:\n51.40% (aggregate)\n52% - Math\n51% - ELA"
+  //    "Goal:\n\nCaptured Metric:"                (quarter not yet reported)
+  //    "Goal: N/A\nCaptured Metric: N/A"           (not a quantifiable target)
+  //  This parses that block into { goal, metric, hasData, isNA } once, so every
+  //  render/export path (portal live view, PDF, PPTX) reads it the same way.
+  // ══════════════════════════════════════════════════════════════════════════
+  function _joinLines(s) {
+    return String(s || '').split(/\n+/).map(function(x){ return x.replace(/\s{2,}/g,' ').trim(); }).filter(Boolean).join(' / ');
+  }
+  function _parseGoalMetric(raw) {
+    if (!raw) return null;
+    var text = String(raw).replace(/\r/g, '');
+    var m = text.match(/Goal:\s*([\s\S]*?)Captured Metric:\s*([\s\S]*)$/i);
+    if (!m) return null;
+    var goalText   = _joinLines(m[1]);
+    var metricText = _joinLines(m[2]);
+    var isNA = /^n\/a$/i.test(goalText) || /^n\/a$/i.test(metricText);
+    var hasData = !isNA && !!metricText;
+    return { goal: goalText, metric: metricText, hasData: hasData, isNA: isNA };
+  }
+
+  // Canonical short status label (module scope — shared by narrative builder)
+  function _qShortStatus(s) {
+    return (s || '').replace('Coming Down the Pipeline', 'Pipeline').replace('Partially Met', 'Partial').replace('In Progress', 'Progress').replace('Has Not Met', 'Not Met');
+  }
+
+  // Compact "Goal: X · Actual: Y" caption for a single quarter's data cell.
+  // Returns '' when there's nothing reportable yet (future quarter, N/A target).
+  function _metricCaption(raw) {
+    var pg = _parseGoalMetric(raw);
+    if (!pg || !pg.hasData) return '';
+    if (pg.goal) return 'Goal: ' + pg.goal + '  ·  Actual: ' + pg.metric;
+    return 'Actual: ' + pg.metric;
+  }
+
+  // Cross-quarter trend string for one target row, e.g.
+  // "Q1: 1,047  →  Q2: 1,460  →  Q3: 1,738  (Goal: 2,000)"
+  function _quarterMetricTrend(r, activeQs) {
+    var parts = [], lastGoal = '';
+    activeQs.forEach(function(q) {
+      var raw = r[_Q_COLS[q-1][0]] || '';
+      var pg = _parseGoalMetric(raw);
+      if (pg && pg.hasData) {
+        parts.push('Q' + q + ': ' + pg.metric);
+        if (pg.goal) lastGoal = pg.goal;
+      }
+    });
+    if (!parts.length) return '';
+    return parts.join('  \u2192  ') + (lastGoal ? '  (Goal: ' + lastGoal + ')' : '');
+  }
+
+  // For a single delta (target that moved status between two quarters), return
+  // the matching "before → after" captured-metric string, if both quarters
+  // have parseable numbers. e.g. "1,460 → 1,738 (Goal: 2,000)"
+  function _deltaMetricStr(d) {
+    if (!d || !d.dataText) return '';
+    var lm = d.moves[d.moves.length - 1];
+    var pf = _parseGoalMetric(d.dataText['Q' + lm.fromQ]);
+    var pt = _parseGoalMetric(d.dataText['Q' + lm.toQ]);
+    if (pf && pt && pf.hasData && pt.hasData) {
+      return pf.metric + ' \u2192 ' + pt.metric + (pt.goal ? '  (Goal: ' + pt.goal + ')' : '');
+    }
+    return '';
+  }
+
   function _extractAndStoreQuarterlyData(dataRows) {
     if (!dataRows || !dataRows.length) { KPI_Q_DATA = null; window.KPI_Q_DATA = null; return; }
 
@@ -4429,8 +4508,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var goal   = (r[0]||'').trim();
       var target = (r[1]||'').trim();
       if (!goal || !target) return;
-      var statuses = {};
-      activeQs.forEach(function(q){ statuses['Q'+q] = (r[_Q_COLS[q-1][1]]||'').trim(); });
+      var statuses = {}, dataText = {};
+      activeQs.forEach(function(q){ statuses['Q'+q] = (r[_Q_COLS[q-1][1]]||'').trim(); dataText['Q'+q] = (r[_Q_COLS[q-1][0]]||'').trim(); });
       var moves = [];
       for (var i = 1; i < activeQs.length; i++) {
         var fromQ = activeQs[i-1], toQ = activeQs[i];
@@ -4442,7 +4521,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         moves.push({ fromQ:fromQ, toQ:toQ, from:fromS, to:toS,
                      dir: toRk > fromRk ? 'up' : 'down', mag: Math.abs(toRk - fromRk) });
       }
-      if (moves.length) deltas.push({ goal:goal, target:target, statuses:statuses, moves:moves, owner:_cleanOwner(r[5]||'') });
+      if (moves.length) deltas.push({ goal:goal, target:target, statuses:statuses, dataText:dataText, moves:moves, owner:_cleanOwner(r[5]||'') });
     });
 
     KPI_Q_DATA = { rows:dataRows, activeQs:activeQs, scorecards:scorecards, deltas:deltas, lastUpdated:Date.now() };
@@ -4457,6 +4536,114 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var con = document.getElementById('kpiaTabContent');
       if (con) con.innerHTML = renderKPIAnalyticsTab('quarterly');
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  QUARTERLY NARRATIVE ENGINE
+  //  Builds the leadership "story arc" — headline, positives, concerns,
+  //  focus areas, and next steps — entirely from live qd data. Shared by both
+  //  the PDF and PPTX exports so the two documents always tell the same story.
+  //  Nothing here is hardcoded to a specific quarter; it re-derives from
+  //  whatever KPI_Q_DATA looks like at export time.
+  // ══════════════════════════════════════════════════════════════════════════
+  function _buildQuarterlyNarrative(qd) {
+    var activeQs   = qd.activeQs;
+    var scorecards = qd.scorecards;
+    var deltas     = qd.deltas;
+    var latestQ    = activeQs[activeQs.length - 1];
+    var latestSC   = scorecards[scorecards.length - 1];
+    var prevSC     = scorecards.length > 1 ? scorecards[scorecards.length - 2] : null;
+
+    var improved  = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.dir==='up'; });
+    var regressed = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.dir==='down'; });
+    var bigWins   = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.to==='Met' && _Q_RANK[lm.from] <= 2; });
+    var critical  = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.to==='Has Not Met'; });
+    var otherReg  = regressed.filter(function(d){ return !critical.some(function(c){ return c.target===d.target; }); });
+
+    // Stalled: targets with a non-final status in the latest quarter that never
+    // registered a status change across all tracked quarters (flat trajectory).
+    var changedTargets = {};
+    deltas.forEach(function(d){ changedTargets[d.target] = true; });
+    var stalled = [];
+    if (activeQs.length > 1) {
+      qd.rows.forEach(function(r) {
+        var g = (r[0]||'').trim(), t = (r[1]||'').trim();
+        if (!g || !t || changedTargets[t]) return;
+        var latestStatus = (r[_Q_COLS[latestQ-1][1]]||'').trim();
+        if (latestStatus==='In Progress' || latestStatus==='Partially Met' || latestStatus==='Coming Down the Pipeline') {
+          stalled.push({ goal:g, target:t, status:latestStatus, owner:_cleanOwner(r[5]||'') });
+        }
+      });
+    }
+
+    // ── Headline / Where We Stand ──────────────────────────────────
+    var pct = latestSC.counts.total ? Math.round(latestSC.counts.met/latestSC.counts.total*100) : 0;
+    var headline, trendLine;
+    if (prevSC) {
+      var deltaPts = latestSC.score - prevSC.score;
+      var trendWord = deltaPts > 0 ? 'improved' : (deltaPts < 0 ? 'declined' : 'held steady');
+      trendLine = 'Organizational health has ' + trendWord + ' ' + (deltaPts !== 0 ? 'by ' + Math.abs(deltaPts) + ' points ' : '') + 'since Q' + prevSC.q + ' (' + prevSC.score + '% \u2192 ' + latestSC.score + '%).';
+    } else {
+      trendLine = 'This is the first quarter tracked this school year, establishing the baseline for future comparison.';
+    }
+    headline = 'As of Q' + latestQ + ', organizational health stands at ' + latestSC.score + '% (' + latestSC.health.label + '). ' + trendLine + ' ' +
+      latestSC.counts.met + ' of ' + latestSC.counts.total + ' targets (' + pct + '%) are fully Met this quarter, with ' +
+      latestSC.counts.notmet + ' Not Met and ' + latestSC.counts.partial + ' Partially Met still requiring attention.';
+
+    // ── What's Working (positives) ──────────────────────────────────
+    var positives = [];
+    var posSeen = {};
+    bigWins.concat(improved).forEach(function(d) {
+      if (posSeen[d.target]) return; posSeen[d.target] = true;
+      var lm = d.moves[d.moves.length-1];
+      var mStr = _deltaMetricStr(d);
+      positives.push({
+        target: d.target, goalArea: d.goal, owner: d.owner,
+        text: d.target + ' moved from ' + _qShortStatus(lm.from) + ' to ' + _qShortStatus(lm.to) + (mStr ? ' (' + mStr + ')' : '') + '.'
+      });
+    });
+
+    // ── What Needs Attention (concerns) ──────────────────────────────
+    var concerns = [];
+    critical.forEach(function(d) {
+      var cm = d.moves[d.moves.length-1];
+      var mStr = _deltaMetricStr(d);
+      concerns.push({
+        target: d.target, goalArea: d.goal, owner: d.owner, severity: 'critical',
+        text: d.target + ' dropped to Has Not Met' + (cm ? ' from ' + _qShortStatus(cm.from) : '') + (mStr ? ' (' + mStr + ')' : '') + '.'
+      });
+    });
+    otherReg.forEach(function(d) {
+      var lm = d.moves[d.moves.length-1];
+      var mStr = _deltaMetricStr(d);
+      concerns.push({
+        target: d.target, goalArea: d.goal, owner: d.owner, severity: 'watch',
+        text: d.target + ' declined from ' + _qShortStatus(lm.from) + ' to ' + _qShortStatus(lm.to) + (mStr ? ' (' + mStr + ')' : '') + '.'
+      });
+    });
+
+    // ── Where to Focus (stalled / flat targets) ──────────────────────
+    var focus = stalled.map(function(s) {
+      return {
+        target: s.target, goalArea: s.goal, owner: s.owner,
+        text: s.target + ' has shown no status change across Q' + activeQs.join('\u2013Q') + ' and remains ' + _qShortStatus(s.status) + (s.owner ? ' (owner: ' + s.owner + ')' : '') + '.'
+      };
+    });
+
+    // ── Recommended Next Steps (generic, data-driven) ────────────────
+    var nextSteps = [];
+    if (critical.length) nextSteps.push('Escalate the ' + critical.length + ' critical target' + (critical.length>1?'s':'') + ' above to their metric owners for a corrective action plan ahead of the next review.');
+    if (otherReg.length) nextSteps.push('Confirm with owners of the ' + otherReg.length + ' declining target' + (otherReg.length>1?'s':'') + ' whether the change reflects a data-timing issue or a genuine trend.');
+    if (stalled.length) nextSteps.push('Revisit the ' + stalled.length + ' stalled target' + (stalled.length>1?'s':'') + ' with no quarter-over-quarter movement to confirm they remain achievable this school year.');
+    if (bigWins.length) nextSteps.push('Document the approach behind the ' + bigWins.length + ' target' + (bigWins.length>1?'s':'') + ' that reached Met status this cycle so it can be repeated elsewhere.');
+    nextSteps.push('Maintain the quarterly review cadence; the next formal checkpoint is Q' + (latestQ < 4 ? latestQ+1 : 1) + '.');
+
+    return {
+      latestQ: latestQ, latestSC: latestSC, prevSC: prevSC,
+      headline: headline,
+      positives: positives, concerns: concerns, focus: focus, nextSteps: nextSteps,
+      counts: { improved:improved.length, regressed:regressed.length, bigWins:bigWins.length, critical:critical.length, otherReg:otherReg.length, stalled:stalled.length }
+    };
   }
 
   // Cache-restore path: also extract quarterly data when restoring from localStorage
@@ -4993,9 +5180,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _loadJsPDF(function() {
       var jsPDF = window.jspdf.jsPDF;
       var doc = new jsPDF({ orientation:'portrait', unit:'pt', format:'letter' });
-      var W = doc.internal.pageSize.getWidth();
-      var NAVY=[27,42,74], GOLD=[232,168,56], WHITE=[255,255,255], MUTED=[107,114,128];
-      var GREEN=[22,163,74], RED=[220,38,38], AMBER=[217,119,6], PURPLE=[109,40,217];
+      var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+      var NAVY=[27,42,74], GOLD=[232,168,56], WHITE=[255,255,255], MUTED=[107,114,128], LIGHT=[245,247,252];
+      var GREEN=[22,163,74], RED=[220,38,38], AMBER=[217,119,6], PURPLE=[109,40,217], BLUE=[37,99,235];
+      var MARGIN = 40;
 
       var activeQs   = qd.activeQs;
       var scorecards = qd.scorecards;
@@ -5003,58 +5191,94 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var latestQ    = activeQs[activeQs.length-1];
       var latestSC   = scorecards[scorecards.length-1];
       var tsStr      = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+      var narrative  = _buildQuarterlyNarrative(qd);
 
       function _statusColor(s) {
         if (s==='Met')                     return GREEN;
         if (s==='Partially Met')           return AMBER;
-        if (s==='In Progress')             return [37,99,235];
+        if (s==='In Progress')             return BLUE;
         if (s==='Has Not Met')             return RED;
         if (s==='Coming Down the Pipeline') return PURPLE;
         return MUTED;
       }
-      function _short(s){ return (s||'').replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+      function _short(s){ return _qShortStatus(s); }
 
-      // ── Cover page ────────────────────────────────────────────
-      doc.setFillColor(...NAVY); doc.rect(0,0,W,160,'F');
-      doc.setFillColor(...GOLD); doc.rect(0,160,W,4,'F');
-      doc.setTextColor(...WHITE);
+      // Page header bar used on every content page after the cover
+      function _pageHeader(title, color) {
+        doc.setFillColor.apply(doc, color||NAVY); doc.rect(0,0,W,40,'F');
+        doc.setTextColor.apply(doc, WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(12);
+        doc.text(title, MARGIN, 26);
+      }
+
+      // Wrapped paragraph helper — returns the Y position after the text block
+      function _para(text, x, y, maxW, opts) {
+        opts = opts || {};
+        doc.setFont('helvetica', opts.bold?'bold':'normal');
+        doc.setFontSize(opts.size||9.5);
+        doc.setTextColor.apply(doc, opts.color||[45,45,45]);
+        var lines = doc.splitTextToSize(_safe(text), maxW);
+        doc.text(lines, x, y);
+        return y + lines.length * (opts.lineHeight || (opts.size||9.5) + 3.5);
+      }
+
+      // Bulleted list helper (used for narrative sections) — returns final Y
+      function _bulletList(items, x, y, maxW, opts) {
+        opts = opts || {};
+        var dotColor = opts.dotColor || NAVY;
+        items.forEach(function(text) {
+          if (y > H - 70) { doc.addPage(); _pageHeader(opts.contPageTitle||'Continued', opts.headerColor); y = 58; }
+          doc.setFillColor.apply(doc, dotColor); doc.circle(x+3, y-3, 2.4, 'F');
+          y = _para(text, x+12, y, maxW-12, { size: opts.size||9.5, color: opts.color||[45,45,45] });
+          y += 6;
+        });
+        return y;
+      }
+
+      // ══════════════════════════════════════════════════════════
+      //  PAGE 1 — COVER
+      // ══════════════════════════════════════════════════════════
+      doc.setFillColor.apply(doc, NAVY); doc.rect(0,0,W,160,'F');
+      doc.setFillColor.apply(doc, GOLD); doc.rect(0,160,W,4,'F');
+      doc.setTextColor.apply(doc, WHITE);
       doc.setFont('helvetica','bold'); doc.setFontSize(22);
-      doc.text('NJTC Quarterly Goal Summary', 40, 60);
+      doc.text('NJTC Quarterly Goal Summary', MARGIN, 60);
       doc.setFont('helvetica','normal'); doc.setFontSize(12);
-      doc.text('Q' + latestQ + '  \u2014  SY 2025\u20132026', 40, 82);
+      doc.text('Q' + latestQ + '  \u2014  SY 2025\u20132026  \u00B7  Leadership Review', MARGIN, 82);
       doc.setFontSize(9); doc.setTextColor(180,190,200);
-      doc.text('Generated ' + tsStr + '  \u00B7  New Jersey Tutoring Corps', 40, 100);
-      doc.text('Confidential \u2014 Internal Use Only', 40, 114);
+      doc.text('Generated ' + tsStr + '  \u00B7  New Jersey Tutoring Corps', MARGIN, 100);
+      doc.text('Confidential \u2014 Internal Use Only', MARGIN, 114);
 
-      // Health score pill
       var hColor = latestSC.score>=85?GREEN:latestSC.score>=65?AMBER:latestSC.score>=40?[220,100,38]:RED;
-      doc.setFillColor(...hColor); doc.roundedRect(40, 128, 110, 22, 4, 4, 'F');
-      doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(11);
-      doc.text(latestSC.score + '%  ' + latestSC.health.label, 95, 142, {align:'center'});
+      doc.setFillColor.apply(doc, hColor); doc.roundedRect(MARGIN, 128, 130, 22, 4, 4, 'F');
+      doc.setTextColor.apply(doc, WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(11);
+      doc.text(latestSC.score + '%  ' + latestSC.health.label, MARGIN+65, 142, {align:'center'});
 
-      // ── Stat tiles row ────────────────────────────────────────
       var tiles = [
         {label:'Met',      val:latestSC.counts.met,     color:GREEN},
-        {label:'Progress', val:latestSC.counts.prog,    color:[37,99,235]},
+        {label:'Progress', val:latestSC.counts.prog,    color:BLUE},
         {label:'Partial',  val:latestSC.counts.partial, color:AMBER},
         {label:'Pipeline', val:latestSC.counts.pipe,    color:PURPLE},
         {label:'Not Met',  val:latestSC.counts.notmet,  color:RED},
       ];
-      var tW = (W-80)/tiles.length, tY=172;
+      var tW = (W-80)/tiles.length, tY=195;
       tiles.forEach(function(t,i){
-        doc.setFillColor(245,247,252); doc.roundedRect(40+i*tW, tY, tW-6, 46, 4, 4, 'F');
-        doc.setTextColor(...t.color); doc.setFont('helvetica','bold'); doc.setFontSize(18);
-        doc.text(String(t.val), 40+i*tW+(tW-6)/2, tY+22, {align:'center'});
-        doc.setTextColor(...MUTED); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-        doc.text(t.label, 40+i*tW+(tW-6)/2, tY+36, {align:'center'});
+        doc.setFillColor.apply(doc, LIGHT); doc.roundedRect(MARGIN+i*tW, tY, tW-6, 46, 4, 4, 'F');
+        doc.setTextColor.apply(doc, t.color); doc.setFont('helvetica','bold'); doc.setFontSize(18);
+        doc.text(String(t.val), MARGIN+i*tW+(tW-6)/2, tY+22, {align:'center'});
+        doc.setTextColor.apply(doc, MUTED); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+        doc.text(t.label, MARGIN+i*tW+(tW-6)/2, tY+36, {align:'center'});
       });
 
-      var y = 240;
+      var y = 270;
+      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc, NAVY);
+      doc.text('Where We Stand', MARGIN, y); y += 16;
+      y = _para(narrative.headline, MARGIN, y, W-2*MARGIN, {size:9.75, lineHeight:14, color:[45,45,45]});
 
-      // ── Quarter progression table ─────────────────────────────
-      if (scorecards.length >= 2) {
-        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
-        doc.text('Quarter-by-Quarter Health Progression', 40, y); y += 14;
+      // Quarter progression table on cover page (if room)
+      if (scorecards.length >= 2 && y < H - 160) {
+        y += 12;
+        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor.apply(doc, NAVY);
+        doc.text('Quarter-by-Quarter Health Progression', MARGIN, y); y += 12;
         var qRows = scorecards.map(function(sc,i){
           var prev = i>0?scorecards[i-1]:null;
           var delta = prev ? (sc.score - prev.score) : null;
@@ -5066,77 +5290,109 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         doc.autoTable({
           startY: y, head:[['Quarter','Score','Health','Met','In Progress','Not Met','Change']],
           body: qRows, theme:'grid', headStyles:{fillColor:NAVY,textColor:WHITE,fontSize:8,fontStyle:'bold'},
-          bodyStyles:{fontSize:8,textColor:[45,45,45]}, margin:{left:40,right:40},
-          columnStyles:{0:{cellWidth:50},1:{cellWidth:46},2:{cellWidth:70},3:{cellWidth:46},4:{cellWidth:64},5:{cellWidth:54},6:{cellWidth:56}},
+          bodyStyles:{fontSize:8,textColor:[45,45,45]}, margin:{left:MARGIN,right:MARGIN},
+          columnStyles:{0:{cellWidth:50},1:{cellWidth:46},2:{cellWidth:72},3:{cellWidth:46},4:{cellWidth:64},5:{cellWidth:54},6:{cellWidth:54}},
           didParseCell: function(d){ if(d.section==='body'&&d.column.index===2){ var sc2=scorecards[d.row.index]; if(sc2){ d.cell.styles.textColor=_statusColor(sc2.score>=85?'Met':sc2.score>=65?'Partially Met':sc2.score>=40?'In Progress':'Has Not Met'); }}}
         });
-        y = doc.lastAutoTable.finalY + 20;
       }
 
-      // ── Notable improvements ──────────────────────────────────
-      var improved = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='up'; });
-      if (improved.length && y < 650) {
-        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
-        doc.text('Notable Improvements This Cycle  (' + improved.length + ')', 40, y); y += 14;
-        doc.autoTable({
-          startY:y, head:[['Target','Goal','From \u2192 To']],
-          body: improved.slice(0,8).map(function(d){ var lm=d.moves[d.moves.length-1]; return [_safe(d.target.slice(0,70)+(d.target.length>70?'..':'')), _safe(d.goal.split(' ').slice(0,5).join(' ')), _safe(_short(lm.from)+' \u2192 '+_short(lm.to)+' (Q'+lm.fromQ+'\u2192Q'+lm.toQ+')')]; }),
-          theme:'striped', headStyles:{fillColor:GREEN,textColor:WHITE,fontSize:8,fontStyle:'bold'},
-          bodyStyles:{fontSize:7.5,textColor:[45,45,45]}, margin:{left:40,right:40},
-          columnStyles:{0:{cellWidth:230},1:{cellWidth:140},2:{cellWidth:110}}
-        });
-        y = doc.lastAutoTable.finalY + 20;
-      }
-
-      // ── Critical regressions ──────────────────────────────────
-      var critical = deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
-      if (critical.length && y < 650) {
-        if (y > 650) { doc.addPage(); y = 60; }
-        doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...RED);
-        doc.text('Critical Regressions  (' + critical.length + ')', 40, y); y += 14;
-        doc.autoTable({
-          startY:y, head:[['Target','Goal','Transition']],
-          body: critical.map(function(d){ var cm=d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; return [_safe(d.target.slice(0,70)+(d.target.length>70?'..':'')), _safe(d.goal.split(' ').slice(0,5).join(' ')), cm?_safe(_short(cm.from)+' \u2192 Not Met (Q'+cm.fromQ+'\u2192Q'+cm.toQ+')'):'—']; }),
-          theme:'striped', headStyles:{fillColor:RED,textColor:WHITE,fontSize:8,fontStyle:'bold'},
-          bodyStyles:{fontSize:7.5,textColor:[45,45,45]}, margin:{left:40,right:40},
-          columnStyles:{0:{cellWidth:230},1:{cellWidth:140},2:{cellWidth:110}}
-        });
-        y = doc.lastAutoTable.finalY + 20;
-      }
-
-      // ── Full cross-quarter table (new page) ───────────────────
+      // ══════════════════════════════════════════════════════════
+      //  PAGE 2 — WHAT'S WORKING
+      // ══════════════════════════════════════════════════════════
       doc.addPage();
-      doc.setFillColor(...NAVY); doc.rect(0,0,W,40,'F');
-      doc.setTextColor(...WHITE); doc.setFont('helvetica','bold'); doc.setFontSize(12);
-      doc.text('Full Cross-Quarter Target Status  \u2014  All Goal Areas', 40, 26);
-      y = 60;
+      _pageHeader('What\u2019s Working \u2014 Notable Improvements This Cycle', GREEN);
+      y = 58;
+      if (narrative.positives.length) {
+        y = _para('The following ' + narrative.positives.length + ' target' + (narrative.positives.length>1?'s':'') + ' moved to a stronger status between Q' + activeQs[0] + ' and Q' + latestQ + ':', MARGIN, y, W-2*MARGIN, {size:9.5,color:[45,45,45]});
+        y += 8;
+        y = _bulletList(narrative.positives.slice(0,14).map(function(p){ return p.text; }), MARGIN, y, W-2*MARGIN, {dotColor:GREEN, headerColor:GREEN, contPageTitle:'What\u2019s Working (continued)'});
+        if (narrative.positives.length > 14) {
+          y = _para('+ ' + (narrative.positives.length-14) + ' additional improvement' + (narrative.positives.length-14>1?'s':'') + ' — see full breakdown in the appendix.', MARGIN, y, W-2*MARGIN, {size:8.5, color:MUTED});
+        }
+      } else {
+        y = _para('No targets moved to a stronger status this cycle.', MARGIN, y, W-2*MARGIN, {size:9.5, color:MUTED});
+      }
+
+      // ══════════════════════════════════════════════════════════
+      //  PAGE 3 — WHAT NEEDS ATTENTION  (+ WHERE TO FOCUS)
+      // ══════════════════════════════════════════════════════════
+      doc.addPage();
+      _pageHeader('What Needs Attention \u2014 Regressions & Risk', RED);
+      y = 58;
+      if (narrative.concerns.length) {
+        var critCount = narrative.counts.critical, watchCount = narrative.counts.otherReg;
+        y = _para((critCount?critCount+' target'+(critCount>1?'s':'')+' dropped to Has Not Met this cycle':'') +
+                  (critCount && watchCount ? ', and ' : '') +
+                  (watchCount?watchCount+' target'+(watchCount>1?'s':'')+' declined to a weaker status':'') + ':',
+                  MARGIN, y, W-2*MARGIN, {size:9.5,color:[45,45,45]});
+        y += 8;
+        narrative.concerns.forEach(function(c) {
+          if (y > H - 70) { doc.addPage(); _pageHeader('What Needs Attention (continued)', RED); y = 58; }
+          var dot = c.severity==='critical' ? RED : AMBER;
+          doc.setFillColor.apply(doc, dot); doc.circle(MARGIN+3, y-3, 2.4, 'F');
+          y = _para(c.text, MARGIN+12, y, W-2*MARGIN-12, {size:9.5, color:[45,45,45]});
+          y += 6;
+        });
+      } else {
+        y = _para('No targets declined this cycle \u2014 a clean quarter for regressions.', MARGIN, y, W-2*MARGIN, {size:9.5, color:MUTED});
+      }
+
+      if (narrative.focus.length) {
+        y += 10;
+        if (y > H - 100) { doc.addPage(); _pageHeader('Where to Focus \u2014 Stalled Targets', AMBER); y = 58; }
+        else { doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc, NAVY); doc.text('Where to Focus \u2014 Stalled Targets', MARGIN, y); y += 16; }
+        y = _para(narrative.focus.length + ' target' + (narrative.focus.length>1?'s have':' has') + ' shown no status movement across every tracked quarter this year:', MARGIN, y, W-2*MARGIN, {size:9.5, color:[45,45,45]});
+        y += 8;
+        y = _bulletList(narrative.focus.map(function(f){ return f.text; }), MARGIN, y, W-2*MARGIN, {dotColor:AMBER, headerColor:AMBER, contPageTitle:'Where to Focus (continued)'});
+      }
+
+      // ══════════════════════════════════════════════════════════
+      //  PAGE 4 — RECOMMENDED NEXT STEPS
+      // ══════════════════════════════════════════════════════════
+      doc.addPage();
+      _pageHeader('Recommended Next Steps', NAVY);
+      y = 58;
+      y = _bulletList(narrative.nextSteps, MARGIN, y, W-2*MARGIN, {dotColor:GOLD, headerColor:NAVY, contPageTitle:'Recommended Next Steps (continued)', size:10});
+
+      // ══════════════════════════════════════════════════════════
+      //  APPENDIX — Full cross-quarter table with live captured metrics
+      // ══════════════════════════════════════════════════════════
+      doc.addPage();
+      _pageHeader('Appendix \u2014 Full Cross-Quarter Target Status & Captured Metrics', NAVY);
+      y = 58;
 
       var goalOrder=[], goalGroups={};
       qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder.indexOf(g)<0) goalOrder.push(g); if(!goalGroups[g]) goalGroups[g]=[]; goalGroups[g].push(r); });
 
-      var qHeaders = ['Target'].concat(activeQs.map(function(q){ return 'Q'+q; }));
+      var qHeaders = ['Target'].concat(activeQs.map(function(q){ return 'Q'+q; })).concat(['Q'+latestQ+' Goal vs. Actual']);
       var allBodyRows = [];
       goalOrder.forEach(function(goal) {
         allBodyRows.push([{content:goal, colSpan:qHeaders.length, styles:{fillColor:NAVY,textColor:WHITE,fontStyle:'bold',fontSize:8}}]);
         goalGroups[goal].forEach(function(r){
-          var row = [_safe(r[1]||'').slice(0,80)];
-          activeQs.forEach(function(q){ row.push(_short((r[_Q_COLS[q-1][1]]||'').trim())||'—'); });
+          var row = [_safe(r[1]||'').slice(0,72)];
+          activeQs.forEach(function(q){ row.push(_short((r[_Q_COLS[q-1][1]]||'').trim())||'\u2014'); });
+          var cap = _metricCaption(r[_Q_COLS[latestQ-1][0]]||'');
+          row.push(cap ? _safe(cap).slice(0,60) : '\u2014');
           allBodyRows.push(row);
         });
       });
 
-      var colWidths = {0:{cellWidth:260}};
-      activeQs.forEach(function(q,i){ colWidths[i+1]={cellWidth:Math.floor((W-80-260)/activeQs.length)}; });
+      var qColW = 40;
+      var lastColW = W - 80 - 220 - qColW*activeQs.length;
+      var colWidths = {0:{cellWidth:220}};
+      activeQs.forEach(function(q,i){ colWidths[i+1]={cellWidth:qColW}; });
+      colWidths[activeQs.length+1] = {cellWidth:lastColW};
 
       doc.autoTable({
         startY:y, head:[qHeaders], body:allBodyRows, theme:'grid',
-        headStyles:{fillColor:NAVY,textColor:WHITE,fontSize:8,fontStyle:'bold'},
-        bodyStyles:{fontSize:7,textColor:[45,45,45]}, margin:{left:40,right:40},
+        headStyles:{fillColor:NAVY,textColor:WHITE,fontSize:7.5,fontStyle:'bold'},
+        bodyStyles:{fontSize:6.75,textColor:[45,45,45]}, margin:{left:MARGIN,right:MARGIN},
         columnStyles:colWidths,
         didParseCell:function(d){
           if(d.section==='body'&&!d.row.raw[0]?.styles){
             var colIdx=d.column.index;
-            if(colIdx>0){ var s=d.cell.raw||''; d.cell.styles.textColor=_statusColor(activeQs[colIdx-1]&&(s==='Met'?'Met':s==='Partial'?'Partially Met':s==='Progress'?'In Progress':s==='Not Met'?'Has Not Met':s==='Pipeline'?'Coming Down the Pipeline':s)||''); }
+            if(colIdx>0 && colIdx<=activeQs.length){ var s=d.cell.raw||''; d.cell.styles.textColor=_statusColor(s==='Met'?'Met':s==='Partial'?'Partially Met':s==='Progress'?'In Progress':s==='Not Met'?'Has Not Met':s==='Pipeline'?'Coming Down the Pipeline':s)||MUTED; }
+            if(colIdx===activeQs.length+1){ d.cell.styles.fontStyle='bold'; d.cell.styles.textColor=NAVY; }
           }
         }
       });
@@ -5145,10 +5401,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var pageCount = doc.internal.getNumberOfPages();
       for (var pg=1;pg<=pageCount;pg++) {
         doc.setPage(pg);
-        doc.setFillColor(...NAVY); doc.rect(0,doc.internal.pageSize.getHeight()-28,W,28,'F');
-        doc.setTextColor(...WHITE); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-        doc.text('New Jersey Tutoring Corps  \u00B7  Quarterly Summary  \u00B7  SY 2025\u20132026  \u00B7  Confidential', 40, doc.internal.pageSize.getHeight()-12);
-        doc.text('Page '+pg+' of '+pageCount, W-40, doc.internal.pageSize.getHeight()-12, {align:'right'});
+        doc.setFillColor.apply(doc, NAVY); doc.rect(0,H-28,W,28,'F');
+        doc.setTextColor.apply(doc, WHITE); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+        doc.text('New Jersey Tutoring Corps  \u00B7  Quarterly Summary  \u00B7  SY 2025\u20132026  \u00B7  Confidential', MARGIN, H-12);
+        doc.text('Page '+pg+' of '+pageCount, W-MARGIN, H-12, {align:'right'});
       }
 
       var blob = doc.output('blob');
@@ -5178,7 +5434,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
 
     function _safe(s){ return String(s||'').replace(/[^\x20-\x7E]/g,'').replace(/\s+/g,' ').trim(); }
-    function _short(s){ return (s||'').replace('Coming Down the Pipeline','Pipeline').replace('Partially Met','Partial').replace('In Progress','Progress').replace('Has Not Met','Not Met'); }
+    function _short(s){ return _qShortStatus(s); }
     function _statusHex(s){
       if(s==='Met')return'166534'; if(s==='Partially Met')return'B45309';
       if(s==='In Progress')return'1E40AF'; if(s==='Has Not Met')return'991B1B';
@@ -5200,6 +5456,25 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var deltas   = qd.deltas;
       var tsStr    = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',year:'numeric'});
       var hHex     = latestSC.score>=85?GREEN:latestSC.score>=65?AMBER:latestSC.score>=40?'DC6502':RED;
+      var narrative = _buildQuarterlyNarrative(qd);
+
+      // Standard header bar used on content slides
+      function _slideHeader(slide, title, hex) {
+        slide.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:hex||NAVY}});
+        slide.addText(title,{x:0.4,y:0.22,w:9,h:0.7,fontSize:19,bold:true,color:WHITE,fontFace:'Arial'});
+      }
+      // Bulleted narrative list — auto-continues onto new slides if too long for one
+      function _addBulletSlide(items, title, hex, opts) {
+        opts = opts || {};
+        var perSlide = opts.perSlide || 7;
+        for (var i = 0; i < items.length; i += perSlide) {
+          var chunk = items.slice(i, i+perSlide);
+          var s = pptx.addSlide();
+          _slideHeader(s, title + (items.length>perSlide ? ' (' + (Math.floor(i/perSlide)+1) + '/' + Math.ceil(items.length/perSlide) + ')' : ''), hex);
+          s.addText(chunk.map(function(t){ return {text:_safe(t), options:{bullet:{code:'2022',indent:18},breakLine:true,paraSpaceAfter:10}}; }),
+            {x:0.5,y:1.35,w:9,h:3.5,fontSize:13,color:'1E293B',fontFace:'Arial',valign:'top'});
+        }
+      }
 
       // ── Slide 1: Cover ─────────────────────────────────────────
       var s1 = pptx.addSlide();
@@ -5207,16 +5482,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       s1.addShape(pptx.ShapeType.rect,{x:0,y:3.8,w:'100%',h:0.06,fill:{color:GOLD}});
       s1.addText('NJTC',{x:0.5,y:0.4,w:9,h:0.5,fontSize:13,bold:true,color:GOLD,fontFace:'Arial'});
       s1.addText('Quarterly Goal Summary',{x:0.5,y:1.0,w:9,h:1.0,fontSize:36,bold:true,color:WHITE,fontFace:'Arial'});
-      s1.addText('Q'+latestQ+' \u2014 School Year 2025\u20132026',{x:0.5,y:2.05,w:9,h:0.5,fontSize:18,color:GOLD,fontFace:'Arial'});
+      s1.addText('Q'+latestQ+' \u2014 School Year 2025\u20132026  \u00B7  Leadership Review',{x:0.5,y:2.05,w:9,h:0.5,fontSize:18,color:GOLD,fontFace:'Arial'});
       s1.addText('Generated '+tsStr+'   \u00B7   New Jersey Tutoring Corps   \u00B7   Confidential',{x:0.5,y:2.7,w:9,h:0.35,fontSize:10,color:'B0BAC8',fontFace:'Arial'});
-      // Health score box
-      s1.addShape(pptx.ShapeType.roundRect,{x:0.5,y:3.2,w:2.2,h:0.5,fill:{color:hHex},line:{color:hHex},rectRadius:0.06});
-      s1.addText(latestSC.score+'%  '+latestSC.health.label,{x:0.5,y:3.2,w:2.2,h:0.5,fontSize:13,bold:true,color:WHITE,align:'center',fontFace:'Arial'});
+      s1.addShape(pptx.ShapeType.roundRect,{x:0.5,y:3.2,w:2.4,h:0.5,fill:{color:hHex},line:{color:hHex},rectRadius:0.06});
+      s1.addText(latestSC.score+'%  '+latestSC.health.label,{x:0.5,y:3.2,w:2.4,h:0.5,fontSize:13,bold:true,color:WHITE,align:'center',fontFace:'Arial'});
 
-      // ── Slide 2: Summary Stats ─────────────────────────────────
+      // ── Slide 2: Where We Stand ────────────────────────────────
       var s2 = pptx.addSlide();
-      s2.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
-      s2.addText('Q'+latestQ+' At a Glance \u2014 Organizational Target Status',{x:0.4,y:0.2,w:9,h:0.7,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+      _slideHeader(s2, 'Where We Stand \u2014 Q' + latestQ + ' Executive Summary', NAVY);
       var stats=[
         {label:'Met',      val:latestSC.counts.met,     hex:GREEN},
         {label:'In Progress',val:latestSC.counts.prog,  hex:BLUE},
@@ -5225,23 +5498,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         {label:'Not Met',  val:latestSC.counts.notmet,  hex:RED},
       ];
       stats.forEach(function(st,i){
-        var cx=0.4+i*1.96, cy=1.4;
-        s2.addShape(pptx.ShapeType.roundRect,{x:cx,y:cy,w:1.8,h:1.6,fill:{color:'F7F9FC'},line:{color:'E2E8F0',pt:1},rectRadius:0.08});
-        s2.addText(String(st.val),{x:cx,y:cy+0.2,w:1.8,h:0.7,fontSize:32,bold:true,color:st.hex,align:'center',fontFace:'Arial'});
-        s2.addText(st.label,{x:cx,y:cy+0.95,w:1.8,h:0.35,fontSize:10,bold:true,color:'334155',align:'center',fontFace:'Arial'});
+        var cx=0.4+i*1.96, cy=1.35;
+        s2.addShape(pptx.ShapeType.roundRect,{x:cx,y:cy,w:1.8,h:1.3,fill:{color:'F7F9FC'},line:{color:'E2E8F0',pt:1},rectRadius:0.08});
+        s2.addText(String(st.val),{x:cx,y:cy+0.15,w:1.8,h:0.6,fontSize:28,bold:true,color:st.hex,align:'center',fontFace:'Arial'});
+        s2.addText(st.label,{x:cx,y:cy+0.8,w:1.8,h:0.35,fontSize:10,bold:true,color:'334155',align:'center',fontFace:'Arial'});
       });
-      // Health bar
-      var barY=3.3;
-      s2.addText('Organizational Health Score: '+latestSC.score+'%  ('+latestSC.health.label+')',{x:0.4,y:barY,w:9,h:0.4,fontSize:13,bold:true,color:NAVY,fontFace:'Arial'});
-      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY+0.45,w:9,h:0.22,fill:{color:'E2E8F0'}});
-      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY+0.45,w:9*(latestSC.score/100),h:0.22,fill:{color:hHex}});
-      s2.addText('Scoring: Met=100pts  Partial=50pts  In Progress=25pts  Pipeline=10pts  Not Met=0pts',{x:0.4,y:barY+0.82,w:9,h:0.3,fontSize:8,color:'6B7280',fontFace:'Arial'});
+      var barY=2.85;
+      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY,w:9,h:0.22,fill:{color:'E2E8F0'}});
+      s2.addShape(pptx.ShapeType.rect,{x:0.4,y:barY,w:9*(latestSC.score/100),h:0.22,fill:{color:hHex}});
+      s2.addText('Organizational Health: '+latestSC.score+'%  ('+latestSC.health.label+')',{x:0.4,y:barY+0.28,w:9,h:0.3,fontSize:11,bold:true,color:NAVY,fontFace:'Arial'});
+      s2.addShape(pptx.ShapeType.roundRect,{x:0.4,y:barY+0.68,w:9,h:1.25,fill:{color:'F7F9FC'},line:{color:'E2E8F0',pt:1},rectRadius:0.06});
+      s2.addText(_safe(narrative.headline),{x:0.6,y:barY+0.8,w:8.6,h:1.0,fontSize:11.5,color:'1E293B',fontFace:'Arial',valign:'top'});
 
       // ── Slide 3: Quarter Progression (if 2+ quarters) ─────────
       if (qd.scorecards.length >= 2) {
         var s3 = pptx.addSlide();
-        s3.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
-        s3.addText('Quarter-by-Quarter Progression \u2014 SY 2025\u20132026',{x:0.4,y:0.2,w:9,h:0.7,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+        _slideHeader(s3, 'Quarter-by-Quarter Progression \u2014 SY 2025\u20132026', NAVY);
         var rows3=[['Quarter','Health Score','Health Label','Met','In Progress','Partial','Not Met','Change']];
         qd.scorecards.forEach(function(sc,i){
           var prev=i>0?qd.scorecards[i-1]:null;
@@ -5258,48 +5530,58 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         });
       }
 
-      // ── Slide 4: Major Improvements ───────────────────────────
-      var improved=deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='up'; });
-      if (improved.length) {
+      // ── Slide(s) 4: What's Working ─────────────────────────────
+      if (narrative.positives.length) {
         var s4 = pptx.addSlide();
-        s4.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:GREEN}});
-        s4.addText('\uD83C\uDFC6  Notable Improvements This Cycle  ('+improved.length+' targets)',{x:0.4,y:0.25,w:9,h:0.65,fontSize:18,bold:true,color:WHITE,fontFace:'Arial'});
-        var rows4=[['Target','Goal Area','From','To','Quarters']];
-        improved.slice(0,10).forEach(function(d){
-          var lm=d.moves[d.moves.length-1];
-          rows4.push([_safe(d.target).slice(0,75),_safe(d.goal).slice(0,40),_short(lm.from),_short(lm.to),'Q'+lm.fromQ+'\u2192Q'+lm.toQ]);
+        _slideHeader(s4, '\uD83C\uDFC6  What\u2019s Working  (' + narrative.positives.length + ' target' + (narrative.positives.length>1?'s':'') + ')', GREEN);
+        var rows4=[['Target','Goal Area','From \u2192 To','Captured Metric']];
+        narrative.positives.slice(0,12).forEach(function(p){
+          var d = deltas.find(function(x){ return x.target===p.target; });
+          var lm = d.moves[d.moves.length-1];
+          rows4.push([_safe(p.target).slice(0,60),_safe(p.goalArea).slice(0,32),_short(lm.from)+' \u2192 '+_short(lm.to), _safe(_deltaMetricStr(d)).slice(0,45)||'\u2014']);
         });
-        s4.addTable(rows4,{x:0.4,y:1.2,w:9,colW:[3.0,2.0,1.2,1.2,0.9],
+        s4.addTable(rows4,{x:0.4,y:1.2,w:9,colW:[2.9,1.9,1.6,2.6],
           border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
           headFontSize:9,headBold:true,headFill:{color:GREEN},headColor:WHITE,
           bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
         });
+        if (narrative.positives.length > 12) {
+          s4.addText('+ ' + (narrative.positives.length-12) + ' additional improvement' + (narrative.positives.length-12>1?'s':'') + ' \u2014 see full breakdown in the appendix.',
+            {x:0.4,y:4.9,w:9,h:0.3,fontSize:9,italic:true,color:'6B7280',fontFace:'Arial'});
+        }
       }
 
-      // ── Slide 5: Critical Regressions ─────────────────────────
-      var critical=deltas.filter(function(d){ return d.moves.some(function(m){ return m.to==='Has Not Met'; }); });
-      var otherReg=deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm&&lm.dir==='down'&&lm.to!=='Has Not Met'; });
-      if (critical.length || otherReg.length) {
+      // ── Slide 5: What Needs Attention ──────────────────────────
+      if (narrative.concerns.length) {
         var s5 = pptx.addSlide();
-        s5.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:RED}});
-        s5.addText('\u26A0\uFE0F  Status Regressions \u2014 Needs Leadership Attention',{x:0.4,y:0.25,w:9,h:0.65,fontSize:18,bold:true,color:WHITE,fontFace:'Arial'});
-        var rows5=[['Target','Goal Area','From','To','Type']];
-        critical.forEach(function(d){ var cm=d.moves.filter(function(m){ return m.to==='Has Not Met'; })[0]; if(!cm) return; rows5.push([_safe(d.target).slice(0,65),_safe(d.goal).slice(0,35),_short(cm.from),'Not Met','Critical']); });
-        otherReg.slice(0,6).forEach(function(d){ var lm=d.moves[d.moves.length-1]; rows5.push([_safe(d.target).slice(0,65),_safe(d.goal).slice(0,35),_short(lm.from),_short(lm.to),'Watch']); });
-        s5.addTable(rows5,{x:0.4,y:1.2,w:9,colW:[2.9,1.9,1.2,1.2,0.9],
+        _slideHeader(s5, '\u26A0\uFE0F  What Needs Attention \u2014 Regressions & Risk', RED);
+        var rows5=[['Target','Goal Area','From \u2192 To','Captured Metric','Severity']];
+        narrative.concerns.forEach(function(c){
+          var d = deltas.find(function(x){ return x.target===c.target; });
+          var lm = d.moves[d.moves.length-1];
+          rows5.push([_safe(c.target).slice(0,55),_safe(c.goalArea).slice(0,28),_short(lm.from)+' \u2192 '+_short(lm.to), _safe(_deltaMetricStr(d)).slice(0,38)||'\u2014', c.severity==='critical'?'Critical':'Watch']);
+        });
+        s5.addTable(rows5,{x:0.4,y:1.2,w:9,colW:[2.6,1.7,1.5,2.3,0.9],
           border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
           headFontSize:9,headBold:true,headFill:{color:RED},headColor:WHITE,
-          bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
+          bodyFontSize:7.75,bodyColor:'1E293B',bodyFill:{color:LIGHT}
         });
       }
 
-      // ── Slide 6: Goal Area Scorecard ──────────────────────────
+      // ── Slide(s): Where to Focus (stalled targets) ─────────────
+      if (narrative.focus.length) {
+        _addBulletSlide(narrative.focus.map(function(f){ return f.text; }), '\uD83D\uDCCC  Where to Focus \u2014 Stalled Targets', AMBER, {perSlide:6});
+      }
+
+      // ── Slide(s): Recommended Next Steps ────────────────────────
+      _addBulletSlide(narrative.nextSteps, '\u2705  Recommended Next Steps', NAVY, {perSlide:7});
+
+      // ── Slide: Goal Area Scorecard ──────────────────────────────
       var goalOrder2=[], goalGroups2={};
       qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder2.indexOf(g)<0) goalOrder2.push(g); if(!goalGroups2[g]) goalGroups2[g]=[]; goalGroups2[g].push(r); });
 
       var s6 = pptx.addSlide();
-      s6.addShape(pptx.ShapeType.rect,{x:0,y:0,w:'100%',h:1.1,fill:{color:NAVY}});
-      s6.addText('Goal Area Scorecard \u2014 Q'+latestQ,{x:0.4,y:0.25,w:9,h:0.65,fontSize:20,bold:true,color:WHITE,fontFace:'Arial'});
+      _slideHeader(s6, 'Goal Area Scorecard \u2014 Q'+latestQ, NAVY);
       var rows6=[['Goal Area','Targets','Met','In Prog','Partial','Not Met','Score','Health']];
       goalOrder2.forEach(function(goal){
         var rs=goalGroups2[goal];
@@ -5315,6 +5597,25 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
         headFontSize:9,headBold:true,headFill:{color:NAVY},headColor:WHITE,
         bodyFontSize:8,bodyColor:'1E293B',bodyFill:{color:LIGHT}
+      });
+
+      // ── Slide: Full Target Appendix (with live captured metrics) ─
+      var goalOrder=[], goalGroups={};
+      qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder.indexOf(g)<0) goalOrder.push(g); if(!goalGroups[g]) goalGroups[g]=[]; goalGroups[g].push(r); });
+      var s7 = pptx.addSlide();
+      _slideHeader(s7, 'Appendix \u2014 Full Target Status & Captured Metrics (Q'+latestQ+')', NAVY);
+      var rows7=[['Target','Goal Area','Q'+latestQ+' Status','Q'+latestQ+' Goal vs. Actual']];
+      goalOrder.forEach(function(goal){
+        goalGroups[goal].forEach(function(r){
+          var s = (r[_Q_COLS[latestQ-1][1]]||'').trim();
+          var cap = _metricCaption(r[_Q_COLS[latestQ-1][0]]||'');
+          rows7.push([_safe(r[1]||'').slice(0,58), _safe(goal).slice(0,26), _short(s)||'\u2014', _safe(cap).slice(0,48)||'\u2014']);
+        });
+      });
+      s7.addTable(rows7,{x:0.4,y:1.2,w:9,colW:[3.1,1.9,1.1,2.9],
+        border:{type:'solid',color:'E2E8F0',pt:0.5},autoPage:true,
+        headFontSize:8.5,headBold:true,headFill:{color:NAVY},headColor:WHITE,
+        bodyFontSize:7,bodyColor:'1E293B',bodyFill:{color:LIGHT}
       });
 
       pptx.writeFile({fileName:'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.pptx'})
