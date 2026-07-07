@@ -483,7 +483,7 @@ function topBy(counterObj, n) {
       .sort(function(a,b){ return b[1].nps-a[1].nps; }).slice(0,3)
       .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
     var highlightComments = partnerRows.filter(function(r){ return r.highlightComment && r.highlightComment.length > 15; })
-      .slice(0, 6).map(function(r){ return { text: r.highlightComment, district: r.district }; });
+      .slice(0, 10).map(function(r){ return { text: r.highlightComment, district: r.district }; });
 
     // Negatives: districts with n>=3 AND a genuinely concerning NPS (<20).
     var worstDistricts = districtsWithN.filter(function(e){ return e[1].nps !== null && e[1].nps < 20; })
@@ -496,7 +496,7 @@ function topBy(counterObj, n) {
     // never bar-chart tags, since these are full sentences, not short
     // categorical selections.
     var improvementComments = partnerRows.filter(function(r){ return r.improvementComment && r.improvementComment.length > 10; })
-      .slice(0, 6).map(function(r){ return { text: r.improvementComment, district: r.district }; });
+      .slice(0, 10).map(function(r){ return { text: r.improvementComment, district: r.district }; });
 
     var eoyOverall = eoyRows.length ? calcNPS(eoyRows) : null;
     // Top-2-box "needs met" — Extremely Well + Very Well combined (distinct from the
@@ -900,6 +900,26 @@ function topBy(counterObj, n) {
           text(title, M+56, 52, {size:19, bold:true, color:NAVY});
           if (subtitle) text(subtitle, M+56, 68, {size:9.5, color:MUTED});
         }
+        // Call before drawing any block of known height. If it won't fit
+        // above the footer, starts a fresh page with a "(continued)" header
+        // and returns the new y — every dynamically-sized block (comments,
+        // cards, bar rows) must go through this so nothing runs off the
+        // bottom edge, regardless of how much real text comes through.
+        function ensureSpace(neededH, title, iconName, circColor) {
+          if (y + neededH > H - 50) {
+            doc.addPage(); fillRect(0,0,W,H,WHITE);
+            pageHeader(title + ' (continued)', '', iconName, circColor);
+            y = 96;
+          }
+        }
+        // Defensive: a district/role name could in rare cases be a long raw
+        // site string that slipped past classification (instead of a short
+        // known name). Cap it so it can never physically run into the score
+        // badge on the right, regardless of how long it gets.
+        function safeCardLabel(str, maxChars) {
+          var s = String(str||'');
+          return s.length > maxChars ? s.slice(0, maxChars-1) + '\u2026' : s;
+        }
 
         var partnerSec = data.partner, onsiteSec = data.onsite, scholarSec = data.scholar;
         var goalsNarrative = data.goalsNarrative, synthesis = data.synthesis;
@@ -1069,28 +1089,33 @@ function topBy(counterObj, n) {
         y = 96;
         text('Top-Performing Districts (3+ respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
         partnerSec.positives.bestDistricts.forEach(function(d){
+          ensureSpace(42, 'Partner Satisfaction \u2014 What\u2019s Working', 'check_green', GREEN);
           fillRect(M, y, W-2*M, 34, GREEN_BG, 6);
-          text(d.name + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+          text(safeCardLabel(d.name, 55) + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
           doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc,GREEN);
           doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-14, y+21, {align:'right'});
           y += 42;
         });
         if (partnerSec.positives.bestRoles.length) {
           y += 8;
+          ensureSpace(34, 'Partner Satisfaction \u2014 What\u2019s Working', 'check_green', GREEN);
           text('Top-Performing Roles', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
           partnerSec.positives.bestRoles.forEach(function(r){
+            ensureSpace(38, 'Partner Satisfaction \u2014 What\u2019s Working', 'check_green', GREEN);
             fillRect(M, y, W-2*M, 30, GREEN_BG, 6);
-            text(r.name + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
+            text(safeCardLabel(r.name, 58) + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc,GREEN);
             doc.text('NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+19, {align:'right'});
             y += 38;
           });
         }
         y += 12;
+        ensureSpace(50, 'Partner Satisfaction \u2014 What\u2019s Working', 'check_green', GREEN);
         text('Direct Feedback \u2014 Partner Comments', M, y, {size:11.5, bold:true, color:NAVY}); y += 6;
         text('Verbatim highlight comments submitted this cycle (unedited):', M, y+10, {size:8.5, italic:true, color:MUTED}); y += 24;
-        partnerSec.positives.highlightComments.slice(0,5).forEach(function(c){
+        partnerSec.positives.highlightComments.forEach(function(c){
           var textH = doc.splitTextToSize(_safe('\u201C'+c.text+'\u201D'), W-2*M-28).length * 9 * 1.3 + 16;
+          ensureSpace(textH + 10, 'Partner Satisfaction \u2014 What\u2019s Working', 'check_green', GREEN);
           fillRect(M, y, W-2*M, textH, [252,253,254], 5);
           var ny2 = paragraph('\u201C'+c.text+'\u201D', M+14, y+16, W-2*M-28, {size:9, italic:true, color:INK, lineHeightFactor:1.3});
           text('\u2014 ' + c.district, M+14, ny2+2, {size:7.5, color:MUTED});
@@ -1104,8 +1129,9 @@ function topBy(counterObj, n) {
         text('Lowest-Performing Districts (3+ respondents)', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
         if (partnerSec.negatives.worstDistricts.length) {
           partnerSec.negatives.worstDistricts.forEach(function(d){
+            ensureSpace(42, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
             fillRect(M, y, W-2*M, 34, RED_BG, 6);
-            text(d.name + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+            text(safeCardLabel(d.name, 55) + '   (n=' + d.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, d.nps<20?RED:AMBER);
             doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-14, y+21, {align:'right'});
             y += 42;
@@ -1118,6 +1144,7 @@ function topBy(counterObj, n) {
             text('No district fell below the concern threshold this cycle \u2014 remaining districts below.', M, y, {size:9, italic:true, color:MUTED}); y += 18;
             extraDistKeys.sort(function(a,b){ var na=partnerSec.byDistrict[a].nps, nb=partnerSec.byDistrict[b].nps; return (na===null?999:na)-(nb===null?999:nb); })
               .forEach(function(k){
+                ensureSpace(26, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
                 var d = partnerSec.byDistrict[k];
                 fillRect(M, y, W-2*M, 26, [252,253,254]);
                 doc.setDrawColor.apply(doc,LINEGRID); doc.setLineWidth(0.5); doc.line(M,y+26,W-M,y+26);
@@ -1135,10 +1162,12 @@ function topBy(counterObj, n) {
         }
         y += 12;
         if (partnerSec.negatives.worstRoles.length) {
+          ensureSpace(34, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
           text('Roles Needing Support', M, y, {size:11.5, bold:true, color:RED}); y += 16;
           partnerSec.negatives.worstRoles.forEach(function(r){
+            ensureSpace(38, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
             fillRect(M, y, W-2*M, 30, r.nps<20?RED_BG:AMBER_BG, 6);
-            text(r.name + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
+            text(safeCardLabel(r.name, 58) + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc, r.nps<20?RED:AMBER);
             doc.text('NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+19, {align:'right'});
             y += 38;
@@ -1146,6 +1175,7 @@ function topBy(counterObj, n) {
           y += 8;
         }
         if (partnerSec.negatives.topDissatReasons.length) {
+          ensureSpace(30, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
           text('Dissatisfaction Reasons \u2014 Frequency', M, y, {size:11.5, bold:true, color:NAVY}); y += 18;
           var maxD = Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;}));
           partnerSec.negatives.topDissatReasons.forEach(function(r){
@@ -1154,6 +1184,7 @@ function topBy(counterObj, n) {
             // value still can't overlap the next row, whatever comes through.
             var reasonLines = doc.splitTextToSize(_safe(r.reason), 200);
             var rowH = Math.max(24, reasonLines.length * 8.75 * 1.3 + 8);
+            ensureSpace(rowH, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
             doc.setFont('helvetica','normal'); doc.setFontSize(8.75); doc.setTextColor.apply(doc,INK);
             doc.text(reasonLines, M, y+11, {lineHeightFactor:1.3});
             var barW = (W-2*M-220) * (r.count/maxD);
@@ -1167,10 +1198,12 @@ function topBy(counterObj, n) {
 
         if (partnerSec.negatives.improvementComments.length) {
           y += 10;
+          ensureSpace(50, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
           text('What Partners Say Could Improve', M, y, {size:11.5, bold:true, color:NAVY}); y += 6;
           text('Verbatim improvement suggestions submitted this cycle (unedited):', M, y+10, {size:8.5, italic:true, color:MUTED}); y += 24;
           partnerSec.negatives.improvementComments.forEach(function(c){
             var textH = doc.splitTextToSize(_safe('\u201C'+c.text+'\u201D'), W-2*M-28).length * 9 * 1.3 + 16;
+            ensureSpace(textH + 10, 'Partner Satisfaction \u2014 Needs Attention', 'warning_white', RED);
             fillRect(M, y, W-2*M, textH, [252,253,254], 5);
             var ny3 = paragraph('\u201C'+c.text+'\u201D', M+14, y+16, W-2*M-28, {size:9, italic:true, color:INK, lineHeightFactor:1.3});
             text('\u2014 ' + c.district, M+14, ny3+2, {size:7.5, color:MUTED});
@@ -1234,7 +1267,7 @@ function topBy(counterObj, n) {
         text('Strongest Roles', M, y, {size:11.5, bold:true, color:GREEN}); y += 16;
         onsiteSec.positives.bestRoles.forEach(function(r){
           fillRect(M, y, W-2*M, 34, GREEN_BG, 6);
-          text(r.name + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+          text(safeCardLabel(r.name, 55) + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
           doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc,GREEN);
           doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+21, {align:'right'});
           y += 42;
@@ -1244,7 +1277,7 @@ function topBy(counterObj, n) {
         if (onsiteSec.negatives.worstRoles.length) {
           onsiteSec.negatives.worstRoles.forEach(function(r){
             fillRect(M, y, W-2*M, 34, r.nps<20?RED_BG:AMBER_BG, 6);
-            text(r.name + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
+            text(safeCardLabel(r.name, 55) + '   (n=' + r.n + ')', M+14, y+21, {size:10, bold:true, color:INK});
             doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor.apply(doc, r.nps<20?RED:AMBER);
             doc.text('Sat-NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+21, {align:'right'});
             y += 42;
