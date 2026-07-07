@@ -218,11 +218,12 @@
       else if (/^a little bit$/i.test(needsMetRaw)) satisfactionLevel = 'Dissatisfied';
       else if (/^not well at all$/i.test(needsMetRaw)) satisfactionLevel = 'Very Dissatisfied';
     }
+    var explicitRegion2 = pickField(raw, ['Region:','Region'], /^region:?$/i);
 
     return {
       timestamp: raw['Timestamp']||raw['timestamp']||'',
       email: raw['Email Address']||raw['email']||'',
-      district: district, school: school, role: role,
+      district: district, school: school, role: role, region: normalizeOnsiteRegion(explicitRegion2),
       npsScore: parseInt(npsRaw)||0,
       satisfactionLevel: satisfactionLevel,
       highlightComment: highlightComment,
@@ -287,7 +288,7 @@
     var needsMet = pickField(raw, [], /overall.{0,10}how well has njtc met your needs/i);
     return {
       timestamp: raw['Timestamp']||'', email: email, name: parsed.name, role: role,
-      district: normalizePartnerDistrict(district), site: site, region: explicitRegion || '',
+      district: normalizePartnerDistrict(district), site: site, region: normalizeOnsiteRegion(explicitRegion),
       npsScore: parseInt(npsRaw)||0,
       needsMet: (needsMet||'').trim(),
       goodAt: pickField(raw, [], /what is njtc good at/i),
@@ -453,8 +454,25 @@ function topBy(counterObj, n) {
       var rows = partnerRows.filter(function(r){ return r.role===rl; });
       byRole[rl] = Object.assign({ n: rows.length }, calcNPS(rows));
     });
+    var byRegion = {};
+    Object.keys(groupCount(partnerRows, 'region')).forEach(function(rg) {
+      var rows = partnerRows.filter(function(r){ return r.region===rg; });
+      byRegion[rg] = Object.assign({ n: rows.length }, calcNPS(rows));
+    });
     var biggestContributors = topBy(groupCount(partnerRows, 'district'), 5)
       .map(function(pair){ return { name: pair[0], n: pair[1], nps: byDistrict[pair[0]].nps }; });
+
+    // Role-level positives/negatives — a district's aggregate NPS can look
+    // fine while a specific role within it (or across all districts) is
+    // notably less satisfied; surface that instead of hiding it in the
+    // district-level rollup.
+    var roleEntriesP = Object.entries(byRole).filter(function(e){ return e[1].n >= 3; });
+    var bestRoles = roleEntriesP.filter(function(e){ return e[1].nps !== null && e[1].nps >= 40; })
+      .sort(function(a,b){ return b[1].nps-a[1].nps; }).slice(0,3)
+      .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
+    var worstRoles = roleEntriesP.filter(function(e){ return e[1].nps !== null && e[1].nps < 20; })
+      .sort(function(a,b){ return a[1].nps-b[1].nps; }).slice(0,3)
+      .map(function(e){ return { name: e[0], nps: e[1].nps, n: e[1].n }; });
 
     // Positives: districts with n>=3 AND an actually-good NPS (>=40, promoter-heavy) —
     // rank order alone previously let a strongly negative NPS get labeled "top
@@ -491,10 +509,10 @@ function topBy(counterObj, n) {
       n: partnerRows.length, eoyN: eoyRows.length,
       overall: overall, eoyOverall: eoyOverall,
       eoyNeedsMetPct: eoyNeedsMetPct, eoyNeedsMetN: needsMetAnswered.length,
-      byDistrict: byDistrict, byRole: byRole,
+      byDistrict: byDistrict, byRole: byRole, byRegion: byRegion,
       biggestContributors: biggestContributors,
-      positives: { bestDistricts: bestDistricts, highlightComments: highlightComments },
-      negatives: { worstDistricts: worstDistricts, topDissatReasons: topDissatReasons, improvementComments: improvementComments },
+      positives: { bestDistricts: bestDistricts, bestRoles: bestRoles, highlightComments: highlightComments },
+      negatives: { worstDistricts: worstDistricts, worstRoles: worstRoles, topDissatReasons: topDissatReasons, improvementComments: improvementComments },
     };
   }
 
@@ -985,6 +1003,52 @@ function topBy(counterObj, n) {
           });
         }
 
+        // PAGE 3B — PARTNER SATISFACTION BY ROLE & REGION
+        doc.addPage(); fillRect(0,0,W,H,WHITE);
+        pageHeader('Partner Satisfaction \u2014 By Role & Region', 'A district\u2019s overall score can hide real variance underneath it', 'handshake_navy', NAVY);
+        y = 96;
+        var roleKeysAll = Object.keys(partnerSec.byRole).filter(function(k){ return partnerSec.byRole[k].n >= 1; });
+        if (roleKeysAll.length) {
+          text('NPS by Role \u2014 All Respondent Roles', M, y, {size:12, bold:true, color:NAVY}); y += 16;
+          roleKeysAll.sort(function(a,b){ var na=partnerSec.byRole[a].nps, nb=partnerSec.byRole[b].nps; return (nb===null?-999:nb)-(na===null?-999:na); });
+          var maxRoleN2 = Math.max.apply(null, roleKeysAll.map(function(k){ return partnerSec.byRole[k].n; }));
+          var barTrackW2 = W-2*M-190-120;
+          roleKeysAll.forEach(function(k){
+            var d = partnerSec.byRole[k];
+            paragraph(k, M, y+11, 170, {size:8.75, color:INK, lineHeightFactor:1.1});
+            var barW = barTrackW2 * (d.n/maxRoleN2);
+            var barHex = d.nps===null?MUTED:(d.nps>=40?GREEN:d.nps>=20?AMBER:RED);
+            fillRect(M+190, y, barTrackW2, 16, [240,242,246], 3);
+            fillRect(M+190, y, barW, 16, barHex, 3);
+            text(String(d.n), M+190+barTrackW2+6, y+12, {size:8.5, bold:true, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor.apply(doc, npsColorArr(d.nps));
+            doc.text('NPS ' + (d.nps===null?'N/A':(d.nps>0?'+':'')+d.nps), W-M, y+12, {align:'right'});
+            y += 24;
+          });
+        } else {
+          text('No role information available for partner respondents this cycle.', M, y, {size:9.5, italic:true, color:MUTED}); y += 20;
+        }
+
+        y += 20;
+        var regionKeysAll = Object.keys(partnerSec.byRegion).filter(function(k){ return k && partnerSec.byRegion[k].n >= 1; });
+        if (regionKeysAll.length) {
+          text('NPS by Region', M, y, {size:12, bold:true, color:NAVY}); y += 16;
+          var cardW2 = (W-2*M-16)/Math.max(2,regionKeysAll.length);
+          regionKeysAll.forEach(function(rg, i){
+            var d = partnerSec.byRegion[rg];
+            var col = d.nps===null?MUTED:(d.nps>=40?GREEN:d.nps>=20?AMBER:RED);
+            var bg = d.nps===null?[245,246,248]:(d.nps>=40?GREEN_BG:d.nps>=20?AMBER_BG:RED_BG);
+            var cx = M + i*(cardW2+16);
+            fillRect(cx, y, cardW2, 54, bg, 6);
+            doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.setTextColor.apply(doc, col);
+            doc.text(d.nps===null?'N/A':(d.nps>0?'+':'')+d.nps, cx+14, y+32);
+            text(rg + ' Region  \u00B7  n=' + d.n, cx+14, y+46, {size:8, color:INK});
+          });
+          y += 74;
+        } else {
+          text('No region information available for partner respondents this cycle.', M, y, {size:9.5, italic:true, color:MUTED}); y += 20;
+        }
+
         // PAGE 4 — PARTNER POSITIVES
         doc.addPage(); fillRect(0,0,W,H,WHITE);
         pageHeader('Partner Satisfaction \u2014 What\u2019s Working', 'Highest-performing districts and direct partner feedback', 'check_green', GREEN);
@@ -997,6 +1061,17 @@ function topBy(counterObj, n) {
           doc.text('NPS ' + (d.nps>0?'+':'')+d.nps, W-M-14, y+21, {align:'right'});
           y += 42;
         });
+        if (partnerSec.positives.bestRoles.length) {
+          y += 8;
+          text('Top-Performing Roles', M, y, {size:11.5, bold:true, color:NAVY}); y += 16;
+          partnerSec.positives.bestRoles.forEach(function(r){
+            fillRect(M, y, W-2*M, 30, GREEN_BG, 6);
+            text(r.name + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc,GREEN);
+            doc.text('NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+19, {align:'right'});
+            y += 38;
+          });
+        }
         y += 12;
         text('Direct Feedback \u2014 Partner Comments', M, y, {size:11.5, bold:true, color:NAVY}); y += 6;
         text('Verbatim highlight comments submitted this cycle (unedited):', M, y+10, {size:8.5, italic:true, color:MUTED}); y += 24;
@@ -1045,6 +1120,17 @@ function topBy(counterObj, n) {
           }
         }
         y += 12;
+        if (partnerSec.negatives.worstRoles.length) {
+          text('Roles Needing Support', M, y, {size:11.5, bold:true, color:RED}); y += 16;
+          partnerSec.negatives.worstRoles.forEach(function(r){
+            fillRect(M, y, W-2*M, 30, r.nps<20?RED_BG:AMBER_BG, 6);
+            text(r.name + '   (n=' + r.n + ')', M+14, y+19, {size:9.5, bold:true, color:INK});
+            doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc, r.nps<20?RED:AMBER);
+            doc.text('NPS ' + (r.nps>0?'+':'')+r.nps, W-M-14, y+19, {align:'right'});
+            y += 38;
+          });
+          y += 8;
+        }
         if (partnerSec.negatives.topDissatReasons.length) {
           text('Dissatisfaction Reasons \u2014 Frequency', M, y, {size:11.5, bold:true, color:NAVY}); y += 18;
           var maxD = Math.max.apply(null, partnerSec.negatives.topDissatReasons.map(function(r){return r.count;}));
