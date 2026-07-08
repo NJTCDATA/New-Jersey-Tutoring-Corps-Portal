@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-08T17:58:59.914Z",
+  "generated": "2026-07-08T19:41:31.207Z",
   "project": "1211431518555737",
-  "count": 15,
+  "count": 14,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -70,32 +70,6 @@
       "name": "Secure new philanthropic partners totaling $200k",
       "notes": "Using instrumental- update the plan to secure 200k in new philanthropic partners https://www.instrumentl.com/projects/321130#/project-tracker\n\nAs of 6/9/26 raised $126,000 in new philanthropic dollars.",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555862"
-    },
-    {
-      "gid": "1211431518555864",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-07-01",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Secure support from FY 27 State budget",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555864"
     },
     {
       "gid": "1211431518555898",
