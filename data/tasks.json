@@ -1,7 +1,7 @@
 {
-  "generated": "2026-07-08T12:15:54.079Z",
+  "generated": "2026-07-08T14:53:50.642Z",
   "project": "1211431518555737",
-  "count": 18,
+  "count": 15,
   "tasks": [
     {
       "gid": "1211431518555744",
@@ -40,88 +40,6 @@
       "name": "By 2026, serve 2000  scholars annually",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555744"
-    },
-    {
-      "gid": "1211431518555740",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-07",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Placement Level Change: 80% of all scholars advancing a level in math or ela.",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555740"
-    },
-    {
-      "gid": "1211431518555790",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-14",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Progress towards proficiency: Math 20% increase of scholars that reach grade-level proficiency; ELA 20% increase of scholars that reach grade-level proficiency\n",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555790"
-    },
-    {
-      "gid": "1211431518555741",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-14",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Gap Closing: 35% decrease in scholars 2+ grade levels below.",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555741"
     },
     {
       "gid": "1211431518555862",
