@@ -6203,22 +6203,18 @@
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:.875rem;border-bottom:2px solid var(--border)" id="tdTabNav">
         <button class="pst-tab active" id="tdTab-pd"        onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
         <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
-        <button class="pst-tab"        id="tdTab-otj-overview"  onclick="tdShowTab('otj-overview',this)">📋 OTJ Overview</button>
         <button class="pst-tab"        id="tdTab-apprentice"    onclick="tdShowTab('apprentice',this)">🎓 T&D Analytics</button>
         <button class="pst-tab"        id="tdTab-tutor-obs"     onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
         <button class="pst-tab"        id="tdTab-sl-obs"        onclick="tdShowTab('sl-obs',this)">🏫 Site Leader Obs</button>
-        <button class="pst-tab"        id="tdTab-doc-vault"     onclick="tdShowTab('doc-vault',this)">📁 Document Vault</button>
         <button class="pst-tab"        id="tdTab-survey-intel"  onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
       </div>
 
       <!-- Sub-tab content panels -->
       <div id="td-content-pd"           class="td-tab-content"></div>
       <div id="td-content-intake"       class="td-tab-content" style="display:none"></div>
-      <div id="td-content-otj-overview" class="td-tab-content" style="display:none"></div>
       <div id="td-content-apprentice"   class="td-tab-content" style="display:none"></div>
       <div id="td-content-tutor-obs"    class="td-tab-content" style="display:none"></div>
       <div id="td-content-sl-obs"       class="td-tab-content" style="display:none"></div>
-      <div id="td-content-doc-vault"    class="td-tab-content" style="display:none"></div>
       <div id="td-content-survey-intel" class="td-tab-content" style="display:none"></div>
 
       <!-- Legacy target for backward-compat (hidden) -->
@@ -6238,7 +6234,7 @@
           <button class="btn btn-secondary btn-sm" onclick="if(window.tdRefresh)tdRefresh();if(window.NJTCTapDash)NJTCTapDash.refresh();" title="Refresh TAP data">↺ Refresh</button>
           <button class="btn btn-secondary btn-sm" onclick="tapDownloadOJTChecklists()" title="Download OJT Checklists for all active apprentices">⬇ OJT Checklists (XLSX)</button>
           <button class="btn btn-primary btn-sm" onclick="tapShowTab('ojt-log',document.getElementById('tapTab-ojt-log'))">📝 Log OJT Activity</button>
-          <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/e/1FAIpQLScEsA8Z0oE2CIpDdTPBWuZvzDscYVP1zCgXKfoScyNXzWlBcA/viewform?usp=header" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
+          <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
         </div>
       </div>
 
@@ -6251,6 +6247,7 @@
         <button class="pst-tab dept-tap-finance" id="tapTab-compliance" onclick="tapShowTab('compliance',this)" style="display:none">🗂️ GAINS Compliance</button>
         <button class="pst-tab dept-tap-log"    id="tapTab-ojt-log" onclick="tapShowTab('ojt-log',this)" style="display:none">📝 Log OJT Activity</button>
         <button class="pst-tab"                 id="tapTab-sy2526"  onclick="tapShowTab('sy2526',this)">🗂️ SY 25-26</button>
+        <button class="pst-tab"                 id="tapTab-returners" onclick="tapShowTab('returners',this)">🔁 2-Yr Returners</button>
       </div>
 
       <!-- TAP sub-tab content areas -->
@@ -6261,6 +6258,7 @@
       <div id="tap-content-compliance"  class="td-tab-content" style="display:none"></div>
       <div id="tap-content-ojt-log"     class="td-tab-content" style="display:none"></div>
       <div id="tap-content-sy2526"      class="td-tab-content" style="display:none"></div>
+      <div id="tap-content-returners"   class="td-tab-content" style="display:none"></div>
     </div>
 
     <!-- ══ UPLOAD / DRIVE PANEL ══════════════════════════════ -->
@@ -6867,7 +6865,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   'use strict';
 
   const OJT_FORM_ID   = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
-  const INTAKE_FORM   = 'https://docs.google.com/forms/d/e/1FAIpQLScEsA8Z0oE2CIpDdTPBWuZvzDscYVP1zCgXKfoScyNXzWlBcA/viewform?usp=header'; // Apprentice Registration Form — replaces old Intake Form (7/8/26)
+  const INTAKE_FORM   = 'https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform';
   const MASTER_WB_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit';
   const WAGE_TIERS    = [
     { threshold: 4000, wage: 35.00, label: 'Program Complete' },
@@ -6917,6 +6915,114 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   let   _tapCacheTs    = 0;
   let   _tapFetchPromise = null;
 
+  /* ── SY 25-26 Apprentice Tracker — LIVE fetch (NEW 7/9/26) ─────────────────
+     Confirmed with Amir 7/9/26: this IS the live workbook the hardcoded
+     SY2526_DATA snapshot (training-development.js) was originally pulled
+     from — every field below was verified column-by-column against that
+     snapshot using several apprentices as ground truth before writing this.
+     Positional (not header-name) parsing, same convention as _MR_POS below,
+     because this sheet's headers are inconsistent and some are duplicated
+     (e.g. "Completed program" appears at both column 11 and 16) in ways a
+     header-name lookup can't reliably resolve.
+     REQUIRES: this workbook shared "Anyone with the link can view" — same
+     requirement as the Master Roster above. If it's not, fetchSY2526Roster()
+     fails gracefully and callers fall back to the embedded SY2526_DATA
+     snapshot rather than breaking the tab. */
+  const _SY2526_SHEET_ID   = '1Dh1-TsuXEwoz4sqA4RBtgylPZ6epencsrJoqxupIEqs';
+  const SY2526_ROSTER_URL  = `https://docs.google.com/spreadsheets/d/${_SY2526_SHEET_ID}/gviz/tq?tqx=out:csv&gid=0`;
+  let   _sy2526CacheTs     = 0;
+  let   _sy2526FetchPromise = null;
+
+  // Confirmed 0-based column positions (verified against Alexandra Cristescu,
+  // Carla Borbon, Katie Rose Davis, Aliviyah Goodson — exact match on every
+  // field for the unchanged record, structurally consistent column widths
+  // for the three records that have since been updated in the live sheet).
+  const _SY26_POS = {
+    status: 1, firstName: 2, lastName: 3, usdol: 6, placement: 7,
+    pctOjt: 8, ojtReported: 9, wage: 10, completedProg: 11, notes: 12,
+    ojtMonthlyStart: 18, ojtMonthlyCount: 14,   // Mar-25 .. Apr-26, 14 columns
+    ojtAprHrs: 32, ojtMayHrs: 34, ojtJunHrs: 36, ojtTotalCalc: 38,
+    rtiMonthlyStart: 40, rtiMonthlyCount: 16,   // 16-column Y/N attendance block
+    coaching: 57, praxis: 58, individualRti: 59, rtiHours: 60,
+  };
+
+  function _sy2526CsvToRecords(text) {
+    const raw = _parseCsv(text);
+    const get = (row, i) => String(row[i] == null ? '' : row[i]).trim();
+    const out = [];
+    raw.forEach(row => {
+      const statusRaw = get(row, _SY26_POS.status);
+      if (!_MR_STATUS_RE.test(statusRaw)) return; // skip title/section/header rows — content-detected, not row-count-skipped
+      const first = get(row, _SY26_POS.firstName);
+      const last  = get(row, _SY26_POS.lastName);
+      const name  = (first + ' ' + last).trim();
+      const usdol = get(row, _SY26_POS.usdol);
+      if (!name || !usdol) return; // needs both to count as a real apprentice row
+      const num = i => { const v = parseFloat(row[i]); return isNaN(v) ? 0 : v; };
+      const ojtMonthlyHrs = [];
+      for (let k = 0; k < _SY26_POS.ojtMonthlyCount; k++) ojtMonthlyHrs.push(num(_SY26_POS.ojtMonthlyStart + k));
+      const rtiMonthly = [];
+      for (let k = 0; k < _SY26_POS.rtiMonthlyCount; k++) rtiMonthly.push(/^y/i.test(get(row, _SY26_POS.rtiMonthlyStart + k)));
+      out.push({
+        name,
+        status: statusRaw.toLowerCase(),
+        placement: get(row, _SY26_POS.placement),
+        usdolId: usdol,
+        pctOjt: num(_SY26_POS.pctOjt),
+        ojtReported: num(_SY26_POS.ojtReported),
+        ojtTotalCalc: num(_SY26_POS.ojtTotalCalc),
+        ojtAprHrs: num(_SY26_POS.ojtAprHrs),
+        ojtMayHrs: num(_SY26_POS.ojtMayHrs),
+        ojtJunHrs: num(_SY26_POS.ojtJunHrs),
+        ojtMonthlyHrs,
+        wage: num(_SY26_POS.wage),
+        completedProg: get(row, _SY26_POS.completedProg).toLowerCase(),
+        notes: get(row, _SY26_POS.notes),
+        rtiHours: num(_SY26_POS.rtiHours),
+        rtiSessions: num(_SY26_POS.individualRti),
+        rtiMonthly,
+        coaching: get(row, _SY26_POS.coaching),
+        praxis: get(row, _SY26_POS.praxis),
+      });
+    });
+    return out;
+  }
+
+  /**
+   * Fetches the live SY 25-26 workbook and returns a Promise of records in
+   * the SAME shape as the hardcoded SY2526_DATA array, so render2526OtjOverview
+   * and renderReturnersTab work unchanged either way. Resolves to null (never
+   * rejects) on any failure — callers fall back to the embedded snapshot.
+   */
+  function fetchSY2526Roster(force) {
+    if (!force && window._sy2526Live && (Date.now() - _sy2526CacheTs) < TAP_CACHE_MS) {
+      return Promise.resolve(window._sy2526Live);
+    }
+    if (_sy2526FetchPromise) return _sy2526FetchPromise;
+    _sy2526FetchPromise = (async () => {
+      try {
+        const res = await fetch(SY2526_ROSTER_URL);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        if (text.trim().startsWith('<')) throw new Error('Sheet not publicly accessible — share as "Anyone with the link can view."');
+        const records = _sy2526CsvToRecords(text);
+        if (!records.length) throw new Error('0 rows parsed from live sheet');
+        window._sy2526Live = records;
+        window._sy2526LiveError = null;
+        _sy2526CacheTs = Date.now();
+        console.log('[NJTCTap] SY 25-26 live fetch: ' + records.length + ' records');
+        return records;
+      } catch (e) {
+        console.warn('[NJTCTap] fetchSY2526Roster failed, falling back to embedded snapshot:', e.message);
+        window._sy2526LiveError = e.message;
+        return null;
+      } finally {
+        _sy2526FetchPromise = null;
+      }
+    })();
+    return _sy2526FetchPromise;
+  }
+
   function _parseCsv(text) {
     const rows = []; let row = [], field = '', inQ = false;
     for (let i = 0; i < text.length; i++) {
@@ -6943,7 +7049,6 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
     ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
     begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60,
-    programTrack:99, // "Role Type" column — Apprentice/Pre-apprentice/Tutor, added for Summer 2026 (matches MR_PROGRAM_TRACK in the Apps Script)
   };
 
   // Status words that identify a real data row in column B
@@ -6974,7 +7079,6 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Current Wage Rate ($)':  get(row,_MR_POS.wage),
       'Wage Milestone':         get(row,_MR_POS.milestone),
       'Program Complete?':      get(row,_MR_POS.complete),
-      'Role Type':              get(row,_MR_POS.programTrack),
     });
 
     // ── STRATEGY 1 (PRIMARY): POSITIONAL with content-detected data rows ──
@@ -7009,7 +7113,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
       'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
       'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
-      'Program Complete?','Completion Date','Performance Status','Role Type'
+      'Program Complete?','Completion Date','Performance Status'
     ].sort((a,b) => b.length - a.length);
     const _canonHdr = raw => {
       const t = String(raw||'').replace(/\s+/g,' ').trim();
@@ -7078,19 +7182,6 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       wage:      r['Current Wage Rate ($)']||'',
       milestone: r['Wage Milestone']||'',
       complete:  r['Program Complete?']||'',
-      programTrack: r['Role Type']||'',
-      // Classifies into exactly one of 'apprentice' / 'pre-apprentice' / 'tutor'.
-      // Blank Program Track = legacy roster row from before Summer 2026 (this
-      // whole roster was apprentices-only back then) — treated as a real
-      // Apprentice, not "unknown," matching the Apps Script's own behavior.
-      trackType: (() => {
-        const pt = (r['Role Type']||'').trim().toLowerCase();
-        if (!pt) return 'apprentice';
-        if (pt.startsWith('pre-apprentice') || pt.startsWith('pre apprentice')) return 'pre-apprentice';
-        if (pt.startsWith('apprentice')) return 'apprentice';
-        if (pt.startsWith('tutor')) return 'tutor';
-        return 'apprentice'; // unrecognized value — default to the historical behavior rather than silently dropping them from every count
-      })(),
     };
   }
 
@@ -7164,32 +7255,19 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderOverview); return; }
     const apps = data.apprentices;
-    const activeApps = apps.filter(a => /active/i.test(a.status || ''));
-    // Split by actual track — NOT an aggregate. Naming matters: someone
-    // reading "Active Apprentices: 54" when 21 of those are actually regular
-    // Tutors is misleading. See a.trackType (computed in _mrRowToAppr).
-    const apprenticeCount    = activeApps.filter(a => a.trackType === 'apprentice').length;
-    const preApprenticeCount = activeApps.filter(a => a.trackType === 'pre-apprentice').length;
-    const tutorCount         = activeApps.filter(a => a.trackType === 'tutor').length;
+    const active = apps.filter(a => /active/i.test(a.status || '')).length;
     const totalOJT = apps.reduce((s,a) => s + (a.ojtHours||0), 0);
     const totalRTI = apps.reduce((s,a) => s + (a.rtiHours||0), 0);
-    // Program Complete / At Milestone+ only make sense for Apprentices —
-    // Pre-apprentices/Tutors don't get wage milestones (confirmed by Bertin,
-    // 7/8/26) and "program complete" isn't a track they're on, so including
-    // them here would misleadingly inflate these two counts.
-    const apprenticesOnly = activeApps.filter(a => a.trackType === 'apprentice');
-    const complete    = apprenticesOnly.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
-    const atMilestone = apprenticesOnly.filter(a => (a.ojtHours||0) >= 1100).length;
+    const complete = apps.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
+    const atMilestone = apps.filter(a => (a.ojtHours||0) >= 1100).length;
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem">
         ${[
-          ['🎓','Apprentices',apprenticeCount,'#059669'],
-          ['📘','Pre-apprentices',preApprenticeCount,'#0284c7'],
-          ['👥','Tutors (no TAP)',tutorCount,'#6b7280'],
+          ['🎓','Active Apprentices',active,'#059669'],
           ['⏱️','Total OJT Hours',totalOJT.toLocaleString(),'#1B3A6B'],
           ['📚','Total RTI Hours',totalRTI.toLocaleString(),'#457b9d'],
           ['✅','Program Complete',complete,'#10b981'],
-          ['💰','At Milestone+ (Apprentice only)',atMilestone,'#f0a500'],
+          ['💰','At Milestone+',atMilestone,'#f0a500'],
         ].map(([ico,lbl,val,col]) => `
           <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05)">
             <div style="font-size:1.5rem">${ico}</div>
@@ -7202,9 +7280,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center">
           ${ring(totalOJT, apps.length * 4000, '#34d399', 'OJT (4000 hrs ea.)')}
           ${ring(totalRTI, apps.length * 288, '#60a5fa', 'RTI (288 hrs ea.)')}
-          ${ring(atMilestone, Math.max(apprenticesOnly.length,1), '#fbbf24', 'At Wage Milestone (Apprentices)')}
-          ${ring(complete, Math.max(apprenticesOnly.length,1), '#a78bfa', 'Program Complete (Apprentices)')}
-          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(activeApps.length,1)*100), 100, '#f97316', 'Avg OJT %')}
+          ${ring(atMilestone, Math.max(active,1), '#fbbf24', 'At Wage Milestone')}
+          ${ring(complete, Math.max(active,1), '#a78bfa', 'Program Complete')}
+          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(active,1)*100), 100, '#f97316', 'Avg OJT %')}
         </div>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.25rem">
@@ -7822,11 +7900,206 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
 
   /* ── SY 25-26 Historical Tab — delegates to render2526OtjOverview in training-development.js ── */
   function renderSY2526Tab(el) {
-    if (typeof window.render2526OtjOverview === 'function') {
-      window.render2526OtjOverview(el);
-    } else {
-      el.innerHTML = '<div style="padding:2rem;background:#fff1f2;border:1px solid #fca5a5;border-radius:10px;color:#991b1b"><strong>⚠️ SY 25-26 renderer not available.</strong> Ensure training-development.js is fully loaded.</div>';
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div><div style="font-size:.85rem">Fetching live SY 25-26 data…</div></div>';
+    fetchSY2526Roster().then(liveRows => {
+      if (typeof window.render2526OtjOverview !== 'function') {
+        el.innerHTML = '<div style="padding:2rem;background:#fff1f2;border:1px solid #fca5a5;border-radius:10px;color:#991b1b"><strong>⚠️ SY 25-26 renderer not available.</strong> Ensure training-development.js is fully loaded.</div>';
+        return;
+      }
+      window.render2526OtjOverview(el, liveRows);
+      if (!liveRows) {
+        const note = document.createElement('div');
+        note.style.cssText = 'margin-top:.75rem;padding:.6rem .9rem;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;font-size:.75rem;color:#9a3412';
+        note.textContent = '⚠️ Could not reach the live SY 25-26 workbook (' + (window._sy2526LiveError || 'unknown error') + ') — showing the last saved snapshot instead. If this persists, confirm the workbook is shared "Anyone with the link can view."';
+        el.appendChild(note);
+      }
+    });
+  }
+
+  /* ── 2-Year Returners — join view (NEW 7/9/26) ──────────────────────────
+     Joins the static SY 25-26 cohort snapshot (window.SY2526_DATA, from
+     training-development.js) against the LIVE SY 26-27 roster (getTapData(),
+     same fetch every other TAP tab already uses) — read-only, nothing here
+     writes back to either source. Matches primarily on normalized USDOL
+     Apprentice ID (reliable now that the Apps Script carries a returning
+     apprentice's ID forward automatically), falling back to normalized name
+     when either side is missing an ID. Never guesses past those two rules —
+     if neither matches, the person shows up as "New This Year" (26-27 side)
+     or "Did Not Return" (25-26 side) rather than being forced into a match. */
+  function _retNormUsdol(id) {
+    return String(id || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  }
+  function _retNormName(name) {
+    return String(name || '')
+      .replace(/\([^)]*\)/g, ' ')
+      .replace(/[^a-zA-Z\s]/g, ' ')
+      .toLowerCase().trim().replace(/\s+/g, ' ');
+  }
+
+  function renderReturnersTab(el) {
+    el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)"><div class="td-spinner" style="margin:0 auto 1rem"></div><div style="font-size:.85rem">Fetching live TAP data (both years)…</div></div>';
+    Promise.all([fetchTapRoster(), fetchSY2526Roster()]).then(([, sy2526Live]) => {
+      if (!getTapData() && window._njtcTapRosterError) {
+        el.innerHTML = `<div style="padding:2rem;max-width:560px;margin:0 auto">
+          <div style="font-size:1.5rem;text-align:center;margin-bottom:.75rem">🔒</div>
+          <div style="font-weight:700;font-size:1rem;margin-bottom:.75rem;text-align:center">Sheet Access Required</div>
+          <p style="font-size:.875rem;color:var(--muted);margin-bottom:1rem">${window._njtcTapRosterError}</p>
+        </div>`;
+        return;
+      }
+      _renderReturnersContent(el, sy2526Live);
+    });
+  }
+
+  function _renderReturnersContent(el, sy2526Live) {
+    const live2627 = (getTapData().apprentices || []).filter(a => /active|reinstated/i.test(a.status || ''));
+    const hist2526 = sy2526Live || window.SY2526_DATA || [];
+    const usingSnapshot = !sy2526Live;
+    if (!hist2526.length) {
+      el.innerHTML = '<div style="padding:2rem;background:#fff1f2;border:1px solid #fca5a5;border-radius:10px;color:#991b1b"><strong>⚠️ SY 25-26 data not available.</strong> Ensure training-development.js is fully loaded (window.SY2526_DATA) and/or the live SY 25-26 workbook is reachable.</div>';
+      return;
     }
+
+    // Build 25-26 lookup maps — USDOL ID primary, name fallback.
+    const byUsdol2526 = {}, byName2526 = {};
+    hist2526.forEach(r => {
+      const u = _retNormUsdol(r.usdolId);
+      if (u) byUsdol2526[u] = r;
+      const n = _retNormName(r.name);
+      if (n && !byName2526[n]) byName2526[n] = r;
+    });
+
+    const matchedKeys = new Set();
+    const rows = live2627.map(a => {
+      const u = _retNormUsdol(a.usdol);
+      const n = _retNormName(a.name);
+      let prior = null, matchedBy = null;
+      if (u && byUsdol2526[u])      { prior = byUsdol2526[u]; matchedBy = 'USDOL ID'; }
+      else if (n && byName2526[n])  { prior = byName2526[n];  matchedBy = 'name';     }
+      if (prior) matchedKeys.add(_retNormUsdol(prior.usdolId) || _retNormName(prior.name));
+      return { live: a, prior, matchedBy };
+    });
+
+    const returners   = rows.filter(r => r.prior);
+    const newThisYear = rows.filter(r => !r.prior);
+    const notReturning = hist2526.filter(r => !matchedKeys.has(_retNormUsdol(r.usdolId) || _retNormName(r.name)));
+    const returnRate  = hist2526.length ? Math.round(returners.length / hist2526.length * 100) : 0;
+    const nameOnlyMatches = returners.filter(r => r.matchedBy === 'name').length;
+
+    function kpi(val, label, color) {
+      return `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05);border-top:3px solid ${color}">
+        <div style="font-size:1.625rem;font-weight:800;color:${color};line-height:1.1">${val}</div>
+        <div style="font-size:.72rem;color:var(--muted);font-weight:600;margin-top:.25rem">${label}</div>
+      </div>`;
+    }
+    function pctBar(p) {
+      const pct = Math.round((p || 0) * 100);
+      const clr = pct >= 100 ? '#059669' : pct >= 90 ? '#d97706' : '#ef4444';
+      return `<span style="font-weight:700;color:${clr}">${pct}%</span>`;
+    }
+    function trend(before, after) {
+      const b = before || 0, a = after || 0;
+      const ppDiff = Math.round((a - b) * 100);
+      if (ppDiff > 0)  return `<span style="color:#059669">▲ +${ppDiff}pp</span>`;
+      if (ppDiff < 0)  return `<span style="color:#ef4444">▼ ${ppDiff}pp</span>`;
+      return `<span style="color:#9ca3af">— flat</span>`;
+    }
+
+    const sortedReturners = [...returners].sort((x, y) => x.live.name.localeCompare(y.live.name));
+
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem">
+        ${kpi(hist2526.length,          'SY 25-26 Cohort',         '#1B2A4A')}
+        ${kpi(live2627.length,          'SY 26-27 Active',         '#1d4ed8')}
+        ${kpi(returners.length,         'Returners (both years)',  '#059669')}
+        ${kpi(returnRate + '%',         'Return Rate',             returnRate >= 50 ? '#059669' : '#d97706')}
+        ${kpi(newThisYear.length,       'New This Year',           '#7c3aed')}
+      </div>
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:.875rem 1rem;font-size:.78rem;color:#0c4a6e;margin-bottom:1.25rem">
+        Matched primarily by <strong>USDOL Apprentice ID</strong>; falls back to normalized name only when an ID is missing on one side. ${nameOnlyMatches} of ${returners.length} returner matches used the name fallback — worth a quick look if that number seems high, since name-only matches carry more risk of a wrong pairing.
+      </div>
+      ${usingSnapshot ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:.75rem 1rem;font-size:.75rem;color:#9a3412;margin-bottom:1.25rem">⚠️ Could not reach the live SY 25-26 workbook — showing the last saved snapshot for the 25-26 side. 26-27 data above is still live.</div>` : ''}
+      <div class="ta-card" style="margin-bottom:1.25rem">
+        <div class="ta-card-title">🔁 Returning Apprentices — 2-Year Progression (SY 25-26 → SY 26-27)</div>
+        <div style="overflow-x:auto;margin-top:.75rem">
+        <table class="ta-table" style="font-size:.76rem">
+          <thead><tr style="background:#1B2A4A;color:#fff">
+            <th style="padding:.4rem .5rem;text-align:left">Name</th>
+            <th style="padding:.4rem .4rem;text-align:center">Matched By</th>
+            <th style="padding:.4rem .4rem;text-align:center">25-26 Status</th>
+            <th style="padding:.4rem .4rem;text-align:center">25-26 OJT %</th>
+            <th style="padding:.4rem .4rem;text-align:center">26-27 OJT %</th>
+            <th style="padding:.4rem .4rem;text-align:center">OJT Trend</th>
+            <th style="padding:.4rem .4rem;text-align:center">25-26 RTI Hrs</th>
+            <th style="padding:.4rem .4rem;text-align:center">26-27 RTI Hrs</th>
+            <th style="padding:.4rem .4rem;text-align:center">26-27 Status</th>
+            <th style="padding:.4rem .4rem;text-align:center">26-27 Wage</th>
+          </tr></thead>
+          <tbody>
+            ${sortedReturners.map(r => {
+              const p = r.prior, a = r.live;
+              return `<tr style="border-bottom:1px solid #f3f4f6">
+                <td style="padding:.35rem .5rem;font-weight:700;color:#1B2A4A">${a.name}</td>
+                <td style="padding:.35rem .4rem;text-align:center;font-size:.68rem;color:${r.matchedBy === 'USDOL ID' ? '#059669' : '#d97706'}">${r.matchedBy}</td>
+                <td style="padding:.35rem .4rem;text-align:center;text-transform:capitalize">${p.status || '—'}</td>
+                <td style="padding:.35rem .4rem;text-align:center">${pctBar(p.pctOjt)}</td>
+                <td style="padding:.35rem .4rem;text-align:center">${pctBar(a.ojtPct)}</td>
+                <td style="padding:.35rem .4rem;text-align:center;font-size:.7rem">${trend(p.pctOjt, a.ojtPct)}</td>
+                <td style="padding:.35rem .4rem;text-align:center">${p.rtiHours || 0}</td>
+                <td style="padding:.35rem .4rem;text-align:center">${a.rtiHours || 0}</td>
+                <td style="padding:.35rem .4rem;text-align:center;text-transform:capitalize">${a.status || '—'}</td>
+                <td style="padding:.35rem .4rem;text-align:center">${a.wage ? '$' + parseFloat(a.wage).toFixed(2) : '—'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        </div>
+        <div style="margin-top:.5rem;font-size:.72rem;color:#9ca3af">${returners.length} of ${live2627.length} currently-active apprentices also appear in the SY 25-26 cohort.</div>
+      </div>
+      <div class="ta-card" style="margin-bottom:1.25rem">
+        <div class="ta-card-title">✨ New This Year (SY 26-27 only — no SY 25-26 record)</div>
+        <div style="overflow-x:auto;margin-top:.75rem">
+        <table class="ta-table" style="font-size:.76rem">
+          <thead><tr style="background:#1B2A4A;color:#fff">
+            <th style="padding:.4rem .5rem;text-align:left">Name</th>
+            <th style="padding:.4rem .4rem;text-align:center">Status</th>
+            <th style="padding:.4rem .4rem;text-align:center">Site</th>
+            <th style="padding:.4rem .4rem;text-align:center">OJT %</th>
+          </tr></thead>
+          <tbody>
+            ${[...newThisYear].sort((x, y) => x.live.name.localeCompare(y.live.name)).map(r => `<tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:.35rem .5rem;font-weight:700;color:#1B2A4A">${r.live.name}</td>
+              <td style="padding:.35rem .4rem;text-align:center;text-transform:capitalize">${r.live.status || '—'}</td>
+              <td style="padding:.35rem .4rem;text-align:center;font-size:.73rem;color:#374151">${r.live.site || '—'}</td>
+              <td style="padding:.35rem .4rem;text-align:center">${pctBar(r.live.ojtPct)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        </div>
+      </div>
+      <div class="ta-card">
+        <div class="ta-card-title">👋 SY 25-26 — Did Not Return (${notReturning.length} of ${hist2526.length})</div>
+        <div style="overflow-x:auto;margin-top:.75rem">
+        <table class="ta-table" style="font-size:.76rem">
+          <thead><tr style="background:#6b7280;color:#fff">
+            <th style="padding:.4rem .5rem;text-align:left">Name</th>
+            <th style="padding:.4rem .4rem;text-align:center">25-26 Status</th>
+            <th style="padding:.4rem .4rem;text-align:center">25-26 OJT %</th>
+            <th style="padding:.4rem .4rem;text-align:center">Completed Program?</th>
+          </tr></thead>
+          <tbody>
+            ${[...notReturning].sort((x, y) => x.name.localeCompare(y.name)).map(r => `<tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:.35rem .5rem;font-weight:700;color:#1B2A4A">${r.name}</td>
+              <td style="padding:.35rem .4rem;text-align:center;text-transform:capitalize">${r.status || '—'}</td>
+              <td style="padding:.35rem .4rem;text-align:center">${pctBar(r.pctOjt)}</td>
+              <td style="padding:.35rem .4rem;text-align:center">${r.completedProg === 'y' ? '✅ Yes' : '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        </div>
+        <div style="margin-top:.5rem;font-size:.72rem;color:#9ca3af">Includes people who completed the program and graduated out, as well as people who cancelled or exited — not necessarily attrition.</div>
+      </div>
+    `;
   }
 
   /* ── Public API ───────────────────────────────────────────────────── */
@@ -7841,6 +8114,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         case 'compliance':  renderCompliance(el);  break;
         case 'ojt-log':     renderOJTLog(el);      break;
         case 'sy2526':      renderSY2526Tab(el);   break;
+        case 'returners':   renderReturnersTab(el);break;
         default: el.innerHTML = '<div style="padding:2rem;text-align:center;color:var(--muted)">Section not found.</div>';
       }
     },
