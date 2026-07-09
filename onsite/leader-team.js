@@ -409,6 +409,7 @@
         const cached = JSON.parse(cachedRaw);
         if (cached && cached.ts && (Date.now() - cached.ts) < HR_EMPS_CACHE_TTL) {
           _hrEmpsLookup = cached.data;
+          window._njtcHrEmpsLookup = _hrEmpsLookup;
           return _hrEmpsLookup;
         }
       }
@@ -442,6 +443,9 @@
       });
       console.log('[NJTCTeam] Central Team tenure/cert data loaded —', Object.keys(byName).length, 'people found in HR_EMPS');
       _hrEmpsLookup = { byName: byName };
+      // Expose globally — Connor (onsite bot, separate file) reads this too,
+      // so cycles/cert questions work without duplicating the whole bridge.
+      window._njtcHrEmpsLookup = _hrEmpsLookup;
       try {
         localStorage.setItem(HR_EMPS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: _hrEmpsLookup }));
       } catch (e) { /* storage full/unavailable — non-fatal, just skip caching */ }
@@ -2979,6 +2983,11 @@
   async function build(userProfile) {
     if (!userProfile) return;
     _phase2Loaded = false;
+
+    // Fire-and-forget: warm the Central Team bridge early so it's ready by
+    // the time anyone opens a detail panel OR asks Connor a cycles/cert
+    // question — not just lazily on first panel open.
+    _fetchHrEmpsLookup().catch(() => {});
 
     // ── TAP Apprentice: tutor self-service view (no leader data needed) ───────
     if ((userProfile.role || '').trim() === APPRENTICE_ROLE) {
