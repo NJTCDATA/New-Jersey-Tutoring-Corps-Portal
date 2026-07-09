@@ -424,15 +424,6 @@
           (r['What is your role within NJTC? (Select one)'] || '').trim() ||
           (r['What District are you assigned to?'] || '').trim()
         );
-      case 'tutor-obs':
-        // Must have a tutor name
-        return !!(
-          (r['Tutor Name'] || '').trim() ||
-          (r['Master List Name'] || '').trim()
-        );
-      case 'sl-obs':
-        // Must have a site leader
-        return !!(r['Site Leader'] && r['Site Leader'].trim());
       case 'otj':
       case 'mgmt':
         // Must have a task or competency code
@@ -920,8 +911,6 @@
         case 'pd':           renderPDTab();           break;
         case 'intake':       renderIntakeTab();       break;
         case 'apprentice':   renderApprenticeTab();   break;
-        case 'tutor-obs':    renderTutorObsTab();     break;
-        case 'sl-obs':       renderSLObsTab();        break;
         case 'survey-intel': renderSurveyIntelTab();  break;
       }
     }
@@ -934,7 +923,7 @@
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
-    ['pd','intake','apprentice','tutor-obs','sl-obs','survey-intel'].forEach(id => {
+    ['pd','intake','apprentice','survey-intel'].forEach(id => {
       const el = document.getElementById('td-content-' + id);
       if (el) el.innerHTML = '';
     });
@@ -2366,260 +2355,128 @@
 
 
   // ══════════════════════════════════════════════════════════════════
-  //  TAB 4 (new): APPRENTICE TRACKER
+  //  TAB 4: T&D ANALYTICS — reconfigured 7/9/26 to use VALIDATED data
   // ══════════════════════════════════════════════════════════════════
+  //
+  // REPLACED (7/9/26): this tab used to build its apprentice card grid
+  // from fetchAllSheets() — the same NE/SW tutor-observation pipeline
+  // Amir flagged as unvetted and had removed from the Tutor Observations
+  // and Site Leader Obs tabs. The old cards showed "Obs" counts and
+  // "Leader" names sourced from that same uncleaned data. Rebuilt below
+  // to use ONLY the validated sources already powering the TAP Dashboard:
+  // the live SY 26-27 Master Roster (window.fetchTapRoster/getTapData)
+  // and the live SY 25-26 Apprentice Tracker (window.fetchSY2526Roster,
+  // falling back to the embedded SY2526_DATA snapshot). Same USDOL-ID-
+  // verified, hyperlink-verified data used everywhere else in this app —
+  // nothing new is invented here, just reused correctly.
+  //
+  // SCOPE NOTE: the old "click for full profile" detail panel
+  // (window.apprOpenProfile below, ~300 lines) was built entirely around
+  // Pearl survey ratings and an OJT-submission form tied to the old NE/SW
+  // system — not just observation counts, but the whole profile view.
+  // Rebuilding that safely on validated data is a bigger job than this
+  // pass covers, so it's intentionally left disconnected (not deleted —
+  // still in this file below, just no longer linked to from here) rather
+  // than shipping a half-migrated profile view. This grid is summary-only
+  // for now; say the word if you want the detail panel rebuilt properly.
+
+  let _tdApprYear = '2627';
 
   async function renderApprenticeTab() {
     const el = document.getElementById('td-content-apprentice');
     if (!el) return;
-    el.innerHTML = loadingHTML('Loading apprentice roster…');
+    el.innerHTML = loadingHTML('Loading validated TAP roster…');
     try {
-      const d = await fetchAllSheets();
-
-      // Build canonical apprentice records
-      const appMap = {};
-      function ensureApp(name, region) {
-        if (!appMap[name]) appMap[name] = { name, region, district:'', school:'', sl:'', beg:'', mid:'', end:'', link:'', notes:'', adp:'Active', obsCount:0, lastObs:'', otjItems:null };
+      if (!window.fetchTapRoster || !window.getTapData || !window.fetchSY2526Roster || !window._roleCategory) {
+        el.innerHTML = errorHTML('TAP Dashboard data functions not available — ensure index.html finished loading before this tab runs.', 'function(){_tdLoaded["apprentice"]=false;renderApprenticeTab();}');
+        return;
       }
-      // Initialize from master lists
-      APPRENTICES_NE.forEach(n => ensureApp(n,'NE'));
-      APPRENTICES_SW.forEach(n => ensureApp(n,'SW'));
-      // Overlay OTJ data
-      function overlayOtj(r, region) {
-        const rawName = ((r['Tutor First']||'').trim() + ' ' + (r['Tutor Last (ADP)']||'').trim()).trim();
-        const name = normalizeApprenticeName(rawName);
-        if (!name || !appMap[name]) return;
-        const a = appMap[name];
-        a.district = a.district || r['District'] || '';
-        a.school   = a.school   || r['School']   || '';
-        a.sl       = a.sl       || r['Site Leader'] || '';
-        a.beg      = a.beg      || r['Beginning'] || '';
-        a.mid      = a.mid      || r['Middle']    || '';
-        a.end      = a.end      || r['End']       || '';
-        a.link     = a.link     || r['OTJ Checklist Link'] || '';
-        a.notes    = a.notes    || r['PM Notes']  || '';
-        if (r['ADP Status']) a.adp = r['ADP Status'];
+      await window.fetchTapRoster();
+      const tapData = window.getTapData();
+      if (!tapData && window._njtcTapRosterError) {
+        el.innerHTML = `<div style="padding:2rem;max-width:560px;margin:0 auto;text-align:center;color:var(--muted)">🔒 ${window._njtcTapRosterError}</div>`;
+        return;
       }
-      d.neOtj.forEach(r => overlayOtj(r,'NE'));
-      d.swOtj.forEach(r => overlayOtj(r,'SW'));
-
-      // Overlay Live Tracker OTJ item counts; fall back to phase-based estimation
-      // when the Live Tracker map has no match (e.g. sheet structure changed to GAINS).
-      const ltMap = d.liveOtjCountMap || {};
-      const _done  = /completed|meets expectations/i;
-      const _inprog = /in progress|partially/i;
-      Object.keys(appMap).forEach(name => {
-        const key = name.toLowerCase().replace(/\s+/g,' ').trim();
-        if (ltMap.hasOwnProperty(key)) {
-          appMap[name].otjItems = ltMap[key];
-        } else {
-          // Phase fallback: Beginning=6 items, Middle=6, End=5 (total 17)
-          const a = appMap[name];
-          const beg = (a.beg||'').trim(), mid = (a.mid||'').trim(), end = (a.end||'').trim();
-          if (!beg || beg === '—') return; // no phase data
-          let c = 0;
-          if      (_done.test(beg))   c += 6;
-          else if (_inprog.test(beg)) c += 3;
-          if      (_done.test(mid))   c += 6;
-          else if (_inprog.test(mid) && _done.test(beg)) c += 3;
-          if      (_done.test(end))   c += 5;
-          else if (_inprog.test(end) && _done.test(mid)) c += 2;
-          appMap[name].otjItems = c;
-        }
-      });
-
-      // Overlay observation counts from NE Tutor Obs
-      const NE_OBS_MONTHS = ['October','November','December','January','February','March','April','May','June'];
-      const SW_OBS_COLS   = ['October Obs #1','November Obs #1','December Comments','January Comments','February Obs #1','March Obs #1','April Obs #1'];
-      const MONTH_LABELS  = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-      d.neTutorObs.forEach(r => {
-        const name = normalizeApprenticeName(r['Tutor Name (ADP)'] || r[Object.keys(r)[0]] || '');
-        if (!name || !appMap[name]) return;
-        let cnt = 0, lastM = '';
-        NE_OBS_MONTHS.forEach((m,i) => { if ((r[m]||'').trim()) { cnt++; lastM = MONTH_LABELS[i]; } });
-        appMap[name].obsCount += cnt;
-        if (lastM) appMap[name].lastObs = lastM;
-      });
-      d.swTutorObs.forEach(r => {
-        const name = normalizeApprenticeName(r['Tutor Name'] || '');
-        if (!name || !appMap[name]) return;
-        let cnt = 0, lastM = '';
-        SW_OBS_COLS.forEach((m,i) => { if ((r[m]||'').trim()) { cnt++; lastM = MONTH_LABELS[i]; } });
-        appMap[name].obsCount += cnt;
-        if (lastM) appMap[name].lastObs = lastM;
-      });
-
-      const apps = Object.values(appMap);
-      const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-
-      // Derived OTJ status from Live Tracker count (for filter data attributes)
-      function otjItemStatus(count) {
-        if (count === null || count === undefined) return 'none';
-        if (count === 0) return 'none';
-        if (count >= LIVE_TRACKER_OTJ_COLS) return 'completed';
-        return 'in-progress';
-      }
-
-      // Stats for narrative — use Live Tracker counts where available
-      const neBegDone = APPRENTICES_NE.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='completed').length;
-      const neMidIP   = APPRENTICES_NE.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='in-progress').length;
-      const swBegDone = APPRENTICES_SW.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='completed').length;
-      const swMidIP   = APPRENTICES_SW.filter(n => appMap[n] && otjItemStatus(appMap[n].otjItems)==='in-progress').length;
-
-      el.innerHTML = `
-        <!-- View toggle + filters toolbar -->
-        <div style="display:flex;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
-          <div style="font-weight:700;color:#1B2A4A;font-size:.9rem">Region:</div>
-          <button class="pst-tab active" id="apprRegAll" onclick="apprRegionFilter('all',this)" style="padding:.3rem .8rem;font-size:.8rem">All (${apps.length})</button>
-          <button class="pst-tab" id="apprRegNE" onclick="apprRegionFilter('NE',this)" style="padding:.3rem .8rem;font-size:.8rem">NE (${apps.filter(a=>a.region==='NE').length})</button>
-          <button class="pst-tab" id="apprRegSW" onclick="apprRegionFilter('SW',this)" style="padding:.3rem .8rem;font-size:.8rem">SW (${apps.filter(a=>a.region==='SW').length})</button>
-          <div style="margin-left:auto;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-            <select id="apprDistFilter" onchange="apprApplyFilter()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid #d1d5db;border-radius:6px">
-              <option value="">All Districts</option>
-              ${[...new Set(apps.map(a=>a.district).filter(Boolean))].sort().map(d=>`<option value="${d}">${d}</option>`).join('')}
-            </select>
-            <select id="apprPhaseFilter" onchange="apprApplyFilter()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid #d1d5db;border-radius:6px">
-              <option value="">All OTJ Status</option>
-              <option value="completed">Completed</option>
-              <option value="in-progress">In Progress</option>
-              <option value="needs-followup">Needs Follow-Up</option>
-              <option value="none">Not Started</option>
-            </select>
-            <div style="display:flex;gap:.25rem;border:1px solid #d1d5db;border-radius:6px;overflow:hidden">
-              <button id="apprViewQueue" onclick="apprToggleView('queue')" style="padding:.3rem .65rem;font-size:.8rem;border:none;background:#1B2A4A;color:#fff;cursor:pointer;font-weight:600" title="Queue Card View">⊞ Queue</button>
-              <button id="apprViewTable" onclick="apprToggleView('table')" style="padding:.3rem .65rem;font-size:.8rem;border:none;background:#f9fafb;color:#6b7280;cursor:pointer" title="Table View">≡ Table</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- TABLE VIEW -->
-        <div id="apprTableView" style="display:none;overflow-x:auto;margin-bottom:1.5rem">
-          <table id="apprMasterTable" style="width:100%;border-collapse:collapse;font-size:.85rem">
-            <thead>
-              <tr style="background:#1B2A4A;color:#fff">
-                <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">#</th>
-                <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Name (ADP)</th>
-                <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Region</th>
-                <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">District</th>
-                <th style="padding:.5rem .4rem;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Site Leader</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">OTJ Items</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">% Done</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">End</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Obs</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">Last Obs</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">ADP</th>
-                <th style="padding:.5rem .4rem;text-align:center;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em">OTJ</th>
-              </tr>
-            </thead>
-            <tbody id="apprTableBody">
-              ${apps.map((a,i) => {
-                const isTerminated = (a.adp||'').includes('Terminat');
-                const borderColor  = isTerminated ? '#fca5a5' : '#bbf7d0';
-                const otjSt = otjItemStatus(a.otjItems);
-                const otjPct = a.otjItems !== null ? Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%' : '—';
-                return `<tr class="appr-row" data-region="${a.region}" data-district="${a.district}" data-beg="${otjSt}" data-mid="${otjSt}" data-end="${getOTJStatus(a.end)}"
-                  style="border-bottom:1px solid #e5e7eb;border-left:3px solid ${borderColor}">
-                  <td style="padding:.4rem .4rem;color:#9ca3af">${i+1}</td>
-                  <td style="padding:.4rem .4rem;font-weight:600;color:#1B2A4A;cursor:pointer" onclick="apprOpenProfile(${i})">${a.name}</td>
-                  <td style="padding:.4rem .4rem"><span style="background:${a.region==='NE'?'#dbeafe':'#fef3c7'};color:${a.region==='NE'?'#1e40af':'#92400e'};padding:.15rem .4rem;border-radius:4px;font-size:.75rem;font-weight:700">${a.region}</span></td>
-                  <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.district||'—'}</td>
-                  <td style="padding:.4rem .4rem;font-size:.8rem;color:#374151">${a.sl||'—'}</td>
-                  <td style="padding:.4rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
-                  <td style="padding:.4rem;text-align:center;font-size:.8rem;color:#6b7280">${otjPct}</td>
-                  <td style="padding:.4rem;text-align:center">${otjStatusBadge(a.end)}</td>
-                  <td style="padding:.4rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
-                  <td style="padding:.4rem;text-align:center;font-size:.8rem;color:#6b7280">${a.lastObs||'—'}</td>
-                  <td style="padding:.4rem;text-align:center">${adpStatusBadge(a.adp)}</td>
-                  <td style="padding:.4rem;text-align:center">${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" style="font-size:1rem" title="Open OTJ Checklist">📁</a>` : '<span style="color:#d1d5db">—</span>'}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- QUEUE CARD VIEW -->
-        <div id="apprQueueView" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;margin-bottom:1.5rem">
-          ${apps.map((a,i) => {
-            const pct       = a.otjItems !== null ? a.otjItems / LIVE_TRACKER_OTJ_COLS : 0;
-            const circ      = 175.93;
-            const dashOff   = (circ * (1 - Math.min(pct, 1))).toFixed(1);
-            const pctLabel  = a.otjItems !== null ? Math.round(pct * 100) + '%' : '—';
-            const isInactive = (a.adp||'').includes('Terminat');
-            const regionBg  = a.region === 'NE' ? '#dbeafe' : '#fef3c7';
-            const regionClr = a.region === 'NE' ? '#1e40af' : '#92400e';
-            const obsClr    = a.obsCount >= 3 ? '#059669' : a.obsCount >= 1 ? '#d97706' : '#9ca3af';
-            const ringClr   = pct >= 1 ? '#059669' : pct >= 0.5 ? '#f59e0b' : pct > 0 ? '#3b82f6' : '#d1d5db';
-            const otjSt     = otjItemStatus(a.otjItems);
-            const phaseLabel= a.otjItems >= LIVE_TRACKER_OTJ_COLS ? '✅ Complete' : a.otjItems > 0 ? '🔄 In Progress' : '⏳ Not Started';
-            return `<div class="appr-queue-card appr-row" data-idx="${i}" data-region="${a.region}" data-district="${a.district}" data-beg="${otjSt}" data-mid="${otjSt}" data-end="${getOTJStatus(a.end)}"
-              onclick="apprOpenProfile(${i})"
-              style="background:#fff;border:1px solid ${isInactive?'#fca5a5':'#e5e7eb'};border-radius:12px;padding:1.1rem 1.1rem 1rem;cursor:pointer;transition:box-shadow .15s,transform .15s;position:relative;${isInactive?'opacity:.72':''}"
-              onmouseover="this.style.boxShadow='0 4px 16px rgba(27,42,74,.13)';this.style.transform='translateY(-2px)'"
-              onmouseout="this.style.boxShadow='';this.style.transform=''">
-              ${isInactive ? '<div style="position:absolute;top:.55rem;right:.55rem;background:#fee2e2;color:#991b1b;font-size:.62rem;font-weight:700;padding:.1rem .35rem;border-radius:3px;letter-spacing:.04em">INACTIVE</div>' : ''}
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
-                <div style="padding-right:.5rem">
-                  <div style="font-weight:700;color:#1B2A4A;font-size:.88rem;line-height:1.25">${a.name}</div>
-                  <div style="font-size:.74rem;color:#6b7280;margin-top:.15rem">${a.district||'—'}</div>
-                </div>
-                <span style="background:${regionBg};color:${regionClr};padding:.18rem .45rem;border-radius:4px;font-size:.7rem;font-weight:700;white-space:nowrap;flex-shrink:0">${a.region}</span>
-              </div>
-              <div style="font-size:.76rem;color:#374151;margin-bottom:.8rem;min-height:1.1rem">${a.school||a.district||'—'}</div>
-              <div style="display:flex;align-items:center;gap:.9rem">
-                <div style="position:relative;width:54px;height:54px;flex-shrink:0">
-                  <svg viewBox="0 0 60 60" style="width:54px;height:54px;transform:rotate(-90deg)">
-                    <circle cx="30" cy="30" r="28" fill="none" stroke="#f3f4f6" stroke-width="6"/>
-                    <circle cx="30" cy="30" r="28" fill="none" stroke="${ringClr}" stroke-width="6"
-                      stroke-dasharray="${circ}" stroke-dashoffset="${dashOff}"
-                      stroke-linecap="round"/>
-                  </svg>
-                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:${ringClr}">${pctLabel}</div>
-                </div>
-                <div style="flex:1;display:grid;grid-template-columns:auto 1fr;gap:.2rem .5rem;align-items:center">
-                  <span style="font-size:.7rem;color:#9ca3af">OTJ</span>
-                  <span style="font-size:.76rem;font-weight:600;color:#1B2A4A">${a.otjItems !== null ? a.otjItems+'/'+LIVE_TRACKER_OTJ_COLS : '—'} <span style="font-weight:400;color:#9ca3af;font-size:.68rem">${phaseLabel}</span></span>
-                  <span style="font-size:.7rem;color:#9ca3af">Obs</span>
-                  <span style="font-size:.76rem;font-weight:600;color:${obsClr}">${a.obsCount}${a.lastObs?' <span style="font-weight:400;color:#9ca3af;font-size:.68rem">last '+a.lastObs+'</span>':''}</span>
-                  <span style="font-size:.7rem;color:#9ca3af">Leader</span>
-                  <span style="font-size:.73rem;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${a.sl||'—'}</span>
-                </div>
-              </div>
-              <div style="margin-top:.75rem;padding-top:.65rem;border-top:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center">
-                <span style="font-size:.7rem;color:#9ca3af">Click for full profile →</span>
-                ${a.link ? `<a href="${a.link}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:.8rem;text-decoration:none;color:#6b7280" title="OTJ Checklist">📁</a>` : ''}
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
-
-        <!-- Program Narrative -->
-        <div class="ta-card" style="padding:1.25rem;background:#f0f9ff;border-left:4px solid #1B2A4A">
-          <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.95rem">Program Narrative</div>
-          <p style="font-size:.9rem;color:#374151;line-height:1.6;margin:0">
-            As of <strong>${today}</strong>, <strong>${apps.length} apprentices</strong> are enrolled and active in the NJTC Apprenticeship Program.
-            In the <strong>NE region</strong>, ${neBegDone} of ${APPRENTICES_NE.length} apprentices have completed all ${LIVE_TRACKER_OTJ_COLS} OTJ checklist items
-            and ${neMidIP} are currently in progress.
-            In the <strong>SW region</strong>, ${swBegDone} of ${APPRENTICES_SW.length} have completed all items
-            and ${swMidIP} are in progress.
-            ${apps.filter(a=>a.obsCount===0).length > 0 ? `<strong>${apps.filter(a=>a.obsCount===0).length} apprentices</strong> have not yet received any recorded observation.` : 'All apprentices have at least one recorded observation on file.'}
-          </p>
-        </div>
-
-        <!-- PROFILE PANEL OVERLAY -->
-        <div id="apprProfileOverlay" onclick="if(event.target===this)apprCloseProfile()"
-          style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9800;backdrop-filter:blur(2px)">
-          <div id="apprProfilePanel"
-            style="position:absolute;top:0;right:0;bottom:0;width:min(640px,100vw);background:#fff;overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column">
-            <div id="apprProfileContent" style="flex:1;padding:1.5rem 1.75rem"></div>
-          </div>
-        </div>`;
-
-      // Store apps data for filter function
-      window._apprApps = apps;
+      window._tdApprLive2627 = (tapData && tapData.apprentices) || [];
+      window._tdApprLive2526 = await window.fetchSY2526Roster();
+      _renderApprenticeContent(el);
     } catch (e) {
       el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["apprentice"]=false;renderApprenticeTab();}');
     }
   }
+
+  function _renderApprenticeContent(el) {
+    const isSY2627 = _tdApprYear === '2627';
+    if (isSY2627) {
+      const all = (window._tdApprLive2627 || []).filter(a => /active|reinstated/i.test(a.status || ''));
+      const role = document.getElementById('tdApprRoleFilter');
+      const roleVal = role ? role.value : '';
+      const apps = roleVal ? all.filter(a => window._roleCategory(a) === roleVal) : all;
+      const counts = {
+        Apprentice: all.filter(a => window._roleCategory(a) === 'Apprentice').length,
+        'Pre-apprentice': all.filter(a => window._roleCategory(a) === 'Pre-apprentice').length,
+        Tutor: all.filter(a => window._roleCategory(a) === 'Tutor').length,
+      };
+      function roleBadge(a) {
+        const r = window._roleCategory(a);
+        const clr = r === 'Apprentice' ? '#059669' : r === 'Pre-apprentice' ? '#0891b2' : '#6b7280';
+        return `<span style="background:${clr}1a;color:${clr};font-size:.63rem;font-weight:700;padding:.15rem .45rem;border-radius:4px">${r}</span>`;
+      }
+      el.innerHTML = `
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.25rem">
+          <button class="pst-tab ${isSY2627?'active':''}" onclick="window._tdApprSwitchYear('2627')" style="padding:.35rem .9rem">SY 26-27 (Live)</button>
+          <button class="pst-tab" onclick="window._tdApprSwitchYear('2526')" style="padding:.35rem .9rem">SY 25-26</button>
+          <select id="tdApprRoleFilter" onchange="window._tdApprRenderCurrent()" style="margin-left:auto;padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem">
+            <option value="">All Roles (${all.length})</option>
+            <option value="Apprentice" ${roleVal==='Apprentice'?'selected':''}>Apprentice (${counts.Apprentice})</option>
+            <option value="Pre-apprentice" ${roleVal==='Pre-apprentice'?'selected':''}>Pre-apprentice (${counts['Pre-apprentice']})</option>
+            <option value="Tutor" ${roleVal==='Tutor'?'selected':''}>Tutor (${counts.Tutor})</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.875rem">
+          ${apps.sort((a,b)=>a.name.localeCompare(b.name)).map(a => `
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:1rem">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.4rem">
+                <div style="font-weight:700;color:#1B2A4A;font-size:.9rem">${a.name}</div>
+                ${roleBadge(a)}
+              </div>
+              <div style="font-size:.76rem;color:#6b7280;margin-bottom:.6rem">${a.site || 'No site on file'}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.75rem">
+                <div><span style="color:#9ca3af">OJT %</span><br><strong style="color:${(a.ojtPct||0)>=1?'#059669':(a.ojtPct||0)>=.9?'#d97706':'#ef4444'}">${Math.round((a.ojtPct||0)*100)}%</strong></div>
+                <div><span style="color:#9ca3af">OJT Hrs</span><br><strong>${(a.ojtHours||0).toLocaleString()}</strong></div>
+                <div><span style="color:#9ca3af">RTI Hrs</span><br><strong>${a.rtiHours||0}</strong></div>
+                <div><span style="color:#9ca3af">Wage</span><br><strong>${a.wage?'$'+parseFloat(a.wage).toFixed(2):'—'}</strong></div>
+              </div>
+            </div>`).join('')}
+        </div>
+        ${apps.length===0 ? '<div style="padding:2rem;text-align:center;color:var(--muted)">No one matches this filter.</div>' : ''}`;
+    } else {
+      // SY 25-26 — reuse the already-validated, already-built renderer
+      // (same one the TAP Dashboard's SY 25-26 tab uses) instead of a
+      // second parallel implementation.
+      el.innerHTML = `
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.25rem">
+          <button class="pst-tab" onclick="window._tdApprSwitchYear('2627')" style="padding:.35rem .9rem">SY 26-27 (Live)</button>
+          <button class="pst-tab active" onclick="window._tdApprSwitchYear('2526')" style="padding:.35rem .9rem">SY 25-26</button>
+        </div>
+        <div id="tdApprSY2526Slot"></div>`;
+      const slot = document.getElementById('tdApprSY2526Slot');
+      if (slot && typeof render2526OtjOverview === 'function') {
+        render2526OtjOverview(slot, window._tdApprLive2526);
+      }
+    }
+  }
+
+  window._tdApprSwitchYear = function(year) {
+    _tdApprYear = year;
+    const el = document.getElementById('td-content-apprentice');
+    if (el) _renderApprenticeContent(el);
+  };
+  window._tdApprRenderCurrent = function() {
+    const el = document.getElementById('td-content-apprentice');
+    if (el) _renderApprenticeContent(el);
+  };
+
 
   window.apprRegionFilter = function(region, btn) {
     document.querySelectorAll('#td-content-apprentice .pst-tab').forEach(b => b.classList.remove('active'));
@@ -3381,264 +3238,7 @@
   };
 
 
-  // ══════════════════════════════════════════════════════════════════
-  //  TAB 5 (new): TUTOR OBSERVATIONS
-  // ══════════════════════════════════════════════════════════════════
 
-  async function renderTutorObsTab() {
-    const el = document.getElementById('td-content-tutor-obs');
-    if (!el) return;
-    el.innerHTML = loadingHTML('Loading tutor observation data…');
-    try {
-      const d = await fetchAllSheets();
-      const NE_MONTHS = ['October','November','December','January','February','March','April','May','June'];
-      const SW_MONTHS = ['October Obs #1','November Obs #1','December Comments','January Comments','February Obs #1','March Obs #1','April Obs #1'];
-      const M_LABELS  = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-      const sheetBase = `https://docs.google.com/spreadsheets/d/${APPR_SHEET_ID}/edit#gid=`;
-
-      function cellStyle(val) {
-        if (!val || !val.trim()) return { icon:'', title:'No observation', bg:'#f9fafb', color:'#d1d5db' };
-        const vl = val.toLowerCase();
-        if (vl.includes('observation') || vl.match(/obs\s*#?\d*/)) return { icon:'🟢', title:val, bg:'#f0fdf4', color:'#166534' };
-        return { icon:'📝', title:val, bg:'#eff6ff', color:'#1e40af' };
-      }
-
-      // NE: group by site leader section headers
-      // Section headers = rows where only first column is populated
-      let curSite = 'All Sites';
-      const neByGroup = {};
-      d.neTutorObs.forEach(r => {
-        const name = (r['Tutor Name (ADP)'] || '').trim();
-        // Check if this is a section header (non-month cols all empty)
-        const hasMonthData = NE_MONTHS.some(m => r[m] && r[m].trim());
-        if (name && !hasMonthData) {
-          curSite = name;
-          if (!neByGroup[curSite]) neByGroup[curSite] = [];
-        } else if (name) {
-          if (!neByGroup[curSite]) neByGroup[curSite] = [];
-          neByGroup[curSite].push(r);
-        }
-      });
-
-      // SW: group by Instructional Coach
-      const swByCoach = {};
-      d.swTutorObs.forEach(r => {
-        const coach = (r['Instructional Coach'] || 'Unknown Coach').trim();
-        if (!swByCoach[coach]) swByCoach[coach] = [];
-        swByCoach[coach].push(r);
-      });
-
-      // Quality metrics
-      const totalNEObs = NE_MONTHS.reduce((s,m) => s + d.neTutorObs.filter(r=>(r[m]||'').trim()).length, 0);
-      const totalSWObs = SW_MONTHS.reduce((s,m) => s + d.swTutorObs.filter(r=>(r[m]||'').trim()).length, 0);
-      const totalObs = totalNEObs + totalSWObs;
-      const with1Obs  = [...d.neTutorObs,...d.swTutorObs].filter(r => {
-        const cols = [...NE_MONTHS,...SW_MONTHS];
-        return cols.some(m => (r[m]||'').trim());
-      }).length;
-
-      function heatmapTable(rows, monthKeys, monthLabels, gid, nameKey) {
-        if (!rows.length) return '<div style="color:#9ca3af;padding:.5rem">No data found.</div>';
-        return `<div style="overflow-x:auto">
-          <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-            <thead><tr style="background:#f3f4f6">
-              <th style="text-align:left;padding:.4rem .5rem;min-width:160px;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:#374151">Tutor Name</th>
-              ${monthLabels.map(m=>`<th style="text-align:center;padding:.4rem .35rem;font-size:.75rem;color:#374151">${m}</th>`).join('')}
-            </tr></thead>
-            <tbody>
-              ${rows.map((r,i) => {
-                const name = (r[nameKey]||'').trim();
-                const isResigned = name.toLowerCase().includes('(resigned)');
-                return `<tr style="border-bottom:1px solid #e5e7eb;${i%2===1?'background:#f9fafb':''}${isResigned?'opacity:.6':''}">
-                  <td style="padding:.35rem .5rem;font-weight:600;color:${isResigned?'#9ca3af':'#1B2A4A'};${isResigned?'text-decoration:line-through':''}">${name}${isResigned?'<span style="margin-left:.25rem;font-size:.7rem;background:#fee2e2;color:#991B1B;padding:.1rem .3rem;border-radius:3px;font-weight:700">RESIGNED</span>':''}</td>
-                  ${monthKeys.map((m,mi) => {
-                    const val = (r[m]||'').trim();
-                    const cs = cellStyle(val);
-                    return `<td style="text-align:center;padding:.3rem;background:${cs.bg}" title="${cs.title||'No observation'}">
-                      <a href="${sheetBase}${gid}" target="_blank" rel="noopener" style="text-decoration:none;font-size:1rem">${cs.icon||'⬜'}</a>
-                    </td>`;
-                  }).join('')}
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>`;
-      }
-
-      el.innerHTML = `
-        <div class="ta-grid ta-grid-4" style="margin-bottom:1.25rem">
-          ${kpiCard(totalObs,'Total Obs Events','#059669')}
-          ${kpiCard(totalNEObs,'NE Observations','#1B2A4A')}
-          ${kpiCard(totalSWObs,'SW Observations','#C9A84C')}
-          ${kpiCard(pct(with1Obs,d.neTutorObs.length+d.swTutorObs.length)+'%','Apprentices w/ ≥1 Obs',with1Obs/(d.neTutorObs.length+d.swTutorObs.length||1)>=.8?'#059669':'#d97706')}
-        </div>
-        <div style="display:flex;gap:.5rem;margin-bottom:1rem">
-          <button class="pst-tab active" id="tdObsTabNE" onclick="tdObsSubTab('NE',this)" style="font-size:.85rem">NE Observations</button>
-          <button class="pst-tab" id="tdObsTabSW" onclick="tdObsSubTab('SW',this)" style="font-size:.85rem">SW Observations</button>
-        </div>
-        <div id="tdObsContentNE">
-          ${Object.keys(neByGroup).length === 0
-            ? '<div style="color:#9ca3af">No NE observation data found.</div>'
-            : Object.entries(neByGroup).map(([site, rows]) => `
-              <div style="margin-bottom:1.5rem">
-                <div style="font-weight:700;color:#1B2A4A;font-size:.9rem;padding:.4rem .75rem;background:#EDF1F8;border-left:3px solid #1B2A4A;margin-bottom:.5rem">${site}</div>
-                ${heatmapTable(rows, NE_MONTHS, M_LABELS, APPR_GIDS.neTutorObs, 'Tutor Name (ADP)')}
-              </div>`).join('')}
-        </div>
-        <div id="tdObsContentSW" style="display:none">
-          ${Object.keys(swByCoach).length === 0
-            ? '<div style="color:#9ca3af">No SW observation data found.</div>'
-            : Object.entries(swByCoach).map(([coach, rows]) => `
-              <div style="margin-bottom:1.5rem">
-                <div style="font-weight:700;color:#1B2A4A;font-size:.9rem;padding:.4rem .75rem;background:#FEF3C7;border-left:3px solid #C9A84C;margin-bottom:.5rem">${coach}</div>
-                ${heatmapTable(rows, SW_MONTHS, ['Oct','Nov','Dec','Jan','Feb','Mar','Apr'], APPR_GIDS.swTutorObs, 'Tutor Name')}
-              </div>`).join('')}
-        </div>`;
-    } catch (e) {
-      el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["tutor-obs"]=false;renderTutorObsTab();}');
-    }
-  }
-
-  window.tdObsSubTab = function(region, btn) {
-    document.querySelectorAll('#td-content-tutor-obs .pst-tab').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    const neEl = document.getElementById('tdObsContentNE');
-    const swEl = document.getElementById('tdObsContentSW');
-    if (neEl) neEl.style.display = region==='NE' ? '' : 'none';
-    if (swEl) swEl.style.display = region==='SW' ? '' : 'none';
-  };
-
-
-  // ══════════════════════════════════════════════════════════════════
-  //  TAB 6 (new): SITE LEADER OBS
-  // ══════════════════════════════════════════════════════════════════
-
-  async function renderSLObsTab() {
-    const el = document.getElementById('td-content-sl-obs');
-    if (!el) return;
-    el.innerHTML = loadingHTML('Loading site leader observation data…');
-    try {
-      const d = await fetchAllSheets();
-      const ALL_MONTHS = ['October','November','December','January','February','March','April','May','June'];
-      const M_SHORT    = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-
-      // Group NE by district
-      const neByDist = {};
-      d.neSLObs.forEach(r => {
-        const dist = (r['District']||'Unknown').trim();
-        if (!neByDist[dist]) neByDist[dist] = {};
-        const sl = (r['Site Leader']||'').trim();
-        if (!sl) return;
-        if (!neByDist[dist][sl]) neByDist[dist][sl] = { school: r['School']||'', months:[], folder:'', form:'' };
-        const entry = neByDist[dist][sl];
-        if (r['Observation Month']) entry.months.push({ month: r['Observation Month'], notes: r['Notes']||'', folder: r['Link to Observation Folder']||'', form: r['Link to Google Form']||'' });
-        entry.folder = entry.folder || r['Link to Observation Folder'] || '';
-        entry.form   = entry.form   || r['Link to Google Form'] || '';
-      });
-
-      // Group SW by district
-      const swByDist = {};
-      d.swSLObs.forEach(r => {
-        const dist = (r['District']||'Unknown').trim();
-        if (!swByDist[dist]) swByDist[dist] = {};
-        const sl = (r['Site Leader']||'').trim();
-        if (!sl) return;
-        if (!swByDist[dist][sl]) swByDist[dist][sl] = { school: r['School']||'', obs:[], notes:'' };
-        const entry = swByDist[dist][sl];
-        entry.notes = r['Notes'] || entry.notes;
-        ['Observation #1','Observation #2','Observation #3'].forEach(c => {
-          if (r[c] && r[c].trim()) entry.obs.push(r[c].trim());
-        });
-        entry.folder = r['Link to Folder'] || entry.folder || '';
-      });
-
-      // Flag SLs with no obs (NE: no months logged; SW: no obs entries)
-      const flaggedNE = [], flaggedSW = [];
-      Object.entries(neByDist).forEach(([dist,sls]) => {
-        Object.entries(sls).forEach(([sl,info]) => {
-          if (info.months.length === 0) flaggedNE.push({ sl, dist, school:info.school });
-        });
-      });
-      Object.entries(swByDist).forEach(([dist,sls]) => {
-        Object.entries(sls).forEach(([sl,info]) => {
-          if (info.obs.length === 0) flaggedSW.push({ sl, dist, school:info.school });
-        });
-      });
-
-      function slCard(sl, info, region) {
-        const obsMonths = region==='NE' ? info.months.map(m=>m.month) : info.obs;
-        const coverageBar = ALL_MONTHS.map((m,i) => {
-          const obs = region==='NE'
-            ? info.months.find(e => (e.month||'').toLowerCase().includes(m.toLowerCase()))
-            : null;
-          const hasSW = region==='SW' && info.obs.length > 0;
-          const has = obs || (region==='SW' && i < info.obs.length);
-          return `<span title="${m}" style="display:inline-block;width:28px;height:10px;border-radius:2px;margin:1px;background:${has?'#2A7D4F':'#e5e7eb'}" ></span>`;
-        }).join('');
-
-        return `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;margin-bottom:.75rem">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem">
-            <div>
-              <div style="font-weight:700;color:#1B2A4A;font-size:.95rem">${sl}</div>
-              <div style="font-size:.8rem;color:#6b7280">${info.school||info.dist||''}</div>
-            </div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-              ${info.folder ? `<a href="${info.folder}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:.75rem;text-decoration:none">📁 Obs Folder</a>` : ''}
-              ${info.form   ? `<a href="${info.form}"   target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:.75rem;text-decoration:none">📋 Form</a>` : ''}
-            </div>
-          </div>
-          <div style="margin-bottom:.5rem">${coverageBar}</div>
-          ${region==='NE' && info.months.length > 0 ? info.months.map(e=>`
-            <div style="font-size:.8rem;color:#374151;padding:.25rem 0;border-bottom:1px solid #f3f4f6">
-              <span style="font-weight:600;color:#1B2A4A">${e.month}:</span> ${e.notes||'Observed'}
-            </div>`).join('') : ''}
-          ${region==='SW' && info.obs.length > 0 ? `<div style="font-size:.8rem;color:#374151;margin-top:.25rem">${info.obs.join(' · ')}</div>` : ''}
-          ${info.notes ? `<div style="font-size:.8rem;color:#6b7280;margin-top:.25rem;font-style:italic">${info.notes}</div>` : ''}
-        </div>`;
-      }
-
-      el.innerHTML = `
-        <div style="display:flex;gap:.5rem;margin-bottom:1rem">
-          <button class="pst-tab active" id="tdSLTabNE" onclick="tdSLSubTab('NE',this)" style="font-size:.85rem">NE Site Leaders</button>
-          <button class="pst-tab" id="tdSLTabSW" onclick="tdSLSubTab('SW',this)" style="font-size:.85rem">SW Site Leaders</button>
-        </div>
-        <div id="tdSLContentNE">
-          ${Object.keys(neByDist).length === 0 ? '<div style="color:#9ca3af">No NE site leader data found.</div>' :
-            Object.entries(neByDist).sort((a,b)=>a[0].localeCompare(b[0])).map(([dist,sls]) => `
-              <div style="margin-bottom:1.5rem">
-                <div style="font-weight:700;color:#fff;font-size:.9rem;padding:.5rem .75rem;background:#1B2A4A;border-radius:6px 6px 0 0;margin-bottom:.5rem">${dist}</div>
-                ${Object.entries(sls).map(([sl,info]) => slCard(sl,info,'NE')).join('')}
-              </div>`).join('')}
-          ${flaggedNE.length > 0 ? `<div style="background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;padding:1rem;margin-top:1rem">
-            <div style="font-weight:700;color:#991B1B;margin-bottom:.5rem">🔴 Site Leaders with No Observations on File</div>
-            ${flaggedNE.map(f=>`<div style="font-size:.85rem;color:#7f1d1d;padding:.25rem 0">${f.sl} — ${f.dist}${f.school?' ('+f.school+')':''}</div>`).join('')}
-          </div>` : ''}
-        </div>
-        <div id="tdSLContentSW" style="display:none">
-          ${Object.keys(swByDist).length === 0 ? '<div style="color:#9ca3af">No SW site leader data found.</div>' :
-            Object.entries(swByDist).sort((a,b)=>a[0].localeCompare(b[0])).map(([dist,sls]) => `
-              <div style="margin-bottom:1.5rem">
-                <div style="font-weight:700;color:#fff;font-size:.9rem;padding:.5rem .75rem;background:#1B2A4A;border-radius:6px 6px 0 0;margin-bottom:.5rem">${dist}</div>
-                ${Object.entries(sls).map(([sl,info]) => slCard(sl,info,'SW')).join('')}
-              </div>`).join('')}
-          ${flaggedSW.length > 0 ? `<div style="background:#fff5f5;border:1px solid #fca5a5;border-radius:8px;padding:1rem;margin-top:1rem">
-            <div style="font-weight:700;color:#991B1B;margin-bottom:.5rem">🔴 Site Leaders with No Observations on File</div>
-            ${flaggedSW.map(f=>`<div style="font-size:.85rem;color:#7f1d1d;padding:.25rem 0">${f.sl} — ${f.dist}${f.school?' ('+f.school+')':''}</div>`).join('')}
-          </div>` : ''}
-        </div>`;
-    } catch (e) {
-      el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["sl-obs"]=false;renderSLObsTab();}');
-    }
-  }
-
-  window.tdSLSubTab = function(region, btn) {
-    document.querySelectorAll('#td-content-sl-obs .pst-tab').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    const neEl = document.getElementById('tdSLContentNE');
-    const swEl = document.getElementById('tdSLContentSW');
-    if (neEl) neEl.style.display = region==='NE' ? '' : 'none';
-    if (swEl) swEl.style.display = region==='SW' ? '' : 'none';
-  };
 
 
 
@@ -3998,8 +3598,6 @@
           case 'pd':           renderPDTab();           break;
           case 'intake':       renderIntakeTab();       break;
           case 'apprentice':   renderApprenticeTab();   break;
-          case 'tutor-obs':    renderTutorObsTab();     break;
-          case 'sl-obs':       renderSLObsTab();        break;
           case 'survey-intel': renderSurveyIntelTab();  break;
           default:             renderPDTab();
         }
