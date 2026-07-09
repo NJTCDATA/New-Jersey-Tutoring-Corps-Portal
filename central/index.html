@@ -6238,7 +6238,7 @@
           <button class="btn btn-secondary btn-sm" onclick="if(window.tdRefresh)tdRefresh();if(window.NJTCTapDash)NJTCTapDash.refresh();" title="Refresh TAP data">↺ Refresh</button>
           <button class="btn btn-secondary btn-sm" onclick="tapDownloadOJTChecklists()" title="Download OJT Checklists for all active apprentices">⬇ OJT Checklists (XLSX)</button>
           <button class="btn btn-primary btn-sm" onclick="tapShowTab('ojt-log',document.getElementById('tapTab-ojt-log'))">📝 Log OJT Activity</button>
-          <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
+          <a class="btn btn-secondary btn-sm" href="https://docs.google.com/forms/d/e/1FAIpQLScEsA8Z0oE2CIpDdTPBWuZvzDscYVP1zCgXKfoScyNXzWlBcA/viewform?usp=header" target="_blank" rel="noopener" style="text-decoration:none">+ New Application</a>
         </div>
       </div>
 
@@ -6867,7 +6867,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   'use strict';
 
   const OJT_FORM_ID   = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
-  const INTAKE_FORM   = 'https://docs.google.com/forms/d/1zr-mZmQmcOELg9P9IQAaO7ehBks7EBtEPfXHXug_HOw/viewform';
+  const INTAKE_FORM   = 'https://docs.google.com/forms/d/e/1FAIpQLScEsA8Z0oE2CIpDdTPBWuZvzDscYVP1zCgXKfoScyNXzWlBcA/viewform?usp=header'; // Apprentice Registration Form — replaces old Intake Form (7/8/26)
   const MASTER_WB_URL = 'https://docs.google.com/spreadsheets/d/14UiE5ple1NYVQl5s9U085pFp50vKjnnwNQmsGS0AKJU/edit';
   const WAGE_TIERS    = [
     { threshold: 4000, wage: 35.00, label: 'Program Complete' },
@@ -6943,6 +6943,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
     ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
     begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60,
+    programTrack:99, // "Role Type" column — Apprentice/Pre-apprentice/Tutor, added for Summer 2026 (matches MR_PROGRAM_TRACK in the Apps Script)
   };
 
   // Status words that identify a real data row in column B
@@ -6973,6 +6974,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Current Wage Rate ($)':  get(row,_MR_POS.wage),
       'Wage Milestone':         get(row,_MR_POS.milestone),
       'Program Complete?':      get(row,_MR_POS.complete),
+      'Role Type':              get(row,_MR_POS.programTrack),
     });
 
     // ── STRATEGY 1 (PRIMARY): POSITIONAL with content-detected data rows ──
@@ -7007,7 +7009,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
       'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
       'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
-      'Program Complete?','Completion Date','Performance Status'
+      'Program Complete?','Completion Date','Performance Status','Role Type'
     ].sort((a,b) => b.length - a.length);
     const _canonHdr = raw => {
       const t = String(raw||'').replace(/\s+/g,' ').trim();
@@ -7076,6 +7078,19 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       wage:      r['Current Wage Rate ($)']||'',
       milestone: r['Wage Milestone']||'',
       complete:  r['Program Complete?']||'',
+      programTrack: r['Role Type']||'',
+      // Classifies into exactly one of 'apprentice' / 'pre-apprentice' / 'tutor'.
+      // Blank Program Track = legacy roster row from before Summer 2026 (this
+      // whole roster was apprentices-only back then) — treated as a real
+      // Apprentice, not "unknown," matching the Apps Script's own behavior.
+      trackType: (() => {
+        const pt = (r['Role Type']||'').trim().toLowerCase();
+        if (!pt) return 'apprentice';
+        if (pt.startsWith('pre-apprentice') || pt.startsWith('pre apprentice')) return 'pre-apprentice';
+        if (pt.startsWith('apprentice')) return 'apprentice';
+        if (pt.startsWith('tutor')) return 'tutor';
+        return 'apprentice'; // unrecognized value — default to the historical behavior rather than silently dropping them from every count
+      })(),
     };
   }
 
@@ -7149,19 +7164,32 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderOverview); return; }
     const apps = data.apprentices;
-    const active = apps.filter(a => /active/i.test(a.status || '')).length;
+    const activeApps = apps.filter(a => /active/i.test(a.status || ''));
+    // Split by actual track — NOT an aggregate. Naming matters: someone
+    // reading "Active Apprentices: 54" when 21 of those are actually regular
+    // Tutors is misleading. See a.trackType (computed in _mrRowToAppr).
+    const apprenticeCount    = activeApps.filter(a => a.trackType === 'apprentice').length;
+    const preApprenticeCount = activeApps.filter(a => a.trackType === 'pre-apprentice').length;
+    const tutorCount         = activeApps.filter(a => a.trackType === 'tutor').length;
     const totalOJT = apps.reduce((s,a) => s + (a.ojtHours||0), 0);
     const totalRTI = apps.reduce((s,a) => s + (a.rtiHours||0), 0);
-    const complete = apps.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
-    const atMilestone = apps.filter(a => (a.ojtHours||0) >= 1100).length;
+    // Program Complete / At Milestone+ only make sense for Apprentices —
+    // Pre-apprentices/Tutors don't get wage milestones (confirmed by Bertin,
+    // 7/8/26) and "program complete" isn't a track they're on, so including
+    // them here would misleadingly inflate these two counts.
+    const apprenticesOnly = activeApps.filter(a => a.trackType === 'apprentice');
+    const complete    = apprenticesOnly.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
+    const atMilestone = apprenticesOnly.filter(a => (a.ojtHours||0) >= 1100).length;
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem">
         ${[
-          ['🎓','Active Apprentices',active,'#059669'],
+          ['🎓','Apprentices',apprenticeCount,'#059669'],
+          ['📘','Pre-apprentices',preApprenticeCount,'#0284c7'],
+          ['👥','Tutors (no TAP)',tutorCount,'#6b7280'],
           ['⏱️','Total OJT Hours',totalOJT.toLocaleString(),'#1B3A6B'],
           ['📚','Total RTI Hours',totalRTI.toLocaleString(),'#457b9d'],
           ['✅','Program Complete',complete,'#10b981'],
-          ['💰','At Milestone+',atMilestone,'#f0a500'],
+          ['💰','At Milestone+ (Apprentice only)',atMilestone,'#f0a500'],
         ].map(([ico,lbl,val,col]) => `
           <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05)">
             <div style="font-size:1.5rem">${ico}</div>
@@ -7174,9 +7202,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center">
           ${ring(totalOJT, apps.length * 4000, '#34d399', 'OJT (4000 hrs ea.)')}
           ${ring(totalRTI, apps.length * 288, '#60a5fa', 'RTI (288 hrs ea.)')}
-          ${ring(atMilestone, Math.max(active,1), '#fbbf24', 'At Wage Milestone')}
-          ${ring(complete, Math.max(active,1), '#a78bfa', 'Program Complete')}
-          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(active,1)*100), 100, '#f97316', 'Avg OJT %')}
+          ${ring(atMilestone, Math.max(apprenticesOnly.length,1), '#fbbf24', 'At Wage Milestone (Apprentices)')}
+          ${ring(complete, Math.max(apprenticesOnly.length,1), '#a78bfa', 'Program Complete (Apprentices)')}
+          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(activeApps.length,1)*100), 100, '#f97316', 'Avg OJT %')}
         </div>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.25rem">
