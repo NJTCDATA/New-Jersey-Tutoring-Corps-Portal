@@ -419,6 +419,29 @@
 
   var RULES = [
 
+    // ══ STAFF TENURE / CERT / ROLE TYPE (new — reads the Central Team bridge) ══
+    // Answers questions about a named colleague's cycles worked, cert status,
+    // or Program Track — data Connor previously had zero access to. Uses the
+    // same window._njtcHrEmpsLookup that leader-team.js's Program Tenure &
+    // Certification panel reads, so answers stay consistent with what's shown
+    // in My Team.
+    { match: /\b(cycles?|tenure|how long|certified|certification|cert status|role type|program track)\b.{0,40}\b(has|is|for)\b|\b(has|is)\b.{0,20}\b(certified|cycles?|tenure)\b/i,
+      respond: function(q) {
+        var lookup = window._njtcHrEmpsLookup;
+        if (!lookup) return '🦊 I don\'t have staff tenure/certification data loaded yet in this session — open My Team once, then ask me again.';
+        var nameFrag = extractNameFromQuery(q) || q.replace(/\b(cycles?|tenure|certified|certification|cert status|role type|program track|how long|has|is|worked|for)\b/gi, '').trim();
+        if (!nameFrag || nameFrag.length < 2) return null; // no name detected — fall through to other rules
+        var norm = nameFrag.toLowerCase().replace(/\(.*?\)/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+        var entry = lookup.byName && lookup.byName[norm];
+        if (!entry) return null; // not found under this rule — let other rules / sheet search try
+        var lines = ['Here\'s what I have on **' + nameFrag + '**:', ''];
+        lines.push('📋 Cycles worked: **' + entry.cyclesWorked + '** (' + (entry.years.join(', ') || '—') + ')');
+        lines.push('🎓 Certification: **' + entry.certType + '**');
+        if (entry.mostRecentRole) lines.push('👤 Most recent role: ' + entry.mostRecentRole);
+        return lines.join('\n');
+      }
+    },
+
     // ══ GREETINGS ══════════════════════════════════════════════════════════════
     { match: /^(hi|hey|hello|hiya|sup|yo|howdy|good morning|good afternoon|good evening)\b/i,
       respond: function() {
