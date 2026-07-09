@@ -7463,7 +7463,7 @@
     'My Sites':     ['Which of my sites is below attendance benchmark?', 'Which tutors at my sites need attention?', 'Show me my scholar count by district'],
     'Finance':      ['What is the cost per scholar?',           'Show me budget policy',                       'What is the program cost by district?'],
     'T&D':          ['Which apprentices have no observation?',  'What is OTJ?',                                'Show PD feedback scores'],
-    'TAP Summer 2026': ['How many Pre-apprentices do we have?', 'How many Tutors vs Apprentices?',             'Who is pending USDOL?',                      'How many are wage-tier eligible?'],
+    'TAP Summer 2026': ['How many Pre-apprentices do we have?', 'How many Tutors vs Apprentices?',             'Who is pending USDOL?',                      'What is our total wage payout?',             'Who hasn\'t submitted their Weekly Recap?'],
     'Quarterly':    ['What is our quarterly health score?',     'Which goals improved this quarter?',          'Which goals regressed this quarter?'],
     // Grant reporting & executive categories
     'Grant Reporting': ['Give me a grant reporting summary',   'What are our placement level shifts?',        'What is our gap closing progress?',         'Scholar confidence and self-report KPIs',    'Give me year-over-year standouts'],
@@ -13762,8 +13762,104 @@
    * doesn't match any of these patterns, or if the TAP roster hasn't loaded
    * yet — never guesses or fabricates a number.
    */
+  // ── Weekly Recap cache for PIE (self-contained, mirrors the same fetch
+  // logic already duplicated in shared-charts.js / program-data-summary.js
+  // for resilience — each system fetches independently rather than
+  // depending on another panel having been visited first) ──────────────────
+  var _pieWeeklyRecapRows = null;
+  var _pieWeeklyRecapFetchedAt = 0;
+  var _PIE_WR_SHEET_ID = '1y9d9cLn6-EBLSiCuCrf_6iKd0qq9xAzogCaCVUD0mpY';
+  var _PIE_WR_GID = '540898531';
+  var _PIE_WR_URL = 'https://docs.google.com/spreadsheets/d/' + _PIE_WR_SHEET_ID + '/export?format=csv&gid=' + _PIE_WR_GID;
+
+  function _pieParseCsv(text) {
+    var rows = [], row = [], field = '', inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i], n = text[i+1];
+      if (inQ) { if (c === '"' && n === '"') { field += '"'; i++; } else if (c === '"') { inQ = false; } else field += c; }
+      else { if (c === '"') inQ = true; else if (c === ',') { row.push(field); field = ''; } else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; } else if (c !== '\r') field += c; }
+    }
+    if (field || row.length) { row.push(field); rows.push(row); }
+    return rows;
+  }
+  function _pieWrCsvToObjects(text) {
+    var rows = _pieParseCsv(text);
+    if (rows.length < 2) return [];
+    var headers = rows[0].map(function(h){ return h.trim(); });
+    return rows.slice(1).map(function(r) { var o = {}; headers.forEach(function(h,i){ o[h] = (r[i]||'').trim(); }); return o; });
+  }
+  function _pieWrFindCol(row, candidates) {
+    var keys = Object.keys(row);
+    for (var i = 0; i < keys.length; i++) {
+      var kl = keys[i].toLowerCase();
+      for (var j = 0; j < candidates.length; j++) if (kl.indexOf(candidates[j]) >= 0) return row[keys[i]];
+    }
+    return '';
+  }
+  function _pieWarmWeeklyRecapCache() {
+    fetch(_PIE_WR_URL).then(function(res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+      .then(function(text) { _pieWeeklyRecapRows = _pieWrCsvToObjects(text); _pieWeeklyRecapFetchedAt = Date.now(); })
+      .catch(function(err) { console.warn('[PIE] Weekly Recap warm-up failed (non-fatal):', err); });
+  }
+
+  // ── Wage-tier payout calculator for PIE (self-contained — mirrors
+  // WAGE_TIERS in the Apps Script and _APPR_WAGE_TIERS in
+  // training-development.js exactly; kept in sync manually if the schedule
+  // ever changes) ────────────────────────────────────────────────────────
+  var _PIE_WAGE_TIERS = [
+    { from: 0,    to: 1100, rate: 30.00 },
+    { from: 1100, to: 2200, rate: 30.98 },
+    { from: 2200, to: 3300, rate: 31.99 },
+    { from: 3300, to: 3800, rate: 32.99 },
+    { from: 3800, to: 4000, rate: 33.99 },
+  ];
+  function _pieComputePayout(ojtHours) {
+    var hours = Math.min(Math.max(parseFloat(ojtHours) || 0, 0), 4000);
+    var total = 0;
+    _PIE_WAGE_TIERS.forEach(function(tier) {
+      var hoursInBand = Math.max(0, Math.min(hours, tier.to) - tier.from);
+      if (hoursInBand > 0) total += hoursInBand * tier.rate;
+    });
+    return total;
+  }
+
   function _tapSummaryAnswer(qt) {
     var q = (qt || '').toLowerCase();
+
+    // ── Weekly Recap questions — separate branch, checked first ──────────
+    var isRecapQuestion =
+      (/\bweekly recap/.test(q)) ||
+      (/\brecap/.test(q) && (/\bsubmit/.test(q) || /\bmissing\b/.test(q) || /\blatest\b/.test(q)));
+    if (isRecapQuestion) {
+      if (!_pieWeeklyRecapRows) {
+        return 'Weekly Recap data hasn\'t loaded yet in this session — give it a moment and ask again, or open the Program Pulse panel once to force a refresh.';
+      }
+      var latestByName = {};
+      _pieWeeklyRecapRows.forEach(function(r) {
+        var discuss = _pieWrFindCol(r, ['discuss']);
+        var m = discuss.match(/\[Portal:\s*([^·\]]+)/i);
+        var name = m ? m[1].trim() : 'Unknown submitter';
+        var ts = _pieWrFindCol(r, ['timestamp']);
+        var tsMs = new Date(ts).getTime() || 0;
+        if (!latestByName[name] || latestByName[name]._ms < tsMs) {
+          latestByName[name] = { name: name, ts: ts, _ms: tsMs };
+        }
+      });
+      var people = Object.keys(latestByName).map(function(k) { return latestByName[k]; })
+        .sort(function(a,b) { return b._ms - a._ms; });
+      if (!people.length) return 'No Weekly Recap submissions found yet.';
+      var now = Date.now();
+      var lines = ['**Weekly Recap — most recent submission per person:**', ''];
+      people.forEach(function(p) {
+        var d = new Date(p.ts);
+        var daysAgo = isNaN(d.getTime()) ? null : Math.floor((now - d.getTime()) / 86400000);
+        var status = daysAgo === null ? '' : (daysAgo <= 7 ? '🟢 Current' : '🟠 ' + daysAgo + ' days ago');
+        lines.push('- ' + p.name + ' — ' + (isNaN(d.getTime()) ? p.ts : (d.getMonth()+1) + '/' + d.getDate() + '/' + d.getFullYear()) + ' ' + status);
+      });
+      return lines.join('\n');
+    }
+
+    // ── Roster breakdown / wage-tier / payout questions ───────────────────
     var isTapQuestion =
       /\bpre-?apprentice/.test(q) ||
       /\brole type\b/.test(q) ||
@@ -13772,6 +13868,8 @@
       (/\btutor/.test(q) && /\bwage\b/.test(q)) ||
       (/\bwage\s*(tier|milestone|increase)/.test(q) && /\beligib/.test(q)) ||
       /\bpending usdol\b/.test(q) ||
+      /\b(total|estimated?)\s*(wage\s*)?payout\b/.test(q) ||
+      (/\bhow much\b/.test(q) && /\b(paid|payout|wages?)\b/.test(q)) ||
       (/\bhow many\b/.test(q) && /\btutor/.test(q) && /\bapprentice/.test(q));
     if (!isTapQuestion) return null;
 
@@ -13800,6 +13898,15 @@
     if (pendingUsdol > 0) {
       lines.push('⚠️ **' + pendingUsdol + '** active roster member(s) have no USDOL Apprentice ID on file yet — their Master Roster status shows "Pending."');
     }
+
+    var wantsPayout = /\b(payout|paid|wages?)\b/.test(q);
+    if (wantsPayout) {
+      var totalPayout = apprenticesOnly.reduce(function(sum, a) { return sum + _pieComputePayout(a.ojtHours); }, 0);
+      lines.push('');
+      lines.push('💵 Estimated total wage payout to date (Apprentices only, calculated from the wage tier schedule): **$' + totalPayout.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '**');
+      lines.push('_This is a calculation from OJT hours × the documented wage tier schedule, not a payroll record — reconcile against actual payroll for anything official._');
+    }
+
     return lines.join('\n');
   }
 
@@ -14098,6 +14205,10 @@
     if (typeof window._njtcFetchObsData === 'function') {
       window._njtcFetchObsData(); // async, idempotent — no-op if already loaded
     }
+    // Pre-load Weekly Recap data in background too — same reasoning, so PIE
+    // can answer recap questions synchronously without requiring the user
+    // to have visited the Program Pulse panel first.
+    _pieWarmWeeklyRecapCache();
     // Apply shift-aware status to trigger, drawer, sidebar
     _pieApplyShift();
     // Show trigger pill + sidebar entry
