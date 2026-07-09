@@ -7463,6 +7463,7 @@
     'My Sites':     ['Which of my sites is below attendance benchmark?', 'Which tutors at my sites need attention?', 'Show me my scholar count by district'],
     'Finance':      ['What is the cost per scholar?',           'Show me budget policy',                       'What is the program cost by district?'],
     'T&D':          ['Which apprentices have no observation?',  'What is OTJ?',                                'Show PD feedback scores'],
+    'TAP Summer 2026': ['How many Pre-apprentices do we have?', 'How many Tutors vs Apprentices?',             'Who is pending USDOL?',                      'How many are wage-tier eligible?'],
     'Quarterly':    ['What is our quarterly health score?',     'Which goals improved this quarter?',          'Which goals regressed this quarter?'],
     // Grant reporting & executive categories
     'Grant Reporting': ['Give me a grant reporting summary',   'What are our placement level shifts?',        'What is our gap closing progress?',         'Scholar confidence and self-report KPIs',    'Give me year-over-year standouts'],
@@ -13753,10 +13754,69 @@
   }
 
   // ── Route question through rules — entity first ───────────────────────────
+  /**
+   * TAP / Summer 2026 Import question handler — new this session.
+   * Covers questions PIE previously had no data for at all: Pre-apprentice
+   * vs Apprentice vs Tutor counts, wage-tier eligibility, pending USDOL
+   * status. Returns null (falls through to normal routing) if the question
+   * doesn't match any of these patterns, or if the TAP roster hasn't loaded
+   * yet — never guesses or fabricates a number.
+   */
+  function _tapSummaryAnswer(qt) {
+    var q = (qt || '').toLowerCase();
+    var isTapQuestion =
+      /\bpre-?apprentice/.test(q) ||
+      /\brole type\b/.test(q) ||
+      /\bprogram track\b/.test(q) ||
+      /\bsummer\s*(26|2026)\b/.test(q) ||
+      (/\btutor/.test(q) && /\bwage\b/.test(q)) ||
+      (/\bwage\s*(tier|milestone|increase)/.test(q) && /\beligib/.test(q)) ||
+      /\bpending usdol\b/.test(q) ||
+      (/\bhow many\b/.test(q) && /\btutor/.test(q) && /\bapprentice/.test(q));
+    if (!isTapQuestion) return null;
+
+    var roster = window._njtcTapRoster && window._njtcTapRoster.apprentices;
+    if (!roster || !roster.length) {
+      return 'The TAP roster hasn\'t loaded yet in this session — open the TAP Dashboard panel once so live data is available, then ask again.';
+    }
+
+    var active = roster.filter(function(a) { return /active/i.test(a.status || ''); });
+    var byTrack = { apprentice: 0, 'pre-apprentice': 0, tutor: 0 };
+    active.forEach(function(a) {
+      var t = a.trackType || 'apprentice'; // blank = legacy pre-Summer-2026 roster, treated as Apprentice
+      if (byTrack[t] != null) byTrack[t]++;
+    });
+    var apprenticesOnly = active.filter(function(a) { return (a.trackType || 'apprentice') === 'apprentice'; });
+    var atMilestone = apprenticesOnly.filter(function(a) { return (a.ojtHours || 0) >= 1100; }).length;
+    var pendingUsdol = active.filter(function(a) { return !a.usdol; }).length;
+
+    var lines = [];
+    lines.push('**TAP Roster — Apprentice / Pre-apprentice / Tutor breakdown:**');
+    lines.push('- 🎓 Apprentices: **' + byTrack.apprentice + '**');
+    lines.push('- 📘 Pre-apprentices: **' + byTrack['pre-apprentice'] + '**');
+    lines.push('- 👥 Tutors (no TAP, hours tracked only): **' + byTrack.tutor + '**');
+    lines.push('');
+    lines.push('💰 Wage-tier eligible (Apprentices only — Pre-apprentices/Tutors never receive wage increases): **' + apprenticesOnly.length + '**, of which **' + atMilestone + '** have crossed at least one milestone (≥1,100 OJT hrs).');
+    if (pendingUsdol > 0) {
+      lines.push('⚠️ **' + pendingUsdol + '** active roster member(s) have no USDOL Apprentice ID on file yet — their Master Roster status shows "Pending."');
+    }
+    return lines.join('\n');
+  }
+
   function _route(q) {
     var qt = (q||'').trim();
     _lastQ = qt;
     var qn = _norm(qt); // normalized version for fallback matching
+
+    // -1. TAP / Summer 2026 Import questions — isolated, self-contained check.
+    // Placed before entity extraction / ambiguous matching so it can't
+    // interfere with any existing routing. Reads window._njtcTapRoster
+    // (populated by the TAP Dashboard's fetchTapRoster()), which now carries
+    // .trackType ('apprentice'/'pre-apprentice'/'tutor') and .programTrack
+    // (raw "Role Type" text) per person — added this session specifically so
+    // PIE could answer questions about the Summer 2026 onsite staff population.
+    var _tapAnswer = _tapSummaryAnswer(qt);
+    if (_tapAnswer) return _tapAnswer;
 
     // 0. Resolve pending clarification (e.g. user answered "attendance" after tutor metric question)
     if (_pendingQ) {
@@ -14239,6 +14299,24 @@
         ['Valid Pair', 'A scholar with both a Fall (BOY) and a Winter (MOY) diagnostic. Only valid pairs are used for growth and band-movement calculations. Scholars with only one diagnostic window are excluded from growth metrics but are counted in the placement distribution for the window they have.'],
         ['Red Rush Flag', 'iReady automatically flags diagnostics completed in an unusually short time — a potential indicator of a rushed or invalid test session. Flagged scholars are included in all growth and placement calculations but appear in a separate list for administrator review. Contact iReady support if re-administration may be needed.'],
         ['Winter-Only Scholar', 'A scholar with a Winter (MOY) diagnostic but no matching Fall (BOY) baseline. Excluded from growth and band-movement calculations; counted in the Winter placement distribution only.'],
+      ]
+    },
+    'tap-standalone': {
+      title: 'TAP Dashboard — Tutor Apprenticeship Program',
+      what: 'Live roster, OJT/RTI hour progress, wage milestone tracking, and DOL compliance status for everyone in the Master Roster — Apprentices, Pre-apprentices, and regular Tutors alike.',
+      terms: [
+        ['Apprentice', 'Enrolled in the DOL-registered Tutor Apprenticeship Program with an active USDOL Apprentice ID. Eligible for wage-tier increases as OJT hours accumulate.'],
+        ['Pre-apprentice', 'Working toward Apprentice enrollment — tracked in the same roster and has OJT/RTI hours logged, but is NOT yet DOL-registered and does NOT receive wage-tier increases.'],
+        ['Tutor', 'Not enrolled in TAP at all. Appears in this roster (starting Summer 2026) so OJT/RTI hours can be tracked consistently across all onsite staff, but never receives wage-tier increases regardless of hours completed.'],
+        ['OJT Hours', 'On-the-Job Training hours. Calculated as (# of activities marked "Y" on the OJT checklist) × 50 hours per activity. Counts toward the 4,000-hour program completion target — Apprentices and Pre-apprentices only; Tutors\' hours are tracked but do not count toward completion or wage milestones.'],
+        ['RTI Hours', 'Related Technical Instruction hours — logged separately by observers (not from the OJT checklist). Counts toward the 288-hour completion requirement, alongside OJT hours.'],
+        ['Wage Milestone', 'A threshold of accumulated OJT hours (1,100 / 2,200 / 3,300 / 3,800 / 4,000) that triggers an automatic hourly wage increase and a notification email to Finance. Applies ONLY to Apprentices — Pre-apprentices and Tutors do not receive these increases even if their OJT hours cross the same thresholds.'],
+        ['Base Wage', 'The starting hourly rate ($30.00, or $30.00 also for cert-track before their first milestone) before any milestone has been reached.'],
+        ['Cert Track', 'Apprentices holding a Standard, CEAS, or CE certification follow a higher wage schedule with a $10–11/hr premium at each milestone, reflecting their additional qualification.'],
+        ['Program Complete', 'Reached both the 4,000 OJT hour AND 288 RTI hour targets. Only meaningful for Apprentices/Pre-apprentices — Tutors are not on a completion track.'],
+        ['USDOL Apprentice ID', 'The federal registration number confirming DOL enrollment. A blank ID means the person\'s Master Roster status is "Pending" rather than "Active" — they are on the roster but not yet officially registered.'],
+        ['GAINS Compliance', 'New Jersey Department of Labor\'s tracking system for the apprenticeship program. Compliance status reflects whether required monthly reporting and documentation are current for each Apprentice.'],
+        ['Program Track', 'The Master Roster field distinguishing Apprentice / Pre-apprentice / Tutor for anyone added via the Summer 2026 onboarding process. Blank for staff registered before Summer 2026 — those rows are legacy Apprentices tracked before this distinction existed.'],
       ]
     },
     'talent': {
