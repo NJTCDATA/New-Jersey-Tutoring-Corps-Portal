@@ -6204,8 +6204,6 @@
         <button class="pst-tab active" id="tdTab-pd"        onclick="tdShowTab('pd',this)">📋 PD Sessions</button>
         <button class="pst-tab"        id="tdTab-intake"    onclick="tdShowTab('intake',this)">🎓 Training Intake</button>
         <button class="pst-tab"        id="tdTab-apprentice"    onclick="tdShowTab('apprentice',this)">🎓 T&D Analytics</button>
-        <button class="pst-tab"        id="tdTab-tutor-obs"     onclick="tdShowTab('tutor-obs',this)">👁️ Tutor Observations</button>
-        <button class="pst-tab"        id="tdTab-sl-obs"        onclick="tdShowTab('sl-obs',this)">🏫 Site Leader Obs</button>
         <button class="pst-tab"        id="tdTab-survey-intel"  onclick="tdShowTab('survey-intel',this)">🗺️ Field Intel</button>
       </div>
 
@@ -6213,8 +6211,6 @@
       <div id="td-content-pd"           class="td-tab-content"></div>
       <div id="td-content-intake"       class="td-tab-content" style="display:none"></div>
       <div id="td-content-apprentice"   class="td-tab-content" style="display:none"></div>
-      <div id="td-content-tutor-obs"    class="td-tab-content" style="display:none"></div>
-      <div id="td-content-sl-obs"       class="td-tab-content" style="display:none"></div>
       <div id="td-content-survey-intel" class="td-tab-content" style="display:none"></div>
 
       <!-- Legacy target for backward-compat (hidden) -->
@@ -6959,6 +6955,17 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       const usdol = get(row, _SY26_POS.usdol);
       if (!name || !usdol) return; // needs both to count as a real apprentice row
       const num = i => { const v = parseFloat(row[i]); return isNaN(v) ? 0 : v; };
+      // BUG FIX (7/9/26): "% of OJT completed" is percent-FORMATTED in the
+      // source sheet (stored as 0.9, displayed as "90%"). The gviz CSV export
+      // returns percent-formatted cells as their display value ("90"), not
+      // the raw 0-1 fraction — parseFloat via the plain num() helper above
+      // was reading that as 90 instead of 0.9, and every downstream percent
+      // display (which expects a 0-1 fraction and multiplies by 100) then
+      // showed 9000%+ instead of 90%. Same "value > 1 means it's already a
+      // percentage, divide by 100" defensive rule _mrRowToAppr() already
+      // uses below for the 26-27 side (parseRatio) — applied here for
+      // consistency rather than inventing a different convention.
+      const numRatio = i => { const v = parseFloat(row[i]); if (isNaN(v)) return 0; return v > 1 ? v / 100 : v; };
       const ojtMonthlyHrs = [];
       for (let k = 0; k < _SY26_POS.ojtMonthlyCount; k++) ojtMonthlyHrs.push(num(_SY26_POS.ojtMonthlyStart + k));
       const rtiMonthly = [];
@@ -6968,7 +6975,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         status: statusRaw.toLowerCase(),
         placement: get(row, _SY26_POS.placement),
         usdolId: usdol,
-        pctOjt: num(_SY26_POS.pctOjt),
+        pctOjt: numRatio(_SY26_POS.pctOjt),
         ojtReported: num(_SY26_POS.ojtReported),
         ojtTotalCalc: num(_SY26_POS.ojtTotalCalc),
         ojtAprHrs: num(_SY26_POS.ojtAprHrs),
@@ -7049,6 +7056,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     status:1, firstName:2, lastName:3, cohort:4, fullName:5, usdol:6, sy:7, site:8, region:9,
     ojtHours:50, rtiHours:51, ojtPct:52, yCount:53, possible:54,
     begPct:55, midPct:56, endPct:57, wage:58, milestone:59, complete:60,
+    programTrack:99, // "Role Type" column — Apprentice / Pre-apprentice / Tutor, set by Summer Import
   };
 
   // Status words that identify a real data row in column B
@@ -7079,6 +7087,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Current Wage Rate ($)':  get(row,_MR_POS.wage),
       'Wage Milestone':         get(row,_MR_POS.milestone),
       'Program Complete?':      get(row,_MR_POS.complete),
+      'Role Type':              get(row,_MR_POS.programTrack),
     });
 
     // ── STRATEGY 1 (PRIMARY): POSITIONAL with content-detected data rows ──
@@ -7113,7 +7122,7 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       'Email Address','OJT Hours (Total)','RTI Hours (Total)','OJT % Complete',
       'OJT Activities Marked Y','OJT Possible (excl N/A)','Beginning % Complete',
       'Middle % Complete','End % Complete','Current Wage Rate ($)','Wage Milestone',
-      'Program Complete?','Completion Date','Performance Status'
+      'Program Complete?','Completion Date','Performance Status','Role Type'
     ].sort((a,b) => b.length - a.length);
     const _canonHdr = raw => {
       const t = String(raw||'').replace(/\s+/g,' ').trim();
@@ -7182,7 +7191,22 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
       wage:      r['Current Wage Rate ($)']||'',
       milestone: r['Wage Milestone']||'',
       complete:  r['Program Complete?']||'',
+      programTrack: r['Role Type']||'', // blank = original pre-Summer-Import population = Apprentice, same rule checkMilestoneAndAlert() uses server-side
     };
+  }
+
+  // Classifies a roster row into 'Apprentice' | 'Pre-apprentice' | 'Tutor',
+  // matching the exact same rule the Apps Script's checkMilestoneAndAlert()
+  // uses server-side for wage-tier gating — blank Role Type (the original
+  // population, before Summer Import ever ran) counts as Apprentice, not
+  // "unknown." Never a fourth bucket: every row lands in exactly one of
+  // these three, since that's the complete set _roleToProgramTrack() in the
+  // Apps Script writes.
+  function _roleCategory(a) {
+    const t = String(a.programTrack || '').trim();
+    if (!t || /^apprentice/i.test(t)) return 'Apprentice';
+    if (/^pre-apprentice/i.test(t))   return 'Pre-apprentice';
+    return 'Tutor';
   }
 
   async function fetchTapRoster(force) {
@@ -7255,19 +7279,37 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
     const data = getTapData();
     if (!data || !data.apprentices) { loadAndRender(el, renderOverview); return; }
     const apps = data.apprentices;
-    const active = apps.filter(a => /active/i.test(a.status || '')).length;
+    // FIX (7/9/26): "Active Apprentices" used to mean literally anyone with
+    // Status=Active, which was accurate back when only actual apprentices
+    // were in the Master Roster. Once Summer Import started adding Tutors
+    // and Pre-apprentices as Active rows too (by design — everyone gets OJT
+    // tracked), that same count silently became "53 Active Apprentices"
+    // when only 5 of those 53 are actually Apprentices. Broken out by role
+    // now, using the same classification the Apps Script's
+    // checkMilestoneAndAlert() already uses server-side for wage gating.
+    const activeApps      = apps.filter(a => /active/i.test(a.status || ''));
+    const apprentices     = activeApps.filter(a => _roleCategory(a) === 'Apprentice');
+    const preApprentices  = activeApps.filter(a => _roleCategory(a) === 'Pre-apprentice');
+    const tutors          = activeApps.filter(a => _roleCategory(a) === 'Tutor');
     const totalOJT = apps.reduce((s,a) => s + (a.ojtHours||0), 0);
     const totalRTI = apps.reduce((s,a) => s + (a.rtiHours||0), 0);
-    const complete = apps.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
-    const atMilestone = apps.filter(a => (a.ojtHours||0) >= 1100).length;
+    // Program Complete / wage milestones are Apprentice-only concepts —
+    // Pre-apprentices and Tutors are never eligible for wage-tier increases
+    // (checkMilestoneAndAlert() gates on exactly this), so counting them
+    // into these two numbers would repeat the same kind of role-blindness
+    // that made "53 Active Apprentices" wrong in the first place.
+    const complete     = apprentices.filter(a => (a.ojtHours||0) >= 4000 && (a.rtiHours||0) >= 288).length;
+    const atMilestone  = apprentices.filter(a => (a.ojtHours||0) >= 1100).length;
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem">
         ${[
-          ['🎓','Active Apprentices',active,'#059669'],
+          ['🎓','Apprentices',apprentices.length,'#059669'],
+          ['🌱','Pre-apprentices',preApprentices.length,'#0891b2'],
+          ['👤','Tutors (no TAP)',tutors.length,'#6b7280'],
           ['⏱️','Total OJT Hours',totalOJT.toLocaleString(),'#1B3A6B'],
           ['📚','Total RTI Hours',totalRTI.toLocaleString(),'#457b9d'],
-          ['✅','Program Complete',complete,'#10b981'],
-          ['💰','At Milestone+',atMilestone,'#f0a500'],
+          ['✅','Program Complete (Apprentices)',complete,'#10b981'],
+          ['💰','At Milestone+ (Apprentices)',atMilestone,'#f0a500'],
         ].map(([ico,lbl,val,col]) => `
           <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.125rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05)">
             <div style="font-size:1.5rem">${ico}</div>
@@ -7280,9 +7322,9 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
         <div style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center">
           ${ring(totalOJT, apps.length * 4000, '#34d399', 'OJT (4000 hrs ea.)')}
           ${ring(totalRTI, apps.length * 288, '#60a5fa', 'RTI (288 hrs ea.)')}
-          ${ring(atMilestone, Math.max(active,1), '#fbbf24', 'At Wage Milestone')}
-          ${ring(complete, Math.max(active,1), '#a78bfa', 'Program Complete')}
-          ${ring(Math.round(apps.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(active,1)*100), 100, '#f97316', 'Avg OJT %')}
+          ${ring(atMilestone, Math.max(apprentices.length,1), '#fbbf24', 'At Wage Milestone')}
+          ${ring(complete, Math.max(apprentices.length,1), '#a78bfa', 'Program Complete')}
+          ${ring(Math.round(apprentices.reduce((s,a)=>s+(a.ojtPct||0),0)/Math.max(apprentices.length,1)*100), 100, '#f97316', 'Avg OJT % (Apprentices)')}
         </div>
       </div>
       <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:1.25rem">
@@ -8103,6 +8145,15 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   }
 
   /* ── Public API ───────────────────────────────────────────────────── */
+  // Exposed for training-development.js's T&D Analytics tab (renderApprenticeTab)
+  // — reuses the SAME live 26-27 + 25-26 sources as the TAP Dashboard,
+  // instead of that tab building its own separate fetch. One source of
+  // truth for what "live TAP data" means, not two.
+  window.fetchTapRoster    = fetchTapRoster;
+  window.getTapData        = getTapData;
+  window.fetchSY2526Roster = fetchSY2526Roster;
+  window._roleCategory     = _roleCategory;
+
   window.NJTCTapDash = {
     renderTab: function(id, el) {
       if (!el) return;
