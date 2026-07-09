@@ -537,6 +537,7 @@ function _fetchWeeklyRecapRows() {
     .then(function(text) {
       var rows = _wrPulseCsvToObjects(text);
       _wrPulseCache = { ts: Date.now(), rows: rows };
+      window._njtcWeeklyRecapRows = rows; // exposed for PIE — see shared-utils.js _tapSummaryAnswer
       return rows;
     });
 }
