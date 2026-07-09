@@ -919,11 +919,9 @@
       switch (tabId) {
         case 'pd':           renderPDTab();           break;
         case 'intake':       renderIntakeTab();       break;
-        case 'otj-overview': renderOTJOverviewTab();  break;
         case 'apprentice':   renderApprenticeTab();   break;
         case 'tutor-obs':    renderTutorObsTab();     break;
         case 'sl-obs':       renderSLObsTab();        break;
-        case 'doc-vault':    renderDocVaultTab();     break;
         case 'survey-intel': renderSurveyIntelTab();  break;
       }
     }
@@ -936,7 +934,7 @@
     Object.keys(_tdLoaded).forEach(k => delete _tdLoaded[k]);
     Object.keys(_tdCharts).forEach(k => destroyChart(k));
     // Clear all panels
-    ['pd','intake','otj-overview','apprentice','tutor-obs','sl-obs','doc-vault','survey-intel'].forEach(id => {
+    ['pd','intake','apprentice','tutor-obs','sl-obs','survey-intel'].forEach(id => {
       const el = document.getElementById('td-content-' + id);
       if (el) el.innerHTML = '';
     });
@@ -2126,35 +2124,7 @@
 
 
 
-  // ══════════════════════════════════════════════════════════════════
-  //  SHARED: DOCUMENT VAULT STATIC LINKS
-  // ══════════════════════════════════════════════════════════════════
 
-  const VAULT_STATIC = [
-    { label:'Bergen OTJ Tracker',           url:'https://docs.google.com/spreadsheets/d/1KL3UdtkBPTVLiq4XCEIYujc8E4bl0dr4phetSeiIS8w', type:'OTJ Checklist', region:'NE', district:'iLearn Bergen' },
-    { label:'CJCP OTJ Tracker',             url:'https://docs.google.com/spreadsheets/d/1Q3O3DBNcig8tpzma9yp8e8y4NeekIDiKZZpvxr_-9uA', type:'OTJ Checklist', region:'NE', district:'Somerset County (CJCP)' },
-    { label:'Clifton OTJ Tracker',          url:'https://docs.google.com/spreadsheets/d/1Y9GG5SYOeatrPnSSBC_SFXFy0BgVrNoLsgZMeA9i96U', type:'OTJ Checklist', region:'NE', district:'iLearn Clifton' },
-    { label:'Hudson OTJ Tracker',           url:'https://docs.google.com/spreadsheets/d/1Jra-5s5x4Fm6MShAUhkWwdreDlYoXg2ums96eJi3k6k', type:'OTJ Checklist', region:'NE', district:'iLearn Hudson' },
-    { label:'Passaic OTJ Tracker',          url:'https://docs.google.com/spreadsheets/d/1ux98kbhQtSsRv9RK3hcPwgCWcG9FPFhlnrKi77gr1JU', type:'OTJ Checklist', region:'NE', district:'iLearn Passaic' },
-    { label:'Paterson OTJ Tracker',         url:'https://docs.google.com/spreadsheets/d/19X4c_-KZyyWSQtkrZswwAeA7I2-lw-HOE7zT-5U5Y-U', type:'OTJ Checklist', region:'NE', district:'iLearn Paterson' },
-    { label:'HoLa OTJ Tracker',             url:'https://docs.google.com/spreadsheets/d/1GjMMajULyx5kGm83xx427kbt4qJaARXl0eq5-g5481U', type:'OTJ Checklist', region:'NE', district:'Hoboken Dual Charter' },
-    { label:'Middlesex OTJ Tracker',        url:'https://docs.google.com/spreadsheets/d/1WLCYUAbnszNnB9m5zL9tZH_9TlpPRDO4k7uTd4S060A', type:'OTJ Checklist', region:'NE', district:'Middlesex' },
-    { label:'SW - DH OTJ Checklist (GLAW)', url:'https://docs.google.com/spreadsheets/d/1HJtYSQacQDw5VJzydM8I7kmiu2A7oiYsI3PaPTumm4A', type:'OTJ Checklist', region:'SW', district:'Hamilton Township' },
-    { label:'SW - LE OTJ (Hamilton/Wilson)',url:'https://docs.google.com/spreadsheets/d/1LqzvK-Le7JRTjPCNF35T1vn6AAdNf9KLh3Nva5dNHRc', type:'OTJ Checklist', region:'SW', district:'Hamilton Township' },
-    { label:'SW - FLs OTJ (Haddon)',        url:'https://docs.google.com/spreadsheets/d/1CyPa0U9UjdBvOnHEbd3nb-XYHtDGYcKZmFjnWp5vzfM', type:'OTJ Checklist', region:'SW', district:'Haddon Township' },
-    { label:'SW - KS OTJ (Hamilton/Grice)', url:'https://docs.google.com/spreadsheets/d/1jDEE1Q2L_zk2oP4aYQLZNzPQTh6hW6ijuzgnEPjwP38', type:'OTJ Checklist', region:'SW', district:'Hamilton Township' },
-    { label:'SW - MR OTJ (Hamilton/Kuser)', url:'https://docs.google.com/spreadsheets/d/1wbLULAJSl3JlLwNW_x24HJvMa0kAPviGz4AKtysYpk4', type:'OTJ Checklist', region:'SW', district:'Hamilton Township' },
-    { label:'SW - JI OTJ (Gloucester)',     url:'https://docs.google.com/spreadsheets/d/10OtEnLDr0ggtchDqhrcrBsqbChsXKbH5LxPPHjC62YQ', type:'OTJ Checklist', region:'SW', district:'Gloucester' },
-    { label:'SW - TP OTJ (Penns Grove/Carleton)', url:'https://docs.google.com/spreadsheets/d/1ToVcMG4hemGo4yC5c5VG-Ucjf44NXxJkfcGU8i1dCig', type:'OTJ Checklist', region:'SW', district:'Penns Grove' },
-    { label:'SW - SE OTJ (Penns Grove/PGMS)',     url:'https://docs.google.com/spreadsheets/d/1kEm4VlCXhUk4I9jQx-2kKPZJ_n8OmTmP6kV4OCiBk3g', type:'OTJ Checklist', region:'SW', district:'Penns Grove' },
-    { label:'SW - CO OTJ (Penns Grove/Field St)', url:'https://docs.google.com/spreadsheets/d/1N4tPnm-YelqutiF1qnpkzqg3_cjNr-iSSWLEFGlG044', type:'OTJ Checklist', region:'SW', district:'Penns Grove' },
-    { label:'SW - MK OTJ (American Paradigm)',    url:'https://docs.google.com/spreadsheets/d/1P9N52uyOvZdpbVed2fRKp9UeDuWdPwMggMwjpvKHSU8', type:'OTJ Checklist', region:'SW', district:'American Paradigm' },
-    { label:'SW - MK OTJ (String Theory)',        url:'https://docs.google.com/spreadsheets/d/1vGCTuoYUcrthVsyop0P0373LWz3_sUjCTeTyay3dOmc', type:'OTJ Checklist', region:'SW', district:'String Theory' },
-    { label:'Talent Dashboard Form',       url:'https://forms.gle/6bYhspAFscoaQFsw6',                                        type:'Form',         region:'All', district:'' },
-    { label:'N.Odigie Observations Folder',url:'https://drive.google.com/drive/folders/12dr_Z9n3zcPhQtHsfhSSpxnO5IzyIBfR',  type:'Folder',       region:'NE', district:'' },
-    { label:'K.Ramsey Observations Folder',url:'https://drive.google.com/drive/folders/1-9m5CH_RtxlqThst1g00P1WqE80uXN8n',  type:'Folder',       region:'NE', district:'' },
-    { label:'L.Sessoms Observations Folder',url:'https://drive.google.com/drive/folders/1l-54Cx4Kh-nemD7Ibwb1XihL3xyKggTW', type:'Folder',       region:'NE', district:'' }
-  ];
 
   // ══════════════════════════════════════════════════════════════════
   //  TAB 3 (new): OTJ OVERVIEW
@@ -2172,9 +2142,81 @@
 
   const SY2526_DATA = [{"name":"Alexandra Cristescu","status":"active","placement":"Penns Grove","usdolId":"NJ2026000468","pctOjt":0.9,"ojtReported":3655,"ojtTotalCalc":70,"ojtAprHrs":87,"ojtMayHrs":55,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,6,20,15,6],"wage":32.99,"completedProg":"n","notes":"no longer working","rtiHours":81,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,false,false,true,false,false],"coaching":"N","praxis":""},{"name":"Allison Dombrowski","status":"cancelled","placement":"","usdolId":"NJ2025002297","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Apollo Monroy-Polanco","status":"cancelled","placement":"Middlesex STEM","usdolId":"NJ2025004827","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":38,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,18,0],"wage":0,"completedProg":"","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":"Y"},{"name":"Carla Borbon","status":"active","placement":"Middlesex STEM","usdolId":"NJ2026000857","pctOjt":1.0,"ojtReported":4066,"ojtTotalCalc":39,"ojtAprHrs":40,"ojtMayHrs":66,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,16,15],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete - check on site database","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,true,true,true,false],"coaching":"N","praxis":""},{"name":"Chelsea Jordan","status":"cancelled","placement":"","usdolId":"NJ2025001925","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,true,false,false,true,true,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Claudia Tumelus","status":"cancelled","placement":"iLearn Clifton HS","usdolId":"NJ2025004254","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Daniel DiQuinzio","status":"cancelled","placement":"","usdolId":"NJ2025001713","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,11,7,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":80,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,true,true,true,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Renee Davis","status":"active","placement":"iLearn Clifton MS","usdolId":"NJ2025004829","pctOjt":0.96,"ojtReported":3840,"ojtTotalCalc":71,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,25,22,5,4,7,2],"wage":33.99,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":189,"rtiSessions":7,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,false,false],"coaching":"Y","praxis":"Y"},{"name":"Elijah Brown","status":"cancelled","placement":"","usdolId":"NJ2025002412","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Genesis Rosich","status":"cancelled","placement":"","usdolId":"NJ2025004826","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Heba Samhouri","status":"cancelled","placement":"","usdolId":"NJ2025002413","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Jacob Leebron","status":"cancelled","placement":"Haddon Township","usdolId":"NJ2025001825","pctOjt":0.94,"ojtReported":3760,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,17,6,0,7,26,5,1,0,3,0],"wage":35.0,"completedProg":"n","notes":"quit","rtiHours":80,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,false,true,true,false,true,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Janelle lee","status":"cancelled","placement":"","usdolId":"NJ2025003240","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,57,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Jazmin Daliza Garcia","status":"active","placement":"iLearn Bergen MS","usdolId":"NJ2026001279","pctOjt":0.95,"ojtReported":3894,"ojtTotalCalc":22,"ojtAprHrs":90,"ojtMayHrs":94,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,15,3],"wage":35.0,"completedProg":"n- rti","notes":"quit","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,false,false],"coaching":"","praxis":""},{"name":"Jessica Flores","status":"active","placement":"iLearn Passaic MS","usdolId":"NJ2025001718","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":72,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,5,22,25,7,12,0,0],"wage":32.99,"completedProg":"n- rti","notes":"quit","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,true,false,false,false,true,false,false,false,true,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Katie Rose Davis","status":"active","placement":"Hamilton Township","usdolId":"NJ2025005330","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":72,"ojtAprHrs":11,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,29,24,2,8,1],"wage":40.0,"completedProg":"n- rti","notes":"June participation should count for RTI- July completer","rtiHours":189,"rtiSessions":7,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Katrina Valentin","status":"active","placement":"Gloucester","usdolId":"NJ2025001719","pctOjt":0.87,"ojtReported":3480,"ojtTotalCalc":50,"ojtAprHrs":48,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,23,4,23,0],"wage":0,"completedProg":"","notes":"","rtiHours":81,"rtiSessions":3,"rtiMonthly":[false,false,true,false,false,false,true,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Keisha Lopez","status":"active","placement":"ilearn Clifton","usdolId":"NJ2026000470","pctOjt":1.0,"ojtReported":4094,"ojtTotalCalc":76,"ojtAprHrs":107,"ojtMayHrs":94,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,8,53],"wage":33.99,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":135,"rtiSessions":5,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,true,true,true,false,false],"coaching":"Y","praxis":""},{"name":"Lilia Quintero","status":"active","placement":"Hamilton-Kuser","usdolId":"NJ2026000471","pctOjt":0.99,"ojtReported":4011,"ojtTotalCalc":57,"ojtAprHrs":81,"ojtMayHrs":53,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,22,25,9,0],"wage":35.0,"completedProg":"n- both","notes":"working this summer","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,false,false],"coaching":"","praxis":""},{"name":"linda Fenty","status":"cancelled","placement":"iLearn Paterson MS","usdolId":"NJ2026000858","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":64,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,12,3,2],"wage":0,"completedProg":"","notes":"","rtiHours":27,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"maria del carmen gutierrez colin","status":"active","placement":"iLearn Passaic ES","usdolId":"NJ2025005329","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":75,"ojtAprHrs":38,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,25,30,8,8],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,false,true,false],"coaching":"Y","praxis":""},{"name":"Marina Farag","status":"cancelled","placement":"","usdolId":"NJ2025002296","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,true,false,true,true,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Melissa Mazza","status":"active","placement":"iLearn Bergen MS","usdolId":"NJ2026001277","pctOjt":1.0,"ojtReported":4114,"ojtTotalCalc":85,"ojtAprHrs":108,"ojtMayHrs":88,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,65,5,7],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Micaela Wilkerson","status":"active","placement":"Haddon Township","usdolId":"NJ2025004825","pctOjt":0.91,"ojtReported":3640,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,1,21,8,22,3,2,6,4],"wage":35.0,"completedProg":"n- both","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,true,true,false],"coaching":"","praxis":""},{"name":"Michelle Kim","status":"cancelled","placement":"","usdolId":"NJ2025004252","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":20,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,true,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Monica Brown","status":"cancelled","placement":"iLEarn Clifton ES","usdolId":"NJ2025005327","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,5,6,14,2,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Mushana Dunham","status":"active","placement":"iLearn Clifton MS","usdolId":"NJ2025005331","pctOjt":0.9359,"ojtReported":3846,"ojtTotalCalc":48,"ojtAprHrs":98,"ojtMayHrs":102,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,3,15,8,3],"wage":35.0,"completedProg":"n- both","notes":"June participation should count for RTI- July completer","rtiHours":243,"rtiSessions":9,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Nicole Cill","status":"cancelled","placement":"","usdolId":"NJ2025004251","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":60,"rtiSessions":3,"rtiMonthly":[false,false,false,false,false,false,true,true,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Norelis Ramirez","status":"active","placement":"iLearn Paterson -ES","usdolId":"NJ2026000265","pctOjt":0.9103,"ojtReported":3723,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":82,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,41,5,7,2],"wage":35.0,"completedProg":"n- both","notes":"needs follow up to complete","rtiHours":108,"rtiSessions":4,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,true,true,false,true,false,false],"coaching":"N","praxis":""},{"name":"Pankajbharathi Sowmianarayanan","status":"cancelled","placement":"","usdolId":"NJ2025004823","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":20,"rtiSessions":1,"rtiMonthly":[false,false,false,false,false,false,false,false,true,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Sarah Renz","status":"cancelled","placement":"","usdolId":"NJ2025001717","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Subul Sadiq","status":"active","placement":"iLearn Hudson","usdolId":"NJ2026000469","pctOjt":1.0,"ojtReported":4094,"ojtTotalCalc":79,"ojtAprHrs":55,"ojtMayHrs":94,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,7,14],"wage":35.0,"completedProg":"n- rti","notes":"needs follow up to complete","rtiHours":162,"rtiSessions":6,"rtiMonthly":[false,false,false,false,false,false,false,false,false,false,false,true,true,true,true,false],"coaching":"Y","praxis":"Y"},{"name":"Theodore (Ted) Kostich","status":"cancelled","placement":"","usdolId":"NJ2025001824","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":0,"rtiSessions":0,"rtiMonthly":[false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false],"coaching":"","praxis":""},{"name":"Theodore Mills","status":"cancelled","placement":"Long Term Sub","usdolId":"NJ2025004828","pctOjt":0,"ojtReported":0,"ojtTotalCalc":0,"ojtAprHrs":87,"ojtMayHrs":0,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,15,0,0],"wage":0,"completedProg":"","notes":"","rtiHours":54,"rtiSessions":2,"rtiMonthly":[false,false,false,false,false,false,false,false,false,true,false,false,false,false,false,false],"coaching":"N","praxis":""},{"name":"Aliviyah Goodson","status":"completed","placement":"iLearn Bergen MS","usdolId":"NJ2025004253","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":87,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,13,32,20,7,7,0,0],"wage":33.99,"completedProg":"y","notes":"","rtiHours":324,"rtiSessions":12,"rtiMonthly":[false,false,false,false,false,false,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Arelis Rodriguez","status":"completed","placement":"iLearn Bergen MS","usdolId":"NJ2025003378","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":95,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,41,0,9,4,24,3,0,3,3],"wage":35.0,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,true,true,false,true,true,true,false,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Avani Jimenez","status":"completed","placement":"Middlesex STEM","usdolId":"NJ2026001278","pctOjt":1.0,"ojtReported":4067,"ojtTotalCalc":47,"ojtAprHrs":48,"ojtMayHrs":67,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,0,0,0,0,16,18],"wage":35.0,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,false,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Caitlin Evgeniadis","status":"completed","placement":"Hamilton Township","usdolId":"NJ2025001715","pctOjt":1.0,"ojtReported":4026,"ojtTotalCalc":63,"ojtAprHrs":77,"ojtMayHrs":26,"ojtJunHrs":0,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,6,11,27,5,11,3],"wage":32.99,"completedProg":"y","notes":"","rtiHours":351,"rtiSessions":13,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Carlos Jacho","status":"completed","placement":"iLearn Paterson","usdolId":"NJ2025004966","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":84,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,10,28,23,2,4,9,0],"wage":32.99,"completedProg":"y","notes":"","rtiHours":243,"rtiSessions":9,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,false,true,true,true],"coaching":"Y","praxis":""},{"name":"Ian Anderson","status":"completed","placement":"iLearn Hudson MS","usdolId":"NJ2025004964","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":95,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,22,5,40,6,1,7,4],"wage":35.0,"completedProg":"y","notes":"","rtiHours":270,"rtiSessions":10,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":"Y"},{"name":"Jasmine Ramsey","status":"completed","placement":"iLearn Passaic MS","usdolId":"NJ2025001829","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":91,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,24,0,0,5,3,39,1,1,6,4],"wage":40.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Naima Boutira","status":"completed","placement":"Central Jersey College Prep","usdolId":"NJ2025005328","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":85,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,23,1,25,5,4,16],"wage":32.99,"completedProg":"y","notes":"","rtiHours":297,"rtiSessions":11,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":"Y"},{"name":"Nicholas Hoover","status":"completed","placement":"Haddon Township","usdolId":"NJ2025001712","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":75,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,24,0,0,4,14,10,4,2,4,4],"wage":40.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"Pooja Tyagi","status":"completed","placement":"Central Jersey College Prep","usdolId":"NJ2025001716","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":76,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,0,20,1,19,10,9,5],"wage":35.0,"completedProg":"y","notes":"","rtiHours":324,"rtiSessions":12,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,false],"coaching":"Y","praxis":""},{"name":"Shahzeeb Ahmad","status":"completed","placement":"iLearn Bergen","usdolId":"NJ2025004822","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":70,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,0,0,0,6,16,18,19,0,0,2],"wage":45.0,"completedProg":"y","notes":"","rtiHours":270,"rtiSessions":10,"rtiMonthly":[false,false,false,false,false,false,false,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""},{"name":"sharon kessel","status":"completed","placement":"iLearn Paterson Silk City","usdolId":"NJ2025001707","pctOjt":1.0,"ojtReported":4000,"ojtTotalCalc":86,"ojtAprHrs":0,"ojtMayHrs":0,"ojtJunHrs":8,"ojtMonthlyHrs":[0,0,0,0,41,0,0,9,6,8,2,2,5,4],"wage":35.0,"completedProg":"y","notes":"","rtiHours":378,"rtiSessions":14,"rtiMonthly":[false,false,true,false,false,true,true,true,true,true,true,true,true,true,true,true],"coaching":"Y","praxis":""}];
 
-  // ── SY 25-26 render — synchronous, no fetch, no CORS ───────────────────────
-  function render2526OtjOverview(container) {
-    const rows        = SY2526_DATA;
+  // ── OTJ Workbook Vault — SY 25-26 ONLY (NEW 7/9/26) ────────────────────────
+  // Confirmed with Amir 7/9/26: this replaces the removed NE/SW "Document
+  // Vault" tab entirely. That tab pulled OTJ Checklist links from the messy,
+  // uncleaned NE/SW tracker sheets — gone now, along with the rest of that
+  // pipeline. The one thing worth keeping was the actual per-apprentice OTJ
+  // workbook links, which exist independently in the SY 25-26 Apprentice
+  // Tracker's own "Link to Folder" column — real Google Drive folder links,
+  // not display text. Extracted directly from that column's embedded
+  // hyperlinks (openpyxl's cell.hyperlink.target, not cell.value — the
+  // visible cell text is just the person's name, same trap as the
+  // now-corrected USDOL ID carryover work). 43 of 46 apprentices have a
+  // link; 3 (Alexandra Cristescu, linda Fenty, Pankajbharathi
+  // Sowmianarayanan) have no folder link in the source sheet at all — shown
+  // as "No folder on file" rather than guessed or omitted silently.
+  // One-time snapshot, not live — same reasoning as SY2526_DATA and the
+  // other historical seeds in this file: this is closed-year data that
+  // doesn't change, so a live fetch isn't needed (and hyperlinks aren't
+  // available through the CSV export path used for live SY 25-26 data
+  // anyway — CSV export never carries hyperlink targets, only cell text).
+  const SY2526_OTJ_VAULT = [
+  { n: 'Alexandra Cristescu', usdolId: 'NJ2026000468', link: '' },
+  { n: 'Allison Dombrowski', usdolId: 'NJ2025002297', link: 'https://drive.google.com/drive/folders/11RKD3RAWmxtv_WMQ4yjB6XTLMiQNecDC?usp=drive_link' },
+  { n: 'Apollo Monroy-Polanco', usdolId: 'NJ2025004827', link: 'https://drive.google.com/drive/folders/1of2VV0Ji2hVyQps7VGen6NMnzis7X4sp?usp=drive_link' },
+  { n: 'Aliviyah Goodson', usdolId: 'NJ2025004253', link: 'https://drive.google.com/drive/folders/1KWVLoSGCE3ZmQjt5Wuc95GH7Xo7fSK34?usp=drive_link' },
+  { n: 'Chelsea Jordan', usdolId: 'NJ2025001925', link: 'https://drive.google.com/drive/folders/18jRzKn25e5LIUBmxYW7tVT53YFHHpmEn?usp=drive_link' },
+  { n: 'Claudia Tumelus', usdolId: 'NJ2025004254', link: 'https://drive.google.com/drive/folders/1YTZrqAXi5XStDS670D0tWMNf6JGdLMj1?usp=drive_link' },
+  { n: 'Daniel DiQuinzio', usdolId: 'NJ2025001713', link: 'https://drive.google.com/drive/folders/1qBFS814vcXaYtMg6tV05LSA3MqHbp_PN?usp=drive_link' },
+  { n: 'Arelis Rodriguez', usdolId: 'NJ2025003378', link: 'https://drive.google.com/drive/folders/1YmZvawQ-NyLMj0Ht9GDuMUhKrIbq3uj3?usp=drive_link' },
+  { n: 'Elijah Brown', usdolId: 'NJ2025002412', link: 'https://drive.google.com/drive/folders/1sN6NDW359yTAPU_052k3UCes6QHFhks_?usp=drive_link' },
+  { n: 'Genesis Rosich', usdolId: 'NJ2025004826', link: 'https://drive.google.com/drive/folders/1DFYYlRzTw4Wta-OgXY-rUNsDaC6Jv9_6?usp=sharing' },
+  { n: 'Heba Samhouri', usdolId: 'NJ2025002413', link: 'https://drive.google.com/drive/folders/1F_jOQNa9Ojf9gia9WB-B5CeC8wxcgTg9?usp=drive_link' },
+  { n: 'Avani Jimenez', usdolId: 'NJ2026001278', link: 'https://drive.google.com/drive/folders/1xFnhUstjaiY92PZxJHY2sktiyn9loajY?usp=drive_link' },
+  { n: 'Janelle lee', usdolId: 'NJ2025003240', link: 'https://drive.google.com/drive/folders/1RY7_Y5yGLbQqUi_Im0ZJAGQkXA9JNEJT?usp=drive_link' },
+  { n: 'Caitlin Evgeniadis', usdolId: 'NJ2025001715', link: 'https://drive.google.com/drive/folders/1njPIzdQZZjyJ7tpRyRIVyaQQW3jsGphe?usp=drive_link' },
+  { n: 'Carla Borbon', usdolId: 'NJ2026000857', link: 'https://drive.google.com/drive/folders/1zj4MyAld-GL06HbB2ChxuJOD17OwNt1M?usp=drive_link' },
+  { n: 'Carlos Jacho', usdolId: 'NJ2025004966', link: 'https://drive.google.com/drive/folders/1-2ZSmX_Q9Gw0CdgZnKYYe2tMVuUbdCdV?usp=drive_link' },
+  { n: 'Katrina Valentin', usdolId: 'NJ2025001719', link: 'https://drive.google.com/drive/folders/15mjq5O_MuNqW6L0VwaRIVYlJ4PeJo8Fn?usp=drive_link' },
+  { n: 'Renee Davis', usdolId: 'NJ2025004829', link: 'https://drive.google.com/drive/folders/1WE8rlIgH2Y0WiLTiYYGOvHUiEe7tQNLz?usp=drive_link' },
+  { n: 'Ian Anderson', usdolId: 'NJ2025004964', link: 'https://drive.google.com/drive/folders/1tZQMELNzIZ_BIK4VL8KmWMrBykmum0CL?usp=drive_link' },
+  { n: 'linda Fenty', usdolId: 'NJ2026000858', link: '' },
+  { n: 'Jacob Leebron', usdolId: 'NJ2025001825', link: 'https://drive.google.com/drive/folders/174ku6DM-7uPJS1iPF7nM0GBG_4--chHz?usp=drive_link' },
+  { n: 'Marina Farag', usdolId: 'NJ2025002296', link: 'https://drive.google.com/drive/folders/10YFXkawTNJ-0EmmIixNTUk7Ij0BDYhuO?usp=drive_link' },
+  { n: 'Jasmine Ramsey', usdolId: 'NJ2025001829', link: 'https://drive.google.com/drive/folders/1KRbix6ruR8YjR8vEFU4fp29mNGM2GMhu?usp=drive_link' },
+  { n: 'Jazmin Daliza Garcia', usdolId: 'NJ2026001279', link: 'https://drive.google.com/drive/folders/1bjb1xAwHlVopmruPN1pvZs1K7un1qQDn?usp=drive_link' },
+  { n: 'Michelle Kim', usdolId: 'NJ2025004252', link: 'https://drive.google.com/drive/folders/1TMs0J25JrA1PvtGA0m0692mN5vEwsobk?usp=drive_link' },
+  { n: 'Monica Brown', usdolId: 'NJ2025005327', link: 'https://drive.google.com/drive/folders/1sWgYAK6IirtXwm4sV6VaGUENUQ9oYwS-?usp=drive_link' },
+  { n: 'Jessica Flores', usdolId: 'NJ2025001718', link: 'https://drive.google.com/drive/folders/1cfhmsaFGsQVe3ldFfGho32nD-xdsic00?usp=drive_link' },
+  { n: 'Nicole Cill', usdolId: 'NJ2025004251', link: 'https://drive.google.com/drive/folders/1vVy3YdjIiIGYxXstHSkMmt3eAM2LlMxx?usp=drive_link' },
+  { n: 'Katie Rose Davis', usdolId: 'NJ2025005330', link: 'https://drive.google.com/drive/folders/1Y4HxlYbv08UiMup5redYIYNUxINOCMzA?usp=drive_link' },
+  { n: 'Pankajbharathi Sowmianarayanan', usdolId: 'NJ2025004823', link: '' },
+  { n: 'Sarah Renz', usdolId: 'NJ2025001717', link: 'https://drive.google.com/drive/folders/12CR3o3YWm3GgeZgkJUZUHwCc7S7u0y_Z?usp=drive_link' },
+  { n: 'Keisha Lopez', usdolId: 'NJ2026000470', link: 'https://drive.google.com/drive/folders/17ylQ4TCHinoYv_YJYao805AfThg-sJQj?usp=drive_link' },
+  { n: 'Theodore (Ted) Kostich', usdolId: 'NJ2025001824', link: 'https://drive.google.com/drive/folders/1ODZFBskLpxt4mGlthctAfsTGE5EGO3_M?usp=drive_link' },
+  { n: 'Theodore Mills', usdolId: 'NJ2025004828', link: 'https://drive.google.com/drive/folders/1sYhlv6R6sBqik_Uo9AykKqNhMaZQnf4E?usp=drive_link' },
+  { n: 'Lilia Quintero', usdolId: 'NJ2026000471', link: 'https://drive.google.com/drive/folders/1FL8JNH7bb2YDSBImDYP_6wKvihC-lwCQ?usp=drive_link' },
+  { n: 'maria del carmen gutierrez colin', usdolId: 'NJ2025005329', link: 'https://drive.google.com/drive/folders/1vVrH3-sP13RuGBBvAtASL4dasrXkt3rq?usp=drive_link' },
+  { n: 'Melissa Mazza', usdolId: 'NJ2026001277', link: 'https://drive.google.com/drive/folders/1MtWmJ_lwItOW7oMlpxt4DA64PggKHdBs?usp=drive_link' },
+  { n: 'Micaela Wilkerson', usdolId: 'NJ2025004825', link: 'https://drive.google.com/drive/folders/157saQpWTd_P1Eo5VKrb--nCebhVKNaQ9?usp=drive_link' },
+  { n: 'Mushana Dunham', usdolId: 'NJ2025005331', link: 'https://drive.google.com/drive/folders/10ybXIRO3A85WtsscUxns_vaQa_GP4cCD?usp=drive_link' },
+  { n: 'Naima Boutira', usdolId: 'NJ2025005328', link: 'https://drive.google.com/drive/folders/1o535nKMuDWOyfxPFRwYnYqtLCODRRfGg?usp=drive_link' },
+  { n: 'Nicholas Hoover', usdolId: 'NJ2025001712', link: 'https://drive.google.com/drive/folders/1kEIDSk77-wbHKw5jHQCwpU4ZwxrYB3do?usp=drive_link' },
+  { n: 'Norelis Ramirez', usdolId: 'NJ2026000265', link: 'https://drive.google.com/drive/folders/1P9ZS3GpmA8g7P0rKsmxw2wieK0JdXMPQ?usp=drive_link' },
+  { n: 'Pooja Tyagi', usdolId: 'NJ2025001716', link: 'https://drive.google.com/drive/folders/1ZHKalMjvfd2eR4i4sZgizWYV1cr6AaN7?usp=drive_link' },
+  { n: 'Shahzeeb Ahmad', usdolId: 'NJ2025004822', link: 'https://drive.google.com/drive/folders/1s_krIF2EVyjtFCPVBCfkIo31SMEgaUPu?usp=drive_link' },
+  { n: 'sharon kessel', usdolId: 'NJ2025001707', link: 'https://drive.google.com/drive/folders/1ZugOLhAzO9bxsceX9_cC_rEzwKu6IB7d?usp=drive_link' },
+  { n: 'Subul Sadiq', usdolId: 'NJ2026000469', link: 'https://drive.google.com/drive/folders/1XbIiVYcGhE-qKNldIGp-QqaYwqxobQ9O?usp=drive_link' },
+  ];
+
+  // ── SY 25-26 render — accepts LIVE rows (fetched by index.html's
+  // fetchSY2526Roster) when available; falls back to the embedded
+  // SY2526_DATA snapshot only if the live fetch failed or hasn't run.
+  // Everything below this line is unchanged — it already only reads from
+  // the local `rows` variable, never SY2526_DATA directly.
+  function render2526OtjOverview(container, liveRows) {
+    const rows        = (liveRows && liveRows.length) ? liveRows : SY2526_DATA;
     const total       = rows.length;
     const active      = rows.filter(r => r.status === 'active');
     const cancelled   = rows.filter(r => r.status === 'cancelled');
@@ -2196,6 +2238,17 @@
 
     function syKpi(val, label, color) {
       return `<div class="ta-card ta-kpi" style="border-top:3px solid ${color}"><div class="ta-kpi-val" style="color:${color}">${val}</div><div class="ta-kpi-sub">${label}</div></div>`;
+    }
+    // OTJ Workbook Vault matching — USDOL ID primary (exact), name fallback
+    // (normalized, same convention used elsewhere in this file). Never
+    // guesses past those two rules; no match just means no link shown.
+    function _sy2526NormName(s) {
+      return String(s || '').replace(/\([^)]*\)/g, ' ').replace(/[^a-zA-Z\s]/g, ' ').toLowerCase().trim().replace(/\s+/g, ' ');
+    }
+    function _sy2526VaultLink(usdolId, name) {
+      let hit = SY2526_OTJ_VAULT.find(v => usdolId && v.usdolId === usdolId);
+      if (!hit) hit = SY2526_OTJ_VAULT.find(v => _sy2526NormName(v.n) === _sy2526NormName(name));
+      return hit ? hit.link : undefined; // undefined = person not in the vault seed at all; '' = in seed but no link on file
     }
     const sorted = [...rows].sort((a, b) => {
       const o = { completed:0, active:1, cancelled:2 };
@@ -2276,375 +2329,40 @@
     ${SY2526_RTI_MONTHS.map((lbl, idx) => { const cnt = rtiMonthTotals[idx]; const pctR = programRows.length ? Math.round(cnt/programRows.length*100) : 0; const clr = pctR>=70?'#059669':pctR>=40?'#d97706':cnt>0?'#6b7280':'#e5e7eb'; return `<div style="text-align:center;min-width:42px"><div style="height:${Math.max(4,Math.round(pctR*.55))}px;background:${clr};border-radius:3px 3px 0 0;margin-bottom:2px"></div><div style="font-size:.67rem;font-weight:700;color:${clr}">${cnt>0?cnt:''}</div><div style="font-size:.54rem;color:#9ca3af;margin-top:.1rem">${lbl}</div></div>`; }).join('')}
   </div>
   <div style="margin-top:.75rem;font-size:.72rem;color:#9ca3af">Bar height = % of program apprentices with RTI attendance that month</div>
-</div>`;
-  }
-
-  // ── Year toggle state ─────────────────────────────────────────────────────
-  let _otjActiveSY = '2627';
-
-  function _otjSetToggleActive(sy) {
-    const b2627 = document.getElementById('otjSyBtn2627');
-    const b2526 = document.getElementById('otjSyBtn2526');
-    const sub   = document.getElementById('otjSySubtitle');
-    if (!b2627 || !b2526) return;
-    if (sy === '2627') {
-      b2627.style.background = '#fff';        b2627.style.color = '#1B2A4A';
-      b2526.style.background = 'transparent'; b2526.style.color = 'rgba(255,255,255,.7)';
-      if (sub) sub.textContent = 'SY 2026-27 · Active cohort — live from TAP Tracker';
-    } else {
-      b2526.style.background = '#fff';        b2526.style.color = '#1B2A4A';
-      b2627.style.background = 'transparent'; b2627.style.color = 'rgba(255,255,255,.7)';
-      if (sub) sub.textContent = 'SY 2025-26 · Historical cohort — 46 apprentices · end-of-year snapshot';
-    }
-  }
-
-  window._otjSwitchSY = function(sy) {
-    _otjActiveSY = sy;
-    _otjSetToggleActive(sy);
-    const slot = document.getElementById('otjSyContent');
-    if (!slot) return;
-    if (sy === '2526') {
-      render2526OtjOverview(slot);
-    } else {
-      if (window._otjCaptured2627) {
-        slot.innerHTML = window._otjCaptured2627;
-      } else {
-        slot.innerHTML = loadingHTML('Reloading SY 26-27 data…');
-        _tdLoaded['otj-overview'] = false;
-        renderOTJOverviewTab();
-      }
-    }
-  };
-
-  async function renderOTJOverviewTab() {
-    const el = document.getElementById('td-content-otj-overview');
-    if (!el) return;
-    el.innerHTML = loadingHTML('Loading apprenticeship data…');
-    try {
-      const d = await fetchAllSheets();
-      const allOtj = [...d.neOtj, ...d.swOtj];
-
-      // Build apprentice map keyed by canonical name
-      const appMap = {};
-      function addOtjRow(r, region) {
-        const first = (r['Tutor First'] || '').trim();
-        const last  = (r['Tutor Last (ADP)'] || '').trim();
-        const rawName = first && last ? first + ' ' + last : (first || last);
-        const name = normalizeApprenticeName(rawName) || rawName;
-        if (!name) return;
-        if (!appMap[name]) appMap[name] = { name, region, district: r['District']||'', school: r['School']||'', sl: r['Site Leader']||'', beg: '', mid: '', end: '', link: '', notes: '', adp: '' };
-        appMap[name].beg  = appMap[name].beg  || r['Beginning'] || '';
-        appMap[name].mid  = appMap[name].mid  || r['Middle']    || '';
-        appMap[name].end  = appMap[name].end  || r['End']       || '';
-        appMap[name].link = appMap[name].link || r['OTJ Checklist Link'] || '';
-        appMap[name].notes= appMap[name].notes|| r['PM Notes']  || '';
-        appMap[name].adp  = appMap[name].adp  || r['ADP Status']|| '';
-      }
-      d.neOtj.forEach(r => addOtjRow(r, 'NE'));
-      d.swOtj.forEach(r => addOtjRow(r, 'SW'));
-
-      let apps = Object.values(appMap);
-      // Overlay Live Tracker OTJ counts onto this view's apps
-      const ltCountMap = d.liveOtjCountMap || {};
-      apps.forEach(a => {
-        const key = a.name.toLowerCase().replace(/\s+/g,' ').trim();
-        a.otjItems = ltCountMap.hasOwnProperty(key) ? ltCountMap[key] : null;
-      });
-      // Restrict to ADP-active only — matches HR dashboard live count
-      apps = apps.filter(a => (a.adp||'').trim() === 'Active' || !a.adp);
-      const total  = apps.length;
-      const active = apps.length;
-      const begDone = apps.filter(a => a.otjItems !== null && a.otjItems >= LIVE_TRACKER_OTJ_COLS).length;
-      const midDone = apps.filter(a => a.otjItems !== null && a.otjItems > 0 && a.otjItems < LIVE_TRACKER_OTJ_COLS).length;
-      const needsFU = apps.filter(a =>
-        getOTJStatus(a.beg) === 'needs-followup' ||
-        getOTJStatus(a.mid) === 'needs-followup' ||
-        getOTJStatus(a.end) === 'needs-followup'
-      ).length;
-
-      // Observation counts per month (NE + SW combined)
-      const NE_MONTHS_COLS = ['October','November','December','January','February','March','April','May','June'];
-      const SW_OBS_COLS    = ['October Obs #1','November Obs #1','December Comments','January Comments','February Obs #1','March Obs #1','April Obs #1'];
-      const OBS_MONTH_LABELS = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-      const neObsCounts = NE_MONTHS_COLS.map(m => d.neTutorObs.filter(r => (r[m]||'').trim()).length);
-      const swObsCounts = SW_OBS_COLS.map(m => d.swTutorObs.filter(r => (r[m]||'').trim()).length);
-      // Pad SW to 9 months (no May/Jun columns in SW sheet)
-      while (swObsCounts.length < 9) swObsCounts.push(0);
-
-      // Chart data for NE/SW donuts
-      function phaseDistrib(rows, phaseCol) {
-        const out = { completed:0, 'in-progress':0, 'needs-followup':0, na:0, none:0 };
-        rows.forEach(r => { const s = getOTJStatus(r[phaseCol]); out[s]++; });
-        return out;
-      }
-      const neBegD = phaseDistrib(d.neOtj, 'Beginning');
-
-      // Network Progress Matrix (districts)
-      const distMap = {};
-      apps.forEach(a => {
-        const dist = a.district || 'Unknown';
-        if (!distMap[dist]) distMap[dist] = { beg:[], mid:[], end:[] };
-        distMap[dist].beg.push(a.beg);
-        distMap[dist].mid.push(a.mid);
-        distMap[dist].end.push(a.end);
-      });
-      function phaseIcon(vals) {
-        const done = vals.filter(v => getOTJStatus(v) === 'completed').length;
-        const total = vals.filter(v => getOTJStatus(v) !== 'na').length || vals.length;
-        const pctV = total ? Math.round(done/total*100) : 0;
-        const bg = pctV === 100 ? '#D6EFD8' : pctV >= 50 ? '#FFF3CD' : '#FEE2E2';
-        const color = pctV === 100 ? '#166534' : pctV >= 50 ? '#92400E' : '#991B1B';
-        return `<td style="text-align:center;padding:.35rem .5rem;background:${bg};color:${color};font-weight:700;font-size:.8rem">${pctV}%</td>`;
-      }
-
-      // Action items
-      const actions = [];
-      apps.forEach(a => {
-        ['beg','mid','end'].forEach((p,i) => {
-          const label = ['Beginning','Middle','End'][i];
-          if (getOTJStatus(a[p]) === 'needs-followup') {
-            actions.push({ sev:'red', msg: `<strong>${a.name}</strong> — OTJ ${label} needs PM follow-up (${a.district || a.region})` });
-          }
-        });
-        if (a.notes && a.notes.trim()) {
-          actions.push({ sev:'amber', msg: `<strong>${a.name}</strong> — PM Note: ${a.notes.trim()}` });
-        }
-      });
-      // Flag site leaders with no obs
-      const slWithObs = new Set([
-        ...d.neSLObs.map(r => (r['Site Leader']||'').trim()),
-        ...d.swSLObs.map(r => (r['Site Leader']||'').trim())
-      ]);
-      const allSLs = new Set([...d.neOtj,...d.swOtj].map(r => (r['Site Leader']||'').trim()).filter(Boolean));
-      allSLs.forEach(sl => {
-        if (!slWithObs.has(sl)) actions.push({ sev:'amber', msg: `Site leader <strong>${sl}</strong> has no observation records on file` });
-      });
-
-      const sevIcon = { red:'🔴', amber:'🟡', green:'🟢' };
-
-      let html = `
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem">
-          ${kpiCard(active, 'Apprentices Active', '#059669')}
-          ${kpiCard(pct(begDone,total)+'%', 'OTJ Beginning Complete', begDone/total >= .7 ? '#059669' : '#d97706')}
-          ${kpiCard(pct(midDone,total)+'%', 'OTJ Middle Complete',    midDone/total >= .5 ? '#059669' : '#d97706')}
-          ${kpiCard(needsFU, 'Needing Follow-Up', needsFU > 0 ? '#b91c1c' : '#059669')}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem">
-          <div class="ta-card" style="padding:1rem">
-            <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">NE Region OTJ Progress</div>
-            <div style="position:relative;height:150px"><canvas id="tdNeOtjChart"></canvas></div>
-          </div>
-          <div class="ta-card" style="padding:1rem">
-            <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">SW Region OTJ Progress</div>
-            <div style="position:relative;height:150px"><canvas id="tdSwOtjChart"></canvas></div>
-          </div>
-        </div>
-        <div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
-          <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">Network Progress Matrix</div>
-          <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-              <thead>
-                <tr style="background:#1B2A4A;color:#fff">
-                  <th style="text-align:left;padding:.5rem">District / Network</th>
-                  <th style="text-align:center;padding:.5rem">Beginning</th>
-                  <th style="text-align:center;padding:.5rem">Middle</th>
-                  <th style="text-align:center;padding:.5rem">End</th>
-                  <th style="text-align:center;padding:.5rem">Apprentices</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${Object.entries(distMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([dist,v]) => `
-                  <tr style="border-bottom:1px solid #e5e7eb">
-                    <td style="padding:.4rem .5rem;font-weight:600;color:#374151">${dist}</td>
-                    ${phaseIcon(v.beg)}${phaseIcon(v.mid)}${phaseIcon(v.end)}
-                    <td style="text-align:center;padding:.4rem;color:#6b7280">${v.beg.length}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
-          <div style="font-weight:700;color:#1B2A4A;margin-bottom:.75rem;font-size:.9rem">Monthly Observation Coverage</div>
-          <div style="position:relative;height:100px"><canvas id="tdObsCoverageChart"></canvas></div>
-        </div>`;
-
-      if (actions.length) {
-        html += `<div class="ta-card" style="padding:1.25rem;margin-bottom:1.5rem">
-          <div style="font-weight:700;color:#1B2A4A;margin-bottom:1rem;font-size:1rem">Action Items &amp; Flags</div>
-          <div style="max-height:200px;overflow-y:auto">
-          ${actions.slice(0,30).map(a => `
-            <div style="display:flex;gap:.5rem;align-items:flex-start;padding:.5rem .625rem;background:${a.sev==='red'?'#fff5f5':'#fffbeb'};border-radius:6px;margin-bottom:.375rem;font-size:.83rem">
-              <span>${sevIcon[a.sev]||'🟡'}</span>
-              <span>${a.msg}</span>
-            </div>`).join('')}
-          </div>
-          ${actions.length > 30 ? `<div style="font-size:.8rem;color:#6b7280;margin-top:.5rem">+ ${actions.length-30} more items</div>` : ''}
-        </div>`;
-      } else {
-        html += `<div class="ta-card" style="padding:1.25rem;text-align:center;color:#059669;font-weight:600">🟢 No action items — all apprentices on track!</div>`;
-      }
-
-      // ── Dept-specific panel (Data = advanced analytics; Programming = site ops) ──
-      const dept = getDept();
-      if (dept === 'data') {
-        // Export CSV helper
-        const csvRows = apps.map(a => [a.name,a.region,a.district,a.school,a.sl,a.beg||'',a.mid||'',a.end||'',a.adp||'',a.obsCount,a.lastObs||''].join(','));
-        const csvHeader = 'Name,Region,District,School,Site Leader,OTJ Beginning,OTJ Middle,OTJ End,ADP Status,Obs Count,Last Obs';
-        const csvBlob = encodeURIComponent([csvHeader,...csvRows].join('\n'));
-        html += `<div class="ta-card" style="padding:1.25rem;margin-top:1.5rem;border-top:3px solid #1B2A4A">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem">
-            <div style="font-weight:700;color:#1B2A4A;font-size:1rem">Data Dept — Advanced Apprenticeship Analytics</div>
-            <a href="data:text/csv;charset=utf-8,${csvBlob}" download="njtc-apprentice-data.csv" class="btn btn-secondary btn-sm" style="font-size:.8rem;text-decoration:none">⬇ Download Apprentice CSV</a>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
-            <div><canvas id="tdDataOtjPhaseChart" height="200"></canvas></div>
-            <div><canvas id="tdDataObsFreqChart" height="200"></canvas></div>
-          </div>
-          <div style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-              <thead><tr style="background:#1B2A4A;color:#fff">
-                <th style="padding:.4rem;text-align:left">Name</th><th style="padding:.4rem">Region</th><th style="padding:.4rem">District</th>
-                <th style="padding:.4rem;text-align:center">OTJ Items</th><th style="padding:.4rem;text-align:center">% Done</th><th style="padding:.4rem;text-align:center">End</th>
-                <th style="padding:.4rem;text-align:center">Obs</th><th style="padding:.4rem;text-align:center">ADP</th>
-              </tr></thead>
-              <tbody>
-                ${apps.map((a,i)=>`<tr style="border-bottom:1px solid #e5e7eb;${i%2?'background:#f9fafb':''}">
-                  <td style="padding:.35rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
-                  <td style="padding:.35rem .4rem;text-align:center"><span style="background:${a.region==='NE'?'#dbeafe':'#fef3c7'};color:${a.region==='NE'?'#1e40af':'#92400e'};padding:.1rem .4rem;border-radius:4px;font-size:.75rem;font-weight:700">${a.region}</span></td>
-                  <td style="padding:.35rem .4rem;font-size:.78rem;color:#6b7280">${a.district||'—'}</td>
-                  <td style="padding:.35rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
-                  <td style="padding:.35rem;text-align:center;font-size:.8rem;color:#6b7280">${a.otjItems!==null?Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%':'—'}</td>
-                  <td style="padding:.35rem;text-align:center">${otjStatusBadge(a.end)}</td>
-                  <td style="padding:.35rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
-                  <td style="padding:.35rem;text-align:center">${adpStatusBadge(a.adp)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
-        // charts will be rendered after innerHTML set
-        setTimeout(() => {
-          // Phase completion bar chart
-          const phases = ['Beginning','Middle','End'];
-          const doneCounts = phases.map(p => {
-            const key = p.toLowerCase().replace('beginning','beg').replace('middle','mid').replace('end','end');
-            return apps.filter(a => getOTJStatus(a[key.slice(0,3) === 'beg' ? 'beg' : key.slice(0,3) === 'mid' ? 'mid' : 'end']) === 'completed').length;
-          });
-          makeChart('tdDataOtjPhaseChart', {
-            type:'bar',
-            data:{ labels:phases, datasets:[{ label:'Completed', data:doneCounts, backgroundColor:['#2A7D4F','#C9A84C','#1B2A4A'], borderRadius:4 }] },
-            options:{ plugins:{ legend:{display:false}, title:{display:true,text:'OTJ Phase Completion Count'} }, responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{precision:0}, max:apps.length } } }
-          });
-          // Obs frequency distribution
-          const obsBuckets = { '0':0,'1':0,'2':0,'3-4':0,'5+':0 };
-          apps.forEach(a => {
-            const c = a.obsCount;
-            if (c===0) obsBuckets['0']++;
-            else if (c===1) obsBuckets['1']++;
-            else if (c===2) obsBuckets['2']++;
-            else if (c<=4) obsBuckets['3-4']++;
-            else obsBuckets['5+']++;
-          });
-          makeChart('tdDataObsFreqChart', {
-            type:'bar',
-            data:{ labels:Object.keys(obsBuckets), datasets:[{ label:'Apprentices', data:Object.values(obsBuckets), backgroundColor:'#457b9d', borderRadius:4 }] },
-            options:{ plugins:{ legend:{display:false}, title:{display:true,text:'Observation Frequency Distribution'} }, responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{precision:0} } } }
-          });
-        }, 100);
-      } else if (dept === 'programming') {
-        // Group by site leader for Programming dept
-        const slMap = {};
-        apps.forEach(a => {
-          const sl = a.sl || 'Unassigned';
-          if (!slMap[sl]) slMap[sl] = { sl, district:a.district, school:a.school, link:a.link, tutors:[] };
-          slMap[sl].tutors.push(a);
-        });
-        html += `<div class="ta-card" style="padding:1.25rem;margin-top:1.5rem;border-top:3px solid #C9A84C">
-          <div style="font-weight:700;color:#1B2A4A;font-size:1rem;margin-bottom:1rem">Programming Dept — Onsite Staff Apprenticeship Panel</div>
-          ${Object.entries(slMap).sort((a,b)=>a[0].localeCompare(b[0])).map(([sl,info])=>`
-            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;margin-bottom:.75rem">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:.5rem">
-                <div>
-                  <div style="font-weight:700;color:#1B2A4A">${sl}</div>
-                  <div style="font-size:.8rem;color:#6b7280">${info.district||''}${info.school?' · '+info.school:''}</div>
-                </div>
-                ${info.link ? `<a href="${info.link}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:.75rem;text-decoration:none">📁 OTJ Checklist</a>` : ''}
-              </div>
-              <table style="width:100%;font-size:.82rem;border-collapse:collapse">
-                <thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:.3rem .4rem">Tutor</th><th style="padding:.3rem;text-align:center">OTJ Items</th><th style="padding:.3rem;text-align:center">% Done</th><th style="padding:.3rem;text-align:center">End</th><th style="padding:.3rem;text-align:center">Obs</th><th style="text-align:left;padding:.3rem .4rem">PM Notes</th></tr></thead>
-                <tbody>
-                  ${info.tutors.map((a,i)=>`<tr style="${i%2?'background:#f9fafb':''}">
-                    <td style="padding:.3rem .4rem;font-weight:600;color:#1B2A4A">${a.name}</td>
-                    <td style="padding:.3rem;text-align:center">${otjItemBadge(a.otjItems)}</td>
-                    <td style="padding:.3rem;text-align:center;font-size:.8rem;color:#6b7280">${a.otjItems!==null?Math.round(a.otjItems/LIVE_TRACKER_OTJ_COLS*100)+'%':'—'}</td>
-                    <td style="padding:.3rem;text-align:center">${otjStatusBadge(a.end)}</td>
-                    <td style="padding:.3rem;text-align:center;font-weight:700;color:${a.obsCount>=3?'#059669':a.obsCount>=1?'#d97706':'#9ca3af'}">${a.obsCount}</td>
-                    <td style="padding:.3rem .4rem;font-size:.78rem;color:#6b7280;font-style:italic">${a.notes||'—'}</td>
-                  </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>`).join('')}
-        </div>`;
-      }
-
-      // Wrap in year toggle — captures 26-27 HTML for instant toggle-back
-      window._otjCaptured2627 = html;
-      el.innerHTML = `
-<div id="otjSyToggle" style="display:flex;align-items:center;gap:.625rem;padding:.75rem 1rem;background:linear-gradient(135deg,#1B2A4A,#274690);border-radius:10px;margin-bottom:1.25rem;flex-wrap:wrap">
-  <div style="flex:1;min-width:0">
-    <div style="font-size:.7rem;font-weight:700;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.2rem">Apprenticeship Program Year</div>
-    <div style="font-size:.82rem;color:rgba(255,255,255,.85)" id="otjSySubtitle">SY 2026-27 · Active cohort — live from TAP Tracker</div>
-  </div>
-  <div style="display:flex;gap:3px;background:rgba(255,255,255,.1);border-radius:7px;padding:3px">
-    <button id="otjSyBtn2627" onclick="window._otjSwitchSY('2627')" style="padding:.35rem .9rem;border:none;border-radius:5px;font-size:.8rem;font-weight:700;cursor:pointer;background:#fff;color:#1B2A4A">SY 26-27</button>
-    <button id="otjSyBtn2526" onclick="window._otjSwitchSY('2526')" style="padding:.35rem .9rem;border:none;border-radius:5px;font-size:.8rem;font-weight:700;cursor:pointer;background:transparent;color:rgba(255,255,255,.7)">SY 25-26</button>
-  </div>
 </div>
-<div id="otjSyContent"></div>`;
-      document.getElementById('otjSyContent').innerHTML = html;
-      _otjActiveSY = '2627';
-
-      // Render charts
-      setTimeout(() => {
-        function donutCfg(rows, title) {
-          const beg = rows.map(r => r['Beginning']||'');
-          const mid = rows.map(r => r['Middle']||'');
-          const en  = rows.map(r => r['End']||'');
-          const all = [...beg,...mid,...en];
-          const c = { completed:0,'in-progress':0,'needs-followup':0,na:0,none:0 };
-          all.forEach(v => c[getOTJStatus(v)]++);
-          return {
-            type:'doughnut',
-            data:{
-              labels:['Completed','In Progress','Needs Follow-Up','N/A','Not Started'],
-              datasets:[{ data:[c.completed,c['in-progress'],c['needs-followup'],c.na,c.none],
-                backgroundColor:['#2A7D4F','#C9A84C','#C0392B','#8E9BAE','#d1d5db'] }]
-            },
-            options:{ plugins:{ legend:{ position:'right', labels:{ font:{size:11} } } }, cutout:'60%', responsive:true, maintainAspectRatio:false }
-          };
-        }
-        makeChart('tdNeOtjChart', donutCfg(d.neOtj, 'NE'));
-        makeChart('tdSwOtjChart', donutCfg(d.swOtj, 'SW'));
-        makeChart('tdObsCoverageChart', {
-          type:'bar',
-          data:{
-            labels: OBS_MONTH_LABELS,
-            datasets:[
-              { label:'NE', data:neObsCounts, backgroundColor:'#1B2A4A', borderRadius:3 },
-              { label:'SW', data:swObsCounts, backgroundColor:'#C9A84C', borderRadius:3 }
-            ]
-          },
-          options:{
-            responsive:true, maintainAspectRatio:false,
-            plugins:{ legend:{ position:'top' }, tooltip:{ mode:'index' } },
-            scales:{ y:{ beginAtZero:true, ticks:{ precision:0 }, title:{ display:true, text:'Observation Events' } } }
-          }
-        });
-      }, 50);
-    } catch (e) {
-      el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["otj-overview"]=false;renderOTJOverviewTab();}');
-    }
+<div class="ta-card" style="margin-top:1rem">
+  <div class="ta-card-title">📁 OTJ Workbook Vault — SY 25-26 Only</div>
+  <div style="font-size:.75rem;color:#6b7280;margin:.4rem 0 .875rem">Direct links to each apprentice's individual OTJ workbook folder, pulled from the SY 25-26 Apprentice Tracker's own records. Scoped to this cohort only — SY 26-27 apprentices don't have folders here yet.</div>
+  <input id="sy2526VaultSearch" type="text" placeholder="Search by name…" oninput="window._sy2526VaultFilter && window._sy2526VaultFilter(this.value)" style="width:100%;max-width:320px;padding:.4rem .75rem;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem;margin-bottom:.875rem">
+  <div id="sy2526VaultGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.625rem">
+    ${sorted.map(r => {
+      const link = _sy2526VaultLink(r.usdolId, r.name);
+      const hasLink = !!link;
+      const inVault = link !== undefined;
+      return `<div class="sy2526-vault-card" data-search="${r.name.toLowerCase()}" style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem .875rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+        <div style="min-width:0">
+          <div style="font-weight:700;color:#1B2A4A;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+          <div style="font-size:.68rem;color:#9ca3af">${r.usdolId || 'No USDOL ID'}</div>
+        </div>
+        ${hasLink
+          ? `<a href="${link}" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="font-size:.72rem;text-decoration:none;white-space:nowrap;flex-shrink:0">🔗 Open</a>`
+          : inVault
+            ? `<span style="font-size:.68rem;color:#d97706;white-space:nowrap;flex-shrink:0">No folder on file</span>`
+            : `<span style="font-size:.68rem;color:#9ca3af;white-space:nowrap;flex-shrink:0">—</span>`}
+      </div>`;
+    }).join('')}
+  </div>
+  <div style="margin-top:.75rem;font-size:.72rem;color:#9ca3af">${SY2526_OTJ_VAULT.filter(v => v.link).length} of ${SY2526_OTJ_VAULT.length} SY 25-26 apprentices have a folder link on file.</div>
+</div>`;
+    window._sy2526VaultFilter = function(q) {
+      const sq = (q || '').toLowerCase();
+      document.querySelectorAll('.sy2526-vault-card').forEach(card => {
+        card.style.display = (card.dataset.search || '').includes(sq) ? '' : 'none';
+      });
+    };
   }
+
+
 
 
   // ══════════════════════════════════════════════════════════════════
@@ -3923,110 +3641,7 @@
   };
 
 
-  // ══════════════════════════════════════════════════════════════════
-  //  TAB 7 (new): DOCUMENT VAULT
-  // ══════════════════════════════════════════════════════════════════
 
-  async function renderDocVaultTab() {
-    const el = document.getElementById('td-content-doc-vault');
-    if (!el) return;
-    el.innerHTML = loadingHTML('Loading document vault…');
-    try {
-      const d = await fetchAllSheets();
-
-      // Build dynamic doc list from OTJ sheets
-      const dynDocs = [];
-      function extractLinks(rows, region) {
-        rows.forEach(r => {
-          const link = r['OTJ Checklist Link'] || '';
-          const rawName = ((r['Tutor First']||'').trim() + ' ' + (r['Tutor Last (ADP)']||'').trim()).trim();
-          const name = normalizeApprenticeName(rawName) || rawName;
-          if (link && link.startsWith('http') && name) {
-            dynDocs.push({ label: name + ' — OTJ Checklist', url: link, type:'OTJ Checklist', region, district: r['District']||'', tutor: name, month:'', sl: r['Site Leader']||'' });
-          }
-        });
-      }
-      extractLinks(d.neOtj, 'NE');
-      extractLinks(d.swOtj, 'SW');
-
-      // Combine static + dynamic, dedup by URL
-      const seen = new Set();
-      const allDocs = [];
-      [...dynDocs,...VAULT_STATIC].forEach(doc => {
-        if (!seen.has(doc.url)) { seen.add(doc.url); allDocs.push(doc); }
-      });
-
-      const allDistricts = [...new Set(allDocs.map(d=>d.district).filter(Boolean))].sort();
-      const allTypes = [...new Set(allDocs.map(d=>d.type).filter(Boolean))].sort();
-
-      function docCard(doc, idx) {
-        const typeIcon = { 'OTJ Checklist':'📄','Observation':'👁','Folder':'📁','Form':'📋' };
-        return `<div class="vault-card" data-region="${doc.region||''}" data-type="${doc.type||''}" data-district="${doc.district||''}" data-tutor="${doc.tutor||''}" data-search="${(doc.label||'').toLowerCase()} ${(doc.district||'').toLowerCase()} ${(doc.tutor||'').toLowerCase()} ${(doc.sl||'').toLowerCase()}"
-          style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:.5rem">
-          <div style="display:flex;align-items:flex-start;gap:.625rem">
-            <span style="font-size:1.4rem">${typeIcon[doc.type]||'📄'}</span>
-            <div style="flex:1">
-              <div style="font-weight:700;color:#1B2A4A;font-size:.9rem;line-height:1.3">${doc.label}</div>
-              <div style="font-size:.75rem;color:#6b7280;margin-top:.2rem">
-                ${doc.type ? `<span style="background:#EDF1F8;color:#374151;padding:.1rem .4rem;border-radius:3px;margin-right:.3rem">${doc.type}</span>` : ''}
-                ${doc.region && doc.region!=='All' ? `<span style="background:${doc.region==='NE'?'#dbeafe':'#fef3c7'};color:${doc.region==='NE'?'#1e40af':'#92400e'};padding:.1rem .4rem;border-radius:3px;margin-right:.3rem">${doc.region}</span>` : ''}
-                ${doc.district ? `<span style="color:#374151">${doc.district}</span>` : ''}
-              </div>
-              ${doc.sl ? `<div style="font-size:.75rem;color:#6b7280;margin-top:.15rem">Site Leader: ${doc.sl}</div>` : ''}
-            </div>
-          </div>
-          <div style="display:flex;gap:.5rem;margin-top:.25rem">
-            <a href="${doc.url}" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="font-size:.75rem;text-decoration:none;flex:1;text-align:center">🔗 Open Document</a>
-            <button onclick="navigator.clipboard.writeText('${doc.url.replace(/'/g,"\\'")}').then(()=>this.textContent='Copied!').catch(()=>{})" class="btn btn-secondary btn-sm" style="font-size:.75rem">📋</button>
-          </div>
-        </div>`;
-      }
-
-      el.innerHTML = `
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1.25rem;padding:.875rem;background:#f9fafb;border-radius:8px">
-          <input id="vaultSearch" type="text" placeholder="Search documents…" oninput="vaultApplyFilter()" style="flex:1;min-width:180px;padding:.4rem .75rem;border:1px solid #d1d5db;border-radius:6px;font-size:.85rem">
-          <select id="vaultRegion" onchange="vaultApplyFilter()" style="padding:.4rem .5rem;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem">
-            <option value="">All Regions</option><option value="NE">NE</option><option value="SW">SW</option>
-          </select>
-          <select id="vaultType" onchange="vaultApplyFilter()" style="padding:.4rem .5rem;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem">
-            <option value="">All Types</option>${allTypes.map(t=>`<option value="${t}">${t}</option>`).join('')}
-          </select>
-          <select id="vaultDistrict" onchange="vaultApplyFilter()" style="padding:.4rem .5rem;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem">
-            <option value="">All Districts</option>${allDistricts.map(d=>`<option value="${d}">${d}</option>`).join('')}
-          </select>
-          <span id="vaultCount" style="font-size:.8rem;color:#6b7280;white-space:nowrap">${allDocs.length} documents</span>
-        </div>
-        <div id="vaultGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem">
-          ${allDocs.map((doc,i) => docCard(doc,i)).join('')}
-        </div>`;
-    } catch (e) {
-      el.innerHTML = errorHTML(e.message, 'function(){_tdLoaded["doc-vault"]=false;renderDocVaultTab();}');
-    }
-  }
-
-  window.vaultApplyFilter = function() {
-    const search   = (document.getElementById('vaultSearch')   || {}).value || '';
-    const region   = (document.getElementById('vaultRegion')   || {}).value || '';
-    const type     = (document.getElementById('vaultType')     || {}).value || '';
-    const district = (document.getElementById('vaultDistrict') || {}).value || '';
-    const sq = search.toLowerCase();
-    let visible = 0;
-    document.querySelectorAll('.vault-card').forEach(card => {
-      const rRegion = card.dataset.region || '';
-      const rType   = card.dataset.type   || '';
-      const rDist   = card.dataset.district || '';
-      const rSearch = card.dataset.search   || '';
-      let show = true;
-      if (region   && rRegion !== region && rRegion !== 'All')   show = false;
-      if (type     && rType !== type)       show = false;
-      if (district && rDist !== district)   show = false;
-      if (sq       && !rSearch.includes(sq)) show = false;
-      card.style.display = show ? '' : 'none';
-      if (show) visible++;
-    });
-    const cnt = document.getElementById('vaultCount');
-    if (cnt) cnt.textContent = visible + ' documents';
-  };
 
 
 
@@ -4382,11 +3997,9 @@
         switch (tabId) {
           case 'pd':           renderPDTab();           break;
           case 'intake':       renderIntakeTab();       break;
-          case 'otj-overview': renderOTJOverviewTab();  break;
           case 'apprentice':   renderApprenticeTab();   break;
           case 'tutor-obs':    renderTutorObsTab();     break;
           case 'sl-obs':       renderSLObsTab();        break;
-          case 'doc-vault':    renderDocVaultTab();     break;
           case 'survey-intel': renderSurveyIntelTab();  break;
           default:             renderPDTab();
         }
@@ -4826,6 +4439,7 @@
   window.tdRefresh               = tdRefresh;
   window.tdGenerateExecPDF       = tdGenerateExecPDF;
   window.render2526OtjOverview   = render2526OtjOverview;
+  window.SY2526_DATA             = SY2526_DATA; // exposed for the 2-Year Returners join view (index.html renderReturnersTab)
 
   // ── Pre-fetch obs maps for programming dept profiles view ──────────────────
   // Called by shared-charts.js when programming dept opens the Profiles tab,
