@@ -1,46 +1,8 @@
 {
-  "generated": "2026-07-10T18:56:59.878Z",
+  "generated": "2026-07-10T20:22:16.748Z",
   "project": "1211431518555737",
-  "count": 14,
+  "count": 13,
   "tasks": [
-    {
-      "gid": "1211431518555744",
-      "assignee": {
-        "gid": "1213327755449997",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-07-31",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        }
-      ],
-      "name": "By 2026, serve 2000  scholars annually",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555744"
-    },
     {
       "gid": "1211431518555862",
       "assignee": {
