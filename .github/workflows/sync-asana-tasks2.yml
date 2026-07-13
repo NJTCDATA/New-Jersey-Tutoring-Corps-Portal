@@ -13,6 +13,13 @@
 #   ASANA_PAT — your Asana Personal Access Token
 #
 # ⚠️  NEVER paste the PAT value into this file — use GitHub Secrets only.
+#
+# NOTE (2026-07-13): This workflow and "Sync Asana Tasks" run on the
+# same 30-minute schedule and commit to the same branch. When they
+# fire close together, the second push can get rejected with
+# "! [rejected] main -> main (fetch first)". The commit step below
+# now pulls/rebases immediately before pushing, with a short retry
+# loop, so a collision self-heals instead of failing the run.
 # ─────────────────────────────────────────────────────────────────
 
 name: Sync Asana Tasks (Project 2)
@@ -165,6 +172,12 @@ jobs:
           })();
           NODESCRIPT
 
+      # ── Commit updated tasks2.json ────────────────────────────
+      #
+      # Pulls/rebases immediately before pushing, and retries a few
+      # times on rejection, since "Sync Asana Tasks" runs on the
+      # same schedule and can push to main first.
+      #
       - name: Commit updated tasks2.json
         run: |
           git config user.name  "github-actions[bot]"
@@ -180,6 +193,23 @@ jobs:
 
           Tasks with open deadlines: ${TASK_COUNT}
           Generated: $(date -u +"%Y-%m-%d %H:%M UTC")"
-            git push
+
+            # Retry push up to 5 times, rebasing on top of remote
+            # changes each time, to survive collisions with the
+            # sibling primary sync workflow.
+            MAX_ATTEMPTS=5
+            ATTEMPT=1
+            until git push; do
+              if [ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]; then
+                echo "::error::Push failed after ${MAX_ATTEMPTS} attempts."
+                exit 1
+              fi
+              echo "Push rejected (attempt ${ATTEMPT}/${MAX_ATTEMPTS}) — pulling and retrying…"
+              SLEEP_SECONDS=$(( RANDOM % 10 + 3 ))
+              sleep "$SLEEP_SECONDS"
+              git pull --rebase origin main
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+
             echo "Committed and pushed updated tasks2.json."
           fi
