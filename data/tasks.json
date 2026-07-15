@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-15T14:43:59.231Z",
+  "generated": "2026-07-15T16:15:48.155Z",
   "project": "1211431518555737",
   "count": 13,
   "tasks": [
@@ -252,7 +252,7 @@
         "resource_type": "user"
       },
       "completed": false,
-      "due_on": "2026-06-30",
+      "due_on": "2026-07-30",
       "followers": [
         {
           "gid": "1205203775091388",
