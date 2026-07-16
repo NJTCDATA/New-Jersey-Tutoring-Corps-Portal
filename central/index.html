@@ -5640,7 +5640,7 @@
     <div class="panel" id="panel-pearl-ops">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">SY 2025–2026 · Live Pearl Data</div>
+          <div class="ph-eyebrow" id="poEyebrow">SY 2025–2026 · Live Pearl Data</div>
           <h2 class="ph-title">Pearl Operations Intelligence</h2>
           <p class="ph-subtitle" id="poSubtitle">Live attendance, surveys, HIT compliance, and service interruption tracking across all sites. Auto-refreshes every 5 minutes.</p>
         </div>
@@ -5659,6 +5659,15 @@
             🔍 <span id="poCriticalN">0</span> Needs Review
           </button>
         </div>
+      </div>
+
+      <!-- Period selector — SY 25-26 vs Summer 2026 toggle. Same data source
+           layout, same calculations — only which published sheet/gid set is
+           active changes. Mirrors the SY Analytics period toggle above. -->
+      <div style="display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;margin-bottom:1.25rem;padding:.75rem 1.25rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm)">
+        <span style="font-size:.6875rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0">View:</span>
+        <button id="poPeriodBtn_sy2526" class="pst-tab active" onclick="po.setPeriod('sy2526')" title="SY 2025-26 Pearl attendance, sessions, and surveys">SY 25-26</button>
+        <button id="poPeriodBtn_summer2026" class="pst-tab" onclick="po.setPeriod('summer2026')" title="Summer 2026 Pearl attendance, sessions, and surveys">☀️ Summer 2026</button>
       </div>
 
       <!-- Pearl site count note -->
