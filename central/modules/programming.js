@@ -590,12 +590,35 @@
         const districts = new Set(sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
         setText('syStatSites',     sites.size);
         setText('syStatDistricts', districts.size);
-        setText('syStatActual',    '—');   // No Pearl scholar data for summer
-        setText('syStatEst',       '—');
+        // Active/Est Scholars: pull from Pearl live data — but ONLY if Pearl's own
+        // toggle is currently on Summer 2026 too (po holds one period in memory at
+        // a time). If Pearl hasn't been switched to Summer yet, kick it over now
+        // so the numbers populate without the user needing to visit Pearl Ops first.
+        const _poStatsSummer = (window.po && typeof window.po.getStats === 'function') ? window.po.getStats() : null;
+        const _poIsSummer = _poStatsSummer && _poStatsSummer.activePeriod === 'summer2026';
+        if (_poIsSummer && _poStatsSummer.activeScholars != null) {
+          setText('syStatActual', _poStatsSummer.activeScholars.toLocaleString());
+        } else {
+          setText('syStatActual', '—');
+        }
+        if (_poIsSummer && _poStatsSummer.rosteredScholars != null) {
+          // No separate "quoted capacity" sheet exists for Summer — Pearl's rostered
+          // (enrolled) scholar count is the closest available "Est. Scholars" figure.
+          setText('syStatEst', _poStatsSummer.rosteredScholars.toLocaleString());
+        } else {
+          setText('syStatEst', '—');
+        }
+        if (!_poIsSummer && window.po && typeof window.po.setPeriod === 'function') {
+          window.po.setPeriod('summer2026'); // triggers refresh; next updateStats() pass will have real numbers
+        }
         setText('syStatStaff',     empRows.length.toLocaleString());
         // Cache stats for Exec Dashboard period selector
         window._syaStats = window._syaStats || {};
-        window._syaStats['summer2026'] = { sites: sites.size, districts: districts.size, staff: empRows.length };
+        window._syaStats['summer2026'] = {
+          sites: sites.size, districts: districts.size, staff: empRows.length,
+          activeScholars: _poIsSummer ? _poStatsSummer.activeScholars : null,
+          rosteredScholars: _poIsSummer ? _poStatsSummer.rosteredScholars : null,
+        };
         // Notify exec dashboard
         try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
         return;
@@ -603,9 +626,11 @@
       setText('syStatSites',     s.length);
       setText('syStatDistricts', new Set(s.map(r => r.district)).size);
       // Active scholars: pull directly from Pearl live data (unique scholars with ≥1 Attended/Late session).
-      // Falls back to SY database enrollment sum only if Pearl hasn't loaded yet.
+      // Falls back to SY database enrollment sum if Pearl hasn't loaded, OR if Pearl's own
+      // toggle is currently sitting on Summer data (po only holds one period at a time —
+      // this branch is SY 25-26/26-27, so a Summer-loaded po shouldn't feed numbers here).
       const _poStats = (window.po && typeof window.po.getStats === 'function') ? window.po.getStats() : null;
-      const _pearlActive = (_poStats && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
+      const _pearlActive = (_poStats && _poStats.activePeriod === 'sy2526' && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
       // Total Staff: HR Master List (authoritative) or DB sum fallback.
@@ -1089,7 +1114,7 @@
     function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 
     return { init, refresh, applyFilters, clearFilters, filterByDistrict, selectSite,
-             openChangesModal, onPanelOpen, setPeriod, fetchOnsiteTracker,
+             openChangesModal, onPanelOpen, setPeriod, fetchOnsiteTracker, updateStats,
              getActivePeriod: () => _activePeriod,
              getTrackerRows:  () => _trackerRows.slice(),
              getSites: () => _allSites.slice() };  // read-only live snapshot for exports
@@ -1175,6 +1200,16 @@
     // GIDs for tab order: Attendance Detail(0), Instructor Surveys(1), Student Surveys(2), Session Details(3)
     // Auto-detected at load time — stored once resolved
     const GIDS = { att: null, inst: null, stu: null, sess: null };
+
+    // ── SUMMER 2026 PUBLISHED SHEET CONFIG ──────────────────────────────────
+    // Same workbook structure/gid layout as SY, different published base id.
+    // Summer's "Missed Reasons" tab (gid 702726038) and "Session Details" tab
+    // are identical session-level exports (no per-attendee Attendance Detail
+    // tab exists for Summer) — see buildSummerAttRows() for how per-attendee
+    // rows are derived from session-level data for this period.
+    const SUMMER_BASE_ID = '2PACX-1vQ6lavExR5j-WAPd9ROXLykTQvA2j1rJjMoSWpTGOYj-ni0OJrfwMo-aQWq8zNVwbVon6pioe-8BHuA';
+    const SUMMER_GIDS = { sess: 702726038, inst: 1955492004, stu: 1245403832 };
+    const summerCsvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${SUMMER_BASE_ID}/pub?output=csv&gid=${gid}`;
 
     const REFRESH_MS = 5 * 60 * 1000;
 
@@ -1277,6 +1312,30 @@
       WEEK: 23,
     };
 
+    // ── SUMMER 2026 — RAW SHEET COLUMN INDEXES ───────────────────────────
+    // These map the actual raw Pearl export columns for Summer's 4 tabs
+    // (Missed Reasons / Session Details are identical exports — session-level,
+    // one row per session, not per attendee). Positions verified directly
+    // against "Summer 26: Pearl Attendance and Surveys" (July 2026).
+    const SUM_SESS = {
+      TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, PROGRAM:4, STATUS:5,
+      ATTENDANCE:6, SCHED_START:7, SCHED_DUR:8, ACTUAL_DUR:9, SUBJECT:10,
+      GRADE:11, SCHOOL:12, DISTRICT:13, REGION:14, SESS_ID:15, INST_ID:16,
+      STU_IDS:17,
+    };
+    // Student Surveys — cols 0-13 already match STU_S positions 1:1.
+    const SUM_STU_SURV = {
+      FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4,
+      OVERALL:5, COMMENT:6, DATE:7, SCHOOL:8, DISTRICT:9, REGION:10,
+      SESS_ID:11, FILLED_BY_ID:12, FILLED_FOR_ID:13,
+    };
+    // Instructor Surveys — cols 0-13 already match INST_S positions 1:1.
+    const SUM_INST_SURV = {
+      FILLED_BY:0, FILLED_FOR:1, ENGAGEMENT:2, ENJOYMENT:3, LEARNING:4,
+      OVERALL:5, COMMENT_ADMIN:6, COMMENT_SELF:7, DATE:8, SCHOOL:9,
+      DISTRICT:10, SESS_ID:11, FILLED_BY_ID:12, FILLED_FOR_ID:13,
+    };
+
     // ── WEEK DERIVATION ───────────────────────────────────────────────────
     // Pearl column AA (ATT.WEEK) contains "Week N" labels (e.g. "Week 23").
     // This is the SINGLE source of truth for week grouping across all data.
@@ -1342,6 +1401,42 @@
       d.setDate(SY_START.getDate() + (n - 1) * 7);
       return d;
     }
+
+    // ── SUMMER 2026 — WEEK DERIVATION ─────────────────────────────────────
+    // Summer has no fixed "school year start" to hardcode the way SY_START is
+    // (Aug 25 2025). Instead, SUMMER_START is derived the first time Summer
+    // session data loads: the Monday of the earliest real session date seen.
+    // This mirrors SY's "Week 1 = week of school year start" convention.
+    let _summerStart = null; // Date | null — resolved on first Summer refresh
+    function _resolveSummerStart(sessRawRows) {
+      let earliest = null;
+      for (const r of sessRawRows) {
+        const d = parseDateStr(r[SUM_SESS.SCHED_START]);
+        if (d && (!earliest || d < earliest)) earliest = d;
+      }
+      if (!earliest) return; // keep previous value (or null) if nothing parseable
+      const day = earliest.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const mon = new Date(earliest);
+      mon.setDate(earliest.getDate() + diff);
+      mon.setHours(0,0,0,0);
+      // Only update if this is earlier than what we already have (data can
+      // arrive in any order across refreshes) so week numbers stay stable.
+      if (!_summerStart || mon < _summerStart) _summerStart = mon;
+    }
+    function summerWeekKeyFromDateStr(dateStr) {
+      if (!_summerStart) return '';
+      const d = parseDateStr(dateStr);
+      if (!d) return '';
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const mon = new Date(d);
+      mon.setDate(d.getDate() + diff);
+      const msSince = mon.getTime() - _summerStart.getTime();
+      const weekNum = Math.floor(msSince / (7 * 24 * 60 * 60 * 1000)) + 1;
+      if (weekNum < 1) return '';
+      return `Week ${weekNum}`;
+    }
     // Attended counts: actual Attended/Late status AND these miss reasons
     // ── ATTENDANCE CLASSIFICATION ────────────────────────────────────────
     // Scholar attendance rate = attended / (attended + SCHOLAR_MISS)
@@ -1362,8 +1457,6 @@
     const SCHOLAR_MISS_REASONS = new Set([
       'Absent',                                     // scholar absent from school
       'Scholar declined attending tutoring session', // scholar's own choice
-      'Classroom Teacher Requested to Keep Scholar in Class', // teacher kept scholar — counts as missed tutoring
-      'HADDON TWP ONLY -- Teacher requested whole group support', // same — teacher decision, scholar missed tutoring
       'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
     ]);
 
@@ -1396,6 +1489,12 @@
       'School Event':                               'medium',
       'Scheduled/Unscheduled School Drill':         'medium',
       'HADDON TWP ONLY -- Program Redevelopment':   'medium',
+      // Moved here from SCHOLAR_MISS_REASONS (July 2026): keeping a scholar in
+      // class is a school/staff decision, not the scholar's choice — it's not
+      // something the scholar controls, so it counts as a service interruption,
+      // not a plain absence. (Applies to both SY and Summer data.)
+      'Classroom Teacher Requested to Keep Scholar in Class': 'medium',
+      'HADDON TWP ONLY -- Teacher requested whole group support': 'medium',
       'Half Day':                                   'low',
       'Holiday - scheduled':                        'low',
       // 'Scholar declined attending tutoring session' intentionally removed —
@@ -1434,6 +1533,182 @@
 
     function getSISeverity(reason) {
       return SI_SEVERITY[reason] || 'medium';
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SUMMER 2026 — session-level → per-attendee translation layer
+    // ══════════════════════════════════════════════════════════════════════
+    // Summer's raw sheets are session-level (one row per session, roster as a
+    // comma list) — there is no per-attendee Attendance Status / Missed Reason
+    // tab like SY has. The functions below explode each session row into
+    // synthetic ATT-shaped rows (Role / Attendance Status / Missed Reason —
+    // the exact same fields classifyRecord() already reads) so classifyRecord,
+    // buildIndexes, updateStats, exportData, etc. run completely unmodified
+    // against Summer data, exactly as they do for SY. Rules confirmed with
+    // NJTC Programming (July 2026):
+    //   • Session→participant and survey→session assignment is via Pearl
+    //     Session ID (+ Student ID for surveys).
+    //   • Service interruptions are limited to causes outside a scholar's
+    //     control: instructor-caused misses, and cancelled/rescheduled
+    //     sessions. A scholar's own miss is a plain absence, not an SI.
+    //   • Both "Attended" and "Partially Attended" count toward overall/
+    //     session-delivered attendance.
+    //   • For "Partially Attended" sessions, the specific attendee(s) are
+    //     pinpointed via Session ID + Student ID matched against Student
+    //     Survey responses (a student with a survey tied to that exact
+    //     session was present); unmatched roster students are marked absent.
+    //   • NOTE: Pearl's Summer export has no free-text missed-reason field,
+    //     so the one exception NJTC called out ("Classroom Teacher Requested
+    //     to Keep Scholar" as an SI) cannot be detected from this data — flag
+    //     for follow-up if/when Pearl exposes a reason field for Summer too.
+    function classifySummerSession(status, attendance) {
+      const st = (status || '').trim();
+      const a  = (attendance || '').trim();
+      if (st === 'Scheduled') return 'skip';                 // hasn't happened yet
+      if (st === 'Cancelled' || st === 'Rescheduled') return 'si_all'; // nobody's fault
+      if (st === 'Completed') {
+        if (a === 'Attended' || a === 'Partially Attended') return 'attended';
+        return 'si_all';       // Completed but no clean attendance value — don't guess blame
+      }
+      if (st === 'Missed') {
+        if (a === 'Missed By Instructor') return 'si_instructor_only';
+        if (a === 'Missed By Students')   return 'absent_student';
+        return 'si_all';       // ambiguous miss — can't attribute fault to either side
+      }
+      return 'skip';            // unrecognized status — don't fabricate data
+    }
+
+    function buildSummerAttRows(sessRaw, stuSurveyRaw) {
+      // "sessionId|studentId" pairs confirmed present via a Student Survey response —
+      // used only to resolve individual outcomes within "Partially Attended" sessions.
+      const confirmed = new Set();
+      for (const s of stuSurveyRaw) {
+        const sid = s[SUM_STU_SURV.SESS_ID];
+        const stuId = s[SUM_STU_SURV.FILLED_BY_ID];
+        if (sid && stuId) confirmed.add(sid + '|' + stuId);
+      }
+
+      const out = [];
+      for (const r of sessRaw) {
+        const sessId = r[SUM_SESS.SESS_ID];
+        if (!sessId) continue; // blank padding row in the published sheet
+
+        const status     = r[SUM_SESS.STATUS];
+        const attendance = r[SUM_SESS.ATTENDANCE];
+        const outcome = classifySummerSession(status, attendance);
+        if (outcome === 'skip') continue;
+
+        const title    = r[SUM_SESS.TITLE];
+        const start    = r[SUM_SESS.SCHED_START];
+        const school   = r[SUM_SESS.SCHOOL];
+        const district = r[SUM_SESS.DISTRICT];
+        const grade    = r[SUM_SESS.GRADE];
+        const instName = r[SUM_SESS.INSTRUCTOR];
+        const instId   = r[SUM_SESS.INST_ID];
+        const week     = summerWeekKeyFromDateStr(start);
+        const studentNames = (r[SUM_SESS.STUDENTS] || '').split(',').map(s => s.trim()).filter(Boolean);
+        const studentIds   = (r[SUM_SESS.STU_IDS]   || '').split(',').map(s => s.trim()).filter(Boolean);
+
+        function pushRow(name, uid, role, attStatus, missReason) {
+          const row = [];
+          row[ATT.USER]        = name;
+          row[ATT.ROLE]        = role;
+          row[ATT.SESSION]     = title;
+          row[ATT.SESS_STATUS] = status;
+          row[ATT.PLAN_START]  = start;
+          row[ATT.SESS_DATE]   = start;
+          row[ATT.ATT_STATUS]  = attStatus;
+          row[ATT.MISS_REASON] = missReason;
+          row[ATT.GRADE]       = grade;
+          row[ATT.SCHOOL]      = school;
+          row[ATT.DISTRICT]    = district;
+          row[ATT.USER_ID]     = uid;
+          row[ATT.WEEK]        = week;
+          out.push(row);
+        }
+
+        if (outcome === 'si_all') {
+          // Cancelled/rescheduled/ambiguous — nobody's fault, service interruption for all.
+          pushRow(instName, instId, 'Instructor', 'Missed', '');
+          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'NJTC Internal Issue/Error'));
+        } else if (outcome === 'si_instructor_only') {
+          // Instructor's own miss — absence for the tutor; service interruption for scholars
+          // (not their fault the tutor wasn't there).
+          pushRow(instName, instId, 'Instructor', 'Missed', 'Absent; Not Covered (Tutor not available)');
+          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'Tutor Vacancy'));
+        } else if (outcome === 'absent_student') {
+          // Instructor showed up; scholars did not — their own miss, not an SI.
+          pushRow(instName, instId, 'Instructor', 'Attended', '');
+          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'Absent'));
+        } else if (outcome === 'attended') {
+          pushRow(instName, instId, 'Instructor', 'Attended', '');
+          if (attendance === 'Attended') {
+            studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Attended', ''));
+          } else {
+            // Partially Attended — pinpoint who via Session ID + Student ID against surveys.
+            studentNames.forEach((name, i) => {
+              const sid = studentIds[i];
+              const wasPresent = sid && confirmed.has(sessId + '|' + sid);
+              pushRow(name, sid, 'Student', wasPresent ? 'Attended' : 'Missed', wasPresent ? '' : 'Absent');
+            });
+          }
+        }
+      }
+      return out;
+    }
+
+    // Session-level rows for _sessRows (session/delivery stats) — direct field
+    // mapping from the raw Summer columns into the shared SESS index positions.
+    function buildSummerSessRows(sessRaw) {
+      const out = [];
+      for (const r of sessRaw) {
+        const sessId = r[SUM_SESS.SESS_ID];
+        if (!sessId) continue;
+        const row = [];
+        row[SESS.TITLE]      = r[SUM_SESS.TITLE];
+        row[SESS.INSTRUCTOR] = r[SUM_SESS.INSTRUCTOR];
+        row[SESS.STUDENTS]   = r[SUM_SESS.STUDENTS];
+        row[SESS.LOCATION]   = r[SUM_SESS.LOCATION];
+        row[SESS.STATUS]     = r[SUM_SESS.STATUS];
+        row[SESS.ATTENDANCE] = r[SUM_SESS.ATTENDANCE];
+        row[SESS.START]      = r[SUM_SESS.SCHED_START];
+        row[SESS.SCHED_DUR]  = r[SUM_SESS.SCHED_DUR];
+        row[SESS.ACTUAL_DUR] = r[SUM_SESS.ACTUAL_DUR];
+        row[SESS.SUBJECT]    = r[SUM_SESS.SUBJECT];
+        row[SESS.GRADE]      = r[SUM_SESS.GRADE];
+        row[SESS.SCHOOL]     = r[SUM_SESS.SCHOOL];
+        row[SESS.DISTRICT]   = r[SUM_SESS.DISTRICT];
+        row[SESS.REGION]     = r[SUM_SESS.REGION];
+        row[SESS.SESS_ID]    = sessId;
+        row[SESS.INST_ID]    = r[SUM_SESS.INST_ID];
+        row[SESS.STU_IDS]    = r[SUM_SESS.STU_IDS];
+        out.push(row);
+      }
+      return out;
+    }
+
+    // Survey rows — Summer's raw columns already match STU_S / INST_S 0-13
+    // 1:1, so this just filters blank rows and fills the derived WEEK column
+    // (Summer's raw export has no week column, same as SY's session rows).
+    function buildSummerStuRows(stuRaw) {
+      const out = [];
+      for (const r of stuRaw) {
+        if (!r[SUM_STU_SURV.SESS_ID]) continue;
+        const row = r.slice(0, 14);
+        row[STU_S.WEEK] = summerWeekKeyFromDateStr(row[STU_S.DATE]);
+        out.push(row);
+      }
+      return out;
+    }
+    function buildSummerInstRows(instRaw) {
+      const out = [];
+      for (const r of instRaw) {
+        if (!r[SUM_INST_SURV.SESS_ID]) continue;
+        const row = r.slice(0, 14);
+        row[INST_S.WEEK] = summerWeekKeyFromDateStr(row[INST_S.DATE]);
+        out.push(row);
+      }
+      return out;
     }
 
     // ── COMMENT CATEGORIZATION ────────────────────────────────────────────
@@ -1585,6 +1860,9 @@
     let _sessRows = [];   // parsed session details
     let _stuRows  = [];   // parsed student surveys (grows during stream)
     let _instRows = [];   // parsed instructor surveys
+
+    // Period toggle — 'sy2526' (default, existing live data) | 'summer2026'
+    let _activePeriod = 'sy2526';
 
     // Scholar survey stream state
     // _stuAggScores: final scores from a COMPLETE stream run (or restored from cache)
@@ -1819,6 +2097,10 @@
           stats.totalRows = _attRows.length + _sessRows.length + _instRows.length;
           stats.loaded = stats.scholAttPct !== null;
         } catch(e) { console.warn('[po.getStats] error:', e.message); }
+        // Which period this snapshot reflects — callers (sya, exec dashboard)
+        // must check this before trusting the numbers for a specific period,
+        // since getStats() always reflects whatever is currently loaded.
+        stats.activePeriod = _activePeriod;
         return stats;
       },
 
@@ -2099,8 +2381,42 @@
       return Object.values(GIDS).some(v => v !== null); // at least one resolved
     }
 
-    // ── FETCH ALL TABS ────────────────────────────────────────────────────
+    // ── PERIOD TOGGLE ─────────────────────────────────────────────────────
+    // Mirrors the sya.setPeriod() pattern used by the SY Analytics panel:
+    // flip the active period, reset UI + derived state, and force a re-fetch
+    // from the correct source. classifyRecord/buildIndexes/updateStats/
+    // exportData are untouched — they always just read whatever is currently
+    // sitting in _attRows/_sessRows/_stuRows/_instRows.
+    function setPeriod(period) {
+      if (_activePeriod === period) return;
+      if (period !== 'sy2526' && period !== 'summer2026') return;
+      _activePeriod = period;
+
+      ['sy2526', 'summer2026'].forEach(p => {
+        const btn = document.getElementById('poPeriodBtn_' + p);
+        if (btn) btn.classList.toggle('active', p === period);
+      });
+      const eyebrow = document.getElementById('poEyebrow');
+      if (eyebrow) eyebrow.textContent = period === 'summer2026'
+        ? '☀️ Summer 2026 · Live Pearl Data'
+        : 'SY 2025–2026 · Live Pearl Data';
+
+      // Reset all derived state — do NOT mix SY and Summer records together.
+      _attRows = []; _sessRows = []; _stuRows = []; _instRows = [];
+      _schoolMap = {}; _personMap = {}; _sessMap = {};
+      _view = 'schools'; _selSchool = null; _selPerson = null;
+      _stuStreamComplete = false; _stuAggScores = null;
+
+      refresh(true);
+    }
+
+    // ── FETCH ALL TABS — DISPATCH BY PERIOD ─────────────────────────────
     async function refresh(force = false) {
+      return _activePeriod === 'summer2026' ? refreshSummer(force) : refreshSY(force);
+    }
+
+    // ── FETCH ALL TABS — SY 25-26 (existing, unchanged) ───────────────────
+    async function refreshSY(force = false) {
       if (_loading) return;
       _loading = true;
 
@@ -2215,6 +2531,95 @@
         }
       } catch(e) {
         console.warn('[Pearl Ops] Fetch failed:', e.message);
+        setSyncState('error');
+      }
+      if (btn) btn.disabled = false;
+      _loading = false;
+    }
+
+    // ── FETCH ALL TABS — SUMMER 2026 ────────────────────────────────────
+    // Summer's 4 tabs are session-level + surveys (no streaming needed yet —
+    // far smaller than SY's year-long scholar survey sheet). Fetched fully,
+    // then run through the explode/translate layer above so every downstream
+    // function (classifyRecord, buildIndexes, updateStats, exportData, …)
+    // operates on the exact same row shapes it always has.
+    async function fetchSummerTab(gid, bust, timeoutMs, label) {
+      if (!gid) { console.warn('[Pearl Ops][Summer] GID missing for tab:', label); return ''; }
+      const res = await fetch(summerCsvUrl(gid) + (bust || ''), { signal: AbortSignal.timeout(timeoutMs) });
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' tab=' + label);
+      return res.text();
+    }
+
+    async function refreshSummer(force = false) {
+      if (_loading) return;
+      _loading = true;
+
+      if (!force) {
+        const _pc = NJTC_CACHE.get('njtc_pearl_summer_v1');
+        if (_pc && _pc.data) {
+          try {
+            _attRows  = _pc.data.att  || [];
+            _sessRows = _pc.data.sess || [];
+            _stuRows  = _pc.data.stu  || [];
+            _instRows = _pc.data.inst || [];
+            buildIndexes();
+            setSyncState(_pc.fresh ? 'live' : 'stale');
+            populateFilters();
+            renderView();
+            const btn2 = document.getElementById('poRefreshBtn');
+            if (btn2) btn2.disabled = false;
+            _loading = false;
+            if (_pc.fresh) return;
+          } catch(e) { /* fall through to network */ }
+        }
+      }
+
+      setSyncState('loading');
+      const btn = document.getElementById('poRefreshBtn');
+      if (btn) btn.disabled = true;
+      try {
+        const bust = force ? ('&t=' + Date.now()) : '';
+        const [sessResult, instResult, stuResult] = await Promise.allSettled([
+          fetchSummerTab(SUMMER_GIDS.sess, bust, 30000, 'summer-sess'),
+          fetchSummerTab(SUMMER_GIDS.inst, bust, 25000, 'summer-inst'),
+          fetchSummerTab(SUMMER_GIDS.stu,  bust, 30000, 'summer-stu'),
+        ]);
+
+        const sessRaw = sessResult.status === 'fulfilled' ? parseCSV(sessResult.value).slice(1) : [];
+        const instRaw = instResult.status === 'fulfilled' ? parseCSV(instResult.value).slice(1) : [];
+        const stuRaw  = stuResult.status  === 'fulfilled' ? parseCSV(stuResult.value).slice(1)  : [];
+        if (sessResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] session tab failed:', sessResult.reason && sessResult.reason.message);
+        if (instResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] instructor survey tab failed:', instResult.reason && instResult.reason.message);
+        if (stuResult.status  !== 'fulfilled') console.warn('[Pearl Ops][Summer] student survey tab failed:', stuResult.reason && stuResult.reason.message);
+
+        _resolveSummerStart(sessRaw);
+
+        _attRows  = buildSummerAttRows(sessRaw, stuRaw);
+        _sessRows = buildSummerSessRows(sessRaw);
+        _stuRows  = buildSummerStuRows(stuRaw);
+        _instRows = buildSummerInstRows(instRaw);
+        _stuStreamComplete = true; // Summer surveys aren't streamed — the fetched set is the complete set
+
+        _lastFetch = new Date();
+        buildIndexes();
+
+        try {
+          NJTC_CACHE.set('njtc_pearl_summer_v1', {
+            att: _attRows, sess: _sessRows, stu: _stuRows, inst: _instRows,
+          });
+        } catch(e) {}
+
+        const allTabsFailed = !_attRows.length && !_sessRows.length && !_instRows.length;
+        if (allTabsFailed) {
+          console.warn('[Pearl Ops][Summer] All tabs failed to load.');
+          setSyncState('error');
+        } else {
+          setSyncState('live');
+          populateFilters();
+          renderView();
+        }
+      } catch(e) {
+        console.warn('[Pearl Ops][Summer] Fetch failed:', e.message);
         setSyncState('error');
       }
       if (btn) btn.disabled = false;
@@ -5940,6 +6345,12 @@
           if (typeof window.advRefreshBanner === 'function') window.advRefreshBanner();
         }
       } catch(e2) { /* ignore */ }
+      // Pearl data just (re)loaded — SY Analytics' Active/Est Scholars tiles and the
+      // Executive Command Center both read Pearl live data cross-module. Refresh them
+      // so a Summer 2026 fetch triggered from those screens shows up without the user
+      // needing to separately open Pearl Operations.
+      try { if (window.sya && typeof window.sya.updateStats === 'function') window.sya.updateStats(); } catch(e3) {}
+      try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(e4) {}
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────
@@ -7128,11 +7539,13 @@
       ].filter(Boolean).join(' | ') || 'No filters — full dataset';
 
       const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,16);
-      const filename = `NJTC_Pearl_Export_${isFiltered ? 'Filtered_' : ''}${ts}`;
+      const periodTag = _activePeriod === 'summer2026' ? 'Summer2026_' : 'SY2526_';
+      const filename = `NJTC_Pearl_Export_${periodTag}${isFiltered ? 'Filtered_' : ''}${ts}`;
 
       if (format === 'csv') {
         const NL = '\n';
         let csvContent = 'NJTC Pearl Operations Export' + NL
+          + 'Period: ' + (_activePeriod === 'summer2026' ? 'Summer 2026' : 'SY 25-26') + NL
           + 'Generated: ' + new Date().toLocaleString() + NL
           + 'Filters: ' + filterDesc + NL + NL;
         for (const sheet of sheets) {
@@ -7174,6 +7587,7 @@
       // Cover / Meta sheet
       const metaData = [
         ['NJTC Pearl Operations — Data Export'],
+        ['Period', _activePeriod === 'summer2026' ? 'Summer 2026' : 'SY 25-26'],
         ['Generated', new Date().toLocaleString()],
         ['Filters Applied', filterDesc],
         [''],
@@ -7241,7 +7655,7 @@
         <div style="background:var(--surface);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:520px;max-width:95vw;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#1e3a5f,#2a5298);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div style="color:#fff;font-weight:700;font-size:1.1rem;">📥 Export Pearl Data</div>
+              <div style="color:#fff;font-weight:700;font-size:1.1rem;">📥 Export Pearl Data — ${_activePeriod === 'summer2026' ? '☀️ Summer 2026' : 'SY 25-26'}</div>
               <div style="color:rgba(255,255,255,.7);font-size:.8125rem;margin-top:.2rem;">${isFiltered ? 'Filtered export' : 'Full dataset export'}</div>
             </div>
             <button onclick="document.getElementById('poExportModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1.1rem;">✕</button>
@@ -7667,7 +8081,7 @@
     }
 
     return {
-      init, refresh, applyFilters, clearFilters, _globalSearch,
+      init, refresh, setPeriod, applyFilters, clearFilters, _globalSearch,
       drillSchool, drillPerson, goBack,
       switchTab, switchPersonTab,
       openFlagsModal, onPanelOpen,
@@ -8221,6 +8635,10 @@
           } catch(e){}
           stats.loaded = stats.scholAttPct !== null;
         } catch(e) { console.warn('[po.getStats] error:', e.message); }
+        // Which period this snapshot reflects — callers (sya, exec dashboard)
+        // must check this before trusting the numbers for a specific period,
+        // since getStats() always reflects whatever is currently loaded.
+        stats.activePeriod = _activePeriod;
         return stats;
       },
       getStellarSchools: function() {
