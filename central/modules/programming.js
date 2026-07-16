@@ -611,11 +611,20 @@
         if (!_poIsSummer && window.po && typeof window.po.setPeriod === 'function') {
           window.po.setPeriod('summer2026'); // triggers refresh; next updateStats() pass will have real numbers
         }
-        setText('syStatStaff',     empRows.length.toLocaleString());
+        // Staff — Summer only: sourced from Pearl instead of the onsite tracker/HR list.
+        //   Total Staff  = every unique instructor who appears in Pearl for this period.
+        //   Active Staff = unique instructors with at least 1 completed/attended session.
+        // SY periods are untouched — they still use the tracker/HR Master List path below.
+        const _staffTotal  = _poIsSummer && _poStatsSummer.activeTutors      != null ? _poStatsSummer.activeTutors      : null;
+        const _staffActive = _poIsSummer && _poStatsSummer.activeInstructors != null ? _poStatsSummer.activeInstructors : null;
+        setText('syStatStaff', _staffTotal != null ? _staffTotal.toLocaleString() : empRows.length.toLocaleString());
+        setText('syStatStaffSub', _staffTotal != null ? 'Unique instructors · Pearl' : 'Active FT staff · Summer tracker');
         // Cache stats for Exec Dashboard period selector
         window._syaStats = window._syaStats || {};
         window._syaStats['summer2026'] = {
-          sites: sites.size, districts: districts.size, staff: empRows.length,
+          sites: sites.size, districts: districts.size,
+          staff:       _staffTotal  != null ? _staffTotal  : empRows.length,
+          staffActive: _staffActive != null ? _staffActive : null,
           activeScholars: _poIsSummer ? _poStatsSummer.activeScholars : null,
           rosteredScholars: _poIsSummer ? _poStatsSummer.rosteredScholars : null,
         };
@@ -1203,12 +1212,13 @@
 
     // ── SUMMER 2026 PUBLISHED SHEET CONFIG ──────────────────────────────────
     // Same workbook structure/gid layout as SY, different published base id.
-    // Summer's "Missed Reasons" tab (gid 702726038) and "Session Details" tab
-    // are identical session-level exports (no per-attendee Attendance Detail
-    // tab exists for Summer) — see buildSummerAttRows() for how per-attendee
-    // rows are derived from session-level data for this period.
+    // "Missed Reasons" (gid 702726038) is the real per-attendee Attendance
+    // Detail tab (User/Role/Session/Attendance Status/Missed Reason — same 14
+    // columns as SY's ATT map, cols A-N) — parsed directly with the ATT map,
+    // same as SY. "Session Details" (gid 625567780) is the separate session-
+    // level tab used only for session/delivery stats (_sessRows).
     const SUMMER_BASE_ID = '2PACX-1vQ6lavExR5j-WAPd9ROXLykTQvA2j1rJjMoSWpTGOYj-ni0OJrfwMo-aQWq8zNVwbVon6pioe-8BHuA';
-    const SUMMER_GIDS = { sess: 702726038, inst: 1955492004, stu: 1245403832 };
+    const SUMMER_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832 };
     const summerCsvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${SUMMER_BASE_ID}/pub?output=csv&gid=${gid}`;
 
     const REFRESH_MS = 5 * 60 * 1000;
@@ -1313,9 +1323,11 @@
     };
 
     // ── SUMMER 2026 — RAW SHEET COLUMN INDEXES ───────────────────────────
-    // These map the actual raw Pearl export columns for Summer's 4 tabs
-    // (Missed Reasons / Session Details are identical exports — session-level,
-    // one row per session, not per attendee). Positions verified directly
+    // These map the raw Pearl export columns for Summer's Session Details tab
+    // (session-level: one row per session) and the two survey tabs. The
+    // Missed Reasons/Attendance Detail tab is NOT mapped here — it's parsed
+    // directly with SY's own ATT map (see refreshSummer()) since it's the
+    // same 14-column per-attendee layout as SY. Positions verified directly
     // against "Summer 26: Pearl Attendance and Surveys" (July 2026).
     const SUM_SESS = {
       TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, PROGRAM:4, STATUS:5,
@@ -1408,10 +1420,11 @@
     // session data loads: the Monday of the earliest real session date seen.
     // This mirrors SY's "Week 1 = week of school year start" convention.
     let _summerStart = null; // Date | null — resolved on first Summer refresh
-    function _resolveSummerStart(sessRawRows) {
+    // rows: array of raw row arrays; dateIdx: column index holding the session date/start
+    function _resolveSummerStart(rows, dateIdx) {
       let earliest = null;
-      for (const r of sessRawRows) {
-        const d = parseDateStr(r[SUM_SESS.SCHED_START]);
+      for (const r of rows) {
+        const d = parseDateStr(r[dateIdx]);
         if (d && (!earliest || d < earliest)) earliest = d;
       }
       if (!earliest) return; // keep previous value (or null) if nothing parseable
@@ -1536,126 +1549,18 @@
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // SUMMER 2026 — session-level → per-attendee translation layer
+    // SUMMER 2026 — session-level helpers
     // ══════════════════════════════════════════════════════════════════════
-    // Summer's raw sheets are session-level (one row per session, roster as a
-    // comma list) — there is no per-attendee Attendance Status / Missed Reason
-    // tab like SY has. The functions below explode each session row into
-    // synthetic ATT-shaped rows (Role / Attendance Status / Missed Reason —
-    // the exact same fields classifyRecord() already reads) so classifyRecord,
-    // buildIndexes, updateStats, exportData, etc. run completely unmodified
-    // against Summer data, exactly as they do for SY. Rules confirmed with
-    // NJTC Programming (July 2026):
-    //   • Session→participant and survey→session assignment is via Pearl
-    //     Session ID (+ Student ID for surveys).
-    //   • Service interruptions are limited to causes outside a scholar's
-    //     control: instructor-caused misses, and cancelled/rescheduled
-    //     sessions. A scholar's own miss is a plain absence, not an SI.
-    //   • Both "Attended" and "Partially Attended" count toward overall/
-    //     session-delivered attendance.
-    //   • For "Partially Attended" sessions, the specific attendee(s) are
-    //     pinpointed via Session ID + Student ID matched against Student
-    //     Survey responses (a student with a survey tied to that exact
-    //     session was present); unmatched roster students are marked absent.
-    //   • NOTE: Pearl's Summer export has no free-text missed-reason field,
-    //     so the one exception NJTC called out ("Classroom Teacher Requested
-    //     to Keep Scholar" as an SI) cannot be detected from this data — flag
-    //     for follow-up if/when Pearl exposes a reason field for Summer too.
-    function classifySummerSession(status, attendance) {
-      const st = (status || '').trim();
-      const a  = (attendance || '').trim();
-      if (st === 'Scheduled') return 'skip';                 // hasn't happened yet
-      if (st === 'Cancelled' || st === 'Rescheduled') return 'si_all'; // nobody's fault
-      if (st === 'Completed') {
-        if (a === 'Attended' || a === 'Partially Attended') return 'attended';
-        return 'si_all';       // Completed but no clean attendance value — don't guess blame
-      }
-      if (st === 'Missed') {
-        if (a === 'Missed By Instructor') return 'si_instructor_only';
-        if (a === 'Missed By Students')   return 'absent_student';
-        return 'si_all';       // ambiguous miss — can't attribute fault to either side
-      }
-      return 'skip';            // unrecognized status — don't fabricate data
-    }
-
-    function buildSummerAttRows(sessRaw, stuSurveyRaw) {
-      // "sessionId|studentId" pairs confirmed present via a Student Survey response —
-      // used only to resolve individual outcomes within "Partially Attended" sessions.
-      const confirmed = new Set();
-      for (const s of stuSurveyRaw) {
-        const sid = s[SUM_STU_SURV.SESS_ID];
-        const stuId = s[SUM_STU_SURV.FILLED_BY_ID];
-        if (sid && stuId) confirmed.add(sid + '|' + stuId);
-      }
-
-      const out = [];
-      for (const r of sessRaw) {
-        const sessId = r[SUM_SESS.SESS_ID];
-        if (!sessId) continue; // blank padding row in the published sheet
-
-        const status     = r[SUM_SESS.STATUS];
-        const attendance = r[SUM_SESS.ATTENDANCE];
-        const outcome = classifySummerSession(status, attendance);
-        if (outcome === 'skip') continue;
-
-        const title    = r[SUM_SESS.TITLE];
-        const start    = r[SUM_SESS.SCHED_START];
-        const school   = r[SUM_SESS.SCHOOL];
-        const district = r[SUM_SESS.DISTRICT];
-        const grade    = r[SUM_SESS.GRADE];
-        const instName = r[SUM_SESS.INSTRUCTOR];
-        const instId   = r[SUM_SESS.INST_ID];
-        const week     = summerWeekKeyFromDateStr(start);
-        const studentNames = (r[SUM_SESS.STUDENTS] || '').split(',').map(s => s.trim()).filter(Boolean);
-        const studentIds   = (r[SUM_SESS.STU_IDS]   || '').split(',').map(s => s.trim()).filter(Boolean);
-
-        function pushRow(name, uid, role, attStatus, missReason) {
-          const row = [];
-          row[ATT.USER]        = name;
-          row[ATT.ROLE]        = role;
-          row[ATT.SESSION]     = title;
-          row[ATT.SESS_STATUS] = status;
-          row[ATT.PLAN_START]  = start;
-          row[ATT.SESS_DATE]   = start;
-          row[ATT.ATT_STATUS]  = attStatus;
-          row[ATT.MISS_REASON] = missReason;
-          row[ATT.GRADE]       = grade;
-          row[ATT.SCHOOL]      = school;
-          row[ATT.DISTRICT]    = district;
-          row[ATT.USER_ID]     = uid;
-          row[ATT.WEEK]        = week;
-          out.push(row);
-        }
-
-        if (outcome === 'si_all') {
-          // Cancelled/rescheduled/ambiguous — nobody's fault, service interruption for all.
-          pushRow(instName, instId, 'Instructor', 'Missed', '');
-          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'NJTC Internal Issue/Error'));
-        } else if (outcome === 'si_instructor_only') {
-          // Instructor's own miss — absence for the tutor; service interruption for scholars
-          // (not their fault the tutor wasn't there).
-          pushRow(instName, instId, 'Instructor', 'Missed', 'Absent; Not Covered (Tutor not available)');
-          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'Tutor Vacancy'));
-        } else if (outcome === 'absent_student') {
-          // Instructor showed up; scholars did not — their own miss, not an SI.
-          pushRow(instName, instId, 'Instructor', 'Attended', '');
-          studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Missed', 'Absent'));
-        } else if (outcome === 'attended') {
-          pushRow(instName, instId, 'Instructor', 'Attended', '');
-          if (attendance === 'Attended') {
-            studentNames.forEach((name, i) => pushRow(name, studentIds[i], 'Student', 'Attended', ''));
-          } else {
-            // Partially Attended — pinpoint who via Session ID + Student ID against surveys.
-            studentNames.forEach((name, i) => {
-              const sid = studentIds[i];
-              const wasPresent = sid && confirmed.has(sessId + '|' + sid);
-              pushRow(name, sid, 'Student', wasPresent ? 'Attended' : 'Missed', wasPresent ? '' : 'Absent');
-            });
-          }
-        }
-      }
-      return out;
-    }
+    // Attendance/service-interruption classification needs NO Summer-specific
+    // logic: Summer's "Missed Reasons" tab is the real per-attendee Attendance
+    // Detail export (same 14-column layout as SY — User/Role/Session/.../
+    // Attendance Status/Missed Reason/.../Pearl User ID), parsed directly with
+    // SY's own ATT map in refreshSummer(). classifyRecord() runs unmodified
+    // against it, exactly as it does for SY.
+    //
+    // (An earlier version of this file inferred per-attendee outcomes from
+    // session-level rollups because the Missed Reasons tab was originally
+    // mis-published as a duplicate of Session Details — since corrected.)
 
     // Session-level rows for _sessRows (session/delivery stats) — direct field
     // mapping from the raw Summer columns into the shared SESS index positions.
@@ -2579,22 +2484,35 @@
       if (btn) btn.disabled = true;
       try {
         const bust = force ? ('&t=' + Date.now()) : '';
-        const [sessResult, instResult, stuResult] = await Promise.allSettled([
+        const [attResult, sessResult, instResult, stuResult] = await Promise.allSettled([
+          fetchSummerTab(SUMMER_GIDS.att,  bust, 30000, 'summer-att'),
           fetchSummerTab(SUMMER_GIDS.sess, bust, 30000, 'summer-sess'),
           fetchSummerTab(SUMMER_GIDS.inst, bust, 25000, 'summer-inst'),
           fetchSummerTab(SUMMER_GIDS.stu,  bust, 30000, 'summer-stu'),
         ]);
 
+        // "Missed Reasons" is now the real per-attendee Attendance Detail tab —
+        // same 14-column layout as SY (User/Role/Session/.../Missed Reason/.../
+        // Pearl User ID), so it's parsed with the exact same ATT map and CSV
+        // parser SY uses. No translation layer needed for attendance data.
+        const attRaw  = attResult.status  === 'fulfilled' ? parseCSVLimit(attResult.value, ATT_MAX_COL).slice(1) : [];
         const sessRaw = sessResult.status === 'fulfilled' ? parseCSV(sessResult.value).slice(1) : [];
         const instRaw = instResult.status === 'fulfilled' ? parseCSV(instResult.value).slice(1) : [];
         const stuRaw  = stuResult.status  === 'fulfilled' ? parseCSV(stuResult.value).slice(1)  : [];
+        if (attResult.status  !== 'fulfilled') console.warn('[Pearl Ops][Summer] attendance/missed-reasons tab failed:', attResult.reason && attResult.reason.message);
         if (sessResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] session tab failed:', sessResult.reason && sessResult.reason.message);
         if (instResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] instructor survey tab failed:', instResult.reason && instResult.reason.message);
         if (stuResult.status  !== 'fulfilled') console.warn('[Pearl Ops][Summer] student survey tab failed:', stuResult.reason && stuResult.reason.message);
 
-        _resolveSummerStart(sessRaw);
+        // Summer's Missed Reasons tab has no WEEK column (unlike SY's, col AA) —
+        // derive it from each row's own Session Date, same fallback SY uses when
+        // its WEEK column is blank, just against a Summer-specific start date.
+        _resolveSummerStart(attRaw, ATT.SESS_DATE);
+        for (const r of attRaw) {
+          if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) r[ATT.WEEK] = summerWeekKeyFromDateStr(r[ATT.SESS_DATE]);
+        }
 
-        _attRows  = buildSummerAttRows(sessRaw, stuRaw);
+        _attRows  = attRaw;
         _sessRows = buildSummerSessRows(sessRaw);
         _stuRows  = buildSummerStuRows(stuRaw);
         _instRows = buildSummerInstRows(instRaw);
@@ -8593,9 +8511,16 @@
             stats.districtCount = new Set(schools.map(function(s){ return _schoolMap[s] && _schoolMap[s].district; }).filter(Boolean)).size;
           }
           if (_personMap) {
+            // activeTutors here = every unique instructor appearing in Pearl for this
+            // period (i.e. "Total Staff" from Pearl's perspective — rostered, not
+            // necessarily having delivered a session). Kept as-is for SY compatibility.
             stats.activeTutors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor'; }).length;
             // Active scholars: unique students who have at least 1 attended session in Pearl
             stats.activeScholars = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Student' && _personMap[k].attended > 0; }).length;
+            // Active instructors: unique instructors with at least 1 completed/attended
+            // session (used for Summer's "Active Staff" figure — distinct from the
+            // rostered activeTutors count above).
+            stats.activeInstructors = Object.keys(_personMap).filter(function(k){ return _personMap[k] && _personMap[k].role==='Instructor' && _personMap[k].attended > 0; }).length;
           }
           // Rostered scholars: unique student IDs from Pearl Attendance tab (_attRows).
           // Uses the same source as getRaceData() — captures all enrolled scholars whether
