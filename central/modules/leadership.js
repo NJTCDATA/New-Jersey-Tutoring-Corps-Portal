@@ -81,8 +81,13 @@
       : null;
     // For live periods: staff/districts/schools come from SY Analytics tracker stats (period-specific).
     // For SY 25-26: staff from HR Master List, districts/schools from Pearl + SYA.
+    // Summer 2026: "Active Onsite Staff" here means active per Pearl (>=1 completed
+    // session), sourced from _syaStats.staffActive — distinct from SY 26-27's tracker
+    // headcount and from SY 25-26's HR Master List path below, both unchanged.
     const tutors = _isLive
-      ? (_syaStats ? _syaStats.staff : null)
+      ? (execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null
+          ? _syaStats.staffActive
+          : (_syaStats ? _syaStats.staff : null))
       : (hrActiveTutors != null ? hrActiveTutors : (poStats ? poStats.activeTutors : null));
     const _pearlScholars = poStats ? poStats.activeScholars : null;
     const activeScholars   = _pearlScholars != null ? _pearlScholars : (ldData ? (ldData.scholarsServed || ldData.activeScholars) : null);
@@ -253,7 +258,7 @@
         <div class="ecd-kpi ck-navy" title="${_isLive ? 'Active Onsite Staff: SY Analytics tracker count for this period.' : 'Active Onsite Staff: Count of employees with Active status in HR Master List. Sourced from live HR data — click ⟳ to force-sync immediately after updating the Google Sheet.'}" style="position:relative">
           <div class="ecd-kpi-lbl">Active Onsite Staff</div>
           <div class="ecd-kpi-val">${fv(tutors)}</div>
-          <div class="ecd-kpi-foot">${_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List'}</div>
+          <div class="ecd-kpi-foot">${execPeriod === 'summer2026' && _syaStats && _syaStats.staffActive != null ? 'Pearl · Attended ≥1 session' : (_isLive ? 'SY Analytics · ' + (execPeriod === 'summer2026' ? 'Summer tracker' : 'SY 26-27 tracker') : 'Active FT staff · HR Master List')}</div>
           ${!_isLive ? `<button onclick="(function(btn){btn.disabled=true;btn.textContent='…';var k='njtc_hr_live_v2';try{localStorage.removeItem(k);}catch(e){}if(typeof window.fetchLiveHRData==='function'){window.fetchLiveHRData(true).then(function(){btn.textContent='⟳';btn.disabled=false;}).catch(function(){btn.textContent='⟳';btn.disabled=false;});}else{btn.textContent='⟳';btn.disabled=false;}})(this)" title="Clear HR cache and sync live data now" style="position:absolute;top:6px;right:6px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:5px;color:#fff;font-size:.7rem;padding:2px 6px;cursor:pointer;line-height:1.4">⟳</button>` : ''}
         </div>
         <div class="ecd-kpi ck-gold" title="Districts: ${_isLive ? 'Unique districts from SY Analytics tracker for this period.' : 'Count of unique partner districts derived from Pearl Operations attendance records.'}">
