@@ -25,11 +25,30 @@
     const po   = (typeof window.po   !== 'undefined') ? window.po   : null;
     const irlb = (typeof window.irlab !== 'undefined') ? window.irlab : null;
 
-    // Pearl and iReady are SY 25-26 only — suppress for future periods
-    const poStats = (!_isLive && po)   ? po.getStats()         : null;
-    const ldData  = (!_isLive && po)   ? po.getLeadershipData() : null;
-    const stellar = (!_isLive && po)   ? po.getStellarSchools() : null;
-    const raceRaw = (!_isLive && po)   ? po.getRaceData()       : null;
+    // po holds exactly one period's data in memory at a time — po.getStats().activePeriod
+    // tells us which. Only trust it here when it matches the period THIS dashboard is
+    // currently showing (execPeriod); otherwise nudge po to load the right one and show
+    // the "not yet available" state for a beat rather than mislabeling the wrong period's
+    // numbers. This applies to SY 25-26 too, now that po can also be sitting on Summer data.
+    const _poLiveStats = po ? po.getStats() : null;
+    const _pearlPeriodMatches = !!(_poLiveStats && _poLiveStats.activePeriod === execPeriod && _poLiveStats.loaded);
+    if (po && !_pearlPeriodMatches && (execPeriod === 'sy2526' || execPeriod === 'summer2026') && typeof po.setPeriod === 'function') {
+      po.setPeriod(execPeriod);
+    }
+    const _pearlForPeriod = _pearlPeriodMatches;
+    // Show the footprint tile section immediately for SY 25-26 (original behavior —
+    // values render as "—" via fv()/fc() during the brief window before po finishes
+    // its first load). For Summer, wait for a confirmed period match so we never
+    // flash SY numbers mislabeled as Summer (or vice versa).
+    const _showFootprintTiles = execPeriod === 'sy2526' || _pearlPeriodMatches;
+    // Scholar tiers / school leaderboard / race demographics / iReady academic data
+    // are SY 25-26-only builds for now — not yet computed for Summer, so these stay
+    // gated to sy2526 specifically (in addition to matching po's live period).
+    const _pearlDeepAvailable = execPeriod === 'sy2526' && _pearlPeriodMatches;
+    const poStats = _pearlForPeriod    ? _poLiveStats           : null;
+    const ldData  = (_pearlDeepAvailable && po)   ? po.getLeadershipData() : null;
+    const stellar = (_pearlDeepAvailable && po)   ? po.getStellarSchools() : null;
+    const raceRaw = (_pearlDeepAvailable && po)   ? po.getRaceData()       : null;
     const irl     = (!_isLive && irlb) ? irlb.getSummary('ALL') : null;
 
     // ── SY Drill-down state (persisted on el dataset) ─────────────────
@@ -247,7 +266,7 @@
           <div class="ecd-kpi-val">${fv(schools)}</div>
           <div class="ecd-kpi-foot">Active sites · SY Analytics</div>
         </div>
-        ${!_isLive ? `
+        ${_showFootprintTiles ? `
         <div class="ecd-kpi ck-green" title="Sessions Delivered: Total session records from Pearl Sessions tab. Counts all completed sessions (full and partial).">
           <div class="ecd-kpi-lbl">Sessions</div>
           <div class="ecd-kpi-val sm">${sessions != null ? fc(sessions) : '—'}</div>
