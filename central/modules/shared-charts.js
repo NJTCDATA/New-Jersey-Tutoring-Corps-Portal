@@ -61,6 +61,13 @@
     el.innerHTML = renderKPIAnalytics();
   }
 
+  // Exposed so other modules (e.g. growth-tree.js) can read the exact same
+  // live-scored, goal-level health numbers the KPI Analytics tab itself uses —
+  // one scoring engine, no duplicated logic, no numbers that can drift apart.
+  window.calcKPI    = calcKPI;
+  window.riskBucket = riskBucket;
+  window.kpiPts     = kpiPts;
+
   function setKPIAnalyticsTab(tab){
     _kpiAnalyticsTab = tab;
     document.querySelectorAll('.kpia-tab').forEach(t=>t.classList.remove('active'));
@@ -158,6 +165,7 @@
     const _qBadge   = _hasQData ? ` <span style="background:#1e3a5f;color:#93c5fd;font-size:.6rem;font-weight:700;padding:.1rem .35rem;border-radius:8px;vertical-align:middle;margin-left:.25rem">LIVE</span>` : '';
     html += `<div class="kpia-tabs">
       <button class="kpia-tab active" id="kpiaTab-overview"   onclick="setKPIAnalyticsTab('overview')">🏠 At a Glance</button>
+      <button class="kpia-tab"        id="kpiaTab-tree"       onclick="setKPIAnalyticsTab('tree')">🌳 Growth Tree</button>
       <button class="kpia-tab"        id="kpiaTab-breakdown"  onclick="setKPIAnalyticsTab('breakdown')">📊 By Goal Area</button>
       <button class="kpia-tab"        id="kpiaTab-atRisk"     onclick="setKPIAnalyticsTab('atRisk')">⚠️ Needs Attention</button>
       <button class="kpia-tab"        id="kpiaTab-pipeline"   onclick="setKPIAnalyticsTab('pipeline')">🟣 Coming Up</button>
@@ -187,6 +195,16 @@
     if(!d.total) return '';
     const { counts, score, risk, goals, total, totalPts, maxPts } = d;
     const getS = k => k.midStatus || k.status || '';
+
+    // ── GROWTH TREE — delegated to growth-tree.js ─────────────────
+    if(tab === 'tree'){
+      if (typeof window.renderGrowthTreeTab === 'function') return window.renderGrowthTreeTab();
+      return `<div style="padding:3rem;text-align:center;color:var(--muted)">
+        <div style="font-size:2.5rem;margin-bottom:1rem">🌳</div>
+        <div style="font-weight:600;color:var(--navy);margin-bottom:.5rem">Growth Tree module not loaded</div>
+        <div style="font-size:.8125rem">Make sure <code>modules/growth-tree.js</code> is included in index.html.</div>
+      </div>`;
+    }
 
     // ── AT A GLANCE ──────────────────────────────────────────────
     if(tab === 'overview'){
