@@ -1318,6 +1318,24 @@
   const _hrLiveAddedKeys = new Set();
 
   function _hrOverlayLive(liveRows) {
+    // ── Known Master List data-quality corrections (2025-2026), verified against HR's
+    // termination tracker (Mysti Diaz, Aug 2026) — fixed here rather than in the source sheet:
+    //   1. "Michael Alessio" is a duplicate row that copy-pasted Aleah McWilliams' email,
+    //      termination date, and reason. No such person exists in the termination tracker,
+    //      so it's dropped to avoid double-counting terminations (73 → 72).
+    //   2. "Nicole Odigie" is miscategorized here as "Voluntary - other"; the termination
+    //      tracker has her correctly as "Voluntary - found full time employment".
+    liveRows = liveRows.filter(r => !(
+      (r.name  || '').trim().toLowerCase() === 'michael alessio' &&
+      (r.email || '').trim().toLowerCase() === 'mcwilliams.aleah@gmail.com'
+    ));
+    liveRows.forEach(r => {
+      if ((r.name || '').trim().toLowerCase() === 'nicole odigie' &&
+          (r.email || '').trim().toLowerCase() === 'nicknax79@gmail.com') {
+        r.termReason = 'Voluntary - found full time employment';
+      }
+    });
+
     // ── Reset HR_EMPS to clean base (removes prior-session push()-added entries) ──
     if (HR_EMPS.length > window._HR_BASE_LEN) {
       HR_EMPS.splice(window._HR_BASE_LEN);  // truncate back to embedded snapshot
@@ -4924,6 +4942,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Fetch quarterly sheet (called after main KPI fetch succeeds)
       
 
+  // ── Quarterly Retention — manually verified by HR each quarter ───────────
+  // HR (Mysti Diaz) calculates this from headcount on the Staff Onboarding Tracker as of the
+  // first day of the quarter — a snapshot the live Master List doesn't capture (it has no
+  // hire-date field), so this can't be auto-computed from the sheet the portal already reads.
+  // Formula: retained ÷ startCount × 100, where startCount = staff on the Onboarding Tracker
+  // as of the quarter's first day, and retained = startCount − (terminations from that same
+  // starting cohort during the quarter). Staff hired *and* terminated within the same quarter
+  // are excluded from both startCount and the termination count ("retention does not consider
+  // new hires"), per HR's definition.
+  //
+  // Update the entry for each quarter once HR reports the finalized numbers; leave startCount/
+  // retainedCount null until then (renders as "Pending").
+  const QUARTERLY_RETENTION_2526 = {
+    Q1: { label: 'Q1 · Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q2: { label: 'Q2 · Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
+    Q3: { label: 'Q3 · Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
+    Q4: { label: 'Q4 · Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+  };
+  const _qtrRetentionRate = q => {
+    const d = QUARTERLY_RETENTION_2526[q];
+    if (!d || d.startCount == null || d.retainedCount == null) return null;
+    return Math.round((d.retainedCount / d.startCount) * 10000) / 100;
+  };
+
   // ── HR & Data — Termination Analytics home widget ───────────────────────
   function _buildTermAnalyticsWidget() {
     const CY = '2025-2026';
@@ -4986,16 +5028,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const today = new Date();
     const _cm = today.getMonth() + 1;
     const curQ   = _cm >= 9 && _cm <= 11 ? 'Q1' : (_cm === 12 || _cm <= 2) ? 'Q2' : _cm >= 3 && _cm <= 5 ? 'Q3' : 'Q4';
-    const priorQ = curQ === 'Q1' ? 'Q4' : curQ === 'Q2' ? 'Q1' : curQ === 'Q3' ? 'Q2' : 'Q3';
     const qtrCounts = { Q1:0, Q2:0, Q3:0, Q4:0 };
     termEmps.forEach(e => { const q = _qtr((e._termDate||'').trim()); if (q) qtrCounts[q]++; });
 
-    // Retention rates (approximate — active / total headcount)
-    const retainCur   = Math.round((total - qtrCounts[curQ])   / total * 100);
-    const retainPrior = Math.round((total - qtrCounts[priorQ]) / total * 100);
-    const direction   = retainCur >= retainPrior ? 'up' : 'down';
-    const dirIcon     = direction === 'up' ? '↑' : '↓';
-    const dirColor    = direction === 'up' ? '#059669' : '#dc2626';
+    // Quarterly retention — HR's own formula (retained ÷ start-of-quarter headcount), sourced
+    // from QUARTERLY_RETENTION_2526 above rather than derived from termination counts alone,
+    // since the live sheet has no hire-date field to reconstruct start-of-quarter cohorts.
+    const curQRate    = _qtrRetentionRate(curQ);
+    const curQPending = curQRate == null;
 
     // Reason breakdown
     const reasonMap = {};
@@ -5042,10 +5082,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   <!-- Definition callout -->
   <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
     <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How Retention Is Calculated</strong>
-    <strong>Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
+    <strong>Annual Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
     "Total headcount" includes every employee who worked at any point during ${CY} — both currently active and those who have since separated.
     A staff member is counted as <em>separated</em> when their ADP status is no longer "Active."
-    <strong>Quarterly retention</strong> is based on when terminations occurred (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug).
+    <br><br>
+    <strong>Quarterly Retention</strong> (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug) = Retained ÷ Staff on the Onboarding Tracker as of the first day of that quarter, ×100.
+    Staff hired <em>and</em> terminated within the same quarter are excluded from both sides of the equation — quarterly retention does not consider new hires.
+    HR verifies and reports each quarter's figures once it closes; quarters without a confirmed number show as "Pending."
+    <br><br>
     Voluntary vs. involuntary split is derived from the termination type field in the HR Master List.
   </div>
 
@@ -5055,7 +5099,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
       { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
       { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
-      { v: dirIcon + ' ' + retainCur + '%', l: curQ + ' Retention', c: dirColor },
+      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' Retention', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
       { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
     ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
@@ -5082,11 +5126,16 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       <div style="margin-top:.75rem">
         <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.45rem">By Quarter (Sep–Aug)</div>
         ${['Q1','Q2','Q3','Q4'].map(q => {
-          const cnt = qtrCounts[q];
+          const cnt   = qtrCounts[q];
           const isCur = q === curQ;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}">
-            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''}</span>
-            <span style="font-size:.72rem;font-weight:700;color:${cnt>0?'#dc2626':'#94a3b8'}">${cnt} sep.</span>
+          const rate  = _qtrRetentionRate(q);
+          const d     = QUARTERLY_RETENTION_2526[q];
+          const rateLabel = rate == null ? 'Pending' : rate + '% retention';
+          const rateColor = rate == null ? '#94a3b8' : (rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626');
+          const title = rate == null ? `${cnt} separation(s) logged; awaiting HR's start-of-quarter count` : `${d.retainedCount}/${d.startCount} retained (as of ${d.asOfStart}–${d.asOfEnd})`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}" title="${esc(title)}">
+            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${cnt} sep.)</span></span>
+            <span style="font-size:.72rem;font-weight:700;color:${rateColor}">${rateLabel}</span>
           </div>`;
         }).join('')}
       </div>
