@@ -5138,10 +5138,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // Update the entry for each quarter once HR reports the finalized numbers; leave startCount/
   // retainedCount null until then (renders as "Pending").
   const QUARTERLY_RETENTION_2526 = {
-    Q1: { label: 'Q1 · Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
-    Q2: { label: 'Q2 · Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
-    Q3: { label: 'Q3 · Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
-    Q4: { label: 'Q4 · Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q1: { months: 'Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q2: { months: 'Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
+    Q3: { months: 'Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
+    Q4: { months: 'Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
   };
   const _qtrRetentionRate = q => {
     const d = QUARTERLY_RETENTION_2526[q];
@@ -5279,7 +5279,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
       { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
       { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
-      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' Retention', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
+      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' (' + QUARTERLY_RETENTION_2526[curQ].months + ')', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
       { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
     ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
@@ -5312,9 +5312,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           const d     = QUARTERLY_RETENTION_2526[q];
           const rateLabel = rate == null ? 'Pending' : rate + '% retention';
           const rateColor = rate == null ? '#94a3b8' : (rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626');
+          const dateRange = d.asOfStart && d.asOfEnd ? `${d.asOfStart}–${d.asOfEnd}` : d.months;
           const title = rate == null ? `${cnt} separation(s) logged; awaiting HR's start-of-quarter count` : `${d.retainedCount}/${d.startCount} retained (as of ${d.asOfStart}–${d.asOfEnd})`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}" title="${esc(title)}">
-            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${cnt} sep.)</span></span>
+            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${dateRange} · ${cnt} sep.)</span></span>
             <span style="font-size:.72rem;font-weight:700;color:${rateColor}">${rateLabel}</span>
           </div>`;
         }).join('')}
