@@ -1424,9 +1424,11 @@
     if (!force) {
       try {
         const c = JSON.parse(localStorage.getItem(ONSITE_CACHE_KEY)||'null');
-        if (c && c.ts && (Date.now()-c.ts) < ONSITE_TTL_MS && (c.roster || c.terms)) {
+        if (c && c.ts && (Date.now()-c.ts) < ONSITE_TTL_MS && c.rosterOk && c.termsOk) {
           window._njtcOnsiteRoster2627 = c.roster || [];
           window._njtcOnsiteTerms2627  = c.terms  || [];
+          window._onsiteRosterOk       = true;
+          window._onsiteTermsOk        = true;
           window._onsiteDataFetched    = true;
           _onsiteStatus = 'live';
           _reRenderOnsiteWidget();
@@ -1437,24 +1439,46 @@
     const bust = force ? '&t='+Date.now() : '';
     const rosterUrl = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_ROSTER}${bust}`;
     const termUrl   = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_TERM}${bust}`;
-    try {
-      const [rRes, tRes] = await Promise.all([
-        fetch(rosterUrl, {signal: AbortSignal.timeout(10000)}),
-        fetch(termUrl,   {signal: AbortSignal.timeout(10000)}),
-      ]);
-      const roster = rRes.ok ? _parseOnsiteRoster(await rRes.text())       : [];
-      const terms  = tRes.ok ? _parseOnsiteTerminations(await tRes.text()) : [];
-      if (roster.length > 0 || terms.length > 0) {
-        try { localStorage.setItem(ONSITE_CACHE_KEY, JSON.stringify({ts:Date.now(), roster, terms})); } catch(e){}
-        window._njtcOnsiteRoster2627 = roster;
-        window._njtcOnsiteTerms2627  = terms;
-        _onsiteStatus = 'live';
-        console.log('[Onsite Tracker] Live sheets loaded: '+roster.length+' active, '+terms.length+' terminated');
-      } else {
-        _onsiteStatus = 'error';
+
+    // Fetch + parse each tab independently (not Promise.all on the raw fetches) — a failure on
+    // one sheet must never wipe out data we already got from the other. `ok` reflects whether
+    // the HTTP request itself succeeded — a legitimately empty terminations sheet (no
+    // departures yet) still counts as `ok`, so it isn't confused with a fetch/parse failure.
+    async function _fetchOne(url, parseFn, label) {
+      try {
+        const res = await fetch(url, {signal: AbortSignal.timeout(10000)});
+        if (!res.ok) { console.warn(`[Onsite Tracker] ${label} fetch returned ${res.status}`); return {ok:false, rows:[]}; }
+        const text = await res.text();
+        const rows = parseFn(text);
+        if (rows.length === 0) console.warn(`[Onsite Tracker] ${label} fetch succeeded but parsed 0 rows (first 200 chars): `, text.slice(0,200));
+        return {ok:true, rows};
+      } catch(e) {
+        console.warn(`[Onsite Tracker] ${label} fetch failed:`, e.message);
+        return {ok:false, rows:[]};
       }
-    } catch(e) {
-      console.warn('[Onsite Tracker] Live fetch failed:', e.message);
+    }
+
+    const [rosterRes, termsRes] = await Promise.all([
+      _fetchOne(rosterUrl, _parseOnsiteRoster, 'Roster'),
+      _fetchOne(termUrl,   _parseOnsiteTerminations, 'Terminations'),
+    ]);
+
+    window._onsiteRosterOk = rosterRes.ok;
+    window._onsiteTermsOk  = termsRes.ok;
+
+    if (rosterRes.ok || termsRes.ok) {
+      if (rosterRes.ok) window._njtcOnsiteRoster2627 = rosterRes.rows;
+      if (termsRes.ok)  window._njtcOnsiteTerms2627  = termsRes.rows;
+      if (rosterRes.ok && termsRes.ok) {
+        try {
+          localStorage.setItem(ONSITE_CACHE_KEY, JSON.stringify({
+            ts:Date.now(), roster:rosterRes.rows, terms:termsRes.rows, rosterOk:true, termsOk:true,
+          }));
+        } catch(e){}
+      }
+      _onsiteStatus = 'live';
+      console.log('[Onsite Tracker] Live sheets loaded: '+rosterRes.rows.length+' active ('+rosterRes.ok+'), '+termsRes.rows.length+' terminated ('+termsRes.ok+')');
+    } else {
       _onsiteStatus = 'error';
     }
     window._onsiteDataFetched = true;
@@ -5114,10 +5138,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // Update the entry for each quarter once HR reports the finalized numbers; leave startCount/
   // retainedCount null until then (renders as "Pending").
   const QUARTERLY_RETENTION_2526 = {
-    Q1: { label: 'Q1 · Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
-    Q2: { label: 'Q2 · Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
-    Q3: { label: 'Q3 · Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
-    Q4: { label: 'Q4 · Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q1: { months: 'Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q2: { months: 'Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
+    Q3: { months: 'Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
+    Q4: { months: 'Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
   };
   const _qtrRetentionRate = q => {
     const d = QUARTERLY_RETENTION_2526[q];
@@ -5244,15 +5268,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   <!-- Definition callout -->
   <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
     <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How Retention Is Calculated</strong>
-    <strong>Annual Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
-    "Total headcount" includes every employee who worked at any point during ${CY} — both currently active and those who have since separated.
-    A staff member is counted as <em>separated</em> when their ADP status is no longer "Active."
-    <br><br>
-    <strong>Quarterly Retention</strong> (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug) = Retained ÷ Staff on the Onboarding Tracker as of the first day of that quarter, ×100.
-    Staff hired <em>and</em> terminated within the same quarter are excluded from both sides of the equation — quarterly retention does not consider new hires.
-    HR verifies and reports each quarter's figures once it closes; quarters without a confirmed number show as "Pending."
-    <br><br>
-    Voluntary vs. involuntary split is derived from the termination type field in the HR Master List.
+    <strong>Annual</strong> = Active Staff ÷ Total Headcount for the school year (${CY}).
+    <strong>Quarterly</strong> (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug) = Retained ÷ Headcount at the start of that quarter, ×100 — new hires who leave within the same quarter aren't counted either way.
+    Quarters without a confirmed figure show as "Pending."
   </div>
 
   <!-- KPI tiles row -->
@@ -5261,7 +5279,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
       { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
       { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
-      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' Retention', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
+      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' (' + QUARTERLY_RETENTION_2526[curQ].months + ')', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
       { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
     ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
@@ -5294,9 +5312,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           const d     = QUARTERLY_RETENTION_2526[q];
           const rateLabel = rate == null ? 'Pending' : rate + '% retention';
           const rateColor = rate == null ? '#94a3b8' : (rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626');
+          const dateRange = d.asOfStart && d.asOfEnd ? `${d.asOfStart}–${d.asOfEnd}` : d.months;
           const title = rate == null ? `${cnt} separation(s) logged; awaiting HR's start-of-quarter count` : `${d.retainedCount}/${d.startCount} retained (as of ${d.asOfStart}–${d.asOfEnd})`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}" title="${esc(title)}">
-            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${cnt} sep.)</span></span>
+            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${dateRange} · ${cnt} sep.)</span></span>
             <span style="font-size:.72rem;font-weight:700;color:${rateColor}">${rateLabel}</span>
           </div>`;
         }).join('')}
@@ -5334,8 +5353,29 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 </div>`;
     }
 
-    const roster = window._njtcOnsiteRoster2627 || [];
-    const terms  = window._njtcOnsiteTerms2627  || [];
+    const roster   = window._njtcOnsiteRoster2627 || [];
+    const terms    = window._njtcOnsiteTerms2627  || [];
+    const rosterOk = window._onsiteRosterOk === true;
+    const termsOk  = window._onsiteTermsOk  === true;
+
+    // Either sheet failed to load — show this distinctly from a real 0%/100%, so an outage
+    // never gets mistaken for an actual figure (retention needs both sheets to be trustworthy).
+    if (!rosterOk || !termsOk) {
+      const which = !rosterOk && !termsOk ? 'the roster and terminations sheets'
+                  : !rosterOk ? 'the roster sheet' : 'the terminations sheet';
+      return `<div id="onsiteRetentionWidget" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem">
+    <div>
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:.2rem">HR &amp; Data · Onsite Tracker · Summer 2026 → SY 2026-2027</div>
+      <div style="font-size:1rem;font-weight:800;color:#0a1628">Onboarding Retention (Next Cycle)</div>
+    </div>
+    <span style="font-size:.62rem;color:#b91c1c;font-style:italic">⚠️ Unavailable</span>
+  </div>
+  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.75rem .875rem;font-size:.72rem;color:#991b1b;line-height:1.5">
+    Couldn't load ${which} right now. Not showing a retention figure here on purpose — a fetch failure isn't a real 0%.
+  </div>
+</div>`;
+    }
 
     // Group by cycle (e.g. "Summer 2026", and later "Fall 2026", "SY 2026-2027", etc.)
     const cycles = [...new Set([...roster.map(r=>r.cycle), ...terms.map(r=>r.cycle)])].filter(Boolean);
@@ -5402,10 +5442,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   <!-- Definition callout -->
   <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
-    <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How This Differs From the 2025-2026 Widget Above</strong>
-    The Onsite Tracker records a real hire date ("Offer Accepted") for every person, so retention here is computed live — Active ÷ (Active + Terminated) for everyone who has ever been on a cycle's roster — with no manual quarterly entry required.
-    HR (Mysti Diaz) maintains the roster and terminations tabs directly in the "Automated: Onsite 26-27 Tracker" Google Sheet; this card only reads them, so her updates appear for every viewer and are never lost on refresh.
-    This widget will carry the org's primary retention tracking forward once SY 2026-2027 begins in September.
+    <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How Retention Is Calculated</strong>
+    Retention = Active ÷ (Active + Terminated) for everyone who has been on a cycle's roster, ×100 — computed automatically from hire and termination dates.
   </div>
 
   <!-- KPI tiles row -->
