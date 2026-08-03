@@ -965,7 +965,8 @@
       if (_deptWidget && ['leadership','data','kb'].includes(dept)) {
         // Exec depts: termination analytics widget goes in homeDeptWidget (leaderboard pill goes in stats strip)
         if (typeof window._buildTermAnalyticsWidget === 'function') {
-          _deptWidget.innerHTML = window._buildTermAnalyticsWidget();
+          const _onsiteHtml = typeof window._buildOnsiteRetentionWidget === 'function' ? window._buildOnsiteRetentionWidget() : '';
+          _deptWidget.innerHTML = window._buildTermAnalyticsWidget() + _onsiteHtml;
         }
       }
     }, 32);
@@ -4853,6 +4854,7 @@
       try { if (typeof fetchLiveHRData === 'function') fetchLiveHRData(false).catch(()=>{}); } catch(e) {}
       try { if (typeof fetchLiveConcerns === 'function') fetchLiveConcerns().catch(()=>{}); } catch(e) {}
       try { if (typeof fetchLiveReviews === 'function') fetchLiveReviews().catch(()=>{}); } catch(e) {}
+      try { if (typeof fetchLiveOnsiteData === 'function') fetchLiveOnsiteData(false).catch(()=>{}); } catch(e) {}
     }, 1200);
 
     // ── T+1800ms: iReady + SY + Observations (background, lowest priority) ─

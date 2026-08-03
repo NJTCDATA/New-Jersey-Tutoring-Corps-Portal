@@ -963,6 +963,7 @@
 
     // Fire all background data fetches (non-blocking)
     fetchLiveHRData(!!forceRefresh).catch(e=>console.warn('[HR]',e.message));
+    fetchLiveOnsiteData(!!forceRefresh).catch(e=>console.warn('[Onsite]',e.message));
     fetchLiveObsData(!!forceRefresh).catch(e=>console.warn('[Obs]',e.message));
     // Sync hiring decisions from the shared Google Sheet into localStorage so decisions
     // recorded by any team member are visible to all users on next talent load.
@@ -1085,6 +1086,21 @@
   const HR_GID_MASTER = '911694457';  // Master List tab
   const HR_CACHE_KEY  = 'njtc_hr_live_v2';
   const HR_TTL_MS     = 10 * 60 * 1000;  // 10-min cache — live changes visible within 10 min
+
+  // ── Onsite Tracker — Summer 2026 → SY 2026-2027 rollover ─────────────────
+  // "Automated: Onsite 26-27 Tracker" — the roster + terminations source for the next school
+  // year, replacing the 2025-2026 Master List once SY 2026-2027 begins. Unlike the Master List,
+  // this tracker records a real hire date ("Offer Accepted") per person, so — unlike last
+  // year — cycle retention here can be fully computed live (active ÷ everyone who was ever on
+  // that cycle's roster); no manual quarterly entry table is needed. HR (Mysti Diaz) maintains
+  // both tabs directly in the Google Sheet; the portal only ever reads them, so her edits are
+  // visible to everyone on next load and never disappear on refresh.
+  const ONSITE_2PACX      = '2PACX-1vSGZjvWl8rwCTo8QhEF7ATPeYPTYBwc8lOufuOXu5lrlis_XzOIEE7-H17afwUow_V3xScU3442Scx9';
+  const ONSITE_GID_ROSTER = '0';          // "Onsite Tracker" tab — active/onboarding roster
+  const ONSITE_GID_TERM   = '1788942666'; // Terminations tab
+  const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v1';
+  const ONSITE_TTL_MS     = 10 * 60 * 1000;
+  let _onsiteStatus = 'pending';
 
   // ── Site Leader Observations — Apprenticeship Program Database ───────────
   // NE tab gid=1649286205 · SW tab gid=373912327
@@ -1313,11 +1329,170 @@
       .filter(r => r.name && r.yr);
   }
 
+  // ── Generic CSV tokenizer (quoted multiline cells) — shared by the Onsite Tracker parsers ──
+  function _csvRowsGeneric(text) {
+    const rows = [];
+    let row = [], cur = '', inQ = false, esc2 = false;
+    for (const ch of text.replace(/\r\n/g,'\n').replace(/\r/g,'\n') + '\n') {
+      if (esc2)  { esc2 = false; cur += ch; continue; }
+      if (ch === '\\' && inQ) { esc2 = true; continue; }
+      if (inQ) {
+        if (ch === '"' ) inQ = false; else cur += ch;
+      } else {
+        if      (ch === '"') inQ = true;
+        else if (ch === ',') { row.push(cur); cur = ''; }
+        else if (ch === '\n') { row.push(cur); if (row.some(c=>c)) rows.push(row); row = []; cur = ''; }
+        else cur += ch;
+      }
+    }
+    if (cur || row.length) { row.push(cur); if (row.some(c=>c)) rows.push(row); }
+    return rows;
+  }
+
+  // ── Live Onsite Tracker parser — "Onsite Tracker" tab (active/onboarding roster) ────────
+  // Terminated staff are removed from this tab (verified against the 2026-2027 termination
+  // export — none of its rows overlap this roster), so every row here is an active person.
+  // Includes a real hire date ("Offer Accepted") per person, unlike the 2025-2026 Master List.
+  function _parseOnsiteRoster(text) {
+    const rows = _csvRowsGeneric(text);
+    const hIdx = rows.findIndex(r => (r[0]||'').trim().toLowerCase() === 'cycle');
+    if (hIdx < 0) return [];
+    const H = rows[hIdx].map(h => (h||'').trim().toLowerCase());
+    const ci = s => H.findIndex(h => h.includes(s.toLowerCase()));
+    const C = {
+      cycle: ci('cycle'), role: ci('role'), county: ci('county'), district: ci('district'),
+      first: ci('first name'), last: ci('last name'), email: ci('email'),
+      offerAccepted: ci('offer accepted'),
+      terminated:    H.findIndex(h => h === 'terminated?'),
+      resignType:    ci('resignation type'),
+      resignReason:  ci('resignation reason'),
+      termDate:      H.findIndex(h => h === 'termination date'),
+    };
+    return rows.slice(hIdx + 1)
+      .map(r => ({
+        cycle:         (r[C.cycle]         || '').trim(),
+        role:          (r[C.role]          || '').trim(),
+        county:        (r[C.county]        || '').trim(),
+        district:      (r[C.district]      || '').trim(),
+        // Built from First + Last directly — the sheet's own "Full Name" column is a formula
+        // bug (concatenates Source + First Name, e.g. "Rehire Angel" instead of "Angel Blue").
+        name:          `${r[C.first]||''} ${r[C.last]||''}`.trim(),
+        email:         (r[C.email]         || '').trim().toLowerCase(),
+        offerAccepted: (r[C.offerAccepted] || '').trim(),
+        terminated:    C.terminated   >= 0 ? (r[C.terminated]   || '').trim() : '',
+        resignType:    C.resignType   >= 0 ? (r[C.resignType]   || '').trim() : '',
+        resignReason:  C.resignReason >= 0 ? (r[C.resignReason] || '').trim() : '',
+        termDate:      C.termDate     >= 0 ? (r[C.termDate]     || '').trim() : '',
+      }))
+      .filter(r => r.name && r.cycle);
+  }
+
+  // ── Live Onsite Tracker parser — Terminations tab ────────────────────────────────────────
+  // Same column layout as the 2025-2026 termination tracker Mysti emailed (Termination Date /
+  // Quarter / Reason Category), just scoped to the new "Automated: Onsite 26-27 Tracker" sheet.
+  // "Termination Quarter" holds the cycle name directly this year (e.g. "Summer 2026") rather
+  // than a Q1-Q4 label, since HR is now tracking by named hiring cycle instead of school-year
+  // quarter.
+  function _parseOnsiteTerminations(text) {
+    const rows = _csvRowsGeneric(text);
+    const hIdx = rows.findIndex(r => (r[0]||'').trim().toLowerCase() === 'cycle');
+    if (hIdx < 0) return [];
+    const H = rows[hIdx].map(h => (h||'').trim().toLowerCase());
+    const ci = s => H.findIndex(h => h.includes(s.toLowerCase()));
+    const C = {
+      cycle: ci('cycle'), first: ci('first name'), last: ci('last name'), email: ci('email'),
+      termDate: ci('termination date'), termQuarter: ci('termination quarter'),
+      termReason: ci('termination reason'), comments: ci('comments'),
+    };
+    return rows.slice(hIdx + 1)
+      .map(r => ({
+        cycle:      ((r[C.cycle]||'').trim() || (r[C.termQuarter]||'').trim()),
+        name:       `${(r[C.first]||'').trim()} ${(r[C.last]||'').trim()}`.trim(),
+        email:      (r[C.email]      || '').trim().toLowerCase(),
+        termDate:   (r[C.termDate]   || '').trim(),
+        termReason: (r[C.termReason] || '').trim(),
+        // Type isn't a separate column here — same convention as last year's tracker, reason
+        // text always starts with "Voluntary"/"Involuntary" so the type is derived from it.
+        termType:   /^involuntary/i.test((r[C.termReason]||'').trim()) ? 'Involuntary'
+                  : /^voluntary/i.test((r[C.termReason]||'').trim())   ? 'Voluntary' : '',
+        comments:   (r[C.comments]   || '').trim(),
+      }))
+      .filter(r => r.name);
+  }
+
+  async function fetchLiveOnsiteData(force=false) {
+    if (!force) {
+      try {
+        const c = JSON.parse(localStorage.getItem(ONSITE_CACHE_KEY)||'null');
+        if (c && c.ts && (Date.now()-c.ts) < ONSITE_TTL_MS && (c.roster || c.terms)) {
+          window._njtcOnsiteRoster2627 = c.roster || [];
+          window._njtcOnsiteTerms2627  = c.terms  || [];
+          window._onsiteDataFetched    = true;
+          _onsiteStatus = 'live';
+          _reRenderOnsiteWidget();
+          return;
+        }
+      } catch(e) {}
+    }
+    const bust = force ? '&t='+Date.now() : '';
+    const rosterUrl = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_ROSTER}${bust}`;
+    const termUrl   = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_TERM}${bust}`;
+    try {
+      const [rRes, tRes] = await Promise.all([
+        fetch(rosterUrl, {signal: AbortSignal.timeout(10000)}),
+        fetch(termUrl,   {signal: AbortSignal.timeout(10000)}),
+      ]);
+      const roster = rRes.ok ? _parseOnsiteRoster(await rRes.text())       : [];
+      const terms  = tRes.ok ? _parseOnsiteTerminations(await tRes.text()) : [];
+      if (roster.length > 0 || terms.length > 0) {
+        try { localStorage.setItem(ONSITE_CACHE_KEY, JSON.stringify({ts:Date.now(), roster, terms})); } catch(e){}
+        window._njtcOnsiteRoster2627 = roster;
+        window._njtcOnsiteTerms2627  = terms;
+        _onsiteStatus = 'live';
+        console.log('[Onsite Tracker] Live sheets loaded: '+roster.length+' active, '+terms.length+' terminated');
+      } else {
+        _onsiteStatus = 'error';
+      }
+    } catch(e) {
+      console.warn('[Onsite Tracker] Live fetch failed:', e.message);
+      _onsiteStatus = 'error';
+    }
+    window._onsiteDataFetched = true;
+    _reRenderOnsiteWidget();
+  }
+
+  function _reRenderOnsiteWidget() {
+    requestAnimationFrame(() => {
+      try {
+        const el = document.getElementById('onsiteRetentionWidget');
+        if (el && typeof _buildOnsiteRetentionWidget === 'function') el.outerHTML = _buildOnsiteRetentionWidget();
+      } catch(_e) {}
+    });
+  }
+
   // ── Overlay live master data onto HR_EMPS ────────────────────────────────
     // Track keys already added via live overlay to prevent duplicates on re-render
   const _hrLiveAddedKeys = new Set();
 
   function _hrOverlayLive(liveRows) {
+    // ── Known Master List data-quality corrections (2025-2026), verified against HR's
+    // termination tracker (Mysti Diaz, Aug 2026) — fixed here rather than in the source sheet:
+    //   1. "Michael Alessio" is a duplicate row that copy-pasted Aleah McWilliams' email,
+    //      termination date, and reason. No such person exists in the termination tracker,
+    //      so it's dropped to avoid double-counting terminations (73 → 72).
+    //   2. "Nicole Odigie" is miscategorized here as "Voluntary - other"; the termination
+    //      tracker has her correctly as "Voluntary - found full time employment".
+    liveRows = liveRows.filter(r => !(
+      (r.name  || '').trim().toLowerCase() === 'michael alessio' &&
+      (r.email || '').trim().toLowerCase() === 'mcwilliams.aleah@gmail.com'
+    ));
+    liveRows.forEach(r => {
+      if ((r.name || '').trim().toLowerCase() === 'nicole odigie' &&
+          (r.email || '').trim().toLowerCase() === 'nicknax79@gmail.com') {
+        r.termReason = 'Voluntary - found full time employment';
+      }
+    });
+
     // ── Reset HR_EMPS to clean base (removes prior-session push()-added entries) ──
     if (HR_EMPS.length > window._HR_BASE_LEN) {
       HR_EMPS.splice(window._HR_BASE_LEN);  // truncate back to embedded snapshot
@@ -1933,7 +2108,8 @@
               // Guard: leaderboard owns this slot — never overwrite it
               if (_hw && _hw.innerHTML && !document.getElementById('lbWrap') && typeof window._buildTermAnalyticsWidget === 'function') {
                 const _dept = (window.NJTC_SESSION||{}).dept||'';
-                if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget();
+                const _onsiteHtml = typeof window._buildOnsiteRetentionWidget === 'function' ? window._buildOnsiteRetentionWidget() : '';
+                if (['hr','data'].includes(_dept)) _hw.innerHTML = window._buildTermAnalyticsWidget() + _onsiteHtml;
                 else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') _hw.innerHTML = window._buildRetentionWidget();
               }
             } catch(_we) {}
@@ -1979,7 +2155,8 @@
                 if (_hw && _hw.innerHTML && !document.getElementById('lbWrap') && typeof window._buildTermAnalyticsWidget === 'function') {
                   const _dept = (window.NJTC_SESSION||{}).dept||'';
                   if (['hr','data'].includes(_dept)) {
-                    _hw.innerHTML = window._buildTermAnalyticsWidget();
+                    const _onsiteHtml = typeof window._buildOnsiteRetentionWidget === 'function' ? window._buildOnsiteRetentionWidget() : '';
+                    _hw.innerHTML = window._buildTermAnalyticsWidget() + _onsiteHtml;
                   } else if (_dept === 'programming' && typeof window._buildRetentionWidget === 'function') {
                     _hw.innerHTML = window._buildRetentionWidget();
                   }
@@ -4924,6 +5101,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Fetch quarterly sheet (called after main KPI fetch succeeds)
       
 
+  // ── Quarterly Retention — manually verified by HR each quarter ───────────
+  // HR (Mysti Diaz) calculates this from headcount on the Staff Onboarding Tracker as of the
+  // first day of the quarter — a snapshot the live Master List doesn't capture (it has no
+  // hire-date field), so this can't be auto-computed from the sheet the portal already reads.
+  // Formula: retained ÷ startCount × 100, where startCount = staff on the Onboarding Tracker
+  // as of the quarter's first day, and retained = startCount − (terminations from that same
+  // starting cohort during the quarter). Staff hired *and* terminated within the same quarter
+  // are excluded from both startCount and the termination count ("retention does not consider
+  // new hires"), per HR's definition.
+  //
+  // Update the entry for each quarter once HR reports the finalized numbers; leave startCount/
+  // retainedCount null until then (renders as "Pending").
+  const QUARTERLY_RETENTION_2526 = {
+    Q1: { label: 'Q1 · Sep–Nov', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+    Q2: { label: 'Q2 · Dec–Feb', startCount: 73,   retainedCount: 54,   asOfStart: '12/1/25', asOfEnd: '2/28/26' },
+    Q3: { label: 'Q3 · Mar–May', startCount: 82,   retainedCount: 62,   asOfStart: '3/1/26',  asOfEnd: '5/31/26' },
+    Q4: { label: 'Q4 · Jun–Aug', startCount: null, retainedCount: null, asOfStart: null,    asOfEnd: null },
+  };
+  const _qtrRetentionRate = q => {
+    const d = QUARTERLY_RETENTION_2526[q];
+    if (!d || d.startCount == null || d.retainedCount == null) return null;
+    return Math.round((d.retainedCount / d.startCount) * 10000) / 100;
+  };
+
   // ── HR & Data — Termination Analytics home widget ───────────────────────
   function _buildTermAnalyticsWidget() {
     const CY = '2025-2026';
@@ -4935,7 +5136,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         // Guard: leaderboard owns this slot — stop polling if it rendered
         if (!hw || document.getElementById('lbWrap')) return;
         if (window._hrDataFetched) {
-          try { hw.innerHTML = _buildTermAnalyticsWidget(); } catch(e) {}
+          try {
+            const _onsiteHtml = typeof window._buildOnsiteRetentionWidget === 'function' ? window._buildOnsiteRetentionWidget() : '';
+            hw.innerHTML = _buildTermAnalyticsWidget() + _onsiteHtml;
+          } catch(e) {}
         } else {
           setTimeout(_pollHR, 600);
         }
@@ -4986,16 +5190,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     const today = new Date();
     const _cm = today.getMonth() + 1;
     const curQ   = _cm >= 9 && _cm <= 11 ? 'Q1' : (_cm === 12 || _cm <= 2) ? 'Q2' : _cm >= 3 && _cm <= 5 ? 'Q3' : 'Q4';
-    const priorQ = curQ === 'Q1' ? 'Q4' : curQ === 'Q2' ? 'Q1' : curQ === 'Q3' ? 'Q2' : 'Q3';
     const qtrCounts = { Q1:0, Q2:0, Q3:0, Q4:0 };
     termEmps.forEach(e => { const q = _qtr((e._termDate||'').trim()); if (q) qtrCounts[q]++; });
 
-    // Retention rates (approximate — active / total headcount)
-    const retainCur   = Math.round((total - qtrCounts[curQ])   / total * 100);
-    const retainPrior = Math.round((total - qtrCounts[priorQ]) / total * 100);
-    const direction   = retainCur >= retainPrior ? 'up' : 'down';
-    const dirIcon     = direction === 'up' ? '↑' : '↓';
-    const dirColor    = direction === 'up' ? '#059669' : '#dc2626';
+    // Quarterly retention — HR's own formula (retained ÷ start-of-quarter headcount), sourced
+    // from QUARTERLY_RETENTION_2526 above rather than derived from termination counts alone,
+    // since the live sheet has no hire-date field to reconstruct start-of-quarter cohorts.
+    const curQRate    = _qtrRetentionRate(curQ);
+    const curQPending = curQRate == null;
 
     // Reason breakdown
     const reasonMap = {};
@@ -5042,10 +5244,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   <!-- Definition callout -->
   <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
     <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How Retention Is Calculated</strong>
-    <strong>Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
+    <strong>Annual Retention Rate</strong> = Active Staff ÷ Total Headcount for the school year.
     "Total headcount" includes every employee who worked at any point during ${CY} — both currently active and those who have since separated.
     A staff member is counted as <em>separated</em> when their ADP status is no longer "Active."
-    <strong>Quarterly retention</strong> is based on when terminations occurred (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug).
+    <br><br>
+    <strong>Quarterly Retention</strong> (Q1: Sep–Nov · Q2: Dec–Feb · Q3: Mar–May · Q4: Jun–Aug) = Retained ÷ Staff on the Onboarding Tracker as of the first day of that quarter, ×100.
+    Staff hired <em>and</em> terminated within the same quarter are excluded from both sides of the equation — quarterly retention does not consider new hires.
+    HR verifies and reports each quarter's figures once it closes; quarters without a confirmed number show as "Pending."
+    <br><br>
     Voluntary vs. involuntary split is derived from the termination type field in the HR Master List.
   </div>
 
@@ -5055,7 +5261,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       { v: activeEmps.length, l: 'Active Staff',    c: '#1d4ed8' },
       { v: termEmps.length,   l: 'Separated',       c: termEmps.length > 0 ? '#dc2626' : '#059669' },
       { v: Math.round(activeEmps.length / total * 100) + '%', l: 'Retention Rate', c: '#059669' },
-      { v: dirIcon + ' ' + retainCur + '%', l: curQ + ' Retention', c: dirColor },
+      { v: curQPending ? 'Pending' : curQRate + '%', l: curQ + ' Retention', c: curQPending ? '#94a3b8' : (curQRate >= 70 ? '#059669' : curQRate >= 50 ? '#d97706' : '#dc2626') },
       { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
     ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
@@ -5082,13 +5288,158 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       <div style="margin-top:.75rem">
         <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.45rem">By Quarter (Sep–Aug)</div>
         ${['Q1','Q2','Q3','Q4'].map(q => {
-          const cnt = qtrCounts[q];
+          const cnt   = qtrCounts[q];
           const isCur = q === curQ;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}">
-            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''}</span>
-            <span style="font-size:.72rem;font-weight:700;color:${cnt>0?'#dc2626':'#94a3b8'}">${cnt} sep.</span>
+          const rate  = _qtrRetentionRate(q);
+          const d     = QUARTERLY_RETENTION_2526[q];
+          const rateLabel = rate == null ? 'Pending' : rate + '% retention';
+          const rateColor = rate == null ? '#94a3b8' : (rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626');
+          const title = rate == null ? `${cnt} separation(s) logged; awaiting HR's start-of-quarter count` : `${d.retainedCount}/${d.startCount} retained (as of ${d.asOfStart}–${d.asOfEnd})`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:${isCur?'#eff6ff':'transparent'};border:1px solid ${isCur?'#bfdbfe':'#f1f5f9'}" title="${esc(title)}">
+            <span style="font-size:.72rem;color:${isCur?'#1d4ed8':'#64748b'};font-weight:${isCur?'700':'400'}">${q}${isCur?' ●':''} <span style="color:#94a3b8;font-weight:400">(${cnt} sep.)</span></span>
+            <span style="font-size:.72rem;font-weight:700;color:${rateColor}">${rateLabel}</span>
           </div>`;
         }).join('')}
+      </div>
+    </div>
+  </div>
+</div>`;
+  }
+
+  // ── HR & Data — Onsite Tracker (Summer 2026 → SY 2026-2027) home widget ─────────────────
+  // Fully live-computed: the Onsite Tracker records a real hire date ("Offer Accepted") per
+  // person, so retention here is Active ÷ (Active + Terminated) for everyone who was ever on
+  // a given cycle's roster — no manual quarterly entry table needed like 2025-2026's. HR
+  // maintains the roster and terminations tabs directly in the Google Sheet; this widget only
+  // ever reads them, so edits are live for every viewer and never lost on refresh.
+  function _buildOnsiteRetentionWidget() {
+    if (!window._onsiteDataFetched) {
+      setTimeout(function _pollOnsite() {
+        const el = document.getElementById('onsiteRetentionWidget');
+        if (!el) return;
+        if (window._onsiteDataFetched) {
+          try { el.outerHTML = _buildOnsiteRetentionWidget(); } catch(e) {}
+        } else {
+          setTimeout(_pollOnsite, 600);
+        }
+      }, 600);
+      return `<div id="onsiteRetentionWidget" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+    <div style="width:12px;height:12px;border-radius:50%;border:2px solid #3b82f6;border-top-color:transparent;animation:njtcSpin .8s linear infinite"></div>
+    <div style="font-size:.75rem;color:#64748b;font-weight:600">Loading Onsite Tracker (2026-2027)…</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem">
+    ${[1,2,3,4].map(()=>`<div style="height:64px;background:#f1f5f9;border-radius:8px;animation:njtcPulse 1.4s ease-in-out infinite"></div>`).join('')}
+  </div>
+</div>`;
+    }
+
+    const roster = window._njtcOnsiteRoster2627 || [];
+    const terms  = window._njtcOnsiteTerms2627  || [];
+
+    // Group by cycle (e.g. "Summer 2026", and later "Fall 2026", "SY 2026-2027", etc.)
+    const cycles = [...new Set([...roster.map(r=>r.cycle), ...terms.map(r=>r.cycle)])].filter(Boolean);
+    const byCycle = {};
+    cycles.forEach(c => { byCycle[c] = { active: 0, term: 0 }; });
+    roster.forEach(r => { if (byCycle[r.cycle]) byCycle[r.cycle].active++; });
+    terms.forEach(r => { if (byCycle[r.cycle]) byCycle[r.cycle].term++; });
+
+    const activeTotal = roster.length;
+    const termTotal   = terms.length;
+    const grandTotal  = (activeTotal + termTotal) || 1;
+    const retentionPct = Math.round(activeTotal / grandTotal * 100);
+
+    // Reason breakdown (terminations only)
+    const reasonMap = {};
+    terms.forEach(t => {
+      const r = (t.termReason||'').trim() || 'Unknown';
+      reasonMap[r] = (reasonMap[r]||0) + 1;
+    });
+    const reasonEntries = Object.entries(reasonMap).sort((a,b)=>b[1]-a[1]);
+    const maxReason = reasonEntries.length ? reasonEntries[0][1] : 1;
+    const reasonBarsHtml = reasonEntries.map(([label,count]) => {
+      const pct = Math.round(count / (termTotal||1) * 100);
+      const barPct = Math.round(count / maxReason * 100);
+      const isVol = /voluntary/i.test(label);
+      const barColor = isVol ? '#0891b2' : /involuntary/i.test(label) ? '#dc2626' : '#94a3b8';
+      return `<div style="margin-bottom:.45rem">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.2rem">
+    <span style="font-size:.7rem;color:#475569;max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(label)}">${esc(label)}</span>
+    <span style="font-size:.7rem;font-weight:700;color:${barColor}">${count} <span style="font-weight:400;color:#94a3b8">(${pct}%)</span></span>
+  </div>
+  <div style="height:7px;background:#f1f5f9;border-radius:4px;overflow:hidden">
+    <div style="height:100%;width:${barPct}%;background:${barColor};border-radius:4px;transition:width .4s"></div>
+  </div>
+</div>`;
+    }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No terminations logged yet for 2026-2027.</div>';
+
+    const volCount = terms.filter(t => t.termType === 'Voluntary').length;
+    const invCount = terms.filter(t => t.termType === 'Involuntary').length;
+    const unkCount = termTotal - volCount - invCount;
+    const volPct   = termTotal ? Math.round(volCount / termTotal * 100) : 0;
+
+    const cycleRows = cycles.map(c => {
+      const d = byCycle[c];
+      const t = (d.active + d.term) || 1;
+      const rate = Math.round(d.active / t * 100);
+      const rateColor = rate >= 70 ? '#059669' : rate >= 50 ? '#d97706' : '#dc2626';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:.25rem .5rem;border-radius:5px;margin-bottom:.25rem;background:transparent;border:1px solid #f1f5f9" title="${esc(d.active+'/'+t+' retained')}">
+        <span style="font-size:.72rem;color:#64748b;font-weight:400">${esc(c)} <span style="color:#94a3b8;font-weight:400">(${d.term} sep.)</span></span>
+        <span style="font-size:.72rem;font-weight:700;color:${rateColor}">${rate}% retention</span>
+      </div>`;
+    }).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No cycle data yet.</div>';
+
+    const src = _onsiteStatus === 'live' ? '🟢 Live' : '📋 Pending';
+
+    return `<div id="onsiteRetentionWidget" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:1.125rem 1.25rem;margin-top:1.5rem">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem">
+    <div>
+      <div style="font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:.2rem">HR &amp; Data · Onsite Tracker · Summer 2026 → SY 2026-2027</div>
+      <div style="font-size:1rem;font-weight:800;color:#0a1628">Onboarding Retention (Next Cycle)</div>
+    </div>
+    <span style="font-size:.62rem;color:#94a3b8;font-style:italic">${src}</span>
+  </div>
+
+  <!-- Definition callout -->
+  <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:.625rem .875rem;margin-bottom:1rem;font-size:.7rem;color:#1e40af;line-height:1.55">
+    <strong style="display:block;margin-bottom:.2rem;font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#1d4ed8">ℹ How This Differs From the 2025-2026 Widget Above</strong>
+    The Onsite Tracker records a real hire date ("Offer Accepted") for every person, so retention here is computed live — Active ÷ (Active + Terminated) for everyone who has ever been on a cycle's roster — with no manual quarterly entry required.
+    HR (Mysti Diaz) maintains the roster and terminations tabs directly in the "Automated: Onsite 26-27 Tracker" Google Sheet; this card only reads them, so her updates appear for every viewer and are never lost on refresh.
+    This widget will carry the org's primary retention tracking forward once SY 2026-2027 begins in September.
+  </div>
+
+  <!-- KPI tiles row -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.125rem">
+    ${[
+      { v: activeTotal, l: 'Active Staff', c: '#1d4ed8' },
+      { v: termTotal,   l: 'Separated',    c: termTotal > 0 ? '#dc2626' : '#059669' },
+      { v: retentionPct + '%', l: 'Retention Rate', c: retentionPct >= 70 ? '#059669' : retentionPct >= 50 ? '#d97706' : '#dc2626' },
+      { v: volPct + '%', l: 'Voluntary', c: '#0891b2' },
+    ].map(t => `<div style="text-align:center;padding:.625rem .5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      <div style="font-size:1.25rem;font-weight:800;color:${t.c};line-height:1.1">${t.v}</div>
+      <div style="font-size:.62rem;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-top:2px">${t.l}</div>
+    </div>`).join('')}
+  </div>
+
+  <!-- Reason breakdown -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Termination Reason Breakdown</div>
+      ${reasonBarsHtml}
+    </div>
+    <div>
+      <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.625rem">Type Split</div>
+      ${[
+        { label:'Voluntary',   count: volCount, color:'#0891b2', bg:'#e0f2fe' },
+        { label:'Involuntary', count: invCount, color:'#dc2626', bg:'#fee2e2' },
+        { label:'Unknown',     count: unkCount, color:'#94a3b8', bg:'#f1f5f9' },
+      ].filter(x => x.count > 0).map(x => `<div style="display:flex;align-items:center;justify-content:space-between;padding:.35rem .6rem;background:${x.bg};border-radius:6px;margin-bottom:.35rem">
+        <span style="font-size:.75rem;font-weight:600;color:${x.color}">${x.label}</span>
+        <span style="font-size:.75rem;font-weight:800;color:${x.color}">${x.count}</span>
+      </div>`).join('') || '<div style="font-size:.72rem;color:#94a3b8;font-style:italic">No type data yet.</div>'}
+      <div style="margin-top:.75rem">
+        <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.06em;margin-bottom:.45rem">By Cycle</div>
+        ${cycleRows}
       </div>
     </div>
   </div>
@@ -7176,7 +7527,9 @@ ${inactive.length ? `
   window._updateTalentBadge      = _updateTalentBadge;
   window._hrBuildProfiles        = _hrBuildProfiles;  // called from shared-utils.js
   window._hrViewDefinitions      = _hrViewDefinitions; // called from shared-utils.js buildTalentContent
-  window._buildTermAnalyticsWidget = _buildTermAnalyticsWidget;  // HR & Data home widget
-  window._buildRetentionWidget     = _buildRetentionWidget;      // Programming home widget
+  window._buildTermAnalyticsWidget    = _buildTermAnalyticsWidget;    // HR & Data home widget
+  window._buildOnsiteRetentionWidget  = _buildOnsiteRetentionWidget;  // HR & Data — Summer 2026/SY 2026-2027 home widget
+  window._buildRetentionWidget        = _buildRetentionWidget;        // Programming home widget
+  window.fetchLiveOnsiteData          = fetchLiveOnsiteData;
 
 })();
