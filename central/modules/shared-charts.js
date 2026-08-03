@@ -1095,7 +1095,11 @@
   // that cycle's roster); no manual quarterly entry table is needed. HR (Mysti Diaz) maintains
   // both tabs directly in the Google Sheet; the portal only ever reads them, so her edits are
   // visible to everyone on next load and never disappear on refresh.
-  const ONSITE_2PACX      = '2PACX-1vSGZjvWl8rwCTo8QhEF7ATPeYPTYBwc8lOufuOXu5lrlis_XzOIEE7-H17afwUow_V3xScU3442Scx9';
+  // Using the sheet ID + /export?format=csv (same pattern as _WR_HISTORY_URL below) instead of
+  // a "publish to web" 2PACX ID — the 2PACX string mixes visually-identical characters (I/l)
+  // that don't survive being read off a screenshot, and a single wrong character there fails
+  // silently ("file does not exist") with no way to tell it apart from a real outage.
+  const ONSITE_SHEET_ID   = '1x3dWZQhx9XWqB8YASInOMTr0JDjSRMqv3w7PmcruuMU';
   const ONSITE_GID_ROSTER = '0';          // "Onsite Tracker" tab — active/onboarding roster
   const ONSITE_GID_TERM   = '1788942666'; // Terminations tab
   const ONSITE_CACHE_KEY  = 'njtc_onsite_live_v1';
@@ -1437,8 +1441,8 @@
       } catch(e) {}
     }
     const bust = force ? '&t='+Date.now() : '';
-    const rosterUrl = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_ROSTER}${bust}`;
-    const termUrl   = `https://docs.google.com/spreadsheets/d/e/${ONSITE_2PACX}/pub?output=csv&gid=${ONSITE_GID_TERM}${bust}`;
+    const rosterUrl = `https://docs.google.com/spreadsheets/d/${ONSITE_SHEET_ID}/export?format=csv&gid=${ONSITE_GID_ROSTER}${bust}`;
+    const termUrl   = `https://docs.google.com/spreadsheets/d/${ONSITE_SHEET_ID}/export?format=csv&gid=${ONSITE_GID_TERM}${bust}`;
 
     // Fetch + parse each tab independently (not Promise.all on the raw fetches) — a failure on
     // one sheet must never wipe out data we already got from the other. `ok` reflects whether
