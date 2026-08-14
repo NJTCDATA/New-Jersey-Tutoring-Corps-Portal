@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-14T12:53:19.539Z",
+  "generated": "2026-08-14T14:12:22.905Z",
   "project": "1211431518555737",
-  "count": 12,
+  "count": 9,
   "tasks": [
     {
       "gid": "1211431518555862",
@@ -104,39 +104,13 @@
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212817919470310"
     },
     {
-      "gid": "1211431518555928",
-      "assignee": {
-        "gid": "1202967483652746",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-14",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1203930291954613",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Leadership completes a mid-year and end of year retreat",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555928"
-    },
-    {
       "gid": "1211993595635554",
       "assignee": {
         "gid": "1205203775091388",
         "resource_type": "user"
       },
       "completed": false,
-      "due_on": "2026-08-07",
+      "due_on": "2026-08-31",
       "followers": [
         {
           "gid": "1205203775091388",
@@ -210,50 +184,6 @@
       "name": "50% retention rate for school partners",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555947"
-    },
-    {
-      "gid": "1211431518555956",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-07-30",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        }
-      ],
-      "name": "80% annual core staff retention",
-      "notes": "Maintaining staff for consistent organizational progress and evaluating employee satisfaction. ",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555956"
-    },
-    {
-      "gid": "1211431518555958",
-      "assignee": {
-        "gid": "1213327755449997",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-05-01",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205401560672729",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        }
-      ],
-      "name": "60% annual on-site staff retention",
-      "notes": "Maintaining quality on-site staff to ensure that tutoring is effective and partners are satisfied.",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555958"
     },
     {
       "gid": "1211431518555979",
