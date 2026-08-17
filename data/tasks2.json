@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-17T10:58:10.287Z",
+  "generated": "2026-08-17T11:30:46.722Z",
   "project": "1213346212277384",
-  "count": 8,
+  "count": 9,
   "tasks": [
     {
       "gid": "1213346212293198",
@@ -94,6 +94,28 @@
       "name": "Vernon (SY)",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1217006016389772"
+    },
+    {
+      "gid": "1217542181806957",
+      "assignee": {
+        "gid": "1213635692801884",
+        "resource_type": "user"
+      },
+      "completed": false,
+      "due_on": "2026-10-17",
+      "followers": [
+        {
+          "gid": "1213635692801884",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202953622354860",
+          "resource_type": "user"
+        }
+      ],
+      "name": "Lyndhurst - new partner",
+      "notes": "",
+      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1217542181806957"
     },
     {
       "gid": "1213346212293204",
