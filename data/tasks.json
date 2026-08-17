@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-17T17:20:47.985Z",
+  "generated": "2026-08-17T17:53:55.318Z",
   "project": "1211431518555737",
-  "count": 9,
+  "count": 8,
   "tasks": [
     {
       "gid": "1211431518555862",
@@ -218,44 +218,6 @@
       "name": "Increase followers by 20% on social media platforms (in the aggregate)\n",
       "notes": "Rene maintains this work with Sheila",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555979"
-    },
-    {
-      "gid": "1211431518555989",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-05-01",
-      "followers": [
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Complete meetings with 60 Schools or Districts Pitching NJTC  business with 10 meetings being in-person. ",
-      "notes": "Meet with current and potential partner districts to maintain/win business\n\n    American Paradigm Schools - won pilot\n    Hamilton Township (in-person) - won RFP\n    Gloucester Township - 'won'\n    Penns Grove/Carneys Point - won RFP\n    Lawrence Township - no money\n    HOLA (in person) - won RFP\n    Haddon (in-person) - won RFP\n    GLAW - reupped\n    CJCP (in-person) - won RFP\n    Middlesex STEM - won RFP but delayed until next year\n    Monmouth BGC (in-person)\n    i-Learn (in-person) - re-upped\n    String Theory Schools - won pilot\n    Bridgeton Schools - 4\n    South Huntingdon -\n16. Florence Township\n17. Gloucester Township redux\n18. Lawrence Township redux\n19. Penns Grove/Carneys Point redux\n20.  Cliffside Park \n21. Newton\n22. PCSST\n23. Middlesex STEM redux - won short program\n24. Pitman\n25. Hillside\n26. Pennsauken\n27. Gateway Regional\n28. Buena\n29. Delran\n30. Vernon\n31. PG/CP NGO\n32. Delsea/Elk \n33. Berlin \n34. Berlin borough\n35. Asbury Park\n36. Pemberton\n37. Palmyra\n38. Wildwood School District\n39. Gloucester redux\n40. Newton redux\n41. Quinton\n42. Middlesex STEM in person\n43. Lyndhurst\n44. Tabernacle\n45. Neptune\n46. Franklin Borough\n47. Matawan-Aberdeen\n48. Neptune City\n49. Atlantic Community Charter\n50. Somerville\n51. Roselle\n52. Kearny\n53. Rahway\n54. String Theory fy 27\n55. Lawrence Twp. fy 27\n56. Gloucester Twp FY 27\n57. Middlesex STEM in-person summer 26\n58. Camden LEAP SY 27\n59. Pittsgrove \n60. \n\n",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555989"
     }
   ]
 }
