@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-19T19:01:36.389Z",
+  "generated": "2026-08-19T19:47:36.739Z",
   "project": "1211431518555737",
-  "count": 8,
+  "count": 7,
   "tasks": [
     {
       "gid": "1211431518555862",
@@ -142,48 +142,6 @@
       "name": "HR, Recruitment & Selection",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555803"
-    },
-    {
-      "gid": "1211431518555947",
-      "assignee": {
-        "gid": "1213327755449997",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-14",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213327755449997",
-          "resource_type": "user"
-        }
-      ],
-      "name": "50% retention rate for school partners",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555947"
     },
     {
       "gid": "1211431518555979",
