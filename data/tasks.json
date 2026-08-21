@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-21T19:06:29.244Z",
+  "generated": "2026-08-21T19:46:09.398Z",
   "project": "1211431518555737",
-  "count": 7,
+  "count": 5,
   "tasks": [
     {
       "gid": "1211431518555862",
@@ -32,50 +32,6 @@
       "name": "Secure new philanthropic partners totaling $200k",
       "notes": "Using instrumental- update the plan to secure 200k in new philanthropic partners https://www.instrumentl.com/projects/321130#/project-tracker\n\nAs of 8/5/26 raised $129,000 in new philanthropic dollars.\n\nWawa $1000\nThe Giants Foundation $5000\nBeyond 100K $3000\nLaura Overdeck $100,000\nStone Foundation $20,000",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555862"
-    },
-    {
-      "gid": "1211431518555898",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-05-01",
-      "followers": [
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Increase the number of introductions by board members to school district partners, legislative reps, & potential donors (At least 1 intro per board member; total of 15)\n",
-      "notes": "    Christina Renna: 1 - multiple through South Jersey Chamber; 2- First Lady's Chief of Staff to secure support for budget line item; 3 - connected us with three (3) NGO districts; 4 - included us in Day on the Hill; 5 - gave us a free table at the Cumberland County Chamber meeting; 6 -contacted Governor Sherrill personally to request that we remain in the budget FY 27. \n    Theresa Maughan: 13 - invited Katherine to the NTHF conference where Katherine was able to connect with national leaders and funders; 14 - invited Katherine to present at the annual CTOY conference\n    Colleen Eskow: 7 - Connected us to incoming Lt. Gov. for site visit; 8 - explored a more formal partnership with NJ Charter Schools Association; 15 -will connect us to a new marketing firm to interview\n    Nanette Wright: \n    Monica Goncalves:\n    Liz Ross: 9 - had us featured in the OFF Bright Spots, 10 - raised two donations - one from CFNJ for her time working, and one through a match for her hours worked by OFF; 11-  secured our 400k grant for FY 26; 12 -secured a $300k grant for each of the next three years\n    Tonya Breland\n    Corissa Briglia\nThis totals 14 to date https://app.asana.com/1/1202967547815613/profile/1205203806131048\nThis totals 15 now - however, not every Board member did an introduction. I don't know if I should check this off or not. https://app.asana.com/1/1202967547815613/profile/1205203806131048",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555898"
-    },
-    {
-      "gid": "1211431518555903",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-03-16",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Recruit 1 new board member with connections to philanthropy and/or district partners\n",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555903"
     },
     {
       "gid": "1212817919470310",
