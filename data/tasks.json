@@ -1,7 +1,7 @@
 {
-  "generated": "2026-08-25T12:37:16.731Z",
+  "generated": "2026-08-25T13:43:19.277Z",
   "project": "1211431518555737",
-  "count": 5,
+  "count": 4,
   "tasks": [
     {
       "gid": "1211431518555862",
@@ -98,40 +98,6 @@
       "name": "HR, Recruitment & Selection",
       "notes": "",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555803"
-    },
-    {
-      "gid": "1211431518555979",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-06-03",
-      "followers": [
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1203930291954613",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Increase followers by 20% on social media platforms (in the aggregate)\n",
-      "notes": "Rene maintains this work with Sheila",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555979"
     }
   ]
 }
