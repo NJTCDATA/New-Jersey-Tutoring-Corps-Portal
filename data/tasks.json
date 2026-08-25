@@ -1,38 +1,8 @@
 {
-  "generated": "2026-08-25T13:43:19.277Z",
+  "generated": "2026-08-25T14:38:26.125Z",
   "project": "1211431518555737",
-  "count": 4,
+  "count": 3,
   "tasks": [
-    {
-      "gid": "1211431518555862",
-      "assignee": {
-        "gid": "1202953622354860",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-06-30",
-      "followers": [
-        {
-          "gid": "1202967456708132",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Secure new philanthropic partners totaling $200k",
-      "notes": "Using instrumental- update the plan to secure 200k in new philanthropic partners https://www.instrumentl.com/projects/321130#/project-tracker\n\nAs of 8/5/26 raised $129,000 in new philanthropic dollars.\n\nWawa $1000\nThe Giants Foundation $5000\nBeyond 100K $3000\nLaura Overdeck $100,000\nStone Foundation $20,000",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211431518555862"
-    },
     {
       "gid": "1212817919470310",
       "assignee": {
