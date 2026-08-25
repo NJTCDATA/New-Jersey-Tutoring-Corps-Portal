@@ -1,56 +1,8 @@
 {
-  "generated": "2026-08-25T12:41:20.064Z",
+  "generated": "2026-08-25T13:46:54.189Z",
   "project": "1213346212277384",
-  "count": 8,
+  "count": 6,
   "tasks": [
-    {
-      "gid": "1213346212293198",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-28",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        }
-      ],
-      "name": "# of Conference and Statewide Meetings Complete",
-      "notes": "Join NJTC staff at professional events to increase visibility and credibility",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293198"
-    },
-    {
-      "gid": "1213346212293197",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-21",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1205799963499266",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Meetings with Potential Partners",
-      "notes": "Reach out to superintendents, principals, business administrators, and curriculum directors through personal/professional connections\n\nhttps://docs.google.com/spreadsheets/d/1nDztgESFwbYc4n8qwq50etx1e42QMKMHbDaoFKj6KJI/edit?gid=1188458134#gid=1188458134\n\nhttps://form.asana.com/?k=_jDdF0GYOfNWIn9kBYCWug&d=1202967547815613- for when a lead returns your email and asks to set up a meeting\n\nWildwood City (Non-public) 5/20/26\nMatawan-Aberdeen 5/11/26 (mtg 2 - but wants to speak with Asst Supt too)",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293197"
-    },
     {
       "gid": "1217006016389770",
       "assignee": {
