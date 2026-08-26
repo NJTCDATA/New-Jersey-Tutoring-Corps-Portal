@@ -1,52 +1,8 @@
 {
-  "generated": "2026-08-26T09:37:33.970Z",
+  "generated": "2026-08-26T10:32:04.630Z",
   "project": "1213346212277384",
-  "count": 6,
+  "count": 4,
   "tasks": [
-    {
-      "gid": "1217006016389770",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-09-29",
-      "followers": [
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Gloucester (SY)",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1217006016389770"
-    },
-    {
-      "gid": "1217006016389772",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-09-29",
-      "followers": [
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Vernon (SY)",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1217006016389772"
-    },
     {
       "gid": "1213346212293204",
       "assignee": null,
