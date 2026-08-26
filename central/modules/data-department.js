@@ -91,21 +91,26 @@
     let _irlTutorDrill   = null;
     let _irlCharts       = {};         // Track Chart.js instances for cleanup
     let _irlRepeatIndex  = null;       // Cached cross-year repeat scholar index; reset on data change
+    let _irlExportKind    = 'csv';     // 'csv' | 'xlsx' — which download the export modal is for
+    let _irlExportFilters = null;      // Filter selections scoped to the export modal (independent of on-screen filters)
 
     // ── localStorage key for Data dept embedded CSV updates ─────────────────
     const EMBED_STORE_KEY  = 'njtc_irlab_embedded_v1';
-    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v3';  // bumped to purge stale cached row data
+    const IRLAB_LIVE_CACHE = 'njtc_irlab_live_v4';  // bumped — Aug 2026 sheet restructure (new gids/columns)
     // ── To enable live i-Ready data: set 2PACX key + tab GIDs below ──
     // Published sheet: File → Share → Publish to web → CSV → copy 2PACX key
     // GIDs: each tab's numeric ?gid= value from the sheet URL
     const IRLAB_LIVE_2PACX = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
     // GIDs are auto-discovered at runtime from pubhtml (same as Pearl Ops pattern)
     // Cache key for discovered GIDs
-    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v5';  // bumped — v4 had wrong math/ela (confusing main with repeat)
+    const IRLAB_GID_CACHE  = 'njtc_irlab_gids_v6';  // bumped — Aug 2026 sheet restructure (new gids/columns)
     const IRLAB_GID_TTL_MS = 24 * 60 * 60 * 1000;  // 24hr — GIDs don't change often
     // Confirmed GIDs from published sheet edit URLs (authoritative — never overridden by discovery)
-    // Math main: gid=127145553  |  ELA main: gid=0 (default tab)
-    let   IRLAB_LIVE_GIDS  = { math: 127145553, ela: 0, mathRep: null, elaRep: null };
+    // Math main: gid=1439023115  |  ELA main: gid=587043709
+    // Repeat Scholar status is now a column embedded directly in the ELA/Math tabs
+    // themselves ("Repeat Scholar" / "Repeat Scholar YOY") — mathRep/elaRep tabs are
+    // no longer needed as separate sources, but stay wired for backward compatibility.
+    let   IRLAB_LIVE_GIDS  = { math: 1439023115, ela: 587043709, mathRep: null, elaRep: null };
     const IRLAB_REFRESH_MS = 2 * 60 * 60 * 1000;   // 2-hour data cache
     let   _irlGIDsResolved = false;
     let   _irlDiscoveryPromise = null;  // promise lock — prevents concurrent discovery races
@@ -181,6 +186,18 @@
       return '';
     }
 
+    // ── Repeat Scholar flag parser ──────────────────────────────────────────
+    // The live sheet's own "Repeat Scholar" / "Repeat Scholar YOY" column values
+    // are 'Repeat' or 'Not Repeat'. A naive .includes('repeat') check matches BOTH
+    // ('Not Repeat' contains the substring 'repeat'), which was marking every
+    // scholar as a repeat. Only an explicit repeat value should count as true.
+    function _parseRepeatFlag(raw) {
+      const v = (raw == null ? '' : String(raw)).trim().toLowerCase();
+      if (!v) return false;
+      if (v.indexOf('not repeat') !== -1 || v === 'no' || v === 'n' || v === 'false') return false;
+      return v.indexOf('repeat') !== -1 || v === 'yes' || v === 'y' || v === 'true';
+    }
+
     function normalizeRow(r, subject) {
       // Full header normalization: lowercase, replace ALL non-alphanumeric with _, trim underscores
       // Handles Title Case, snake_case, headers with %, &, () etc.
@@ -195,6 +212,31 @@
       }
       r = _rn;
       const instRaw = g(r,'Instructor','Tutor','tutor','instructor').trim();
+      // pctTypical is computed once, up front, so pctStretch below can cross-check against it
+      // (stretch growth targets are always >= typical growth targets, so % of stretch achieved
+      // can never legitimately exceed % of typical achieved for the same scholar/row).
+      const _pctTypicalVal = (function(){
+        // Try all known column name variants across Math (Title Case) and ELA (snake_case) sheets
+        var _raw = g(r,
+          'Spring pct progress typical growth',
+          'spring_pct_progress_typical_growth',
+          'spring_pct_toward_typical_growth',
+          'Spring Pct Progress Toward Typical Growth',
+          'spring__progress_typical_growth',       // % sign → _ in normalization
+          'spring_growth_inclusion',               // ELA repeat sheet variant
+          'Spring Growth Inclusion',
+          'Spring % Progress Typical Growth',
+          'spring_pct_typical',
+          'pct_progress_typical_growth'
+        );
+        var _v=parseFloat(_raw);
+        if(isNaN(_v)||_raw===''||_raw===null||_raw===undefined) return null;
+        // Handle %-suffixed values: '97%' → parseFloat gives 97 → divide by 100 → 0.97
+        if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
+        // Guard: iReady ratio column is 0–~15 range (e.g. 1.50 = 150%); >15 is pct-as-integer
+        else if(_v > 15) { _v=_v/100; }
+        return _v;
+      }());
       return {
         subject,
         year:             g(r,'Academic year','academic_year'),
@@ -220,42 +262,61 @@
         springGain:       parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'))||null,
         springPercentile: parseFloat(g(r,'Spring percentile','spring_percentile'))||null,
         springRushFlag:   g(r,'Spring rush flag','spring_rush_flag'),
-        pctTypical:       (function(){
-          // Try all known column name variants across Math (Title Case) and ELA (snake_case) sheets
-          var _raw = g(r,
-            'Spring pct progress typical growth',
-            'spring_pct_progress_typical_growth',
-            'spring_pct_toward_typical_growth',
-            'Spring Pct Progress Toward Typical Growth',
-            'spring__progress_typical_growth',       // % sign → _ in normalization
-            'spring_growth_inclusion',               // ELA repeat sheet variant
-            'Spring Growth Inclusion',
-            'Spring % Progress Typical Growth',
-            'spring_pct_typical',
-            'pct_progress_typical_growth'
-          );
-          var _v=parseFloat(_raw);
-          if(isNaN(_v)||_raw===''||_raw===null||_raw===undefined) return null;
-          // Handle %-suffixed values: '97%' → parseFloat gives 97 → divide by 100 → 0.97
-          if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
-          // Guard: iReady ratio column is 0–~15 range (e.g. 1.50 = 150%); >15 is pct-as-integer
-          else if(_v > 15) { _v=_v/100; }
-          return _v;
-        }()),
+        pctTypical:       _pctTypicalVal,
         pctStretch:       (function(){
           var _raw=g(r,'Spring pct progress stretch growth','spring_pct_progress_stretch_growth');
           var _v=parseFloat(_raw);
           if(isNaN(_v)) return null;
           if(typeof _raw==='string' && _raw.trim().slice(-1)==='%') { _v=_v/100; }
           else if(_v > 15) { _v=_v/100; }
+          // Self-correcting cross-check: stretch growth targets are always harder to reach than
+          // typical growth targets, so % of stretch achieved can never exceed % of typical
+          // achieved for the same row. Some live sheets (e.g. the ELA tab) store this column as
+          // a raw whole-number percent (e.g. 39 = 39%) rather than a decimal ratio like Math's —
+          // if the parsed value is still implausibly larger than typical, it needs rescaling.
+          if(_pctTypicalVal != null && _v > _pctTypicalVal) { _v = _v/100; }
           return _v;
         }()),
         annualTypical:    parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'))||null,
         annualStretch:    parseFloat(g(r,'Annual stretch growth measure','annual_stretch_growth_measure'))||null,
-        isRepeat:         (g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toLowerCase().includes('repeat'),
+        isRepeat:         _parseRepeatFlag(g(r,'Repeat Scholar YOY','Repeat Scholar')),
+        _hasRepeatCol:    !!(g(r,'Repeat Scholar YOY','Repeat Scholar')||'').toString().trim(),
         basePlacement:    g(r,'Base overall placement','base_overall_placement'),
         springPlacement:  g(r,'Spring overall placement','spring_overall_placement'),
-        springWeeks:      parseFloat(g(r,'Spring weeks between diagnostics','spring_weeks_between_diagnostics'))||null,
+        // "Diagnostic window and/or_weeks_between_diagnostics" is the ELA sheet's renamed/merged
+        // column — most rows hold the season label ("Spring"), a minority hold the numeric weeks
+        // value. parseFloat() on the season-label rows naturally yields NaN → null, so this alias
+        // is safe to add without a separate guard.
+        springWeeks:      parseFloat(g(r,
+                            'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
+                            'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
+                          ))||null,
+        // ── Scale Score Progression (NJTC methodology) ─────────────────────
+        // iReady's own norm assumes a full 10-month/30-week school year, but NJTC
+        // programs run for a much shorter, variable window — so growth pace is
+        // measured against the scholar's OWN diagnostic window instead:
+        //   Expected Growth per Week = Annual Typical Growth Measure ÷ Spring Weeks Between Diagnostics
+        //   Weeks of Growth          = Spring Diagnostic Gain ÷ Expected Growth per Week
+        expectedGrowthPerWeek: (function(){
+          var _at = parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'));
+          var _wk = parseFloat(g(r,
+                      'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
+                      'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
+                    ));
+          if (isNaN(_at) || isNaN(_wk) || _wk <= 0) return null;
+          return _at / _wk;
+        }()),
+        weeksOfGrowth: (function(){
+          var _gain = parseFloat(g(r,'Spring diagnostic gain','spring_diagnostic_gain'));
+          var _at   = parseFloat(g(r,'Annual typical growth measure','annual_typical_growth_measure'));
+          var _wk   = parseFloat(g(r,
+                        'Spring weeks between diagnostics','spring_weeks_between_diagnostics',
+                        'Diagnostic window and/or_weeks_between_diagnostics','diagnostic_window_and_or_weeks_between_diagnostics'
+                      ));
+          if (isNaN(_gain) || isNaN(_at) || isNaN(_wk) || _wk <= 0 || _at <= 0) return null;
+          var _perWk = _at / _wk;
+          return _perWk > 0 ? _gain / _perWk : null;
+        }()),
         // ELA domain subscores
         elaPhonologicalScore:   parseFloat(g(r,'Base phonological awareness scale score','base_phonological_awareness_scale_score'))||null,
         elaPhonicsScore:        parseFloat(g(r,'Base phonics scale score','base_phonics_scale_score'))||null,
@@ -407,7 +468,7 @@
     }
 
     async function _irlDiscoverGIDsInner() {
-      // math=127145553 and ela=0 are hardcoded (confirmed from sheet edit URLs) — always authoritative.
+      // math=1439023115 and ela=587043709 are hardcoded (confirmed from sheet edit URLs) — always authoritative.
       // Discovery only needed for mathRep and elaRep (repeat-scholar tabs).
 
       // 1. Try localStorage cache for repeat GIDs only
@@ -419,8 +480,8 @@
             IRLAB_LIVE_GIDS.mathRep = cg.mathRep;
             IRLAB_LIVE_GIDS.elaRep  = cg.elaRep;
             // Re-assert hardcoded core GIDs (cache must not override)
-            IRLAB_LIVE_GIDS.math = 127145553;
-            IRLAB_LIVE_GIDS.ela  = 0;
+            IRLAB_LIVE_GIDS.math = 1439023115;
+            IRLAB_LIVE_GIDS.ela  = 587043709;
             _irlGIDsResolved = true;
             console.log('[irlab] GIDs loaded from cache:', JSON.stringify(IRLAB_LIVE_GIDS));
             return true;
@@ -551,8 +612,8 @@
       }
 
       // Re-assert hardcoded core GIDs — discovery must never override these
-      resolved.math = 127145553;
-      resolved.ela  = 0;
+      resolved.math = 1439023115;
+      resolved.ela  = 587043709;
 
       IRLAB_LIVE_GIDS = resolved;
       _irlGIDsResolved = true; // math + ela are always known
@@ -631,7 +692,9 @@
               })
               .filter(r => r.scholarId || r.scholarName);
             if (isRepeat) {
-              res[tab] = allNorm;
+              // Rows on a dedicated repeat-scholar tab are repeat scholars by definition,
+              // even if the tab itself doesn't carry an explicit "Repeat Scholar" column.
+              res[tab] = allNorm.map(rr => { rr.isRepeat = true; rr._hasRepeatCol = true; return rr; });
             } else {
               // Split by actual subject — so a single mixed-subject tab populates both math and ela
               const mathRows = allNorm.filter(r => r.subject === 'Math');
@@ -835,6 +898,20 @@
                                     '% Progress Toward Stretch Growth','pct_progress_toward_stretch_growth'),
           annualTypical:      _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure'),
           annualStretch:      _pf(win,'Stretch Growth','stretch_growth','Annual Stretch Growth Measure','annual_stretch_growth_measure'),
+          // Scale Score Progression (NJTC methodology) — see normalizeRow() for full formula notes.
+          expectedGrowthPerWeek: (function(){
+            var _at = _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure');
+            var _wk = _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics');
+            return (_at != null && _wk != null && _wk > 0) ? _at / _wk : null;
+          }()),
+          weeksOfGrowth: (function(){
+            var _gain = _pf(spr,'Diagnostic Gain','diagnostic_gain','Spring Diagnostic Gain','spring_diagnostic_gain');
+            var _at   = _pf(win,'Typical Growth','typical_growth','Annual Typical Growth Measure','annual_typical_growth_measure');
+            var _wk   = _pf(spr,'Weeks Between Diagnostics','weeks_between_diagnostics','Spring Weeks Between Diagnostics','spring_weeks_between_diagnostics');
+            if (_gain == null || _at == null || _wk == null || _wk <= 0 || _at <= 0) return null;
+            var _perWk = _at / _wk;
+            return _perWk > 0 ? _gain / _perWk : null;
+          }()),
           isRepeat:           false,  // set below after longitudinal ID scan
           // ELA domain subscores
           elaPhonologicalScore:       isELA ? _pf(win,'Phonological Awareness Scale Score','phonological_awareness_scale_score') : null,
@@ -1108,6 +1185,7 @@
           }
           row.certStatus = _certFound || '';
           row.isRepeat   = priorIds.has(row.scholarId);
+          row._hasRepeatCol = true;  // derived via longitudinal ID scan — treat as authoritative
           _irlManual2526Rows.push(row);
         });
         if (subj === 'ELA')  IRLAB_DATA.ela  = IRLAB_DATA.ela.concat(normalized);
@@ -1288,6 +1366,13 @@
     // Check if a single row belongs to a repeat scholar.
     // Uses ID lookup first; name lookup only when row has no valid ID.
     function _isRepeatScholar(r) {
+      if (!r) return false;
+      // Trust the live sheet's own "Repeat Scholar" / "Repeat Scholar YOY" column
+      // when the row actually carries that column — it's the authoritative, per-row
+      // source of truth straight from the ELA/Math tabs. Cross-year ID/name matching
+      // is only used as a fallback for rows that don't carry that column at all
+      // (e.g. legacy repeat-only tabs or the SY25-26 manual snapshot pathway).
+      if (r._hasRepeatCol) return !!r.isRepeat;
       const idx    = _getRepeatIndex();
       const rawId  = (r.scholarId || '').trim();
       if (rawId && rawId !== '0') return idx.repeatIdSet.has(rawId);
@@ -2282,7 +2367,11 @@
 
     // ── REPEAT SCHOLARS ───────────────────────────────────────────────────────
     function renderRepeatSection() {
-      const repRows=[...IRLAB_DATA.mathRepeat,...IRLAB_DATA.elaRepeat].filter(r=>r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
+      // Repeat status now comes primarily from the "Repeat Scholar" / "Repeat Scholar YOY"
+      // column embedded directly in the main ELA/Math tabs — pool ALL sources (main +
+      // any legacy dedicated repeat tabs) and filter by the authoritative repeat flag,
+      // rather than relying solely on the (now largely unused) repeat-only tabs.
+      const repRows=_getPooledRows().filter(r=>_isRepeatScholar(r)&&r.baseRelPlacement&&r.springRelPlacement&&PLACEMENT_ORDER.includes(r.baseRelPlacement)&&PLACEMENT_ORDER.includes(r.springRelPlacement));
       if(!repRows.length) return '';
       const m=computeMetrics(repRows); if(!m) return '';
       const allM=computeMetrics(getRows({}));
@@ -3086,6 +3175,30 @@
             +(_irlIMLoaded?'<button class="ecdi-drill-btn" onclick="window._njtcInsightDrill(\'district\')">Drilldown &rarr;</button>':'')
             +'</div></div>';
         })()
+        // Card C2: Scale Score Progression — NJTC/Mysti "Weeks of Growth" methodology
+        +(function(){
+          var _wksG = _irlIMLoaded && _irlIm.medianWeeksOfGrowth != null ? _irlIm.medianWeeksOfGrowth : null;
+          var _n    = _irlIMLoaded ? (_irlIm.weeksOfGrowthN || 0) : 0;
+          var _moEq = _wksG != null ? (_wksG/3).toFixed(1) : null; // iReady standard: 30 wks = 10 mo → 3 wks/mo
+          var _tip  = 'Scale Score Progression&#10;&#10;'
+            + 'NJTC programs run for a shorter, variable window than iReady’s 10-month/30-week&#10;'
+            + 'annual standard, so growth is measured against each scholar’s OWN diagnostic&#10;'
+            + 'window instead:&#10;&#10;'
+            + 'Expected Growth per Week = Annual Typical Growth Measure &divide; Spring Weeks Between Diagnostics&#10;'
+            + 'Weeks of Growth = Spring Diagnostic Gain &divide; Expected Growth per Week&#10;&#10;'
+            + '1 week of growth = the scale-score gain expected in one week of typical growth pace.&#10;'
+            + (_moEq != null ? ('&#8776; '+_moEq+' months of growth (at iReady’s 3 wks/mo standard)&#10;&#10;') : '')
+            + 'Source: annual_typical_growth_measure + spring_weeks_between_diagnostics + spring_diagnostic_gain';
+          return '<div class="ecdi-card cci-rose">'
+            +'<div class="ecdi-eyebrow">Scale Score Progression<span class="ecdi-tip" title="'+_tip+'">ⓘ</span></div>'
+            +_irlEcdiVal(_wksG, ' wks')
+            +'<div class="ecdi-card-title">Median Weeks of Growth</div>'
+            +'<div class="ecdi-card-desc">Scale score gain translated into weeks of typical growth, measured against each scholar’s own diagnostic window.'
+            +(_moEq!=null?' &#8776; '+_moEq+' months.':'')+'</div>'
+            +'<div class="ecdi-card-foot">'
+            +'<span class="ecdi-n">'+((_irlIMLoaded&&_n>0)?'n='+_n.toLocaleString():'Loading&hellip;')+'</span>'
+            +'</div></div>';
+        })()
         // Card D: Learning Velocity
         +'<div class="ecdi-card cci-purple'+((!_irlIm||!_irlIm.syAligned)?' ecdi-ph':'')+'">'
         +'<div class="ecdi-eyebrow">Learning Velocity<span class="ecdi-tip" title="Learning Velocity&#10;&#10;Formula: Scale Score Gain &divide; Tutoring Hours&#10;Requires academic and operational data from the same school year.&#10;Pearl data is SY 2025&ndash;2026; this card activates automatically when iReady corpus includes that year.">ⓘ</span></div>'
@@ -3329,10 +3442,10 @@
           <!-- Export row — Data dept only -->
           <div style="display:flex;align-items:center;gap:.5rem;margin-top:.45rem;padding-top:.45rem;border-top:1px solid var(--border);flex-wrap:wrap">
             <span style="font-size:.725rem;font-weight:700;color:var(--navy);flex-shrink:0">📥 Export data:</span>
-            <button onclick="irlab.downloadCSV()" title="Download filtered data as CSV (opens in Excel, Google Sheets)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:.75rem;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">
+            <button onclick="irlab.openExportModal('csv')" title="Choose filters, then download as CSV (opens in Excel, Google Sheets)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid var(--border);border-radius:7px;font-size:.75rem;font-weight:600;color:var(--navy);cursor:pointer;font-family:inherit">
               📄 CSV
             </button>
-            <button onclick="irlab.downloadXLSX()" title="Download as Excel workbook with 6 pre-built summary sheets: raw data, network summary, placement shifts, growth by school/grade/district" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid #16a34a;border-radius:7px;font-size:.75rem;font-weight:600;color:#15803d;cursor:pointer;font-family:inherit">
+            <button onclick="irlab.openExportModal('xlsx')" title="Choose filters, then download an Excel workbook with 6 pre-built summary sheets: raw data, network summary, placement shifts, growth by school/grade/district" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:#fff;border:1.5px solid #16a34a;border-radius:7px;font-size:.75rem;font-weight:600;color:#15803d;cursor:pointer;font-family:inherit">
               📊 XLSX
             </button>
             <button onclick="irlab.downloadHTMLReport()" title="Generate a full NJTC-branded HTML impact report with 4 charts and scholar highlight cards — open in browser then Print → Save as PDF" style="display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .75rem;background:linear-gradient(135deg,#0a2342,#1565c0);border:none;border-radius:7px;font-size:.75rem;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;box-shadow:0 1px 4px rgba(10,35,66,.25)">
@@ -7324,7 +7437,7 @@
         return s.length%2 ? s[m] : (s[m-1]+s[m])/2;
       }
 
-      var scaleGains=[], monthsArr=[], pctExpArr=[], springWeeksArr=[];
+      var scaleGains=[], monthsArr=[], pctExpArr=[], springWeeksArr=[], weeksGrowthArr=[];
       var drillRows=[];
       var byRace={}, byEthnicity={}, byEconStatus={}, byDistrict={}, bySchool={}, byGrade={}, byTutor={};
 
@@ -7346,6 +7459,9 @@
         if (!isNaN(pctExp)) pctExpArr.push(pctExp);
         var wks = (r.springWeeks != null && parseFloat(r.springWeeks) > 0) ? parseFloat(r.springWeeks) : NaN;
         if (!isNaN(wks)) springWeeksArr.push(wks);
+        // Weeks of Growth (NJTC/Mysti methodology) — pre-computed per row in normalizeRow().
+        var wksGrowth = (r.weeksOfGrowth != null && !isNaN(parseFloat(r.weeksOfGrowth))) ? parseFloat(r.weeksOfGrowth) : NaN;
+        if (!isNaN(wksGrowth)) weeksGrowthArr.push(wksGrowth);
 
         var raceKey = (r.race||'').trim() || 'Not Specified';
         var ethKey  = /yes/i.test(r.hispanic||'') ? 'Hispanic/Latino'
@@ -7434,6 +7550,7 @@
       var medMonths = _med(monthsArr);
       var medPct    = _med(pctExpArr);
       var medWeeks  = _med(springWeeksArr);
+      var medWeeksGrowth = _med(weeksGrowthArr);
       // Window-adjusted pct: compares median growth to what's expected for the actual
       // program window (medianSpringWeeks) rather than the iReady 30-week annual standard.
       // windowAdjustedPct = medianPctExpected ÷ (medianSpringWeeks ÷ 30)
@@ -7451,6 +7568,11 @@
         medianPctExpected:  medPct    != null ? parseFloat(medPct.toFixed(1))    : null,
         medianSpringWeeks:  medWeeks  != null ? parseFloat(medWeeks.toFixed(1))  : null,
         windowAdjustedPct:  windowAdjustedPct,
+        // Scale Score Progression (NJTC/Mysti methodology) — median "Weeks of Growth"
+        // across scholars, each measured against their OWN diagnostic window rather
+        // than iReady's 30-week annual standard. See normalizeRow() for the formula.
+        medianWeeksOfGrowth: medWeeksGrowth != null ? parseFloat(medWeeksGrowth.toFixed(1)) : null,
+        weeksOfGrowthN:      weeksGrowthArr.length,
         syAligned:          syAligned,
         medVelocity:        medVelocity != null ? parseFloat(medVelocity.toFixed(2)) : null,
         tutorImpactLeaders: tutorImpactLeaders,
@@ -7465,9 +7587,128 @@
       };
     }
 
+    // ── Export filter modal (Data dept only) ─────────────────────────────────
+    // Lets the user pick Subject/Year/District/School/Grade/Scholar Type for the
+    // CSV/XLSX download independently of whatever filters are applied on-screen.
+    function _irlExportOptions() {
+      const allRows = _getPooledRows();
+      const years   = [...new Set(allRows.map(r=>r.year))].filter(Boolean).sort();
+      const dists   = [...new Set(allRows.map(r=>r.district))].filter(Boolean).sort();
+      const distFiltered = (_irlExportFilters && _irlExportFilters.district !== 'all')
+        ? allRows.filter(r=>r.district===_irlExportFilters.district) : allRows;
+      const schools = [...new Set(distFiltered.map(r=>r.school))].filter(Boolean).sort();
+      const grades  = [...new Set(distFiltered.map(r=>r.grade))].filter(Boolean).sort((a,b)=>{
+        const na=parseInt(a)||99, nb=parseInt(b)||99; return na-nb;
+      });
+      return { years, dists, schools, grades };
+    }
+
+    function openExportModal(kind) {
+      _irlExportKind = kind === 'xlsx' ? 'xlsx' : 'csv';
+      // Seed from current on-screen filters so the export matches what's visible by default —
+      // the user can then loosen or narrow further before downloading.
+      _irlExportFilters = {
+        subject: _irlSubject, year: _irlYear, district: _irlDistrict, school: _irlSchool,
+        grade: _irlGrade, scholarType: _irlScholarType, pilot: _irlPilot,
+      };
+      const existing = document.getElementById('irlExportModal');
+      if (existing) existing.remove();
+      const modalHtml = `
+<div id="irlExportModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem" onclick="if(event.target===this)irlab.closeExportModal()">
+  <div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto;font-family:inherit">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1rem">
+      <div>
+        <div style="font-size:.625rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7b2d8b">iReady Analysis Lab</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:1.15rem;color:#0a1628;margin-top:.2rem">Export ${_irlExportKind.toUpperCase()} — Choose Filters</div>
+      </div>
+      <button onclick="irlab.closeExportModal()" style="background:none;border:none;font-size:1.25rem;cursor:pointer;color:#94a3b8;padding:.25rem;line-height:1">✕</button>
+    </div>
+    <div id="irlExportModalBody"></div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem;padding-top:.75rem;border-top:1px solid #f1f5f9">
+      <button onclick="irlab.closeExportModal()" style="padding:.45rem 1rem;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-size:.8rem;font-weight:600;color:#475569;cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="irlab.confirmExport()" style="padding:.45rem 1.1rem;border-radius:8px;border:none;background:#0a2342;font-size:.8rem;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">⬇ Download ${_irlExportKind.toUpperCase()}</button>
+    </div>
+  </div>
+</div>`;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      _irlRenderExportModalBody();
+    }
+
+    function setExportFilter(key, val) {
+      if (!_irlExportFilters) return;
+      _irlExportFilters[key] = val;
+      if (key === 'district') _irlExportFilters.school = 'all';  // reset dependent filter
+      _irlRenderExportModalBody();
+    }
+
+    function _irlRenderExportModalBody() {
+      const body = document.getElementById('irlExportModalBody');
+      if (!body || !_irlExportFilters) return;
+      const opt = _irlExportOptions();
+      const f   = _irlExportFilters;
+      const previewN = getAllRows(f).length;
+      body.innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;font-size:.78rem;color:#334155">
+          <label style="display:flex;flex-direction:column;gap:.25rem">Subject
+            <select onchange="irlab.setExportFilter('subject',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.subject==='all'?'selected':''}>Both Subjects</option>
+              <option value="Math" ${f.subject==='Math'?'selected':''}>Math</option>
+              <option value="ELA" ${f.subject==='ELA'?'selected':''}>ELA</option>
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem">Year
+            <select onchange="irlab.setExportFilter('year',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.year==='all'?'selected':''}>All Years</option>
+              ${opt.years.map(y=>`<option value="${y}" ${f.year===y?'selected':''}>${y}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem">District
+            <select onchange="irlab.setExportFilter('district',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.district==='all'?'selected':''}>All Districts</option>
+              ${opt.dists.map(d=>`<option value="${esc(d)}" ${f.district===d?'selected':''}>${esc(d)}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem">School
+            <select onchange="irlab.setExportFilter('school',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.school==='all'?'selected':''}>All Schools</option>
+              ${opt.schools.map(s=>`<option value="${esc(s)}" ${f.school===s?'selected':''}>${esc(s)}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem">Grade
+            <select onchange="irlab.setExportFilter('grade',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.grade==='all'?'selected':''}>All Grades</option>
+              ${opt.grades.map(gr=>`<option value="${esc(gr)}" ${f.grade===gr?'selected':''}>Grade ${esc(gr)}</option>`).join('')}
+            </select>
+          </label>
+          <label style="display:flex;flex-direction:column;gap:.25rem">Scholar Type
+            <select onchange="irlab.setExportFilter('scholarType',this.value)" style="padding:.35rem .4rem;border-radius:6px;border:1px solid var(--border);font-family:inherit">
+              <option value="all" ${f.scholarType==='all'?'selected':''}>All Scholars</option>
+              <option value="repeat" ${f.scholarType==='repeat'?'selected':''}>Repeat Only</option>
+              <option value="nonrepeat" ${f.scholarType==='nonrepeat'?'selected':''}>Non-Repeat Only</option>
+            </select>
+          </label>
+        </div>
+        <div style="margin-top:.85rem;font-size:.78rem;font-weight:700;color:#0a2342;background:#f5f7fb;border-radius:8px;padding:.55rem .7rem">
+          ${previewN.toLocaleString()} row${previewN===1?'':'s'} match these filters
+        </div>
+      `;
+    }
+
+    function confirmExport() {
+      const f = _irlExportFilters || {};
+      if (_irlExportKind === 'xlsx') downloadXLSX(f); else downloadCSV(f);
+      closeExportModal();
+    }
+
+    function closeExportModal() {
+      const m = document.getElementById('irlExportModal');
+      if (m) m.remove();
+      _irlExportFilters = null;
+    }
+
     // ── Data export (Data dept only) ─────────────────────────────────────────
-    function _irlBuildExportRows() {
-      const rows = getAllRows({});
+    function _irlBuildExportRows(opts) {
+      const rows = getAllRows(opts || {});
       return rows.map(r => ({
         'Scholar Name':              r.scholarName  || '',
         'Scholar ID':                r.scholarId    || '',
@@ -7491,6 +7732,10 @@
         'Spring Relative Placement': r.springRelPlacement  || '',
         'Spring Placement':          r.springPlacement     || '',
         'Scale Score Gain':          r.springGain   != null ? r.springGain                       : '',
+        // Scale Score Progression (NJTC/Mysti methodology) — added to the right of
+        // Scale Score Gain per the "Scale Score Progression" breakdown.
+        'Expected Growth per Week':  r.expectedGrowthPerWeek != null ? r.expectedGrowthPerWeek.toFixed(2) : '',
+        'Weeks of Growth':           r.weeksOfGrowth != null ? r.weeksOfGrowth.toFixed(2)        : '',
         'Diagnostic Weeks (BOY→EOY)':r.springWeeks  != null ? r.springWeeks                      : '',
         'Pct of Typical Growth':     r.pctTypical   != null ? (r.pctTypical * 100).toFixed(1)+'%': '',
         'Window-Adj. Growth %':      (r.pctTypical != null && r.springWeeks > 0)
@@ -7503,8 +7748,8 @@
       }));
     }
 
-    function downloadCSV() {
-      const rows = _irlBuildExportRows();
+    function downloadCSV(opts) {
+      const rows = _irlBuildExportRows(opts);
       if (!rows.length) { alert('No data to export with current filters.'); return; }
       const headers = Object.keys(rows[0]);
       const _esc = v => { const s = String(v == null ? '' : v); return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s; };
@@ -7517,13 +7762,13 @@
       URL.revokeObjectURL(url);
     }
 
-    function downloadXLSX() {
-      if (typeof XLSX === 'undefined') { downloadCSV(); return; }
-      const exportRows = _irlBuildExportRows();
+    function downloadXLSX(opts) {
+      if (typeof XLSX === 'undefined') { downloadCSV(opts); return; }
+      const exportRows = _irlBuildExportRows(opts);
       if (!exportRows.length) { alert('No data to export with current filters.'); return; }
 
-      const validRows = getRows({});
-      const allRows   = getAllRows({});
+      const validRows = getRows(opts || {});
+      const allRows   = getAllRows(opts || {});
       const m         = validRows.length ? computeMetrics(validRows) : null;
       const dated     = new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
 
@@ -8575,6 +8820,7 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
              getTutorAcademicData, getTutorAcademicImpact, getSummary, getSnapshot, getInsightMetrics,
              fetchLive: _irlFetchLive,
              downloadCSV, downloadXLSX, downloadHTMLReport,
+             openExportModal, setExportFilter, confirmExport, closeExportModal,
              // MOY public API
              moySetSubject, moySetView, moyRefresh,
              getMOYData: () => MOY_DATA,
