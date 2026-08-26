@@ -263,6 +263,48 @@
     { goal: "Grow the NJTC brand", target: "Attend 5 South Jersey Chamber events", midStatus: "Partially Met", endStatus: "" },
   ];
 
+  // ── Prior-year (SY24-25) snapshot — frozen historical record ──────
+  // SY24-25 tracked a single "Current Metric Status" per target (no
+  // mid-year/end-of-year split, and no health-bucket weighting). Kept
+  // static here — not fetched live — so the Year-over-Year snapshot in
+  // downloadable presentations can score it with this year's same
+  // weighted methodology for an apples-to-apples comparison.
+  const KPI_DATA_24_25 = [
+    { goal: "Increase impact on scholars", target: "By 2025, serve 3,000 scholars annually", status: "Partially Met" },
+    { goal: "Increase impact on scholars", target: "By 2025 serve 40 sites annually", status: "Met" },
+    { goal: "Increase impact on scholars", target: "Average of 10-15% increase in scholars who see growth each school year cycle; 5% in summer", status: "Met" },
+    { goal: "Increase impact on scholars", target: "80% scholars self-report that they increased confidence", status: "Partially Met" },
+    { goal: "Increase impact on scholars", target: "92% of field staff observe scholar growth", status: "Met" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "40 tutors in pipeline for becoming an educator", status: "Has Not Met" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "60% retention rate for those who enter the pipeline through NJTC's programs", status: "In Progress" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "10 NJTC staff 'inspired' by NJTC experience to pursue education career", status: "Met" },
+    { goal: "Increase number of fee-for-service partnerships", target: "70% of sites cover full fee-for-service", status: "Met" },
+    { goal: "Increase number of fee-for-service partnerships", target: "1 out-of-state pilot by 2026-27", status: "Met" },
+    { goal: "Increase number of fee-for-service partnerships", target: "Formal pricing validation study completed by December 2024", status: "Met" },
+    { goal: "Improve cash position and modeling", target: "Put $450,00 into a reserve account by the end of 2024", status: "Met" },
+    { goal: "Improve cash position and modeling", target: "Move $100 per month into reserves", status: "Met" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Identify and apply to 1 multi-year or $500K+ funding opportunity", status: "Met" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Apply to at least 10 local/regional RFPs annually", status: "Met" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure $850,000 in philanthropic funds for FY 25", status: "Met" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure 5 new philanthropic partners in FY 25", status: "Met" },
+    { goal: "Further diversify board and leverage its support", target: "Increase the number of introductions by board members to potential donors", status: "Partially Met" },
+    { goal: "Further diversify board and leverage its support", target: "Increase board contributions by 20%", status: "Met" },
+    { goal: "Upgrade systems to support growth", target: "100% of FT staff files are complete in WFN", status: "Met" },
+    { goal: "Upgrade systems to support growth", target: "80% of PT staff files are complete in WFN", status: "Met" },
+    { goal: "Upgrade systems to support growth", target: "By January 1, 2025- all financial tools are accurate and used for consistent reporting", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "90% customer satisfaction reported at the end of school year 24/25", status: "Partially Met" },
+    { goal: "Maintain consistent partner experience", target: "Receive 3 referrals from partners", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "NJTC Central team reports 80% job satisfaction", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "By January 1, 2025, the DEIB+ committee has shared goals for the committee and org", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "80% annual core staff retention", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "60% annual onsite staff retention", status: "Met" },
+    { goal: "Maintain consistent partner experience", target: "By the end of 2025, 60/40% ratio of white/non-white tutors", status: "Met" },
+    { goal: "Grow the NJTC brand", target: "15 new media hits/year", status: "Met" },
+    { goal: "Grow the NJTC brand", target: "1 national media hit annually", status: "Met" },
+    { goal: "Grow the NJTC brand", target: "Increase followers by 25% on Twitter, FB, IG, LI by Aug 2025", status: "Partially Met" },
+    { goal: "Grow the NJTC brand", target: "Meet with NJEA, NJASA, County Superintendents' Roundtable, NJSBA, NJPSA annually", status: "Met" },
+  ];
+
   // Live data holder — populated from Sheet or falls back to static
   let KPI_DATA = KPI_DATA_STATIC.map(k => ({ ...k, status: k.midStatus || 'In Progress' }));
   let _kpiLastFetched = null;
@@ -770,7 +812,8 @@
     }
 
     // ── Stats strip ────────────────────────────────────────────────────────
-    const getS = k => k.midStatus || k.status || '';
+    const _kpiHasEOY = KPI_DATA.some(k=>k.endStatus && k.endStatus.trim());
+    const getS = k => (_kpiHasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
     const met = KPI_DATA.filter(k=>getS(k)==='Met').length;
     const prog = KPI_DATA.filter(k=>getS(k)==='In Progress').length;
     const partial = KPI_DATA.filter(k=>getS(k)==='Partially Met').length;
@@ -7279,6 +7322,7 @@
   window.DEPT_ICONS           = DEPT_ICONS;
   window.DEPT_LABELS          = DEPT_LABELS;
   window.KPI_DATA_STATIC      = KPI_DATA_STATIC;
+  window.KPI_DATA_24_25       = KPI_DATA_24_25;
   window.KPI_DATA             = KPI_DATA;
   window.SHEET_CSV_URL        = SHEET_CSV_URL;
   window.KPI_META_URL         = KPI_META_URL;
@@ -7888,7 +7932,8 @@
   function _kpi() {
     var data  = window.KPI_DATA || [];
     if (!data.length) return null;
-    var getS  = function(k) { return k.midStatus || k.status || ''; };
+    var hasEOY = data.some(function(k){ return k.endStatus && k.endStatus.trim(); });
+    var getS  = function(k) { return (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || ''; };
     var SCORE = { 'Met':1, 'Partially Met':.5, 'In Progress':.25, 'Coming Down the Pipeline':.1, 'Has Not Met':0 };
     var total = data.length;
     var met   = data.filter(function(k){ return getS(k)==='Met'; }).length;
@@ -9443,7 +9488,8 @@
       respond: function() {
         var d = _kpi();
         if (!d) return 'KPI data is still loading — try again in a moment.';
-        var getS = function(k) { return k.midStatus || k.status || ''; };
+        var hasEOY = d.data.some(function(k){ return k.endStatus && k.endStatus.trim(); });
+        var getS = function(k) { return (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || ''; };
         var nm = d.data.filter(function(k){ return getS(k)==='Has Not Met'; });
         var pt = d.data.filter(function(k){ return getS(k)==='Partially Met'; });
         var msg = '';

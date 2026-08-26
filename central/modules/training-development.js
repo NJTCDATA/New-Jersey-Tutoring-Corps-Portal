@@ -3747,7 +3747,8 @@
 
     // KPI T&D-adjacent goals
     const kpiData = window.KPI_DATA || [];
-    const getS = k => k.midStatus || k.status || '';
+    const _tdHasEOY = kpiData.some(k=>k.endStatus && k.endStatus.trim());
+    const getS = k => (_tdHasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
     const tdKPIs = kpiData.filter(k => /training|development|TAP|apprentice|PD|professional development/i.test(k.goal||k.kpi||''));
     const tdMet  = tdKPIs.filter(k=>getS(k)==='Met').length;
 

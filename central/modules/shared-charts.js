@@ -22,10 +22,15 @@
     return               { label:'Area of Support', short:'Area of Support', color:'#991b1b', bg:'#fee2e2', icon:'🔴', tip:'Warrants closer investigation and team discussion.' };
   }
 
-  // Build full analytics object fresh from live KPI_DATA
+  // Build full analytics object fresh from live KPI_DATA.
+  // Auto-detects end-of-year data the same way the Quarterly engine detects
+  // active quarters: once ANY row has a populated endStatus, the whole
+  // dashboard switches to end-of-year scoring (falling back to midStatus
+  // per-row only where that row's endStatus is still blank).
   function calcKPI(){
     const data = KPI_DATA || [];
-    const getS = k => k.midStatus || k.status || 'Unknown';
+    const hasEOY = data.some(k => k.endStatus && k.endStatus.trim());
+    const getS = k => (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || 'Unknown';
     let totalPts=0, maxPts=0;
     const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
     const goals = {};
@@ -51,7 +56,7 @@
       g.risk  = riskBucket(g.score);
     });
 
-    return { data, counts, totalPts, maxPts, score, risk, goals, total: data.length };
+    return { data, counts, totalPts, maxPts, score, risk, goals, total: data.length, hasEOY, cycle: hasEOY ? 'end' : 'mid' };
   }
 
   function buildKPIAnalytics(){
@@ -67,6 +72,51 @@
   window.calcKPI    = calcKPI;
   window.riskBucket = riskBucket;
   window.kpiPts     = kpiPts;
+
+  // ════════════════════════════════════════════════════════════════
+  //  YEAR-OVER-YEAR SNAPSHOT  (SY24-25 vs. SY25-26 EOY)
+  //  SY24-25 is a frozen static dataset (KPI_DATA_24_25) that only ever
+  //  recorded one status per target — it never used health buckets or a
+  //  weighted %. Scored here with the exact same KPI_PT / riskBucket
+  //  methodology as this year, so the two years are truly comparable.
+  //  Surfaced only in downloadable/live presentations, and only once
+  //  this year's EOY data is present (calcKPI().hasEOY).
+  // ════════════════════════════════════════════════════════════════
+  function calcPriorYearKPI(){
+    const data = window.KPI_DATA_24_25 || [];
+    const getS = k => k.status || 'Unknown';
+    let totalPts=0, maxPts=0;
+    const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
+    data.forEach(k => {
+      const s = getS(k);
+      totalPts += kpiPts(s);
+      maxPts++;
+      if(counts[s] !== undefined) counts[s]++;
+    });
+    const score = maxPts ? (totalPts/maxPts*100) : 0;
+    const risk  = riskBucket(score);
+    return { data, counts, totalPts, maxPts, score, risk, total: data.length };
+  }
+
+  // Returns null when either side of the comparison isn't ready yet —
+  // callers use that to hide the YoY section entirely.
+  function _buildYoYSnapshot(){
+    const py = calcPriorYearKPI();
+    const cy = calcKPI();
+    if (!py.total || !cy.hasEOY) return null;
+    const delta = cy.score - py.score;
+    return {
+      priorYear:   { label:'SY 2024–2025', score: py.score, risk: py.risk, counts: py.counts, total: py.total },
+      currentYear: { label:'SY 2025–2026', score: cy.score, risk: cy.risk, counts: cy.counts, total: cy.total },
+      delta,
+      deltaLabel: (delta>=0?'+':'') + delta.toFixed(1) + ' pts',
+      improved: delta >= 0,
+      bucketChanged: py.risk.label !== cy.risk.label,
+      note: 'SY24–25 tracked a single end-of-year status per target and did not use health buckets or a weighted score. To make this an apples-to-apples comparison, both years above are scored with this year’s methodology: Met = 1.0 pt, Partially Met = 0.5, In Progress = 0.25, Coming Down the Pipeline = 0.10, Has Not Met = 0 — points earned divided by targets tracked.'
+    };
+  }
+  window.calcPriorYearKPI  = calcPriorYearKPI;
+  window._buildYoYSnapshot = _buildYoYSnapshot;
 
   function setKPIAnalyticsTab(tab){
     _kpiAnalyticsTab = tab;
@@ -113,7 +163,7 @@
       </div>`;
     }
 
-    const { counts, score, risk, goals, total, totalPts, maxPts } = d;
+    const { counts, score, risk, goals, total, totalPts, maxPts, hasEOY } = d;
 
     // Quick counts for hero
     const criticalGoals = Object.entries(goals).filter(([,g])=>g.risk.label==='Critical');
@@ -139,6 +189,7 @@
         <div style="font-size:2.25rem;font-weight:800;color:${risk.color};font-family:'DM Serif Display',serif;line-height:1">${score.toFixed(0)}%</div>
         <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${risk.color};margin-top:.25rem">${risk.label}</div>
         <div style="font-size:.7rem;color:var(--muted);margin-top:.25rem">Weighted Score</div>
+        <div style="font-size:.625rem;font-weight:700;color:${hasEOY?'#9a3412':'var(--muted)'};background:${hasEOY?'#ffedd5':'var(--surface-2)'};border-radius:10px;padding:.1rem .5rem;margin-top:.375rem;display:inline-block">${hasEOY?'📅 End of Year':'🔹 Mid-Year'}</div>
       </div>
     </div>`;
 
@@ -193,8 +244,8 @@
   function renderKPIAnalyticsTab(tab){
     const d = calcKPI();
     if(!d.total) return '';
-    const { counts, score, risk, goals, total, totalPts, maxPts } = d;
-    const getS = k => k.midStatus || k.status || '';
+    const { counts, score, risk, goals, total, totalPts, maxPts, hasEOY } = d;
+    const getS = k => (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
 
     // ── GROWTH TREE — delegated to growth-tree.js ─────────────────
     if(tab === 'tree'){
@@ -5801,6 +5852,44 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       });
 
       // ══════════════════════════════════════════════════════════
+      // PAGE 2B — YEAR-OVER-YEAR SNAPSHOT (only once EOY data exists)
+      // ══════════════════════════════════════════════════════════
+      var yoy = (typeof _buildYoYSnapshot === 'function') ? _buildYoYSnapshot() : null;
+      if (yoy) {
+        function _hexRgb(hex){ var h=String(hex||'').replace('#',''); return [parseInt(h.substr(0,2),16)||0, parseInt(h.substr(2,2),16)||0, parseInt(h.substr(4,2),16)||0]; }
+
+        doc.addPage();
+        fillRect(0,0,W,H,WHITE);
+        pageHeader('Year-over-Year Snapshot', 'SY 2024–2025 vs. SY 2025–2026  ·  End-of-Year Comparison', 'chartline_white', GOLD);
+
+        var yColW = (W-2*M-40)/2, yPyX = M, yCyX = M+yColW+40, yCardY = 100, yCardH = 236;
+        [
+          { x:yPyX, d:yoy.priorYear, tintBg:ICEBLUE, ringTrack:[222,228,238] },
+          { x:yCyX, d:yoy.currentYear, tintBg:[253,247,232], ringTrack:[240,225,190] },
+        ].forEach(function(col){
+          var rc = _hexRgb(col.d.risk.color);
+          fillRect(col.x, yCardY, yColW, yCardH, col.tintBg, 10);
+          text(col.d.label, col.x+18, yCardY+26, {size:12.5, bold:true, color:NAVY});
+          var gx = col.x+yColW/2, gy = yCardY+108, gr=46;
+          gaugeRing(gx, gy, gr, col.d.score, rc, col.ringTrack, 12);
+          doc.setFont('helvetica','bold'); doc.setFontSize(19); doc.setTextColor.apply(doc,NAVY);
+          doc.text(col.d.score.toFixed(1)+'%', gx, gy+7, {align:'center'});
+          doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor.apply(doc,rc);
+          doc.text(col.d.risk.label.toUpperCase(), gx, gy+22, {align:'center'});
+          paragraph(friendlyGoalLine({score:col.d.score, counts:col.d.counts}) + ' — ' + col.d.total + ' targets tracked', col.x+16, yCardY+186, yColW-32, {size:8, color:MUTED, lineHeightFactor:1.3});
+        });
+
+        var yDeltaY = yCardY+yCardH+18, yDeltaH = 54;
+        var yDeltaBg = yoy.improved ? GREEN_BG : RED_BG, yDeltaC = yoy.improved ? GREEN : RED;
+        fillRect(M, yDeltaY, W-2*M, yDeltaH, yDeltaBg, 8);
+        doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor.apply(doc,yDeltaC);
+        doc.text((yoy.improved?'▲ ':'▼ ')+yoy.deltaLabel, M+18, yDeltaY+yDeltaH/2+5);
+        text('year-over-year weighted score'+(yoy.bucketChanged ? '  ·  '+yoy.priorYear.risk.label+' → '+yoy.currentYear.risk.label : ''), M+150, yDeltaY+yDeltaH/2+4, {size:9.5, color:INK});
+
+        paragraph(yoy.note, M, yDeltaY+yDeltaH+22, W-2*M, {size:7.75, color:MUTED, italic:true, lineHeightFactor:1.35});
+      }
+
+      // ══════════════════════════════════════════════════════════
       // PAGE 3 — WHAT'S WORKING
       // ══════════════════════════════════════════════════════════
       if (narrative.positives.length) {
@@ -6129,6 +6218,40 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       });
 
       // ══════════════════════════════════════════════════════════
+      // SLIDE 2B — YEAR-OVER-YEAR SNAPSHOT (only once EOY data exists)
+      // ══════════════════════════════════════════════════════════
+      var yoy = (typeof _buildYoYSnapshot === 'function') ? _buildYoYSnapshot() : null;
+      if (yoy) {
+        var s2b = pptx.addSlide();
+        s2b.background = { color: WHITE };
+        slideHeader(s2b, 'Year-over-Year Snapshot', 'SY 2024–2025 vs. SY 2025–2026 — End-of-Year Comparison', 'chartline_white', GOLD);
+
+        [
+          { x:0.6,  d:yoy.priorYear,   bg:ICEBLUE },
+          { x:6.85, d:yoy.currentYear, bg:'FDF7E8' },
+        ].forEach(function(col){
+          var hex = col.d.risk.color.replace('#','');
+          s2b.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:col.x, y:1.55, w:5.9, h:3.55, fill:{color:col.bg}, rectRadius:0.09, shadow:freshShadow()});
+          s2b.addText(col.d.label, {x:col.x+0.3, y:1.75, w:5.3, h:0.4, fontSize:15, bold:true, color:NAVY, fontFace:'Cambria'});
+          var gaugeData2 = [{ name:'Score', labels:['Score','Remaining'], values:[col.d.score, 100-col.d.score] }];
+          s2b.addChart(pptx.charts.DOUGHNUT, gaugeData2, {
+            x:col.x+1.85, y:2.2, w:2.2, h:2.2, holeSize:70,
+            chartColors:[hex, 'E2E8F0'], showLegend:false, showValue:false, showPercent:false, dataBorder:{pt:0,color:col.bg}
+          });
+          s2b.addText(col.d.score.toFixed(1)+'%', {x:col.x+1.85, y:2.95, w:2.2, h:0.5, fontSize:20, bold:true, color:NAVY, align:'center', fontFace:'Cambria'});
+          s2b.addText(col.d.risk.label.toUpperCase(), {x:col.x+1.85, y:3.4, w:2.2, h:0.3, fontSize:9, bold:true, color:hex, align:'center', charSpacing:1, fontFace:'Calibri'});
+          s2b.addText(_safe(friendlyGoalLine({score:col.d.score, counts:col.d.counts}) + ' — ' + col.d.total + ' targets tracked'), {x:col.x+0.3, y:4.55, w:5.3, h:0.45, fontSize:9, color:MUTED, align:'center', fontFace:'Calibri', valign:'top'});
+        });
+
+        var deltaHex = yoy.improved ? GREEN : RED, deltaBg = yoy.improved ? GREEN_BG : RED_BG;
+        s2b.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:0.6, y:5.35, w:12.1, h:0.72, fill:{color:deltaBg}, rectRadius:0.08});
+        s2b.addText((yoy.improved?'▲ ':'▼ ')+yoy.deltaLabel, {x:0.85, y:5.35, w:2.2, h:0.72, fontSize:17, bold:true, color:deltaHex, valign:'middle', fontFace:'Cambria', margin:0});
+        s2b.addText('year-over-year weighted score'+(yoy.bucketChanged ? '  ·  '+yoy.priorYear.risk.label+' → '+yoy.currentYear.risk.label : ''), {x:3.05, y:5.35, w:9.4, h:0.72, fontSize:11, color:INK, valign:'middle', fontFace:'Calibri', margin:0});
+
+        s2b.addText(_safe(yoy.note), {x:0.6, y:6.25, w:12.1, h:0.9, fontSize:8.5, italic:true, color:MUTED, fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.25});
+      }
+
+      // ══════════════════════════════════════════════════════════
       // SLIDE 3 — WHAT'S WORKING
       // ══════════════════════════════════════════════════════════
       if (narrative.positives.length) {
@@ -6402,6 +6525,25 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         + '<div class="legend">'+mixSegs.map(function(s){ return '<span><i style="background:'+s.color+'"></i>'+esc(s.label)+' ('+s.val+')</span>'; }).join('')+'</div>'
         + '</div></div></section>');
 
+    // Slide 2B: Year-over-Year Snapshot (only once EOY data exists)
+    var yoy = (typeof _buildYoYSnapshot === 'function') ? _buildYoYSnapshot() : null;
+    if (yoy) {
+      var yoyCol = function(d, cls){
+        return '<div class="yoy-card '+cls+'">'
+          + '<div class="yoy-year">'+esc(d.label)+'</div>'
+          + '<div class="yoy-gauge-wrap">'+_svgGauge(d.score, 150, cls==='cy' ? '#E8A838' : '#94A3B8', '#E2E8F0')
+          + '<div class="yoy-gauge-label"><div class="yv">'+d.score.toFixed(1)+'%</div><div class="yl" style="color:'+d.risk.color+'">'+esc(d.risk.label.toUpperCase())+'</div></div></div>'
+          + '<div class="yoy-sub">'+esc(friendlyGoalLine({score:d.score, counts:d.counts}))+' &mdash; '+d.total+' targets tracked</div>'
+          + '</div>';
+      };
+      slides.push('<section class="slide light">'
+        + '<div class="head"><div class="hicon gold">📅</div><div><h2>Year-over-Year Snapshot</h2><div class="hsub">SY 2024&ndash;2025 vs. SY 2025&ndash;2026 &middot; End-of-Year Comparison</div></div></div>'
+        + '<div class="yoy-row">'+yoyCol(yoy.priorYear,'py')+yoyCol(yoy.currentYear,'cy')+'</div>'
+        + '<div class="yoy-delta '+(yoy.improved?'up':'down')+'"><span class="yoy-delta-val">'+(yoy.improved?'▲ ':'▼ ')+esc(yoy.deltaLabel)+'</span><span class="yoy-delta-label">year-over-year weighted score'+(yoy.bucketChanged?' &middot; '+esc(yoy.priorYear.risk.label)+' → '+esc(yoy.currentYear.risk.label):'')+'</span></div>'
+        + '<div class="yoy-note">'+esc(yoy.note)+'</div>'
+        + '</section>');
+    }
+
     // Slide 3: What's Working
     if (narrative.positives.length) {
       var top4 = narrative.positives.slice(0,4), rest = narrative.positives.slice(4,10);
@@ -6540,6 +6682,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '.bar-track{flex:1;height:18px;background:#F0F2F6;border-radius:4px;overflow:hidden;}'
       + '.bar-fill{height:100%;border-radius:4px;}'
       + '.bar-val{width:44px;font-size:12px;font-weight:700;color:var(--ink);text-align:right;}'
+      + '.yoy-row{display:flex;gap:24px;margin-bottom:20px;}'
+      + '.yoy-card{flex:1;border-radius:12px;padding:22px 20px;text-align:center;}'
+      + '.yoy-card.py{background:#EEF2F9;}'
+      + '.yoy-card.cy{background:#FDF7E8;}'
+      + '.yoy-year{font-family:Cambria,Georgia,serif;font-size:17px;font-weight:700;color:var(--navy);margin-bottom:10px;}'
+      + '.yoy-gauge-wrap{position:relative;width:150px;height:150px;margin:0 auto;}'
+      + '.yoy-gauge-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}'
+      + '.yv{font-family:Cambria,Georgia,serif;font-size:24px;font-weight:700;color:var(--navy);}'
+      + '.yl{font-size:10px;font-weight:700;letter-spacing:1px;margin-top:3px;}'
+      + '.yoy-sub{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.4;}'
+      + '.yoy-delta{border-radius:10px;padding:14px 20px;display:flex;align-items:center;gap:18px;margin-bottom:16px;}'
+      + '.yoy-delta.up{background:#EAF7EE;} .yoy-delta.down{background:#FCEAEA;}'
+      + '.yoy-delta-val{font-family:Cambria,Georgia,serif;font-size:22px;font-weight:700;}'
+      + '.yoy-delta.up .yoy-delta-val{color:var(--green);} .yoy-delta.down .yoy-delta-val{color:var(--red);}'
+      + '.yoy-delta-label{font-size:13px;color:var(--ink);}'
+      + '.yoy-note{font-size:11px;font-style:italic;color:var(--muted);line-height:1.5;}'
       + '.appendix h2{font-size:24px;}'
       + '.table-wrap{overflow:auto;flex:1;border:1px solid #E5E9F0;border-radius:8px;}'
       + 'table{width:100%;border-collapse:collapse;font-size:11px;}'

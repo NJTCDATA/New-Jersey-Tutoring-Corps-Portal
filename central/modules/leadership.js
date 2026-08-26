@@ -152,7 +152,8 @@
     const topSchools = (stellar && stellar.length) ? stellar.slice(0,6) : [];
 
     // ── 5. KPI Status ─────────────────────────────────────────────────
-    const gS   = k => k.midStatus || k.status || '';
+    const _kpiHasEOY = (KPI_DATA||[]).some(k=>k.endStatus && k.endStatus.trim());
+    const gS   = k => (_kpiHasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
     const kMet  = KPI_DATA.filter(k=>gS(k)==='Met').length;
     const kProg = KPI_DATA.filter(k=>gS(k)==='In Progress').length;
     const kPart = KPI_DATA.filter(k=>gS(k)==='Partially Met').length;
@@ -774,7 +775,8 @@
 
   // ── Helpers ────────────────────────────────────────────────
   function _expGetStatus(k) {
-    return k.midStatus || k.status || '';
+    var hasEOY = (typeof KPI_DATA !== 'undefined' && KPI_DATA) ? KPI_DATA.some(function(x){ return x.endStatus && x.endStatus.trim(); }) : false;
+    return (hasEOY ? (k.endStatus || k.midStatus) : (k.midStatus || k.status)) || '';
   }
 
   function _expScore(k) {
