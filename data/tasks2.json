@@ -1,8 +1,30 @@
 {
-  "generated": "2026-08-27T10:07:30.819Z",
+  "generated": "2026-08-27T20:40:05.655Z",
   "project": "1213346212277384",
-  "count": 4,
+  "count": 5,
   "tasks": [
+    {
+      "gid": "1217928604935588",
+      "assignee": {
+        "gid": "1213635692801884",
+        "resource_type": "user"
+      },
+      "completed": false,
+      "due_on": "2026-10-27",
+      "followers": [
+        {
+          "gid": "1213635692801884",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202953622354860",
+          "resource_type": "user"
+        }
+      ],
+      "name": "Lakewood (SY) - new",
+      "notes": "",
+      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1217928604935588"
+    },
     {
       "gid": "1213346212293204",
       "assignee": null,
