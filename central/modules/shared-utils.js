@@ -228,7 +228,7 @@
     { goal: "Increase Impact on Scholars", target: "92% of onsite staff observe scholar growth", midStatus: "In Progress", endStatus: "" },
     { goal: "Support Growth of New Jersey's Educator Pipeline", target: "40 tutor apprentices for SY 25-26", midStatus: "In Progress", endStatus: "" },
     { goal: "Support Growth of New Jersey's Educator Pipeline", target: "Secure 1 DOL grant to expand apprenticeship program", midStatus: "Met", endStatus: "" },
-    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "4 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "5 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "35 SY sites - all of which are fee-for-service sites (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "Secure 3 new low-cost pilot customers using new grant funds", midStatus: "In Progress", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "75% of sites cover full fee-for-service (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
@@ -9644,7 +9644,7 @@
           other.slice(0,5).forEach(function(d2){ var lm=d2.moves[d2.moves.length-1]; msg += '\u2022 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+' ('+lm.from+' \u2192 '+lm.to+')\n'; });
           if (other.length>5) msg += '_+' + (other.length-5) + ' more_\n';
         }
-        if (_dept==='leadership'||_dept==='kb') msg += '\n_Use **KPI Analytics \u2192 Quarterly \u2192 Export PDF** (via Data dept) for the full board-ready report._';
+        if (_dept==='leadership'||_dept==='kb') msg += '\n_Use **KPI Analytics \u2192 Quarterly \u2192 Export PDF** (via Data dept) for the full board-ready report, or **Export Word** for an editable board memo._';
         return msg.trim();
       }
     },
@@ -9677,7 +9677,15 @@
         if (!qd || !qd.activeQs || !qd.activeQs.length) return 'Quarterly data is still loading from the live sheet. Try again in a moment.';
         var isDataDept = _dept === 'data';
         var isPPTX = /pptx|slide|deck|powerpoint/i.test(_lastQ||'');
+        var isDOCX = /\b(word|docx?|memo)\b/i.test(_lastQ||'');
         if (isDataDept) {
+          if (isDOCX) {
+            if (typeof window.exportKPIQuarterlySummaryDOCX === 'function') {
+              window.exportKPIQuarterlySummaryDOCX();
+              return '\ud83d\udcdd Generating **Quarterly Summary Word memo**\u2026\n\nA board-ready document (Where We Stand, What Needs Attention with a named-owner action plan, Goal Area Scorecard) you can open in Word and edit before sending. Download will begin in a moment.';
+            }
+            return 'Open **KPI Analytics \u2192 Quarterly tab** to export the Word memo.';
+          }
           if (isPPTX) {
             if (typeof window.exportKPIQuarterlySummaryPPTX === 'function') {
               window.exportKPIQuarterlySummaryPPTX();
