@@ -718,15 +718,23 @@
       html += `</div></div>`;
     }
 
-    // ── Critical regressions ──────────────────────────────────────
-    if (critical.length) {
+    // ── Critical regressions (split: genuinely urgent vs. an intentional  ──
+    // ── decision — e.g. a note like "decided not to pursue this goal" —   ──
+    // ── which shouldn't read as a scary miss requiring escalation.        ──
+    var criticalUrgent = [], criticalDecided = [];
+    critical.forEach(function(d) {
+      var cm = d.moves[d.moves.length-1];
+      var note = _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
+      if (note) criticalDecided.push({ d:d, note:note }); else criticalUrgent.push(d);
+    });
+    if (criticalUrgent.length) {
       html += `<div class="kpia-card" style="margin-bottom:1.25rem;border-left:4px solid #dc2626">
         <div class="kpia-card-header" style="margin-bottom:.875rem">
           <div class="kpia-card-title">🔴 Critical Regressions — Immediate Attention Required</div>
           <div class="kpia-card-meta">Targets that reached "Has Not Met" status this cycle</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:.5rem">`;
-      critical.forEach(function(d) {
+      criticalUrgent.forEach(function(d) {
         var critMove = d.moves[d.moves.length-1];
         var mStr = _deltaMetricStr(d);
         html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid #fca5a5;background:#fef2f2">
@@ -740,6 +748,25 @@
             <span style="background:#fef2f2;color:#991b1b;font-size:.65rem;font-weight:700;padding:.15rem .4rem;border-radius:4px;white-space:nowrap">${critMove.from} → Has Not Met</span>
             <div style="font-size:.65rem;color:#6b7280;margin-top:.2rem">Q${critMove.fromQ}→Q${critMove.toQ}</div>
           </div>`:''}
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+    if (criticalDecided.length) {
+      html += `<div class="kpia-card" style="margin-bottom:1.25rem;border-left:4px solid #64748b">
+        <div class="kpia-card-header" style="margin-bottom:.875rem">
+          <div class="kpia-card-title">📋 Discontinued by Decision</div>
+          <div class="kpia-card-meta">Marked "Has Not Met" but intentionally deprioritized — no escalation needed</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.5rem">`;
+      criticalDecided.forEach(function(item) {
+        html += `<div style="display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-radius:9px;border:1px solid var(--border);background:var(--surface-2)">
+          <div style="font-size:1.125rem;flex-shrink:0">📋</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.8125rem;font-weight:600;color:var(--navy);line-height:1.4;margin-bottom:.3rem">${item.d.target}</div>
+            <div style="font-size:.7rem;color:var(--muted)">${item.d.goal}${item.d.owner?' · '+item.d.owner:''}</div>
+            <div style="font-size:.75rem;color:#475569;margin-top:.375rem;font-style:italic">${item.note}</div>
+          </div>
         </div>`;
       });
       html += `</div></div>`;
@@ -4713,18 +4740,44 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     return { goal: goalText, metric: metricText, hasData: hasData, isNA: isNA };
   }
 
+  // Owner/due caption for one action-plan item — shared by the PDF, PPTX,
+  // Live Presentation, and Word exports so the phrasing never drifts.
+  function _actionMetaLine(a) {
+    if (a.severity === 'decision') return 'Owner: ' + (a.owner||'Unassigned') + '   ·   Status: Closed by decision — no further review needed';
+    return 'Owner: ' + (a.owner||'Unassigned') + '   ·   Due: ' + a.dueLabel + ' review';
+  }
+
   // Canonical short status label (module scope — shared by narrative builder)
   function _qShortStatus(s) {
     return (s || '').replace('Coming Down the Pipeline', 'Pipeline').replace('Partially Met', 'Partial').replace('In Progress', 'Progress').replace('Has Not Met', 'Not Met');
   }
 
   // Compact "Goal: X · Actual: Y" caption for a single quarter's data cell.
-  // Returns '' when there's nothing reportable yet (future quarter, N/A target).
+  // Falls back to the raw cell text whenever it holds real content that
+  // doesn't fit the strict "Goal: ... Captured Metric: ..." shape (e.g. a
+  // free-text note) — the appendix should never show a blank/dash for a
+  // cell that actually has something live in it. Only a truly empty cell
+  // returns ''.
   function _metricCaption(raw) {
     var pg = _parseGoalMetric(raw);
-    if (!pg || !pg.hasData) return '';
-    if (pg.goal) return 'Goal: ' + pg.goal + '  ·  Actual: ' + pg.metric;
-    return 'Actual: ' + pg.metric;
+    if (pg && pg.hasData) return pg.goal ? ('Goal: ' + pg.goal + '  ·  Actual: ' + pg.metric) : ('Actual: ' + pg.metric);
+    var fallback = _joinLines(raw);
+    return fallback || '';
+  }
+
+  // ── Decision-note detection ─────────────────────────────────────────────
+  // If whoever fills in a target's captured-metric cell writes something
+  // like "...decided not to pursue this goal", surface that as a deliberate
+  // decision rather than a plain miss — everywhere the target's status is
+  // narrated (What Needs Attention, the action plan, the Word memo). Driven
+  // entirely by the live cell text; nothing about this is hardcoded to a
+  // specific target.
+  var _DECISION_RE = /no longer pursu|decided not to pursue|will not (?:be )?pursu|not (?:be )?requiring|discontinued|deprioritiz|goal (?:was |has been )?cancell?ed|cancell?ed this goal|choos(?:e|ing) not to pursue/i;
+  function _extractDecisionNote(raw) {
+    var pg = _parseGoalMetric(raw);
+    var text = (pg && pg.metric) ? pg.metric : _joinLines(raw);
+    if (!text || !_DECISION_RE.test(text)) return null;
+    return text;
   }
 
   // Cross-quarter trend string for one target row, e.g.
@@ -4905,13 +4958,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     });
 
     // ── What Needs Attention (concerns) ──────────────────────────────
+    // A target that reached "Has Not Met" because of a deliberate decision
+    // (its captured-metric cell says something like "decided not to pursue
+    // this goal") is flagged 'decision' instead of 'critical' — it's a
+    // closed, intentional call, not an open miss requiring escalation.
     var concerns = [];
     critical.forEach(function(d) {
       var cm = d.moves[d.moves.length-1];
+      var decisionNote = _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
       var mStr = _deltaMetricStr(d);
       concerns.push({
-        target: d.target, goalArea: d.goal, owner: d.owner, severity: 'critical',
-        text: d.target + ' dropped to Has Not Met' + (cm ? ' from ' + _qShortStatus(cm.from) : '') + (mStr ? ' (' + mStr + ')' : '') + '.'
+        target: d.target, goalArea: d.goal, owner: d.owner,
+        severity: decisionNote ? 'decision' : 'critical',
+        decisionNote: decisionNote,
+        text: decisionNote
+          ? d.target + ' — intentionally discontinued: ' + decisionNote
+          : d.target + ' dropped to Has Not Met' + (cm ? ' from ' + _qShortStatus(cm.from) : '') + (mStr ? ' (' + mStr + ')' : '') + '.'
       });
     });
     otherReg.forEach(function(d) {
@@ -4936,6 +4998,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     var nextQLabel = 'Q' + (latestQ < 4 ? latestQ+1 : 1);
     function _actionFor(c) {
       var who = c.owner || 'The metric owner';
+      if (c.severity === 'decision') {
+        return 'No further action needed — this was a deliberate decision, not a missed target. ' + (c.decisionNote || '') + ' Note the decision in next year\'s plan and retire this target from active tracking.';
+      }
       if (c.severity === 'critical') {
         return who + ' to submit a written corrective-action plan for "' + c.target + '" — root cause, corrective steps, and a revised target date — before the ' + nextQLabel + ' review.';
       }
@@ -5950,13 +6015,14 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
         var cy4 = 96;
         narrative.concerns.slice(0,6).forEach(function(c){
-          var critical = c.severity==='critical';
-          var bg = critical?RED_BG:AMBER_BG, dot = critical?RED:AMBER;
+          var isDecision = c.severity==='decision', critical = c.severity==='critical';
+          var bg = isDecision?[241,245,249]:(critical?RED_BG:AMBER_BG), dot = isDecision?MUTED:(critical?RED:AMBER);
+          var label = isDecision?'DECISION':(critical?'CRITICAL':'WATCH');
           var rowH = 56;
           fillRect(M, cy4, W-2*M, rowH, bg, 6);
           circle(M+22, cy4+rowH/2, 4, dot);
           doc.setFont('helvetica','bold'); doc.setFontSize(6.75); doc.setTextColor.apply(doc,dot);
-          doc.text(critical?'CRITICAL':'WATCH', M+22, cy4+rowH/2+16, {align:'center'});
+          doc.text(label, M+22, cy4+rowH/2+16, {align:'center'});
           paragraph(c.text, M+50, cy4+15, W-2*M-66, {size:8.75, color:INK, lineHeightFactor:1.25});
           cy4 += rowH+12;
         });
@@ -6005,8 +6071,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var apY = 100;
       if (narrative.actionPlan.length) {
         narrative.actionPlan.slice(0,4).forEach(function(a){
-          var critical = a.severity==='critical';
-          var accent = critical ? [239,109,109] : GOLD;
+          var isDecision = a.severity==='decision', critical = a.severity==='critical';
+          var accent = isDecision ? [148,163,184] : (critical ? [239,109,109] : GOLD);
+          var label = isDecision ? 'DECISION' : (critical?'CRITICAL':'WATCH');
           var titleX = M+70, titleW = W-M-titleX;
           var titleLines = _wrapLines(a.target, 10.25, titleW, true);
           var titleH = titleLines.length * 10.25 * 1.2;
@@ -6015,11 +6082,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           fillRect(M, apY, W-2*M, rowH, [28,42,74], 8);
           fillRect(M, apY, 4, rowH, accent);
           doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor.apply(doc, accent);
-          doc.text(critical?'CRITICAL':'WATCH', M+16, apY+17);
+          doc.text(label, M+16, apY+17);
           paragraph(a.target, titleX, apY+15, titleW, {size:10.25, bold:true, color:WHITE, lineHeightFactor:1.2});
           var actionY = apY + 18 + titleH + 8;
           paragraph(a.action, M+16, actionY, W-2*M-32, {size:9, color:[210,218,232], lineHeightFactor:1.3});
-          text('Owner: '+(a.owner||'Unassigned')+'   ·   Due: '+a.dueLabel+' review', M+16, apY+rowH-8, {size:7.5, color:accent});
+          text(_actionMetaLine(a), M+16, apY+rowH-8, {size:7.5, color:accent});
           apY += rowH + 12;
         });
         if (narrative.actionPlan.length > 4) {
@@ -6342,12 +6409,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
         var cy4 = 1.6;
         narrative.concerns.slice(0,5).forEach(function(c){
-          var critical = c.severity === 'critical';
-          var bg = critical ? RED_BG : AMBER_BG;
-          var dot = critical ? RED : AMBER;
+          var isDecision = c.severity === 'decision', critical = c.severity === 'critical';
+          var bg = isDecision ? 'E2E8F0' : (critical ? RED_BG : AMBER_BG);
+          var dot = isDecision ? '64748B' : (critical ? RED : AMBER);
+          var label = isDecision ? 'DECISION' : (critical ? 'CRITICAL' : 'WATCH');
           s4.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:0.6, y:cy4, w:12.1, h:0.86, fill:{color:bg}, rectRadius:0.07});
           s4.addShape(pptx.shapes.OVAL, {x:0.82, y:cy4+0.33, w:0.2, h:0.2, fill:{color:dot}});
-          s4.addText(critical ? 'CRITICAL' : 'WATCH', {x:0.6, y:cy4, w:1.2, h:0.86, fontSize:8, bold:true, color:dot, align:'center', valign:'middle', charSpacing:1, fontFace:'Calibri'});
+          s4.addText(label, {x:0.6, y:cy4, w:1.2, h:0.86, fontSize:8, bold:true, color:dot, align:'center', valign:'middle', charSpacing:1, fontFace:'Calibri'});
           s4.addText(_safe(c.text), {x:1.9, y:cy4+0.07, w:10.6, h:0.72, fontSize:9.75, color:INK, fontFace:'Calibri', valign:'middle', margin:0, lineSpacingMultiple:1.05});
           cy4 += 1.0;
         });
@@ -6389,14 +6457,15 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var cy6 = 1.55;
       if (narrative.actionPlan.length) {
         narrative.actionPlan.slice(0,3).forEach(function(a){
-          var critical = a.severity==='critical';
-          var accent = critical ? 'EF6D6D' : GOLD;
+          var isDecision = a.severity==='decision', critical = a.severity==='critical';
+          var accent = isDecision ? '94A3B8' : (critical ? 'EF6D6D' : GOLD);
+          var label = isDecision ? 'DECISION' : (critical?'CRITICAL':'WATCH');
           s6.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:0.6, y:cy6, w:12.1, h:1.15, fill:{color:'1C2C4E'}, rectRadius:0.06});
           s6.addShape(pptx.shapes.RECTANGLE, {x:0.6, y:cy6, w:0.06, h:1.15, fill:{color:accent}, line:{type:'none'}});
-          s6.addText(critical?'CRITICAL':'WATCH', {x:0.8, y:cy6+0.08, w:1.3, h:0.22, fontSize:7.5, bold:true, color:accent, charSpacing:1, fontFace:'Calibri', margin:0});
+          s6.addText(label, {x:0.8, y:cy6+0.08, w:1.3, h:0.22, fontSize:7.5, bold:true, color:accent, charSpacing:1, fontFace:'Calibri', margin:0});
           s6.addText(_safe(a.target), {x:2.1, y:cy6+0.05, w:10.4, h:0.4, fontSize:10.5, bold:true, color:WHITE, fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.05, margin:0});
           s6.addText(_safe(a.action), {x:0.8, y:cy6+0.46, w:11.7, h:0.46, fontSize:9, color:'D2DAE8', fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.1, margin:0});
-          s6.addText('Owner: '+_safe(a.owner||'Unassigned')+'   ·   Due: '+a.dueLabel+' review', {x:0.8, y:cy6+0.94, w:11.5, h:0.2, fontSize:7.5, color:accent, fontFace:'Calibri', margin:0});
+          s6.addText(_safe(_actionMetaLine(a)), {x:0.8, y:cy6+0.94, w:11.5, h:0.2, fontSize:7.5, color:accent, fontFace:'Calibri', margin:0});
           cy6 += 1.3;
         });
         if (narrative.actionPlan.length > 3) {
@@ -6632,8 +6701,10 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       slides.push('<section class="slide light">'
         + '<div class="head"><div class="hicon red">⚠️</div><div><h2>What Needs Attention</h2><div class="hsub">Regressions and risk requiring leadership follow-up &middot; see Recommended Next Steps for the owner-assigned action on each item</div></div></div>'
         + '<div class="concern-list">'+narrative.concerns.map(function(c){
-            var critical = c.severity==='critical';
-            return '<div class="concern-row '+(critical?'crit':'watch')+'"><span class="badge">'+(critical?'CRITICAL':'WATCH')+'</span><span>'+esc(c.text)+'</span></div>';
+            var isDecision = c.severity==='decision', critical = c.severity==='critical';
+            var cls = isDecision?'decision':(critical?'crit':'watch');
+            var label = isDecision?'DECISION':(critical?'CRITICAL':'WATCH');
+            return '<div class="concern-row '+cls+'"><span class="badge">'+label+'</span><span>'+esc(c.text)+'</span></div>';
           }).join('')+'</div></section>');
     }
 
@@ -6648,11 +6719,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     slides.push('<section class="slide cover dark-alt">'
       + '<div class="head light-head"><div class="hicon gold">🚩</div><div><h2 class="white">Recommended Next Steps</h2><div class="hsub light">'+(narrative.actionPlan.length ? 'Owner-assigned action plan, plus priorities heading into '+esc(narrative.nextQLabel) : 'Priorities heading into '+esc(narrative.nextQLabel))+'</div></div></div>'
       + (narrative.actionPlan.length ? '<div class="action-plan">'+narrative.actionPlan.map(function(a){
-          var critical = a.severity==='critical';
-          return '<div class="action-card '+(critical?'crit':'watch')+'"><span class="ac-badge">'+(critical?'CRITICAL':'WATCH')+'</span>'
+          var isDecision = a.severity==='decision', critical = a.severity==='critical';
+          var cls = isDecision?'decision':(critical?'crit':'watch');
+          var label = isDecision?'DECISION':(critical?'CRITICAL':'WATCH');
+          return '<div class="action-card '+cls+'"><span class="ac-badge">'+label+'</span>'
             + '<span class="ac-target">'+esc(a.target)+'</span>'
             + '<div class="ac-action">'+esc(a.action)+'</div>'
-            + '<div class="ac-meta">Owner: '+esc(a.owner||'Unassigned')+' &middot; Due: '+esc(a.dueLabel)+' review</div></div>';
+            + '<div class="ac-meta">'+esc(_actionMetaLine(a))+'</div></div>';
         }).join('')+'</div><h3 class="sub-h light">Additional Priorities</h3>' : '')
       + '<ol class="steps'+(narrative.actionPlan.length?' compact':'')+'">'+narrative.nextSteps.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join('')+'</ol></section>');
 
@@ -6744,9 +6817,9 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '.more-note{font-size:11px;color:var(--muted);font-style:italic;margin-top:14px;}'
       + '.concern-list{display:flex;flex-direction:column;gap:12px;}'
       + '.concern-row{border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:16px;font-size:13px;line-height:1.4;color:var(--ink);}'
-      + '.concern-row.crit{background:#FCEAEA;} .concern-row.watch{background:#FDF3E3;}'
+      + '.concern-row.crit{background:#FCEAEA;} .concern-row.watch{background:#FDF3E3;} .concern-row.decision{background:#EEF2F7;}'
       + '.badge{font-size:9px;font-weight:700;letter-spacing:1px;flex-shrink:0;width:56px;}'
-      + '.concern-row.crit .badge{color:var(--red);} .concern-row.watch .badge{color:var(--amber);}'
+      + '.concern-row.crit .badge{color:var(--red);} .concern-row.watch .badge{color:var(--amber);} .concern-row.decision .badge{color:#64748B;}'
       + '.steps{list-style:none;counter-reset:step;margin-top:20px;}'
       + '.steps li{counter-increment:step;position:relative;padding:14px 0 14px 46px;font-size:15px;color:#fff;line-height:1.4;}'
       + '.steps.compact{margin-top:10px;}'
@@ -6755,13 +6828,13 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '.sub-h.light{color:var(--gold);margin-top:18px;}'
       + '.action-plan{display:flex;flex-direction:column;gap:10px;margin-top:14px;}'
       + '.action-card{background:rgba(255,255,255,.06);border-radius:10px;padding:12px 16px 10px 18px;position:relative;border-left:4px solid var(--gold);}'
-      + '.action-card.crit{border-left-color:#EF6D6D;}'
+      + '.action-card.crit{border-left-color:#EF6D6D;} .action-card.decision{border-left-color:#94A3B8;}'
       + '.action-card .ac-badge{display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:var(--gold);margin-bottom:2px;}'
-      + '.action-card.crit .ac-badge{color:#EF6D6D;}'
+      + '.action-card.crit .ac-badge{color:#EF6D6D;} .action-card.decision .ac-badge{color:#94A3B8;}'
       + '.action-card .ac-target{font-size:13.5px;font-weight:700;color:#fff;}'
       + '.action-card .ac-action{font-size:11.5px;color:#C9D2E4;line-height:1.4;margin-top:4px;}'
       + '.action-card .ac-meta{font-size:10px;color:var(--gold);margin-top:6px;}'
-      + '.action-card.crit .ac-meta{color:#EF6D6D;}'
+      + '.action-card.crit .ac-meta{color:#EF6D6D;} .action-card.decision .ac-meta{color:#94A3B8;}'
       + '.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:30px;height:30px;background:var(--gold);color:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:Cambria,Georgia,serif;}'
       + '.light-head{color:#fff;}'
       + '.bar-chart{display:flex;flex-direction:column;gap:14px;margin-top:8px;}'
@@ -6875,9 +6948,11 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       body += '<p>Each target below is paired with a named owner and a due date so this can move straight into follow-up &mdash; no separate slide needed.</p>';
       body += '<table><tr><th>Target</th><th>Goal Area</th><th>Status</th><th>Owner</th><th>Recommended Action</th><th>Due</th></tr>';
       narrative.actionPlan.forEach(function(a){
+        var sevClass = a.severity==='decision'?'sev-decision':(a.severity==='critical'?'sev-crit':'sev-watch');
+        var sevLabel = a.severity==='decision'?'Decision':(a.severity==='critical'?'Critical':'Watch');
         body += '<tr><td>'+_esc(a.target)+'</td><td>'+_esc(a.goalArea)+'</td>'
-          + '<td class="'+(a.severity==='critical'?'sev-crit':'sev-watch')+'">'+(a.severity==='critical'?'Critical':'Watch')+'</td>'
-          + '<td>'+_esc(a.owner||'Unassigned')+'</td><td>'+_esc(a.action)+'</td><td>'+_esc(a.dueLabel)+' review</td></tr>';
+          + '<td class="'+sevClass+'">'+sevLabel+'</td>'
+          + '<td>'+_esc(a.owner||'Unassigned')+'</td><td>'+_esc(a.action)+'</td><td>'+(a.severity==='decision'?'Closed':_esc(a.dueLabel)+' review')+'</td></tr>';
       });
       body += '</table>';
     } else {
@@ -6919,6 +6994,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '.stat-table td{text-align:center;}'
       + '.sev-crit{color:#DC2626;font-weight:bold;}'
       + '.sev-watch{color:#D97706;font-weight:bold;}'
+      + '.sev-decision{color:#64748B;font-weight:bold;}'
       + 'ul,ol{margin:6pt 0;padding-left:22pt;}'
       + 'li{font-size:10.5pt;margin-bottom:4pt;}'
       + 'p.note{font-size:9pt;font-style:italic;color:#64748B;}'
