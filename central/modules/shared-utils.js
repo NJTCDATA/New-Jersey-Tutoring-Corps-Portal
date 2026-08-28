@@ -228,7 +228,7 @@
     { goal: "Increase Impact on Scholars", target: "92% of onsite staff observe scholar growth", midStatus: "In Progress", endStatus: "" },
     { goal: "Support Growth of New Jersey's Educator Pipeline", target: "40 tutor apprentices for SY 25-26", midStatus: "In Progress", endStatus: "" },
     { goal: "Support Growth of New Jersey's Educator Pipeline", target: "Secure 1 DOL grant to expand apprenticeship program", midStatus: "Met", endStatus: "" },
-    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "4 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "5 NJTC apprentices join Teacher Apprenticeship Network (TAN) in 2026", midStatus: "Coming Down the Pipeline", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "35 SY sites - all of which are fee-for-service sites (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "Secure 3 new low-cost pilot customers using new grant funds", midStatus: "In Progress", endStatus: "" },
     { goal: "Increase the number of fee-for-service partnerships", target: "75% of sites cover full fee-for-service (does not include low-cost pilot)", midStatus: "Met", endStatus: "" },
