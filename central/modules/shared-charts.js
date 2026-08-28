@@ -620,7 +620,8 @@
           <button onclick="openKPILivePresentation()" style="background:rgba(232,168,56,.22);border:1px solid rgba(232,168,56,.55);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">🎥 Open Live Presentation</button>
           <button onclick="openKPILiveWorkbook()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📗 Open Live Workbook</button>
           ${(window.NJTC_SESSION||{}).dept === 'data' ? `<button onclick="exportKPIQuarterlySummaryPDF()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📄 Export PDF</button>
-          <button onclick="exportKPIQuarterlySummaryPPTX()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📊 Export PPTX</button>` : ''}
+          <button onclick="exportKPIQuarterlySummaryPPTX()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📊 Export PPTX</button>
+          <button onclick="exportKPIQuarterlySummaryDOCX()" style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);color:white;font-size:.75rem;font-weight:700;padding:.4rem .875rem;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:.35rem">📝 Export Word (board memo)</button>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-top:1.25rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.15)">
@@ -843,6 +844,7 @@
         <div style="font-size:.8125rem;color:var(--muted);align-self:center;flex-basis:100%;text-align:center;margin-bottom:.25rem">Export this quarterly summary for presentations and reports:</div>
         <button onclick="exportKPIQuarterlySummaryPDF()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📄 Download PDF Summary</button>
         <button onclick="exportKPIQuarterlySummaryPPTX()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📊 Download PPTX Slides</button>
+        <button onclick="exportKPIQuarterlySummaryDOCX()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📝 Download Word Board Memo</button>
         <button onclick="openKPILivePresentation()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">🎥 Open Live Presentation</button>
         <button onclick="openKPILiveWorkbook()" class="btn btn-secondary" style="display:flex;align-items:center;gap:.5rem;font-weight:700">📗 Open Live Workbook</button>
       </div>`;
@@ -4929,18 +4931,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       };
     });
 
-    // ── Recommended Next Steps (generic, data-driven) ────────────────
+    // ── Action Plan — one concrete, named-owner, dated action per          ──
+    // ── "What Needs Attention" item, so it's clear what to actually do.   ──
+    var nextQLabel = 'Q' + (latestQ < 4 ? latestQ+1 : 1);
+    function _actionFor(c) {
+      var who = c.owner || 'The metric owner';
+      if (c.severity === 'critical') {
+        return who + ' to submit a written corrective-action plan for "' + c.target + '" — root cause, corrective steps, and a revised target date — before the ' + nextQLabel + ' review.';
+      }
+      return who + ' to confirm by the ' + nextQLabel + ' review whether the change on "' + c.target + '" is a data-timing issue or a genuine trend, and adjust the plan if needed.';
+    }
+    var actionPlan = concerns.map(function(c) {
+      return { target:c.target, goalArea:c.goalArea, owner:c.owner, severity:c.severity, text:c.text, action:_actionFor(c), dueLabel:nextQLabel };
+    });
+
+    // ── Recommended Next Steps (org-level priorities beyond the action plan) ──
     var nextSteps = [];
-    if (critical.length) nextSteps.push('Escalate the ' + critical.length + ' critical target' + (critical.length>1?'s':'') + ' above to their metric owners for a corrective action plan ahead of the next review.');
-    if (otherReg.length) nextSteps.push('Confirm with owners of the ' + otherReg.length + ' declining target' + (otherReg.length>1?'s':'') + ' whether the change reflects a data-timing issue or a genuine trend.');
-    if (stalled.length) nextSteps.push('Revisit the ' + stalled.length + ' stalled target' + (stalled.length>1?'s':'') + ' with no quarter-over-quarter movement to confirm they remain achievable this school year.');
     if (bigWins.length) nextSteps.push('Document the approach behind the ' + bigWins.length + ' target' + (bigWins.length>1?'s':'') + ' that reached Met status this cycle so it can be repeated elsewhere.');
-    nextSteps.push('Maintain the quarterly review cadence; the next formal checkpoint is Q' + (latestQ < 4 ? latestQ+1 : 1) + '.');
+    if (stalled.length) nextSteps.push('Revisit the ' + stalled.length + ' stalled target' + (stalled.length>1?'s':'') + ' with no quarter-over-quarter movement (see Where to Focus) to confirm they remain achievable this school year.');
+    nextSteps.push('Maintain the quarterly review cadence; the next formal checkpoint is ' + nextQLabel + '.');
 
     return {
       latestQ: latestQ, latestSC: latestSC, prevSC: prevSC,
       headline: headline,
-      positives: positives, concerns: concerns, focus: focus, nextSteps: nextSteps,
+      positives: positives, concerns: concerns, focus: focus, actionPlan: actionPlan, nextSteps: nextSteps, nextQLabel: nextQLabel,
       counts: { improved:improved.length, regressed:regressed.length, bigWins:bigWins.length, critical:critical.length, otherReg:otherReg.length, stalled:stalled.length }
     };
   }
@@ -5932,7 +5946,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if (narrative.concerns.length) {
         doc.addPage();
         fillRect(0,0,W,H,WHITE);
-        pageHeader('What Needs Attention', 'Regressions and risk requiring leadership follow-up', 'warning_white', RED);
+        pageHeader('What Needs Attention', 'Regressions and risk requiring leadership follow-up  ·  see Recommended Next Steps for the owner-assigned action on each item', 'warning_white', RED);
 
         var cy4 = 96;
         narrative.concerns.slice(0,6).forEach(function(c){
@@ -5975,22 +5989,54 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
 
       // ══════════════════════════════════════════════════════════
-      // PAGE 5 — RECOMMENDED NEXT STEPS (dark closing page)
+      // PAGE 5 — RECOMMENDED NEXT STEPS
+      // (owner-assigned, dated action plan for each at-risk target,
+      //  followed by shorter org-level priorities)
       // ══════════════════════════════════════════════════════════
+      function _wrapLines(str, size, maxW, bold){ doc.setFont('helvetica', bold?'bold':'normal'); doc.setFontSize(size); return doc.splitTextToSize(_safe(str), maxW); }
+
       doc.addPage();
       fillRect(0,0,W,H,NAVY);
       circle(-40, H-90, 170, NAVY_D);
       iconInCircle(M+22, 56, 44, GOLD, 'flag_navy');
       text('Recommended Next Steps', M+56, 52, {size:19, bold:true, color:WHITE});
-      text('Priorities heading into Q'+(latestQ<4?latestQ+1:1), M+56, 68, {size:9.5, color:[170,180,200]});
+      text(narrative.actionPlan.length ? 'Owner-assigned action plan, plus priorities heading into '+narrative.nextQLabel : 'Priorities heading into '+narrative.nextQLabel, M+56, 68, {size:9.5, color:[170,180,200]});
 
-      var ny=104;
+      var apY = 100;
+      if (narrative.actionPlan.length) {
+        narrative.actionPlan.slice(0,4).forEach(function(a){
+          var critical = a.severity==='critical';
+          var accent = critical ? [239,109,109] : GOLD;
+          var titleX = M+70, titleW = W-M-titleX;
+          var titleLines = _wrapLines(a.target, 10.25, titleW, true);
+          var titleH = titleLines.length * 10.25 * 1.2;
+          var actionLines = _wrapLines(a.action, 9, W-2*M-32, false);
+          var rowH = 18 + titleH + 8 + actionLines.length*9*1.3 + 18;
+          fillRect(M, apY, W-2*M, rowH, [28,42,74], 8);
+          fillRect(M, apY, 4, rowH, accent);
+          doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor.apply(doc, accent);
+          doc.text(critical?'CRITICAL':'WATCH', M+16, apY+17);
+          paragraph(a.target, titleX, apY+15, titleW, {size:10.25, bold:true, color:WHITE, lineHeightFactor:1.2});
+          var actionY = apY + 18 + titleH + 8;
+          paragraph(a.action, M+16, actionY, W-2*M-32, {size:9, color:[210,218,232], lineHeightFactor:1.3});
+          text('Owner: '+(a.owner||'Unassigned')+'   ·   Due: '+a.dueLabel+' review', M+16, apY+rowH-8, {size:7.5, color:accent});
+          apY += rowH + 12;
+        });
+        if (narrative.actionPlan.length > 4) {
+          text('+ '+(narrative.actionPlan.length-4)+' more action item'+(narrative.actionPlan.length-4>1?'s':'')+' — see What Needs Attention for the full list.', M, apY+4, {size:8, italic:true, color:[170,180,200]});
+          apY += 22;
+        }
+        apY += 6;
+        text('Additional Priorities', M, apY, {size:11.5, bold:true, color:GOLD});
+        apY += 20;
+      }
+
       narrative.nextSteps.forEach(function(step,i){
-        circle(M+13, ny+13, 13, GOLD);
-        doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor.apply(doc,NAVY);
-        doc.text(String(i+1), M+13, ny+17, {align:'center'});
-        paragraph(step, M+40, ny+8, W-2*M-40, {size:10.5, color:WHITE, lineHeightFactor:1.3});
-        ny += 56;
+        circle(M+11, apY+11, 11, GOLD);
+        doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor.apply(doc,NAVY);
+        doc.text(String(i+1), M+11, apY+14.5, {align:'center'});
+        var lines2 = paragraph(step, M+34, apY+7, W-2*M-34, {size:9.5, color:WHITE, lineHeightFactor:1.3});
+        apY = Math.max(apY+34, lines2+10);
       });
 
       // ══════════════════════════════════════════════════════════
@@ -6292,7 +6338,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if (narrative.concerns.length) {
         var s4 = pptx.addSlide();
         s4.background = { color: WHITE };
-        slideHeader(s4, 'What Needs Attention', 'Regressions and risk requiring leadership follow-up', 'warning_white', RED);
+        slideHeader(s4, 'What Needs Attention', 'Regressions and risk requiring leadership follow-up  ·  see Recommended Next Steps for the owner-assigned action on each item', 'warning_white', RED);
 
         var cy4 = 1.6;
         narrative.concerns.slice(0,5).forEach(function(c){
@@ -6329,20 +6375,42 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       }
 
       // ══════════════════════════════════════════════════════════
-      // SLIDE 6 — RECOMMENDED NEXT STEPS (dark closing "sandwich")
+      // SLIDE 6 — RECOMMENDED NEXT STEPS
+      // (owner-assigned, dated action plan for each at-risk target,
+      //  followed by shorter org-level priorities)
       // ══════════════════════════════════════════════════════════
       var s6 = pptx.addSlide();
       s6.background = { color: NAVY };
       s6.addShape(pptx.shapes.OVAL, {x:-2.5, y:4.8, w:6, h:6, fill:{color:NAVY_D}, line:{type:'none'}});
       iconCircle(s6, 'flag_navy', 0.85, 0.85, 0.62, GOLD);
       s6.addText('Recommended Next Steps', {x:1.35, y:0.5, w:9, h:0.5, fontSize:26, bold:true, color:WHITE, fontFace:'Cambria', margin:0});
-      s6.addText('Priorities heading into Q'+(latestQ<4?latestQ+1:1), {x:1.35, y:0.95, w:9, h:0.35, fontSize:11.5, color:'A9B4C9', fontFace:'Calibri', margin:0});
-      var cy6 = 1.75;
+      s6.addText(narrative.actionPlan.length ? 'Owner-assigned action plan, plus priorities heading into '+narrative.nextQLabel : 'Priorities heading into '+narrative.nextQLabel, {x:1.35, y:0.95, w:11, h:0.35, fontSize:11.5, color:'A9B4C9', fontFace:'Calibri', margin:0});
+
+      var cy6 = 1.55;
+      if (narrative.actionPlan.length) {
+        narrative.actionPlan.slice(0,3).forEach(function(a){
+          var critical = a.severity==='critical';
+          var accent = critical ? 'EF6D6D' : GOLD;
+          s6.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:0.6, y:cy6, w:12.1, h:1.15, fill:{color:'1C2C4E'}, rectRadius:0.06});
+          s6.addShape(pptx.shapes.RECTANGLE, {x:0.6, y:cy6, w:0.06, h:1.15, fill:{color:accent}, line:{type:'none'}});
+          s6.addText(critical?'CRITICAL':'WATCH', {x:0.8, y:cy6+0.08, w:1.3, h:0.22, fontSize:7.5, bold:true, color:accent, charSpacing:1, fontFace:'Calibri', margin:0});
+          s6.addText(_safe(a.target), {x:2.1, y:cy6+0.05, w:10.4, h:0.4, fontSize:10.5, bold:true, color:WHITE, fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.05, margin:0});
+          s6.addText(_safe(a.action), {x:0.8, y:cy6+0.46, w:11.7, h:0.46, fontSize:9, color:'D2DAE8', fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.1, margin:0});
+          s6.addText('Owner: '+_safe(a.owner||'Unassigned')+'   ·   Due: '+a.dueLabel+' review', {x:0.8, y:cy6+0.94, w:11.5, h:0.2, fontSize:7.5, color:accent, fontFace:'Calibri', margin:0});
+          cy6 += 1.3;
+        });
+        if (narrative.actionPlan.length > 3) {
+          s6.addText('+ ' + (narrative.actionPlan.length-3) + ' more action item' + (narrative.actionPlan.length-3>1?'s':'') + ' — see What Needs Attention for the full list.', {x:0.6, y:cy6, w:11, h:0.3, fontSize:9, italic:true, color:'A9B4C9', fontFace:'Calibri'});
+          cy6 += 0.32;
+        }
+        s6.addText('Additional Priorities', {x:0.6, y:cy6+0.06, w:6, h:0.3, fontSize:13, bold:true, color:GOLD, fontFace:'Cambria'});
+        cy6 += 0.46;
+      }
       narrative.nextSteps.forEach(function(step,i){
-        s6.addShape(pptx.shapes.OVAL, {x:0.7, y:cy6, w:0.5, h:0.5, fill:{color:GOLD}});
-        s6.addText(String(i+1), {x:0.7, y:cy6, w:0.5, h:0.5, fontSize:15, bold:true, color:NAVY, align:'center', valign:'middle', fontFace:'Cambria', margin:0});
-        s6.addText(_safe(step), {x:1.4, y:cy6-0.12, w:11.0, h:0.85, fontSize:12, color:WHITE, fontFace:'Calibri', valign:'middle', lineSpacingMultiple:1.15});
-        cy6 += 1.05;
+        s6.addShape(pptx.shapes.OVAL, {x:0.7, y:cy6, w:0.36, h:0.36, fill:{color:GOLD}});
+        s6.addText(String(i+1), {x:0.7, y:cy6, w:0.36, h:0.36, fontSize:12.5, bold:true, color:NAVY, align:'center', valign:'middle', fontFace:'Cambria', margin:0});
+        s6.addText(_safe(step), {x:1.25, y:cy6-0.06, w:11.2, h:0.5, fontSize:10.25, color:WHITE, fontFace:'Calibri', valign:'middle', lineSpacingMultiple:1.1});
+        cy6 += 0.58;
       });
 
       // ══════════════════════════════════════════════════════════
@@ -6562,7 +6630,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Slide 4: What Needs Attention
     if (narrative.concerns.length) {
       slides.push('<section class="slide light">'
-        + '<div class="head"><div class="hicon red">⚠️</div><div><h2>What Needs Attention</h2><div class="hsub">Regressions and risk requiring leadership follow-up</div></div></div>'
+        + '<div class="head"><div class="hicon red">⚠️</div><div><h2>What Needs Attention</h2><div class="hsub">Regressions and risk requiring leadership follow-up &middot; see Recommended Next Steps for the owner-assigned action on each item</div></div></div>'
         + '<div class="concern-list">'+narrative.concerns.map(function(c){
             var critical = c.severity==='critical';
             return '<div class="concern-row '+(critical?'crit':'watch')+'"><span class="badge">'+(critical?'CRITICAL':'WATCH')+'</span><span>'+esc(c.text)+'</span></div>';
@@ -6576,10 +6644,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         + '<div class="concern-list">'+narrative.focus.map(function(f){ return '<div class="concern-row watch"><span>'+esc(f.text)+'</span></div>'; }).join('')+'</div></section>');
     }
 
-    // Slide 6: Recommended Next Steps
+    // Slide 6: Recommended Next Steps — owner-assigned action plan, then priorities
     slides.push('<section class="slide cover dark-alt">'
-      + '<div class="head light-head"><div class="hicon gold">🚩</div><div><h2 class="white">Recommended Next Steps</h2><div class="hsub light">Priorities heading into Q'+(latestQ<4?latestQ+1:1)+'</div></div></div>'
-      + '<ol class="steps">'+narrative.nextSteps.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join('')+'</ol></section>');
+      + '<div class="head light-head"><div class="hicon gold">🚩</div><div><h2 class="white">Recommended Next Steps</h2><div class="hsub light">'+(narrative.actionPlan.length ? 'Owner-assigned action plan, plus priorities heading into '+esc(narrative.nextQLabel) : 'Priorities heading into '+esc(narrative.nextQLabel))+'</div></div></div>'
+      + (narrative.actionPlan.length ? '<div class="action-plan">'+narrative.actionPlan.map(function(a){
+          var critical = a.severity==='critical';
+          return '<div class="action-card '+(critical?'crit':'watch')+'"><span class="ac-badge">'+(critical?'CRITICAL':'WATCH')+'</span>'
+            + '<span class="ac-target">'+esc(a.target)+'</span>'
+            + '<div class="ac-action">'+esc(a.action)+'</div>'
+            + '<div class="ac-meta">Owner: '+esc(a.owner||'Unassigned')+' &middot; Due: '+esc(a.dueLabel)+' review</div></div>';
+        }).join('')+'</div><h3 class="sub-h light">Additional Priorities</h3>' : '')
+      + '<ol class="steps'+(narrative.actionPlan.length?' compact':'')+'">'+narrative.nextSteps.map(function(s){ return '<li>'+esc(s)+'</li>'; }).join('')+'</ol></section>');
 
     // Slide 7: Goal Area Scorecard
     var goalOrder=[], goalGroups={};
@@ -6617,7 +6692,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '*{box-sizing:border-box;margin:0;padding:0;}'
       + 'body{font-family:Calibri,Arial,sans-serif;background:#0a1220;overflow:hidden;}'
       + '.deck{width:100vw;height:100vh;position:relative;}'
-      + '.slide{position:absolute;inset:0;display:none;padding:56px 64px;background:#fff;flex-direction:column;}'
+      + '.slide{position:absolute;inset:0;display:none;padding:56px 64px;background:#fff;flex-direction:column;overflow-y:auto;}'
       + '.slide.active{display:flex;}'
       + '.slide.cover{background:linear-gradient(135deg,#0f1c38,#1B2A4A);color:#fff;justify-content:center;}'
       + '.slide.dark-alt{justify-content:flex-start;}'
@@ -6674,6 +6749,19 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '.concern-row.crit .badge{color:var(--red);} .concern-row.watch .badge{color:var(--amber);}'
       + '.steps{list-style:none;counter-reset:step;margin-top:20px;}'
       + '.steps li{counter-increment:step;position:relative;padding:14px 0 14px 46px;font-size:15px;color:#fff;line-height:1.4;}'
+      + '.steps.compact{margin-top:10px;}'
+      + '.steps.compact li{padding:8px 0 8px 40px;font-size:12.5px;}'
+      + '.steps.compact li::before{width:24px;height:24px;font-size:12px;top:8px;}'
+      + '.sub-h.light{color:var(--gold);margin-top:18px;}'
+      + '.action-plan{display:flex;flex-direction:column;gap:10px;margin-top:14px;}'
+      + '.action-card{background:rgba(255,255,255,.06);border-radius:10px;padding:12px 16px 10px 18px;position:relative;border-left:4px solid var(--gold);}'
+      + '.action-card.crit{border-left-color:#EF6D6D;}'
+      + '.action-card .ac-badge{display:block;font-size:9px;font-weight:700;letter-spacing:1px;color:var(--gold);margin-bottom:2px;}'
+      + '.action-card.crit .ac-badge{color:#EF6D6D;}'
+      + '.action-card .ac-target{font-size:13.5px;font-weight:700;color:#fff;}'
+      + '.action-card .ac-action{font-size:11.5px;color:#C9D2E4;line-height:1.4;margin-top:4px;}'
+      + '.action-card .ac-meta{font-size:10px;color:var(--gold);margin-top:6px;}'
+      + '.action-card.crit .ac-meta{color:#EF6D6D;}'
       + '.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:30px;height:30px;background:var(--gold);color:var(--navy);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-family:Cambria,Georgia,serif;}'
       + '.light-head{color:#fff;}'
       + '.bar-chart{display:flex;flex-direction:column;gap:14px;margin-top:8px;}'
@@ -6728,6 +6816,124 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  //  WORD DOCUMENT EXPORT — a board-ready memo Katherine can open in Word,
+  //  edit freely (wording, add commentary), and send directly — no slides
+  //  required for the same information. Built as Word-compatible HTML
+  //  (the standard technique Word/Office natively opens and edits as a full
+  //  document), so no external library or CDN load is needed. Reuses the
+  //  exact same narrative/action-plan data as the PDF, PPTX, and Live
+  //  Presentation so all four exports always agree.
+  // ══════════════════════════════════════════════════════════════════════════
+  function exportKPIQuarterlySummaryDOCX() {
+    var qd = window.KPI_Q_DATA;
+    if (!qd || !qd.activeQs || !qd.activeQs.length) { alert('Quarterly data not yet loaded. Wait a moment and try again.'); return; }
+
+    function _esc(s){ var d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
+
+    var activeQs  = qd.activeQs, latestQ = activeQs[activeQs.length-1], latestSC = qd.scorecards[qd.scorecards.length-1];
+    var tsStr     = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+    var narrative = _buildQuarterlyNarrative(qd);
+    var yoy       = (typeof _buildYoYSnapshot === 'function') ? _buildYoYSnapshot() : null;
+
+    var goalOrder=[], goalGroups={};
+    qd.rows.forEach(function(r){ var g=(r[0]||'').trim(),t=(r[1]||'').trim(); if(!g||!t) return; if(goalOrder.indexOf(g)<0) goalOrder.push(g); if(!goalGroups[g]) goalGroups[g]=[]; goalGroups[g].push(r); });
+    var scCol = _Q_COLS[latestQ-1][1];
+    var goalScores = goalOrder.map(function(goal){
+      var rs = goalGroups[goal], sum=0;
+      rs.forEach(function(r){ var s=(r[scCol]||'').trim(); if(s==='Met')sum+=1; else if(s==='Partially Met')sum+=0.5; else if(s==='In Progress')sum+=0.25; else if(s==='Coming Down the Pipeline')sum+=0.1; });
+      return { goal:goal, pct: rs.length?Math.round(sum/rs.length*100):0 };
+    });
+
+    var body = '';
+    body += '<h1>New Jersey Tutoring Corps</h1>';
+    body += '<p class="deck">Quarterly Goal Summary &mdash; Q'+latestQ+', School Year 2025&ndash;2026</p>';
+    body += '<p class="meta">Prepared by the Data &amp; Evaluation Department &middot; Generated '+_esc(tsStr)+' &middot; Confidential &mdash; Internal Use Only</p>';
+
+    body += '<h2>Where We Stand</h2>';
+    body += '<p>'+_esc(narrative.headline)+'</p>';
+    body += '<table class="stat-table"><tr><th>Met</th><th>In Progress</th><th>Partially Met</th><th>Not Met</th><th>Weighted Score</th></tr>'
+      + '<tr><td>'+latestSC.counts.met+'</td><td>'+latestSC.counts.prog+'</td><td>'+latestSC.counts.partial+'</td><td>'+latestSC.counts.notmet+'</td><td><b>'+latestSC.score+'% ('+_esc(latestSC.health.label)+')</b></td></tr></table>';
+
+    if (yoy) {
+      body += '<h2>Year-over-Year Snapshot</h2>';
+      body += '<p>SY 2024&ndash;2025 vs. SY 2025&ndash;2026, both scored with this year’s weighted methodology for an apples-to-apples comparison.</p>';
+      body += '<table><tr><th>School Year</th><th>Weighted Score</th><th>Health</th><th>Targets Tracked</th></tr>'
+        + '<tr><td>'+_esc(yoy.priorYear.label)+'</td><td>'+yoy.priorYear.score.toFixed(1)+'%</td><td>'+_esc(yoy.priorYear.risk.label)+'</td><td>'+yoy.priorYear.total+'</td></tr>'
+        + '<tr><td>'+_esc(yoy.currentYear.label)+'</td><td>'+yoy.currentYear.score.toFixed(1)+'%</td><td>'+_esc(yoy.currentYear.risk.label)+'</td><td>'+yoy.currentYear.total+'</td></tr></table>';
+      body += '<p class="note">'+(yoy.improved?'▲ ':'▼ ')+_esc(yoy.deltaLabel)+' year-over-year'+(yoy.bucketChanged?' &middot; '+_esc(yoy.priorYear.risk.label)+' &rarr; '+_esc(yoy.currentYear.risk.label):'')+'. '+_esc(yoy.note)+'</p>';
+    }
+
+    if (narrative.positives.length) {
+      body += '<h2>What&rsquo;s Working</h2><p>'+narrative.positives.length+' target'+(narrative.positives.length===1?'':'s')+' moved to a stronger status this cycle.</p><ul>';
+      narrative.positives.forEach(function(p){ body += '<li>'+_esc(p.text)+'</li>'; });
+      body += '</ul>';
+    }
+
+    body += '<h2>What Needs Attention &mdash; Action Plan</h2>';
+    if (narrative.actionPlan.length) {
+      body += '<p>Each target below is paired with a named owner and a due date so this can move straight into follow-up &mdash; no separate slide needed.</p>';
+      body += '<table><tr><th>Target</th><th>Goal Area</th><th>Status</th><th>Owner</th><th>Recommended Action</th><th>Due</th></tr>';
+      narrative.actionPlan.forEach(function(a){
+        body += '<tr><td>'+_esc(a.target)+'</td><td>'+_esc(a.goalArea)+'</td>'
+          + '<td class="'+(a.severity==='critical'?'sev-crit':'sev-watch')+'">'+(a.severity==='critical'?'Critical':'Watch')+'</td>'
+          + '<td>'+_esc(a.owner||'Unassigned')+'</td><td>'+_esc(a.action)+'</td><td>'+_esc(a.dueLabel)+' review</td></tr>';
+      });
+      body += '</table>';
+    } else {
+      body += '<p>No targets are currently Critical or Watch &mdash; nothing requires an escalation this cycle.</p>';
+    }
+
+    if (narrative.focus.length) {
+      body += '<h2>Where to Focus</h2><p>Targets with no status movement across every tracked quarter:</p><ul>';
+      narrative.focus.forEach(function(f){ body += '<li>'+_esc(f.text)+'</li>'; });
+      body += '</ul>';
+    }
+
+    body += '<h2>Additional Priorities</h2><ol>';
+    narrative.nextSteps.forEach(function(s){ body += '<li>'+_esc(s)+'</li>'; });
+    body += '</ol>';
+
+    body += '<h2>Goal Area Scorecard</h2><table><tr><th>Goal Area</th><th>Score</th><th>Status</th></tr>';
+    goalScores.forEach(function(g){
+      var status = g.pct>=85?'Healthy':g.pct>=65?'Watch':g.pct>=40?'Needs Focus':'Area of Support';
+      body += '<tr><td>'+_esc(g.goal)+'</td><td>'+g.pct+'%</td><td>'+status+'</td></tr>';
+    });
+    body += '</table>';
+
+    body += '<p class="footer">New Jersey Tutoring Corps &middot; Quarterly Summary &middot; SY 2025&ndash;2026 &middot; Confidential</p>';
+
+    var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+      + '<head><meta charset="utf-8"><title>NJTC Quarterly Summary Q'+latestQ+'</title>'
+      + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->'
+      + '<style>'
+      + '@page{margin:1in;}'
+      + 'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1E293B;line-height:1.4;}'
+      + 'h1{font-family:Cambria,Georgia,serif;font-size:22pt;color:#1B2A4A;margin-bottom:2pt;}'
+      + 'p.deck{font-size:13pt;color:#E8A838;font-weight:bold;margin-top:0;margin-bottom:2pt;}'
+      + 'p.meta{font-size:9pt;color:#64748B;margin-top:0;margin-bottom:18pt;}'
+      + 'h2{font-family:Cambria,Georgia,serif;font-size:15pt;color:#1B2A4A;border-bottom:1pt solid #1B2A4A;padding-bottom:2pt;margin-top:22pt;}'
+      + 'table{border-collapse:collapse;width:100%;margin:8pt 0 12pt 0;}'
+      + 'th{background:#1B2A4A;color:#ffffff;font-size:9.5pt;text-align:left;padding:5pt 8pt;}'
+      + 'td{border:1pt solid #D8DEE9;font-size:9.5pt;padding:5pt 8pt;vertical-align:top;}'
+      + '.stat-table td{text-align:center;}'
+      + '.sev-crit{color:#DC2626;font-weight:bold;}'
+      + '.sev-watch{color:#D97706;font-weight:bold;}'
+      + 'ul,ol{margin:6pt 0;padding-left:22pt;}'
+      + 'li{font-size:10.5pt;margin-bottom:4pt;}'
+      + 'p.note{font-size:9pt;font-style:italic;color:#64748B;}'
+      + 'p.footer{font-size:8pt;color:#94A3B8;border-top:1pt solid #D8DEE9;padding-top:6pt;margin-top:24pt;}'
+      + '</style></head><body>' + body + '</body></html>';
+
+    var blob = new Blob(['﻿' + html], {type:'application/msword'});
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = 'NJTC_Quarterly_Summary_Q'+latestQ+'_SY2526.doc';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+
+  window.exportKPIQuarterlySummaryDOCX = exportKPIQuarterlySummaryDOCX;
   window.exportKPIQuarterlySummaryPDF  = exportKPIQuarterlySummaryPDF;
   window.exportKPIQuarterlySummaryPPTX = exportKPIQuarterlySummaryPPTX;
   window.openKPILivePresentation       = openKPILivePresentation;

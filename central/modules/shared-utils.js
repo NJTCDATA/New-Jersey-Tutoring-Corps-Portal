@@ -9644,7 +9644,7 @@
           other.slice(0,5).forEach(function(d2){ var lm=d2.moves[d2.moves.length-1]; msg += '\u2022 '+d2.target.slice(0,65)+(d2.target.length>65?'\u2026':'')+' ('+lm.from+' \u2192 '+lm.to+')\n'; });
           if (other.length>5) msg += '_+' + (other.length-5) + ' more_\n';
         }
-        if (_dept==='leadership'||_dept==='kb') msg += '\n_Use **KPI Analytics \u2192 Quarterly \u2192 Export PDF** (via Data dept) for the full board-ready report._';
+        if (_dept==='leadership'||_dept==='kb') msg += '\n_Use **KPI Analytics \u2192 Quarterly \u2192 Export PDF** (via Data dept) for the full board-ready report, or **Export Word** for an editable board memo._';
         return msg.trim();
       }
     },
@@ -9677,7 +9677,15 @@
         if (!qd || !qd.activeQs || !qd.activeQs.length) return 'Quarterly data is still loading from the live sheet. Try again in a moment.';
         var isDataDept = _dept === 'data';
         var isPPTX = /pptx|slide|deck|powerpoint/i.test(_lastQ||'');
+        var isDOCX = /\b(word|docx?|memo)\b/i.test(_lastQ||'');
         if (isDataDept) {
+          if (isDOCX) {
+            if (typeof window.exportKPIQuarterlySummaryDOCX === 'function') {
+              window.exportKPIQuarterlySummaryDOCX();
+              return '\ud83d\udcdd Generating **Quarterly Summary Word memo**\u2026\n\nA board-ready document (Where We Stand, What Needs Attention with a named-owner action plan, Goal Area Scorecard) you can open in Word and edit before sending. Download will begin in a moment.';
+            }
+            return 'Open **KPI Analytics \u2192 Quarterly tab** to export the Word memo.';
+          }
           if (isPPTX) {
             if (typeof window.exportKPIQuarterlySummaryPPTX === 'function') {
               window.exportKPIQuarterlySummaryPPTX();
