@@ -2374,9 +2374,11 @@
   function _rehireBadge(rh) {
     if (!rh) return '';
     const rl = (rh||'').toLowerCase();
-    const bg = rl.startsWith('yes')?'#d1fae5':rl.startsWith('no')?'#fee2e2':'#fef3c7';
-    const co = rl.startsWith('yes')?'#065f46':rl.startsWith('no')?'#b91c1c':'#92400e';
-    return `<span style="background:${bg};color:${co};padding:.15rem .5rem;border-radius:10px;font-size:.65rem;font-weight:700">${esc(rh)}</span>`;
+    // "Yes" = returning from prior cycle (green); "No" = new hire this SY (neutral slate)
+    const bg = rl.startsWith('yes')?'#d1fae5':rl.startsWith('no')?'#f1f5f9':'#fef3c7';
+    const co = rl.startsWith('yes')?'#065f46':rl.startsWith('no')?'#475569':'#92400e';
+    const lbl = rl.startsWith('yes') ? 'Returning' : rl.startsWith('no') ? 'New This SY' : esc(rh);
+    return `<span style="background:${bg};color:${co};padding:.15rem .5rem;border-radius:10px;font-size:.65rem;font-weight:700">${lbl}</span>`;
   }
 
   // ── KB VIEW ───────────────────────────────────────────────────────────────
