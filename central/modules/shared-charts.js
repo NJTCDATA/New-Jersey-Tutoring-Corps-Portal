@@ -721,10 +721,17 @@
     // ── Critical regressions (split: genuinely urgent vs. an intentional  ──
     // ── decision — e.g. a note like "decided not to pursue this goal" —   ──
     // ── which shouldn't read as a scary miss requiring escalation.        ──
+    // A decision note is usually added to whichever quarter's cell is being
+    // edited "now" — which may not be the same quarter the status actually
+    // flipped in (e.g. status went to Has Not Met in Q3 and never changed
+    // again, but the explanatory note gets typed into the current Q4 cell).
+    // Check the latest quarter's cell first, then fall back to the quarter
+    // where the status change itself was recorded.
     var criticalUrgent = [], criticalDecided = [];
     critical.forEach(function(d) {
       var cm = d.moves[d.moves.length-1];
-      var note = _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
+      var note = (d.dataText && _extractDecisionNote(d.dataText['Q'+latestQ]))
+        || _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
       if (note) criticalDecided.push({ d:d, note:note }); else criticalUrgent.push(d);
     });
     if (criticalUrgent.length) {
@@ -4965,23 +4972,30 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     var concerns = [];
     critical.forEach(function(d) {
       var cm = d.moves[d.moves.length-1];
-      var decisionNote = _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
-      var mStr = _deltaMetricStr(d);
+      var latestRaw = d.dataText ? d.dataText['Q'+latestQ] : '';
+      // Check the latest quarter's cell first — a decision note usually gets
+      // typed into whichever cell is being edited "now", which may not be
+      // the same quarter the status itself changed in.
+      var decisionNote = _extractDecisionNote(latestRaw) || _extractDecisionNote(d.dataText ? d.dataText['Q'+cm.toQ] : '');
+      // Current goal-vs-actual, so each concern reads with real numbers
+      // instead of identical boilerplate.
+      var gapStr = _metricCaption(latestRaw) || _deltaMetricStr(d);
       concerns.push({
         target: d.target, goalArea: d.goal, owner: d.owner,
         severity: decisionNote ? 'decision' : 'critical',
-        decisionNote: decisionNote,
+        decisionNote: decisionNote, gapStr: gapStr,
         text: decisionNote
           ? d.target + ' — intentionally discontinued: ' + decisionNote
-          : d.target + ' dropped to Has Not Met' + (cm ? ' from ' + _qShortStatus(cm.from) : '') + (mStr ? ' (' + mStr + ')' : '') + '.'
+          : d.target + ' dropped to Has Not Met' + (cm ? ' from ' + _qShortStatus(cm.from) : '') + (gapStr ? ' (' + gapStr + ')' : '') + '.'
       });
     });
     otherReg.forEach(function(d) {
       var lm = d.moves[d.moves.length-1];
-      var mStr = _deltaMetricStr(d);
+      var latestRaw = d.dataText ? d.dataText['Q'+latestQ] : '';
+      var gapStr = _metricCaption(latestRaw) || _deltaMetricStr(d);
       concerns.push({
-        target: d.target, goalArea: d.goal, owner: d.owner, severity: 'watch',
-        text: d.target + ' declined from ' + _qShortStatus(lm.from) + ' to ' + _qShortStatus(lm.to) + (mStr ? ' (' + mStr + ')' : '') + '.'
+        target: d.target, goalArea: d.goal, owner: d.owner, severity: 'watch', gapStr: gapStr,
+        text: d.target + ' declined from ' + _qShortStatus(lm.from) + ' to ' + _qShortStatus(lm.to) + (gapStr ? ' (' + gapStr + ')' : '') + '.'
       });
     });
 
@@ -4996,15 +5010,20 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // ── Action Plan — one concrete, named-owner, dated action per          ──
     // ── "What Needs Attention" item, so it's clear what to actually do.   ──
     var nextQLabel = 'Q' + (latestQ < 4 ? latestQ+1 : 1);
+    // Each action sentence carries the target's actual current numbers (not
+    // just its status label) so three "Critical" items don't read as the
+    // same boilerplate sentence with the owner swapped out — the CEO sees
+    // the real gap size for each one, not just a status word.
     function _actionFor(c) {
       var who = c.owner || 'The metric owner';
       if (c.severity === 'decision') {
         return 'No further action needed — this was a deliberate decision, not a missed target. ' + (c.decisionNote || '') + ' Note the decision in next year\'s plan and retire this target from active tracking.';
       }
+      var gapClause = c.gapStr ? (' Current standing: ' + c.gapStr + '.') : '';
       if (c.severity === 'critical') {
-        return who + ' to submit a written corrective-action plan for "' + c.target + '" — root cause, corrective steps, and a revised target date — before the ' + nextQLabel + ' review.';
+        return who + ' to identify the root cause behind "' + c.target + '."' + gapClause + ' Submit a written corrective-action plan — specific steps and a revised target date — before the ' + nextQLabel + ' review.';
       }
-      return who + ' to confirm by the ' + nextQLabel + ' review whether the change on "' + c.target + '" is a data-timing issue or a genuine trend, and adjust the plan if needed.';
+      return who + ' to confirm whether "' + c.target + '" is a data-timing issue or a genuine trend.' + gapClause + ' Adjust the plan if needed before the ' + nextQLabel + ' review.';
     }
     var actionPlan = concerns.map(function(c) {
       return { target:c.target, goalArea:c.goalArea, owner:c.owner, severity:c.severity, text:c.text, action:_actionFor(c), dueLabel:nextQLabel };
@@ -6150,7 +6169,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           var row=[_safe(r[1]||'').slice(0,72)];
           activeQs.forEach(function(q){ row.push(_short((r[_Q_COLS[q-1][1]]||'').trim())||'\u2014'); });
           var cap = _metricCaption(r[_Q_COLS[latestQ-1][0]]||'');
-          row.push(cap?_safe(cap).slice(0,60):'\u2014');
+          row.push(cap?(_safe(cap).length>150?_safe(cap).slice(0,150)+'\u2026':_safe(cap)):'\u2014');
           allBodyRows.push(row);
         });
       });
@@ -6521,8 +6540,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       goalOrder.forEach(function(goal){
         goalGroups[goal].forEach(function(r){
           var s = (r[_Q_COLS[latestQ-1][1]]||'').trim();
-          var cap = _metricCaption(r[_Q_COLS[latestQ-1][0]]||'');
-          rows8.push([_safe(r[1]||'').slice(0,58), _safe(goal).slice(0,26), _short(s)||'\u2014', _safe(cap).slice(0,48)||'\u2014']);
+          var cap = _safe(_metricCaption(r[_Q_COLS[latestQ-1][0]]||''));
+          rows8.push([_safe(r[1]||'').slice(0,58), _safe(goal).slice(0,26), _short(s)||'\u2014', cap?(cap.length>110?cap.slice(0,110)+'\u2026':cap):'\u2014']);
         });
       });
       s8.addTable(rows8,{x:0.4,y:1.2,w:12.3,colW:[4.2,2.6,1.5,4.0],
