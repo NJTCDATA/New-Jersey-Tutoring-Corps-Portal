@@ -65,7 +65,7 @@
       // PIN rotation happened since this browser last logged in) — its token
       // no longer points at an existing bundle. Rather than show a dead error
       // screen, clear it and send the user back to log in fresh.
-      window.NJTCAuth.clearSession();
+      NJTCAuth.clearSession();
       window.location.replace(BASE + '/index.html?relogin=1');
       return;
     }
@@ -135,7 +135,7 @@
       });
     });
     const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', () => window.NJTCAuth.logout());
+    if (logoutBtn) logoutBtn.addEventListener('click', () => NJTCAuth.logout());
   }
 
   // ── Attendance classification (mirrors onsite/pearl-data.js) ─────────────
