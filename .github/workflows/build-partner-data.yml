@@ -16,6 +16,10 @@ on:
         description: 'Update logins too? (yes = also regenerate auth/partner-codes.json from PARTNER_PIN_MAP; no = data refresh only)'
         required: true
         default: 'no'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
       PARTNER_SY_LABEL:
         description: 'Current school year label shown on partner dashboards (e.g. 2025-26)'
         required: true
@@ -47,13 +51,28 @@ jobs:
         run: node scripts/build-partner-data.js
 
       - name: Commit and push
+        # The Pearl fetch above can take several minutes, during which other
+        # automations in this repo (e.g. the Asana sync workflows) may push
+        # their own commits to main. Rebase-and-retry so a same-branch commit
+        # landing mid-run doesn't fail this push outright.
         run: |
           git config user.name "njtc-partner-data-bot"
           git config user.email "actions@github.com"
           git add partner/data auth/partner-codes.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
-          else
-            git commit -m "Refresh partner portal data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
-            git push
+            exit 0
           fi
+          git commit -m "Refresh partner portal data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — another commit landed on main. Rebasing and retrying..."
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          echo "::error::Could not push after 5 attempts — main kept moving. Re-run the workflow."
+          exit 1
