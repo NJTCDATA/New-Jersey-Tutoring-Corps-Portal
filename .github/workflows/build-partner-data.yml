@@ -16,6 +16,14 @@ on:
         description: 'Update logins too? (yes = also regenerate auth/partner-codes.json from PARTNER_PIN_MAP; no = data refresh only)'
         required: true
         default: 'no'
+      PARTNER_SY_LABEL:
+        description: 'Current school year label shown on partner dashboards (e.g. 2025-26)'
+        required: true
+        default: '2025-26'
+      PARTNER_SY_START:
+        description: 'Partner side only: drop any session before this date (YYYY-MM-DD). Bump this + the label above when a new school year starts to roll every partner dashboard forward.'
+        required: true
+        default: '2025-07-01'
 
 jobs:
   build:
@@ -34,6 +42,8 @@ jobs:
           PARTNER_HMAC_KEY: ${{ secrets.PARTNER_HMAC_KEY }}
           PARTNER_EMAIL_MAP_JSON: ${{ secrets.PARTNER_EMAIL_MAP }}
           PARTNER_PIN_MAP_JSON: ${{ github.event.inputs.UPDATE_LOGINS == 'yes' && secrets.PARTNER_PIN_MAP || '' }}
+          PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL }}
+          PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START }}
         run: node scripts/build-partner-data.js
 
       - name: Commit and push

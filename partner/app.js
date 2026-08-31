@@ -195,9 +195,10 @@
   }
 
   function heroHtml(id) {
+    const season = (BUNDLE && BUNDLE.season) ? 'SY ' + BUNDLE.season : 'Current School Year';
     return `<div class="pt-hero">
       <h1>Welcome, ${esc((id.name || '').split(' ')[0] || 'Partner')}</h1>
-      <p>${esc(scopeLabel(id))} — New Jersey Tutoring Corps SY 2025–26</p>
+      <p>${esc(scopeLabel(id))} — New Jersey Tutoring Corps ${esc(season)}</p>
     </div>`;
   }
   function kpiCard(icon, val, sub) {

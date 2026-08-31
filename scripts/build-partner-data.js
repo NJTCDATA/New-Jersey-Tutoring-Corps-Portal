@@ -63,20 +63,48 @@ const STU = {
 };
 
 // Districts with no partner contact yet in partner/directory.json still need a
-// region so Admin/Regional accounts see them. This is a geographic BEST GUESS,
-// not confirmed by NJTC — check with Amir before relying on Regional scoping
-// for these five: Hoboken, Paterson, American Paradigm, Central Jersey College
-// Prep, Middlesex County STEM.
+// region so Admin/Regional accounts see them. Confirmed by Amir 2026-08-31.
 const REGION_DISTRICTS = {
-  'North-East': ['iLearn CMO', 'Hoboken Dual Language Charter Schools', 'Paterson'],
+  'North-East': [
+    'iLearn CMO', 'Hoboken Dual Language Charter Schools', 'Paterson',
+    'Central Jersey College Prep', 'Middlesex County STEM Charter School'
+  ],
   'South-West': [
     'Lawrence Township Schools', 'LEAP Academy Charter School', 'Pemberton Twp Schools',
     'Penns Grove - Carneys Point Regional School District', 'Hamilton Township',
     'String Theory Schools', 'Gloucester Township School District',
     'Global Leadership Academy Charter Schools', 'Berlin Community School', 'Haddon Township',
-    'American Paradigm Schools', 'Central Jersey College Prep', 'Middlesex County STEM Charter School'
+    'American Paradigm Schools'
   ]
 };
+
+// SY boundary — PARTNER SIDE ONLY. Internal Data Department views (central/modules/*)
+// are untouched by this script and keep full multi-year history/year-over-year
+// comparisons. Every attendance/survey row is checked against this cutoff before
+// it's allowed into any partner bundle, regardless of what scope it matches, so a
+// prior year's rows can never reach a partner dashboard even if Pearl's export
+// ever starts accumulating multiple years in one sheet.
+//
+// When a new school year starts: bump PARTNER_SY_LABEL and PARTNER_SY_START via
+// the workflow_dispatch inputs on "Refresh Partner Portal Data" (or these env
+// vars locally) and re-run with "Update logins too? = no" — that alone rolls
+// every partner dashboard forward and drops last year's data, no code change
+// needed.
+const CURRENT_SY_LABEL = process.env.PARTNER_SY_LABEL || '2025-26';
+const CURRENT_SY_START = process.env.PARTNER_SY_START || '2025-07-01';
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+const syCutoff = parseDate(CURRENT_SY_START);
+
+function inCurrentSY(dateStr) {
+  if (!syCutoff) return true; // misconfigured cutoff — fail open rather than blank every dashboard
+  const d = parseDate(dateStr);
+  return d ? d >= syCutoff : true; // unparseable/blank date — keep rather than silently drop
+}
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
@@ -151,6 +179,7 @@ async function main() {
   const pinMapRaw = process.env.PARTNER_PIN_MAP_JSON;
   const pinMap = pinMapRaw ? JSON.parse(pinMapRaw) : null;
 
+  console.log(`Partner-side SY filter: ${CURRENT_SY_LABEL}, sessions on/after ${CURRENT_SY_START} only.`);
   console.log('Fetching Pearl exports...');
   const [attRows, instRows, stuRows] = await Promise.all([fetchSheet('att'), fetchSheet('inst'), fetchSheet('stu')]);
   console.log(`  attendance: ${attRows.length - 1} rows | tutor surveys: ${instRows.length - 1} rows | scholar surveys: ${stuRows.length - 1} rows`);
@@ -168,13 +197,17 @@ async function main() {
     if (!email) { console.warn(`  ! no email for ${entry.id} (${entry.name}) — skipped`); skipped++; continue; }
 
     const token = hmacToken(entry.id, hmacKey);
-    const att = attRows.slice(1).filter(r => scopeMatches(entry, (r[ATT.DISTRICT] || '').trim(), (r[ATT.SCHOOL] || '').trim()));
-    const inst = instRows.slice(1).filter(r => scopeMatches(entry, (r[INST.DISTRICT] || '').trim(), (r[INST.SCHOOL] || '').trim()));
-    const stu = stuRows.slice(1).filter(r => scopeMatches(entry, (r[STU.DISTRICT] || '').trim(), (r[STU.SCHOOL] || '').trim()));
+    const att = attRows.slice(1).filter(r =>
+      scopeMatches(entry, (r[ATT.DISTRICT] || '').trim(), (r[ATT.SCHOOL] || '').trim()) && inCurrentSY(r[ATT.SESS_DATE]));
+    const inst = instRows.slice(1).filter(r =>
+      scopeMatches(entry, (r[INST.DISTRICT] || '').trim(), (r[INST.SCHOOL] || '').trim()) && inCurrentSY(r[INST.DATE]));
+    const stu = stuRows.slice(1).filter(r =>
+      scopeMatches(entry, (r[STU.DISTRICT] || '').trim(), (r[STU.SCHOOL] || '').trim()) && inCurrentSY(r[STU.DATE]));
     (att.length || inst.length || stu.length) ? withRows++ : empty++;
 
     fs.writeFileSync(path.join(DATA_OUT_DIR, `${token}.json`), JSON.stringify({
       generatedAt: new Date().toISOString(),
+      season: CURRENT_SY_LABEL,
       identity: { name: entry.name, title: entry.title, level: entry.level, district: entry.district, schools: entry.schools, region: entry.region },
       columns: { att: ATT, inst: INST, stu: STU },
       attendance: att, tutorSurveys: inst, scholarSurveys: stu
