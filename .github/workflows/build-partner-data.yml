@@ -58,6 +58,12 @@ jobs:
           PARTNER_PIN_MAP_JSON: ${{ github.event.inputs.UPDATE_LOGINS == 'yes' && secrets.PARTNER_PIN_MAP || '' }}
           PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL || '2025-26' }}
           PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START || '2025-07-01' }}
+          # Unset until SY26-27's Pearl sheet exists — the script falls back to
+          # the current SY25-26 sheet baked in as its default. To roll over to
+          # a new year's workbook, add PARTNER_PEARL_2PACX (and PARTNER_PEARL_GIDS
+          # if the tab GIDs differ) as repo secrets; no code change needed.
+          PARTNER_PEARL_2PACX: ${{ secrets.PARTNER_PEARL_2PACX }}
+          PARTNER_PEARL_GIDS: ${{ secrets.PARTNER_PEARL_GIDS }}
         run: node scripts/build-partner-data.js
 
       - name: Commit and push

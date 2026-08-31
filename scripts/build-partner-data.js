@@ -23,6 +23,13 @@
  *                            a new partner or rotating a PIN. Omit it for a plain
  *                            data refresh (Pearl export updated) and
  *                            auth/partner-codes.json is left untouched.
+ *   PARTNER_PEARL_2PACX    - Override the published-sheet key below. Set this (and
+ *                            PARTNER_PEARL_GIDS) when SY26-27's Pearl workbook goes
+ *                            live — the column layout/framework is the same every
+ *                            year per NJTC, only the sheet itself is new, so this is
+ *                            meant to be a one-secret swap, not a code change.
+ *   PARTNER_PEARL_GIDS     - Override the three tab GIDs below, as JSON:
+ *                            '{"att":123,"inst":456,"stu":789}'.
  *
  * Usage:
  *   PARTNER_HMAC_KEY=... PARTNER_EMAIL_MAP_JSON='{...}' [PARTNER_PIN_MAP_JSON='{...}'] \
@@ -38,9 +45,11 @@ const DIRECTORY_PATH = path.join(ROOT, 'partner', 'directory.json');
 const DATA_OUT_DIR = path.join(ROOT, 'partner', 'data');
 const CODES_OUT_PATH = path.join(ROOT, 'auth', 'partner-codes.json');
 
-// Same published Pearl workbook the internal/onsite portals already read from.
-const PEARL_2PACX = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
-const PEARL_GIDS = { att: 702726038, inst: 1955492004, stu: 1245403832 };
+// SY25-26 Pearl workbook — the internal/onsite portals read from the same
+// one. Override via PARTNER_PEARL_2PACX / PARTNER_PEARL_GIDS (see header
+// above) once SY26-27's sheet is live; no code change needed for that swap.
+const PEARL_2PACX = process.env.PARTNER_PEARL_2PACX || '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+const PEARL_GIDS = process.env.PARTNER_PEARL_GIDS ? JSON.parse(process.env.PARTNER_PEARL_GIDS) : { att: 702726038, inst: 1955492004, stu: 1245403832 };
 
 // Column layouts mirror onsite/pearl-data.js exactly — keep these two files in sync
 // if the Pearl export ever adds/reorders columns.

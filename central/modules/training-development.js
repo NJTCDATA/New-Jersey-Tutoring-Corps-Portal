@@ -3275,8 +3275,17 @@
         ? schoolsWithSurvey.reduce((a,s) => a + s.surveyAvg, 0) / schoolsWithSurvey.length : null;
       const avgInstSurvey = schoolsWithInst.length
         ? schoolsWithInst.reduce((a,s) => a + s.instSurveyAvg, 0) / schoolsWithInst.length : null;
-      const avgAtt = schools.length
-        ? schools.reduce((a,s) => a + (s.attRate||0), 0) / schools.length : null;
+      // Weighted by each school's actual scholar attendance/absence counts,
+      // not a plain mean of already-rounded per-school rates — an unweighted
+      // mean lets a small site swing the program-wide number as much as a
+      // large one.
+      const attWeighted = schools.reduce((acc, s) => {
+        acc.att += s.stuAttended || 0;
+        acc.abs += s.stuAbsent || 0;
+        return acc;
+      }, { att: 0, abs: 0 });
+      const avgAtt = (attWeighted.att + attWeighted.abs) > 0
+        ? (attWeighted.att / (attWeighted.att + attWeighted.abs)) * 100 : null;
       const schoolsNeedingAction = schools.filter(s =>
         (s.attRate  != null && s.attRate  < 80) ||
         (s.surveyAvg!= null && s.surveyAvg < 3.5) ||

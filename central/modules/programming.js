@@ -1467,10 +1467,23 @@
 
     // Scholar-caused misses — counted in scholar denominator
     // Blank reason → counts as absent for attendance rate; excluded from CT% calculation only
+    //
+    // 'Classroom Teacher Requested to Keep Scholar in Class' and the Haddon
+    // whole-group variant were briefly reclassified as Service Interruptions
+    // in July 2026 (moved to SI_SEVERITY) on the reasoning that it's a staff
+    // decision, not the scholar's. Reverted org-wide (Aug 2026): this was the
+    // one file out of six independent classifiers that disagreed, which meant
+    // Leadership/Executive/Finance/Program Data Summary/PDF exports showed a
+    // different scholar attendance rate than onsite, internal chat, Data
+    // Department, and the partner portal for the same underlying rows. A
+    // teacher-driven pull-out is exactly the kind of thing a school can act
+    // on, so it counts as an absence here like everywhere else.
     const SCHOLAR_MISS_REASONS = new Set([
       'Absent',                                     // scholar absent from school
       'Scholar declined attending tutoring session', // scholar's own choice
       'Scholar Left Early',                         // scholar left session early — counts as scholar-caused
+      'Classroom Teacher Requested to Keep Scholar in Class',
+      'HADDON TWP ONLY -- Teacher requested whole group support',
     ]);
 
     // Tutor-caused misses — counted in tutor denominator (instructor rows only)
@@ -1502,12 +1515,6 @@
       'School Event':                               'medium',
       'Scheduled/Unscheduled School Drill':         'medium',
       'HADDON TWP ONLY -- Program Redevelopment':   'medium',
-      // Moved here from SCHOLAR_MISS_REASONS (July 2026): keeping a scholar in
-      // class is a school/staff decision, not the scholar's choice — it's not
-      // something the scholar controls, so it counts as a service interruption,
-      // not a plain absence. (Applies to both SY and Summer data.)
-      'Classroom Teacher Requested to Keep Scholar in Class': 'medium',
-      'HADDON TWP ONLY -- Teacher requested whole group support': 'medium',
       'Half Day':                                   'low',
       'Holiday - scheduled':                        'low',
       // 'Scholar declined attending tutoring session' intentionally removed —
@@ -8335,19 +8342,25 @@
         const totalTutorLate       = Object.values(tutorLateByUid).reduce((a,b) => a + b, 0);
 
         // ── Per-district rollup ────────────────────────────────────────────
+        // Weighted by actual scholar attendance/absence counts, not a plain
+        // mean of each school's rate — an unweighted mean gives a 10-scholar
+        // school the same pull on the district number as a 400-scholar one.
+        // Also no longer silently drops a genuine 0% school from the average
+        // (that used to look identical to "no data"; it isn't).
         const districtMap = {};
         schools.forEach(sc => {
           const d = sc.district || 'Unknown';
-          if (!districtMap[d]) districtMap[d] = { name: d, schools: [], sessions: 0, attRateSum: 0, attRateCnt: 0, siCount: 0 };
+          if (!districtMap[d]) districtMap[d] = { name: d, schools: [], sessions: 0, stuAttSum: 0, stuAbsSum: 0, siCount: 0 };
           districtMap[d].schools.push(sc.name);
           districtMap[d].sessions += sc.sessions;
           districtMap[d].siCount  += sc.siCount;
-          if (sc.attRate > 0) { districtMap[d].attRateSum += sc.attRate; districtMap[d].attRateCnt++; }
+          districtMap[d].stuAttSum += sc.stuAttended || 0;
+          districtMap[d].stuAbsSum += sc.stuAbsent || 0;
         });
-        const districts = Object.values(districtMap).map(d => ({
-          ...d,
-          attRate: d.attRateCnt > 0 ? parseFloat((d.attRateSum / d.attRateCnt).toFixed(1)) : 0,
-        })).sort((a, b) => b.sessions - a.sessions);
+        const districts = Object.values(districtMap).map(d => {
+          const denom = d.stuAttSum + d.stuAbsSum;
+          return { ...d, attRate: denom > 0 ? parseFloat((d.stuAttSum / denom * 100).toFixed(1)) : 0 };
+        }).sort((a, b) => b.sessions - a.sessions);
 
         // ── Survey scores ──────────────────────────────────────────────────
         function avgArr(arr) { return arr.length ? parseFloat((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2)) : 0; }
@@ -8580,6 +8593,12 @@
             schools.push({
               school: name, district: sc.district || '',
               attRate: attRate, sessions: sessCount,
+              // Raw counts alongside the rounded rate so a consumer rolling
+              // several schools together can weight by actual scholar
+              // volume instead of averaging percentages (a 10-scholar site
+              // and a 400-scholar site shouldn't pull a combined rate
+              // equally).
+              stuAttended: sc.stuAttended || 0, stuAbsent: sc.stuAbsent || 0,
               surveyAvg:    sc.stuSurveyAvg  ? parseFloat(sc.stuSurveyAvg.toFixed(2))  : null,
               instSurveyAvg:sc.instSurveyAvg ? parseFloat(sc.instSurveyAvg.toFixed(2)) : null,
               surveyCount:  sc.stuSurveyRows  ? sc.stuSurveyRows.length  : 0,

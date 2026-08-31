@@ -93,7 +93,29 @@
   // Purely a view filter over data already inside this account's own bundle
   // — it can only narrow what's shown, never reach outside the district(s)/
   // school(s) that bundle was built for.
-  const SCOPE = { district: 'ALL', school: 'ALL' };
+  const SCOPE = { district: 'ALL', school: 'ALL', week: 'ALL' };
+
+  // Pearl's own "Week" text column is sparse/unreliable in practice — the
+  // weekly trend came up permanently empty relying on it. Session date is
+  // reliably present (it's what "last attended" already uses correctly), so
+  // every week bucket on this page is derived from it directly: the Monday
+  // of the session's calendar week, which also sorts correctly by its key
+  // (unlike a free-text week label, which does not).
+  function parseDate(s) {
+    if (!s) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function weekBucket(dateStr) {
+    const d = parseDate(dateStr);
+    if (!d) return null;
+    const day = d.getDay(); // 0=Sun..6=Sat
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    const key = monday.toISOString().slice(0, 10); // YYYY-MM-DD — sorts chronologically
+    const label = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return { key, label };
+  }
 
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -151,19 +173,26 @@
 
   // ── Drill-down filter (Network/Regional/Admin accounts only see this if
   // their bundle actually spans more than one school) ─────────────────────
-  function scoped(rows, distIdx, schIdx) {
-    return rows.filter(r =>
-      (SCOPE.district === 'ALL' || (r[distIdx] || '').trim() === SCOPE.district) &&
-      (SCOPE.school === 'ALL' || (r[schIdx] || '').trim() === SCOPE.school));
+  function scoped(rows, distIdx, schIdx, dateIdx) {
+    return rows.filter(r => {
+      if (SCOPE.district !== 'ALL' && (r[distIdx] || '').trim() !== SCOPE.district) return false;
+      if (SCOPE.school !== 'ALL' && (r[schIdx] || '').trim() !== SCOPE.school) return false;
+      if (SCOPE.week !== 'ALL' && dateIdx != null) {
+        const wk = weekBucket(r[dateIdx]);
+        if (!wk || wk.key !== SCOPE.week) return false;
+      }
+      return true;
+    });
   }
-  function scopedAttendance() { return scoped(BUNDLE.attendance || [], ATT.DISTRICT, ATT.SCHOOL); }
-  function scopedScholarSurveys() { return scoped(BUNDLE.scholarSurveys || [], STU.DISTRICT, STU.SCHOOL); }
-  function scopedTutorSurveys() { return scoped(BUNDLE.tutorSurveys || [], INST.DISTRICT, INST.SCHOOL); }
+  function scopedAttendance() { return scoped(BUNDLE.attendance || [], ATT.DISTRICT, ATT.SCHOOL, ATT.SESS_DATE); }
+  function scopedScholarSurveys() { return scoped(BUNDLE.scholarSurveys || [], STU.DISTRICT, STU.SCHOOL, STU.DATE); }
+  function scopedTutorSurveys() { return scoped(BUNDLE.tutorSurveys || [], INST.DISTRICT, INST.SCHOOL, INST.DATE); }
 
   function initScopeFilter() {
     const bar = document.getElementById('scopeBar');
     const distSel = document.getElementById('scopeDistrict');
     const schSel = document.getElementById('scopeSchool');
+    const weekSel = document.getElementById('scopeWeek');
     const activeBadge = document.getElementById('scopeActive');
     if (!bar) return;
 
@@ -181,9 +210,17 @@
       if (!schoolsByDistrict[key]) schoolsByDistrict[key] = new Set();
       schoolsByDistrict[key].add(s);
     });
-
     const allSchools = [...new Set(allRows.map(([, s]) => s).filter(Boolean))];
-    if (districts.length <= 1 && allSchools.length <= 1) return; // single-school account — nothing to drill into
+
+    const weekMap = new Map(); // key -> label
+    (BUNDLE.attendance || []).forEach(r => {
+      const wk = weekBucket(r[ATT.SESS_DATE]);
+      if (wk) weekMap.set(wk.key, wk.label);
+    });
+    const weeks = [...weekMap.keys()].sort();
+
+    const hasSchoolDrilldown = districts.length > 1 || allSchools.length > 1;
+    if (!hasSchoolDrilldown && !weeks.length) return; // single school, no dated sessions yet — nothing to drill into
 
     bar.hidden = false;
 
@@ -195,35 +232,48 @@
       schSel.innerHTML = `<option value="ALL">All Schools</option>` + schools.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     }
 
-    if (districts.length > 1) {
-      distSel.hidden = false;
-      distSel.innerHTML = `<option value="ALL">All Districts</option>` + districts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
-      distSel.addEventListener('change', () => {
-        SCOPE.district = distSel.value;
-        SCOPE.school = 'ALL';
-        populateSchools(SCOPE.district);
+    if (hasSchoolDrilldown) {
+      if (districts.length > 1) {
+        distSel.hidden = false;
+        distSel.innerHTML = `<option value="ALL">All Districts</option>` + districts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+        distSel.addEventListener('change', () => {
+          SCOPE.district = distSel.value;
+          SCOPE.school = 'ALL';
+          populateSchools(SCOPE.district);
+          applyScopeChange();
+        });
+      }
+      populateSchools('ALL');
+      schSel.addEventListener('change', () => {
+        SCOPE.school = schSel.value;
+        // Picking a school implicitly fixes its district too, so the two
+        // filters can't disagree with each other.
+        if (SCOPE.school !== 'ALL' && districts.length > 1) {
+          const owner = districts.find(d => (schoolsByDistrict[d] || new Set()).has(SCOPE.school));
+          if (owner) { SCOPE.district = owner; distSel.value = owner; }
+        }
+        applyScopeChange();
+      });
+    } else {
+      schSel.hidden = true;
+    }
+
+    if (weeks.length) {
+      weekSel.hidden = false;
+      weekSel.innerHTML = `<option value="ALL">All Weeks</option>` + weeks.map(k => `<option value="${k}">Week of ${esc(weekMap.get(k))}</option>`).join('');
+      weekSel.addEventListener('change', () => {
+        SCOPE.week = weekSel.value;
         applyScopeChange();
       });
     }
-    populateSchools('ALL');
-    schSel.addEventListener('change', () => {
-      SCOPE.school = schSel.value;
-      // Picking a school implicitly fixes its district too, so the two
-      // filters can't disagree with each other.
-      if (SCOPE.school !== 'ALL' && districts.length > 1) {
-        const owner = districts.find(d => (schoolsByDistrict[d] || new Set()).has(SCOPE.school));
-        if (owner) { SCOPE.district = owner; distSel.value = owner; }
-      }
-      applyScopeChange();
-    });
 
     function applyScopeChange() {
-      if (SCOPE.district === 'ALL' && SCOPE.school === 'ALL') {
-        activeBadge.hidden = true;
-      } else {
-        activeBadge.hidden = false;
-        activeBadge.textContent = 'Showing: ' + (SCOPE.school !== 'ALL' ? SCOPE.school : SCOPE.district);
-      }
+      const parts = [];
+      if (SCOPE.school !== 'ALL') parts.push(SCOPE.school);
+      else if (SCOPE.district !== 'ALL') parts.push(SCOPE.district);
+      if (SCOPE.week !== 'ALL') parts.push('week of ' + esc(weekMap.get(SCOPE.week) || SCOPE.week));
+      if (parts.length) { activeBadge.hidden = false; activeBadge.textContent = 'Showing: ' + parts.join(' · '); }
+      else activeBadge.hidden = true;
       renderAll();
     }
   }
@@ -338,17 +388,20 @@
   }
 
   function scholarWeeklyRate(scholarRows) {
-    const byWeek = {};
+    const byWeek = {}; // key (sortable) -> { label, attended, absent }
     scholarRows.forEach(r => {
-      const wk = (r[ATT.WEEK] || '').trim();
+      const wk = weekBucket(r[ATT.SESS_DATE]);
       if (!wk) return;
       const c = classifyAtt(r);
       if (c !== 'attended' && c !== 'absent') return;
-      if (!byWeek[wk]) byWeek[wk] = { attended: 0, absent: 0 };
-      byWeek[wk][c]++;
+      if (!byWeek[wk.key]) byWeek[wk.key] = { label: wk.label, attended: 0, absent: 0 };
+      byWeek[wk.key][c]++;
     });
-    const weeks = Object.keys(byWeek).sort();
-    return { weeks, rates: weeks.map(w => pct(byWeek[w].attended, byWeek[w].attended + byWeek[w].absent)) };
+    const keys = Object.keys(byWeek).sort();
+    return {
+      weeks: keys.map(k => byWeek[k].label),
+      rates: keys.map(k => pct(byWeek[k].attended, byWeek[k].attended + byWeek[k].absent))
+    };
   }
 
   // Partner-side reasons only — the SCHOLAR_MISS_REASONS bucket. Service
@@ -377,13 +430,19 @@
     scholarRows.forEach(r => {
       const uid = (r[ATT.USER_ID] || '').trim();
       if (!uid) return;
-      if (!byScholar[uid]) byScholar[uid] = { uid, name: (r[ATT.USER] || '').trim() || 'Unknown', attended: 0, absences: 0, lastAttended: null, missed: [] };
+      if (!byScholar[uid]) byScholar[uid] = { uid, name: (r[ATT.USER] || '').trim() || 'Unknown', attended: 0, absences: 0, lastAttended: null, lastAttendedSort: null, missed: [] };
       const s = byScholar[uid];
       const c = classifyAtt(r);
       if (c === 'attended') {
         s.attended++;
-        const d = (r[ATT.SESS_DATE] || '').trim();
-        if (d && (!s.lastAttended || d > s.lastAttended)) s.lastAttended = d;
+        // Compare parsed dates, not raw strings — Pearl's date format isn't
+        // guaranteed to sort correctly as text (e.g. "9/8/2025" vs "12/1/2025").
+        const raw = (r[ATT.SESS_DATE] || '').trim();
+        const parsed = parseDate(raw);
+        if (raw && parsed && (!s.lastAttendedSort || parsed > s.lastAttendedSort)) {
+          s.lastAttended = raw;
+          s.lastAttendedSort = parsed;
+        }
       } else if (c === 'absent') {
         s.absences++;
         s.missed.push({
@@ -628,7 +687,7 @@
           </summary>
           <div class="pt-checkin-detail">
             <table><thead><tr><th>Date</th><th>Reason</th></tr></thead><tbody>
-              ${s.missed.slice().sort((a, b) => b.date.localeCompare(a.date)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+              ${s.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
             </tbody></table>
           </div>
         </details>`).join('')}
