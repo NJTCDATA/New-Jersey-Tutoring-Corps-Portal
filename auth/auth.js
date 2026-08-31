@@ -100,19 +100,26 @@ const NJTCAuth = (() => {
       return { dept: match.d, token };
     }
 
-    // Fall back to the individual partner/admin/regional directory.
+    // Fall back to the individual partner/admin/regional directory. A fetch
+    // failure here must NOT look like "wrong password" to a legitimate
+    // partner — surface it the same way a codes.json failure is surfaced
+    // above, rather than silently falling through to "no match".
+    let pdata;
     try {
       const pres = await fetch(PARTNER_CODES_URL + '?v=' + Date.now());
-      const pdata = await pres.json();
-      const pmatch = (pdata.codes || []).find(c => c.h === hashLower);
-      if (pmatch) {
-        // pmatch.pid is an opaque HMAC token (partner/data/<pid>.json), not a
-        // readable identifier — see scripts/build-partner-data.js.
-        const token = await createToken('partner', { pid: pmatch.pid });
-        saveSession(token);
-        return { dept: 'partner', token, pid: pmatch.pid };
-      }
-    } catch { /* partner directory is optional — absence isn't a hard error */ }
+      pdata = await pres.json();
+    } catch {
+      throw new Error('Unable to load auth data. Check network or contact admin.');
+    }
+
+    const pmatch = (pdata.codes || []).find(c => c.h === hashLower);
+    if (pmatch) {
+      // pmatch.pid is an opaque HMAC token (partner/data/<pid>.json), not a
+      // readable identifier — see scripts/build-partner-data.js.
+      const token = await createToken('partner', { pid: pmatch.pid });
+      saveSession(token);
+      return { dept: 'partner', token, pid: pmatch.pid };
+    }
 
     return null;
   }

@@ -176,6 +176,14 @@
       if (params.get('signout') === '1') {
         NJTCAuth.clearSession();
         history.replaceState(null, '', window.location.pathname);
+      } else if (params.get('relogin') === '1') {
+        // Sent here by the partner dashboard when a session outlived its data
+        // (e.g. a login rotation happened since this browser last signed in).
+        NJTCAuth.clearSession();
+        history.replaceState(null, '', window.location.pathname);
+        const errMsgEl = document.getElementById('errorMsg');
+        errMsgEl.textContent = 'Your session needs to be renewed — please sign in again.';
+        errMsgEl.classList.add('show');
       } else {
         // Check for existing valid session and auto-redirect
         const existing = await NJTCAuth.currentSession();

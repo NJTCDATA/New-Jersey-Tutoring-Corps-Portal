@@ -1,7 +1,11 @@
-name: Refresh Partner Portal Data (Manual)
-# Run this from the Actions tab whenever:
-#   (a) Pearl attendance/survey data has updated and partners should see the
-#       refresh — leave "Update logins too?" set to "no", or
+name: Refresh Partner Portal Data
+# Runs automatically every night (data-only — logins are never touched by the
+# schedule) so partners always see current Pearl data without anyone having
+# to remember to click anything.
+#
+# Trigger manually from the Actions tab when:
+#   (a) Pearl data changed and you don't want to wait for tonight's run — leave
+#       "Update logins too?" set to "no", or
 #   (b) you're onboarding a new partner, or rotating someone's PIN — set
 #       "Update logins too?" to "yes" and add/edit their entry in the
 #       PARTNER_EMAIL_MAP / PARTNER_PIN_MAP secrets first.
@@ -10,6 +14,8 @@ name: Refresh Partner Portal Data (Manual)
 # SHA-256 hashes (auth/partner-codes.json) and scoped data bundles
 # (partner/data/*.json) get committed. See scripts/build-partner-data.js.
 on:
+  schedule:
+    - cron: '0 10 * * *'  # ~5-6am US Eastern, before the school day
   workflow_dispatch:
     inputs:
       UPDATE_LOGINS:
@@ -42,12 +48,16 @@ jobs:
           node-version: '20'
 
       - name: Build partner data bundles (and logins, if requested)
+        # github.event.inputs.* only exist for a manual (workflow_dispatch)
+        # run — a scheduled run has none of them, so every one of these needs
+        # its own fallback rather than relying on the input's declared
+        # default (which only applies inside the Actions UI, not here).
         env:
           PARTNER_HMAC_KEY: ${{ secrets.PARTNER_HMAC_KEY }}
           PARTNER_EMAIL_MAP_JSON: ${{ secrets.PARTNER_EMAIL_MAP }}
           PARTNER_PIN_MAP_JSON: ${{ github.event.inputs.UPDATE_LOGINS == 'yes' && secrets.PARTNER_PIN_MAP || '' }}
-          PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL }}
-          PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START }}
+          PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL || '2025-26' }}
+          PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START || '2025-07-01' }}
         run: node scripts/build-partner-data.js
 
       - name: Commit and push
