@@ -131,7 +131,7 @@
     <div class="divider"></div>
 
     <label class="field-label" for="accessCode">Access Code</label>
-    <p class="field-hint">Enter your assigned portal code to continue.</p>
+    <p class="field-hint">Staff: enter your assigned portal code. Partners: enter your email, a hyphen, then your 4-digit PIN — e.g. jane@yourschool.org-4821.</p>
 
     <input
       type="password"
@@ -163,9 +163,9 @@
     const BASE = '/New-Jersey-Tutoring-Corps-Portal';
 
     function route(dept, token) {
-      const dest = dept === 'onsite'
-        ? BASE + '/onsite/index.html'
-        : BASE + '/central/index.html';
+      const dest = dept === 'onsite' ? BASE + '/onsite/index.html'
+                 : dept === 'partner' ? BASE + '/partner/index.html'
+                 : BASE + '/central/index.html';
       // Pass token in URL hash — Safari ITP fallback
       window.location.href = token ? dest + '#t=' + encodeURIComponent(token) : dest;
     }

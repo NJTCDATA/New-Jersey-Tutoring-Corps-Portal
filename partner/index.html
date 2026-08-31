@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NJTC Partner Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --navy:#0a1628; --blue:#003087; --blue-mid:#0050c8; --blue-lite:#1a7aff;
+    --gold:#f0a500; --gold-lite:#ffd166;
+    --pos:#0d6e3a; --pos-bg:#e6f5ed;
+    --neu:#7d8fa1; --neu-bg:#eef1f6;
+    --neg:#b91c1c; --neg-bg:#fee2e2;
+    --text:#0d1b2a; --text-2:#3d5166; --muted:#7d8fa1;
+    --border:#dde3ec; --border-2:#eef1f6;
+    --surface:#fff; --surface-2:#f6f8fc; --surface-3:#eef1f7; --bg:#f0f4fa;
+    --radius:16px; --radius-sm:10px;
+    --shadow-sm:0 1px 3px rgba(10,22,40,.06),0 1px 2px rgba(10,22,40,.04);
+    --shadow:0 4px 16px rgba(10,22,40,.08),0 1px 4px rgba(10,22,40,.04);
+    --shadow-lg:0 24px 64px rgba(10,22,40,.16),0 4px 16px rgba(10,22,40,.06);
+  }
+  body{font-family:'DM Sans',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  #loadingScreen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem;transition:opacity .3s ease}
+  .load-spin{width:44px;height:44px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loadingScreen p{color:rgba(255,255,255,.7);font-size:.875rem;font-family:'JetBrains Mono',monospace}
+
+  .pt-nav{background:var(--navy);color:#fff;padding:0 1.75rem;height:66px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200;box-shadow:0 2px 24px rgba(0,0,0,.25)}
+  .pt-brand{display:flex;align-items:center;gap:.875rem}
+  .pt-logo{width:40px;height:40px;background:linear-gradient(135deg,var(--blue-mid),var(--blue-lite));border-radius:11px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:1.1rem;color:#fff;flex-shrink:0;box-shadow:0 4px 12px rgba(0,80,200,.4)}
+  .pt-titles{display:flex;flex-direction:column}
+  .pt-title{font-size:.9375rem;font-weight:700;letter-spacing:-.01em}
+  .pt-subtitle{font-size:.6875rem;color:rgba(255,255,255,.5)}
+  .pt-identity{display:flex;align-items:center;gap:.75rem}
+  .pt-id-text{display:flex;flex-direction:column;align-items:flex-end}
+  .pt-id-name{font-size:.85rem;font-weight:700}
+  .pt-id-role{font-size:.7rem;color:var(--gold-lite);font-weight:600;letter-spacing:.03em}
+  .pt-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),#c07a00);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.8rem;color:var(--navy)}
+  .pt-logout{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.75);border-radius:8px;padding:.45rem .8rem;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;margin-left:.5rem}
+  .pt-logout:hover{background:rgba(255,255,255,.15);color:#fff}
+
+  .pt-tabs{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:66px;z-index:190;display:flex;gap:.25rem;padding:0 1.75rem;overflow-x:auto}
+  .pt-tab{padding:.9rem 1.1rem;font-size:.85rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .15s}
+  .pt-tab:hover{color:var(--blue)}
+  .pt-tab.active{color:var(--blue);border-bottom-color:var(--blue-mid)}
+
+  .pt-main{max-width:1320px;margin:0 auto;padding:1.75rem}
+  .pt-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--blue) 100%);border-radius:var(--radius);padding:1.75rem 2rem;color:#fff;margin-bottom:1.5rem;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+  .pt-hero::after{content:'';position:absolute;top:-60%;right:-10%;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(240,165,0,.18),transparent 70%)}
+  .pt-hero h1{font-family:'DM Serif Display',serif;font-weight:400;font-size:1.7rem;margin-bottom:.35rem;position:relative}
+  .pt-hero p{color:rgba(255,255,255,.65);font-size:.9rem;position:relative}
+
+  .pt-grid{display:grid;gap:1.1rem}
+  .pt-grid-4{grid-template-columns:repeat(4,1fr)}
+  .pt-grid-3{grid-template-columns:repeat(3,1fr)}
+  .pt-grid-2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:1000px){.pt-grid-4{grid-template-columns:repeat(2,1fr)}.pt-grid-3,.pt-grid-2{grid-template-columns:1fr}}
+
+  .pt-card{background:var(--surface);border-radius:var(--radius);padding:1.4rem 1.5rem;box-shadow:var(--shadow-sm);border:1px solid var(--border-2)}
+  .pt-card-title{font-size:.8rem;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:1rem;display:flex;align-items:center;gap:.4rem}
+  .pt-kpi-val{font-family:'DM Serif Display',serif;font-size:2.1rem;color:var(--blue);line-height:1}
+  .pt-kpi-sub{font-size:.78rem;color:var(--muted);margin-top:.4rem;font-weight:500}
+  .pt-kpi-icon{font-size:1.4rem;margin-bottom:.5rem}
+
+  .pt-sentiment-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.65rem}
+  .pt-sentiment-label{width:70px;font-size:.8rem;font-weight:700;color:var(--text-2)}
+  .pt-sentiment-track{flex:1;height:26px;background:var(--surface-3);border-radius:6px;overflow:hidden;position:relative}
+  .pt-sentiment-fill{height:100%;display:flex;align-items:center;justify-content:flex-end;padding-right:.5rem;color:#fff;font-size:.72rem;font-weight:700;border-radius:6px;transition:width .6s ease}
+
+  .pt-bar-row{display:flex;align-items:center;gap:.6rem;margin-bottom:.55rem}
+  .pt-bar-label{width:20px;font-size:.78rem;font-weight:700;color:var(--text-2);text-align:right}
+  .pt-bar-track{flex:1;height:18px;background:var(--surface-3);border-radius:5px;overflow:hidden}
+  .pt-bar-fill{height:100%;border-radius:5px;background:var(--blue-mid)}
+  .pt-bar-count{width:36px;font-size:.75rem;color:var(--muted);font-weight:600}
+
+  table.pt-table{width:100%;border-collapse:collapse;font-size:.83rem}
+  table.pt-table th{text-align:left;padding:.6rem .7rem;background:var(--surface-2);color:var(--text-2);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--border)}
+  table.pt-table td{padding:.55rem .7rem;border-bottom:1px solid var(--border-2)}
+  table.pt-table tr:hover td{background:var(--surface-2)}
+  .pt-pill{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700}
+  .pt-pill-good{background:var(--pos-bg);color:var(--pos)}
+  .pt-pill-warn{background:#fff0e0;color:#c05c00}
+  .pt-pill-bad{background:var(--neg-bg);color:var(--neg)}
+
+  .pt-empty{padding:3.5rem 2rem;text-align:center;color:var(--muted)}
+  .pt-empty h3{font-family:'DM Serif Display',serif;font-weight:400;color:var(--text-2);font-size:1.3rem;margin-bottom:.5rem}
+  .pt-empty p{font-size:.88rem;max-width:440px;margin:0 auto}
+
+  .pt-quote{background:var(--surface-2);border-left:3px solid var(--gold);border-radius:8px;padding:.9rem 1.1rem;margin-bottom:.7rem;font-size:.86rem;color:var(--text-2);font-style:italic}
+  .pt-quote-meta{margin-top:.4rem;font-size:.72rem;color:var(--muted);font-style:normal;font-weight:600}
+
+  .pt-select{padding:.5rem .8rem;border:1px solid var(--border);border-radius:8px;font-size:.8rem;font-family:inherit;background:#fff;color:var(--text);cursor:pointer}
+  .pt-toolbar{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.1rem}
+
+  .pt-view{display:none}
+  .pt-view.active{display:block}
+</style>
+</head>
+<body>
+
+<div id="loadingScreen"><div class="load-spin"></div><p>Loading your dashboard&hellip;</p></div>
+
+<nav class="pt-nav">
+  <div class="pt-brand">
+    <div class="pt-logo">NJTC</div>
+    <div class="pt-titles">
+      <span class="pt-title">Partner Dashboard</span>
+      <span class="pt-subtitle" id="navSubtitle">New Jersey Tutoring Corps</span>
+    </div>
+  </div>
+  <div class="pt-identity">
+    <div class="pt-id-text">
+      <span class="pt-id-name" id="idName">&nbsp;</span>
+      <span class="pt-id-role" id="idRole">&nbsp;</span>
+    </div>
+    <div class="pt-avatar" id="idAvatar">&nbsp;</div>
+    <button class="pt-logout" id="logoutBtn">Sign Out</button>
+  </div>
+</nav>
+
+<div class="pt-tabs" id="ptTabs">
+  <div class="pt-tab active" data-view="summary">Summary</div>
+  <div class="pt-tab" data-view="attendance">Attendance Tracking</div>
+  <div class="pt-tab" data-view="scholar">Scholar Survey Details</div>
+  <div class="pt-tab" data-view="tutor">Tutor Survey Details</div>
+</div>
+
+<main class="pt-main" id="ptMain"></main>
+
+<script src="../auth/auth.js?v=1"></script>
+<script src="../auth/partner-guard.js?v=1"></script>
+<script src="./app.js?v=1"></script>
+<script src="./pie-bot.js?v=1"></script>
+</body>
+</html>

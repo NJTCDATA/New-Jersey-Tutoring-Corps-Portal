@@ -1,0 +1,625 @@
+{
+  "version": "2025-26",
+  "generated": "2026-08-31",
+  "entries": [
+    {
+      "id": "admin-amir-wallace",
+      "name": "Amir Wallace",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "admin-katherine-bassett",
+      "name": "Katherine Bassett",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "admin-mysti-diaz",
+      "name": "Mysti Diaz",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "admin-ashley-bencan",
+      "name": "Ashley Bencan",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "admin-scott-oswald",
+      "name": "Scott Oswald",
+      "title": "Administrator",
+      "level": "Admin",
+      "scopeType": "all",
+      "district": "ALL",
+      "schools": [],
+      "region": "ALL",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "regional-taneisha-clemons",
+      "name": "Taneisha Clemons",
+      "title": "Regional Director",
+      "level": "Regional",
+      "scopeType": "region",
+      "district": null,
+      "schools": [],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "regional-jenny-irwin",
+      "name": "Jenny Irwin",
+      "title": "Regional Director",
+      "level": "Regional",
+      "scopeType": "region",
+      "district": null,
+      "schools": [],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "regional-andrea-bowman",
+      "name": "Andrea Bowman",
+      "title": "Regional Director",
+      "level": "Regional",
+      "scopeType": "region",
+      "district": null,
+      "schools": [],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "regional-tierney-tittermary",
+      "name": "Tierney Tittermary",
+      "title": "Regional Director",
+      "level": "Regional",
+      "scopeType": "region",
+      "district": null,
+      "schools": [],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-bergen-es",
+      "name": "Amanda Warren",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Bergen ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-bergen-ms",
+      "name": "Monika Puzio",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Bergen MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-hudson-es",
+      "name": "Maura Descafano",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Hudson ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-hudson-ms",
+      "name": "Carla Munoz",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Hudson MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-passaic-es",
+      "name": "Sarah Bright",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Passaic ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-passaic-ms",
+      "name": "Ronald Triolo",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Passaic MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-clifton-es",
+      "name": "Matthew Haines",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-clifton-ms",
+      "name": "Marie SanMarco",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-clifton-hs",
+      "name": "Marina Pejovski",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton HS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-paterson-es",
+      "name": "Tara Quintavella",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-paterson-ms",
+      "name": "Sarah McElhinney",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ada-lea-ilearn-paterson-silk-city",
+      "name": "Heather Parisi",
+      "title": "ADA",
+      "level": "ADA",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson Silk City"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-bergen-es",
+      "name": "Sheila Goodstein",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Bergen ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-bergen-ms",
+      "name": "Tiffany Angulo",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Bergen MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-hudson-es",
+      "name": "Ashley Seroczynski",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Hudson ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-hudson-ms",
+      "name": "Mehwish Bilal",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Hudson MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-passaic-es",
+      "name": "Durim Memedi",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Passaic ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-passaic-ms",
+      "name": "Zofia Drapala",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Passaic MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-clifton-es",
+      "name": "Danielle Kosaka",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-clifton-ms",
+      "name": "Deniz Ismailoff",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-clifton-hs",
+      "name": "Ismail Demirors",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Clifton HS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-paterson-es",
+      "name": "Erika O'Lewis",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson ES"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-paterson-ms",
+      "name": "Patrick Renahan",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson MS"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-ado-lea-ilearn-paterson-silk-city",
+      "name": "Tamasha Dixon",
+      "title": "ADO",
+      "level": "ADO",
+      "scopeType": "school",
+      "district": "iLearn CMO",
+      "schools": [
+        "LEA - iLearn Paterson Silk City"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-network-dr-kose",
+      "name": "Dr. Kose",
+      "title": "Network",
+      "level": "Network",
+      "scopeType": "district",
+      "district": "iLearn CMO",
+      "schools": [
+        "ALL"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "ilearn-network-ms-fantasia",
+      "name": "Ms. Fantasia",
+      "title": "Network",
+      "level": "Network",
+      "scopeType": "district",
+      "district": "iLearn CMO",
+      "schools": [
+        "ALL"
+      ],
+      "region": "North-East",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-lawrence-township-schools-jeanne-muzi",
+      "name": "Jeanne Muzi",
+      "title": "Director of Student Achievement, Equity and Opportunity",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Lawrence Township Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-lawrence-township-schools-neel-desai",
+      "name": "Neel Desai",
+      "title": "Assistant Superintendent for Curriculum and Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Lawrence Township Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-leap-academy-charter-school-matthew-steen",
+      "name": "Matthew Steen",
+      "title": "Chief Academic Officer",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "LEAP Academy Charter School",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-leap-academy-charter-school-samantha-rodriguez",
+      "name": "Samantha Rodriguez",
+      "title": "Principal K-5",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "LEAP Academy Charter School",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-pemberton-twp-schools-ida-smith",
+      "name": "Ida Smith",
+      "title": "Chief Academic Officer",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Pemberton Twp Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-pemberton-twp-schools-dan-nale",
+      "name": "Dan Nale",
+      "title": "Math & Science Supervisor",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Pemberton Twp Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-penns-grove-carneys-point-regional-school-district-dr-sydonie-maitland",
+      "name": "Dr. Sydonie Maitland",
+      "title": "Director of Curriculum & Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Penns Grove - Carneys Point Regional School District",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-hamilton-township-danielle-tan",
+      "name": "Danielle Tan",
+      "title": "Director of Curriculum & Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Hamilton Township",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-string-theory-schools-matthew-menschner",
+      "name": "Matthew Menschner",
+      "title": "Principal",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "String Theory Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-string-theory-schools-judith-taggart",
+      "name": "Judith Taggart",
+      "title": "Chief Executive Officer",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "String Theory Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-global-leadership-academy-charter-schools-gregory-simpson",
+      "name": "Gregory Simpson",
+      "title": "Cultural Arts Coordinator",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Global Leadership Academy Charter Schools",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-berlin-community-school-julie-crossan",
+      "name": "Julie Crossan",
+      "title": "Director of Curriculum & Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Berlin Community School",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "pending"
+    },
+    {
+      "id": "partner-hamilton-township-nicole-dickens-simon",
+      "name": "Dr. Nicole Dickens-Simon",
+      "title": "Greenwood Elementary School Principal",
+      "level": "Partner Contact",
+      "scopeType": "school",
+      "district": "Hamilton Township",
+      "schools": [
+        "Greenwood"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    },
+    {
+      "id": "partner-haddon-township-chantelle-shorter",
+      "name": "Chantelle Shorter",
+      "title": "Director of Curriculum & Instruction",
+      "level": "Partner Contact",
+      "scopeType": "district",
+      "district": "Haddon Township",
+      "schools": [
+        "ALL"
+      ],
+      "region": "South-West",
+      "pearlStatus": "ready"
+    }
+  ]
+}

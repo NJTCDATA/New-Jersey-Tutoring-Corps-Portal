@@ -1,0 +1,59 @@
+name: Refresh Partner Portal Data (Manual)
+# Run this from the Actions tab whenever:
+#   (a) Pearl attendance/survey data has updated and partners should see the
+#       refresh — leave "Update logins too?" set to "no", or
+#   (b) you're onboarding a new partner, or rotating someone's PIN — set
+#       "Update logins too?" to "yes" and add/edit their entry in the
+#       PARTNER_EMAIL_MAP / PARTNER_PIN_MAP secrets first.
+#
+# Nothing here ever writes a plaintext email or PIN into the repo — only
+# SHA-256 hashes (auth/partner-codes.json) and scoped data bundles
+# (partner/data/*.json) get committed. See scripts/build-partner-data.js.
+on:
+  workflow_dispatch:
+    inputs:
+      UPDATE_LOGINS:
+        description: 'Update logins too? (yes = also regenerate auth/partner-codes.json from PARTNER_PIN_MAP; no = data refresh only)'
+        required: true
+        default: 'no'
+      PARTNER_SY_LABEL:
+        description: 'Current school year label shown on partner dashboards (e.g. 2025-26)'
+        required: true
+        default: '2025-26'
+      PARTNER_SY_START:
+        description: 'Partner side only: drop any session before this date (YYYY-MM-DD). Bump this + the label above when a new school year starts to roll every partner dashboard forward.'
+        required: true
+        default: '2025-07-01'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build partner data bundles (and logins, if requested)
+        env:
+          PARTNER_HMAC_KEY: ${{ secrets.PARTNER_HMAC_KEY }}
+          PARTNER_EMAIL_MAP_JSON: ${{ secrets.PARTNER_EMAIL_MAP }}
+          PARTNER_PIN_MAP_JSON: ${{ github.event.inputs.UPDATE_LOGINS == 'yes' && secrets.PARTNER_PIN_MAP || '' }}
+          PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL }}
+          PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START }}
+        run: node scripts/build-partner-data.js
+
+      - name: Commit and push
+        run: |
+          git config user.name "njtc-partner-data-bot"
+          git config user.email "actions@github.com"
+          git add partner/data auth/partner-codes.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Refresh partner portal data ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            git push
+          fi
