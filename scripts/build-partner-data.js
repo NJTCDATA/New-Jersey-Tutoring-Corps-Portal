@@ -28,8 +28,8 @@
  *                            live — the column layout/framework is the same every
  *                            year per NJTC, only the sheet itself is new, so this is
  *                            meant to be a one-secret swap, not a code change.
- *   PARTNER_PEARL_GIDS     - Override the three tab GIDs below, as JSON:
- *                            '{"att":123,"inst":456,"stu":789}'.
+ *   PARTNER_PEARL_GIDS     - Override the four tab GIDs below, as JSON:
+ *                            '{"att":123,"inst":456,"stu":789,"sess":321}'.
  *
  * Usage:
  *   PARTNER_HMAC_KEY=... PARTNER_EMAIL_MAP_JSON='{...}' [PARTNER_PIN_MAP_JSON='{...}'] \
@@ -49,7 +49,11 @@ const CODES_OUT_PATH = path.join(ROOT, 'auth', 'partner-codes.json');
 // one. Override via PARTNER_PEARL_2PACX / PARTNER_PEARL_GIDS (see header
 // above) once SY26-27's sheet is live; no code change needed for that swap.
 const PEARL_2PACX = process.env.PARTNER_PEARL_2PACX || '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
-const PEARL_GIDS = process.env.PARTNER_PEARL_GIDS ? JSON.parse(process.env.PARTNER_PEARL_GIDS) : { att: 702726038, inst: 1955492004, stu: 1245403832 };
+// "sess" (Session Details — the tab durations live on) shares the same gid
+// across NJTC's SY and Summer Pearl workbooks (confirmed against
+// central/modules/programming.js's own hardcoded GIDS.sess), so the same
+// default carries over here without needing a probe step.
+const PEARL_GIDS = process.env.PARTNER_PEARL_GIDS ? JSON.parse(process.env.PARTNER_PEARL_GIDS) : { att: 702726038, inst: 1955492004, stu: 1245403832, sess: 625567780 };
 
 // Column layouts mirror onsite/pearl-data.js exactly — keep these two files in sync
 // if the Pearl export ever adds/reorders columns.
@@ -70,6 +74,27 @@ const STU = {
   COMMENT: 6, DATE: 7, SCHOOL: 8, DISTRICT: 9, REGION: 10, SESS_ID: 11,
   FILLED_BY_ID: 12, FILLED_FOR_ID: 13
 };
+// Session Details — mirrors central/modules/programming.js's SESS map exactly.
+// DUR_MINS (17) isn't a real Pearl column: it's computed here at build time
+// (from ACTUAL_DUR, falling back to SCHED_DUR) and appended to each row so
+// the browser never has to parse duration strings itself.
+const SESS = {
+  TITLE: 0, INSTRUCTOR: 1, STUDENTS: 2, LOCATION: 3, STATUS: 4, ATTENDANCE: 5,
+  START: 6, SCHED_DUR: 7, ACTUAL_DUR: 8, SUBJECT: 9, GRADE: 10, SCHOOL: 11,
+  DISTRICT: 12, REGION: 13, SESS_ID: 14, INST_ID: 15, STU_IDS: 16, DUR_MINS: 17
+};
+
+// Parses duration strings ("40 minutes", "1 hour", "1 hour 30 minutes") into
+// integer minutes — same logic as central/modules/programming.js so tutored-
+// minutes figures never drift between the internal and partner sides.
+function parseDurationMins(s) {
+  if (!s) return 0;
+  s = String(s).toLowerCase();
+  let m = 0;
+  const h = s.match(/(\d+)\s*hour/); if (h) m += parseInt(h[1], 10) * 60;
+  const mn = s.match(/(\d+)\s*min/); if (mn) m += parseInt(mn[1], 10);
+  return m;
+}
 
 // Districts with no partner contact yet in partner/directory.json still need a
 // region so Admin/Regional accounts see them. Confirmed by Amir 2026-08-31.
@@ -193,6 +218,18 @@ async function main() {
   const [attRows, instRows, stuRows] = await Promise.all([fetchSheet('att'), fetchSheet('inst'), fetchSheet('stu')]);
   console.log(`  attendance: ${attRows.length - 1} rows | tutor surveys: ${instRows.length - 1} rows | scholar surveys: ${stuRows.length - 1} rows`);
 
+  // Session Details (durations) — fetched separately and failed soft: a bad
+  // gid or a temporarily-unpublished tab here must never take down the
+  // attendance/survey refresh every partner depends on. Tutored-minutes
+  // figures just won't appear in this run's bundles if this fails.
+  let sessRows = null;
+  try {
+    sessRows = await fetchSheet('sess');
+    console.log(`  sessions: ${sessRows.length - 1} rows`);
+  } catch (e) {
+    console.warn(`  ! sessions tab fetch failed (${e.message}) — tutored-minutes figures omitted from this run.`);
+  }
+
   fs.mkdirSync(DATA_OUT_DIR, { recursive: true });
   for (const f of fs.readdirSync(DATA_OUT_DIR)) {
     if (f.endsWith('.json') && f !== '.gitkeep') fs.unlinkSync(path.join(DATA_OUT_DIR, f));
@@ -212,14 +249,21 @@ async function main() {
       scopeMatches(entry, (r[INST.DISTRICT] || '').trim(), (r[INST.SCHOOL] || '').trim()) && inCurrentSY(r[INST.DATE]));
     const stu = stuRows.slice(1).filter(r =>
       scopeMatches(entry, (r[STU.DISTRICT] || '').trim(), (r[STU.SCHOOL] || '').trim()) && inCurrentSY(r[STU.DATE]));
+    const sess = sessRows ? sessRows.slice(1)
+      .filter(r => scopeMatches(entry, (r[SESS.DISTRICT] || '').trim(), (r[SESS.SCHOOL] || '').trim()) && inCurrentSY(r[SESS.START]))
+      .map(r => {
+        const row = r.slice();
+        row[SESS.DUR_MINS] = String(parseDurationMins(r[SESS.ACTUAL_DUR] || r[SESS.SCHED_DUR]));
+        return row;
+      }) : [];
     (att.length || inst.length || stu.length) ? withRows++ : empty++;
 
     fs.writeFileSync(path.join(DATA_OUT_DIR, `${token}.json`), JSON.stringify({
       generatedAt: new Date().toISOString(),
       season: CURRENT_SY_LABEL,
       identity: { name: entry.name, title: entry.title, level: entry.level, district: entry.district, schools: entry.schools, region: entry.region },
-      columns: { att: ATT, inst: INST, stu: STU },
-      attendance: att, tutorSurveys: inst, scholarSurveys: stu
+      columns: { att: ATT, inst: INST, stu: STU, sess: SESS },
+      attendance: att, tutorSurveys: inst, scholarSurveys: stu, sessions: sess
     }));
 
     if (pinMap && pinMap[entry.id]) {

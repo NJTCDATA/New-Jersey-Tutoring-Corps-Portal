@@ -39,6 +39,12 @@
   const ATT  = { USER:0, ROLE:1, SESSION:2, SESS_STATUS:3, PLAN_START:4, SESS_DATE:5, ATT_STATUS:6, MISS_REASON:7, GRADE:8, SEX:9, RACE:10, SCHOOL:11, DISTRICT:12, USER_ID:13, WEEK:26 };
   const INST = { FILLED_BY:0, FILLED_FOR:1, ENGAGEMENT:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT_ADMIN:6, COMMENT_SELF:7, DATE:8, SCHOOL:9, DISTRICT:10 };
   const STU  = { FILLED_BY:0, FILLED_FOR:1, CONFIDENCE:2, ENJOYMENT:3, LEARNING:4, OVERALL:5, COMMENT:6, DATE:7, SCHOOL:8, DISTRICT:9, REGION:10 };
+  // Session Details — durations only. DUR_MINS is computed server-side
+  // (scripts/build-partner-data.js) from Pearl's Actual/Scheduled Duration
+  // text, not a real Pearl column. Absent entirely from older cached
+  // bundles, so every reader below treats a missing sessions array as "no
+  // duration data yet" rather than zero minutes.
+  const SESS = { TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, STATUS:4, ATTENDANCE:5, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, GRADE:10, SCHOOL:11, DISTRICT:12, REGION:13, SESS_ID:14, INST_ID:15, STU_IDS:16, DUR_MINS:17 };
 
   // Scholar-side reasons only — things a school partner can actually see and
   // act on. NJTC-internal service-interruption reasons (tutor vacancy,
@@ -83,7 +89,9 @@
     { term: 'Session', def: 'One scheduled tutoring block for one scholar. "Sessions Delivered" counts each unique session that took place, regardless of how many scholars were in it.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
     { term: 'Session Highlights', def: 'A curated selection of comments from sessions rated 4–5 overall. This is a highlight reel, not a full transcript — it is intentionally not a representative sample of every comment left.' },
-    { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' }
+    { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
+    { term: 'Total Session Minutes', def: "Every delivered session's duration, added up once per session — a 40-minute session with 3 scholars in it still counts as 40 minutes here." },
+    { term: 'Total Scholar-Attended Minutes', def: "Every minute a scholar personally attended, summed across all scholars — the same 40-minute session with 3 scholars who all attended counts as 120 minutes here. This is the total instructional contact time scholars actually received." }
   ];
   window.NJTC_GLOSSARY = GLOSSARY;
 
@@ -187,6 +195,27 @@
   function scopedAttendance() { return scoped(BUNDLE.attendance || [], ATT.DISTRICT, ATT.SCHOOL, ATT.SESS_DATE); }
   function scopedScholarSurveys() { return scoped(BUNDLE.scholarSurveys || [], STU.DISTRICT, STU.SCHOOL, STU.DATE); }
   function scopedTutorSurveys() { return scoped(BUNDLE.tutorSurveys || [], INST.DISTRICT, INST.SCHOOL, INST.DATE); }
+  function scopedSessions() { return scoped(BUNDLE.sessions || [], SESS.DISTRICT, SESS.SCHOOL, SESS.START); }
+
+  // Older cached bundles (or a run where the sessions tab fetch failed
+  // server-side) simply carry no `sessions` array — treated as "duration
+  // data not available yet", never as zero minutes.
+  function hasSessionData() { return !!(BUNDLE.sessions && BUNDLE.sessions.length); }
+
+  // sessionId -> minutes, delivered sessions only (Status === Completed,
+  // parsed duration > 0). Built once from the full bundle (already scoped
+  // to this partner server-side) so a scholar's per-session minutes can be
+  // looked up regardless of the current district/school/week drill-down.
+  function sessionDurationMap(sessRows) {
+    const map = {};
+    sessRows.forEach(r => {
+      if ((r[SESS.STATUS] || '').trim() !== 'Completed') return;
+      const sid = (r[SESS.SESS_ID] || '').trim();
+      const mins = parseInt(r[SESS.DUR_MINS], 10);
+      if (sid && mins > 0) map[sid] = mins;
+    });
+    return map;
+  }
 
   function initScopeFilter() {
     const bar = document.getElementById('scopeBar');
@@ -356,6 +385,12 @@
 
     const tourBtn = document.getElementById('tourBtn');
     if (tourBtn) tourBtn.addEventListener('click', () => { if (window.NJTCTour) window.NJTCTour.start(); });
+
+    const scholarModal = document.getElementById('scholarModal');
+    if (scholarModal) {
+      document.getElementById('scholarModalClose').addEventListener('click', () => scholarModal.classList.remove('open'));
+      scholarModal.addEventListener('click', e => { if (e.target === scholarModal) scholarModal.classList.remove('open'); });
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -464,6 +499,290 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  //  SCHOLAR PROFILES — one card per scholar, honest/uncurated (this is
+  //  case-management detail for the partner's own staff, not a highlight
+  //  reel), excluding anyone with zero real attended sessions (assigned but
+  //  the program never actually started for them — nothing to profile).
+  // ══════════════════════════════════════════════════════════════════════
+  const CT_REASONS = new Set(['Classroom Teacher Requested to Keep Scholar in Class', 'HADDON TWP ONLY -- Teacher requested whole group support']);
+  const STALE_DAYS = 14; // "missing more than 2 weeks"
+
+  function sessionTutorMap(attRows) {
+    const map = {};
+    attRows.forEach(r => {
+      if ((r[ATT.ROLE] || '').trim() !== 'Instructor') return;
+      const sess = (r[ATT.SESSION] || '').trim();
+      const name = (r[ATT.USER] || '').trim();
+      if (!sess || !name) return;
+      if (!map[sess]) map[sess] = new Set();
+      map[sess].add(name);
+    });
+    return map;
+  }
+
+  function scholarProfiles(attAll, surveys, durMap) {
+    const tutorMap = sessionTutorMap(attAll);
+    const byScholar = {};
+    attAll.filter(isScholarRow).forEach(r => {
+      const uid = (r[ATT.USER_ID] || '').trim();
+      if (!uid) return;
+      if (!byScholar[uid]) {
+        byScholar[uid] = {
+          uid, name: (r[ATT.USER] || '').trim() || 'Unknown',
+          district: (r[ATT.DISTRICT] || '').trim(), school: (r[ATT.SCHOOL] || '').trim(),
+          attended: 0, absences: 0, excused: 0, lastAttended: null, lastAttendedSort: null,
+          missed: [], sessions: new Set(), attendedSessions: new Set(), weeklyRows: [], ctFlag: false
+        };
+      }
+      const s = byScholar[uid];
+      const sess = (r[ATT.SESSION] || '').trim();
+      if (sess) s.sessions.add(sess);
+      const c = classifyAtt(r);
+      const reason = (r[ATT.MISS_REASON] || '').trim();
+      if (c === 'attended') {
+        s.attended++;
+        if (sess) s.attendedSessions.add(sess);
+        const raw = (r[ATT.SESS_DATE] || '').trim();
+        const parsed = parseDate(raw);
+        if (raw && parsed && (!s.lastAttendedSort || parsed > s.lastAttendedSort)) { s.lastAttended = raw; s.lastAttendedSort = parsed; }
+      } else if (c === 'absent') {
+        s.absences++;
+        s.missed.push({ date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded', reason: reason || 'Not specified' });
+        if (CT_REASONS.has(reason)) s.ctFlag = true;
+      }
+      if (c === 'attended' || c === 'absent') {
+        const wk = weekBucket(r[ATT.SESS_DATE]);
+        if (wk) s.weeklyRows.push({ key: wk.key, label: wk.label, attended: c === 'attended' ? 1 : 0, absent: c === 'absent' ? 1 : 0 });
+      }
+      if (c === 'si') s.excused++;
+    });
+
+    const profiles = Object.values(byScholar).filter(s => s.attended > 0);
+    const datasetMaxDate = profiles.reduce((max, s) => (s.lastAttendedSort && (!max || s.lastAttendedSort > max)) ? s.lastAttendedSort : max, null);
+
+    // Own survey responses + comments (STU.FILLED_BY_ID = the scholar who
+    // filled out the survey about their own session).
+    const surveysByScholar = {};
+    surveys.forEach(r => {
+      const uid = (r[STU.FILLED_BY_ID] || '').trim();
+      if (!uid) return;
+      if (!surveysByScholar[uid]) surveysByScholar[uid] = [];
+      surveysByScholar[uid].push(r);
+    });
+
+    return profiles.map(s => {
+      const total = s.attended + s.absences;
+      const staleFlag = !!(datasetMaxDate && s.lastAttendedSort && (datasetMaxDate - s.lastAttendedSort) / 86400000 > STALE_DAYS);
+      const tutors = [...new Set([...s.sessions].flatMap(sess => [...(tutorMap[sess] || [])]))].sort();
+      const weekly = {};
+      s.weeklyRows.forEach(w => {
+        if (!weekly[w.key]) weekly[w.key] = { label: w.label, attended: 0, absent: 0 };
+        weekly[w.key].attended += w.attended; weekly[w.key].absent += w.absent;
+      });
+      const weeklyKeys = Object.keys(weekly).sort();
+      const mySurveys = surveysByScholar[s.uid] || [];
+      const minutes = durMap ? [...s.attendedSessions].reduce((sum, sid) => sum + (durMap[sid] || 0), 0) : 0;
+      return {
+        ...s, total, rate: pct(s.attended, total), staleFlag, tutors, minutes,
+        weekly: weeklyKeys.map(k => ({ label: weekly[k].label, rate: pct(weekly[k].attended, weekly[k].attended + weekly[k].absent) })),
+        surveys: mySurveys, surveyCount: mySurveys.length,
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  let PROFILES_CACHE = [];
+  const PROFILES_PAGE_SIZE = 10;
+  let profilesPage = 1;
+  let profilesShowAll = false;
+
+  function renderProfiles() {
+    const el = document.getElementById('view-profiles');
+    const durMap = sessionDurationMap(BUNDLE.sessions || []);
+    const profiles = scholarProfiles(scopedAttendance(), scopedScholarSurveys(), durMap);
+    PROFILES_CACHE = profiles;
+    profilesPage = 1;
+    profilesShowAll = false;
+
+    if (!profiles.length) {
+      el.innerHTML = `<div class="pt-card pt-empty"><h3>No scholar profiles yet</h3><p>Profiles appear once a scholar has at least one attended session logged.</p></div>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="pt-profile-search-wrap">
+        <input type="text" class="pt-profile-search" id="profileSearch" placeholder="Search by scholar name or Pearl ID…" autocomplete="off"/>
+        <div class="pt-profile-suggest" id="profileSuggest" hidden></div>
+      </div>
+      <div class="pt-profile-grid" id="profileGrid"></div>
+      <div class="pt-profile-pager" id="profilePager"></div>`;
+
+    renderProfileGrid(profiles);
+
+    document.getElementById('profileGrid').addEventListener('click', e => {
+      const card = e.target.closest('.pt-profile-card');
+      if (card) openScholarDetail(card.dataset.uid);
+    });
+
+    const searchInput = document.getElementById('profileSearch');
+    const suggestBox = document.getElementById('profileSuggest');
+
+    function currentMatches(q) {
+      if (!q) return profiles;
+      return profiles.filter(s => s.name.toLowerCase().includes(q) || s.uid.toLowerCase().includes(q));
+    }
+
+    searchInput.addEventListener('input', e => {
+      const raw = e.target.value.trim();
+      const q = raw.toLowerCase();
+      const matches = currentMatches(q);
+
+      // Type-ahead dropdown — up to 8 names, click one to jump straight to
+      // that scholar rather than hunting through the (paginated) grid below.
+      if (q && matches.length) {
+        suggestBox.innerHTML = matches.slice(0, 8).map(s => `
+          <button type="button" class="pt-profile-suggest-item" data-uid="${esc(s.uid)}">
+            <span>${esc(s.name)}</span><span class="pt-profile-suggest-id">${esc(s.uid)}</span>
+          </button>`).join('');
+        suggestBox.hidden = false;
+      } else {
+        suggestBox.hidden = true;
+        suggestBox.innerHTML = '';
+      }
+
+      profilesPage = 1;
+      renderProfileGrid(matches, raw);
+    });
+    searchInput.addEventListener('blur', () => {
+      // Delay so a click on a suggestion registers before the list vanishes.
+      setTimeout(() => { suggestBox.hidden = true; }, 150);
+    });
+    suggestBox.addEventListener('click', e => {
+      const item = e.target.closest('.pt-profile-suggest-item');
+      if (!item) return;
+      suggestBox.hidden = true;
+      searchInput.value = '';
+      renderProfileGrid(profiles);
+      openScholarDetail(item.dataset.uid);
+    });
+  }
+
+  function renderProfileGrid(list, queryForEmptyMsg) {
+    const grid = document.getElementById('profileGrid');
+    const pager = document.getElementById('profilePager');
+    if (!grid) return;
+
+    if (!list.length) {
+      grid.innerHTML = `<p style="color:var(--muted);font-size:.85rem">No scholars match "${esc(queryForEmptyMsg || '')}".</p>`;
+      grid.classList.remove('pt-profile-grid-scroll');
+      pager.innerHTML = '';
+      return;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(list.length / PROFILES_PAGE_SIZE));
+    if (profilesPage > totalPages) profilesPage = totalPages;
+
+    if (profilesShowAll) {
+      grid.classList.add('pt-profile-grid-scroll');
+      grid.innerHTML = list.map(profileCardHtml).join('');
+    } else {
+      grid.classList.remove('pt-profile-grid-scroll');
+      const start = (profilesPage - 1) * PROFILES_PAGE_SIZE;
+      grid.innerHTML = list.slice(start, start + PROFILES_PAGE_SIZE).map(profileCardHtml).join('');
+    }
+
+    if (list.length <= PROFILES_PAGE_SIZE) {
+      pager.innerHTML = '';
+      return;
+    }
+
+    pager.innerHTML = profilesShowAll
+      ? `<span class="pt-profile-pager-count">Showing all ${list.length} scholars</span>
+         <button type="button" class="pt-profile-pager-btn" id="profilePagedBtn">Show 10 per page</button>`
+      : `<button type="button" class="pt-profile-pager-btn" id="profilePrevBtn" ${profilesPage === 1 ? 'disabled' : ''}>Prev</button>
+         <span class="pt-profile-pager-count">Page ${profilesPage} of ${totalPages} · ${list.length} scholars</span>
+         <button type="button" class="pt-profile-pager-btn" id="profileNextBtn" ${profilesPage === totalPages ? 'disabled' : ''}>Next</button>
+         <button type="button" class="pt-profile-pager-btn pt-profile-pager-all" id="profileShowAllBtn">Show all</button>`;
+
+    const prev = document.getElementById('profilePrevBtn');
+    const next = document.getElementById('profileNextBtn');
+    const showAllBtn = document.getElementById('profileShowAllBtn');
+    const pagedBtn = document.getElementById('profilePagedBtn');
+    if (prev) prev.addEventListener('click', () => { profilesPage--; renderProfileGrid(list, queryForEmptyMsg); });
+    if (next) next.addEventListener('click', () => { profilesPage++; renderProfileGrid(list, queryForEmptyMsg); });
+    if (showAllBtn) showAllBtn.addEventListener('click', () => { profilesShowAll = true; renderProfileGrid(list, queryForEmptyMsg); });
+    if (pagedBtn) pagedBtn.addEventListener('click', () => { profilesShowAll = false; profilesPage = 1; renderProfileGrid(list, queryForEmptyMsg); });
+  }
+
+  function profileCardHtml(s) {
+    const cls = s.rate == null ? '' : s.rate >= 90 ? 'pt-pill-good' : s.rate >= 75 ? 'pt-pill-warn' : 'pt-pill-bad';
+    return `<button class="pt-profile-card" data-uid="${esc(s.uid)}" type="button">
+      <div class="pt-profile-card-name">${esc(s.name)}</div>
+      <div class="pt-profile-card-id">${esc(s.uid)}${s.school ? ' · ' + esc(s.school) : ''}</div>
+      <div class="pt-profile-card-foot">
+        <span class="pt-pill ${cls}">${s.rate == null ? '—' : s.rate + '%'} attended</span>
+        <span style="font-size:.72rem;color:var(--muted)">${s.total} session${s.total === 1 ? '' : 's'}</span>
+      </div>
+      <div class="pt-flag-row">
+        ${s.ctFlag ? '<span class="pt-flag pt-flag-ct">Teacher Pull-Out</span>' : ''}
+        ${s.absences > 0 ? `<span class="pt-flag pt-flag-early">${s.absences} Absence${s.absences === 1 ? '' : 's'}</span>` : ''}
+        ${s.staleFlag ? '<span class="pt-flag pt-flag-stale">2+ Weeks Since Attended</span>' : ''}
+      </div>
+    </button>`;
+  }
+
+  function openScholarDetail(uid) {
+    const s = PROFILES_CACHE.find(p => p.uid === uid);
+    if (!s) return;
+    document.getElementById('scholarModalName').textContent = s.name;
+
+    const surveyAvg = key => {
+      const vals = s.surveys.map(r => parseFloat(r[STU[key]])).filter(v => !isNaN(v));
+      return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : null;
+    };
+    const comments = s.surveys.map(r => ({ date: (r[STU.DATE] || '').trim(), text: (r[STU.COMMENT] || '').trim() })).filter(c => c.text);
+
+    document.getElementById('scholarModalBody').innerHTML = `
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Identity</div>
+        <p style="font-size:.85rem;color:var(--text-2)">Pearl ID <b>${esc(s.uid)}</b> · ${esc(s.school || s.district || 'School not recorded')}</p>
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Tutors</div>
+        ${s.tutors.length ? s.tutors.map(t => `<span class="pt-tutor-chip">${esc(t)}</span>`).join('') : `<p style="font-size:.85rem;color:var(--muted)">No tutor on record for these sessions.</p>`}
+      </div>
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Attendance</div>
+        <div class="pt-kpi-val" style="font-size:1.8rem">${s.rate == null ? '—' : s.rate + '%'}</div>
+        ${quickBar('Attended', s.attended, s.total, BRAND.pos)}
+        ${quickBar('Missed', s.absences, s.total, BRAND.neg)}
+        ${s.excused ? `<p style="font-size:.72rem;color:var(--muted);margin-top:.4rem">${s.excused} additional excused session${s.excused === 1 ? '' : 's'} not counted here.</p>` : ''}
+        <p style="font-size:.78rem;color:var(--text-2);margin-top:.5rem">Last attended: <b>${esc(s.lastAttended || 'never')}</b></p>
+        ${hasSessionData() ? `<p style="font-size:.78rem;color:var(--text-2);margin-top:.25rem">Tutoring minutes received: <b>${s.minutes.toLocaleString()} min</b> (${(s.minutes / 60).toFixed(1)} hrs)</p>` : ''}
+      </div>
+      ${s.weekly.length ? `<div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Attendance by Week</div>
+        ${distRows(s.weekly.map(w => [w.label, w.rate == null ? 0 : w.rate]), null, BRAND.blue)}
+      </div>` : ''}
+      ${s.missed.length ? `<div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Missed Sessions</div>
+        <table class="pt-table"><thead><tr><th>Date</th><th>Reason</th></tr></thead><tbody>
+          ${s.missed.slice().sort((a, b) => (parseDate(b.date) || 0) - (parseDate(a.date) || 0)).map(m => `<tr><td>${esc(m.date)}</td><td>${esc(m.reason)}</td></tr>`).join('')}
+        </tbody></table>
+      </div>` : ''}
+      <div class="pt-scholar-section">
+        <div class="pt-scholar-section-title">Survey Responses (${s.surveyCount})</div>
+        ${s.surveyCount ? `
+          <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.9rem">
+            ${['CONFIDENCE', 'ENJOYMENT', 'LEARNING', 'OVERALL'].map(k => `<div><div class="pt-kpi-val" style="font-size:1.3rem">${surveyAvg(k) ?? '—'}</div><div class="pt-kpi-sub" style="text-transform:capitalize">${k.toLowerCase()}</div></div>`).join('')}
+          </div>
+          ${comments.length ? comments.slice().reverse().map(c => `<div class="pt-quote">"${esc(c.text)}"<div class="pt-quote-meta">${esc(c.date || '')}</div></div>`).join('') : `<p style="font-size:.85rem;color:var(--muted)">No written comments.</p>`}
+        ` : `<p style="font-size:.85rem;color:var(--muted)">No survey responses from this scholar yet.</p>`}
+      </div>`;
+
+    document.getElementById('scholarModal').classList.add('open');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   //  CURATED "HIGHLIGHTS" — positive-only, per partner-relationship policy
   // ══════════════════════════════════════════════════════════════════════
   function isSafelyPositive(text) {
@@ -487,7 +806,8 @@
       <div id="view-summary" class="pt-view active"></div>
       <div id="view-attendance" class="pt-view"></div>
       <div id="view-scholar" class="pt-view"></div>
-      <div id="view-tutor" class="pt-view"></div>`;
+      <div id="view-tutor" class="pt-view"></div>
+      <div id="view-profiles" class="pt-view"></div>`;
     renderSummary();
     renderAttendance();
     renderSurveyView('scholar', scopedScholarSurveys(), STU,
@@ -496,6 +816,7 @@
     renderSurveyView('tutor', scopedTutorSurveys(), INST,
       { c1: 'ENGAGEMENT', c2: 'ENJOYMENT', c3: 'LEARNING' },
       ['How engaged scholars were during the session', 'How much the tutor enjoyed the session', 'How much the tutor felt scholars learned']);
+    renderProfiles();
     // #ptTabs lives outside #ptMain, so its active state survives the
     // innerHTML wipe above — re-sync the freshly-injected views to whichever
     // tab was already selected (e.g. after a scope-filter change while on
@@ -542,6 +863,39 @@
 
     const highlights = sessionHighlights();
 
+    let minutesCard = '';
+    if (hasSessionData()) {
+      const durMap = sessionDurationMap(BUNDLE.sessions || []);
+      const seen = new Set();
+      let totalSessionMinutes = 0;
+      scopedSessions().forEach(r => {
+        if ((r[SESS.STATUS] || '').trim() !== 'Completed') return;
+        const sid = (r[SESS.SESS_ID] || '').trim();
+        const mins = parseInt(r[SESS.DUR_MINS], 10) || 0;
+        if (sid && mins > 0 && !seen.has(sid)) { seen.add(sid); totalSessionMinutes += mins; }
+      });
+      let totalScholarMinutes = 0;
+      attAll.filter(isScholarRow).forEach(r => {
+        if (classifyAtt(r) !== 'attended') return;
+        totalScholarMinutes += durMap[(r[ATT.SESSION] || '').trim()] || 0;
+      });
+      minutesCard = `
+        <div class="pt-card" style="margin-top:1.1rem">
+          <div class="pt-card-title">${ICONS.trend} Tutoring Time Delivered</div>
+          <div style="display:flex;gap:2.2rem;flex-wrap:wrap">
+            <div>
+              <div class="pt-kpi-val">${totalSessionMinutes.toLocaleString()}<span style="font-size:.9rem;font-weight:600;color:var(--muted)"> min</span></div>
+              <div class="pt-kpi-sub">Total Session Minutes (${(totalSessionMinutes / 60).toFixed(1)} hrs)</div>
+            </div>
+            <div>
+              <div class="pt-kpi-val">${totalScholarMinutes.toLocaleString()}<span style="font-size:.9rem;font-weight:600;color:var(--muted)"> min</span></div>
+              <div class="pt-kpi-sub">Total Scholar-Attended Minutes (${(totalScholarMinutes / 60).toFixed(1)} hrs)</div>
+            </div>
+          </div>
+          <p style="font-size:.72rem;color:var(--muted);margin-top:.7rem">Session Minutes counts each delivered session once. Scholar-Attended Minutes is every minute a scholar personally attended, summed across all scholars.</p>
+        </div>`;
+    }
+
     el.innerHTML = heroHtml(id) + `
       <div class="pt-grid pt-grid-4" style="margin-bottom:1.1rem" id="tourKpis">
         ${kpiCard(ICONS.check, BRAND.pos, stats.rate == null ? '—' : stats.rate + '%', 'Scholar Attendance Rate')}
@@ -566,7 +920,7 @@
             <div><div class="pt-kpi-val" style="font-size:1.4rem">${scholarSurveys.length.toLocaleString()}</div><div class="pt-kpi-sub" style="margin-top:.2rem">Scholar Surveys</div></div>
           </div>
         </div>
-      </div>`;
+      </div>${minutesCard}`;
   }
 
   function heroHtml(id) {
