@@ -7,7 +7,7 @@
 (function () {
   'use strict';
 
-  const ATT  = { ROLE:1, ATT_STATUS:6, MISS_REASON:7, USER:0, SESSION:2 };
+  const ATT  = { ROLE:1, ATT_STATUS:6, MISS_REASON:7, USER:0, SESSION:2, USER_ID:13, CONSEC_STATUS:24 };
   const STU  = { OVERALL:5, COMMENT:6 };
   const INST = { OVERALL:5, COMMENT_SELF:7 };
 
@@ -55,12 +55,16 @@
 
   function injectStyles() { const s = document.createElement('style'); s.textContent = CSS; document.head.appendChild(s); }
 
+  // Matches partner/app.js exactly — Late counts as Attended, Service
+  // Interruptions are excluded from both the numerator and denominator, and
+  // only scholar rows count (tutor staffing is an NJTC-internal concern,
+  // never partner-facing). PIE must never quote a different number than the
+  // dashboard it's sitting on top of.
   function classifyAtt(row) {
     const status = (row[ATT.ATT_STATUS] || '').trim();
     const reason = (row[ATT.MISS_REASON] || '').trim();
     const isInstructor = (row[ATT.ROLE] || '').trim() === 'Instructor';
-    if (status === 'Attended') return 'attended';
-    if (status === 'Late') return 'late';
+    if (status === 'Attended' || status === 'Late') return 'attended';
     if (status === 'Missed') {
       if (isInstructor) return TUTOR_MISS_REASONS.has(reason) ? 'absent' : 'si';
       return (SCHOLAR_MISS_REASONS.has(reason) || reason === '') ? 'absent' : 'si';
@@ -71,12 +75,21 @@
   function stats() {
     const b = window.NJTC_BUNDLE;
     if (!b) return null;
-    const att = b.attendance || [];
-    let attended = 0, late = 0, missed = 0;
-    att.forEach(r => { const c = classifyAtt(r); if (c === 'attended') attended++; else if (c === 'late') late++; else if (c === 'absent' || c === 'si') missed++; });
-    const total = attended + late + missed;
-    const rate = total ? Math.round((attended + late) / total * 1000) / 10 : null;
-    const sessions = new Set(att.map(r => r[ATT.SESSION]).filter(Boolean)).size;
+    const scholarRows = (b.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
+    let attended = 0, absent = 0;
+    const flagged = new Set();
+    scholarRows.forEach(r => {
+      const c = classifyAtt(r);
+      if (c === 'attended') attended++;
+      else if (c === 'absent') absent++;
+      if ((r[ATT.CONSEC_STATUS] || '').trim() === 'Attendance Concern') {
+        const uid = (r[ATT.USER_ID] || '').trim();
+        if (uid) flagged.add(uid);
+      }
+    });
+    const total = attended + absent;
+    const rate = total ? Math.round((attended / total) * 1000) / 10 : null;
+    const sessions = new Set((b.attendance || []).map(r => r[ATT.SESSION]).filter(Boolean)).size;
 
     function sentiment(rows, col) {
       let pos = 0, neu = 0, neg = 0;
@@ -86,7 +99,7 @@
     }
 
     return {
-      identity: b.identity, rate, sessions, attended, late, missed, total,
+      identity: b.identity, rate, sessions, attended, absent, total, checkInCount: flagged.size,
       scholarSent: sentiment(b.scholarSurveys || [], STU.OVERALL),
       tutorSent: sentiment(b.tutorSurveys || [], INST.OVERALL),
       hasData: total > 0 || (b.scholarSurveys || []).length > 0 || (b.tutorSurveys || []).length > 0
@@ -108,21 +121,21 @@
       return "I don't see any Pearl attendance or survey data loaded for your school yet — either your program hasn't launched this year, or data is still syncing. Reach out to your NJTC Program Manager if you think this is wrong.";
     }
 
-    if (/attendance rate|how am i doing|missed|absent/.test(q)) {
-      return `Your attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged attendance records across ${s.sessions.toLocaleString()} sessions (${s.attended} attended, ${s.late} late, ${s.missed} missed). A rate under 90% usually means checking the "Missed-Session Reasons" chart on the Attendance Tracking tab for a pattern.`;
+    if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
+      return `Your scholar attendance rate is currently <b>${s.rate == null ? 'not yet calculable' : s.rate + '%'}</b>, from ${s.total.toLocaleString()} logged scholar sessions across ${s.sessions.toLocaleString()} total sessions (${s.attended.toLocaleString()} attended, ${s.absent.toLocaleString()} missed). Excused time — school events, testing days, holidays — isn't counted against this. ${s.checkInCount ? `Right now <b>${s.checkInCount}</b> scholar${s.checkInCount === 1 ? '' : 's'} could use a check-in — see the "Scholars to Check In With" list on the Attendance Tracking tab.` : `No scholars are currently flagged for a check-in — nice.`}`;
     }
     if (/sentiment|positive|negative|survey|feel|enjoy/.test(q)) {
       const sc = s.scholarSent, tu = s.tutorSent;
-      return `On scholar surveys, <b>${sc.posPct ?? '—'}%</b> of responses were Positive (rated 4–5) and ${sc.negPct ?? '—'}% Negative (rated 1–2), from ${sc.n} responses. On tutor surveys, ${tu.posPct ?? '—'}% Positive from ${tu.n} responses. "Positive/Neutral/Negative" is always based on the "Overall, how did this session go?" question — the four smaller charts below it break down the specific sub-questions (confidence, enjoyment, learning).`;
+      return `On scholar surveys, <b>${sc.posPct ?? '—'}%</b> of responses were Positive (rated 4–5), from ${sc.n} responses. On tutor surveys, ${tu.posPct ?? '—'}% Positive from ${tu.n} responses. "Positive/Neutral/Negative" is always based on the "Overall, how did this session go?" question — the smaller charts below it break down specific sub-questions (confidence, enjoyment, learning).`;
     }
     if (/first|start|where.*look|overview/.test(q)) {
-      return `I'd start on <b>Summary</b> for the big picture (attendance rate + total sessions), then <b>Attendance Tracking</b> if that rate looks low — the weekly trend chart shows exactly when it dipped, and the missed-reason breakdown usually tells you why. The two Survey tabs are best read as a trend over time, not a single number.`;
+      return `I'd start on <b>Summary</b> for the big picture (scholar attendance rate + how sessions are going), then <b>Attendance Tracking</b> if you want to see who might need a check-in or what week attendance dipped. The two Survey tabs are best read as a trend over time, not a single number.`;
     }
     if (/contact|help|support|program manager|who/.test(q)) {
       return `For anything specific to your school's tutoring program, your NJTC Program Manager is your best contact. For portal access issues (a login not working, wrong school showing), reach out to the NJTC Data Department.`;
     }
     if (/what.*mean|explain|definition/.test(q)) {
-      return `Quick glossary: <b>Attended</b> = the session happened as planned. <b>Missed</b> = no session for that scholar/tutor that day. <b>Positive/Neutral/Negative</b> = how the "Overall" survey question was rated (4–5 / 3 / 1–2). Everything on this dashboard is scoped to ${s.identity.district || 'your district'}${s.identity.schools && s.identity.schools[0] !== 'ALL' ? ' — ' + s.identity.schools.join(', ') : ''} only.`;
+      return `Quick glossary: <b>Attended</b> = the session happened as planned. <b>Missed</b> = the scholar wasn't there for a scheduled session. <b>Positive/Neutral/Negative</b> = how the "Overall" survey question was rated (4–5 / 3 / 1–2). Everything on this dashboard is scoped to ${s.identity.district || 'your district'}${s.identity.schools && s.identity.schools[0] !== 'ALL' ? ' — ' + s.identity.schools.join(', ') : ''} only.`;
     }
     return `I can help with attendance rate, survey sentiment, where to start, or portal contacts — try one of the quick questions below, or ask me directly about a number you're seeing.`;
   }
