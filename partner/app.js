@@ -46,8 +46,25 @@
     try { session = await waitFor(() => window.NJTC_SESSION); }
     catch { return; } // partner-guard.js already redirected home
 
+    let res;
     try {
-      const res = await fetch(`${BASE}/partner/data/${session.pid}.json?v=${Date.now()}`);
+      res = await fetch(`${BASE}/partner/data/${session.pid}.json?v=${Date.now()}`);
+    } catch (e) {
+      fatalError();
+      return;
+    }
+
+    if (res.status === 404) {
+      // Session token was issued before the current login/data refresh (e.g. a
+      // PIN rotation happened since this browser last logged in) — its token
+      // no longer points at an existing bundle. Rather than show a dead error
+      // screen, clear it and send the user back to log in fresh.
+      window.NJTCAuth.clearSession();
+      window.location.replace(BASE + '/index.html?relogin=1');
+      return;
+    }
+
+    try {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       BUNDLE = await res.json();
     } catch (e) {
