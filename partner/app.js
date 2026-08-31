@@ -46,6 +46,12 @@
     try { session = await waitFor(() => window.NJTC_SESSION); }
     catch { return; } // partner-guard.js already redirected home
 
+    // Wire the nav (Sign Out, tabs) immediately — before the data fetch, not
+    // after — so Sign Out always works even if the fetch below fails. It
+    // used to be wired only on the success path, which trapped anyone who
+    // hit a load error with a Sign Out button that did nothing.
+    wireChrome();
+
     let res;
     try {
       res = await fetch(`${BASE}/partner/data/${session.pid}.json?v=${Date.now()}`);
@@ -74,7 +80,6 @@
 
     window.NJTC_BUNDLE = BUNDLE; // read-only handoff to pie-bot.js
     personalize();
-    wireChrome();
     renderAll();
     hideLoading();
     document.dispatchEvent(new CustomEvent('partnerBundleReady', { detail: BUNDLE }));
@@ -92,7 +97,7 @@
     document.getElementById('ptMain').innerHTML = `
       <div class="pt-card pt-empty" style="margin-top:2rem">
         <h3>We couldn't load your dashboard</h3>
-        <p>Please refresh the page. If this keeps happening, contact your NJTC Program Manager — your login may need to be re-issued.</p>
+        <p>Please refresh the page, or <a href="${BASE}/index.html?signout=1" style="color:var(--blue-mid);font-weight:700">sign in again</a>. If this keeps happening, contact your NJTC Program Manager — your login may need to be re-issued.</p>
       </div>`;
   }
 
@@ -119,10 +124,14 @@
   function wireChrome() {
     document.querySelectorAll('.pt-tab').forEach(tab => {
       tab.addEventListener('click', () => {
+        // Views are injected by renderAll(), which may not have run yet if
+        // data is still loading (or failed) — no-op rather than throw.
+        const target = document.getElementById('view-' + tab.dataset.view);
+        if (!target) return;
         document.querySelectorAll('.pt-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         document.querySelectorAll('.pt-view').forEach(v => v.classList.remove('active'));
-        document.getElementById('view-' + tab.dataset.view).classList.add('active');
+        target.classList.add('active');
       });
     });
     const logoutBtn = document.getElementById('logoutBtn');
