@@ -233,6 +233,7 @@
     }
 
     if (hasSchoolDrilldown) {
+      schSel.hidden = false;
       if (districts.length > 1) {
         distSel.hidden = false;
         distSel.innerHTML = `<option value="ALL">All Districts</option>` + districts.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
