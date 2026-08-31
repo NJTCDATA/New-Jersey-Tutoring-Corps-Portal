@@ -63,8 +63,9 @@
   .pt-card{background:var(--surface);border-radius:var(--radius);padding:1.4rem 1.5rem;box-shadow:var(--shadow-sm);border:1px solid var(--border-2)}
   .pt-card-title{font-size:.8rem;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:1rem;display:flex;align-items:center;gap:.4rem}
   .pt-kpi-val{font-family:'DM Serif Display',serif;font-size:2.1rem;color:var(--blue);line-height:1}
-  .pt-kpi-sub{font-size:.78rem;color:var(--muted);margin-top:.4rem;font-weight:500}
-  .pt-kpi-icon{font-size:1.4rem;margin-bottom:.5rem}
+  .pt-kpi-sub{font-size:.78rem;color:var(--muted);margin-top:.5rem;font-weight:600}
+  .pt-kpi-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:.85rem}
+  .pt-kpi-icon svg{width:20px;height:20px}
 
   .pt-sentiment-row{display:flex;align-items:center;gap:.75rem;margin-bottom:.65rem}
   .pt-sentiment-label{width:70px;font-size:.8rem;font-weight:700;color:var(--text-2)}
@@ -75,7 +76,24 @@
   .pt-bar-label{width:20px;font-size:.78rem;font-weight:700;color:var(--text-2);text-align:right}
   .pt-bar-track{flex:1;height:18px;background:var(--surface-3);border-radius:5px;overflow:hidden}
   .pt-bar-fill{height:100%;border-radius:5px;background:var(--blue-mid)}
-  .pt-bar-count{width:36px;font-size:.75rem;color:var(--muted);font-weight:600}
+  .pt-bar-count{min-width:36px;font-size:.75rem;color:var(--muted);font-weight:600;text-align:right}
+
+  .pt-chart-wrap{position:relative;height:200px}
+  .pt-chart-empty{height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.85rem;text-align:center;padding:0 2rem}
+
+  .pt-checkin{border:1px solid var(--border-2);border-radius:10px;margin-bottom:.6rem;overflow:hidden}
+  .pt-checkin summary{list-style:none;cursor:pointer;padding:.75rem .9rem;display:flex;align-items:center;gap:.8rem;font-size:.85rem}
+  .pt-checkin summary::-webkit-details-marker{display:none}
+  .pt-checkin summary:hover{background:var(--surface-2)}
+  .pt-checkin summary::before{content:'▸';color:var(--muted);font-size:.7rem;transition:transform .15s}
+  .pt-checkin[open] summary::before{transform:rotate(90deg)}
+  .pt-checkin-name{font-weight:700;color:var(--text)}
+  .pt-checkin-id{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--muted)}
+  .pt-checkin-stat{margin-left:auto;display:flex;align-items:center;gap:1.25rem;flex-shrink:0}
+  .pt-checkin-detail{padding:0 .9rem .85rem 2.1rem;font-size:.8rem;color:var(--text-2)}
+  .pt-checkin-detail table{width:100%;border-collapse:collapse}
+  .pt-checkin-detail th{text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);padding:.3rem .5rem;border-bottom:1px solid var(--border-2)}
+  .pt-checkin-detail td{padding:.35rem .5rem;border-bottom:1px solid var(--border-2)}
 
   table.pt-table{width:100%;border-collapse:collapse;font-size:.83rem}
   table.pt-table th{text-align:left;padding:.6rem .7rem;background:var(--surface-2);color:var(--text-2);font-weight:700;font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;border-bottom:2px solid var(--border)}
@@ -98,6 +116,48 @@
 
   .pt-view{display:none}
   .pt-view.active{display:block}
+
+  .pt-scope-bar{background:var(--surface-2);border-bottom:1px solid var(--border);padding:.65rem 1.75rem;display:flex;align-items:center;gap:.7rem;position:sticky;top:110px;z-index:180}
+  .pt-scope-bar[hidden]{display:none}
+  .pt-scope-label{font-size:.78rem;font-weight:700;color:var(--text-2)}
+  .pt-scope-active{font-size:.75rem;color:var(--blue-mid);font-weight:700;background:var(--prog-bg);padding:.25rem .6rem;border-radius:999px}
+
+  .pt-footer{border-top:1px solid var(--border);margin-top:1.5rem;padding:1.25rem 1.75rem 2rem}
+  .pt-footer-inner{max-width:1320px;margin:0 auto;font-size:.75rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+  .pt-footer-sep{opacity:.5}
+
+  .pt-nav-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.85);border-radius:8px;padding:.45rem .7rem;font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:.35rem}
+  .pt-nav-btn:hover{background:rgba(255,255,255,.16);color:#fff}
+  .pt-nav-btn svg{width:14px;height:14px}
+
+  .pt-modal-backdrop{position:fixed;inset:0;background:rgba(10,22,40,.55);z-index:9500;display:none;align-items:center;justify-content:center;padding:1.5rem}
+  .pt-modal-backdrop.open{display:flex}
+  .pt-modal{background:#fff;border-radius:1rem;max-width:640px;width:100%;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(10,22,40,.35)}
+  .pt-modal-head{padding:1.1rem 1.4rem;border-bottom:1px solid var(--border-2);display:flex;align-items:center;justify-content:space-between}
+  .pt-modal-head h2{font-family:'DM Serif Display',serif;font-weight:400;font-size:1.3rem;color:var(--blue)}
+  .pt-modal-close{background:none;border:none;font-size:1.3rem;color:var(--muted);cursor:pointer;line-height:1;padding:.2rem .4rem}
+  .pt-modal-close:hover{color:var(--text)}
+  .pt-modal-body{padding:1.1rem 1.4rem;overflow-y:auto}
+  .pt-glossary-item{padding:.85rem 0;border-bottom:1px solid var(--border-2)}
+  .pt-glossary-item:last-child{border-bottom:none}
+  .pt-glossary-term{font-weight:700;color:var(--text);font-size:.9rem;margin-bottom:.3rem}
+  .pt-glossary-def{font-size:.84rem;color:var(--text-2);line-height:1.55}
+
+  #tourBackdrop{position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:9600;display:none}
+  #tourBackdrop.open{display:block}
+  #tourSpotlight{position:absolute;border-radius:12px;box-shadow:0 0 0 4000px rgba(10,22,40,.6);transition:all .3s ease;pointer-events:none}
+  #tourCard{position:absolute;background:#fff;border-radius:1rem;padding:1.1rem 1.2rem;max-width:320px;box-shadow:0 20px 50px rgba(10,22,40,.35);transition:all .3s ease}
+  #tourCard .pie-avatar{width:26px;height:26px;flex-shrink:0}
+  #tourCard-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem}
+  #tourCard-head b{font-size:.85rem;color:var(--navy)}
+  #tourCard-title{font-weight:700;font-size:.92rem;color:var(--text);margin-bottom:.4rem}
+  #tourCard-text{font-size:.82rem;color:var(--text-2);line-height:1.55;margin-bottom:.9rem}
+  #tourCard-foot{display:flex;align-items:center;justify-content:space-between}
+  #tourCard-progress{font-size:.7rem;color:var(--muted);font-weight:600}
+  #tourCard-btns{display:flex;gap:.5rem}
+  .pt-tour-btn{border:none;border-radius:.6rem;padding:.4rem .8rem;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit}
+  .pt-tour-skip{background:none;color:var(--muted)}
+  .pt-tour-next{background:var(--blue-mid);color:#fff}
 </style>
 </head>
 <body>
@@ -118,9 +178,26 @@
       <span class="pt-id-role" id="idRole">&nbsp;</span>
     </div>
     <div class="pt-avatar" id="idAvatar">&nbsp;</div>
+    <button class="pt-nav-btn" id="tourBtn" title="Take a guided tour">🧭 Guide Me</button>
+    <button class="pt-nav-btn" id="glossaryBtn" title="What do these terms mean?">❓ Glossary</button>
     <button class="pt-logout" id="logoutBtn">Sign Out</button>
   </div>
 </nav>
+
+<div class="pt-modal-backdrop" id="glossaryModal">
+  <div class="pt-modal">
+    <div class="pt-modal-head">
+      <h2>Dashboard Glossary</h2>
+      <button class="pt-modal-close" id="glossaryClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="pt-modal-body" id="glossaryBody"></div>
+  </div>
+</div>
+
+<div id="tourBackdrop">
+  <div id="tourSpotlight"></div>
+  <div id="tourCard"></div>
+</div>
 
 <div class="pt-tabs" id="ptTabs">
   <div class="pt-tab active" data-view="summary">Summary</div>
@@ -129,11 +206,29 @@
   <div class="pt-tab" data-view="tutor">Tutor Survey Details</div>
 </div>
 
+<div class="pt-scope-bar" id="scopeBar" hidden>
+  <span class="pt-scope-label">Drill down:</span>
+  <select class="pt-select" id="scopeDistrict" hidden></select>
+  <select class="pt-select" id="scopeSchool"></select>
+  <span class="pt-scope-active" id="scopeActive" hidden></span>
+</div>
+
 <main class="pt-main" id="ptMain"></main>
+
+<footer class="pt-footer" id="ptFooter">
+  <div class="pt-footer-inner">
+    <span id="footerFreshness">Data updates automatically.</span>
+    <span class="pt-footer-sep">·</span>
+    <span id="footerScope"></span>
+    <span class="pt-footer-sep">·</span>
+    <span>Questions about this data? Contact your NJTC Program Manager.</span>
+  </div>
+</footer>
 
 <script src="../auth/auth.js?v=1"></script>
 <script src="../auth/partner-guard.js?v=1"></script>
 <script src="./app.js?v=1"></script>
 <script src="./pie-bot.js?v=1"></script>
+<script src="./tour.js?v=1"></script>
 </body>
 </html>
