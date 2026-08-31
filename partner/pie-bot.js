@@ -77,16 +77,27 @@
     if (!b) return null;
     const scholarRows = (b.attendance || []).filter(r => (r[ATT.ROLE] || '').trim() !== 'Instructor');
     let attended = 0, absent = 0;
-    const flagged = new Set();
+    // Per-scholar tallies — matches partner/app.js's scholarsToCheckIn()
+    // exactly: never Pearl's own concern flag, which under-fires and misses
+    // real 0%-attendance scholars.
+    const byScholar = {};
     scholarRows.forEach(r => {
       const c = classifyAtt(r);
       if (c === 'attended') attended++;
       else if (c === 'absent') absent++;
-      if ((r[ATT.CONSEC_STATUS] || '').trim() === 'Attendance Concern') {
-        const uid = (r[ATT.USER_ID] || '').trim();
-        if (uid) flagged.add(uid);
-      }
+      const uid = (r[ATT.USER_ID] || '').trim();
+      if (!uid) return;
+      if (!byScholar[uid]) byScholar[uid] = { attended: 0, absent: 0 };
+      if (c === 'attended') byScholar[uid].attended++;
+      else if (c === 'absent') byScholar[uid].absent++;
     });
+    const checkInCount = Object.values(byScholar).filter(s => {
+      if (s.absent === 0) return false;
+      const total = s.attended + s.absent;
+      const rate = total ? (s.attended / total) * 100 : 0;
+      return s.attended === 0 || (total >= 3 && rate < 80);
+    }).length;
+
     const total = attended + absent;
     const rate = total ? Math.round((attended / total) * 1000) / 10 : null;
     const sessions = new Set((b.attendance || []).map(r => r[ATT.SESSION]).filter(Boolean)).size;
@@ -99,7 +110,8 @@
     }
 
     return {
-      identity: b.identity, rate, sessions, attended, absent, total, checkInCount: flagged.size,
+      identity: b.identity, rate, sessions, attended, absent, total, checkInCount,
+      generatedAt: b.generatedAt || null, season: b.season || null,
       scholarSent: sentiment(b.scholarSurveys || [], STU.OVERALL),
       tutorSent: sentiment(b.tutorSurveys || [], INST.OVERALL),
       hasData: total > 0 || (b.scholarSurveys || []).length > 0 || (b.tutorSurveys || []).length > 0
@@ -108,10 +120,19 @@
 
   const QUICK_CHIPS = [
     "What's my attendance rate?",
-    'How do I read the survey sentiment chart?',
-    'What should I look at first?',
+    'What does "excused time" mean?',
+    'Show me around',
     "Who do I contact with questions?"
   ];
+
+  // Searches the exact same glossary the "Glossary" button shows (window.
+  // NJTC_GLOSSARY, defined once in app.js) so PIE's explanation of a term
+  // and the modal's explanation can never drift apart.
+  function glossaryLookup(q) {
+    const glossary = window.NJTC_GLOSSARY || [];
+    const hits = glossary.filter(g => q.includes(g.term.toLowerCase()) || g.term.toLowerCase().split(' ').some(w => w.length > 4 && q.includes(w)));
+    return hits.length ? hits : null;
+  }
 
   function answer(question) {
     const s = stats();
@@ -119,6 +140,16 @@
 
     if (!s || !s.hasData) {
       return "I don't see any Pearl attendance or survey data loaded for your school yet — either your program hasn't launched this year, or data is still syncing. Reach out to your NJTC Program Manager if you think this is wrong.";
+    }
+
+    if (/show me around|tour|walk ?through|guide me/.test(q)) {
+      if (window.NJTCTour) { window.NJTCTour.start(); return "You got it — I'll walk you through it now."; }
+      return `Click "Guide Me" in the top right and I'll walk you through the dashboard.`;
+    }
+
+    const glossaryHits = glossaryLookup(q);
+    if (glossaryHits && /mean|explain|definition|what is|what does|glossary/.test(q)) {
+      return glossaryHits.map(g => `<b>${g.term}:</b> ${g.def}`).join('<br><br>');
     }
 
     if (/attendance rate|how am i doing|missed|absent|check.?in/.test(q)) {
@@ -129,15 +160,22 @@
       return `On scholar surveys, <b>${sc.posPct ?? '—'}%</b> of responses were Positive (rated 4–5), from ${sc.n} responses. On tutor surveys, ${tu.posPct ?? '—'}% Positive from ${tu.n} responses. "Positive/Neutral/Negative" is always based on the "Overall, how did this session go?" question — the smaller charts below it break down specific sub-questions (confidence, enjoyment, learning).`;
     }
     if (/first|start|where.*look|overview/.test(q)) {
-      return `I'd start on <b>Summary</b> for the big picture (scholar attendance rate + how sessions are going), then <b>Attendance Tracking</b> if you want to see who might need a check-in or what week attendance dipped. The two Survey tabs are best read as a trend over time, not a single number.`;
+      return `I'd start on <b>Summary</b> for the big picture (scholar attendance rate + how sessions are going), then <b>Attendance Tracking</b> if you want to see who might need a check-in or what week attendance dipped. The two Survey tabs are best read as a trend over time, not a single number. Want me to show you? Just ask me to "show me around".`;
+    }
+    if (/updated|fresh|current|stale|last (sync|refresh)/.test(q)) {
+      const when = s.generatedAt ? new Date(s.generatedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : null;
+      return when ? `This data was last refreshed <b>${when}</b>. It updates automatically — you never need to ask anyone to "load" anything.` : `I don't have an exact refresh timestamp handy, but this dashboard updates automatically on its own schedule — no one needs to manually load data for you to see it.`;
     }
     if (/contact|help|support|program manager|who/.test(q)) {
       return `For anything specific to your school's tutoring program, your NJTC Program Manager is your best contact. For portal access issues (a login not working, wrong school showing), reach out to the NJTC Data Department.`;
     }
-    if (/what.*mean|explain|definition/.test(q)) {
-      return `Quick glossary: <b>Attended</b> = the session happened as planned. <b>Missed</b> = the scholar wasn't there for a scheduled session. <b>Positive/Neutral/Negative</b> = how the "Overall" survey question was rated (4–5 / 3 / 1–2). Everything on this dashboard is scoped to ${s.identity.district || 'your district'}${s.identity.schools && s.identity.schools[0] !== 'ALL' ? ' — ' + s.identity.schools.join(', ') : ''} only.`;
+    if (glossaryHits) {
+      return glossaryHits.map(g => `<b>${g.term}:</b> ${g.def}`).join('<br><br>');
     }
-    return `I can help with attendance rate, survey sentiment, where to start, or portal contacts — try one of the quick questions below, or ask me directly about a number you're seeing.`;
+    if (/what.*mean|explain|definition|glossary/.test(q)) {
+      return `Every term on this dashboard is in the Glossary (top right) — or ask me about a specific one, like "what does excused time mean?"`;
+    }
+    return `I can help with attendance rate, survey sentiment, where to start, portal contacts, or explain any term — try one of the quick questions below, or ask me directly about a number you're seeing.`;
   }
 
   function buildUI() {
