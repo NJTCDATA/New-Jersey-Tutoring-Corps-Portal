@@ -1,34 +1,8 @@
 {
-  "generated": "2026-09-01T10:18:07.371Z",
+  "generated": "2026-09-01T15:01:35.019Z",
   "project": "1211431518555737",
-  "count": 3,
+  "count": 2,
   "tasks": [
-    {
-      "gid": "1212817919470310",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-31",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1208833157453193",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "2025-2026 Program Evaluation completed by August 2026.",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1212817919470310"
-    },
     {
       "gid": "1211993595635554",
       "assignee": {
