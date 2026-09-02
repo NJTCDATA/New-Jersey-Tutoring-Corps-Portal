@@ -680,6 +680,52 @@
   function pearlLoginUrl() {
     return `https://docs.google.com/spreadsheets/d/e/${PEARL_LOGIN_KEY}/pub?output=csv&gid=0`;
   }
+
+  /* ─────────────────────────────────────────────
+     STATIC PEARL SNAPSHOT (frozen concluded terms)
+     ─────────────────────────────────────────────
+     data/export-pearl-static.js can pre-export the Pearl tabs to JSON so a
+     concluded term (e.g. SY 25-26) no longer needs a live Google fetch on
+     every page load. If data/pearl-manifest.json is present AND its
+     recorded key still matches the live PEARL_KEY/PEARL_LOGIN_KEY this
+     session is configured for (data-sources.js), the static file is used.
+     Any mismatch — rollover happened and PEARL_2PACX now points at a new
+     workbook, files missing, files stale — falls straight through to the
+     normal live fetchCSV() below with no behavior change. This is why the
+     manifest check happens per-request rather than once: it's what keeps a
+     forgotten static snapshot from silently outliving the sheet it was
+     exported from.
+  ───────────────────────────────────────────── */
+  let _pearlManifestPromise = null;
+  function pearlManifest() {
+    if (!_pearlManifestPromise) {
+      _pearlManifestPromise = fetch('data/pearl-manifest.json', { signal: makeSignal(8000) })
+        .then(res => res.ok ? res.json() : null)
+        .catch(() => null);
+    }
+    return _pearlManifestPromise;
+  }
+
+  async function fetchPearlTab(liveUrl, staticName, manifestField, expectedKey, cacheKey, timeoutMs) {
+    if (cacheKey) {
+      const cached = cacheGet(cacheKey);
+      if (cached) return cached;
+    }
+    try {
+      const manifest = await pearlManifest();
+      if (manifest && manifest[manifestField] === expectedKey) {
+        const res = await fetch('data/' + staticName + '.json', { signal: makeSignal(timeoutMs || 20000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            if (cacheKey) cacheSet(cacheKey, data);
+            return data;
+          }
+        }
+      }
+    } catch (e) { /* fall through to live fetch */ }
+    return fetchCSV(liveUrl, cacheKey, timeoutMs);
+  }
   function ireadyUrl(gid) {
     return `https://docs.google.com/spreadsheets/d/e/${IREADY_KEY}/pub?output=csv&gid=${gid}`;
   }
@@ -786,8 +832,8 @@
   // Phase 1a: ATT + Login only — these are the fastest and give us the tutor roster
   async function loadAttAndLogin() {
     const [attResult, loginResult] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att),
-      fetchCSV(pearlLoginUrl(),         CACHE_KEYS.pearlLogin),
+      fetchPearlTab(pearlUrl(PEARL_ATT_GID), 'pearl-att',   'pearlKey', PEARL_KEY,       CACHE_KEYS.att),
+      fetchPearlTab(pearlLoginUrl(),         'pearl-login', 'loginKey', PEARL_LOGIN_KEY, CACHE_KEYS.pearlLogin),
     ]);
     ['PearlATT','PearlLogin'].forEach((lbl, i) => {
       const r = [attResult, loginResult][i];
@@ -803,8 +849,8 @@
   // Phase 1b: STU + SESS — load together; SESS is the authoritative tutor→scholar pairing
   async function loadStu() {
     const [stuR, sessR] = await Promise.allSettled([
-      fetchCSV(pearlUrl(PEARL_STU_GID),  CACHE_KEYS.stu),
-      fetchCSV(pearlUrl(PEARL_SESS_GID), CACHE_KEYS.sess),
+      fetchPearlTab(pearlUrl(PEARL_STU_GID),  'pearl-stu',  'pearlKey', PEARL_KEY, CACHE_KEYS.stu),
+      fetchPearlTab(pearlUrl(PEARL_SESS_GID), 'pearl-sess', 'pearlKey', PEARL_KEY, CACHE_KEYS.sess),
     ]);
     if (stuR.status  === 'rejected') console.warn('[NJTCTeam] STU load failed:',  stuR.reason?.message);
     if (sessR.status === 'rejected') console.warn('[NJTCTeam] SESS load failed:', sessR.reason?.message);

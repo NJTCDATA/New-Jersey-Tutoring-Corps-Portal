@@ -1,0 +1,68 @@
+name: Freeze Onsite Pearl Snapshot (Manual)
+# Exports the onsite portal's Pearl tabs (attendance, surveys, session
+# details, login/roster) to static JSON under onsite/data/ and commits them,
+# so a CONCLUDED term stops needing a live Google Sheets fetch on every
+# onsite dashboard load. leader-team.js already prefers these files over a
+# live fetch automatically — see fetchPearlTab() and data/export-pearl-static.js
+# — but only while onsite/data-sources.js's PEARL_2PACX still matches the
+# workbook these files were exported from (checked via pearl-manifest.json).
+# A mismatch (SY26-27 rollover happened) makes it fall straight back to a
+# live fetch with no code change needed.
+#
+# Google Sheets is not reachable from every environment that might edit this
+# repo, so this runs the export in CI (same approach as build-partner-data.yml
+# and the Asana sync workflows) rather than requiring someone's local machine.
+#
+# WHEN TO RUN THIS:
+#   - Right after a term concludes and its Pearl data is final (e.g. once
+#     SY 25-26 is fully closed out) — freezes it so it's served from GitHub
+#     Pages instead of live-fetched from Google forever.
+#   - Never on a schedule: concluded data doesn't change, so there's nothing
+#     to refresh. Re-run manually only if you need to re-export (e.g. a
+#     correction was made to the source sheet before archiving it).
+#
+# This does NOT touch onsite/data-sources.js — that still controls which
+# workbook onsite/leader-team.js treats as "live." Update that separately
+# when SY26-27's own Pearl workbook is ready to go live.
+on:
+  workflow_dispatch:
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Export Pearl tabs to static JSON
+        run: node onsite/data/export-pearl-static.js
+
+      - name: Commit and push
+        run: |
+          git config user.name "njtc-pearl-snapshot-bot"
+          git config user.email "actions@github.com"
+          git add onsite/data/pearl-att.json onsite/data/pearl-stu.json \
+                  onsite/data/pearl-inst.json onsite/data/pearl-sess.json \
+                  onsite/data/pearl-login.json onsite/data/pearl-manifest.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit — export may have failed; check the step above."
+            exit 0
+          fi
+          git commit -m "Freeze onsite Pearl snapshot ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt) — another commit landed on main. Rebasing and retrying..."
+            git fetch origin main
+            git rebase origin/main
+            sleep $((attempt * 3))
+          done
+          echo "::error::Could not push after 5 attempts — main kept moving. Re-run the workflow."
+          exit 1
