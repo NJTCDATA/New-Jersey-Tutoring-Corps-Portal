@@ -25,14 +25,17 @@ const path  = require('path');
 
 const OUT_DIR = path.join(__dirname);
 
-const PEARL_KEY   = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
-const LOGIN_KEY   = '2PACX-1vS2fgss4HiKpr61wJ2_si8klythckgGZ3yOYer4FSAdThkQz-X1cdL83xbgPBnHbMpTGPHZCtnttKRv';
+// Single source of truth — see ../data-sources.js. Update rollover values
+// there, not here (it doubles as a Node module via module.exports).
+const SRC       = require('../data-sources.js');
+const PEARL_KEY = SRC.PEARL_2PACX;
+const LOGIN_KEY = SRC.PEARL_LOGIN_2PACX;
 
 const SOURCES = [
-  { name: 'pearl-att',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=702726038` },
-  { name: 'pearl-stu',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=1245403832` },
-  { name: 'pearl-inst',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=1955492004` },
-  { name: 'pearl-sess',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=625567780` },
+  { name: 'pearl-att',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.att}` },
+  { name: 'pearl-stu',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.stu}` },
+  { name: 'pearl-inst',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.inst}` },
+  { name: 'pearl-sess',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.sess}` },
   { name: 'pearl-login', url: `https://docs.google.com/spreadsheets/d/e/${LOGIN_KEY}/pub?output=csv&gid=0` },
 ];
 

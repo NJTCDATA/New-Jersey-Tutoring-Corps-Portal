@@ -1221,6 +1221,18 @@
     const SUMMER_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832 };
     const summerCsvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${SUMMER_BASE_ID}/pub?output=csv&gid=${gid}`;
 
+    // ── SY 26-27 PUBLISHED SHEET CONFIG — not yet live ──────────────────────
+    // Unlike the SY Analytics panel's site tracker, Pearl Ops has no SY26-27
+    // period yet because the workbook itself doesn't exist until Pearl issues
+    // it for the new year. When it does: paste its published-CSV base ID
+    // below, add 'sy2627' next to 'sy2526'/'summer2026' in setPeriod()'s
+    // validity check a few lines down, add a poPeriodBtn_sy2627 button next
+    // to the sy2526/summer2026 ones in central/index.html (mirror the
+    // sya panel's three-button pattern), and give refresh() a third branch —
+    // most likely a straight copy of refreshSY() pointed at SY2627_BASE_ID,
+    // since Pearl workbooks reuse the same tab/gid layout every year.
+    const SY2627_BASE_ID = null;
+
     const REFRESH_MS = 5 * 60 * 1000;
 
     // ── COLUMN INDEXES — ATTENDANCE DETAIL (read ONLY cols 0–31 / A–AF) ──
@@ -1773,7 +1785,8 @@
     let _stuRows  = [];   // parsed student surveys (grows during stream)
     let _instRows = [];   // parsed instructor surveys
 
-    // Period toggle — 'sy2526' (default, existing live data) | 'summer2026'
+    // Period toggle — 'sy2526' (default; concluded, shown as an archived
+    // snapshot — see SY2627_BASE_ID above) | 'summer2026'
     let _activePeriod = 'sy2526';
 
     // Scholar survey stream state
@@ -2308,10 +2321,13 @@
         const btn = document.getElementById('poPeriodBtn_' + p);
         if (btn) btn.classList.toggle('active', p === period);
       });
+      // SY 25-26 has concluded — label it "Archived Snapshot" like the SY
+      // Analytics panel does, not "Live", until a real SY26-27 Pearl workbook
+      // exists to add as a third period (see SY2627_BASE_ID below).
       const eyebrow = document.getElementById('poEyebrow');
       if (eyebrow) eyebrow.textContent = period === 'summer2026'
         ? '☀️ Summer 2026 · Live Pearl Data'
-        : 'SY 2025–2026 · Live Pearl Data';
+        : 'SY 2025–2026 · Archived Snapshot';
 
       // Reset all derived state — do NOT mix SY and Summer records together.
       _attRows = []; _sessRows = []; _stuRows = []; _instRows = [];

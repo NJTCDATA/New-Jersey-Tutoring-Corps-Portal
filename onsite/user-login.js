@@ -10,9 +10,11 @@
   const SESSION_HOURS  = 8;
   const USERS_JSON_PATH = '/New-Jersey-Tutoring-Corps-Portal/onsite/users.json';
 
-  // Same HR sheet the central portal uses — fetched live in the user's browser
-  const HR_2PACX     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
-  const HR_GID       = '911694457';
+  // Same HR sheet the central portal uses — fetched live in the user's browser.
+  // See data-sources.js (loaded before this file) for the single source of truth.
+  const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
+  const HR_2PACX     = SRC.HR_2PACX;
+  const HR_GID       = SRC.HR_GID;
   const HR_CACHE_KEY = 'njtc_hr_roles_v1';
   const HR_TTL_MS    = 60 * 60 * 1000; // 1 hour
 
