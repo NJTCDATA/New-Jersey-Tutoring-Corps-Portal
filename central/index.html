@@ -8777,5 +8777,29 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   </div>
   <!-- ── END EXPORT REPORT MODAL ──────────────────────────────────── -->
 
+  <!-- ── iREADY GROWTH CHIP DETAIL MODAL ──────────────────────────────
+       Clicking a Math/ELA growth chip on the advocacy dashboard calls
+       advOpenChipDetail(key) (executive-leadership.js), which was
+       looking up #irlChipModal and silently no-oping — the chips were
+       clickable (cursor:pointer, hover highlight) but nothing opened.
+       CHIP_DEFS/_buildIrlDetail already generate real content from
+       window.irlab; only this shell was missing. No .irl-* CSS existed
+       to match, so this is styled inline, consistent with how this
+       file's own template strings (e.g. _statBox) are already written,
+       rather than inventing a new class-based system to maintain. ──── -->
+  <div id="irlChipModal" style="display:none;position:fixed;inset:0;z-index:950;background:rgba(10,22,40,.55);align-items:center;justify-content:center;padding:1.5rem;">
+    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 24px 60px rgba(10,22,40,.35);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.25rem 1.5rem;border-bottom:1px solid #e8ecf2;position:sticky;top:0;background:#fff;border-radius:14px 14px 0 0;">
+        <div>
+          <div id="irlChipModalTitle" style="font-size:1.05rem;font-weight:800;color:#0a1628;"></div>
+          <div id="irlChipModalSY" style="font-size:.72rem;color:#64748b;margin-top:.15rem;font-weight:600;"></div>
+        </div>
+        <button onclick="advCloseChipDetail()" aria-label="Close" title="Close" style="background:none;border:none;font-size:1.1rem;color:#64748b;cursor:pointer;padding:.25rem;">✕</button>
+      </div>
+      <div id="irlChipModalBody" style="padding:1.25rem 1.5rem;"></div>
+    </div>
+  </div>
+  <!-- ── END iREADY GROWTH CHIP DETAIL MODAL ──────────────────────── -->
+
 </body>
 </html>
