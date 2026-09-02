@@ -38,21 +38,27 @@
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     // Give scroll a beat to settle before measuring.
     setTimeout(() => {
+      // #tourBackdrop (the containing block for these two, as the nearest
+      // positioned ancestor) is itself position:fixed and pinned to the
+      // viewport — so getBoundingClientRect()'s viewport-relative coordinates
+      // ARE the correct left/top already. Adding window.scrollX/scrollY here
+      // double-counts scroll and pushes the spotlight/card off whatever the
+      // current viewport is — invisible below the fold — the moment an
+      // earlier step's scrollIntoView() has scrolled the page at all.
       const r = el.getBoundingClientRect();
       const pad = 8;
-      spotlight.style.left = (r.left - pad + window.scrollX) + 'px';
-      spotlight.style.top = (r.top - pad + window.scrollY) + 'px';
+      spotlight.style.left = (r.left - pad) + 'px';
+      spotlight.style.top = (r.top - pad) + 'px';
       spotlight.style.width = (r.width + pad * 2) + 'px';
       spotlight.style.height = (r.height + pad * 2) + 'px';
 
       const cardW = 320;
-      let cardLeft = r.left + window.scrollX;
-      if (cardLeft + cardW > window.scrollX + document.documentElement.clientWidth - 16) {
-        cardLeft = window.scrollX + document.documentElement.clientWidth - cardW - 16;
+      let cardLeft = r.left;
+      if (cardLeft + cardW > document.documentElement.clientWidth - 16) {
+        cardLeft = document.documentElement.clientWidth - cardW - 16;
       }
-      let cardTop = r.bottom + window.scrollY + 14;
-      const viewportBottom = window.scrollY + window.innerHeight;
-      if (cardTop + 180 > viewportBottom) cardTop = r.top + window.scrollY - 190;
+      let cardTop = r.bottom + 14;
+      if (cardTop + 180 > window.innerHeight) cardTop = r.top - 190;
       card.style.left = Math.max(16, cardLeft) + 'px';
       card.style.top = Math.max(16, cardTop) + 'px';
     }, 260);
