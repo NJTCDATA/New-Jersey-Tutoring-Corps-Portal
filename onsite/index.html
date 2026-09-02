@@ -112,6 +112,9 @@
 
             <div class="njtc-ph-actions">
                 <div class="njtc-ph-time" id="phTime"></div>
+                <button class="njtc-ph-btn" id="tourBtn" title="Take a guided tour of the portal">
+                    🧭 Guide Me
+                </button>
                 <button class="njtc-ph-btn" onclick="njtcSwitchUser()" title="Switch to a different staff account">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                     Switch User
@@ -336,6 +339,12 @@
 
     </div><!-- /#njtcPortal -->
 
+    <!-- GUIDED TOUR (Connor-narrated walkthrough) -->
+    <div id="tourBackdrop">
+      <div id="tourSpotlight"></div>
+      <div id="tourCard"></div>
+    </div>
+
     <!-- GUIDE MODAL -->
     <div class="guide-modal" id="guideModal" style="display:none;">
         <div class="guide-modal-content">
@@ -357,6 +366,7 @@
     <script src="pearl-data.js?v=10"></script>
     <script src="my-dashboard.js?v=11"></script>
     <script src="connor-bot.js?v=10"></script>
+    <script src="connor-tour.js?v=1"></script>
     <script src="leader-team.js?v=3"></script>
     <script src="weekly-recap.js?v=1"></script>
 
