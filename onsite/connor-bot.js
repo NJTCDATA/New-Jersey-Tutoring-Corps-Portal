@@ -469,7 +469,32 @@
       respond: function() {
         var kbNote = _sheetQA.length > 0 ? '\n• **' + _sheetQA.length + ' Ask Connor resources** — the full program knowledge base' : '';
         var irNote = ir().length > 0 ? '\n• **Your iReady data** — ' + ir().length + ' scholar diagnostic records' : '';
-        return '🦊 I\'m **Connor** — your NJTC program assistant!\n\n**I can tell you about:**\n• Your live attendance, scholars, and surveys (from Pearl)\n• Individual scholar profiles — attendance, concerns, survey scores\n• Which scholars need support right now\n• Your weekly attendance trends\n• Service interruption breakdowns\n• iReady diagnostic data — who moved up, who\'s below grade level, growth vs typical\n• Definitions and program terms\n• How to use Pearl — marking attendance, submitting surveys' + irNote + kbNote + '\n\nJust ask naturally. Try: _"Who are my scholars with concerns?"_ or _"Which scholars moved up in iReady?"_';
+        return '🦊 I\'m **Connor** — your NJTC program assistant!\n\n**I can tell you about:**\n• Your live attendance, scholars, and surveys (from Pearl)\n• Individual scholar profiles — attendance, concerns, survey scores\n• Which scholars need support right now\n• Your weekly attendance trends\n• Service interruption breakdowns\n• iReady diagnostic data — who moved up, who\'s below grade level, growth vs typical\n• Definitions and program terms\n• How to use Pearl — marking attendance, submitting surveys\n• How to use this portal itself — just ask, or say _"take a tour"_' + irNote + kbNote + '\n\nJust ask naturally. Try: _"Who are my scholars with concerns?"_ or _"Which scholars moved up in iReady?"_';
+      }
+    },
+
+    // ══ PORTAL TOUR (launches the visual walkthrough — see connor-tour.js) ═════
+    { match: /take (a |the )?(guided |portal )?tour|show me around|walk me through( the| this)? portal|portal (walkthrough|tour)|guide me( through| around)?( the| this)? portal/i,
+      respond: function() {
+        if (window.NJTCConnorTour) {
+          setTimeout(function() { window.NJTCConnorTour.start(); }, 900);
+          return '🧭 On it — let me show you around!';
+        }
+        return '🧭 The guided tour isn\'t available on this page — look for the **🧭 Guide Me** button at the top.';
+      }
+    },
+
+    // ══ PORTAL NAVIGATION (text overview, for anyone who'd rather read) ═══════
+    { match: /how (do|can) i use (this|the) portal|what (are|is) the tabs|how does this portal work|navigate the portal|what can i do (here|on this portal)|new to (this|the) portal|orient(ing)? me|what'?s (on|in) this portal/i,
+      respond: function() {
+        var isLeader = !!document.getElementById('njtcTeamTab') && document.getElementById('njtcTeamTab').style.display !== 'none';
+        var msg = '🧭 **Here\'s what\'s in this portal:**\n\n';
+        msg += '• **My Dashboard** — your live attendance, scholars, and action items, straight from Pearl\n';
+        if (isLeader) msg += '• **My Team** — your site\'s tutors, attendance, and flagged concerns in one place\n';
+        msg += '• **Platforms** — quick links to Pearl, i-Ready, Knowtion, and me, each with a full guide\n';
+        msg += '• **Resources** — program expectations and who to contact when something needs a real person\n\n';
+        msg += 'Say **"take a tour"** for the guided walkthrough, or just ask me anything directly.';
+        return msg;
       }
     },
 
@@ -1136,6 +1161,7 @@
   // ── Chip sets ────────────────────────────────────────────────────────────────
   var CHIP_SETS = {
     start: [
+      { label: '🧭 Take a portal tour',      q: 'Take a portal tour' },
       { label: 'My dashboard summary',       q: 'Give me my dashboard summary' },
       { label: 'Who needs support?',         q: 'Who needs the most support?' },
       { label: 'Action items',               q: 'What are my action items?' },

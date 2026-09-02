@@ -6,16 +6,11 @@
 (function () {
   'use strict';
 
-  // Pearl workbook identifiers — three independent URL strategies tried in order
-  // so a single endpoint failure never blocks the entire dashboard.
-  const PEARL_SHEET_ID = '1yMa4-7SJlfT-Z8ZlRwhQ0wlstkPPvHP0o61YK6MzAiA';
-  const PEARL_2PACX    = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
-  const PEARL_GIDS = {
-    att:  702726038,
-    inst: 1955492004,
-    stu:  1245403832,
-    sess: 625567780
-  };
+  // Pearl workbook identifiers — see data-sources.js (loaded before this file)
+  // for the single source of truth; update rollover values there, not here.
+  const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
+  const PEARL_2PACX = SRC.PEARL_2PACX;
+  const PEARL_GIDS  = SRC.PEARL_GIDS || {};
 
   const CACHE_TTL = 5 * 60 * 1000;
   const CACHE_KEYS = {

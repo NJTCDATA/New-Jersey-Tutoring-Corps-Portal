@@ -1980,9 +1980,12 @@
   // expired and caused console 404s on every dashboard load without providing value.
   // Current-year data is served via snap2526 (gviz) and MOY endpoints below.
   // 25-26 preliminary data: matched via Pearl scholar IDs, not tutor name
-  const IR_2526_ID       = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
-  const IR_2526_ELA_GID  = 1640935949;
-  const IR_2526_MATH_GID = 1676366557;
+  // Sheet identifiers below — see data-sources.js (loaded before this file)
+  // for the single source of truth; update rollover values there, not here.
+  const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
+  const IR_2526_ID       = SRC.IREADY_CURRENT_SHEET_ID;
+  const IR_2526_ELA_GID  = SRC.IREADY_CURRENT_ELA_GID;
+  const IR_2526_MATH_GID = SRC.IREADY_CURRENT_MATH_GID;
   // MOY (Winter 2026) — wide-format sheet, same source used by Apprentice Impact Report
   const IR_MOY_SHEET_ID  = '1AIMqvTRrZ-XBf_-ePzVnGaPExFU3DfdPg_1sPj33RnI';
   const IR_MOY_ELA_GID   = '912997533';
@@ -1991,8 +1994,8 @@
   // Standards Mastery — per-scholar pre/post assessment scores (Middlesex STEM + SM schools)
   // 404 FIX: truncated published key replaced with the direct sheet-ID gviz
   // endpoint (same access path the Central portal uses for this sheet).
-  const SM_SHEET_ID      = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
-  const SM_ALL_GID       = '457164791';
+  const SM_SHEET_ID      = SRC.SM_SHEET_ID;
+  const SM_ALL_GID       = SRC.SM_GID;
   const SM_URL           = `https://docs.google.com/spreadsheets/d/${SM_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SM_ALL_GID}`;
   const SM_SCHOOLS       = new Set(['middlesex stem']);
   const IR_CACHE_KEY     = 'njtc_od_iready_v11'; // bumped: SESS-fallback scholar matching for site leaders

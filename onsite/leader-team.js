@@ -4,28 +4,31 @@
   /* ─────────────────────────────────────────────
      CONSTANTS
   ───────────────────────────────────────────── */
-  const PEARL_KEY  = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
-  const PEARL_ATT_GID  = '702726038';
-  const PEARL_STU_GID  = '1245403832';
-  const PEARL_SESS_GID = '625567780';
+  // Sheet identifiers — see data-sources.js (loaded before this file) for the
+  // single source of truth; update rollover values there, not here.
+  const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
+  const PEARL_KEY  = SRC.PEARL_2PACX;
+  const PEARL_ATT_GID  = SRC.PEARL_GIDS && SRC.PEARL_GIDS.att;
+  const PEARL_STU_GID  = SRC.PEARL_GIDS && SRC.PEARL_GIDS.stu;
+  const PEARL_SESS_GID = SRC.PEARL_GIDS && SRC.PEARL_GIDS.sess;
   // Pearl Login/ID sheet — holds staff name, email, Pearl username, school assignment, district
-  const PEARL_LOGIN_KEY = '2PACX-1vS2fgss4HiKpr61wJ2_si8klythckgGZ3yOYer4FSAdThkQz-X1cdL83xbgPBnHbMpTGPHZCtnttKRv';
+  const PEARL_LOGIN_KEY = SRC.PEARL_LOGIN_2PACX;
   const IREADY_KEY = '2PACX-1vREgf9glXO2QMKeZ8YHF-0XBtqoOyhNz3CnBpaeCY0mAC1lknvQ13JuXJpzHCZeGls4XEPkxyNO5ZBG';
   const IREADY_ELA_GID  = '0';
   const IREADY_MATH_GID = '127145553';
   // iReady 25-26 EOY Preliminary / Longitudinal Academic Data
   // EOY Preliminary is used until Longitudinal is populated; same sheet, same GIDs.
   // When longitudinal rows appear they take precedence (detected by non-empty Spring Score).
-  const IR_2526_SHEET_ID  = '1mCx6eFKscXA3y5Ox_JB9cSualR5Tw9MbKxBVN078_G0';
-  const IR_2526_ELA_GID   = '1640935949';
-  const IR_2526_MATH_GID  = '1676366557';
+  const IR_2526_SHEET_ID  = SRC.IREADY_CURRENT_SHEET_ID;
+  const IR_2526_ELA_GID   = SRC.IREADY_CURRENT_ELA_GID;
+  const IR_2526_MATH_GID  = SRC.IREADY_CURRENT_MATH_GID;
   // Standards Mastery (Middlesex STEM only)
   // 404 FIX: the old published-to-web key for this sheet was truncated (66 chars
   // vs the required 80) so /pub returned 404 on every load. Fetch via the direct
   // sheet-ID gviz endpoint instead — the exact access path the Central portal
   // modules already use successfully for this same sheet/tab.
-  const SM_SHEET_ID = '1__l9A4hyX_-4veVUP606sN9rYg9Fa0hE';
-  const SM_GID    = '457164791';
+  const SM_SHEET_ID = SRC.SM_SHEET_ID;
+  const SM_GID    = SRC.SM_GID;
   const SM_SCHOOLS = new Set(['middlesex stem']);
   // TAP Master Roster — served by the deployed Apps Script web app (no sheet-sharing required)
   const TAP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxxdY3SnRA3mEQPUOcOH9J47uXh9hfc8w-7VlTY2ZrR3jSJJuFBJuDJcyB15Oz_32yc/exec';
@@ -361,8 +364,8 @@
     }
     throw lastErr;
   }
-  const HR_KEY     = '2PACX-1vRc-Air9jhOtvkVelwfvOguzAyFmGIFpQ0sDtu4q8S5kFAgQz_IZo-XBeIfQgy4GB8OdSXoyonTeLT8';
-  const HR_GID     = '911694457';
+  const HR_KEY     = SRC.HR_2PACX;
+  const HR_GID     = SRC.HR_GID;
   const CONCERNS_SHEET_ID = '1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k';
   const CONCERNS_GID      = '274671201';
   const OJT_FORM_ID = '1MOsppwhQmagAhVSHs29Ms4o9Ky4xYOyqy8Qs4uTrwbQ';
