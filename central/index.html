@@ -8747,5 +8747,35 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   </div>
   <!-- ── END DATA COMPASS ─────────────────────────────────────────── -->
 
+  <!-- ── EXPORT REPORT MODAL ───────────────────────────────────────────
+       Leadership/KB's "Export Report" (sidebar → expOpen()). The report
+       renderer (_buildKbReport/_buildLeadershipReport in leadership.js)
+       and every .exp-* style already existed — this shell (toolbar, mode
+       pills, the two print panels) was the missing piece; expOpen() was
+       silently no-oping on a null #njtcExportModal. ─────────────────── -->
+  <div id="njtcExportModal">
+    <div class="exp-toolbar">
+      <div class="exp-toolbar-title">
+        NJTC Executive Report
+        <div class="exp-toolbar-sub" id="expToolbarSub"></div>
+      </div>
+      <div class="exp-mode-pills" id="expModePills">
+        <button class="exp-mode-pill" id="expPillKb" onclick="expSwitchMode('kb')">CEO Executive Brief</button>
+        <button class="exp-mode-pill" id="expPillLeadership" onclick="expSwitchMode('leadership')">Leadership Detail Brief</button>
+      </div>
+      <div class="exp-toolbar-actions">
+        <button class="exp-btn exp-btn-print" onclick="expPrint()">🖨️ Print / Save PDF</button>
+        <button class="exp-btn exp-btn-close" onclick="expClose()">✕ Close</button>
+      </div>
+    </div>
+    <div class="exp-mode-panel" id="expPanelKb">
+      <div class="exp-paper" id="expPaperKb"></div>
+    </div>
+    <div class="exp-mode-panel" id="expPanelLeadership">
+      <div class="exp-paper" id="expPaperLeadership"></div>
+    </div>
+  </div>
+  <!-- ── END EXPORT REPORT MODAL ──────────────────────────────────── -->
+
 </body>
 </html>
