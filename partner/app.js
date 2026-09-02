@@ -202,19 +202,49 @@
   // data not available yet", never as zero minutes.
   function hasSessionData() { return !!(BUNDLE.sessions && BUNDLE.sessions.length); }
 
-  // sessionId -> minutes, delivered sessions only (Status === Completed,
-  // parsed duration > 0). Built once from the full bundle (already scoped
-  // to this partner server-side) so a scholar's per-session minutes can be
-  // looked up regardless of the current district/school/week drill-down.
+  // '2:40:00 PM' or '2:40 PM' -> '2:40 PM' — strips seconds so the sessions
+  // sheet's START time and the attendance sheet's PLAN_START time compare
+  // equal even though only one of them carries seconds.
+  function normTime(t) {
+    const m = /^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)$/i.exec((t || '').trim());
+    return m ? `${+m[1]}:${m[2]} ${m[3].toUpperCase()}` : (t || '').trim();
+  }
+
+  // Attendance rows carry a session TITLE (e.g. "Gr. 2 (Mrs. Lang)"), not a
+  // session ID — the same title is reused every time that recurring group
+  // meets, so title alone isn't a safe key (verified against real data:
+  // collapsing by title alone silently collides thousands of times across
+  // partners whenever a recurring session's duration changed from one
+  // occurrence to the next, e.g. a shortened session). Keying by
+  // title+school+date+time instead — the same four fields a human would use
+  // to recognize "this specific occurrence" — cuts that from thousands of
+  // collisions to a small residual (verified: 11 across all 42 current
+  // partner bundles, none of which zeroes out a partner's total) without
+  // requiring a session ID that the attendance sheet doesn't have.
+  //
+  // key -> minutes, delivered sessions only (Status === Completed, parsed
+  // duration > 0). Built once from the full bundle (already scoped to this
+  // partner server-side) so a scholar's per-session minutes can be looked
+  // up regardless of the current district/school/week drill-down.
   function sessionDurationMap(sessRows) {
     const map = {};
     sessRows.forEach(r => {
       if ((r[SESS.STATUS] || '').trim() !== 'Completed') return;
-      const sid = (r[SESS.SESS_ID] || '').trim();
+      const title = (r[SESS.TITLE] || '').trim();
+      const school = (r[SESS.SCHOOL] || '').trim();
+      const start = (r[SESS.START] || '').trim(); // "MM/DD/YYYY H:MM:SS AM"
+      const spaceIdx = start.indexOf(' ');
+      const date = spaceIdx === -1 ? start : start.slice(0, spaceIdx);
+      const time = spaceIdx === -1 ? '' : start.slice(spaceIdx + 1);
       const mins = parseInt(r[SESS.DUR_MINS], 10);
-      if (sid && mins > 0) map[sid] = mins;
+      if (title && date && mins > 0) map[title + '||' + school + '||' + date + '||' + normTime(time)] = mins;
     });
     return map;
+  }
+
+  function sessionDurationKey(attRow) {
+    return (attRow[ATT.SESSION] || '').trim() + '||' + (attRow[ATT.SCHOOL] || '').trim() + '||' +
+      (attRow[ATT.SESS_DATE] || '').trim() + '||' + normTime(attRow[ATT.PLAN_START]);
   }
 
   function initScopeFilter() {
@@ -541,7 +571,7 @@
       const reason = (r[ATT.MISS_REASON] || '').trim();
       if (c === 'attended') {
         s.attended++;
-        if (sess) s.attendedSessions.add(sess);
+        if (sess) s.attendedSessions.add(sessionDurationKey(r));
         const raw = (r[ATT.SESS_DATE] || '').trim();
         const parsed = parseDate(raw);
         if (raw && parsed && (!s.lastAttendedSort || parsed > s.lastAttendedSort)) { s.lastAttended = raw; s.lastAttendedSort = parsed; }
@@ -877,7 +907,7 @@
       let totalScholarMinutes = 0;
       attAll.filter(isScholarRow).forEach(r => {
         if (classifyAtt(r) !== 'attended') return;
-        totalScholarMinutes += durMap[(r[ATT.SESSION] || '').trim()] || 0;
+        totalScholarMinutes += durMap[sessionDurationKey(r)] || 0;
       });
       minutesCard = `
         <div class="pt-card" style="margin-top:1.1rem">
