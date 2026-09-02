@@ -8801,5 +8801,17 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   </div>
   <!-- ── END iREADY GROWTH CHIP DETAIL MODAL ──────────────────────── -->
 
+  <!-- ── CHANGE NOTIFICATION TOASTS ────────────────────────────────────
+       showChangeNotif() (shared-utils.js) already builds and appends real
+       .change-notif toasts (fully styled, incl. the notif-in animation)
+       whenever a tracked action happens — policy uploads/deletes, doc-sync
+       toggles, etc. — via logChange(). It was appending to #changeNotif
+       Container, which didn't exist, so el was null and it silently
+       returned: the action itself always logged correctly (localStorage,
+       the full Change Log modal), only this toast confirmation never
+       appeared. ──────────────────────────────────────────────────────── -->
+  <div id="changeNotifContainer"></div>
+  <!-- ── END CHANGE NOTIFICATION TOASTS ───────────────────────────── -->
+
 </body>
 </html>
