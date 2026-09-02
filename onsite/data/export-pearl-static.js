@@ -74,6 +74,10 @@ function parseCSV(text) {
   return rows;
 }
 
+// Header-keyed objects (e.g. row['Full Name']) — deliberately the exact
+// shape leader-team.js's own csvToObjects() already produces from a live
+// fetch, so leader-team.js can JSON.parse() this file as a drop-in
+// replacement with zero changes to any code downstream of that one call.
 function csvToObjects(text) {
   const rows = parseCSV(text);
   if (rows.length < 2) return [];
@@ -86,12 +90,14 @@ function csvToObjects(text) {
 }
 
 async function run() {
+  let anyFailed = false;
   for (const src of SOURCES) {
     process.stdout.write(`Fetching ${src.name}… `);
     try {
       const text = await fetchText(src.url);
       if (text.trim().startsWith('<')) {
         console.log('FAILED — got HTML (sheet not public or URL wrong)');
+        anyFailed = true;
         continue;
       }
       const data = csvToObjects(text);
@@ -100,42 +106,29 @@ async function run() {
       console.log(`OK — ${data.length} rows → ${src.name}.json`);
     } catch (e) {
       console.log(`FAILED — ${e.message}`);
+      anyFailed = true;
     }
   }
-  console.log('\nDone. Commit the .json files and then update leader-team.js:');
-  console.log('  Replace pearlUrl(GID) calls with: ./data/pearl-att.json etc.');
-  console.log('  Use fetchJSON() instead of fetchCSV() for these sources.');
+
+  // Tag this export with the exact sheet it came from. leader-team.js checks
+  // this against the CURRENT data-sources.js value before trusting these
+  // files — so if PEARL_2PACX is ever repointed at a new SY's workbook
+  // (rollover) without anyone touching these JSON files, the mismatch makes
+  // the dashboard fall straight back to a live fetch instead of silently
+  // serving last year's frozen data forever.
+  if (!anyFailed) {
+    fs.writeFileSync(path.join(OUT_DIR, 'pearl-manifest.json'), JSON.stringify({
+      pearlKey: PEARL_KEY,
+      loginKey: LOGIN_KEY,
+      exportedAt: new Date().toISOString()
+    }, null, 2));
+    console.log('\nAll tabs exported — wrote pearl-manifest.json. Commit the .json files;');
+    console.log('leader-team.js will automatically prefer them over the live Pearl fetch');
+    console.log('as long as data-sources.js\'s PEARL_2PACX still matches this export.');
+  } else {
+    console.log('\nOne or more tabs failed — NOT writing pearl-manifest.json, so no');
+    console.log('partial/inconsistent snapshot gets picked up. Re-run once all tabs succeed.');
+  }
 }
 
 run();
-
-
-/* ─────────────────────────────────────────────
-   USING STATIC FILES IN leader-team.js
-   (apply these changes after running this script)
-─────────────────────────────────────────────
-
-1. Add a fetchJSON helper:
-
-   async function fetchJSON(path, cacheKey) {
-     if (cacheKey) { const c = cacheGet(cacheKey); if (c) return c; }
-     const res = await fetch(path);
-     if (!res.ok) throw new Error('HTTP ' + res.status);
-     const data = await res.json();
-     if (cacheKey) cacheSet(cacheKey, data);
-     return data;
-   }
-
-2. In loadCriticalData(), replace the Pearl fetchCSV calls:
-
-   fetchCSV(pearlUrl(PEARL_ATT_GID), CACHE_KEYS.att)
-   → fetchJSON('data/pearl-att.json', CACHE_KEYS.att)
-
-   fetchCSV(pearlUrl(PEARL_STU_GID), CACHE_KEYS.stu)
-   → fetchJSON('data/pearl-stu.json', CACHE_KEYS.stu)
-
-   fetchCSV(pearlLoginUrl(), CACHE_KEYS.pearlLogin)
-   → fetchJSON('data/pearl-login.json', CACHE_KEYS.pearlLogin)
-
-3. Same for INST/SESS if used.
-───────────────────────────────────────────── */
