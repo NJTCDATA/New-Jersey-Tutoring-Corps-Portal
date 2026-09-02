@@ -1109,9 +1109,9 @@
         </div>
       </div>
       <div class="pt-grid pt-grid-3">
-        <div class="pt-card"><div class="pt-card-title">${esc(labels[0])}</div>${distRows(ratingEntries(rows, cols[qkeys.c1]), rows.length, BRAND.blue)}</div>
-        <div class="pt-card"><div class="pt-card-title">${esc(labels[1])}</div>${distRows(ratingEntries(rows, cols[qkeys.c2]), rows.length, BRAND.blue)}</div>
-        <div class="pt-card"><div class="pt-card-title">${esc(labels[2])}</div>${distRows(ratingEntries(rows, cols[qkeys.c3]), rows.length, BRAND.blue)}</div>
+        <div class="pt-card"><div class="pt-card-title">${esc(labels[0])}</div>${distRows(ratingEntries(rows, cols[qkeys.c1], qkeys.c1), rows.length, BRAND.blue)}</div>
+        <div class="pt-card"><div class="pt-card-title">${esc(labels[1])}</div>${distRows(ratingEntries(rows, cols[qkeys.c2], qkeys.c2), rows.length, BRAND.blue)}</div>
+        <div class="pt-card"><div class="pt-card-title">${esc(labels[2])}</div>${distRows(ratingEntries(rows, cols[qkeys.c3], qkeys.c3), rows.length, BRAND.blue)}</div>
       </div>`;
   }
 
@@ -1123,14 +1123,24 @@
     </div>`;
   }
 
-  const RATING_LABELS = { 5: '5 — Excellent', 4: '4 — Good', 3: '3 — Okay', 2: '2 — Needs Work', 1: '1 — Poor' };
-  function ratingEntries(rows, colIdx) {
+  // Each survey question uses its own 1–5 wording (matches the buttons on
+  // the actual post-session survey) rather than a generic Excellent…Poor
+  // scale — 5 is always the rightmost/best button, 1 the leftmost/worst.
+  const SCALE_LABELS = {
+    CONFIDENCE: { 5: 'Extremely confident', 4: 'Quite confident', 3: 'Somewhat confident', 2: 'Slightly confident', 1: 'Not confident at all' },
+    ENGAGEMENT: { 5: 'Extremely engaged', 4: 'Quite engaged', 3: 'Somewhat engaged', 2: 'A little engaged', 1: 'Not engaged at all' },
+    ENJOYMENT: { 5: 'Enjoyed a tremendous amount', 4: 'Enjoyed quite a bit', 3: 'Enjoyed somewhat', 2: 'Enjoyed a little bit', 1: 'Did not enjoy at all' },
+    LEARNING: { 5: 'A tremendous amount', 4: 'Quite a bit', 3: 'Some', 2: 'A little bit', 1: 'Almost nothing' },
+    OVERALL: { 5: 'Extremely well', 4: 'Quite well', 3: 'Somewhat well', 2: 'Slightly well', 1: 'Not well at all' }
+  };
+  function ratingEntries(rows, colIdx, scaleKey) {
+    const scale = SCALE_LABELS[scaleKey] || SCALE_LABELS.OVERALL;
     const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
     rows.forEach(r => {
       const v = Math.round(parseFloat(r[colIdx]));
       if (counts[v] !== undefined) counts[v]++;
     });
-    return [5, 4, 3, 2, 1].map(k => [RATING_LABELS[k], counts[k]]);
+    return [5, 4, 3, 2, 1].map(k => [`${k} — ${scale[k]}`, counts[k]]);
   }
 
   // ── Weekly trend chart (the one real canvas chart on this page) ────────
