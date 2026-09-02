@@ -8716,5 +8716,36 @@ window.__IRLAB_RAW__={"d":{"math":[[0,0,0,0,0,"","8473290549","Aaliyah De la Cru
   </div>
   <!-- ── END PIE ──────────────────────────────────────────────────── -->
 
+  <!-- ── DATA COMPASS (Governance Beacon) ─────────────────────────────
+       Per-panel "what this means / how to read it / who owns it / who
+       can see it" reference, sourced from GOV_DATA in shared-utils.js.
+       govOpen()/govClose()/govTab()/govRenderBody()/govUpdateBeacon()
+       already existed and were fully wired to showPanel() — this markup
+       was the only missing piece connecting them to the page. ─────── -->
+  <button id="govBeacon" onclick="govOpen()" title="Data Compass — what this panel means, how to read it, and who owns it">
+    <span class="gov-pulse"></span>
+    🧭
+  </button>
+  <div id="govOverlay" onclick="govClose()"></div>
+  <div id="govSheet">
+    <div class="gov-handle"></div>
+    <div class="gov-header">
+      <span class="gov-header-icon">🧭</span>
+      <div class="gov-header-text">
+        <div class="gov-header-title">Data Compass</div>
+        <div class="gov-header-sub">What this panel means, how to read it, and who owns it</div>
+      </div>
+      <button class="gov-close" onclick="govClose()" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="gov-tabs">
+      <button class="gov-tab active" id="govTab-what"    onclick="govTab(this,'what')">What</button>
+      <button class="gov-tab"        id="govTab-read"    onclick="govTab(this,'read')">How to Read It</button>
+      <button class="gov-tab"        id="govTab-cadence" onclick="govTab(this,'cadence')">Cadence &amp; Ownership</button>
+      <button class="gov-tab"        id="govTab-access"  onclick="govTab(this,'access')">Access &amp; PII</button>
+    </div>
+    <div class="gov-body" id="govBody"></div>
+  </div>
+  <!-- ── END DATA COMPASS ─────────────────────────────────────────── -->
+
 </body>
 </html>
