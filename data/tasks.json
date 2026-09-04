@@ -1,26 +1,8 @@
 {
-  "generated": "2026-09-04T17:21:32.708Z",
+  "generated": "2026-09-04T19:45:51.528Z",
   "project": "1211431518555737",
-  "count": 2,
+  "count": 1,
   "tasks": [
-    {
-      "gid": "1211993595635554",
-      "assignee": {
-        "gid": "1205203775091388",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-08-31",
-      "followers": [
-        {
-          "gid": "1205203775091388",
-          "resource_type": "user"
-        }
-      ],
-      "name": "KPI reporting established for each quarter",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1211431518555737/task/1211993595635554"
-    },
     {
       "gid": "1211431518555803",
       "assignee": {
