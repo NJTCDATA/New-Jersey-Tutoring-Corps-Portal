@@ -1,7 +1,7 @@
 {
-  "generated": "2026-09-18T18:03:49.590Z",
+  "generated": "2026-09-18T21:06:24.729Z",
   "project": "1213346212277384",
-  "count": 5,
+  "count": 2,
   "tasks": [
     {
       "gid": "1218454051124411",
@@ -26,36 +26,6 @@
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1218454051124411"
     },
     {
-      "gid": "1213346212293204",
-      "assignee": null,
-      "completed": false,
-      "due_on": "2026-06-30",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Quarterly board impact summary",
-      "notes": "Provide comprehensive summary of partnership progress and impact for board updates",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293204"
-    },
-    {
-      "gid": "1213346212293203",
-      "assignee": null,
-      "completed": false,
-      "due_on": "2026-03-31",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Monthly business development tracker update",
-      "notes": "Update tracker with districts engaged, meetings held, proposals submitted, partnerships closed, and funding opportunities",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293203"
-    },
-    {
       "gid": "1213346212293206",
       "assignee": null,
       "completed": false,
@@ -69,21 +39,6 @@
       "name": "Work with CEO to review list of funders for location specific funding",
       "notes": "Track progress toward establishing 10 new sites with at least 3 new district/community partnerships",
       "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293206"
-    },
-    {
-      "gid": "1213346212293205",
-      "assignee": null,
-      "completed": false,
-      "due_on": "2026-06-30",
-      "followers": [
-        {
-          "gid": "1202967483652746",
-          "resource_type": "user"
-        }
-      ],
-      "name": "",
-      "notes": "Monitor progress toward conducting 50 meetings or presentations between November and June",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1213346212293205"
     }
   ]
 }
