@@ -1,8 +1,31 @@
 {
-  "generated": "2026-09-23T12:53:21.497Z",
+  "generated": "2026-09-23T17:41:58.461Z",
   "project": "1213346212277384",
-  "count": 1,
+  "count": 2,
   "tasks": [
+    {
+      "gid": "1218776704828712",
+      "assignee": null,
+      "completed": false,
+      "due_on": "2026-11-23",
+      "followers": [
+        {
+          "gid": "1205203775091388",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1213635692801884",
+          "resource_type": "user"
+        },
+        {
+          "gid": "1202953622354860",
+          "resource_type": "user"
+        }
+      ],
+      "name": "TEST",
+      "notes": "",
+      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1218776704828712"
+    },
     {
       "gid": "1213346212293206",
       "assignee": null,
