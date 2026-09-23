@@ -1,30 +1,8 @@
 {
-  "generated": "2026-09-22T23:28:40.389Z",
+  "generated": "2026-09-23T01:42:28.392Z",
   "project": "1213346212277384",
-  "count": 2,
+  "count": 1,
   "tasks": [
-    {
-      "gid": "1218454051124411",
-      "assignee": {
-        "gid": "1213635692801884",
-        "resource_type": "user"
-      },
-      "completed": false,
-      "due_on": "2026-11-14",
-      "followers": [
-        {
-          "gid": "1213635692801884",
-          "resource_type": "user"
-        },
-        {
-          "gid": "1202953622354860",
-          "resource_type": "user"
-        }
-      ],
-      "name": "Asbury (SY)",
-      "notes": "",
-      "permalink_url": "https://app.asana.com/1/1202967547815613/project/1213346212277384/task/1218454051124411"
-    },
     {
       "gid": "1213346212293206",
       "assignee": null,
