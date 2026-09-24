@@ -5652,6 +5652,7 @@
           <button class="po-ticket-btn btn btn-secondary" onclick="po.openTicketsView()" title="Pearl Operations Ticket System — submit data requests and view responses" style="display:none">📬 Tickets</button>
           <button class="btn btn-secondary" onclick="po.refresh(true)" id="poRefreshBtn">↺ Refresh</button>
           <button class="po-pdf-data-only" onclick="po.showFieldReportModal()" title="Download a filtered report: incompletes, survey capture, and low ratings for onsite staff" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#065f46,#059669);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">📋 Onsite Staff Report</button>
+          <button class="po-partner-pdf-btn" onclick="njtcPartnerPDF.open()" title="Download the Weekly Operations Report PDF exactly as a partner sees it on their Partner Dashboard" style="display:none;padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#b45309,#f0a500);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;align-items:center;gap:.4rem;letter-spacing:.01em;">🤝 Partner PDF</button>
           <button onclick="po.showExportModal()" style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#1e3a5f,#2a5298);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">⬇ Export</button>
           <button id="btnSurveyReportPDF" class="po-pdf-data-only" onclick="njtcSurveyPDF.generate()" title="Generate a 2-page Survey Report PDF: Scholar and Tutor Likert charts matching the Data Studio dashboard layout. Respects current school/district filter — or aggregates all data when no filter is set." style="padding:.45rem 1rem;font-size:.8125rem;background:linear-gradient(135deg,#4a1080,#7b2d8b);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;letter-spacing:.01em;">📊 Survey Report</button>
           <button class="po-pdf-data-only" data-pdf-region="NE" onclick="njtcPDFExport.generate('NE')" title="Download NE Region PDF Report" style="padding:.45rem .9rem;font-size:.8125rem;background:linear-gradient(135deg,#2a9d8f,#1a7a70);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:.35rem;letter-spacing:.01em;">📄 NE PDF</button>
@@ -6836,7 +6837,7 @@
 </script>
 <script src="modules/shared-utils.js?v=28"></script>
 <script src="modules/shared-charts.js?v=10"></script>
-<script src="modules/shared-filters.js?v=2"></script>
+<script src="modules/shared-filters.js?v=3"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=3"></script>
@@ -6846,6 +6847,8 @@
 <script src="modules/dol-report.js?v=2"></script>
 <script src="modules/programming.js?v=12"></script>
 <script src="modules/pdf-export.js?v=5"></script>
+<script src="../partner/partner-report.js?v=1"></script>
+<script src="modules/partner-report-pdf.js?v=1"></script>
 <script src="modules/survey-report-pdf.js?v=1"></script>
 <script src="modules/finance.js?v=4"></script>
 <script src="../alerts/asana-service.js?v=1"></script>

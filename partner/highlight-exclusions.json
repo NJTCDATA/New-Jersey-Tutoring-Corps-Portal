@@ -1,0 +1,4 @@
+{
+  "_comment": "Session Highlights exclusion list. Add the full text of any comment (or a distinctive phrase from it) to 'exclude' and it will never appear in Session Highlights on any partner dashboard or partner PDF. Matching ignores capitalization and punctuation. Takes effect on the next page load; no data rebuild needed.",
+  "exclude": []
+}

@@ -21,11 +21,15 @@
      low rate with enough sessions to be a real pattern) — not from Pearl's
      own concern flag, which under-fires and silently misses real 0%-
      attendance scholars.
-   - Session-comment "highlights" are curated: only comments attached to a
-     4-5 overall rating, filtered again for negative-leaning language, so
-     nothing critical or lukewarm surfaces as a quoted "voice". Aggregate
-     survey distributions stay fully honest — curation applies to anecdote
-     quotes, never to the real numbers.
+   - Session Highlights are curated weekly in partner/partner-report.js:
+     scholar comments first (tutor comments only top up a thin week), 4-5
+     overall rating only, no negative/sensitive language, no profanity, no
+     scholar/tutor names, and nothing on NJTC's exclusion list
+     (partner/highlight-exclusions.json). Aggregate survey distributions stay
+     fully honest — curation applies to anecdote quotes, never the numbers.
+   - The attendance methodology itself also lives in partner-report.js so
+     the dashboard and the Weekly Operations Report PDF (downloaded here or
+     from Central) always show the same figures.
    - Every distribution on this page (survey ratings, missed reasons) is
      rendered as an always-labeled horizontal bar list, not a canvas chart —
      the count and share are visible without hovering, and sizing can't
@@ -46,24 +50,9 @@
   // duration data yet" rather than zero minutes.
   const SESS = { TITLE:0, INSTRUCTOR:1, STUDENTS:2, LOCATION:3, STATUS:4, ATTENDANCE:5, START:6, SCHED_DUR:7, ACTUAL_DUR:8, SUBJECT:9, GRADE:10, SCHOOL:11, DISTRICT:12, REGION:13, SESS_ID:14, INST_ID:15, STU_IDS:16, DUR_MINS:17 };
 
-  // Scholar-side reasons only — things a school partner can actually see and
-  // act on. NJTC-internal service-interruption reasons (tutor vacancy,
-  // internal errors, etc.) are a separate bucket below and are never shown
-  // to partners, in any list or detail view.
-  const SCHOLAR_MISS_REASONS = new Set([
-    'Absent', 'Scholar declined attending tutoring session',
-    'Classroom Teacher Requested to Keep Scholar in Class',
-    'HADDON TWP ONLY -- Teacher requested whole group support', 'Scholar Left Early'
-  ]);
-  const TUTOR_MISS_REASONS = new Set([
-    'Absent; Not Covered (Tutor not available)', 'Absent; Covered by Sub Tutor',
-    'Absent; Covered by Dual Role', 'Absent; Covered by the Site Leader',
-    'Absent; Covered by the Instructional Coach', 'Tutor Left Early (no sub)'
-  ]);
-
-  // Safety net so a lukewarm/critical comment can't slip through even when
-  // attached to a positively-scored (4-5) response.
-  const NEGATIVE_QUOTE_SIGNALS = /\b(not|n't|no|never|struggl\w*|withdraw\w*|difficult|concern\w*|problem\w*|issue\w*|refus\w*|distract\w*|bored|hate\w*|dislike\w*|worst|\bbad\b|upset|frustrat\w*|absent|missed|late|disrupt\w*|behavior|complain\w*)/i;
+  // Scholar-side vs. NJTC-internal missed-session reasons are defined once in
+  // partner/partner-report.js (SCHOLAR_MISS_REASONS / TUTOR_MISS_REASONS).
+  // NJTC-internal service-interruption reasons are never shown to partners.
 
   const BRAND = { pos: '#0d6e3a', neu: '#7d8fa1', neg: '#b91c1c', blue: '#0050c8', gold: '#f0a500' };
 
@@ -85,10 +74,10 @@
     { term: 'Scholar Attendance Rate', def: 'Attended sessions ÷ (Attended + Missed) sessions, scholars only. Late arrivals still count as Attended. Excused time — school events, testing days, holidays, tutor staffing gaps — is left out of both sides of that math entirely, so it never pulls the rate down. This matches the calculation NJTC uses internally.' },
     { term: 'Missed Session', def: 'A scheduled session the scholar did not attend, for a reason on the school/scholar side (declined the session, kept in class by a teacher, etc.). Sessions that did not happen because of an NJTC-side issue (a staffing gap, an internal error) are handled separately and never count as a scholar "missing" anything.' },
     { term: 'Excused Time', def: "Sessions that didn't happen for reasons outside anyone's control — a school event, a testing day, a holiday, weather — or an NJTC-side staffing gap. Never counted against the attendance rate." },
-    { term: 'Scholars to Check In With', def: "Scholars with a real pattern of missed sessions: either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, and only counts misses on the school/scholar side — never an NJTC-side issue." },
+    { term: 'Scholars to Check In With', def: "Scholars with a real pattern of missed sessions: either they've never yet attended, or their attendance rate is below 80% across at least 3 real sessions. Computed directly from session records, counting only scholar-side reasons for a missed session." },
     { term: 'Session', def: 'One scheduled tutoring block for one scholar. "Sessions Delivered" counts each unique session that took place, regardless of how many scholars were in it.' },
     { term: 'Overall Rating', def: 'The "Overall, how did this session go?" question on the post-session survey, rated 1 (Poor) to 5 (Excellent). Positive = 4–5, Neutral = 3, Negative = 1–2.' },
-    { term: 'Session Highlights', def: 'A curated selection of comments from sessions rated 4–5 overall. This is a highlight reel, not a full transcript — it is intentionally not a representative sample of every comment left.' },
+    { term: 'Session Highlights', def: 'A curated weekly selection of comments from sessions rated 4–5 overall. Scholar comments are shown first; tutor comments fill in when a week has fewer scholar comments. Comments that name a scholar, or contain sensitive or inappropriate language, are never shown. This is a highlight reel, not a representative sample of every comment left.' },
     { term: 'Scholars Loving Their Sessions', def: 'The share of scholar survey responses rated 4–5 on the Overall question.' },
     { term: 'Total Session Minutes', def: "Every delivered session's duration, added up once per session — a 40-minute session with 3 scholars in it still counts as 40 minutes here." },
     { term: 'Total Scholar-Attended Minutes', def: "Every minute a scholar personally attended, summed across all scholars — the same 40-minute session with 3 scholars who all attended counts as 120 minutes here. This is the total instructional contact time scholars actually received." }
@@ -96,6 +85,7 @@
   window.NJTC_GLOSSARY = GLOSSARY;
 
   let BUNDLE = null;
+  let EXCLUSIONS = []; // partner/highlight-exclusions.json
   const charts = {};
   // Client-side drill-down for broad-scope accounts (Network/Regional/Admin).
   // Purely a view filter over data already inside this account's own bundle
@@ -114,16 +104,8 @@
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   }
-  function weekBucket(dateStr) {
-    const d = parseDate(dateStr);
-    if (!d) return null;
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-    const key = monday.toISOString().slice(0, 10); // YYYY-MM-DD — sorts chronologically
-    const label = monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return { key, label };
-  }
+  // Shared, cached implementation (partner/partner-report.js).
+  function weekBucket(dateStr) { return window.NJTCPartnerReport.weekBucket(dateStr); }
 
   function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function $(sel, root) { return (root || document).querySelector(sel); }
@@ -172,6 +154,7 @@
     }
 
     window.NJTC_BUNDLE = BUNDLE; // read-only handoff to pie-bot.js
+    EXCLUSIONS = await CORE.loadExclusions();
     personalize();
     initScopeFilter();
     renderAll();
@@ -413,6 +396,8 @@
       glossaryModal.addEventListener('click', e => { if (e.target === glossaryModal) glossaryModal.classList.remove('open'); });
     }
 
+    wirePdf();
+
     const tourBtn = document.getElementById('tourBtn');
     if (tourBtn) tourBtn.addEventListener('click', () => { if (window.NJTCTour) window.NJTCTour.start(); });
 
@@ -423,109 +408,62 @@
     }
   }
 
+  // Weekly Operations Report PDF — same generator Central uses for this
+  // partner (partner/partner-report.js), scoped to the current drill-down.
+  function wirePdf() {
+    const btn = document.getElementById('pdfBtn');
+    const modal = document.getElementById('pdfModal');
+    if (!btn || !modal) return;
+    const weekSel = document.getElementById('pdfWeek');
+    const status = document.getElementById('pdfStatus');
+    const go = document.getElementById('pdfGo');
+    const close = () => modal.classList.remove('open');
+    btn.addEventListener('click', () => {
+      if (!BUNDLE) return;
+      const weeks = CORE.allWeeks(BUNDLE).reverse();
+      weekSel.innerHTML = weeks.map(w => `<option value="${w.key}">Week of ${esc(CORE.weekRangeLabel(w.key))}</option>`).join('') +
+        `<option value="ALL">Full school year to date</option>`;
+      weekSel.value = SCOPE.week !== 'ALL' ? SCOPE.week : (weeks[0] ? weeks[0].key : 'ALL');
+      document.getElementById('pdfScope').textContent = CORE.scopeLabel(BUNDLE.identity, SCOPE) || 'Your schools';
+      status.textContent = '';
+      go.disabled = false;
+      modal.classList.add('open');
+    });
+    document.getElementById('pdfModalClose').addEventListener('click', close);
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    go.addEventListener('click', async () => {
+      go.disabled = true;
+      status.textContent = 'Building your report…';
+      try {
+        await CORE.generatePDF(BUNDLE, { district: SCOPE.district, school: SCOPE.school, week: weekSel.value }, { exclusions: EXCLUSIONS });
+        status.textContent = 'Downloaded.';
+        setTimeout(close, 900);
+      } catch (e) {
+        console.error(e);
+        status.textContent = "Couldn't build the PDF — check your internet connection and try again.";
+      } finally {
+        go.disabled = false;
+      }
+    });
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  ATTENDANCE METHODOLOGY — mirrors onsite/pearl-data.js exactly
   // ══════════════════════════════════════════════════════════════════════
-  function isScholarRow(r) { return (r[ATT.ROLE] || '').trim() !== 'Instructor'; }
-
-  function classifyAtt(row) {
-    const status = (row[ATT.ATT_STATUS] || '').trim();
-    const reason = (row[ATT.MISS_REASON] || '').trim();
-    const isInstructor = (row[ATT.ROLE] || '').trim() === 'Instructor';
-    if (status === 'Attended' || status === 'Late') return 'attended';
-    if (status === 'Missed') {
-      if (isInstructor) return TUTOR_MISS_REASONS.has(reason) ? 'absent' : 'si';
-      return (SCHOLAR_MISS_REASONS.has(reason) || reason === '') ? 'absent' : 'si';
-    }
-    return 'other'; // 'Not recorded' and anything else — excluded from the rate
-  }
-
-  function scholarStats(attRows) {
-    const rows = attRows.filter(isScholarRow);
-    let attended = 0, absent = 0, excused = 0;
-    rows.forEach(r => {
-      const c = classifyAtt(r);
-      if (c === 'attended') attended++;
-      else if (c === 'absent') absent++;
-      else if (c === 'si') excused++; // shown as context only, never counted against the rate
-    });
-    const total = attended + absent;
-    return { rows, attended, absent, excused, total, rate: pct(attended, total) };
-  }
-
+  // Methodology lives in partner/partner-report.js so the dashboard, the
+  // partner PDF and Central's copy of that PDF can never disagree.
+  const CORE = window.NJTCPartnerReport;
+  const isScholarRow = CORE.isScholarRow;
+  const classifyAtt = CORE.classifyAtt;
+  const scholarStats = CORE.scholarStats;
+  const scholarMissedReasons = CORE.scholarMissedReasons;
+  // Scholars worth a check-in: at least one genuine scholar-side miss AND
+  // either never attended, or under 80% across 3+ sessions. Service
+  // Interruptions never count and never appear in the detail list.
+  const scholarsToCheckIn = CORE.scholarsToCheckIn;
   function scholarWeeklyRate(scholarRows) {
-    const byWeek = {}; // key (sortable) -> { label, attended, absent }
-    scholarRows.forEach(r => {
-      const wk = weekBucket(r[ATT.SESS_DATE]);
-      if (!wk) return;
-      const c = classifyAtt(r);
-      if (c !== 'attended' && c !== 'absent') return;
-      if (!byWeek[wk.key]) byWeek[wk.key] = { label: wk.label, attended: 0, absent: 0 };
-      byWeek[wk.key][c]++;
-    });
-    const keys = Object.keys(byWeek).sort();
-    return {
-      weeks: keys.map(k => byWeek[k].label),
-      rates: keys.map(k => pct(byWeek[k].attended, byWeek[k].attended + byWeek[k].absent))
-    };
-  }
-
-  // Partner-side reasons only — the SCHOLAR_MISS_REASONS bucket. Service
-  // Interruptions (the "si" classification) are never included here.
-  function scholarMissedReasons(scholarRows) {
-    const counts = {};
-    scholarRows.forEach(r => {
-      if (classifyAtt(r) !== 'absent') return;
-      const reason = (r[ATT.MISS_REASON] || '').trim() || 'Not specified';
-      counts[reason] = (counts[reason] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  }
-
-  // Scholars worth a check-in — computed directly from real attendance
-  // records, not Pearl's own concern flag (which under-fires: it missed
-  // real 0%-attendance scholars entirely in testing). A scholar qualifies
-  // if they have at least one genuine miss (SCHOLAR_MISS_REASONS bucket —
-  // never a Service Interruption, which is NJTC's own gap, not theirs) AND
-  // either never attended at all, or their rate is low across a real
-  // sample (3+ scholar sessions) rather than a single one-off absence.
-  // Each entry carries the specific missed sessions (date + reason) so a
-  // partner can see exactly what happened, not just a count.
-  function scholarsToCheckIn(scholarRows) {
-    const byScholar = {};
-    scholarRows.forEach(r => {
-      const uid = (r[ATT.USER_ID] || '').trim();
-      if (!uid) return;
-      if (!byScholar[uid]) byScholar[uid] = { uid, name: (r[ATT.USER] || '').trim() || 'Unknown', attended: 0, absences: 0, lastAttended: null, lastAttendedSort: null, missed: [] };
-      const s = byScholar[uid];
-      const c = classifyAtt(r);
-      if (c === 'attended') {
-        s.attended++;
-        // Compare parsed dates, not raw strings — Pearl's date format isn't
-        // guaranteed to sort correctly as text (e.g. "9/8/2025" vs "12/1/2025").
-        const raw = (r[ATT.SESS_DATE] || '').trim();
-        const parsed = parseDate(raw);
-        if (raw && parsed && (!s.lastAttendedSort || parsed > s.lastAttendedSort)) {
-          s.lastAttended = raw;
-          s.lastAttendedSort = parsed;
-        }
-      } else if (c === 'absent') {
-        s.absences++;
-        s.missed.push({
-          date: (r[ATT.SESS_DATE] || '').trim() || 'Date not recorded',
-          reason: (r[ATT.MISS_REASON] || '').trim() || 'Not specified'
-        });
-      }
-      // 'si' rows (Service Interruptions — tutor vacancy, NJTC internal
-      // issues, school closures, testing days, etc.) are never counted as a
-      // miss and never appear in a scholar's detail list — that's NJTC's
-      // gap to close, or a neutral school event, never a reason to flag a
-      // scholar.
-    });
-    return Object.values(byScholar)
-      .map(s => ({ ...s, total: s.attended + s.absences, rate: pct(s.attended, s.attended + s.absences) }))
-      .filter(s => s.absences > 0 && (s.attended === 0 || (s.total >= 3 && s.rate < 80)))
-      .sort((a, b) => (a.rate ?? 0) - (b.rate ?? 0) || b.absences - a.absences);
+    const weeks = CORE.scholarWeekly(scholarRows);
+    return { weeks: weeks.map(w => w.label), rates: weeks.map(w => w.rate) };
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -815,20 +753,16 @@
   // ══════════════════════════════════════════════════════════════════════
   //  CURATED "HIGHLIGHTS" — positive-only, per partner-relationship policy
   // ══════════════════════════════════════════════════════════════════════
-  function isSafelyPositive(text) {
-    return !!text && text.length > 3 && !NEGATIVE_QUOTE_SIGNALS.test(text);
-  }
-
+  // Scholar comments first, tutor comments only top up the list; rotates
+  // weekly (the drill-down week, or the latest week with a good comment).
+  // Filtering rules + the NJTC exclusion list live in partner-report.js.
   function sessionHighlights() {
-    const scholarQuotes = scopedScholarSurveys()
-      .filter(r => parseFloat(r[STU.OVERALL]) >= 4)
-      .map(r => ({ text: (r[STU.COMMENT] || '').trim(), who: 'Scholar' }));
-    const tutorQuotes = scopedTutorSurveys()
-      .filter(r => parseFloat(r[INST.OVERALL]) >= 4)
-      .map(r => ({ text: (r[INST.COMMENT_SELF] || '').trim(), who: 'Tutor' }));
-    return [...scholarQuotes, ...tutorQuotes]
-      .filter(c => isSafelyPositive(c.text))
-      .slice(-10).reverse();
+    const place = { district: SCOPE.district, school: SCOPE.school, week: 'ALL' };
+    return CORE.curateHighlights({
+      scholarSurveys: CORE.scoped(BUNDLE.scholarSurveys, STU.DISTRICT, STU.SCHOOL, STU.DATE, place),
+      tutorSurveys: CORE.scoped(BUNDLE.tutorSurveys, INST.DISTRICT, INST.SCHOOL, INST.DATE, place),
+      attendance: CORE.scoped(BUNDLE.attendance, ATT.DISTRICT, ATT.SCHOOL, ATT.SESS_DATE, place)
+    }, { week: SCOPE.week, exclusions: EXCLUSIONS });
   }
 
   function renderAll() {
@@ -935,8 +869,8 @@
       </div>
       <div class="pt-grid pt-grid-2">
         <div class="pt-card" id="tourHighlights">
-          <div class="pt-card-title">${ICONS.sparkle} Session Highlights</div>
-          ${highlights.length ? highlights.map(c => `
+          <div class="pt-card-title">${ICONS.sparkle} Session Highlights${highlights.weekLabel ? `<span class="pt-card-title-note">Week of ${esc(highlights.weekLabel)}</span>` : ''}</div>
+          ${highlights.items.length ? highlights.items.map(c => `
             <div class="pt-quote">"${esc(c.text)}"<div class="pt-quote-meta">— ${c.who}</div></div>
           `).join('') : `<p style="color:var(--muted);font-size:.85rem">No highlighted comments yet this period.</p>`}
         </div>
@@ -967,11 +901,14 @@
       <div class="pt-kpi-sub">${sub}</div>
     </div>`;
   }
+  // Value sits beside the bar, not inside it, so a short bar (e.g. 1.7%)
+  // never clips its own label on narrower screens.
   function quickBar(label, n, total, color) {
     const p = pct(n, total) || 0;
     return `<div class="pt-sentiment-row">
       <div class="pt-sentiment-label">${label}</div>
-      <div class="pt-sentiment-track"><div class="pt-sentiment-fill" style="width:${p}%;background:${color}">${n.toLocaleString()}</div></div>
+      <div class="pt-sentiment-track"><div class="pt-sentiment-fill" style="width:${p}%;background:${color}"></div></div>
+      <div class="pt-sentiment-val">${n.toLocaleString()}</div>
     </div>`;
   }
   function noDataCard() {
@@ -1013,14 +950,14 @@
       .sort((a, b) => (a.rate ?? 100) - (b.rate ?? 100)); // lowest attendance first — most actionable
 
     el.innerHTML = `
-      <div class="pt-grid" style="grid-template-columns:2fr 1fr;gap:1.1rem;margin-bottom:1.1rem">
+      <div class="pt-grid pt-grid-main-side" style="margin-bottom:1.1rem">
         <div class="pt-card">
           <div class="pt-card-title">${ICONS.trend} Weekly Scholar Attendance Rate</div>
           <div class="pt-chart-wrap"><canvas id="chartWeekly"></canvas></div>
         </div>
         <div class="pt-card">
           <div class="pt-card-title">Scholar Attendance Rate</div>
-          <div class="pt-kpi-val" style="font-size:2.6rem">${stats.rate == null ? '—' : stats.rate + '%'}</div>
+          <div class="pt-kpi-val pt-kpi-val-lg">${stats.rate == null ? '—' : stats.rate + '%'}</div>
           <div style="margin-top:1rem">
             ${quickBar('Attended', stats.attended, stats.attended + stats.absent, BRAND.pos)}
             ${quickBar('Missed', stats.absent, stats.attended + stats.absent, BRAND.neg)}
@@ -1059,7 +996,7 @@
     }
     return `<div class="pt-card" style="margin-bottom:1.1rem" id="tourCheckin">
       <div class="pt-card-title">${ICONS.handshake} Scholars to Check In With</div>
-      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">These scholars have a real pattern of missed sessions — never an NJTC-side issue, always something on our end to fix instead. A quick check-in with the scholar, a teacher, or family often turns this around. Click a name for the specific sessions missed.</p>
+      <p style="font-size:.82rem;color:var(--text-2);margin-bottom:.9rem">These scholars have a real pattern of missed sessions. A quick check-in with the scholar, a teacher, or family often turns this around. Click a name for the specific sessions missed.</p>
       ${checkIns.slice(0, 30).map(s => `
         <details class="pt-checkin">
           <summary>
@@ -1084,12 +1021,12 @@
   function distRows(entries, total, color) {
     const max = Math.max(...entries.map(([, n]) => n), 1);
     return entries.map(([label, count]) => `
-      <div class="pt-bar-row" style="align-items:flex-start">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:.78rem;color:var(--text-2);margin-bottom:.25rem">${esc(label)}</div>
-          <div class="pt-bar-track"><div class="pt-bar-fill" style="width:${Math.round(count / max * 100)}%;background:${color}"></div></div>
+      <div class="pt-dist-row">
+        <div class="pt-dist-head">
+          <span class="pt-dist-label">${esc(label)}</span>
+          <span class="pt-dist-count">${count.toLocaleString()}${total ? ` <span>(${pct(count, total)}%)</span>` : ''}</span>
         </div>
-        <div class="pt-bar-count" style="align-self:center">${count.toLocaleString()}${total ? ` <span style="opacity:.6">(${pct(count, total)}%)</span>` : ''}</div>
+        <div class="pt-bar-track"><div class="pt-bar-fill" style="width:${Math.round(count / max * 100)}%;background:${color}"></div></div>
       </div>`).join('');
   }
 
@@ -1123,7 +1060,7 @@
     const scored = pos + neu + neg;
 
     el.innerHTML = `
-      <div class="pt-grid" style="grid-template-columns:1.3fr 1fr;gap:1.1rem;margin-bottom:1.1rem">
+      <div class="pt-grid pt-grid-wide-narrow" style="margin-bottom:1.1rem">
         <div class="pt-card">
           <div class="pt-card-title">Overall Sentiment</div>
           ${sentimentRow('Positive', pos, scored, BRAND.pos)}
@@ -1149,7 +1086,8 @@
     const p = pct(n, total) || 0;
     return `<div class="pt-sentiment-row">
       <div class="pt-sentiment-label">${label}</div>
-      <div class="pt-sentiment-track"><div class="pt-sentiment-fill" style="width:${p}%;background:${color}">${p}%</div></div>
+      <div class="pt-sentiment-track"><div class="pt-sentiment-fill" style="width:${p}%;background:${color}"></div></div>
+      <div class="pt-sentiment-val">${p}%</div>
     </div>`;
   }
 
@@ -1184,14 +1122,19 @@
       const { ctx } = chart;
       chart.data.datasets.forEach((dataset, i) => {
         const meta = chart.getDatasetMeta(i);
+        // Label every point when there's room; on narrow charts label every
+        // 2nd/3rd point so the numbers never pile on top of each other.
+        const spacing = meta.data.length > 1 ? Math.abs(meta.data[1].x - meta.data[0].x) : 999;
+        const every = spacing >= 30 ? 1 : spacing >= 16 ? 2 : 3;
         meta.data.forEach((point, idx) => {
           const val = dataset.data[idx];
           if (val == null) return;
+          if (idx % every !== 0 && idx !== meta.data.length - 1) return;
           ctx.save();
           ctx.fillStyle = '#3d5166';
           ctx.font = "600 10px 'DM Sans', sans-serif";
           ctx.textAlign = 'center';
-          ctx.fillText(val + '%', point.x, point.y - 8);
+          ctx.fillText(Math.round(val) + '%', point.x, point.y - 8);
           ctx.restore();
         });
       });
@@ -1211,11 +1154,11 @@
       data: { labels, datasets: [{ label: 'Scholar Attendance Rate', data, borderColor: color, backgroundColor: color + '1a', tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: color }] },
       options: {
         responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 18 } },
+        layout: { padding: { top: 18, right: 8 } },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.y + '%' } } },
         scales: {
           x: { ticks: { maxTicksLimit: 8, font: { size: 10 } }, grid: { display: false } },
-          y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', stepSize: 25 } }
+          y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', stepSize: 25, font: { size: 10 } } }
         }
       },
       plugins: [valueLabelPlugin]

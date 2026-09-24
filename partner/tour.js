@@ -13,7 +13,7 @@
     { tab: 'summary', target: '.pt-hero', title: 'Welcome to your dashboard', text: "This is your school's own view of NJTC tutoring data — attendance and survey results, scoped to your program only. Let's take a quick look around." },
     { tab: 'summary', target: '#tourKpis', title: 'The four numbers that matter most', text: "Scholar Attendance Rate excludes excused time (school events, testing, staffing gaps) so it's never unfairly pulled down. \"Scholars to Check In With\" flags real patterns worth a conversation." },
     { tab: 'summary', target: '#tourHighlights', title: 'Session Highlights', text: 'A curated set of positive comments from scholars and tutors — a highlight reel, not a full transcript.' },
-    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Click any name here to see exactly which sessions were missed and why — always something on the school side, never an NJTC staffing issue.' },
+    { tab: 'attendance', target: '#tourCheckin', title: 'Who might need a check-in', text: 'Click any name here to see exactly which sessions were missed and why.' },
     { tab: 'attendance', target: '.pt-tabs', title: 'Survey details, one tab over', text: 'Scholar Survey Details and Tutor Survey Details break down how sessions actually felt, question by question.' },
     { tab: 'summary', target: '#glossaryBtn', title: "Not sure what a term means?", text: 'The Glossary explains every metric in plain language, including how it\'s calculated. I can explain any of it too — just ask.' }
   ];
