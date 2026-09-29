@@ -5,6 +5,14 @@
    finger-sized controls regardless of width.
    ============================================================================ */
 
+/* ── Page-header action rows: wrap at every width ─────────────────────────
+   Button rows (e.g. Pearl Ops: Tickets/Refresh/PDFs/Needs Review) grow as
+   data-dependent buttons appear; they must wrap inside the content column,
+   never push the page wider than the screen. */
+.page-header > .ph-text { flex: 1 1 320px; min-width: 0; }
+.ph-actions { flex-wrap: wrap; flex-shrink: 1; min-width: 0; max-width: 100%; justify-content: flex-end; row-gap: .5rem; }
+html, body { overflow-x: clip; }
+
 /* ── Menu button (hidden on desktop) ─────────────────────────────────────── */
 .ct-menu-btn { display: none; }
 
