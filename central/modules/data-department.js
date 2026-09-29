@@ -3215,7 +3215,7 @@
           ?('<div style="margin-top:.35rem;display:flex;flex-direction:column;gap:.3rem">'+_irlIm.tutorImpactLeaders.slice(0,3).map(function(t,i){return '<div style="display:flex;align-items:center;gap:.375rem;font-size:.7rem"><span style="font-weight:800;color:#059669;width:20px">'+['🥇','🥈','🥉'][i]+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600">'+t.tutor+'</span><span style="font-weight:700;color:#059669">+'+(t.avgGain).toFixed(1)+'pts</span></div>';}).join('')+'</div>')
           :'<div class="ecdi-val" style="color:#cbd5e1">&mdash;</div>')
         +'<div class="ecdi-card-title" style="margin-top:.4rem">Tutor Impact Leaders</div>'
-        +((!_irlIm||!_irlIm.syAligned)?'<div class="ecdi-ph-msg">When 2025&ndash;2026 academic results are added, tutor impact analytics will automatically populate.</div>':'<div class="ecdi-card-desc">Average scale score growth by tutor (min 2 scholars).</div>')
+        +((!_irlIm||!_irlIm.syAligned)?'<div class="ecdi-ph-msg">When iReady results for the same school year as Pearl Operations are added, tutor impact analytics will automatically populate.</div>':'<div class="ecdi-card-desc">Average scale score growth by tutor (min 2 scholars).</div>')
         +'</div>'
         +'</div>'; // end .ecd-insight-panel
 
@@ -7513,9 +7513,11 @@
         }).filter(function(x){ return x.n>=1; }).sort(function(a,b){ return b.n-a.n; });
       }
 
-      // Card D/E SY-alignment: Pearl operational data is SY 2025–2026.
-      // These cards activate automatically once iReady corpus includes that same year.
-      var PEARL_SY   = '2025-2026';
+      // Card D/E SY-alignment: iReady outcomes are only joined to Pearl
+      // operational data from the SAME school year (Pearl Ops' loaded period).
+      // Cards activate automatically once the iReady corpus includes that year.
+      var _poP       = (window.po && typeof window.po.getActivePeriod === 'function') ? window.po.getActivePeriod() : 'sy2627';
+      var PEARL_SY   = ({ sy2526: '2025-2026', sy2627: '2026-2027' })[_poP] || '__no_sy_match__';
       var syAligned  = allYears.indexOf(PEARL_SY) >= 0;
 
       // Card E: tutor impact leaders (only when SY-aligned; require ≥2 scholars per tutor)

@@ -339,6 +339,24 @@
       return rows;
     }
 
+    // ── GRADE RANGE REPAIR ────────────────────────────────────────────────
+    // Google Sheets auto-converts typed ranges like "5-8" into dates, so the
+    // Locations "Grade(s)" column exports e.g. "5/8/2025" for Hudson MS. Turn
+    // any date-shaped value back into the range that was typed ("Grades 5-8")
+    // and a bare number into "Grade N". Real text ("Grades 2-8", "TBD") is kept.
+    function normalizeGrades(v) {
+      const t = (v || '').trim();
+      if (!t) return '';
+      let m = t.match(/^(\d{1,2})\/(\d{1,2})\/\d{2,4}$/);                 // 5/8/2025
+      if (m) return `Grades ${+m[1]}-${+m[2]}`;
+      m = t.match(/^\d{4}-(\d{2})-(\d{2})(?:[ T][\d:]+)?$/);                 // 2025-05-08
+      if (m) return `Grades ${+m[1]}-${+m[2]}`;
+      m = t.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);                    // gviz Date(2025,4,8)
+      if (m) return `Grades ${+m[2] + 1}-${+m[3]}`;
+      if (/^\d{1,2}$/.test(t)) return `Grade ${+t}`;
+      return t;
+    }
+
     // ── PARSE SY ROWS ─────────────────────────────────────────────────────
     // Headers detected by "fee for service" in any of the first 8 rows.
     // Accepts a column map (cols) so it works for both 25-26 and 26-27 sheets.
@@ -359,6 +377,7 @@
         const district = (cols2[CM.DISTRICT] || '').replace(/\n/g, ' ').trim();
         const school   = (cols2[CM.SCHOOL]   || '').replace(/\n/g, ' ').trim();
         if (!district || !school) continue;  // INCLUSION RULE — non-negotiable
+        if (/^\s*z{3}/i.test(district) || /^\s*z{3}/i.test(school)) continue;  // "zzz" = archived, not in program
 
         const g = idx => idx >= 0 ? (cols2[idx] || '').replace(/\n/g, ' ').trim() : '';
         const n = idx => { if (idx < 0) return 0; const v = g(idx); if (!v) return 0; const f = parseFloat(v); return isNaN(f) ? 0 : f; };
@@ -374,7 +393,7 @@
           cycle: cycleRaw,
           status: g(CM.STATUS), county: g(CM.COUNTY), pm: g(CM.PM),
           act: n(CM.ACT), est: n(CM.EST),
-          content: g(CM.CONTENT), grades: g(CM.GRADES),
+          content: g(CM.CONTENT), grades: normalizeGrades(g(CM.GRADES)),
           tutorType: g(CM.TUTOR_TYPE), block: g(CM.BLOCK),
           startDate: g(CM.START), midpoint: g(CM.MIDPOINT), endpoint: g(CM.ENDPOINT),
           days: g(CM.DAYS), assessModel: g(CM.ASSESS),
@@ -440,7 +459,7 @@
       const isLegacy  = _activePeriod === 'sy2526';
       const fetchURL  = isLegacy ? SY_CSV_URL_2526 : SY_CSV_URL_2627;
       const colMap    = isLegacy ? C_2526 : C_2627;
-      const cacheKey  = isLegacy ? 'njtc_sya_2526_v1' : 'njtc_sya_2627_v2';  // v2: corrected 26-27 column map
+      const cacheKey  = isLegacy ? 'njtc_sya_2526_v1' : 'njtc_sya_2627_v3';  // v3: corrected 26-27 column map + grade repair
       C = colMap;  // update active column map
 
       // ── stale-while-revalidate: show cached data immediately ─────────
@@ -1275,17 +1294,31 @@
     const SUMMER_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832 };
     const summerCsvUrl = gid => `https://docs.google.com/spreadsheets/d/e/${SUMMER_BASE_ID}/pub?output=csv&gid=${gid}`;
 
-    // ── SY 26-27 PUBLISHED SHEET CONFIG — not yet live ──────────────────────
-    // Unlike the SY Analytics panel's site tracker, Pearl Ops has no SY26-27
-    // period yet because the workbook itself doesn't exist until Pearl issues
-    // it for the new year. When it does: paste its published-CSV base ID
-    // below, add 'sy2627' next to 'sy2526'/'summer2026' in setPeriod()'s
-    // validity check a few lines down, add a poPeriodBtn_sy2627 button next
-    // to the sy2526/summer2026 ones in central/index.html (mirror the
-    // sya panel's three-button pattern), and give refresh() a third branch —
-    // most likely a straight copy of refreshSY() pointed at SY2627_BASE_ID,
-    // since Pearl workbooks reuse the same tab/gid layout every year.
-    const SY2627_BASE_ID = null;
+    // ── SY 26-27 SHEET CONFIG — LIVE ────────────────────────────────────────
+    // "Automate: SY 26 - 27 Pearl Attendance and Surveys". Same tab layout and
+    // gids as the Summer 2026 workbook (Missed Reasons = per-attendee Attendance
+    // Detail, 14 cols; Session Details, 18 cols; Instructor / Student Surveys),
+    // so it runs through the same session-model pipeline as Summer. The
+    // Instructor/Student Attendance summary tabs are intentionally not read.
+    // Read via the sheet-ID CSV export (portal-wide pattern for shared sheets);
+    // gviz CSV is only a fallback since it can blank mixed-type cells.
+    const SY2627_SHEET_ID = '1y_g5cl4qT2qeUmuO0aeBhURAbXsuGIusgqLiBWOUDLM';
+    const SY2627_GIDS = { att: 702726038, sess: 625567780, inst: 1955492004, stu: 1245403832 };
+    const sy2627ExportUrl = gid => `https://docs.google.com/spreadsheets/d/${SY2627_SHEET_ID}/export?format=csv&gid=${gid}`;
+    const sy2627GvizUrl   = gid => `https://docs.google.com/spreadsheets/d/${SY2627_SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
+    // Pearl "Week 1" for SY 26-27 = week of the first delivered session (Mon 2026-09-14)
+    const SY2627_START = new Date(2026, 8, 14);
+
+    // Session-model periods (Summer-style workbooks) — per-period cache + tabs
+    const SESSION_MODEL = {
+      summer2026: { cacheKey: 'njtc_pearl_summer_v1', gids: SUMMER_GIDS, label: 'Summer' },
+      sy2627:     { cacheKey: 'njtc_pearl_2627_v1',   gids: SY2627_GIDS, label: 'SY26-27' },
+    };
+    const PERIOD_EYEBROW = {
+      sy2526:     'SY 2025–2026 · Archived Snapshot',
+      summer2026: '☀️ Summer 2026 · Archived Snapshot',
+      sy2627:     'SY 2026–2027 · Live Pearl Data',
+    };
 
     const REFRESH_MS = 5 * 60 * 1000;
 
@@ -1425,7 +1458,11 @@
     //
     // School year start: Monday 2025-08-25 (first Monday of SY25-26).
     // Pearl's "Week 1" = week of 2025-08-25.
-    const SY_START = new Date(2025, 7, 25); // Aug 25 2025 = Week 1 Monday
+    const SY2526_START = new Date(2025, 7, 25); // Aug 25 2025 = SY 25-26 Week 1 Monday
+    // Active period's Week 1 Monday — switched by setPeriod(). SY 25-26 and
+    // Summer keep the original SY 25-26 anchor (unchanged behavior).
+    let SY_START = SY2627_START;
+    function _weekAnchorFor(period) { return period === 'sy2627' ? SY2627_START : SY2526_START; }
 
     function parseDateStr(dateStr) {
       if (!dateStr) return null;
@@ -1617,6 +1654,48 @@
       return 'other';
     }
 
+    // Pearl prefixes retired/archived schools and districts with "zzz" — not
+    // part of any program, so they're excluded from every Pearl view.
+    function _isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+    function _stripArchived() {
+      const keep = (rows, sIdx, dIdx) => rows.filter(r => !_isArchivedName(r[sIdx]) && !_isArchivedName(r[dIdx]));
+      _attRows  = keep(_attRows,  ATT.SCHOOL,    ATT.DISTRICT);
+      _sessRows = keep(_sessRows, SESS.SCHOOL,   SESS.DISTRICT);
+      _stuRows  = keep(_stuRows,  STU_S.SCHOOL,  STU_S.DISTRICT);
+      _instRows = keep(_instRows, INST_S.SCHOOL, INST_S.DISTRICT);
+    }
+
+    // Staff who separated during the SAME year as the Pearl data loaded
+    // (keyed by normFn(name)):
+    //   SY 25-26    → HR Master List 2025-2026 non-active staff
+    //   SY 26-27    → Onsite 26-27 Terminations tab, "School Year 26-27" cycle
+    //   Summer 2026 → Onsite 26-27 Terminations tab, "Summer 2026" cycle
+    // Last year's HR list must never drive this year's flags (rehires).
+    function _periodLongLabel() {
+      return { sy2526: 'SY 2025-2026', summer2026: 'Summer 2026', sy2627: 'SY 2026-2027' }[_activePeriod] || 'SY 2026-2027';
+    }
+    function _separatedStaffMap(normFn) {
+      const out = {};
+      try {
+        if (_activePeriod === 'sy2526') {
+          (window.HR_EMPS||[]).forEach(e => {
+            if (e.s === 'Active') return;
+            if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
+            const nk = normFn(e.n||'');
+            if (nk) out[nk] = { date: e._termDate||'', reason: e._termReason||'' };
+          });
+        } else {
+          const cyc = _activePeriod === 'summer2026' ? /summer 2026/i : /school year/i;
+          (window._njtcOnsiteTerms2627||[]).forEach(t => {
+            if (!cyc.test(t.cycle || '')) return;
+            const nk = normFn(t.name||'');
+            if (nk) out[nk] = { date: t.termDate||'', reason: t.termReason||'' };
+          });
+        }
+      } catch(ignore) {}
+      return out;
+    }
+
     function getSISeverity(reason) {
       return SI_SEVERITY[reason] || 'medium';
     }
@@ -1668,22 +1747,24 @@
     // Survey rows — Summer's raw columns already match STU_S / INST_S 0-13
     // 1:1, so this just filters blank rows and fills the derived WEEK column
     // (Summer's raw export has no week column, same as SY's session rows).
-    function buildSummerStuRows(stuRaw) {
+    function buildSummerStuRows(stuRaw, weekFn) {
+      const wk = weekFn || summerWeekKeyFromDateStr;
       const out = [];
       for (const r of stuRaw) {
         if (!r[SUM_STU_SURV.SESS_ID]) continue;
         const row = r.slice(0, 14);
-        row[STU_S.WEEK] = summerWeekKeyFromDateStr(row[STU_S.DATE]);
+        row[STU_S.WEEK] = wk(row[STU_S.DATE]);
         out.push(row);
       }
       return out;
     }
-    function buildSummerInstRows(instRaw) {
+    function buildSummerInstRows(instRaw, weekFn) {
+      const wk = weekFn || summerWeekKeyFromDateStr;
       const out = [];
       for (const r of instRaw) {
         if (!r[SUM_INST_SURV.SESS_ID]) continue;
         const row = r.slice(0, 14);
-        row[INST_S.WEEK] = summerWeekKeyFromDateStr(row[INST_S.DATE]);
+        row[INST_S.WEEK] = wk(row[INST_S.DATE]);
         out.push(row);
       }
       return out;
@@ -1841,7 +1922,9 @@
 
     // Period toggle — 'sy2526' (default; concluded, shown as an archived
     // snapshot — see SY2627_BASE_ID above) | 'summer2026'
-    let _activePeriod = 'sy2526';
+    // SY 26-27 is the live default; SY 25-26 and Summer 2026 are archived and
+    // only fetched when a user explicitly switches to them.
+    let _activePeriod = 'sy2627';
 
     // Scholar survey stream state
     // _stuAggScores: final scores from a COMPLETE stream run (or restored from cache)
@@ -2368,20 +2451,10 @@
     // sitting in _attRows/_sessRows/_stuRows/_instRows.
     function setPeriod(period) {
       if (_activePeriod === period) return;
-      if (period !== 'sy2526' && period !== 'summer2026') return;
+      if (!PERIOD_EYEBROW[period]) return;
       _activePeriod = period;
-
-      ['sy2526', 'summer2026'].forEach(p => {
-        const btn = document.getElementById('poPeriodBtn_' + p);
-        if (btn) btn.classList.toggle('active', p === period);
-      });
-      // SY 25-26 has concluded — label it "Archived Snapshot" like the SY
-      // Analytics panel does, not "Live", until a real SY26-27 Pearl workbook
-      // exists to add as a third period (see SY2627_BASE_ID below).
-      const eyebrow = document.getElementById('poEyebrow');
-      if (eyebrow) eyebrow.textContent = period === 'summer2026'
-        ? '☀️ Summer 2026 · Live Pearl Data'
-        : 'SY 2025–2026 · Archived Snapshot';
+      SY_START = _weekAnchorFor(period);
+      _syncPeriodUI();
 
       // Reset all derived state — do NOT mix SY and Summer records together.
       _attRows = []; _sessRows = []; _stuRows = []; _instRows = [];
@@ -2389,18 +2462,37 @@
       _view = 'schools'; _selSchool = null; _selPerson = null;
       _stuStreamComplete = false; _stuAggScores = null;
 
-      refresh(true);
+      // Fresh per-period cache (≤15 min) is reused; otherwise fetch.
+      refresh(false);
+    }
+
+    function _syncPeriodUI() {
+      ['sy2526', 'summer2026', 'sy2627'].forEach(p => {
+        const btn = document.getElementById('poPeriodBtn_' + p);
+        if (btn) btn.classList.toggle('active', p === _activePeriod);
+      });
+      const eyebrow = document.getElementById('poEyebrow');
+      if (eyebrow) eyebrow.textContent = PERIOD_EYEBROW[_activePeriod];
     }
 
     // ── FETCH ALL TABS — DISPATCH BY PERIOD ─────────────────────────────
+    // A refresh that finishes after the user switched periods discards its
+    // rows and re-runs for the now-active period (see _periodChangedDuring).
     async function refresh(force = false) {
-      return _activePeriod === 'summer2026' ? refreshSummer(force) : refreshSY(force);
+      return SESSION_MODEL[_activePeriod] ? refreshSessionModel(force) : refreshSY(force);
+    }
+    function _periodChangedDuring(startPeriod) {
+      if (startPeriod === _activePeriod) return false;
+      _loading = false;
+      setTimeout(() => refresh(true), 0);
+      return true;
     }
 
     // ── FETCH ALL TABS — SY 25-26 (existing, unchanged) ───────────────────
     async function refreshSY(force = false) {
       if (_loading) return;
       _loading = true;
+      const _startPeriod = _activePeriod;
 
       // ── stale-while-revalidate: show cached data instantly ──────────
       if (!force) {
@@ -2412,6 +2504,7 @@
             _sessRows = d.sess || [];
             _stuRows  = d.stu  || [];
             _instRows = d.inst || [];
+            _stripArchived();
             buildIndexes();
             _loaded = true;
             setSyncState(_pc.fresh ? 'live' : 'stale');
@@ -2442,6 +2535,7 @@
           fetchTabWithRetry(GIDS.inst, bust, 25000, 'inst', 3),
           fetchTabWithRetry(GIDS.sess, bust, 30000, 'sess', 3),
         ]);
+        if (_periodChangedDuring(_startPeriod)) { if (btn) btn.disabled = false; return; }
 
         // ── Parse resolved tabs ─────────────────────────────────────────
         // Yield to main thread before each heavy synchronous parse so the
@@ -2487,6 +2581,7 @@
         _streamStuInBackground(''); // 2PACX endpoint rejects &t= cache-bust params
 
         _lastFetch = new Date();
+        _stripArchived();
         buildIndexes();
 
         // ── Cache all successfully loaded tabs ──────────────────────────
@@ -2532,19 +2627,45 @@
       return res.text();
     }
 
-    async function refreshSummer(force = false) {
+    // ── FETCH ALL TABS — SESSION-MODEL PERIODS (Summer 2026, SY 26-27) ──
+    async function fetchSY2627Tab(gid, bust, timeoutMs, label) {
+      if (!gid) { console.warn('[Pearl Ops][SY26-27] GID missing for tab:', label); return ''; }
+      try {
+        const res = await fetch(sy2627ExportUrl(gid) + (bust || ''), { signal: AbortSignal.timeout(timeoutMs) });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        if (/^\s*<(!doctype|html)/i.test(text)) throw new Error('HTML response (sheet not shared?)');
+        return text;
+      } catch (e) {
+        console.warn('[Pearl Ops][SY26-27] export failed for', label, '— trying gviz:', e.message);
+        const res2 = await fetch(sy2627GvizUrl(gid) + (bust || ''), { signal: AbortSignal.timeout(timeoutMs) });
+        if (!res2.ok) throw new Error('HTTP ' + res2.status + ' tab=' + label);
+        return res2.text();
+      }
+    }
+
+    async function refreshSessionModel(force = false) {
       if (_loading) return;
       _loading = true;
+      const _startPeriod = _activePeriod;
+      const cfg   = SESSION_MODEL[_startPeriod];
+      const isSY  = _startPeriod === 'sy2627';
+      const tag   = '[Pearl Ops][' + cfg.label + ']';
+      const fetchTab = isSY ? fetchSY2627Tab : fetchSummerTab;
+      const weekFn   = isSY ? weekKeyFromDateStr : summerWeekKeyFromDateStr;
 
       if (!force) {
-        const _pc = NJTC_CACHE.get('njtc_pearl_summer_v1');
+        const _pc = NJTC_CACHE.get(cfg.cacheKey);
         if (_pc && _pc.data) {
           try {
             _attRows  = _pc.data.att  || [];
             _sessRows = _pc.data.sess || [];
             _stuRows  = _pc.data.stu  || [];
             _instRows = _pc.data.inst || [];
+            _stuStreamComplete = true;
+            _stripArchived();
             buildIndexes();
+            _loaded = true;
             setSyncState(_pc.fresh ? 'live' : 'stale');
             populateFilters();
             renderView();
@@ -2552,6 +2673,7 @@
             if (btn2) btn2.disabled = false;
             _loading = false;
             if (_pc.fresh) return;
+            _loading = true;
           } catch(e) { /* fall through to network */ }
         }
       }
@@ -2562,51 +2684,58 @@
       try {
         const bust = force ? ('&t=' + Date.now()) : '';
         const [attResult, sessResult, instResult, stuResult] = await Promise.allSettled([
-          fetchSummerTab(SUMMER_GIDS.att,  bust, 30000, 'summer-att'),
-          fetchSummerTab(SUMMER_GIDS.sess, bust, 30000, 'summer-sess'),
-          fetchSummerTab(SUMMER_GIDS.inst, bust, 25000, 'summer-inst'),
-          fetchSummerTab(SUMMER_GIDS.stu,  bust, 30000, 'summer-stu'),
+          fetchTab(cfg.gids.att,  bust, 30000, 'att'),
+          fetchTab(cfg.gids.sess, bust, 30000, 'sess'),
+          fetchTab(cfg.gids.inst, bust, 25000, 'inst'),
+          fetchTab(cfg.gids.stu,  bust, 30000, 'stu'),
         ]);
+        if (_periodChangedDuring(_startPeriod)) { if (btn) btn.disabled = false; return; }
 
-        // "Missed Reasons" is now the real per-attendee Attendance Detail tab —
-        // same 14-column layout as SY (User/Role/Session/.../Missed Reason/.../
-        // Pearl User ID), so it's parsed with the exact same ATT map and CSV
-        // parser SY uses. No translation layer needed for attendance data.
+        // "Missed Reasons" is the real per-attendee Attendance Detail tab —
+        // same 14-column layout as SY 25-26's ATT map (cols A-N), parsed with
+        // the exact same ATT map and CSV parser. No translation layer needed.
+        await new Promise(r => setTimeout(r, 0));
         const attRaw  = attResult.status  === 'fulfilled' ? parseCSVLimit(attResult.value, ATT_MAX_COL).slice(1) : [];
         const sessRaw = sessResult.status === 'fulfilled' ? parseCSV(sessResult.value).slice(1) : [];
         const instRaw = instResult.status === 'fulfilled' ? parseCSV(instResult.value).slice(1) : [];
         const stuRaw  = stuResult.status  === 'fulfilled' ? parseCSV(stuResult.value).slice(1)  : [];
-        if (attResult.status  !== 'fulfilled') console.warn('[Pearl Ops][Summer] attendance/missed-reasons tab failed:', attResult.reason && attResult.reason.message);
-        if (sessResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] session tab failed:', sessResult.reason && sessResult.reason.message);
-        if (instResult.status !== 'fulfilled') console.warn('[Pearl Ops][Summer] instructor survey tab failed:', instResult.reason && instResult.reason.message);
-        if (stuResult.status  !== 'fulfilled') console.warn('[Pearl Ops][Summer] student survey tab failed:', stuResult.reason && stuResult.reason.message);
+        if (attResult.status  !== 'fulfilled') console.warn(tag, 'attendance/missed-reasons tab failed:', attResult.reason && attResult.reason.message);
+        if (sessResult.status !== 'fulfilled') console.warn(tag, 'session tab failed:', sessResult.reason && sessResult.reason.message);
+        if (instResult.status !== 'fulfilled') console.warn(tag, 'instructor survey tab failed:', instResult.reason && instResult.reason.message);
+        if (stuResult.status  !== 'fulfilled') console.warn(tag, 'student survey tab failed:', stuResult.reason && stuResult.reason.message);
 
-        // Summer's Missed Reasons tab has no WEEK column (unlike SY's, col AA) —
-        // derive it from each row's own Session Date, same fallback SY uses when
-        // its WEEK column is blank, just against a Summer-specific start date.
-        _resolveSummerStart(attRaw, ATT.SESS_DATE);
-        for (const r of attRaw) {
-          if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) r[ATT.WEEK] = summerWeekKeyFromDateStr(r[ATT.SESS_DATE]);
+        // The Missed Reasons tab has no WEEK column — derive it from each row's
+        // Session Date. SY 26-27 uses its fixed Week 1 (2026-09-14); Summer
+        // derives its anchor from the earliest session date.
+        if (!isSY) _resolveSummerStart(attRaw, ATT.SESS_DATE);
+        const attRows = attRaw.filter(r => r && (r[ATT.USER] || r[ATT.USER_ID]));
+        for (const r of attRows) {
+          if (!r[ATT.WEEK] && r[ATT.SESS_DATE]) r[ATT.WEEK] = weekFn(r[ATT.SESS_DATE]);
         }
 
-        _attRows  = attRaw;
+        _attRows  = attRows;
         _sessRows = buildSummerSessRows(sessRaw);
-        _stuRows  = buildSummerStuRows(stuRaw);
-        _instRows = buildSummerInstRows(instRaw);
-        _stuStreamComplete = true; // Summer surveys aren't streamed — the fetched set is the complete set
+        _stuRows  = buildSummerStuRows(stuRaw, weekFn);
+        _instRows = buildSummerInstRows(instRaw, weekFn);
+        _stuStreamComplete = true; // surveys fetched in full — not streamed
 
         _lastFetch = new Date();
+        _stripArchived();
         buildIndexes();
+        _loaded = true;
 
+        // Cache only while it fits comfortably in localStorage — a year-long
+        // SY sheet outgrows it, and an oversized write would evict other
+        // portal caches. Oversized → skip caching (always fetch fresh).
         try {
-          NJTC_CACHE.set('njtc_pearl_summer_v1', {
-            att: _attRows, sess: _sessRows, stu: _stuRows, inst: _instRows,
-          });
+          const payload = { att: _attRows, sess: _sessRows, stu: _stuRows, inst: _instRows };
+          if (JSON.stringify(payload).length < 2000000) NJTC_CACHE.set(cfg.cacheKey, payload);
+          else NJTC_CACHE.bust(cfg.cacheKey);
         } catch(e) {}
 
         const allTabsFailed = !_attRows.length && !_sessRows.length && !_instRows.length;
         if (allTabsFailed) {
-          console.warn('[Pearl Ops][Summer] All tabs failed to load.');
+          console.warn(tag, 'All tabs failed to load.');
           setSyncState('error');
         } else {
           setSyncState('live');
@@ -2614,7 +2743,7 @@
           renderView();
         }
       } catch(e) {
-        console.warn('[Pearl Ops][Summer] Fetch failed:', e.message);
+        console.warn(tag, 'Fetch failed:', e.message);
         setSyncState('error');
       }
       if (btn) btn.disabled = false;
@@ -2636,6 +2765,7 @@
         var rows = [];
         var schools = obj.schools;
         for (var school in schools) {
+          if (_isArchivedName(school) || _isArchivedName(schools[school].district)) continue;
           var sc = schools[school];
           // Each entry: [conf, enjoy, learn, overall, comment, sessId, userId, district, week]
           for (var i = 0; i < sc.entries.length; i++) {
@@ -2663,6 +2793,7 @@
         // before any stream runs. This gives cross-dept score consistency.
         var restoredScores = { globalSum: 0, globalCnt: 0, bySchool: {} };
         for (var rs in schools) {
+          if (_isArchivedName(rs) || _isArchivedName(schools[rs].district)) continue;
           var rsc = schools[rs];
           var sSum = 0, sCnt = 0;
           for (var ri = 0; ri < rsc.entries.length; ri++) {
@@ -2720,6 +2851,9 @@
         var globalSum = 0, globalCnt = 0;
 
         while (true) {
+          // SY 25-26-only stream: stop if the user moved to another period so
+          // archived survey rows never land in another year's view.
+          if (_activePeriod !== 'sy2526') { try { reader.cancel(); } catch(_c) {} return; }
           var chunk = await reader.read();
           if (chunk.done) break;
           // Decode chunk (stream=true: handles multi-byte chars across chunk boundaries)
@@ -2750,6 +2884,8 @@
             var sessId  = (cols[11] || '').trim();
             var userId  = (cols[12] || '').trim();
             var week    = (cols[22] || '').trim();
+            // Archived ("zzz") schools/districts never count — skip row and its scores
+            if (_isArchivedName(school) || _isArchivedName(district)) continue;
             // Build slim row for _stuRows (same structure _restoreStuAggCache returns)
             var r = [];
             r[2]=cols[2]; r[3]=cols[3]; r[4]=cols[4]; r[5]=cols[5];
@@ -2807,7 +2943,7 @@
             r2[2]=cols2[2]; r2[3]=cols2[3]; r2[4]=cols2[4]; r2[5]=cols2[5];
             r2[6]=(cols2[6]||'').trim(); r2[8]=(cols2[8]||'').trim(); r2[9]=(cols2[9]||'').trim();
             r2[11]=(cols2[11]||'').trim(); r2[12]=(cols2[12]||'').trim(); r2[22]=(cols2[22]||'').trim();
-            _stuRows.push(r2);
+            if (!_isArchivedName(r2[8]) && !_isArchivedName(r2[9])) _stuRows.push(r2);
           }
         }
         console.log('[Pearl Ops] STU stream complete:', _stuRows.length, 'rows,', Object.keys(streamAgg).length, 'schools');
@@ -2915,7 +3051,8 @@
     // Fallback: full text load (when ReadableStream not available)
     function _processStuText(text, bust) {
       try {
-        _stuRows = parseCSVLimit(text, STU_MAX_COL).slice(1);
+        if (_activePeriod !== 'sy2526') return;
+        _stuRows = parseCSVLimit(text, STU_MAX_COL).slice(1).filter(r => !_isArchivedName(r[STU_S.SCHOOL]) && !_isArchivedName(r[STU_S.DISTRICT]));
         console.log('[Pearl Ops] STU full text load:', _stuRows.length, 'rows');
         _stuStreamComplete = true;   // full text = complete data
         buildIndexes();
@@ -4802,17 +4939,9 @@
           </div>`;
       }
 
-      // ── Terminated staff lookup for SEP badge (SY 2025-2026) ─────────────
+      // ── Terminated staff lookup for SEP badge (same year as loaded Pearl data) ──
       const _normTNhr = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
-      const _termMapHR = {};
-      try {
-        (window.HR_EMPS||[]).forEach(e => {
-          if (e.s === 'Active') return;
-          if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
-          const nk = _normTNhr(e.n||'');
-          if (nk) _termMapHR[nk] = true;
-        });
-      } catch(ignore) {}
+      const _termMapHR = _separatedStaffMap(_normTNhr);  // same-year separations
       const _termKeysHR = Object.keys(_termMapHR);
       const _isTermHR = name => {
         const tk = _normTNhr(name);
@@ -4831,11 +4960,11 @@
       const separatedStaffHTML = termCountHR > 0 ? `
           <div class="sg-section" style="border-color:#bfdbfe">
             <div class="sg-section-hd" style="background:#eff6ff;color:#1e40af;border-bottom-color:#bfdbfe">
-              <span>👤 ${termCountHR} Separated Staff in Pearl Data &mdash; SY 2025-2026</span>
+              <span>👤 ${termCountHR} Separated Staff in Pearl Data &mdash; ${_periodLongLabel()}</span>
               <span style="font-weight:400;font-size:.7rem">No longer active with NJTC &middot; their sessions still count in network totals &middot; export Pearl Ops PDF for adjusted KPIs</span>
             </div>
             <div style="padding:.75rem 1rem;font-size:.8rem;color:#1e3a8a;line-height:1.6;background:#f0f9ff;border-bottom:1px solid #bfdbfe">
-              ${termCountHR} tutor${termCountHR!==1?'s':''}  tagged <strong style="background:#eff6ff;color:#1d4ed8;padding:.1rem .35rem;border-radius:3px;border:1px solid #bfdbfe;font-size:.7rem">SEP</strong> in the table below have been separated from NJTC for SY 2025-2026 but remain in Pearl data. Their attendance and survey records still contribute to all network aggregate metrics. Export the Pearl Ops PDF for a full breakdown with KPIs adjusted to exclude these staff.
+              ${termCountHR} tutor${termCountHR!==1?'s':''}  tagged <strong style="background:#eff6ff;color:#1d4ed8;padding:.1rem .35rem;border-radius:3px;border:1px solid #bfdbfe;font-size:.7rem">SEP</strong> in the table below have been separated from NJTC for ${_periodLongLabel()} but remain in Pearl data. Their attendance and survey records still contribute to all network aggregate metrics. Export the Pearl Ops PDF for a full breakdown with KPIs adjusted to exclude these staff.
             </div>
           </div>` : '';
 
@@ -6777,15 +6906,7 @@
 
       // ── Terminated tutor lookup for [SEP] badges (field report scope) ────
       const _frNorm = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
-      const _frTermMap = {};
-      try {
-        (window.HR_EMPS||[]).forEach(e => {
-          if (e.s === 'Active') return;
-          if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
-          const nk = _frNorm(e.n||'');
-          if (nk) _frTermMap[nk] = true;
-        });
-      } catch(_frE) {}
+      const _frTermMap = _separatedStaffMap(_frNorm);  // same-year separations
       const _frTermKeys = Object.keys(_frTermMap);
       const _frIsTermHR = name => {
         if (!name) return false;
@@ -7534,13 +7655,13 @@
       ].filter(Boolean).join(' | ') || 'No filters — full dataset';
 
       const ts = new Date().toISOString().replace(/[:.]/g,'-').slice(0,16);
-      const periodTag = _activePeriod === 'summer2026' ? 'Summer2026_' : 'SY2526_';
+      const periodTag = ({summer2026:'Summer2026_', sy2627:'SY2627_'}[_activePeriod] || 'SY2526_');
       const filename = `NJTC_Pearl_Export_${periodTag}${isFiltered ? 'Filtered_' : ''}${ts}`;
 
       if (format === 'csv') {
         const NL = '\n';
         let csvContent = 'NJTC Pearl Operations Export' + NL
-          + 'Period: ' + (_activePeriod === 'summer2026' ? 'Summer 2026' : 'SY 25-26') + NL
+          + 'Period: ' + (({summer2026:'Summer 2026', sy2627:'SY 26-27'}[_activePeriod] || 'SY 25-26')) + NL
           + 'Generated: ' + new Date().toLocaleString() + NL
           + 'Filters: ' + filterDesc + NL + NL;
         for (const sheet of sheets) {
@@ -7582,7 +7703,7 @@
       // Cover / Meta sheet
       const metaData = [
         ['NJTC Pearl Operations — Data Export'],
-        ['Period', _activePeriod === 'summer2026' ? 'Summer 2026' : 'SY 25-26'],
+        ['Period', ({summer2026:'Summer 2026', sy2627:'SY 26-27'}[_activePeriod] || 'SY 25-26')],
         ['Generated', new Date().toLocaleString()],
         ['Filters Applied', filterDesc],
         [''],
@@ -7650,7 +7771,7 @@
         <div style="background:var(--surface);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:520px;max-width:95vw;overflow:hidden;">
           <div style="background:linear-gradient(135deg,#1e3a5f,#2a5298);padding:1.25rem 1.5rem;display:flex;justify-content:space-between;align-items:center;">
             <div>
-              <div style="color:#fff;font-weight:700;font-size:1.1rem;">📥 Export Pearl Data — ${_activePeriod === 'summer2026' ? '☀️ Summer 2026' : 'SY 25-26'}</div>
+              <div style="color:#fff;font-weight:700;font-size:1.1rem;">📥 Export Pearl Data — ${({summer2026:'☀️ Summer 2026', sy2627:'🎓 SY 26-27'}[_activePeriod] || 'SY 25-26')}</div>
               <div style="color:rgba(255,255,255,.7);font-size:.8125rem;margin-top:.2rem;">${isFiltered ? 'Filtered export' : 'Full dataset export'}</div>
             </div>
             <button onclick="document.getElementById('poExportModal').style.display='none'" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:1.1rem;">✕</button>
@@ -8349,19 +8470,11 @@
         const scholCaptureTopN    = [...scholWithCap].sort((a,b) => b.scholCaptureRate - a.scholCaptureRate).slice(0, 3);
         const scholCaptureBottomN = [...scholWithCap].sort((a,b) => a.scholCaptureRate - b.scholCaptureRate).slice(0, 5);
 
-        // ── Terminated staff lookup — SY 2025-2026 from HR Master List ────────
+        // ── Terminated staff lookup — same year as loaded Pearl data ──────────
         // Normalise: lowercase, strip non-alpha, sort tokens (same algo as _hrOverlayPearl).
         // Snapshot-safe: works identically against live HR_EMPS or a future frozen snapshot.
         const _normTN = s => (s||'').toLowerCase().replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean).sort().join(' ');
-        const _termNameMap = {};
-        try {
-          (window.HR_EMPS||[]).forEach(e => {
-            if (e.s === 'Active') return;
-            if (!(e.y||[]).includes('2025-2026') && !(e._liveYears||[]).includes('2025-2026')) return;
-            const nk = _normTN(e.n||'');
-            if (nk) _termNameMap[nk] = { date: e._termDate||'', reason: e._termReason||'' };
-          });
-        } catch(ignore) {}
+        const _termNameMap = _separatedStaffMap(_normTN);  // same-year separations
         const _termKeys = Object.keys(_termNameMap);
         // Returns the termination record for a tutor name, or null if not terminated
         const _termEntry = name => {
@@ -8548,7 +8661,8 @@
           schools, districts, missedReasonCounts,
           stuSurveyAvg, instSurveyAvg, commentCounts,
           topTutors: tutorList.slice(0, 20),
-          // Terminated staff tagging (SY 2025-2026 only, from HR Master List)
+          // Terminated staff tagging (same-year separations — see _separatedStaffMap)
+          periodLabel: _periodLongLabel(),
           termTutors,                                    // full array of SEP tutors in Pearl data
           exTermTutorAttRate, exTermTutorCaptureRate,    // KPIs with SEP staff removed
           exTermActiveTutors: exTermTutorList.length,    // non-SEP tutor count
@@ -8557,6 +8671,8 @@
         };
       },
 
+      // Which period's data is loaded ('sy2627' | 'sy2526' | 'summer2026') — cheap
+      getActivePeriod: function() { return _activePeriod; },
       getStats: function() {
         // Compute directly from the internal data arrays
         var stats = { loaded: false, scholAttPct: null, instAttPct: null, sessions: null,
@@ -9367,5 +9483,10 @@
   window.renderProgrammingAnalytics = renderProgrammingAnalytics;
   window.sya                        = sya;
   window.po                         = po;
+  // Short label for the Pearl period currently loaded ("SY 2026-27", …)
+  window._njtcPearlSYLabel = function () {
+    var p = po && po.getActivePeriod ? po.getActivePeriod() : 'sy2627';
+    return ({ sy2526: 'SY 2025-26', summer2026: 'Summer 2026', sy2627: 'SY 2026-27' })[p] || 'SY 2026-27';
+  };
 
 })();

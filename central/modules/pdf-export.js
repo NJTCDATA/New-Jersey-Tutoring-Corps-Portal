@@ -378,7 +378,7 @@
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(180, 195, 210);
-    doc.text('Generated ' + generated + '  -  SY 2025-2026', PW / 2, 57, { align: 'center' });
+    doc.text('Generated ' + generated + '  -  ' + (data.periodLabel || 'SY 2026-2027'), PW / 2, 57, { align: 'center' });
     doc.setTextColor(...C.body);
 
     // ── KPI cards — Row 1 ─────────────────────────────────────────────────
@@ -801,20 +801,20 @@
     }
 
     // ── Separated Staff Impact ─────────────────────────────────────────────
-    // Only renders when >=1 SY 2025-2026 terminated tutor is found in Pearl data.
+    // Only renders when >=1 same-year separated tutor is found in Pearl data.
     // Shows who they are, what their incomplete surveys contribute, and side-by-side
     // KPIs: "As Reported" (all tutors) vs "Excl. Separated Staff".
     // Future-proof: section silently skips when termTutors is empty or undefined.
     const _termT = (data.termTutors || []);
     if (_termT.length > 0) {
       if (y > BOTTOM_LIMIT - 20) { doc.addPage(); y = TOP_START; }
-      y = secHeader(y, 'SEPARATED STAFF IN PEARL DATA  -  SY 2025-2026', [79, 70, 229]);  // indigo accent
+      y = secHeader(y, 'SEPARATED STAFF IN PEARL DATA  -  ' + (data.periodLabel || 'SY 2026-2027').toUpperCase(), [79, 70, 229]);  // indigo accent
 
       // Context note
       doc.setFontSize(8.5); doc.setFont('helvetica', 'italic'); doc.setTextColor(...C.muted);
       const _sepNoteLines = doc.splitTextToSize(safeStr(
         _termT.length + ' tutor' + (_termT.length !== 1 ? 's' : '') +
-        ' in this report are no longer active with NJTC for SY 2025-2026 per the HR Master List.' +
+        ' in this report separated from NJTC during ' + (data.periodLabel || 'SY 2026-2027') + '.' +
         ' Their Pearl session, attendance, and survey records still count in all aggregate metrics' +
         ' shown throughout this report. [SEP] marks these staff wherever they appear.' +
         ' The panel below shows adjusted KPIs with these staff excluded.'

@@ -85,6 +85,11 @@
   window.NJTC_GLOSSARY = GLOSSARY;
 
   let BUNDLE = null;
+  // Current (live) season bundle + any archived seasons loaded on demand.
+  // Archived season files are immutable, so the browser may cache them.
+  let CURRENT_BUNDLE = null;
+  const SEASON_BUNDLES = {};
+  let _seasonSession = null;
   let EXCLUSIONS = []; // partner/highlight-exclusions.json
   const charts = {};
   // Client-side drill-down for broad-scope accounts (Network/Regional/Admin).
@@ -154,12 +159,119 @@
     }
 
     window.NJTC_BUNDLE = BUNDLE; // read-only handoff to pie-bot.js
+    CURRENT_BUNDLE = BUNDLE;
+    if (BUNDLE.season) SEASON_BUNDLES[BUNDLE.season] = BUNDLE;
+    _seasonSession = session;
     EXCLUSIONS = await CORE.loadExclusions();
     personalize();
+    initSeasonBar();
     initScopeFilter();
     renderAll();
     hideLoading();
     document.dispatchEvent(new CustomEvent('partnerBundleReady', { detail: BUNDLE }));
+  }
+
+  // ── School-year toggle ─────────────────────────────────────────────────
+  // Live year loads with the page (small bundle). A prior year's file is
+  // fetched only when a user switches to it, then kept in memory.
+  function seasonName(s) { return 'SY ' + s; }
+  function initSeasonBar() {
+    const bar = document.getElementById('seasonBar');
+    const seasons = (CURRENT_BUNDLE && CURRENT_BUNDLE.seasons) || [];
+    if (!bar || seasons.length < 2) return;
+    bar.hidden = false;
+    renderSeasonButtons();
+  }
+  function renderSeasonButtons() {
+    const wrap = document.getElementById('seasonButtons');
+    const note = document.getElementById('seasonNote');
+    const seasons = CURRENT_BUNDLE.seasons || [];
+    wrap.innerHTML = seasons.map(s => {
+      const on = s === BUNDLE.season;
+      const live = s === CURRENT_BUNDLE.season;
+      return `<button type="button" data-season="${esc(s)}" aria-pressed="${on}" style="font:inherit;font-size:.8rem;font-weight:700;padding:.35rem .8rem;border-radius:20px;cursor:pointer;border:1.5px solid ${on ? '#003087' : '#dde3ec'};background:${on ? '#003087' : '#fff'};color:${on ? '#fff' : '#334155'}">${esc(seasonName(s))}${live ? ' · current' : ''}</button>`;
+    }).join('');
+    wrap.querySelectorAll('button').forEach(b => b.addEventListener('click', () => switchSeason(b.dataset.season)));
+    const archived = BUNDLE.season !== CURRENT_BUNDLE.season;
+    note.hidden = !archived;
+    if (archived) note.textContent = 'Viewing archived ' + seasonName(BUNDLE.season) + ' — read-only snapshot';
+  }
+  async function switchSeason(season) {
+    if (!CURRENT_BUNDLE || season === BUNDLE.season) return;
+    let next = SEASON_BUNDLES[season];
+    if (!next) {
+      const file = (CURRENT_BUNDLE.archives || {})[season];
+      if (!file) return;
+      const note = document.getElementById('seasonNote');
+      note.hidden = false; note.textContent = 'Loading ' + seasonName(season) + '…';
+      try {
+        // Archive files never change once written — cache per season, not per load
+        const res = await fetch(`${BASE}/partner/data/${file}?v=${encodeURIComponent(season)}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        next = await res.json();
+        next.identity = next.identity || CURRENT_BUNDLE.identity;
+        next.generatedAt = null;
+        SEASON_BUNDLES[season] = next;
+      } catch (e) {
+        note.textContent = 'Could not load ' + seasonName(season) + ' right now — please try again.';
+        return;
+      }
+    }
+    BUNDLE = next;
+    window.NJTC_BUNDLE = BUNDLE;
+    SCOPE.district = 'ALL'; SCOPE.school = 'ALL'; SCOPE.week = 'ALL';
+    resetScopeBar();
+    renderSeasonButtons();
+    initScopeFilter();
+    renderAll();
+    document.dispatchEvent(new CustomEvent('partnerBundleReady', { detail: BUNDLE }));
+  }
+  // Replace the drill-down selects with fresh clones so re-initializing for
+  // another season never stacks duplicate change listeners.
+  function resetScopeBar() {
+    ['scopeDistrict', 'scopeSchool', 'scopeWeek'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const c = el.cloneNode(false);
+      c.hidden = true; c.innerHTML = '';
+      el.replaceWith(c);
+    });
+    const bar = document.getElementById('scopeBar'); if (bar) bar.hidden = true;
+    const badge = document.getElementById('scopeActive'); if (badge) badge.hidden = true;
+  }
+
+  // Year-over-year card — summaries are computed server-side per partner
+  // scope with the same methodology as this dashboard (seasonSummary()).
+  function trendCardHtml() {
+    const t = (CURRENT_BUNDLE && CURRENT_BUNDLE.trend) || [];
+    if (t.length < 2) return '';
+    const fmtN = v => v == null ? '—' : Number(v).toLocaleString();
+    const rows = t.slice().sort((a, b) => a.season < b.season ? 1 : -1);
+    const cur = rows[0], prev = rows[1];
+    // Change is shown only for like-for-like measures (rates/averages); counts
+    // for the in-progress current year are not comparable to a full prior year.
+    const d = (a, b, unit, dp) => {
+      if (a == null || b == null) return '<span style="color:#94a3b8">—</span>';
+      const diff = Math.round((a - b) * Math.pow(10, dp)) / Math.pow(10, dp);
+      return `<span style="font-size:.72rem;font-weight:700;color:${diff >= 0 ? '#0d6e3a' : '#b91c1c'}">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='} ${Math.abs(diff).toFixed(dp)}${unit}</span>`;
+    };
+    const line = (label, key, fmt, cmp) => `<tr><td style="padding:.4rem .5rem;color:#475569">${label}</td>${rows.map(r => `<td style="padding:.4rem .5rem;text-align:center;font-weight:700;color:#0a1628">${fmt(r[key])}</td>`).join('')}<td style="padding:.4rem .5rem;text-align:center">${cmp ? d(cur[key], prev[key], cmp.unit, cmp.dp) : '<span style="font-size:.7rem;color:#94a3b8">year in progress</span>'}</td></tr>`;
+    return `<section class="pt-card" style="margin-bottom:1rem;overflow-x:auto">
+      <h3 style="margin:0 0 .25rem">Year over Year</h3>
+      <p style="margin:0 0 .75rem;font-size:.8rem;color:#64748b">Your full program scope, ${esc(seasonName(prev.season))} compared with ${esc(seasonName(cur.season))} (school year to date). Same attendance methodology in both years.</p>
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead><tr style="color:#64748b;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em"><th style="text-align:left;padding:.4rem .5rem">Measure</th>${rows.map(r => `<th style="padding:.4rem .5rem">${esc(seasonName(r.season))}${r.season === CURRENT_BUNDLE.season ? ' (to date)' : ''}</th>`).join('')}<th style="padding:.4rem .5rem">Change</th></tr></thead>
+        <tbody>
+          ${line('Scholar attendance rate', 'scholarAttendanceRate', v => v == null ? '—' : v + '%', { unit: ' pts', dp: 1 })}
+          ${line('Scholars loving their sessions', 'lovingPct', v => v == null ? '—' : v + '%', { unit: ' pts', dp: 1 })}
+          ${line('Scholar survey average (of 5)', 'scholarSurveyAvg', v => v == null ? '—' : v.toFixed(2), { unit: '', dp: 2 })}
+          ${line('Scholars served (attended ≥1 session)', 'scholarsServed', fmtN, null)}
+          ${line('Sessions delivered', 'sessionsDelivered', fmtN, null)}
+          ${line('Tutoring hours delivered', 'tutoredMinutes', v => v == null ? '—' : Math.round(v / 60).toLocaleString(), null)}
+        </tbody>
+      </table>
+      <p style="margin:.5rem 0 0;font-size:.72rem;color:#94a3b8">The current year is in progress, so totals grow through the year — attendance rate and survey average are the like-for-like comparisons.</p>
+    </section>`;
   }
 
   // ── Drill-down filter (Network/Regional/Admin accounts only see this if
@@ -794,7 +906,12 @@
     // PIE reads window.NJTC_BUNDLE directly — keep it in sync with whatever
     // the drill-down filter currently shows, so PIE never quotes a wider
     // (or narrower) number than what's on screen.
-    window.NJTC_BUNDLE = { ...BUNDLE, attendance: scopedAttendance(), scholarSurveys: scopedScholarSurveys(), tutorSurveys: scopedTutorSurveys() };
+    window.NJTC_BUNDLE = { ...BUNDLE, attendance: scopedAttendance(), scholarSurveys: scopedScholarSurveys(), tutorSurveys: scopedTutorSurveys(), sessions: hasSessionData() ? scopedSessions() : [] };
+
+    // Year-over-year card at the top of Summary (full scope, not drill-down)
+    const yoy = trendCardHtml();
+    const sum = document.getElementById('view-summary');
+    if (yoy && sum) sum.insertAdjacentHTML('afterbegin', yoy);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -813,9 +930,10 @@
     }
 
     const stats = scholarStats(attAll);
-    const uniqueScholars = new Set(stats.rows.map(r => (r[ATT.USER_ID] || '').trim()).filter(Boolean)).size;
+    // Shared definitions (partner-report.js) — identical to the PDF and YoY card
+    const uniqueScholars = CORE.servedScholars(attAll);
     const checkIns = scholarsToCheckIn(stats.rows);
-    const sessions = new Set(attAll.map(r => r[ATT.SESSION]).filter(Boolean)).size;
+    const sessions = CORE.deliveredSessions(hasSessionData() ? scopedSessions() : [], attAll);
 
     let scholarPos = 0, scholarScored = 0;
     scholarSurveys.forEach(r => {

@@ -15,11 +15,12 @@
   function _buildExecDashboardInner(dept, el) {
 
     // ── Period selector state (persisted on el.dataset) ───────────────
-    const execPeriod = el.dataset.execPeriod || 'sy2526';
-    const _isLive    = execPeriod !== 'sy2526'; // Summer 2026 or SY 26-27 — Pearl/iReady not yet available
+    // SY 26-27 is the live default; SY 25-26 / Summer 2026 are archived views.
+    const execPeriod = el.dataset.execPeriod || 'sy2627';
+    const _isLive    = execPeriod !== 'sy2526'; // Summer 2026 or SY 26-27 — deep Pearl builds / iReady are SY 25-26-only
     const _syaStats  = (window._syaStats && window._syaStats[execPeriod]) || null;
-    const _periodLabel = execPeriod === 'sy2526' ? '📁 SY 25-26 Archived' : execPeriod === 'summer2026' ? '☀️ Summer 2026' : '🎓 SY 26-27';
-    const _periodLong  = execPeriod === 'sy2526' ? 'SY 25-26 Archived Snapshot' : execPeriod === 'summer2026' ? 'Summer 2026 · Live Data' : 'SY 26-27 · Live Data';
+    const _periodLabel = execPeriod === 'sy2526' ? '📁 SY 25-26 Archived' : execPeriod === 'summer2026' ? '☀️ Summer 2026 Archived' : '🎓 SY 26-27';
+    const _periodLong  = execPeriod === 'sy2526' ? 'SY 25-26 Archived Snapshot' : execPeriod === 'summer2026' ? 'Summer 2026 · Archived Snapshot' : 'SY 26-27 · Live Data';
 
     // ── Data sources ──────────────────────────────────────────────────
     const po   = (typeof window.po   !== 'undefined') ? window.po   : null;
@@ -32,7 +33,7 @@
     // numbers. This applies to SY 25-26 too, now that po can also be sitting on Summer data.
     const _poLiveStats = po ? po.getStats() : null;
     const _pearlPeriodMatches = !!(_poLiveStats && _poLiveStats.activePeriod === execPeriod && _poLiveStats.loaded);
-    if (po && !_pearlPeriodMatches && (execPeriod === 'sy2526' || execPeriod === 'summer2026') && typeof po.setPeriod === 'function') {
+    if (po && !_pearlPeriodMatches && typeof po.setPeriod === 'function') {
       po.setPeriod(execPeriod);
     }
     const _pearlForPeriod = _pearlPeriodMatches;
@@ -313,7 +314,32 @@
         </div>`}
       </div>
 
-      ${_isLive ? `
+      ${execPeriod === 'sy2627' && poStats ? `
+      <div class="ecd-divider"><div class="ecd-divider-txt">Operational Health · SY 26-27</div><div class="ecd-divider-line"></div></div>
+      <div class="ecd-2col">
+        <div class="ecd-card">
+          <div class="ecd-card-title">Attendance Rates</div>
+          <div class="ecd-att-row" title="Scholar Attendance Rate: Attended ÷ (Attended + Absent) × 100. Excludes service interruptions. Benchmark: 80%. Source: Pearl Operations · SY 26-27.">
+            <div class="ecd-att-lbl">Scholar</div>
+            <div class="ecd-att-track"><div class="ecd-att-fill ${scholAttCls(scholAtt||0)}" style="width:${scholPct}%"></div></div>
+            <div class="ecd-att-pct">${fp(scholAtt)}</div>
+          </div>
+          <div class="ecd-att-row" title="Tutor Attendance Rate: Attended ÷ (Attended + Absent) × 100 for Instructor rows. Benchmark: 90%. Source: Pearl Operations · SY 26-27.">
+            <div class="ecd-att-lbl">Tutor</div>
+            <div class="ecd-att-track"><div class="ecd-att-fill ${tutAttCls(tutorAtt||0)}" style="width:${tutPct}%"></div></div>
+            <div class="ecd-att-pct">${fp(tutorAtt)}</div>
+          </div>
+        </div>
+        <div class="ecd-card">
+          <div class="ecd-card-title">Program Signals</div>
+          <div style="font-size:.8rem;line-height:1.9;color:#334155">
+            <div>Service interruptions logged: <strong>${siCount != null ? fc(siCount) : '—'}</strong></div>
+            <div>Scholar survey average: <strong>${survAvg != null ? survAvg + ' / 5' : '—'}</strong></div>
+            <div>Sessions on record: <strong>${sessions != null ? fc(sessions) : '—'}</strong></div>
+          </div>
+          <div style="font-size:.7rem;color:#94a3b8;margin-top:.5rem">Scholar tiers, school leaderboard, and iReady academic data will appear after fall diagnostics.</div>
+        </div>
+      </div>` : _isLive ? `
       <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:12px;padding:1.5rem;text-align:center;color:#64748b;margin-bottom:.75rem">
         <div style="font-size:2rem;margin-bottom:.5rem">🔒</div>
         <div style="font-weight:700;font-size:.875rem;margin-bottom:.35rem">Operational &amp; Academic Data — SY 25-26 Only</div>

@@ -37,11 +37,130 @@
       'American Paradigm Schools'
     ]
   };
-  // Same defaults as the "Refresh Partner Portal Data" workflow inputs.
-  const SY_LABEL = '2025-26';
-  const SY_START = '2025-07-01';
-  const PEARL_2PACX = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
+  // ── School-year seasons (one source of truth for the partner dashboard,
+  // Central's partner PDF, and scripts/build-partner-data.js) ──────────────
+  //  2026-27 — live. Sheet-ID CSV export; Summer-style tab layout (Session
+  //            Details has a "Program" column), normalized below to the
+  //            canonical row shapes/date formats every consumer expects.
+  //  2025-26 — archived. Published 2PACX workbook, already canonical.
   const PEARL_GIDS = { att: 702726038, inst: 1955492004, stu: 1245403832, sess: 625567780 };
+  const SEASONS = {
+    '2026-27': { label: '2026-27', start: '2026-07-01', end: null, sheetId: '1y_g5cl4qT2qeUmuO0aeBhURAbXsuGIusgqLiBWOUDLM', gids: PEARL_GIDS, layout: 'sy2627' },
+    '2025-26': { label: '2025-26', start: '2025-07-01', end: '2026-06-30', pub2pacx: '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K', gids: PEARL_GIDS, layout: 'legacy', archived: true },
+  };
+  const CURRENT_SEASON = '2026-27';
+  const SEASON_ORDER = ['2026-27', '2025-26']; // newest first
+  const SY_LABEL = CURRENT_SEASON;
+  const SY_START = SEASONS[CURRENT_SEASON].start;
+
+  // CSV URL(s) for a season's tab — sheet-ID export first, gviz fallback.
+  function seasonUrls(season, gid) {
+    const S = SEASONS[season];
+    if (S.sheetId) {
+      const b = 'https://docs.google.com/spreadsheets/d/' + S.sheetId;
+      return [b + '/export?format=csv&gid=' + gid, b + '/gviz/tq?tqx=out:csv&gid=' + gid];
+    }
+    return ['https://docs.google.com/spreadsheets/d/e/' + S.pub2pacx + '/pub?output=csv&gid=' + gid];
+  }
+
+  // Pearl marks retired/archived schools and districts with a "zzz" prefix —
+  // not part of any program, so they never reach any dashboard or report.
+  function isArchivedName(v) { return /^\s*z{3}/i.test(v || ''); }
+
+  // Canonical formats (the SY 25-26 published export): dates "MM/DD/YYYY",
+  // attendance start "h:mm AM", timestamps "MM/DD/YYYY h:mm:ss AM". Session
+  // minute lookups key on these strings, so every season must match exactly.
+  function _dt(v) {
+    const t = String(v == null ? '' : v).trim();
+    if (!t) return null;
+    let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (m) return { y: +m[1], mo: +m[2], d: +m[3], h: m[4] != null ? +m[4] : null, mi: m[5] != null ? +m[5] : 0, s: m[6] != null ? +m[6] : 0 };
+    m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?)?/i);
+    if (m) {
+      let h = m[4] != null ? +m[4] : null;
+      if (h != null && m[7]) { const pm = /pm/i.test(m[7]); if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12; }
+      return { y: m[3].length === 2 ? 2000 + +m[3] : +m[3], mo: +m[1], d: +m[2], h, mi: m[5] != null ? +m[5] : 0, s: m[6] != null ? +m[6] : 0 };
+    }
+    return null;
+  }
+  const _p2 = n => String(n).padStart(2, '0');
+  const _hm = (h, mi) => ((h % 12) || 12) + ':' + _p2(mi) + ' ' + (h < 12 ? 'AM' : 'PM');
+  function canonDate(v) { const x = _dt(v); return x ? _p2(x.mo) + '/' + _p2(x.d) + '/' + x.y : String(v == null ? '' : v).trim(); }
+  function canonDateTime(v) {
+    const x = _dt(v); if (!x) return String(v == null ? '' : v).trim();
+    if (x.h == null) return _p2(x.mo) + '/' + _p2(x.d) + '/' + x.y;
+    const hm = _hm(x.h, x.mi);
+    return _p2(x.mo) + '/' + _p2(x.d) + '/' + x.y + ' ' + hm.replace(' ', ':' + _p2(x.s) + ' ');
+  }
+  function canonTime(v) {
+    const t = String(v == null ? '' : v).trim();
+    const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AP]M)?$/i);
+    if (!m) return t;
+    let h = +m[1];
+    if (m[3]) { const pm = /pm/i.test(m[3]); if (h === 12) h = pm ? 12 : 0; else if (pm) h += 12; }
+    return _hm(h, +m[2]);
+  }
+
+  // raw = { att, inst, stu, sess } — each INCLUDING its header row. Returns
+  // header-less canonical rows (SESS layout for sessions), minus "zzz" rows.
+  function normalizeSeason(season, raw) {
+    const S = SEASONS[season];
+    const body = rows => (rows || []).slice(1);
+    const keep = (rows, dIdx, sIdx) => rows.filter(r => !isArchivedName(r[dIdx]) && !isArchivedName(r[sIdx]));
+    let att = keep(body(raw.att), ATT.DISTRICT, ATT.SCHOOL);
+    let inst = keep(body(raw.inst), INST.DISTRICT, INST.SCHOOL);
+    let stu = keep(body(raw.stu), STU.DISTRICT, STU.SCHOOL);
+    let sess;
+    if (S.layout === 'sy2627') {
+      att = att.map(r => { const o = r.slice(); o[ATT.SESS_DATE] = canonDate(r[ATT.SESS_DATE]); o[ATT.PLAN_START] = canonTime(r[ATT.PLAN_START]); return o; });
+      inst = inst.map(r => { const o = r.slice(); o[INST.DATE] = canonDateTime(r[INST.DATE]); return o; });
+      stu = stu.map(r => { const o = r.slice(); o[STU.DATE] = canonDateTime(r[STU.DATE]); return o; });
+      // Session Details: map by header name onto the canonical SESS positions
+      const hdr = ((raw.sess || [])[0] || []).map(h => String(h || '').trim().toLowerCase());
+      const col = (name, dflt) => { const i = hdr.indexOf(name); return i >= 0 ? i : dflt; };
+      const C = { TITLE: col('title', 0), INSTRUCTOR: col('instructor', 1), STUDENTS: col('students', 2), LOCATION: col('location', 3),
+        STATUS: col('status', 5), ATTENDANCE: col('attendance', 6), START: col('scheduled start', 7), SCHED_DUR: col('scheduled duration', 8),
+        ACTUAL_DUR: col('actual duration', 9), SUBJECT: col('subject', 10), GRADE: col('grade', 11), SCHOOL: col('school', 12),
+        DISTRICT: col('district', 13), REGION: col('region', 14), SESS_ID: col('pearl session id', 15), INST_ID: col('pearl instructor id', 16), STU_IDS: col('pearl student ids', 17) };
+      sess = body(raw.sess).filter(r => (r[C.SESS_ID] || r[C.TITLE] || '').trim()).map(r => {
+        const o = [];
+        Object.keys(C).forEach(k => { o[SESS[k]] = (r[C[k]] == null ? '' : String(r[C[k]])); });
+        o[SESS.START] = canonDateTime(o[SESS.START]);
+        return o;
+      });
+    } else {
+      sess = body(raw.sess);
+    }
+    sess = keep(sess, SESS.DISTRICT, SESS.SCHOOL);
+    return { att, inst, stu, sess };
+  }
+
+  function inSeason(season, dateStr) {
+    const S = SEASONS[season];
+    const d = parseDate(dateStr);
+    if (!d) return true; // unparseable/blank date — keep rather than silently drop
+    const st = parseDate(S.start), en = S.end ? parseDate(S.end + 'T23:59:59') : null;
+    return (!st || d >= st) && (!en || d <= en);
+  }
+
+  // Year-level summary (for year-over-year trend cards) — same methodology as
+  // the dashboard: scholarStats() rate, active = scholars with ≥1 attended
+  // session, delivered = Completed sessions, minutes = their durations.
+  function seasonSummary(bundle) {
+    const att = bundle.attendance || [], sess = bundle.sessions || [], stu = bundle.scholarSurveys || [];
+    const st = scholarStats(att);
+    const schools = new Set(st.rows.map(r => (r[ATT.SCHOOL] || '').trim()).filter(Boolean));
+    const ov = stu.map(r => parseFloat(r[STU.OVERALL])).filter(v => !isNaN(v) && v > 0);
+    return {
+      season: bundle.season, scholarAttendanceRate: st.rate, attended: st.attended, absent: st.absent,
+      scholarsServed: servedScholars(att), schools: schools.size,
+      sessionsDelivered: deliveredSessions(sess, att), tutoredMinutes: sess.length ? deliveredMinutes(sess) : null,
+      lovingPct: lovingPct(stu),
+      scholarSurveyAvg: ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length * 100) / 100 : null,
+      scholarSurveys: stu.length,
+    };
+  }
+
 
   const SCHOLAR_MISS_REASONS = new Set([
     'Absent', 'Scholar declined attending tutoring session',
@@ -138,6 +257,44 @@
     });
     const total = attended + absent;
     return { rows, attended, absent, excused, total, rate: pct(attended, total) };
+  }
+
+  // ── Shared headline definitions (dashboard tiles, PDF, year-over-year) ───
+  // Scholars served = unique scholars with ≥1 attended (or late) session —
+  // same as Central's "Active Scholars"; rostered-only scholars don't count.
+  function servedScholars(attRows) {
+    const ids = new Set();
+    attRows.forEach(r => { if (isScholarRow(r) && classifyAtt(r) === 'attended') { const id = (r[ATT.USER_ID] || '').trim(); if (id) ids.add(id); } });
+    return ids.size;
+  }
+  // Sessions delivered = unique Completed Pearl sessions (Session Details).
+  // Without session data: unique session occurrences (title + school + date)
+  // that had ≥1 attended scholar. A title alone repeats every meeting.
+  function deliveredSessions(sessRows, attRows) {
+    if (sessRows && sessRows.length) {
+      const ids = new Set();
+      sessRows.forEach(r => { if ((r[SESS.STATUS] || '').trim() === 'Completed') ids.add((r[SESS.SESS_ID] || '').trim() || ((r[SESS.TITLE] || '') + '|' + (r[SESS.SCHOOL] || '') + '|' + (r[SESS.START] || ''))); });
+      return ids.size;
+    }
+    const occ = new Set();
+    (attRows || []).forEach(r => { if (isScholarRow(r) && classifyAtt(r) === 'attended') occ.add((r[ATT.SESSION] || '').trim() + '|' + (r[ATT.SCHOOL] || '').trim() + '|' + (r[ATT.SESS_DATE] || '').trim()); });
+    return occ.size;
+  }
+  // Completed-session minutes, each Pearl session counted once.
+  function deliveredMinutes(sessRows) {
+    const seen = new Set(); let mins = 0;
+    (sessRows || []).forEach(r => {
+      if ((r[SESS.STATUS] || '').trim() !== 'Completed') return;
+      const sid = (r[SESS.SESS_ID] || '').trim(); const m = parseInt(r[SESS.DUR_MINS], 10) || 0;
+      if (sid && m > 0 && !seen.has(sid)) { seen.add(sid); mins += m; }
+    });
+    return mins;
+  }
+  // % of scholar surveys rating the session 4+ of 5 ("loving their sessions")
+  function lovingPct(stuRows) {
+    let pos = 0, n = 0;
+    (stuRows || []).forEach(r => { const v = parseFloat(r[STU.OVERALL]); if (isNaN(v)) return; n++; if (v >= 4) pos++; });
+    return n ? pct(pos, n) : null;
   }
 
   function scholarWeekly(scholarRows) {
@@ -445,8 +602,8 @@
       stats,
       ytd,
       trend,
-      uniqueScholars: new Set(stats.rows.filter(r => classifyAtt(r) === 'attended').map(r => (r[ATT.USER_ID] || '').trim()).filter(Boolean)).size,
-      sessions: new Set(att.map(r => r[ATT.SESSION]).filter(Boolean)).size,
+      uniqueScholars: servedScholars(att),
+      sessions: deliveredSessions(sessPlace, att),
       sessionMinutes,
       reasons: scholarMissedReasons(stats.rows).slice(0, 6),
       checkIns: scholarsToCheckIn(throughWeek(attPlace, ATT.SESS_DATE, scope.week).filter(isScholarRow)),
@@ -755,18 +912,23 @@
     return rows;
   }
 
-  let pearlPromise = null;
-  function loadPearl(force) {
-    if (!pearlPromise || force) {
-      const url = gid => `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
-      const get = (gid, soft) => fetch(url(gid)).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(t => { if (t.trim().startsWith('<')) throw new Error('Pearl sheet not public'); return parseCSV(t).slice(1); })
-        .catch(e => { if (soft) return []; throw e; });
-      pearlPromise = Promise.all([get(PEARL_GIDS.att), get(PEARL_GIDS.inst), get(PEARL_GIDS.stu), get(PEARL_GIDS.sess, true)])
-        .then(([att, inst, stu, sess]) => ({ att, inst, stu, sess, fetchedAt: new Date().toISOString() }))
-        .catch(e => { pearlPromise = null; throw e; });
+  const pearlPromises = {};
+  function loadPearl(force, season) {
+    season = season || CURRENT_SEASON;
+    if (!pearlPromises[season] || force) {
+      const S = SEASONS[season];
+      const get = (gid, soft) => {
+        const urls = seasonUrls(season, gid);
+        const tryAt = i => fetch(urls[i]).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+          .then(t => { if (t.trim().startsWith('<')) throw new Error('Pearl sheet not shared'); return parseCSV(t); })
+          .catch(e => { if (i + 1 < urls.length) return tryAt(i + 1); throw e; });
+        return tryAt(0).catch(e => { if (soft) return []; throw e; });
+      };
+      pearlPromises[season] = Promise.all([get(S.gids.att), get(S.gids.inst), get(S.gids.stu), get(S.gids.sess, true)])
+        .then(([att, inst, stu, sess]) => Object.assign(normalizeSeason(season, { att, inst, stu, sess }), { season, fetchedAt: new Date().toISOString() }))
+        .catch(e => { delete pearlPromises[season]; throw e; });
     }
-    return pearlPromise;
+    return pearlPromises[season];
   }
 
   function scopeMatches(entry, district, school) {
@@ -776,12 +938,7 @@
     if (entry.scopeType === 'school') return district === entry.district && (entry.schools || []).includes(school);
     return false;
   }
-  const syCutoff = parseDate(SY_START);
-  function inCurrentSY(dateStr) {
-    if (!syCutoff) return true;
-    const d = parseDate(dateStr);
-    return d ? d >= syCutoff : true;
-  }
+  function inCurrentSY(dateStr) { return inSeason(CURRENT_SEASON, dateStr); }
   function parseDurationMins(s) {
     if (!s) return 0;
     s = String(s).toLowerCase();
@@ -792,10 +949,11 @@
   }
 
   function bundleForEntry(pearl, entry) {
-    const f = (rows, dIdx, sIdx, dateIdx) => rows.filter(r => scopeMatches(entry, (r[dIdx] || '').trim(), (r[sIdx] || '').trim()) && inCurrentSY(r[dateIdx]));
+    const season = pearl.season || CURRENT_SEASON;
+    const f = (rows, dIdx, sIdx, dateIdx) => rows.filter(r => scopeMatches(entry, (r[dIdx] || '').trim(), (r[sIdx] || '').trim()) && inSeason(season, r[dateIdx]));
     return {
       generatedAt: pearl.fetchedAt,
-      season: SY_LABEL,
+      season,
       identity: { name: entry.name, title: entry.title, level: entry.level, district: entry.district, schools: entry.schools, region: entry.region },
       attendance: f(pearl.att, ATT.DISTRICT, ATT.SCHOOL, ATT.SESS_DATE),
       tutorSurveys: f(pearl.inst, INST.DISTRICT, INST.SCHOOL, INST.DATE),
@@ -807,8 +965,10 @@
   window.NJTCPartnerReport = {
     ATT, INST, STU, SESS, SCHOLAR_MISS_REASONS, TUTOR_MISS_REASONS,
     parseDate, weekBucket, weekRangeLabel, pct, scoped,
-    isScholarRow, classifyAtt, scholarStats, scholarWeekly, scholarMissedReasons, scholarsToCheckIn,
+    isScholarRow, classifyAtt, scholarStats, scholarWeekly, servedScholars, deliveredSessions, deliveredMinutes, lovingPct, scholarMissedReasons, scholarsToCheckIn,
     curateHighlights, loadExclusions, allWeeks, buildReportModel, scopeLabel,
-    generatePDF, loadPearl, bundleForEntry, scopeMatches
+    generatePDF, loadPearl, bundleForEntry, scopeMatches,
+    SEASONS, CURRENT_SEASON, SEASON_ORDER, seasonUrls, isArchivedName, normalizeSeason, inSeason, seasonSummary,
+    canonDate, canonDateTime, canonTime, parseCSV, parseDurationMins, REGION_DISTRICTS
   };
 })();

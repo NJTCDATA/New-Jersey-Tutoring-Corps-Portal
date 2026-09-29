@@ -1,6 +1,6 @@
 {
-    "version": "2025-26",
-    "updated": "2026-05-19",
+    "version": "2026-27",
+    "updated": "2026-09-29",
     "users": [
         {
             "id": "sYhmrq",
@@ -104,7 +104,7 @@
                 {
                     "district": "iLearn CMO",
                     "schools": [
-                        "LEA - iLearn Passaic MS"
+                        "LEA - iLearn Hudson MS"
                     ]
                 }
             ]
@@ -209,9 +209,9 @@
             "role": "Apprentice",
             "assignments": [
                 {
-                    "district": "Middlesex County STEM Charter School",
+                    "district": "iLearn CMO",
                     "schools": [
-                        "Middlesex County STEM Charter School"
+                        "LEA - iLearn Clifton MS"
                     ]
                 }
             ]
@@ -387,6 +387,20 @@
             ]
         },
         {
+            "id": "kHbkoq",
+            "name": "Chinenye Uzoma",
+            "firstName": "Chinenye",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Passaic MS"
+                    ]
+                }
+            ]
+        },
+        {
             "id": "tFVeJq",
             "name": "Christina Funderburk",
             "firstName": "Christina",
@@ -397,6 +411,20 @@
                     "schools": [
                         "PCSST- 8-12 Campus",
                         "PCSST- Wabash Ave Campus"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "1FBktX",
+            "name": "Christopher Pazmino",
+            "firstName": "Christopher",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Hudson MS"
                     ]
                 }
             ]
@@ -562,6 +590,20 @@
             ]
         },
         {
+            "id": "R3ZHWq",
+            "name": "Elliot Kemp",
+            "firstName": "Elliot",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Paterson ES"
+                    ]
+                }
+            ]
+        },
+        {
             "id": "1XN2Ls",
             "name": "Eric Zeidman",
             "firstName": "Eric",
@@ -570,7 +612,7 @@
                 {
                     "district": "Hamilton Township",
                     "schools": [
-                        "Grice Middle School"
+                        "zzzGrice Middle School"
                     ]
                 }
             ]
@@ -629,6 +671,20 @@
                         "Clyde S Jennings Elementary School",
                         "Stoy Elementary School",
                         "Van Sciver Elementary School"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "xllEvq",
+            "name": "Gabriel Vega",
+            "firstName": "Gabriel",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Passaic MS"
                     ]
                 }
             ]
@@ -857,7 +913,7 @@
                 {
                     "district": "iLearn CMO",
                     "schools": [
-                        "LEA - iLearn Hudson MS"
+                        "LEA - iLearn Passaic MS"
                     ]
                 }
             ]
@@ -937,7 +993,7 @@
             "id": "Oz65Nq",
             "name": "Katharine Samberg-Lawrence",
             "firstName": "Katharine",
-            "role": "Substitute",
+            "role": "Dual Role",
             "assignments": [
                 {
                     "district": "Haddon Township",
@@ -1030,7 +1086,7 @@
             "id": "tR7T7q",
             "name": "Lakeeda Sessoms",
             "firstName": "Lakeeda",
-            "role": "Dual Role",
+            "role": "Instructional Coach",
             "assignments": [
                 {
                     "district": "iLearn CMO",
@@ -1117,9 +1173,9 @@
             "role": "Tutor",
             "assignments": [
                 {
-                    "district": "Paterson",
+                    "district": "iLearn CMO",
                     "schools": [
-                        "PCSST- Wabash Ave Campus"
+                        "LEA - iLearn Paterson Silk City"
                     ]
                 }
             ]
@@ -1460,6 +1516,20 @@
             ]
         },
         {
+            "id": "Kt0flq",
+            "name": "Nina Okere",
+            "firstName": "Nina",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Paterson MS"
+                    ]
+                }
+            ]
+        },
+        {
             "id": "84MtBq",
             "name": "NJTC Attendance",
             "firstName": "NJTC",
@@ -1537,6 +1607,20 @@
             ]
         },
         {
+            "id": "6ykdsq",
+            "name": "Rachael Lefkovic",
+            "firstName": "Rachael",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Clifton MS"
+                    ]
+                }
+            ]
+        },
+        {
             "id": "1T9eP0",
             "name": "Rebeka Lange",
             "firstName": "Rebeka",
@@ -1574,6 +1658,20 @@
                     "district": "iLearn CMO",
                     "schools": [
                         "LEA - iLearn Paterson MS"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "1jJ8FQ",
+            "name": "Ryan Pirog",
+            "firstName": "Ryan",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Passaic MS"
                     ]
                 }
             ]
@@ -1685,8 +1783,7 @@
                 {
                     "district": "iLearn CMO",
                     "schools": [
-                        "LEA - iLearn Clifton ES",
-                        "LEA - iLearn Paterson Silk City"
+                        "LEA - iLearn Clifton ES"
                     ]
                 }
             ]
@@ -1881,6 +1978,20 @@
                     "district": "Penns Grove - Carneys Point Regional School District",
                     "schools": [
                         "Paul W Carleton Elementary"
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "1xzjNy",
+            "name": "Tova Holloway",
+            "firstName": "Tova",
+            "role": "Tutor",
+            "assignments": [
+                {
+                    "district": "iLearn CMO",
+                    "schools": [
+                        "LEA - iLearn Paterson Silk City"
                     ]
                 }
             ]

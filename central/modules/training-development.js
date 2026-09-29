@@ -2540,7 +2540,9 @@
     if (ov) ov.style.display = 'none';
   };
 
-  // Pearl data for profile panel (shared 5-min cache keyed by GID)
+  // Pearl data for the SY 25-26 cohort profile panel — reads the archived SY 25-26
+  // Pearl workbook on purpose (these profiles are last year's cohort).
+  // Shared 5-min cache keyed by GID.
   const _APPR_PEARL_BASE = '2PACX-1vQ1iC8NZFJt3iinGUEqftKtP32N43axi_JN_RQI36EBUdhZS0PaZRwd-1AJT3bEVe6cqHA0tCA3vb5K';
   const _APPR_ATT_GID    = 702726038;
   const _APPR_STU_GID    = 1245403832;
@@ -3193,7 +3195,7 @@
       }
 
       const liveHTML = `
-        ${_apprSection('Pearl Operations — Attendance', '📊', `
+        ${_apprSection('Pearl Operations — Attendance (SY 25-26)', '📊', `
           <div style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap">
             <div style="text-align:center;background:#f9fafb;border-radius:8px;padding:.7rem 1rem;min-width:90px">
               <div style="font-size:1.5rem;font-weight:700;color:${attColor}">${attRate !== null ? attRate+'%' : '—'}</div>

@@ -386,7 +386,7 @@
           operational: fmtN(po.sessions)+' sessions delivered and logged. Pearl captures subject, attendance, and duration for every session.'
         };
         cards.push({color:'green',label:'Program Delivery',
-          headline:fmtN(po.sessions)+' tutoring sessions delivered — SY 2025-26',
+          headline:fmtN(po.sessions)+' tutoring sessions delivered — '+(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27'),
           body:sFrames2[tone]||sFrames2.policy, source:'Pearl Session Details · Live Google Sheet'});
       }
 
@@ -547,8 +547,8 @@
       }
 
       var po=getPo(); var kpi=getKPI(); var irl=getIRL(); var ld=getLD();
-      if(sya.sites)         snaps.push({n:sya.sites,l:'Active School Sites',s:'SY 25-26 · Pearl'});
-      if(sya.districts)     snaps.push({n:sya.districts,l:'Districts Served',s:'SY 25-26 · Pearl'});
+      if(sya.sites)         snaps.push({n:sya.sites,l:'Active School Sites',s:(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27')+' · Pearl'});
+      if(sya.districts)     snaps.push({n:sya.districts,l:'Districts Served',s:(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27')+' · Pearl'});
       if(po&&po.sessions)   snaps.push({n:fmtN(po.sessions),l:'Sessions Delivered',s:'Pearl'});
       var _hrSnap=(typeof HR_EMPS!=='undefined'&&HR_EMPS.length)?HR_EMPS.filter(function(e){return e.s==='Active';}).length:(po?po.activeTutors:null);
       if(_hrSnap)           snaps.push({n:_hrSnap,l:'Active Tutors',s:'HR Roster'});
@@ -714,7 +714,7 @@
         var barCols=['#0050c8','#0d6e3a','#7c3aed','#b45309','#0891b2','#be185d','#374151','#6b7280'];
         html+='<div class="adv-chart-card">'+
           '<div class="adv-chart-title">&#127760; Scholar Demographics — Race &amp; Ethnicity</div>'+
-          '<div style="font-size:.73rem;color:var(--muted);margin-bottom:.6rem">Unique scholars by race/ethnicity · Source: Pearl Attendance Data · SY 2025-26</div>'+
+          '<div style="font-size:.73rem;color:var(--muted);margin-bottom:.6rem">Unique scholars by race/ethnicity · Source: Pearl Attendance Data · '+(window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27')+'</div>'+
           '<div style="display:grid;gap:.45rem">'+
           rE.map(function(e,i){
             var pct=rTot>0?Math.round(e[1]/rTot*100):0;
@@ -1135,7 +1135,7 @@
         <div style="flex-shrink:0;font-size:1.25rem">📡</div>
         <div style="flex-shrink:0">
           <div class="kn-data-strip-label">Live Program Pulse</div>
-          <div style="font-size:.75rem;color:var(--muted)">Current SY 2025–26 data from Pearl</div>
+          <div style="font-size:.75rem;color:var(--muted)">Current ${window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : "SY 2026-27"} data from Pearl</div>
         </div>
         <div class="kn-data-strip-divider" style="margin:0 .5rem"></div>
         ${items.map((it, i) => `
