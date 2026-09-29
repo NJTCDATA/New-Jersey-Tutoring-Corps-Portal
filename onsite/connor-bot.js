@@ -85,7 +85,7 @@
     .connor-hdr-status { display:inline-flex; align-items:center; gap:0.28rem; font-size:0.64rem; color:#22c55e; font-weight:600; }
     .connor-hdr-status::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:#22c55e; }
     .connor-kb-badge { font-size:0.58rem; background:rgba(255,184,28,0.15); border:1px solid rgba(255,184,28,0.3); border-radius:999px; padding:0.15rem 0.5rem; color:rgba(255,184,28,0.8); font-weight:600; white-space:nowrap; }
-    .connor-close { background:rgba(255,255,255,0.07); border:none; border-radius:8px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:rgba(255,255,255,0.45); font-size:0.95rem; flex-shrink:0; transition:background 0.15s,color 0.15s; }
+    .connor-close { background:rgba(255,255,255,0.07); border:none; border-radius:8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:rgba(255,255,255,0.45); font-size:0.95rem; flex-shrink:0; transition:background 0.15s,color 0.15s; }
     .connor-close:hover { background:rgba(255,255,255,0.14); color:#fff; }
 
     .connor-msgs { flex:1; overflow-y:auto; padding:0.875rem 1rem; display:flex; flex-direction:column; gap:0.75rem; scroll-behavior:smooth; }
