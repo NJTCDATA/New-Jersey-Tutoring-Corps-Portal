@@ -8909,6 +8909,13 @@ ${scholarsHTML || '<div style="padding:1.5rem;color:#94a3b8;text-align:center">N
       tag:  'KPI · Strategy',
     },
     {
+      name: 'Annual Goal Database (SY 26-27)',
+      type: 'sheets',
+      url:  'https://docs.google.com/spreadsheets/d/199cuzVQwoTVC8JAzemkBEH0M7I9iK7DOT1-ELlaeZcc/edit?gid=253586979#gid=253586979',
+      desc: 'SY 2026-2027 Annual Goal Targets, Owners, Metrics Captured — Summary, Quarterly Goal Tracking, and 26-27 Annual Goal Tracking tabs',
+      tag:  'KPI · Strategy · 2026-2027',
+    },
+    {
       name: 'HIT Compliance Database (Current SY)',
       type: 'sheets',
       url:  'https://docs.google.com/spreadsheets/d/1IZSYmLgMddPtn5Ei9mehqTWJAbpcm5Tx1GL-YytLj0k/edit?gid=274671201#gid=274671201',

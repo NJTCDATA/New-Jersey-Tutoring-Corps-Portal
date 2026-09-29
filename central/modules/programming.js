@@ -228,52 +228,55 @@
     const GEOCODE_RATE_MS = 1150;            // Nominatim ≤1 req/sec + buffer
     const GEOCODE_CACHE_KEY = 'njtc_sy_geocache_v4';
 
-    // ── COLUMN INDEXES: SY 26-27 sheet (Cycle col at position 0) ─────────
+    // ── COLUMN INDEXES: SY 26-27 "Locations" tab (gid 1830091227) ────────
+    // Verified against the live Onsite Database 2026-2027 / Automated: Onsite
+    // 26-27 Tracker "Locations" tab (header = row 3). The sheet has NO Midpoint
+    // column and no Total Site Leader column; col X is "PACE Spots".
     const C_2627 = {
       CYCLE:        0,  // A  — Cycle (Summer 2026 / School Year 26-27)
       FEE:          1,  // B  — ROLE GATED: finance, leadership
-      STATUS:       2,  // C
+      STATUS:       2,  // C  — Programming Status
       COUNTY:       3,  // D
-      PM:           4,  // E
-      LEAD_HIRING:  5,  // F
+      PM:           4,  // E  — NJTC Program Manager
+      LEAD_HIRING:  5,  // F  — NJTC Lead Hiring
       DISTRICT:     6,  // G  — INCLUSION: must be non-blank
       SCHOOL:       7,  // H  — INCLUSION: must be non-blank
       ADDRESS:      8,  // I  — geocoding only; never shown as text
-      CONFIRMED:    9,  // J
-      EST:         10,  // K  — Estimated # Scholars
+      CONFIRMED:    9,  // J  — Quote Approved/Partnership confirmed
+      EST:         10,  // K  — Estimated # of Scholars (Quote)
       ACT:         11,  // L  — Rostered Scholars in Pearl
       CONTENT:     12,  // M
       GRADES:      13,  // N
-      TUTOR_TYPE:  14,  // O
+      TUTOR_TYPE:  14,  // O  — Type of Tutoring
       BLOCK:       15,  // P
-      START:       16,  // Q
-      MIDPOINT:    17,  // R
-      ENDPOINT:    18,  // S
-      DAYS:        19,  // T
-      ASSESS:      20,  // U
-      TUTOR_TIMES: 21,  // V  — Tutoring Times
-      PROG_WEEKS:  22,  // W  — # of Weeks for Programming
-      WEEKLY_WK:   23,  // X  — Weekly Work Time
-      PRE_APP_POS: 24,  // Y  — Pre-Apprentice Spots (new in 26-27)
-      PRE_APP_FILL:25,  // Z  — Filled Pre-App Spots (new in 26-27)
-      TUTOR_POS:   26,  // AA — Tutor Positions
-      TUTOR_FILL:  27,  // AB — Filled Tutor Positions
-      APPRENT:     28,  // AC — Apprentice Tutors
-      SC_POS:      29,  // AD — SC Positions
-      SC_FILL:     30,  // AE — Filled SC
-      IC_POS:      31,  // AF — IC Positions
-      IC_FILL:     32,  // AG — Filled IC
-      DR_POS:      33,  // AH — Dual Role Positions
-      DR_FILL:     34,  // AI — Filled Dual Role
-      TOTAL_STAFF: 35,  // AJ — Total staffing
-      PCT_HIRED:   36,  // AK — ROLE GATED: programming, leadership, hr
-      TOTAL_SL:    37,  // AL — Total site leader positions
-      PARTNER_NM:  40,  // AO — Partner Contact Name
-      PARTNER_EM:  41,  // AP — Partner Email
-      MOU:         42,  // AQ — MOU/DSA Signed
-      DS_NAME:     43,  // AR — Data Specialist Name
-      DS_EMAIL:    44,  // AS — Data Specialist Email
-      BA_NAME:     45,  // AT — BA/Finance Name
+      START:       16,  // Q  — Start Date
+      MIDPOINT:    -1,  //    — not in the 26-27 sheet
+      ENDPOINT:    17,  // R  — End Date
+      DAYS:        18,  // S  — Days of the Week
+      ASSESS:      19,  // T  — Assessment Model
+      TUTOR_TIMES: 20,  // U  — Tutoring Times
+      PROG_WEEKS:  21,  // V  — # of Weeks for Programming
+      WEEKLY_WK:   22,  // W  — Weekly Work Time
+      PRE_APP_POS: 23,  // X  — PACE Spots
+      PRE_APP_FILL:24,  // Y  — Filled Pre-App Spots
+      TUTOR_POS:   25,  // Z  — Tutor Positions
+      TUTOR_FILL:  26,  // AA — Filled Tutor Positions
+      APPRENT:     27,  // AB — Number of Apprentice Tutors
+      SC_POS:      28,  // AC — SC Positions
+      SC_FILL:     29,  // AD — Filled SC Positions
+      IC_POS:      30,  // AE — IC Positions
+      IC_FILL:     31,  // AF — Filled IC Positions
+      DR_POS:      32,  // AG — Site Leader (Dual Role) Positions
+      DR_FILL:     33,  // AH — Filled Dual Role Positions
+      TOTAL_STAFF: 34,  // AI — Total staffing (including PACE)
+      PCT_HIRED:   35,  // AJ — percent hired — ROLE GATED: programming, leadership, hr
+      TOTAL_SL:    -1,  //    — not in the 26-27 sheet
+      PARTNER_NM:  38,  // AM — Community/LEA Partner Contact Name
+      PARTNER_EM:  39,  // AN — Community/LEA Partner Email address
+      MOU:         40,  // AO — MOU/DSA Signed
+      DS_NAME:     41,  // AP — Data Specialist Name
+      DS_EMAIL:    42,  // AQ — Data Specialist Email
+      BA_NAME:     43,  // AR — BA/Finance Name
     };
     // ── COLUMN INDEXES: SY 25-26 sheet (legacy — no Cycle col) ───────────
     const C_2526 = {
@@ -437,7 +440,7 @@
       const isLegacy  = _activePeriod === 'sy2526';
       const fetchURL  = isLegacy ? SY_CSV_URL_2526 : SY_CSV_URL_2627;
       const colMap    = isLegacy ? C_2526 : C_2627;
-      const cacheKey  = isLegacy ? 'njtc_sya_2526_v1' : 'njtc_sya_2627_v1';
+      const cacheKey  = isLegacy ? 'njtc_sya_2526_v1' : 'njtc_sya_2627_v2';  // v2: corrected 26-27 column map
       C = colMap;  // update active column map
 
       // ── stale-while-revalidate: show cached data immediately ─────────
@@ -448,9 +451,9 @@
           _snapshot  = mkSnap(_sc.data);
           _lastFetch = new Date(Date.now() - _sc.age);
           window.NJTC_LOCATIONS = _sc.data;
-          setSyncState(_sc.fresh ? 'live' : 'stale');
           populateFilters();
           applyFilters();
+          setSyncState(_sc.fresh ? 'live' : 'stale');
           updateMapMarkers();
           if (btn) btn.disabled = false;
           if (_sc.fresh) return;  // cache still fresh, skip network
@@ -474,9 +477,9 @@
         NJTC_CACHE.set(cacheKey, sites);
         // Expose site-level position data for DOL report (both SY 25-26 and 26-27/Summer)
         window.NJTC_LOCATIONS = sites;
-        setSyncState('live');
         populateFilters();
         applyFilters();
+        setSyncState('live');
         updateMapMarkers();
         // Also kick the tracker fetch when loading 26-27 data
         if (!isLegacy && !_trackerReady) fetchOnsiteTracker();
@@ -581,13 +584,19 @@
     // ── STATS ─────────────────────────────────────────────────────────────
     function updateStats() {
       const s = _filtered;
-      // Summer 2026: all KPI tiles derive from tracker data (Locations sheet has no summer rows)
-      if (_activePeriod === 'summer2026' && _trackerReady) {
+      // Summer 2026: Sites/Districts/Est. Scholars come from the Locations tab's
+      // "Summer 2026" cycle rows (the 26-27 Locations tab carries both cycles).
+      // The Onsite Tracker tab is SY 26-27-only now, so tracker summer rows are
+      // used only as a fallback if Locations has no summer rows.
+      const _sumLoc = _activePeriod === 'summer2026' ? s : [];
+      if (_activePeriod === 'summer2026' && (_sumLoc.length || _trackerReady)) {
         const sumRows   = _trackerRows.filter(r => r.isSummer);
         const empRows   = sumRows.filter(r => r.isActive && !r.isPreApp && !r.isTerminated);
-        const preRows   = sumRows.filter(r => r.isActive && r.isPreApp);
-        const sites     = new Set(sumRows.filter(r => r.location).map(r => r.location));
-        const districts = new Set(sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
+        const sites     = _sumLoc.length ? { size: _sumLoc.length }
+                        : new Set(sumRows.filter(r => r.location).map(r => r.location));
+        const districts = _sumLoc.length ? new Set(_sumLoc.map(r => r.district))
+                        : new Set(sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
+        const _locStaff = _sumLoc.reduce((a,r) => a + r.totalStaff, 0);
         setText('syStatSites',     sites.size);
         setText('syStatDistricts', districts.size);
         // Active/Est Scholars: pull from Pearl live data — but ONLY if Pearl's own
@@ -601,9 +610,11 @@
         } else {
           setText('syStatActual', '—');
         }
-        if (_poIsSummer && _poStatsSummer.rosteredScholars != null) {
-          // No separate "quoted capacity" sheet exists for Summer — Pearl's rostered
-          // (enrolled) scholar count is the closest available "Est. Scholars" figure.
+        if (_sumLoc.length) {
+          // Quoted capacity — Locations tab "Estimated # of Scholars (Quote)", Summer 2026 rows
+          setText('syStatEst', _sumLoc.reduce((a,r) => a + r.est, 0).toLocaleString());
+        } else if (_poIsSummer && _poStatsSummer.rosteredScholars != null) {
+          // Fallback: Pearl's rostered (enrolled) scholar count
           setText('syStatEst', _poStatsSummer.rosteredScholars.toLocaleString());
         } else {
           setText('syStatEst', '—');
@@ -617,13 +628,14 @@
         // SY periods are untouched — they still use the tracker/HR Master List path below.
         const _staffTotal  = _poIsSummer && _poStatsSummer.activeTutors      != null ? _poStatsSummer.activeTutors      : null;
         const _staffActive = _poIsSummer && _poStatsSummer.activeInstructors != null ? _poStatsSummer.activeInstructors : null;
-        setText('syStatStaff', _staffTotal != null ? _staffTotal.toLocaleString() : empRows.length.toLocaleString());
-        setText('syStatStaffSub', _staffTotal != null ? 'Unique instructors · Pearl' : 'Active FT staff · Summer tracker');
+        const _fbStaff = empRows.length || _locStaff;
+        setText('syStatStaff', _staffTotal != null ? _staffTotal.toLocaleString() : (_fbStaff % 1 === 0 ? _fbStaff.toLocaleString() : _fbStaff.toFixed(1)));
+        setText('syStatStaffSub', _staffTotal != null ? 'Unique instructors · Pearl' : (empRows.length ? 'Active FT staff · Summer tracker' : 'Total staffing · Locations tab'));
         // Cache stats for Exec Dashboard period selector
         window._syaStats = window._syaStats || {};
         window._syaStats['summer2026'] = {
           sites: sites.size, districts: districts.size,
-          staff:       _staffTotal  != null ? _staffTotal  : empRows.length,
+          staff:       _staffTotal  != null ? _staffTotal  : _fbStaff,
           staffActive: _staffActive != null ? _staffActive : null,
           activeScholars: _poIsSummer ? _poStatsSummer.activeScholars : null,
           rosteredScholars: _poIsSummer ? _poStatsSummer.rosteredScholars : null,
@@ -639,14 +651,24 @@
       // toggle is currently sitting on Summer data (po only holds one period at a time —
       // this branch is SY 25-26/26-27, so a Summer-loaded po shouldn't feed numbers here).
       const _poStats = (window.po && typeof window.po.getStats === 'function') ? window.po.getStats() : null;
-      const _pearlActive = (_poStats && _poStats.activePeriod === 'sy2526' && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
+      // Pearl only feeds this tile when it holds the SAME period being viewed
+      // (Pearl's SY 25-26 count must never appear on the SY 26-27 view).
+      const _pearlActive = (_poStats && _poStats.activePeriod === _activePeriod && _poStats.activeScholars != null) ? _poStats.activeScholars : null;
       setText('syStatActual',    _pearlActive != null ? _pearlActive.toLocaleString() : s.reduce((a,r) => a + r.act, 0).toLocaleString());
+      const _actSub = document.getElementById('syStatActual') && document.getElementById('syStatActual').parentElement.querySelector('.st-sub');
+      if (_actSub) _actSub.innerHTML = _pearlActive != null ? 'Attended &ge;1 session &middot; Pearl live' : 'Rostered Scholars in Pearl &middot; Locations tab';
       setText('syStatEst',       s.reduce((a,r) => a + r.est, 0).toLocaleString());
-      // Total Staff: HR Master List (authoritative) or DB sum fallback.
-      const _hrStaff = (window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
+      // Total Staff — SY 26-27: live Onsite Tracker roster (offer accepted, not
+      // terminated). SY 25-26: HR Master List (authoritative). DB sum fallback.
+      const _syTracker = (_activePeriod === 'sy2627' && _trackerReady)
+        ? _trackerRows.filter(r => r.isSY && r.isActive && !r.isTerminated).length : null;
+      const _hrStaff = _syTracker != null ? _syTracker
+        : (_activePeriod !== 'sy2627' && window._hrDataFetched && typeof HR_EMPS !== 'undefined' && HR_EMPS.length)
         ? HR_EMPS.filter(function(e){ return e.s === 'Active'; }).length : null;
       const stf = s.reduce((a,r) => a + r.totalStaff, 0);
       setText('syStatStaff', _hrStaff != null ? _hrStaff.toLocaleString() : (stf % 1 === 0 ? stf.toLocaleString() : stf.toFixed(1)));
+      setText('syStatStaffSub', _syTracker != null ? 'Onsite staff · SY 26-27 Onsite Tracker'
+        : _hrStaff != null ? 'Active FT staff · HR Master List' : 'Total staffing · Locations tab');
       // Cache stats for Exec Dashboard period selector
       window._syaStats = window._syaStats || {};
       window._syaStats[_activePeriod] = {
@@ -658,12 +680,22 @@
       // the SY Analytics default period is sy2627, so the summer branch above
       // never runs on initial load. Computing here ensures the Exec Dashboard
       // Summer 2026 tab has data without requiring a manual period switch.
-      if (_trackerReady && _trackerRows.length) {
+      const _locSummer = _activePeriod === 'sy2627'
+        ? _allSites.filter(r => (r.cycle||'').toLowerCase().includes('summer 2026')) : [];
+      if (_locSummer.length) {
+        // Locations tab carries the Summer 2026 cycle rows alongside SY 26-27
+        const _prev = window._syaStats['summer2026'] || {};
+        window._syaStats['summer2026'] = Object.assign({}, _prev, {
+          sites: _locSummer.length,
+          districts: new Set(_locSummer.map(r => r.district)).size,
+          staff: _prev.staff != null ? _prev.staff : _locSummer.reduce((a,r) => a + r.totalStaff, 0),
+        });
+      } else if (_trackerReady && _trackerRows.length) {
         const _sumRows   = _trackerRows.filter(r => r.isSummer);
         const _sumEmp    = _sumRows.filter(r => r.isActive && !r.isPreApp && !r.isTerminated);
         const _sumSites  = new Set(_sumRows.filter(r => r.location).map(r => r.location));
         const _sumDists  = new Set(_sumRows.filter(r => r.district || r.county).map(r => r.district || r.county));
-        window._syaStats['summer2026'] = { sites: _sumSites.size, districts: _sumDists.size, staff: _sumEmp.length };
+        if (_sumRows.length) window._syaStats['summer2026'] = { sites: _sumSites.size, districts: _sumDists.size, staff: _sumEmp.length };
       }
       // Notify exec dashboard
       try { if (typeof window._execDashRefresh === 'function') window._execDashRefresh(true); } catch(_e) {}
@@ -761,7 +793,7 @@
         ${sec('Programming')}
         ${row('Content', v(s.content))}${row('Tutoring Type', v(s.tutorType))}
         ${row('Days of Week', v(s.days))}${row('Assessment', v(s.assessModel))}
-        ${row('Start Date', v(s.startDate))}${row('Midpoint', v(s.midpoint))}
+        ${row('Start Date', v(s.startDate))}${s.midpoint ? row('Midpoint', v(s.midpoint)) : ''}
         ${row('End Date', v(s.endpoint))}${row('Grades', v(s.grades))}
         ${sec('Staffing')}${staffGrid}${row('Total Staff', stfStr)}
         ${partnerBlock}${gatedBlock}`;
@@ -988,9 +1020,9 @@
 
     // ── ONSITE TRACKER FETCH ─────────────────────────────────────────────
     // Parses both Summer 2026 and SY 26-27 staff rows from the tracker tab.
-    // Active summer employees = cycle contains "summer" + offerAccepted = "yes".
+    // Active employees = offer accepted (date or "Yes") and not terminated.
     async function fetchOnsiteTracker(force = false) {
-      const cacheKey = 'njtc_tracker_2627_v1';
+      const cacheKey = 'njtc_tracker_2627_v2';  // v2: header-based parse (26-27 layout)
       if (!force) {
         const cached = NJTC_CACHE.get(cacheKey);
         if (cached && cached.data && cached.data.length) {
@@ -1019,6 +1051,9 @@
       }
     }
 
+    // Columns are located by header name (row with "Cycle" in col A), not fixed
+    // index — the 26-27 tracker inserted "Site Leader" (col H) and renamed
+    // several columns, which silently shifted every fixed index after col G.
     function parseOnsiteTracker(text) {
       const rows = parseCSVFull(text);
       let hIdx = -1;
@@ -1027,35 +1062,48 @@
       }
       if (hIdx < 0) { console.warn('[Tracker] Header not found'); return []; }
 
+      const H  = rows[hIdx].map(h => (h||'').replace(/\s+/g,' ').trim().toLowerCase());
+      const eq = s => H.indexOf(s);
+      const ci = s => H.findIndex(h => h.includes(s));
       const TC = {
-        CYCLE: 0, ROLE: 1, COUNTY: 2, DISTRICT: 3, LOCATION: 4, SEC_LOC: 5,
-        TC_REVIEWER: 6, SOURCE: 7, FIRST_NAME: 8, LAST_NAME: 9, EMAIL: 10,
-        ZELLE: 11, PHONE: 12, ADP_PROFILE: 13, IV_WEBINAR: 14,
-        OFFER_SENT: 15, OFFER_ACCEPTED: 16, WELCOME_EMAIL: 17,
-        PRE_APP: 18, TAP_REG: 19, RETENTION_ELIG: 20, RETENTION_EMAIL: 21,
-        MID_BONUS: 22, REMAIN_BONUS: 23, I9_DOCS: 24,
-        FINGERPRINT: 25, FP_REIMB: 26, BC10: 27, FULL_NAME: 28,
-        TERMINATED: 29, RESIGN_TYPE: 30, RESIGN_REASON: 31, TERM_DATE: 32,
+        CYCLE: eq('cycle'), ROLE: eq('role'), COUNTY: eq('county'), DISTRICT: eq('district'),
+        LOCATION: H.findIndex(h => h === 'locations' || h === 'location'),
+        SEC_LOC: ci('secondary location'), TC_REVIEWER: ci('timecard reviewer'),
+        SITE_LEADER: eq('site leader'), SOURCE: eq('source'),
+        FIRST_NAME: ci('first name'), LAST_NAME: ci('last name'), EMAIL: ci('email address'),
+        PHONE: eq('phone'), ADP_PROFILE: ci('profile complete in adp'), IV_WEBINAR: ci('iv or webinar'),
+        OFFER_SENT: ci('offer letter sent'), OFFER_ACCEPTED: ci('offer accepted'),
+        WELCOME_EMAIL: ci('welcome email'), PRE_APP: ci('pre-apprentice, if'), PACE_COHORT: ci('pace cohort'),
+        TAP_REG: ci('registered for'), RETENTION_ELIG: ci('retention bonus elig'),
+        I9_DOCS: ci('i-9'), FINGERPRINT: ci('fingerprint appointment'), FP_REIMB: ci('fingerprint cert reimbursed'),
+        BC10: ci('bc-10'), FULL_NAME: eq('full name'),
+        TERMINATED: eq('terminated?'), RESIGN_TYPE: ci('resignation type'),
+        RESIGN_REASON: ci('resignation reason'), TERM_DATE: ci('termination date'),
       };
-      const g = (r, i) => i >= 0 && i < r.length ? (r[i]||'').replace(/\n/g,' ').trim() : '';
+      const g = (r, i) => i >= 0 && i < r.length ? (r[i]||'').replace(/\s+/g,' ').trim() : '';
 
       return rows.slice(hIdx + 1)
         .filter(r => r.length > 8 && g(r, TC.FIRST_NAME))
         .map(r => {
           const cycle    = g(r, TC.CYCLE);
+          const role     = g(r, TC.ROLE);
           const accepted = g(r, TC.OFFER_ACCEPTED).toLowerCase();
+          const pace     = g(r, TC.PACE_COHORT);
           return {
             cycle,
-            role:          g(r, TC.ROLE),
+            role,
             county:        g(r, TC.COUNTY),
             district:      g(r, TC.DISTRICT),
             location:      g(r, TC.LOCATION),
             secLoc:        g(r, TC.SEC_LOC),
             tcReviewer:    g(r, TC.TC_REVIEWER),
+            siteLeader:    g(r, TC.SITE_LEADER),
             source:        g(r, TC.SOURCE),
             firstName:     g(r, TC.FIRST_NAME),
             lastName:      g(r, TC.LAST_NAME),
-            fullName:      g(r, TC.FULL_NAME) || (g(r, TC.FIRST_NAME) + ' ' + g(r, TC.LAST_NAME)).trim(),
+            // Built from First + Last — the sheet's Full Name formula leaves double
+            // spaces and is blank on some rows.
+            fullName:      (g(r, TC.FIRST_NAME) + ' ' + g(r, TC.LAST_NAME)).trim() || g(r, TC.FULL_NAME),
             email:         g(r, TC.EMAIL),
             phone:         g(r, TC.PHONE),
             adpProfile:    g(r, TC.ADP_PROFILE),
@@ -1063,7 +1111,11 @@
             offerSent:     g(r, TC.OFFER_SENT),
             offerAccepted: g(r, TC.OFFER_ACCEPTED),
             welcomeEmail:  g(r, TC.WELCOME_EMAIL),
-            isPreApp:      g(r, TC.PRE_APP).toLowerCase() === 'yes',
+            paceCohort:    pace,
+            // Current pre-apprentice = PACE/pre-apprentice role, or the summer
+            // tab's "Pre-apprentice, if offer letter…" flag. "PACE Cohort summer
+            // 2026" on the SY tab is history (now a tutor), not a current PACE seat.
+            isPreApp:      /pre-?apprentice|\bpace\b/i.test(role) || g(r, TC.PRE_APP).toLowerCase() === 'yes',
             tapRegistered: g(r, TC.TAP_REG),
             retentionElig: g(r, TC.RETENTION_ELIG),
             i9Docs:        g(r, TC.I9_DOCS),
@@ -1077,7 +1129,9 @@
             // computed flags
             isSummer:    cycle.toLowerCase().includes('summer'),
             isSY:        cycle.toLowerCase().includes('school year'),
-            isActive:    accepted === 'yes',
+            // "Offer Accepted" is a date in the 26-27 tracker (was Yes/No) — any
+            // value other than blank / No / N/A means the offer was accepted.
+            isActive:    !!accepted && accepted !== 'no' && accepted !== 'n/a',
             isTerminated: g(r, TC.TERMINATED).toLowerCase() === 'yes',
           };
         });

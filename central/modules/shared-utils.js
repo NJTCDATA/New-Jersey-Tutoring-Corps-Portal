@@ -50,7 +50,7 @@
     },
     bustAll() {
       // Evict all known NJTC cache keys so next page load fetches fresh data
-      const keys = ['njtc_kpi_v2','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2',
+      const keys = ['njtc_kpi_v2','njtc_kpi_2627_v1','njtc_sya_v1','njtc_talent_v1','njtc_pearl_v1','njtc_ops_v2',
                     'njtc_pearl_gids_v1','njtc_pearl_stu_agg_v2','njtc_irlab_live_v3',
                     'njtc_irlab_gids_v5','njtc_resolutions_v1','njtc_reviews_v1'];
       keys.forEach(k => this.bust(k));
@@ -211,9 +211,20 @@
   //  KPI DATA
   // ══════════════════════════════════════════════════════════
   // ── Live Google Sheet CSV URL (auto-refreshes from published sheet) ──
+  // SY 2025-26 workbook (Summary = first tab, Quarterly Goal Tracking = gid 1313501732)
   const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd/pub?output=csv';
   var KPI_META_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSiWNF9u43aDBr7MOuyiPHd1umWZSvPcQZir6r_6Qnd8lh9Ku1uveMoMIsto3VmrwKJUyHOu14tfiHd/pub?output=csv&gid=1313501732';
   var KPI_META_CACHE_KEY = 'njtc_kpi_meta_v1';
+
+  // SY 2026-27 workbook — "Automate: PORTAL 26-27 KPI Dashboard - Annual Goal Tracking Database".
+  // Exact replica of the SY 2025-26 layout, so the same parsers apply unchanged:
+  //   Summary                    gid 2044459538 → Goal | Target | — | Mid Cycle Status | End of Cycle Status
+  //   Quarterly Goal Tracking    gid 51260447   → owners, sources, Q1–Q4 data + status
+  //   26-27 Annual Goal Tracking gid 253586979  → mid/end goal achievement (linked for reference)
+  const KPI_2627_PUB_BASE      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSH88ac43jB272UDV6_UIwvEYGFvEOVIELaIEmM1kDtI4VreyCUoxDI8ls42ieNOYwOi4ggJCyIq6s6/pub';
+  const SHEET_CSV_URL_26_27    = KPI_2627_PUB_BASE + '?output=csv&gid=2044459538';
+  const KPI_META_URL_26_27     = KPI_2627_PUB_BASE + '?output=csv&gid=51260447';
+  const KPI_ANNUAL_URL_26_27   = KPI_2627_PUB_BASE + '?output=csv&gid=253586979';
   var KPI_META_TTL = 24 * 60 * 60 * 1000;
 
   // Fallback static data (exact from official KPI spreadsheet, SY 2025-26)
@@ -305,10 +316,108 @@
     { goal: "Grow the NJTC brand", target: "Meet with NJEA, NJASA, County Superintendents' Roundtable, NJSBA, NJPSA annually", status: "Met" },
   ];
 
+  // ── SY 2026-27 baseline — exact targets from the 26-27 Summary tab ──
+  // No statuses have been reported yet; they fill in live from the sheet.
+  // Only used if the sheet cannot be reached on the very first load.
+  const KPI_DATA_STATIC_26_27 = [
+    { goal: "Increase Impact on Scholars", target: "By August 2027, serve 2160 scholars annually", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "By August 2027 serve 45 sites annually", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Placement Level Change: 80% of all scholars advancing a level in math or ela", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Progress Towards Proficiency: Math 20% increase of scholars that reach grade-level proficiency; ELA 20% increase of scholars that reach grade-level proficiency", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "Gap Closing: 35% decrease in scholars 2+ grade levels below", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "80% scholars self-report that they increased confidence post-session in ELA", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "80% scholars self-report that they increased confidence post-session in Math", midStatus: "", endStatus: "" },
+    { goal: "Increase Impact on Scholars", target: "92% of onsite staff observe scholar growth", midStatus: "", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "24 tutor apprentices for SY 26-27", midStatus: "", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "Secure 1 NJDOL grant to expand apprenticeship program", midStatus: "", endStatus: "" },
+    { goal: "Support Growth of New Jersey's Educator Pipeline", target: "3 Apprentices earn initial licensure", midStatus: "", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "45 SY sites - all of which are fee-for-service sites", midStatus: "", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "75% of sites cover full fee-for-service", midStatus: "", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "Add 1 additional out-of-state customer", midStatus: "", endStatus: "" },
+    { goal: "Increase the number of fee-for-service partnerships", target: "Apply to at least 10 local/regional RFPs annually", midStatus: "", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Identify and apply to 2 new multi-year or $500K+ funding opportunities", midStatus: "", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure $960,000 in philanthropic funds", midStatus: "", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure new philanthropic partners totaling $130,000", midStatus: "", endStatus: "" },
+    { goal: "Continue to pursue large and multi-year sources of funding", target: "Secure financial support from FY 28 State budget of at least $750,000", midStatus: "", endStatus: "" },
+    { goal: "Maintain cash position", target: "Maintain $518,000 in the reserve investment accounts by the end of FY 27", midStatus: "", endStatus: "" },
+    { goal: "Maintain cash position", target: "FY 26 Audit is deemed clean", midStatus: "", endStatus: "" },
+    { goal: "Further Diversify board and leverage its support", target: "Increase the number of introductions by board members to school district partners & potential donors for a total of 15", midStatus: "", endStatus: "" },
+    { goal: "Further Diversify board and leverage its support", target: "Maintain 100% board giving; Increase total board giving by 10%", midStatus: "", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Annual Budgeting process completed by August 5, 2027", midStatus: "", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Annual targets are in Asana by October 31, 2026 with no duplication of activities", midStatus: "", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "Website is updated by December 2026", midStatus: "", endStatus: "" },
+    { goal: "Upgrade systems to support growth", target: "New strategic plan for FY 28 - FY 30 approved by August 31", midStatus: "", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "90% customer satisfaction reported at the end of the school year 26/27", midStatus: "", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "Receive at least 3 referrals from partners", midStatus: "", endStatus: "" },
+    { goal: "Maintain consistent partner experience", target: "50% retention rate for school partners", midStatus: "", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "Maintain 80% annual core staff retention", midStatus: "", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "Maintain 60% annual on-site staff retention", midStatus: "", endStatus: "" },
+    { goal: "Maintain and continue to build on strong culture", target: "Increase central team staff sense of belonging as demonstrated by an average score of 3.7 on end-of-year central team survey", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "15 media hits per year", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Attend or participate in 10 local education and/or non-profit conferences and webinars - these could include having a booth at a local conference; speaking engagements at 2", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Participate in 5 national conferences or webinars with presentations at 2", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Meet with at least 7 education organizations across New Jersey", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Attend 5 South Jersey Chamber events", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Complete 30 meetings with School Leaders Pitching NJTC program with 10 meetings being in-person", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "Host at least 8 legislators at site visits", midStatus: "", endStatus: "" },
+    { goal: "Grow the NJTC brand", target: "NJTC Annual report sent to stakeholders by December 2026", midStatus: "", endStatus: "" },
+  ];
+
+  // ══════════════════════════════════════════════════════════
+  //  KPI SCHOOL-YEAR TOGGLE
+  //  Each SY has its own published workbook, cache keys, and baseline.
+  //  KPI Targets + KPI Analytics (and every widget reading KPI_DATA /
+  //  KPI_Q_DATA) follow the selected year. Choice persists per browser.
+  // ══════════════════════════════════════════════════════════
+  const KPI_SY_CONFIG = {
+    '25-26': {
+      key: '25-26', short: 'SY 25-26', label: 'SY 2025–2026', years: '2025–2026', pptx: 'SY2025-26',
+      icon: '📁', priorKey: '24-25',
+      csvUrl: SHEET_CSV_URL, metaUrl: KPI_META_URL, annualUrl: '',
+      cacheKey: 'njtc_kpi_v2', metaCacheKey: 'njtc_kpi_meta_v1', snapshotKey: 'njtc_kqr_snapshot',
+      sheetId: '1woHFd7OzO_IS5yD8HOGifVCu0hW3qAStyja63hcxvWg', quarterlyGid: '1313501732',
+      staticData: KPI_DATA_STATIC,
+    },
+    '26-27': {
+      key: '26-27', short: 'SY 26-27', label: 'SY 2026–2027', years: '2026–2027', pptx: 'SY2026-27',
+      icon: '🎓', priorKey: '25-26',
+      csvUrl: SHEET_CSV_URL_26_27, metaUrl: KPI_META_URL_26_27, annualUrl: KPI_ANNUAL_URL_26_27,
+      cacheKey: 'njtc_kpi_2627_v1', metaCacheKey: 'njtc_kpi_meta_2627_v1', snapshotKey: 'njtc_kqr_snapshot_2627',
+      sheetId: '199cuzVQwoTVC8JAzemkBEH0M7I9iK7DOT1-ELlaeZcc', quarterlyGid: '51260447', annualGid: '253586979', summaryGid: '2044459538',
+      staticData: KPI_DATA_STATIC_26_27,
+    },
+  };
+  const KPI_SY_DEFAULT = '25-26';
+  const KPI_SY_STORAGE_KEY = 'njtc_kpi_sy';
+  let _kpiSY = (function() {
+    try { const v = localStorage.getItem(KPI_SY_STORAGE_KEY); if (v && KPI_SY_CONFIG[v]) return v; } catch(e) {}
+    return KPI_SY_DEFAULT;
+  })();
+  function kpiSYConfig(sy) { return KPI_SY_CONFIG[sy || _kpiSY]; }
+  // Baseline rows for a SY — 25-26 keeps its original mid-status seeding.
+  function _kpiBaseline(sy) {
+    const cfg = kpiSYConfig(sy);
+    return sy === '25-26'
+      ? cfg.staticData.map(k => ({ ...k, status: k.midStatus || 'In Progress' }))
+      : cfg.staticData.map(k => ({ ...k }));
+  }
+  // Point the globals shared-charts.js reads (bare identifiers resolve to window.*) at the active SY
+  function _applyKpiSYGlobals() {
+    const cfg = kpiSYConfig();
+    KPI_META_URL       = cfg.metaUrl;
+    KPI_META_CACHE_KEY = cfg.metaCacheKey;
+    window.NJTC_KPI_SY        = _kpiSY;
+    window.KPI_META_URL       = cfg.metaUrl;
+    window.KPI_META_CACHE_KEY = cfg.metaCacheKey;
+  }
+  _applyKpiSYGlobals();
+
   // Live data holder — populated from Sheet or falls back to static
-  let KPI_DATA = KPI_DATA_STATIC.map(k => ({ ...k, status: k.midStatus || 'In Progress' }));
+  let KPI_DATA = _kpiBaseline(_kpiSY);
   let _kpiLastFetched = null;
   let _kpiFromSheet = false;
+  // Last good live data per SY, so toggling back is instant (and SY25-26 can serve as SY26-27's prior year)
+  const _kpiSYStore = {};
 
   // ══════════════════════════════════════════════════════════
   //  POLICIES DATA (inline — Drive manifest overrides this)
@@ -4131,23 +4240,28 @@
 
   // ── Fetch live data from published Google Sheet ───────────────────
   async function fetchAndRebuildKPI(forceRefresh) {
+    // Pin this run to the SY active when it started — if the user toggles
+    // years mid-fetch, the late response must not overwrite the other year.
+    const _sy  = _kpiSY;
+    const _cfg = kpiSYConfig(_sy);
     const dot = document.getElementById('kpiSyncDot');
     const txt = document.getElementById('kpiSyncText');
     const btn = document.getElementById('kpiRefreshBtn');
     if (dot) { dot.className = 'sync-dot loading'; }
-    if (txt) txt.textContent = 'Fetching live data from Google Sheet…';
+    if (txt) txt.textContent = `Fetching ${_cfg.label} live data from Google Sheet…`;
     if (btn) btn.disabled = true;
 
     // ── NJTC_CACHE stale-while-revalidate (30-min TTL) ──────────────────
     if (!forceRefresh) {
-      const _kc = NJTC_CACHE.get('njtc_kpi_v2');
+      const _kc = NJTC_CACHE.get(_cfg.cacheKey);
       if (_kc && _kc.data && _kc.data.length) {
         KPI_DATA = _kc.data;
         window.KPI_DATA = KPI_DATA;
         _kpiFromSheet = true;
         _kpiLastFetched = new Date(Date.now() - _kc.age);
+        _kpiSYStore[_sy] = { data: KPI_DATA, fetched: _kpiLastFetched };
         if (dot) { dot.className = 'sync-dot'; }
-        if (txt) txt.innerHTML = `<strong>${_kc.fresh ? 'Cached' : 'Stale cache'}</strong> · ${KPI_DATA.length} targets · ${_kpiLastFetched.toLocaleTimeString()}`;
+        if (txt) txt.innerHTML = `<strong>${_kc.fresh ? 'Cached' : 'Stale cache'}</strong> · ${_cfg.label} · ${KPI_DATA.length} targets · ${_kpiLastFetched.toLocaleTimeString()}`;
         if (btn) btn.disabled = false;
         const _sess = window.NJTC_SESSION;
         if (_sess) buildHome(window.NJTC_VIEW_DEPT || _sess.dept);
@@ -4158,13 +4272,23 @@
 
     let parsed = null;
     try {
-      const url = SHEET_CSV_URL + (forceRefresh ? '&t=' + Date.now() : '');
+      const url = _cfg.csvUrl + (forceRefresh ? '&t=' + Date.now() : '');
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (res.ok) {
         const csv = await res.text();
         parsed = parseSheetCSV(csv);
       }
     } catch(e) { /* fall through to static */ }
+
+    // User switched school years while this request was in flight — cache the
+    // result under its own SY and leave the now-active year untouched.
+    if (_sy !== _kpiSY) {
+      if (parsed && parsed.length > 0) {
+        NJTC_CACHE.set(_cfg.cacheKey, parsed);
+        _kpiSYStore[_sy] = { data: parsed, fetched: new Date() };
+      }
+      return;
+    }
 
     // ── STALE WARNING BANNER helper ──────────────────────────────────
     function showStaleWarning(msg) {
@@ -4188,11 +4312,12 @@
       // Live data successfully fetched — update everything
       KPI_DATA = parsed;
       window.KPI_DATA = KPI_DATA;
-      NJTC_CACHE.set('njtc_kpi_v2', parsed);
+      NJTC_CACHE.set(_cfg.cacheKey, parsed);
       _kpiFromSheet = true;
       _kpiLastFetched = new Date();
+      _kpiSYStore[_sy] = { data: KPI_DATA, fetched: _kpiLastFetched };
       if (dot) { dot.className = 'sync-dot'; }
-      if (txt) txt.innerHTML = `<strong>Live from Google Sheet</strong> · ${parsed.length} targets · Last synced ${_kpiLastFetched.toLocaleTimeString()}`;
+      if (txt) txt.innerHTML = `<strong>Live from Google Sheet</strong> · ${_cfg.label} · ${parsed.length} targets · Last synced ${_kpiLastFetched.toLocaleTimeString()}`;
       clearStaleWarning();
     } else {
       // Fetch failed — PRESERVE last good live data if we have it.
@@ -4205,9 +4330,9 @@
         showStaleWarning(`Could not reach Google Sheet. Counts below reflect last successful sync at ${_kpiLastFetched.toLocaleTimeString()}. Recent status changes may not be visible yet.`);
       } else {
         // First load ever failed — use static as absolute last resort
-        KPI_DATA = KPI_DATA_STATIC;
+        KPI_DATA = _cfg.staticData;
         window.KPI_DATA = KPI_DATA;
-        if (txt) txt.innerHTML = '<strong>Using built-in data</strong> · Could not reach Google Sheet on first load · Refresh to retry';
+        if (txt) txt.innerHTML = `<strong>Using built-in data</strong> · ${_cfg.label} · Could not reach Google Sheet on first load · Refresh to retry`;
         showStaleWarning('Live data unavailable. Displaying built-in baseline data — this may not reflect recent status changes. Click ↺ Refresh to retry.');
       }
     }
@@ -4254,7 +4379,10 @@
 
     // Populate goal filter (only once)
     const sel = document.getElementById('kpiGoalFilter');
-    if (sel && sel.options.length === 1) {
+    if (sel && (sel.options.length === 1 || sel.dataset.sy !== _kpiSY)) {
+      while (sel.options.length > 1) sel.remove(1);
+      sel.value = '';
+      sel.dataset.sy = _kpiSY;
       const goals = [...new Set(KPI_DATA.map(k=>k.goal))];
       goals.forEach(g => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
     }
@@ -4313,6 +4441,82 @@
     if (tbody) setTimeout(function() {
       tbody.innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--muted)">No matching targets found</td></tr>';
     }, 0);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  KPI SCHOOL-YEAR TOGGLE — switch KPI Targets + KPI Analytics
+  // ══════════════════════════════════════════════════════════
+  function _syncKpiSYUI() {
+    const cfg = kpiSYConfig();
+    document.querySelectorAll('.kpi-sy-btn').forEach(b => {
+      const on = b.dataset.sy === _kpiSY;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-kpi-sy-label]').forEach(el => {
+      const f = el.getAttribute('data-kpi-sy-label');
+      el.textContent = f === 'target' ? `${cfg.years} Organizational Target` : (cfg[f] || cfg.label);
+    });
+  }
+
+  function setKpiSY(sy) {
+    if (!KPI_SY_CONFIG[sy]) return Promise.resolve();
+    if (sy === _kpiSY) { _syncKpiSYUI(); return Promise.resolve(); }
+
+    // Keep the outgoing year's live data so switching back is instant
+    if (_kpiFromSheet && KPI_DATA && KPI_DATA.length) _kpiSYStore[_kpiSY] = { data: KPI_DATA, fetched: _kpiLastFetched };
+
+    _kpiSY = sy;
+    try { localStorage.setItem(KPI_SY_STORAGE_KEY, sy); } catch(e) {}
+    _applyKpiSYGlobals();
+
+    const stored = _kpiSYStore[sy];
+    KPI_DATA        = stored ? stored.data : _kpiBaseline(sy);
+    _kpiLastFetched = stored ? stored.fetched : null;
+    _kpiFromSheet   = !!stored;
+    window.KPI_DATA = KPI_DATA;
+
+    // Drop the previous year's quarterly engine output + any manual snapshot view
+    if (typeof window._resetKPIQuarterly === 'function') window._resetKPIQuarterly();
+    const stale = document.getElementById('kpiStaleBanner');
+    if (stale) stale.style.display = 'none';
+    const statusSel = document.getElementById('kpiStatusFilter');
+    if (statusSel) statusSel.value = '';
+
+    _syncKpiSYUI();
+    buildKPISummary();
+    buildKPI();
+    const anaPanel = document.getElementById('panel-kpi-analytics');
+    const anaActive = () => anaPanel && anaPanel.classList.contains('active');
+    if (anaActive() && typeof buildKPIAnalytics === 'function') buildKPIAnalytics();
+
+    return fetchAndRebuildKPI(false).then(() => {
+      if (sy !== _kpiSY) return;
+      buildKPISummary();
+      buildKPI();
+      if (typeof fetchKPIMetadata === 'function') fetchKPIMetadata(false);
+      if (anaActive() && typeof buildKPIAnalytics === 'function') buildKPIAnalytics();
+      if (anaActive() && typeof kqrRestoreSnapshot === 'function') kqrRestoreSnapshot();
+    }).catch(() => {});
+  }
+
+  // Prior-year comparison source for the YoY snapshot in exports/presentations.
+  // SY25-26 view → frozen SY24-25 record. SY26-27 view → SY25-26 live data
+  // (in-memory or cached), scored on its end-of-year status (mid if blank).
+  function kpiPriorYear() {
+    const cfg = kpiSYConfig();
+    if (cfg.priorKey === '24-25') {
+      return { label: 'SY 2024–2025', short: 'SY24–25', data: KPI_DATA_24_25, fromSheet: false };
+    }
+    const prior = KPI_SY_CONFIG[cfg.priorKey];
+    let rows = _kpiSYStore[cfg.priorKey] && _kpiSYStore[cfg.priorKey].data;
+    if (!rows || !rows.length) { const c = NJTC_CACHE.get(prior.cacheKey); rows = c && c.data; }
+    if (!rows || !rows.length) return { label: prior.label, short: prior.short, data: [], fromSheet: true };
+    const hasEOY = rows.some(k => k.endStatus && k.endStatus.trim());
+    return {
+      label: prior.label, short: prior.short, fromSheet: true, hasEOY,
+      data: rows.map(k => ({ goal: k.goal, target: k.target, status: (hasEOY ? (k.endStatus || k.midStatus) : k.midStatus) || '' })),
+    };
   }
 
   // ══════════════════════════════════════════════════════════
@@ -6270,16 +6474,16 @@
       what: {
         title: 'KPI Targets',
         icon: '🎯',
-        desc: 'Every organizational target for SY 2025–2026 across all 10 annual goal areas. Status, ownership, and source data pulled live from the NJTC KPI Dashboard Google Sheet. The Data & Evaluation department owns this view.',
+        desc: 'Every organizational target for the selected school year across all 10 annual goal areas — use the SY 25-26 / SY 26-27 toggle to switch years. Status, ownership, and source data pulled live from that year\'s NJTC KPI Dashboard Google Sheet. The Data & Evaluation department owns this view.',
         alert: '⚠️ Any change to the KPI Dashboard spreadsheet structure, column order, or tab names must be communicated to PEI before implementation. The portal auto-syncs — silent schema changes will break the live feed.',
         sources: [
           { icon: '📊', label: 'KPI Dashboard', color: '#dbeafe', text: '#1e40af' },
           { icon: '📋', label: 'Summary Tab', color: '#dcfce7', text: '#15803d' },
-          { icon: '📅', label: 'Quarterly Tab (gid:1313501732)', color: '#f3e8ff', text: '#7e22ce' },
+          { icon: '📅', label: 'Quarterly Tab (SY25-26 gid:1313501732 · SY26-27 gid:51260447)', color: '#f3e8ff', text: '#7e22ce' },
         ],
         items: [
           { icon: '🏷️', label: 'Goal Area', desc: 'One of 10 annual strategic goal categories from the NJTC strategic plan.', live: false },
-          { icon: '📌', label: 'Organizational Target', desc: 'The specific, measurable commitment for SY 2025–2026. Targets are set annually during strategic planning.', live: false },
+          { icon: '📌', label: 'Organizational Target', desc: 'The specific, measurable commitment for the selected school year (SY 2025–2026 or SY 2026–2027). Targets are set annually during strategic planning.', live: false },
           { icon: '🟡', label: 'Mid-Year Status', desc: 'Formal review status as of January. Populated by goal owners in the KPI Dashboard spreadsheet.', live: true },
           { icon: '🏁', label: 'End of Year Status', desc: 'Final cycle assessment. Completed at end-of-year review (May–June). This is the definitive measure of target achievement.', live: true },
           { icon: '👤', label: 'Owner', desc: 'The primary metric owner responsible for capturing and reporting data. Pulled live from the Quarterly Goal Tracking tab.', live: true },
@@ -7323,8 +7527,16 @@
   window.DEPT_LABELS          = DEPT_LABELS;
   window.KPI_DATA_STATIC      = KPI_DATA_STATIC;
   window.KPI_DATA_24_25       = KPI_DATA_24_25;
+  window.KPI_DATA_STATIC_26_27 = KPI_DATA_STATIC_26_27;
   window.KPI_DATA             = KPI_DATA;
   window.SHEET_CSV_URL        = SHEET_CSV_URL;
+  window.SHEET_CSV_URL_26_27  = SHEET_CSV_URL_26_27;
+  window.KPI_SY_CONFIG        = KPI_SY_CONFIG;
+  window.kpiSYConfig          = kpiSYConfig;
+  window.kpiPriorYear         = kpiPriorYear;
+  window.setKpiSY             = setKpiSY;
+  window.syncKpiSYUI          = _syncKpiSYUI;
+  _syncKpiSYUI();  // reflect the saved SY choice on the toggle + panel labels at load
   window.KPI_META_URL         = KPI_META_URL;
   window.KPI_META_CACHE_KEY   = KPI_META_CACHE_KEY;
   window.KPI_META_TTL         = KPI_META_TTL;

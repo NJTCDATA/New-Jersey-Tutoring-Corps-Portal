@@ -97,6 +97,15 @@
     function getSyaSites() {
       if (_execPeriod === 'summer') {
         // Summer: derive from onsite tracker rows
+        // Summer 2026 sites live in the SY 26-27 Locations tab (Cycle = "Summer 2026");
+        // the Onsite Tracker tab is SY 26-27-only, so it's just a fallback here.
+        var loc = (window.NJTC_LOCATIONS || []).filter(function(r){ return /summer 2026/i.test(r.cycle || ''); });
+        if (loc.length) {
+          var ld = new Set(loc.map(function(r){ return r.district; }));
+          return { sites: loc.length, districts: ld.size || null, isSummer: true };
+        }
+        var st = window._syaStats && window._syaStats.summer2026;
+        if (st && st.sites) return { sites: st.sites, districts: st.districts || null, isSummer: true };
         var rows = (window.NJTC_ONSITE_TRACKER || []).filter(function(r){ return r.isSummer; });
         var sites = new Set(rows.filter(function(r){ return r.location; }).map(function(r){ return r.location; }));
         var districts = new Set(rows.filter(function(r){ return r.district || r.county; }).map(function(r){ return r.district || r.county; }));
