@@ -11377,8 +11377,9 @@
       respond: function() {
         var irl = _irl();
         var msg = '**Current Data Context:**\n\n';
-        msg += '📊 **KPI**: SY 2025–26 (active)\n';
-        msg += '🎓 **Pearl**: Live real-time session data\n';
+        var _kc = (typeof window.kpiSYConfig === 'function') ? window.kpiSYConfig() : null;
+        msg += '📊 **KPI**: ' + (_kc ? _kc.label : 'SY 2026–2027') + ' (selected)\n';
+        msg += '🎓 **Pearl**: ' + (window._njtcPearlSYLabel ? window._njtcPearlSYLabel() : 'SY 2026-27') + ' · live session data\n';
         if (irl) {
           msg += '📐 **iReady**: ';
           if (irl.activeSY) msg += irl.activeSY+' active (most recent)';

@@ -107,7 +107,7 @@
     // Prefer current SY row, fall back to any match
     const matches = rows.filter(r => normName(r.name) === needle);
     if (!matches.length) return null;
-    const currentSY = matches.find(r => r.sy === '2025-2026') || matches[matches.length - 1];
+    const currentSY = matches.find(r => r.sy === '2026-2027') || matches.find(r => r.sy === '2025-2026') || matches[matches.length - 1];
     return currentSY.role || null;
   }
 

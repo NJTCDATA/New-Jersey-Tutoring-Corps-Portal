@@ -2890,6 +2890,53 @@
 
   // ── Main build function ──────────────────────────────────────────────────────
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ██  PRIOR-YEAR RECAP — returning staff only.
+  //     High-level totals from a concluded school year, precomputed into a
+  //     small static file (scripts/build-onsite-archive.js). No scholar-level
+  //     data exists in it, so none can be shown. Fetched once per year file
+  //     (immutable → browser-cacheable); nothing from the old Pearl workbook
+  //     is downloaded here.
+  // ══════════════════════════════════════════════════════════════════════════
+  const PRIOR_YEARS = ['2025-26'];
+  async function renderPriorYearRecap(pearlId, host) {
+    if (!host || document.getElementById('njtc-prior-year')) return;
+    for (const season of PRIOR_YEARS) {
+      let data;
+      try {
+        const res = await fetch('data/archive-' + season + '.json?v=' + season);
+        if (!res.ok) continue;
+        data = await res.json();
+      } catch (e) { continue; }
+      const t = data && data.tutors && data.tutors[pearlId];
+      if (!t) continue;
+      const pctTxt = v => v == null ? '—' : v + '%';
+      const n = v => v == null ? '—' : Number(v).toLocaleString();
+      const cell = (val, label) => `<div style="flex:1;min-width:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.7rem .85rem"><div style="font-size:1.25rem;font-weight:800;color:#fff">${val}</div><div style="font-size:.7rem;color:rgba(255,255,255,.55);margin-top:.15rem">${label}</div></div>`;
+      const box = document.createElement('div');
+      box.id = 'njtc-prior-year';
+      box.className = 'njtc-section';
+      box.innerHTML = `
+        <details style="border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:.9rem 1.1rem;background:rgba(255,255,255,.02)">
+          <summary style="cursor:pointer;font-weight:700;color:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+            <span>📁 Your SY ${esc(data.season)} Recap</span>
+            <span style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.45)">Archived · high-level only</span>
+          </summary>
+          <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin:.6rem 0 .8rem">Last school year at a glance${t.school ? ' · ' + esc(t.school) : ''}. Scholar-level details from prior years are archived.</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.6rem">
+            ${cell(n(t.sessionsAttended), 'Sessions you led')}
+            ${cell(pctTxt(t.tutorAttendanceRate), 'Your attendance')}
+            ${cell(n(t.scholarsServed), 'Scholars you worked with')}
+            ${cell(pctTxt(t.scholarAttendanceRate), 'Scholar attendance')}
+            ${cell(t.scholarSurveyAvg == null ? '—' : t.scholarSurveyAvg + ' / 5', 'Scholar survey average')}
+            ${cell(n(t.surveysSubmitted), 'Tutor surveys submitted')}
+          </div>
+        </details>`;
+      host.appendChild(box);
+      return;
+    }
+  }
+
   async function build(user) {
     if (!user) return;
     const pearlId = user.pearlId || user.id;
@@ -2997,6 +3044,9 @@
         });
       });
     }
+
+    // -- Prior-year recap for returning staff (aggregates only, non-blocking) --
+    renderPriorYearRecap(pearlId, dashPlaceholder).catch(() => {});
 
     // -- Load My Progress pane async (non-blocking, runs after dashboard renders) --
     // Skip entirely for leader roles — their sub-tab is hidden and Team

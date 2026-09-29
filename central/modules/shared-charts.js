@@ -2112,9 +2112,20 @@
   };
   window._njtcPearlAliasMap = _PEARL_ALIAS_MAP;
 
+  // Talent/HR profiles are SY 2025-2026 (HR 26-27 not wired yet). Pearl data
+  // is only overlaid when Pearl Ops holds the SAME school year — never this
+  // year's Pearl stats on last year's profiles.
+  const _TALENT_SY_TO_PEARL = { '2025-2026': 'sy2526', '2026-2027': 'sy2627' };
+  function _pearlMatchesTalentSY(sy) {
+    const p = (window.po && typeof window.po.getActivePeriod === 'function') ? window.po.getActivePeriod() : null;
+    return !!p && _TALENT_SY_TO_PEARL[sy || '2025-2026'] === p;
+  }
+  window._pearlMatchesTalentSY = _pearlMatchesTalentSY;
+
   function _hrOverlayPearl() {
     const _poReady = typeof po !== 'undefined' && po && typeof po.getTutorAttendanceMap === 'function';
     if (!_poReady) { console.warn('[HR Profiles] Pearl overlay skipped — po not ready'); return; }
+    if (!_pearlMatchesTalentSY('2025-2026')) { console.info('[HR Profiles] Pearl overlay skipped — Pearl Ops is on a different school year than the SY 2025-2026 profiles'); return; }
     try {
       // getTutorAttendanceMap() reads live _personMap — current SY Pearl data only
       const tutorAttMap = po.getTutorAttendanceMap();
@@ -4036,15 +4047,17 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // All three APIs iterate potentially thousands of rows. Calling per-employee
     // would cost ~550k iterations for 50 employees. We build maps keyed by
     // normName once, then do O(1) lookups in buildMetrics.
-    const attMap      = (window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
-    const lateFilers  = (window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
+    // Same-year guard: only use Pearl when it holds the school year being viewed
+    const _pearlOk    = _pearlMatchesTalentSY(typeof _pSY !== 'undefined' ? _pSY : '2025-2026');
+    const attMap      = (_pearlOk && window.po && window.po.getTutorAttendanceMap) ? window.po.getTutorAttendanceMap() : {};
+    const lateFilers  = (_pearlOk && window.po && window.po.getLateFilerStats)    ? window.po.getLateFilerStats().flagged : [];
     const lateFilerMap = {}; // normName → { late, lateRate }
     lateFilers.forEach(f => { lateFilerMap[normName(f.name)] = { late: f.late || 0, lateRate: f.lateRate || 0 }; });
 
     // Survey scores map — keyed by normName(result.name)
     const _allSurveyMap = {};
     try {
-      if (window.po && window.po.getTutorSurveyScores) {
+      if (_pearlOk && window.po && window.po.getTutorSurveyScores) {
         window.po.getTutorSurveyScores().forEach(s => { _allSurveyMap[normName(s.name)] = s; });
       }
     } catch(e) { console.warn('[Talent] survey pre-compute error:', e); }
@@ -4052,7 +4065,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     // Session stats map — keyed by normName(result.name)
     const _allSessMap = {};
     try {
-      if (window.po && window.po.getTutorSessionStats) {
+      if (_pearlOk && window.po && window.po.getTutorSessionStats) {
         window.po.getTutorSessionStats().forEach(s => { _allSessMap[normName(s.name)] = s; });
       }
     } catch(e) { console.warn('[Talent] session pre-compute error:', e); }

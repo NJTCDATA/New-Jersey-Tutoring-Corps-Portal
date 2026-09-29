@@ -100,7 +100,10 @@
 
     const total = attended + absent;
     const rate = total ? Math.round((attended / total) * 1000) / 10 : null;
-    const sessions = new Set((b.attendance || []).map(r => r[ATT.SESSION]).filter(Boolean)).size;
+    // Same definition as the Summary tile (partner-report.js)
+    const sessions = window.NJTCPartnerReport && window.NJTCPartnerReport.deliveredSessions
+      ? window.NJTCPartnerReport.deliveredSessions(b.sessions || [], b.attendance || [])
+      : new Set((b.attendance || []).map(r => r[ATT.SESSION]).filter(Boolean)).size;
 
     function sentiment(rows, col) {
       let pos = 0, neu = 0, neg = 0;

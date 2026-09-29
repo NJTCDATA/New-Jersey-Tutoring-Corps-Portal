@@ -7,7 +7,7 @@
   // Sheet identifiers — see data-sources.js (loaded before this file) for the
   // single source of truth; update rollover values there, not here.
   const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
-  const PEARL_KEY  = SRC.PEARL_2PACX;
+  const PEARL_KEY  = SRC.PEARL_KEY || SRC.PEARL_2PACX;  // active SY workbook id
   const PEARL_ATT_GID  = SRC.PEARL_GIDS && SRC.PEARL_GIDS.att;
   const PEARL_STU_GID  = SRC.PEARL_GIDS && SRC.PEARL_GIDS.stu;
   const PEARL_SESS_GID = SRC.PEARL_GIDS && SRC.PEARL_GIDS.sess;
@@ -462,9 +462,10 @@
   const CACHE_TTL     = 5 * 60 * 1000; // 5 minutes — Pearl/iReady (large, slow-changing)
   const TAP_CACHE_TTL = 0;             // TAP master roster — always fresh (small CSV, live writes)
   const CACHE_KEYS = {
-    att:        'njtc_team_att_v2',
-    stu:        'njtc_team_stu_v2',
-    sess:       'njtc_team_sess_v2',
+    att:        'njtc_team_att_v3',   // v3 = SY 26-27 Pearl workbook
+    stu:        'njtc_team_stu_v3',
+    sess:       'njtc_team_sess_v3',
+    tracker:    'njtc_team_tracker2627_v1',
     irEla:      'njtc_team_ir_ela_v2',
     irMath:     'njtc_team_ir_math_v2',
     ir2526Ela:  'njtc_team_ir2526_ela_v2',
@@ -481,6 +482,7 @@
   let _stylesInjected = false;
   let _leaderProfile  = null;
   let _leaderDistricts = [];
+  let _leaderSource = '';
   let _leaderInfo = null;
   let _teamData = {};
   let _phase2Loaded = false;        // true once iReady/TAP/SM/Concerns are in
@@ -650,32 +652,37 @@
     return ctrl.signal;
   }
 
+  // url may be one URL or an ordered list (primary, fallback) — see pearlUrl()
   async function fetchCSV(url, cacheKey, timeoutMs) {
     if (cacheKey) {
       const cached = cacheGet(cacheKey);
       if (cached) return cached;
     }
     const ms = timeoutMs || 45000;
+    const urls = Array.isArray(url) ? url : [url];
     let lastErr;
     for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const res = await fetch(url, { signal: makeSignal(ms) });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const text = await res.text();
-        if (text.trim().startsWith('<')) throw new Error('HTML response — sheet not public');
-        const data = csvToObjects(text);
-        if (cacheKey) cacheSet(cacheKey, data);
-        return data;
-      } catch (e) {
-        lastErr = e;
-        if (attempt < 2) await new Promise(r => setTimeout(r, (attempt + 1) * 2000));
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, { signal: makeSignal(ms) });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const text = await res.text();
+          if (text.trim().startsWith('<')) throw new Error('HTML response — sheet not public');
+          const data = csvToObjects(text);
+          if (cacheKey) cacheSet(cacheKey, data);
+          return data;
+        } catch (e) {
+          lastErr = e;
+        }
       }
+      if (attempt < 1) await new Promise(r => setTimeout(r, 2000));
     }
     throw lastErr;
   }
 
   function pearlUrl(gid) {
-    return `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${gid}`;
+    return SRC.pearlCsvUrls ? SRC.pearlCsvUrls(gid)
+      : `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${gid}`;
   }
   function pearlLoginUrl() {
     return `https://docs.google.com/spreadsheets/d/e/${PEARL_LOGIN_KEY}/pub?output=csv&gid=0`;
@@ -772,18 +779,72 @@
      Fallback: Pearl ATT non-Instructor rows
                (works when HR pub URL is unavailable)
   ───────────────────────────────────────────── */
+  // SY 26-27 Onsite Tracker rows as objects (header = row whose col A is "Cycle")
+  async function fetchTrackerRows() {
+    const cached = cacheGet(CACHE_KEYS.tracker);
+    if (cached) return cached;
+    if (!SRC.ONSITE_TRACKER_SHEET_ID) return [];
+    const res = await fetch(`https://docs.google.com/spreadsheets/d/${SRC.ONSITE_TRACKER_SHEET_ID}/export?format=csv&gid=${SRC.ONSITE_TRACKER_GID || '0'}`, { signal: makeSignal(15000) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error('HTML response — tracker not shared');
+    const rows = parseCSV(text);
+    const hIdx = rows.findIndex(r => (r[0] || '').trim().toLowerCase() === 'cycle');
+    if (hIdx < 0) return [];
+    const H = rows[hIdx].map(h => (h || '').replace(/\s+/g, ' ').trim().toLowerCase());
+    const col = n => H.indexOf(n);
+    const cR = col('role'), cD = col('district'), cL = col('locations'), cF = col('first name'), cLa = col('last name'), cE = col('email address'), cT = col('terminated?');
+    const data = rows.slice(hIdx + 1).map(r => ({
+      role: (r[cR] || '').trim(), district: (r[cD] || '').trim(), location: (r[cL] || '').trim(),
+      name: ((r[cF] || '').trim() + ' ' + (r[cLa] || '').trim()).trim(),
+      email: (r[cE] || '').trim().toLowerCase(),
+      terminated: (r[cT] || '').trim().toLowerCase() === 'yes',
+    })).filter(r => r.name);
+    cacheSet(CACHE_KEYS.tracker, data);
+    return data;
+  }
+  const TRACKER_LEADER_ROLES = /dual role|site coordinator|instructional coach|site leader/i;
+
   async function detectLeader(userProfile) {
-    // Try HR list first (authoritative)
+    const email = (userProfile.email || '').toLowerCase();
+    const isMe = (name, em) => normName(name) === normName(userProfile.name) || (em && email && em === email);
+
+    // 1) SY 26-27 Onsite Tracker — the current-year roster decides the role.
+    //    Someone on it as a tutor is NOT shown a leader view from last year's HR row.
+    try {
+      const tr = await fetchTrackerRows();
+      const mine = tr.filter(r => !r.terminated && isMe(r.name, r.email));
+      if (mine.length) {
+        const lead = mine.find(r => TRACKER_LEADER_ROLES.test(r.role));
+        if (!lead) return null;
+        // "All iLearn Locations" style rows → scope to the whole district
+        const sites = [...new Set(mine.filter(r => TRACKER_LEADER_ROLES.test(r.role))
+          .map(r => /^all\b/i.test(r.location) || !r.location
+            // district-wide: core name only ("iLearn Charter Network" → "iLearn") so it
+            // matches Pearl's "iLearn CMO" / "LEA - iLearn …" by substring
+            ? r.district.replace(/\s+(charter network|charter schools?|school district|public schools|twp schools|schools|district|sd|cmo)\s*$/i, '')
+            : r.location)
+          // Tracker names → Pearl-matchable: "Paterson Silk City Campus [K-3]" → "Paterson Silk City"
+          .map(x => x.replace(/\s*\[[^\]]*\]\s*/g, ' ').replace(/\s+campus\s*$/i, '').replace(/\s+/g, ' ').trim())
+          .filter(Boolean))];
+        return { role: lead.role, districts: sites, siteField: sites.join(', '), source: 'tracker-2627' };
+      }
+    } catch (e) {
+      console.warn('[NJTCTeam] SY 26-27 tracker unavailable, trying HR list:', e.message);
+    }
+
+    // 2) HR Master List (prefer 2026-2027 rows once HR adds them)
     try {
       const hrRows = await fetchCSV(hrUrl(), CACHE_KEYS.hr, 20000);
-      const active = hrRows.filter(r =>
-        r['Academic Year'] === '2025-2026' &&
+      const activeFor = y => hrRows.filter(r =>
+        r['Academic Year'] === y &&
         r['Active / Terminated Status'] === 'Active'
       );
-      const matchRow = active.find(r =>
+      const findIn = rows => rows.find(r =>
         normName(r['Full Name']) === normName(userProfile.name) ||
         (r['Email Address'] && r['Email Address'].toLowerCase() === (userProfile.email || '').toLowerCase())
       );
+      const matchRow = findIn(activeFor('2026-2027')) || findIn(activeFor('2025-2026'));
       if (matchRow) {
         const role = (matchRow['Position / Role'] || '').trim();
         if (LEADER_ROLES.has(role)) {
@@ -894,7 +955,12 @@
     };
   }
 
+  // Pearl "zzz"-prefixed schools/districts are archived — never shown.
+  const _isArchived = v => /^\s*z{3}/i.test(v || '');
+  const _liveRows = rows => (rows || []).filter(r => !_isArchived(r['School'] || r['Site']) && !_isArchived(r['District'] || r['district']));
+
   function filterData(rawAtt, rawStu, rawSess, rawLogin, rawEnhancement, leaderDistricts, leaderName) {
+    rawAtt = _liveRows(rawAtt); rawStu = _liveRows(rawStu); rawSess = _liveRows(rawSess);
     const att    = rawAtt;
     const stu    = rawStu;
     const sess   = rawSess || [];
@@ -914,7 +980,9 @@
     // It's the most authoritative source because it's maintained by site admins.
     // Columns vary — try common permutations for name, email, school, district.
     const loginSchools = new Set();
-    if (login.length > 0) {
+    // SY 26-27 leaders identified from the current tracker are scoped by the
+    // tracker's sites — the evergreen login sheet may still list last year's.
+    if (login.length > 0 && _leaderSource !== 'tracker-2627') {
       login.forEach(r => {
         const rName  = normName(r['Full Name'] || r['Name'] || r['Staff Name'] || r['User'] || '');
         const rEmail = (r['Email'] || r['Email Address'] || r['email'] || '').trim().toLowerCase();
@@ -3071,6 +3139,7 @@
 
     _leaderProfile   = userProfile;
     _leaderDistricts = leaderInfo.districts;
+    _leaderSource = leaderInfo.source || '';
     _leaderInfo      = leaderInfo;
 
     const teamTab = document.getElementById('njtcTeamTab');

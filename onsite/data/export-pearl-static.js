@@ -28,14 +28,14 @@ const OUT_DIR = path.join(__dirname);
 // Single source of truth — see ../data-sources.js. Update rollover values
 // there, not here (it doubles as a Node module via module.exports).
 const SRC       = require('../data-sources.js');
-const PEARL_KEY = SRC.PEARL_2PACX;
+const PEARL_KEY = SRC.PEARL_KEY || SRC.PEARL_2PACX;  // active SY workbook id (matches leader-team.js)
 const LOGIN_KEY = SRC.PEARL_LOGIN_2PACX;
 
 const SOURCES = [
-  { name: 'pearl-att',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.att}` },
-  { name: 'pearl-stu',   url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.stu}` },
-  { name: 'pearl-inst',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.inst}` },
-  { name: 'pearl-sess',  url: `https://docs.google.com/spreadsheets/d/e/${PEARL_KEY}/pub?output=csv&gid=${SRC.PEARL_GIDS.sess}` },
+  { name: 'pearl-att',   url: SRC.pearlCsvUrl(SRC.PEARL_GIDS.att) },
+  { name: 'pearl-stu',   url: SRC.pearlCsvUrl(SRC.PEARL_GIDS.stu) },
+  { name: 'pearl-inst',  url: SRC.pearlCsvUrl(SRC.PEARL_GIDS.inst) },
+  { name: 'pearl-sess',  url: SRC.pearlCsvUrl(SRC.PEARL_GIDS.sess) },
   { name: 'pearl-login', url: `https://docs.google.com/spreadsheets/d/e/${LOGIN_KEY}/pub?output=csv&gid=0` },
 ];
 
@@ -112,7 +112,7 @@ async function run() {
 
   // Tag this export with the exact sheet it came from. leader-team.js checks
   // this against the CURRENT data-sources.js value before trusting these
-  // files — so if PEARL_2PACX is ever repointed at a new SY's workbook
+  // files — so if PEARL_KEY is ever repointed at a new SY's workbook
   // (rollover) without anyone touching these JSON files, the mismatch makes
   // the dashboard fall straight back to a live fetch instead of silently
   // serving last year's frozen data forever.
@@ -124,7 +124,7 @@ async function run() {
     }, null, 2));
     console.log('\nAll tabs exported — wrote pearl-manifest.json. Commit the .json files;');
     console.log('leader-team.js will automatically prefer them over the live Pearl fetch');
-    console.log('as long as data-sources.js\'s PEARL_2PACX still matches this export.');
+    console.log('as long as data-sources.js\'s PEARL_KEY still matches this export.');
   } else {
     console.log('\nOne or more tabs failed — NOT writing pearl-manifest.json, so no');
     console.log('partial/inconsistent snapshot gets picked up. Re-run once all tabs succeed.');

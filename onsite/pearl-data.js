@@ -9,16 +9,73 @@
   // Pearl workbook identifiers — see data-sources.js (loaded before this file)
   // for the single source of truth; update rollover values there, not here.
   const SRC = (typeof NJTC_SOURCES !== 'undefined') ? NJTC_SOURCES : {};
-  const PEARL_2PACX = SRC.PEARL_2PACX;
   const PEARL_GIDS  = SRC.PEARL_GIDS || {};
+  const pearlCsvUrls = SRC.pearlCsvUrls || (gid => [`https://docs.google.com/spreadsheets/d/e/${SRC.PEARL_2PACX}/pub?output=csv&gid=${gid}`]);
 
   const CACHE_TTL = 5 * 60 * 1000;
+  // v9 = SY 26-27 workbook (new keys so no SY 25-26 rows are ever served from cache)
   const CACHE_KEYS = {
-    att:  'njtc_od_att_v8',
-    inst: 'njtc_od_inst_v8',
-    stu:  'njtc_od_stu_v8',
-    sess: 'njtc_od_sess_v8'
+    att:  'njtc_od_att_v9',
+    inst: 'njtc_od_inst_v9',
+    stu:  'njtc_od_stu_v9',
+    sess: 'njtc_od_sess_v9'
   };
+  ['att','inst','stu','sess'].forEach(k => { try { localStorage.removeItem('njtc_od_' + k + '_v8'); } catch (e) {} });
+
+  // ── Dates & weeks ──────────────────────────────────────────────────────
+  // Sheet exports may render dates as "9/25/2026", "2026-09-25" or with a
+  // time part; everything is compared through ISO yyyy-mm-dd, never as text.
+  function toISODate(v) {
+    const t = (v || '').trim();
+    if (!t) return '';
+    let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+    m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0'); }
+    const d = new Date(t);
+    return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  const WEEK1 = SRC.PEARL_WEEK1 ? new Date(SRC.PEARL_WEEK1 + 'T00:00:00') : null;
+  // "Week N" from a session date, Monday-anchored to the SY's Week 1 — same
+  // convention as Pearl's Weekly Grouping column and the central portal.
+  function weekFromDate(v) {
+    const iso = toISODate(v);
+    if (!iso || !WEEK1) return '';
+    const d = new Date(iso + 'T00:00:00');
+    const day = d.getDay();
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    const n = Math.round((d - WEEK1) / (7 * 864e5)) + 1;
+    return n >= 1 ? 'Week ' + n : '';
+  }
+  // Fill derived columns the SY 26-27 attendance tab doesn't carry: Weekly
+  // Grouping (col AA) from Session Date. Idempotent; header row untouched.
+  function normalizeAttRows(rows) {
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (!(r[ATT.WEEK] || '').trim() && r[ATT.SESS_DATE]) r[ATT.WEEK] = weekFromDate(r[ATT.SESS_DATE]);
+    }
+    return rows;
+  }
+  // Pearl's "10 consecutive sessions missed" flag, computed when the sheet
+  // doesn't provide it: a scholar's latest 10+ recorded sessions all missed
+  // for scholar-caused reasons (service interruptions don't break or add).
+  function computeConsecConcern(scholarRows) {
+    const byId = {};
+    for (const r of scholarRows) {
+      const id = (r[ATT.USER_ID] || '').trim();
+      const cls = classifyRow(r, false);
+      if (!id || (cls !== 'attended' && cls !== 'absent')) continue;
+      (byId[id] = byId[id] || []).push([toISODate(r[ATT.SESS_DATE]), cls]);
+    }
+    const out = new Set();
+    for (const id in byId) {
+      const list = byId[id].sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+      let run = 0;
+      for (let i = list.length - 1; i >= 0 && list[i][1] === 'absent'; i--) run++;
+      if (run >= 10) out.add(id);
+    }
+    return out;
+  }
 
   // ATT column indexes
   const ATT = {
@@ -150,10 +207,10 @@
 
     const gid = PEARL_GIDS[gidName];
 
-    // Primary URL: Published-to-web 2PACX key. Retry up to 3 times with
-    // backoff — Google's publish CDN occasionally returns a transient 404
+    // Primary: sheet-ID CSV export (gviz as a same-attempt fallback). Retry up
+    // to 3 times with backoff — Google occasionally returns a transient error
     // that resolves on a subsequent request.
-    const pubUrl = `https://docs.google.com/spreadsheets/d/e/${PEARL_2PACX}/pub?output=csv&gid=${gid}`;
+    const urls = pearlCsvUrls(gid);
 
     async function tryUrl(url) {
       // Use AbortController + setTimeout — AbortSignal.timeout() has Safari/iOS bugs
@@ -181,14 +238,16 @@
     // blocking the dashboard for more than ~11s in the absolute worst case.
     const delays = [1000, 2000];
     for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const rows = await tryUrl(pubUrl);
-        if (cacheKey) setCache(cacheKey, rows);
-        return rows;
-      } catch (e) {
-        lastErr = e;
-        if (attempt < 2) await new Promise(r => setTimeout(r, delays[attempt]));
+      for (const url of urls) {
+        try {
+          const rows = await tryUrl(url);
+          if (cacheKey) setCache(cacheKey, rows);
+          return rows;
+        } catch (e) {
+          lastErr = e;
+        }
       }
+      if (attempt < 2) await new Promise(r => setTimeout(r, delays[attempt]));
     }
 
     throw lastErr || new Error(`Pearl data unavailable after retries`);
@@ -233,10 +292,18 @@
 
     if (attRes.status === 'rejected') throw attRes.reason;
 
-    const attRows  = attRes.value;
-    const instRows = instRes.status === 'fulfilled' ? instRes.value : [];
-    const stuRows  = stuRes.status  === 'fulfilled' ? stuRes.value  : [];
-    const sessRows = sessRes.status === 'fulfilled' ? sessRes.value : [];
+    // Pearl marks archived schools/districts with a "zzz" prefix — never shown.
+    // (Header row 0 is always kept.)
+    const zzz = v => /^\s*z{3}/i.test(v || '');
+    const live = (rows, sIdx, dIdx) => rows.filter((r, i) => i === 0 || (!zzz(r[sIdx]) && !zzz(r[dIdx])));
+    const attRows  = live(normalizeAttRows(attRes.value), ATT.SCHOOL, ATT.DISTRICT);
+    const instRows = instRes.status === 'fulfilled' ? live(instRes.value, INST.SCHOOL, INST.DISTRICT) : [];
+    const stuRows  = stuRes.status  === 'fulfilled' ? live(stuRes.value, STU.SCHOOL, STU.DISTRICT)   : [];
+    const sessRows = sessRes.status === 'fulfilled' ? (function (rows) {
+      if (!rows.length) return rows;
+      const h = rows[0].map(x => (x || '').trim().toLowerCase());
+      return live(rows, h.indexOf('school'), h.indexOf('district'));
+    })(sessRes.value) : [];
 
     // Filter my instructor attendance rows
     const myInstRows = attRows.filter(r =>
@@ -283,7 +350,7 @@
         })();
         // Look for the session name column
         const nameColIdx = (function() {
-          const candidates = ['session name', 'name', 'session'];
+          const candidates = ['title', 'session name', 'name', 'session'];
           for (let ki = 0; ki < candidates.length; ki++) {
             const idx = hdr.findIndex(function(h) { return h === candidates[ki]; });
             if (idx >= 0) return idx;
@@ -291,8 +358,11 @@
           return hdr.findIndex(function(h) { return h.includes('session') || h.includes('name'); });
         })();
 
+        // Only this tutor's sessions — titles like "6D" repeat across tutors/subjects
+        const instIdIdx = hdr.indexOf('pearl instructor id');
         for (let ri = 1; ri < sessRows.length; ri++) {
           const row = sessRows[ri];
+          if (instIdIdx >= 0 && (row[instIdIdx] || '').trim() !== pearlUserId) continue;
           const sessName = nameColIdx >= 0 ? (row[nameColIdx] || '').trim() : '';
           if (!sessName) continue;
           let subj = null;
@@ -345,8 +415,10 @@
       if (cls === 'attended') {
         myAttended++;
         weeklyAtt[week].attended++;
+        // Session title + date: titles (e.g. "6D") repeat every meeting, so the
+        // date keeps scholars limited to meetings this tutor actually attended.
         const sessId = (r[ATT.SESSION] || '').trim();
-        if (sessId) myAttendedSessions.add(sessId);
+        if (sessId) myAttendedSessions.add(sessId + '|' + toISODate(r[ATT.SESS_DATE]));
       } else if (cls === 'absent') {
         myAbsent++;
         weeklyAtt[week].absent++;
@@ -392,7 +464,7 @@
     // block that spans several school sites in the same Pearl session ID.
     const scholarRows = attRows.filter(r => {
       if ((r[ATT.ROLE] || '').trim() !== 'Student') return false;
-      if (!myAttendedSessions.has((r[ATT.SESSION] || '').trim())) return false;
+      if (!myAttendedSessions.has((r[ATT.SESSION] || '').trim() + '|' + toISODate(r[ATT.SESS_DATE]))) return false;
       if (tutorSchool) {
         const sc = (r[ATT.SCHOOL] || '').trim();
         if (sc && sc !== tutorSchool) return false;
@@ -423,7 +495,7 @@
       if (cls === 'attended') {
         s.attended++;
         const d = (r[ATT.SESS_DATE] || '').trim();
-        if (d && (!s.lastSeen || d > s.lastSeen)) s.lastSeen = d;
+        if (d && (!s.lastSeen || toISODate(d) > toISODate(s.lastSeen))) s.lastSeen = d;
       } else if (cls === 'absent') {
         s.absent++;
         const reason = (r[ATT.MISS_REASON] || '').trim();
@@ -469,11 +541,13 @@
       });
     }
 
-    const consecConcernIds = new Set(
-      scholarRows
-        .filter(r => (r[ATT.CONSEC_STATUS] || '').trim() === 'Attendance Concern')
-        .map(r => (r[ATT.USER_ID] || '').trim())
-    );
+    // Use Pearl's own column when the sheet carries it; otherwise compute it.
+    const sheetHasConsec = attRows.length > 1 && attRows.slice(1).some(r => (r[ATT.CONSEC_STATUS] || '').trim());
+    const consecConcernIds = sheetHasConsec
+      ? new Set(scholarRows
+          .filter(r => (r[ATT.CONSEC_STATUS] || '').trim() === 'Attendance Concern')
+          .map(r => (r[ATT.USER_ID] || '').trim()))
+      : computeConsecConcern(scholarRows);
 
     const scholars = Object.values(scholarMap)
       .map(s => {
@@ -513,10 +587,13 @@
       const myNormName = myInstRows.length
         ? (myInstRows[0][ATT.USER] || '').trim().toLowerCase().replace(/\s+/g, ' ')
         : '';
-      const SESS_INST_NAME = 1;  // col B: Instructor display name
-      const SESS_STU_NAMES = 2;  // col C: Student names, comma-separated
-      const SESS_INST_ID   = 15; // col P: Pearl Instructor User ID
-      const SESS_STU_IDS   = 16; // col Q: Pearl Student User IDs, comma-separated
+      // Header-based (SY 26-27 inserted a "Program" column before Status)
+      const _sh = sessRows[0].map(h => (h || '').trim().toLowerCase());
+      const _si = (name, dflt) => { const i = _sh.indexOf(name); return i >= 0 ? i : dflt; };
+      const SESS_INST_NAME = _si('instructor', 1);          // Instructor display name
+      const SESS_STU_NAMES = _si('students', 2);            // Student names, comma-separated
+      const SESS_INST_ID   = _si('pearl instructor id', 15); // Pearl Instructor User ID
+      const SESS_STU_IDS   = _si('pearl student ids', 16);  // Pearl Student User IDs, comma-separated
       const sessScholarMap = {};
       for (let ri = 1; ri < sessRows.length; ri++) {
         const row      = sessRows[ri];
@@ -582,8 +659,8 @@
     // Action items: not-recorded sessions + attended sessions missing a survey
     // "Recent" = the 2 most recent weeks by session date
     const sortedByDate = myInstRows.slice().sort((a, b) => {
-      const da = (a[ATT.SESS_DATE] || '').trim();
-      const db = (b[ATT.SESS_DATE] || '').trim();
+      const da = toISODate(a[ATT.SESS_DATE]);
+      const db = toISODate(b[ATT.SESS_DATE]);
       return da < db ? -1 : da > db ? 1 : 0;
     });
     const mostRecentWeek = sortedByDate.length
@@ -607,11 +684,29 @@
     const surveyedSessionIds = new Set(
       myInstSurveys.map(r => (r[INST.SESS_ID] || '').trim()).filter(Boolean)
     );
+    // Attendance rows carry the session TITLE, surveys carry the Pearl Session
+    // ID — bridge them through Session Details (instructor + title + date).
+    const sessIdByKey = {};
+    if (sessRows && sessRows.length > 1) {
+      const h = sessRows[0].map(x => (x || '').trim().toLowerCase());
+      const cT = h.indexOf('title'), cI = h.indexOf('pearl instructor id'),
+            cS = h.indexOf('scheduled start'), cId = h.indexOf('pearl session id');
+      if (cT >= 0 && cI >= 0 && cS >= 0 && cId >= 0) {
+        for (let i = 1; i < sessRows.length; i++) {
+          const row = sessRows[i];
+          if ((row[cI] || '').trim() !== pearlUserId) continue;
+          sessIdByKey[(row[cT] || '').trim() + '|' + toISODate(row[cS])] = (row[cId] || '').trim();
+        }
+      }
+    }
+    const hasSessBridge = Object.keys(sessIdByKey).length > 0;
     const missingSurveys = myInstRows
       .filter(r => {
         if (classifyRow(r, true) !== 'attended') return false;
-        const sid = (r[ATT.SESSION] || '').trim();
-        return sid && !surveyedSessionIds.has(sid);
+        const title = (r[ATT.SESSION] || '').trim();
+        if (!title) return false;
+        const sid = hasSessBridge ? sessIdByKey[title + '|' + toISODate(r[ATT.SESS_DATE])] : title;
+        return sid ? !surveyedSessionIds.has(sid) : false;
       })
       .map(r => ({
         date:   (r[ATT.SESS_DATE] || '').trim(),
@@ -622,7 +717,8 @@
 
     // Data range: first and last session dates across all instructor rows
     const allDates = myInstRows
-      .map(r => (r[ATT.SESS_DATE] || '').trim()).filter(Boolean).sort();
+      .map(r => (r[ATT.SESS_DATE] || '').trim()).filter(Boolean)
+      .sort((a, b) => { const x = toISODate(a), y = toISODate(b); return x < y ? -1 : x > y ? 1 : 0; });
     const dataRange = {
       first: allDates[0] || null,
       last:  allDates[allDates.length - 1] || null

@@ -10,6 +10,11 @@ name: Refresh Partner Portal Data
 #       "Update logins too?" to "yes" and add/edit their entry in the
 #       PARTNER_EMAIL_MAP / PARTNER_PIN_MAP secrets first.
 #
+# Each partner gets partner/data/<token>.json (live school year + year-over-year
+# summary) and partner/data/<token>.<season>.json per archived year, loaded
+# only when the partner toggles to it. Archived files are deterministic, so
+# they don't change (or re-commit) night to night.
+#
 # Nothing here ever writes a plaintext email or PIN into the repo — only
 # SHA-256 hashes (auth/partner-codes.json) and scoped data bundles
 # (partner/data/*.json) get committed. See scripts/build-partner-data.js.
@@ -26,14 +31,6 @@ on:
         options:
           - 'no'
           - 'yes'
-      PARTNER_SY_LABEL:
-        description: 'Current school year label shown on partner dashboards (e.g. 2025-26)'
-        required: true
-        default: '2025-26'
-      PARTNER_SY_START:
-        description: 'Partner side only: drop any session before this date (YYYY-MM-DD). Bump this + the label above when a new school year starts to roll every partner dashboard forward.'
-        required: true
-        default: '2025-07-01'
 
 jobs:
   build:
@@ -56,14 +53,8 @@ jobs:
           PARTNER_HMAC_KEY: ${{ secrets.PARTNER_HMAC_KEY }}
           PARTNER_EMAIL_MAP_JSON: ${{ secrets.PARTNER_EMAIL_MAP }}
           PARTNER_PIN_MAP_JSON: ${{ github.event.inputs.UPDATE_LOGINS == 'yes' && secrets.PARTNER_PIN_MAP || '' }}
-          PARTNER_SY_LABEL: ${{ github.event.inputs.PARTNER_SY_LABEL || '2025-26' }}
-          PARTNER_SY_START: ${{ github.event.inputs.PARTNER_SY_START || '2025-07-01' }}
-          # Unset until SY26-27's Pearl sheet exists — the script falls back to
-          # the current SY25-26 sheet baked in as its default. To roll over to
-          # a new year's workbook, add PARTNER_PEARL_2PACX (and PARTNER_PEARL_GIDS
-          # if the tab GIDs differ) as repo secrets; no code change needed.
-          PARTNER_PEARL_2PACX: ${{ secrets.PARTNER_PEARL_2PACX }}
-          PARTNER_PEARL_GIDS: ${{ secrets.PARTNER_PEARL_GIDS }}
+          # School years (live SY 26-27 + archived SY 25-26) are defined once in
+          # partner/partner-report.js (SEASONS) — no per-run inputs needed.
         run: node scripts/build-partner-data.js
 
       - name: Commit and push

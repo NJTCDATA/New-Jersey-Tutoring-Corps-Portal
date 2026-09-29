@@ -5,6 +5,11 @@
 // Charts rendered at 1400×860 px (≈3× density) — no blur when screenshotted.
 // ─────────────────────────────────────────────────────────────────────────────
 (function () {
+  // Year label follows whichever Pearl period is loaded (window.po)
+  function _surveyPeriodLabel() {
+    var p = (window.po && typeof window.po.getStats === 'function') ? (window.po.getStats().activePeriod || 'sy2627') : 'sy2627';
+    return { sy2526: 'SY 2025-2026', summer2026: 'Summer 2026', sy2627: 'SY 2026-2027' }[p] || 'SY 2026-2027';
+  }
   'use strict';
 
   // ── Column indexes ─────────────────────────────────────────────────────────
@@ -348,7 +353,7 @@
       doc.setFontSize(6.5); doc.setFont('helvetica','italic');
       doc.setTextColor.apply(doc, C.muted);
       doc.text(
-        safe('SY 2025-2026  \xB7  ' + surveyType + '  \xB7  Scale: 4-5 = Positive  \xB7  3 = Neutral  \xB7  1-2 = Negative'),
+        safe(_surveyPeriodLabel() + '  \xB7  ' + surveyType + '  \xB7  Scale: 4-5 = Positive  \xB7  3 = Neutral  \xB7  1-2 = Negative'),
         ML, HDR_H + 3.5
       );
       doc.setTextColor.apply(doc, C.body); doc.setFont('helvetica','normal');
