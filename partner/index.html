@@ -137,6 +137,8 @@
 
   .pt-scope-bar{background:var(--surface-2);border-bottom:1px solid var(--border);padding:.65rem 1.75rem;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;position:sticky;top:110px;z-index:180}
   .pt-scope-bar[hidden]{display:none}
+  @media (pointer:coarse){ .pt-nav-btn,.pt-logout,.pt-select,.pt-tab{min-height:40px} .pt-nav-btn{min-width:40px;justify-content:center} }
+  @media (min-width:1800px){ .pt-main,.pt-footer-inner{max-width:1600px} }
   .pt-scope-label{font-size:.78rem;font-weight:700;color:var(--text-2)}
   .pt-scope-active{font-size:.75rem;color:var(--blue-mid);font-weight:700;background:var(--prog-bg);padding:.25rem .6rem;border-radius:999px}
 
@@ -341,7 +343,7 @@
 <script src="../auth/auth.js?v=1"></script>
 <script src="../auth/partner-guard.js?v=1"></script>
 <script src="./partner-report.js?v=2"></script>
-<script src="./app.js?v=3"></script>
+<script src="./app.js?v=4"></script>
 <script src="./pie-bot.js?v=2"></script>
 <script src="./tour.js?v=2"></script>
 </body>

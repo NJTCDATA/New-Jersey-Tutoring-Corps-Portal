@@ -908,10 +908,14 @@
     // (or narrower) number than what's on screen.
     window.NJTC_BUNDLE = { ...BUNDLE, attendance: scopedAttendance(), scholarSurveys: scopedScholarSurveys(), tutorSurveys: scopedTutorSurveys(), sessions: hasSessionData() ? scopedSessions() : [] };
 
-    // Year-over-year card at the top of Summary (full scope, not drill-down)
+    // Year-over-year card on Summary — after the headline KPIs (or the
+    // welcome banner when there's no data yet). Full scope, not drill-down.
     const yoy = trendCardHtml();
     const sum = document.getElementById('view-summary');
-    if (yoy && sum) sum.insertAdjacentHTML('afterbegin', yoy);
+    if (yoy && sum) {
+      const anchor = sum.querySelector('#tourKpis') || sum.querySelector('.pt-hero');
+      if (anchor) anchor.insertAdjacentHTML('afterend', yoy); else sum.insertAdjacentHTML('afterbegin', yoy);
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════

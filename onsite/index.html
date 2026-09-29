@@ -65,7 +65,12 @@
       /* Mobile responsive */
       @media (max-width:768px) {
         .njtc-portal-header { padding:0.65rem 1rem; gap:0.75rem; }
-        .njtc-tab-nav { order:3; width:100%; overflow-x:auto; padding-bottom:0.25rem; }
+        /* Tabs get their own full-width row and scroll sideways — never squeezed */
+        .njtc-tab-nav { order:3; flex:1 1 100%; width:100%; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:0.25rem; }
+        .njtc-tab-nav::-webkit-scrollbar { display:none; }
+        .njtc-nav-tab { flex-shrink:0; }
+        .njtc-ph-identity { min-width:0; flex:1 1 auto; }
+        .njtc-ph-name, .njtc-ph-role { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60vw; }
         .njtc-ph-actions { margin-left:0; }
         .njtc-ph-time { display:none; }
         #tab-dashboard .njtc-dash-container, #tab-platforms .njtc-plat-container, #tab-resources .njtc-res-container { padding:1.25rem 1rem 3rem; }
@@ -73,6 +78,14 @@
       @media (max-width:480px) {
         .njtc-nav-tab { padding:0.4rem 0.65rem; font-size:0.77rem; }
         .njtc-ph-btn { padding:0.35rem 0.65rem; font-size:0.72rem; }
+      }
+      /* Large monitors: use more of the width */
+      @media (min-width:1800px) {
+        #tab-dashboard .njtc-dash-container, #tab-platforms .njtc-plat-container, #tab-resources .njtc-res-container { max-width:1680px; }
+      }
+      /* Touch devices: finger-sized controls */
+      @media (pointer:coarse) {
+        .njtc-nav-tab, .njtc-ph-btn { min-height:40px; }
       }
     </style>
 </head>
@@ -366,9 +379,9 @@
     <script src="script.js?v=10"></script>
     <script src="pearl-data.js?v=11"></script>
     <script src="my-dashboard.js?v=12"></script>
-    <script src="connor-bot.js?v=10"></script>
+    <script src="connor-bot.js?v=11"></script>
     <script src="connor-tour.js?v=1"></script>
-    <script src="leader-team.js?v=4"></script>
+    <script src="leader-team.js?v=5"></script>
     <script src="weekly-recap.js?v=1"></script>
 
 </body>

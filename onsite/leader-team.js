@@ -1542,8 +1542,8 @@
       @media (max-width: 640px) {
         .njtc-detail-panel { width:100vw; right:-100vw; }
         .njtc-tutor-grid { grid-template-columns:1fr; }
-        .njtc-kpi-strip { flex-direction:column; }
-        .njtc-kpi-card { min-width:unset; }
+        .njtc-kpi-strip { display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-x:visible; }
+        .njtc-kpi-card { min-width:0; }
         .njtc-tap-meta { grid-template-columns:1fr; }
         .njtc-ir-meta { grid-template-columns:1fr 1fr; }
         .njtc-survey-grid { grid-template-columns:1fr 1fr; }

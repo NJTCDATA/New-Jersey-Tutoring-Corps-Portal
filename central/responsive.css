@@ -1,0 +1,128 @@
+/* ============================================================================
+   NJTC Central — responsive layer (loaded last so it wins over module styles)
+   Phones (≤640) · tablets (641–1024, drawer navigation) · laptops/Macs
+   (1025–1599) · large monitors (≥1600, wider content). Touch devices get
+   finger-sized controls regardless of width.
+   ============================================================================ */
+
+/* ── Menu button (hidden on desktop) ─────────────────────────────────────── */
+.ct-menu-btn { display: none; }
+
+/* ── Large monitors: use the extra width instead of a 1200px column ──────── */
+@media (min-width: 1600px) { .ct-main { max-width: 1560px; } }
+@media (min-width: 2200px) { .ct-main { max-width: 1880px; padding: 2.25rem 2.75rem; } }
+
+/* ── Laptops / 13" Macs: keep header on one line ─────────────────────────── */
+@media (max-width: 1280px) {
+  .ct-nav { padding: 0 1.25rem; gap: .75rem; }
+  .nav-center { gap: .75rem; min-width: 0; }
+  .nav-right { gap: .6rem; }
+}
+
+/* ── Tablets & phones: drawer navigation ─────────────────────────────────── */
+@media (max-width: 1024px) {
+  .ct-menu-btn {
+    display: inline-flex; flex-direction: column; justify-content: center; gap: 4px;
+    width: 42px; height: 42px; padding: 0 10px; margin-right: .25rem; flex-shrink: 0;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 10px; cursor: pointer;
+  }
+  .ct-menu-btn span { display: block; height: 2px; background: #fff; border-radius: 2px; transition: transform .2s, opacity .2s; }
+  body.ct-drawer-open .ct-menu-btn span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+  body.ct-drawer-open .ct-menu-btn span:nth-child(2) { opacity: 0; }
+  body.ct-drawer-open .ct-menu-btn span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+  .ct-nav { height: auto; min-height: 60px; padding: .5rem 1rem; flex-wrap: wrap; row-gap: .4rem; }
+  .nav-brand { flex: 1 1 auto; min-width: 0; gap: .6rem; }
+  .nav-brand > div:last-child { min-width: 0; }
+  .nav-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav-date, .session-badge { display: none !important; }
+  .nav-center { order: 3; flex: 1 1 100%; justify-content: flex-start; min-width: 0; }
+  .nav-center:empty { display: none; }
+  .dept-lens-bar { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .dept-lens-bar::-webkit-scrollbar { display: none; }
+  .nav-right { flex-shrink: 0; }
+
+  /* Layout: single column; the sidebar becomes an off-canvas drawer */
+  .ct-layout { grid-template-columns: 1fr !important; }
+  .ct-sidebar {
+    position: fixed !important; top: var(--ct-nav-h, 60px); left: 0; bottom: 0;
+    width: min(320px, 86vw); height: auto !important; z-index: 300;
+    display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important;
+    padding: 1rem 0 2rem !important; gap: 0 !important;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    transform: translateX(-105%); transition: transform .25s ease; box-shadow: 8px 0 30px rgba(0,0,0,.35);
+  }
+  body.ct-drawer-open .ct-sidebar { transform: none; }
+  .ct-sidebar .sidebar-group-label, .ct-sidebar .sidebar-divider, .ct-sidebar .sidebar-dept-card { display: block !important; }
+  .ct-sidebar .sidebar-link { width: 100% !important; padding: .7rem 1.25rem !important; }
+  .ct-drawer-backdrop { position: fixed; inset: var(--ct-nav-h, 60px) 0 0 0; background: rgba(10,22,40,.45); z-index: 290; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  body.ct-drawer-open .ct-drawer-backdrop { opacity: 1; pointer-events: auto; }
+  body.ct-drawer-open { overflow: hidden; }
+  body.ct-drawer-open #pieTrigger, body.ct-drawer-open #piePeek { visibility: hidden; }
+
+  .ct-main { max-width: none; padding: 1.5rem; min-width: 0; }
+  .ct-main, .ct-main .panel { min-width: 0; }
+
+  /* Page headers: stack title and actions, wrap buttons */
+  .page-header { gap: .75rem; }
+  .ph-actions { flex-wrap: wrap; flex-shrink: 1; min-width: 0; max-width: 100%; }
+  .ph-subtitle { max-width: none; }
+
+  /* Wide data tables scroll inside their card instead of spilling off-screen */
+  .ct-main table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ct-main table thead, .ct-main table tbody, .ct-main table tfoot { width: 100%; }
+  .kpi-wrap, .table-wrap, .sy-table-wrap { max-width: 100%; overflow-x: auto; }
+
+  /* Filter rows wrap instead of overflowing */
+  .kpi-filters, .filter-bar, .sy-filters, .po-filters { flex-wrap: wrap; }
+  .kpi-filters > *, .filter-bar > * { min-width: 0; }
+
+  /* Multi-column KPI strips fold to fit */
+  .kpi-summary-strip { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important; }
+  .stat-grid, .stats-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+
+  /* Charts and media never exceed their container */
+  .ct-main canvas, .ct-main img, .ct-main svg, .ct-main iframe { max-width: 100%; }
+  .ct-main canvas { height: auto; }
+
+  /* Modals fit the screen */
+  .modal-box, .sy-modal { max-width: 96vw !important; max-height: 92vh; overflow-y: auto; }
+}
+
+/* ── Phones ───────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .ct-nav { padding: .45rem .75rem; }
+  .nav-logo { width: 34px; height: 34px; }
+  .nav-subtitle { display: none; }
+  .nav-title { font-size: .875rem; }
+  .dept-pill { padding: .25rem .6rem; font-size: .625rem; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-signout { padding: .45rem .7rem; }
+  .ct-main { padding: 1rem .875rem 2rem; }
+  .ph-title { font-size: 1.5rem; }
+  .ph-actions > * { flex: 1 1 auto; }
+  .kpi-summary-strip { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-filters > * { flex: 1 1 100% !important; width: 100%; }
+}
+
+/* ── Touch devices (phones, iPads, touch PCs): finger-sized controls ─────── */
+@media (pointer: coarse) {
+  .ct-main .btn, .ct-main button, .ct-main select, .ct-main input:not([type=checkbox]):not([type=radio]),
+  .ph-actions button, .btn-signout, .sidebar-link, .kpi-sy-btn, .pst-tab, .kpia-tab {
+    min-height: 40px;
+  }
+  .ct-main select, .ct-main input:not([type=checkbox]):not([type=radio]) { font-size: 16px; } /* no iOS zoom-on-focus */
+  .pst-tab, .kpi-sy-btn, .kpia-tab { padding-left: .9rem; padding-right: .9rem; }
+
+  /* Everywhere on the page (modals, overlays, alert bar): no tiny targets */
+  button, select, .btn, a.btn, .pds-tab, .dept-lens-pill { min-height: 36px; }
+  #sySummerBadge { display: inline-flex; align-items: center; min-height: 34px; }
+  .dept-lens-pill { padding-top: .35rem; padding-bottom: .35rem; }
+  .njtc-task-link, .njtc-task2-link, [id^="njtc-alert"] a { display: inline-flex; align-items: center; min-height: 36px; }
+  #njtc-alert-dismiss, #njtc-alert2-dismiss, .modal-close, .gov-close, .gd-close, .sy-modal-close {
+    min-width: 40px; min-height: 40px; display: inline-flex; align-items: center; justify-content: center;
+  }
+}
+
+/* ── All widths: the content column may shrink; wide tables scroll in place ── */
+.ct-layout > .ct-main { min-width: 0; }
+.kpi-wrap { max-width: 100%; overflow-x: auto; }
