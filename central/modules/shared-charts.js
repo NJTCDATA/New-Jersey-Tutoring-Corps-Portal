@@ -11,6 +11,13 @@
   //  Risk: ≥85% Healthy · 65–84% Watch · 40–64% At Risk · <40% Critical
   // ════════════════════════════════════════════════════════════════
 
+  // Active KPI school year (toggle lives in shared-utils.js → KPI_SY_CONFIG)
+  const _KSY_FALLBACK = { key:'25-26', short:'SY 25-26', label:'SY 2025–2026', years:'2025–2026', pptx:'SY2025-26' };
+  function _kSY(){ return (typeof window.kpiSYConfig === 'function' && window.kpiSYConfig()) || _KSY_FALLBACK; }
+  function _kSYh(){ return _kSY().label.replace(/–/g, '&ndash;'); }          // "SY 2025&ndash;2026"
+  function _kSYYearsH(){ return _kSY().years.replace(/–/g, '&ndash;'); }     // "2025&ndash;2026"
+  window._kSY = _kSY;
+
   const KPI_PT = { 'Met':1, 'Partially Met':.5, 'In Progress':.25, 'Coming Down the Pipeline':.1, 'Has Not Met':0 };
 
   function kpiPts(s){ return KPI_PT[s] ?? 0; }
@@ -74,7 +81,9 @@
   window.kpiPts     = kpiPts;
 
   // ════════════════════════════════════════════════════════════════
-  //  YEAR-OVER-YEAR SNAPSHOT  (SY24-25 vs. SY25-26 EOY)
+  //  YEAR-OVER-YEAR SNAPSHOT  (prior SY vs. selected SY EOY)
+  //  SY25-26 view compares against SY24-25 (below); SY26-27 view compares
+  //  against SY25-26's live sheet data via window.kpiPriorYear().
   //  SY24-25 is a frozen static dataset (KPI_DATA_24_25) that only ever
   //  recorded one status per target — it never used health buckets or a
   //  weighted %. Scored here with the exact same KPI_PT / riskBucket
@@ -83,7 +92,8 @@
   //  this year's EOY data is present (calcKPI().hasEOY).
   // ════════════════════════════════════════════════════════════════
   function calcPriorYearKPI(){
-    const data = window.KPI_DATA_24_25 || [];
+    const py = (typeof window.kpiPriorYear === 'function') ? window.kpiPriorYear() : null;
+    const data = py ? (py.data || []) : (window.KPI_DATA_24_25 || []);
     const getS = k => k.status || 'Unknown';
     let totalPts=0, maxPts=0;
     const counts = { Met:0,'Partially Met':0,'In Progress':0,'Coming Down the Pipeline':0,'Has Not Met':0 };
@@ -95,7 +105,8 @@
     });
     const score = maxPts ? (totalPts/maxPts*100) : 0;
     const risk  = riskBucket(score);
-    return { data, counts, totalPts, maxPts, score, risk, total: data.length };
+    return { data, counts, totalPts, maxPts, score, risk, total: data.length,
+             label: py ? py.label : 'SY 2024–2025', fromSheet: !!(py && py.fromSheet) };
   }
 
   // Returns null when either side of the comparison isn't ready yet —
@@ -105,14 +116,17 @@
     const cy = calcKPI();
     if (!py.total || !cy.hasEOY) return null;
     const delta = cy.score - py.score;
+    const note = py.fromSheet
+      ? 'Both years are scored with the same weighted methodology: Met = 1.0 pt, Partially Met = 0.5, In Progress = 0.25, Coming Down the Pipeline = 0.10, Has Not Met = 0 — points earned divided by targets tracked. ' + py.label + ' uses its End of Cycle status per target (Mid Cycle where End of Cycle was blank).'
+      : 'SY24–25 tracked a single end-of-year status per target and did not use health buckets or a weighted score. To make this an apples-to-apples comparison, both years above are scored with this year’s methodology: Met = 1.0 pt, Partially Met = 0.5, In Progress = 0.25, Coming Down the Pipeline = 0.10, Has Not Met = 0 — points earned divided by targets tracked.';
     return {
-      priorYear:   { label:'SY 2024–2025', score: py.score, risk: py.risk, counts: py.counts, total: py.total },
-      currentYear: { label:'SY 2025–2026', score: cy.score, risk: cy.risk, counts: cy.counts, total: cy.total },
+      priorYear:   { label: py.label, score: py.score, risk: py.risk, counts: py.counts, total: py.total },
+      currentYear: { label: _kSY().label, score: cy.score, risk: cy.risk, counts: cy.counts, total: cy.total },
       delta,
       deltaLabel: (delta>=0?'+':'') + delta.toFixed(1) + ' pts',
       improved: delta >= 0,
       bucketChanged: py.risk.label !== cy.risk.label,
-      note: 'SY24–25 tracked a single end-of-year status per target and did not use health buckets or a weighted score. To make this an apples-to-apples comparison, both years above are scored with this year’s methodology: Met = 1.0 pt, Partially Met = 0.5, In Progress = 0.25, Coming Down the Pipeline = 0.10, Has Not Met = 0 — points earned divided by targets tracked.'
+      note: note
     };
   }
   window.calcPriorYearKPI  = calcPriorYearKPI;
@@ -150,6 +164,40 @@
     return parts.join(' · ');
   }
 
+  function renderKPIAwaitingStatus(d){
+    const sy = _kSY();
+    const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const goalNames = Object.keys(d.goals);
+    let html = `
+    <div style="background:linear-gradient(135deg,#eef4ff,white);border:2px solid #1e3a5f22;border-radius:16px;padding:1.5rem 1.75rem;margin-bottom:1.25rem;display:flex;gap:1.25rem;align-items:flex-start;flex-wrap:wrap">
+      <div style="font-size:2.5rem;line-height:1">🗓️</div>
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:1.125rem;font-weight:700;color:var(--navy);margin-bottom:.375rem">${esc(sy.label)} targets are live — awaiting the first status update</div>
+        <div style="font-size:.875rem;color:var(--text-2);line-height:1.5">
+          <strong>${d.total} targets</strong> across <strong>${goalNames.length} goal areas</strong> are loaded from the ${esc(sy.label)} Annual Goal Tracking Database.
+          Health scores, goal-area breakdowns, and the quarterly report will populate automatically as goal owners enter Mid Cycle, End of Cycle, and quarterly statuses in the sheet.
+        </div>
+      </div>
+      <div style="text-align:center;background:white;border-radius:12px;padding:1rem 1.25rem;border:1px solid var(--border);min-width:100px;flex-shrink:0">
+        <div style="font-size:2.25rem;font-weight:800;color:var(--navy);font-family:'DM Serif Display',serif;line-height:1">${d.total}</div>
+        <div style="font-size:.6875rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:.25rem">Targets</div>
+      </div>
+    </div>`;
+    html += goalNames.map(name => {
+      const g = d.goals[name];
+      return `<div class="kpia-card" style="margin-bottom:.875rem">
+        <div class="kpia-card-header" style="margin-bottom:.5rem">
+          <div class="kpia-card-title">${esc(name)}</div>
+          <div class="kpia-card-meta">${g.items.length} target${g.items.length===1?'':'s'} · status pending</div>
+        </div>
+        <ul style="margin:0;padding-left:1.1rem;font-size:.8125rem;color:var(--text);line-height:1.6">
+          ${g.items.map(k => `<li>${esc(k.target)}${k.owner?` <span style="color:var(--muted);font-size:.75rem">— ${esc(k.owner)}</span>`:''}</li>`).join('')}
+        </ul>
+      </div>`;
+    }).join('');
+    return html;
+  }
+
   // ════════════════════════════════════════════════════════════════
   //  MAIN RENDER
   // ════════════════════════════════════════════════════════════════
@@ -161,6 +209,12 @@
         <div style="font-weight:600;color:var(--navy);margin-bottom:.5rem">No KPI data loaded yet</div>
         <button class="btn btn-secondary" onclick="fetchAndRebuildKPI(true).then(()=>buildKPIAnalytics())">↺ Refresh Data</button>
       </div>`;
+    }
+
+    // Targets loaded but no Mid/End Cycle status reported yet (e.g. start of a
+    // new SY) — show the target roster instead of a misleading 0% score.
+    if(!d.data.some(k => (k.midStatus||'').trim() || (k.endStatus||'').trim() || (k.status||'').trim())){
+      return renderKPIAwaitingStatus(d);
     }
 
     const { counts, score, risk, goals, total, totalPts, maxPts, hasEOY } = d;
@@ -575,6 +629,17 @@
   function renderQuarterlyTab() {
     var qd = window.KPI_Q_DATA;
 
+    if (qd && qd.rows && qd.rows.length && qd.activeQs && !qd.activeQs.length) {
+      return `<div style="padding:3rem;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:.875rem">📅</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:.5rem">No quarterly statuses reported yet · ${_kSY().label}</div>
+        <div style="font-size:.875rem;color:var(--muted);max-width:420px;margin:0 auto .5rem">
+          ${qd.rows.length} targets are connected from the Quarterly Goal Tracking tab. This view fills in automatically once Q1 statuses are entered.
+        </div>
+        <button class="btn btn-secondary" style="margin-top:.75rem" onclick="fetchKPIMetadata(true);setTimeout(()=>setKPIAnalyticsTab('quarterly'),1800)">↺ Reload quarterly data</button>
+      </div>`;
+    }
+
     if (!qd || !qd.activeQs || !qd.activeQs.length) {
       return `<div style="padding:3rem;text-align:center">
         <div style="font-size:2.5rem;margin-bottom:.875rem">📅</div>
@@ -602,7 +667,7 @@
     var critical  = deltas.filter(function(d){ var lm=d.moves[d.moves.length-1]; return lm && lm.to==='Has Not Met'; });
 
     var tsStr = new Date(qd.lastUpdated).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
-    var qLabel = 'Q' + latestQ + ' \u2014 SY 2025\u20132026';
+    var qLabel = 'Q' + latestQ + ' \u2014 ' + _kSY().label;
 
     var html = '';
 
@@ -639,7 +704,7 @@
       html += `<div class="kpia-card" style="margin-bottom:1.25rem">
         <div class="kpia-card-header" style="margin-bottom:1rem">
           <div class="kpia-card-title">📈 Quarter-by-Quarter Progression</div>
-          <div class="kpia-card-meta">Health score trend across completed quarters · SY 2025–2026</div>
+          <div class="kpia-card-meta">Health score trend across completed quarters · ${_kSY().label}</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.875rem">`;
       scorecards.forEach(function(sc, idx) {
@@ -826,7 +891,7 @@
     html += `<div class="kpia-card" style="margin-bottom:1.25rem">
       <div class="kpia-card-header" style="margin-bottom:1rem">
         <div class="kpia-card-title">📊 Full Cross-Quarter Breakdown by Goal Area</div>
-        <div class="kpia-card-meta">Every target with status across all completed quarters · SY 2025–2026</div>
+        <div class="kpia-card-meta">Every target with status across all completed quarters · ${_kSY().label}</div>
       </div>`;
 
     goalOrder.forEach(function(goal) {
@@ -4686,6 +4751,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     }
     // Also clear any stale 404 suppression flag from previous code version
     try { localStorage.removeItem('njtc_kpi_meta_404'); } catch(e) {}
+    // Pin to the SY active at request time (see setKpiSY in shared-utils.js)
+    var reqSY = window.NJTC_KPI_SY, reqCacheKey = KPI_META_CACHE_KEY;
     fetch(KPI_META_URL)
       .then(function(r){ return r.ok ? r.text() : ''; })
       .then(function(csv){
@@ -4694,7 +4761,8 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         if (!rows || rows.length < 2) return;
         // Row 0 = legend/description, Row 1 = headers → data starts at row 2
         var dataRows = rows.slice(2).filter(function(r2){ return r2[0] && r2[1]; });
-        try { localStorage.setItem(KPI_META_CACHE_KEY, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
+        try { localStorage.setItem(reqCacheKey, JSON.stringify({ts: Date.now(), rows: dataRows})); } catch(e) {}
+        if (reqSY !== window.NJTC_KPI_SY) return; // year was toggled mid-fetch
         _mergeKPIMeta(dataRows);
         _extractAndStoreQuarterlyData(dataRows);
       })
@@ -5049,6 +5117,22 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     _extractAndStoreQuarterlyData(dataRows);
   }
 
+  // Manual CSV overrides are kept per school year
+  function _kqrSnapshotKey() {
+    var cfg = (typeof window.kpiSYConfig === 'function') ? window.kpiSYConfig() : null;
+    return (cfg && cfg.snapshotKey) || 'njtc_kqr_snapshot';
+  }
+
+  // Called by setKpiSY (shared-utils.js) when the school year is toggled:
+  // clears the outgoing year's quarterly engine output and report view.
+  function _resetKPIQuarterly() {
+    KPI_Q_DATA = null;
+    window.KPI_Q_DATA = null;
+    var rptEl = document.getElementById('kpiQRReport');
+    if (rptEl) { rptEl.innerHTML = ''; rptEl.classList.remove('visible'); }
+  }
+  window._resetKPIQuarterly = _resetKPIQuarterly;
+
   function kqrHandleFile(file) {
     if (!file) return;
     var reader = new FileReader();
@@ -5058,7 +5142,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
         if (!rows || rows.length < 3) { alert('Could not parse CSV. Make sure you are using the Quarterly Goal Tracking tab export.'); return; }
         var dataRows = rows.slice(2).filter(function(r){ return r[0] && r[1]; });
         kqrRenderSnapshot(dataRows, file.name);
-        try { sessionStorage.setItem('njtc_kqr_snapshot', JSON.stringify({rows: dataRows, fname: file.name, ts: Date.now()})); } catch(ex) {}
+        try { sessionStorage.setItem(_kqrSnapshotKey(), JSON.stringify({rows: dataRows, fname: file.name, ts: Date.now()})); } catch(ex) {}
       } catch(err) { alert('Error reading CSV: ' + err.message); }
     };
     reader.readAsText(file);
@@ -5066,7 +5150,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
   function kqrRestoreSnapshot() {
     try {
-      var saved = sessionStorage.getItem('njtc_kqr_snapshot');
+      var saved = sessionStorage.getItem(_kqrSnapshotKey());
       if (!saved) return;
       var obj = JSON.parse(saved);
       if (obj && obj.rows && obj.rows.length) kqrRenderSnapshot(obj.rows, obj.fname, true);
@@ -5081,7 +5165,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       var hasData = dataRows.some(function(r){ return r[sc] && r[sc].trim(); });
       if (hasData) { activeQ = qi + 1; break; }
     }
-    var qLabel     = activeQ ? ('Q' + activeQ + ' \u2014 SY 2025\u20132026') : 'SY 2025\u20132026';
+    var qLabel     = activeQ ? ('Q' + activeQ + ' \u2014 ' + _kSY().label) : _kSY().label;
     var qStatusCol = activeQ > 0 ? qCols[activeQ-1][1] : 7;
     var qDataCol   = activeQ > 0 ? qCols[activeQ-1][0] : 6;
 
@@ -5217,7 +5301,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   }
 
   function kqrClear() {
-    try { sessionStorage.removeItem('njtc_kqr_snapshot'); } catch(e) {}
+    try { sessionStorage.removeItem(_kqrSnapshotKey()); } catch(e) {}
     var rptEl = document.getElementById('kpiQRReport');
     if (rptEl) { rptEl.innerHTML = ''; rptEl.classList.remove('visible'); }
     var dz = document.getElementById('kqrDropZone');
@@ -5852,7 +5936,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       text('NEW JERSEY TUTORING CORPS', M+34, 63, {size:11.5, bold:true, color:GOLD, charSpace:1.6});
 
       text('Quarterly Goal Summary', M, 150, {size:30, bold:true, color:WHITE});
-      text('Q'+latestQ+'  \u2014  SY 2025\u20132026  \u00B7  Leadership Review', M, 178, {size:14.5, color:GOLD});
+      text('Q'+latestQ+'  \u2014  '+_kSY().label+'  \u00B7  Leadership Review', M, 178, {size:14.5, color:GOLD});
       text('Generated '+tsStr+'   \u00B7   Confidential \u2014 Internal Use Only', M, 200, {size:9.5, color:[170,180,200]});
 
       var gx=W-130, gy=245, gr=62;
@@ -5880,7 +5964,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // ══════════════════════════════════════════════════════════
       doc.addPage();
       fillRect(0,0,W,H,WHITE);
-      pageHeader('Where We Stand', 'Executive Summary  \u00B7  Q'+latestQ+' SY 2025\u20132026', 'chartline_white', NAVY);
+      pageHeader('Where We Stand', 'Executive Summary  \u00B7  Q'+latestQ+' '+_kSY().label, 'chartline_white', NAVY);
 
       fillRect(M, 92, 300, 96, ICEBLUE, 8);
       paragraph(narrative.headline, M+16, 112, 268, {size:9, lineHeightFactor:1.3});
@@ -5958,7 +6042,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
         doc.addPage();
         fillRect(0,0,W,H,WHITE);
-        pageHeader('Year-over-Year Snapshot', 'SY 2024–2025 vs. SY 2025–2026  ·  End-of-Year Comparison', 'chartline_white', GOLD);
+        pageHeader('Year-over-Year Snapshot', yoy.priorYear.label+' vs. '+yoy.currentYear.label+'  ·  End-of-Year Comparison', 'chartline_white', GOLD);
 
         var yColW = (W-2*M-40)/2, yPyX = M, yCyX = M+yColW+40, yCardY = 100, yCardH = 236;
         [
@@ -6196,7 +6280,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       for (var pg=1; pg<=pageCount; pg++){
         doc.setPage(pg);
         fillRect(0,H-26,W,26,NAVY);
-        text('New Jersey Tutoring Corps  \u00B7  Quarterly Summary  \u00B7  SY 2025\u20132026  \u00B7  Confidential', M, H-10, {size:7, color:WHITE});
+        text('New Jersey Tutoring Corps  \u00B7  Quarterly Summary  \u00B7  '+_kSY().label+'  \u00B7  Confidential', M, H-10, {size:7, color:WHITE});
         doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor.apply(doc,WHITE);
         doc.text('Page '+pg+' of '+pageCount, W-M, H-10, {align:'right'});
       }
@@ -6235,7 +6319,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       pptx.layout  = 'LAYOUT_WIDE'; // 13.3 x 7.5 in
       pptx.author  = 'New Jersey Tutoring Corps';
       pptx.subject = 'Quarterly Goal Summary';
-      pptx.title   = 'NJTC Quarterly Summary Q' + qd.activeQs[qd.activeQs.length-1] + ' SY2025-26';
+      pptx.title   = 'NJTC Quarterly Summary Q' + qd.activeQs[qd.activeQs.length-1] + ' ' + _kSY().pptx;
       pptx.company = 'NJTC';
 
       // ── NJTC brand palette ──────────────────────────────────────
@@ -6274,7 +6358,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       s1.addImage(Object.assign(icon('grad_gold'), {x:0.7, y:0.55, w:0.5, h:0.5}));
       s1.addText('NEW JERSEY TUTORING CORPS', {x:1.25, y:0.55, w:7, h:0.5, fontSize:13, bold:true, color:GOLD, charSpacing:2, fontFace:'Calibri', valign:'middle'});
       s1.addText('Quarterly Goal Summary', {x:0.7, y:2.15, w:10.5, h:0.85, fontSize:44, bold:true, color:WHITE, fontFace:'Cambria', valign:'top'});
-      s1.addText('Q'+latestQ+' \u2014 School Year 2025\u20132026  \u00B7  Leadership Review', {x:0.7, y:3.12, w:10, h:0.55, fontSize:18, color:GOLD, fontFace:'Calibri'});
+      s1.addText('Q'+latestQ+' \u2014 School Year '+_kSY().years+'  \u00B7  Leadership Review', {x:0.7, y:3.12, w:10, h:0.55, fontSize:18, color:GOLD, fontFace:'Calibri'});
       s1.addText('Generated '+tsStr+'   \u00B7   Confidential \u2014 Internal Use Only', {x:0.7, y:3.72, w:10, h:0.4, fontSize:10.5, color:'A9B4C9', fontFace:'Calibri'});
 
       var gaugeData = [{ name:'Score', labels:['Health','Remaining'], values:[latestSC.score, 100-latestSC.score] }];
@@ -6304,7 +6388,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       // ══════════════════════════════════════════════════════════
       var s2 = pptx.addSlide();
       s2.background = { color: WHITE };
-      slideHeader(s2, 'Where We Stand', 'Executive Summary \u2014 Q'+latestQ+' SY 2025\u20132026', 'chartline_white', NAVY);
+      slideHeader(s2, 'Where We Stand', 'Executive Summary \u2014 Q'+latestQ+' '+_kSY().label, 'chartline_white', NAVY);
 
       s2.addShape(pptx.shapes.ROUNDED_RECTANGLE, {x:0.6, y:1.55, w:7.2, h:1.55, fill:{color:ICEBLUE}, rectRadius:0.09, shadow: freshShadow()});
       s2.addText(_safe(narrative.headline), {x:0.85, y:1.72, w:6.7, h:1.25, fontSize:11.5, color:INK, fontFace:'Calibri', valign:'top', lineSpacingMultiple:1.18});
@@ -6356,7 +6440,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       if (yoy) {
         var s2b = pptx.addSlide();
         s2b.background = { color: WHITE };
-        slideHeader(s2b, 'Year-over-Year Snapshot', 'SY 2024–2025 vs. SY 2025–2026 — End-of-Year Comparison', 'chartline_white', GOLD);
+        slideHeader(s2b, 'Year-over-Year Snapshot', yoy.priorYear.label+' vs. '+yoy.currentYear.label+' — End-of-Year Comparison', 'chartline_white', GOLD);
 
         [
           { x:0.6,  d:yoy.priorYear,   bg:ICEBLUE },
@@ -6573,10 +6657,12 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
   // ══════════════════════════════════════════════════════════════════════════
   //  LIVE WORKBOOK — direct link to the source Google Sheet (Quarterly tab)
   // ══════════════════════════════════════════════════════════════════════════
-  var _NJTC_SHEET_ID = '1woHFd7OzO_IS5yD8HOGifVCu0hW3qAStyja63hcxvWg';
-  var _NJTC_QUARTERLY_GID = '1313501732';
+  // Follows the KPI school-year toggle (KPI_SY_CONFIG in shared-utils.js)
   function openKPILiveWorkbook() {
-    window.open('https://docs.google.com/spreadsheets/d/' + _NJTC_SHEET_ID + '/edit#gid=' + _NJTC_QUARTERLY_GID, '_blank');
+    var cfg = (typeof window.kpiSYConfig === 'function') ? window.kpiSYConfig() : null;
+    var sheetId = (cfg && cfg.sheetId) || '1woHFd7OzO_IS5yD8HOGifVCu0hW3qAStyja63hcxvWg';
+    var gid     = (cfg && cfg.quarterlyGid) || '1313501732';
+    window.open('https://docs.google.com/spreadsheets/d/' + sheetId + '/edit#gid=' + gid, '_blank');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -6646,7 +6732,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
       + '<div class="ring-bg"></div>'
       + '<div class="brand">🎓 NEW JERSEY TUTORING CORPS</div>'
       + '<h1>Quarterly Goal Summary</h1>'
-      + '<div class="sub">Q'+latestQ+' &mdash; School Year 2025&ndash;2026 &middot; Live Presentation</div>'
+      + '<div class="sub">Q'+latestQ+' &mdash; School Year '+_kSYYearsH()+' &middot; Live Presentation</div>'
       + '<div class="meta">Live as of '+esc(tsStr)+' &middot; Confidential &mdash; Internal Use Only</div>'
       + '<div class="gauge-wrap">'+_svgGauge(latestSC.score, 220, '#E8A838', '#2A3B63')
       + '<div class="gauge-label"><div class="gauge-pct">'+latestSC.score+'%</div><div class="gauge-health">'+esc(latestSC.health.label.toUpperCase())+'</div></div></div>'
@@ -6665,7 +6751,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     ];
     if (latestSC.counts.pipe) mixSegs.push({label:'Pipeline', val:latestSC.counts.pipe, color:'#7C3AED'});
     slides.push('<section class="slide light">'
-      + '<div class="head"><div class="hicon navy">📈</div><div><h2>Where We Stand</h2><div class="hsub">Executive Summary &middot; Q'+latestQ+' SY 2025&ndash;2026</div></div></div>'
+      + '<div class="head"><div class="hicon navy">📈</div><div><h2>Where We Stand</h2><div class="hsub">Executive Summary &middot; Q'+latestQ+' '+_kSYh()+'</div></div></div>'
       + '<div class="row">'
       + '<div class="headline-card">'+esc(narrative.headline)+'</div>'
       + '<div class="stat-grid">'
@@ -6693,7 +6779,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
           + '</div>';
       };
       slides.push('<section class="slide light">'
-        + '<div class="head"><div class="hicon gold">📅</div><div><h2>Year-over-Year Snapshot</h2><div class="hsub">SY 2024&ndash;2025 vs. SY 2025&ndash;2026 &middot; End-of-Year Comparison</div></div></div>'
+        + '<div class="head"><div class="hicon gold">📅</div><div><h2>Year-over-Year Snapshot</h2><div class="hsub">'+esc(yoy.priorYear.label)+' vs. '+esc(yoy.currentYear.label)+' &middot; End-of-Year Comparison</div></div></div>'
         + '<div class="yoy-row">'+yoyCol(yoy.priorYear,'py')+yoyCol(yoy.currentYear,'cy')+'</div>'
         + '<div class="yoy-delta '+(yoy.improved?'up':'down')+'"><span class="yoy-delta-val">'+(yoy.improved?'▲ ':'▼ ')+esc(yoy.deltaLabel)+'</span><span class="yoy-delta-label">year-over-year weighted score'+(yoy.bucketChanged?' &middot; '+esc(yoy.priorYear.risk.label)+' → '+esc(yoy.currentYear.risk.label):'')+'</span></div>'
         + '<div class="yoy-note">'+esc(yoy.note)+'</div>'
@@ -6939,7 +7025,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     var body = '';
     body += '<h1>New Jersey Tutoring Corps</h1>';
-    body += '<p class="deck">Quarterly Goal Summary &mdash; Q'+latestQ+', School Year 2025&ndash;2026</p>';
+    body += '<p class="deck">Quarterly Goal Summary &mdash; Q'+latestQ+', School Year '+_kSYYearsH()+'</p>';
     body += '<p class="meta">Prepared by the Data &amp; Evaluation Department &middot; Generated '+_esc(tsStr)+' &middot; Confidential &mdash; Internal Use Only</p>';
 
     body += '<h2>Where We Stand</h2>';
@@ -6949,7 +7035,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
 
     if (yoy) {
       body += '<h2>Year-over-Year Snapshot</h2>';
-      body += '<p>SY 2024&ndash;2025 vs. SY 2025&ndash;2026, both scored with this year’s weighted methodology for an apples-to-apples comparison.</p>';
+      body += '<p>'+_esc(yoy.priorYear.label)+' vs. '+_esc(yoy.currentYear.label)+', both scored with this year’s weighted methodology for an apples-to-apples comparison.</p>';
       body += '<table><tr><th>School Year</th><th>Weighted Score</th><th>Health</th><th>Targets Tracked</th></tr>'
         + '<tr><td>'+_esc(yoy.priorYear.label)+'</td><td>'+yoy.priorYear.score.toFixed(1)+'%</td><td>'+_esc(yoy.priorYear.risk.label)+'</td><td>'+yoy.priorYear.total+'</td></tr>'
         + '<tr><td>'+_esc(yoy.currentYear.label)+'</td><td>'+yoy.currentYear.score.toFixed(1)+'%</td><td>'+_esc(yoy.currentYear.risk.label)+'</td><td>'+yoy.currentYear.total+'</td></tr></table>';
@@ -6995,7 +7081,7 @@ ${scholars!=null?`<div style="margin-top:.625rem;display:flex;gap:.875rem;flex-w
     });
     body += '</table>';
 
-    body += '<p class="footer">New Jersey Tutoring Corps &middot; Quarterly Summary &middot; SY 2025&ndash;2026 &middot; Confidential</p>';
+    body += '<p class="footer">New Jersey Tutoring Corps &middot; Quarterly Summary &middot; '+_kSYh()+' &middot; Confidential</p>';
 
     var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
       + '<head><meta charset="utf-8"><title>NJTC Quarterly Summary Q'+latestQ+'</title>'

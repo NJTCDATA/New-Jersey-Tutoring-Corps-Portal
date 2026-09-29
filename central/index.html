@@ -375,6 +375,20 @@
       display: flex; align-items: center; gap: .75rem; flex-shrink: 0;
     }
 
+    /* KPI school-year toggle (KPI Targets + KPI Analytics) */
+    .kpi-sy-toggle {
+      display: inline-flex; padding: 3px; gap: 2px;
+      background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
+    }
+    .kpi-sy-btn {
+      padding: .45rem .8rem; border: none; border-radius: 8px; background: transparent;
+      font-size: .8125rem; font-weight: 700; font-family: inherit; color: #475569;
+      cursor: pointer; white-space: nowrap; transition: var(--transition);
+    }
+    .kpi-sy-btn:hover { background: #f0f4fa; color: var(--navy); }
+    .kpi-sy-btn.active { background: var(--navy); color: #fff; }
+    #panel-kpi .ph-actions, #panel-kpi-analytics .ph-actions { flex-wrap: wrap; flex-shrink: 1; }
+
     /* Buttons */
     .btn {
       display: inline-flex; align-items: center; gap: .5rem;
@@ -5720,11 +5734,15 @@
     <div class="panel" id="panel-kpi">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">SY 2025–2026</div>
+          <div class="ph-eyebrow" data-kpi-sy-label="label">SY 2025–2026</div>
           <h2 class="ph-title">KPI Targets</h2>
           <p class="ph-subtitle">Organizational targets across all goal areas — live from the NJTC KPI Dashboard. Owner and source fields pulled from the Quarterly Goal Tracking sheet.</p>
         </div>
         <div class="ph-actions">
+          <div class="kpi-sy-toggle" role="group" aria-label="KPI school year">
+            <button type="button" class="kpi-sy-btn" data-sy="25-26" aria-pressed="false" onclick="setKpiSY('25-26')" title="SY 2025–2026 Annual Goal Tracking">📁 SY 25-26</button>
+            <button type="button" class="kpi-sy-btn" data-sy="26-27" aria-pressed="false" onclick="setKpiSY('26-27')" title="SY 2026–2027 Annual Goal Tracking">🎓 SY 26-27</button>
+          </div>
           <button class="btn btn-secondary" id="kpiRefreshBtn" onclick="fetchAndRebuildKPI(true)" title="Re-sync from Google Sheet">↺ Refresh</button>
         </div>
       </div>
@@ -5756,7 +5774,7 @@
           <thead>
             <tr>
               <th style="width:200px">Goal Area</th>
-              <th>2025–2026 Organizational Target</th>
+              <th data-kpi-sy-label="target">2025–2026 Organizational Target</th>
               <th style="width:160px" id="midCycleHeader">Mid-Year Status</th>
               <th style="width:160px" id="endCycleHeader">End of Year Status</th>
               <th style="width:150px" id="kpiOwnerHeader">Owner &amp; Source</th>
@@ -5773,11 +5791,15 @@
 <div class="panel" id="panel-kpi-analytics">
       <div class="page-header">
         <div class="ph-text">
-          <div class="ph-eyebrow">Performance Intelligence</div>
+          <div class="ph-eyebrow">Performance Intelligence · <span data-kpi-sy-label="label">SY 2025–2026</span></div>
           <h2 class="ph-title">KPI Analytics Dashboard</h2>
           <p class="ph-subtitle">Visual breakdown of organizational goal performance, velocity, and focus areas — cross-department insight at a glance.</p>
         </div>
         <div class="ph-actions">
+          <div class="kpi-sy-toggle" role="group" aria-label="KPI school year">
+            <button type="button" class="kpi-sy-btn" data-sy="25-26" aria-pressed="false" onclick="setKpiSY('25-26')" title="SY 2025–2026 Annual Goal Tracking">📁 SY 25-26</button>
+            <button type="button" class="kpi-sy-btn" data-sy="26-27" aria-pressed="false" onclick="setKpiSY('26-27')" title="SY 2026–2027 Annual Goal Tracking">🎓 SY 26-27</button>
+          </div>
           <button class="kpia-inquire-trigger" onclick="openKPIInquiry()">
             💬 Submit KPI Inquiry
           </button>
@@ -6835,14 +6857,14 @@
   document.head.appendChild(s);
 })();
 </script>
-<script src="modules/shared-utils.js?v=28"></script>
-<script src="modules/shared-charts.js?v=10"></script>
+<script src="modules/shared-utils.js?v=29"></script>
+<script src="modules/shared-charts.js?v=11"></script>
 <script src="modules/shared-filters.js?v=3"></script>
 <script src="modules/growth-tree.js?v=1"></script>
 <script src="modules/growth-tree-pdf.js?v=1"></script>
 <script src="modules/leadership.js?v=3"></script>
 <script src="modules/training-development.js?v=6"></script>
-<script src="modules/data-department.js?v=7"></script>
+<script src="modules/data-department.js?v=8"></script>
 <script src="modules/hr-department.js?v=2"></script>
 <script src="modules/dol-report.js?v=2"></script>
 <script src="modules/programming.js?v=12"></script>
